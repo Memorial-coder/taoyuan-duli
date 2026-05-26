@@ -13478,4 +13478,7 @@ module.exports = {
   writeSeparationPersonalStoryReceipts,
   resolveSeparationChildArrangement,
   writeSeparationPersonalFamilyReceipts,
+  __testInternals: {
+    resolveFamilyBuildingMainStateMutationTarget,
+  },
 };

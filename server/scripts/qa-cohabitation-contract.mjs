@@ -4216,6 +4216,62 @@ assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_buil
 assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.mutation_result, 'home_cellar_slot_removed', 'cellar partner main state mutation receipt should record cellar slot removal result')
 assert.ok(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === largeCellarPartner && receipt.target_kind === 'home_cellar_slot' && receipt.mutation_result === 'home_cellar_slot_removed'), 'main state exact mutation response should include cellar slot receipt summary')
 
+const greenhouseMutationData = { home: { greenhouseUnlocked: true } }
+const greenhouseMutationTarget = runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget(greenhouseMutationData, {
+  candidate_path: 'home.greenhouseUnlocked',
+  delete_selector: 'home.greenhouseUnlocked.true',
+})
+const greenhouseMutation = greenhouseMutationTarget.apply()
+assert.equal(greenhouseMutationData.home.greenhouseUnlocked, false, 'greenhouse unlocked exact selector should reset personal greenhouse flag')
+assert.equal(greenhouseMutationTarget.target_kind, 'home_greenhouse_unlocked', 'greenhouse unlocked exact selector should report target kind')
+assert.equal(greenhouseMutation.mutation_result, 'home_greenhouse_unlocked_reset', 'greenhouse unlocked exact selector should report mutation result')
+
+const farmhouseMutationData = {
+  home: { farmhouseLevel: 3, cellarSlots: [], homeRenovationStates: {} },
+  animal: { pets: [{ type: 'cat', name: 'Mimi' }, { type: 'dog', name: 'Wang' }] },
+}
+const farmhouseMutationTarget = runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget(farmhouseMutationData, {
+  candidate_path: 'home.farmhouseLevel',
+  delete_selector: 'home.farmhouseLevel.3',
+})
+const farmhouseMutation = farmhouseMutationTarget.apply()
+assert.equal(farmhouseMutationData.home.farmhouseLevel, 2, 'farmhouse level exact selector should downgrade one level')
+assert.equal(farmhouseMutationTarget.target_kind, 'home_farmhouse_level', 'farmhouse level exact selector should report target kind')
+assert.equal(farmhouseMutation.mutation_result, 'home_farmhouse_level_downgraded', 'farmhouse level exact selector should report mutation result')
+assert.equal(farmhouseMutationTarget.before_value.petCapacityAfter, 2, 'farmhouse level exact selector should audit pet capacity after downgrade')
+
+await assert.rejects(
+  async () => runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget({
+    home: { farmhouseLevel: 3, cellarSlots: [{ itemId: 'peach_wine', quality: 'fine', daysAging: 2 }], homeRenovationStates: {} },
+  }, {
+    candidate_path: 'home.farmhouseLevel',
+    delete_selector: 'home.farmhouseLevel.3',
+  }),
+  error => error?.status === 409,
+  'farmhouse level exact selector should reject downgrade while cellar slots remain'
+)
+await assert.rejects(
+  async () => runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget({
+    home: { farmhouseLevel: 3, cellarSlots: [], homeRenovationStates: { ancestral_display_wall: true } },
+  }, {
+    candidate_path: 'home.farmhouseLevel',
+    delete_selector: 'home.farmhouseLevel.3',
+  }),
+  error => error?.status === 409,
+  'farmhouse level exact selector should reject downgrade while high-level renovations remain'
+)
+await assert.rejects(
+  async () => runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget({
+    home: { farmhouseLevel: 2, cellarSlots: [], homeRenovationStates: {} },
+    animal: { pets: [{ type: 'cat' }, { type: 'dog' }] },
+  }, {
+    candidate_path: 'home.farmhouseLevel',
+    delete_selector: 'home.farmhouseLevel.2',
+  }),
+  error => error?.status === 409,
+  'farmhouse level exact selector should reject downgrade when pet count exceeds resulting capacity'
+)
+
 const ownerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw
 const partnerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw
 const cavePartnerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw
