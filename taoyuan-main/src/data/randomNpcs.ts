@@ -25,6 +25,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     currentTrouble: '货箱受潮，急需能压住湿气的香料和茶点。',
     plotHook: '经商',
     familySeed: '家中长辈经营小茶铺，有一位严厉但护短的姑母。',
+    familyTies: [
+      { id: 'aunt_tea_keeper', kind: 'distant_relative', name: '陆三娘', relation: '姑母', summary: '南岭茶路上有名的护短掌柜，常用账本考校晚辈。', attitude: 'testing' },
+      { id: 'family_tea_shop', kind: 'family_business', name: '陆家小茶铺', relation: '家族产业', summary: '铺子靠桂花窨茶起家，正在等她带回桃源的新茶路。', attitude: 'supportive' },
+      { id: 'south_caravan', kind: 'caravan', name: '南岭茶帮', relation: '商队', summary: '商队愿意给新人机会，但也会追问货损和人情账。', attitude: 'testing' }
+    ],
     preferences: {
       loved: ['tea', 'osmanthus'],
       liked: ['honey', 'rice'],
@@ -58,6 +63,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     currentTrouble: '随身药袋快空了，需要安神又不刺激的食材。',
     plotHook: '学艺',
     familySeed: '曾跟一位老牧人学艺，师徒像家人一样通信。',
+    familyTies: [
+      { id: 'old_shepherd_master', kind: 'mentor', name: '北坡老牧人', relation: '师父', summary: '教她辨认牲畜脾性，也会在信里追问她是否照顾好自己。', attitude: 'supportive' },
+      { id: 'herb_debt', kind: 'old_debt', name: '北坡药账', relation: '旧债', summary: '早年救治幼驹欠下的一袋药材人情，迟早要用成事来偿还。', attitude: 'burdened' },
+      { id: 'herder_cousin', kind: 'distant_relative', name: '程远山', relation: '远房表兄', summary: '常随牧队远行，偶尔会托人带来动物病案。', attitude: 'distant' }
+    ],
     preferences: {
       loved: ['lotus_seed', 'goat_milk'],
       liked: ['sesame', 'sweet_potato'],
@@ -91,6 +101,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     currentTrouble: '盘缠紧张，想用村中见闻换一顿热饭和一点干粮。',
     plotHook: '科考',
     familySeed: '家里有盼他成才的母亲和总爱拆台的妹妹。',
+    familyTies: [
+      { id: 'exam_mother', kind: 'parent', name: '孟氏', relation: '母亲', summary: '把家中最好的米留给他赶考，只盼他别把身体读垮。', attitude: 'supportive' },
+      { id: 'sharp_sister', kind: 'sibling', name: '周小霜', relation: '妹妹', summary: '嘴上嫌他迷路，信里却会夹一张自己画的路线图。', attitude: 'testing' },
+      { id: 'county_school', kind: 'mentor', name: '临水县学师长', relation: '师门', summary: '希望他把乡土经营写成真策论，不只背书。', attitude: 'testing' }
+    ],
     preferences: {
       loved: ['rice', 'tea'],
       liked: ['radish', 'bamboo'],
@@ -124,6 +139,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     currentTrouble: '灯骨缺轻竹，染纸也少一味暖色材料。',
     plotHook: '报恩',
     familySeed: '年轻时受过灯坊师父照拂，一直把师门旧账带在身边。',
+    familyTies: [
+      { id: 'lantern_master', kind: 'mentor', name: '河湾灯坊师父', relation: '师父', summary: '曾在她最穷时收她入坊，留下半册旧灯样。', attitude: 'supportive' },
+      { id: 'workshop_debt', kind: 'old_debt', name: '灯坊旧账', relation: '旧债', summary: '旧灯墙修复未完，她总觉得欠师门一个交代。', attitude: 'burdened' },
+      { id: 'river_trade_boat', kind: 'caravan', name: '河湾货船', relation: '商队', summary: '偶尔捎来旧灯纸和师门消息，也会催她交新样。', attitude: 'distant' }
+    ],
     preferences: {
       loved: ['bamboo', 'pumpkin'],
       liked: ['osmanthus', 'wood'],

@@ -131,13 +131,13 @@
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import type { RandomNpcRelationshipTag } from '@/types'
+  import type { RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcRelationshipTag } from '@/types'
 
   defineEmits<{
     (event: 'selectNpc', npcId: string): void
   }>()
 
-  type RelationNodeGroup = 'self' | 'family' | 'pet' | 'visitor' | 'acquaintance' | 'resident' | 'villager' | 'spirit'
+  type RelationNodeGroup = 'self' | 'family' | 'pet' | 'visitor' | 'acquaintance' | 'resident' | 'villager' | 'spirit' | 'kin'
 
   interface RelationNode {
     id: string
@@ -154,6 +154,7 @@
     y: number
     circleClass: string
     textClass: string
+    anchorNodeId?: string
     selectableNpcId?: string
   }
 
@@ -193,6 +194,23 @@
     spirit: '灵宠'
   } as const
 
+  const familyTieLabels: Record<RandomNpcFamilyTieKind, string> = {
+    parent: '父母',
+    sibling: '兄弟姐妹',
+    distant_relative: '远亲',
+    mentor: '师门',
+    caravan: '商队',
+    old_debt: '旧债',
+    family_business: '家业'
+  }
+
+  const familyTieAttitudeLabels = {
+    supportive: '支持',
+    testing: '考验',
+    distant: '疏远',
+    burdened: '牵挂'
+  } as const
+
   const childStageLabels = {
     baby: '婴儿',
     toddler: '幼儿',
@@ -210,6 +228,7 @@
     if (kind === 'visitor') return 'stroke-accent/50'
     if (kind === 'resident') return 'stroke-warning/70'
     if (kind === 'spirit') return 'stroke-water/70'
+    if (kind === 'kin') return 'stroke-success/70'
     return 'stroke-muted/35'
   }
 
@@ -222,6 +241,7 @@
     if (group === 'acquaintance') return `fill-success stroke-success${selectedRing}`
     if (group === 'visitor') return `fill-accent stroke-accent${selectedRing}`
     if (group === 'spirit') return `fill-water stroke-water${selectedRing}`
+    if (group === 'kin') return `fill-success stroke-success${selectedRing}`
     return `fill-muted stroke-muted${selectedRing}`
   }
 
@@ -233,6 +253,7 @@
     if (group === 'acquaintance') return 'text-success'
     if (group === 'visitor') return 'text-accent'
     if (group === 'spirit') return 'text-water'
+    if (group === 'kin') return 'text-success'
     return 'text-muted'
   }
 
@@ -245,6 +266,22 @@
         y: 38 + Math.sin(angle) * radiusY
       }
     })
+
+  const clampGraphCoord = (value: number, min = 5, max = 95) => Math.max(min, Math.min(max, value))
+
+  const layoutAroundNode = <T,>(entries: T[], centerX: number, centerY: number, radiusX: number, radiusY: number, startAngle = 190) =>
+    entries.map((entry, index) => {
+      const angle = ((startAngle + (360 / Math.max(1, entries.length)) * index) * Math.PI) / 180
+      return {
+        entry,
+        x: clampGraphCoord(centerX + Math.cos(angle) * radiusX),
+        y: clampGraphCoord(centerY + Math.sin(angle) * radiusY, 5, 71)
+      }
+    })
+
+  const getRandomNpcFamilyTieKindLabel = (kind: RandomNpcFamilyTieKind): string => familyTieLabels[kind]
+  const getRandomNpcFamilyTieAttitudeLabel = (attitude: RandomNpcFamilyTieDef['attitude']): string =>
+    familyTieAttitudeLabels[attitude]
 
   const describeFixedNpcRelation = (npcId: string) => {
     const state = npcStore.getNpcState(npcId)
@@ -459,6 +496,8 @@
         statusLabel: `阶段 ${entry.relationshipEventStage}/3`,
         detailLines: [
           `驻村理由：${entry.residenceReason}`,
+          `关系线：${entry.relationshipLine.note}`,
+          entry.familyTies.length > 0 ? `家族节点：${entry.familyTies.map(tie => `${getRandomNpcFamilyTieKindLabel(tie.kind)}-${tie.relation}`).join('、')}` : '家族节点：尚未记录。',
           `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`,
           `路线：${routeLabels[entry.route]}；小订单：${entry.smallOrder.title}。`,
           `偏好：${formatItemNames(entry.preferences.loved.length > 0 ? entry.preferences.loved : entry.preferences.liked)}。`
@@ -468,6 +507,30 @@
         y,
         circleClass: nodeClassByGroup('resident', selectedNodeId.value === `resident:${entry.residentId}`),
         textClass: textClassByGroup('resident')
+      })
+
+      layoutAroundNode(entry.familyTies, x, y, 8.5, 6.5, 205).forEach(({ entry: tie, x: tieX, y: tieY }) => {
+        const tieId = `kin:${entry.residentId}:${tie.id}`
+        nodes.push({
+          id: tieId,
+          name: tie.name,
+          shortLabel: getRandomNpcFamilyTieKindLabel(tie.kind).slice(0, 1),
+          group: 'kin',
+          groupLabel: '随机 NPC 家族',
+          relationLabel: tie.relation,
+          metricLabel: getRandomNpcFamilyTieKindLabel(tie.kind),
+          statusLabel: getRandomNpcFamilyTieAttitudeLabel(tie.attitude),
+          detailLines: [
+            `${entry.name}的${tie.relation}：${tie.summary}`,
+            '该节点只保存在单机随机 NPC 存档，不写入联机公开关系图。'
+          ],
+          tags: [getRandomNpcFamilyTieKindLabel(tie.kind), tie.attitude],
+          x: tieX,
+          y: tieY,
+          circleClass: nodeClassByGroup('kin', selectedNodeId.value === tieId),
+          textClass: textClassByGroup('kin'),
+          anchorNodeId: `resident:${entry.residentId}`
+        })
       })
     })
 
@@ -530,7 +593,7 @@
     graphNodes.value
       .filter(node => node.id !== 'player')
       .map(node => ({
-        from: 'player',
+        from: node.anchorNodeId ?? 'player',
         to: node.id,
         label: node.relationLabel,
         className: relationLinkClass(

@@ -157,6 +157,17 @@ export type RandomNpcRelationshipTag = 'passing' | 'acquaintance' | 'friend' | '
 export type RandomNpcRelationshipDirection = 'trust' | 'ambiguity' | 'misunderstanding' | 'family_impression'
 
 export type RandomNpcRelationshipSignals = Record<RandomNpcRelationshipDirection, number>
+export type RandomNpcFamilyTieKind = 'parent' | 'sibling' | 'distant_relative' | 'mentor' | 'caravan' | 'old_debt' | 'family_business'
+
+export interface RandomNpcFamilyTieDef {
+  id: string
+  kind: RandomNpcFamilyTieKind
+  name: string
+  relation: string
+  summary: string
+  attitude: 'supportive' | 'testing' | 'distant' | 'burdened'
+}
+
 export type RandomNpcRelationLineKind = 'friend' | 'romance' | 'zhiji' | 'sworn' | 'severed'
 export type RandomNpcRelationLineAction = 'start' | 'sever'
 
@@ -220,6 +231,7 @@ export interface RandomNpcTemplate {
   currentTrouble: string
   plotHook: string
   familySeed: string
+  familyTies: RandomNpcFamilyTieDef[]
   preferences: {
     loved: string[]
     liked: string[]
@@ -340,6 +352,7 @@ export interface RandomNpcLongStayEntry {
   currentTrouble: string
   plotHook: string
   familySeed: string
+  familyTies: RandomNpcFamilyTieDef[]
   preferences: RandomNpcTemplate['preferences']
   smallOrder: RandomNpcSmallOrderDef
   smallOrderCompleted?: boolean

@@ -370,6 +370,22 @@
               </div>
               <p class="text-[10px] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
               <p class="text-[10px] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
+              <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">家族节点</p>
+                  <span class="text-[10px] text-accent">本地 {{ resident.familyTies.length }}/4</span>
+                </div>
+                <div class="mt-1 space-y-1">
+                  <div
+                    v-for="tie in resident.familyTies"
+                    :key="`${resident.residentId}-${tie.id}`"
+                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <p class="text-accent">{{ getRandomNpcFamilyTieKindLabel(tie.kind) }} · {{ tie.relation }} · {{ tie.name }}</p>
+                    <p class="text-muted leading-4">{{ tie.summary }}（{{ getRandomNpcFamilyTieAttitudeLabel(tie.attitude) }}）</p>
+                  </div>
+                </div>
+              </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <p class="text-[10px] text-muted">长住文游记录</p>
                 <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(resident.relationshipSignals) }}</p>
@@ -1390,6 +1406,7 @@
     RandomNpcAgeBand,
     RandomNpcArchiveSummary,
     RandomNpcDialogueMemoryEntry,
+    RandomNpcFamilyTieKind,
     RandomNpcRelationLineKind,
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
@@ -1666,6 +1683,21 @@
     misunderstanding: '误会',
     family_impression: '家族印象'
   }
+  const RANDOM_NPC_FAMILY_TIE_LABELS: Record<RandomNpcFamilyTieKind, string> = {
+    parent: '父母',
+    sibling: '兄弟姐妹',
+    distant_relative: '远亲',
+    mentor: '师门',
+    caravan: '商队',
+    old_debt: '旧债',
+    family_business: '家族产业'
+  }
+  const RANDOM_NPC_FAMILY_TIE_ATTITUDE_LABELS = {
+    supportive: '支持',
+    testing: '考验',
+    distant: '疏远',
+    burdened: '牵挂'
+  } as const
   const RANDOM_NPC_RELATION_LINE_LABELS: Record<RandomNpcRelationLineKind, string> = {
     friend: '只做朋友',
     romance: '恋爱线',
@@ -1691,6 +1723,10 @@
   const getRandomNpcLongStayRouteLabel = (route: RandomNpcLongStayRoute): string => RANDOM_NPC_LONG_STAY_ROUTE_LABELS[route]
   const getRandomNpcRelationshipDirectionLabel = (direction: RandomNpcRelationshipDirection): string =>
     RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS[direction]
+  const getRandomNpcFamilyTieKindLabel = (kind: RandomNpcFamilyTieKind): string =>
+    RANDOM_NPC_FAMILY_TIE_LABELS[kind]
+  const getRandomNpcFamilyTieAttitudeLabel = (attitude: keyof typeof RANDOM_NPC_FAMILY_TIE_ATTITUDE_LABELS): string =>
+    RANDOM_NPC_FAMILY_TIE_ATTITUDE_LABELS[attitude]
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string =>
     RANDOM_NPC_RELATION_LINE_LABELS[kind]
   const getRandomNpcRelationshipSignalText = (signals: RandomNpcRelationshipSignals): string => {

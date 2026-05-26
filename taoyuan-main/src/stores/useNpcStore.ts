@@ -27,6 +27,8 @@ import type {
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
   RandomNpcDialogueMemoryEntry,
+  RandomNpcFamilyTieDef,
+  RandomNpcFamilyTieKind,
   RandomNpcRelationLineKind,
   RandomNpcRelationLineState,
   RandomNpcRelationshipDirection,
@@ -101,6 +103,7 @@ const RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD = 8
 const RANDOM_NPC_DIALOGUE_MEMORY_LIMIT = 6
 const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
 const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
+const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 
 type RegionRumorTemplate = {
   id: string
@@ -368,7 +371,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
   const randomNpcBoard = ref<RandomNpcBoardState>({
-    version: 2,
+    version: 3,
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
@@ -497,6 +500,40 @@ export const useNpcStore = defineStore('npc', () => {
         }
       })
       .slice(-limit)
+
+  const sanitizeRandomNpcFamilyTies = (raw: unknown, fallback: RandomNpcFamilyTieDef[] = []): RandomNpcFamilyTieDef[] => {
+    const source = Array.isArray(raw) && raw.length > 0 ? raw : fallback
+    return source
+      .filter((entry: unknown): entry is Partial<RandomNpcFamilyTieDef> => !!entry && typeof entry === 'object')
+      .map((entry, index): RandomNpcFamilyTieDef => {
+        const kind: RandomNpcFamilyTieKind =
+          entry.kind === 'parent' ||
+          entry.kind === 'sibling' ||
+          entry.kind === 'distant_relative' ||
+          entry.kind === 'mentor' ||
+          entry.kind === 'caravan' ||
+          entry.kind === 'old_debt' ||
+          entry.kind === 'family_business'
+            ? entry.kind
+            : 'distant_relative'
+        const attitude =
+          entry.attitude === 'supportive' ||
+          entry.attitude === 'testing' ||
+          entry.attitude === 'distant' ||
+          entry.attitude === 'burdened'
+            ? entry.attitude
+            : 'distant'
+        return {
+          id: typeof entry.id === 'string' ? entry.id : `${kind}:${index}`,
+          kind,
+          name: typeof entry.name === 'string' ? entry.name : '未记名亲缘',
+          relation: typeof entry.relation === 'string' ? entry.relation : '旧日关系',
+          summary: typeof entry.summary === 'string' ? entry.summary : '只保留为长住随机 NPC 的轻量家族线索。',
+          attitude
+        }
+      })
+      .slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)
+  }
 
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string => {
     if (kind === 'romance') return '恋爱线'
@@ -770,6 +807,7 @@ export const useNpcStore = defineStore('npc', () => {
       currentTrouble: template.currentTrouble,
       plotHook: template.plotHook,
       familySeed: template.familySeed,
+      familyTies: sanitizeRandomNpcFamilyTies(template.familyTies),
       preferences: {
         loved: [...template.preferences.loved],
         liked: [...template.preferences.liked],
@@ -3759,7 +3797,7 @@ export const useNpcStore = defineStore('npc', () => {
       const raw = (data as any).randomNpcBoard
       if (!raw || typeof raw !== 'object') {
         return {
-          version: 2,
+          version: 3,
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
@@ -3818,7 +3856,7 @@ export const useNpcStore = defineStore('npc', () => {
         })
       const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
       return {
-        version: Math.max(2, Number(raw.version) || 1),
+        version: Math.max(3, Number(raw.version) || 1),
         lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
         activeVisitors,
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)
@@ -3891,6 +3929,7 @@ export const useNpcStore = defineStore('npc', () => {
                 currentTrouble: template.currentTrouble,
                 plotHook: template.plotHook,
                 familySeed: template.familySeed,
+                familyTies: sanitizeRandomNpcFamilyTies(entry.familyTies, template.familyTies),
                 preferences: {
                   loved: [...template.preferences.loved],
                   liked: [...template.preferences.liked],
