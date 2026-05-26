@@ -214,6 +214,7 @@ export interface RandomNpcVisitorState {
   dialogueOpening: string
   dialogueChoices: RandomNpcDialogueChoiceDef[]
   smallOrder: RandomNpcSmallOrderDef
+  smallOrderCompleted?: boolean
   relationshipTag: RandomNpcRelationshipTag
   affinity: number
   firstVisitWeekId: string
@@ -249,6 +250,7 @@ export interface RandomNpcAcquaintanceEntry {
   familySeed: string
   preferences: RandomNpcTemplate['preferences']
   smallOrder: RandomNpcSmallOrderDef
+  smallOrderCompleted?: boolean
   relationshipTag: RandomNpcRelationshipTag
   affinity: number
   firstMetWeekId: string
@@ -295,6 +297,7 @@ export interface RandomNpcLongStayEntry {
   familySeed: string
   preferences: RandomNpcTemplate['preferences']
   smallOrder: RandomNpcSmallOrderDef
+  smallOrderCompleted?: boolean
   relationshipTag: RandomNpcRelationshipTag
   affinity: number
   movedInDayTag: string

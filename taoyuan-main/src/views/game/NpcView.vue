@@ -176,6 +176,18 @@
                 </span>
               </div>
               <p class="text-[10px] text-success/80 mt-1">{{ visitor.smallOrder.rewardSummary }}</p>
+              <p class="text-[10px] text-muted mt-1">
+                {{ getRandomNpcSmallOrderProgressText(visitor.smallOrder) }}
+              </p>
+              <Button
+                class="w-full justify-center !px-2 !py-1 mt-2"
+                :icon="Package"
+                :disabled="visitor.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(visitor.smallOrder)"
+                :data-testid="`random-npc-small-order-${visitor.id}`"
+                @click="handleFulfillRandomNpcSmallOrder(visitor.id)"
+              >
+                {{ visitor.smallOrderCompleted ? '已交付' : '交付小订单' }}
+              </Button>
             </div>
             <div class="mt-2 space-y-1">
               <Button
@@ -260,6 +272,15 @@
                 <p class="text-[10px] text-success/80 min-w-0">小订单线索：{{ acquaintance.smallOrder.title }} · {{ acquaintance.smallOrder.rewardSummary }}</p>
                 <Button
                   class="shrink-0 justify-center !px-2 !py-1"
+                  :icon="Package"
+                  :disabled="acquaintance.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(acquaintance.smallOrder)"
+                  :data-testid="`random-npc-acquaintance-small-order-${acquaintance.visitorId}`"
+                  @click="handleFulfillRandomNpcSmallOrder(acquaintance.visitorId)"
+                >
+                  {{ acquaintance.smallOrderCompleted ? '已交付' : '交付' }}
+                </Button>
+                <Button
+                  class="shrink-0 justify-center !px-2 !py-1"
                   :class="{ '!bg-success !text-bg': acquaintance.affinity >= randomNpcLongStayThreshold }"
                   :disabled="acquaintance.affinity < randomNpcLongStayThreshold || isRandomNpcLongStay(acquaintance.visitorId)"
                   @click="handlePromoteRandomNpcToLongStay(acquaintance.visitorId)"
@@ -306,6 +327,25 @@
               </div>
               <p class="text-[10px] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
               <p class="text-[10px] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-accent">{{ resident.smallOrder.title }}</p>
+                  <span class="text-[10px]" :class="resident.smallOrderCompleted ? 'text-success' : 'text-muted'">
+                    {{ resident.smallOrderCompleted ? '已交付' : '待交付' }}
+                  </span>
+                </div>
+                <p class="text-[10px] text-muted leading-4 mt-1">{{ resident.smallOrder.summary }}</p>
+                <p class="text-[10px] text-muted mt-1">{{ getRandomNpcSmallOrderProgressText(resident.smallOrder) }}</p>
+                <Button
+                  class="w-full justify-center !px-2 !py-1 mt-2"
+                  :icon="Package"
+                  :disabled="resident.smallOrderCompleted || !canFulfillRandomNpcSmallOrder(resident.smallOrder)"
+                  :data-testid="`random-npc-long-stay-small-order-${resident.sourceVisitorId}`"
+                  @click="handleFulfillRandomNpcSmallOrder(resident.sourceVisitorId)"
+                >
+                  {{ resident.smallOrderCompleted ? '已交付' : '交付长住小订单' }}
+                </Button>
+              </div>
               <p class="text-[10px] text-success/80 mt-1">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
               <div v-if="getRandomNpcLongStayStoryEvent(resident)" class="border border-accent/10 rounded-xs p-2 mt-2">
                 <p class="text-[10px] text-accent">{{ getRandomNpcLongStayStoryEvent(resident)?.title }}</p>
@@ -1230,6 +1270,7 @@
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
     RandomNpcRelationshipTag,
+    RandomNpcSmallOrderDef,
     RandomNpcStoryChoiceDef,
     RandomNpcVisitorState,
     RelationshipClueEntry,
@@ -1509,6 +1550,13 @@
     itemIds.map(itemId => getItemById(itemId)?.name ?? itemId).join('、') || '尚未记录'
   const isRandomNpcLongStay = (visitorId: string): boolean =>
     randomNpcBoard.value.longStayResidents.some(resident => resident.sourceVisitorId === visitorId)
+  const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
+  const canFulfillRandomNpcSmallOrder = (order: RandomNpcSmallOrderDef): boolean =>
+    order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)
+  const getRandomNpcSmallOrderProgressText = (order: RandomNpcSmallOrderDef): string =>
+    order.requestedItems
+      .map(item => `${getItemById(item.itemId)?.name ?? item.itemId} ${getRandomNpcSmallOrderItemCount(item.itemId)}/${item.quantity}`)
+      .join('、')
 
   const handleRandomVisitorTalk = (visitorId: string, choiceId: string) => {
     const result = npcStore.talkToRandomVisitor(visitorId, choiceId)
@@ -1519,6 +1567,12 @@
     }
     showFloat(`来访者好感 +${result.affinityChange}`, 'success')
     addLog(`【本周来访】${result.visitor?.name ?? '来访者'}：${result.message}`)
+  }
+
+  const handleFulfillRandomNpcSmallOrder = (visitorId: string) => {
+    const result = npcStore.fulfillRandomNpcSmallOrder(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC小订单】${result.message}`)
   }
 
   if (import.meta.env.DEV) {

@@ -29,6 +29,7 @@ import type {
   RandomNpcLongStayEntry,
   RandomNpcLongStayRoute,
   RandomNpcRelationshipTag,
+  RandomNpcSmallOrderDef,
   RandomNpcVisitorState,
   RegionId,
   RegionRumorSupplyEntry,
@@ -91,6 +92,7 @@ const FIXED_NPC_TALK_COOKING_TOPIC_LABELS = ['NPC 来访话题', '家宴团圆']
 const FIXED_NPC_GIFT_COOKING_TOPIC_LABELS = ['送礼话题']
 const RANDOM_NPC_COOKING_TOPIC_AFFINITY_BONUS = 3
 const FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS = 5
+const RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD = 8
 
 type RegionRumorTemplate = {
   id: string
@@ -413,6 +415,7 @@ export const useNpcStore = defineStore('npc', () => {
         ...template.smallOrder,
         requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
       },
+      smallOrderCompleted: false,
       relationshipTag: 'passing',
       affinity: 0,
       firstVisitWeekId: weekId,
@@ -472,6 +475,7 @@ export const useNpcStore = defineStore('npc', () => {
       ...visitor.smallOrder,
       requestedItems: visitor.smallOrder.requestedItems.map(item => ({ ...item }))
     },
+    smallOrderCompleted: !!visitor.smallOrderCompleted,
     relationshipTag: visitor.relationshipTag,
     affinity: visitor.affinity,
     firstMetWeekId: visitor.firstVisitWeekId,
@@ -510,6 +514,7 @@ export const useNpcStore = defineStore('npc', () => {
         ...template.smallOrder,
         requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
       },
+      smallOrderCompleted: !!acquaintance.smallOrderCompleted,
       relationshipTag: acquaintance.relationshipTag === 'passing' ? 'acquaintance' : acquaintance.relationshipTag,
       affinity: acquaintance.affinity,
       movedInDayTag: dayTag,
@@ -564,6 +569,75 @@ export const useNpcStore = defineStore('npc', () => {
   const getRandomNpcBoard = () => {
     ensureRandomVisitorsForCurrentWeek()
     return randomNpcBoard.value
+  }
+
+  const getRandomNpcSmallOrderMissingItems = (order: RandomNpcSmallOrderDef) => {
+    const inventoryStore = useInventoryStore()
+    return order.requestedItems
+      .map(item => ({
+        ...item,
+        owned: inventoryStore.getTotalItemCount(item.itemId)
+      }))
+      .filter(item => item.owned < item.quantity)
+  }
+
+  const fulfillRandomNpcSmallOrder = (
+    visitorId: string
+  ): { success: boolean; message: string; affinityChange: number } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const visitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
+    const acquaintance = randomNpcBoard.value.acquaintances.find(entry => entry.visitorId === visitorId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.sourceVisitorId === visitorId)
+    const target = visitor ?? acquaintance ?? resident
+    if (!target) return { success: false, message: '这位来访者暂时不在随机 NPC 名册中。', affinityChange: 0 }
+    if (visitor?.smallOrderCompleted || acquaintance?.smallOrderCompleted || resident?.smallOrderCompleted) {
+      return { success: false, message: `${target.name}的小订单已经交付过了。`, affinityChange: 0 }
+    }
+
+    const missingItems = getRandomNpcSmallOrderMissingItems(target.smallOrder)
+    if (missingItems.length > 0) {
+      const summary = missingItems
+        .map(item => `${getItemById(item.itemId)?.name ?? item.itemId} ${item.owned}/${item.quantity}`)
+        .join('、')
+      return { success: false, message: `材料不足：${summary}。`, affinityChange: 0 }
+    }
+
+    const inventoryStore = useInventoryStore()
+    for (const item of target.smallOrder.requestedItems) {
+      if (!inventoryStore.removeItemAnywhere(item.itemId, item.quantity)) {
+        return { success: false, message: `交付${getItemById(item.itemId)?.name ?? item.itemId}时失败，请重新确认库存。`, affinityChange: 0 }
+      }
+    }
+
+    const dayTag = getCurrentNpcDayTag()
+    const eventLine = `${dayTag} 完成小订单「${target.smallOrder.title}」：${target.smallOrder.rewardSummary}`
+    const rewardAffinity = RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD
+    if (visitor) {
+      visitor.affinity = Math.min(100, visitor.affinity + rewardAffinity)
+      visitor.smallOrderCompleted = true
+      visitor.lastVisitDayTag = dayTag
+      visitor.keyEvents = [...visitor.keyEvents, eventLine].slice(-6)
+    }
+    if (acquaintance) {
+      acquaintance.affinity = Math.min(100, acquaintance.affinity + rewardAffinity)
+      acquaintance.smallOrderCompleted = true
+      acquaintance.lastSeenDayTag = dayTag
+      acquaintance.keyEvents = [...acquaintance.keyEvents, eventLine].slice(-6)
+    }
+    if (resident) {
+      resident.affinity = Math.min(100, resident.affinity + rewardAffinity)
+      resident.smallOrderCompleted = true
+      resident.keyEvents = [...resident.keyEvents, eventLine].slice(-8)
+    }
+    if (visitor && (visitor.tier === 'acquaintance' || visitor.tier === 'long_stay')) {
+      upsertRandomNpcAcquaintance(visitor)
+    }
+
+    return {
+      success: true,
+      message: `${target.name}收下了「${target.smallOrder.title}」，${target.smallOrder.rewardSummary} 好感+${rewardAffinity}。`,
+      affinityChange: rewardAffinity
+    }
   }
 
   const talkToRandomVisitor = (
@@ -3154,6 +3228,7 @@ export const useNpcStore = defineStore('npc', () => {
               ...template.smallOrder,
               requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
             },
+            smallOrderCompleted: !!visitor.smallOrderCompleted,
             relationshipTag: sanitizeRelationshipTag(visitor.relationshipTag),
             affinity: Math.max(0, Math.min(100, Number(visitor.affinity) || 0)),
             firstVisitWeekId: typeof visitor.firstVisitWeekId === 'string' ? visitor.firstVisitWeekId : '',
@@ -3197,6 +3272,7 @@ export const useNpcStore = defineStore('npc', () => {
                   ...template.smallOrder,
                   requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
                 },
+                smallOrderCompleted: !!entry.smallOrderCompleted,
                 relationshipTag: sanitizeRelationshipTag(entry.relationshipTag),
                 affinity: Math.max(0, Math.min(100, Number(entry.affinity) || 0)),
                 firstMetWeekId: typeof entry.firstMetWeekId === 'string' ? entry.firstMetWeekId : '',
@@ -3245,6 +3321,7 @@ export const useNpcStore = defineStore('npc', () => {
                   ...template.smallOrder,
                   requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
                 },
+                smallOrderCompleted: !!entry.smallOrderCompleted,
                 relationshipTag: sanitizeRelationshipTag(entry.relationshipTag),
                 affinity: Math.max(0, Math.min(100, Number(entry.affinity) || 0)),
                 movedInDayTag: typeof entry.movedInDayTag === 'string' ? entry.movedInDayTag : '',
@@ -3399,6 +3476,7 @@ export const useNpcStore = defineStore('npc', () => {
     getRelationshipDebugSnapshot,
     getRandomNpcBoard,
     talkToRandomVisitor,
+    fulfillRandomNpcSmallOrder,
     addRandomVisitorToAcquaintanceBook,
     promoteRandomNpcAcquaintanceToLongStay,
     getNextRandomNpcLongStayStoryEvent,
