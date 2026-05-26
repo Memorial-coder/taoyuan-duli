@@ -81,6 +81,8 @@ type CompletedQuestHistoryEntry = {
   isSpecialOrder: boolean
 }
 
+const ORDER_COOKING_TOPIC_LABELS = ['订单委托']
+
 export const useQuestStore = defineStore('quest', () => {
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
@@ -1422,6 +1424,12 @@ export const useQuestStore = defineStore('quest', () => {
     const gameStore = useGameStore()
     const serviceContractEffect = shopStore.getServiceContractEffectSummary('quest')
     const submittedPondFishSnapshots: Array<{ generation: number; totalScore: number; mature: boolean; sick: boolean }> = []
+    const consumeOrderCookingFeedback = () => {
+      const cookingTopic = cookingStore.consumeStoryTriggerRecord(ORDER_COOKING_TOPIC_LABELS)
+      return cookingTopic
+        ? `你把${cookingTopic.recipeName}作为委托备餐带上，${cookingTopic.triggerLabels.join('、')}线索已用于这次订单反馈。`
+        : ''
+    }
     const idx = activeQuests.value.findIndex(q => q.id === questId)
     if (idx === -1) return { success: false, message: '任务不存在。' }
 
@@ -1575,6 +1583,10 @@ export const useQuestStore = defineStore('quest', () => {
         if (nextStage) {
           message += ` 下一阶段：${nextStage.title}。`
         }
+        const orderCookingFeedback = consumeOrderCookingFeedback()
+        if (orderCookingFeedback) {
+          message += ` ${orderCookingFeedback}`
+        }
         return { success: true, message }
       }
 
@@ -1716,6 +1728,7 @@ export const useQuestStore = defineStore('quest', () => {
       const added = npcStore.addRelationshipClue(quest.npcId, quest.buildingClueId, quest.buildingClueText)
       if (added) clueMessage = ` 你记下了一条新的建筑线索。`
     }
+    const orderCookingFeedback = consumeOrderCookingFeedback()
 
     // 记录完成
     completedQuestCount.value++
@@ -1737,6 +1750,9 @@ export const useQuestStore = defineStore('quest', () => {
           .map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as RewardTicketType)}×${amount}`)
           .join('、')
       )
+    }
+    if (orderCookingFeedback) {
+      rewardSummaryParts.push(`料理线索：${orderCookingFeedback}`)
     }
     completedQuestHistory.value = [
       {
@@ -1804,6 +1820,9 @@ export const useQuestStore = defineStore('quest', () => {
     }
     if (clueMessage) {
       message += clueMessage
+    }
+    if (orderCookingFeedback) {
+      message += ` ${orderCookingFeedback}`
     }
     const environmentWindow = resolveEnvironmentWindow({
       season: gameStore.season,
