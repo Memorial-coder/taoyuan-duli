@@ -386,6 +386,41 @@
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">关系线</p>
+                  <span class="text-[10px] text-accent">{{ getRandomNpcRelationLineLabel(resident.relationshipLine.kind) }}</span>
+                </div>
+                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ resident.relationshipLine.note }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">{{ getRandomNpcRelationLineHint(resident) }}</p>
+                <div v-if="getRecentRandomNpcRelationLineHistory(resident).length > 0" class="mt-1 space-y-1">
+                  <p
+                    v-for="event in getRecentRandomNpcRelationLineHistory(resident)"
+                    :key="event.id"
+                    class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ event.dayTag }} · {{ getRandomNpcRelationLineLabel(event.kind) }}：{{ event.summary }}
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <Button
+                    v-for="kind in randomNpcRelationLineActions"
+                    :key="`${resident.residentId}-${kind}`"
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canStartRandomNpcRelationLine(resident, kind).success"
+                    @click="handleStartRandomNpcRelationLine(resident.residentId, kind)"
+                  >
+                    {{ getRandomNpcRelationLineButtonText(resident, kind) }}
+                  </Button>
+                </div>
+                <Button
+                  v-if="resident.relationshipLine.stage > 0"
+                  class="w-full justify-center !px-2 !py-1 mt-1 text-danger border-danger/40"
+                  @click="handleSeverRandomNpcRelationLine(resident.residentId)"
+                >
+                  断缘
+                </Button>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <div class="flex items-center justify-between gap-2">
                   <p class="text-[10px] text-accent">{{ resident.smallOrder.title }}</p>
                   <span class="text-[10px]" :class="resident.smallOrderCompleted ? 'text-success' : 'text-muted'">
                     {{ resident.smallOrderCompleted ? '已交付' : '待交付' }}
@@ -1355,6 +1390,7 @@
     RandomNpcAgeBand,
     RandomNpcArchiveSummary,
     RandomNpcDialogueMemoryEntry,
+    RandomNpcRelationLineKind,
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
     RandomNpcRelationshipDirection,
@@ -1630,6 +1666,14 @@
     misunderstanding: '误会',
     family_impression: '家族印象'
   }
+  const RANDOM_NPC_RELATION_LINE_LABELS: Record<RandomNpcRelationLineKind, string> = {
+    friend: '只做朋友',
+    romance: '恋爱线',
+    zhiji: '知己线',
+    sworn: '结拜线',
+    severed: '已断缘'
+  }
+  const randomNpcRelationLineActions: Exclude<RandomNpcRelationLineKind, 'severed'>[] = ['friend', 'romance', 'zhiji', 'sworn']
   const RANDOM_NPC_LONG_STAY_ROUTE_LABELS: Record<RandomNpcLongStayRoute, string> = {
     friendship: '邻里常驻',
     business: '商学暂住',
@@ -1647,6 +1691,8 @@
   const getRandomNpcLongStayRouteLabel = (route: RandomNpcLongStayRoute): string => RANDOM_NPC_LONG_STAY_ROUTE_LABELS[route]
   const getRandomNpcRelationshipDirectionLabel = (direction: RandomNpcRelationshipDirection): string =>
     RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS[direction]
+  const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string =>
+    RANDOM_NPC_RELATION_LINE_LABELS[kind]
   const getRandomNpcRelationshipSignalText = (signals: RandomNpcRelationshipSignals): string => {
     const entries = (Object.keys(RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS) as RandomNpcRelationshipDirection[])
       .map(direction => ({ direction, value: signals?.[direction] ?? 0 }))
@@ -1658,6 +1704,26 @@
   }
   const getRecentRandomNpcDialogueMemories = (memories: RandomNpcDialogueMemoryEntry[] = []): RandomNpcDialogueMemoryEntry[] =>
     memories.slice(-3).reverse()
+  const getRecentRandomNpcRelationLineHistory = (resident: RandomNpcLongStayEntry) =>
+    resident.relationshipLine.history.slice(-3).reverse()
+  const canStartRandomNpcRelationLine = (
+    resident: RandomNpcLongStayEntry,
+    kind: Exclude<RandomNpcRelationLineKind, 'severed'>
+  ) => npcStore.canStartRandomNpcRelationLine(resident.residentId, kind)
+  const getRandomNpcRelationLineButtonText = (
+    resident: RandomNpcLongStayEntry,
+    kind: Exclude<RandomNpcRelationLineKind, 'severed'>
+  ): string => resident.relationshipLine.kind === kind && resident.relationshipLine.stage > 0
+    ? `已${getRandomNpcRelationLineLabel(kind)}`
+    : getRandomNpcRelationLineLabel(kind)
+  const getRandomNpcRelationLineHint = (resident: RandomNpcLongStayEntry): string => {
+    if (resident.relationshipLine.kind === 'severed') return '断缘后本版不再重新开启关系线，只保留旧识记录。'
+    if (resident.relationshipLine.stage > 0) return '当前关系线已锁定；如需更换方向，先断缘再重新选择。'
+    const romance = canStartRandomNpcRelationLine(resident, 'romance')
+    const zhiji = canStartRandomNpcRelationLine(resident, 'zhiji')
+    if (romance.success || zhiji.success) return '可选择恋爱或知己线；两者会与固定 NPC 婚恋 / 知己互斥。'
+    return romance.message || zhiji.message || '需要更多好感与关系方向记录。'
+  }
   const getLastRandomNpcEvent = (visitor: RandomNpcVisitorState): string => visitor.keyEvents[visitor.keyEvents.length - 1] ?? visitor.dialogueOpening
   const getLastRandomNpcAcquaintanceEvent = (acquaintance: RandomNpcAcquaintanceEntry): string =>
     acquaintance.keyEvents[acquaintance.keyEvents.length - 1] ?? `${acquaintance.name}已记入熟人册。`
@@ -1755,6 +1821,21 @@
     const result = npcStore.progressRandomNpcLongStayStory(residentId, choiceId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【文游对话】${result.message}`)
+  }
+
+  const handleStartRandomNpcRelationLine = (
+    residentId: string,
+    kind: Exclude<RandomNpcRelationLineKind, 'severed'>
+  ) => {
+    const result = npcStore.startRandomNpcRelationLine(residentId, kind)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC关系线】${result.message}`)
+  }
+
+  const handleSeverRandomNpcRelationLine = (residentId: string) => {
+    const result = npcStore.severRandomNpcRelationLine(residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC断缘】${result.message}`)
   }
 
   const getVillageProjectRequirementProgress = (projectId: string): VillageProjectRequirementProgress[] => {

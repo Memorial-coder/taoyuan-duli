@@ -157,6 +157,25 @@ export type RandomNpcRelationshipTag = 'passing' | 'acquaintance' | 'friend' | '
 export type RandomNpcRelationshipDirection = 'trust' | 'ambiguity' | 'misunderstanding' | 'family_impression'
 
 export type RandomNpcRelationshipSignals = Record<RandomNpcRelationshipDirection, number>
+export type RandomNpcRelationLineKind = 'friend' | 'romance' | 'zhiji' | 'sworn' | 'severed'
+export type RandomNpcRelationLineAction = 'start' | 'sever'
+
+export interface RandomNpcRelationLineEvent {
+  id: string
+  dayTag: string
+  kind: RandomNpcRelationLineKind
+  action: RandomNpcRelationLineAction
+  summary: string
+}
+
+export interface RandomNpcRelationLineState {
+  kind: RandomNpcRelationLineKind
+  stage: 0 | 1 | 2 | 3
+  startedDayTag: string
+  updatedDayTag: string
+  note: string
+  history: RandomNpcRelationLineEvent[]
+}
 
 export interface RandomNpcDialogueMemoryEntry {
   id: string
@@ -335,6 +354,7 @@ export interface RandomNpcLongStayEntry {
   keyEvents: string[]
   relationshipSignals: RandomNpcRelationshipSignals
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
+  relationshipLine: RandomNpcRelationLineState
 }
 
 export interface RandomNpcBoardState {

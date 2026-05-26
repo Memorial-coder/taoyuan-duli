@@ -27,6 +27,8 @@ import type {
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
   RandomNpcDialogueMemoryEntry,
+  RandomNpcRelationLineKind,
+  RandomNpcRelationLineState,
   RandomNpcRelationshipDirection,
   RandomNpcRelationshipSignals,
   RandomNpcLongStayEntry,
@@ -98,6 +100,7 @@ const FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS = 5
 const RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD = 8
 const RANDOM_NPC_DIALOGUE_MEMORY_LIMIT = 6
 const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
+const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
 
 type RegionRumorTemplate = {
   id: string
@@ -113,6 +116,8 @@ type RegionRumorTemplate = {
   festivalIds?: string[]
   tags: string[]
 }
+
+type RandomNpcRelationLineStartKind = Exclude<RandomNpcRelationLineKind, 'severed'>
 
 const REGION_RUMOR_TEMPLATES: RegionRumorTemplate[] = [
   {
@@ -363,7 +368,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
   const randomNpcBoard = ref<RandomNpcBoardState>({
-    version: 1,
+    version: 2,
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
@@ -492,6 +497,91 @@ export const useNpcStore = defineStore('npc', () => {
         }
       })
       .slice(-limit)
+
+  const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string => {
+    if (kind === 'romance') return '恋爱线'
+    if (kind === 'zhiji') return '知己线'
+    if (kind === 'sworn') return '结拜线'
+    if (kind === 'severed') return '已断缘'
+    return '只做朋友'
+  }
+
+  const getRandomNpcRelationLineRequirement = (kind: RandomNpcRelationLineStartKind) => {
+    if (kind === 'romance') return { affinity: 85, signal: 'ambiguity' as const, signalValue: 8 }
+    if (kind === 'zhiji') return { affinity: 85, signal: 'trust' as const, signalValue: 10 }
+    if (kind === 'sworn') return { affinity: 80, signal: 'family_impression' as const, signalValue: 6 }
+    return { affinity: 70, signal: 'trust' as const, signalValue: 5 }
+  }
+
+  const createDefaultRandomNpcRelationLineState = (): RandomNpcRelationLineState => ({
+    kind: 'friend',
+    stage: 0,
+    startedDayTag: '',
+    updatedDayTag: '',
+    note: '尚未选择长期关系线。',
+    history: []
+  })
+
+  const sanitizeRandomNpcRelationLineState = (raw: unknown): RandomNpcRelationLineState => {
+    const source = raw && typeof raw === 'object' ? raw as Partial<RandomNpcRelationLineState> : {}
+    const kind: RandomNpcRelationLineKind =
+      source.kind === 'romance' || source.kind === 'zhiji' || source.kind === 'sworn' || source.kind === 'severed'
+        ? source.kind
+        : 'friend'
+    const rawStage = Number(source.stage)
+    const stage: 0 | 1 | 2 | 3 = rawStage === 1 || rawStage === 2 || rawStage === 3 ? rawStage : 0
+    return {
+      kind,
+      stage: kind === 'severed' ? 0 : stage,
+      startedDayTag: typeof source.startedDayTag === 'string' ? source.startedDayTag : '',
+      updatedDayTag: typeof source.updatedDayTag === 'string' ? source.updatedDayTag : '',
+      note: typeof source.note === 'string' ? source.note : createDefaultRandomNpcRelationLineState().note,
+      history: (Array.isArray(source.history) ? source.history : [])
+        .filter((entry: unknown): entry is Partial<RandomNpcRelationLineState['history'][number]> => !!entry && typeof entry === 'object')
+        .map((entry, index) => {
+          const eventKind: RandomNpcRelationLineKind =
+            entry.kind === 'romance' || entry.kind === 'zhiji' || entry.kind === 'sworn' || entry.kind === 'severed'
+              ? entry.kind
+              : 'friend'
+          return {
+            id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? '旧日'}:${eventKind}:${index}`,
+            dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+            kind: eventKind,
+            action: entry.action === 'sever' ? 'sever' as const : 'start' as const,
+            summary: typeof entry.summary === 'string' ? entry.summary : getRandomNpcRelationLineLabel(eventKind)
+          }
+        })
+        .slice(-RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT)
+    }
+  }
+
+  const appendRandomNpcRelationLineHistory = (
+    line: RandomNpcRelationLineState,
+    event: RandomNpcRelationLineState['history'][number]
+  ): RandomNpcRelationLineState['history'] => [...line.history, event].slice(-RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT)
+
+  const getRandomNpcRelationLineNote = (kind: RandomNpcRelationLineStartKind, name: string): string => {
+    if (kind === 'romance') return `${name}与你确认了恋爱方向，后续只推进这一条亲密线。`
+    if (kind === 'zhiji') return `${name}与你约为知己，默认不再进入婚恋线。`
+    if (kind === 'sworn') return `${name}与你结拜为义亲，后续按家族 / 义亲方向记录。`
+    return `${name}与你约定只做朋友，保留邻里和深交方向。`
+  }
+
+  const getRandomNpcRelationLineSignalReady = (
+    resident: RandomNpcLongStayEntry,
+    kind: RandomNpcRelationLineStartKind
+  ): boolean => {
+    const requirement = getRandomNpcRelationLineRequirement(kind)
+    const signals = sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals)
+    if (kind === 'romance' && resident.relationshipTag === 'ambiguous') return true
+    return (signals[requirement.signal] ?? 0) >= requirement.signalValue
+  }
+
+  const getActiveRandomNpcExclusiveLine = (excludeResidentId?: string) =>
+    randomNpcBoard.value.longStayResidents.find(resident =>
+      resident.residentId !== excludeResidentId &&
+      (resident.relationshipLine?.kind === 'romance' || resident.relationshipLine?.kind === 'zhiji')
+    ) ?? null
 
   const createRandomNpcVisitor = (templateId: string, weekId: string, index: number): RandomNpcVisitorState | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === templateId)
@@ -700,7 +790,8 @@ export const useNpcStore = defineStore('npc', () => {
       lastStoryDayTag: '',
       keyEvents: [...acquaintance.keyEvents, `${dayTag} 成为长住 NPC，暂住桃源村。`].slice(-8),
       relationshipSignals: sanitizeRandomNpcRelationshipSignals(acquaintance.relationshipSignals),
-      dialogueMemories: acquaintance.dialogueMemories.slice(-8)
+      dialogueMemories: acquaintance.dialogueMemories.slice(-8),
+      relationshipLine: createDefaultRandomNpcRelationLineState()
     }
   }
 
@@ -1113,6 +1204,175 @@ export const useNpcStore = defineStore('npc', () => {
       )
     }
     return { success: true, message: choice.response, resident: nextResident ?? resident }
+  }
+
+  const canStartRandomNpcRelationLine = (
+    residentId: string,
+    kind: RandomNpcRelationLineStartKind
+  ): { success: boolean; message: string } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const currentLine = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (currentLine.kind === kind && currentLine.stage > 0) {
+      return { success: false, message: `已经是${getRandomNpcRelationLineLabel(kind)}。` }
+    }
+    if (currentLine.kind === 'severed') {
+      return { success: false, message: '这条关系已断缘，本版暂不支持重新开启。' }
+    }
+    if (currentLine.stage > 0 && currentLine.kind !== 'friend') {
+      return { success: false, message: `已进入${getRandomNpcRelationLineLabel(currentLine.kind)}，需要先断缘。` }
+    }
+    if (currentLine.stage > 0 && currentLine.kind === 'friend' && kind !== 'friend') {
+      return { success: false, message: '已约定只做朋友，若要改线需先断缘。' }
+    }
+
+    const requirement = getRandomNpcRelationLineRequirement(kind)
+    if (resident.affinity < requirement.affinity) {
+      return { success: false, message: `好感不足，需要 ${requirement.affinity}。` }
+    }
+    if (!getRandomNpcRelationLineSignalReady(resident, kind)) {
+      return {
+        success: false,
+        message: `${getRandomNpcRelationshipDirectionLabel(requirement.signal)}方向不足，需要 ${requirement.signalValue}。`
+      }
+    }
+
+    if (kind === 'romance' || kind === 'zhiji') {
+      const fixedCompanion = npcStates.value.find(state => state.married || state.dating || state.zhiji)
+      if (fixedCompanion) return { success: false, message: '已有固定 NPC 婚恋或知己关系，不能再开启随机 NPC 亲密线。' }
+      const activeLine = getActiveRandomNpcExclusiveLine(residentId)
+      if (activeLine) return { success: false, message: `${activeLine.name}已在${getRandomNpcRelationLineLabel(activeLine.relationshipLine.kind)}中。` }
+    }
+
+    if (kind === 'sworn') {
+      const activeLine = randomNpcBoard.value.longStayResidents.find(entry =>
+        entry.residentId !== residentId &&
+        entry.relationshipLine?.kind === 'sworn'
+      )
+      if (activeLine) return { success: false, message: `${activeLine.name}已在结拜线中，本版先保留单条随机 NPC 结拜线。` }
+    }
+
+    return { success: true, message: '可以开启关系线。' }
+  }
+
+  const startRandomNpcRelationLine = (
+    residentId: string,
+    kind: RandomNpcRelationLineStartKind
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const guard = canStartRandomNpcRelationLine(residentId, kind)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !resident) return { ...guard, resident }
+
+    const dayTag = getCurrentNpcDayTag()
+    const currentLine = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    const note = getRandomNpcRelationLineNote(kind, resident.name)
+    const event = {
+      id: `${dayTag}:${residentId}:${kind}`,
+      dayTag,
+      kind,
+      action: 'start' as const,
+      summary: note
+    }
+    const nextRelationshipTag: RandomNpcRelationshipTag =
+      kind === 'romance'
+        ? 'ambiguous'
+        : kind === 'friend' || kind === 'zhiji' || kind === 'sworn'
+          ? 'friend'
+          : resident.relationshipTag
+    const eventLine = `${dayTag} 开启${getRandomNpcRelationLineLabel(kind)}：${note}`
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      nextResident = {
+        ...entry,
+        relationshipTag: nextRelationshipTag,
+        affinity: Math.min(100, entry.affinity + (kind === 'friend' ? 2 : 5)),
+        relationshipLine: {
+          kind,
+          stage: 1,
+          startedDayTag: currentLine.startedDayTag || dayTag,
+          updatedDayTag: dayTag,
+          note,
+          history: appendRandomNpcRelationLineHistory(currentLine, event)
+        },
+        keyEvents: [...entry.keyEvents, eventLine].slice(-8)
+      }
+      return nextResident
+    })
+
+    if (nextResident) {
+      randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+        entry.visitorId === nextResident!.sourceVisitorId
+          ? {
+              ...entry,
+              relationshipTag: nextResident!.relationshipTag,
+              affinity: nextResident!.affinity,
+              keyEvents: nextResident!.keyEvents.slice(-6)
+            }
+          : entry
+      )
+    }
+
+    return {
+      success: true,
+      message: `${resident.name}已进入${getRandomNpcRelationLineLabel(kind)}。`,
+      resident: nextResident ?? resident
+    }
+  }
+
+  const severRandomNpcRelationLine = (
+    residentId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const currentLine = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (currentLine.kind === 'severed') return { success: false, message: '这条关系已经断缘。', resident }
+    if (currentLine.stage <= 0) return { success: false, message: '尚未开启可断缘的关系线。', resident }
+
+    const dayTag = getCurrentNpcDayTag()
+    const previousLabel = getRandomNpcRelationLineLabel(currentLine.kind)
+    const note = `${resident.name}与你结束了${previousLabel}，后续只保留旧识摘要。`
+    const event = {
+      id: `${dayTag}:${residentId}:sever`,
+      dayTag,
+      kind: 'severed' as const,
+      action: 'sever' as const,
+      summary: note
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      nextResident = {
+        ...entry,
+        relationshipTag: 'old_contact',
+        affinity: Math.max(0, entry.affinity - 15),
+        relationshipLine: {
+          kind: 'severed',
+          stage: 0,
+          startedDayTag: currentLine.startedDayTag,
+          updatedDayTag: dayTag,
+          note,
+          history: appendRandomNpcRelationLineHistory(currentLine, event)
+        },
+        keyEvents: [...entry.keyEvents, `${dayTag} 断缘：${note}`].slice(-8)
+      }
+      return nextResident
+    })
+
+    if (nextResident) {
+      randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+        entry.visitorId === nextResident!.sourceVisitorId
+          ? {
+              ...entry,
+              relationshipTag: nextResident!.relationshipTag,
+              affinity: nextResident!.affinity,
+              keyEvents: nextResident!.keyEvents.slice(-6)
+            }
+          : entry
+      )
+    }
+
+    return { success: true, message: `${resident.name}已断缘，关系线不会继续推进。`, resident: nextResident ?? resident }
   }
 
   // ============================================================
@@ -3499,7 +3759,7 @@ export const useNpcStore = defineStore('npc', () => {
       const raw = (data as any).randomNpcBoard
       if (!raw || typeof raw !== 'object') {
         return {
-          version: 1,
+          version: 2,
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
@@ -3558,7 +3818,7 @@ export const useNpcStore = defineStore('npc', () => {
         })
       const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
       return {
-        version: Math.max(1, Number(raw.version) || 1),
+        version: Math.max(2, Number(raw.version) || 1),
         lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
         activeVisitors,
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)
@@ -3653,7 +3913,8 @@ export const useNpcStore = defineStore('npc', () => {
                 lastStoryDayTag: typeof entry.lastStoryDayTag === 'string' ? entry.lastStoryDayTag : '',
                 keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-8) : [],
                 relationshipSignals: sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
-                dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT)
+                dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT),
+                relationshipLine: sanitizeRandomNpcRelationLineState(entry.relationshipLine)
               }
             })
             .filter((entry: RandomNpcLongStayEntry, index: number, entries: RandomNpcLongStayEntry[]) =>
@@ -3814,6 +4075,9 @@ export const useNpcStore = defineStore('npc', () => {
     promoteRandomNpcAcquaintanceToLongStay,
     getNextRandomNpcLongStayStoryEvent,
     progressRandomNpcLongStayStory,
+    canStartRandomNpcRelationLine,
+    startRandomNpcRelationLine,
+    severRandomNpcRelationLine,
     rehydrateRelationshipPerks,
     serialize,
     deserialize
