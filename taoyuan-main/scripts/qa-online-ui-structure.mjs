@@ -291,6 +291,10 @@ expectContains('online/OnlineFestivalView.vue', "return 'world'", '节会默认�
 expectContains('online/OnlineFestivalView.vue', "activeTab === 'festival-room'", '节会房间表单应留在节会房间标签')
 expectContains('online/OnlineFestivalView.vue', "activeTab === 'expedition-room'", '远征表单应留在远征房间标签')
 expectContains('online/OnlineFestivalView.vue', '纪念记录', '节会纪念内容应保留独立入口')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-expedition-cavern-combo-summary', '在线节会远征 tab 应展示矿洞全部节点组合收益')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-expedition-cavern-withdrawal-summary', '在线节会远征 tab 应展示矿洞提前收尾确认人')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-expedition-receipt-combos', '在线节会远征凭证应结构化回看矿洞组合收益')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-expedition-receipt-withdrawal', '在线节会远征凭证应结构化回看矿洞提前撤离')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineFestivalView.vue', /overflow-y-auto/g, 20, '节会长列表应保留滚动边界')
 
 expectContains('ExpeditionRoomView.vue', '<OnlineVisualRoomShell', '远征房间应复用统一可视化房间壳')

@@ -550,6 +550,8 @@
                         <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayMemoryText(receipt.route_replay)">纪念：{{ routeReplayMemoryText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
+                        <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
+                        <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
                       </div>
                     </div>
                   </div>
@@ -767,6 +769,8 @@
                 <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayMemoryText(receipt.route_replay)">纪念：{{ routeReplayMemoryText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
               </div>
             </div>
           </div>
@@ -895,16 +899,23 @@
                       v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0 || expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'"
                       class="mt-2 grid gap-2 md:grid-cols-2"
                     >
-                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" class="border border-success/20 bg-success/5 p-2">
+                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" data-testid="online-festival-expedition-cavern-combo-summary" class="border border-success/20 bg-success/5 p-2">
                         <p class="text-[10px] text-success">节点组合收益</p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">
-                          {{ expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records[0]?.summary }}
+                        <p
+                          v-for="combo in expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records"
+                          :key="`${expeditionRoomStore.myRoom.id}-${combo.combo_id}`"
+                          class="mt-1 text-[10px] leading-4 text-muted"
+                        >
+                          {{ combo.label }}：{{ combo.summary }} · 采集值 +{{ combo.score_delta }} · 风险 {{ formatSignedCavernDelta(combo.risk_delta) }}{{ combo.resource_delta_text ? ` · ${combo.resource_delta_text}` : '' }}
                         </p>
                       </div>
-                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" class="border border-warning/20 bg-warning/5 p-2">
+                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" data-testid="online-festival-expedition-cavern-withdrawal-summary" class="border border-warning/20 bg-warning/5 p-2">
                         <p class="text-[10px] text-warning">提前收尾</p>
                         <p class="mt-1 text-[10px] leading-4 text-muted">
                           {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
+                        </p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">
+                          {{ cavernWithdrawalActorLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                         </p>
                       </div>
                     </div>
@@ -1240,6 +1251,8 @@
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
               </div>
             </div>
           </div>
@@ -1330,6 +1343,8 @@
                 <p v-if="routeReplayRaceText(receipt.routeReplay)">{{ routeReplayRaceText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayMemoryText(receipt.routeReplay)">纪念：{{ routeReplayMemoryText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.routeReplay)">{{ routeReplayPeakLabel(receipt.routeReplay) }}：{{ routeReplayPeakText(receipt.routeReplay) }}</p>
+                <p v-if="routeReplayComboText(receipt.routeReplay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.routeReplay) }}</p>
+                <p v-if="routeReplayWithdrawalText(receipt.routeReplay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.routeReplay) }}</p>
               </div>
             </div>
           </div>
@@ -1353,7 +1368,7 @@
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { OnlineVisualNode, OnlineVisualObject, OnlineVisualTrack } from '@/types/onlineVisual'
-  import type { ExpeditionRoomRouteReplay } from '@/utils/expeditionRoomApi'
+  import type { ExpeditionCavernComboRecordSnapshot, ExpeditionCavernStateSnapshot, ExpeditionRoomRouteReplay } from '@/utils/expeditionRoomApi'
   import type { FestivalRoomRouteReplay, FestivalRoomRouteReplayMemoryRecord } from '@/utils/festivalRoomApi'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
 
@@ -1486,6 +1501,40 @@
       .filter(record => record.actor_username)
       .map(record => `${record.label}：${record.actor_display_name || record.actor_username}`)
       .join(' · ')
+  }
+  const formatSignedCavernDelta = (value: number) => {
+    if (value > 0) return `+${value}`
+    if (value < 0) return String(value)
+    return '持平'
+  }
+  const formatActivityTimestamp = (seconds?: number) => {
+    const value = Math.floor(Number(seconds) || 0)
+    if (value <= 0) return ''
+    return new Date(value * 1000).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+  const cavernWithdrawalActorLabel = (cavernState: ExpeditionCavernStateSnapshot) => {
+    const actor = cavernState.withdrawal_actor_display_name || cavernState.withdrawal_actor_username || '撤离确认人未记录'
+    const time = formatActivityTimestamp(cavernState.withdrawal_at)
+    return time ? `确认人：${actor} · ${time}` : `确认人：${actor}`
+  }
+  const routeReplayComboText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'expedition_cavern' || !('combo_records' in replay)) return ''
+    return (replay.combo_records as ExpeditionCavernComboRecordSnapshot[])
+      .filter(combo => combo.combo_id)
+      .map(combo => `${combo.label} 采集值 +${combo.score_delta} / 风险 ${formatSignedCavernDelta(combo.risk_delta)}${combo.resource_delta_text ? ` / ${combo.resource_delta_text}` : ''}`)
+      .join('；')
+  }
+  const routeReplayWithdrawalText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'expedition_cavern' || !('withdrawal_state' in replay) || replay.withdrawal_state !== 'confirmed') return ''
+    const actor = replay.withdrawal_actor_display_name || replay.withdrawal_actor_username || '撤离确认人未记录'
+    const time = formatActivityTimestamp(replay.withdrawal_at)
+    const summary = replay.withdrawal_summary || '撤离点已确认。'
+    return [summary, time ? `${actor} · ${time}` : actor].filter(Boolean).join(' · ')
   }
   const routeReplayPeakLabel = (replay?: ActivityRouteReplay | null) =>
     replay?.kind === 'dragon_boat' || replay?.kind === 'lantern_fair' ? '压力峰值' : '风险峰值'
