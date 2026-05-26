@@ -3,6 +3,7 @@ import type { RandomNpcLongStayStoryEventDef, RandomNpcTemplate } from '@/types'
 export const RANDOM_NPC_VISITOR_CONFIG = {
   maxActiveVisitors: 2,
   maxRecentSummaries: 8,
+  maxLockedArchives: 3,
   maxAcquaintances: 12,
   maxLongStayResidents: 3,
   acquaintanceAffinityThreshold: 40,

@@ -416,6 +416,7 @@ export const useNpcStore = defineStore('npc', () => {
         requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
       },
       smallOrderCompleted: false,
+      locked: false,
       relationshipTag: 'passing',
       affinity: 0,
       firstVisitWeekId: weekId,
@@ -436,11 +437,68 @@ export const useNpcStore = defineStore('npc', () => {
     affinity: visitor.affinity,
     lastSeenDayTag: visitor.lastVisitDayTag,
     summary: `${visitor.name}（${visitor.occupation}）${reason}；最后印象：${visitor.currentTrouble}`,
-    keyEvents: visitor.keyEvents.slice(-3)
+    keyEvents: visitor.keyEvents.slice(-3),
+    smallOrderCompleted: !!visitor.smallOrderCompleted,
+    locked: !!visitor.locked
   })
 
-  const trimRandomNpcArchives = (archives: RandomNpcArchiveSummary[]) =>
-    archives.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxRecentSummaries)
+  const createRandomNpcVisitorFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcVisitorState | null => {
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === archive.templateId)
+    if (!template) return null
+    const dayTag = getCurrentNpcDayTag()
+    return {
+      id: archive.visitorId,
+      templateId: template.id,
+      name: archive.name || template.nameSeeds[0]!,
+      ageBand: template.ageBand,
+      gender: template.gender,
+      occupation: template.occupation,
+      origin: template.origin,
+      personalityTags: [...template.personalityTags],
+      speechStyle: template.speechStyle,
+      taboo: template.taboo,
+      lifeGoal: template.lifeGoal,
+      currentTrouble: template.currentTrouble,
+      plotHook: template.plotHook,
+      familySeed: template.familySeed,
+      preferences: {
+        loved: [...template.preferences.loved],
+        liked: [...template.preferences.liked],
+        disliked: [...template.preferences.disliked]
+      },
+      dialogueOpening: template.dialogueOpening,
+      dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
+      smallOrder: {
+        ...template.smallOrder,
+        requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
+      },
+      smallOrderCompleted: !!archive.smallOrderCompleted,
+      locked: !!archive.locked,
+      relationshipTag: archive.relationshipTag,
+      affinity: archive.affinity,
+      firstVisitWeekId: archive.visitorId.split(':').slice(0, -1).join(':') || randomNpcBoard.value.lastGeneratedWeekId,
+      lastVisitDayTag: dayTag,
+      talkedToday: false,
+      conversationCount: 0,
+      keyEvents: [...archive.keyEvents, `${dayTag} 从旧日来客摘要召回，再次来到桃源村。`].slice(-6),
+      tier: 'short_visit'
+    }
+  }
+
+  const trimRandomNpcArchives = (archives: RandomNpcArchiveSummary[]) => {
+    const uniqueArchives = archives.filter((archive, index, entries) =>
+      entries.findIndex(entry => entry.visitorId === archive.visitorId) === index
+    )
+    const lockedArchives = uniqueArchives
+      .filter(archive => archive.locked)
+      .slice(0, RANDOM_NPC_VISITOR_CONFIG.maxLockedArchives)
+    const lockedIds = new Set(lockedArchives.map(archive => archive.visitorId))
+    const unlockedArchives = uniqueArchives.filter(archive => !lockedIds.has(archive.visitorId) && !archive.locked)
+    return [
+      ...lockedArchives,
+      ...unlockedArchives.slice(0, Math.max(0, RANDOM_NPC_VISITOR_CONFIG.maxRecentSummaries - lockedArchives.length))
+    ]
+  }
 
   const trimRandomNpcAcquaintances = (acquaintances: RandomNpcAcquaintanceEntry[]) =>
     acquaintances.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances)
@@ -569,6 +627,91 @@ export const useNpcStore = defineStore('npc', () => {
   const getRandomNpcBoard = () => {
     ensureRandomVisitorsForCurrentWeek()
     return randomNpcBoard.value
+  }
+
+  const getRandomNpcLockedArchiveIds = () => {
+    const lockedIds = new Set<string>()
+    randomNpcBoard.value.activeVisitors.forEach(visitor => {
+      if (visitor.locked) lockedIds.add(visitor.id)
+    })
+    randomNpcBoard.value.recentSummaries.forEach(summary => {
+      if (summary.locked) lockedIds.add(summary.visitorId)
+    })
+    return lockedIds
+  }
+
+  const setRandomNpcLock = (visitorId: string, locked: boolean): { success: boolean; message: string } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const visitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
+    const archive = randomNpcBoard.value.recentSummaries.find(entry => entry.visitorId === visitorId)
+    const targetName = visitor?.name ?? archive?.name
+    if (!targetName) return { success: false, message: '没有找到这位随机来客。' }
+
+    const currentlyLocked = !!visitor?.locked || !!archive?.locked
+    if (locked && !currentlyLocked) {
+      const lockedIds = getRandomNpcLockedArchiveIds()
+      if (lockedIds.size >= RANDOM_NPC_VISITOR_CONFIG.maxLockedArchives) {
+        return { success: false, message: `锁定名额已满（${RANDOM_NPC_VISITOR_CONFIG.maxLockedArchives}人），请先取消一位旧日来客。` }
+      }
+    }
+
+    const dayTag = getCurrentNpcDayTag()
+    const eventLine = locked ? `${dayTag} 锁定为关注来客。` : `${dayTag} 取消关注锁定。`
+    if (visitor) {
+      visitor.locked = locked
+      visitor.keyEvents = [...visitor.keyEvents, eventLine].slice(-6)
+    }
+
+    const updatedArchives = randomNpcBoard.value.recentSummaries.map(summary =>
+      summary.visitorId === visitorId
+        ? {
+            ...summary,
+            locked,
+            keyEvents: [...summary.keyEvents, eventLine].slice(-3)
+          }
+        : summary
+    )
+    randomNpcBoard.value.recentSummaries = trimRandomNpcArchives(
+      visitor && locked && !updatedArchives.some(summary => summary.visitorId === visitor.id)
+        ? [summarizeRandomVisitor(visitor, '已被锁定为关注来客'), ...updatedArchives]
+        : updatedArchives
+    )
+
+    return { success: true, message: locked ? `${targetName}已锁定为关注来客。` : `${targetName}已取消锁定。` }
+  }
+
+  const recallRandomNpcArchive = (visitorId: string): { success: boolean; message: string; visitor?: RandomNpcVisitorState } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const archive = randomNpcBoard.value.recentSummaries.find(entry => entry.visitorId === visitorId)
+    if (!archive) return { success: false, message: '旧日来客摘要里没有这位 NPC。' }
+    const existingVisitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
+    if (existingVisitor) return { success: false, message: `${existingVisitor.name}已经在本周来访名单中。`, visitor: existingVisitor }
+    if (randomNpcBoard.value.acquaintances.some(entry => entry.visitorId === visitorId)) {
+      return { success: false, message: `${archive.name}已经在熟人册中，暂时不需要召回短访。` }
+    }
+    if (randomNpcBoard.value.longStayResidents.some(entry => entry.sourceVisitorId === visitorId)) {
+      return { success: false, message: `${archive.name}已经在桃源村长住。` }
+    }
+    if (randomNpcBoard.value.activeVisitors.length >= RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors) {
+      return { success: false, message: `本周来访位置已满（${RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors}人），请下周再召回。` }
+    }
+
+    const visitor = createRandomNpcVisitorFromArchive(archive)
+    if (!visitor) return { success: false, message: '这位旧日来客的模板已经不可用，暂时不能召回。' }
+    randomNpcBoard.value.activeVisitors = [visitor, ...randomNpcBoard.value.activeVisitors].slice(0, RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+    randomNpcBoard.value.recentSummaries = trimRandomNpcArchives([
+      {
+        ...archive,
+        affinity: visitor.affinity,
+        lastSeenDayTag: visitor.lastVisitDayTag,
+        summary: `${archive.name}已被召回到本周来访名单，等待重新熟悉。`,
+        keyEvents: visitor.keyEvents.slice(-3),
+        smallOrderCompleted: !!visitor.smallOrderCompleted,
+        locked: !!visitor.locked
+      },
+      ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitorId)
+    ])
+    return { success: true, message: `${visitor.name}已从旧日来客摘要召回。`, visitor }
   }
 
   const getRandomNpcSmallOrderMissingItems = (order: RandomNpcSmallOrderDef) => {
@@ -3229,6 +3372,7 @@ export const useNpcStore = defineStore('npc', () => {
               requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
             },
             smallOrderCompleted: !!visitor.smallOrderCompleted,
+            locked: !!visitor.locked,
             relationshipTag: sanitizeRelationshipTag(visitor.relationshipTag),
             affinity: Math.max(0, Math.min(100, Number(visitor.affinity) || 0)),
             firstVisitWeekId: typeof visitor.firstVisitWeekId === 'string' ? visitor.firstVisitWeekId : '',
@@ -3341,7 +3485,13 @@ export const useNpcStore = defineStore('npc', () => {
         ),
         recentSummaries: trimRandomNpcArchives(
           (Array.isArray(raw.recentSummaries) ? raw.recentSummaries : [])
-            .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.visitorId === 'string')
+            .filter((entry: any) =>
+              entry &&
+              typeof entry === 'object' &&
+              typeof entry.visitorId === 'string' &&
+              typeof entry.templateId === 'string' &&
+              validTemplateIds.has(entry.templateId)
+            )
             .map((entry: any): RandomNpcArchiveSummary => ({
               visitorId: entry.visitorId,
               templateId: typeof entry.templateId === 'string' ? entry.templateId : '',
@@ -3351,7 +3501,9 @@ export const useNpcStore = defineStore('npc', () => {
               affinity: Math.max(0, Math.min(100, Number(entry.affinity) || 0)),
               lastSeenDayTag: typeof entry.lastSeenDayTag === 'string' ? entry.lastSeenDayTag : '',
               summary: typeof entry.summary === 'string' ? entry.summary : '',
-              keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-3) : []
+              keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-3) : [],
+              smallOrderCompleted: !!entry.smallOrderCompleted,
+              locked: !!entry.locked
             }))
         )
       }
@@ -3476,6 +3628,8 @@ export const useNpcStore = defineStore('npc', () => {
     getRelationshipDebugSnapshot,
     getRandomNpcBoard,
     talkToRandomVisitor,
+    setRandomNpcLock,
+    recallRandomNpcArchive,
     fulfillRandomNpcSmallOrder,
     addRandomVisitorToAcquaintanceBook,
     promoteRandomNpcAcquaintanceToLongStay,

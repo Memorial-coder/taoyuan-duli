@@ -215,6 +215,7 @@ export interface RandomNpcVisitorState {
   dialogueChoices: RandomNpcDialogueChoiceDef[]
   smallOrder: RandomNpcSmallOrderDef
   smallOrderCompleted?: boolean
+  locked?: boolean
   relationshipTag: RandomNpcRelationshipTag
   affinity: number
   firstVisitWeekId: string
@@ -235,6 +236,8 @@ export interface RandomNpcArchiveSummary {
   lastSeenDayTag: string
   summary: string
   keyEvents: string[]
+  smallOrderCompleted?: boolean
+  locked?: boolean
 }
 
 export interface RandomNpcAcquaintanceEntry {

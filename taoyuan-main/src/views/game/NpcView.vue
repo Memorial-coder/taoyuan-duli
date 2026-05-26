@@ -121,7 +121,9 @@
             <p class="text-xs text-accent">本周来访</p>
             <p class="text-[10px] text-muted mt-0.5">短访人物只保留本周卡片和最近摘要；喜欢的人可记入熟人册长期回看。</p>
           </div>
-          <span class="text-[10px] text-muted whitespace-nowrap">熟人 {{ randomNpcBoard.acquaintances.length }}/{{ randomNpcMaxAcquaintances }}</span>
+          <span class="text-[10px] text-muted whitespace-nowrap">
+            熟人 {{ randomNpcBoard.acquaintances.length }}/{{ randomNpcMaxAcquaintances }} · 旧档 {{ randomNpcBoard.recentSummaries.length }}/{{ randomNpcMaxRecentSummaries }} · 锁定 {{ randomNpcLockedArchiveCount }}/{{ randomNpcMaxLockedArchives }}
+          </span>
         </div>
         <div v-if="randomNpcBoard.activeVisitors.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div
@@ -138,8 +140,8 @@
                 </p>
                 <p class="text-[10px] text-muted mt-0.5 truncate">{{ visitor.origin }} · {{ getRandomNpcAgeBandLabel(visitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(visitor.relationshipTag) }}</p>
               </div>
-              <span class="text-[10px]" :class="visitor.tier === 'short_visit' ? 'text-muted' : 'text-success'">
-                {{ getRandomNpcVisitTierLabel(visitor.tier) }}
+              <span class="text-[10px]" :class="visitor.locked ? 'text-warning' : visitor.tier === 'short_visit' ? 'text-muted' : 'text-success'">
+                {{ visitor.locked ? '锁定 · ' : '' }}{{ getRandomNpcVisitTierLabel(visitor.tier) }}
               </span>
             </div>
             <div class="flex flex-wrap gap-1 mt-1">
@@ -206,14 +208,26 @@
               <p class="text-[10px] text-muted leading-4" :data-testid="`random-npc-last-event-${visitor.id}`">
                 {{ getLastRandomNpcEvent(visitor) }}
               </p>
-              <Button
-                class="shrink-0 justify-center !px-2 !py-1"
-                :class="{ '!bg-accent !text-bg': visitor.affinity >= randomNpcAcquaintanceThreshold }"
-                :disabled="visitor.affinity < randomNpcAcquaintanceThreshold || visitor.tier !== 'short_visit'"
-                @click="handleAddRandomVisitorToAcquaintance(visitor.id)"
-              >
-                {{ visitor.tier === 'short_visit' ? '记入熟人册' : '已记录' }}
-              </Button>
+              <div class="flex shrink-0 items-center gap-1">
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :icon="Star"
+                  :class="{ '!bg-warning !text-bg': visitor.locked }"
+                  :disabled="!visitor.locked && !canLockMoreRandomNpc(visitor.id)"
+                  :data-testid="`random-npc-lock-${visitor.id}`"
+                  @click="handleToggleRandomNpcLock(visitor.id, !visitor.locked)"
+                >
+                  {{ visitor.locked ? '已锁定' : '锁定' }}
+                </Button>
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :class="{ '!bg-accent !text-bg': visitor.affinity >= randomNpcAcquaintanceThreshold }"
+                  :disabled="visitor.affinity < randomNpcAcquaintanceThreshold || visitor.tier !== 'short_visit'"
+                  @click="handleAddRandomVisitorToAcquaintance(visitor.id)"
+                >
+                  {{ visitor.tier === 'short_visit' ? '记入熟人册' : '已记录' }}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -366,9 +380,38 @@
           </div>
         </div>
         <div v-if="randomNpcBoard.recentSummaries.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <p class="text-[10px] text-muted mb-1">旧日来客摘要</p>
-          <div v-for="summary in randomNpcBoard.recentSummaries.slice(0, 3)" :key="summary.visitorId" class="text-[10px] mt-1 first:mt-0">
-            <p class="text-accent">{{ summary.name }} · {{ getRandomNpcRelationshipLabel(summary.relationshipTag) }} · {{ summary.affinity }}</p>
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <p class="text-[10px] text-muted">旧日来客摘要</p>
+            <span class="text-[10px] text-muted">最多 {{ randomNpcMaxRecentSummaries }} 条，锁定 {{ randomNpcMaxLockedArchives }} 条</span>
+          </div>
+          <div v-for="summary in randomNpcBoard.recentSummaries" :key="summary.visitorId" class="text-[10px] border-t border-accent/10 py-1 first:border-t-0 first:pt-0 last:pb-0">
+            <div class="flex items-start justify-between gap-2">
+              <p class="text-accent min-w-0">
+                {{ summary.name }} · {{ getRandomNpcRelationshipLabel(summary.relationshipTag) }} · {{ summary.affinity }}
+                <span v-if="summary.locked" class="text-warning">· 已锁定</span>
+              </p>
+              <div class="flex shrink-0 items-center gap-1">
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :icon="Star"
+                  :class="{ '!bg-warning !text-bg': summary.locked }"
+                  :disabled="!summary.locked && !canLockMoreRandomNpc(summary.visitorId)"
+                  :data-testid="`random-npc-archive-lock-${summary.visitorId}`"
+                  @click="handleToggleRandomNpcLock(summary.visitorId, !summary.locked)"
+                >
+                  {{ summary.locked ? '取消' : '锁定' }}
+                </Button>
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :icon="RotateCcw"
+                  :disabled="!canRecallRandomNpcArchive(summary)"
+                  :data-testid="`random-npc-archive-recall-${summary.visitorId}`"
+                  @click="handleRecallRandomNpcArchive(summary.visitorId)"
+                >
+                  召回
+                </Button>
+              </div>
+            </div>
             <p class="text-muted leading-4">{{ summary.summary }}</p>
           </div>
         </div>
@@ -1238,7 +1281,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond } from 'lucide-vue-next'
+  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw } from 'lucide-vue-next'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -1267,6 +1310,7 @@
     Quality,
     RandomNpcAcquaintanceEntry,
     RandomNpcAgeBand,
+    RandomNpcArchiveSummary,
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
     RandomNpcRelationshipTag,
@@ -1312,6 +1356,18 @@
   const randomNpcMaxAcquaintances = RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances
   const randomNpcLongStayThreshold = RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold
   const randomNpcMaxLongStayResidents = RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents
+  const randomNpcMaxRecentSummaries = RANDOM_NPC_VISITOR_CONFIG.maxRecentSummaries
+  const randomNpcMaxLockedArchives = RANDOM_NPC_VISITOR_CONFIG.maxLockedArchives
+  const randomNpcLockedArchiveCount = computed(() => {
+    const lockedIds = new Set<string>()
+    randomNpcBoard.value.activeVisitors.forEach(visitor => {
+      if (visitor.locked) lockedIds.add(visitor.id)
+    })
+    randomNpcBoard.value.recentSummaries.forEach(summary => {
+      if (summary.locked) lockedIds.add(summary.visitorId)
+    })
+    return lockedIds.size
+  })
   const NPC_COOKING_TOPIC_LABELS = ['NPC 来访话题', '送礼话题', '家宴团圆']
   const npcCookingTopicRecords = computed(() => {
     const records = cookingStore.recentStoryTriggerRecords
@@ -1550,6 +1606,17 @@
     itemIds.map(itemId => getItemById(itemId)?.name ?? itemId).join('、') || '尚未记录'
   const isRandomNpcLongStay = (visitorId: string): boolean =>
     randomNpcBoard.value.longStayResidents.some(resident => resident.sourceVisitorId === visitorId)
+  const canLockMoreRandomNpc = (visitorId: string): boolean => {
+    const activeVisitor = randomNpcBoard.value.activeVisitors.find(visitor => visitor.id === visitorId)
+    const archive = randomNpcBoard.value.recentSummaries.find(summary => summary.visitorId === visitorId)
+    if (activeVisitor?.locked || archive?.locked) return true
+    return randomNpcLockedArchiveCount.value < randomNpcMaxLockedArchives
+  }
+  const canRecallRandomNpcArchive = (summary: RandomNpcArchiveSummary): boolean =>
+    randomNpcBoard.value.activeVisitors.length < RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors &&
+    !randomNpcBoard.value.activeVisitors.some(visitor => visitor.id === summary.visitorId) &&
+    !randomNpcBoard.value.acquaintances.some(acquaintance => acquaintance.visitorId === summary.visitorId) &&
+    !randomNpcBoard.value.longStayResidents.some(resident => resident.sourceVisitorId === summary.visitorId)
   const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
   const canFulfillRandomNpcSmallOrder = (order: RandomNpcSmallOrderDef): boolean =>
     order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)
@@ -1573,6 +1640,18 @@
     const result = npcStore.fulfillRandomNpcSmallOrder(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC小订单】${result.message}`)
+  }
+
+  const handleToggleRandomNpcLock = (visitorId: string, locked: boolean) => {
+    const result = npcStore.setRandomNpcLock(visitorId, locked)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC锁定】${result.message}`)
+  }
+
+  const handleRecallRandomNpcArchive = (visitorId: string) => {
+    const result = npcStore.recallRandomNpcArchive(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC召回】${result.message}`)
   }
 
   if (import.meta.env.DEV) {
