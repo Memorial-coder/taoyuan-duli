@@ -548,6 +548,12 @@
                         <p>{{ receipt.route_replay.summary }}</p>
                         <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
+                        <div v-if="routeReplayRaceRankingRows(receipt.route_replay).length" data-testid="online-festival-dragon-boat-race-rankings" class="space-y-0.5 border-l border-accent/25 pl-2">
+                          <p class="text-accent/90">赛道名次：{{ routeReplayRaceScaleText(receipt.route_replay) }}</p>
+                          <p v-for="row in routeReplayRaceRankingRows(receipt.route_replay)" :key="`${receipt.id}-${row.id}`">
+                            {{ row.rankLabel }} · {{ row.label }} · {{ row.positionText }} · {{ row.scoreText }} · {{ row.finishText }}
+                          </p>
+                        </div>
                         <div v-if="routeReplayMemoryRecords(receipt.route_replay).length" data-testid="online-festival-lantern-replay-memory-records" class="space-y-0.5 border-l border-warning/30 pl-2">
                           <p v-for="record in routeReplayMemoryRecords(receipt.route_replay)" :key="`${receipt.id}-${record.type}`">
                             {{ formatFestivalMemoryRecord(record) }}
@@ -771,6 +777,12 @@
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
+                <div v-if="routeReplayRaceRankingRows(receipt.route_replay).length" data-testid="online-festival-dragon-boat-race-rankings" class="space-y-0.5 border-l border-accent/25 pl-2">
+                  <p class="text-accent/90">赛道名次：{{ routeReplayRaceScaleText(receipt.route_replay) }}</p>
+                  <p v-for="row in routeReplayRaceRankingRows(receipt.route_replay)" :key="`${receipt.id}-${row.id}`">
+                    {{ row.rankLabel }} · {{ row.label }} · {{ row.positionText }} · {{ row.scoreText }} · {{ row.finishText }}
+                  </p>
+                </div>
                 <div v-if="routeReplayMemoryRecords(receipt.route_replay).length" data-testid="online-festival-lantern-replay-memory-records" class="space-y-0.5 border-l border-warning/30 pl-2">
                   <p v-for="record in routeReplayMemoryRecords(receipt.route_replay)" :key="`${receipt.id}-${record.type}`">
                     {{ formatFestivalMemoryRecord(record) }}
@@ -1258,6 +1270,12 @@
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
+                <div v-if="routeReplayRaceRankingRows(receipt.route_replay).length" data-testid="online-festival-dragon-boat-race-rankings" class="space-y-0.5 border-l border-accent/25 pl-2">
+                  <p class="text-accent/90">赛道名次：{{ routeReplayRaceScaleText(receipt.route_replay) }}</p>
+                  <p v-for="row in routeReplayRaceRankingRows(receipt.route_replay)" :key="`${receipt.id}-${row.id}`">
+                    {{ row.rankLabel }} · {{ row.label }} · {{ row.positionText }} · {{ row.scoreText }} · {{ row.finishText }}
+                  </p>
+                </div>
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
@@ -1349,6 +1367,12 @@
                 <p>{{ receipt.routeReplay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.routeReplay)">路线：{{ routeReplayRouteText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.routeReplay)">{{ routeReplayRaceText(receipt.routeReplay) }}</p>
+                <div v-if="routeReplayRaceRankingRows(receipt.routeReplay).length" data-testid="online-festival-dragon-boat-race-rankings" class="space-y-0.5 border-l border-accent/25 pl-2">
+                  <p class="text-accent/90">赛道名次：{{ routeReplayRaceScaleText(receipt.routeReplay) }}</p>
+                  <p v-for="row in routeReplayRaceRankingRows(receipt.routeReplay)" :key="`${receipt.id}-${row.id}`">
+                    {{ row.rankLabel }} · {{ row.label }} · {{ row.positionText }} · {{ row.scoreText }} · {{ row.finishText }}
+                  </p>
+                </div>
                 <div v-if="routeReplayMemoryRecords(receipt.routeReplay).length" data-testid="online-festival-lantern-replay-memory-records" class="space-y-0.5 border-l border-warning/30 pl-2">
                   <p v-for="record in routeReplayMemoryRecords(receipt.routeReplay)" :key="`${receipt.id}-${record.type}`">
                     {{ formatFestivalMemoryRecord(record) }}
@@ -1503,6 +1527,37 @@
       .join(' / ')
     const rankingText = rankings && replay.race_result.team_count > 1 ? `赛道榜：${rankings}` : ''
     return [replay.race_result.rank_label, popularity, title, rankingText].filter(Boolean).join(' · ')
+  }
+  const routeReplayRaceScaleText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'dragon_boat') return ''
+    const teamCount = Math.max(0, Math.floor(Number(replay.race_result?.team_count) || replay.race_rankings?.length || 0))
+    if (teamCount >= 4) return '四船扩展'
+    if (teamCount === 3) return '三船竞速'
+    if (teamCount === 2) return '双船演练'
+    return '合作成绩'
+  }
+  const routeReplayRaceRankingRows = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'dragon_boat' || !Array.isArray(replay.race_rankings)) return []
+    const trackLength = Math.max(
+      1,
+      replay.route_nodes?.length || 0,
+      ...replay.race_rankings.map(row => Math.floor(Number(row.position_index) || 0) + 1)
+    )
+    return replay.race_rankings
+      .filter(row => row.team_id || row.label)
+      .slice(0, 8)
+      .map(row => {
+        const position = Math.max(1, Math.floor(Number(row.position_index) || 0) + 1)
+        const score = Math.max(0, Math.floor(Number(row.score_value) || 0))
+        return {
+          id: row.team_id || `${row.rank}-${row.label}`,
+          rankLabel: row.rank_label || (row.rank > 0 ? `第 ${row.rank} 名` : '未排名'),
+          label: row.label || row.team_id || '未命名船队',
+          positionText: `第 ${Math.min(position, trackLength)} / ${trackLength} 格`,
+          scoreText: `赛舟分 ${score}`,
+          finishText: row.finished ? '已冲线' : '仍在赛道中',
+        }
+      })
   }
   const festivalMemoryRecords = (records?: FestivalRoomRouteReplayMemoryRecord[] | null) =>
     (Array.isArray(records) ? records : [])

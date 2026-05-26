@@ -299,6 +299,9 @@ expectContains('online/OnlineFestivalView.vue', 'online-festival-lantern-replay-
 expectContains('online/OnlineFestivalView.vue', 'online-festival-lantern-memorial-memory-records', '在线节会纪念册应展示完整灯会纪念清单')
 expectContains('online/OnlineFestivalView.vue', 'online-festival-friend-lantern-memory-records', '好友灯会回看应展示完整灯会纪念清单')
 expectContains('online/OnlineFestivalView.vue', '待署名', '灯会纪念清单应显示未署名预留记录')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-dragon-boat-race-rankings', '在线节会龙舟凭证应结构化展示多队名次')
+expectContains('online/OnlineFestivalView.vue', 'routeReplayRaceRankingRows', '在线节会龙舟回看应读回每队船位、赛舟分和冲线状态')
+expectContains('online/OnlineFestivalView.vue', 'routeReplayRaceScaleText', '在线节会龙舟回看应区分双船演练、三船竞速和四船扩展')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineFestivalView.vue', /overflow-y-auto/g, 20, '节会长列表应保留滚动边界')
 
 expectContains('ExpeditionRoomView.vue', '<OnlineVisualRoomShell', '远征房间应复用统一可视化房间壳')
