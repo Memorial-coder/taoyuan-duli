@@ -292,6 +292,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_family_building_real_demolition_main_state_preview',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/real-demolition\/verify-main-state-mapping$/i,
+    action: 'cohabitation_family_building_real_demolition_main_state_mapping_verify',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/real-demolition\/reject-review$/i,
     action: 'cohabitation_family_building_real_demolition_reject_review',
   },
@@ -3302,6 +3306,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '预览家族建筑真实拆除个人主状态失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/verify-main-state-mapping', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.displayName || req.session.username,
+      });
+      return res.json({ ok: true, ...result });
+    } catch (error) {
+      return handleApiError(res, error, '记录家族建筑真实拆除个人主状态映射证明失败');
     }
   });
 });

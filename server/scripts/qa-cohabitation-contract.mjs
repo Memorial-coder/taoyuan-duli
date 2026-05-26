@@ -3409,6 +3409,77 @@ assert.equal(familyBuildingRealDemolitionMainStatePreview.fund.balance, balanceB
 assert.equal(familyBuildingRealDemolitionMainStatePreview.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state preview should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state preview should not change restored rice')
 
+const mainStateMappingPayload = {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  manifest_hash: familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest_hash,
+  reason: 'qa verify personal main state mapping without mutation',
+  idempotency_key: 'qa-family-building-real-demolition-main-state-mapping',
+  mappings: familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.map(item => ({
+    username: item.username,
+    username_key: item.username_key,
+    save_slot: item.save_slot,
+    save_id: item.save_id,
+    real_build_ref: item.real_build_ref,
+    candidate_path: 'home.homeRenovationStates',
+    binding_ref: `manual-home-renovation:${item.building_ledger_id}:${item.username_key}`,
+    snapshot_hash: item.snapshot_hash,
+  })),
+}
+
+await assert.rejects(
+  () => runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(largeContract.contract.id, {
+    ...mainStateMappingPayload,
+    manifest_hash: 'bad-preview-hash',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-mapping-bad-hash',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state mapping should reject preview manifest hash drift'
+)
+
+const familyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
+  largeContract.contract.id,
+  mainStateMappingPayload,
+  actor(largeOwner)
+)
+assert.equal(familyBuildingRealDemolitionMainStateMapping.idempotent, false, 'first main state mapping should not be idempotent')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.already_mapped, false, 'first main state mapping should not report already mapped')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.building_ledger_entry.real_build_demolition_main_state_mapping_idempotency_key, 'qa-family-building-real-demolition-main-state-mapping', 'main state mapping should store idempotency key')
+assert.ok(/^[a-f0-9]{64}$/.test(familyBuildingRealDemolitionMainStateMapping.building_ledger_entry.real_build_demolition_main_state_mapping_manifest_hash), 'main state mapping should store mapping manifest hash')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest.length, 2, 'main state mapping should include one mapping per accepted member')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.mutation_enabled, false, 'main state mapping should keep mutation disabled')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.personal_save_changed, false, 'main state mapping should not write personal saves')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.shared_fund_changed, false, 'main state mapping should not change shared fund')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.shared_warehouse_changed, false, 'main state mapping should not change shared warehouse')
+assert.ok(!familyBuildingRealDemolitionMainStateMapping.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_mapping'), 'main state mapping should clear mapping deferred operation')
+assert.ok(familyBuildingRealDemolitionMainStateMapping.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_mutation_guard'), 'main state mapping should defer real mutation guard')
+assert.equal(
+  familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest.every(item =>
+    item.mapping_status === 'verified_personal_binding_pending_mutation'
+    && item.mutation_enabled === false
+    && item.candidate_path === 'home.homeRenovationStates'
+    && item.binding_ref.startsWith('manual-home-renovation:')
+  ),
+  true,
+  'main state mapping should record verified binding refs without enabling mutation'
+)
+assert.ok(familyBuildingRealDemolitionMainStateMapping.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_mapping_verified'), 'main state mapping should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state mapping should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state mapping should not rewrite partner save')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.fund.balance, balanceBeforeLargeDraft, 'main state mapping should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state mapping should not change restored wood')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state mapping should not change restored rice')
+
+const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
+  largeContract.contract.id,
+  mainStateMappingPayload,
+  actor(largeOwner)
+)
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMapping.idempotent, true, 'same main state mapping key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMapping.already_mapped, true, 'duplicate main state mapping should report already mapped')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest_hash, familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest_hash, 'duplicate main state mapping should keep manifest hash')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state mapping should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state mapping should not rewrite partner save')
+
 const duplicateFamilyBuildingRealDemolitionMainStatePreview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
   idempotency_key: 'qa-family-building-real-demolition-main-state-preview',

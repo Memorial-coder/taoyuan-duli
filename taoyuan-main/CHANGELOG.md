@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态映射证明后端闭环
+- 服务端新增 `/family-buildings/real-demolition/verify-main-state-mapping`，要求先有主状态预览 manifest hash，并逐成员校验 `real_build_ref`、存档槽位 / save_id、候选路径、绑定证明和快照 hash。
+- 成功后只在建筑流水记录映射证明 manifest、hash、操作者和审计，并把待办从 `real_build_demolition_main_state_mapping` 推进到 `real_build_demolition_main_state_mutation_guard`。
+- 本轮仍不修改个人 `home / decoration` 主状态，不改共同基金 / 共同仓库数量、不写个人铜币或背包；真实删除需另起带预览确认、补偿和回滚的 mutation guard。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0526 家族建筑真实拆除个人主状态预览前端入口
 - 前端 API / store 接入 `/family-buildings/real-demolition/preview-main-state`，共同庄园建筑流水卡片新增“预览主态”按钮。
 - 按钮按真实拆除执行已完成、个人存档回执已写回、真实落账证据存在、尚未生成主状态预览和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
