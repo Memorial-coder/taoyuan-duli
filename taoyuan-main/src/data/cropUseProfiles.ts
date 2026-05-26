@@ -56,6 +56,38 @@ export const CROP_USE_TAG_LABELS: Record<CropUseTag, string> = {
   medicine: '药材'
 }
 
+export const CROP_USE_TAG_FILTER_HINTS: Record<CropUseTag, string> = {
+  food: '灶台食材',
+  alchemy: '丹炉主辅材',
+  pet_feed: '宠物特别喂食',
+  animal_feed: '家畜牧场补料',
+  oil: '油坊榨油',
+  flour: '石磨制粉',
+  wine: '酒坊酿造',
+  pickle: '酱缸腌制',
+  gift: '村民赠礼',
+  festival: '节会供品',
+  order: '订单交付',
+  online_cost: '公共仓消耗',
+  medicine: '药膳药材'
+}
+
+export const CROP_USE_TAG_SEARCH_KEYWORDS: Record<CropUseTag, string[]> = {
+  food: ['食材', '灶台料理', '料理用途入口', 'food 用途标签'],
+  alchemy: ['丹材', '丹炉材料', '炼丹用途入口', 'alchemy 用途标签'],
+  pet_feed: ['宠物点心', '特别喂食', '宠物喂食读取用途标签', 'pet_feed 用途标签'],
+  animal_feed: ['家畜饲料', '牧场补料', '动物喂食读取用途标签', 'animal_feed 用途标签'],
+  oil: ['油坊', '榨油加工', 'oil 用途标签'],
+  flour: ['石磨', '制粉加工', 'flour 用途标签'],
+  wine: ['酒坊', '酿造', 'wine 用途标签'],
+  pickle: ['酱缸', '腌制加工', 'pickle 用途标签'],
+  gift: ['送礼', '好感赠礼', 'gift 用途标签'],
+  festival: ['节庆供品', '节会备料', '宴席备菜', 'festival 用途标签'],
+  order: ['村民订单', '公共订单', '任务交付', 'order 用途标签'],
+  online_cost: ['联机消耗', '公共仓消耗', '公共订单消耗', 'online_cost 用途标签'],
+  medicine: ['药材储备', '药膳材料', 'medicine 用途标签']
+}
+
 export const CROP_USE_NATURE_LABELS: Record<CropUseNature, string> = {
   neutral: '中性',
   warm: '温补',
@@ -297,6 +329,20 @@ export const getCropUseTagLabels = (profile: CropUseProfile): string[] => {
 
 export const formatCropUseSummary = (profile: CropUseProfile): string => {
   return `${profile.summary} 推荐：${profile.recommendedUses.join('、')}。`
+}
+
+export const getCropUseTagSearchKeywords = (tags: CropUseTag[]): string[] => {
+  return Array.from(
+    new Set(
+      tags.flatMap(tag => [
+        CROP_USE_TAG_LABELS[tag],
+        CROP_USE_TAG_FILTER_HINTS[tag],
+        `${CROP_USE_TAG_LABELS[tag]}筛选`,
+        `${tag} 用途标签`,
+        ...CROP_USE_TAG_SEARCH_KEYWORDS[tag]
+      ])
+    )
+  )
 }
 
 export const getCropUseTagMatches = (itemId: string, tags: CropUseTag[]): CropUseTagMatch[] => {

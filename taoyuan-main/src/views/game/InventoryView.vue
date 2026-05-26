@@ -409,9 +409,11 @@
               :key="tag"
               class="border rounded-xs px-1.5 py-1 text-center text-xs cursor-pointer transition-colors"
               :class="tempCropUseFilter.has(tag) ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/20 text-muted hover:bg-accent/5'"
+              :title="getCropUseFilterHint(tag)"
               @click="toggleCropUseTag(tag)"
             >
-              {{ CROP_USE_TAG_LABELS[tag] }}
+              <span class="block">{{ CROP_USE_TAG_LABELS[tag] }}</span>
+              <span class="block truncate text-[9px] opacity-70">{{ CROP_USE_TAG_FILTER_HINTS[tag] }}</span>
             </div>
           </div>
           <div class="flex space-x-1.5">
@@ -829,7 +831,7 @@
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { getItemById, getItemSource } from '@/data'
-  import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
+  import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_TAG_FILTER_HINTS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
   import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
   import { getRecipeById } from '@/data/recipes'
   import { getWeaponById, getWeaponDisplayName, getWeaponSellPrice, getEnchantmentById, WEAPON_TYPE_NAMES } from '@/data/weapons'
@@ -908,6 +910,7 @@
   const tempCropUseFilter = ref<Set<CropUseTag>>(new Set())
 
   const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
+  const getCropUseFilterHint = (tag: CropUseTag): string => `${CROP_USE_TAG_LABELS[tag]}：${CROP_USE_TAG_FILTER_HINTS[tag]}`
 
   const isFilterActive = computed(() => settingsStore.inventoryFilter.length > 0 || settingsStore.inventoryCropUseFilter.length > 0)
 

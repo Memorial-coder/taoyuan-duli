@@ -21,7 +21,14 @@ import {
 } from './processing'
 import { RECIPES, getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from './recipes'
 import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collectionRegistry'
-import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels, getCropUseTagMatches } from './cropUseProfiles'
+import {
+  CROP_USE_NATURE_LABELS,
+  CROP_USE_RARITY_LABELS,
+  getCropUseProfile,
+  getCropUseTagLabels,
+  getCropUseTagMatches,
+  getCropUseTagSearchKeywords
+} from './cropUseProfiles'
 import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel, getPetSpecialFeedUseText, getPetTypeLabel } from './petFeeds'
 
 export interface ItemEncyclopediaDetail {
@@ -476,6 +483,7 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
           'CropUseProfile',
           ...cropUseProfile.tags,
           ...getCropUseTagLabels(cropUseProfile),
+          ...getCropUseTagSearchKeywords(cropUseProfile.tags),
           ...cropUseProfile.flavor,
           cropUseProfile.nature,
           CROP_USE_NATURE_LABELS[cropUseProfile.nature],
@@ -496,6 +504,12 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
         }
         if (cropUseProfile.tags.includes('animal_feed')) {
           keywords.push('动物喂食读取用途标签', 'animal_feed 用途标签')
+        }
+        if (cropUseProfile.tags.includes('order')) {
+          keywords.push('订单用途筛选', '订单交付作物', '村民订单作物', 'order 用途标签')
+        }
+        if (cropUseProfile.tags.includes('festival')) {
+          keywords.push('节会用途筛选', '节会供品作物', '节庆宴席备菜', 'festival 用途标签')
         }
         const dualPathEntries = getCropDualPathEntries(item.id)
         if (dualPathEntries.length > 0) {
