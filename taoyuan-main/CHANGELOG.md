@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态精确变更前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/execute-main-state-exact-mutation`，共同庄园建筑流水卡片新增“执行变更”按钮。
+- 按钮按已完成人工解析、`blocked_personal_main_state_mutation_adapter_missing` 执行状态、目标 manifest hash、目标清单、未执行幂等和已支持窄 selector 禁用；当前只允许 `home.homeRenovationStates.<id>` 与 `decoration.placed.<id>`，并拒绝前端 / QA 占位 selector。
+- 提交时固定带“确认执行个人主状态变更”、补偿方案确认和回滚方案确认；成功后展示变更人、变更时间、回执数、变更策略和 `personal_main_state_mutated` 状态，本轮仍不改共同基金 / 共同仓库数量、不写个人铜币、背包或农田。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态精确变更适配器后端闭环
 - 服务端新增 `/family-buildings/real-demolition/execute-main-state-exact-mutation`，要求已人工解析精确目标、manifest hash 匹配、确认“执行个人主状态变更”，并确认补偿与回滚方案。
 - 适配器第一版只支持窄 selector：`home.homeRenovationStates.<renovationId>` 删除对应宅院改造状态，`decoration.placed.<decorationId>` 收起一个已放置装饰；宽路径、嵌套路径和不存在目标继续拒绝。

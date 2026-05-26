@@ -13,6 +13,7 @@ import {
   createCohabitationFundLargeSpendDraft,
   createCohabitationSeparationPreview,
   depositCohabitationWarehouseItem,
+  executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutation,
   executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   executeCohabitationFamilyBuildingRealDemolitionMainStateMutation,
   executeCohabitationSeparationAssetReturn,
@@ -61,6 +62,7 @@ import {
   type CohabitationFamilyBuildingsPanel,
   type CohabitationFamilyBuildingMainStateExecutePayload,
   type CohabitationFamilyBuildingMainStateExactExecutePayload,
+  type CohabitationFamilyBuildingMainStateExactMutationPayload,
   type CohabitationFamilyBuildingMainStateExactTargetResolutionPayload,
   type CohabitationFamilyBuildingMainStateExactTargetPayload,
   type CohabitationFamilyBuildingMainStateMutationGuardPayload,
@@ -1174,6 +1176,31 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const executeFamilyBuildingRealDemolitionMainStateExactMutation = async (payload: CohabitationFamilyBuildingMainStateExactMutationPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.building_ledger_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutation(activeContractId.value, payload)
+      if (result?.family_buildings_panel) familyBuildingsPanel.value = result.family_buildings_panel
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '执行家族建筑真实拆除个人主状态精确变更失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const depositSharedWarehouseItem = async (payload: {
     item_id: string
     quantity: number
@@ -1382,6 +1409,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     bindFamilyBuildingRealDemolitionMainStateExactTargets,
     executeFamilyBuildingRealDemolitionMainStateExactTargets,
     resolveFamilyBuildingRealDemolitionMainStateExactTargets,
+    executeFamilyBuildingRealDemolitionMainStateExactMutation,
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,

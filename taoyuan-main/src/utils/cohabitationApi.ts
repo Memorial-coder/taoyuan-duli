@@ -727,6 +727,12 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   real_build_demolition_main_state_exact_executed_by_display_name: string
   real_build_demolition_main_state_exact_execution_state: string
   real_build_demolition_main_state_exact_execute_policy: string
+  real_build_demolition_main_state_exact_mutation_idempotency_key: string
+  real_build_demolition_main_state_exact_mutated_at: number
+  real_build_demolition_main_state_exact_mutated_by_username: string
+  real_build_demolition_main_state_exact_mutated_by_display_name: string
+  real_build_demolition_main_state_exact_mutation_receipts: CohabitationFamilyBuildingMainStateExactMutationReceipt[]
+  real_build_demolition_main_state_exact_mutation_policy: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -799,6 +805,22 @@ export interface CohabitationFamilyBuildingMainStateExactTargetEntry {
   target_kind: string
   target_status: string
   mutation_enabled: boolean
+}
+
+export interface CohabitationFamilyBuildingMainStateExactMutationReceipt {
+  username: string
+  username_key: string
+  save_slot: number | null
+  save_id: number | string | null
+  before_revision: number
+  after_revision: number
+  receipt_id: string
+  receipt_status: string
+  delete_selector: string
+  target_kind: string
+  mutation_result: string
+  idempotency_key: string
+  written_at: number
 }
 
 export interface CohabitationFamilyBuildingsPanel {
@@ -1356,6 +1378,14 @@ export interface CohabitationFamilyBuildingMainStateExactTargetResolutionPayload
   }>
 }
 
+export interface CohabitationFamilyBuildingMainStateExactMutationPayload extends CohabitationFamilyBuildingLedgerPayload {
+  exact_target_manifest_hash: string
+  expected_execution_state: string
+  confirmation_text: string
+  compensation_plan_acknowledged: boolean
+  rollback_plan_acknowledged: boolean
+}
+
 export interface CohabitationFundContributionPayload {
   amount: number
   purpose?: string
@@ -1658,6 +1688,14 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     shared_fund_changed?: boolean
     shared_warehouse_changed?: boolean
     next_deferred_operation?: string
+  }
+  main_state_exact_mutation?: {
+    receipts?: CohabitationFamilyBuildingMainStateExactMutationReceipt[]
+    mutation_enabled?: boolean
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
+    execution_state?: string
   }
   rollback?: {
     shared_fund_refunded?: boolean
@@ -2188,6 +2226,14 @@ export const resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTarget
     contractPath(contractId, '/family-buildings/real-demolition/resolve-main-state-exact-targets'),
     payload as unknown as Record<string, unknown>,
     '人工解析家族建筑真实拆除个人主状态精确目标失败'
+  )
+}
+
+export const executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutation = async (contractId: string, payload: CohabitationFamilyBuildingMainStateExactMutationPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/execute-main-state-exact-mutation'),
+    payload as unknown as Record<string, unknown>,
+    '执行家族建筑真实拆除个人主状态精确变更失败'
   )
 }
 
