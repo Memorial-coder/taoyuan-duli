@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态精确变更适配器后端闭环接入：共同庄园新增 `/family-buildings/real-demolition/execute-main-state-exact-mutation`，要求已人工解析精确目标、manifest hash 匹配、确认“执行个人主状态变更”，并确认补偿与回滚方案。适配器第一版只执行窄 selector：删除 `home.homeRenovationStates.<renovationId>` 或收起一个 `decoration.placed.<decorationId>`，逐成员写入个人存档回执和审计，幂等重试不重复改写；共同基金、共同仓库、个人铜币、背包和农田不变。
 - 家族建筑真实拆除个人主状态精确目标人工解析前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/resolve-main-state-exact-targets`，共同庄园建筑流水卡片新增“解析目标”按钮；按钮只在精确执行已阻断为 `blocked_unresolved_exact_target_selector`、目标 manifest hash 和目标清单存在且尚未解析时开放。提交后展示解析人、解析时间、manifest hash、解析策略和 `blocked_personal_main_state_mutation_adapter_missing` 状态，并读回 `real_build_demolition_main_state_exact_mutation_adapter_required` 暂缓项；该入口仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库。
 - 家族建筑真实拆除个人主状态精确目标人工解析后端闭环接入：共同庄园新增 `/family-buildings/real-demolition/resolve-main-state-exact-targets`，要求已执行精确目标安全阀并处于 `blocked_unresolved_exact_target_selector`、目标 manifest hash 匹配、确认“人工解析精确目标”，并逐成员提交非前端 / QA 占位 selector 和解析证明。接口只替换精确目标 manifest、重算 hash、记录解析人、策略和审计，把待办推进到 `real_build_demolition_main_state_exact_mutation_adapter_required`；该步骤仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库，专项 QA 覆盖幂等、占位拒绝与资产边界。
 - 家族建筑真实拆除个人主状态精确执行前端阻断入口接入：前端 API / store 接入 `/family-buildings/real-demolition/execute-main-state-exact-targets`，共同庄园建筑流水卡片新增“精确阻断”按钮；按钮只在已绑定精确目标、执行状态为 `exact_target_bound_pending_execute`、manifest hash 和目标清单存在且尚未记录精确执行幂等时开放。提交后展示精确执行人、时间、阻断状态、策略和待人工解析数量，并读回 `real_build_demolition_main_state_exact_target_manual_resolution` 暂缓项；该入口仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库。

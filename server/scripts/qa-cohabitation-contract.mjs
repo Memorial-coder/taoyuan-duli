@@ -136,6 +136,22 @@ const buildSaveData = username => ({
       tempItems: [],
       capacity: 24,
     },
+    home: {
+      farmhouseLevel: 3,
+      caveChoice: 'none',
+      caveUnlocked: false,
+      greenhouseUnlocked: false,
+      cellarSlots: [],
+      homeRenovationStates: username === 'cohabit_lg_owner25'
+        ? { scholar_room: true, tea_corner: true }
+        : username === 'cohabit_lg_partner25'
+          ? { scholar_room: true, ancestral_display_wall: true }
+          : {},
+    },
+    decoration: {
+      owned: username.includes('_lg_') ? { bamboo_lamp: 1 } : {},
+      placed: username.includes('_lg_') ? { bamboo_lamp: 1 } : {},
+    },
   },
 })
 
@@ -3783,7 +3799,8 @@ const mainStateExactTargetResolutionPayload = {
   reason: 'qa resolve placeholder exact target but keep mutation adapter blocked',
   idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution',
   targets: familyBuildingRealDemolitionMainStateExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.map((item, index) => {
-    const resolvedTargetRef = `${item.candidate_path}.resolved_target_${index}`
+    const resolvedId = item.username === largeOwner ? 'scholar_room' : 'ancestral_display_wall'
+    const resolvedTargetRef = `${item.candidate_path}.${resolvedId}`
     return {
       username: item.username,
       username_key: item.username_key,
@@ -3878,6 +3895,96 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargetResolution
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite partner save')
 
+const mainStateExactMutationPayload = {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  exact_target_manifest_hash: familyBuildingRealDemolitionMainStateExactTargetResolution.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'blocked_personal_main_state_mutation_adapter_missing',
+  confirmation_text: '确认执行个人主状态变更',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa execute exact main state mutation adapter against home renovation states',
+  idempotency_key: 'qa-family-building-real-demolition-main-state-exact-mutation',
+}
+
+await assert.rejects(
+  () => runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(largeContract.contract.id, {
+    ...mainStateExactMutationPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-mutation-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not execute real demolition personal main state exact mutation adapter'
+)
+
+await assert.rejects(
+  () => runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(largeContract.contract.id, {
+    ...mainStateExactMutationPayload,
+    confirmation_text: 'bad confirm',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-mutation-bad-confirm',
+  }, actor(largeOwner)),
+  error => error?.status === 400,
+  'main state exact mutation adapter should require confirmation text'
+)
+
+await assert.rejects(
+  () => runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(largeContract.contract.id, {
+    ...mainStateExactMutationPayload,
+    exact_target_manifest_hash: 'bad-exact-mutation-hash',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-mutation-bad-hash',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact mutation adapter should reject exact target manifest hash drift'
+)
+
+const ownerHomeBeforeExactMutation = readGameplayData(largeOwner)?.home?.homeRenovationStates || {}
+const partnerHomeBeforeExactMutation = readGameplayData(largePartner)?.home?.homeRenovationStates || {}
+assert.equal(ownerHomeBeforeExactMutation.scholar_room, true, 'owner should start with resolved home renovation target')
+assert.equal(partnerHomeBeforeExactMutation.ancestral_display_wall, true, 'partner should start with resolved home renovation target')
+const ownerMoneyBeforeExactMutation = readGameplayData(largeOwner)?.player?.money
+const partnerMoneyBeforeExactMutation = readGameplayData(largePartner)?.player?.money
+const ownerInventoryBeforeExactMutation = getInventoryItemQuantity(largeOwner, 'wood')
+const partnerInventoryBeforeExactMutation = getInventoryItemQuantity(largePartner, 'wood')
+
+const familyBuildingRealDemolitionMainStateExactMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
+  largeContract.contract.id,
+  mainStateExactMutationPayload,
+  actor(largeOwner)
+)
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.idempotent, false, 'first main state exact mutation adapter should not be idempotent')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.already_mutated, false, 'first main state exact mutation adapter should not report already mutated')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.building_ledger_entry.real_build_demolition_main_state_exact_mutation_idempotency_key, 'qa-family-building-real-demolition-main-state-exact-mutation', 'main state exact mutation adapter should store idempotency key')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.building_ledger_entry.real_build_demolition_main_state_exact_execution_state, 'personal_main_state_mutated', 'main state exact mutation adapter should advance execution state')
+assert.ok(!familyBuildingRealDemolitionMainStateExactMutation.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_exact_mutation_adapter_required'), 'main state exact mutation adapter should clear adapter deferred operation')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.mutation_enabled, true, 'main state exact mutation adapter should enable mutation')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.personal_save_changed, true, 'main state exact mutation adapter should write personal saves')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.shared_fund_changed, false, 'main state exact mutation adapter should not change shared fund')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.shared_warehouse_changed, false, 'main state exact mutation adapter should not change shared warehouse')
+assert.equal(readGameplayData(largeOwner)?.home?.homeRenovationStates?.scholar_room, undefined, 'owner resolved home renovation target should be removed from personal main state')
+assert.equal(readGameplayData(largePartner)?.home?.homeRenovationStates?.ancestral_display_wall, undefined, 'partner resolved home renovation target should be removed from personal main state')
+assert.equal(readGameplayData(largeOwner)?.home?.homeRenovationStates?.tea_corner, true, 'owner unrelated home renovation should remain')
+assert.equal(readGameplayData(largePartner)?.home?.homeRenovationStates?.scholar_room, true, 'partner unrelated home renovation should remain')
+assert.equal(readGameplayData(largeOwner)?.player?.money, ownerMoneyBeforeExactMutation, 'main state exact mutation adapter should not touch owner money')
+assert.equal(readGameplayData(largePartner)?.player?.money, partnerMoneyBeforeExactMutation, 'main state exact mutation adapter should not touch partner money')
+assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), ownerInventoryBeforeExactMutation, 'main state exact mutation adapter should not touch owner inventory')
+assert.equal(getInventoryItemQuantity(largePartner, 'wood'), partnerInventoryBeforeExactMutation, 'main state exact mutation adapter should not touch partner inventory')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.fund.balance, balanceBeforeLargeDraft, 'main state exact mutation adapter should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state exact mutation adapter should not change restored wood')
+assert.equal(familyBuildingRealDemolitionMainStateExactMutation.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state exact mutation adapter should not change restored rice')
+assert.ok(familyBuildingRealDemolitionMainStateExactMutation.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_exact_mutation_applied'), 'main state exact mutation adapter should be audited')
+assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'owner main state mutation receipt should reference building ledger')
+assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'partner main state mutation receipt should reference building ledger')
+
+const ownerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw
+const partnerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw
+const duplicateFamilyBuildingRealDemolitionMainStateExactMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
+  largeContract.contract.id,
+  mainStateExactMutationPayload,
+  actor(largeOwner)
+)
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactMutation.idempotent, true, 'same main state exact mutation adapter key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactMutation.already_mutated, true, 'duplicate main state exact mutation adapter should report already mutated')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawAfterExactMutation, 'duplicate main state exact mutation adapter should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawAfterExactMutation, 'duplicate main state exact mutation adapter should not rewrite partner save')
+
 const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
   largeContract.contract.id,
   mainStateMappingPayload,
@@ -3886,8 +3993,8 @@ const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.veri
 assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMapping.idempotent, true, 'same main state mapping key should be idempotent')
 assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMapping.already_mapped, true, 'duplicate main state mapping should report already mapped')
 assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest_hash, familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest_hash, 'duplicate main state mapping should keep manifest hash')
-assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state mapping should not rewrite owner save')
-assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state mapping should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawAfterExactMutation, 'duplicate main state mapping should not rewrite owner save after exact mutation')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawAfterExactMutation, 'duplicate main state mapping should not rewrite partner save after exact mutation')
 
 const duplicateFamilyBuildingRealDemolitionMainStatePreview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3896,7 +4003,7 @@ const duplicateFamilyBuildingRealDemolitionMainStatePreview = await runtime.prev
 assert.equal(duplicateFamilyBuildingRealDemolitionMainStatePreview.idempotent, true, 'same real demolition main state preview key should be idempotent')
 assert.equal(duplicateFamilyBuildingRealDemolitionMainStatePreview.already_previewed, true, 'duplicate main state preview should report already previewed')
 assert.equal(duplicateFamilyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest_hash, familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest_hash, 'duplicate main state preview should keep manifest hash')
-assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state preview should not rewrite owner save')
-assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state preview should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawAfterExactMutation, 'duplicate main state preview should not rewrite owner save after exact mutation')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawAfterExactMutation, 'duplicate main state preview should not rewrite partner save after exact mutation')
 
 console.log('[qa-cohabitation-contract] OK')

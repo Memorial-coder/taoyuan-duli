@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态精确变更适配器后端闭环
+- 服务端新增 `/family-buildings/real-demolition/execute-main-state-exact-mutation`，要求已人工解析精确目标、manifest hash 匹配、确认“执行个人主状态变更”，并确认补偿与回滚方案。
+- 适配器第一版只支持窄 selector：`home.homeRenovationStates.<renovationId>` 删除对应宅院改造状态，`decoration.placed.<decorationId>` 收起一个已放置装饰；宽路径、嵌套路径和不存在目标继续拒绝。
+- 成功后逐成员写入个人存档回执，记录 selector、before / after revision、mutation result、审计和幂等键；共同基金、共同仓库、个人铜币、背包和农田不变。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0526 家族建筑真实拆除个人主状态精确目标人工解析前端入口
 - 前端 API / store 接入 `/family-buildings/real-demolition/resolve-main-state-exact-targets`，共同庄园建筑流水卡片新增“解析目标”按钮。
 - 按钮按已绑定精确目标、已记录精确执行幂等、`blocked_unresolved_exact_target_selector` 状态、目标 manifest hash、目标清单和尚未记录解析幂等禁用；提交时附带“确认人工解析精确目标”和逐成员解析证明。
