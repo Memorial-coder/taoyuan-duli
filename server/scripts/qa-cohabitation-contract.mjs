@@ -5810,4 +5810,164 @@ assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRa
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawAfterExactMutation, 'duplicate main state preview should not rewrite cave partner save after exact mutation')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawAfterExactMutation, 'duplicate main state preview should not rewrite cellar partner save after exact mutation')
 
+const setupDualLargeFundContract = async ({ ownerUsername, partnerUsername, contractType, contractKey }) => {
+  const ownerRegister = await db.registerUser(ownerUsername, 'SmokePass_0526', `${contractKey} owner`)
+  const partnerRegister = await db.registerUser(partnerUsername, 'SmokePass_0526', `${contractKey} partner`)
+  assert.equal(ownerRegister.ok, true, `${contractKey} owner should register`)
+  assert.equal(partnerRegister.ok, true, `${contractKey} partner should register`)
+  seedSave(ownerUsername)
+  seedSave(partnerUsername)
+  const friendRequest = await socialRuntime.requestFriendship(ownerUsername, { target_username: partnerUsername })
+  await socialRuntime.acceptFriendRequest(partnerUsername, friendRequest.id)
+  const contractResult = await runtime.createCohabitationContract({
+    type: contractType,
+    target_username: partnerUsername,
+    idempotency_key: `qa-${contractKey}-contract`,
+  }, actor(ownerUsername))
+  await runtime.acceptCohabitationContract(contractResult.contract.id, actor(partnerUsername))
+  await runtime.updateCohabitationPermissions(contractResult.contract.id, {
+    target_username: ownerUsername,
+    permissions: {
+      fund: {
+        spend_large: true,
+      },
+    },
+    idempotency_key: `qa-${contractKey}-owner-spend-large-permission`,
+  }, actor(ownerUsername))
+  const ownerMoneyBeforeTopUp = readGameplayData(ownerUsername)?.player?.money
+  const ownerTopUp = await runtime.contributeCohabitationFund(contractResult.contract.id, {
+    amount: 700,
+    purpose: `${contractKey} high risk top up`,
+    idempotency_key: `qa-${contractKey}-owner-top-up`,
+  }, actor(ownerUsername))
+  assert.equal(ownerTopUp.fund.balance, 700, `${contractKey} owner top up should increase shared fund`)
+  assert.equal(readGameplayData(ownerUsername)?.player?.money, ownerMoneyBeforeTopUp - 700, `${contractKey} owner top up should deduct personal money once`)
+  const partnerMoneyBeforeTopUp = readGameplayData(partnerUsername)?.player?.money
+  const partnerTopUp = await runtime.contributeCohabitationFund(contractResult.contract.id, {
+    amount: 700,
+    purpose: `${contractKey} high risk top up`,
+    idempotency_key: `qa-${contractKey}-partner-top-up`,
+  }, actor(partnerUsername))
+  assert.equal(partnerTopUp.fund.balance, 1400, `${contractKey} partner top up should prepare shared fund balance`)
+  assert.equal(readGameplayData(partnerUsername)?.player?.money, partnerMoneyBeforeTopUp - 700, `${contractKey} partner top up should deduct personal money once`)
+  return contractResult.contract.id
+}
+
+const highRiskOwner = 'cohabit_hr_owner26'
+const highRiskPartner = 'cohabit_hr_part26'
+const highRiskContractId = await setupDualLargeFundContract({
+  ownerUsername: highRiskOwner,
+  partnerUsername: highRiskPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'high-risk-fund',
+})
+const highRiskFundBeforeDraft = await runtime.getCohabitationFund(highRiskContractId, actor(highRiskOwner))
+const highRiskPurposeIds = highRiskFundBeforeDraft.fund.summary.allowed_large_spend_purposes.map(purpose => purpose.id)
+assert.ok(highRiskPurposeIds.includes('rare_item_purchase'), 'fund snapshot should expose rare item high-risk purpose')
+assert.ok(highRiskPurposeIds.includes('limited_decoration'), 'fund snapshot should expose limited decoration high-risk purpose')
+assert.ok(highRiskPurposeIds.includes('family_major_event'), 'fund snapshot should expose family major event high-risk purpose')
+const highRiskBalanceBeforeDraft = highRiskFundBeforeDraft.fund.balance
+const highRiskOwnerMoneyBeforeDraft = readGameplayData(highRiskOwner)?.player?.money
+const highRiskDraft = await runtime.createCohabitationFundLargeSpendDraft(highRiskContractId, {
+  amount: 1300,
+  purpose: 'limited_decoration',
+  target_ref: 'limited_decoration:moon_gate:purchase',
+  memo: 'qa limited decoration high-risk draft',
+  idempotency_key: 'qa-high-risk-limited-decoration-draft',
+}, actor(highRiskOwner))
+assert.equal(highRiskDraft.idempotent, false, 'limited decoration draft should be created once')
+assert.equal(highRiskDraft.draft.purpose, 'limited_decoration', 'limited decoration draft should keep purpose')
+assert.equal(highRiskDraft.draft.spend_category, 'limited_decoration', 'limited decoration draft should keep category')
+assert.equal(highRiskDraft.draft.target_ref, 'limited_decoration:moon_gate:purchase', 'limited decoration draft should keep target ref')
+assert.ok(highRiskDraft.draft.deferred_operations.includes('high_risk_purchase_receipt'), 'limited decoration draft should require purchase receipt')
+assert.equal(highRiskDraft.shared_fund.deducted_amount, 0, 'limited decoration draft should not deduct shared fund')
+assert.equal(highRiskDraft.fund.balance, highRiskBalanceBeforeDraft, 'limited decoration draft should leave shared fund balance unchanged')
+assert.equal(readGameplayData(highRiskOwner)?.player?.money, highRiskOwnerMoneyBeforeDraft, 'limited decoration draft should not touch owner money')
+const duplicateHighRiskDraft = await runtime.createCohabitationFundLargeSpendDraft(highRiskContractId, {
+  amount: 1300,
+  purpose: 'limited_decoration',
+  target_ref: 'limited_decoration:moon_gate:purchase',
+  idempotency_key: 'qa-high-risk-limited-decoration-draft',
+}, actor(highRiskOwner))
+assert.equal(duplicateHighRiskDraft.idempotent, true, 'limited decoration draft should be idempotent')
+assert.equal(duplicateHighRiskDraft.draft.id, highRiskDraft.draft.id, 'limited decoration duplicate draft should return original draft')
+assert.equal(duplicateHighRiskDraft.fund.balance, highRiskBalanceBeforeDraft, 'limited decoration duplicate draft should not deduct shared fund')
+const highRiskPartnerMoneyBeforeConfirm = readGameplayData(highRiskPartner)?.player?.money
+const highRiskConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(highRiskContractId, highRiskDraft.draft.id, {
+  memo: 'qa partner confirms limited decoration',
+  idempotency_key: 'qa-high-risk-limited-decoration-confirm',
+}, actor(highRiskPartner))
+assert.equal(highRiskConfirm.draft.state, 'ready_to_execute', 'limited decoration draft should be ready after both members confirm')
+assert.equal(highRiskConfirm.draft.confirmation_status, 'confirmed', 'limited decoration draft should be confirmed')
+assert.equal(highRiskConfirm.shared_fund.deducted_amount, 0, 'limited decoration confirmation should not deduct shared fund')
+assert.equal(highRiskConfirm.fund.balance, highRiskBalanceBeforeDraft, 'limited decoration confirmation should leave shared fund balance unchanged')
+assert.equal(readGameplayData(highRiskPartner)?.player?.money, highRiskPartnerMoneyBeforeConfirm, 'limited decoration confirmation should not touch partner money')
+const highRiskExecute = await runtime.executeCohabitationFundLargeSpendDraft(highRiskContractId, highRiskDraft.draft.id, {
+  memo: 'qa execute limited decoration',
+  idempotency_key: 'qa-high-risk-limited-decoration-execute',
+}, actor(highRiskOwner))
+assert.equal(highRiskExecute.draft.state, 'executed', 'limited decoration draft should execute')
+assert.equal(highRiskExecute.ledger_entry.purpose, 'limited_decoration', 'limited decoration ledger should keep purpose')
+assert.equal(highRiskExecute.ledger_entry.spend_tier, 'large', 'limited decoration ledger should be large tier')
+assert.equal(highRiskExecute.ledger_entry.confirmation_status, 'confirmed', 'limited decoration ledger should keep confirmation status')
+assert.equal(highRiskExecute.ledger_entry.target_ref, 'limited_decoration:moon_gate:purchase', 'limited decoration ledger should keep target ref')
+assert.equal(highRiskExecute.shared_fund.balance_after, highRiskBalanceBeforeDraft - 1300, 'limited decoration execution should deduct shared fund once')
+assert.equal(highRiskExecute.shared_fund.building_ledger_written, false, 'limited decoration execution should not write building ledger')
+assert.equal(highRiskExecute.shared_fund.building_ledger_id, '', 'limited decoration execution should not return building ledger id')
+assert.equal(highRiskExecute.building_ledger_entry, null, 'limited decoration execution should return no building ledger entry')
+assert.equal(highRiskExecute.draft.final_building_ledger_id, '', 'limited decoration executed draft should not point at building ledger')
+assert.ok(highRiskExecute.draft.deferred_operations.includes('delivery_or_refund'), 'limited decoration executed draft should wait for delivery or refund')
+assert.equal(highRiskExecute.contract.family_building_ledger.length, 0, 'limited decoration execution should not create family building ledger')
+assert.ok(highRiskExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed' && entry.detail?.building_ledger_written === false), 'limited decoration execution should audit non-building high-risk spend')
+assert.equal(readGameplayData(highRiskOwner)?.player?.money, highRiskOwnerMoneyBeforeDraft, 'limited decoration execution should not touch owner personal money')
+assert.equal(readGameplayData(highRiskPartner)?.player?.money, highRiskPartnerMoneyBeforeConfirm, 'limited decoration execution should not touch partner personal money')
+const duplicateHighRiskExecute = await runtime.executeCohabitationFundLargeSpendDraft(highRiskContractId, highRiskDraft.draft.id, {
+  idempotency_key: 'qa-high-risk-limited-decoration-execute',
+}, actor(highRiskOwner))
+assert.equal(duplicateHighRiskExecute.idempotent, true, 'limited decoration execution should be idempotent')
+assert.equal(duplicateHighRiskExecute.building_ledger_entry, null, 'limited decoration duplicate execution should still have no building ledger')
+assert.equal(duplicateHighRiskExecute.shared_fund.building_ledger_written, false, 'limited decoration duplicate execution should not report building ledger')
+assert.equal(duplicateHighRiskExecute.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration duplicate execution should not deduct twice')
+
+const familyEventOwner = 'cohabit_ev_owner26'
+const familyEventPartner = 'cohabit_ev_part26'
+const familyEventContractId = await setupDualLargeFundContract({
+  ownerUsername: familyEventOwner,
+  partnerUsername: familyEventPartner,
+  contractType: 'marriage_home',
+  contractKey: 'family-event-fund',
+})
+const familyEventFundBeforeDraft = await runtime.getCohabitationFund(familyEventContractId, actor(familyEventOwner))
+const familyEventBalanceBeforeDraft = familyEventFundBeforeDraft.fund.balance
+const familyEventOwnerMoneyBeforeDraft = readGameplayData(familyEventOwner)?.player?.money
+const familyEventPartnerMoneyBeforeConfirm = readGameplayData(familyEventPartner)?.player?.money
+const familyEventDraft = await runtime.createCohabitationFundLargeSpendDraft(familyEventContractId, {
+  amount: 1300,
+  purpose: 'family_major_event',
+  target_ref: 'family_event:child_school:start',
+  memo: 'qa family major event draft',
+  idempotency_key: 'qa-family-major-event-draft',
+}, actor(familyEventOwner))
+assert.equal(familyEventDraft.draft.purpose, 'family_major_event', 'family event draft should keep purpose')
+assert.equal(familyEventDraft.shared_fund.deducted_amount, 0, 'family event draft should not deduct shared fund')
+assert.equal(familyEventDraft.fund.balance, familyEventBalanceBeforeDraft, 'family event draft should leave shared fund balance unchanged')
+await runtime.confirmCohabitationFundLargeSpendDraft(familyEventContractId, familyEventDraft.draft.id, {
+  memo: 'qa partner confirms family event',
+  idempotency_key: 'qa-family-major-event-confirm',
+}, actor(familyEventPartner))
+const familyEventExecute = await runtime.executeCohabitationFundLargeSpendDraft(familyEventContractId, familyEventDraft.draft.id, {
+  memo: 'qa execute family event',
+  idempotency_key: 'qa-family-major-event-execute',
+}, actor(familyEventOwner))
+assert.equal(familyEventExecute.draft.state, 'executed', 'family event draft should execute')
+assert.equal(familyEventExecute.ledger_entry.purpose, 'family_major_event', 'family event ledger should keep purpose')
+assert.equal(familyEventExecute.shared_fund.balance_after, familyEventBalanceBeforeDraft - 1300, 'family event execution should deduct shared fund once')
+assert.equal(familyEventExecute.shared_fund.building_ledger_written, false, 'family event execution should not write building ledger')
+assert.equal(familyEventExecute.building_ledger_entry, null, 'family event execution should return no building ledger')
+assert.equal(familyEventExecute.draft.final_building_ledger_id, '', 'family event executed draft should not point at building ledger')
+assert.ok(familyEventExecute.draft.deferred_operations.includes('child_arrangement_review'), 'family event execution should keep child arrangement review deferred')
+assert.equal(familyEventExecute.contract.family_building_ledger.length, 0, 'family event execution should not create family building ledger')
+assert.equal(readGameplayData(familyEventOwner)?.player?.money, familyEventOwnerMoneyBeforeDraft, 'family event execution should not touch owner personal money')
+assert.equal(readGameplayData(familyEventPartner)?.player?.money, familyEventPartnerMoneyBeforeConfirm, 'family event execution should not touch partner personal money')
+
 console.log('[qa-cohabitation-contract] OK')
