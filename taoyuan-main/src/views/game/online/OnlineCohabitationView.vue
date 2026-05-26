@@ -3076,7 +3076,12 @@
     if (!selector.startsWith(`${candidatePath}.`)) return false
     const childKey = selector.slice(candidatePath.length + 1)
     if (!/^[a-z0-9_:-]{1,80}$/i.test(childKey)) return false
-    if (candidatePath === 'home.homeRenovationStates' || candidatePath === 'home.caveChoice' || candidatePath === 'home.cellarSlots') return !targetKind || targetKind === 'home'
+    if (
+      candidatePath === 'home.homeRenovationStates' ||
+      candidatePath === 'home.caveChoice' ||
+      candidatePath === 'home.cellarSlots' ||
+      candidatePath === 'home.greenhouseUnlocked'
+    ) return !targetKind || targetKind === 'home'
     if (candidatePath === 'decoration.placed' || candidatePath === 'decoration.owned') return !targetKind || targetKind === 'decoration'
     return false
   }

@@ -5848,6 +5848,28 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
+  if (candidatePath === 'home.greenhouseUnlocked') {
+    if (!data.home || typeof data.home !== 'object') data.home = {};
+    if (childKey !== 'true') {
+      throw createError('个人温室解锁目标只支持 true 窄 selector', 409);
+    }
+    if (data.home.greenhouseUnlocked !== true) {
+      throw createError('个人温室解锁目标不存在或已关闭，不能执行真实复位', 409);
+    }
+    return {
+      target_id: childKey,
+      target_kind: 'home_greenhouse_unlocked',
+      before_value: true,
+      apply() {
+        data.home.greenhouseUnlocked = false;
+        return {
+          mutation_result: 'home_greenhouse_unlocked_reset',
+          after_value: data.home.greenhouseUnlocked === true,
+        };
+      },
+    };
+  }
+
   if (candidatePath === 'decoration.placed') {
     if (!data.decoration || typeof data.decoration !== 'object') data.decoration = {};
     if (!data.decoration.placed || typeof data.decoration.placed !== 'object' || Array.isArray(data.decoration.placed)) {
@@ -5905,7 +5927,7 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
-  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、酒窖陈酿槽、已放置装饰和未放置装饰库存目标', 409);
+  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、酒窖陈酿槽、温室解锁态、已放置装饰和未放置装饰库存目标', 409);
 }
 
 function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {}, buildingEntry = {}, payload = {}) {
