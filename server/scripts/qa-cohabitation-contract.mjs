@@ -622,6 +622,59 @@ assert.equal(duplicateSharedAnimalFeed.idempotent, true, 'same shared animal fee
 assert.equal(duplicateSharedAnimalFeed.warehouse.items.find(item => item.item_id === 'hay')?.quantity ?? 0, 0, 'idempotent shared animal feed should not consume hay twice')
 assert.equal(duplicateSharedAnimalFeed.shared_animals.summary.animal_action_ledger_count, sharedAnimalFeedResult.shared_animals.summary.animal_action_ledger_count, 'idempotent shared animal feed should not duplicate animal ledger rows')
 
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    animal: { pet: false },
+  },
+  idempotency_key: 'qa-disable-partner-shared-animal-pet',
+}, actor(owner))
+const warehouseBeforeSharedAnimalPet = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+const ownerRawBeforeSharedAnimalPet = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeSharedAnimalPet = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+await assert.rejects(
+  () => runtime.petCohabitationSharedAnimal(created.contract.id, {
+    animal_id: qaSharedAnimal.id,
+    idempotency_key: 'qa-shared-animal-pet-denied',
+  }, actor(partner)),
+  error => error?.status === 403,
+  'shared animal pet should reject members without animal pet permission'
+)
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, warehouseBeforeSharedAnimalPet.warehouse.summary.total_quantity, 'permission-denied shared animal pet should not change shared warehouse')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalPet, 'permission-denied shared animal pet should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalPet, 'permission-denied shared animal pet should not rewrite partner save')
+
+const sharedAnimalPetResult = await runtime.petCohabitationSharedAnimal(created.contract.id, {
+  animal_id: qaSharedAnimal.id,
+  memo: 'qa shared animal pet',
+  idempotency_key: 'qa-shared-animal-pet-cow',
+}, actor(owner))
+assert.equal(sharedAnimalPetResult.idempotent, false, 'first shared animal pet should not be idempotent')
+assert.equal(sharedAnimalPetResult.animal.animal_state.was_petted, true, 'shared animal pet should mark animal petted')
+assert.equal(sharedAnimalPetResult.animal.animal_state.friendship, 102, 'shared animal pet should increase contract animal friendship')
+assert.equal(sharedAnimalPetResult.animal.animal_state.mood, 125, 'shared animal pet should increase contract animal mood')
+assert.equal(sharedAnimalPetResult.animal.current_keeper_username, owner, 'shared animal pet should record current keeper')
+assert.equal(sharedAnimalPetResult.ledger_entry.action, 'pet', 'shared animal ledger should record pet action')
+assert.equal(sharedAnimalPetResult.ledger_entry.shared_warehouse_changed, false, 'shared animal pet ledger should not declare warehouse consumption')
+assert.equal(sharedAnimalPetResult.warehouse_ledger_entries.length, 0, 'shared animal pet should not create warehouse ledger')
+assert.equal(sharedAnimalPetResult.shared_animals.summary.petted_count, 1, 'shared animal pet should refresh petted summary')
+assert.equal(sharedAnimalPetResult.shared_animals.summary.pettable_count, 0, 'shared animal pet should refresh pettable summary')
+assert.equal(sharedAnimalPetResult.shared_animals.summary.animal_action_ledger_count, sharedAnimalFeedResult.shared_animals.summary.animal_action_ledger_count + 1, 'shared animal pet should append one animal ledger row')
+assert.ok(sharedAnimalPetResult.contract.origin_assets.animals.some(item => item.id === sharedAnimalPetResult.animal.id && item.animal_state?.was_petted === true), 'origin assets should refresh petted animal state')
+assert.ok(sharedAnimalPetResult.contract.audit_log.find(entry => entry.action === 'shared_animal_petted'), 'shared animal pet should be audited')
+assert.equal(sharedAnimalPetResult.animal_action.personal_save_changed, false, 'shared animal pet should not mutate personal saves')
+assert.equal(sharedAnimalPetResult.animal_action.shared_warehouse_changed, false, 'shared animal pet should not mutate shared warehouse')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalPet, 'shared animal pet should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalPet, 'shared animal pet should not rewrite partner save')
+
+const duplicateSharedAnimalPet = await runtime.petCohabitationSharedAnimal(created.contract.id, {
+  animal_id: qaSharedAnimal.id,
+  idempotency_key: 'qa-shared-animal-pet-cow',
+}, actor(owner))
+assert.equal(duplicateSharedAnimalPet.idempotent, true, 'same shared animal pet idempotency key should be idempotent')
+assert.equal(duplicateSharedAnimalPet.shared_animals.summary.animal_action_ledger_count, sharedAnimalPetResult.shared_animals.summary.animal_action_ledger_count, 'idempotent shared animal pet should not duplicate animal ledger rows')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, warehouseBeforeSharedAnimalPet.warehouse.summary.total_quantity, 'idempotent shared animal pet should not change shared warehouse')
+
 const ownerRiceBeforeDeposit = getInventoryItemQuantity(owner, 'rice')
 assert.equal(ownerRiceBeforeDeposit, 6, 'owner seed save should include rice before warehouse deposit')
 const ownerMoneyBeforeDeposit = readGameplayData(owner)?.player?.money

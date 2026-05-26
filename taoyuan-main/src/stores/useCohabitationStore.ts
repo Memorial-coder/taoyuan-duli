@@ -37,6 +37,7 @@ import {
   fertilizeCohabitationSharedPlot,
   guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
   harvestCohabitationSharedPlot,
+  petCohabitationSharedAnimal,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   plantCohabitationSharedPlot,
   refundCohabitationFamilyBuildingFund,
@@ -98,6 +99,7 @@ import {
   type CohabitationSeparationSharedFundRefundPayload,
   type CohabitationSeparationSharedWarehouseReturnPayload,
   type CohabitationSharedAnimalFeedPayload,
+  type CohabitationSharedAnimalPetPayload,
   type CohabitationSharedAnimals,
   type CohabitationSharedFarmHarvestPayload,
   type CohabitationSharedFarmFertilizePayload,
@@ -1420,6 +1422,24 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const petSharedAnimal = async (payload: CohabitationSharedAnimalPetPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.animal_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await petCohabitationSharedAnimal(activeContractId.value, payload)
+      if (result?.shared_animals) sharedAnimals.value = result.shared_animals
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '抚摸共同动物失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberPermissions = async (payload: {
     target_username: string
     permissions: Record<string, Record<string, boolean>>
@@ -1553,6 +1573,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     fertilizeSharedFarmPlot,
     harvestSharedFarmPlot,
     feedSharedAnimal,
+    petSharedAnimal,
     updateMemberPermissions,
     updateMemberRole,
   }

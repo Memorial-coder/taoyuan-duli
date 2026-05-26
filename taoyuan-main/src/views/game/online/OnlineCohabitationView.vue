@@ -570,7 +570,7 @@
                 >
                   <p class="truncate text-xs text-text">{{ animal.name || animal.type }}</p>
                   <p class="mt-1 text-[10px] text-muted">
-                    {{ animal.origin_owner_display_name || animal.origin_owner_username }} · {{ animal.permission_mode }} · {{ animal.animal_state.was_fed ? '已喂' : '待喂' }}
+                    {{ animal.origin_owner_display_name || animal.origin_owner_username }} · {{ animal.permission_mode }} · {{ animal.animal_state.was_fed ? '已喂' : '待喂' }} · {{ animal.animal_state.was_petted ? '已摸' : '待摸' }}
                   </p>
                 </button>
               </div>
@@ -579,17 +579,30 @@
                 <p class="mt-1">来源：{{ selectedSharedAnimal.origin_owner_display_name || selectedSharedAnimal.origin_owner_username }}</p>
                 <p class="mt-1">照料：{{ selectedSharedAnimal.current_keeper_display_name || selectedSharedAnimal.current_keeper_username || '未记录' }}</p>
                 <p class="mt-1">饲料：{{ selectedSharedAnimal.animal_state.fed_with || '无' }} · 饥饿 {{ selectedSharedAnimal.animal_state.hunger }}</p>
+                <p class="mt-1">抚摸：{{ selectedSharedAnimal.animal_state.was_petted ? '已完成' : '待照料' }} · 心情 {{ selectedSharedAnimal.animal_state.mood }}</p>
               </div>
-              <button
-                class="online-action-btn online-action-btn--compact justify-center"
-                type="button"
-                :disabled="!canFeedSelectedSharedAnimal || cohabitationStore.actionLoading"
-                data-testid="online-cohabitation-shared-animal-feed"
-                @click="feedSelectedSharedAnimal"
-              >
-                <Package :size="12" />
-                干草喂食
-              </button>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canFeedSelectedSharedAnimal || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-animal-feed"
+                  @click="feedSelectedSharedAnimal"
+                >
+                  <Package :size="12" />
+                  干草喂食
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canPetSelectedSharedAnimal || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-animal-pet"
+                  @click="petSelectedSharedAnimal"
+                >
+                  <Heart :size="12" />
+                  抚摸
+                </button>
+              </div>
               <p v-if="sharedAnimalActionMessage" class="text-[10px] leading-4" :class="sharedAnimalActionOk ? 'text-emerald-200' : 'text-red-100'">
                 {{ sharedAnimalActionMessage }}
               </p>
@@ -2018,6 +2031,7 @@
     Clock3,
     ClipboardList,
     Droplets,
+    Heart,
     HeartHandshake,
     Lock,
     Map,
@@ -2635,6 +2649,12 @@
     if (cohabitationStore.sharedAnimals?.summary.animal_feed_write_enabled !== true) return false
     return animal.animal_state.was_fed !== true
   })
+  const canPetSelectedSharedAnimal = computed(() => {
+    const animal = selectedSharedAnimal.value
+    if (!animal || !cohabitationStore.canOpenSelectedContract) return false
+    if (cohabitationStore.sharedAnimals?.summary.animal_pet_write_enabled !== true) return false
+    return animal.animal_state.was_petted !== true
+  })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -2990,6 +3010,27 @@
         : '共同动物已喂食，共同仓库干草扣料流水已刷新'
     } catch (error) {
       sharedAnimalActionMessage.value = error instanceof Error ? error.message : '喂食共同动物失败'
+    }
+  }
+
+  const petSelectedSharedAnimal = async () => {
+    const animal = selectedSharedAnimal.value
+    if (!animal) return
+    sharedAnimalActionMessage.value = ''
+    sharedAnimalActionOk.value = false
+    try {
+      const result = await cohabitationStore.petSharedAnimal({
+        animal_id: animal.id,
+        memo: `前端共同动物抚摸：${animal.id}`,
+        idempotency_key: `ui-shared-animal-pet-${animal.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedAnimalId.value = result?.animal?.id || animal.id
+      sharedAnimalActionOk.value = true
+      sharedAnimalActionMessage.value = result?.idempotent || result?.already_petted
+        ? '已读回共同动物抚摸记录'
+        : '共同动物已抚摸，契约动物状态和照料流水已刷新'
+    } catch (error) {
+      sharedAnimalActionMessage.value = error instanceof Error ? error.message : '抚摸共同动物失败'
     }
   }
 

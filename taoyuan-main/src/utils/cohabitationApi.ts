@@ -391,8 +391,10 @@ export interface CohabitationSharedAnimals {
     petted_count: number
     sick_count: number
     feedable_count: number
+    pettable_count?: number
     origin_owner_count: number
     animal_feed_write_enabled?: boolean
+    animal_pet_write_enabled?: boolean
     animal_action_ledger_count?: number
     shared_warehouse_feed_consume_enabled?: boolean
     personal_save_changed?: boolean
@@ -1740,6 +1742,12 @@ export interface CohabitationSharedAnimalFeedPayload {
   idempotency_key: string
 }
 
+export interface CohabitationSharedAnimalPetPayload {
+  animal_id: string
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationSharedAnimalActionResponse extends CohabitationDetailResponse {
   shared_animals?: CohabitationSharedAnimals
   warehouse?: CohabitationWarehouseSnapshot
@@ -1748,6 +1756,7 @@ export interface CohabitationSharedAnimalActionResponse extends CohabitationDeta
   warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
   idempotent?: boolean
   already_fed?: boolean
+  already_petted?: boolean
   animal_action?: {
     action: string
     animal_id: string
@@ -2232,6 +2241,14 @@ export const feedCohabitationSharedAnimal = async (contractId: string, payload: 
     contractPath(contractId, '/shared-animals/feed'),
     payload as unknown as Record<string, unknown>,
     '喂食共同动物失败'
+  )
+}
+
+export const petCohabitationSharedAnimal = async (contractId: string, payload: CohabitationSharedAnimalPetPayload) => {
+  return postCohabitationJson<CohabitationSharedAnimalActionResponse>(
+    contractPath(contractId, '/shared-animals/pet'),
+    payload as unknown as Record<string, unknown>,
+    '抚摸共同动物失败'
   )
 }
 
