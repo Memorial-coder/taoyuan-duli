@@ -5035,6 +5035,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
   const pendingLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'pending_confirmation');
   const readyLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'ready_to_execute');
   const executedLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'executed');
+  const governance = buildSharedFundGovernanceSnapshot(contract, actorUsername);
   return {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
@@ -5042,6 +5043,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
     balance: fund.balance,
     ledger: fund.ledger.slice(0, 50),
     large_spend_drafts: largeSpendDrafts.slice(0, 20),
+    governance,
     summary: {
       balance: fund.balance,
       ledger_count: fund.ledger.length,
@@ -5064,6 +5066,8 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       pending_large_spend_draft_count: pendingLargeSpendDrafts.length,
       ready_large_spend_draft_count: readyLargeSpendDrafts.length,
       executed_large_spend_draft_count: executedLargeSpendDrafts.length,
+      pending_high_risk_receipt_count: governance.pending_high_risk_receipts.length,
+      governance_blocked: governance.blocking.block_new_high_risk_execution === true,
       compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算、大额确认草案和已确认草案扣款；大额执行会写建筑流水，真实建造、自动返还和补偿重放待后续接入。',
     },
     permissions: {
@@ -5227,6 +5231,98 @@ function normalizeWarehouseDepositPayload(payload = {}) {
     quality: requestedQuality,
     idempotency_key: idempotencyKey,
     save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
+function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
+  const normalizedActor = normalizeUsername(actorUsername);
+  const fund = normalizeSharedFund(contract.shared_fund);
+  const drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const pendingHighRiskReceipts = drafts
+    .filter(draft =>
+      draft.state === 'executed'
+      && isHighRiskNonBuildingLargeFundPurpose(draft.purpose)
+      && (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    )
+    .map(draft => ({
+      draft_id: draft.id,
+      purpose: draft.purpose,
+      purpose_label: draft.purpose_label,
+      target_ref: draft.target_ref,
+      amount: draft.amount,
+      final_spend_ledger_id: draft.final_spend_ledger_id,
+      executed_at: draft.executed_at,
+      executed_by: draft.executed_by,
+      pending_seconds: Math.max(0, nowSeconds() - Math.max(0, Number(draft.executed_at) || 0)),
+      deferred_operations: draft.deferred_operations,
+      compensation_policy: draft.compensation_policy,
+    }))
+    .slice(0, 20);
+  const highRiskRefundLedgerEntries = fund.ledger
+    .filter(entry => entry.action === 'high_risk_fund_refund')
+    .map(entry => ({
+      ledger_id: entry.id,
+      draft_id: String(entry.target_ref || '').replace(/^high_risk_refund:/, ''),
+      amount: entry.amount,
+      purpose: entry.purpose,
+      target_ref: entry.target_ref,
+      actor_username: entry.actor_username,
+      at: entry.at,
+      idempotency_key: entry.idempotency_key,
+      balance_after: entry.balance_after,
+    }))
+    .slice(0, 20);
+  const largeSpendByTarget = new Map();
+  for (const entry of fund.ledger) {
+    if (entry.action !== 'spend' || entry.spend_tier !== 'large') continue;
+    const targetKey = `${entry.purpose}:${entry.target_ref}`;
+    if (!largeSpendByTarget.has(targetKey)) largeSpendByTarget.set(targetKey, []);
+    largeSpendByTarget.get(targetKey).push(entry);
+  }
+  const suspiciousLargeSpends = Array.from(largeSpendByTarget.entries())
+    .filter(([, entries]) => entries.length > 1)
+    .map(([target_key, entries]) => ({
+      target_key,
+      count: entries.length,
+      total_amount: entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.amount) || 0)), 0),
+      ledger_ids: entries.map(entry => entry.id).slice(0, 10),
+      actor_usernames: Array.from(new Set(entries.map(entry => entry.actor_username).filter(Boolean))).slice(0, 10),
+    }))
+    .slice(0, 20);
+  const recentGovernanceAudits = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
+    .filter(entry => [
+      'fund_large_spend_draft_created',
+      'fund_large_spend_draft_confirmed',
+      'fund_large_spend_draft_executed',
+      'fund_high_risk_receipt_recorded',
+      'fund_high_risk_execution_blocked',
+    ].includes(entry.action))
+    .slice(0, 20);
+
+  return {
+    contract_id: contract.id,
+    actor_username: normalizedActor,
+    checked_at: nowSeconds(),
+    pending_high_risk_receipts: pendingHighRiskReceipts,
+    high_risk_refund_ledger_entries: highRiskRefundLedgerEntries,
+    suspicious_large_spends: suspiciousLargeSpends,
+    recent_audits: recentGovernanceAudits,
+    blocking: {
+      block_new_high_risk_execution: pendingHighRiskReceipts.length > 0,
+      reason: pendingHighRiskReceipts.length > 0
+        ? '存在已扣款但未记录交付或退款回执的高风险共同基金草案，需先收口回执再执行新的高风险扣款。'
+        : '',
+      required_operation: pendingHighRiskReceipts.length > 0 ? 'record_high_risk_receipt' : '',
+      pending_draft_ids: pendingHighRiskReceipts.map(entry => entry.draft_id),
+    },
+    policy: {
+      personal_money_merged: false,
+      high_risk_receipt_required: true,
+      refund_returns_to_shared_fund_only: true,
+      duplicate_target_review_required: suspiciousLargeSpends.length > 0,
+    },
   };
 }
 
@@ -11559,11 +11655,61 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     if (!confirmedKeys.has(key)) throw createError('共同基金大额草案仍有成员未确认，不能执行扣款', 409);
   }
 
+  const shouldWriteBuildingLedgerForGovernance = isFamilyBuildingLargeFundPurpose(draft.purpose);
+  if (!shouldWriteBuildingLedgerForGovernance) {
+    const pendingHighRiskReceipts = contract.fund_large_spend_drafts
+      .map(normalizeFundLargeSpendDraft)
+      .filter(entry =>
+        entry.id !== draft.id
+        && entry.state === 'executed'
+        && isHighRiskNonBuildingLargeFundPurpose(entry.purpose)
+        && (!entry.high_risk_receipt_status || entry.high_risk_receipt_status === 'pending')
+      );
+    if (pendingHighRiskReceipts.length > 0) {
+      appendAudit(contract, 'fund_high_risk_execution_blocked', actor, {
+        draft_id: draft.id,
+        purpose: draft.purpose,
+        target_ref: draft.target_ref,
+        amount: draft.amount,
+        pending_receipt_draft_ids: pendingHighRiskReceipts.map(entry => entry.id),
+        pending_receipt_count: pendingHighRiskReceipts.length,
+        personal_money_merged: false,
+        required_operation: 'record_high_risk_receipt',
+      }, executeRequest.idempotency_key);
+      saveContractStore(store);
+      throw createError('存在未收口回执的共同基金高风险扣款，请先记录交付或退款回执后再执行新的高风险扣款', 409);
+    }
+  }
+
   const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
   if (beforeBalance < draft.amount) throw createError('共同基金余额不足，暂时不能执行该大额草案扣款');
   const operatedAt = nowSeconds();
   const afterBalance = beforeBalance - draft.amount;
   const shouldWriteBuildingLedger = isFamilyBuildingLargeFundPurpose(draft.purpose);
+  if (!shouldWriteBuildingLedger) {
+    const pendingHighRiskReceipts = contract.fund_large_spend_drafts
+      .map(normalizeFundLargeSpendDraft)
+      .filter(entry =>
+        entry.id !== draft.id
+        && entry.state === 'executed'
+        && isHighRiskNonBuildingLargeFundPurpose(entry.purpose)
+        && (!entry.high_risk_receipt_status || entry.high_risk_receipt_status === 'pending')
+      );
+    if (pendingHighRiskReceipts.length > 0) {
+      appendAudit(contract, 'fund_high_risk_execution_blocked', actor, {
+        draft_id: draft.id,
+        purpose: draft.purpose,
+        target_ref: draft.target_ref,
+        amount: draft.amount,
+        pending_receipt_draft_ids: pendingHighRiskReceipts.map(entry => entry.id),
+        pending_receipt_count: pendingHighRiskReceipts.length,
+        personal_money_merged: false,
+        required_operation: 'record_high_risk_receipt',
+      }, executeRequest.idempotency_key);
+      saveContractStore(store);
+      throw createError('存在未收口回执的共同基金高风险扣款，请先记录交付或退款回执后再执行新的高风险扣款', 409);
+    }
+  }
   const deferredOperations = getLargeFundSpendDeferredOperations(draft.purpose, true);
   const executionPolicy = getLargeFundSpendExecutionPolicy(draft.purpose);
   const compensationPolicy = getLargeFundSpendCompensationPolicy(draft.purpose, true);

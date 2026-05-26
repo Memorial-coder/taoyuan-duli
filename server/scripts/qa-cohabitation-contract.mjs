@@ -5902,6 +5902,17 @@ assert.equal(highRiskConfirm.draft.confirmation_status, 'confirmed', 'limited de
 assert.equal(highRiskConfirm.shared_fund.deducted_amount, 0, 'limited decoration confirmation should not deduct shared fund')
 assert.equal(highRiskConfirm.fund.balance, highRiskBalanceBeforeDraft, 'limited decoration confirmation should leave shared fund balance unchanged')
 assert.equal(readGameplayData(highRiskPartner)?.player?.money, highRiskPartnerMoneyBeforeConfirm, 'limited decoration confirmation should not touch partner money')
+const blockedPendingDraft = await runtime.createCohabitationFundLargeSpendDraft(highRiskContractId, {
+  amount: 1300,
+  purpose: 'rare_item_purchase',
+  target_ref: 'rare_item:jade_peach:purchase',
+  memo: 'qa blocked pending high-risk draft',
+  idempotency_key: 'qa-high-risk-blocked-pending-draft',
+}, actor(highRiskOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(highRiskContractId, blockedPendingDraft.draft.id, {
+  memo: 'qa partner confirms blocked pending high-risk draft',
+  idempotency_key: 'qa-high-risk-blocked-pending-confirm',
+}, actor(highRiskPartner))
 const highRiskExecute = await runtime.executeCohabitationFundLargeSpendDraft(highRiskContractId, highRiskDraft.draft.id, {
   memo: 'qa execute limited decoration',
   idempotency_key: 'qa-high-risk-limited-decoration-execute',
@@ -5928,6 +5939,18 @@ assert.equal(duplicateHighRiskExecute.idempotent, true, 'limited decoration exec
 assert.equal(duplicateHighRiskExecute.building_ledger_entry, null, 'limited decoration duplicate execution should still have no building ledger')
 assert.equal(duplicateHighRiskExecute.shared_fund.building_ledger_written, false, 'limited decoration duplicate execution should not report building ledger')
 assert.equal(duplicateHighRiskExecute.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration duplicate execution should not deduct twice')
+assert.equal(highRiskExecute.fund.governance.pending_high_risk_receipts.length, 1, 'executed high-risk spend should appear in governance pending receipts')
+assert.equal(highRiskExecute.fund.summary.governance_blocked, true, 'pending high-risk receipt should block new high-risk execution')
+await assert.rejects(
+  () => runtime.executeCohabitationFundLargeSpendDraft(highRiskContractId, blockedPendingDraft.draft.id, {
+    memo: 'qa blocked by pending receipt',
+    idempotency_key: 'qa-high-risk-blocked-pending-execute',
+  }, actor(highRiskOwner)),
+  error => error?.status === 409,
+  'new high-risk execution should be blocked until the previous high-risk receipt is closed'
+)
+const blockedGovernanceFund = await runtime.getCohabitationFund(highRiskContractId, actor(highRiskOwner))
+assert.ok(blockedGovernanceFund.fund.governance.recent_audits.find(entry => entry.action === 'fund_high_risk_execution_blocked'), 'blocked high-risk execution should be audited in fund governance')
 const highRiskReceipt = await runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
   outcome: 'delivered',
   receipt_ref: 'limited_decoration_receipt:moon_gate:delivered',
@@ -5941,6 +5964,7 @@ assert.equal(highRiskReceipt.draft.high_risk_receipt_ref, 'limited_decoration_re
 assert.equal(highRiskReceipt.refund_ledger_entry, null, 'limited decoration delivered receipt should not refund shared fund')
 assert.equal(highRiskReceipt.shared_fund.refund_amount, 0, 'limited decoration delivered receipt should not refund amount')
 assert.equal(highRiskReceipt.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration delivered receipt should keep shared fund balance')
+assert.equal(highRiskReceipt.fund.summary.governance_blocked, false, 'delivered high-risk receipt should unblock high-risk governance')
 assert.ok(highRiskReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.outcome === 'delivered'), 'limited decoration receipt should be audited')
 assert.equal(readGameplayData(highRiskOwner)?.player?.money, highRiskOwnerMoneyBeforeDraft, 'limited decoration receipt should not touch owner personal money')
 const duplicateHighRiskReceipt = await runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
