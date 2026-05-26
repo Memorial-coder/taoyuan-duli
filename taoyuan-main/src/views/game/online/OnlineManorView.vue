@@ -607,6 +607,19 @@
                 <p v-if="!snapshot.steal_state.can_steal" class="mt-1 text-[10px] leading-5 text-amber-200">
                   {{ snapshot.steal_state.steal_denied_reason || '当前庄园暂未开放轻采。' }}
                 </p>
+                <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-steal-readable-limits">
+                  <div v-for="row in stealReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
+                    <p class="text-[10px] text-accent">{{ row.label }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.value }}</p>
+                    <p v-if="row.detail" class="mt-1 text-[10px] leading-4 text-muted">{{ row.detail }}</p>
+                  </div>
+                </div>
+                <p v-if="stealFailureReason" data-testid="online-manor-steal-failure-reason" class="mt-2 text-[10px] leading-5 text-amber-200">
+                  轻采失败原因：{{ stealFailureReason }}
+                </p>
+                <p data-testid="online-manor-steal-anti-abuse-summary" class="mt-1 text-[10px] leading-5 text-muted">
+                  反刷审计：{{ stealAntiAbuseSummary }}
+                </p>
               </div>
             </div>
 
@@ -736,6 +749,7 @@
 
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">轻采规则</p>
+              <p class="mt-2 text-[10px] leading-5 text-muted">{{ stealReadableImpactSummary }}</p>
               <p class="mt-2 text-[10px] leading-5 text-muted">{{ snapshot.steal_state.audit.reward_cap_summary }}</p>
               <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.steal_state.audit.settlement_summary }}</p>
               <p class="mt-1 text-[10px] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
@@ -996,6 +1010,60 @@
     const stealState = snapshot.value?.steal_state
     if (!stealState) return '0/0'
     return `${stealState.manor_remaining_steal_count}/${stealState.limits.manor_daily_limit}`
+  })
+  const stealReadableLimitRows = computed(() => {
+    const stealState = snapshot.value?.steal_state
+    if (!stealState) return []
+    const audit = stealState.audit
+    return [
+      {
+        id: 'visitor',
+        label: '访客今日次数',
+        value: `${stealState.visitor_daily_count}/${stealState.limits.visitor_daily_limit}`,
+        detail: `剩余 ${stealState.remaining_steal_count} 次，同一访客上限${audit.visitor_limit_enforced ? '已启用' : '未启用'}。`,
+      },
+      {
+        id: 'manor',
+        label: '庄园今日承载',
+        value: `${stealState.manor_daily_count}/${stealState.limits.manor_daily_limit}`,
+        detail: `剩余 ${stealState.manor_remaining_steal_count} 次，庄园总量上限${audit.manor_limit_enforced ? '已启用' : '未启用'}。`,
+      },
+      {
+        id: 'object',
+        label: '单物件限制',
+        value: `${stealState.limits.object_daily_limit} 次/日`,
+        detail: `物件日上限${audit.object_limit_enforced ? '已启用' : '未启用'}，白名单${audit.whitelist_enforced ? '已启用' : '未启用'}。`,
+      },
+      {
+        id: 'window',
+        label: '短时反刷窗口',
+        value: `${audit.recent_window_count} 次/${Math.round(audit.recent_window_seconds / 60)} 分钟`,
+        detail: audit.dispute_log_available ? '审计日志可追溯，可用于争议复核。' : '当前未开放争议复核日志。',
+      },
+    ]
+  })
+  const stealFailureReason = computed(() => {
+    const stealState = snapshot.value?.steal_state
+    if (!stealState || stealState.can_steal) return ''
+    return stealState.steal_denied_reason || '当前庄园暂未开放轻采。'
+  })
+  const stealAntiAbuseSummary = computed(() => {
+    const audit = snapshot.value?.steal_state.audit
+    if (!audit) return '刷新后显示每日次数、短时窗口和异常标记。'
+    const riskLabel = riskFlagLabel(audit.risk_flags)
+    const visitorCounts = audit.daily_visitor_counts
+      .slice(0, 3)
+      .map(entry => `${entry.visitor_display_name || entry.visitor_username} ${entry.count}/${entry.limit}`)
+      .join('、')
+    return `${riskLabel}；近窗 ${audit.recent_window_count} 次；${visitorCounts || '暂无访客触达上限记录'}。`
+  })
+  const stealReadableImpactSummary = computed(() => {
+    const stealState = snapshot.value?.steal_state
+    if (!stealState) return '刷新庄园快照后显示轻采收益上限、主人保留比例和凭证落账说明。'
+    const audit = stealState.audit
+    const reservedPercent = audit.owner_reserved_percent === undefined ? '未配置' : `${audit.owner_reserved_percent}%`
+    const rewardCap = audit.visitor_reward_quantity_cap === undefined ? '未配置' : `${audit.visitor_reward_quantity_cap} 件`
+    return `主人保留 ${reservedPercent} · 访客单次收益上限 ${rewardCap} · ${stealState.whitelist_summary}`
   })
   const carePermissionLabel = computed(() => {
     if (snapshot.value?.care_state.can_care) return '可照料'
