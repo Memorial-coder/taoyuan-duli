@@ -107,11 +107,13 @@ const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
 const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
 const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
+const RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX = '后续约定：'
 
 type RandomNpcDialogueContextTarget = {
   name: string
   smallOrder: { title: string; requestedItems: Array<{ itemId: string; quantity: number }> }
   smallOrderCompleted?: boolean
+  keyEvents: string[]
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
 }
 
@@ -521,11 +523,49 @@ export const useNpcStore = defineStore('npc', () => {
     return `小订单「${target.smallOrder.title}」还没起头，${target.name}把请求留在试探里。`
   }
 
+  const getRandomNpcFollowUpContextLine = (target: RandomNpcDialogueContextTarget): string => {
+    const latestAgreement = [...target.keyEvents]
+      .reverse()
+      .find(eventLine => eventLine.includes(RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX))
+    if (!latestAgreement) return ''
+    const markerIndex = latestAgreement.indexOf(RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX)
+    const agreement = latestAgreement
+      .slice(markerIndex + RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX.length)
+      .replace(/（[^）]*）$/, '')
+      .trim()
+    return agreement ? `你们还记得上次的约定：${agreement}` : ''
+  }
+
+  const buildRandomNpcFollowUpAgreementLine = (params: {
+    target: RandomNpcDialogueContextTarget
+    dayTag: string
+    choiceText: string
+    direction: RandomNpcRelationshipDirection
+    affinityChange: number
+  }): string => {
+    if (params.affinityChange <= 0 && params.direction !== 'misunderstanding') return ''
+    const nextDayTag = addDaysToRelationshipDayTag(params.dayTag, params.direction === 'misunderstanding' ? 2 : 3)
+    if (params.direction === 'family_impression') {
+      return `${params.target.name}约定在${nextDayTag}前后再带一段家中旧闻，让你判断是否继续插手。`
+    }
+    if (params.direction === 'ambiguity') {
+      return `你们约定在${nextDayTag}前后避开人多处，把“${params.choiceText}”背后的心意再说清。`
+    }
+    if (params.direction === 'misunderstanding') {
+      return `你们约定在${nextDayTag}前后先把“${params.choiceText}”里的误会讲清，不让它拖成心结。`
+    }
+    if (!params.target.smallOrderCompleted) {
+      return `你们约定在${nextDayTag}前后再核对小订单「${params.target.smallOrder.title}」和“${params.choiceText}”提到的线索。`
+    }
+    return `你们约定在${nextDayTag}前后再接着聊“${params.choiceText}”提到的去处与人情。`
+  }
+
   const buildRandomNpcDialogueContextLine = (target: RandomNpcDialogueContextTarget): string => {
     const gameStore = useGameStore()
     const environmentLine = `${RANDOM_NPC_SEASON_CONTEXT_LINES[gameStore.season]}${RANDOM_NPC_WEATHER_CONTEXT_LINES[gameStore.weather]}`
     const lastMemory = target.dialogueMemories[target.dialogueMemories.length - 1]
     const behaviorLines = [
+      getRandomNpcFollowUpContextLine(target),
       getRandomNpcFarmContextLine(target.name),
       getRandomNpcSmallOrderContextLine(target),
       lastMemory ? `上次关于“${lastMemory.choiceText}”的余波还在，这回回应多了一层旧话题的回声。` : ''
@@ -1200,11 +1240,18 @@ export const useNpcStore = defineStore('npc', () => {
     const cookingTopicLine = cookingTopic
       ? `你顺势提起刚做的${cookingTopic.recipeName}，话题落在${cookingTopic.triggerLabels.join('、')}上。`
       : ''
-    const contextLine = buildRandomNpcDialogueContextLine(visitor)
-    const response = [choice.response, contextLine, cookingTopicLine].filter(Boolean).join(' ')
 
     const nextRelationshipTag = choice.relationshipTag ?? visitor.relationshipTag
     const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
+    const contextLine = buildRandomNpcDialogueContextLine(visitor)
+    const followUpAgreementLine = buildRandomNpcFollowUpAgreementLine({
+      target: visitor,
+      dayTag: getCurrentNpcDayTag(),
+      choiceText: choice.text,
+      direction,
+      affinityChange
+    })
+    const response = [choice.response, contextLine, cookingTopicLine, followUpAgreementLine].filter(Boolean).join(' ')
     visitor.talkedToday = true
     visitor.conversationCount += 1
     visitor.affinity = Math.max(0, Math.min(100, visitor.affinity + affinityChange))
@@ -1228,7 +1275,7 @@ export const useNpcStore = defineStore('npc', () => {
     visitor.dialogueMemories = appendRandomNpcDialogueMemory(visitor.dialogueMemories, dialogueMemory)
     visitor.keyEvents = [
       ...visitor.keyEvents,
-      `${visitor.lastVisitDayTag} ${choice.text}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
+      `${visitor.lastVisitDayTag} ${choice.text}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）${followUpAgreementLine ? ` ${RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX}${followUpAgreementLine}` : ''}`
     ].slice(-6)
     if (visitor.tier === 'acquaintance' || visitor.tier === 'long_stay') {
       upsertRandomNpcAcquaintance(visitor)
@@ -1344,7 +1391,14 @@ export const useNpcStore = defineStore('npc', () => {
     const nextRelationshipTag = choice.relationshipTag ?? resident.relationshipTag
     const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
     const contextLine = buildRandomNpcDialogueContextLine(resident)
-    const response = [choice.response, contextLine].filter(Boolean).join(' ')
+    const followUpAgreementLine = buildRandomNpcFollowUpAgreementLine({
+      target: resident,
+      dayTag,
+      choiceText: choice.text,
+      direction,
+      affinityChange: choice.affinityChange
+    })
+    const response = [choice.response, contextLine, followUpAgreementLine].filter(Boolean).join(' ')
     const dialogueMemory = buildRandomNpcDialogueMemory({
       npcName: resident.name,
       dayTag,
@@ -1355,7 +1409,7 @@ export const useNpcStore = defineStore('npc', () => {
       affinityChange: choice.affinityChange,
       relationshipTag: nextRelationshipTag
     })
-    const eventLine = `${dayTag} 【${event.title}】${choice.text}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
+    const eventLine = `${dayTag} 【${event.title}】${choice.text}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）${followUpAgreementLine ? ` ${RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX}${followUpAgreementLine}` : ''}`
     let nextResident: RandomNpcLongStayEntry | null = null
     randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
       if (entry.residentId !== residentId) return entry
