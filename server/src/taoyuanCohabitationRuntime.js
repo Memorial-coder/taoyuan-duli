@@ -38,12 +38,15 @@ const SHARED_ANIMAL_LEDGER_LIMIT = 120;
 const SHARED_ANIMAL_LIMIT = 80;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
+const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
 const WAREHOUSE_MAX_WITHDRAW_QUANTITY = 99;
 const WAREHOUSE_MAX_SELL_QUANTITY = 99;
 const WAREHOUSE_ITEM_MAX_STACK = 999;
 const WAREHOUSE_TEMP_BAG_CAPACITY = 10;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
+const WAREHOUSE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute', 'executed', 'rolled_back', 'expired']);
+const WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute']);
 const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
   rice: 35,
   wheat: 55,
@@ -1114,6 +1117,112 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
   };
 }
 
+function normalizeWarehouseWithdrawalDraftEvent(entry = {}) {
+  const actorUsername = normalizeUsername(entry.actor_username || entry.username);
+  if (!actorUsername) return null;
+  return {
+    actor_username: actorUsername,
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.display_name || actorUsername, 60),
+    actor_username_key: normalizeUsernameKey(entry.actor_username_key || entry.username_key || actorUsername),
+    actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
+    actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
+    confirmation_text: sanitizeText(entry.confirmation_text, 120),
+    confirmed_at: Math.max(0, Math.floor(Number(entry.confirmed_at || entry.at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+  };
+}
+
+function normalizeWarehouseWithdrawalAllocation(entry = {}) {
+  const quantity = normalizePositiveInt(entry.quantity, 0);
+  if (quantity <= 0) return null;
+  return {
+    source_owner_id: sanitizeText(entry.source_owner_id, 100),
+    source_owner_username: normalizeUsername(entry.source_owner_username),
+    source_owner_display_name: sanitizeText(entry.source_owner_display_name || entry.source_owner_username, 60),
+    source_owner_key: normalizeUsernameKey(entry.source_owner_key || entry.source_owner_username),
+    source_owner_manor_role: sanitizeText(entry.source_owner_manor_role, 40),
+    source_owner_manor_role_label: sanitizeText(entry.source_owner_manor_role_label, 40),
+    source_save_id: normalizeSaveId(entry.source_save_id),
+    source_save_slot: normalizeSaveSlot(entry.source_save_slot),
+    source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
+    source_inventory: sanitizeText(entry.source_inventory, 40) || 'shared_warehouse.items',
+    source_ledger_ids: Array.isArray(entry.source_ledger_ids)
+      ? entry.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    quantity,
+  };
+}
+
+function normalizeWarehouseWithdrawalDraft(entry = {}) {
+  const itemId = normalizeWarehouseItemId(entry.item_id ?? entry.itemId);
+  const quantity = normalizePositiveInt(entry.quantity, 0);
+  if (!itemId || quantity <= 0) return null;
+  const quality = normalizeQuality(entry.quality);
+  const requiredMemberUsernames = Array.isArray(entry.required_member_usernames)
+    ? entry.required_member_usernames.map(normalizeUsername).filter(Boolean)
+    : [];
+  const confirmationEvents = Array.isArray(entry.confirmation_events)
+    ? entry.confirmation_events.map(normalizeWarehouseWithdrawalDraftEvent).filter(Boolean).slice(-12)
+    : [];
+  const confirmedKeys = [...new Set(confirmationEvents.map(event => event.actor_username_key).filter(Boolean))];
+  const requiredKeys = requiredMemberUsernames.map(normalizeUsernameKey).filter(Boolean);
+  const pendingMemberUsernames = requiredMemberUsernames.filter(username => !confirmedKeys.includes(normalizeUsernameKey(username)));
+  const lastEvent = confirmationEvents[confirmationEvents.length - 1] || null;
+  const sourceAllocations = Array.isArray(entry.source_allocations)
+    ? entry.source_allocations.map(normalizeWarehouseWithdrawalAllocation).filter(Boolean).slice(0, 12)
+    : [];
+  const state = WAREHOUSE_WITHDRAWAL_DRAFT_STATES.has(entry.state) ? entry.state : 'pending_confirmation';
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('warehouse_withdrawal_draft'),
+    state,
+    item_id: itemId,
+    quality,
+    quantity,
+    risk_level: ['high_quality', 'rare'].includes(entry.risk_level) ? entry.risk_level : getWarehouseWithdrawalRiskLevel(itemId, quality),
+    requester_username: normalizeUsername(entry.requester_username || entry.actor_username),
+    requester_display_name: sanitizeText(entry.requester_display_name || entry.requester_username || entry.actor_username, 60),
+    requester_username_key: normalizeUsernameKey(entry.requester_username_key || entry.requester_username || entry.actor_username),
+    requester_manor_role: sanitizeText(entry.requester_manor_role, 40),
+    requester_manor_role_label: sanitizeText(entry.requester_manor_role_label, 40),
+    target_save_slot: normalizeSaveSlot(entry.target_save_slot),
+    target_save_id: normalizeSaveId(entry.target_save_id),
+    required_member_usernames: requiredMemberUsernames,
+    confirmation_events: confirmationEvents,
+    confirmation_state: {
+      required_member_usernames: requiredMemberUsernames,
+      confirmed_member_usernames: confirmationEvents.map(event => event.actor_username),
+      pending_member_usernames: pendingMemberUsernames,
+      all_members_confirmed: requiredKeys.length > 0 && requiredKeys.every(key => confirmedKeys.includes(key)),
+      last_confirmed_by: lastEvent?.actor_username || '',
+      last_confirmed_at: lastEvent?.confirmed_at || 0,
+    },
+    source_allocations: sourceAllocations,
+    frozen_quantity: Math.min(quantity, normalizePositiveInt(entry.frozen_quantity ?? quantity, quantity)),
+    frozen_at: Math.max(0, Math.floor(Number(entry.frozen_at) || 0)),
+    freeze_policy: sanitizeText(entry.freeze_policy, 180) || '草案确认期间锁定共同仓库高价值库存，不写个人背包；撤销草案会释放冻结数量。',
+    compensation_hint: sanitizeText(entry.compensation_hint, 220) || '执行取出后若个人背包写入或审计链路异常，需按 draft、withdraw ledger 与目标背包落点人工补偿或重放。',
+    rollback_plan: sanitizeText(entry.rollback_plan, 220) || '执行前可撤销草案释放冻结；执行后不自动回收个人背包，需走补偿复核。',
+    created_at: Math.max(0, Math.floor(Number(entry.created_at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    execute_idempotency_key: sanitizeText(entry.execute_idempotency_key, 120),
+    executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
+    executed_by_username: normalizeUsername(entry.executed_by_username),
+    warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids)
+      ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    rollback_idempotency_key: sanitizeText(entry.rollback_idempotency_key, 120),
+    rolled_back_at: Math.max(0, Math.floor(Number(entry.rolled_back_at) || 0)),
+    rolled_back_by_username: normalizeUsername(entry.rolled_back_by_username),
+    rollback_reason: sanitizeText(entry.rollback_reason, 160),
+  };
+}
+
+function normalizeWarehouseWithdrawalDrafts(value = []) {
+  return Array.isArray(value)
+    ? value.map(normalizeWarehouseWithdrawalDraft).filter(Boolean).slice(0, WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT)
+    : [];
+}
+
 function buildWarehouseItemsFromLedger(ledger = []) {
   const aggregate = new Map();
   for (const entry of ledger.slice().reverse()) {
@@ -1155,6 +1264,45 @@ function normalizeSharedWarehouse(value = {}) {
     items: buildWarehouseItemsFromLedger(ledger),
     ledger,
   };
+}
+
+function getWarehouseWithdrawalRiskLevel(itemId, quality = 'normal') {
+  if (isProtectedWarehouseItemId(itemId)) return 'rare';
+  return normalizeQuality(quality) === 'normal' ? 'common' : 'high_quality';
+}
+
+function getWarehouseStockQuantity(warehouse = {}, itemId = '', quality = 'normal') {
+  const normalizedItemId = normalizeWarehouseItemId(itemId);
+  const normalizedQuality = normalizeQuality(quality);
+  return (warehouse.items || [])
+    .filter(item => item.item_id === normalizedItemId && item.quality === normalizedQuality)
+    .reduce((sum, item) => sum + normalizePositiveInt(item.quantity, 0), 0);
+}
+
+function getActiveWarehouseWithdrawalDrafts(contract = {}, excludeDraftId = '') {
+  return normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts)
+    .filter(draft => WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES.has(draft.state))
+    .filter(draft => !excludeDraftId || draft.id !== excludeDraftId);
+}
+
+function getWarehouseFrozenQuantity(contract = {}, itemId = '', quality = 'normal', excludeDraftId = '') {
+  const normalizedItemId = normalizeWarehouseItemId(itemId);
+  const normalizedQuality = normalizeQuality(quality);
+  return getActiveWarehouseWithdrawalDrafts(contract, excludeDraftId)
+    .filter(draft => draft.item_id === normalizedItemId && draft.quality === normalizedQuality)
+    .reduce((sum, draft) => sum + normalizePositiveInt(draft.frozen_quantity || draft.quantity, 0), 0);
+}
+
+function assertWarehouseHighValueWithdrawalPermission(actorPermissions = {}, riskLevel = 'common') {
+  if (riskLevel === 'rare') {
+    if (actorPermissions.storage?.withdraw_rare !== true) throw createError('你没有发起稀有物取出确认的权限', 403);
+    return true;
+  }
+  if (riskLevel === 'high_quality') {
+    if (actorPermissions.storage?.withdraw_high_quality !== true) throw createError('你没有发起高品质物取出确认的权限', 403);
+    return true;
+  }
+  throw createError('普通物品请使用普通取出流程', 400);
 }
 
 function normalizeOriginAssets(value = {}) {
@@ -2688,6 +2836,7 @@ function normalizeContract(entry = {}) {
     shared_animal_ledger: normalizeAnimalActionLedger(entry.shared_animal_ledger),
     shared_fund: normalizeSharedFund(entry.shared_fund),
     shared_warehouse: normalizeSharedWarehouse(entry.shared_warehouse),
+    shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(entry.shared_warehouse_withdrawal_drafts),
     origin_assets: normalizeOriginAssets(entry.origin_assets),
     permissions,
     family_state: normalizeContractFamilyState(entry.family_state),
@@ -2763,6 +2912,7 @@ function toPublicContract(contract) {
     members: contract.members.map(member => ({ ...member })),
     shared_fund: normalizeSharedFund(contract.shared_fund),
     shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
+    shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts),
     shared_animals: normalizeSharedAnimals(contract.shared_animals),
     shared_animal_ledger: normalizeAnimalActionLedger(contract.shared_animal_ledger),
     fund_large_spend_drafts: Array.isArray(contract.fund_large_spend_drafts)
@@ -4673,11 +4823,14 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
 
 function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const withdrawalDrafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const activeWithdrawalDrafts = withdrawalDrafts.filter(draft => WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES.has(draft.state));
   const actorKey = normalizeUsernameKey(actorUsername);
   const actorMember = getContractMember(contract, actorUsername);
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorKey], contract.type);
   const familyWarehouse = buildFamilyWarehouseSummary(contract, warehouse, actorMember);
   const totalQuantity = warehouse.items.reduce((sum, item) => sum + item.quantity, 0);
+  const frozenQuantity = activeWithdrawalDrafts.reduce((sum, draft) => sum + normalizePositiveInt(draft.frozen_quantity || draft.quantity, 0), 0);
   const sellEnabled = contract.status === 'active' && actorPermissions.storage.sell_items === true;
   return {
     contract_id: contract.id,
@@ -4685,13 +4838,18 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
     status: contract.status,
     items: warehouse.items,
     ledger: warehouse.ledger.slice(0, 50),
+    high_value_withdrawal_drafts: withdrawalDrafts.slice(0, 20),
     summary: {
       item_count: warehouse.items.length,
       total_quantity: totalQuantity,
+      frozen_quantity: frozenQuantity,
       ledger_count: warehouse.ledger.length,
       personal_money_merged: false,
       deposit_enabled: contract.status === 'active' && actorPermissions.storage.deposit === true,
       withdraw_enabled: contract.status === 'active' && actorPermissions.storage.withdraw_common === true,
+      high_value_withdrawal_confirmation_enabled: contract.status === 'active',
+      high_value_withdrawal_draft_count: withdrawalDrafts.length,
+      active_high_value_withdrawal_draft_count: activeWithdrawalDrafts.length,
       sell_enabled: sellEnabled,
       family_manor_warehouse: familyWarehouse.enabled,
       role_based_storage_permissions: familyWarehouse.role_based_storage_permissions,
@@ -4699,13 +4857,14 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
       idempotency_required: true,
       protected_qualities: ['fine', 'excellent', 'supreme'],
       protected_operations: ['withdraw_high_quality', 'withdraw_rare', 'sell_high_quality', 'sell_rare'],
-      compensation_policy: '第一版开放普通物品放入、取出与卖出，均写 ledger 与审计；误操作可按流水、个人背包落点和共同基金入账追溯，自动冻结 / 回滚待后续接入。',
+      compensation_policy: '普通物品可直接按权限取出；高品质 / 稀有物必须先建草案冻结库存、双方确认，再执行取出。执行前可撤销草案释放冻结，执行后按 ledger 与个人背包落点走补偿复核。',
     },
     permissions: {
       can_deposit: actorPermissions.storage.deposit === true,
       can_withdraw_common: actorPermissions.storage.withdraw_common === true,
       can_withdraw_high_quality: actorPermissions.storage.withdraw_high_quality === true,
       can_withdraw_rare: actorPermissions.storage.withdraw_rare === true,
+      can_create_high_value_withdrawal_draft: actorPermissions.storage.withdraw_high_quality === true || actorPermissions.storage.withdraw_rare === true,
       can_sell_items: actorPermissions.storage.sell_items === true,
     },
     family_warehouse: familyWarehouse,
@@ -5203,6 +5362,61 @@ function normalizeWarehouseWithdrawPayload(payload = {}) {
     quality: requestedQuality,
     idempotency_key: idempotencyKey,
     save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalDraftPayload(payload = {}) {
+  const itemId = normalizeWarehouseItemId(payload.item_id ?? payload.itemId);
+  const rawQuantity = Math.floor(Number(payload.quantity) || 0);
+  const requestedQuality = String(payload.quality || 'normal').trim().toLowerCase();
+  if (!itemId) throw createError('请指定有效的高价值取出物品');
+  if (rawQuantity <= 0) throw createError('高价值取出数量必须大于 0');
+  if (rawQuantity > WAREHOUSE_MAX_WITHDRAW_QUANTITY) throw createError(`单次高价值取出数量不能超过 ${WAREHOUSE_MAX_WITHDRAW_QUANTITY}`);
+  if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('高价值取出物品品质参数无效');
+  const riskLevel = getWarehouseWithdrawalRiskLevel(itemId, requestedQuality);
+  if (riskLevel === 'common') throw createError('普通物品请使用普通取出流程', 400);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('高价值取出草案需要 idempotency_key，以防断线或重试时重复冻结');
+  return {
+    item_id: itemId,
+    quantity: rawQuantity,
+    quality: requestedQuality,
+    risk_level: riskLevel,
+    idempotency_key: idempotencyKey,
+    save_slot: normalizeSaveSlot(payload.save_slot),
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalConfirmPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('高价值取出确认需要 idempotency_key，以防断线或重试时重复确认');
+  return {
+    idempotency_key: idempotencyKey,
+    confirmation_text: sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation || '', 120),
+    freeze_acknowledged: payload.freeze_acknowledged === true || payload.ack_freeze === true,
+    rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true || payload.ack_rollback === true,
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalExecutePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('高价值取出执行需要 idempotency_key，以防断线或重试时重复取出');
+  return {
+    idempotency_key: idempotencyKey,
+    save_slot: normalizeSaveSlot(payload.save_slot),
+    expected_state: sanitizeText(payload.expected_state || payload.state, 60),
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalRollbackPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('高价值取出回滚需要 idempotency_key，以防断线或重试时重复回滚');
+  return {
+    idempotency_key: idempotencyKey,
+    reason: sanitizeText(payload.reason || payload.memo || payload.note || '撤销高价值取出草案并释放冻结库存', 160),
   };
 }
 
@@ -9837,6 +10051,384 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
       target_slots: addResult.target_slots,
       personal_money_merged: false,
     },
+  };
+}
+
+async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseHighValueWithdrawalDraftPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '发起共同仓库高价值取出确认');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  assertWarehouseHighValueWithdrawalPermission(actorPermissions, request.risk_level);
+
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const previousDraft = contract.shared_warehouse_withdrawal_drafts.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousDraft) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft: previousDraft,
+      idempotent: true,
+    };
+  }
+
+  const stockQuantity = getWarehouseStockQuantity(contract.shared_warehouse, request.item_id, request.quality);
+  const frozenQuantity = getWarehouseFrozenQuantity(contract, request.item_id, request.quality);
+  if (stockQuantity < frozenQuantity + request.quantity) throw createError('共同仓库高价值库存不足，或已有冻结草案占用该库存', 409);
+  const allocationResult = buildWarehouseWithdrawalAllocations(
+    contract.shared_warehouse,
+    request.item_id,
+    request.quantity,
+    request.quality
+  );
+  if (!allocationResult.ok) throw createError('共同仓库高价值物品来源流水不足，不能冻结取出草案', 409);
+
+  const acceptedMembers = (contract.members || []).filter(entry => entry.status === 'accepted');
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const now = nowSeconds();
+  let draft = normalizeWarehouseWithdrawalDraft({
+    id: makeId('warehouse_withdrawal_draft'),
+    state: 'pending_confirmation',
+    item_id: request.item_id,
+    quantity: request.quantity,
+    quality: request.quality,
+    risk_level: request.risk_level,
+    requester_username: member.username,
+    requester_display_name: member.display_name || member.username,
+    requester_username_key: member.username_key,
+    requester_manor_role: actorManorRole,
+    requester_manor_role_label: actorManorRoleDef?.label || '',
+    target_save_slot: request.save_slot,
+    required_member_usernames: acceptedMembers.map(entry => entry.username),
+    confirmation_events: [{
+      actor_username: actorUsername,
+      actor_display_name: actor.displayName || actor.display_name || actorUsername,
+      actor_username_key: member.username_key,
+      actor_manor_role: actorManorRole,
+      actor_manor_role_label: actorManorRoleDef?.label || '',
+      confirmation_text: request.reason || '发起人自动确认高价值取出冻结草案',
+      confirmed_at: now,
+      idempotency_key: request.idempotency_key,
+    }],
+    source_allocations: allocationResult.allocations,
+    frozen_quantity: request.quantity,
+    frozen_at: now,
+    created_at: now,
+    idempotency_key: request.idempotency_key,
+  });
+  if (draft.confirmation_state.all_members_confirmed) draft = normalizeWarehouseWithdrawalDraft({ ...draft, state: 'ready_to_execute' });
+  contract.shared_warehouse_withdrawal_drafts = [draft, ...contract.shared_warehouse_withdrawal_drafts].slice(0, WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT);
+  appendAudit(contract, 'warehouse_high_value_withdrawal_draft_created', actor, {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quantity: draft.quantity,
+    quality: draft.quality,
+    risk_level: draft.risk_level,
+    frozen_quantity: draft.frozen_quantity,
+    required_member_usernames: draft.required_member_usernames,
+    source_ledger_ids: [...new Set(draft.source_allocations.flatMap(allocation => allocation.source_ledger_ids || []))],
+    shared_warehouse_changed: false,
+    personal_save_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    idempotent: false,
+  };
+}
+
+async function confirmCohabitationWarehouseHighValueWithdrawalDraft(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseHighValueWithdrawalConfirmPayload(payload);
+  if (!request.freeze_acknowledged || !request.rollback_plan_acknowledged) {
+    throw createError('确认高价值取出前必须确认冻结与回滚方案', 400);
+  }
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '确认共同仓库高价值取出');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同仓库高价值取出草案不存在', 404);
+  let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
+  if (!WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES.has(draft.state)) throw createError('该高价值取出草案当前不能确认', 409);
+  if (!draft.required_member_usernames.map(normalizeUsernameKey).includes(member.username_key)) {
+    throw createError('只有草案要求的契约成员可以确认本次取出', 403);
+  }
+  if (draft.confirmation_events.some(event => event.idempotency_key === request.idempotency_key)) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      idempotent: true,
+    };
+  }
+  if (draft.confirmation_events.some(event => event.actor_username_key === member.username_key)) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      idempotent: true,
+    };
+  }
+
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  draft = normalizeWarehouseWithdrawalDraft({
+    ...draft,
+    confirmation_events: [
+      ...draft.confirmation_events,
+      {
+        actor_username: actorUsername,
+        actor_display_name: actor.displayName || actor.display_name || actorUsername,
+        actor_username_key: member.username_key,
+        actor_manor_role: actorManorRole,
+        actor_manor_role_label: actorManorRoleDef?.label || '',
+        confirmation_text: request.confirmation_text || '确认高价值取出冻结与回滚方案',
+        confirmed_at: nowSeconds(),
+        idempotency_key: request.idempotency_key,
+      },
+    ],
+  });
+  if (draft.confirmation_state.all_members_confirmed) draft = normalizeWarehouseWithdrawalDraft({ ...draft, state: 'ready_to_execute' });
+  contract.shared_warehouse_withdrawal_drafts[draftIndex] = draft;
+  appendAudit(contract, 'warehouse_high_value_withdrawal_draft_confirmed', actor, {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quantity: draft.quantity,
+    quality: draft.quality,
+    risk_level: draft.risk_level,
+    state: draft.state,
+    confirmed_member_usernames: draft.confirmation_state.confirmed_member_usernames,
+    pending_member_usernames: draft.confirmation_state.pending_member_usernames,
+    shared_warehouse_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    idempotent: false,
+  };
+}
+
+async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseHighValueWithdrawalExecutePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '执行共同仓库高价值取出');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同仓库高价值取出草案不存在', 404);
+  let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
+  if (draft.state === 'executed' && draft.execute_idempotency_key === request.idempotency_key) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      ledger_entries: (contract.shared_warehouse.ledger || []).filter(entry => draft.warehouse_ledger_ids.includes(entry.id)),
+      idempotent: true,
+    };
+  }
+  if (draft.state !== 'ready_to_execute') throw createError('高价值取出草案尚未完成双方确认，不能执行', 409);
+  if (draft.requester_username_key !== member.username_key) throw createError('只有草案发起人可以把高价值物品取入自己的存档', 403);
+  if (request.expected_state && request.expected_state !== draft.state) throw createError('高价值取出草案状态已变化，请刷新后重试', 409);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  assertWarehouseHighValueWithdrawalPermission(actorPermissions, draft.risk_level);
+
+  const stockQuantity = getWarehouseStockQuantity(contract.shared_warehouse, draft.item_id, draft.quality);
+  if (stockQuantity < draft.quantity) throw createError('共同仓库高价值库存不足，不能执行取出', 409);
+  const context = getActiveSaveContext(
+    actorUsername,
+    request.save_slot ?? draft.target_save_slot,
+    '当前账号没有可用的桃源乡服务端存档，暂时无法执行共同仓库高价值取出'
+  );
+  context.username = actorUsername;
+  const projectedData = JSON.parse(JSON.stringify(context.data));
+  const beforeMoney = Math.max(0, Math.floor(Number(projectedData?.player?.money) || 0));
+  const addResult = addWithdrawnWarehouseItemToInventory(projectedData, draft.item_id, draft.quantity, draft.quality);
+  if (!addResult.ok) throw createError('个人背包和临时背包空间不足，已中止本次高价值取出');
+  const afterMoney = Math.max(0, Math.floor(Number(projectedData?.player?.money) || 0));
+  if (afterMoney !== beforeMoney) throw createError('共同仓库高价值取出不会处理个人铜币，已中止本次操作', 500);
+
+  assignGameplayDataToContext(context, projectedData);
+  const saveRevision = persistGameplayData(context);
+  const targetSaveId = normalizeSaveId(context.identity?.save_id);
+  const targetSaveSlot = normalizeSaveSlot(context.slot);
+  const targetOwnerId = targetSaveId ? `save:${targetSaveId}` : `account:${member.username_key}`;
+  if (targetSaveId) member.save_id = targetSaveId;
+  if (targetSaveSlot !== null) member.save_slot = targetSaveSlot;
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const operatedAt = nowSeconds();
+  const allocations = draft.source_allocations.length ? draft.source_allocations : buildWarehouseWithdrawalAllocations(
+    contract.shared_warehouse,
+    draft.item_id,
+    draft.quantity,
+    draft.quality
+  ).allocations;
+  const ledgerEntries = allocations.map(allocation => normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'withdraw',
+    item_id: draft.item_id,
+    quantity: allocation.quantity,
+    quality: draft.quality,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    source_owner_id: allocation.source_owner_id,
+    source_owner_username: allocation.source_owner_username,
+    source_owner_display_name: allocation.source_owner_display_name,
+    source_owner_key: allocation.source_owner_key,
+    source_owner_manor_role: allocation.source_owner_manor_role,
+    source_owner_manor_role_label: allocation.source_owner_manor_role_label,
+    source_save_id: allocation.source_save_id,
+    source_save_slot: allocation.source_save_slot,
+    source_inventory: allocation.source_inventory || 'shared_warehouse.items',
+    source_ledger_ids: allocation.source_ledger_ids,
+    target_owner_id: targetOwnerId,
+    target_owner_username: member.username,
+    target_owner_display_name: member.display_name || member.username,
+    target_owner_key: member.username_key,
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    target_save_revision: saveRevision,
+    target_inventory: 'inventory.items',
+    target_slots: addResult.target_slots,
+    target_ref: draft.id,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    reversible: true,
+    compensation_hint: '高价值取出已完成双方确认并写个人背包落点；若需回滚，必须按本流水、草案和目标背包落点走补偿复核。',
+    status: 'committed',
+  })).filter(Boolean);
+  contract.shared_warehouse.ledger = [...ledgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.warehouse_items = [
+    ...ledgerEntries.map(buildWarehouseOriginAsset),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  draft = normalizeWarehouseWithdrawalDraft({
+    ...draft,
+    state: 'executed',
+    execute_idempotency_key: request.idempotency_key,
+    executed_at: operatedAt,
+    executed_by_username: actorUsername,
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    warehouse_ledger_ids: ledgerEntries.map(entry => entry.id),
+  });
+  contract.shared_warehouse_withdrawal_drafts[draftIndex] = draft;
+  appendAudit(contract, 'warehouse_high_value_withdrawal_executed', actor, {
+    draft_id: draft.id,
+    ledger_ids: ledgerEntries.map(entry => entry.id),
+    item_id: draft.item_id,
+    quantity: draft.quantity,
+    quality: draft.quality,
+    risk_level: draft.risk_level,
+    target_owner_id: targetOwnerId,
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    save_revision: saveRevision,
+    source_owner_count: new Set(ledgerEntries.map(entry => entry.source_owner_id || entry.source_owner_key)).size,
+    shared_warehouse_changed: true,
+    personal_save_changed: true,
+    compensation_required: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    ledger_entry: ledgerEntries[0],
+    ledger_entries: ledgerEntries,
+    idempotent: false,
+    personal_inventory: {
+      item_id: draft.item_id,
+      quality: draft.quality,
+      added_quantity: draft.quantity,
+      total_quantity: countDepositableMainInventoryItem(projectedData, draft.item_id, draft.quality),
+      target_slots: addResult.target_slots,
+      personal_money_merged: false,
+    },
+  };
+}
+
+async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseHighValueWithdrawalRollbackPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '撤销共同仓库高价值取出草案');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同仓库高价值取出草案不存在', 404);
+  let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
+  if (draft.state === 'rolled_back' && draft.rollback_idempotency_key === request.idempotency_key) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      idempotent: true,
+    };
+  }
+  if (draft.state === 'executed') throw createError('高价值取出已经执行，不能直接释放冻结；请按取出流水进入补偿复核', 409);
+  if (!WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES.has(draft.state)) throw createError('该高价值取出草案当前不能回滚', 409);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const isRequester = draft.requester_username_key === member.username_key;
+  const canGovern = actorPermissions.storage.withdraw_rare === true || actorPermissions.storage.withdraw_high_quality === true || isContractOwner(contract, actorUsername);
+  if (!isRequester && !canGovern) throw createError('只有草案发起人、owner 或具备高价值取出权限的成员可以撤销草案', 403);
+
+  draft = normalizeWarehouseWithdrawalDraft({
+    ...draft,
+    state: 'rolled_back',
+    rollback_idempotency_key: request.idempotency_key,
+    rolled_back_at: nowSeconds(),
+    rolled_back_by_username: actorUsername,
+    rollback_reason: request.reason,
+  });
+  contract.shared_warehouse_withdrawal_drafts[draftIndex] = draft;
+  appendAudit(contract, 'warehouse_high_value_withdrawal_rolled_back', actor, {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quantity: draft.quantity,
+    quality: draft.quality,
+    risk_level: draft.risk_level,
+    released_frozen_quantity: draft.frozen_quantity,
+    reason: request.reason,
+    shared_warehouse_changed: false,
+    personal_save_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    idempotent: false,
   };
 }
 
@@ -15996,6 +16588,10 @@ module.exports = {
   collectCohabitationSharedAnimalProduct,
   depositCohabitationWarehouseItem,
   withdrawCohabitationWarehouseItem,
+  createCohabitationWarehouseHighValueWithdrawalDraft,
+  confirmCohabitationWarehouseHighValueWithdrawalDraft,
+  executeCohabitationWarehouseHighValueWithdrawalDraft,
+  rollbackCohabitationWarehouseHighValueWithdrawalDraft,
   sellCohabitationWarehouseItem,
   creditCohabitationOrderIncome,
   contributeCohabitationFund,

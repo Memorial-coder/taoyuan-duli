@@ -442,19 +442,55 @@ export interface CohabitationWarehouseItem {
   source_owner_display_name?: string
 }
 
+export interface CohabitationWarehouseHighValueWithdrawalDraft {
+  id: string
+  state: string
+  item_id: string
+  quantity: number
+  quality: string
+  risk_level: string
+  requester_username: string
+  requester_display_name: string
+  requester_username_key: string
+  required_member_usernames: string[]
+  confirmation_events: Array<Record<string, unknown>>
+  confirmation_state: {
+    required_member_usernames: string[]
+    confirmed_member_usernames: string[]
+    pending_member_usernames: string[]
+    all_members_confirmed: boolean
+    last_confirmed_by: string
+    last_confirmed_at: number
+  }
+  frozen_quantity: number
+  frozen_at: number
+  freeze_policy: string
+  compensation_hint: string
+  rollback_plan: string
+  warehouse_ledger_ids: string[]
+  created_at: number
+  executed_at: number
+  rolled_back_at: number
+}
+
 export interface CohabitationWarehouseSnapshot {
   contract_id: string
   shared_manor_id: string
   status: string
   items: CohabitationWarehouseItem[]
   ledger: CohabitationWarehouseLedgerEntry[]
+  high_value_withdrawal_drafts?: CohabitationWarehouseHighValueWithdrawalDraft[]
   summary: {
     item_count: number
     total_quantity: number
+    frozen_quantity?: number
     ledger_count: number
     personal_money_merged: boolean
     deposit_enabled: boolean
     withdraw_enabled: boolean
+    high_value_withdrawal_confirmation_enabled?: boolean
+    high_value_withdrawal_draft_count?: number
+    active_high_value_withdrawal_draft_count?: number
     sell_enabled: boolean
     idempotency_required: boolean
     compensation_policy: string
@@ -1569,6 +1605,30 @@ export interface CohabitationWarehouseItemPayload {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseHighValueWithdrawalDraftPayload extends CohabitationWarehouseItemPayload {
+  reason?: string
+}
+
+export interface CohabitationWarehouseHighValueWithdrawalConfirmPayload {
+  confirmation_text?: string
+  freeze_acknowledged: boolean
+  rollback_plan_acknowledged: boolean
+  reason?: string
+  idempotency_key: string
+}
+
+export interface CohabitationWarehouseHighValueWithdrawalExecutePayload {
+  save_slot?: number | null
+  expected_state?: string
+  reason?: string
+  idempotency_key: string
+}
+
+export interface CohabitationWarehouseHighValueWithdrawalRollbackPayload {
+  reason?: string
+  idempotency_key: string
+}
+
 export interface CohabitationSharedFarmWaterPayload {
   plot_id: string
   memo?: string
@@ -1709,6 +1769,14 @@ export interface CohabitationWarehouseItemResponse extends CohabitationDetailRes
     target_ref?: string
     personal_money_merged: boolean
   }
+}
+
+export interface CohabitationWarehouseHighValueWithdrawalDraftResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  draft?: CohabitationWarehouseHighValueWithdrawalDraft
+  ledger_entry?: CohabitationWarehouseLedgerEntry | null
+  ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  personal_inventory?: Record<string, unknown>
 }
 
 export interface CohabitationSharedFarmActionResponse extends CohabitationDetailResponse {
@@ -2343,6 +2411,38 @@ export const withdrawCohabitationWarehouseItem = async (contractId: string, payl
     contractPath(contractId, '/warehouse/withdraw'),
     payload as unknown as Record<string, unknown>,
     '取出共同仓库物品失败'
+  )
+}
+
+export const createCohabitationWarehouseHighValueWithdrawalDraft = async (contractId: string, payload: CohabitationWarehouseHighValueWithdrawalDraftPayload) => {
+  return postCohabitationJson<CohabitationWarehouseHighValueWithdrawalDraftResponse>(
+    contractPath(contractId, '/warehouse/high-value-withdrawal-drafts'),
+    payload as unknown as Record<string, unknown>,
+    '创建共同仓库高价值取出草案失败'
+  )
+}
+
+export const confirmCohabitationWarehouseHighValueWithdrawalDraft = async (contractId: string, draftId: string, payload: CohabitationWarehouseHighValueWithdrawalConfirmPayload) => {
+  return postCohabitationJson<CohabitationWarehouseHighValueWithdrawalDraftResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/confirm`),
+    payload as unknown as Record<string, unknown>,
+    '确认共同仓库高价值取出草案失败'
+  )
+}
+
+export const executeCohabitationWarehouseHighValueWithdrawalDraft = async (contractId: string, draftId: string, payload: CohabitationWarehouseHighValueWithdrawalExecutePayload) => {
+  return postCohabitationJson<CohabitationWarehouseHighValueWithdrawalDraftResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/execute`),
+    payload as unknown as Record<string, unknown>,
+    '执行共同仓库高价值取出草案失败'
+  )
+}
+
+export const rollbackCohabitationWarehouseHighValueWithdrawalDraft = async (contractId: string, draftId: string, payload: CohabitationWarehouseHighValueWithdrawalRollbackPayload) => {
+  return postCohabitationJson<CohabitationWarehouseHighValueWithdrawalDraftResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/rollback`),
+    payload as unknown as Record<string, unknown>,
+    '回滚共同仓库高价值取出草案失败'
   )
 }
 

@@ -6,6 +6,7 @@ import {
   approveCohabitationFamilyBuildingRealDemolitionReview,
   bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   confirmCohabitationFundLargeSpendDraft,
+  confirmCohabitationWarehouseHighValueWithdrawalDraft,
   confirmCohabitationSeparationPreview,
   consumeCohabitationFamilyBuildingMaterials,
   contributeCohabitationFund,
@@ -13,11 +14,13 @@ import {
   collectCohabitationSharedAnimalProduct,
   createCohabitationContract,
   createCohabitationFundLargeSpendDraft,
+  createCohabitationWarehouseHighValueWithdrawalDraft,
   createCohabitationSeparationPreview,
   depositCohabitationWarehouseItem,
   executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutation,
   executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   executeCohabitationFamilyBuildingRealDemolitionMainStateMutation,
+  executeCohabitationWarehouseHighValueWithdrawalDraft,
   executeCohabitationSeparationAssetReturn,
   executeCohabitationFundLargeSpendDraft,
   fetchCohabitationFamilyBuildings,
@@ -53,6 +56,7 @@ import {
   resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   restoreCohabitationFamilyBuildingMaterials,
   rollbackCohabitationFamilyBuilding,
+  rollbackCohabitationWarehouseHighValueWithdrawalDraft,
   returnCohabitationSeparationSharedWarehouse,
   sellCohabitationWarehouseItem,
   splitCohabitationSeparationDecorationsBuildings,
@@ -99,6 +103,10 @@ import {
   type CohabitationSeparationPreviewPayload,
   type CohabitationSeparationSharedFundRefundPayload,
   type CohabitationSeparationSharedWarehouseReturnPayload,
+  type CohabitationWarehouseHighValueWithdrawalConfirmPayload,
+  type CohabitationWarehouseHighValueWithdrawalDraftPayload,
+  type CohabitationWarehouseHighValueWithdrawalExecutePayload,
+  type CohabitationWarehouseHighValueWithdrawalRollbackPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
   type CohabitationSharedAnimalProductPayload,
@@ -1310,6 +1318,98 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const createWarehouseHighValueWithdrawalDraft = async (payload: CohabitationWarehouseHighValueWithdrawalDraftPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await createCohabitationWarehouseHighValueWithdrawalDraft(activeContractId.value, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '创建共同仓库高价值取出草案失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const confirmWarehouseHighValueWithdrawalDraft = async (draftId: string, payload: CohabitationWarehouseHighValueWithdrawalConfirmPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await confirmCohabitationWarehouseHighValueWithdrawalDraft(activeContractId.value, draftId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '确认共同仓库高价值取出草案失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const executeWarehouseHighValueWithdrawalDraft = async (draftId: string, payload: CohabitationWarehouseHighValueWithdrawalExecutePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await executeCohabitationWarehouseHighValueWithdrawalDraft(activeContractId.value, draftId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '执行共同仓库高价值取出草案失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const rollbackWarehouseHighValueWithdrawalDraft = async (draftId: string, payload: CohabitationWarehouseHighValueWithdrawalRollbackPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await rollbackCohabitationWarehouseHighValueWithdrawalDraft(activeContractId.value, draftId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '回滚共同仓库高价值取出草案失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const waterSharedFarmPlot = async (payload: CohabitationSharedFarmWaterPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
     actionLoading.value = true
@@ -1588,6 +1688,10 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,
+    createWarehouseHighValueWithdrawalDraft,
+    confirmWarehouseHighValueWithdrawalDraft,
+    executeWarehouseHighValueWithdrawalDraft,
+    rollbackWarehouseHighValueWithdrawalDraft,
     waterSharedFarmPlot,
     careSharedFarmPlot,
     plantSharedFarmPlot,

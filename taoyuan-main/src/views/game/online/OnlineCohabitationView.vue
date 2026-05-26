@@ -660,16 +660,26 @@
                   <button
                     type="button"
                     class="online-action-btn online-action-btn--compact"
-                    :disabled="!canWithdrawWarehouseItem(item) || cohabitationStore.actionLoading"
+                    :disabled="isHighValueWarehouseItem(item) || !canWithdrawWarehouseItem(item) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-warehouse-withdraw-${item.item_id}`"
                     @click="withdrawWarehouseItem(item)"
                   >
                     取出 1 个
                   </button>
                   <button
+                    v-if="isHighValueWarehouseItem(item)"
                     type="button"
                     class="online-action-btn online-action-btn--compact"
-                    :disabled="!canSellWarehouseItem(item) || cohabitationStore.actionLoading"
+                    :disabled="!canCreateHighValueWarehouseWithdrawalDraft(item) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-warehouse-high-value-draft-${item.item_id}`"
+                    @click="createHighValueWarehouseWithdrawalDraft(item)"
+                  >
+                    申请取出
+                  </button>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact"
+                    :disabled="isHighValueWarehouseItem(item) || !canSellWarehouseItem(item) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-warehouse-sell-${item.item_id}`"
                     @click="sellWarehouseItem(item)"
                   >
@@ -689,6 +699,7 @@
             <div class="mt-3 grid gap-2 text-xs">
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">放入：{{ cohabitationStore.warehouse?.summary.deposit_enabled ? '已按权限开放' : '当前不可放入' }}</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">取出：{{ cohabitationStore.warehouse?.summary.withdraw_enabled ? '开放' : '暂缓' }}</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">高价值冻结：{{ cohabitationStore.warehouse?.summary.frozen_quantity ?? 0 }} 件 / 草案 {{ cohabitationStore.warehouse?.summary.active_high_value_withdrawal_draft_count ?? 0 }}</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">卖出：{{ cohabitationStore.warehouse?.summary.sell_enabled ? '开放' : '暂缓' }}</p>
             </div>
             <div class="mt-3 border border-accent/10 bg-black/10 p-2">
@@ -721,6 +732,46 @@
                     @click="depositWarehouseItem"
                   >
                     放入仓库
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">高价值取出确认</p>
+            <div v-if="warehouseHighValueWithdrawalDrafts.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无高品质 / 稀有物取出草案。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="draft in warehouseHighValueWithdrawalDrafts" :key="draft.id" class="border border-accent/10 bg-black/10 p-2">
+                <p class="truncate text-xs text-text">{{ warehouseItemLabels[draft.item_id] || draft.item_id }} x{{ draft.quantity }} · {{ highValueDraftStateLabel(draft.state) }}</p>
+                <p class="mt-1 text-[10px] text-muted">{{ draft.quality }} · {{ highValueDraftRiskLabel(draft.risk_level) }} · 已确认 {{ draft.confirmation_state.confirmed_member_usernames.length }}/{{ draft.confirmation_state.required_member_usernames.length }}</p>
+                <p class="mt-1 text-[10px] text-muted">冻结 {{ draft.frozen_quantity }} 件 · {{ draft.freeze_policy }}</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact"
+                    :disabled="!canConfirmHighValueWarehouseDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-warehouse-high-value-confirm-${draft.id}`"
+                    @click="confirmHighValueWarehouseWithdrawalDraft(draft)"
+                  >
+                    确认
+                  </button>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact"
+                    :disabled="!canExecuteHighValueWarehouseDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-warehouse-high-value-execute-${draft.id}`"
+                    @click="executeHighValueWarehouseWithdrawalDraft(draft)"
+                  >
+                    执行
+                  </button>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact"
+                    :disabled="!canRollbackHighValueWarehouseDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-warehouse-high-value-rollback-${draft.id}`"
+                    @click="rollbackHighValueWarehouseWithdrawalDraft(draft)"
+                  >
+                    撤销冻结
                   </button>
                 </div>
               </div>
@@ -2067,6 +2118,7 @@
     CohabitationMember,
     CohabitationSharedAnimal,
     CohabitationSharedPlot,
+    CohabitationWarehouseHighValueWithdrawalDraft,
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
@@ -2432,6 +2484,7 @@
   }
   const warehouseItems = computed(() => cohabitationStore.warehouse?.items ?? [])
   const warehouseLedger = computed(() => cohabitationStore.warehouse?.ledger ?? [])
+  const warehouseHighValueWithdrawalDrafts = computed(() => cohabitationStore.warehouse?.high_value_withdrawal_drafts ?? [])
   const fundLedger = computed(() => cohabitationStore.fund?.ledger ?? [])
   const permissionMembers = computed(() => cohabitationStore.permissionsPanel?.members ?? [])
   const permissionAudits = computed(() => cohabitationStore.permissionsPanel?.recent_permission_audits ?? [])
@@ -3675,6 +3728,114 @@
     cohabitationStore.warehouse?.permissions.can_withdraw_common === true &&
     (item.quantity ?? 0) > 0 &&
     (item.quality || 'normal') === 'normal'
+
+  const isRareWarehouseItemId = (itemId = '') => {
+    const normalized = itemId.toLocaleLowerCase('zh-CN')
+    return ['rare', 'legendary', 'unique', 'memorial', 'quest', 'key', 'token', 'voucher', 'ancient'].some(flag => normalized.includes(flag))
+  }
+  const isHighValueWarehouseItem = (item: CohabitationWarehouseItem) =>
+    (item.quality || 'normal') !== 'normal' || isRareWarehouseItemId(item.item_id)
+  const highValueDraftRiskLabel = (risk = '') => risk === 'rare' ? '稀有保护' : '高品质保护'
+  const highValueDraftStateLabel = (state = '') => {
+    if (state === 'pending_confirmation') return '待确认'
+    if (state === 'ready_to_execute') return '可执行'
+    if (state === 'executed') return '已执行'
+    if (state === 'rolled_back') return '已撤销'
+    return state || '未知'
+  }
+  const canCreateHighValueWarehouseWithdrawalDraft = (item: CohabitationWarehouseItem) =>
+    cohabitationStore.canOpenSelectedContract &&
+    (cohabitationStore.warehouse?.permissions.can_create_high_value_withdrawal_draft === true ||
+      cohabitationStore.warehouse?.permissions.can_withdraw_high_quality === true ||
+      cohabitationStore.warehouse?.permissions.can_withdraw_rare === true) &&
+    (item.quantity ?? 0) > 0 &&
+    isHighValueWarehouseItem(item)
+  const canConfirmHighValueWarehouseDraft = (draft: CohabitationWarehouseHighValueWithdrawalDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    draft.state === 'pending_confirmation' &&
+    draft.confirmation_state.pending_member_usernames.some(username => currentActorKeys.value.has(normalizeActorKey(username)))
+  const canExecuteHighValueWarehouseDraft = (draft: CohabitationWarehouseHighValueWithdrawalDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    draft.state === 'ready_to_execute' &&
+    (currentActorKeys.value.has(normalizeActorKey(draft.requester_username)) ||
+      currentActorKeys.value.has(normalizeActorKey(draft.requester_username_key || '')))
+  const canRollbackHighValueWarehouseDraft = (draft: CohabitationWarehouseHighValueWithdrawalDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    (draft.state === 'pending_confirmation' || draft.state === 'ready_to_execute') &&
+    (currentActorKeys.value.has(normalizeActorKey(draft.requester_username)) ||
+      currentActorKeys.value.has(normalizeActorKey(draft.requester_username_key || '')) ||
+      cohabitationStore.warehouse?.permissions.can_create_high_value_withdrawal_draft === true)
+
+  const createHighValueWarehouseWithdrawalDraft = async (item: CohabitationWarehouseItem) => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    try {
+      const result = await cohabitationStore.createWarehouseHighValueWithdrawalDraft({
+        item_id: item.item_id,
+        quantity: 1,
+        quality: item.quality || 'normal',
+        reason: `申请取出 ${item.label || item.item_id}，先冻结并等待成员确认`,
+        idempotency_key: `ui-warehouse-high-value-draft-${item.item_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseActionMessage.value = result?.draft?.confirmation_state.all_members_confirmed
+        ? `已冻结 ${item.label || item.item_id} x1，草案可执行`
+        : `已冻结 ${item.label || item.item_id} x1，等待成员确认`
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '创建高价值取出草案失败'
+    }
+  }
+
+  const confirmHighValueWarehouseWithdrawalDraft = async (draft: CohabitationWarehouseHighValueWithdrawalDraft) => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    try {
+      const result = await cohabitationStore.confirmWarehouseHighValueWithdrawalDraft(draft.id, {
+        confirmation_text: '确认高价值取出冻结与回滚方案',
+        freeze_acknowledged: true,
+        rollback_plan_acknowledged: true,
+        idempotency_key: `ui-warehouse-high-value-confirm-${draft.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseActionMessage.value = result?.draft?.state === 'ready_to_execute' ? '双方已确认，草案可执行' : '已确认，等待其他成员'
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '确认高价值取出草案失败'
+    }
+  }
+
+  const executeHighValueWarehouseWithdrawalDraft = async (draft: CohabitationWarehouseHighValueWithdrawalDraft) => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    try {
+      const result = await cohabitationStore.executeWarehouseHighValueWithdrawalDraft(draft.id, {
+        expected_state: draft.state,
+        reason: '执行已确认的高价值取出草案',
+        idempotency_key: `ui-warehouse-high-value-execute-${draft.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      const total = result?.personal_inventory?.total_quantity
+      warehouseActionMessage.value = typeof total === 'number'
+        ? `已执行高价值取出，个人背包现有 ${total} 个`
+        : '已执行高价值取出'
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '执行高价值取出草案失败'
+    }
+  }
+
+  const rollbackHighValueWarehouseWithdrawalDraft = async (draft: CohabitationWarehouseHighValueWithdrawalDraft) => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    try {
+      await cohabitationStore.rollbackWarehouseHighValueWithdrawalDraft(draft.id, {
+        reason: '前端撤销高价值取出草案并释放冻结库存',
+        idempotency_key: `ui-warehouse-high-value-rollback-${draft.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseActionMessage.value = '已撤销草案并释放冻结库存'
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '撤销高价值取出草案失败'
+    }
+  }
 
   const sellWarehouseItem = async (item: CohabitationWarehouseItem) => {
     warehouseActionMessage.value = ''
