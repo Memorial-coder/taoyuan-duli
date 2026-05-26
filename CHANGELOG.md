@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态执行阻断后端闭环接入：共同庄园新增 `/family-buildings/real-demolition/execute-main-state-mutation`，要求先确认主状态变更 guard、校验 guard manifest hash，并继续保留拆除双方确认安全阀；由于当前 guard 清单只有宽路径和绑定证明，缺少可删除的精确个人 `home / decoration` 字段目标，接口只记录 `blocked_missing_exact_personal_target`、操作者、策略和审计，把后续待办推进到 `real_build_demolition_main_state_exact_target_required`。该步骤不修改个人存档、不删除个人主状态、不改共同基金或共同仓库；专项 QA 覆盖非成员拒绝、hash 漂移拒绝、首次阻断执行、重复幂等和资产边界。
 - 家族建筑真实拆除个人主状态变更安全阀前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/guard-main-state-mutation`，共同庄园建筑流水卡片新增“确认安全阀”按钮；按钮只在映射证明和 mapping manifest hash 已存在且尚未确认 guard 时开放。提交会带固定确认文案、补偿方案确认和回滚方案确认，成功后展示安全阀确认人、时间、guard manifest hash、清单数和策略，并读回 `real_build_demolition_main_state_execute` 暂缓项；该入口仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库。
 - 家族建筑真实拆除个人主状态变更安全阀后端闭环接入：共同庄园新增 `/family-buildings/real-demolition/guard-main-state-mutation`，要求先完成映射证明、校验 mapping manifest hash、明确确认文案，并确认补偿与回滚方案；成功后只记录 guard manifest、hash、操作者和审计，把后续待办推进到 `real_build_demolition_main_state_execute`。该步骤不修改个人 `home / decoration` 主状态，不改共同基金或共同仓库；专项 QA 覆盖非成员拒绝、确认文案拒绝、hash 漂移拒绝、首次记录和重复幂等。
 - 家族建筑真实拆除个人主状态映射证明前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/verify-main-state-mapping`，共同庄园建筑流水卡片新增“证明映射”按钮；按钮只在主状态预览清单和 manifest hash 已存在且尚未记录映射证明时开放。提交会从预览清单生成逐成员绑定证明，成功后展示映射证明人、时间、manifest hash、清单数和映射策略，并读回 `real_build_demolition_main_state_mutation_guard` 暂缓项；该入口仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库。

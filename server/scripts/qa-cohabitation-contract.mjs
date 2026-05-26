@@ -3553,6 +3553,66 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMutationGuard.main_st
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite partner save')
 
+const mainStateExecutePayload = {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  guard_manifest_hash: familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.manifest_hash,
+  reason: 'qa attempt main state execute but block without exact target',
+  idempotency_key: 'qa-family-building-real-demolition-main-state-execute',
+}
+
+await assert.rejects(
+  () => runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(largeContract.contract.id, {
+    ...mainStateExecutePayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-execute-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not execute real demolition personal main state mutation'
+)
+
+await assert.rejects(
+  () => runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(largeContract.contract.id, {
+    ...mainStateExecutePayload,
+    guard_manifest_hash: 'bad-guard-hash',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-execute-bad-hash',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state execute should reject guard manifest hash drift'
+)
+
+const familyBuildingRealDemolitionMainStateExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(
+  largeContract.contract.id,
+  mainStateExecutePayload,
+  actor(largeOwner)
+)
+assert.equal(familyBuildingRealDemolitionMainStateExecute.idempotent, false, 'first main state execute should not be idempotent')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.already_executed, false, 'first main state execute should not report already executed')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.building_ledger_entry.real_build_demolition_main_state_execute_idempotency_key, 'qa-family-building-real-demolition-main-state-execute', 'main state execute should store idempotency key')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.building_ledger_entry.real_build_demolition_main_state_execution_state, 'blocked_missing_exact_personal_target', 'main state execute should block without exact target selector')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.main_state_execution.blocked, true, 'main state execute response should be blocked')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.main_state_execution.mutation_enabled, false, 'main state execute should keep mutation disabled')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.main_state_execution.personal_save_changed, false, 'main state execute should not write personal saves')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.main_state_execution.shared_fund_changed, false, 'main state execute should not change shared fund')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.main_state_execution.shared_warehouse_changed, false, 'main state execute should not change shared warehouse')
+assert.ok(!familyBuildingRealDemolitionMainStateExecute.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_execute'), 'main state execute should clear generic execute deferred operation')
+assert.ok(familyBuildingRealDemolitionMainStateExecute.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_exact_target_required'), 'main state execute should defer exact target binding')
+assert.ok(familyBuildingRealDemolitionMainStateExecute.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_execution_blocked'), 'main state execute block should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'blocked main state execute should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'blocked main state execute should not rewrite partner save')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.fund.balance, balanceBeforeLargeDraft, 'blocked main state execute should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'blocked main state execute should not change restored wood')
+assert.equal(familyBuildingRealDemolitionMainStateExecute.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'blocked main state execute should not change restored rice')
+
+const duplicateFamilyBuildingRealDemolitionMainStateExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(
+  largeContract.contract.id,
+  mainStateExecutePayload,
+  actor(largeOwner)
+)
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExecute.idempotent, true, 'same main state execute key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExecute.already_executed, true, 'duplicate blocked main state execute should report already executed')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExecute.main_state_execution.execution_state, 'blocked_missing_exact_personal_target', 'duplicate blocked main state execute should keep state')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite partner save')
+
 const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
   largeContract.contract.id,
   mainStateMappingPayload,
