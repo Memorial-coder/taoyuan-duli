@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态精确执行后端阻断闭环
+- 服务端新增 `/family-buildings/real-demolition/execute-main-state-exact-targets`，要求已绑定精确目标、目标 manifest hash 匹配、执行状态为 `exact_target_bound_pending_execute`，并明确确认精确执行安全阀、补偿方案和回滚方案。
+- 当前精确目标仍可能是前端 / QA 占位 selector，接口只记录 `blocked_unresolved_exact_target_selector`、操作者、策略和审计，清除 `real_build_demolition_main_state_exact_execute` 并推进到 `real_build_demolition_main_state_exact_target_manual_resolution`。
+- 本轮仍不删除个人 `home / decoration` 主状态、不改共同基金 / 共同仓库数量、不写个人铜币或背包。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0526 家族建筑真实拆除个人主状态精确目标绑定前端入口
 - 前端 API / store 接入 `/family-buildings/real-demolition/bind-main-state-exact-targets`，共同庄园建筑流水卡片新增“绑定目标”按钮。
 - 按钮按执行阻断幂等键、`blocked_missing_exact_personal_target` 执行状态、guard manifest hash、guard 清单和尚未绑定精确目标禁用；提交后刷新建筑面板、共同仓库、共同基金和共同日志。
