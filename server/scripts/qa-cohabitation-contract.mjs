@@ -3365,4 +3365,58 @@ assert.equal(alreadyFamilyBuildingRealDemolitionPersonalSaveWrite.building_ledge
 assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, ownerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate owner receipt')
 assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, partnerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate partner receipt')
 
+const ownerRawBeforeMainStatePreview = saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw
+const partnerRawBeforeMainStatePreview = saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw
+await assert.rejects(
+  () => runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not preview real demolition personal main state'
+)
+
+const familyBuildingRealDemolitionMainStatePreview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  reason: 'qa preview blocked main state mapping',
+  idempotency_key: 'qa-family-building-real-demolition-main-state-preview',
+}, actor(largeOwner))
+assert.equal(familyBuildingRealDemolitionMainStatePreview.idempotent, false, 'first real demolition main state preview should not be idempotent')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.already_previewed, false, 'first real demolition main state preview should not be already previewed')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'main state preview should update original building ledger')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.building_ledger_entry.real_build_demolition_main_state_preview_idempotency_key, 'qa-family-building-real-demolition-main-state-preview', 'main state preview should store idempotency key')
+assert.ok(/^[a-f0-9]{64}$/.test(familyBuildingRealDemolitionMainStatePreview.building_ledger_entry.real_build_demolition_main_state_manifest_hash), 'main state preview should store manifest hash')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.length, 2, 'main state preview should include one manifest row per accepted member')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.mutation_enabled, false, 'main state preview should keep mutation disabled')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.blocked, true, 'main state preview should be explicitly blocked without direct mapping')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.personal_save_changed, false, 'main state preview should not write personal saves')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.shared_fund_changed, false, 'main state preview should not change shared fund')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.shared_warehouse_changed, false, 'main state preview should not change shared warehouse')
+assert.equal(
+  familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.every(item =>
+    item.mapping_status === 'blocked_missing_personal_building_binding'
+    && item.mutation_enabled === false
+    && item.candidate_paths.includes('home.homeRenovationStates')
+    && item.candidate_paths.includes('decoration.placed')
+  ),
+  true,
+  'main state preview should list blocked home and decoration candidate paths'
+)
+assert.ok(familyBuildingRealDemolitionMainStatePreview.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_previewed'), 'main state preview should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state preview should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state preview should not rewrite partner save')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.fund.balance, balanceBeforeLargeDraft, 'main state preview should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state preview should not change restored wood')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state preview should not change restored rice')
+
+const duplicateFamilyBuildingRealDemolitionMainStatePreview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-real-demolition-main-state-preview',
+}, actor(largeOwner))
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStatePreview.idempotent, true, 'same real demolition main state preview key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStatePreview.already_previewed, true, 'duplicate main state preview should report already previewed')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest_hash, familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest_hash, 'duplicate main state preview should keep manifest hash')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state preview should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state preview should not rewrite partner save')
+
 console.log('[qa-cohabitation-contract] OK')

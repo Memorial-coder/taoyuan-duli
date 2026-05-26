@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态预览安全阀
+- 服务端新增 `/family-buildings/real-demolition/preview-main-state`，要求真实拆除已执行、个人存档回执已写回、真实建造落账证据和 `demolish_requires_both` 安全阀齐备。
+- 成功后只记录每位已接受成员的个人房屋 / 建筑候选路径、manifest hash、阻断原因和审计；`mutation_enabled=false`，不自动删除个人 `home / decoration` 主状态。
+- 重复请求幂等读回，不改个人存档、共同基金、共同仓库、个人铜币或背包；真实主状态删除需等 `real_build_ref` 到个人字段的可证明映射后另起接口。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0526 家族建筑真实拆除个人存档写回前端入口
 - 前端 API / store 接入 `/family-buildings/real-demolition/write-personal-save`，共同庄园建筑流水卡片新增“写回存档”按钮。
 - 按钮按 `approved_for_execute`、执行请求记录、`pending_personal_save_write`、真实落账证据、未真实拆除、未写回幂等键和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。

@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态预览安全阀接入：共同庄园新增 `/family-buildings/real-demolition/preview-main-state`，要求真实拆除已执行、个人存档回执已写回、具备真实建造落账证据和拆除双方确认安全阀；成功后只生成每位已接受成员的个人房屋 / 建筑候选路径清单、manifest hash、阻断原因和审计。该步骤明确 `mutation_enabled=false`，因 `real_build_ref` 尚未绑定个人 `home / decoration` 具体字段，不自动删除个人房屋或建筑主状态，不改共同基金 / 共同仓库数量、不写个人铜币或背包；专项 QA 覆盖非成员拒绝、首次预览、重复幂等、hash 读回、个人存档不变和资产边界。
 - 家族建筑真实拆除个人存档写回前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/write-personal-save`，共同庄园建筑流水卡片新增“写回存档”按钮；按钮按已批准真实拆除、已请求执行、`pending_personal_save_write`、真实落账证据、未真实拆除、未写回幂等键和契约开启状态禁用。成功后刷新建筑面板、共同仓库、共同基金和共同日志，展示存档写回人、写回时间与回执份数；共同日志可读回“真实拆除存档写回”。该入口仍只触发服务端回执写回安全阀，不直接删除个人房屋 / 建筑主状态、不改共同基金 / 共同仓库数量、不写个人铜币或背包。
 - 家族建筑真实拆除个人存档写回后端安全阀接入：共同庄园新增 `/family-buildings/real-demolition/write-personal-save`，要求目标建筑流水已批准真实拆除、已请求执行并处于 `pending_personal_save_write`、具备真实建造落账证据，同时保留拆除双方确认安全阀；成功后只向已接受成员个人存档追加 `onlineCohabitation.real_build_demolition_receipts` 回执，把同一条建筑流水推进到 `executed` / `real_build_demolished=true` 并清除个人存档写回待办。重复请求幂等读回，不改共同基金 / 共同仓库数量、不写个人铜币或背包；专项 QA 覆盖非成员拒绝、首次写回、重复幂等、已写回读回、成员回执落账和资产边界。
 - 家族建筑真实拆除执行请求前端入口接入：共同庄园建筑流水卡片新增“请求执行”按钮，前端 API / store 接入 `/family-buildings/real-demolition/request-execution`，只允许已批准 `approved_for_execute`、具备复核处理记录和真实建造落账证据、未进入个人存档待写回的建筑流水触发。成功后刷新建筑面板、共同仓库、共同基金和共同日志，展示执行请求人、请求时间与 `pending_personal_save_write` 状态；该入口仍只记录执行请求，不删除真实建筑、不改共同基金 / 共同仓库数量、不写个人铜币 / 背包。
