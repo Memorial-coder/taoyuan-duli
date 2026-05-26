@@ -1217,6 +1217,12 @@
                   <p v-if="entry.real_build_demolition_main_state_mapping_policy">
                     映射策略：{{ entry.real_build_demolition_main_state_mapping_policy }}
                   </p>
+                  <p v-if="entry.real_build_demolition_main_state_guarded_at || entry.real_build_demolition_main_state_guard_manifest_hash">
+                    安全阀：{{ entry.real_build_demolition_main_state_guarded_by_display_name || entry.real_build_demolition_main_state_guarded_by_username || '已确认' }} · {{ formatTime(entry.real_build_demolition_main_state_guarded_at) }} · {{ entry.real_build_demolition_main_state_guard_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_guard_manifest_hash || '无 hash' }}
+                  </p>
+                  <p v-if="entry.real_build_demolition_main_state_guard_policy">
+                    安全阀策略：{{ entry.real_build_demolition_main_state_guard_policy }}
+                  </p>
                 </div>
                 <div class="mt-2 grid gap-2 md:grid-cols-12">
                   <button
@@ -1348,6 +1354,16 @@
                   >
                     <ShieldCheck :size="12" />
                     证明映射
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canGuardFamilyBuildingRealDemolitionMainStateMutation(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-demolition-guard-main-state-mutation-${entry.id}`"
+                    @click="guardFamilyBuildingRealDemolitionMainStateMutation(entry)"
+                  >
+                    <ShieldCheck :size="12" />
+                    确认安全阀
                   </button>
                 </div>
               </div>
@@ -2933,6 +2949,13 @@
     Array.isArray(entry.real_build_demolition_main_state_manifest) &&
     entry.real_build_demolition_main_state_manifest.length > 0 &&
     !entry.real_build_demolition_main_state_mapping_idempotency_key
+  const canGuardFamilyBuildingRealDemolitionMainStateMutation = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    Boolean(entry.real_build_demolition_main_state_mapping_idempotency_key) &&
+    Boolean(entry.real_build_demolition_main_state_mapping_manifest_hash) &&
+    Array.isArray(entry.real_build_demolition_main_state_mapping_manifest) &&
+    entry.real_build_demolition_main_state_mapping_manifest.length > 0 &&
+    !entry.real_build_demolition_main_state_guard_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3428,6 +3451,37 @@
     }
   }
 
+  const guardFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    const mappingManifest = entry.real_build_demolition_main_state_mapping_manifest || []
+    if (!entry.real_build_demolition_main_state_mapping_manifest_hash || mappingManifest.length === 0) {
+      familyBuildingActionMessage.value = '请先记录个人主状态映射证明'
+      return
+    }
+    try {
+      const result = await cohabitationStore.guardFamilyBuildingRealDemolitionMainStateMutation({
+        building_ledger_id: entry.id,
+        mapping_manifest_hash: entry.real_build_demolition_main_state_mapping_manifest_hash,
+        confirmation_text: '确认主状态变更安全阀',
+        compensation_plan_acknowledged: true,
+        rollback_plan_acknowledged: true,
+        memo: `前端确认家族建筑真实拆除个人主状态变更安全阀：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-demolition-main-state-mutation-guard-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const guardCount = result?.main_state_mutation_guard?.manifest?.length
+        ?? result?.building_ledger_entry?.real_build_demolition_main_state_guard_manifest?.length
+        ?? entry.real_build_demolition_main_state_guard_manifest?.length
+        ?? 0
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_guarded
+        ? `该真实拆除个人主状态变更安全阀已确认，已读回 ${guardCount} 条`
+        : `已确认个人主状态变更安全阀 ${guardCount} 条，仍未删除个人房屋或建筑主状态`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '记录家族建筑真实拆除个人主状态变更安全阀失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -3567,6 +3621,7 @@
       real_build_demolition_personal_save_write: '真实拆除个人存档写回',
       real_build_demolition_main_state_mapping: '真实拆除个人主状态映射',
       real_build_demolition_main_state_mutation_guard: '真实拆除个人主状态变更安全阀',
+      real_build_demolition_main_state_execute: '真实拆除个人主状态执行',
       family_building_compensation_replay: '建筑补偿重放',
       family_building_rollback: '建筑回滚',
       publish_family_relation_graph_to_profile: '公开关系图到档案',

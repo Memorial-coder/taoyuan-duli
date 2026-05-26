@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态变更安全阀前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/guard-main-state-mutation`，共同庄园建筑流水卡片新增“确认安全阀”按钮。
+- 按钮按映射证明幂等键、mapping manifest hash、映射清单和尚未确认 guard 禁用；提交时带固定确认文案、补偿方案确认和回滚方案确认，成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示安全阀确认人、时间、guard manifest hash、清单数和策略，并读回 `real_build_demolition_main_state_execute` 暂缓项；本轮仍不修改个人 `home / decoration` 主状态。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态变更安全阀后端闭环
 - 服务端新增 `/family-buildings/real-demolition/guard-main-state-mutation`，要求已完成映射证明、mapping manifest hash 匹配、明确确认文案，并确认补偿与回滚方案。
 - 成功后只在建筑流水记录 guard manifest、hash、操作者和审计，把待办推进到 `real_build_demolition_main_state_execute`；本轮仍不修改个人 `home / decoration` 主状态、不改共同基金或共同仓库。
