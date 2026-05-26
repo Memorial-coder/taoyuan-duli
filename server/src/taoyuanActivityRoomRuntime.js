@@ -419,6 +419,61 @@ const DRAGON_BOAT_ACTION_EFFECT_MAP = Object.freeze({
   sort_bundle: 'protect',
 });
 
+const DRAGON_BOAT_SQUAD_COOP_ACTION_OPTIONS = Object.freeze([
+  {
+    id: 'sync_oar',
+    label: '划桨',
+    summary: '全队合拍划桨，推进 1 个赛道节点并提升 2 点默契值。',
+    progress_delta: 1,
+    score_delta: 2,
+    required_role: 'rhythm',
+    once_per_round: true,
+    pressure_delta: 1,
+    resource_delta: { cheer: 1, order: -1 },
+    combo_tags: ['rhythm', 'sprint'],
+    round_effect: '把船桨锁到同一拍，能拉高默契和岸边喝彩，但需要队友后续稳住秩序。',
+  },
+  {
+    id: 'steady_rudder',
+    label: '稳舵',
+    summary: '稳住船身和入弯节奏，推进 1 个赛道节点并降低 1 点场面压力。',
+    progress_delta: 1,
+    score_delta: 1,
+    required_role: 'caller',
+    once_per_round: true,
+    pressure_delta: -1,
+    resource_delta: { order: 1 },
+    combo_tags: ['order', 'rhythm'],
+    round_effect: '把上一轮的热度收回船身节奏，降低压力并保护下一次冲刺窗口。',
+  },
+  {
+    id: 'keep_beat',
+    label: '击鼓',
+    summary: '敲稳鼓点窗口，推进 1 个赛道节点并累积 2 点喝彩值。',
+    progress_delta: 1,
+    score_delta: 2,
+    required_role: 'rhythm',
+    once_per_round: true,
+    pressure_delta: 0,
+    resource_delta: { cheer: 1 },
+    combo_tags: ['performance', 'rhythm'],
+    round_effect: '用鼓点把队伍动作压在节拍上，让喝彩转成可持续推进。',
+  },
+  {
+    id: 'lift_applause',
+    label: '冲刺',
+    summary: '借岸边喝彩冲刺，推进 2 个赛道节点并额外制造赛舟高光。',
+    progress_delta: 2,
+    score_delta: 1,
+    required_role: 'caller',
+    once_per_round: true,
+    pressure_delta: 1,
+    resource_delta: { cheer: 2, order: -1 },
+    combo_tags: ['performance', 'crowd', 'sprint'],
+    round_effect: '把观众情绪抬成冲刺窗口，推进更快，但需要队友把场面接稳。',
+  },
+]);
+
 const DRAGON_BOAT_VISUAL_TRACK_CELLS = Object.freeze([
   {
     id: 'dragon_boat_start',
@@ -1462,18 +1517,39 @@ function getDefaultGameplayTemplateIdByDomain(domain, roomTemplateId) {
 
 function getGameplayTemplate(gameplayTemplateId, roomTemplateId = '') {
   const normalized = sanitizeText(gameplayTemplateId, 40);
-  if (normalized && GAMEPLAY_TEMPLATE_MAP[normalized]) return GAMEPLAY_TEMPLATE_MAP[normalized];
-  return GAMEPLAY_TEMPLATE_MAP[getDefaultGameplayTemplateId(roomTemplateId)] || GAMEPLAY_TEMPLATE_MAP.public_progress;
+  if (normalized && GAMEPLAY_TEMPLATE_MAP[normalized]) return buildRoomScopedGameplayTemplate(GAMEPLAY_TEMPLATE_MAP[normalized], roomTemplateId);
+  return buildRoomScopedGameplayTemplate(GAMEPLAY_TEMPLATE_MAP[getDefaultGameplayTemplateId(roomTemplateId)] || GAMEPLAY_TEMPLATE_MAP.public_progress, roomTemplateId);
+}
+
+function cloneGameplayActionOption(actionOption) {
+  return {
+    ...actionOption,
+    resource_delta: actionOption?.resource_delta && typeof actionOption.resource_delta === 'object'
+      ? { ...actionOption.resource_delta }
+      : {},
+    combo_tags: Array.isArray(actionOption?.combo_tags) ? [...actionOption.combo_tags] : [],
+  };
+}
+
+function buildRoomScopedGameplayTemplate(template, roomTemplateId = '') {
+  if (sanitizeText(roomTemplateId, 40) !== 'dragon_boat' || template?.id !== 'squad_coop') return template;
+  return {
+    ...template,
+    label: '小队竞渡',
+    summary: '端午赛舟专用的小队协作模板，围绕划桨、稳舵、击鼓和冲刺轮换推进。',
+    objective_label: '赛道推进',
+    action_options: DRAGON_BOAT_SQUAD_COOP_ACTION_OPTIONS.map(cloneGameplayActionOption),
+  };
 }
 
 function getGameplayTemplateByDomain(domain, gameplayTemplateId, roomTemplateId = '') {
   const normalizedDomain = normalizeActivityDomain(domain);
   const normalized = sanitizeText(gameplayTemplateId, 40);
   if (normalized && GAMEPLAY_TEMPLATE_MAP[normalized] && normalizeActivityDomain(GAMEPLAY_TEMPLATE_MAP[normalized].domain || DEFAULT_ACTIVITY_DOMAIN) === normalizedDomain) {
-    return GAMEPLAY_TEMPLATE_MAP[normalized];
+    return buildRoomScopedGameplayTemplate(GAMEPLAY_TEMPLATE_MAP[normalized], roomTemplateId);
   }
   const fallbackId = getDefaultGameplayTemplateIdByDomain(normalizedDomain, roomTemplateId);
-  return GAMEPLAY_TEMPLATE_MAP[fallbackId] || GAMEPLAY_TEMPLATE_MAP.public_progress;
+  return buildRoomScopedGameplayTemplate(GAMEPLAY_TEMPLATE_MAP[fallbackId] || GAMEPLAY_TEMPLATE_MAP.public_progress, roomTemplateId);
 }
 
 function getRoomTemplateMemberLimitBounds(template) {

@@ -273,6 +273,14 @@ const dragonBoat = await runtime.createFestivalRoom({
   title: 'visual dragon boat smoke',
 }, actor('visual_host_dragon'))
 assertDragonBoatVisualTrack(dragonBoat.room, 0, { expectSelectedOccupied: true })
+assert.deepEqual(
+  dragonBoat.room.gameplay.available_actions.map(action => action.label),
+  ['划桨', '稳舵', '击鼓', '冲刺'],
+  'dragon boat squad coop should expose boat-specific action labels'
+)
+const dragonStartCell = dragonBoat.room.visual_state.tracks[0]?.cells.find(cell => cell.id === 'dragon_boat_start')
+assert.ok(dragonStartCell?.available_action_ids.includes('keep_beat'), 'dragon boat current cell should offer drum action')
+assert.ok(dragonStartCell?.available_action_ids.includes('lift_applause'), 'dragon boat current cell should offer sprint action')
 
 const dragonBoatDuo = await runtime.createFestivalRoom({
   template_id: 'dragon_boat',
@@ -465,6 +473,7 @@ const dragonActionResult = await runtime.submitFestivalRoomGameplayAction(dragon
   action_id: 'sync_oar',
 }, actor('visual_host_dragon'))
 assert.equal(dragonActionResult.room.gameplay.last_action_id, 'sync_oar', 'dragon boat gameplay should record track action')
+assert.ok(dragonActionResult.room.gameplay.last_action_summary.includes('划桨'), 'dragon boat action summary should use paddle label')
 assert.equal(dragonActionResult.room.visual_state.revision, 1, 'dragon boat visual revision should advance after track action')
 assert.equal(dragonActionResult.room.visual_state.recent_feedback, dragonActionResult.room.gameplay.festival_state.recent_feedback, 'dragon boat visual feedback should mirror gameplay feedback')
 assert.equal(dragonActionResult.room.visual_state.highlights[0]?.visual_id, dragonActionResult.room.visual_state.selected_visual_id, 'dragon boat action should append highlight on the selected cell')
@@ -479,6 +488,10 @@ const dragonAdvancedResult = await runtime.submitFestivalRoomGameplayAction(drag
 }, actor('visual_host_dragon'))
 assert.equal(dragonAdvancedResult.room.gameplay.festival_state.round_number, 2, 'two dragon boat actions should advance the festival round')
 assert.equal(dragonAdvancedResult.room.gameplay.festival_state.round_log[0].action_id, 'round_advance', 'dragon boat round advance should be logged')
+assert.ok(
+  dragonAdvancedResult.room.gameplay.contributions.find(item => item.username === 'visual_host_dragon')?.last_action_label.includes('稳舵'),
+  'dragon boat contribution should use rudder label'
+)
 assertDragonBoatVisualTrack(dragonAdvancedResult.room, null, {
   minRevision: 2,
   minPosition: 2,
