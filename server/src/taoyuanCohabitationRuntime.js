@@ -1789,6 +1789,34 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
     ),
     real_build_demolition_main_state_execution_state: sanitizeText(entry.real_build_demolition_main_state_execution_state, 80),
     real_build_demolition_main_state_execute_policy: sanitizeText(entry.real_build_demolition_main_state_execute_policy, 180),
+    real_build_demolition_main_state_exact_target_idempotency_key: sanitizeText(entry.real_build_demolition_main_state_exact_target_idempotency_key, 120),
+    real_build_demolition_main_state_exact_target_bound_at: Math.max(0, Math.floor(Number(entry.real_build_demolition_main_state_exact_target_bound_at) || 0)),
+    real_build_demolition_main_state_exact_target_bound_by_username: normalizeUsername(entry.real_build_demolition_main_state_exact_target_bound_by_username),
+    real_build_demolition_main_state_exact_target_bound_by_display_name: sanitizeText(
+      entry.real_build_demolition_main_state_exact_target_bound_by_display_name
+        || entry.real_build_demolition_main_state_exact_target_bound_by_username,
+      60
+    ),
+    real_build_demolition_main_state_exact_target_manifest_hash: sanitizeText(entry.real_build_demolition_main_state_exact_target_manifest_hash, 100),
+    real_build_demolition_main_state_exact_target_manifest: Array.isArray(entry.real_build_demolition_main_state_exact_target_manifest)
+      ? entry.real_build_demolition_main_state_exact_target_manifest.map(item => ({
+        username: normalizeUsername(item?.username),
+        username_key: normalizeUsernameKey(item?.username_key || item?.username),
+        save_slot: normalizeSaveSlot(item?.save_slot),
+        save_id: normalizeSaveId(item?.save_id),
+        real_build_ref: sanitizeText(item?.real_build_ref, 120),
+        building_ledger_id: sanitizeText(item?.building_ledger_id, 100),
+        candidate_path: sanitizeText(item?.candidate_path, 100),
+        binding_ref: sanitizeText(item?.binding_ref, 160),
+        snapshot_hash: sanitizeText(item?.snapshot_hash, 100),
+        exact_target_ref: sanitizeText(item?.exact_target_ref, 180),
+        delete_selector: sanitizeText(item?.delete_selector, 180),
+        target_kind: sanitizeText(item?.target_kind, 40),
+        target_status: sanitizeText(item?.target_status, 80),
+        mutation_enabled: item?.mutation_enabled === true,
+      })).filter(item => item.username && item.exact_target_ref && item.delete_selector).slice(0, 12)
+      : [],
+    real_build_demolition_main_state_exact_target_policy: sanitizeText(entry.real_build_demolition_main_state_exact_target_policy, 180),
     reversible: entry.reversible !== false,
     status: ['fund_spend_recorded', 'build_applied', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
@@ -4685,6 +4713,37 @@ function normalizeFamilyBuildingRealDemolitionMainStateExecutePayload(payload = 
   };
 }
 
+function normalizeFamilyBuildingRealDemolitionMainStateExactTargetPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态精确目标绑定需要 idempotency_key，以防断线或重试时重复记录');
+  const targets = Array.isArray(payload.targets || payload.exact_targets || payload.manifest)
+    ? (payload.targets || payload.exact_targets || payload.manifest).map(item => ({
+      username: normalizeUsername(item?.username),
+      username_key: normalizeUsernameKey(item?.username_key || item?.username),
+      save_slot: normalizeSaveSlot(item?.save_slot),
+      save_id: normalizeSaveId(item?.save_id),
+      real_build_ref: sanitizeText(item?.real_build_ref, 120),
+      candidate_path: sanitizeText(item?.candidate_path, 100),
+      binding_ref: sanitizeText(item?.binding_ref, 160),
+      snapshot_hash: sanitizeText(item?.snapshot_hash || item?.expected_snapshot_hash, 100),
+      exact_target_ref: sanitizeText(item?.exact_target_ref || item?.target_ref || item?.delete_target_ref, 180),
+      delete_selector: sanitizeText(item?.delete_selector || item?.selector || item?.exact_target_ref || item?.target_ref, 180),
+      target_kind: sanitizeText(item?.target_kind || item?.kind, 40),
+    })).filter(item => item.username_key && item.candidate_path && item.exact_target_ref && item.delete_selector).slice(0, 12)
+    : [];
+  return {
+    idempotency_key: idempotencyKey,
+    building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
+    draft_id: sanitizeText(payload.draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 120),
+    expected_guard_manifest_hash: sanitizeText(payload.expected_guard_manifest_hash || payload.guard_manifest_hash || payload.manifest_hash, 100),
+    expected_execution_state: sanitizeText(payload.expected_execution_state || payload.execution_state, 80),
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    targets,
+  };
+}
+
 function resolveSharedFundAutoPurchase(spend) {
   if (spend.auto_pay !== true) return null;
   const targetRef = sanitizeText(spend.target_ref, 120);
@@ -5757,6 +5816,84 @@ function hashFamilyBuildingRealDemolitionMainStateGuardManifest(manifest = []) {
     guard_status: entry.guard_status,
     compensation_required: entry.compensation_required,
     rollback_required: entry.rollback_required,
+    mutation_enabled: entry.mutation_enabled,
+  }));
+  return hashStableObject(stableRows);
+}
+
+function buildFamilyBuildingRealDemolitionMainStateExactTargetManifest(guardManifest = [], requestTargets = []) {
+  const guardRows = Array.isArray(guardManifest) ? guardManifest : [];
+  if (guardRows.length === 0) throw createError('请先确认个人主状态变更安全阀，再绑定精确目标', 409);
+  if (!Array.isArray(requestTargets) || requestTargets.length !== guardRows.length) {
+    throw createError('个人主状态精确目标必须覆盖全部安全阀清单成员', 400);
+  }
+  const targetByKey = new Map(requestTargets.map(item => [
+    `${normalizeUsernameKey(item.username_key || item.username)}::${sanitizeText(item.candidate_path, 100)}`,
+    item,
+  ]));
+  const result = [];
+  const seen = new Set();
+  for (const row of guardRows) {
+    const rowKey = normalizeUsernameKey(row.username_key || row.username);
+    const candidatePath = sanitizeText(row.candidate_path, 100);
+    const key = `${rowKey}::${candidatePath}`;
+    const target = targetByKey.get(key);
+    if (!target) throw createError('个人主状态精确目标缺少成员或候选路径绑定', 400);
+    if (seen.has(key)) throw createError('个人主状态精确目标包含重复成员路径', 400);
+    seen.add(key);
+    if (target.real_build_ref !== row.real_build_ref) {
+      throw createError('个人主状态精确目标的 real_build_ref 与安全阀清单不一致', 409);
+    }
+    if (target.save_slot !== row.save_slot || target.save_id !== row.save_id) {
+      throw createError('个人主状态精确目标的存档槽位或 save_id 与安全阀清单不一致', 409);
+    }
+    if (target.binding_ref !== row.binding_ref) {
+      throw createError('个人主状态精确目标的绑定证明与安全阀清单不一致', 409);
+    }
+    if (target.snapshot_hash !== row.snapshot_hash) {
+      throw createError('个人主状态精确目标快照 hash 已漂移，请重新生成预览', 409);
+    }
+    const exactTargetRef = sanitizeText(target.exact_target_ref, 180);
+    const deleteSelector = sanitizeText(target.delete_selector, 180);
+    const exactChildOfCandidate = exactTargetRef.startsWith(`${candidatePath}.`)
+      || exactTargetRef.startsWith(`${candidatePath}[`);
+    if (!exactChildOfCandidate || exactTargetRef === candidatePath || deleteSelector === candidatePath) {
+      throw createError('个人主状态精确目标必须指向候选宽路径下的具体字段、ID 或索引，不能直接使用宽路径', 409);
+    }
+    result.push({
+      username: row.username,
+      username_key: rowKey,
+      save_slot: row.save_slot,
+      save_id: row.save_id,
+      real_build_ref: row.real_build_ref,
+      building_ledger_id: row.building_ledger_id,
+      candidate_path: candidatePath,
+      binding_ref: row.binding_ref,
+      snapshot_hash: row.snapshot_hash,
+      exact_target_ref: exactTargetRef,
+      delete_selector: deleteSelector,
+      target_kind: sanitizeText(target.target_kind, 40) || (candidatePath.startsWith('decoration.') ? 'decoration' : 'home'),
+      target_status: 'exact_target_bound_pending_execute',
+      mutation_enabled: false,
+    });
+  }
+  return result;
+}
+
+function hashFamilyBuildingRealDemolitionMainStateExactTargetManifest(manifest = []) {
+  const stableRows = (Array.isArray(manifest) ? manifest : []).map(entry => ({
+    username_key: entry.username_key,
+    save_slot: entry.save_slot,
+    save_id: entry.save_id,
+    real_build_ref: entry.real_build_ref,
+    building_ledger_id: entry.building_ledger_id,
+    candidate_path: entry.candidate_path,
+    binding_ref: entry.binding_ref,
+    snapshot_hash: entry.snapshot_hash,
+    exact_target_ref: entry.exact_target_ref,
+    delete_selector: entry.delete_selector,
+    target_kind: entry.target_kind,
+    target_status: entry.target_status,
     mutation_enabled: entry.mutation_enabled,
   }));
   return hashStableObject(stableRows);
@@ -10178,6 +10315,152 @@ async function executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(
   };
 }
 
+async function bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateExactTargetPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '绑定家族建筑真实拆除个人主状态精确目标');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('家族建筑真实拆除个人主状态精确目标绑定只支持结拜庄园和合伙庄园', 403);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const canBindTargets = actorPermissions.construction.demolish_building === true
+    || actorPermissions.fund.spend_large === true
+    || ['family_head', 'workshop_keeper'].includes(actorManorRole);
+  if (!canBindTargets) throw createError('你没有绑定家族建筑真实拆除个人主状态精确目标的权限', 403);
+  if (actorPermissions.confirmations.demolish_requires_both !== true) {
+    throw createError('家族建筑真实拆除个人主状态精确目标绑定必须保留拆除双方确认安全阀', 409);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const familyLedger = normalizeFamilyBuildingLedger(contract);
+  const previousExactTargetEntry = familyLedger.find(entry => entry.real_build_demolition_main_state_exact_target_idempotency_key === request.idempotency_key);
+  if (previousExactTargetEntry) {
+    const requestedEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+    if (requestedEntry && requestedEntry.id !== previousExactTargetEntry.id) {
+      throw createError('该个人主状态精确目标绑定幂等键已用于其他建筑流水，请更换 idempotency_key', 409);
+    }
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: previousExactTargetEntry,
+      idempotent: true,
+      already_bound: true,
+      main_state_exact_targets: {
+        manifest: previousExactTargetEntry.real_build_demolition_main_state_exact_target_manifest,
+        manifest_hash: previousExactTargetEntry.real_build_demolition_main_state_exact_target_manifest_hash,
+        mutation_enabled: false,
+        personal_save_changed: false,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+        next_deferred_operation: 'real_build_demolition_main_state_exact_execute',
+      },
+    };
+  }
+
+  const targetEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+  if (!targetEntry) throw createError('找不到可绑定个人主状态精确目标的家族建筑流水', 404);
+  if (!targetEntry.real_build_demolition_main_state_execute_idempotency_key) {
+    throw createError('请先记录个人主状态执行阻断，再绑定精确目标', 409);
+  }
+  if (targetEntry.real_build_demolition_main_state_execution_state !== 'blocked_missing_exact_personal_target') {
+    throw createError('当前个人主状态执行状态不需要精确目标绑定，请刷新后重试', 409);
+  }
+  if (request.expected_execution_state && request.expected_execution_state !== targetEntry.real_build_demolition_main_state_execution_state) {
+    throw createError('个人主状态执行状态已变化，请刷新后重试', 409);
+  }
+  if (!targetEntry.real_build_demolition_main_state_guard_manifest_hash || request.expected_guard_manifest_hash !== targetEntry.real_build_demolition_main_state_guard_manifest_hash) {
+    throw createError('个人主状态变更安全阀 manifest hash 不匹配，请刷新后重试', 409);
+  }
+  if (targetEntry.real_build_demolition_main_state_exact_target_idempotency_key) {
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: targetEntry,
+      idempotent: true,
+      already_bound: true,
+      main_state_exact_targets: {
+        manifest: targetEntry.real_build_demolition_main_state_exact_target_manifest,
+        manifest_hash: targetEntry.real_build_demolition_main_state_exact_target_manifest_hash,
+        mutation_enabled: false,
+        personal_save_changed: false,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+        next_deferred_operation: 'real_build_demolition_main_state_exact_execute',
+      },
+    };
+  }
+
+  const exactTargetManifest = buildFamilyBuildingRealDemolitionMainStateExactTargetManifest(
+    targetEntry.real_build_demolition_main_state_guard_manifest,
+    request.targets
+  );
+  const exactTargetManifestHash = hashFamilyBuildingRealDemolitionMainStateExactTargetManifest(exactTargetManifest);
+  const operatedAt = nowSeconds();
+  const roleDef = getFamilyManorRoleDef(actorManorRole);
+  const nextDeferredOperations = [...new Set([
+    ...(Array.isArray(targetEntry.deferred_operations)
+      ? targetEntry.deferred_operations.filter(item => item && item !== 'real_build_demolition_main_state_exact_target_required')
+      : []),
+    'real_build_demolition_main_state_exact_execute',
+  ])];
+  const nextEntry = normalizeFamilyBuildingLedgerEntry({
+    ...targetEntry,
+    real_build_demolition_main_state_exact_target_idempotency_key: request.idempotency_key,
+    real_build_demolition_main_state_exact_target_bound_at: operatedAt,
+    real_build_demolition_main_state_exact_target_bound_by_username: member.username,
+    real_build_demolition_main_state_exact_target_bound_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    real_build_demolition_main_state_exact_target_manifest: exactTargetManifest,
+    real_build_demolition_main_state_exact_target_manifest_hash: exactTargetManifestHash,
+    real_build_demolition_main_state_exact_target_policy: '已绑定精确个人 home / decoration 目标并记录 hash；本步骤仍不删除个人主状态，真实删除需后续 exact execute 安全阀。',
+    real_build_demolition_main_state_execution_state: 'exact_target_bound_pending_execute',
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: roleDef?.label || targetEntry.actor_manor_role_label,
+    deferred_operations: nextDeferredOperations,
+  });
+  contract.family_building_ledger = familyLedger.map(entry =>
+    entry.id === targetEntry.id ? nextEntry : entry
+  ).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  appendAudit(contract, 'family_building_real_demolition_main_state_exact_targets_bound', actor, {
+    building_ledger_id: nextEntry.id,
+    real_build_ref: nextEntry.real_build_ref,
+    guard_manifest_hash: targetEntry.real_build_demolition_main_state_guard_manifest_hash,
+    exact_target_manifest_hash: exactTargetManifestHash,
+    exact_target_count: exactTargetManifest.length,
+    mutation_enabled: false,
+    personal_save_changed: false,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+  }, request.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    building_ledger_entry: nextEntry,
+    idempotent: false,
+    already_bound: false,
+    main_state_exact_targets: {
+      manifest: exactTargetManifest,
+      manifest_hash: exactTargetManifestHash,
+      mutation_enabled: false,
+      personal_save_changed: false,
+      shared_fund_changed: false,
+      shared_warehouse_changed: false,
+      next_deferred_operation: 'real_build_demolition_main_state_exact_execute',
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -12197,6 +12480,7 @@ module.exports = {
   verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping,
   guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
   executeCohabitationFamilyBuildingRealDemolitionMainStateMutation,
+  bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,

@@ -3613,6 +3613,95 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExecute.main_state_ex
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite partner save')
 
+const mainStateExactTargets = familyBuildingRealDemolitionMainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest.map((row, index) => ({
+  username: row.username,
+  username_key: row.username_key,
+  save_slot: row.save_slot,
+  save_id: row.save_id,
+  real_build_ref: row.real_build_ref,
+  candidate_path: row.candidate_path,
+  binding_ref: row.binding_ref,
+  snapshot_hash: row.snapshot_hash,
+  exact_target_ref: `${row.candidate_path}.qa_exact_target_${index}`,
+  delete_selector: `${row.candidate_path}.qa_exact_target_${index}`,
+  target_kind: row.candidate_path.startsWith('decoration.') ? 'decoration' : 'home',
+}))
+
+const mainStateExactTargetPayload = {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  guard_manifest_hash: familyBuildingRealDemolitionMainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest_hash,
+  expected_execution_state: 'blocked_missing_exact_personal_target',
+  targets: mainStateExactTargets,
+  reason: 'qa bind exact main state targets but do not mutate personal save',
+  idempotency_key: 'qa-family-building-real-demolition-main-state-exact-targets',
+}
+
+await assert.rejects(
+  () => runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-targets-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not bind real demolition personal main state exact targets'
+)
+
+await assert.rejects(
+  () => runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetPayload,
+    guard_manifest_hash: 'bad-guard-hash',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-targets-bad-hash',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact targets should reject guard manifest hash drift'
+)
+
+await assert.rejects(
+  () => runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetPayload,
+    targets: mainStateExactTargets.map((row, index) => index === 0
+      ? { ...row, exact_target_ref: row.candidate_path, delete_selector: row.candidate_path }
+      : row),
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-targets-broad-path',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact targets should reject broad candidate path as delete target'
+)
+
+const familyBuildingRealDemolitionMainStateExactTargets = await runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
+  largeContract.contract.id,
+  mainStateExactTargetPayload,
+  actor(largeOwner)
+)
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.idempotent, false, 'first main state exact target bind should not be idempotent')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.already_bound, false, 'first main state exact target bind should not report already bound')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.building_ledger_entry.real_build_demolition_main_state_exact_target_idempotency_key, 'qa-family-building-real-demolition-main-state-exact-targets', 'main state exact target bind should store idempotency key')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.length, mainStateExactTargets.length, 'main state exact target bind should store all exact targets')
+assert.match(familyBuildingRealDemolitionMainStateExactTargets.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash, /^[a-f0-9]{64}$/i, 'main state exact target bind should store manifest hash')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.building_ledger_entry.real_build_demolition_main_state_execution_state, 'exact_target_bound_pending_execute', 'main state exact target bind should move execution state to pending exact execute')
+assert.ok(!familyBuildingRealDemolitionMainStateExactTargets.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_exact_target_required'), 'main state exact target bind should clear exact target required deferred operation')
+assert.ok(familyBuildingRealDemolitionMainStateExactTargets.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_exact_execute'), 'main state exact target bind should defer exact execute')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.main_state_exact_targets.mutation_enabled, false, 'main state exact target bind should not enable mutation in this step')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.main_state_exact_targets.personal_save_changed, false, 'main state exact target bind should not write personal saves')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.main_state_exact_targets.shared_fund_changed, false, 'main state exact target bind should not change shared fund')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.main_state_exact_targets.shared_warehouse_changed, false, 'main state exact target bind should not change shared warehouse')
+assert.ok(familyBuildingRealDemolitionMainStateExactTargets.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_exact_targets_bound'), 'main state exact target bind should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state exact target bind should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state exact target bind should not rewrite partner save')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.fund.balance, balanceBeforeLargeDraft, 'main state exact target bind should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state exact target bind should not change restored wood')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargets.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state exact target bind should not change restored rice')
+
+const duplicateFamilyBuildingRealDemolitionMainStateExactTargets = await runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
+  largeContract.contract.id,
+  mainStateExactTargetPayload,
+  actor(largeOwner)
+)
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargets.idempotent, true, 'same main state exact target key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargets.already_bound, true, 'duplicate main state exact target bind should report already bound')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargets.main_state_exact_targets.manifest_hash, familyBuildingRealDemolitionMainStateExactTargets.main_state_exact_targets.manifest_hash, 'duplicate main state exact target bind should keep manifest hash')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state exact target bind should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state exact target bind should not rewrite partner save')
+
 const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
   largeContract.contract.id,
   mainStateMappingPayload,
