@@ -386,6 +386,52 @@
                   </div>
                 </div>
               </div>
+              <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">见家人与家族评价</p>
+                  <span class="text-[10px] text-accent">评价 {{ resident.familyLine.reputation }}/100</span>
+                </div>
+                <p class="text-[10px] text-accent/90 leading-4 mt-1">{{ resident.familyLine.lastReview }}</p>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <Button
+                    v-for="tie in resident.familyTies"
+                    :key="`${resident.residentId}-${tie.id}-meeting`"
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canMeetRandomNpcFamilyTie(resident, tie.id).success"
+                    @click="handleMeetRandomNpcFamilyTie(resident.residentId, tie.id)"
+                  >
+                    {{ resident.familyLine.metTieIds.includes(tie.id) ? `已见${tie.relation}` : `见${tie.relation}` }}
+                  </Button>
+                </div>
+                <div v-if="getRandomNpcFamilyCommission(resident)" class="border-t border-accent/10 mt-2 pt-2">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[10px] text-accent">{{ getRandomNpcFamilyCommission(resident)?.title }}</p>
+                    <span class="text-[10px]" :class="isRandomNpcFamilyCommissionCompleted(resident) ? 'text-success' : 'text-muted'">
+                      {{ isRandomNpcFamilyCommissionCompleted(resident) ? '已评价' : '待交付' }}
+                    </span>
+                  </div>
+                  <p class="text-[10px] text-muted leading-4 mt-1">{{ getRandomNpcFamilyCommission(resident)?.summary }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ getRandomNpcFamilyCommissionProgressText(resident) }}</p>
+                  <Button
+                    class="w-full justify-center !px-2 !py-1 mt-2"
+                    :icon="Package"
+                    :disabled="!canFulfillRandomNpcFamilyCommission(resident)"
+                    :data-testid="`random-npc-family-commission-${resident.residentId}`"
+                    @click="handleFulfillRandomNpcFamilyCommission(resident.residentId)"
+                  >
+                    {{ getRandomNpcFamilyCommissionButtonText(resident) }}
+                  </Button>
+                </div>
+                <div v-if="getRecentRandomNpcFamilyReviews(resident).length > 0" class="mt-2 space-y-1">
+                  <p
+                    v-for="review in getRecentRandomNpcFamilyReviews(resident)"
+                    :key="review.id"
+                    class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ review.dayTag }} · {{ review.type === 'commission' ? '家族委托' : '见家人' }}：{{ review.summary }}（评价{{ review.reputationDelta >= 0 ? '+' : '' }}{{ review.reputationDelta }}）
+                  </p>
+                </div>
+              </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <p class="text-[10px] text-muted">长住文游记录</p>
                 <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(resident.relationshipSignals) }}</p>
@@ -1406,6 +1452,7 @@
     RandomNpcAgeBand,
     RandomNpcArchiveSummary,
     RandomNpcDialogueMemoryEntry,
+    RandomNpcFamilyCommissionDef,
     RandomNpcFamilyTieKind,
     RandomNpcRelationLineKind,
     RandomNpcLongStayEntry,
@@ -1413,7 +1460,6 @@
     RandomNpcRelationshipDirection,
     RandomNpcRelationshipSignals,
     RandomNpcRelationshipTag,
-    RandomNpcSmallOrderDef,
     RandomNpcStoryChoiceDef,
     RandomNpcVisitorState,
     RelationshipClueEntry,
@@ -1742,6 +1788,33 @@
     memories.slice(-3).reverse()
   const getRecentRandomNpcRelationLineHistory = (resident: RandomNpcLongStayEntry) =>
     resident.relationshipLine.history.slice(-3).reverse()
+  const getRecentRandomNpcFamilyReviews = (resident: RandomNpcLongStayEntry) =>
+    resident.familyLine.reviewHistory.slice(-3).reverse()
+  const getRandomNpcFamilyCommission = (resident: RandomNpcLongStayEntry): RandomNpcFamilyCommissionDef | null =>
+    npcStore.getRandomNpcFamilyCommission(resident.residentId)
+  const isRandomNpcFamilyCommissionCompleted = (resident: RandomNpcLongStayEntry): boolean => {
+    const commission = getRandomNpcFamilyCommission(resident)
+    return !!commission && resident.familyLine.completedCommissionIds.includes(commission.id)
+  }
+  const canMeetRandomNpcFamilyTie = (resident: RandomNpcLongStayEntry, tieId: string) =>
+    npcStore.canMeetRandomNpcFamilyTie(resident.residentId, tieId)
+  const canFulfillRandomNpcFamilyCommission = (resident: RandomNpcLongStayEntry): boolean => {
+    const commission = getRandomNpcFamilyCommission(resident)
+    if (!commission || isRandomNpcFamilyCommissionCompleted(resident)) return false
+    if (!resident.familyLine.metTieIds.includes(commission.tieId)) return false
+    return canFulfillRandomNpcSmallOrder(commission)
+  }
+  const getRandomNpcFamilyCommissionButtonText = (resident: RandomNpcLongStayEntry): string => {
+    const commission = getRandomNpcFamilyCommission(resident)
+    if (!commission) return '暂无家族委托'
+    if (resident.familyLine.completedCommissionIds.includes(commission.id)) return '已完成家族委托'
+    if (!resident.familyLine.metTieIds.includes(commission.tieId)) return '先见对应家人'
+    return '交付家族委托'
+  }
+  const getRandomNpcFamilyCommissionProgressText = (resident: RandomNpcLongStayEntry): string => {
+    const commission = getRandomNpcFamilyCommission(resident)
+    return commission ? getRandomNpcSmallOrderProgressText(commission) : '暂无材料需求'
+  }
   const canStartRandomNpcRelationLine = (
     resident: RandomNpcLongStayEntry,
     kind: Exclude<RandomNpcRelationLineKind, 'severed'>
@@ -1785,9 +1858,9 @@
     !randomNpcBoard.value.acquaintances.some(acquaintance => acquaintance.visitorId === summary.visitorId) &&
     !randomNpcBoard.value.longStayResidents.some(resident => resident.sourceVisitorId === summary.visitorId)
   const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
-  const canFulfillRandomNpcSmallOrder = (order: RandomNpcSmallOrderDef): boolean =>
+  const canFulfillRandomNpcSmallOrder = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): boolean =>
     order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)
-  const getRandomNpcSmallOrderProgressText = (order: RandomNpcSmallOrderDef): string =>
+  const getRandomNpcSmallOrderProgressText = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): string =>
     order.requestedItems
       .map(item => `${getItemById(item.itemId)?.name ?? item.itemId} ${getRandomNpcSmallOrderItemCount(item.itemId)}/${item.quantity}`)
       .join('、')
@@ -1807,6 +1880,18 @@
     const result = npcStore.fulfillRandomNpcSmallOrder(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC小订单】${result.message}`)
+  }
+
+  const handleMeetRandomNpcFamilyTie = (residentId: string, tieId: string) => {
+    const result = npcStore.meetRandomNpcFamilyTie(residentId, tieId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC家族】${result.message}`)
+  }
+
+  const handleFulfillRandomNpcFamilyCommission = (residentId: string) => {
+    const result = npcStore.fulfillRandomNpcFamilyCommission(residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC家族委托】${result.message}`)
   }
 
   const handleToggleRandomNpcLock = (visitorId: string, locked: boolean) => {

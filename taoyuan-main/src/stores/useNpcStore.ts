@@ -27,6 +27,9 @@ import type {
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
   RandomNpcDialogueMemoryEntry,
+  RandomNpcFamilyCommissionDef,
+  RandomNpcFamilyLineState,
+  RandomNpcFamilyReviewEntry,
   RandomNpcFamilyTieDef,
   RandomNpcFamilyTieKind,
   RandomNpcRelationLineKind,
@@ -36,7 +39,6 @@ import type {
   RandomNpcLongStayEntry,
   RandomNpcLongStayRoute,
   RandomNpcRelationshipTag,
-  RandomNpcSmallOrderDef,
   RandomNpcVisitorState,
   RegionId,
   RegionRumorSupplyEntry,
@@ -104,6 +106,7 @@ const RANDOM_NPC_DIALOGUE_MEMORY_LIMIT = 6
 const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
 const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
 const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
+const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
 
 type RegionRumorTemplate = {
   id: string
@@ -371,7 +374,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
   const randomNpcBoard = ref<RandomNpcBoardState>({
-    version: 3,
+    version: 4,
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
@@ -534,6 +537,76 @@ export const useNpcStore = defineStore('npc', () => {
       })
       .slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)
   }
+
+  const createDefaultRandomNpcFamilyLineState = (): RandomNpcFamilyLineState => ({
+    reputation: 0,
+    metTieIds: [],
+    completedCommissionIds: [],
+    lastReview: '尚未见过对方家人，家族评价仍待建立。',
+    reviewHistory: []
+  })
+
+  const sanitizeRandomNpcFamilyReview = (
+    raw: unknown,
+    validTieIds: Set<string>,
+    fallbackTieId: string
+  ): RandomNpcFamilyReviewEntry | null => {
+    if (!raw || typeof raw !== 'object') return null
+    const entry = raw as Partial<RandomNpcFamilyReviewEntry>
+    const tieId = typeof entry.tieId === 'string' && validTieIds.has(entry.tieId) ? entry.tieId : fallbackTieId
+    return {
+      id: typeof entry.id === 'string' ? entry.id : `${tieId}:${entry.type ?? 'meeting'}`,
+      dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+      tieId,
+      type: entry.type === 'commission' ? 'commission' : 'meeting',
+      summary: typeof entry.summary === 'string' ? entry.summary : '家族评价已记录。',
+      reputationDelta: Math.max(-20, Math.min(20, Number(entry.reputationDelta) || 0))
+    }
+  }
+
+  const sanitizeRandomNpcFamilyLineState = (
+    raw: unknown,
+    familyTies: RandomNpcFamilyTieDef[],
+    commission: RandomNpcFamilyCommissionDef
+  ): RandomNpcFamilyLineState => {
+    const validTieIds = new Set(familyTies.map(tie => tie.id))
+    const fallbackTieId = validTieIds.has(commission.tieId) ? commission.tieId : familyTies[0]?.id ?? commission.tieId
+    const rawLine = raw && typeof raw === 'object' ? raw as Partial<RandomNpcFamilyLineState> : {}
+    const metTieIds = Array.isArray(rawLine.metTieIds)
+      ? rawLine.metTieIds.filter((tieId: unknown): tieId is string => typeof tieId === 'string' && validTieIds.has(tieId))
+      : []
+    const completedCommissionIds = Array.isArray(rawLine.completedCommissionIds)
+      ? rawLine.completedCommissionIds.filter((id: unknown): id is string => typeof id === 'string' && id === commission.id)
+      : []
+    const reviewHistory = (Array.isArray(rawLine.reviewHistory) ? rawLine.reviewHistory : [])
+      .map(entry => sanitizeRandomNpcFamilyReview(entry, validTieIds, fallbackTieId))
+      .filter((entry): entry is RandomNpcFamilyReviewEntry => !!entry)
+      .slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+    return {
+      reputation: Math.max(0, Math.min(100, Number(rawLine.reputation) || 0)),
+      metTieIds: [...new Set(metTieIds)].slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT),
+      completedCommissionIds: [...new Set(completedCommissionIds)].slice(0, RANDOM_NPC_FAMILY_REVIEW_LIMIT),
+      lastReview: typeof rawLine.lastReview === 'string' && rawLine.lastReview ? rawLine.lastReview : '尚未见过对方家人，家族评价仍待建立。',
+      reviewHistory
+    }
+  }
+
+  const getRandomNpcFamilyMeetingReputationDelta = (tie: RandomNpcFamilyTieDef): number => {
+    if (tie.attitude === 'supportive') return 8
+    if (tie.attitude === 'testing') return 6
+    if (tie.attitude === 'burdened') return 5
+    return 4
+  }
+
+  const appendRandomNpcFamilyReview = (
+    familyLine: RandomNpcFamilyLineState,
+    review: RandomNpcFamilyReviewEntry
+  ): RandomNpcFamilyLineState => ({
+    ...familyLine,
+    reputation: Math.max(0, Math.min(100, familyLine.reputation + review.reputationDelta)),
+    lastReview: review.summary,
+    reviewHistory: [...familyLine.reviewHistory, review].slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+  })
 
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string => {
     if (kind === 'romance') return '恋爱线'
@@ -808,6 +881,7 @@ export const useNpcStore = defineStore('npc', () => {
       plotHook: template.plotHook,
       familySeed: template.familySeed,
       familyTies: sanitizeRandomNpcFamilyTies(template.familyTies),
+      familyLine: createDefaultRandomNpcFamilyLineState(),
       preferences: {
         loved: [...template.preferences.loved],
         liked: [...template.preferences.liked],
@@ -964,7 +1038,7 @@ export const useNpcStore = defineStore('npc', () => {
     return { success: true, message: `${visitor.name}已从旧日来客摘要召回。`, visitor }
   }
 
-  const getRandomNpcSmallOrderMissingItems = (order: RandomNpcSmallOrderDef) => {
+  const getRandomNpcSmallOrderMissingItems = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }) => {
     const inventoryStore = useInventoryStore()
     return order.requestedItems
       .map(item => ({
@@ -1242,6 +1316,186 @@ export const useNpcStore = defineStore('npc', () => {
       )
     }
     return { success: true, message: choice.response, resident: nextResident ?? resident }
+  }
+
+  const getRandomNpcFamilyCommission = (residentId: string): RandomNpcFamilyCommissionDef | null => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    const template = resident ? RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId) : null
+    return template?.familyCommission ?? null
+  }
+
+  const canMeetRandomNpcFamilyTie = (
+    residentId: string,
+    tieId: string
+  ): { success: boolean; message: string } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const tie = resident.familyTies.find(entry => entry.id === tieId)
+    if (!tie) return { success: false, message: '这条家族节点已经不可用。' }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '这位长住 NPC 的模板已经不可用。' }
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    if (familyLine.metTieIds.includes(tieId)) return { success: false, message: `已经见过${tie.name}。` }
+    if (resident.relationshipLine.kind === 'severed') return { success: false, message: '断缘后本版不再推进家族线。' }
+    if (resident.relationshipLine.stage <= 0) return { success: false, message: '需要先开启朋友、恋爱、知己或结拜关系线。' }
+    return { success: true, message: '可以见家人。' }
+  }
+
+  const meetRandomNpcFamilyTie = (
+    residentId: string,
+    tieId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const guard = canMeetRandomNpcFamilyTie(residentId, tieId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !resident) return { ...guard, resident }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    const tie = resident.familyTies.find(entry => entry.id === tieId)
+    if (!template || !tie) return { success: false, message: '这条家族节点已经不可用。', resident }
+
+    const dayTag = getCurrentNpcDayTag()
+    const reputationDelta = getRandomNpcFamilyMeetingReputationDelta(tie)
+    const summary = `${tie.name}与你正式见面，记下了你和${resident.name}的相处方式。`
+    const review: RandomNpcFamilyReviewEntry = {
+      id: `${dayTag}:${residentId}:${tieId}:meeting`,
+      dayTag,
+      tieId,
+      type: 'meeting',
+      summary,
+      reputationDelta
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      const familyLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission)
+      nextResident = {
+        ...entry,
+        affinity: Math.min(100, entry.affinity + 2),
+        relationshipSignals: applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+          'family_impression',
+          reputationDelta
+        ),
+        familyLine: {
+          ...appendRandomNpcFamilyReview(
+            {
+              ...familyLine,
+              metTieIds: [...familyLine.metTieIds, tieId].slice(-RANDOM_NPC_FAMILY_TIE_LIMIT)
+            },
+            review
+          ),
+          metTieIds: [...new Set([...familyLine.metTieIds, tieId])].slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)
+        },
+        keyEvents: [...entry.keyEvents, `${dayTag} 见家人：${summary}（家族评价+${reputationDelta}）`].slice(-8)
+      }
+      return nextResident
+    })
+
+    if (nextResident) {
+      randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+        entry.visitorId === nextResident!.sourceVisitorId
+          ? {
+              ...entry,
+              affinity: nextResident!.affinity,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(nextResident!.relationshipSignals),
+              keyEvents: nextResident!.keyEvents.slice(-6)
+            }
+          : entry
+      )
+    }
+    return {
+      success: true,
+      message: `${summary} 家族评价+${reputationDelta}。`,
+      resident: nextResident ?? resident
+    }
+  }
+
+  const fulfillRandomNpcFamilyCommission = (
+    residentId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '这位长住 NPC 的模板已经不可用。', resident }
+    const commission = template.familyCommission
+    const tie = resident.familyTies.find(entry => entry.id === commission.tieId) ?? resident.familyTies[0]
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, commission)
+    if (familyLine.completedCommissionIds.includes(commission.id)) {
+      return { success: false, message: `${resident.name}的家族委托已经完成。`, resident }
+    }
+    if (!familyLine.metTieIds.includes(commission.tieId)) {
+      return { success: false, message: '需要先见过对应家人，才能交付这条家族委托。', resident }
+    }
+
+    const missingItems = getRandomNpcSmallOrderMissingItems(commission)
+    if (missingItems.length > 0) {
+      const summary = missingItems
+        .map(item => `${getItemById(item.itemId)?.name ?? item.itemId} ${item.owned}/${item.quantity}`)
+        .join('、')
+      return { success: false, message: `材料不足：${summary}。`, resident }
+    }
+
+    const inventoryStore = useInventoryStore()
+    for (const item of commission.requestedItems) {
+      if (!inventoryStore.removeItemAnywhere(item.itemId, item.quantity)) {
+        return { success: false, message: `交付${getItemById(item.itemId)?.name ?? item.itemId}时失败，请重新确认库存。`, resident }
+      }
+    }
+
+    const dayTag = getCurrentNpcDayTag()
+    const reputationDelta = 12
+    const summary = `${tie?.name ?? resident.name}收下「${commission.title}」，对你处理${resident.name}家事的方式多了信任。`
+    const review: RandomNpcFamilyReviewEntry = {
+      id: `${dayTag}:${residentId}:${commission.id}:commission`,
+      dayTag,
+      tieId: commission.tieId,
+      type: 'commission',
+      summary,
+      reputationDelta
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      const currentLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, commission)
+      nextResident = {
+        ...entry,
+        affinity: Math.min(100, entry.affinity + 6),
+        relationshipSignals: applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+          'family_impression',
+          reputationDelta
+        ),
+        familyLine: {
+          ...appendRandomNpcFamilyReview(
+            {
+              ...currentLine,
+              completedCommissionIds: [...new Set([...currentLine.completedCommissionIds, commission.id])].slice(0, RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+            },
+            review
+          ),
+          completedCommissionIds: [...new Set([...currentLine.completedCommissionIds, commission.id])].slice(0, RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+        },
+        keyEvents: [...entry.keyEvents, `${dayTag} 完成家族委托「${commission.title}」：${commission.rewardSummary}`].slice(-8)
+      }
+      return nextResident
+    })
+
+    if (nextResident) {
+      randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+        entry.visitorId === nextResident!.sourceVisitorId
+          ? {
+              ...entry,
+              affinity: nextResident!.affinity,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(nextResident!.relationshipSignals),
+              keyEvents: nextResident!.keyEvents.slice(-6)
+            }
+          : entry
+      )
+    }
+    return {
+      success: true,
+      message: `${resident.name}的家族委托已完成，${commission.rewardSummary} 好感+6，家族评价+${reputationDelta}。`,
+      resident: nextResident ?? resident
+    }
   }
 
   const canStartRandomNpcRelationLine = (
@@ -3797,7 +4051,7 @@ export const useNpcStore = defineStore('npc', () => {
       const raw = (data as any).randomNpcBoard
       if (!raw || typeof raw !== 'object') {
         return {
-          version: 3,
+          version: 4,
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
@@ -3856,7 +4110,7 @@ export const useNpcStore = defineStore('npc', () => {
         })
       const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
       return {
-        version: Math.max(3, Number(raw.version) || 1),
+        version: Math.max(4, Number(raw.version) || 1),
         lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
         activeVisitors,
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)
@@ -3930,6 +4184,11 @@ export const useNpcStore = defineStore('npc', () => {
                 plotHook: template.plotHook,
                 familySeed: template.familySeed,
                 familyTies: sanitizeRandomNpcFamilyTies(entry.familyTies, template.familyTies),
+                familyLine: sanitizeRandomNpcFamilyLineState(
+                  entry.familyLine,
+                  sanitizeRandomNpcFamilyTies(entry.familyTies, template.familyTies),
+                  template.familyCommission
+                ),
                 preferences: {
                   loved: [...template.preferences.loved],
                   liked: [...template.preferences.liked],
@@ -4114,6 +4373,10 @@ export const useNpcStore = defineStore('npc', () => {
     promoteRandomNpcAcquaintanceToLongStay,
     getNextRandomNpcLongStayStoryEvent,
     progressRandomNpcLongStayStory,
+    getRandomNpcFamilyCommission,
+    canMeetRandomNpcFamilyTie,
+    meetRandomNpcFamilyTie,
+    fulfillRandomNpcFamilyCommission,
     canStartRandomNpcRelationLine,
     startRandomNpcRelationLine,
     severRandomNpcRelationLine,

@@ -30,6 +30,14 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'family_tea_shop', kind: 'family_business', name: '陆家小茶铺', relation: '家族产业', summary: '铺子靠桂花窨茶起家，正在等她带回桃源的新茶路。', attitude: 'supportive' },
       { id: 'south_caravan', kind: 'caravan', name: '南岭茶帮', relation: '商队', summary: '商队愿意给新人机会，但也会追问货损和人情账。', attitude: 'testing' }
     ],
+    familyCommission: {
+      id: 'aunt_tea_gift',
+      tieId: 'aunt_tea_keeper',
+      title: '姑母的试茶礼',
+      summary: '陆三娘想看看桃源茶能不能压得住路上的潮气，请你备一份茶叶和蜂蜜作回礼。',
+      requestedItems: [{ itemId: 'tea', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
+      rewardSummary: '家族评价提升，并留下茶路铺货的好印象。'
+    },
     preferences: {
       loved: ['tea', 'osmanthus'],
       liked: ['honey', 'rice'],
@@ -68,6 +76,14 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'herb_debt', kind: 'old_debt', name: '北坡药账', relation: '旧债', summary: '早年救治幼驹欠下的一袋药材人情，迟早要用成事来偿还。', attitude: 'burdened' },
       { id: 'herder_cousin', kind: 'distant_relative', name: '程远山', relation: '远房表兄', summary: '常随牧队远行，偶尔会托人带来动物病案。', attitude: 'distant' }
     ],
+    familyCommission: {
+      id: 'mentor_calm_pack',
+      tieId: 'old_shepherd_master',
+      title: '师父的安牧包',
+      summary: '北坡老牧人托她回信时带一份温和补给，想确认桃源也懂得照顾长途动物。',
+      requestedItems: [{ itemId: 'lotus_seed', quantity: 1 }, { itemId: 'goat_milk', quantity: 1 }],
+      rewardSummary: '师门评价提升，并认可你的动物照料方式。'
+    },
     preferences: {
       loved: ['lotus_seed', 'goat_milk'],
       liked: ['sesame', 'sweet_potato'],
@@ -106,6 +122,14 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'sharp_sister', kind: 'sibling', name: '周小霜', relation: '妹妹', summary: '嘴上嫌他迷路，信里却会夹一张自己画的路线图。', attitude: 'testing' },
       { id: 'county_school', kind: 'mentor', name: '临水县学师长', relation: '师门', summary: '希望他把乡土经营写成真策论，不只背书。', attitude: 'testing' }
     ],
+    familyCommission: {
+      id: 'mother_exam_parcel',
+      tieId: 'exam_mother',
+      title: '母亲的赶考包',
+      summary: '孟氏想给他补一份不显眼的干粮，请你备些米和茶，免得他又空腹赶路。',
+      requestedItems: [{ itemId: 'rice', quantity: 2 }, { itemId: 'tea', quantity: 1 }],
+      rewardSummary: '家人评价提升，并觉得你照看人很稳妥。'
+    },
     preferences: {
       loved: ['rice', 'tea'],
       liked: ['radish', 'bamboo'],
@@ -144,6 +168,14 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'workshop_debt', kind: 'old_debt', name: '灯坊旧账', relation: '旧债', summary: '旧灯墙修复未完，她总觉得欠师门一个交代。', attitude: 'burdened' },
       { id: 'river_trade_boat', kind: 'caravan', name: '河湾货船', relation: '商队', summary: '偶尔捎来旧灯纸和师门消息，也会催她交新样。', attitude: 'distant' }
     ],
+    familyCommission: {
+      id: 'master_lantern_materials',
+      tieId: 'lantern_master',
+      title: '师父的灯样材料',
+      summary: '河湾灯坊师父想看她的新灯样，请你备竹子和木材，帮她把灯骨寄回去。',
+      requestedItems: [{ itemId: 'bamboo', quantity: 2 }, { itemId: 'wood', quantity: 3 }],
+      rewardSummary: '师门评价提升，并认可你对旧灯样的尊重。'
+    },
     preferences: {
       loved: ['bamboo', 'pumpkin'],
       liked: ['osmanthus', 'wood'],

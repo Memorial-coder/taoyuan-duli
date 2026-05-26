@@ -168,6 +168,32 @@ export interface RandomNpcFamilyTieDef {
   attitude: 'supportive' | 'testing' | 'distant' | 'burdened'
 }
 
+export interface RandomNpcFamilyCommissionDef {
+  id: string
+  tieId: string
+  title: string
+  summary: string
+  requestedItems: Array<{ itemId: string; quantity: number }>
+  rewardSummary: string
+}
+
+export interface RandomNpcFamilyReviewEntry {
+  id: string
+  dayTag: string
+  tieId: string
+  type: 'meeting' | 'commission'
+  summary: string
+  reputationDelta: number
+}
+
+export interface RandomNpcFamilyLineState {
+  reputation: number
+  metTieIds: string[]
+  completedCommissionIds: string[]
+  lastReview: string
+  reviewHistory: RandomNpcFamilyReviewEntry[]
+}
+
 export type RandomNpcRelationLineKind = 'friend' | 'romance' | 'zhiji' | 'sworn' | 'severed'
 export type RandomNpcRelationLineAction = 'start' | 'sever'
 
@@ -232,6 +258,7 @@ export interface RandomNpcTemplate {
   plotHook: string
   familySeed: string
   familyTies: RandomNpcFamilyTieDef[]
+  familyCommission: RandomNpcFamilyCommissionDef
   preferences: {
     loved: string[]
     liked: string[]
@@ -353,6 +380,7 @@ export interface RandomNpcLongStayEntry {
   plotHook: string
   familySeed: string
   familyTies: RandomNpcFamilyTieDef[]
+  familyLine: RandomNpcFamilyLineState
   preferences: RandomNpcTemplate['preferences']
   smallOrder: RandomNpcSmallOrderDef
   smallOrderCompleted?: boolean

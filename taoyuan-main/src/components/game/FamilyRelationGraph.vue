@@ -498,6 +498,7 @@
           `驻村理由：${entry.residenceReason}`,
           `关系线：${entry.relationshipLine.note}`,
           entry.familyTies.length > 0 ? `家族节点：${entry.familyTies.map(tie => `${getRandomNpcFamilyTieKindLabel(tie.kind)}-${tie.relation}`).join('、')}` : '家族节点：尚未记录。',
+          `家族评价：${entry.familyLine.reputation}/100；${entry.familyLine.lastReview}`,
           `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`,
           `路线：${routeLabels[entry.route]}；小订单：${entry.smallOrder.title}。`,
           `偏好：${formatItemNames(entry.preferences.loved.length > 0 ? entry.preferences.loved : entry.preferences.liked)}。`
