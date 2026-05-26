@@ -1223,6 +1223,12 @@
                   <p v-if="entry.real_build_demolition_main_state_guard_policy">
                     安全阀策略：{{ entry.real_build_demolition_main_state_guard_policy }}
                   </p>
+                  <p v-if="entry.real_build_demolition_main_state_executed_at || entry.real_build_demolition_main_state_execution_state">
+                    主态执行：{{ entry.real_build_demolition_main_state_executed_by_display_name || entry.real_build_demolition_main_state_executed_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_main_state_executed_at) }} · {{ familyBuildingMainStateExecutionLabel(entry.real_build_demolition_main_state_execution_state) }}
+                  </p>
+                  <p v-if="entry.real_build_demolition_main_state_execute_policy">
+                    执行策略：{{ entry.real_build_demolition_main_state_execute_policy }}
+                  </p>
                 </div>
                 <div class="mt-2 grid gap-2 md:grid-cols-12">
                   <button
@@ -1364,6 +1370,16 @@
                   >
                     <ShieldCheck :size="12" />
                     确认安全阀
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canExecuteFamilyBuildingRealDemolitionMainStateMutation(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-demolition-execute-main-state-mutation-${entry.id}`"
+                    @click="executeFamilyBuildingRealDemolitionMainStateMutation(entry)"
+                  >
+                    <ShieldCheck :size="12" />
+                    阻断执行
                   </button>
                 </div>
               </div>
@@ -2956,6 +2972,13 @@
     Array.isArray(entry.real_build_demolition_main_state_mapping_manifest) &&
     entry.real_build_demolition_main_state_mapping_manifest.length > 0 &&
     !entry.real_build_demolition_main_state_guard_idempotency_key
+  const canExecuteFamilyBuildingRealDemolitionMainStateMutation = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    Boolean(entry.real_build_demolition_main_state_guard_idempotency_key) &&
+    Boolean(entry.real_build_demolition_main_state_guard_manifest_hash) &&
+    Array.isArray(entry.real_build_demolition_main_state_guard_manifest) &&
+    entry.real_build_demolition_main_state_guard_manifest.length > 0 &&
+    !entry.real_build_demolition_main_state_execute_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3482,6 +3505,33 @@
     }
   }
 
+  const executeFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    const guardManifest = entry.real_build_demolition_main_state_guard_manifest || []
+    if (!entry.real_build_demolition_main_state_guard_manifest_hash || guardManifest.length === 0) {
+      familyBuildingActionMessage.value = '请先确认个人主状态变更安全阀'
+      return
+    }
+    try {
+      const result = await cohabitationStore.executeFamilyBuildingRealDemolitionMainStateMutation({
+        building_ledger_id: entry.id,
+        guard_manifest_hash: entry.real_build_demolition_main_state_guard_manifest_hash,
+        memo: `前端执行家族建筑真实拆除个人主状态阻断：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-demolition-main-state-execute-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const executionState = result?.main_state_execution?.execution_state
+        ?? result?.building_ledger_entry?.real_build_demolition_main_state_execution_state
+        ?? entry.real_build_demolition_main_state_execution_state
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_executed
+        ? `该个人主状态执行已记录：${familyBuildingMainStateExecutionLabel(executionState)}`
+        : `已记录个人主状态执行阻断：${familyBuildingMainStateExecutionLabel(executionState)}，未删除个人房屋或建筑主状态`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '执行家族建筑真实拆除个人主状态变更失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -3622,6 +3672,7 @@
       real_build_demolition_main_state_mapping: '真实拆除个人主状态映射',
       real_build_demolition_main_state_mutation_guard: '真实拆除个人主状态变更安全阀',
       real_build_demolition_main_state_execute: '真实拆除个人主状态执行',
+      real_build_demolition_main_state_exact_target_required: '真实拆除个人主状态精确目标待绑定',
       family_building_compensation_replay: '建筑补偿重放',
       family_building_rollback: '建筑回滚',
       publish_family_relation_graph_to_profile: '公开关系图到档案',
@@ -3826,6 +3877,7 @@
       family_building_real_demolition_rejected: '真实拆除复核驳回',
       family_building_real_demolition_execution_requested: '真实拆除执行请求',
       family_building_real_demolition_personal_save_written: '真实拆除存档写回',
+      family_building_real_demolition_main_state_execution_blocked: '真实拆除主态执行阻断',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
@@ -3966,6 +4018,9 @@
       const count = typeof detail.receipt_count === 'number' ? detail.receipt_count : 0
       return `已写回真实拆除个人存档回执 ${count} 份，不改共同基金、仓库、个人铜币或背包`
     }
+    if (entry.action === 'family_building_real_demolition_main_state_execution_blocked') {
+      return '已阻断个人主状态执行，缺少精确 home / decoration 删除目标，未改个人存档或共同资产'
+    }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0
     if (itemId && amount > 0) return `${warehouseItemLabels[itemId] || itemId} x${amount}`
@@ -4003,6 +4058,16 @@
       cancelled: '已取消',
     }
     return labels[state || 'not_requested'] || state || '未请求'
+  }
+
+  const familyBuildingMainStateExecutionLabel = (state?: string) => {
+    const labels: Record<string, string> = {
+      blocked_missing_exact_personal_target: '缺精确目标已阻断',
+      ready_for_exact_personal_target_execution: '精确目标待执行',
+      real_build_demolition_main_state_exact_target_required: '待绑定精确目标',
+      real_build_demolition_main_state_exact_execute: '待精确执行',
+    }
+    return labels[state || ''] || state || '未执行'
   }
 
   const formatDuration = (seconds: number | null) => {

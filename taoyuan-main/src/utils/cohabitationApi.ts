@@ -703,6 +703,12 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   real_build_demolition_main_state_guard_manifest_hash: string
   real_build_demolition_main_state_guard_manifest: CohabitationFamilyBuildingMainStateGuardEntry[]
   real_build_demolition_main_state_guard_policy: string
+  real_build_demolition_main_state_execute_idempotency_key: string
+  real_build_demolition_main_state_executed_at: number
+  real_build_demolition_main_state_executed_by_username: string
+  real_build_demolition_main_state_executed_by_display_name: string
+  real_build_demolition_main_state_execution_state: string
+  real_build_demolition_main_state_execute_policy: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -1265,6 +1271,10 @@ export interface CohabitationFamilyBuildingMainStateMutationGuardPayload extends
   rollback_plan_acknowledged: boolean
 }
 
+export interface CohabitationFamilyBuildingMainStateExecutePayload extends CohabitationFamilyBuildingLedgerPayload {
+  guard_manifest_hash: string
+}
+
 export interface CohabitationFundContributionPayload {
   amount: number
   purpose?: string
@@ -1495,6 +1505,8 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   already_written?: boolean
   already_previewed?: boolean
   already_mapped?: boolean
+  already_guarded?: boolean
+  already_executed?: boolean
   receipts?: Array<{
     username: string
     username_key: string
@@ -1534,6 +1546,15 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     execution_enabled?: boolean
     compensation_required?: boolean
     rollback_required?: boolean
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
+    next_deferred_operation?: string
+  }
+  main_state_execution?: {
+    execution_state?: string
+    blocked?: boolean
+    mutation_enabled?: boolean
     personal_save_changed?: boolean
     shared_fund_changed?: boolean
     shared_warehouse_changed?: boolean
@@ -2036,6 +2057,14 @@ export const guardCohabitationFamilyBuildingRealDemolitionMainStateMutation = as
     contractPath(contractId, '/family-buildings/real-demolition/guard-main-state-mutation'),
     payload as unknown as Record<string, unknown>,
     '记录家族建筑真实拆除个人主状态变更安全阀失败'
+  )
+}
+
+export const executeCohabitationFamilyBuildingRealDemolitionMainStateMutation = async (contractId: string, payload: CohabitationFamilyBuildingMainStateExecutePayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/execute-main-state-mutation'),
+    payload as unknown as Record<string, unknown>,
+    '执行家族建筑真实拆除个人主状态变更失败'
   )
 }
 

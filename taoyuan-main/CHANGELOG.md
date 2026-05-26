@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态执行阻断前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/execute-main-state-mutation`，共同庄园建筑流水卡片新增“阻断执行”按钮。
+- 按钮按主状态变更 guard 幂等键、guard manifest hash、guard 清单和尚未记录执行幂等禁用；提交后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示主态执行人、时间、执行状态和执行策略，共同日志新增“真实拆除主态执行阻断”读回，并识别 `real_build_demolition_main_state_exact_target_required` 暂缓项；本轮仍不删除个人 `home / decoration` 主状态。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态执行阻断后端闭环
 - 服务端新增 `/family-buildings/real-demolition/execute-main-state-mutation`，要求已确认主状态变更 guard、guard manifest hash 匹配，并继续保留拆除双方确认安全阀。
 - 当前 guard 清单仍只有宽路径和绑定证明，缺少可删除的精确个人 `home / decoration` 字段目标；接口只记录 `blocked_missing_exact_personal_target`、操作者、策略和审计，把待办推进到 `real_build_demolition_main_state_exact_target_required`。
