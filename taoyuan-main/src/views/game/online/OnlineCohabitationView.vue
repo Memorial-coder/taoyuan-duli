@@ -2946,6 +2946,27 @@
     const placedKeys = decoration.placedKeys?.length ? decoration.placedKeys.join(' / ') : '无'
     return `农舍 ${home.farmhouseLevel ?? '-'} · 山洞 ${home.caveUnlocked ? '开' : '关'} / ${home.caveChoice || 'none'} · 温室 ${home.greenhouseUnlocked ? '开' : '关'} · 酒窖 ${home.cellarSlots ?? 0} · 改造 ${renovationKeys} · 装饰拥有 ${decoration.ownedCount ?? 0}(${ownedKeys}) · 已放置 ${decoration.placedCount ?? 0}(${placedKeys})`
   }
+  const selectFamilyBuildingMainStateCandidatePathForMapping = (
+    row: CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number],
+  ) => {
+    const paths = row.candidate_paths || []
+    const snapshot = row.candidate_snapshot || {}
+    const home = snapshot.home || {}
+    const decoration = snapshot.decoration || {}
+    const ownedCount = decoration.ownedCount ?? 0
+    const placedCount = decoration.placedCount ?? 0
+    const preferredPaths = [
+      home.homeRenovationStateKeys?.length ? 'home.homeRenovationStates' : '',
+      ownedCount > placedCount ? 'decoration.owned' : '',
+      placedCount > 0 ? 'decoration.placed' : '',
+      home.caveChoice === 'mushroom' || home.caveChoice === 'fruit_bat' ? 'home.caveChoice' : '',
+      home.caveUnlocked === true && (!home.caveChoice || home.caveChoice === 'none') ? 'home.caveUnlocked' : '',
+      home.greenhouseUnlocked === true ? 'home.greenhouseUnlocked' : '',
+      (home.cellarSlots ?? 0) > 0 ? 'home.cellarSlots' : '',
+      (home.farmhouseLevel ?? 0) > 0 ? 'home.farmhouseLevel' : '',
+    ].filter(Boolean)
+    return preferredPaths.find(path => paths.includes(path)) || paths[0] || 'home.homeRenovationStates'
+  }
   const canApplyFamilyBuildingRealBuild = (entry: CohabitationFamilyBuildingLedgerEntry) =>
     cohabitationStore.canOpenSelectedContract &&
     entry.shared_fund_deducted === true &&
@@ -3587,9 +3608,7 @@
         memo: `前端记录家族建筑真实拆除个人主状态映射证明：${entry.target_ref || entry.building_id || entry.project_id}`,
         idempotency_key: `ui-family-building-real-demolition-main-state-mapping-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         mappings: manifest.map(item => {
-          const candidatePath = item.candidate_paths.includes('home.homeRenovationStates')
-            ? 'home.homeRenovationStates'
-            : (item.candidate_paths[0] || 'decoration.owned')
+          const candidatePath = selectFamilyBuildingMainStateCandidatePathForMapping(item)
           return {
             username: item.username,
             username_key: item.username_key,

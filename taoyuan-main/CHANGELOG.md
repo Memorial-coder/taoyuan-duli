@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0526 共同庄园建筑页映射默认候选路径
+- “证明映射”现在会根据 `candidate_snapshot` 选择默认 `candidate_path`，优先匹配已启用宅院改造、未放置装饰余量、已放置装饰、山洞用途、无用途山洞开放态、温室、酒窖槽或农舍等级。
+- 在线 UI 结构 QA 增加映射 helper 和 `ownedCount > placedCount` 守护，避免后续又退回所有成员默认 `home.homeRenovationStates`。
+- 该优化只影响前端映射 payload，不执行个人主状态变更，不改共同基金 / 共同仓库。
+
 ### 0526 共同庄园建筑页主态候选快照展示
 - 共同庄园建筑流水卡片新增每位成员的 `candidate_snapshot` 摘要展示，可读回农舍等级、山洞状态、温室、酒窖槽数、宅院改造 key、装饰拥有数量 / key 和已放置数量 / key。
 - 前端 API 类型补齐 `candidate_snapshot`，在线 UI 结构 QA 守住展示入口、格式化函数和装饰数量文案。

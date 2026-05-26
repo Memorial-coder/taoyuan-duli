@@ -113,6 +113,8 @@ expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-buildin
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-real-demolition-execute-main-state-exact-mutation', '共同庄园建筑页应提供真实拆除个人主状态精确变更执行入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-main-state-candidate-snapshot', '共同庄园建筑页应展示个人主状态预览候选快照')
 expectContains('online/OnlineCohabitationView.vue', 'formatFamilyBuildingMainStateCandidateSnapshot', '共同庄园建筑页应格式化个人主状态预览候选快照')
+expectContains('online/OnlineCohabitationView.vue', 'selectFamilyBuildingMainStateCandidatePathForMapping', '共同庄园建筑页应按候选快照选择个人主状态映射默认路径')
+expectContains('online/OnlineCohabitationView.vue', 'ownedCount > placedCount', '共同庄园建筑页应优先把未放置装饰余量映射到 decoration.owned')
 expectContains('online/OnlineCohabitationView.vue', '装饰拥有', '共同庄园建筑页候选快照应展示装饰拥有数量')
 expectContains('online/OnlineCohabitationView.vue', 'decoration.owned', '共同庄园建筑页应允许个人主状态精确变更执行未放置装饰库存窄 selector')
 expectContains('online/OnlineCohabitationView.vue', 'home.caveChoice', '共同庄园建筑页应允许个人主状态精确变更执行山洞用途窄 selector')
