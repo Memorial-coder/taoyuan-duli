@@ -103,11 +103,23 @@ const SOCIETY_RESOURCE_LABELS = Object.freeze({
   paper: '纸张',
   herb: '草药',
   rice: '稻米',
+  cloth: '布料',
+  crucian: '鱼获',
   cabbage: '青菜',
   firewood: '柴火',
   bamboo: '竹材',
   wintersweet: '腊梅',
 });
+
+const SOCIETY_PUBLIC_WAREHOUSE_WEEK_SECONDS = 7 * 24 * 60 * 60;
+
+const SOCIETY_PUBLIC_WAREHOUSE_CATEGORY_DEFS = Object.freeze([
+  { id: 'grain', label: '粮食' },
+  { id: 'herb', label: '药草' },
+  { id: 'wood', label: '木材' },
+  { id: 'cloth', label: '布料' },
+  { id: 'fish', label: '鱼获' },
+]);
 
 const SOCIETY_LEVEL_TITLES = Object.freeze([
   '初立社',
@@ -134,6 +146,9 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'wood_crate',
     label: '木料入仓',
     summary: '交 1 份木材和少量工钱，补入公共仓。',
+    category_id: 'wood',
+    category_label: '木材',
+    weekly_points: 2,
     costs: [
       { type: 'item', item_id: 'wood', quantity: 1, quality: 'normal' },
       { type: 'money', amount: 5 },
@@ -144,6 +159,9 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'stone_crate',
     label: '石料入仓',
     summary: '交 1 份石料和少量工钱，补入公共仓。',
+    category_id: 'construction',
+    category_label: '建材',
+    weekly_points: 1,
     costs: [
       { type: 'item', item_id: 'stone', quantity: 1, quality: 'normal' },
       { type: 'money', amount: 5 },
@@ -154,6 +172,9 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'paper_crate',
     label: '纸张入仓',
     summary: '交 1 份纸张和少量工钱，补入公共仓。',
+    category_id: 'festival',
+    category_label: '节会',
+    weekly_points: 1,
     costs: [
       { type: 'item', item_id: 'paper', quantity: 1, quality: 'normal' },
       { type: 'money', amount: 5 },
@@ -164,6 +185,9 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'rice_crate',
     label: '稻米入仓',
     summary: '交 2 份稻米和少量工钱，补入公共仓作为节会食材。',
+    category_id: 'grain',
+    category_label: '粮食',
+    weekly_points: 2,
     costs: [
       { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
       { type: 'money', amount: 4 },
@@ -174,6 +198,9 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'herb_crate',
     label: '草药入仓',
     summary: '交 1 份草药和少量工钱，补入公共仓。',
+    category_id: 'herb',
+    category_label: '药草',
+    weekly_points: 2,
     costs: [
       { type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' },
       { type: 'money', amount: 5 },
@@ -184,6 +211,9 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'cabbage_crate',
     label: '青菜入仓',
     summary: '交 2 份青菜和少量工钱，补入公共仓作为共建伙食。',
+    category_id: 'grain',
+    category_label: '粮食',
+    weekly_points: 1,
     costs: [
       { type: 'item', item_id: 'cabbage', quantity: 2, quality: 'normal' },
       { type: 'money', amount: 3 },
@@ -194,6 +224,9 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'wintersweet_crate',
     label: '腊梅入仓',
     summary: '交 1 份腊梅和少量工钱，补入公共仓作为节庆茶点香料。',
+    category_id: 'festival',
+    category_label: '节会',
+    weekly_points: 1,
     costs: [
       { type: 'item', item_id: 'wintersweet', quantity: 1, quality: 'normal' },
       { type: 'money', amount: 6 },
@@ -204,8 +237,37 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     id: 'fund_crate',
     label: '公用经费',
     summary: '直接补入公共仓经费，不占物资格位。',
+    category_id: 'fund',
+    category_label: '经费',
+    weekly_points: 1,
     costs: [{ type: 'money', amount: 20 }],
     rewards: [{ type: 'money', amount: 20 }],
+  },
+  {
+    id: 'cloth_bundle',
+    label: '布料入仓',
+    summary: '交 1 份布匹和少量工钱，补入公共仓作为修缮与节会布置材料。',
+    category_id: 'cloth',
+    category_label: '布料',
+    weekly_points: 2,
+    costs: [
+      { type: 'item', item_id: 'cloth', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 5 },
+    ],
+    rewards: [{ type: 'item', item_id: 'cloth', quantity: 1, quality: 'normal' }],
+  },
+  {
+    id: 'fish_basket',
+    label: '鱼获入仓',
+    summary: '交 1 份鲫鱼和少量工钱，补入公共仓作为宴席、救济和公共伙食。',
+    category_id: 'fish',
+    category_label: '鱼获',
+    weekly_points: 2,
+    costs: [
+      { type: 'item', item_id: 'crucian', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 5 },
+    ],
+    rewards: [{ type: 'item', item_id: 'crucian', quantity: 1, quality: 'normal' }],
   },
 ]);
 
@@ -918,6 +980,9 @@ function normalizeSocietyWarehouseLogEntry(entry) {
     action: ['deposit', 'consume'].includes(String(entry?.action || '')) ? String(entry.action) : 'deposit',
     deposit_id: sanitizeText(entry?.deposit_id, 40),
     deposit_label: sanitizeText(entry?.deposit_label, 40),
+    category_id: sanitizeText(entry?.category_id, 40),
+    category_label: sanitizeText(entry?.category_label, 40),
+    weekly_points: Math.max(0, Math.floor(Number(entry?.weekly_points) || 0)),
     context_id: sanitizeText(entry?.context_id, 40),
     idempotency_key: sanitizeText(entry?.idempotency_key, 80),
     entries: Array.isArray(entry?.entries)
@@ -1257,6 +1322,7 @@ function recalculateSocietyWelfareProgress(society) {
 
 function buildWarehouseLogSnapshot(entry) {
   const normalized = normalizeSocietyWarehouseLogEntry(entry);
+  const deposit = SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_MAP[normalized.deposit_id] || null;
   return {
     id: normalized.id,
     username: normalized.username,
@@ -1264,6 +1330,9 @@ function buildWarehouseLogSnapshot(entry) {
     action: normalized.action,
     deposit_id: normalized.deposit_id,
     deposit_label: normalized.deposit_label,
+    category_id: normalized.category_id || deposit?.category_id || '',
+    category_label: normalized.category_label || deposit?.category_label || '',
+    weekly_points: deposit?.weekly_points || normalized.weekly_points || 0,
     context_id: normalized.context_id,
     idempotency_key: normalized.idempotency_key,
     entries: normalized.entries.map(cost => ({
@@ -1273,6 +1342,80 @@ function buildWarehouseLogSnapshot(entry) {
         : `${cost.quantity} 份${SOCIETY_RESOURCE_LABELS[cost.item_id] || cost.item_id}`),
     })),
     created_at: normalized.created_at,
+  };
+}
+
+function buildPublicWarehouseWeeklySettlement(warehouse) {
+  const normalized = normalizeSocietyWarehouseState(warehouse);
+  const now = nowSeconds();
+  const windowStart = Math.max(0, now - SOCIETY_PUBLIC_WAREHOUSE_WEEK_SECONDS);
+  const categoryMap = new Map(SOCIETY_PUBLIC_WAREHOUSE_CATEGORY_DEFS.map(entry => [entry.id, {
+    id: entry.id,
+    label: entry.label,
+    count: 0,
+    points: 0,
+  }]));
+  let totalPoints = 0;
+  let contributorCount = 0;
+  const contributors = new Set();
+
+  for (const rawLog of normalized.logs) {
+    const log = normalizeSocietyWarehouseLogEntry(rawLog);
+    if (log.action !== 'deposit' || log.created_at < windowStart) continue;
+    const deposit = SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_MAP[log.deposit_id];
+    if (!deposit || !categoryMap.has(deposit.category_id)) continue;
+    const points = Math.max(0, Math.floor(Number(deposit.weekly_points) || Number(log.weekly_points) || 1));
+    const category = categoryMap.get(deposit.category_id);
+    category.count += 1;
+    category.points += points;
+    totalPoints += points;
+    if (log.username) contributors.add(log.username);
+  }
+  contributorCount = contributors.size;
+  const categories = Array.from(categoryMap.values());
+  const getPoints = categoryId => categoryMap.get(categoryId)?.points || 0;
+  const coveredCategoryCount = categories.filter(entry => entry.points > 0).length;
+  const disasterLevel = getPoints('grain') + getPoints('herb') + getPoints('wood');
+  const festivalLevel = getPoints('grain') + getPoints('cloth') + getPoints('fish');
+  const taskLevel = totalPoints + contributorCount;
+  const festivalDiscount = Math.min(15, Math.max(0, festivalLevel >= 8 ? 15 : festivalLevel >= 5 ? 10 : festivalLevel >= 3 ? 5 : 0));
+  const publicTaskBonus = Math.min(12, Math.max(0, taskLevel >= 12 ? 12 : taskLevel >= 8 ? 8 : taskLevel >= 4 ? 4 : 0));
+
+  return {
+    window_started_at: windowStart,
+    window_ends_at: windowStart + SOCIETY_PUBLIC_WAREHOUSE_WEEK_SECONDS,
+    status: coveredCategoryCount >= 5 ? 'ready' : (totalPoints > 0 ? 'collecting' : 'empty'),
+    status_label: coveredCategoryCount >= 5 ? '五类齐备' : (totalPoints > 0 ? '本周备货中' : '等待本周入仓'),
+    total_points: totalPoints,
+    contributor_count: contributorCount,
+    covered_category_count: coveredCategoryCount,
+    categories,
+    effects: {
+      disaster_response: {
+        active: disasterLevel >= 5,
+        level: disasterLevel >= 8 ? 2 : (disasterLevel >= 5 ? 1 : 0),
+        label: disasterLevel >= 5 ? '灾害应对已就绪' : '灾害应对待补粮药木',
+        summary: disasterLevel >= 5
+          ? '粮食、药草与木材储备可支撑村社灾害救济。'
+          : '继续补入粮食、药草或木材后可形成救济缓冲。',
+      },
+      festival_cost_discount: {
+        active: festivalDiscount > 0,
+        percent: festivalDiscount,
+        label: festivalDiscount > 0 ? `节会公共成本 -${festivalDiscount}%` : '节会成本暂无下降',
+        summary: festivalDiscount > 0
+          ? '粮食、布料与鱼获储备会降低后续公共节会筹备成本。'
+          : '补齐粮食、布料或鱼获后可降低节会公共成本。',
+      },
+      public_task_bonus: {
+        active: publicTaskBonus > 0,
+        percent: publicTaskBonus,
+        label: publicTaskBonus > 0 ? `公共任务加成 +${publicTaskBonus}%` : '公共任务暂无加成',
+        summary: publicTaskBonus > 0
+          ? '本周入仓积分和贡献人数会提升公共任务推进效率。'
+          : '继续入仓并扩大参与人数后可获得公共任务加成。',
+      },
+    },
   };
 }
 
@@ -1371,6 +1514,9 @@ function depositToPublicWarehouse(society, actorUsername, actorDisplayName, depo
     action: 'deposit',
     deposit_id: deposit.id,
     deposit_label: deposit.label,
+    category_id: deposit.category_id,
+    category_label: deposit.category_label,
+    weekly_points: deposit.weekly_points,
     entries: deposit.costs,
     created_at: nowSeconds(),
   });
@@ -2582,10 +2728,14 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
         label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
       })),
       logs: normalized.public_warehouse.logs.map(buildWarehouseLogSnapshot).filter(Boolean),
+      weekly_settlement: buildPublicWarehouseWeeklySettlement(normalized.public_warehouse),
       deposit_options: SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS.map(entry => ({
         id: entry.id,
         label: entry.label,
         summary: entry.summary,
+        category_id: entry.category_id,
+        category_label: entry.category_label,
+        weekly_points: entry.weekly_points,
         costs: entry.costs.map(normalizeSocietyWarehouseEntry).filter(Boolean),
       })),
       consume_options: SOCIETY_PUBLIC_WAREHOUSE_CONSUME_OPTIONS.map(entry => ({
@@ -3234,6 +3384,7 @@ async function depositSocietyWarehouse(payload = {}, actor = {}) {
         label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
       })),
       logs: warehouse.logs.map(buildWarehouseLogSnapshot).filter(Boolean),
+      weekly_settlement: buildPublicWarehouseWeeklySettlement(warehouse),
     },
     society: await buildSocietySnapshot(society, actorUsername, true, store),
     overview: await buildOverview(store, actorUsername),
@@ -3276,6 +3427,7 @@ async function consumeSocietyWarehouse(payload = {}, actor = {}) {
         label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
       })),
       logs: warehouse.logs.map(buildWarehouseLogSnapshot).filter(Boolean),
+      weekly_settlement: buildPublicWarehouseWeeklySettlement(warehouse),
     },
     log_entry: buildWarehouseLogSnapshot(logEntry),
     idempotent_replay: idempotentReplay,

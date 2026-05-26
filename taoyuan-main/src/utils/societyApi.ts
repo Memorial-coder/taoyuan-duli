@@ -161,8 +161,14 @@ export interface SocietyWarehouseLogSnapshot {
   id: string
   username: string
   display_name: string
+  action: 'deposit' | 'consume' | string
   deposit_id: string
   deposit_label: string
+  category_id: string
+  category_label: string
+  weekly_points: number
+  context_id: string
+  idempotency_key: string
   entries: SocietyCostEntry[]
   created_at: number
 }
@@ -171,7 +177,49 @@ export interface SocietyWarehouseDepositOptionSnapshot {
   id: string
   label: string
   summary: string
+  category_id: string
+  category_label: string
+  weekly_points: number
   costs: SocietyCostEntry[]
+}
+
+export interface SocietyWarehouseConsumeOptionSnapshot {
+  id: string
+  label: string
+  summary: string
+  context_id: string
+  costs: SocietyCostEntry[]
+}
+
+export interface SocietyWarehouseWeeklyCategorySnapshot {
+  id: string
+  label: string
+  count: number
+  points: number
+}
+
+export interface SocietyWarehouseWeeklyEffectSnapshot {
+  active: boolean
+  level?: number
+  percent?: number
+  label: string
+  summary: string
+}
+
+export interface SocietyWarehouseWeeklySettlementSnapshot {
+  window_started_at: number
+  window_ends_at: number
+  status: 'empty' | 'collecting' | 'ready' | string
+  status_label: string
+  total_points: number
+  contributor_count: number
+  covered_category_count: number
+  categories: SocietyWarehouseWeeklyCategorySnapshot[]
+  effects: {
+    disaster_response: SocietyWarehouseWeeklyEffectSnapshot
+    festival_cost_discount: SocietyWarehouseWeeklyEffectSnapshot
+    public_task_bonus: SocietyWarehouseWeeklyEffectSnapshot
+  }
 }
 
 export interface SocietyExclusiveFestivalSnapshot {
@@ -311,7 +359,9 @@ export interface SocietySnapshot {
     funds: number
     items: SocietyWarehouseItemSnapshot[]
     logs: SocietyWarehouseLogSnapshot[]
+    weekly_settlement: SocietyWarehouseWeeklySettlementSnapshot
     deposit_options: SocietyWarehouseDepositOptionSnapshot[]
+    consume_options: SocietyWarehouseConsumeOptionSnapshot[]
   }
 }
 

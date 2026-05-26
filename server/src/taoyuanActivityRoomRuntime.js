@@ -166,7 +166,41 @@ const EXPEDITION_CAVERN_ACTION_NODE_MAP = Object.freeze({
   split_mine: EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore,
   chalk_route: EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker,
   stabilize_collapse: EXPEDITION_CAVERN_VISUAL_NODE_IDS.support,
+  confirm_withdrawal: EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit,
 });
+
+const EXPEDITION_CAVERN_NODE_COMBO_DEFS = Object.freeze([
+  {
+    id: 'route_then_mine',
+    label: '标记后采脉',
+    action_ids: ['chalk_route', 'split_mine'],
+    node_ids: [EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker, EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore],
+    score_delta: 1,
+    risk_delta: -1,
+    resource_delta: { supplies: 1 },
+    summary: '路标先行再分工采脉，队伍少绕路并回收 1 份补给。',
+  },
+  {
+    id: 'support_then_mine',
+    label: '支护稳采',
+    action_ids: ['stabilize_collapse', 'split_mine'],
+    node_ids: [EXPEDITION_CAVERN_VISUAL_NODE_IDS.support, EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore],
+    score_delta: 1,
+    risk_delta: -2,
+    resource_delta: {},
+    summary: '支护先把松顶压住，采集位能安全多取一段样本。',
+  },
+  {
+    id: 'route_with_support',
+    label: '绳路回收',
+    action_ids: ['chalk_route', 'stabilize_collapse'],
+    node_ids: [EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker, EXPEDITION_CAVERN_VISUAL_NODE_IDS.support],
+    score_delta: 0,
+    risk_delta: -1,
+    resource_delta: { rope: 1, markers: 1 },
+    summary: '路标与支护互相校正，撤离线更稳并回收 1 段绳索。',
+  },
+]);
 
 const LANTERN_FAIR_VISUAL_OBJECT_IDS = Object.freeze({
   mainLantern: 'lantern_main_lantern',
@@ -197,6 +231,37 @@ const LANTERN_FAIR_EVENT_OBJECT_MAP = Object.freeze({
   riddle_wave: LANTERN_FAIR_VISUAL_OBJECT_IDS.riddleRack,
   lantern_tangle: LANTERN_FAIR_VISUAL_OBJECT_IDS.colorRope,
 });
+
+const LANTERN_FAIR_MEMORY_DEFS = Object.freeze([
+  {
+    type: 'main_lantern',
+    label: '点亮主灯',
+    action_ids: ['lock_piece', 'tighten_frame'],
+    object_id: LANTERN_FAIR_VISUAL_OBJECT_IDS.mainLantern,
+    fallback: '主灯尚未形成可署名的点亮记录。',
+  },
+  {
+    type: 'riddle',
+    label: '解开灯谜',
+    action_ids: ['buzz_correct', 'review_hint'],
+    object_id: LANTERN_FAIR_VISUAL_OBJECT_IDS.riddleRack,
+    fallback: '灯谜架尚未形成可署名的解谜记录。',
+  },
+  {
+    type: 'order',
+    label: '维持秩序',
+    action_ids: ['tighten_frame', 'review_hint', 'steady_rudder', 'sort_bundle', 'offer_progress'],
+    object_id: LANTERN_FAIR_VISUAL_OBJECT_IDS.crowd,
+    fallback: '人群秩序尚未形成可署名的维护记录。',
+  },
+  {
+    type: 'photo',
+    label: '留影收口',
+    action_ids: ['lock_pose'],
+    object_id: LANTERN_FAIR_VISUAL_OBJECT_IDS.photoSpot,
+    fallback: '留影点尚未形成可署名的合照记录。',
+  },
+]);
 
 const LANTERN_FAIR_VISUAL_OBJECT_DEFS = Object.freeze([
   {
@@ -335,6 +400,11 @@ const LABA_COOKPOT_VISUAL_OBJECT_DEFS = Object.freeze([
 
 const DRAGON_BOAT_VISUAL_TRACK_ID = 'dragon_boat_river';
 const DRAGON_BOAT_VISUAL_TEAM_ID = 'team_dragon_boat';
+const DRAGON_BOAT_VISUAL_RIVAL_TEAMS = Object.freeze([
+  { team_id: 'team_dragon_boat_east', label: '东岸青舟', marker: '青', base_offset: 0, action_id: 'sync_oar' },
+  { team_id: 'team_dragon_boat_west', label: '西湾赤舟', marker: '赤', base_offset: 1, action_id: 'keep_beat' },
+  { team_id: 'team_dragon_boat_north', label: '北渡金舟', marker: '金', base_offset: -1, action_id: 'steady_rudder' },
+]);
 const ESCORT_CONVOY_VISUAL_TRACK_ID = 'escort_convoy_route';
 const ESCORT_CONVOY_VISUAL_TEAM_ID = 'team_escort_convoy';
 
@@ -726,6 +796,7 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     label: '端午赛舟',
     summary: '适合双人或多人小队的同步准备、开场倒计时与结算。',
     default_member_limit: 4,
+    max_member_limit: 8,
     opening_title: '赛舟鸣鼓',
     opening_lines: ['鼓点已经就位。', '所有队员锁定后，会统一进入赛舟开场。'],
     recommended_gameplay_template_ids: ['squad_coop', 'gathering'],
@@ -1165,6 +1236,19 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
         combo_tags: ['support', 'collapse'],
         round_effect: '压住当前风险，并为采集位创造继续深入的空间。',
       },
+      {
+        id: 'confirm_withdrawal',
+        label: '确认撤离',
+        summary: '在撤离点提前收尾，锁定当前路线、组合收益和可保留成果，随后由房主进入结算。',
+        progress_delta: 0,
+        score_delta: 0,
+        required_role: 'lead',
+        unique_per_member: true,
+        risk_delta: -1,
+        resource_delta: { markers: -1 },
+        combo_tags: ['route', 'exit'],
+        round_effect: '把已探索路线收成撤离记录，不继续推进节点，避免后续风险继续堆高。',
+      },
     ],
   },
   expedition_gathering: {
@@ -1392,21 +1476,32 @@ function getGameplayTemplateByDomain(domain, gameplayTemplateId, roomTemplateId 
   return GAMEPLAY_TEMPLATE_MAP[fallbackId] || GAMEPLAY_TEMPLATE_MAP.public_progress;
 }
 
+function getRoomTemplateMemberLimitBounds(template) {
+  const min = Math.max(2, Math.floor(Number(template?.min_member_limit) || 2));
+  const max = Math.max(min, Math.floor(Number(template?.max_member_limit) || 4));
+  return { min, max };
+}
+
 function listRoomTemplates(domain = DEFAULT_ACTIVITY_DOMAIN) {
   const normalizedDomain = normalizeActivityDomain(domain);
   return Object.values(ROOM_TEMPLATE_MAP)
     .filter(template => getTemplateDomain(template) === normalizedDomain)
-    .map(template => ({
-    activity_domain: getTemplateDomain(template),
-    id: template.id,
-    label: template.label,
-    summary: template.summary,
-    default_member_limit: template.default_member_limit,
-    opening_title: template.opening_title,
-    recommended_gameplay_template_ids: Array.isArray(template.recommended_gameplay_template_ids)
-      ? [...template.recommended_gameplay_template_ids]
-      : [],
-    }));
+    .map(template => {
+    const memberLimitBounds = getRoomTemplateMemberLimitBounds(template);
+    return {
+      activity_domain: getTemplateDomain(template),
+      id: template.id,
+      label: template.label,
+      summary: template.summary,
+      default_member_limit: template.default_member_limit,
+      min_member_limit: memberLimitBounds.min,
+      max_member_limit: memberLimitBounds.max,
+      opening_title: template.opening_title,
+      recommended_gameplay_template_ids: Array.isArray(template.recommended_gameplay_template_ids)
+        ? [...template.recommended_gameplay_template_ids]
+        : [],
+    };
+    });
 }
 
 function listGameplayTemplates(domain = DEFAULT_ACTIVITY_DOMAIN) {
@@ -1557,6 +1652,23 @@ function normalizeReceiptRouteReplayRaceRanking(entry) {
   };
 }
 
+function normalizeReceiptRouteReplayMemoryRecord(entry) {
+  const type = sanitizeText(entry?.type, 40);
+  if (!type) return null;
+  return {
+    type,
+    label: sanitizeText(entry?.label, 40),
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    actor_display_name: sanitizeText(entry?.actor_display_name, 40),
+    action_id: sanitizeText(entry?.action_id, 40),
+    action_label: sanitizeText(entry?.action_label, 40),
+    object_id: sanitizeText(entry?.object_id, 80),
+    object_label: sanitizeText(entry?.object_label, 40),
+    round_number: Math.max(0, Math.floor(Number(entry?.round_number) || 0)),
+    summary: sanitizeText(entry?.summary, 140),
+  };
+}
+
 function normalizeReceiptRouteReplay(value) {
   const source = value && typeof value === 'object' ? value : {};
   const kind = sanitizeText(source.kind, 40);
@@ -1577,6 +1689,7 @@ function normalizeReceiptRouteReplay(value) {
       member_contributions: [],
       race_result: normalizeReceiptRouteReplayRaceResult(null),
       race_rankings: [],
+      memory_records: [],
     };
   }
   return {
@@ -1610,6 +1723,9 @@ function normalizeReceiptRouteReplay(value) {
     race_result: normalizeReceiptRouteReplayRaceResult(source.race_result),
     race_rankings: Array.isArray(source.race_rankings)
       ? source.race_rankings.map(normalizeReceiptRouteReplayRaceRanking).filter(Boolean).slice(0, 8)
+      : [],
+    memory_records: Array.isArray(source.memory_records)
+      ? source.memory_records.map(normalizeReceiptRouteReplayMemoryRecord).filter(Boolean).slice(0, 8)
       : [],
   };
 }
@@ -2064,6 +2180,29 @@ function normalizeExpeditionCavernRoundAction(entry) {
   };
 }
 
+function normalizeExpeditionCavernComboRecord(entry) {
+  const comboId = sanitizeText(entry?.combo_id || entry?.id, 60);
+  if (!comboId) return null;
+  return {
+    combo_id: comboId,
+    label: sanitizeText(entry?.label, 60),
+    action_ids: Array.isArray(entry?.action_ids)
+      ? entry.action_ids.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 4)
+      : [],
+    node_ids: Array.isArray(entry?.node_ids)
+      ? entry.node_ids.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 4)
+      : [],
+    actor_usernames: Array.isArray(entry?.actor_usernames)
+      ? entry.actor_usernames.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 4)
+      : [],
+    score_delta: Math.max(0, Math.floor(Number(entry?.score_delta) || 0)),
+    risk_delta: Math.floor(Number(entry?.risk_delta) || 0),
+    resource_delta: normalizeExpeditionCavernResourceDelta(entry?.resource_delta),
+    summary: sanitizeText(entry?.summary, 160),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
 function normalizeExpeditionCavernState(value) {
   const initial = createInitialExpeditionCavernState();
   const source = value && typeof value === 'object' ? value : {};
@@ -2082,6 +2221,14 @@ function normalizeExpeditionCavernState(value) {
     round_actions: Array.isArray(source.round_actions)
       ? source.round_actions.map(normalizeExpeditionCavernRoundAction).filter(item => item.actor_username && item.action_id)
       : [],
+    combo_records: Array.isArray(source.combo_records)
+      ? source.combo_records.map(normalizeExpeditionCavernComboRecord).filter(Boolean).slice(0, 12)
+      : [],
+    withdrawal_state: sanitizeText(source.withdrawal_state, 24),
+    withdrawal_summary: sanitizeText(source.withdrawal_summary, 180),
+    withdrawal_actor_username: sanitizeText(source.withdrawal_actor_username, 40),
+    withdrawal_actor_display_name: sanitizeText(source.withdrawal_actor_display_name, 40),
+    withdrawal_at: Math.max(0, Math.floor(Number(source.withdrawal_at) || 0)),
     round_log: Array.isArray(source.round_log)
       ? source.round_log.map(normalizeExpeditionCavernRoundLogEntry).slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT)
       : [],
@@ -2244,9 +2391,12 @@ function buildExpeditionCavernVisualNodes(cavernState, existingNodes = []) {
   const splitPreview = buildExpeditionCavernVisualActionPreview('split_mine');
   const routePreview = buildExpeditionCavernVisualActionPreview('chalk_route');
   const supportPreview = buildExpeditionCavernVisualActionPreview('stabilize_collapse');
+  const withdrawalPreview = buildExpeditionCavernVisualActionPreview('confirm_withdrawal');
   const mineResolved = hasExpeditionCavernActionResolved(normalizedCavernState, 'split_mine');
   const routeResolved = hasExpeditionCavernActionResolved(normalizedCavernState, 'chalk_route');
   const supportResolved = hasExpeditionCavernActionResolved(normalizedCavernState, 'stabilize_collapse');
+  const withdrawalConfirmed = normalizedCavernState.withdrawal_state === 'confirmed'
+    || hasExpeditionCavernActionResolved(normalizedCavernState, 'confirm_withdrawal');
   const activeRoundActions = new Set((normalizedCavernState.round_actions || [])
     .filter(entry => entry.round_number === normalizedCavernState.round_number)
     .map(entry => entry.action_id));
@@ -2343,22 +2493,26 @@ function buildExpeditionCavernVisualNodes(cavernState, existingNodes = []) {
     }),
     makeNode({
       id: EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit,
-      label: '撤离点',
+      label: withdrawalConfirmed ? '撤离点已锁定' : '撤离点',
       kind: 'exit',
       x: 90,
       y: 54,
-      state: 'exit',
+      state: withdrawalConfirmed ? 'resolved' : 'exit',
       connected_node_ids: [
         EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore,
         EXPEDITION_CAVERN_VISUAL_NODE_IDS.support,
         EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker,
       ],
       event_id: 'cavern_exit',
-      available_action_ids: [],
-      risk_preview: '保留当前探索成果并进入结算。',
-      reward_preview: '路线回看将在后续结算任务中承接。',
-      resource_cost_preview: {},
-      resource_reward_preview: {},
+      available_action_ids: withdrawalConfirmed ? [] : withdrawalPreview.available_action_ids,
+      risk_preview: withdrawalConfirmed
+        ? normalizedCavernState.withdrawal_summary || '撤离线已锁定，房主可以进入结算。'
+        : withdrawalPreview.risk_preview || '保留当前探索成果并进入结算。',
+      reward_preview: withdrawalConfirmed
+        ? '结算凭证会记录提前收尾、路线节点和组合收益。'
+        : '确认撤离后会提前收尾并锁定路线回看。',
+      resource_cost_preview: withdrawalPreview.resource_cost_preview,
+      resource_reward_preview: withdrawalPreview.resource_reward_preview,
     }),
   ].filter(Boolean);
 }
@@ -2686,6 +2840,64 @@ function getDragonBoatTeamState(room, actionId, positionIndex, trackLength) {
   return 'idle';
 }
 
+function getDragonBoatRaceTeamCount(room) {
+  const memberLimit = Math.max(2, Math.floor(Number(room?.member_limit) || ROOM_TEMPLATE_MAP.dragon_boat.default_member_limit));
+  if (memberLimit >= 8) return 4;
+  if (memberLimit >= 4) return 3;
+  return 2;
+}
+
+function getDragonBoatRivalPositionIndex(room, festivalState, basePositionIndex, trackLength, definition, rivalIndex) {
+  const gameplayState = room?.gameplay_state || {};
+  const scoreValue = Math.max(0, Math.floor(Number(gameplayState.score_value) || 0));
+  const pressureValue = clampNumber(festivalState?.pressure_value, 0, FESTIVAL_ROUND_PRESSURE_MAX);
+  const cheerValue = Math.max(0, Math.floor(Number(festivalState?.team_resources?.cheer) || 0));
+  const orderValue = Math.max(0, Math.floor(Number(festivalState?.team_resources?.order) || 0));
+  const roundNumber = Math.max(1, Math.floor(Number(festivalState?.round_number) || 1));
+  const playerAdvantage = Math.floor((scoreValue + cheerValue + orderValue) / 5) - Math.floor(pressureValue / 4);
+  const laneDrift = (roundNumber + rivalIndex) % 2;
+  const nextPositionIndex = basePositionIndex + definition.base_offset + laneDrift - playerAdvantage;
+  return clampNumber(nextPositionIndex, 0, Math.max(0, trackLength - 1));
+}
+
+function getDragonBoatRivalTeamState(actionId, positionIndex, trackLength) {
+  if (positionIndex >= trackLength - 1) return 'finished';
+  const effect = DRAGON_BOAT_ACTION_EFFECT_MAP[sanitizeText(actionId, 60)];
+  if (effect === 'boost') return 'boosted';
+  if (effect === 'protect') return 'protected';
+  if (effect === 'blocked') return 'blocked';
+  if (effect === 'retreat') return 'retreating';
+  if (effect === 'advance') return 'advancing';
+  return 'idle';
+}
+
+function buildDragonBoatRaceTeams(room, festivalState, positionIndex, teamState, lastActionId, trackLength) {
+  const teamCount = getDragonBoatRaceTeamCount(room);
+  const roomTeam = normalizeOnlineVisualTrackTeam({
+    team_id: DRAGON_BOAT_VISUAL_TEAM_ID,
+    label: '同心龙舟',
+    marker: '舟',
+    position_index: positionIndex,
+    state: teamState,
+    last_action_id: lastActionId,
+  });
+  const rivalTeams = DRAGON_BOAT_VISUAL_RIVAL_TEAMS
+    .slice(0, Math.max(0, teamCount - 1))
+    .map((definition, index) => {
+      const rivalPositionIndex = getDragonBoatRivalPositionIndex(room, festivalState, positionIndex, trackLength, definition, index);
+      return normalizeOnlineVisualTrackTeam({
+        team_id: definition.team_id,
+        label: definition.label,
+        marker: definition.marker,
+        position_index: rivalPositionIndex,
+        state: getDragonBoatRivalTeamState(definition.action_id, rivalPositionIndex, trackLength),
+        last_action_id: definition.action_id,
+      });
+    })
+    .filter(Boolean);
+  return [roomTeam, ...rivalTeams].filter(Boolean);
+}
+
 function getEscortConvoyRoomActionIds(room) {
   const template = getGameplayTemplateByDomain(room?.activity_domain, room?.gameplay_template_id, room?.template_id);
   return (template.action_options || [])
@@ -2812,6 +3024,7 @@ function buildDragonBoatVisualTrack(room, festivalState, existingTracks = [], op
   const teamState = getDragonBoatTeamState(room, lastActionId, positionIndex, trackLength);
   const isCompleted = room?.gameplay_state?.phase === 'completed';
   const currentEvent = getFestivalCurrentEvent(room, normalizedFestivalState);
+  const teams = buildDragonBoatRaceTeams(room, normalizedFestivalState, positionIndex, teamState, lastActionId, trackLength);
 
   const cells = DRAGON_BOAT_VISUAL_TRACK_CELLS.map((definition, index) => {
     const existingCell = (existingTrack?.cells || []).find(cell => cell.id === definition.id);
@@ -2819,13 +3032,16 @@ function buildDragonBoatVisualTrack(room, festivalState, existingTracks = [], op
     const currentCellActionIds = !isCompleted && index === positionIndex ? actionIds : [];
     const availableActionIds = [...new Set([...cellActionIds, ...currentCellActionIds])].slice(0, 12);
     const isCurrentEventCell = definition.event_id && definition.event_id === currentEvent?.id;
+    const occupantTeamIds = teams
+      .filter(team => team.position_index === index)
+      .map(team => team.team_id);
     return normalizeOnlineVisualTrackCell({
       ...existingCell,
       id: definition.id,
       label: definition.label,
       index,
       kind: definition.kind,
-      occupant_team_ids: index === positionIndex ? [DRAGON_BOAT_VISUAL_TEAM_ID] : [],
+      occupant_team_ids: occupantTeamIds,
       event_id: definition.event_id,
       effect_ids: definition.effect_ids,
       available_action_ids: availableActionIds,
@@ -2842,16 +3058,7 @@ function buildDragonBoatVisualTrack(room, festivalState, existingTracks = [], op
     length: trackLength,
     current_round: Math.max(0, Math.floor(Number(normalizedFestivalState.round_number) || 1) - 1),
     cells,
-    teams: [
-      {
-        team_id: DRAGON_BOAT_VISUAL_TEAM_ID,
-        label: '同心龙舟',
-        marker: '舟',
-        position_index: positionIndex,
-        state: teamState,
-        last_action_id: lastActionId,
-      },
-    ],
+    teams,
   });
 }
 
@@ -3158,6 +3365,7 @@ function normalizeRoom(entry) {
   const activityDomain = normalizeActivityDomain(entry?.activity_domain || entry?.domain || getTemplateDomain(requestedTemplate));
   const template = getRoomTemplateByDomain(activityDomain, entry?.template_id);
   const gameplayTemplate = getGameplayTemplateByDomain(activityDomain, entry?.gameplay_template_id, template.id);
+  const memberLimitBounds = getRoomTemplateMemberLimitBounds(template);
   return {
     id: String(entry?.id || makeId(ACTIVITY_ROOM_ID_PREFIX[activityDomain] || ACTIVITY_ROOM_ID_PREFIX.festival)),
     activity_domain: activityDomain,
@@ -3166,7 +3374,10 @@ function normalizeRoom(entry) {
     title: sanitizeText(entry?.title, 60) || template.label,
     host_username: sanitizeText(entry?.host_username, 40),
     host_display_name: sanitizeText(entry?.host_display_name, 40) || sanitizeText(entry?.host_username, 40),
-    member_limit: Math.min(4, Math.max(2, Math.floor(Number(entry?.member_limit) || template.default_member_limit || 4))),
+    member_limit: Math.min(
+      memberLimitBounds.max,
+      Math.max(memberLimitBounds.min, Math.floor(Number(entry?.member_limit) || template.default_member_limit || 4))
+    ),
     countdown_seconds: Math.min(30, Math.max(1, Math.floor(Number(entry?.countdown_seconds) || DEFAULT_COUNTDOWN_SECONDS))),
     reconnect_window_seconds: Math.min(600, Math.max(10, Math.floor(Number(entry?.reconnect_window_seconds) || DEFAULT_RECONNECT_WINDOW_SECONDS))),
     state: normalizeRoomState(entry?.state),
@@ -3512,6 +3723,10 @@ function getExpeditionCavernRouteNodeForAction(actionId, cavernState) {
   if (normalizedActionId === 'round_advance') {
     return getExpeditionCavernCurrentVisualNodeId(cavernState);
   }
+  if (normalizedActionId === 'node_combo') {
+    const firstCombo = Array.isArray(cavernState?.combo_records) ? cavernState.combo_records[0] : null;
+    return firstCombo?.node_ids?.[0] || EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad;
+  }
   return '';
 }
 
@@ -3596,8 +3811,14 @@ function buildExpeditionCavernRouteReplay(room) {
     });
   }).filter(Boolean);
 
+  const comboText = (cavernState.combo_records || []).length > 0
+    ? `；组合收益 ${cavernState.combo_records.map(entry => entry.label).join('、')}`
+    : '';
+  const withdrawalText = cavernState.withdrawal_state === 'confirmed'
+    ? `；${cavernState.withdrawal_summary || '已提前撤离收尾'}`
+    : '';
   const summary = routeNodes.length > 0
-    ? `路线 ${routeNodes.map(node => node.label).join(' -> ')}；风险峰值 ${riskPeak.value}/${EXPEDITION_CAVERN_RISK_MAX}。`
+    ? `路线 ${routeNodes.map(node => node.label).join(' -> ')}；风险峰值 ${riskPeak.value}/${EXPEDITION_CAVERN_RISK_MAX}${comboText}${withdrawalText}。`
     : `矿洞探索记录已生成；风险峰值 ${riskPeak.value}/${EXPEDITION_CAVERN_RISK_MAX}。`;
   return normalizeReceiptRouteReplay({
     kind: 'expedition_cavern',
@@ -3656,6 +3877,110 @@ function buildFestivalRoundLog(room, festivalState) {
         created_at: entry.created_at,
       };
     });
+}
+
+function buildLanternFairRouteReplay(room) {
+  if (!isLanternFairRoom(room)) return normalizeReceiptRouteReplay(null);
+  const gameplayState = ensureRoomGameplayState(room);
+  const festivalState = normalizeFestivalState(gameplayState.festival_state, room.template_id);
+  syncFestivalRoleAssignments(room, festivalState);
+  syncLanternFairVisualState(room, festivalState);
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const objects = visualState.objects.length > 0
+    ? visualState.objects
+    : buildLanternFairVisualObjects(room, festivalState, visualState.objects);
+  const objectById = new Map(objects.map(object => [object.id, object]));
+  const routeNodes = objects.map((object, index) => normalizeReceiptRouteReplayNode({
+    id: object.id,
+    label: object.label,
+    kind: object.kind,
+    state: object.state,
+    order: index + 1,
+  })).filter(Boolean);
+  const orderedLog = buildFestivalRoundLog(room, festivalState)
+    .filter(entry => entry.action_id && entry.action_id !== 'round_advance')
+    .reverse();
+  const memoryRecords = LANTERN_FAIR_MEMORY_DEFS.map(definition => {
+    const entry = orderedLog.find(logEntry => definition.action_ids.includes(logEntry.action_id));
+    const object = objectById.get(definition.object_id);
+    return normalizeReceiptRouteReplayMemoryRecord({
+      type: definition.type,
+      label: definition.label,
+      actor_username: entry?.actor_username || '',
+      actor_display_name: entry?.actor_display_name || '',
+      action_id: entry?.action_id || '',
+      action_label: entry?.action_label || '',
+      object_id: definition.object_id,
+      object_label: object?.label || definition.label,
+      round_number: entry?.round_number || 0,
+      summary: entry
+        ? `${entry.actor_display_name || entry.actor_username} 在第 ${entry.round_number} 回合通过「${entry.action_label}」完成${definition.label}记录。${entry.summary}`
+        : definition.fallback,
+    });
+  }).filter(Boolean);
+  const highlightNodes = [
+    ...memoryRecords.filter(record => record.actor_username).map(record => normalizeReceiptRouteReplayHighlight({
+      node_id: record.object_id,
+      label: record.label,
+      summary: record.summary,
+      type: record.type === 'photo' ? 'reward' : 'success',
+    })),
+    ...(visualState.highlights || []).slice(0, 4).map(highlight => {
+      const object = objectById.get(highlight.visual_id);
+      return normalizeReceiptRouteReplayHighlight({
+        node_id: highlight.visual_id,
+        label: object?.label || highlight.label,
+        summary: highlight.summary,
+        type: highlight.type || 'success',
+      });
+    }),
+  ].filter(Boolean).slice(0, 8);
+
+  let runningPressure = FESTIVAL_INITIAL_PRESSURE;
+  let pressurePeak = {
+    value: runningPressure,
+    round_number: 1,
+    action_label: '',
+    actor_display_name: '',
+    summary: '开场时的基础人流压力。',
+  };
+  for (const entry of orderedLog) {
+    runningPressure = clampNumber(runningPressure + entry.pressure_delta, 0, FESTIVAL_ROUND_PRESSURE_MAX);
+    if (runningPressure >= pressurePeak.value) {
+      pressurePeak = {
+        value: runningPressure,
+        round_number: entry.round_number,
+        action_label: entry.action_label,
+        actor_display_name: entry.actor_display_name,
+        summary: entry.summary,
+      };
+    }
+  }
+
+  const roleByUsername = new Map(buildFestivalTeamRoles(room, festivalState).map(role => [role.username, role]));
+  const memberContributions = getSortedGameplayContributions(room).map(entry => {
+    const role = roleByUsername.get(entry.username);
+    return normalizeReceiptRouteReplayContribution({
+      ...entry,
+      role_label: role?.role_label || '',
+      summary: `${entry.display_name} 推进 ${entry.progress_value}，现场值 ${entry.score_value}，行动 ${entry.action_count} 次。`,
+    });
+  }).filter(Boolean);
+  const signedRecords = memoryRecords.filter(record => record.actor_username);
+  const memoryText = signedRecords.length > 0
+    ? signedRecords.map(record => `${record.label}：${record.actor_display_name || record.actor_username}`).join('；')
+    : '尚未形成署名高光';
+  const summary = `灯会留影记录已生成；${memoryText}；留影值 ${festivalState.team_resources.memory || 0}/${FESTIVAL_RESOURCE_DEFS.find(item => item.id === 'memory')?.max_value || 6}，秩序 ${festivalState.team_resources.order || 0}/${FESTIVAL_RESOURCE_DEFS.find(item => item.id === 'order')?.max_value || 8}，压力峰值 ${pressurePeak.value}/${FESTIVAL_ROUND_PRESSURE_MAX}。`;
+  return normalizeReceiptRouteReplay({
+    kind: 'lantern_fair',
+    title: '灯会留影记录',
+    summary,
+    route_nodes: routeNodes,
+    highlight_nodes: highlightNodes,
+    risk_peak: pressurePeak,
+    member_contributions: memberContributions,
+    memory_records: memoryRecords,
+  });
 }
 
 function buildDragonBoatRouteReplay(room) {
@@ -3744,21 +4069,29 @@ function buildDragonBoatRouteReplay(room) {
       if (right.position_index !== left.position_index) return right.position_index - left.position_index;
       const rightBoosted = right.state === 'boosted' || right.state === 'advancing' ? 1 : 0;
       const leftBoosted = left.state === 'boosted' || left.state === 'advancing' ? 1 : 0;
-      return rightBoosted - leftBoosted;
+      if (rightBoosted !== leftBoosted) return rightBoosted - leftBoosted;
+      return String(left.team_id).localeCompare(String(right.team_id));
     });
   const raceRankings = rankedTeams.map((entry, index) => {
     const finished = entry.state === 'finished' || entry.position_index >= trackLength - 1;
     const rank = index + 1;
     const rankLabel = rankedTeams.length > 1 ? `第 ${rank} / ${rankedTeams.length} 名` : '合作队';
+    const teamScoreValue = Math.max(
+      0,
+      Math.floor(Number(gameplayState.score_value) || 0)
+        + ((entry.position_index - positionIndex) * 2)
+        + (entry.state === 'boosted' || entry.state === 'advancing' ? 1 : 0)
+        - (entry.state === 'blocked' || entry.state === 'retreating' ? 1 : 0)
+    );
     return normalizeReceiptRouteReplayRaceRanking({
       team_id: entry.team_id,
       label: entry.label,
       rank,
       rank_label: rankLabel,
       position_index: entry.position_index,
-      score_value: gameplayState.score_value,
+      score_value: teamScoreValue,
       finished,
-      summary: `${entry.label || entry.team_id} 推进到第 ${Math.min(entry.position_index + 1, trackLength)} / ${trackLength} 格，${finished ? '已冲线' : '仍在赛道中'}。`,
+      summary: `${entry.label || entry.team_id} 推进到第 ${Math.min(entry.position_index + 1, trackLength)} / ${trackLength} 格，赛舟分 ${teamScoreValue}，${finished ? '已冲线' : '仍在赛道中'}。`,
     });
   }).filter(Boolean);
   const roomTeamRace = raceRankings.find(entry => entry.team_id === team?.team_id) || raceRankings[0] || null;
@@ -3891,6 +4224,124 @@ function createExpeditionCavernRoundSummary(room, cavernState, actor, actionOpti
   return parts.join('，');
 }
 
+function buildExpeditionCavernActionActorMap(cavernState) {
+  return (cavernState.round_log || [])
+    .filter(entry => entry.action_id && entry.actor_username && entry.action_id !== 'round_advance')
+    .reduce((map, entry) => {
+      if (!map.has(entry.action_id)) map.set(entry.action_id, entry.actor_username);
+      return map;
+    }, new Map());
+}
+
+function applyExpeditionCavernNodeCombos(room, cavernState, actor) {
+  cavernState.combo_records = Array.isArray(cavernState.combo_records) ? cavernState.combo_records : [];
+  const existingComboIds = new Set(cavernState.combo_records.map(entry => entry.combo_id));
+  const resolvedActionIds = new Set((cavernState.round_log || [])
+    .map(entry => sanitizeText(entry.action_id, 40))
+    .filter(actionId => actionId && actionId !== 'round_advance' && actionId !== 'node_combo'));
+  const actorByActionId = buildExpeditionCavernActionActorMap(cavernState);
+  const newRecords = [];
+  for (const combo of EXPEDITION_CAVERN_NODE_COMBO_DEFS) {
+    if (existingComboIds.has(combo.id)) continue;
+    const requiredActions = Array.isArray(combo.action_ids) ? combo.action_ids : [];
+    if (!requiredActions.every(actionId => resolvedActionIds.has(actionId))) continue;
+    const resourceDelta = normalizeExpeditionCavernResourceDelta(combo.resource_delta);
+    const riskDelta = Math.floor(Number(combo.risk_delta) || 0);
+    const scoreDelta = Math.max(0, Math.floor(Number(combo.score_delta) || 0));
+    if (scoreDelta > 0) room.gameplay_state.score_value += scoreDelta;
+    if (riskDelta !== 0) cavernState.risk_value = clampNumber(cavernState.risk_value + riskDelta, 0, cavernState.risk_max);
+    applyExpeditionCavernResourceDelta(cavernState, resourceDelta);
+    const actorUsernames = [...new Set(requiredActions.map(actionId => actorByActionId.get(actionId)).filter(Boolean))];
+    const record = normalizeExpeditionCavernComboRecord({
+      combo_id: combo.id,
+      label: combo.label,
+      action_ids: requiredActions,
+      node_ids: combo.node_ids,
+      actor_usernames: actorUsernames,
+      score_delta: scoreDelta,
+      risk_delta: riskDelta,
+      resource_delta: resourceDelta,
+      summary: combo.summary,
+      created_at: nowSeconds(),
+    });
+    if (!record) continue;
+    cavernState.combo_records = [record, ...cavernState.combo_records].slice(0, 12);
+    const roundLogEntry = normalizeExpeditionCavernRoundLogEntry({
+      round_number: cavernState.round_number,
+      event_id: cavernState.current_event_id,
+      actor_username: actor?.username,
+      actor_display_name: actor?.displayName || actor?.username,
+      action_id: 'node_combo',
+      action_label: combo.label,
+      role_id: '',
+      role_label: '组合',
+      summary: combo.summary,
+      progress_delta: 0,
+      score_delta: scoreDelta,
+      risk_delta: riskDelta,
+      resource_delta: resourceDelta,
+      created_at: nowSeconds(),
+    });
+    cavernState.round_log = [roundLogEntry, ...(cavernState.round_log || [])].slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT);
+    newRecords.push(record);
+  }
+  return newRecords;
+}
+
+function applyExpeditionCavernWithdrawal(room, cavernState, actor, actionOption, contribution) {
+  const baseRiskDelta = Math.floor(Number(actionOption.risk_delta) || 0);
+  const baseResourceDelta = normalizeExpeditionCavernResourceDelta(actionOption.resource_delta);
+  if (baseRiskDelta !== 0) {
+    cavernState.risk_value = clampNumber(cavernState.risk_value + baseRiskDelta, 0, cavernState.risk_max);
+  }
+  applyExpeditionCavernResourceDelta(cavernState, baseResourceDelta);
+  const comboRecords = applyExpeditionCavernNodeCombos(room, cavernState, actor);
+  cavernState.withdrawal_state = 'confirmed';
+  cavernState.withdrawal_actor_username = sanitizeText(actor.username, 40);
+  cavernState.withdrawal_actor_display_name = sanitizeText(actor.displayName || actor.username, 40);
+  cavernState.withdrawal_at = nowSeconds();
+  cavernState.withdrawal_summary = comboRecords.length > 0
+    ? `提前撤离已确认，并结算 ${comboRecords.length} 个节点组合收益。`
+    : '提前撤离已确认，当前探索成果已锁定。';
+  room.gameplay_state.phase = 'completed';
+  room.gameplay_state.completed_at = nowSeconds();
+  const roundLogEntry = normalizeExpeditionCavernRoundLogEntry({
+    round_number: cavernState.round_number,
+    event_id: 'cavern_exit',
+    actor_username: actor.username,
+    actor_display_name: actor.displayName,
+    action_id: actionOption.id,
+    action_label: actionOption.label,
+    role_id: contribution?.role_id || '',
+    role_label: contribution?.role_label || '',
+    summary: createExpeditionCavernRoundSummary(room, cavernState, actor, actionOption, contribution, baseResourceDelta, baseRiskDelta, cavernState.withdrawal_summary),
+    progress_delta: 0,
+    score_delta: 0,
+    risk_delta: baseRiskDelta,
+    resource_delta: baseResourceDelta,
+    created_at: nowSeconds(),
+  });
+  cavernState.round_log = [roundLogEntry, ...(cavernState.round_log || [])].slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT);
+  cavernState.round_actions = [
+    ...(cavernState.round_actions || []),
+    {
+      round_number: cavernState.round_number,
+      action_id: actionOption.id,
+      actor_username: actor.username,
+      created_at: nowSeconds(),
+    },
+  ].slice(-12);
+  cavernState.recent_feedback = comboRecords.length > 0 ? comboRecords[0].summary : roundLogEntry.summary;
+  syncExpeditionCavernVisualState(room, cavernState, {
+    incrementRevision: true,
+    selectedVisualId: EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit,
+    claimedBy: actor.username,
+    recentFeedback: roundLogEntry.summary,
+  });
+  touchRoom(room);
+  return roundLogEntry;
+}
+
 function createFestivalRoundSummary(room, festivalState, actor, actionOption, contribution, resourceDelta, pressureDelta, extraSummary = '') {
   const event = getFestivalCurrentEvent(room, festivalState);
   const resourceText = summarizeFestivalResourceDelta(resourceDelta);
@@ -4008,6 +4459,9 @@ function advanceFestivalRound(room, festivalState, actor) {
 }
 
 function applyExpeditionCavernRoundEffects(room, cavernState, actor, actionOption, contribution) {
+  if (actionOption.id === 'confirm_withdrawal') {
+    return applyExpeditionCavernWithdrawal(room, cavernState, actor, actionOption, contribution);
+  }
   const event = getExpeditionCavernCurrentEvent(cavernState);
   const baseRiskDelta = Math.floor(Number(actionOption.risk_delta) || 0);
   const baseResourceDelta = normalizeExpeditionCavernResourceDelta(actionOption.resource_delta);
@@ -4071,12 +4525,13 @@ function applyExpeditionCavernRoundEffects(room, cavernState, actor, actionOptio
       created_at: nowSeconds(),
     },
   ].slice(-12);
-  cavernState.recent_feedback = roundLogEntry.summary;
+  const comboRecords = applyExpeditionCavernNodeCombos(room, cavernState, actor);
+  cavernState.recent_feedback = comboRecords.length > 0 ? comboRecords[0].summary : roundLogEntry.summary;
   syncExpeditionCavernVisualState(room, cavernState, {
     incrementRevision: true,
     selectedVisualId: EXPEDITION_CAVERN_ACTION_NODE_MAP[actionOption.id] || getExpeditionCavernCurrentVisualNodeId(cavernState),
     claimedBy: actor.username,
-    recentFeedback: roundLogEntry.summary,
+    recentFeedback: comboRecords.length > 0 ? comboRecords[0].summary : roundLogEntry.summary,
   });
   if (cavernState.round_actions.filter(entry => entry.round_number === cavernState.round_number).length >= EXPEDITION_CAVERN_ROUND_ACTION_TARGET) {
     advanceExpeditionCavernRound(room, cavernState, actor);
@@ -4215,6 +4670,24 @@ function buildExpeditionCavernSnapshot(room, viewerMember, gameplayState) {
       actor_username: entry.actor_username,
       created_at: entry.created_at,
     })),
+    combo_records: (cavernState.combo_records || []).slice(0, 12).map(entry => ({
+      combo_id: entry.combo_id,
+      label: entry.label,
+      action_ids: [...entry.action_ids],
+      node_ids: [...entry.node_ids],
+      actor_usernames: [...entry.actor_usernames],
+      score_delta: entry.score_delta,
+      risk_delta: entry.risk_delta,
+      resource_delta: entry.resource_delta,
+      resource_delta_text: summarizeExpeditionCavernResourceDelta(entry.resource_delta),
+      summary: entry.summary,
+      created_at: entry.created_at,
+    })),
+    withdrawal_state: cavernState.withdrawal_state,
+    withdrawal_summary: cavernState.withdrawal_summary,
+    withdrawal_actor_username: cavernState.withdrawal_actor_username,
+    withdrawal_actor_display_name: cavernState.withdrawal_actor_display_name,
+    withdrawal_at: cavernState.withdrawal_at,
     round_log: roundLog,
     recent_feedback: cavernState.recent_feedback,
   };
@@ -4542,10 +5015,33 @@ function buildFestivalMemorialOverview(username) {
         photo_moment_label: entry.photo_moment_label,
         photo_line: entry.photo_line,
         photo_taken: entry.photo_taken,
+        memory_records: [...entry.memory_records],
       }));
   } catch {
     return [];
   }
+}
+
+function listFestivalFriendMemorialOverview(viewerUsername, payload = {}) {
+  const viewer = sanitizeText(viewerUsername, 40);
+  const targetUsername = sanitizeText(payload?.target_username || payload?.username, 40);
+  if (!viewer) throw createError('未登录账号不能查看好友节会纪念', 401);
+  if (!targetUsername) throw createError('请先指定要查看的好友用户名');
+  const isSelf = viewer === targetUsername;
+  const isFriend = isSelf || taoyuanSocialRuntime.isFriendWith(viewer, targetUsername);
+  if (!isFriend) throw createError('只能查看已互为好友的节会纪念', 403);
+  return {
+    target_username: targetUsername,
+    target_display_name: targetUsername,
+    viewer_username: viewer,
+    is_self: isSelf,
+    is_friend: true,
+    memorials: buildFestivalMemorialOverview(targetUsername),
+  };
+}
+
+function isLanternFairRoom(room) {
+  return room?.activity_domain === 'festival' && room?.template_id === 'lantern_fair';
 }
 
 function ensureFestivalRewardWallet(saveData) {
@@ -4608,6 +5104,9 @@ function normalizeFestivalMemorialEntry(entry) {
     photo_moment_label: sanitizeText(entry?.photo_moment_label, 40),
     photo_line: sanitizeText(entry?.photo_line, 120),
     photo_taken: entry?.photo_taken === true,
+    memory_records: Array.isArray(entry?.memory_records)
+      ? entry.memory_records.map(normalizeReceiptRouteReplayMemoryRecord).filter(Boolean).slice(0, 8)
+      : [],
   };
 }
 
@@ -4743,6 +5242,11 @@ function buildFestivalMemorialEntry(room, receipt) {
     : '独自留档';
   const titleLabel = sanitizeText(receipt.reward_breakdown?.title_reward?.label, 40);
   const decorationLabel = sanitizeText(receipt.reward_breakdown?.decoration_reward?.label, 40);
+  const memoryRecords = normalizeReceiptRouteReplay(receipt.route_replay).memory_records;
+  const signedMemoryRecords = memoryRecords.filter(record => record.actor_username);
+  const memoryLine = signedMemoryRecords.length > 0
+    ? `高光：${signedMemoryRecords.map(record => `${record.label}由${record.actor_display_name || record.actor_username}完成`).join('、')}`
+    : '';
   return normalizeFestivalMemorialEntry({
     memorial_id: `festival_memorial:${receipt.room_id}:${receipt.target_username}:v${receipt.settlement_version}`,
     label: `${template.label}纪念`,
@@ -4762,8 +5266,9 @@ function buildFestivalMemorialEntry(room, receipt) {
     squadmate_friend_usernames: friendSquadmates.map(member => member.username),
     squadmate_friend_display_names: friendSquadmates.map(member => member.display_name),
     photo_moment_label: `${template.label}合影`,
-    photo_line: `${receipt.target_display_name} 与 ${squadmateDisplayLine} 在 ${template.label} 留下了一张${gameplayTemplate.label}留影。${friendDisplayLine}`,
+    photo_line: `${receipt.target_display_name} 与 ${squadmateDisplayLine} 在 ${template.label} 留下了一张${gameplayTemplate.label}留影。${friendDisplayLine}${memoryLine ? `；${memoryLine}` : ''}`,
     photo_taken: true,
+    memory_records: memoryRecords,
   });
 }
 
@@ -5746,7 +6251,9 @@ async function settleActivityRoom(roomId, actor = {}) {
       ? buildDragonBoatRouteReplay(room)
       : isEscortConvoyRoom(room)
         ? buildEscortConvoyRouteReplay(room)
-    : normalizeReceiptRouteReplay(null);
+        : isLanternFairRoom(room)
+          ? buildLanternFairRouteReplay(room)
+          : normalizeReceiptRouteReplay(null);
   const nextReceipts = joinedMembers.map(member => {
     const rankingIndex = Math.max(0, rankedContributions.findIndex(entry => entry.username === member.username));
     const rewardPreview = buildFestivalReceiptReward(room, member, rankingIndex);
@@ -5967,6 +6474,7 @@ async function retryAdminActivityRoomSettlement(roomId) {
 
 module.exports = {
   listFestivalRoomOverview,
+  listFestivalFriendMemorialOverview,
   createFestivalRoom,
   inviteFestivalRoomMember,
   joinFestivalRoom,

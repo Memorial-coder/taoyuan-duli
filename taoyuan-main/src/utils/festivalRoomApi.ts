@@ -31,6 +31,8 @@ export interface FestivalRoomTemplate {
   label: string
   summary: string
   default_member_limit: number
+  min_member_limit: number
+  max_member_limit: number
   opening_title: string
   recommended_gameplay_template_ids: string[]
 }
@@ -267,6 +269,19 @@ export interface FestivalRoomRouteReplayRaceRanking {
   summary: string
 }
 
+export interface FestivalRoomRouteReplayMemoryRecord {
+  type: string
+  label: string
+  actor_username: string
+  actor_display_name: string
+  action_id: string
+  action_label: string
+  object_id: string
+  object_label: string
+  round_number: number
+  summary: string
+}
+
 export interface FestivalRoomRouteReplay {
   kind: string
   title: string
@@ -283,6 +298,7 @@ export interface FestivalRoomRouteReplay {
   member_contributions: FestivalRoomRouteReplayContribution[]
   race_result: FestivalRoomRouteReplayRaceResult
   race_rankings: FestivalRoomRouteReplayRaceRanking[]
+  memory_records: FestivalRoomRouteReplayMemoryRecord[]
 }
 
 export interface FestivalRoomReceiptPreview {
@@ -332,6 +348,7 @@ export interface FestivalMemorialSnapshot {
   photo_moment_label: string
   photo_line: string
   photo_taken: boolean
+  memory_records: FestivalRoomRouteReplayMemoryRecord[]
 }
 
 export interface FestivalRoomSnapshot {
@@ -418,6 +435,20 @@ export interface FestivalRoomOverviewResponse extends FestivalRoomOverview {
   msg?: string
 }
 
+export interface FestivalFriendMemorialOverview {
+  target_username: string
+  target_display_name: string
+  viewer_username: string
+  is_self: boolean
+  is_friend: boolean
+  memorials: FestivalMemorialSnapshot[]
+}
+
+export interface FestivalFriendMemorialOverviewResponse extends FestivalFriendMemorialOverview {
+  ok: boolean
+  msg?: string
+}
+
 const ensureLoggedInContext = async () => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') {
@@ -452,6 +483,23 @@ export const fetchFestivalRoomOverview = async (): Promise<FestivalRoomOverview 
     recent_memorials: data.recent_memorials ?? [],
     recent_receipts: data.recent_receipts ?? [],
   } : null
+}
+
+export const fetchFestivalFriendMemorials = async (targetUsername: string): Promise<FestivalFriendMemorialOverview> => {
+  const normalizedTarget = targetUsername.trim()
+  if (!normalizedTarget) throw new Error('请先填写要回看的好友用户名')
+  const data = await request<FestivalFriendMemorialOverviewResponse>(
+    `/api/taoyuan/online/festival/memorials/${encodeURIComponent(normalizedTarget)}`
+  )
+  if (!data) throw new Error('好友节会纪念读取失败')
+  return {
+    target_username: data.target_username,
+    target_display_name: data.target_display_name,
+    viewer_username: data.viewer_username,
+    is_self: data.is_self,
+    is_friend: data.is_friend,
+    memorials: data.memorials ?? [],
+  }
 }
 
 const buildSignedJsonInit = async (method: 'POST', body?: Record<string, unknown>) => {

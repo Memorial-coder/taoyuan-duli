@@ -143,6 +143,20 @@ export interface ExpeditionCavernRoundLogSnapshot {
   created_at: number
 }
 
+export interface ExpeditionCavernComboRecordSnapshot {
+  combo_id: string
+  label: string
+  action_ids: string[]
+  node_ids: string[]
+  actor_usernames: string[]
+  score_delta: number
+  risk_delta: number
+  resource_delta: Record<string, number>
+  resource_delta_text: string
+  summary: string
+  created_at: number
+}
+
 export interface ExpeditionCavernStateSnapshot {
   round_number: number
   round_text: string
@@ -154,6 +168,12 @@ export interface ExpeditionCavernStateSnapshot {
   role_assignments: ExpeditionCavernRoleSnapshot[]
   my_role: ExpeditionCavernRoleSnapshot | null
   round_actions: ExpeditionCavernRoundActionSnapshot[]
+  combo_records: ExpeditionCavernComboRecordSnapshot[]
+  withdrawal_state: string
+  withdrawal_summary: string
+  withdrawal_actor_username: string
+  withdrawal_actor_display_name: string
+  withdrawal_at: number
   round_log: ExpeditionCavernRoundLogSnapshot[]
   recent_feedback: string
 }

@@ -160,6 +160,8 @@ assert.ok(snapshot.visual_state.objects.find(object => object.id === 'manor_fiel
 assert.ok(snapshot.visual_state.objects.find(object => object.id === 'manor_field')?.available_action_ids.includes('cure_pests'), 'field should expose pest action')
 assert.ok(snapshot.visual_state.objects.find(object => object.id === 'manor_animal_shed')?.available_action_ids.includes('feed_animals'), 'animal shed should expose feeding action')
 assert.equal(snapshot.care_state.remaining_care_count, 4, 'visitor should start with four care actions')
+assert.equal(snapshot.care_state.audit.visitor_limit_enforced, true, 'care audit should expose visitor limit enforcement')
+assert.match(snapshot.care_state.audit.reward_cap_summary, /每位访客每日 4 次/, 'care audit should expose daily care cap')
 
 const firstCare = await runtime.submitManorCareAction({
   target_username: owner,
@@ -170,6 +172,7 @@ assert.equal(firstCare.entry.action_id, 'water_field', 'care action should be re
 assert.equal(firstCare.snapshot.visual_state.revision, 1, 'visual revision should advance after care')
 assert.equal(firstCare.snapshot.care_entries[0]?.visitor_username, visitor, 'owner log should include visitor')
 assert.equal(firstCare.snapshot.care_state.remaining_care_count, 3, 'care limit should decrement')
+assert.equal(firstCare.snapshot.visitor_activity_entries[0]?.kind, 'care', 'visitor activity audit should surface care records')
 
 const duplicateCare = await runtime.submitManorCareAction({
   target_username: owner,

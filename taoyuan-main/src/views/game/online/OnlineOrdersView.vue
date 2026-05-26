@@ -295,6 +295,21 @@
                 :action-running="coopOrderStore.actionRunning"
                 @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
               />
+              <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
+                <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
+                  <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
+                  <span>已落账 {{ order.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ order.relay_settlement_summary.pending_reward_value }}</span>
+                </div>
+                <div class="mt-2 grid gap-1 md:grid-cols-2">
+                  <p
+                    v-for="share in order.relay_settlement_summary.shares"
+                    :key="share.stage_id"
+                    class="truncate text-[10px] text-muted"
+                  >
+                    {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }}
+                  </p>
+                </div>
+              </div>
               <p v-if="order.priority_reasons?.length" class="mt-1 text-[10px] text-warning">
                 推荐理由：{{ order.priority_reasons.join('；') }}
               </p>
@@ -401,6 +416,21 @@
               :action-running="coopOrderStore.actionRunning"
               @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
             />
+            <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
+              <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
+                <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
+                <span>已落账 {{ order.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ order.relay_settlement_summary.pending_reward_value }}</span>
+              </div>
+              <div class="mt-2 grid gap-1 md:grid-cols-2">
+                <p
+                  v-for="share in order.relay_settlement_summary.shares"
+                  :key="share.stage_id"
+                  class="truncate text-[10px] text-muted"
+                >
+                  {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }}
+                </p>
+              </div>
+            </div>
             <p v-if="order.assignee_username" class="mt-1 text-[10px] text-success">
               当前接单人：{{ order.assignee_display_name || order.assignee_username }}
             </p>
@@ -546,6 +576,21 @@
                 :action-running="coopOrderStore.actionRunning"
                 @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
               />
+              <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
+                <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
+                  <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
+                  <span>已落账 {{ order.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ order.relay_settlement_summary.pending_reward_value }}</span>
+                </div>
+                <div class="mt-2 grid gap-1 md:grid-cols-2">
+                  <p
+                    v-for="share in order.relay_settlement_summary.shares"
+                    :key="share.stage_id"
+                    class="truncate text-[10px] text-muted"
+                  >
+                    {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }}
+                  </p>
+                </div>
+              </div>
 
               <div v-if="order.collaboration_mode === 'multi_stage'" class="mt-2 space-y-2">
                 <div
@@ -945,6 +990,14 @@
   }
   const getCompensationStatusLabel = (status: 'pending' | 'resolved') =>
     status === 'pending' ? '待重试' : '已解决'
+  const getRelaySettlementStatusLabel = (status: 'planned' | 'settling' | 'settled' | 'compensation_pending') => {
+    if (status === 'settled') return '已完成分账'
+    if (status === 'settling') return '分账进行中'
+    if (status === 'compensation_pending') return '补偿处理中'
+    return '待分账'
+  }
+  const getRelaySettlementRouteLabel = (route: 'personal' | 'shared_fund') =>
+    route === 'shared_fund' ? '共同基金' : '个人铜钱'
   const formatDeliveredItems = (items: Array<{ item_id: string; quantity: number }>) => {
     if (items.length === 0) return '未登记资源'
     return items.map(item => `${item.item_id} ×${item.quantity}`).join('、')

@@ -221,6 +221,106 @@ export interface OnlineSubscriptionOverviewResponse {
   msg?: string
 }
 
+export interface OnlineManorInteractionVisitorCount {
+  visitor_username: string
+  visitor_display_name: string
+  count: number
+  limit: number
+  remaining: number
+}
+
+export interface OnlineManorInteractionAudit {
+  visitor_limit_enforced: boolean
+  manor_limit_enforced: boolean
+  object_limit_enforced: boolean
+  whitelist_enforced?: boolean
+  reward_cap_summary: string
+  settlement_summary: string
+  owner_reserved_percent?: number
+  visitor_reward_quantity_cap?: number
+  recent_window_seconds: number
+  recent_window_count: number
+  daily_visitor_counts: OnlineManorInteractionVisitorCount[]
+  risk_flags: string[]
+  dispute_log_available: boolean
+}
+
+export interface OnlineManorVisitorActivityEntry {
+  id: string
+  source_id: string
+  kind: 'visit' | 'care' | 'steal' | 'care_room'
+  kind_label: string
+  visitor_username: string
+  visitor_display_name: string
+  title: string
+  summary: string
+  object_label: string
+  action_label: string
+  audit_note: string
+  created_at: number
+}
+
+export interface OnlineManorCareRoomParticipant {
+  username: string
+  display_name: string
+  role_id: string
+  role_label: string
+  joined_at: number
+}
+
+export interface OnlineManorCareRoomAction {
+  id: string
+  action_id: string
+  action_label: string
+  role_id: string
+  role_label: string
+  object_id: string
+  object_label: string
+  actor_username: string
+  actor_display_name: string
+  expected_order: number
+  actual_order: number
+  order_risk: boolean
+  role_matched: boolean
+  risk_delta: number
+  health_delta: number
+  idempotency_key: string
+  summary: string
+  created_at: number
+}
+
+export interface OnlineManorCareRoom {
+  id: string
+  target_username: string
+  target_save_id: number
+  target_save_slot: number | null
+  creator_username: string
+  creator_display_name: string
+  member_limit: number
+  day_tag: string
+  idempotency_key: string
+  status: 'open' | 'in_progress' | 'completed' | 'expired'
+  window_started_at: number
+  window_ends_at: number
+  participants: OnlineManorCareRoomParticipant[]
+  actions: OnlineManorCareRoomAction[]
+  risk_score: number
+  health_score: number
+  health_delta: number
+  settlement_receipt_id: string
+  settled_by: string
+  settled_at: number
+  summary: string
+  created_at: number
+  updated_at: number
+  viewer_is_member: boolean
+  remaining_seconds: number
+  available_action_ids: string[]
+  can_join: boolean
+  can_act: boolean
+  can_settle: boolean
+}
+
 export interface OnlineManorSnapshot {
   username: string
   display_name: string
@@ -275,6 +375,7 @@ export interface OnlineManorSnapshot {
     created_at: number
     updated_at: number
   }>
+  visitor_activity_entries: OnlineManorVisitorActivityEntry[]
   guide_points: Array<{
     id: string
     title: string
@@ -329,6 +430,7 @@ export interface OnlineManorSnapshot {
     remaining_care_count: number
     manor_remaining_care_count: number
     can_care: boolean
+    audit: OnlineManorInteractionAudit
     care_denied_reason: string
   }
   steal_state: {
@@ -349,6 +451,7 @@ export interface OnlineManorSnapshot {
     manor_remaining_steal_count: number
     can_steal: boolean
     steal_denied_reason: string
+    audit: OnlineManorInteractionAudit
     whitelist_summary: string
     target_use_hints: Record<string, {
       item_id: string
@@ -401,10 +504,41 @@ export interface OnlineManorSnapshot {
     idempotency_key: string
     owner_compensation: string
     visitor_reward: string
+    visitor_reward_quantity?: number
+    reward_daily_cap?: number
+    owner_reserved_ratio?: number
+    settlement_receipt_id?: string
     note: string
     summary: string
     created_at: number
   }>
+  care_room_state: {
+    viewer_username: string
+    day_tag: string
+    limits: {
+      min_members: number
+      max_members: number
+      window_seconds: number
+    }
+    action_labels: Record<string, string>
+    role_labels: Record<string, string>
+    action_effects: Record<string, {
+      role_id: string
+      role_label: string
+      object_id: string
+      object_label: string
+      expected_order: number
+      health_delta: number
+      risk_delta: number
+      summary: string
+    }>
+    can_create_room: boolean
+    create_denied_reason: string
+    active_rooms: OnlineManorCareRoom[]
+    recent_records: OnlineManorCareRoom[]
+    record_summary: string
+  }
+  care_room_records: OnlineManorCareRoom[]
   theme_week: {
     season: string
     week_tag: string
@@ -838,6 +972,46 @@ export const submitManorSteal = async (payload: {
   })
 }
 
+export const createManorCareRoom = async (payload: {
+  target_username: string
+  target_save_id?: number
+  member_limit?: number
+  idempotency_key?: string
+}) => {
+  return requestSocialAction<{ ok: boolean; room?: OnlineManorCareRoom; snapshot?: OnlineManorSnapshot; idempotent?: boolean }>('/api/taoyuan/online/manor/care-rooms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const joinManorCareRoom = async (roomId: string) => {
+  return requestSocialAction<{ ok: boolean; room?: OnlineManorCareRoom; snapshot?: OnlineManorSnapshot; idempotent?: boolean }>(`/api/taoyuan/online/manor/care-rooms/${encodeURIComponent(roomId)}/join`, {
+    method: 'POST'
+  })
+}
+
+export const submitManorCareRoomAction = async (roomId: string, payload: {
+  action_id: string
+  idempotency_key?: string
+}) => {
+  return requestSocialAction<{ ok: boolean; action?: OnlineManorCareRoomAction; room?: OnlineManorCareRoom; snapshot?: OnlineManorSnapshot; idempotent?: boolean }>(`/api/taoyuan/online/manor/care-rooms/${encodeURIComponent(roomId)}/action`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const settleManorCareRoom = async (roomId: string, payload: {
+  idempotency_key?: string
+} = {}) => {
+  return requestSocialAction<{ ok: boolean; room?: OnlineManorCareRoom; snapshot?: OnlineManorSnapshot; idempotent?: boolean }>(`/api/taoyuan/online/manor/care-rooms/${encodeURIComponent(roomId)}/settle`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
 export const favoriteManor = async (username: string, theme: string) => {
   return requestSocialAction(`/api/taoyuan/online/manor/${encodeURIComponent(username)}/favorite`, {
     method: 'POST',
@@ -898,6 +1072,37 @@ export interface OnlineCoopOrderStageEntry {
   updated_at: number
 }
 
+export interface OnlineCoopRelaySettlementShare {
+  stage_id: string
+  stage_title: string
+  sequence: number
+  assignee_username: string
+  assignee_display_name: string
+  reward_value: number
+  reward_label: string
+  share_percent: number
+  delivery_status: 'none' | 'submitted' | 'confirmed' | 'compensation_pending'
+  settlement_status: 'pending' | 'pending_owner_confirm' | 'confirmed' | 'compensation_pending'
+  settlement_receipt_id: string
+  reward_route: OnlineCoopRewardRoute
+  cohabitation_contract_id: string
+  shared_fund_ledger_id: string
+  confirmed_at: number
+}
+
+export interface OnlineCoopRelaySettlementSummary {
+  split_mode: 'stage_pool_weighted'
+  status: 'planned' | 'settling' | 'settled' | 'compensation_pending'
+  reward_type: OnlineCoopRewardType
+  pool_reward_value: number
+  allocated_reward_value: number
+  confirmed_reward_value: number
+  pending_reward_value: number
+  compensation_pending_reward_value: number
+  reward_label: string
+  shares: OnlineCoopRelaySettlementShare[]
+}
+
 export interface OnlineCoopOrderEntry {
   id: string
   owner_username: string
@@ -932,6 +1137,7 @@ export interface OnlineCoopOrderEntry {
   priority_score?: number
   priority_reasons?: string[]
   stages?: OnlineCoopOrderStageEntry[]
+  relay_settlement_summary?: OnlineCoopRelaySettlementSummary | null
   visual_state?: import('@/types/onlineVisual').OnlineVisualState
   created_at: number
   updated_at: number

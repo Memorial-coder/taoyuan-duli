@@ -441,9 +441,46 @@
                   @click="depositWarehouse(entry.id)"
                 >
                   <p class="text-[10px] text-accent">{{ entry.label }}</p>
+                  <p class="mt-1 text-[10px] text-muted">{{ entry.category_label }} · 本周 +{{ entry.weekly_points }} 分</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
                   <p class="mt-1 text-[10px] text-muted">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
                 </button>
+              </div>
+              <div
+                v-if="currentSociety.public_warehouse.weekly_settlement"
+                class="mt-3 border border-accent/10 bg-black/10 p-2"
+                data-testid="online-society-warehouse-weekly-settlement"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-accent">本周村社仓廪</p>
+                  <span class="text-[10px] text-muted">{{ currentSociety.public_warehouse.weekly_settlement.status_label }}</span>
+                </div>
+                <p class="mt-1 text-[10px] leading-4 text-muted">
+                  {{ currentSociety.public_warehouse.weekly_settlement.total_points }} 分 ·
+                  {{ currentSociety.public_warehouse.weekly_settlement.contributor_count }} 人 ·
+                  {{ currentSociety.public_warehouse.weekly_settlement.covered_category_count }}/5 类齐备
+                </p>
+                <div class="mt-2 grid gap-1.5 sm:grid-cols-5">
+                  <div
+                    v-for="category in currentSociety.public_warehouse.weekly_settlement.categories"
+                    :key="category.id"
+                    class="border border-accent/10 px-1.5 py-1 text-[10px] text-muted"
+                  >
+                    <p class="text-accent">{{ category.label }}</p>
+                    <p>{{ category.points }} 分 / {{ category.count }} 次</p>
+                  </div>
+                </div>
+                <div class="mt-2 grid gap-1.5 md:grid-cols-3">
+                  <div
+                    v-for="effect in warehouseWeeklyEffects"
+                    :key="effect.label"
+                    class="border border-accent/10 px-2 py-1.5 text-[10px] leading-4 text-muted"
+                    :class="effect.active ? 'bg-success/10 text-success' : 'bg-black/10'"
+                  >
+                    <p>{{ effect.label }}</p>
+                    <p class="mt-0.5 text-muted">{{ effect.summary }}</p>
+                  </div>
+                </div>
               </div>
               <div v-if="currentSociety.public_warehouse.items.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1">
                 <span v-for="entry in currentSociety.public_warehouse.items" :key="entry.item_id" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
@@ -451,10 +488,10 @@
                 </span>
               </div>
               <div v-if="currentSociety.public_warehouse.logs.length > 0" class="mt-3 border-t border-accent/10 pt-2">
-                <p class="text-[10px] text-accent">最近入仓</p>
+                <p class="text-[10px] text-accent">最近仓廪记录</p>
                 <div class="mt-1 max-h-28 space-y-1 overflow-y-auto pr-1">
                   <div v-for="entry in currentSociety.public_warehouse.logs.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
-                    {{ entry.display_name }} 补入了 {{ entry.deposit_label }} · {{ entry.entries.map(cost => cost.label).join(' + ') }}
+                    {{ warehouseLogText(entry) }}
                   </div>
                 </div>
               </div>
@@ -817,6 +854,7 @@
     SocietyProposalChoice,
     SocietyProposalSnapshot,
     SocietyRole,
+    SocietyWarehouseLogSnapshot,
     SocietySnapshot,
   } from '@/utils/societyApi'
 
@@ -936,6 +974,11 @@
     { label: '公共建设', value: `${currentSociety.value?.public_projects.length || 0} 项` },
     { label: '提案', value: `${currentSociety.value?.active_proposals.length || 0} 条` },
   ])
+  const warehouseWeeklyEffects = computed(() => {
+    const effects = currentSociety.value?.public_warehouse.weekly_settlement?.effects
+    if (!effects) return []
+    return [effects.disaster_response, effects.festival_cost_discount, effects.public_task_bonus]
+  })
 
   const refreshSocietyModule = async () => {
     await societyStore.refreshOverview().catch(() => {})
@@ -979,6 +1022,12 @@
 
   const getProposalVoteLabel = (proposal: SocietyProposalSnapshot) => {
     return proposal.choice_options.find(entry => entry.id === proposal.my_vote_choice)?.label || proposal.my_vote_choice || '未投票'
+  }
+
+  const warehouseLogText = (entry: SocietyWarehouseLogSnapshot) => {
+    const detail = entry.entries.map(cost => cost.label).filter(Boolean).join(' + ') || '无材料明细'
+    if (entry.action === 'consume') return `${entry.display_name} 消耗了 ${entry.deposit_label} · ${detail}`
+    return `${entry.display_name} 补入了 ${entry.deposit_label} · ${entry.category_label || '公共仓'} · ${detail}`
   }
 
   const createSociety = async () => {

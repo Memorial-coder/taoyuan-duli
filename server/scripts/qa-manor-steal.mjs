@@ -123,6 +123,9 @@ assert.equal(snapshot.steal_state.remaining_steal_count, 2, 'visitor should star
 assert.ok(snapshot.visual_state.objects.find(object => object.id === 'manor_field')?.available_action_ids.includes('steal_plot_sample'), 'field should expose safe plot steal')
 assert.ok(snapshot.visual_state.objects.find(object => object.id === 'manor_fruit_grove')?.available_action_ids.includes('steal_fruit_sample'), 'fruit grove should expose fruit steal')
 assert.ok(snapshot.steal_state.whitelist_summary.includes('用途标签'), 'steal whitelist should mention use tags')
+assert.equal(snapshot.steal_state.audit.whitelist_enforced, true, 'steal audit should expose whitelist enforcement')
+assert.match(snapshot.steal_state.audit.reward_cap_summary, /每位访客每日 2 次/, 'steal audit should expose daily reward cap')
+assert.equal(snapshot.steal_state.audit.owner_reserved_percent, 100, 'steal audit should preserve owner output')
 assert.ok(snapshot.steal_state.target_use_hints?.['plot:0']?.use_tags?.includes('festival'), 'rice steal target should expose festival use tag')
 assert.match(snapshot.steal_state.target_use_hints?.['edge:manor_bundle']?.use_summary || '', /公共订单/, 'edge steal target should expose secondary use summary')
 
@@ -135,11 +138,16 @@ const firstSteal = await runtime.submitManorStealAction({
 }, actor(visitor))
 assert.equal(firstSteal.entry.item_id, 'rice', 'safe ordinary crop should be recorded')
 assert.equal(firstSteal.entry.quantity, 1, 'steal should only grant a small quantity record')
+assert.equal(firstSteal.entry.visitor_reward_quantity, 1, 'steal receipt should cap visitor reward quantity')
+assert.equal(firstSteal.entry.owner_reserved_ratio, 1, 'steal receipt should not deduct owner inventory')
+assert.ok(firstSteal.entry.settlement_receipt_id, 'steal receipt should expose a settlement id')
 assert.ok(firstSteal.entry.use_tags.includes('order'), 'steal entry should record crop use tags')
 assert.match(firstSteal.entry.use_summary, /公共订单/, 'steal entry should record crop use summary')
 assert.match(firstSteal.entry.owner_compensation, /主人获得/, 'owner compensation should be recorded')
 assert.equal(firstSteal.snapshot.steal_entries[0]?.visitor_username, visitor, 'owner log should include visitor')
 assert.equal(firstSteal.snapshot.steal_state.remaining_steal_count, 1, 'steal limit should decrement')
+assert.equal(firstSteal.snapshot.visitor_activity_entries[0]?.kind, 'steal', 'visitor activity audit should surface steal records')
+assert.match(firstSteal.snapshot.visitor_activity_entries[0]?.audit_note || '', /凭证/, 'steal activity audit should include settlement receipt')
 
 const duplicateSteal = await runtime.submitManorStealAction({
   target_username: owner,
@@ -150,6 +158,7 @@ const duplicateSteal = await runtime.submitManorStealAction({
 assert.equal(duplicateSteal.idempotent, true, 'duplicate steal should be idempotent')
 assert.equal(duplicateSteal.entry.id, firstSteal.entry.id, 'duplicate steal should return original entry')
 assert.equal(duplicateSteal.snapshot.steal_state.remaining_steal_count, 1, 'duplicate steal should not consume another count')
+assert.equal(duplicateSteal.snapshot.visitor_activity_entries.filter(entry => entry.kind === 'steal').length, 1, 'duplicate steal should not duplicate audit activity')
 
 await assert.rejects(
   () => runtime.submitManorStealAction({

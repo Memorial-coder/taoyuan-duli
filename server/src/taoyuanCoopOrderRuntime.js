@@ -717,15 +717,84 @@ function buildOrderRelayVisualState(order) {
   };
 }
 
+function buildOrderRelaySettlementSummary(order, receipts = []) {
+  const normalized = normalizeOrder(order);
+  if (normalized.collaboration_mode !== 'multi_stage' || normalized.stages.length === 0) return null;
+
+  const receiptByStageId = new Map(
+    (Array.isArray(receipts) ? receipts : [])
+      .map(normalizeSettlementReceipt)
+      .filter(receipt => receipt.order_id === normalized.id && receipt.stage_id)
+      .map(receipt => [receipt.stage_id, receipt])
+  );
+  const totalPoolValue = Math.max(0, normalized.reward_value);
+  const shares = normalized.stages.map(stage => {
+    const receipt = receiptByStageId.get(stage.id) || null;
+    const shareValue = Math.max(0, stage.reward_value);
+    const sharePercent = totalPoolValue > 0 ? Math.round((shareValue / totalPoolValue) * 10000) / 100 : 0;
+    const confirmed = stage.delivery_status === 'confirmed' && receipt?.status === 'confirmed';
+    const compensationPending = stage.delivery_status === 'compensation_pending' || receipt?.status === 'compensation_pending';
+    return {
+      stage_id: stage.id,
+      stage_title: stage.title,
+      sequence: stage.sequence,
+      assignee_username: stage.assignee_username,
+      assignee_display_name: stage.assignee_display_name,
+      reward_value: shareValue,
+      reward_label: stage.reward_label || normalized.reward_label,
+      share_percent: sharePercent,
+      delivery_status: stage.delivery_status,
+      settlement_status: compensationPending ? 'compensation_pending' : confirmed ? 'confirmed' : receipt ? receipt.status : 'pending',
+      settlement_receipt_id: receipt?.id || stage.active_receipt_id || '',
+      reward_route: receipt?.reward_route || 'personal',
+      cohabitation_contract_id: receipt?.cohabitation_contract_id || '',
+      shared_fund_ledger_id: receipt?.shared_fund_ledger_id || '',
+      confirmed_at: receipt?.confirmed_at || stage.confirmed_at || 0,
+    };
+  });
+  const allocatedRewardValue = shares.reduce((sum, share) => sum + share.reward_value, 0);
+  const confirmedRewardValue = shares
+    .filter(share => share.settlement_status === 'confirmed')
+    .reduce((sum, share) => sum + share.reward_value, 0);
+  const compensationPendingRewardValue = shares
+    .filter(share => share.settlement_status === 'compensation_pending')
+    .reduce((sum, share) => sum + share.reward_value, 0);
+  const pendingRewardValue = Math.max(0, allocatedRewardValue - confirmedRewardValue - compensationPendingRewardValue);
+  const status = compensationPendingRewardValue > 0
+    ? 'compensation_pending'
+    : normalized.status === 'closed' && pendingRewardValue === 0
+      ? 'settled'
+      : confirmedRewardValue > 0
+        ? 'settling'
+        : 'planned';
+
+  return {
+    split_mode: 'stage_pool_weighted',
+    status,
+    reward_type: normalized.reward_type,
+    pool_reward_value: totalPoolValue,
+    allocated_reward_value: allocatedRewardValue,
+    confirmed_reward_value: confirmedRewardValue,
+    pending_reward_value: pendingRewardValue,
+    compensation_pending_reward_value: compensationPendingRewardValue,
+    reward_label: normalized.reward_label,
+    shares,
+  };
+}
+
 function buildOrderSnapshot(order, extra = {}) {
   const normalized = normalizeOrder(order);
+  const relayReceipts = Array.isArray(extra?.relay_receipts) ? extra.relay_receipts : [];
   const preserved = {
     ...(Number.isFinite(Number(order?.priority_score)) ? { priority_score: Math.max(0, Math.floor(Number(order.priority_score) || 0)) } : {}),
     ...(Array.isArray(order?.priority_reasons) ? { priority_reasons: order.priority_reasons.map(reason => sanitizeText(reason, 120)).filter(Boolean) } : {}),
-    ...extra,
+    ...Object.fromEntries(Object.entries(extra || {}).filter(([key]) => key !== 'relay_receipts')),
   };
   const relayVisualState = buildOrderRelayVisualState(normalized);
-  return relayVisualState ? { ...normalized, ...preserved, visual_state: relayVisualState } : { ...normalized, ...preserved };
+  const relaySettlementSummary = buildOrderRelaySettlementSummary(normalized, relayReceipts);
+  return relayVisualState
+    ? { ...normalized, ...preserved, relay_settlement_summary: relaySettlementSummary, visual_state: relayVisualState }
+    : { ...normalized, ...preserved };
 }
 
 function buildOrderBoardSummary(orders = []) {
@@ -1836,7 +1905,7 @@ async function listVisibleCoopOrders(viewerUsername = '') {
       if (priorityDiff !== 0) return priorityDiff;
       return right.created_at - left.created_at;
     })
-    .map(order => buildOrderSnapshot(order));
+    .map(order => buildOrderSnapshot(order, { relay_receipts: store.receipts }));
 
   const receipts = store.receipts
     .map(normalizeSettlementReceipt)

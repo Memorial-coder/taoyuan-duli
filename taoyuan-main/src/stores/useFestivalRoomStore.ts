@@ -4,6 +4,8 @@ import {
   closeFestivalRoom,
   createFestivalRoom,
   disconnectFestivalRoom,
+  fetchFestivalFriendMemorials,
+  type FestivalFriendMemorialOverview,
   fetchFestivalRoomOverview,
   type FestivalGameplayTemplate,
   inviteFestivalRoomMember,
@@ -28,9 +30,12 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const overview = ref<FestivalRoomOverview | null>(null)
   const selectedTemplateId = ref('dragon_boat')
   const selectedGameplayTemplateId = ref('squad_coop')
+  const draftMemberLimit = ref(4)
   const draftTitle = ref('')
   const draftInviteUsername = ref('')
   const draftInviteSaveId = ref('')
+  const draftFriendMemorialUsername = ref('')
+  const friendMemorialOverview = ref<FestivalFriendMemorialOverview | null>(null)
   const lastLoadedAt = ref(0)
 
   const myRoom = computed<FestivalRoomSnapshot | null>(() => overview.value?.my_room ?? null)
@@ -38,12 +43,28 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const visibleRooms = computed(() => overview.value?.visible_rooms ?? [])
   const invitedRooms = computed(() => overview.value?.invited_rooms ?? [])
   const recentMemorials = computed(() => overview.value?.recent_memorials ?? [])
+  const friendMemorials = computed(() => friendMemorialOverview.value?.memorials ?? [])
   const recentReceipts = computed(() => overview.value?.recent_receipts ?? [])
   const templates = computed<FestivalRoomTemplate[]>(() => overview.value?.templates ?? [])
   const gameplayTemplates = computed<FestivalGameplayTemplate[]>(() => overview.value?.gameplay_templates ?? [])
 
   const selectedTemplate = computed(() => templates.value.find(template => template.id === selectedTemplateId.value) ?? templates.value[0] ?? null)
   const selectedGameplayTemplate = computed(() => gameplayTemplates.value.find(template => template.id === selectedGameplayTemplateId.value) ?? gameplayTemplates.value[0] ?? null)
+  const memberLimitOptions = computed(() => {
+    const template = selectedTemplate.value
+    const minLimit = Math.max(2, Math.floor(template?.min_member_limit ?? 2))
+    const maxLimit = Math.max(minLimit, Math.floor(template?.max_member_limit ?? template?.default_member_limit ?? 4))
+    const baseOptions = [2, 4, 6, 8].filter(limit => limit >= minLimit && limit <= maxLimit)
+    const defaultLimit = Math.max(minLimit, Math.min(maxLimit, Math.floor(template?.default_member_limit ?? minLimit)))
+    return [...new Set([...baseOptions, defaultLimit])].sort((left, right) => left - right)
+  })
+  const normalizedDraftMemberLimit = computed(() => {
+    const options = memberLimitOptions.value
+    if (options.includes(draftMemberLimit.value)) return draftMemberLimit.value
+    return options.reduce((nearest, option) =>
+      Math.abs(option - draftMemberLimit.value) < Math.abs(nearest - draftMemberLimit.value) ? option : nearest,
+    options[0] ?? 2)
+  })
   const recommendedGameplayTemplates = computed(() => {
     const template = selectedTemplate.value
     if (!template) return gameplayTemplates.value
@@ -111,6 +132,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
         template_id: selectedTemplateId.value,
         gameplay_template_id: selectedGameplayTemplateId.value,
         title: draftTitle.value.trim() || undefined,
+        member_limit: normalizedDraftMemberLimit.value,
       })
       draftTitle.value = ''
       return applyActionResult(result)
@@ -171,6 +193,13 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const closeRoomAction = async (roomId: string) =>
     runAction(async () => applyActionResult(await closeFestivalRoom(roomId)))
 
+  const loadFriendMemorials = async () =>
+    runAction(async () => {
+      const result = await fetchFestivalFriendMemorials(draftFriendMemorialUsername.value)
+      friendMemorialOverview.value = result
+      return result
+    })
+
   return {
     loading,
     actionRunning,
@@ -181,6 +210,8 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     visibleRooms,
     invitedRooms,
     recentMemorials,
+    friendMemorialOverview,
+    friendMemorials,
     recentReceipts,
     templates,
     gameplayTemplates,
@@ -189,9 +220,13 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     selectedTemplate,
     selectedGameplayTemplateId,
     selectedGameplayTemplate,
+    draftMemberLimit,
+    memberLimitOptions,
+    normalizedDraftMemberLimit,
     draftTitle,
     draftInviteUsername,
     draftInviteSaveId,
+    draftFriendMemorialUsername,
     lastLoadedAt,
     refreshOverview,
     createRoom,
@@ -207,5 +242,6 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     submitGameplayAction,
     settleRoomAction,
     closeRoomAction,
+    loadFriendMemorials,
   }
 })

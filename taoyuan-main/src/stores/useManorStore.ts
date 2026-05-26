@@ -1,18 +1,22 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  createManorCareRoom,
   createManorGuestbookEntry,
   favoriteManor,
   fetchManorSnapshot,
   fetchFavoriteOverview,
   followManor,
+  joinManorCareRoom,
   pinManorGuestbookEntry,
   recordManorVisit,
   replyManorGuestbookEntry,
   saveManorAccessPolicy,
   saveManorGuide,
   saveManorThemeWeek,
+  settleManorCareRoom,
   submitManorCare,
+  submitManorCareRoomAction,
   submitManorSteal,
   type OnlineManorTarget,
   type OnlineManorSnapshot,
@@ -72,6 +76,7 @@ export const useManorStore = defineStore('onlineManor', () => {
   const themeActionRunning = ref(false)
   const careActionRunning = ref(false)
   const stealActionRunning = ref(false)
+  const careRoomActionRunning = ref(false)
   const accessPolicyActionRunning = ref(false)
   const accessVisitModeDraft = ref<OnlineManorAccessMode>('public')
   const accessCareModeDraft = ref<OnlineManorAccessMode>('friends')
@@ -418,6 +423,75 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
+  const createCareRoom = async (memberLimit = 4) => {
+    if (!snapshot.value) return
+    careRoomActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await createManorCareRoom({
+        target_username: snapshot.value.username,
+        target_save_id: activeTargetSaveId.value ?? undefined,
+        member_limit: memberLimit,
+      })
+      snapshot.value = result?.snapshot ?? snapshot.value
+      syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '建立庄园护理房间失败'
+      throw error
+    } finally {
+      careRoomActionRunning.value = false
+    }
+  }
+
+  const joinCareRoom = async (roomId: string) => {
+    careRoomActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await joinManorCareRoom(roomId)
+      snapshot.value = result?.snapshot ?? snapshot.value
+      syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '加入庄园护理房间失败'
+      throw error
+    } finally {
+      careRoomActionRunning.value = false
+    }
+  }
+
+  const submitCareRoomAction = async (roomId: string, actionId: string) => {
+    careRoomActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await submitManorCareRoomAction(roomId, { action_id: actionId })
+      snapshot.value = result?.snapshot ?? snapshot.value
+      syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '提交庄园护理动作失败'
+      throw error
+    } finally {
+      careRoomActionRunning.value = false
+    }
+  }
+
+  const settleCareRoom = async (roomId: string) => {
+    careRoomActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await settleManorCareRoom(roomId)
+      snapshot.value = result?.snapshot ?? snapshot.value
+      syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '结算庄园护理房间失败'
+      throw error
+    } finally {
+      careRoomActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     snapshot,
@@ -447,6 +521,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     themeActionRunning,
     careActionRunning,
     stealActionRunning,
+    careRoomActionRunning,
     accessPolicyActionRunning,
     accessVisitModeDraft,
     accessCareModeDraft,
@@ -468,6 +543,10 @@ export const useManorStore = defineStore('onlineManor', () => {
     selectCareObject,
     submitCareAction,
     submitStealAction,
+    createCareRoom,
+    joinCareRoom,
+    submitCareRoomAction,
+    settleCareRoom,
     saveAccessPolicySnapshot,
   }
 })

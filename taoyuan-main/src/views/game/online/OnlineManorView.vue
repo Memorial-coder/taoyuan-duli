@@ -468,6 +468,24 @@
                 </p>
               </div>
             </div>
+
+            <div class="mt-3 border-t border-accent/10 pt-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">访客行为审计</p>
+                <span class="text-[10px] text-muted">{{ visitorActivityEntries.length }} 条</span>
+              </div>
+              <div v-if="visitorActivityEntries.length > 0" data-testid="online-manor-visitor-activity-log" class="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
+                <div v-for="entry in visitorActivityEntries" :key="entry.id" data-testid="online-manor-visitor-activity-entry" class="border border-accent/10 bg-bg/30 p-2">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-[10px] text-accent">{{ entry.visitor_display_name }} · {{ entry.kind_label }}</p>
+                    <span class="text-[10px] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
+                  </div>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.audit_note }}</p>
+                </div>
+              </div>
+              <p v-else class="mt-2 text-[10px] leading-5 text-muted">暂无可回看的访客照料或轻采行为。</p>
+            </div>
           </div>
         </div>
 
@@ -580,8 +598,14 @@
                 <p class="mt-2 text-[10px] leading-5 text-muted">
                   今日访客剩余 {{ careRemainingLabel }} · 庄园剩余 {{ manorCareRemainingLabel }} · 权限 {{ carePermissionLabel }}
                 </p>
+                <p class="mt-1 text-[10px] leading-5 text-muted">
+                  轻采剩余 {{ stealRemainingLabel }} · 庄园轻采 {{ manorStealRemainingLabel }} · 权限 {{ stealPermissionLabel }}
+                </p>
                 <p v-if="!snapshot.care_state.can_care" class="mt-1 text-[10px] leading-5 text-amber-200">
                   {{ snapshot.care_state.care_denied_reason || '当前庄园暂未开放照料。' }}
+                </p>
+                <p v-if="!snapshot.steal_state.can_steal" class="mt-1 text-[10px] leading-5 text-amber-200">
+                  {{ snapshot.steal_state.steal_denied_reason || '当前庄园暂未开放轻采。' }}
                 </p>
               </div>
             </div>
@@ -591,7 +615,7 @@
               :objects="careVisualObjects"
               :selected-object-id="selectedCareObjectId"
               :recent-feedback="careSceneFeedback"
-              :action-running="manorStore.careActionRunning"
+              :action-running="manorStore.careActionRunning || manorStore.stealActionRunning"
               :action-labels="careSceneActionLabels"
               @select-object="manorStore.selectCareObject"
               @trigger-action="submitCareVisualAction"
@@ -599,6 +623,102 @@
 
             <div v-else class="border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted">
               这座庄园当前没有可视化照料对象；田地、果树、畜棚、鱼塘等对象会在庄园公开快照允许时显示。
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-manor-care-room-panel">
+              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div class="min-w-0">
+                  <p class="text-xs text-accent">协作护理房间</p>
+                  <p class="mt-1 text-[10px] leading-5 text-muted">
+                    {{ careRoomSummary }}
+                  </p>
+                </div>
+                <div class="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    v-for="memberLimit in careRoomMemberLimitOptions"
+                    :key="memberLimit"
+                    data-testid="online-manor-care-room-create"
+                    class="online-action-btn online-action-btn--compact"
+                    type="button"
+                    :disabled="!careRoomState?.can_create_room || manorStore.careRoomActionRunning"
+                    @click="createCareRoom(memberLimit)"
+                  >
+                    <Plus :size="12" />
+                    {{ memberLimit }} 人房
+                  </button>
+                </div>
+              </div>
+              <p v-if="careRoomState && !careRoomState.can_create_room" class="mt-2 text-[10px] leading-5 text-amber-200">
+                {{ careRoomState.create_denied_reason || '当前庄园暂未开放协作护理房间。' }}
+              </p>
+
+              <div v-if="activeCareRooms.length > 0" data-testid="online-manor-care-room-list" class="mt-3 space-y-2">
+                <div
+                  v-for="room in activeCareRooms"
+                  :key="room.id"
+                  data-testid="online-manor-care-room-entry"
+                  class="border border-accent/10 bg-bg/30 p-3"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-xs text-accent">{{ careRoomStatusLabel(room.status) }} · {{ room.participants.length }}/{{ room.member_limit }}</p>
+                    <span class="text-[10px] text-muted">{{ careRoomWindowLabel(room) }}</span>
+                  </div>
+                  <p class="mt-2 text-[10px] leading-5 text-muted">{{ room.summary || '等待护理分工推进。' }}</p>
+                  <div class="mt-2 flex flex-wrap gap-1">
+                    <span
+                      v-for="participant in room.participants"
+                      :key="`${room.id}-${participant.username}`"
+                      class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                    >
+                      {{ participant.display_name }} · {{ participant.role_label }}
+                    </span>
+                  </div>
+                  <div v-if="room.actions.length > 0" class="mt-2 space-y-1">
+                    <p v-for="action in room.actions" :key="action.id" class="text-[10px] leading-4 text-muted">
+                      {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }} · 健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 风险 +${action.risk_delta}` : '' }}
+                    </p>
+                  </div>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <button
+                      v-if="room.can_join"
+                      data-testid="online-manor-care-room-join"
+                      class="online-action-btn online-action-btn--compact"
+                      type="button"
+                      :disabled="manorStore.careRoomActionRunning"
+                      @click="joinCareRoom(room.id)"
+                    >
+                      <Plus :size="12" />
+                      加入
+                    </button>
+                    <button
+                      v-for="actionId in room.available_action_ids"
+                      :key="`${room.id}-${actionId}`"
+                      data-testid="online-manor-care-room-action"
+                      class="online-action-btn online-action-btn--compact"
+                      type="button"
+                      :disabled="manorStore.careRoomActionRunning"
+                      @click="submitCareRoomAction(room.id, actionId)"
+                    >
+                      <Sprout :size="12" />
+                      {{ careRoomActionLabel(actionId) }}
+                    </button>
+                    <button
+                      v-if="room.can_settle"
+                      data-testid="online-manor-care-room-settle"
+                      class="online-action-btn online-action-btn--compact online-action-btn--primary"
+                      type="button"
+                      :disabled="manorStore.careRoomActionRunning"
+                      @click="settleCareRoom(room.id)"
+                    >
+                      <Save :size="12" />
+                      结算护理
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p v-else class="mt-3 border border-accent/10 bg-bg/30 p-3 text-[10px] leading-5 text-muted">
+                当前没有进行中的协作护理房间。
+              </p>
             </div>
           </div>
 
@@ -615,6 +735,20 @@
             </div>
 
             <div class="border border-accent/10 bg-black/10 p-3">
+              <p class="text-xs text-accent">轻采规则</p>
+              <p class="mt-2 text-[10px] leading-5 text-muted">{{ snapshot.steal_state.audit.reward_cap_summary }}</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.steal_state.audit.settlement_summary }}</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
+              <div class="mt-2 space-y-2">
+                <div v-for="effect in stealEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
+                  <p class="text-[10px] text-accent">{{ effect.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">主人：{{ effect.ownerCompensation }}</p>
+                  <p class="text-[10px] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">最近照料记录</p>
               <div v-if="recentCareEntries.length > 0" data-testid="online-manor-care-log" class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
                 <div v-for="entry in recentCareEntries" :key="entry.id" data-testid="online-manor-care-entry" class="border border-accent/10 bg-bg/30 p-2">
@@ -624,6 +758,33 @@
                 </div>
               </div>
               <p v-else class="mt-2 text-[10px] leading-5 text-muted">今日还没有好友照料记录。</p>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <p class="text-xs text-accent">最近轻采记录</p>
+              <div v-if="recentStealEntries.length > 0" data-testid="online-manor-steal-log" class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
+                <div v-for="entry in recentStealEntries" :key="entry.id" data-testid="online-manor-steal-entry" class="border border-accent/10 bg-bg/30 p-2">
+                  <p class="text-[10px] text-accent">{{ entry.visitor_display_name }} · {{ entry.action_label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary || `${entry.object_label} 已有轻采记录` }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                    主人：{{ entry.owner_compensation }} · 访客：{{ entry.visitor_reward }} · 单次 {{ entry.visitor_reward_quantity || entry.quantity || 1 }}
+                  </p>
+                  <p v-if="entry.note" class="mt-1 text-[10px] leading-4 text-muted">留言：{{ entry.note }}</p>
+                </div>
+              </div>
+              <p v-else class="mt-2 text-[10px] leading-5 text-muted">今日还没有轻采记录。</p>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <p class="text-xs text-accent">协作护理记录</p>
+              <div v-if="recentCareRoomRecords.length > 0" data-testid="online-manor-care-room-records" class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
+                <div v-for="room in recentCareRoomRecords" :key="room.id" data-testid="online-manor-care-room-record" class="border border-accent/10 bg-bg/30 p-2">
+                  <p class="text-[10px] text-accent">健康度 {{ room.health_score }} · 风险 {{ room.risk_score }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ room.summary }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">参与：{{ room.participants.map(participant => participant.display_name).join('、') }}</p>
+                </div>
+              </div>
+              <p v-else class="mt-2 text-[10px] leading-5 text-muted">暂无协作护理记录。</p>
             </div>
           </div>
         </div>
@@ -712,6 +873,7 @@
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
   import type { OnlineVisualObject } from '@/types/onlineVisual'
+  import type { OnlineManorCareRoom } from '@/utils/onlineProfileApi'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
   type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'care' | 'favorites'
@@ -740,6 +902,7 @@
     { value: 'quest', label: '顺手带走需求' },
     { value: 'other', label: '其他来意' },
   ]
+  const careRoomMemberLimitOptions = [2, 3, 4]
   const tabs: ManorTabMeta[] = [
     { key: 'overview', label: '概览', summary: '先看庄园快照、主题与互动数量，不展开长表单。' },
     { key: 'theme', label: '主题', summary: '集中承接主题、模板、主图与官方精选。' },
@@ -781,6 +944,7 @@
   const guestbookDraftLength = computed(() => manorStore.guestbookDraft.trim().length)
   const canSubmitGuestbook = computed(() => guestbookDraftLength.value > 0 && !manorStore.guestbookActionRunning)
   const visitEntries = computed(() => snapshot.value?.visit_entries ?? [])
+  const visitorActivityEntries = computed(() => snapshot.value?.visitor_activity_entries ?? [])
   const visitSummaryLength = computed(() => manorStore.visitSummaryDraft.length)
   const visitFeedbackLength = computed(() => manorStore.visitFeedbackDraft.length)
   const canRecordVisit = computed(() => !manorStore.visitActionRunning)
@@ -792,23 +956,27 @@
   const careSceneActionLabels = computed<Record<string, string>>(() => ({
     ...(snapshot.value?.care_state.action_labels ?? {}),
     ...(snapshot.value?.care_state.scene_action_labels ?? {}),
+    ...(snapshot.value?.steal_state.action_labels ?? {}),
   }))
+  const careActionIds = computed(() => new Set(Object.keys(snapshot.value?.care_state.action_labels ?? {})))
+  const stealActionIds = computed(() => new Set(Object.keys(snapshot.value?.steal_state.action_labels ?? {})))
   const careVisualObjects = computed<OnlineVisualObject[]>(() => {
     const currentSnapshot = snapshot.value
     const visualState = currentSnapshot?.visual_state
     if (!currentSnapshot || visualState?.board_type !== 'scene') return []
-    const knownCareActions = new Set(Object.keys(careSceneActionLabels.value))
     return (visualState.objects ?? []).map(object => ({
       ...object,
-      available_action_ids: currentSnapshot.care_state.can_care
-        ? object.available_action_ids.filter(actionId => knownCareActions.has(actionId))
-        : [],
+      available_action_ids: object.available_action_ids.filter(actionId =>
+        (currentSnapshot.care_state.can_care && careActionIds.value.has(actionId))
+        || (currentSnapshot.steal_state.can_steal && stealActionIds.value.has(actionId))
+      ),
     }))
   })
   const showCareSceneBoard = computed(() => careVisualObjects.value.length > 0)
   const selectedCareObjectId = computed(() => manorStore.selectedCareObjectId || snapshot.value?.visual_state.selected_visual_id || '')
   const careSceneFeedback = computed(() => snapshot.value?.visual_state.recent_feedback || '')
   const recentCareEntries = computed(() => (snapshot.value?.care_entries ?? []).slice(0, 8))
+  const recentStealEntries = computed(() => (snapshot.value?.steal_entries ?? []).slice(0, 8))
   const careRemainingLabel = computed(() => {
     const careState = snapshot.value?.care_state
     if (!careState) return '0/0'
@@ -819,9 +987,23 @@
     if (!careState) return '0/0'
     return `${careState.manor_remaining_care_count}/${careState.limits.manor_daily_limit}`
   })
+  const stealRemainingLabel = computed(() => {
+    const stealState = snapshot.value?.steal_state
+    if (!stealState) return '0/0'
+    return `${stealState.remaining_steal_count}/${stealState.limits.visitor_daily_limit}`
+  })
+  const manorStealRemainingLabel = computed(() => {
+    const stealState = snapshot.value?.steal_state
+    if (!stealState) return '0/0'
+    return `${stealState.manor_remaining_steal_count}/${stealState.limits.manor_daily_limit}`
+  })
   const carePermissionLabel = computed(() => {
     if (snapshot.value?.care_state.can_care) return '可照料'
     return snapshot.value?.access_policy.care_mode === 'closed' ? '已关闭' : '受限'
+  })
+  const stealPermissionLabel = computed(() => {
+    if (snapshot.value?.steal_state.can_steal) return '可轻采'
+    return snapshot.value?.access_policy.steal_mode === 'closed' ? '已关闭' : '受限'
   })
   const careEffectEntries = computed(() =>
     Object.entries(snapshot.value?.care_state.action_effects ?? {}).map(([id, effect]) => ({
@@ -831,6 +1013,22 @@
       visitorReward: effect.visitor_reward,
     }))
   )
+  const stealEffectEntries = computed(() =>
+    Object.entries(snapshot.value?.steal_state.action_effects ?? {}).map(([id, effect]) => ({
+      id,
+      label: careSceneActionLabels.value[id] || id,
+      ownerCompensation: effect.owner_compensation,
+      visitorReward: effect.visitor_reward,
+    }))
+  )
+  const careRoomState = computed(() => snapshot.value?.care_room_state ?? null)
+  const activeCareRooms = computed(() => careRoomState.value?.active_rooms ?? [])
+  const recentCareRoomRecords = computed(() => snapshot.value?.care_room_records ?? [])
+  const careRoomSummary = computed(() => {
+    const state = careRoomState.value
+    if (!state) return '刷新庄园快照后可建立 2-4 人护理房间。'
+    return `窗口 ${Math.round(state.limits.window_seconds / 60)} 分钟 · ${state.record_summary}`
+  })
   const activeTabMeta = computed<ManorTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as ManorTabKey
@@ -984,12 +1182,58 @@
     })
   }
 
+  const riskFlagLabel = (flags: string[] = []) => {
+    if (flags.length === 0) return '暂无异常'
+    const labels: Record<string, string> = {
+      same_visitor_limit_reached: '同一访客触达日上限',
+      manor_daily_limit_reached: '庄园日上限已触达',
+      short_window_cluster: '短时间集中操作',
+    }
+    return flags.map(flag => labels[flag] || flag).join('、')
+  }
+
+  const careRoomStatusLabel = (status: OnlineManorCareRoom['status']) => {
+    if (status === 'completed') return '已结算'
+    if (status === 'expired') return '窗口结束'
+    if (status === 'in_progress') return '护理中'
+    return '待加入'
+  }
+
+  const careRoomWindowLabel = (room: OnlineManorCareRoom) => {
+    if (room.status === 'completed') return formatVisitTime(room.settled_at)
+    if (room.remaining_seconds <= 0) return '窗口已结束'
+    const minutes = Math.ceil(room.remaining_seconds / 60)
+    return `剩余 ${minutes} 分钟`
+  }
+
+  const careRoomActionLabel = (actionId: string) => careRoomState.value?.action_labels[actionId] || actionId
+
   const saveGuide = async () => {
     await manorStore.saveGuideSnapshot().catch(() => {})
   }
 
+  const createCareRoom = async (memberLimit: number) => {
+    await manorStore.createCareRoom(memberLimit).catch(() => {})
+  }
+
+  const joinCareRoom = async (roomId: string) => {
+    await manorStore.joinCareRoom(roomId).catch(() => {})
+  }
+
+  const submitCareRoomAction = async (roomId: string, actionId: string) => {
+    await manorStore.submitCareRoomAction(roomId, actionId).catch(() => {})
+  }
+
+  const settleCareRoom = async (roomId: string) => {
+    await manorStore.settleCareRoom(roomId).catch(() => {})
+  }
+
   const submitCareVisualAction = async (payload: ManorCareActionPayload) => {
     manorStore.selectCareObject(payload.objectId)
+    if (stealActionIds.value.has(payload.actionId)) {
+      await manorStore.submitStealAction(payload.objectId, payload.actionId).catch(() => {})
+      return
+    }
     await manorStore.submitCareAction(payload.objectId, payload.actionId).catch(() => {})
   }
 

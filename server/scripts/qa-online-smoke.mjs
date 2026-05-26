@@ -195,9 +195,11 @@ const buildSeedSavePayload = (username, startingMoney) => encryptTaoyuanData({
       { itemId: 'wood', quantity: 6, quality: 'normal', locked: false },
       { itemId: 'parsnip_seed', quantity: 4, quality: 'normal', locked: false },
       { itemId: 'wintersweet', quantity: 3, quality: 'normal', locked: false },
-      { itemId: 'rice', quantity: 7, quality: 'normal', locked: false },
+      { itemId: 'rice', quantity: 9, quality: 'normal', locked: false },
       { itemId: 'cabbage', quantity: 2, quality: 'normal', locked: false },
-      { itemId: 'herb', quantity: 1, quality: 'normal', locked: false },
+      { itemId: 'herb', quantity: 2, quality: 'normal', locked: false },
+      { itemId: 'cloth', quantity: 2, quality: 'normal', locked: false },
+      { itemId: 'crucian', quantity: 2, quality: 'normal', locked: false },
     ],
     tempItems: [],
     ownedWeapons: [],
@@ -4917,6 +4919,33 @@ try {
     secondaryExpectedMoney -= 7
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/public-warehouse five-category weekly settlement path', async () => {
+    for (const depositId of ['rice_crate', 'herb_crate', 'cloth_bundle', 'fish_basket']) {
+      const deposit = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deposit_id: depositId,
+        }),
+      })
+      assert(deposit.response.ok, `${depositId} warehouse deposit returned ${deposit.response.status}: ${deposit.data?.msg || 'unknown error'}`)
+    }
+    secondaryExpectedMoney -= 19
+
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `society warehouse weekly settlement readback returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    const warehouse = data?.my_society?.public_warehouse
+    const settlement = warehouse?.weekly_settlement
+    assert(Array.isArray(warehouse?.deposit_options) && warehouse.deposit_options.some(entry => entry?.id === 'cloth_bundle' && entry?.category_id === 'cloth'), 'society warehouse did not expose cloth contribution option')
+    assert(Array.isArray(warehouse?.deposit_options) && warehouse.deposit_options.some(entry => entry?.id === 'fish_basket' && entry?.category_id === 'fish'), 'society warehouse did not expose fish contribution option')
+    assert(settlement?.status === 'ready' && Number(settlement?.covered_category_count || 0) >= 5, 'society warehouse weekly settlement did not mark five categories ready')
+    assert(settlement?.effects?.disaster_response?.active === true, 'society warehouse weekly settlement did not activate disaster response')
+    assert(Number(settlement?.effects?.festival_cost_discount?.percent || 0) > 0, 'society warehouse weekly settlement did not expose festival cost discount')
+    assert(Number(settlement?.effects?.public_task_bonus?.percent || 0) > 0, 'society warehouse weekly settlement did not expose public task bonus')
+  })
+
   await runCheck('GET /api/taoyuan/online/societies welfare readback', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
     assert(response.ok, `society welfare readback returned ${response.status}`)
@@ -5315,6 +5344,13 @@ try {
     const relayOrder = primaryOverview.data?.orders?.find(entry => entry?.id === relayCoopOrderId)
     assert(relayOrder && Array.isArray(relayOrder.stages) && relayOrder.stages.length === 2, 'multi-stage order readback is incomplete')
     assert(relayOrder.stages.every(stage => stage.delivery_status === 'confirmed'), 'multi-stage order did not persist confirmed stage states')
+    assert(relayOrder.relay_settlement_summary?.split_mode === 'stage_pool_weighted', 'multi-stage order did not expose relay settlement split plan')
+    assert(relayOrder.relay_settlement_summary?.status === 'settled', 'multi-stage order relay settlement summary did not settle after all stages')
+    assert(Number(relayOrder.relay_settlement_summary?.pool_reward_value) === 2, 'multi-stage order relay settlement pool did not preserve total reward')
+    assert(Number(relayOrder.relay_settlement_summary?.confirmed_reward_value) === 2, 'multi-stage order relay settlement did not sum confirmed payouts')
+    assert(Array.isArray(relayOrder.relay_settlement_summary?.shares) && relayOrder.relay_settlement_summary.shares.length === 2, 'multi-stage order relay settlement shares missing')
+    assert(relayOrder.relay_settlement_summary.shares.every(share => Number(share.reward_value) === 1 && Number(share.share_percent) === 50), 'multi-stage order relay settlement shares should split the reward pool evenly')
+    assert(relayOrder.relay_settlement_summary.shares.every(share => share.settlement_receipt_id && share.settlement_status === 'confirmed'), 'multi-stage order relay settlement shares did not retain confirmed receipts')
     assert(relayOrder?.visual_state?.board_type === 'async', 'multi-stage order did not expose async relay visual state')
     const relayVisualProject = relayOrder.visual_state.async_projects?.[0]
     assert(relayVisualProject?.kind === 'order_relay', 'multi-stage order visual project kind mismatch')

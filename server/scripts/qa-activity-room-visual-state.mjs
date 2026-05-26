@@ -177,9 +177,14 @@ const assertDragonBoatVisualTrack = (room, expectedRevision = 0, options = {}) =
   assert.ok(new Set(track.cells.map(cell => cell.kind)).has('turn'), 'dragon boat should include turn cells')
   assert.ok(new Set(track.cells.map(cell => cell.kind)).has('boost'), 'dragon boat should include boost cells')
   assert.ok(new Set(track.cells.map(cell => cell.kind)).has('finish'), 'dragon boat should include finish cell')
-  assert.equal(track.teams.length, 1, 'dragon boat should expose the room team')
-  const team = track.teams[0]
+  const expectedTeamCount = Number.isInteger(options.expectedTeamCount) ? options.expectedTeamCount : 3
+  assert.equal(track.teams.length, expectedTeamCount, 'dragon boat should expose race lane teams')
+  const team = track.teams.find(entry => entry.team_id === 'team_dragon_boat')
+  assert.ok(team, 'dragon boat should expose the room team')
   assert.equal(team.team_id, 'team_dragon_boat', 'dragon boat team should keep stable id')
+  if (expectedTeamCount > 1) {
+    assert.ok(track.teams.some(entry => entry.team_id !== 'team_dragon_boat'), 'dragon boat should expose rival race teams')
+  }
   const occupiedCell = track.cells.find(cell => (cell.occupant_team_ids || []).includes(team.team_id))
   assert.ok(occupiedCell, 'dragon boat team should occupy a visible cell')
   assert.equal(occupiedCell.index, team.position_index, 'dragon boat team position should match occupied cell')
@@ -269,6 +274,24 @@ const dragonBoat = await runtime.createFestivalRoom({
 }, actor('visual_host_dragon'))
 assertDragonBoatVisualTrack(dragonBoat.room, 0, { expectSelectedOccupied: true })
 
+const dragonBoatDuo = await runtime.createFestivalRoom({
+  template_id: 'dragon_boat',
+  gameplay_template_id: 'squad_coop',
+  title: 'visual dragon boat duo smoke',
+  member_limit: 2,
+}, actor('visual_host_dragon_duo'))
+assert.equal(dragonBoatDuo.room.member_limit, 2, 'dragon boat should allow 2 player room capacity')
+assertDragonBoatVisualTrack(dragonBoatDuo.room, 0, { expectedTeamCount: 2, expectSelectedOccupied: true })
+
+const dragonBoatEight = await runtime.createFestivalRoom({
+  template_id: 'dragon_boat',
+  gameplay_template_id: 'squad_coop',
+  title: 'visual dragon boat eight smoke',
+  member_limit: 8,
+}, actor('visual_host_dragon_eight'))
+assert.equal(dragonBoatEight.room.member_limit, 8, 'dragon boat should allow 8 player room capacity')
+assertDragonBoatVisualTrack(dragonBoatEight.room, 0, { expectedTeamCount: 4, expectSelectedOccupied: true })
+
 const trackFixtureRoom = await runtime.createFestivalRoom({
   template_id: 'yuanri_vigil',
   gameplay_template_id: 'public_progress',
@@ -276,6 +299,29 @@ const trackFixtureRoom = await runtime.createFestivalRoom({
 }, actor('visual_host_track_fixture'))
 
 const roomStoreFile = path.join(tempDir, 'taoyuan_activity_rooms.json')
+const socialStoreFile = path.join(tempDir, 'taoyuan_social_profiles.json')
+const seedFriendship = (usernameA, usernameB) => writeFile(socialStoreFile, JSON.stringify({
+  profiles: {},
+  friend_requests: [],
+  friendships: [
+    {
+      id: `friendship:${usernameA}:${usernameB}`,
+      username_a: usernameA,
+      username_b: usernameB,
+      save_id_a: 0,
+      save_id_b: 0,
+      save_slot_a: null,
+      save_slot_b: null,
+      created_at: 12345,
+      updated_at: 12345,
+      last_interaction_at: 12345,
+    },
+  ],
+  blocks: [],
+  neighbor_groups: [],
+  neighbor_join_requests: [],
+  subscriptions: [],
+}, null, 2), 'utf8')
 const festivalActionStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
   if (room.id === festival.room.id) return {
@@ -317,6 +363,91 @@ const mainLantern = lanternActionResult.room.visual_state.objects.find(object =>
 assert.equal(mainLantern?.state, 'busy', 'main lantern should become busy after assembly action')
 assert.equal(mainLantern?.progress_value, 1, 'main lantern progress should advance after assembly action')
 assert.equal(mainLantern?.handled_by, 'visual_host_festival', 'main lantern should mark the acting player')
+
+const lanternOrderResult = await runtime.submitFestivalRoomGameplayAction(festival.room.id, {
+  action_id: 'tighten_frame',
+}, actor('visual_host_festival'))
+assert.equal(lanternOrderResult.room.gameplay.festival_state.round_number, 2, 'two lantern fair actions should advance the festival round')
+assert.equal(lanternOrderResult.room.gameplay.festival_state.round_log[0].action_id, 'round_advance', 'lantern fair round advance should be logged')
+
+seedRewardSave('visual_host_festival')
+const lanternSettledResult = await runtime.settleFestivalRoom(festival.room.id, actor('visual_host_festival'))
+const lanternReceiptReplay = lanternSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === festival.room.id)?.route_replay
+assert.equal(lanternReceiptReplay?.kind, 'lantern_fair', 'lantern fair settlement receipt should expose memory replay')
+assert.equal(lanternReceiptReplay.title, '灯会留影记录', 'lantern fair replay should use readable title')
+assert.equal(lanternReceiptReplay.route_nodes.length, 6, 'lantern fair replay should preserve scene objects')
+assert.ok(lanternReceiptReplay.summary.includes('灯会留影记录'), 'lantern fair replay summary should mention photo record')
+assert.ok(lanternReceiptReplay.memory_records.some(record => record.type === 'main_lantern' && record.actor_username === 'visual_host_festival'), 'lantern fair replay should save who lit the main lantern')
+assert.ok(lanternReceiptReplay.memory_records.some(record => record.type === 'order' && record.actor_username === 'visual_host_festival'), 'lantern fair replay should save who maintained order')
+assert.ok(lanternReceiptReplay.memory_records.some(record => record.type === 'riddle' && record.summary.includes('灯谜')), 'lantern fair replay should reserve riddle memory slot')
+assert.ok(lanternReceiptReplay.highlight_nodes.some(node => node.label === '点亮主灯'), 'lantern fair replay should expose main lantern highlight')
+
+const lanternMemorialRoom = await runtime.createFestivalRoom({
+  template_id: 'lantern_fair',
+  gameplay_template_id: 'assembly',
+  title: 'visual lantern memorial smoke',
+}, actor('visual_host_lantern_memorial'))
+const lanternMemorialStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+lanternMemorialStore.rooms = lanternMemorialStore.rooms.map(room => room.id === lanternMemorialRoom.room.id
+  ? {
+      ...room,
+      state: 'running',
+      running_started_at: 12343,
+      members: room.members.map(member => ({ ...member, status: 'active' })),
+    }
+  : room
+)
+await writeFile(roomStoreFile, JSON.stringify(lanternMemorialStore, null, 2), 'utf8')
+await runtime.submitFestivalRoomGameplayAction(lanternMemorialRoom.room.id, {
+  action_id: 'lock_piece',
+}, actor('visual_host_lantern_memorial'))
+await runtime.submitFestivalRoomGameplayAction(lanternMemorialRoom.room.id, {
+  action_id: 'tighten_frame',
+}, actor('visual_host_lantern_memorial'))
+seedRewardSave('visual_host_lantern_memorial')
+await runtime.settleFestivalRoom(lanternMemorialRoom.room.id, actor('visual_host_lantern_memorial'))
+const lanternMemorialClosedResult = await runtime.closeFestivalRoom(lanternMemorialRoom.room.id, actor('visual_host_lantern_memorial'))
+assert.equal(lanternMemorialClosedResult.room.state, 'closed', 'lantern fair room should close after receipt persistence')
+const lanternRewardAfterClose = readRewardSave('visual_host_lantern_memorial')
+assert.equal(lanternRewardAfterClose.onlineFestivalRewards.memorials.length, 1, 'lantern fair receipt persistence should add one memorial')
+assert.ok(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_records.some(record => record.type === 'main_lantern'), 'lantern fair memorial should retain main lantern memory')
+assert.ok(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_records.some(record => record.type === 'order'), 'lantern fair memorial should retain order memory')
+await seedFriendship('visual_host_festival', 'visual_host_lantern_memorial')
+const friendMemorialOverview = runtime.listFestivalFriendMemorialOverview('visual_host_festival', {
+  target_username: 'visual_host_lantern_memorial',
+})
+assert.equal(friendMemorialOverview.is_friend, true, 'friend memorial overview should require and report friendship')
+assert.equal(friendMemorialOverview.memorials.length, 1, 'friend memorial overview should read target festival memorials')
+assert.ok(friendMemorialOverview.memorials[0].memory_records.some(record => record.type === 'main_lantern'), 'friend memorial overview should expose lantern memories')
+assert.throws(
+  () => runtime.listFestivalFriendMemorialOverview('visual_host_expedition', { target_username: 'visual_host_lantern_memorial' }),
+  /只能查看已互为好友/,
+  'non-friend should not read festival memorials'
+)
+
+const lanternRiddleRoom = await runtime.createFestivalRoom({
+  template_id: 'lantern_fair',
+  gameplay_template_id: 'quiz_buzz',
+  title: 'visual lantern riddle smoke',
+}, actor('visual_host_lantern_riddle'))
+const lanternRiddleStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+lanternRiddleStore.rooms = lanternRiddleStore.rooms.map(room => room.id === lanternRiddleRoom.room.id
+  ? {
+      ...room,
+      state: 'running',
+      running_started_at: 12344,
+      members: room.members.map(member => ({ ...member, status: 'active' })),
+    }
+  : room
+)
+await writeFile(roomStoreFile, JSON.stringify(lanternRiddleStore, null, 2), 'utf8')
+await runtime.submitFestivalRoomGameplayAction(lanternRiddleRoom.room.id, {
+  action_id: 'buzz_correct',
+}, actor('visual_host_lantern_riddle'))
+seedRewardSave('visual_host_lantern_riddle')
+const lanternRiddleSettledResult = await runtime.settleFestivalRoom(lanternRiddleRoom.room.id, actor('visual_host_lantern_riddle'))
+const lanternRiddleReplay = lanternRiddleSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === lanternRiddleRoom.room.id)?.route_replay
+assert.ok(lanternRiddleReplay.memory_records.some(record => record.type === 'riddle' && record.actor_username === 'visual_host_lantern_riddle'), 'lantern fair replay should save who solved riddles')
 
 const labaActionResult = await runtime.submitFestivalRoomGameplayAction(labaCookpot.room.id, {
   action_id: 'deliver_bundle',
@@ -375,11 +506,13 @@ assert.deepEqual(dragonReceiptReplay.route_nodes.map(node => node.id), [
 assert.ok(dragonReceiptReplay.highlight_nodes.length > 0, 'dragon boat replay should keep action highlights')
 assert.ok(dragonReceiptReplay.risk_peak.value >= 2, 'dragon boat replay should record pressure peak')
 assert.ok(dragonReceiptReplay.member_contributions.some(item => item.username === 'visual_host_dragon'), 'dragon boat replay should include member contribution')
-assert.equal(dragonReceiptReplay.race_result.mode, 'cooperation', 'single dragon boat team should settle as cooperative race mode')
+assert.equal(dragonReceiptReplay.race_result.mode, 'race', 'dragon boat should settle as multi-team race mode')
 assert.equal(dragonReceiptReplay.race_result.rank, 1, 'dragon boat replay should record a rank')
 assert.equal(dragonReceiptReplay.race_result.title_label, '赛舟领桨手', 'dragon boat replay should record title target')
 assert.ok(dragonReceiptReplay.race_result.popularity_bonus > 0, 'dragon boat replay should generate festival popularity bonus')
-assert.equal(dragonReceiptReplay.race_rankings.length, 1, 'dragon boat replay should include team ranking rows')
+assert.equal(dragonReceiptReplay.race_result.team_count, 3, 'default dragon boat should settle three race lane teams')
+assert.equal(dragonReceiptReplay.race_rankings.length, 3, 'dragon boat replay should include race lane ranking rows')
+assert.ok(dragonReceiptReplay.race_rankings.some(item => item.team_id === 'team_dragon_boat'), 'dragon boat ranking should include the room team')
 const dragonSettledSnapshotReceipt = dragonSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon')
 assert.equal(dragonSettledSnapshotReceipt?.route_replay?.kind, 'dragon_boat', 'room snapshot dragon boat receipt should include route replay')
 const dragonSettlementStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
@@ -487,6 +620,18 @@ assert.equal(advancedResult.room.visual_state.recent_feedback, advancedResult.ro
 const currentEventId = advancedResult.room.gameplay.cavern_state.current_event.id
 const currentEventNodes = advancedResult.room.visual_state.nodes.filter(node => node.event_id === currentEventId)
 assert.ok(currentEventNodes.length > 0, 'round transition should remap visual nodes to the current cavern event')
+assert.ok(advancedResult.room.gameplay.cavern_state.combo_records.some(record => record.combo_id === 'route_then_mine'), 'cavern should record node combo benefits after route and mine actions')
+assert.ok(advancedResult.room.gameplay.cavern_state.combo_records[0]?.summary.includes('补给'), 'cavern combo record should explain resource benefit')
+
+const withdrawalResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
+  action_id: 'confirm_withdrawal',
+}, actor('visual_action_host'))
+assert.equal(withdrawalResult.room.gameplay.phase, 'completed', 'cavern withdrawal should complete the gameplay phase early')
+assert.equal(withdrawalResult.room.gameplay.cavern_state.withdrawal_state, 'confirmed', 'cavern should record confirmed withdrawal state')
+assert.ok(withdrawalResult.room.gameplay.cavern_state.withdrawal_summary.includes('提前撤离'), 'cavern withdrawal should expose readable summary')
+const withdrawalNode = withdrawalResult.room.visual_state.nodes.find(node => node.id === 'cavern_exit')
+assert.equal(withdrawalNode?.state, 'resolved', 'withdrawal action should resolve the exit node')
+assert.deepEqual(withdrawalNode?.available_action_ids, [], 'resolved exit node should stop offering withdrawal action')
 
 const settledResult = await runtime.settleExpeditionRoom(actionExpedition.room.id, actor('visual_action_host'))
 const receiptReplay = settledResult.overview.recent_receipts.find(receipt => receipt.room_id === actionExpedition.room.id)?.route_replay
@@ -500,6 +645,8 @@ assert.deepEqual(receiptReplay.route_nodes.map(node => node.id), [
 ], 'cavern route replay should preserve explored route order')
 assert.ok(receiptReplay.highlight_nodes.length > 0, 'cavern route replay should keep highlight nodes')
 assert.ok(receiptReplay.risk_peak.value >= 3, 'cavern route replay should record risk peak')
+assert.ok(receiptReplay.summary.includes('组合收益'), 'cavern route replay should mention node combo benefits')
+assert.ok(receiptReplay.summary.includes('提前撤离'), 'cavern route replay should mention early withdrawal closure')
 assert.ok(receiptReplay.member_contributions.some(item => item.username === 'visual_action_host'), 'cavern route replay should include member contribution')
 const settledSnapshotReceipt = settledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_action_host')
 assert.equal(settledSnapshotReceipt?.route_replay?.kind, 'expedition_cavern', 'room snapshot settlement receipt should include route replay')

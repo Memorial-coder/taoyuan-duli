@@ -239,6 +239,7 @@ function createEmptyCareStore() {
     policies: {},
     entries: [],
     steals: [],
+    care_rooms: [],
   };
 }
 
@@ -252,6 +253,7 @@ function loadCareStore() {
           policies: raw.policies && typeof raw.policies === 'object' ? raw.policies : {},
           entries: Array.isArray(raw.entries) ? raw.entries : [],
           steals: Array.isArray(raw.steals) ? raw.steals : [],
+          care_rooms: Array.isArray(raw.care_rooms) ? raw.care_rooms : [],
         }
       : createEmptyCareStore();
   } catch {
@@ -265,6 +267,7 @@ function saveCareStore(store) {
     policies: store?.policies && typeof store.policies === 'object' ? store.policies : {},
     entries: Array.isArray(store?.entries) ? store.entries : [],
     steals: Array.isArray(store?.steals) ? store.steals : [],
+    care_rooms: Array.isArray(store?.care_rooms) ? store.care_rooms : [],
   });
 }
 
@@ -311,6 +314,11 @@ const MANOR_CARE_REWARD_MAX_STACK = 999;
 const MANOR_STEAL_DAILY_VISITOR_LIMIT = 2;
 const MANOR_STEAL_DAILY_MANOR_LIMIT = 6;
 const MANOR_STEAL_RECENT_LOG_LIMIT = 24;
+const MANOR_ACTIVITY_RECENT_WINDOW_SECONDS = 10 * 60;
+const MANOR_CARE_ROOM_MIN_MEMBERS = 2;
+const MANOR_CARE_ROOM_MAX_MEMBERS = 4;
+const MANOR_CARE_ROOM_WINDOW_SECONDS = 30 * 60;
+const MANOR_CARE_ROOM_RECENT_LOG_LIMIT = 12;
 
 const MANOR_CARE_VISUAL_OBJECT_IDS = Object.freeze({
   field: 'manor_field',
@@ -399,6 +407,61 @@ const MANOR_CARE_ACTION_DEFS = Object.freeze([
 
 const MANOR_CARE_ACTION_BY_ID = Object.freeze(
   Object.fromEntries(MANOR_CARE_ACTION_DEFS.map(action => [action.id, action]))
+);
+
+const MANOR_CARE_ROOM_ACTION_DEFS = Object.freeze([
+  {
+    id: 'room_irrigate',
+    label: '协作灌溉',
+    role_id: 'irrigation',
+    role_label: '灌溉手',
+    object_id: MANOR_CARE_VISUAL_OBJECT_IDS.field,
+    object_label: '田地',
+    expected_order: 1,
+    health_delta: 12,
+    risk_delta: 8,
+    summary: '先稳住田区水分，为后续护理留出安全窗口。',
+  },
+  {
+    id: 'room_feed',
+    label: '协作喂食',
+    role_id: 'feeding',
+    role_label: '喂食手',
+    object_id: MANOR_CARE_VISUAL_OBJECT_IDS.animalShed,
+    object_label: '畜棚',
+    expected_order: 2,
+    health_delta: 11,
+    risk_delta: 7,
+    summary: '补足动物饲喂，降低护理窗口内的躁动风险。',
+  },
+  {
+    id: 'room_pest_control',
+    label: '协作除虫',
+    role_id: 'pest_control',
+    role_label: '除虫手',
+    object_id: MANOR_CARE_VISUAL_OBJECT_IDS.field,
+    object_label: '田地',
+    expected_order: 3,
+    health_delta: 10,
+    risk_delta: 9,
+    summary: '集中处理虫害，把田区风险压到可控范围。',
+  },
+  {
+    id: 'room_tidy',
+    label: '协作收拾',
+    role_id: 'tidy',
+    role_label: '收拾手',
+    object_id: MANOR_CARE_VISUAL_OBJECT_IDS.fruitGrove,
+    object_label: '果树',
+    expected_order: 4,
+    health_delta: 9,
+    risk_delta: 6,
+    summary: '收拾掉落物与边角产物，完成护理收尾。',
+  },
+]);
+
+const MANOR_CARE_ROOM_ACTION_BY_ID = Object.freeze(
+  Object.fromEntries(MANOR_CARE_ROOM_ACTION_DEFS.map(action => [action.id, action]))
 );
 
 const MANOR_STEAL_ACTION_DEFS = Object.freeze([
@@ -692,8 +755,12 @@ function normalizeManorCareEntry(entry) {
 }
 
 function normalizeManorStealEntry(entry) {
+  const id = String(entry?.id || makeId('manor_steal'));
+  const idempotencyKey = sanitizeText(entry?.idempotency_key, 160);
+  const visitorRewardQuantity = Math.min(1, Math.max(0, Math.floor(Number(entry?.visitor_reward_quantity ?? entry?.quantity) || 0)));
+  const ownerReservedRatio = clampNumber(entry?.owner_reserved_ratio ?? 1, 0, 1);
   return {
-    id: String(entry?.id || makeId('manor_steal')),
+    id,
     target_username: String(entry?.target_username || '').trim(),
     target_save_id: normalizeManorSaveId(entry?.target_save_id ?? entry?.targetSaveId),
     target_save_slot: normalizeManorSaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
@@ -713,12 +780,100 @@ function normalizeManorStealEntry(entry) {
       : [],
     use_summary: sanitizeText(entry?.use_summary, 120),
     day_tag: sanitizeText(entry?.day_tag, 20),
-    idempotency_key: sanitizeText(entry?.idempotency_key, 160),
+    idempotency_key: idempotencyKey,
     owner_compensation: sanitizeText(entry?.owner_compensation, 140),
     visitor_reward: sanitizeText(entry?.visitor_reward, 80),
+    visitor_reward_quantity: visitorRewardQuantity,
+    reward_daily_cap: Math.max(1, Math.floor(Number(entry?.reward_daily_cap) || MANOR_STEAL_DAILY_VISITOR_LIMIT)),
+    owner_reserved_ratio: ownerReservedRatio,
+    settlement_receipt_id: sanitizeText(entry?.settlement_receipt_id, 120) || idempotencyKey || id,
     note: sanitizeText(entry?.note, 80),
     summary: sanitizeText(entry?.summary, 200),
     created_at: Number(entry?.created_at) || nowSeconds(),
+  };
+}
+
+function normalizeManorCareRoomParticipant(entry) {
+  const username = String(entry?.username || entry?.visitor_username || '').trim();
+  return {
+    username,
+    display_name: sanitizeText(entry?.display_name || entry?.visitor_display_name, 30) || username || '匿名',
+    role_id: sanitizeText(entry?.role_id, 40),
+    role_label: sanitizeText(entry?.role_label, 40),
+    joined_at: Number(entry?.joined_at) || nowSeconds(),
+  };
+}
+
+function normalizeManorCareRoomAction(entry) {
+  const actionId = sanitizeText(entry?.action_id, 60);
+  const actionDef = MANOR_CARE_ROOM_ACTION_BY_ID[actionId] || {};
+  const idempotencyKey = sanitizeText(entry?.idempotency_key, 160);
+  return {
+    id: String(entry?.id || makeId('manor_care_room_action')),
+    action_id: actionId,
+    action_label: sanitizeText(entry?.action_label, 40) || actionDef.label || actionId,
+    role_id: sanitizeText(entry?.role_id, 40) || actionDef.role_id || '',
+    role_label: sanitizeText(entry?.role_label, 40) || actionDef.role_label || '',
+    object_id: sanitizeText(entry?.object_id, 80) || actionDef.object_id || '',
+    object_label: sanitizeText(entry?.object_label, 40) || actionDef.object_label || '',
+    actor_username: String(entry?.actor_username || '').trim(),
+    actor_display_name: sanitizeText(entry?.actor_display_name, 30) || String(entry?.actor_username || '匿名'),
+    expected_order: Math.max(1, Math.floor(Number(entry?.expected_order ?? actionDef.expected_order) || 1)),
+    actual_order: Math.max(1, Math.floor(Number(entry?.actual_order) || 1)),
+    order_risk: Boolean(entry?.order_risk),
+    role_matched: Boolean(entry?.role_matched),
+    risk_delta: Math.max(0, Math.floor(Number(entry?.risk_delta) || 0)),
+    health_delta: Math.max(0, Math.floor(Number(entry?.health_delta) || 0)),
+    idempotency_key: idempotencyKey,
+    summary: sanitizeText(entry?.summary, 180),
+    created_at: Number(entry?.created_at) || nowSeconds(),
+  };
+}
+
+function normalizeManorCareRoom(entry) {
+  const now = nowSeconds();
+  const createdAt = Number(entry?.created_at) || now;
+  const windowStartedAt = Number(entry?.window_started_at) || createdAt;
+  const windowEndsAt = Number(entry?.window_ends_at) || (windowStartedAt + MANOR_CARE_ROOM_WINDOW_SECONDS);
+  const rawStatus = sanitizeText(entry?.status, 30);
+  const actions = Array.isArray(entry?.actions)
+    ? entry.actions.map(normalizeManorCareRoomAction).sort((left, right) => left.created_at - right.created_at)
+    : [];
+  const participants = Array.isArray(entry?.participants)
+    ? entry.participants.map(normalizeManorCareRoomParticipant).filter(item => item.username)
+    : [];
+  const settledAt = Number(entry?.settled_at) || 0;
+  const status = rawStatus === 'completed'
+    ? 'completed'
+    : windowEndsAt > 0 && now > windowEndsAt
+      ? 'expired'
+      : rawStatus === 'in_progress' || actions.length > 0 || participants.length >= MANOR_CARE_ROOM_MIN_MEMBERS
+        ? 'in_progress'
+        : 'open';
+  return {
+    id: String(entry?.id || makeId('manor_care_room')),
+    target_username: String(entry?.target_username || '').trim(),
+    target_save_id: normalizeManorSaveId(entry?.target_save_id ?? entry?.targetSaveId),
+    target_save_slot: normalizeManorSaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
+    creator_username: String(entry?.creator_username || '').trim(),
+    creator_display_name: sanitizeText(entry?.creator_display_name, 30) || String(entry?.creator_username || '匿名'),
+    member_limit: Math.max(MANOR_CARE_ROOM_MIN_MEMBERS, Math.min(MANOR_CARE_ROOM_MAX_MEMBERS, Math.floor(Number(entry?.member_limit) || MANOR_CARE_ROOM_MAX_MEMBERS))),
+    day_tag: sanitizeText(entry?.day_tag, 20),
+    idempotency_key: sanitizeText(entry?.idempotency_key, 160),
+    status,
+    window_started_at: windowStartedAt,
+    window_ends_at: windowEndsAt,
+    participants,
+    actions,
+    risk_score: Math.max(0, Math.floor(Number(entry?.risk_score) || actions.reduce((sum, action) => sum + action.risk_delta, 0))),
+    health_score: Math.max(0, Math.min(100, Math.floor(Number(entry?.health_score) || 0))),
+    health_delta: Math.floor(Number(entry?.health_delta) || 0),
+    settlement_receipt_id: sanitizeText(entry?.settlement_receipt_id, 120),
+    settled_by: String(entry?.settled_by || '').trim(),
+    settled_at: settledAt,
+    summary: sanitizeText(entry?.summary, 220),
+    created_at: createdAt,
+    updated_at: Number(entry?.updated_at) || createdAt,
   };
 }
 
@@ -918,8 +1073,242 @@ function getStealEntriesForTarget(targetUsername) {
     .sort((left, right) => right.created_at - left.created_at);
 }
 
+function getCareRoomsForTarget(targetUsername) {
+  const normalizedTarget = String(targetUsername || '').trim();
+  const store = loadCareStore();
+  return (store.care_rooms || [])
+    .map(normalizeManorCareRoom)
+    .filter(entry => entry.target_username === normalizedTarget)
+    .sort((left, right) => right.updated_at - left.updated_at);
+}
+
 function countCareEntries(entries, predicate) {
   return entries.reduce((sum, entry) => sum + (predicate(entry) ? 1 : 0), 0);
+}
+
+function buildManorCareRoomIdempotencyKey(targetUsername, actorUsername, dayTag, rawKey = '') {
+  return [
+    'manor_care_room',
+    sanitizeText(targetUsername, 60),
+    sanitizeText(actorUsername, 60),
+    sanitizeText(dayTag, 20),
+    sanitizeText(rawKey, 80) || 'create',
+  ].join(':');
+}
+
+function buildManorCareRoomActionIdempotencyKey(roomId, actorUsername, actionId, dayTag, rawKey = '') {
+  return [
+    'manor_care_room_action',
+    sanitizeText(roomId, 80),
+    sanitizeText(actorUsername, 60),
+    sanitizeText(actionId, 60),
+    sanitizeText(dayTag, 20),
+    sanitizeText(rawKey, 80) || 'default',
+  ].join(':');
+}
+
+function getManorCareRoomRoleForIndex(index) {
+  const definition = MANOR_CARE_ROOM_ACTION_DEFS[index % MANOR_CARE_ROOM_ACTION_DEFS.length] || MANOR_CARE_ROOM_ACTION_DEFS[0];
+  return {
+    role_id: definition.role_id,
+    role_label: definition.role_label,
+  };
+}
+
+function isManorCareRoomActive(room) {
+  return room && !['completed', 'expired'].includes(room.status);
+}
+
+function serializeManorCareRoom(room, viewerUsername = '') {
+  const normalized = normalizeManorCareRoom(room);
+  const completedActionIds = new Set(normalized.actions.map(action => action.action_id));
+  const viewerIsMember = normalized.participants.some(participant => participant.username === viewerUsername);
+  const canAct = viewerIsMember
+    && isManorCareRoomActive(normalized)
+    && normalized.participants.length >= MANOR_CARE_ROOM_MIN_MEMBERS;
+  const canSettle = viewerIsMember
+    && normalized.status !== 'completed'
+    && normalized.participants.length >= MANOR_CARE_ROOM_MIN_MEMBERS
+    && (normalized.actions.length >= MANOR_CARE_ROOM_MIN_MEMBERS || normalized.status === 'expired');
+  return {
+    ...normalized,
+    viewer_is_member: viewerIsMember,
+    remaining_seconds: Math.max(0, normalized.window_ends_at - nowSeconds()),
+    available_action_ids: canAct
+      ? MANOR_CARE_ROOM_ACTION_DEFS
+          .filter(action => !completedActionIds.has(action.id))
+          .map(action => action.id)
+      : [],
+    can_join: Boolean(
+      viewerUsername
+      && isManorCareRoomActive(normalized)
+      && normalized.participants.length < normalized.member_limit
+      && !viewerIsMember
+    ),
+    can_act: canAct,
+    can_settle: canSettle,
+  };
+}
+
+function calculateManorCareRoomSettlement(room) {
+  const normalized = normalizeManorCareRoom(room);
+  const uniqueActionCount = new Set(normalized.actions.map(action => action.action_id)).size;
+  const roleMatchCount = normalized.actions.filter(action => action.role_matched).length;
+  const riskScore = normalized.actions.reduce((sum, action) => sum + action.risk_delta, 0);
+  const healthScore = Math.max(0, Math.min(100, 50 + uniqueActionCount * 10 + normalized.participants.length * 4 + roleMatchCount * 3 - riskScore));
+  const healthDelta = healthScore - 50;
+  return {
+    riskScore,
+    healthScore,
+    healthDelta,
+    summary: `协作护理完成 ${uniqueActionCount}/4 项，参与 ${normalized.participants.length} 人，顺序风险 ${riskScore}，庄园健康度 ${healthScore}。`,
+  };
+}
+
+function buildManorCareRoomState(username, viewerUsername, relationContext, accessPolicy, careRooms = []) {
+  const activeRooms = careRooms
+    .filter(room => room.status !== 'completed')
+    .map(room => serializeManorCareRoom(room, viewerUsername))
+    .slice(0, 6);
+  const completedRooms = careRooms
+    .filter(room => room.status === 'completed')
+    .map(room => serializeManorCareRoom(room, viewerUsername))
+    .slice(0, MANOR_CARE_ROOM_RECENT_LOG_LIMIT);
+  const canCareByPolicy = relationContext.viewer_is_owner || canAccessByMode(accessPolicy.care_mode, relationContext);
+  return {
+    viewer_username: viewerUsername,
+    day_tag: getLocalDayTag(),
+    limits: {
+      min_members: MANOR_CARE_ROOM_MIN_MEMBERS,
+      max_members: MANOR_CARE_ROOM_MAX_MEMBERS,
+      window_seconds: MANOR_CARE_ROOM_WINDOW_SECONDS,
+    },
+    action_labels: Object.fromEntries(MANOR_CARE_ROOM_ACTION_DEFS.map(action => [action.id, action.label])),
+    role_labels: Object.fromEntries(MANOR_CARE_ROOM_ACTION_DEFS.map(action => [action.role_id, action.role_label])),
+    action_effects: Object.fromEntries(MANOR_CARE_ROOM_ACTION_DEFS.map(action => [action.id, {
+      role_id: action.role_id,
+      role_label: action.role_label,
+      object_id: action.object_id,
+      object_label: action.object_label,
+      expected_order: action.expected_order,
+      health_delta: action.health_delta,
+      risk_delta: action.risk_delta,
+      summary: action.summary,
+    }])),
+    can_create_room: Boolean(viewerUsername && canCareByPolicy),
+    create_denied_reason: canCareByPolicy
+      ? ''
+      : buildAccessDenyMessage(accessPolicy.care_mode, '建立庄园护理房间'),
+    active_rooms: activeRooms,
+    recent_records: completedRooms,
+    record_summary: completedRooms.length > 0
+      ? `最近 ${completedRooms.length} 条协作护理记录可回看。`
+      : '暂无协作护理记录。',
+  };
+}
+
+function buildDailyVisitorCountEntries(entries = [], visitorLimit = 1) {
+  const counts = new Map();
+  for (const entry of entries) {
+    const username = String(entry?.visitor_username || '').trim();
+    if (!username) continue;
+    const current = counts.get(username) || {
+      visitor_username: username,
+      visitor_display_name: entry.visitor_display_name || username,
+      count: 0,
+    };
+    current.count += 1;
+    current.visitor_display_name = entry.visitor_display_name || current.visitor_display_name || username;
+    counts.set(username, current);
+  }
+  return Array.from(counts.values())
+    .map(item => ({
+      visitor_username: item.visitor_username,
+      visitor_display_name: sanitizeText(item.visitor_display_name, 30) || item.visitor_username,
+      count: Math.max(0, Math.floor(Number(item.count) || 0)),
+      limit: Math.max(1, Math.floor(Number(visitorLimit) || 1)),
+      remaining: Math.max(0, Math.max(1, Math.floor(Number(visitorLimit) || 1)) - Math.max(0, Math.floor(Number(item.count) || 0))),
+    }))
+    .sort((left, right) => right.count - left.count || left.visitor_username.localeCompare(right.visitor_username));
+}
+
+function countRecentWindowEntries(entries = []) {
+  const startsAt = nowSeconds() - MANOR_ACTIVITY_RECENT_WINDOW_SECONDS;
+  return entries.filter(entry => Number(entry?.created_at || 0) >= startsAt).length;
+}
+
+function buildInteractionRiskFlags(entries = [], visitorCounts = [], visitorLimit = 1, manorLimit = 1, burstThreshold = 3) {
+  const flags = [];
+  if (visitorCounts.some(entry => entry.count >= visitorLimit)) flags.push('same_visitor_limit_reached');
+  if (entries.length >= manorLimit) flags.push('manor_daily_limit_reached');
+  const startsAt = nowSeconds() - MANOR_ACTIVITY_RECENT_WINDOW_SECONDS;
+  const recentEntries = entries.filter(entry => Number(entry?.created_at || 0) >= startsAt);
+  if (recentEntries.length >= burstThreshold) flags.push('short_window_cluster');
+  return flags;
+}
+
+function buildManorVisitorActivityEntries(visitEntries = [], careEntries = [], stealEntries = [], careRoomRecords = []) {
+  const visitRecords = visitEntries.map(entry => ({
+    id: `visit:${entry.id}`,
+    source_id: entry.id,
+    kind: 'visit',
+    kind_label: '来访',
+    visitor_username: entry.visitor_username,
+    visitor_display_name: entry.visitor_display_name,
+    title: entry.summary || '前来参观庄园',
+    summary: entry.feedback || entry.summary || '前来参观庄园',
+    object_label: '',
+    action_label: '',
+    audit_note: entry.carried_items?.length > 0
+      ? `携带记录 ${entry.carried_items.length} 项`
+      : '普通来访记录',
+    created_at: entry.created_at,
+  }));
+  const careRecords = careEntries.map(entry => ({
+    id: `care:${entry.id}`,
+    source_id: entry.id,
+    kind: 'care',
+    kind_label: '照料',
+    visitor_username: entry.visitor_username,
+    visitor_display_name: entry.visitor_display_name,
+    title: `${entry.object_label || '庄园物件'} · ${entry.action_label || '照料'}`,
+    summary: entry.summary || `${entry.object_label || '庄园物件'} 已被照料`,
+    object_label: entry.object_label,
+    action_label: entry.action_label,
+    audit_note: `${entry.visitor_reward || '访客奖励'} · ${entry.idempotency_key ? '幂等凭证已记录' : '服务端照料记录'}`,
+    created_at: entry.created_at,
+  }));
+  const stealRecords = stealEntries.map(entry => ({
+    id: `steal:${entry.id}`,
+    source_id: entry.id,
+    kind: 'steal',
+    kind_label: '轻采',
+    visitor_username: entry.visitor_username,
+    visitor_display_name: entry.visitor_display_name,
+    title: `${entry.object_label || '庄园物件'} · ${entry.target_label || entry.action_label || '轻采'}`,
+    summary: entry.summary || `${entry.object_label || '庄园物件'} 有轻采记录`,
+    object_label: entry.object_label,
+    action_label: entry.action_label,
+    audit_note: `凭证 ${entry.settlement_receipt_id || entry.id} · 单次 ${entry.visitor_reward_quantity || entry.quantity || 1} · 主人保留 ${Math.round((entry.owner_reserved_ratio || 1) * 100)}%`,
+    created_at: entry.created_at,
+  }));
+  const roomRecords = careRoomRecords.map(room => ({
+    id: `care_room:${room.id}`,
+    source_id: room.id,
+    kind: 'care_room',
+    kind_label: '协作护理',
+    visitor_username: room.settled_by || room.creator_username,
+    visitor_display_name: room.participants.map(participant => participant.display_name).slice(0, 4).join('、') || room.creator_display_name,
+    title: `协作护理 · ${room.health_score || 0}`,
+    summary: room.summary || '协作护理已完成',
+    object_label: '庄园整体',
+    action_label: '协作护理',
+    audit_note: `凭证 ${room.settlement_receipt_id || room.id} · 健康度 ${room.health_score || 0} · 顺序风险 ${room.risk_score || 0}`,
+    created_at: room.settled_at || room.updated_at || room.created_at,
+  }));
+  return [...visitRecords, ...careRecords, ...stealRecords, ...roomRecords]
+    .sort((left, right) => right.created_at - left.created_at)
+    .slice(0, 40);
 }
 
 function ensureInventoryState(saveData) {
@@ -1196,6 +1585,22 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
   const viewerEntries = todayEntries.filter(entry => entry.visitor_username === viewerUsername);
   const todayStealEntries = stealEntries.filter(entry => entry.day_tag === dayTag);
   const viewerStealEntries = todayStealEntries.filter(entry => entry.visitor_username === viewerUsername);
+  const careVisitorCounts = buildDailyVisitorCountEntries(todayEntries, MANOR_CARE_DAILY_VISITOR_LIMIT);
+  const stealVisitorCounts = buildDailyVisitorCountEntries(todayStealEntries, MANOR_STEAL_DAILY_VISITOR_LIMIT);
+  const careRiskFlags = buildInteractionRiskFlags(
+    todayEntries,
+    careVisitorCounts,
+    MANOR_CARE_DAILY_VISITOR_LIMIT,
+    MANOR_CARE_DAILY_MANOR_LIMIT,
+    3
+  );
+  const stealRiskFlags = buildInteractionRiskFlags(
+    todayStealEntries,
+    stealVisitorCounts,
+    MANOR_STEAL_DAILY_VISITOR_LIMIT,
+    MANOR_STEAL_DAILY_MANOR_LIMIT,
+    2
+  );
   const objectCounts = new Map();
   for (const entry of todayEntries) {
     objectCounts.set(entry.object_id, (objectCounts.get(entry.object_id) || 0) + 1);
@@ -1287,6 +1692,18 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
       remaining_care_count: remainingCareCount,
       manor_remaining_care_count: manorRemainingCareCount,
       can_care: canCare,
+      audit: {
+        visitor_limit_enforced: true,
+        manor_limit_enforced: true,
+        object_limit_enforced: true,
+        reward_cap_summary: `每位访客每日 ${MANOR_CARE_DAILY_VISITOR_LIMIT} 次，每座庄园每日 ${MANOR_CARE_DAILY_MANOR_LIMIT} 次；同一物件按场景进度封顶。`,
+        settlement_summary: '照料动作由服务端记录幂等凭证；收拾掉落物的伴手礼写入访客存档并回写存档 revision。',
+        recent_window_seconds: MANOR_ACTIVITY_RECENT_WINDOW_SECONDS,
+        recent_window_count: countRecentWindowEntries(todayEntries),
+        daily_visitor_counts: careVisitorCounts,
+        risk_flags: careRiskFlags,
+        dispute_log_available: true,
+      },
       care_denied_reason: canCare
         ? ''
         : remainingCareCount <= 0
@@ -1313,6 +1730,21 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
       manor_remaining_steal_count: manorRemainingStealCount,
       can_steal: canSteal,
       steal_denied_reason: stealDeniedReason,
+      audit: {
+        visitor_limit_enforced: true,
+        manor_limit_enforced: true,
+        object_limit_enforced: true,
+        whitelist_enforced: true,
+        reward_cap_summary: `每位访客每日 ${MANOR_STEAL_DAILY_VISITOR_LIMIT} 次，每座庄园每日 ${MANOR_STEAL_DAILY_MANOR_LIMIT} 次，每个物件每日 1 次；单次只生成 1 份轻采凭证。`,
+        settlement_summary: '偷菜不扣主人库存，只记录服务端轻采凭证、用途标签、主人补偿和留言，争议可按最近访客行为回看。',
+        owner_reserved_percent: 100,
+        visitor_reward_quantity_cap: 1,
+        recent_window_seconds: MANOR_ACTIVITY_RECENT_WINDOW_SECONDS,
+        recent_window_count: countRecentWindowEntries(todayStealEntries),
+        daily_visitor_counts: stealVisitorCounts,
+        risk_flags: stealRiskFlags,
+        dispute_log_available: true,
+      },
       whitelist_summary: '仅普通成熟作物、普通果实和边角产物可轻采；任务物、稀有物、唯一物、绑定物和活动核心物被排除；可偷目标会显示料理、订单、节会、宠物或赠礼用途标签。',
       target_use_hints: stealTargetUseHints,
     },
@@ -1532,6 +1964,8 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
   const visitEntries = getVisitsForTarget(user.username);
   const careEntries = getCareEntriesForTarget(user.username);
   const stealEntries = getStealEntriesForTarget(user.username);
+  const careRooms = getCareRoomsForTarget(user.username);
+  const careRoomRecords = careRooms.filter(room => room.status === 'completed');
   const guideConfig = getGuideConfig(user.username);
   const favoriteStore = loadFavoriteStore();
   const ownerFavorites = favoriteStore.favorites
@@ -1548,6 +1982,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     .length;
   const themeWeek = buildThemeWeekState(user.username, gameplay, profile.showcase_theme, publicTags, favoriteCount, placedDecorationCount);
   const careSnapshot = buildManorCareSnapshot(user.username, viewer, gameplay, relationContext, accessPolicy, careEntries, stealEntries);
+  const careRoomState = buildManorCareRoomState(user.username, viewer, relationContext, accessPolicy, careRooms);
 
   return {
     username: user.username,
@@ -1569,6 +2004,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     public_tags: publicTags,
     guestbook_entries: getGuestbookEntriesForTarget(user.username),
     visit_entries: visitEntries,
+    visitor_activity_entries: buildManorVisitorActivityEntries(visitEntries, careEntries, stealEntries, careRoomRecords),
     guide_points: guideConfig.guide_points.sort((left, right) => left.order - right.order),
     guide_routes: guideConfig.guide_routes,
     today_visit_summary: buildTodayVisitSummary(visitEntries),
@@ -1587,6 +2023,8 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     care_entries: careEntries.slice(0, MANOR_CARE_RECENT_LOG_LIMIT),
     steal_state: careSnapshot.steal_state,
     steal_entries: stealEntries.slice(0, MANOR_STEAL_RECENT_LOG_LIMIT),
+    care_room_state: careRoomState,
+    care_room_records: careRoomRecords.map(room => serializeManorCareRoom(room, viewer)).slice(0, MANOR_CARE_ROOM_RECENT_LOG_LIMIT),
   };
 }
 
@@ -1898,8 +2336,12 @@ async function submitManorStealAction(payload = {}, actor = {}) {
     idempotency_key: idempotencyKey,
     owner_compensation: actionDef.owner_compensation,
     visitor_reward: actionDef.visitor_reward,
+    visitor_reward_quantity: 1,
+    reward_daily_cap: MANOR_STEAL_DAILY_VISITOR_LIMIT,
+    owner_reserved_ratio: 1,
+    settlement_receipt_id: idempotencyKey,
     note,
-    summary: `${actor.displayName || visitorUsername} 在${objectLabel}轻采「${stealTarget.label}」：${actionDef.owner_compensation}。`,
+    summary: `${actor.displayName || visitorUsername} 在${objectLabel}轻采「${stealTarget.label}」：${actionDef.owner_compensation}，主人库存不扣减。`,
     created_at: nowSeconds(),
   });
   store.steals = [entry, ...steals].slice(0, 1000);
@@ -1907,6 +2349,266 @@ async function submitManorStealAction(payload = {}, actor = {}) {
   return {
     entry,
     snapshot: await buildManorSnapshot(targetUsername, visitorUsername),
+    idempotent: false,
+  };
+}
+
+async function resolveManorCareRoomTarget(payload = {}, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录');
+  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
+  const targetUser = await db.getUser(targetUsername);
+  if (!targetUser) throw createError('目标庄园不存在', 404);
+  const profile = await taoyuanSocialRuntime.getPublicProfile(targetUsername, targetUsername);
+  const relationContext = buildManorRelationContext(targetUsername, actorUsername);
+  const accessPolicy = getManorAccessPolicy(targetUsername, profile);
+  if (!relationContext.viewer_is_owner && !canAccessByMode(accessPolicy.visit_mode, relationContext)) {
+    throw createError(buildAccessDenyMessage(accessPolicy.visit_mode, '访问这座庄园'), 403);
+  }
+  if (!relationContext.viewer_is_owner && !canAccessByMode(accessPolicy.care_mode, relationContext)) {
+    throw createError(buildAccessDenyMessage(accessPolicy.care_mode, '建立庄园护理房间'), 403);
+  }
+  return {
+    targetUsername,
+    targetIdentity,
+    relationContext,
+    accessPolicy,
+  };
+}
+
+async function createManorCareRoom(payload = {}, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录');
+  const { targetUsername, targetIdentity } = await resolveManorCareRoomTarget(payload, actor);
+  const dayTag = getLocalDayTag();
+  const idempotencyKey = buildManorCareRoomIdempotencyKey(targetUsername, actorUsername, dayTag, payload.idempotency_key);
+  const store = loadCareStore();
+  const rooms = (store.care_rooms || []).map(normalizeManorCareRoom);
+  const existing = rooms.find(room => room.idempotency_key === idempotencyKey);
+  if (existing) {
+    return {
+      room: serializeManorCareRoom(existing, actorUsername),
+      snapshot: await buildManorSnapshot(targetUsername, actorUsername),
+      idempotent: true,
+    };
+  }
+  const activeOwnRoom = rooms.find(room =>
+    room.target_username === targetUsername
+    && room.creator_username === actorUsername
+    && isManorCareRoomActive(room)
+  );
+  if (activeOwnRoom) {
+    return {
+      room: serializeManorCareRoom(activeOwnRoom, actorUsername),
+      snapshot: await buildManorSnapshot(targetUsername, actorUsername),
+      idempotent: true,
+    };
+  }
+  const memberLimit = Math.max(
+    MANOR_CARE_ROOM_MIN_MEMBERS,
+    Math.min(MANOR_CARE_ROOM_MAX_MEMBERS, Math.floor(Number(payload.member_limit) || MANOR_CARE_ROOM_MAX_MEMBERS))
+  );
+  const role = getManorCareRoomRoleForIndex(0);
+  const createdAt = nowSeconds();
+  const room = normalizeManorCareRoom({
+    id: makeId('manor_care_room'),
+    target_username: targetUsername,
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
+    creator_username: actorUsername,
+    creator_display_name: actor.displayName || actorUsername,
+    member_limit: memberLimit,
+    day_tag: dayTag,
+    idempotency_key: idempotencyKey,
+    status: 'open',
+    window_started_at: createdAt,
+    window_ends_at: createdAt + MANOR_CARE_ROOM_WINDOW_SECONDS,
+    participants: [{
+      username: actorUsername,
+      display_name: actor.displayName || actorUsername,
+      ...role,
+      joined_at: createdAt,
+    }],
+    actions: [],
+    summary: '护理房间已建立，等待好友加入分工。',
+    created_at: createdAt,
+    updated_at: createdAt,
+  });
+  store.care_rooms = [room, ...rooms].slice(0, 500);
+  saveCareStore(store);
+  return {
+    room: serializeManorCareRoom(room, actorUsername),
+    snapshot: await buildManorSnapshot(targetUsername, actorUsername),
+    idempotent: false,
+  };
+}
+
+async function joinManorCareRoom(roomId, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录');
+  const normalizedRoomId = sanitizeText(roomId, 100);
+  const store = loadCareStore();
+  const rooms = (store.care_rooms || []).map(normalizeManorCareRoom);
+  const room = rooms.find(entry => entry.id === normalizedRoomId);
+  if (!room) throw createError('护理房间不存在', 404);
+  await resolveManorCareRoomTarget({ target_username: room.target_username }, actor);
+  if (!isManorCareRoomActive(room)) throw createError('护理房间已经结束', 409);
+  const existingParticipant = room.participants.find(participant => participant.username === actorUsername);
+  if (existingParticipant) {
+    return {
+      room: serializeManorCareRoom(room, actorUsername),
+      snapshot: await buildManorSnapshot(room.target_username, actorUsername),
+      idempotent: true,
+    };
+  }
+  if (room.participants.length >= room.member_limit) throw createError('护理房间人数已满', 409);
+  const role = getManorCareRoomRoleForIndex(room.participants.length);
+  const now = nowSeconds();
+  const nextRoom = normalizeManorCareRoom({
+    ...room,
+    status: room.participants.length + 1 >= MANOR_CARE_ROOM_MIN_MEMBERS ? 'in_progress' : room.status,
+    participants: [
+      ...room.participants,
+      {
+        username: actorUsername,
+        display_name: actor.displayName || actorUsername,
+        ...role,
+        joined_at: now,
+      },
+    ],
+    summary: room.participants.length + 1 >= MANOR_CARE_ROOM_MIN_MEMBERS
+      ? '护理房间人数已就绪，可以开始协作护理。'
+      : room.summary,
+    updated_at: now,
+  });
+  store.care_rooms = [nextRoom, ...rooms.filter(entry => entry.id !== room.id)].slice(0, 500);
+  saveCareStore(store);
+  return {
+    room: serializeManorCareRoom(nextRoom, actorUsername),
+    snapshot: await buildManorSnapshot(nextRoom.target_username, actorUsername),
+    idempotent: false,
+  };
+}
+
+async function submitManorCareRoomAction(roomId, payload = {}, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录');
+  const normalizedRoomId = sanitizeText(roomId, 100);
+  const actionId = sanitizeText(payload.action_id, 60);
+  const actionDef = MANOR_CARE_ROOM_ACTION_BY_ID[actionId];
+  if (!actionDef) throw createError('未知的护理房间动作', 400);
+  const store = loadCareStore();
+  const rooms = (store.care_rooms || []).map(normalizeManorCareRoom);
+  const room = rooms.find(entry => entry.id === normalizedRoomId);
+  if (!room) throw createError('护理房间不存在', 404);
+  if (!isManorCareRoomActive(room)) throw createError('护理房间已经结束', 409);
+  if (nowSeconds() > room.window_ends_at) throw createError('护理窗口已经结束', 410);
+  const participant = room.participants.find(entry => entry.username === actorUsername);
+  if (!participant) throw createError('请先加入护理房间', 403);
+  if (room.participants.length < MANOR_CARE_ROOM_MIN_MEMBERS) throw createError('护理房间至少需要 2 人加入后才能开始', 409);
+  const dayTag = room.day_tag || getLocalDayTag();
+  const idempotencyKey = buildManorCareRoomActionIdempotencyKey(room.id, actorUsername, actionDef.id, dayTag, payload.idempotency_key);
+  const existing = room.actions.find(entry => entry.idempotency_key === idempotencyKey);
+  if (existing) {
+    return {
+      action: existing,
+      room: serializeManorCareRoom(room, actorUsername),
+      snapshot: await buildManorSnapshot(room.target_username, actorUsername),
+      idempotent: true,
+    };
+  }
+  if (room.actions.some(entry => entry.action_id === actionDef.id)) {
+    throw createError('这个护理分工已经完成', 409);
+  }
+  const completedOrders = new Set(room.actions.map(action => action.expected_order));
+  const nextExpectedAction = MANOR_CARE_ROOM_ACTION_DEFS.find(action => !completedOrders.has(action.expected_order));
+  const expectedOrder = nextExpectedAction?.expected_order || actionDef.expected_order;
+  const orderRisk = actionDef.expected_order !== expectedOrder;
+  const roleMatched = participant.role_id === actionDef.role_id;
+  const riskDelta = orderRisk ? actionDef.risk_delta : 0;
+  const healthDelta = Math.max(1, actionDef.health_delta + (roleMatched ? 3 : 0) - riskDelta);
+  const now = nowSeconds();
+  const action = normalizeManorCareRoomAction({
+    id: makeId('manor_care_room_action'),
+    action_id: actionDef.id,
+    action_label: actionDef.label,
+    role_id: actionDef.role_id,
+    role_label: actionDef.role_label,
+    object_id: actionDef.object_id,
+    object_label: actionDef.object_label,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actorUsername,
+    expected_order: actionDef.expected_order,
+    actual_order: room.actions.length + 1,
+    order_risk: orderRisk,
+    role_matched: roleMatched,
+    risk_delta: riskDelta,
+    health_delta: healthDelta,
+    idempotency_key: idempotencyKey,
+    summary: `${actor.displayName || actorUsername} 完成「${actionDef.label}」：${actionDef.summary}${orderRisk ? '（顺序提前，产生护理风险）' : ''}`,
+    created_at: now,
+  });
+  const nextRoom = normalizeManorCareRoom({
+    ...room,
+    status: 'in_progress',
+    actions: [...room.actions, action],
+    risk_score: room.risk_score + riskDelta,
+    summary: action.summary,
+    updated_at: now,
+  });
+  store.care_rooms = [nextRoom, ...rooms.filter(entry => entry.id !== room.id)].slice(0, 500);
+  saveCareStore(store);
+  return {
+    action,
+    room: serializeManorCareRoom(nextRoom, actorUsername),
+    snapshot: await buildManorSnapshot(nextRoom.target_username, actorUsername),
+    idempotent: false,
+  };
+}
+
+async function settleManorCareRoom(roomId, payload = {}, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录');
+  const normalizedRoomId = sanitizeText(roomId, 100);
+  const store = loadCareStore();
+  const rooms = (store.care_rooms || []).map(normalizeManorCareRoom);
+  const room = rooms.find(entry => entry.id === normalizedRoomId);
+  if (!room) throw createError('护理房间不存在', 404);
+  const isParticipant = room.participants.some(entry => entry.username === actorUsername);
+  const isOwner = room.target_username === actorUsername;
+  if (!isParticipant && !isOwner) throw createError('只有房间成员或庄园主人可以结算护理房间', 403);
+  if (room.status === 'completed') {
+    return {
+      room: serializeManorCareRoom(room, actorUsername),
+      snapshot: await buildManorSnapshot(room.target_username, actorUsername),
+      idempotent: true,
+    };
+  }
+  if (room.participants.length < MANOR_CARE_ROOM_MIN_MEMBERS) throw createError('护理房间至少需要 2 人才能结算', 409);
+  if (room.actions.length < MANOR_CARE_ROOM_MIN_MEMBERS && room.status !== 'expired') {
+    throw createError('至少完成 2 个护理分工后才能结算', 409);
+  }
+  const settlement = calculateManorCareRoomSettlement(room);
+  const now = nowSeconds();
+  const receiptId = sanitizeText(payload.idempotency_key, 100)
+    || `manor_care_room_settle:${room.id}:${room.day_tag || getLocalDayTag()}`;
+  const nextRoom = normalizeManorCareRoom({
+    ...room,
+    status: 'completed',
+    risk_score: settlement.riskScore,
+    health_score: settlement.healthScore,
+    health_delta: settlement.healthDelta,
+    settlement_receipt_id: receiptId,
+    settled_by: actorUsername,
+    settled_at: now,
+    summary: settlement.summary,
+    updated_at: now,
+  });
+  store.care_rooms = [nextRoom, ...rooms.filter(entry => entry.id !== room.id)].slice(0, 500);
+  saveCareStore(store);
+  return {
+    room: serializeManorCareRoom(nextRoom, actorUsername),
+    snapshot: await buildManorSnapshot(nextRoom.target_username, actorUsername),
     idempotent: false,
   };
 }
@@ -2025,6 +2727,10 @@ module.exports = {
   updateManorAccessPolicy,
   submitManorCareAction,
   submitManorStealAction,
+  createManorCareRoom,
+  joinManorCareRoom,
+  submitManorCareRoomAction,
+  settleManorCareRoom,
   favoriteManor,
   followManor,
   listFavoriteOverview,
