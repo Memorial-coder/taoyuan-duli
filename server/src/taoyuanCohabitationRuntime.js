@@ -6026,7 +6026,7 @@ function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {},
     : [];
   if (exactTargets.length === 0) throw createError('缺少可执行的个人主状态精确目标清单', 409);
   const writtenAt = nowSeconds();
-  return exactTargets.map(target => {
+  const preparedMutations = exactTargets.map(target => {
     const username = normalizeUsername(target.username);
     const usernameKey = normalizeUsernameKey(target.username_key || target.username);
     if (!username || !usernameKey) throw createError('个人主状态精确目标缺少成员信息', 409);
@@ -6054,6 +6054,7 @@ function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {},
     );
     if (existingReceipt) {
       return {
+        already_written: true,
         username,
         username_key: usernameKey,
         save_slot: normalizeSaveSlot(context.slot),
@@ -6070,6 +6071,35 @@ function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {},
       };
     }
     const adapterTarget = resolveFamilyBuildingMainStateMutationTarget(projectedData, target);
+    return {
+      already_written: false,
+      username,
+      username_key: usernameKey,
+      save_slot: normalizeSaveSlot(context.slot),
+      save_id: identitySaveId,
+      before_revision: beforeRevision,
+      context,
+      projectedData,
+      adapterTarget,
+      target,
+      receipt_id: receiptId,
+    };
+  });
+
+  return preparedMutations.map(prepared => {
+    if (prepared.already_written) return prepared;
+    const {
+      username,
+      username_key: usernameKey,
+      save_slot: saveSlot,
+      save_id: saveId,
+      before_revision: beforeRevision,
+      context,
+      projectedData,
+      adapterTarget,
+      target,
+      receipt_id: receiptId,
+    } = prepared;
     const mutation = adapterTarget.apply();
     const receipt = {
       receipt_id: receiptId,
@@ -6095,8 +6125,8 @@ function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {},
     return {
       username,
       username_key: usernameKey,
-      save_slot: normalizeSaveSlot(context.slot),
-      save_id: identitySaveId,
+      save_slot: saveSlot,
+      save_id: saveId,
       before_revision: beforeRevision,
       after_revision: afterRevision,
       receipt_id: receiptId,
@@ -13478,7 +13508,4 @@ module.exports = {
   writeSeparationPersonalStoryReceipts,
   resolveSeparationChildArrangement,
   writeSeparationPersonalFamilyReceipts,
-  __testInternals: {
-    resolveFamilyBuildingMainStateMutationTarget,
-  },
 };

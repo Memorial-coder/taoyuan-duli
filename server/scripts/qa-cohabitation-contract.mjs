@@ -137,7 +137,7 @@ const buildSaveData = username => ({
       capacity: 24,
     },
     home: {
-      farmhouseLevel: 3,
+      farmhouseLevel: username === 'qa_lg_pet_f' ? 2 : 3,
       caveChoice: username === 'cohabit_lg_cave25' ? 'mushroom' : 'none',
       caveUnlocked: username === 'cohabit_lg_cave25',
       greenhouseUnlocked: username === 'cohabit_lg_gh25',
@@ -146,19 +146,27 @@ const buildSaveData = username => ({
             { itemId: 'peach_wine', quality: 'fine', daysAging: 3 },
             { itemId: 'rice_vinegar', quality: 'normal', daysAging: 1 },
           ]
+        : username === 'qa_lg_cel_f'
+          ? [
+              { itemId: 'peach_wine', quality: 'fine', daysAging: 2 },
+            ]
         : [],
       homeRenovationStates: username === 'cohabit_lg_owner25'
         ? { scholar_room: true, tea_corner: true }
         : username === 'cohabit_lg_partner25'
           ? { scholar_room: true, ancestral_display_wall: true }
-          : {},
+          : username === 'qa_lg_ren_f'
+            ? { ancestral_display_wall: true }
+            : /^qa_lg_[a-z]+_s$/.test(username)
+              ? { scholar_room: true }
+              : {},
     },
     decoration: {
       owned: username.includes('_lg_') ? { bamboo_lamp: 2 } : {},
       placed: username.includes('_lg_') ? { bamboo_lamp: 1 } : {},
     },
     animal: {
-      pets: username === 'cohabit_lg_fh25'
+      pets: username === 'cohabit_lg_fh25' || username === 'qa_lg_pet_f'
         ? [
             { type: 'cat', name: 'Mimi' },
             { type: 'dog', name: 'Wang' },
@@ -200,6 +208,43 @@ const mutateStoredContract = async (contractId, mutate) => {
   mutate(contract)
   await writeFile(contractStoreFile, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
 }
+
+const injectReadyFamilyBuildingMainStateLedger = async (contractId, {
+  actorUsername,
+  ledgerId,
+  realBuildRef,
+}) => mutateStoredContract(contractId, contract => {
+  contract.family_building_ledger = [
+    {
+      id: ledgerId,
+      contract_id: contract.id,
+      action: 'compensated',
+      status: 'compensated',
+      purpose: 'family_building',
+      target_ref: 'family_building:shared_granary:build',
+      building_id: 'shared_granary',
+      project_id: 'shared_granary',
+      actor_username: actorUsername,
+      amount: 0,
+      shared_fund_balance_before: 0,
+      shared_fund_balance_after: 0,
+      shared_fund_deducted: false,
+      shared_warehouse_materials_consumed: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      real_build_applied: true,
+      real_build_ref: realBuildRef,
+      compensation_required: false,
+      real_build_demolished: true,
+      real_build_demolition_review_state: 'executed',
+      real_build_demolition_execution_state: 'executed',
+      real_build_demolition_personal_save_write_idempotency_key: `${ledgerId}-personal-save-write`,
+      deferred_operations: [],
+      at: 1771950000,
+      created_at: 1771950000,
+    },
+  ]
+})
 
 const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
   const data = readGameplayData(username)
@@ -4473,37 +4518,179 @@ assert.equal(duplicateGreenhouseFarmhouseMutation.already_mutated, true, 'duplic
 assert.equal(saveRuntime.loadUserSaveSlots(greenhouseMember).slots[0].raw, greenhouseRawAfterExactChain, 'duplicate greenhouse exact mutation should not rewrite save')
 assert.equal(saveRuntime.loadUserSaveSlots(farmhouseMember).slots[0].raw, farmhouseRawAfterExactChain, 'duplicate farmhouse exact mutation should not rewrite save')
 
-await assert.rejects(
-  async () => runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget({
-    home: { farmhouseLevel: 3, cellarSlots: [{ itemId: 'peach_wine', quality: 'fine', daysAging: 2 }], homeRenovationStates: {} },
-  }, {
-    candidate_path: 'home.farmhouseLevel',
-    delete_selector: 'home.farmhouseLevel.3',
-  }),
-  error => error?.status === 409,
-  'farmhouse level exact selector should reject downgrade while cellar slots remain'
-)
-await assert.rejects(
-  async () => runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget({
-    home: { farmhouseLevel: 3, cellarSlots: [], homeRenovationStates: { ancestral_display_wall: true } },
-  }, {
-    candidate_path: 'home.farmhouseLevel',
-    delete_selector: 'home.farmhouseLevel.3',
-  }),
-  error => error?.status === 409,
-  'farmhouse level exact selector should reject downgrade while high-level renovations remain'
-)
-await assert.rejects(
-  async () => runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget({
-    home: { farmhouseLevel: 2, cellarSlots: [], homeRenovationStates: {} },
-    animal: { pets: [{ type: 'cat' }, { type: 'dog' }] },
-  }, {
-    candidate_path: 'home.farmhouseLevel',
-    delete_selector: 'home.farmhouseLevel.2',
-  }),
-  error => error?.status === 409,
-  'farmhouse level exact selector should reject downgrade when pet count exceeds resulting capacity'
-)
+const runFarmhouseLevelExactMutationRejectionCase = async ({
+  caseId,
+  failingUsername,
+  deleteSelector,
+  expectedMessage,
+}) => {
+  const safeUsername = `qa_lg_${caseId}_s`
+  assert.equal((await db.registerUser(failingUsername, 'SmokePass_0525', `${caseId} failing farmhouse member`)).ok, true, `${caseId} failing member should register`)
+  assert.equal((await db.registerUser(safeUsername, 'SmokePass_0525', `${caseId} safe farmhouse member`)).ok, true, `${caseId} safe member should register`)
+  seedSave(failingUsername)
+  seedSave(safeUsername)
+  const friendRequest = await socialRuntime.requestFriendship(failingUsername, { target_username: safeUsername })
+  await socialRuntime.acceptFriendRequest(safeUsername, friendRequest.id)
+  const contractResult = await runtime.createCohabitationContract({
+    type: 'business_partner',
+    target_usernames: [safeUsername],
+    idempotency_key: `qa-${caseId}-farmhouse-reject-contract`,
+  }, actor(failingUsername))
+  await runtime.acceptCohabitationContract(contractResult.contract.id, actor(safeUsername))
+  await runtime.updateCohabitationPermissions(contractResult.contract.id, {
+    target_username: failingUsername,
+    permissions: {
+      fund: {
+        spend_large: true,
+      },
+    },
+    idempotency_key: `qa-${caseId}-farmhouse-reject-permission`,
+  }, actor(failingUsername))
+
+  const ledgerId = `qa_${caseId}_farmhouse_reject_ledger`
+  await injectReadyFamilyBuildingMainStateLedger(contractResult.contract.id, {
+    actorUsername: failingUsername,
+    ledgerId,
+    realBuildRef: `family_building:shared_granary:qa_${caseId}_farmhouse_reject`,
+  })
+
+  const preview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(contractResult.contract.id, {
+    building_ledger_id: ledgerId,
+    reason: `qa preview ${caseId} farmhouse rejection`,
+    idempotency_key: `qa-${caseId}-farmhouse-reject-preview`,
+  }, actor(failingUsername))
+  const mapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(contractResult.contract.id, {
+    building_ledger_id: ledgerId,
+    manifest_hash: preview.main_state_preview.manifest_hash,
+    reason: `qa map ${caseId} farmhouse rejection`,
+    idempotency_key: `qa-${caseId}-farmhouse-reject-mapping`,
+    mappings: preview.main_state_preview.manifest.map(item => {
+      const failing = item.username === failingUsername
+      return {
+        username: item.username,
+        username_key: item.username_key,
+        save_slot: item.save_slot,
+        save_id: item.save_id,
+        real_build_ref: item.real_build_ref,
+        candidate_path: failing ? 'home.farmhouseLevel' : 'home.homeRenovationStates',
+        binding_ref: `${failing ? 'manual-farmhouse-reject' : 'manual-safe-renovation'}:${item.building_ledger_id}:${item.username_key}`,
+        snapshot_hash: item.snapshot_hash,
+      }
+    }),
+  }, actor(failingUsername))
+  const guard = await runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(contractResult.contract.id, {
+    building_ledger_id: ledgerId,
+    mapping_manifest_hash: mapping.main_state_mapping.manifest_hash,
+    confirmation_text: '确认主状态变更安全阀',
+    compensation_plan_acknowledged: true,
+    rollback_plan_acknowledged: true,
+    reason: `qa guard ${caseId} farmhouse rejection`,
+    idempotency_key: `qa-${caseId}-farmhouse-reject-guard`,
+  }, actor(failingUsername))
+  const mainStateExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(contractResult.contract.id, {
+    building_ledger_id: ledgerId,
+    guard_manifest_hash: guard.main_state_mutation_guard.manifest_hash,
+    reason: `qa block ${caseId} before exact target`,
+    idempotency_key: `qa-${caseId}-farmhouse-reject-main-execute`,
+  }, actor(failingUsername))
+  const exactTargets = await runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(contractResult.contract.id, {
+    building_ledger_id: ledgerId,
+    guard_manifest_hash: mainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest_hash,
+    expected_execution_state: 'blocked_missing_exact_personal_target',
+    reason: `qa bind ${caseId} farmhouse reject placeholders`,
+    idempotency_key: `qa-${caseId}-farmhouse-reject-exact-targets`,
+    targets: mainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest.map((row, index) => ({
+      username: row.username,
+      username_key: row.username_key,
+      save_slot: row.save_slot,
+      save_id: row.save_id,
+      real_build_ref: row.real_build_ref,
+      candidate_path: row.candidate_path,
+      binding_ref: row.binding_ref,
+      snapshot_hash: row.snapshot_hash,
+      exact_target_ref: `${row.candidate_path}.qa_exact_target_${caseId}_${index}`,
+      delete_selector: `${row.candidate_path}.qa_exact_target_${caseId}_${index}`,
+      target_kind: row.candidate_path.startsWith('home.') ? 'home' : 'decoration',
+    })),
+  }, actor(failingUsername))
+  const exactExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(contractResult.contract.id, {
+    building_ledger_id: ledgerId,
+    exact_target_manifest_hash: exactTargets.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+    expected_execution_state: 'exact_target_bound_pending_execute',
+    confirmation_text: '确认精确执行安全阀',
+    compensation_plan_acknowledged: true,
+    rollback_plan_acknowledged: true,
+    reason: `qa execute ${caseId} farmhouse reject placeholders`,
+    idempotency_key: `qa-${caseId}-farmhouse-reject-exact-execute`,
+  }, actor(failingUsername))
+  const resolution = await runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(contractResult.contract.id, {
+    building_ledger_id: ledgerId,
+    exact_target_manifest_hash: exactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+    expected_execution_state: 'blocked_unresolved_exact_target_selector',
+    confirmation_text: '确认人工解析精确目标',
+    reason: `qa resolve ${caseId} farmhouse rejection`,
+    idempotency_key: `qa-${caseId}-farmhouse-reject-resolution`,
+    targets: exactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.map((item, index) => {
+      const failing = item.username === failingUsername
+      const resolvedTargetRef = failing ? deleteSelector : 'home.homeRenovationStates.scholar_room'
+      return {
+        username: item.username,
+        username_key: item.username_key,
+        save_slot: item.save_slot,
+        save_id: item.save_id,
+        real_build_ref: item.real_build_ref,
+        candidate_path: item.candidate_path,
+        binding_ref: item.binding_ref,
+        snapshot_hash: item.snapshot_hash,
+        exact_target_ref: resolvedTargetRef,
+        delete_selector: resolvedTargetRef,
+        target_kind: item.target_kind,
+        resolution_proof: `qa-${caseId}-farmhouse-reject-proof-${index}`,
+      }
+    }),
+  }, actor(failingUsername))
+  const failingRawBeforeMutation = saveRuntime.loadUserSaveSlots(failingUsername).slots[0].raw
+  const safeRawBeforeMutation = saveRuntime.loadUserSaveSlots(safeUsername).slots[0].raw
+  await assert.rejects(
+    () => runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(contractResult.contract.id, {
+      building_ledger_id: ledgerId,
+      exact_target_manifest_hash: resolution.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+      expected_execution_state: 'blocked_personal_main_state_mutation_adapter_missing',
+      confirmation_text: '确认执行个人主状态变更',
+      compensation_plan_acknowledged: true,
+      rollback_plan_acknowledged: true,
+      reason: `qa reject ${caseId} farmhouse exact mutation`,
+      idempotency_key: `qa-${caseId}-farmhouse-reject-mutation`,
+    }, actor(failingUsername)),
+    error => error?.status === 409 && String(error.message || '').includes(expectedMessage),
+    `${caseId} farmhouse exact mutation should reject through real adapter chain`
+  )
+  assert.equal(saveRuntime.loadUserSaveSlots(failingUsername).slots[0].raw, failingRawBeforeMutation, `${caseId} rejected farmhouse mutation should not rewrite failing save`)
+  assert.equal(saveRuntime.loadUserSaveSlots(safeUsername).slots[0].raw, safeRawBeforeMutation, `${caseId} rejected farmhouse mutation should not rewrite safe save`)
+  const fundSnapshot = await runtime.getCohabitationFund(contractResult.contract.id, actor(failingUsername))
+  const warehouseSnapshot = await runtime.getCohabitationWarehouse(contractResult.contract.id, actor(failingUsername))
+  assert.equal(fundSnapshot.fund.balance, 0, `${caseId} rejected farmhouse mutation should not change shared fund`)
+  assert.equal(warehouseSnapshot.warehouse.summary.total_quantity, 0, `${caseId} rejected farmhouse mutation should not change shared warehouse`)
+}
+
+await runFarmhouseLevelExactMutationRejectionCase({
+  caseId: 'cel',
+  failingUsername: 'qa_lg_cel_f',
+  deleteSelector: 'home.farmhouseLevel.3',
+  expectedMessage: '陈酿槽',
+})
+await runFarmhouseLevelExactMutationRejectionCase({
+  caseId: 'ren',
+  failingUsername: 'qa_lg_ren_f',
+  deleteSelector: 'home.farmhouseLevel.3',
+  expectedMessage: '高等级宅院改造',
+})
+await runFarmhouseLevelExactMutationRejectionCase({
+  caseId: 'pet',
+  failingUsername: 'qa_lg_pet_f',
+  deleteSelector: 'home.farmhouseLevel.2',
+  expectedMessage: '宠物数量',
+})
 
 const ownerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw
 const partnerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw
