@@ -3075,7 +3075,7 @@
     if (!(selector.startsWith(`${candidatePath}.`) || selector.startsWith(`${candidatePath}[`))) return false
     const childKey = selector.slice(candidatePath.length + 1)
     if (!childKey || childKey.includes('.') || childKey.includes('[') || childKey.includes(']')) return false
-    return candidatePath === 'home.homeRenovationStates' || candidatePath === 'decoration.placed'
+    return candidatePath === 'home.homeRenovationStates' || candidatePath === 'decoration.placed' || candidatePath === 'decoration.owned'
   }
   const canExecuteFamilyBuildingRealDemolitionMainStateExactMutation = (entry: CohabitationFamilyBuildingLedgerEntry) =>
     cohabitationStore.canOpenSelectedContract &&

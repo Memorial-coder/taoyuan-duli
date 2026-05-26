@@ -5811,7 +5811,39 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
-  throw createError('个人主状态变更适配器第一版只支持宅院改造状态和已放置装饰目标', 409);
+  if (candidatePath === 'decoration.owned') {
+    if (!data.decoration || typeof data.decoration !== 'object') data.decoration = {};
+    if (!data.decoration.owned || typeof data.decoration.owned !== 'object' || Array.isArray(data.decoration.owned)) {
+      data.decoration.owned = {};
+    }
+    if (!data.decoration.placed || typeof data.decoration.placed !== 'object' || Array.isArray(data.decoration.placed)) {
+      data.decoration.placed = {};
+    }
+    const beforeCount = Math.max(0, Math.floor(Number(data.decoration.owned[childKey]) || 0));
+    const placedCount = Math.max(0, Math.floor(Number(data.decoration.placed[childKey]) || 0));
+    if (beforeCount <= 0) {
+      throw createError('个人装饰拥有目标不存在或已为空，不能执行真实删除', 409);
+    }
+    if (beforeCount <= placedCount) {
+      throw createError('个人装饰拥有目标没有未放置库存，不能只删除拥有数量', 409);
+    }
+    return {
+      target_id: childKey,
+      target_kind: 'decoration_owned',
+      before_value: beforeCount,
+      apply() {
+        const nextCount = Math.max(0, beforeCount - 1);
+        if (nextCount > 0) data.decoration.owned[childKey] = nextCount;
+        else delete data.decoration.owned[childKey];
+        return {
+          mutation_result: 'decoration_owned_removed',
+          after_value: nextCount,
+        };
+      },
+    };
+  }
+
+  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、已放置装饰和未放置装饰库存目标', 409);
 }
 
 function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {}, buildingEntry = {}, payload = {}) {

@@ -4,9 +4,15 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态精确变更 selector 覆盖
+- 后端精确变更适配器新增 `decoration.owned.<decorationId>` 窄 selector，只允许撤回一件未放置装饰库存；若拥有数量不存在、没有未放置余量，或会导致已放置数量超过拥有数量则拒绝。
+- 前端“执行变更”按钮同步允许 `decoration.owned`，仍拒绝宽路径、嵌套路径和前端 / QA 占位 selector。
+- 专项 QA 改为同一条真实拆除链路中覆盖成员 A 删除 `home.homeRenovationStates`、成员 B 撤回 `decoration.owned`，并确认 `decoration.placed`、共同基金、共同仓库、个人铜币和背包不变。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态精确变更前端入口
 - 前端 API / store 接入 `/family-buildings/real-demolition/execute-main-state-exact-mutation`，共同庄园建筑流水卡片新增“执行变更”按钮。
-- 按钮按已完成人工解析、`blocked_personal_main_state_mutation_adapter_missing` 执行状态、目标 manifest hash、目标清单、未执行幂等和已支持窄 selector 禁用；当前只允许 `home.homeRenovationStates.<id>` 与 `decoration.placed.<id>`，并拒绝前端 / QA 占位 selector。
+- 按钮按已完成人工解析、`blocked_personal_main_state_mutation_adapter_missing` 执行状态、目标 manifest hash、目标清单、未执行幂等和已支持窄 selector 禁用；当前允许 `home.homeRenovationStates.<id>`、`decoration.placed.<id>` 与 `decoration.owned.<id>`，并拒绝前端 / QA 占位 selector。
 - 提交时固定带“确认执行个人主状态变更”、补偿方案确认和回滚方案确认；成功后展示变更人、变更时间、回执数、变更策略和 `personal_main_state_mutated` 状态，本轮仍不改共同基金 / 共同仓库数量、不写个人铜币、背包或农田。
 - 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
 

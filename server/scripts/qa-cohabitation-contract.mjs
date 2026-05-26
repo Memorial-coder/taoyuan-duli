@@ -149,7 +149,7 @@ const buildSaveData = username => ({
           : {},
     },
     decoration: {
-      owned: username.includes('_lg_') ? { bamboo_lamp: 1 } : {},
+      owned: username.includes('_lg_') ? { bamboo_lamp: 2 } : {},
       placed: username.includes('_lg_') ? { bamboo_lamp: 1 } : {},
     },
   },
@@ -3430,16 +3430,19 @@ const mainStateMappingPayload = {
   manifest_hash: familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest_hash,
   reason: 'qa verify personal main state mapping without mutation',
   idempotency_key: 'qa-family-building-real-demolition-main-state-mapping',
-  mappings: familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.map(item => ({
-    username: item.username,
-    username_key: item.username_key,
-    save_slot: item.save_slot,
-    save_id: item.save_id,
-    real_build_ref: item.real_build_ref,
-    candidate_path: 'home.homeRenovationStates',
-    binding_ref: `manual-home-renovation:${item.building_ledger_id}:${item.username_key}`,
-    snapshot_hash: item.snapshot_hash,
-  })),
+  mappings: familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.map(item => {
+    const useDecorationOwned = item.username === largePartner
+    return {
+      username: item.username,
+      username_key: item.username_key,
+      save_slot: item.save_slot,
+      save_id: item.save_id,
+      real_build_ref: item.real_build_ref,
+      candidate_path: useDecorationOwned ? 'decoration.owned' : 'home.homeRenovationStates',
+      binding_ref: `${useDecorationOwned ? 'manual-decoration-owned' : 'manual-home-renovation'}:${item.building_ledger_id}:${item.username_key}`,
+      snapshot_hash: item.snapshot_hash,
+    }
+  }),
 }
 
 await assert.rejects(
@@ -3472,11 +3475,13 @@ assert.equal(
   familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest.every(item =>
     item.mapping_status === 'verified_personal_binding_pending_mutation'
     && item.mutation_enabled === false
-    && item.candidate_path === 'home.homeRenovationStates'
-    && item.binding_ref.startsWith('manual-home-renovation:')
+    && (
+      (item.username === largePartner && item.candidate_path === 'decoration.owned' && item.binding_ref.startsWith('manual-decoration-owned:'))
+      || (item.username !== largePartner && item.candidate_path === 'home.homeRenovationStates' && item.binding_ref.startsWith('manual-home-renovation:'))
+    )
   ),
   true,
-  'main state mapping should record verified binding refs without enabling mutation'
+  'main state mapping should record verified home and decoration binding refs without enabling mutation'
 )
 assert.ok(familyBuildingRealDemolitionMainStateMapping.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_mapping_verified'), 'main state mapping should be audited')
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state mapping should not rewrite owner save')
@@ -3799,7 +3804,11 @@ const mainStateExactTargetResolutionPayload = {
   reason: 'qa resolve placeholder exact target but keep mutation adapter blocked',
   idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution',
   targets: familyBuildingRealDemolitionMainStateExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.map((item, index) => {
-    const resolvedId = item.username === largeOwner ? 'scholar_room' : 'ancestral_display_wall'
+    const resolvedId = item.candidate_path === 'decoration.owned'
+      ? 'bamboo_lamp'
+      : item.username === largeOwner
+        ? 'scholar_room'
+        : 'ancestral_display_wall'
     const resolvedTargetRef = `${item.candidate_path}.${resolvedId}`
     return {
       username: item.username,
@@ -3937,8 +3946,10 @@ await assert.rejects(
 
 const ownerHomeBeforeExactMutation = readGameplayData(largeOwner)?.home?.homeRenovationStates || {}
 const partnerHomeBeforeExactMutation = readGameplayData(largePartner)?.home?.homeRenovationStates || {}
+const partnerDecorationBeforeExactMutation = readGameplayData(largePartner)?.decoration || {}
 assert.equal(ownerHomeBeforeExactMutation.scholar_room, true, 'owner should start with resolved home renovation target')
-assert.equal(partnerHomeBeforeExactMutation.ancestral_display_wall, true, 'partner should start with resolved home renovation target')
+assert.equal(partnerDecorationBeforeExactMutation.owned?.bamboo_lamp, 2, 'partner should start with removable decoration owned target')
+assert.equal(partnerDecorationBeforeExactMutation.placed?.bamboo_lamp, 1, 'partner should start with one placed decoration protected from owned-only removal')
 const ownerMoneyBeforeExactMutation = readGameplayData(largeOwner)?.player?.money
 const partnerMoneyBeforeExactMutation = readGameplayData(largePartner)?.player?.money
 const ownerInventoryBeforeExactMutation = getInventoryItemQuantity(largeOwner, 'wood')
@@ -3959,7 +3970,8 @@ assert.equal(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact
 assert.equal(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.shared_fund_changed, false, 'main state exact mutation adapter should not change shared fund')
 assert.equal(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.shared_warehouse_changed, false, 'main state exact mutation adapter should not change shared warehouse')
 assert.equal(readGameplayData(largeOwner)?.home?.homeRenovationStates?.scholar_room, undefined, 'owner resolved home renovation target should be removed from personal main state')
-assert.equal(readGameplayData(largePartner)?.home?.homeRenovationStates?.ancestral_display_wall, undefined, 'partner resolved home renovation target should be removed from personal main state')
+assert.equal(readGameplayData(largePartner)?.decoration?.owned?.bamboo_lamp, 1, 'partner resolved unplaced decoration owned target should be decremented')
+assert.equal(readGameplayData(largePartner)?.decoration?.placed?.bamboo_lamp, 1, 'partner placed decoration should remain when only owned surplus is removed')
 assert.equal(readGameplayData(largeOwner)?.home?.homeRenovationStates?.tea_corner, true, 'owner unrelated home renovation should remain')
 assert.equal(readGameplayData(largePartner)?.home?.homeRenovationStates?.scholar_room, true, 'partner unrelated home renovation should remain')
 assert.equal(readGameplayData(largeOwner)?.player?.money, ownerMoneyBeforeExactMutation, 'main state exact mutation adapter should not touch owner money')
