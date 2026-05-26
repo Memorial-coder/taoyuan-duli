@@ -3775,6 +3775,109 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactExecute.main_sta
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state exact execute block should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state exact execute block should not rewrite partner save')
 
+const mainStateExactTargetResolutionPayload = {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  exact_target_manifest_hash: familyBuildingRealDemolitionMainStateExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'blocked_unresolved_exact_target_selector',
+  confirmation_text: '确认人工解析精确目标',
+  reason: 'qa resolve placeholder exact target but keep mutation adapter blocked',
+  idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution',
+  targets: familyBuildingRealDemolitionMainStateExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.map((item, index) => {
+    const resolvedTargetRef = `${item.candidate_path}.resolved_target_${index}`
+    return {
+      username: item.username,
+      username_key: item.username_key,
+      save_slot: item.save_slot,
+      save_id: item.save_id,
+      real_build_ref: item.real_build_ref,
+      candidate_path: item.candidate_path,
+      binding_ref: item.binding_ref,
+      snapshot_hash: item.snapshot_hash,
+      exact_target_ref: resolvedTargetRef,
+      delete_selector: resolvedTargetRef,
+      target_kind: item.target_kind,
+      resolution_proof: `qa-proof-${index}`,
+    }
+  }),
+}
+
+await assert.rejects(
+  () => runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetResolutionPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not resolve real demolition personal main state exact targets'
+)
+
+await assert.rejects(
+  () => runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetResolutionPayload,
+    confirmation_text: 'bad confirm',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution-bad-confirm',
+  }, actor(largeOwner)),
+  error => error?.status === 400,
+  'main state exact target resolution should require confirmation text'
+)
+
+await assert.rejects(
+  () => runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetResolutionPayload,
+    exact_target_manifest_hash: 'bad-exact-target-resolution-hash',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution-bad-hash',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact target resolution should reject exact target manifest hash drift'
+)
+
+await assert.rejects(
+  () => runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetResolutionPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution-placeholder',
+    targets: mainStateExactTargetResolutionPayload.targets.map((item, index) => ({
+      ...item,
+      exact_target_ref: `${item.candidate_path}.qa_exact_target_still_${index}`,
+      delete_selector: `${item.candidate_path}.qa_exact_target_still_${index}`,
+    })),
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact target resolution should reject placeholder selectors'
+)
+
+const familyBuildingRealDemolitionMainStateExactTargetResolution = await runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
+  largeContract.contract.id,
+  mainStateExactTargetResolutionPayload,
+  actor(largeOwner)
+)
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.idempotent, false, 'first main state exact target resolution should not be idempotent')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.already_resolved, false, 'first main state exact target resolution should not report already resolved')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.building_ledger_entry.real_build_demolition_main_state_exact_target_resolution_idempotency_key, 'qa-family-building-real-demolition-main-state-exact-target-resolution', 'main state exact target resolution should store idempotency key')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.building_ledger_entry.real_build_demolition_main_state_exact_execution_state, 'blocked_personal_main_state_mutation_adapter_missing', 'main state exact target resolution should advance to adapter missing block')
+assert.ok(!familyBuildingRealDemolitionMainStateExactTargetResolution.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_exact_target_manual_resolution'), 'main state exact target resolution should clear manual resolution deferred operation')
+assert.ok(familyBuildingRealDemolitionMainStateExactTargetResolution.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_exact_mutation_adapter_required'), 'main state exact target resolution should defer mutation adapter work')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.main_state_exact_target_resolution.mutation_enabled, false, 'main state exact target resolution should not enable mutation')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.main_state_exact_target_resolution.personal_save_changed, false, 'main state exact target resolution should not write personal saves')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.main_state_exact_target_resolution.shared_fund_changed, false, 'main state exact target resolution should not change shared fund')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.main_state_exact_target_resolution.shared_warehouse_changed, false, 'main state exact target resolution should not change shared warehouse')
+assert.ok(familyBuildingRealDemolitionMainStateExactTargetResolution.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.every(item => !item.exact_target_ref.includes('.qa_exact_target_') && !item.exact_target_ref.includes('.ui_exact_target_')), 'main state exact target resolution should replace placeholder target refs')
+assert.ok(familyBuildingRealDemolitionMainStateExactTargetResolution.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_exact_targets_resolved'), 'main state exact target resolution should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state exact target resolution should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state exact target resolution should not rewrite partner save')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.fund.balance, balanceBeforeLargeDraft, 'main state exact target resolution should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state exact target resolution should not change restored wood')
+assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state exact target resolution should not change restored rice')
+
+const duplicateFamilyBuildingRealDemolitionMainStateExactTargetResolution = await runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
+  largeContract.contract.id,
+  mainStateExactTargetResolutionPayload,
+  actor(largeOwner)
+)
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargetResolution.idempotent, true, 'same main state exact target resolution key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargetResolution.already_resolved, true, 'duplicate main state exact target resolution should report already resolved')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargetResolution.main_state_exact_target_resolution.manifest_hash, familyBuildingRealDemolitionMainStateExactTargetResolution.main_state_exact_target_resolution.manifest_hash, 'duplicate main state exact target resolution should keep manifest hash')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite partner save')
+
 const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
   largeContract.contract.id,
   mainStateMappingPayload,
