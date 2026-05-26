@@ -32,9 +32,9 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     },
     dialogueOpening: '她在村口晒账册，抬头先问你这里秋露重不重。',
     dialogueChoices: [
-      { id: 'gentle_route', text: '帮她把茶箱搬到廊下。', response: '她小声道谢，又认真记下你家的屋檐朝向。', affinityChange: 16, relationshipTag: 'acquaintance' },
-      { id: 'business_talk', text: '询问茶路行情。', response: '她一下子精神起来，给你讲了三处驿站的价差。', affinityChange: 12, relationshipTag: 'friend' },
-      { id: 'joke', text: '开玩笑说账册比茶还香。', response: '她愣了愣才笑，说这句话一定不能让姑母听见。', affinityChange: 8 }
+      { id: 'gentle_route', text: '帮她把茶箱搬到廊下。', response: '她小声道谢，又认真记下你家的屋檐朝向。', affinityChange: 16, relationshipTag: 'acquaintance', relationshipDirection: 'trust' },
+      { id: 'business_talk', text: '询问茶路行情。', response: '她一下子精神起来，给你讲了三处驿站的价差。', affinityChange: 12, relationshipTag: 'friend', relationshipDirection: 'trust' },
+      { id: 'joke', text: '开玩笑说账册比茶还香。', response: '她愣了愣才笑，说这句话一定不能让姑母听见。', affinityChange: 8, relationshipDirection: 'family_impression' }
     ],
     smallOrder: {
       id: 'dry_tea_bundle',
@@ -65,9 +65,9 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     },
     dialogueOpening: '对方蹲在路边看一串爪印，问你家宠物最近胃口好不好。',
     dialogueChoices: [
-      { id: 'pet_story', text: '讲讲自家宠物最近的习惯。', response: '对方听得很专心，还给你补了一句喂食提醒。', affinityChange: 14, relationshipTag: 'acquaintance' },
-      { id: 'offer_help', text: '帮忙整理药袋。', response: '药袋被重新分好格，对方看你的眼神明显柔和许多。', affinityChange: 18, relationshipTag: 'friend' },
-      { id: 'keep_distance', text: '只问是否需要买草药。', response: '对方点点头，把需求写得很清楚，没有多打扰。', affinityChange: 6 }
+      { id: 'pet_story', text: '讲讲自家宠物最近的习惯。', response: '对方听得很专心，还给你补了一句喂食提醒。', affinityChange: 14, relationshipTag: 'acquaintance', relationshipDirection: 'trust' },
+      { id: 'offer_help', text: '帮忙整理药袋。', response: '药袋被重新分好格，对方看你的眼神明显柔和许多。', affinityChange: 18, relationshipTag: 'friend', relationshipDirection: 'trust' },
+      { id: 'keep_distance', text: '只问是否需要买草药。', response: '对方点点头，把需求写得很清楚，没有多打扰。', affinityChange: 6, relationshipDirection: 'misunderstanding' }
     ],
     smallOrder: {
       id: 'calm_pet_pouch',
@@ -98,9 +98,9 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     },
     dialogueOpening: '他站在告示牌前把地图拿反了，仍努力装作正在考察民情。',
     dialogueChoices: [
-      { id: 'point_way', text: '悄悄帮他把地图转正。', response: '他耳尖发红，却认真向你作了一揖。', affinityChange: 15, relationshipTag: 'acquaintance' },
-      { id: 'ask_article', text: '问他策论打算写什么。', response: '他立刻打开话匣子，说农桑与人情都比书上鲜活。', affinityChange: 12, relationshipTag: 'friend' },
-      { id: 'tease', text: '打趣他是不是把村口当考场。', response: '他咳了一声，说“迷路亦是游学之一”。', affinityChange: 7, relationshipTag: 'rival' }
+      { id: 'point_way', text: '悄悄帮他把地图转正。', response: '他耳尖发红，却认真向你作了一揖。', affinityChange: 15, relationshipTag: 'acquaintance', relationshipDirection: 'trust' },
+      { id: 'ask_article', text: '问他策论打算写什么。', response: '他立刻打开话匣子，说农桑与人情都比书上鲜活。', affinityChange: 12, relationshipTag: 'friend', relationshipDirection: 'family_impression' },
+      { id: 'tease', text: '打趣他是不是把村口当考场。', response: '他咳了一声，说“迷路亦是游学之一”。', affinityChange: 7, relationshipTag: 'rival', relationshipDirection: 'misunderstanding' }
     ],
     smallOrder: {
       id: 'warm_meal_notes',
@@ -131,9 +131,9 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     },
     dialogueOpening: '她把一盏破灯挂在树枝上试光，问你觉得这灯还能不能救。',
     dialogueChoices: [
-      { id: 'repair_lantern', text: '递上竹篾帮她撑灯骨。', response: '她看你手法稳，立刻让出半张工作凳。', affinityChange: 17, relationshipTag: 'friend' },
-      { id: 'ask_old_style', text: '问这盏灯的旧样式。', response: '她讲起河湾旧节，语气里有一点不肯熄的亮。', affinityChange: 13, relationshipTag: 'acquaintance' },
-      { id: 'practical', text: '建议换新灯更省事。', response: '她笑着摇头，说有些旧东西修好才有来处。', affinityChange: 4 }
+      { id: 'repair_lantern', text: '递上竹篾帮她撑灯骨。', response: '她看你手法稳，立刻让出半张工作凳。', affinityChange: 17, relationshipTag: 'friend', relationshipDirection: 'trust' },
+      { id: 'ask_old_style', text: '问这盏灯的旧样式。', response: '她讲起河湾旧节，语气里有一点不肯熄的亮。', affinityChange: 13, relationshipTag: 'acquaintance', relationshipDirection: 'family_impression' },
+      { id: 'practical', text: '建议换新灯更省事。', response: '她笑着摇头，说有些旧东西修好才有来处。', affinityChange: 4, relationshipDirection: 'misunderstanding' }
     ],
     smallOrder: {
       id: 'old_lantern_frame',
