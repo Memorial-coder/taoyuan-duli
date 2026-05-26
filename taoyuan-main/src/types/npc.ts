@@ -154,6 +154,21 @@ export interface ZhijiCompanionProjectState {
 export type RandomNpcAgeBand = 'young' | 'adult' | 'middle' | 'elder'
 export type RandomNpcVisitTier = 'short_visit' | 'acquaintance' | 'long_stay'
 export type RandomNpcRelationshipTag = 'passing' | 'acquaintance' | 'friend' | 'ambiguous' | 'old_contact' | 'rival'
+export type RandomNpcRelationshipDirection = 'trust' | 'ambiguity' | 'misunderstanding' | 'family_impression'
+
+export type RandomNpcRelationshipSignals = Record<RandomNpcRelationshipDirection, number>
+
+export interface RandomNpcDialogueMemoryEntry {
+  id: string
+  dayTag: string
+  choiceId: string
+  choiceText: string
+  response: string
+  direction: RandomNpcRelationshipDirection
+  affinityChange: number
+  relationshipTag: RandomNpcRelationshipTag
+  summary: string
+}
 
 export interface RandomNpcDialogueChoiceDef {
   id: string
@@ -161,6 +176,7 @@ export interface RandomNpcDialogueChoiceDef {
   response: string
   affinityChange: number
   relationshipTag?: RandomNpcRelationshipTag
+  relationshipDirection?: RandomNpcRelationshipDirection
 }
 
 export interface RandomNpcSmallOrderDef {
@@ -223,6 +239,8 @@ export interface RandomNpcVisitorState {
   talkedToday: boolean
   conversationCount: number
   keyEvents: string[]
+  relationshipSignals: RandomNpcRelationshipSignals
+  dialogueMemories: RandomNpcDialogueMemoryEntry[]
   tier: RandomNpcVisitTier
 }
 
@@ -238,6 +256,8 @@ export interface RandomNpcArchiveSummary {
   keyEvents: string[]
   smallOrderCompleted?: boolean
   locked?: boolean
+  relationshipSignals?: RandomNpcRelationshipSignals
+  dialogueMemories?: RandomNpcDialogueMemoryEntry[]
 }
 
 export interface RandomNpcAcquaintanceEntry {
@@ -261,6 +281,8 @@ export interface RandomNpcAcquaintanceEntry {
   lastSeenDayTag: string
   conversationCount: number
   keyEvents: string[]
+  relationshipSignals: RandomNpcRelationshipSignals
+  dialogueMemories: RandomNpcDialogueMemoryEntry[]
 }
 
 export type RandomNpcLongStayRoute = 'friendship' | 'business' | 'caregiving' | 'craft'
@@ -271,6 +293,7 @@ export interface RandomNpcStoryChoiceDef {
   response: string
   affinityChange: number
   relationshipTag?: RandomNpcRelationshipTag
+  relationshipDirection?: RandomNpcRelationshipDirection
 }
 
 export interface RandomNpcLongStayStoryEventDef {
@@ -310,6 +333,8 @@ export interface RandomNpcLongStayEntry {
   completedStoryEventIds: string[]
   lastStoryDayTag: string
   keyEvents: string[]
+  relationshipSignals: RandomNpcRelationshipSignals
+  dialogueMemories: RandomNpcDialogueMemoryEntry[]
 }
 
 export interface RandomNpcBoardState {

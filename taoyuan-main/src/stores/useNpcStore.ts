@@ -26,6 +26,9 @@ import type {
   RandomNpcAcquaintanceEntry,
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
+  RandomNpcDialogueMemoryEntry,
+  RandomNpcRelationshipDirection,
+  RandomNpcRelationshipSignals,
   RandomNpcLongStayEntry,
   RandomNpcLongStayRoute,
   RandomNpcRelationshipTag,
@@ -93,6 +96,8 @@ const FIXED_NPC_GIFT_COOKING_TOPIC_LABELS = ['送礼话题']
 const RANDOM_NPC_COOKING_TOPIC_AFFINITY_BONUS = 3
 const FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS = 5
 const RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD = 8
+const RANDOM_NPC_DIALOGUE_MEMORY_LIMIT = 6
+const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
 
 type RegionRumorTemplate = {
   id: string
@@ -384,6 +389,110 @@ export const useNpcStore = defineStore('npc', () => {
     return formatRelationshipDayTag(getAbsoluteDay(gameStore.year, gameStore.season, gameStore.day))
   }
 
+  const createDefaultRandomNpcRelationshipSignals = (): RandomNpcRelationshipSignals => ({
+    trust: 0,
+    ambiguity: 0,
+    misunderstanding: 0,
+    family_impression: 0
+  })
+
+  const sanitizeRandomNpcRelationshipSignals = (raw: unknown): RandomNpcRelationshipSignals => {
+    const source = raw && typeof raw === 'object' ? raw as Partial<Record<RandomNpcRelationshipDirection, unknown>> : {}
+    return {
+      trust: Math.max(0, Math.min(99, Number(source.trust) || 0)),
+      ambiguity: Math.max(0, Math.min(99, Number(source.ambiguity) || 0)),
+      misunderstanding: Math.max(0, Math.min(99, Number(source.misunderstanding) || 0)),
+      family_impression: Math.max(0, Math.min(99, Number(source.family_impression) || 0))
+    }
+  }
+
+  const inferRandomNpcRelationshipDirection = (
+    relationshipTag: RandomNpcRelationshipTag,
+    choiceId: string,
+    choiceText: string
+  ): RandomNpcRelationshipDirection => {
+    if (relationshipTag === 'ambiguous') return 'ambiguity'
+    if (relationshipTag === 'rival') return 'misunderstanding'
+    if (choiceId.includes('family') || choiceId.includes('letter') || choiceId.includes('home') || choiceText.includes('家')) {
+      return 'family_impression'
+    }
+    return 'trust'
+  }
+
+  const getRandomNpcRelationshipDirectionLabel = (direction: RandomNpcRelationshipDirection): string => {
+    if (direction === 'ambiguity') return '暧昧'
+    if (direction === 'misunderstanding') return '误会'
+    if (direction === 'family_impression') return '家族印象'
+    return '信任'
+  }
+
+  const buildRandomNpcDialogueMemory = (params: {
+    npcName: string
+    dayTag: string
+    choiceId: string
+    choiceText: string
+    response: string
+    direction: RandomNpcRelationshipDirection
+    affinityChange: number
+    relationshipTag: RandomNpcRelationshipTag
+  }): RandomNpcDialogueMemoryEntry => ({
+    id: `${params.dayTag}:${params.choiceId}:${params.direction}`,
+    dayTag: params.dayTag,
+    choiceId: params.choiceId,
+    choiceText: params.choiceText,
+    response: params.response,
+    direction: params.direction,
+    affinityChange: params.affinityChange,
+    relationshipTag: params.relationshipTag,
+    summary: `${params.npcName}因“${params.choiceText}”留下${getRandomNpcRelationshipDirectionLabel(params.direction)}记录。`
+  })
+
+  const appendRandomNpcDialogueMemory = (
+    memories: RandomNpcDialogueMemoryEntry[],
+    memory: RandomNpcDialogueMemoryEntry,
+    limit = RANDOM_NPC_DIALOGUE_MEMORY_LIMIT
+  ): RandomNpcDialogueMemoryEntry[] => [...memories, memory].slice(-limit)
+
+  const applyRandomNpcRelationshipSignal = (
+    signals: RandomNpcRelationshipSignals,
+    direction: RandomNpcRelationshipDirection,
+    affinityChange: number
+  ): RandomNpcRelationshipSignals => ({
+    ...signals,
+    [direction]: Math.max(0, Math.min(99, signals[direction] + Math.max(1, Math.ceil(Math.abs(affinityChange) / 4))))
+  })
+
+  const sanitizeRandomNpcDialogueMemories = (raw: unknown, limit = RANDOM_NPC_DIALOGUE_MEMORY_LIMIT): RandomNpcDialogueMemoryEntry[] =>
+    (Array.isArray(raw) ? raw : [])
+      .filter((entry: unknown): entry is Partial<RandomNpcDialogueMemoryEntry> => !!entry && typeof entry === 'object')
+      .map((entry): RandomNpcDialogueMemoryEntry => {
+        const direction: RandomNpcRelationshipDirection =
+          entry.direction === 'ambiguity' || entry.direction === 'misunderstanding' || entry.direction === 'family_impression'
+            ? entry.direction
+            : 'trust'
+        const relationshipTag = (
+          entry.relationshipTag === 'acquaintance' ||
+          entry.relationshipTag === 'friend' ||
+          entry.relationshipTag === 'ambiguous' ||
+          entry.relationshipTag === 'old_contact' ||
+          entry.relationshipTag === 'rival'
+            ? entry.relationshipTag
+            : 'passing'
+        ) as RandomNpcRelationshipTag
+        return {
+          id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? '旧日'}:${entry.choiceId ?? 'choice'}:${direction}`,
+          dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+          choiceId: typeof entry.choiceId === 'string' ? entry.choiceId : '',
+          choiceText: typeof entry.choiceText === 'string' ? entry.choiceText : '',
+          response: typeof entry.response === 'string' ? entry.response : '',
+          direction,
+          affinityChange: Number(entry.affinityChange) || 0,
+          relationshipTag,
+          summary: typeof entry.summary === 'string' ? entry.summary : `${getRandomNpcRelationshipDirectionLabel(direction)}记录`
+        }
+      })
+      .slice(-limit)
+
   const createRandomNpcVisitor = (templateId: string, weekId: string, index: number): RandomNpcVisitorState | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === templateId)
     if (!template) return null
@@ -424,6 +533,8 @@ export const useNpcStore = defineStore('npc', () => {
       talkedToday: false,
       conversationCount: 0,
       keyEvents: [`${dayTag} 初次来访：${template.dialogueOpening}`],
+      relationshipSignals: createDefaultRandomNpcRelationshipSignals(),
+      dialogueMemories: [],
       tier: 'short_visit'
     }
   }
@@ -439,7 +550,9 @@ export const useNpcStore = defineStore('npc', () => {
     summary: `${visitor.name}（${visitor.occupation}）${reason}；最后印象：${visitor.currentTrouble}`,
     keyEvents: visitor.keyEvents.slice(-3),
     smallOrderCompleted: !!visitor.smallOrderCompleted,
-    locked: !!visitor.locked
+    locked: !!visitor.locked,
+    relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+    dialogueMemories: visitor.dialogueMemories.slice(-3)
   })
 
   const createRandomNpcVisitorFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcVisitorState | null => {
@@ -481,6 +594,8 @@ export const useNpcStore = defineStore('npc', () => {
       talkedToday: false,
       conversationCount: 0,
       keyEvents: [...archive.keyEvents, `${dayTag} 从旧日来客摘要召回，再次来到桃源村。`].slice(-6),
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(archive.relationshipSignals),
+      dialogueMemories: sanitizeRandomNpcDialogueMemories(archive.dialogueMemories),
       tier: 'short_visit'
     }
   }
@@ -540,7 +655,9 @@ export const useNpcStore = defineStore('npc', () => {
     firstMetDayTag: visitor.keyEvents[0]?.split(' ')[0] ?? visitor.lastVisitDayTag,
     lastSeenDayTag: visitor.lastVisitDayTag,
     conversationCount: visitor.conversationCount,
-    keyEvents: visitor.keyEvents.slice(-6)
+    keyEvents: visitor.keyEvents.slice(-6),
+    relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+    dialogueMemories: visitor.dialogueMemories.slice(-6)
   })
 
   const createRandomNpcLongStayEntry = (acquaintance: RandomNpcAcquaintanceEntry): RandomNpcLongStayEntry | null => {
@@ -581,7 +698,9 @@ export const useNpcStore = defineStore('npc', () => {
       relationshipEventStage: 1,
       completedStoryEventIds: [],
       lastStoryDayTag: '',
-      keyEvents: [...acquaintance.keyEvents, `${dayTag} 成为长住 NPC，暂住桃源村。`].slice(-8)
+      keyEvents: [...acquaintance.keyEvents, `${dayTag} 成为长住 NPC，暂住桃源村。`].slice(-8),
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(acquaintance.relationshipSignals),
+      dialogueMemories: acquaintance.dialogueMemories.slice(-8)
     }
   }
 
@@ -707,7 +826,9 @@ export const useNpcStore = defineStore('npc', () => {
         summary: `${archive.name}已被召回到本周来访名单，等待重新熟悉。`,
         keyEvents: visitor.keyEvents.slice(-3),
         smallOrderCompleted: !!visitor.smallOrderCompleted,
-        locked: !!visitor.locked
+        locked: !!visitor.locked,
+        relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+        dialogueMemories: visitor.dialogueMemories.slice(-3)
       },
       ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitorId)
     ])
@@ -802,14 +923,32 @@ export const useNpcStore = defineStore('npc', () => {
       ? `你顺势提起刚做的${cookingTopic.recipeName}，话题落在${cookingTopic.triggerLabels.join('、')}上。`
       : ''
 
+    const nextRelationshipTag = choice.relationshipTag ?? visitor.relationshipTag
+    const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
     visitor.talkedToday = true
     visitor.conversationCount += 1
     visitor.affinity = Math.max(0, Math.min(100, visitor.affinity + affinityChange))
-    visitor.relationshipTag = choice.relationshipTag ?? visitor.relationshipTag
+    visitor.relationshipTag = nextRelationshipTag
     visitor.lastVisitDayTag = getCurrentNpcDayTag()
+    const dialogueMemory = buildRandomNpcDialogueMemory({
+      npcName: visitor.name,
+      dayTag: visitor.lastVisitDayTag,
+      choiceId: choice.id,
+      choiceText: choice.text,
+      response: cookingTopicLine ? `${choice.response} ${cookingTopicLine}` : choice.response,
+      direction,
+      affinityChange,
+      relationshipTag: visitor.relationshipTag
+    })
+    visitor.relationshipSignals = applyRandomNpcRelationshipSignal(
+      sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+      direction,
+      affinityChange
+    )
+    visitor.dialogueMemories = appendRandomNpcDialogueMemory(visitor.dialogueMemories, dialogueMemory)
     visitor.keyEvents = [
       ...visitor.keyEvents,
-      `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}${cookingTopicLine ? ` ${cookingTopicLine}` : ''}`
+      `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}${cookingTopicLine ? ` ${cookingTopicLine}` : ''}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
     ].slice(-6)
     if (visitor.tier === 'acquaintance' || visitor.tier === 'long_stay') {
       upsertRandomNpcAcquaintance(visitor)
@@ -821,6 +960,8 @@ export const useNpcStore = defineStore('npc', () => {
               ...resident,
               relationshipTag: visitor.relationshipTag,
               affinity: visitor.affinity,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+              dialogueMemories: visitor.dialogueMemories.slice(-8),
               keyEvents: visitor.keyEvents.slice(-8)
             }
           : resident
@@ -884,7 +1025,13 @@ export const useNpcStore = defineStore('npc', () => {
     ])
     randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
       entry.visitorId === visitorId
-        ? { ...entry, relationshipTag: entry.relationshipTag === 'passing' ? 'acquaintance' : entry.relationshipTag, keyEvents: resident.keyEvents.slice(-6) }
+        ? {
+            ...entry,
+            relationshipTag: entry.relationshipTag === 'passing' ? 'acquaintance' : entry.relationshipTag,
+            relationshipSignals: sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals),
+            dialogueMemories: resident.dialogueMemories.slice(-6),
+            keyEvents: resident.keyEvents.slice(-6)
+          }
         : entry
     )
     const activeVisitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
@@ -914,17 +1061,39 @@ export const useNpcStore = defineStore('npc', () => {
     const choice = event.choices.find(entry => entry.id === choiceId) ?? event.choices[0]
     if (!choice) return { success: false, message: '暂时没有合适的回应。', resident }
     const nextStage = event.stage >= 3 ? 3 : (event.stage + 1) as 1 | 2 | 3
-    const eventLine = `${dayTag} 【${event.title}】${choice.text}：${choice.response}`
+    const nextRelationshipTag = choice.relationshipTag ?? resident.relationshipTag
+    const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
+    const dialogueMemory = buildRandomNpcDialogueMemory({
+      npcName: resident.name,
+      dayTag,
+      choiceId: choice.id,
+      choiceText: `${event.title}：${choice.text}`,
+      response: choice.response,
+      direction,
+      affinityChange: choice.affinityChange,
+      relationshipTag: nextRelationshipTag
+    })
+    const eventLine = `${dayTag} 【${event.title}】${choice.text}：${choice.response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
     let nextResident: RandomNpcLongStayEntry | null = null
     randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
       if (entry.residentId !== residentId) return entry
       nextResident = {
         ...entry,
-        relationshipTag: choice.relationshipTag ?? entry.relationshipTag,
+        relationshipTag: nextRelationshipTag,
         affinity: Math.max(0, Math.min(100, entry.affinity + choice.affinityChange)),
         relationshipEventStage: nextStage,
         completedStoryEventIds: [...entry.completedStoryEventIds, event.id].slice(-6),
         lastStoryDayTag: dayTag,
+        relationshipSignals: applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+          direction,
+          choice.affinityChange
+        ),
+        dialogueMemories: appendRandomNpcDialogueMemory(
+          entry.dialogueMemories,
+          dialogueMemory,
+          RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT
+        ),
         keyEvents: [...entry.keyEvents, eventLine].slice(-8)
       }
       return nextResident
@@ -936,6 +1105,8 @@ export const useNpcStore = defineStore('npc', () => {
               ...entry,
               relationshipTag: nextResident!.relationshipTag,
               affinity: nextResident!.affinity,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(nextResident!.relationshipSignals),
+              dialogueMemories: nextResident!.dialogueMemories.slice(-6),
               keyEvents: nextResident!.keyEvents.slice(-6)
             }
           : entry
@@ -3380,6 +3551,8 @@ export const useNpcStore = defineStore('npc', () => {
             talkedToday: !!visitor.talkedToday,
             conversationCount: Math.max(0, Number(visitor.conversationCount) || 0),
             keyEvents: Array.isArray(visitor.keyEvents) ? visitor.keyEvents.filter((entry: unknown) => typeof entry === 'string').slice(-6) : [],
+            relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+            dialogueMemories: sanitizeRandomNpcDialogueMemories(visitor.dialogueMemories),
             tier: visitor.tier === 'acquaintance' || visitor.tier === 'long_stay' ? visitor.tier : 'short_visit'
           }
         })
@@ -3423,7 +3596,9 @@ export const useNpcStore = defineStore('npc', () => {
                 firstMetDayTag: typeof entry.firstMetDayTag === 'string' ? entry.firstMetDayTag : '',
                 lastSeenDayTag: typeof entry.lastSeenDayTag === 'string' ? entry.lastSeenDayTag : '',
                 conversationCount: Math.max(0, Number(entry.conversationCount) || 0),
-                keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-6) : []
+                keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-6) : [],
+                relationshipSignals: sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+                dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories)
               }
             }),
           ...activeVisitors
@@ -3476,7 +3651,9 @@ export const useNpcStore = defineStore('npc', () => {
                   ? entry.completedStoryEventIds.filter((text: unknown) => typeof text === 'string').slice(-6)
                   : [],
                 lastStoryDayTag: typeof entry.lastStoryDayTag === 'string' ? entry.lastStoryDayTag : '',
-                keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-8) : []
+                keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-8) : [],
+                relationshipSignals: sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+                dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT)
               }
             })
             .filter((entry: RandomNpcLongStayEntry, index: number, entries: RandomNpcLongStayEntry[]) =>
@@ -3503,7 +3680,9 @@ export const useNpcStore = defineStore('npc', () => {
               summary: typeof entry.summary === 'string' ? entry.summary : '',
               keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-3) : [],
               smallOrderCompleted: !!entry.smallOrderCompleted,
-              locked: !!entry.locked
+              locked: !!entry.locked,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+              dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, 3)
             }))
         )
       }

@@ -166,6 +166,21 @@
               </div>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mt-2">
+              <p class="text-[10px] text-muted">关系方向</p>
+              <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(visitor.relationshipSignals) }}</p>
+              <div v-if="getRecentRandomNpcDialogueMemories(visitor.dialogueMemories).length > 0" class="mt-1 space-y-1">
+                <div
+                  v-for="memory in getRecentRandomNpcDialogueMemories(visitor.dialogueMemories)"
+                  :key="memory.id"
+                  class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  :data-testid="`random-npc-dialogue-memory-${visitor.id}-${memory.choiceId}`"
+                >
+                  <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
+                  <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2">
               <p class="text-[10px] text-muted">小订单：{{ visitor.smallOrder.title }}</p>
               <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ visitor.smallOrder.summary }}</p>
               <div class="flex flex-wrap gap-1 mt-1">
@@ -275,6 +290,20 @@
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <p class="text-[10px] text-muted">文游关键记录</p>
+                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(acquaintance.relationshipSignals) }}</p>
+                <div v-if="getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories).length > 0" class="mt-1 space-y-1">
+                  <div
+                    v-for="memory in getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories)"
+                    :key="memory.id"
+                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }}</p>
+                    <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <p class="text-[10px] text-muted">偏好</p>
                 <p class="text-[10px] text-accent/90 leading-4 mt-0.5">
                   最爱 {{ getRandomNpcPreferenceNames(acquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(acquaintance.preferences.liked) }}
@@ -341,6 +370,20 @@
               </div>
               <p class="text-[10px] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
               <p class="text-[10px] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <p class="text-[10px] text-muted">长住文游记录</p>
+                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(resident.relationshipSignals) }}</p>
+                <div v-if="getRecentRandomNpcDialogueMemories(resident.dialogueMemories).length > 0" class="mt-1 space-y-1">
+                  <div
+                    v-for="memory in getRecentRandomNpcDialogueMemories(resident.dialogueMemories)"
+                    :key="memory.id"
+                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
+                    <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                  </div>
+                </div>
+              </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-[10px] text-accent">{{ resident.smallOrder.title }}</p>
@@ -1311,8 +1354,11 @@
     RandomNpcAcquaintanceEntry,
     RandomNpcAgeBand,
     RandomNpcArchiveSummary,
+    RandomNpcDialogueMemoryEntry,
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
+    RandomNpcRelationshipDirection,
+    RandomNpcRelationshipSignals,
     RandomNpcRelationshipTag,
     RandomNpcSmallOrderDef,
     RandomNpcStoryChoiceDef,
@@ -1578,6 +1624,12 @@
     old_contact: '旧识',
     rival: '轻竞争'
   }
+  const RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS: Record<RandomNpcRelationshipDirection, string> = {
+    trust: '信任',
+    ambiguity: '暧昧',
+    misunderstanding: '误会',
+    family_impression: '家族印象'
+  }
   const RANDOM_NPC_LONG_STAY_ROUTE_LABELS: Record<RandomNpcLongStayRoute, string> = {
     friendship: '邻里常驻',
     business: '商学暂住',
@@ -1593,6 +1645,19 @@
     return '短访'
   }
   const getRandomNpcLongStayRouteLabel = (route: RandomNpcLongStayRoute): string => RANDOM_NPC_LONG_STAY_ROUTE_LABELS[route]
+  const getRandomNpcRelationshipDirectionLabel = (direction: RandomNpcRelationshipDirection): string =>
+    RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS[direction]
+  const getRandomNpcRelationshipSignalText = (signals: RandomNpcRelationshipSignals): string => {
+    const entries = (Object.keys(RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS) as RandomNpcRelationshipDirection[])
+      .map(direction => ({ direction, value: signals?.[direction] ?? 0 }))
+      .filter(entry => entry.value > 0)
+    if (entries.length === 0) return '关系方向尚未形成'
+    return entries
+      .map(entry => `${getRandomNpcRelationshipDirectionLabel(entry.direction)} ${entry.value}`)
+      .join(' / ')
+  }
+  const getRecentRandomNpcDialogueMemories = (memories: RandomNpcDialogueMemoryEntry[] = []): RandomNpcDialogueMemoryEntry[] =>
+    memories.slice(-3).reverse()
   const getLastRandomNpcEvent = (visitor: RandomNpcVisitorState): string => visitor.keyEvents[visitor.keyEvents.length - 1] ?? visitor.dialogueOpening
   const getLastRandomNpcAcquaintanceEvent = (acquaintance: RandomNpcAcquaintanceEntry): string =>
     acquaintance.keyEvents[acquaintance.keyEvents.length - 1] ?? `${acquaintance.name}已记入熟人册。`
