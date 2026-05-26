@@ -22,7 +22,7 @@ import {
 import { RECIPES, getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from './recipes'
 import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collectionRegistry'
 import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels, getCropUseTagMatches } from './cropUseProfiles'
-import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel, getPetTypeLabel } from './petFeeds'
+import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel, getPetSpecialFeedUseText, getPetTypeLabel } from './petFeeds'
 
 export interface ItemEncyclopediaDetail {
   label: string
@@ -362,6 +362,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
   if (petFeed) {
     pushDetail(details, '宠物口味', getPetSpecialFeedTasteLabel(petFeed.taste))
     pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(getPetTypeLabel).join('、'))
+    pushDetail(details, '宠物用途标签', getPetSpecialFeedUseText(item.id))
     pushDetail(details, '宠物反馈', petFeed.description)
   }
 
@@ -490,6 +491,12 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
         if (recipeUseEntries.some(entry => entry.startsWith('炼丹'))) {
           keywords.push('炼丹读取用途标签', '炼丹用途入口', 'alchemy 用途标签', 'medicine 用途标签')
         }
+        if (cropUseProfile.tags.includes('pet_feed')) {
+          keywords.push('宠物喂食读取用途标签', '灵宠喂食用途标签', 'pet_feed 用途标签')
+        }
+        if (cropUseProfile.tags.includes('animal_feed')) {
+          keywords.push('动物喂食读取用途标签', 'animal_feed 用途标签')
+        }
         const dualPathEntries = getCropDualPathEntries(item.id)
         if (dualPathEntries.length > 0) {
           keywords.push('料理炼丹双路径', '同一种作物不同价值', '作物消耗路径对比', '料理价值', '炼丹价值', ...dualPathEntries)
@@ -601,8 +608,11 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
       petFeed.label,
       petFeed.shortLabel,
       getPetSpecialFeedTasteLabel(petFeed.taste),
+      getPetSpecialFeedUseText(item.id),
       ...petFeed.preferredPetTypes.map(getPetTypeLabel),
       petFeed.description,
+      '宠物喂食读取用途标签',
+      'pet_feed 用途标签',
     )
     if (petFeed.taste === 'spirit_fruit' || petFeed.preferredPetTypes.includes('spirit')) {
       keywords.push('灵宠', '灵果', '丹材', '稀有采集物')

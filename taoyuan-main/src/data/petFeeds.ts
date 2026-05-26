@@ -1,5 +1,5 @@
 import type { PetSpecialFeedType, PetType } from '@/types'
-import { getCropUseProfile } from './cropUseProfiles'
+import { getCropUseProfile, getCropUseTagMatches, type CropUseTag } from './cropUseProfiles'
 
 export interface PetSpecialFeedDef {
   id: string
@@ -286,6 +286,8 @@ export interface PetSpecialFeedOption extends PetSpecialFeedDef {
   count: number
 }
 
+const PET_SPECIAL_FEED_VISIBLE_USE_TAGS: CropUseTag[] = ['pet_feed', 'animal_feed', 'alchemy', 'medicine']
+
 export const getPetSpecialFeedById = (feedId: string): PetSpecialFeedDef | undefined => PET_SPECIAL_FEEDS.find(feed => feed.id === feedId)
 
 export const getPetSpecialFeedByItemId = (itemId: string): PetSpecialFeedDef | undefined => PET_SPECIAL_FEEDS.find(feed => feed.itemId === itemId)
@@ -297,6 +299,13 @@ export const getPetTypeLabel = (type: PetType): string => PET_TYPE_LABELS[type]
 export const isPetSpecialFeedPreferred = (feed: PetSpecialFeedDef, petType: PetType): boolean => feed.preferredPetTypes.includes(petType)
 
 export const getPetSpecialFeedFeedback = (feed: PetSpecialFeedDef, petType: PetType): string => feed.feedback[petType] || feed.feedback.default
+
+export const getPetSpecialFeedUseText = (itemId: string): string => {
+  const matches = getCropUseTagMatches(itemId, PET_SPECIAL_FEED_VISIBLE_USE_TAGS)
+  if (matches.length === 0) return '用途：特别喂食'
+
+  return `用途：${matches.map(match => match.label).join(' / ')}`
+}
 
 const isSpecialFeedItemEnabled = (itemId: string): boolean => {
   const cropProfile = getCropUseProfile(itemId)

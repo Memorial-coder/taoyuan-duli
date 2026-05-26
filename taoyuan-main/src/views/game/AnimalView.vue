@@ -120,16 +120,20 @@
                 <span class="text-[10px] text-accent/80 shrink-0">{{ getPetPreferenceText(companion) }}</span>
               </div>
               <div v-if="petSpecialFeedOptions.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                <Button
-                  v-for="feed in petSpecialFeedOptions"
-                  :key="`${companion.id}-${feed.id}`"
-                  class="justify-center py-0 px-1 text-[10px]"
-                  :disabled="isPetSpecialFedToday(companion)"
-                  :data-testid="`pet-special-feed-${companion.id}-${feed.id}`"
-                  @click="handleFeedPetSpecial(companion.id, feed.id)"
-                >
-                  {{ feed.shortLabel }}×{{ feed.count }}
-                </Button>
+                <div v-for="feed in petSpecialFeedOptions" :key="`${companion.id}-${feed.id}`" class="min-w-0">
+                  <Button
+                    class="w-full justify-center py-0 px-1 text-[10px]"
+                    :disabled="isPetSpecialFedToday(companion)"
+                    :data-testid="`pet-special-feed-${companion.id}-${feed.id}`"
+                    :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)"
+                    @click="handleFeedPetSpecial(companion.id, feed.id)"
+                  >
+                    {{ feed.shortLabel }}×{{ feed.count }}
+                  </Button>
+                  <p class="mt-0.5 truncate text-[9px] leading-3 text-muted/70" :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)">
+                    {{ getPetSpecialFeedUseText(feed.itemId) }}
+                  </p>
+                </div>
               </div>
               <p v-else class="text-[10px] text-muted/70 leading-4">暂无可喂的宠物食材</p>
             </div>
@@ -696,7 +700,8 @@
     INCUBATION_MAP,
     FEED_DEFS,
     getPetSpecialFeedTasteLabel,
-    getPetTypeLabel
+    getPetTypeLabel,
+    getPetSpecialFeedUseText
   } from '@/data'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState, PetType } from '@/types'
@@ -942,6 +947,10 @@
     if (companion.type === 'dog') return '偏好：饱腹 / 辛香'
     if (companion.type === 'spirit') return '偏好：草本 / 灵果'
     return '偏好：清甜 / 芳香'
+  }
+
+  const getPetSpecialFeedUseHint = (itemId: string, description: string): string => {
+    return `${getPetSpecialFeedUseText(itemId)}；${description}`
   }
 
   type PetCareGuideAction = {
