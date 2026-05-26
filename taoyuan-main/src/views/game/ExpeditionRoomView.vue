@@ -87,7 +87,87 @@
             :ready-member-count="expeditionRoomStore.myRoom.ready_member_count"
             :member-limit="expeditionRoomStore.myRoom.member_limit"
             :reward-preview="expeditionRoomRewardPreview"
-          />
+          >
+            <template #actions>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_host_ready_check"
+                class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="expedition-room-ready-check-submit"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="startReadyCheck(expeditionRoomStore.myRoom.id)"
+              >
+                开始 ready
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_ready"
+                class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="expedition-room-ready-submit"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="readyRoom(expeditionRoomStore.myRoom.id)"
+              >
+                我已准备
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_unready"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="unreadyRoom(expeditionRoomStore.myRoom.id)"
+              >
+                取消准备
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_host_start_countdown"
+                class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="expedition-room-start-submit"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="startCountdown(expeditionRoomStore.myRoom.id)"
+              >
+                开始倒计时
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_disconnect"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="disconnectRoom(expeditionRoomStore.myRoom.id)"
+              >
+                模拟断线
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_reconnect"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="reconnectRoom(expeditionRoomStore.myRoom.id)"
+              >
+                恢复连接
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_host_settle"
+                class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="expedition-room-settle-submit"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="settleRoom(expeditionRoomStore.myRoom.id)"
+              >
+                撤离并结算
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_host_close"
+                class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="expedition-room-close-submit"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="closeRoom(expeditionRoomStore.myRoom.id)"
+              >
+                {{ expeditionRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
+              </Button>
+              <Button
+                v-if="expeditionRoomStore.myRoom.can_leave"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="expeditionRoomStore.actionRunning"
+                @click="leaveRoom(expeditionRoomStore.myRoom.id)"
+              >
+                离开房间
+              </Button>
+            </template>
+          </OnlineVisualRoomShell>
           <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
@@ -262,35 +342,6 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
-            <Button v-if="expeditionRoomStore.myRoom.can_host_ready_check" :disabled="expeditionRoomStore.actionRunning" @click="startReadyCheck(expeditionRoomStore.myRoom.id)">
-              开始 ready
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_ready" :disabled="expeditionRoomStore.actionRunning" @click="readyRoom(expeditionRoomStore.myRoom.id)">
-              我已准备
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_unready" :disabled="expeditionRoomStore.actionRunning" @click="unreadyRoom(expeditionRoomStore.myRoom.id)">
-              取消准备
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_host_start_countdown" :disabled="expeditionRoomStore.actionRunning" @click="startCountdown(expeditionRoomStore.myRoom.id)">
-              开始倒计时
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_disconnect" :disabled="expeditionRoomStore.actionRunning" @click="disconnectRoom(expeditionRoomStore.myRoom.id)">
-              模拟断线
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_reconnect" :disabled="expeditionRoomStore.actionRunning" @click="reconnectRoom(expeditionRoomStore.myRoom.id)">
-              恢复连接
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_host_settle" :disabled="expeditionRoomStore.actionRunning" @click="settleRoom(expeditionRoomStore.myRoom.id)">
-              撤离并结算
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_host_close" :disabled="expeditionRoomStore.actionRunning" @click="closeRoom(expeditionRoomStore.myRoom.id)">
-              {{ expeditionRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
-            </Button>
-            <Button v-if="expeditionRoomStore.myRoom.can_leave" :disabled="expeditionRoomStore.actionRunning" @click="leaveRoom(expeditionRoomStore.myRoom.id)">
-              离开房间
-            </Button>
-          </div>
         </div>
         <p v-else class="text-xs text-muted leading-5">当前没有进行中的远征房间。可以先创建自己的房间，或者从下方邀请列表加入队伍。</p>
       </div>

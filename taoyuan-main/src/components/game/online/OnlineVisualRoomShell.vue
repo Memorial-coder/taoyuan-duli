@@ -21,7 +21,13 @@
         <p v-if="conflictMessage" class="text-[10px] leading-4 text-danger">{{ conflictMessage }}</p>
       </div>
 
-      <div v-if="$slots.actions" class="grid min-w-[12rem] gap-2 sm:grid-cols-2 lg:max-w-sm" data-testid="online-visual-room-actions">
+      <div
+        v-if="$slots.actions"
+        class="grid min-w-[12rem] gap-2 sm:grid-cols-2 lg:max-w-sm"
+        data-testid="online-visual-room-actions"
+        role="group"
+        aria-label="房间操作"
+      >
         <slot name="actions" />
       </div>
     </div>

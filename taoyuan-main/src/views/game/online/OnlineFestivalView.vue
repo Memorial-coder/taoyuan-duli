@@ -300,7 +300,67 @@
                   :ready-member-count="festivalRoomStore.myRoom.ready_member_count"
                   :member-limit="festivalRoomStore.myRoom.member_limit"
                   :reward-preview="festivalRoomRewardPreview"
-                />
+                >
+                  <template #actions>
+                    <Button
+                      v-if="festivalRoomStore.myRoom.can_host_ready_check"
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      data-testid="online-festival-room-ready-check-submit"
+                      :disabled="festivalRoomStore.actionRunning"
+                      @click="startReadyCheck(festivalRoomStore.myRoom.id)"
+                    >
+                      开准备
+                    </Button>
+                    <Button
+                      v-if="festivalRoomStore.myRoom.can_ready"
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      data-testid="online-festival-room-ready-submit"
+                      :disabled="festivalRoomStore.actionRunning"
+                      @click="readyRoom(festivalRoomStore.myRoom.id)"
+                    >
+                      我已准备
+                    </Button>
+                    <Button v-if="festivalRoomStore.myRoom.can_unready" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="unreadyRoom(festivalRoomStore.myRoom.id)">
+                      取消准备
+                    </Button>
+                    <Button
+                      v-if="festivalRoomStore.myRoom.can_host_start_countdown"
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      data-testid="online-festival-room-start-submit"
+                      :disabled="festivalRoomStore.actionRunning"
+                      @click="startCountdown(festivalRoomStore.myRoom.id)"
+                    >
+                      开倒计时
+                    </Button>
+                    <Button v-if="festivalRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
+                      模拟断线
+                    </Button>
+                    <Button v-if="festivalRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="reconnectRoom(festivalRoomStore.myRoom.id)">
+                      恢复连接
+                    </Button>
+                    <Button
+                      v-if="festivalRoomStore.myRoom.can_host_settle"
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      data-testid="online-festival-room-settle-submit"
+                      :disabled="festivalRoomStore.actionRunning"
+                      @click="settleRoom(festivalRoomStore.myRoom.id)"
+                    >
+                      进入结算
+                    </Button>
+                    <Button
+                      v-if="festivalRoomStore.myRoom.can_host_close"
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      data-testid="online-festival-room-close-submit"
+                      :disabled="festivalRoomStore.actionRunning"
+                      @click="closeRoom(festivalRoomStore.myRoom.id)"
+                    >
+                      {{ festivalRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
+                    </Button>
+                    <Button v-if="festivalRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="leaveRoom(festivalRoomStore.myRoom.id)">
+                      离开房间
+                    </Button>
+                  </template>
+                </OnlineVisualRoomShell>
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
@@ -515,65 +575,6 @@
                   </div>
                 </label>
 
-                <div class="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    v-if="festivalRoomStore.myRoom.can_host_ready_check"
-                    class="online-action-btn online-action-btn--compact justify-center"
-                    data-testid="online-festival-room-ready-check-submit"
-                    :disabled="festivalRoomStore.actionRunning"
-                    @click="startReadyCheck(festivalRoomStore.myRoom.id)"
-                  >
-                    开准备
-                  </Button>
-                  <Button
-                    v-if="festivalRoomStore.myRoom.can_ready"
-                    class="online-action-btn online-action-btn--compact justify-center"
-                    data-testid="online-festival-room-ready-submit"
-                    :disabled="festivalRoomStore.actionRunning"
-                    @click="readyRoom(festivalRoomStore.myRoom.id)"
-                  >
-                    我已准备
-                  </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_unready" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="unreadyRoom(festivalRoomStore.myRoom.id)">
-                    取消准备
-                  </Button>
-                  <Button
-                    v-if="festivalRoomStore.myRoom.can_host_start_countdown"
-                    class="online-action-btn online-action-btn--compact justify-center"
-                    data-testid="online-festival-room-start-submit"
-                    :disabled="festivalRoomStore.actionRunning"
-                    @click="startCountdown(festivalRoomStore.myRoom.id)"
-                  >
-                    开倒计时
-                  </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
-                    模拟断线
-                  </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="reconnectRoom(festivalRoomStore.myRoom.id)">
-                    恢复连接
-                  </Button>
-                  <Button
-                    v-if="festivalRoomStore.myRoom.can_host_settle"
-                    class="online-action-btn online-action-btn--compact justify-center"
-                    data-testid="online-festival-room-settle-submit"
-                    :disabled="festivalRoomStore.actionRunning"
-                    @click="settleRoom(festivalRoomStore.myRoom.id)"
-                  >
-                    进入结算
-                  </Button>
-                  <Button
-                    v-if="festivalRoomStore.myRoom.can_host_close"
-                    class="online-action-btn online-action-btn--compact justify-center"
-                    data-testid="online-festival-room-close-submit"
-                    :disabled="festivalRoomStore.actionRunning"
-                    @click="closeRoom(festivalRoomStore.myRoom.id)"
-                  >
-                    {{ festivalRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
-                  </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="leaveRoom(festivalRoomStore.myRoom.id)">
-                    离开房间
-                  </Button>
-                </div>
               </div>
               <p v-else class="mt-3 text-xs leading-5 text-muted">当前没有进行中的节会房间。可以先处理邀请，或创建自己的节会房间。</p>
             </div>
