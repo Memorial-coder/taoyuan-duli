@@ -128,6 +128,17 @@ export interface CohabitationFundLargeSpendDraft {
   confirmation_status: string
   execution_enabled: boolean
   final_spend_ledger_id: string
+  final_building_ledger_id: string
+  high_risk_receipt_id: string
+  high_risk_receipt_status: 'pending' | 'delivered' | 'refunded' | string
+  high_risk_receipt_outcome: 'delivered' | 'refunded' | string
+  high_risk_receipt_ref: string
+  high_risk_receipt_memo: string
+  high_risk_receipt_idempotency_key: string
+  high_risk_receipt_at: number
+  high_risk_receipt_by: string
+  high_risk_receipt_by_display_name: string
+  high_risk_refund_ledger_id: string
   compensation_policy: string
   deferred_operations: string[]
 }

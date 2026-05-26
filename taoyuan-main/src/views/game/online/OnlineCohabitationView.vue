@@ -917,6 +917,7 @@
                 v-model="fundLargeDraftPurpose"
                 class="online-select text-xs"
                 data-testid="online-cohabitation-fund-large-draft-purpose"
+                @change="handleLargeFundDraftPurposeChange"
               >
                 <option
                   v-for="option in fundLargeSpendOptions"
@@ -930,6 +931,7 @@
                 v-model.number="fundLargeDraftAmount"
                 type="number"
                 :min="fundLargeDraftMinAmount"
+                :max="selectedFundLargeSpendOption?.maxAmount"
                 step="1"
                 class="online-input text-xs"
                 data-testid="online-cohabitation-fund-large-draft-amount"
@@ -940,8 +942,20 @@
                 class="online-input text-xs"
                 data-testid="online-cohabitation-fund-large-draft-target"
                 maxlength="80"
-                placeholder="building:family_hall"
+                :placeholder="fundLargeDraftTargetPlaceholder"
               >
+              <div
+                v-if="selectedFundLargeSpendOption"
+                class="grid gap-2 text-[10px] sm:grid-cols-2"
+                data-testid="online-cohabitation-fund-large-draft-risk-summary"
+              >
+                <span class="border border-accent/10 bg-bg/30 px-2 py-1 text-muted">
+                  {{ selectedFundLargeSpendOption.category }} · 上限 {{ selectedFundLargeSpendOption.maxAmount }}
+                </span>
+                <span class="border px-2 py-1" :class="selectedLargeFundSpendIsHighRisk ? 'border-amber-300/20 bg-amber-500/10 text-amber-100' : 'border-accent/10 bg-bg/30 text-muted'">
+                  {{ selectedLargeFundSpendPolicyLabel }}
+                </span>
+              </div>
               <input
                 v-model="fundLargeDraftMemo"
                 class="online-input text-xs"
@@ -960,7 +974,7 @@
                 创建确认草案
               </button>
             </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted">执行会扣共同基金并写建筑流水；真实落账和材料消耗在建筑页继续提交。</p>
+            <p class="mt-2 text-[10px] leading-4 text-muted">{{ selectedLargeFundSpendExecutionSummary }}</p>
           </div>
           <p v-if="fundActionMessage" class="mt-3 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
             {{ fundActionMessage }}
@@ -994,6 +1008,22 @@
                   <p class="border border-accent/10 bg-bg/30 p-2 text-muted">余额 {{ draft.current_balance_snapshot || draft.balance_snapshot }}</p>
                   <p class="border border-accent/10 bg-bg/30 p-2 text-muted">已确认 {{ draft.confirmed_member_usernames.length }}/{{ draft.required_member_usernames.length }}</p>
                   <p class="border border-accent/10 bg-bg/30 p-2 text-muted">到期 {{ formatTime(draft.expires_at) }}</p>
+                </div>
+                <div v-if="isHighRiskLargeFundSpendPurpose(draft.purpose) || draft.deferred_operations.length > 0" class="mt-2 flex flex-wrap gap-1">
+                  <span
+                    v-if="isHighRiskLargeFundSpendPurpose(draft.purpose) && draft.high_risk_receipt_status"
+                    class="border px-2 py-1 text-[10px]"
+                    :class="highRiskReceiptStateClass(draft.high_risk_receipt_status)"
+                  >
+                    回执 {{ highRiskReceiptStatusLabel(draft.high_risk_receipt_status) }}
+                  </span>
+                  <span
+                    v-for="item in draft.deferred_operations.slice(0, 4)"
+                    :key="`${draft.id}-deferred-${item}`"
+                    class="border border-accent/10 bg-bg/30 px-2 py-1 text-[10px] text-muted"
+                  >
+                    {{ deferredOperationLabel(item) }}
+                  </span>
                 </div>
                 <div class="mt-2 flex flex-wrap gap-1">
                   <span
@@ -2173,14 +2203,35 @@
     amount: number
     maxAmount: number
   }
-  type FundLargeSpendPurpose = 'family_building' | 'manor_expansion'
+  type FundLargeSpendPurpose = 'family_building' | 'manor_expansion' | 'rare_item_purchase' | 'limited_decoration' | 'family_major_event'
   type FundLargeSpendOption = {
     label: string
     purpose: FundLargeSpendPurpose
     category: string
     maxAmount: number
+    confirmationRequired: boolean
   }
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
+
+  const largeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
+    'family_building',
+    'manor_expansion',
+    'rare_item_purchase',
+    'limited_decoration',
+    'family_major_event',
+  ]
+  const highRiskLargeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
+    'rare_item_purchase',
+    'limited_decoration',
+    'family_major_event',
+  ]
+  const largeFundSpendTargetRefs: Record<FundLargeSpendPurpose, string> = {
+    family_building: 'family_building:family_hall:build',
+    manor_expansion: 'manor_expansion:shared_plot:north',
+    rare_item_purchase: 'rare_item:lotus_seed_rare',
+    limited_decoration: 'limited_decoration:spring_lantern',
+    family_major_event: 'family_major_event:child_schooling',
+  }
 
   const sharedAnimalProductCatalog: Record<string, SharedAnimalProductInfo> = {
     chicken: { productId: 'egg', produceDays: 1 },
@@ -2929,7 +2980,9 @@
       })
   )
   const isLargeFundSpendPurpose = (value: string): value is FundLargeSpendPurpose =>
-    value === 'family_building' || value === 'manor_expansion'
+    largeFundSpendPurposeIds.includes(value as FundLargeSpendPurpose)
+  const isHighRiskLargeFundSpendPurpose = (value: string): value is FundLargeSpendPurpose =>
+    highRiskLargeFundSpendPurposeIds.includes(value as FundLargeSpendPurpose)
   const fundLargeSpendOptions = computed<FundLargeSpendOption[]>(() =>
     (cohabitationStore.fund?.summary.allowed_large_spend_purposes ?? [])
       .filter(purpose => isLargeFundSpendPurpose(purpose.id))
@@ -2938,11 +2991,31 @@
         purpose: purpose.id as FundLargeSpendPurpose,
         category: purpose.category,
         maxAmount: purpose.max_amount,
+        confirmationRequired: purpose.confirmation_required,
       }))
   )
   const selectedFundLargeSpendOption = computed(() =>
     fundLargeSpendOptions.value.find(option => option.purpose === fundLargeDraftPurpose.value) ?? fundLargeSpendOptions.value[0] ?? null
   )
+  const selectedLargeFundSpendIsHighRisk = computed(() =>
+    selectedFundLargeSpendOption.value ? isHighRiskLargeFundSpendPurpose(selectedFundLargeSpendOption.value.purpose) : false
+  )
+  const selectedLargeFundSpendPolicyLabel = computed(() => {
+    const purpose = selectedFundLargeSpendOption.value?.purpose
+    if (purpose === 'family_major_event') return '家庭 / 孩子回执待收口'
+    if (purpose === 'rare_item_purchase' || purpose === 'limited_decoration') return '交付 / 退款回执待收口'
+    return selectedFundLargeSpendOption.value?.confirmationRequired ? '双方确认后执行' : '确认安全阀关闭'
+  })
+  const selectedLargeFundSpendExecutionSummary = computed(() => {
+    const purpose = selectedFundLargeSpendOption.value?.purpose
+    if (purpose === 'family_major_event') return '执行会扣共同基金；家庭事件和孩子安排后续通过回执收口，不直接改个人家庭主状态。'
+    if (purpose === 'rare_item_purchase' || purpose === 'limited_decoration') return '执行会扣共同基金；采购交付或退款后续通过回执收口，不直接改个人背包或小屋。'
+    return '执行会扣共同基金并写建筑流水；真实落账和材料消耗在建筑页继续提交。'
+  })
+  const fundLargeDraftTargetPlaceholder = computed(() => {
+    const purpose = selectedFundLargeSpendOption.value?.purpose ?? fundLargeDraftPurpose.value
+    return largeFundSpendTargetRefs[purpose] ?? 'target_ref'
+  })
   const normalizedFundLargeDraftAmount = computed(() => Math.max(0, Math.floor(Number(fundLargeDraftAmount.value) || 0)))
   const fundLargeDraftMinAmount = computed(() => (cohabitationStore.fund?.summary.medium_spend_max_amount ?? 1200) + 1)
   const fundLargeSpendDrafts = computed(() => cohabitationStore.fund?.large_spend_drafts ?? [])
@@ -2959,6 +3032,27 @@
       (cohabitationStore.fund?.balance ?? 0) >= amount &&
       fundLargeDraftTargetRef.value.trim().length > 0
   })
+
+  const syncLargeFundDraftTargetRef = (force = false) => {
+    const purpose = selectedFundLargeSpendOption.value?.purpose ?? fundLargeDraftPurpose.value
+    if (!isLargeFundSpendPurpose(purpose)) return
+    const current = fundLargeDraftTargetRef.value.trim()
+    const defaultRefs = Object.values(largeFundSpendTargetRefs)
+    if (force || !current || defaultRefs.includes(current)) {
+      fundLargeDraftTargetRef.value = largeFundSpendTargetRefs[purpose]
+    }
+  }
+
+  const handleLargeFundDraftPurposeChange = () => {
+    syncLargeFundDraftTargetRef(true)
+    const option = selectedFundLargeSpendOption.value
+    if (option && normalizedFundLargeDraftAmount.value > option.maxAmount) {
+      fundLargeDraftAmount.value = option.maxAmount
+    }
+    if (normalizedFundLargeDraftAmount.value < fundLargeDraftMinAmount.value) {
+      fundLargeDraftAmount.value = fundLargeDraftMinAmount.value
+    }
+  }
 
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as CohabitationTabKey
@@ -3502,8 +3596,24 @@
     const labels: Record<string, string> = {
       family_building: '大额家族建筑',
       manor_expansion: '大额庄园扩建',
+      rare_item_purchase: '稀有物采购',
+      limited_decoration: '限定装饰采购',
+      family_major_event: '孩子 / 家庭重大事件',
     }
     return labels[value] || value || '大额草案'
+  }
+  const highRiskReceiptStatusLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      pending: '待收口',
+      delivered: '已交付',
+      refunded: '已退款',
+    }
+    return labels[value] || value || '无'
+  }
+  const highRiskReceiptStateClass = (value: string) => {
+    if (value === 'delivered') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+    if (value === 'refunded') return 'border-sky-400/30 bg-sky-500/10 text-sky-200'
+    return 'border-amber-400/30 bg-amber-500/10 text-amber-100'
   }
   const largeFundDraftStateLabel = (value: string) => {
     const labels: Record<string, string> = {
@@ -4077,7 +4187,7 @@
       fundActionOk.value = true
       fundActionMessage.value = result?.idempotent
         ? '已读回已有大额确认草案'
-        : `已创建 ${option.label} 草案，等待成员确认`
+        : `已创建 ${option.label} 草案${isHighRiskLargeFundSpendPurpose(option.purpose) ? '，后续需回执收口' : ''}，等待成员确认`
       if (!result?.idempotent) {
         fundLargeDraftMemo.value = ''
       }
@@ -4738,6 +4848,11 @@
       spend_shared_fund_for_building: '建筑基金支出',
       building_ledger_write: '建筑流水写入',
       fund_compensation_replay: '基金补偿重放',
+      high_risk_purchase_receipt: '高风险采购回执',
+      confirm_high_risk_purchase_receipt: '确认高风险采购回执',
+      delivery_or_refund: '交付 / 退款收口',
+      family_event_resolution_receipt: '家庭事件决议回执',
+      child_arrangement_review: '孩子安排复核',
       write_family_building_ledger: '建筑流水',
       real_build_apply: '真实建造落账',
       demolish_family_building: '拆除家族建筑',
