@@ -709,6 +709,14 @@
                     <span class="text-[10px] text-muted">{{ careRoomWindowLabel(room) }}</span>
                   </div>
                   <p class="mt-2 text-[10px] leading-5 text-muted">{{ room.summary || '等待护理分工推进。' }}</p>
+                  <div data-testid="online-manor-care-room-progress-summary" class="mt-2 grid gap-2 text-[10px] leading-4 text-muted md:grid-cols-3">
+                    <p><span class="text-accent">分工进度</span><br>{{ careRoomProgressSummary(room) }}</p>
+                    <p><span class="text-accent">结算条件</span><br>{{ careRoomSettlementHint(room) }}</p>
+                    <p data-testid="online-manor-care-room-risk-summary"><span class="text-accent">风险回看</span><br>{{ careRoomRiskSummary(room) }}</p>
+                  </div>
+                  <p class="mt-2 text-[10px] leading-5 text-muted">
+                    待完成：{{ careRoomPendingActionLabels(room) }}
+                  </p>
                   <div class="mt-2 flex flex-wrap gap-1">
                     <span
                       v-for="participant in room.participants"
@@ -718,10 +726,18 @@
                       {{ participant.display_name }} · {{ participant.role_label }}
                     </span>
                   </div>
-                  <div v-if="room.actions.length > 0" class="mt-2 space-y-1">
-                    <p v-for="action in room.actions" :key="action.id" class="text-[10px] leading-4 text-muted">
-                      {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }} · 健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 风险 +${action.risk_delta}` : '' }}
-                    </p>
+                  <div v-if="room.actions.length > 0" data-testid="online-manor-care-room-action-ledger" class="mt-2 space-y-2 border-l border-accent/20 pl-2">
+                    <div v-for="action in room.actions" :key="action.id">
+                      <p class="text-[10px] text-accent">
+                        {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }}
+                      </p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">
+                        {{ action.object_label }} · 预期第 {{ action.expected_order }} 步 · {{ action.role_label }}{{ action.role_matched ? '匹配' : '未匹配' }}
+                      </p>
+                      <p class="text-[10px] leading-4 text-muted">
+                        健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 顺序风险 +${action.risk_delta}` : ' · 顺序正常' }}
+                      </p>
+                    </div>
                   </div>
                   <div class="mt-3 flex flex-wrap gap-2">
                     <button
@@ -832,6 +848,14 @@
                   <p class="text-[10px] text-accent">健康度 {{ room.health_score }} · 风险 {{ room.risk_score }}</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">{{ room.summary }}</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">参与：{{ room.participants.map(participant => participant.display_name).join('、') }}</p>
+                  <p data-testid="online-manor-care-room-record-settlement" class="mt-1 text-[10px] leading-4 text-muted">
+                    凭证：{{ room.settlement_receipt_id || '未记录' }} · 结算：{{ careRoomSettledByLabel(room) }}
+                  </p>
+                  <div v-if="room.actions.length > 0" data-testid="online-manor-care-room-record-actions" class="mt-2 space-y-1">
+                    <p v-for="action in room.actions" :key="action.id" class="text-[10px] leading-4 text-muted">
+                      {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }} · 健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 顺序风险 +${action.risk_delta}` : '' }}
+                    </p>
+                  </div>
                 </div>
               </div>
               <p v-else class="mt-2 text-[10px] leading-5 text-muted">暂无协作护理记录。</p>
@@ -1215,6 +1239,7 @@
     if (!state) return '刷新庄园快照后可建立 2-4 人护理房间。'
     return `窗口 ${Math.round(state.limits.window_seconds / 60)} 分钟 · ${state.record_summary}`
   })
+  const careRoomActionTotal = computed(() => Object.keys(careRoomState.value?.action_labels ?? {}).length || 4)
   const activeTabMeta = computed<ManorTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as ManorTabKey
@@ -1407,6 +1432,45 @@
   }
 
   const careRoomActionLabel = (actionId: string) => careRoomState.value?.action_labels[actionId] || actionId
+
+  const careRoomCompletedActionCount = (room: OnlineManorCareRoom) => new Set(room.actions.map(action => action.action_id)).size
+
+  const careRoomProgressSummary = (room: OnlineManorCareRoom) => {
+    const completed = careRoomCompletedActionCount(room)
+    return `${completed}/${careRoomActionTotal.value} 项 · 成员 ${room.participants.length}/${room.member_limit} · 健康 ${room.health_score || 0}`
+  }
+
+  const careRoomPendingActionLabels = (room: OnlineManorCareRoom) => {
+    const labels = careRoomState.value?.action_labels ?? {}
+    const completed = new Set(room.actions.map(action => action.action_id))
+    const pending = Object.entries(labels)
+      .filter(([actionId]) => !completed.has(actionId))
+      .map(([, label]) => label)
+    return pending.length > 0 ? pending.join('、') : '全部护理分工已完成'
+  }
+
+  const careRoomRiskSummary = (room: OnlineManorCareRoom) => {
+    const riskyActions = room.actions.filter(action => action.order_risk).length
+    const roleMismatch = room.actions.filter(action => !action.role_matched).length
+    if (room.actions.length === 0) return '暂无动作，顺序风险尚未产生。'
+    if (riskyActions === 0 && roleMismatch === 0) return `顺序正常，累计风险 ${room.risk_score || 0}。`
+    return `${riskyActions} 个顺序提前 · ${roleMismatch} 个角色未匹配 · 累计风险 ${room.risk_score || 0}`
+  }
+
+  const careRoomSettlementHint = (room: OnlineManorCareRoom) => {
+    if (room.status === 'completed') return `已结算 · ${careRoomSettledByLabel(room)}`
+    if (room.participants.length < 2) return '至少 2 人加入后才能开始护理与结算。'
+    if (room.can_settle) return '已达到结算门槛，可由成员或庄园主人收尾。'
+    const remainingActions = Math.max(0, 2 - room.actions.length)
+    if (remainingActions > 0) return `还需完成 ${remainingActions} 个护理分工后才能结算。`
+    return '等待服务端刷新结算状态。'
+  }
+
+  const careRoomSettledByLabel = (room: OnlineManorCareRoom) => {
+    if (!room.settled_by) return room.settled_at ? formatVisitTime(room.settled_at) : '未结算'
+    const settledAt = formatVisitTime(room.settled_at)
+    return settledAt ? `${room.settled_by} · ${settledAt}` : room.settled_by
+  }
 
   const saveGuide = async () => {
     await manorStore.saveGuideSnapshot().catch(() => {})
