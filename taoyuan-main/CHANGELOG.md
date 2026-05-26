@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0527 公共订单接力移动端 smoke
+- `qa:mobile-ui-smoke` 新增在线委托接力单 mock，覆盖接力筛选、`AsyncCommunityBoard` 路线按钮点击、故事流转图和分账摘要。
+- 两档手机视口会点击 `accept_stage:stage_process`，断言阶段切到“送到灯会”并显示移动端接单反馈。
+
 ### 0527 在线村社移动端 smoke
 - `qa:mobile-ui-smoke` 新增在线村社公共建设场景，mock 已加入村社与花灯墙异步工程。
 - 两档手机视口会点击 `write_wish` 贡献入口，断言阶段切到“挂花灯”、贡献反馈可见且控件无横向溢出。

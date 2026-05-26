@@ -439,15 +439,310 @@ function buildMobileSmokeSocietyOverview(contributed = false) {
   }
 }
 
+function buildMobileSmokeRelayOrder(accepted = false) {
+  const stages = [
+    {
+      id: 'stage_collect',
+      title: '采收青菜',
+      description: '先从田里备齐新鲜青菜。',
+      preferred_order_type: 'material_help',
+      target_item_id: 'cabbage',
+      target_quantity: 6,
+      reward_value: 80,
+      reward_label: '铜钱',
+      assignee_username: 'helper_done',
+      assignee_display_name: '已完成的帮手',
+      accepted_at: 1,
+      canceled_at: 0,
+      active_receipt_id: 'receipt-stage-collect',
+      delivery_status: 'confirmed',
+      delivery_note: '青菜已备齐。',
+      delivered_items: [{ item_id: 'cabbage', quantity: 6 }],
+      compensation_id: '',
+      confirmed_at: 2,
+      sequence: 1,
+      updated_at: 2
+    },
+    {
+      id: 'stage_process',
+      title: '加工干菜',
+      description: '把青菜晒成能远送的干菜。',
+      preferred_order_type: 'festival_supply',
+      target_item_id: 'dried_cabbage',
+      target_quantity: 3,
+      reward_value: 90,
+      reward_label: '铜钱',
+      assignee_username: accepted ? 'mobile_smoke_owner' : '',
+      assignee_display_name: accepted ? '移动端烟测号' : '',
+      accepted_at: accepted ? 3 : 0,
+      canceled_at: 0,
+      active_receipt_id: '',
+      delivery_status: 'none',
+      delivery_note: '',
+      delivered_items: [],
+      compensation_id: '',
+      confirmed_at: 0,
+      sequence: 2,
+      updated_at: accepted ? 3 : 2
+    },
+    {
+      id: 'stage_deliver',
+      title: '送到灯会',
+      description: '最后把干菜交给灯会备菜摊。',
+      preferred_order_type: 'village_build',
+      target_item_id: 'festival_crate',
+      target_quantity: 1,
+      reward_value: 90,
+      reward_label: '铜钱',
+      assignee_username: '',
+      assignee_display_name: '',
+      accepted_at: 0,
+      canceled_at: 0,
+      active_receipt_id: '',
+      delivery_status: 'none',
+      delivery_note: '',
+      delivered_items: [],
+      compensation_id: '',
+      confirmed_at: 0,
+      sequence: 3,
+      updated_at: 2
+    }
+  ]
+
+  const storyChapters = [
+    {
+      id: 'story-stage-collect',
+      stage_id: 'stage_collect',
+      sequence: 1,
+      title: '采收青菜',
+      role_label: '采集',
+      state: 'confirmed',
+      actor_display_name: '已完成的帮手',
+      target_label: '青菜 6',
+      summary: '第一段青菜已备齐。',
+      detail: '青菜已交到接力篮中。',
+      settlement_summary: '已确认 80 铜钱',
+      receipt_id: 'receipt-stage-collect',
+      happened_at: 2,
+      next_hint: '等待加工干菜。'
+    },
+    {
+      id: 'story-stage-process',
+      stage_id: 'stage_process',
+      sequence: 2,
+      title: '加工干菜',
+      role_label: '加工',
+      state: accepted ? 'accepted' : 'pending',
+      actor_display_name: accepted ? '移动端烟测号' : '',
+      target_label: '干菜 3',
+      summary: accepted ? '移动端烟测号接下加工段。' : '加工段等待接力。',
+      detail: accepted ? '干菜正在晒制。' : '需要下一位玩家接下加工。',
+      settlement_summary: accepted ? '待交付 90 铜钱' : '未接单',
+      receipt_id: '',
+      happened_at: accepted ? 3 : 0,
+      next_hint: accepted ? '加工完成后提交交付。' : '点击路线按钮接下加工段。'
+    },
+    {
+      id: 'story-stage-deliver',
+      stage_id: 'stage_deliver',
+      sequence: 3,
+      title: '送到灯会',
+      role_label: '交付',
+      state: 'pending',
+      actor_display_name: '',
+      target_label: '灯会备菜摊',
+      summary: '最后一段等待前置完成。',
+      detail: '送达后由发布者确认。',
+      settlement_summary: '待分配 90 铜钱',
+      receipt_id: '',
+      happened_at: 0,
+      next_hint: '加工段完成后开放。'
+    }
+  ]
+
+  return {
+    id: 'relay-order-mobile-smoke',
+    owner_username: 'publisher',
+    owner_display_name: '灯会摊主',
+    title: '灯会干菜接力单',
+    description: '采收、加工、交付分段推进，适合多人异步接力。',
+    order_type: 'festival_supply',
+    collaboration_mode: 'multi_stage',
+    scope: 'public',
+    target_save_id: 0,
+    target_save_slot: null,
+    target_username: '',
+    target_display_name: '',
+    deadline_at: 1893427200,
+    reward_type: 'money',
+    reward_value: 260,
+    reward_label: '铜钱回报',
+    status: 'open',
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    canceled_at: 0,
+    active_receipt_id: '',
+    delivery_status: 'none',
+    delivery_note: '',
+    delivered_items: [],
+    settlement_confirmed_at: 0,
+    compensation_id: '',
+    priority_score: 12,
+    priority_reasons: ['接力路线可视化', '节庆备货'],
+    stages,
+    visual_state: {
+      ...emptyVisualState,
+      board_type: 'async',
+      board_id: 'coop_order_relay_route',
+      selected_visual_id: 'relay_route',
+      recent_feedback: accepted ? '移动端烟测号已接下加工干菜这一段。' : '采收段已确认，等待下一位接力。',
+      async_projects: [
+        {
+          id: 'relay_route',
+          label: '灯会干菜接力路线',
+          kind: 'order_relay',
+          day_tag: 'mobile-smoke-day',
+          week_tag: 'mobile-smoke-week',
+          starts_at: 0,
+          ends_at: 1893427200,
+          current_stage_id: accepted ? 'stage_deliver' : 'stage_process',
+          stages: [
+            {
+              id: 'stage_collect',
+              label: '采收青菜',
+              state: 'complete',
+              progress_value: 100,
+              progress_target: 100,
+              object_ids: ['order_confirmed_stage_collect'],
+              contribution_options: [],
+              milestones: [{ id: 'collect_done', label: '青菜已备齐', progress_required: 100, reached: true }]
+            },
+            {
+              id: 'stage_process',
+              label: '加工干菜',
+              state: accepted ? 'pending' : 'active',
+              progress_value: accepted ? 20 : 0,
+              progress_target: 100,
+              object_ids: ['order_waiting_stage_process', 'order_task_drying'],
+              contribution_options: accepted ? [] : [
+                {
+                  id: 'accept_stage:stage_process',
+                  label: '接加工段',
+                  kind: 'relay_accept',
+                  available_action_id: 'accept_stage',
+                  daily_limit: 1,
+                  weekly_limit: 3,
+                  resource_cost_preview: {},
+                  progress_delta: 20,
+                  reward_preview: '接下加工段'
+                }
+              ],
+              milestones: []
+            },
+            {
+              id: 'stage_deliver',
+              label: '送到灯会',
+              state: accepted ? 'active' : 'pending',
+              progress_value: 0,
+              progress_target: 100,
+              object_ids: ['order_waiting_stage_deliver'],
+              contribution_options: [],
+              milestones: []
+            }
+          ],
+          contributors: accepted
+            ? [{ username: 'mobile_smoke_owner', display_name: '移动端烟测号', contribution_value: 20, rank: 1 }]
+            : [],
+          history: accepted
+            ? [{ id: 'relay-history-accepted', summary: '移动端烟测号接下加工干菜这一段。', created_at: 3 }]
+            : [{ id: 'relay-history-collect', summary: '已完成采收青菜，路线推进到加工段。', created_at: 2 }],
+          completion_room_template_id: '',
+          completion_event_id: ''
+        }
+      ],
+      story_flow: {
+        id: 'relay-order-mobile-smoke-flow',
+        title: '灯会干菜订单流转',
+        summary: '采收、加工、交付三段接力会保留角色、状态和凭证摘要。',
+        current_chapter_id: accepted ? 'story-stage-process' : 'story-stage-process',
+        chapters: storyChapters,
+        timeline: accepted
+          ? [{ id: 'story-timeline-accepted', type: 'contribution', summary: '移动端烟测号接下加工干菜这一段。', created_at: 3 }]
+          : [{ id: 'story-timeline-collect', type: 'stage_complete', summary: '采收青菜已确认，订单流转到加工段。', created_at: 2 }]
+      },
+      highlights: [],
+      recent_feedback: accepted ? '移动端烟测号已接下加工干菜这一段。' : '采收段已确认，等待下一位接力。'
+    },
+    relay_settlement_summary: {
+      reward_type: 'money',
+      pool_reward_value: 260,
+      confirmed_reward_value: 80,
+      pending_reward_value: 180,
+      compensation_pending_reward_value: 0,
+      status: 'settling',
+      shares: [
+        { stage_id: 'stage_collect', stage_title: '采收青菜', sequence: 1, share_percent: 31, reward_value: 80, settlement_route: 'personal', receipt_id: 'receipt-stage-collect', status: 'confirmed' },
+        { stage_id: 'stage_process', stage_title: '加工干菜', sequence: 2, share_percent: 35, reward_value: 90, settlement_route: 'personal', receipt_id: '', status: accepted ? 'pending' : 'planned' },
+        { stage_id: 'stage_deliver', stage_title: '送到灯会', sequence: 3, share_percent: 34, reward_value: 90, settlement_route: 'personal', receipt_id: '', status: 'planned' }
+      ]
+    },
+    created_at: 1,
+    updated_at: accepted ? 3 : 2
+  }
+}
+
+function buildMobileSmokeCoopOrderOverview(accepted = false) {
+  return {
+    ok: true,
+    orders: [buildMobileSmokeRelayOrder(accepted)],
+    receipts: [],
+    compensations: [],
+    board_summary: {
+      total_orders: 1,
+      open_orders: 1,
+      relay_orders: 1,
+      open_relay_orders: 1
+    },
+    society_order_board: {
+      public_orders: 1,
+      open_public_orders: 1,
+      public_relay_orders: 1,
+      open_public_relay_orders: 1,
+      reward_pool_value: 260,
+      confirmed_reward_value: 80,
+      pending_reward_value: 180,
+      compensation_pending_reward_value: 0,
+      compensation_count: 0,
+      settlement_status_counts: { planned: 0, settling: 1, settled: 0, compensation_pending: 0 },
+      recent_receipts: []
+    },
+    reputation_summary: {
+      total: 0,
+      by_order_type: {},
+      completed_count: 0,
+      updated_at: 0,
+      trust_level: { id: 'new', label: '初识互助' },
+      specialty_ranks: [],
+      top_helped_targets: [],
+      top_helpers: []
+    },
+    order_type_options: ['material_help', 'festival_supply', 'village_build'],
+    scope_options: ['public', 'friends', 'neighbors'],
+    reward_type_options: ['money', 'reputation', 'gift']
+  }
+}
+
 async function createPage(browser, viewport, options = {}) {
   const mockSocial = Boolean(options.mockSocial)
   const mockSociety = Boolean(options.mockSociety)
+  const mockOrders = Boolean(options.mockOrders)
   const context = await browser.newContext({
     viewport,
     locale: 'zh-CN',
     reducedMotion: 'reduce'
   })
-  if (mockSociety) {
+  if (mockSociety || mockOrders) {
     await context.addInitScript(() => {
       window.localStorage.setItem('taoyuanxiang_current_account', 'mobile_smoke_owner')
     })
@@ -458,7 +753,7 @@ async function createPage(browser, viewport, options = {}) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mockSocial || mockSociety
+      body: JSON.stringify(mockSocial || mockSociety || mockOrders
         ? {
             ok: true,
             user: {
@@ -575,6 +870,26 @@ async function createPage(browser, viewport, options = {}) {
     })
   }
 
+  if (mockOrders) {
+    let orderAccepted = false
+    await page.route('**/api/taoyuan/online/orders', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeCoopOrderOverview(orderAccepted))
+      })
+    })
+    await page.route('**/api/taoyuan/online/orders/*/stages/*/accept', async route => {
+      orderAccepted = true
+      const order = buildMobileSmokeRelayOrder(true)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, order, stage: order.stages[1] })
+      })
+    })
+  }
+
   page.on('console', message => {
     if (message.type() === 'error') {
       consoleErrors.push(message.text())
@@ -628,9 +943,10 @@ async function captureScenario({
   primarySelector,
   mockSocial = false,
   mockSociety = false,
+  mockOrders = false,
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety })
+  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockOrders })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -843,6 +1159,22 @@ async function prepareOnlineOrdersMobile(page) {
   await expect(page.getByRole('button', { name: /^可接$/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /^凭证与补偿$/ })).toBeVisible()
 
+  await page.getByRole('button', { name: /^可接$/ }).click()
+  await expect(page.getByTestId('online-orders-board-filter-relay')).toBeVisible()
+  await page.getByTestId('online-orders-board-filter-relay').click()
+  await expect(page.getByTestId('online-orders-available-list')).toBeVisible()
+  await expect(page.getByTestId('online-orders-available-entry')).toContainText('灯会干菜接力单')
+  await expect(page.getByTestId('online-orders-available-entry')).toContainText('接力单')
+  await expect(page.getByTestId('online-orders-available-entry')).toContainText('阶段 1/3 已确认')
+  await expect(page.getByTestId('async-community-board')).toBeVisible()
+  await expect(page.getByTestId('async-community-project-detail')).toContainText('加工干菜')
+  await expect(page.getByTestId('online-orders-story-flow')).toBeVisible()
+  await expect(page.getByTestId('online-orders-story-flow-chapters')).toContainText('采收青菜')
+  await expect(page.getByTestId('online-orders-relay-settlement-summary')).toContainText('分账池')
+  await page.getByTestId('online-society-async-contribute-relay_route-accept_stage:stage_process').click()
+  await expect(page.getByTestId('async-community-project-detail')).toContainText('送到灯会')
+  await expect(page.getByText('移动端烟测号已接下加工干菜这一段。')).toBeVisible()
+
   await page.getByRole('button', { name: /^凭证与补偿$/ }).click()
   await expect(page.getByText('当前没有结算凭证。')).toBeVisible()
   await expect(page.getByRole('button', { name: /^发布$/ })).toBeVisible()
@@ -857,13 +1189,13 @@ async function prepareOnlineOrdersMobile(page) {
       .map(element => {
         const rect = element.getBoundingClientRect()
         return {
-          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
-          left: rect.left,
-          right: rect.right,
-          width: rect.width,
-          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto')),
-        }
-      })
+        label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+        left: rect.left,
+        right: rect.right,
+        width: rect.width,
+        inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .async-community-board__project-tabs, .online-order-story-flow__chapters')),
+      }
+    })
       .filter(entry => !entry.inHorizontalScroller && (
         entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
       ))
@@ -1121,6 +1453,7 @@ async function main() {
         hash: '/#/game/online/orders',
         viewport: { width: 390, height: 844 },
         primarySelector: '[data-testid="online-orders-page"]',
+        mockOrders: true,
         prepare: prepareOnlineOrdersMobile
       })
       await captureScenario({
@@ -1137,6 +1470,7 @@ async function main() {
         hash: '/#/game/online/orders',
         viewport: { width: 360, height: 780 },
         primarySelector: '[data-testid="online-orders-page"]',
+        mockOrders: true,
         prepare: prepareOnlineOrdersMobile
       })
       await captureScenario({
@@ -1173,7 +1507,7 @@ async function main() {
         '使用 region_map_showcase 样例档生成 390x844 / 360x780 / 430x932 三档移动端截图。',
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
-        '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段和主要按钮布局。',
+        '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
         '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙贡献按钮点击、贡献后阶段反馈和移动端横向溢出断言。'
       ]
     }
