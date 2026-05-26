@@ -607,6 +607,19 @@
                 <p v-if="!snapshot.steal_state.can_steal" class="mt-1 text-[10px] leading-5 text-amber-200">
                   {{ snapshot.steal_state.steal_denied_reason || '当前庄园暂未开放轻采。' }}
                 </p>
+                <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-care-readable-limits">
+                  <div v-for="row in careReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
+                    <p class="text-[10px] text-accent">{{ row.label }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.value }}</p>
+                    <p v-if="row.detail" class="mt-1 text-[10px] leading-4 text-muted">{{ row.detail }}</p>
+                  </div>
+                </div>
+                <p v-if="careFailureReason" data-testid="online-manor-care-failure-reason" class="mt-2 text-[10px] leading-5 text-amber-200">
+                  照料失败原因：{{ careFailureReason }}
+                </p>
+                <p data-testid="online-manor-care-anti-abuse-summary" class="mt-1 text-[10px] leading-5 text-muted">
+                  照料审计：{{ careAntiAbuseSummary }}
+                </p>
                 <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-steal-readable-limits">
                   <div v-for="row in stealReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
                     <p class="text-[10px] text-accent">{{ row.label }}</p>
@@ -738,6 +751,10 @@
           <div class="space-y-3">
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">照料效果</p>
+              <p class="mt-2 text-[10px] leading-5 text-muted">{{ careReadableImpactSummary }}</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.care_state.audit.reward_cap_summary }}</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.care_state.audit.settlement_summary }}</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.care_state.audit.risk_flags) }}</p>
               <div class="mt-2 space-y-2">
                 <div v-for="effect in careEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
                   <p class="text-[10px] text-accent">{{ effect.label }}</p>
@@ -1010,6 +1027,59 @@
     const stealState = snapshot.value?.steal_state
     if (!stealState) return '0/0'
     return `${stealState.manor_remaining_steal_count}/${stealState.limits.manor_daily_limit}`
+  })
+  const careReadableLimitRows = computed(() => {
+    const careState = snapshot.value?.care_state
+    if (!careState) return []
+    const audit = careState.audit
+    return [
+      {
+        id: 'visitor',
+        label: '访客今日照料',
+        value: `${careState.visitor_daily_count}/${careState.limits.visitor_daily_limit}`,
+        detail: `剩余 ${careState.remaining_care_count} 次，同一访客上限${audit.visitor_limit_enforced ? '已启用' : '未启用'}。`,
+      },
+      {
+        id: 'manor',
+        label: '庄园今日承载',
+        value: `${careState.manor_daily_count}/${careState.limits.manor_daily_limit}`,
+        detail: `剩余 ${careState.manor_remaining_care_count} 次，庄园总量上限${audit.manor_limit_enforced ? '已启用' : '未启用'}。`,
+      },
+      {
+        id: 'object',
+        label: '单物件照料',
+        value: audit.object_limit_enforced ? '按场景物件限次' : '未启用',
+        detail: '田地、果树、畜棚和鱼塘等对象会随服务端审计记录照料来源。',
+      },
+      {
+        id: 'window',
+        label: '短时反刷窗口',
+        value: `${audit.recent_window_count} 次/${Math.round(audit.recent_window_seconds / 60)} 分钟`,
+        detail: audit.dispute_log_available ? '审计日志可追溯，可用于争议复核。' : '当前未开放争议复核日志。',
+      },
+    ]
+  })
+  const careFailureReason = computed(() => {
+    const careState = snapshot.value?.care_state
+    if (!careState || careState.can_care) return ''
+    return careState.care_denied_reason || '当前庄园暂未开放照料。'
+  })
+  const careAntiAbuseSummary = computed(() => {
+    const audit = snapshot.value?.care_state.audit
+    if (!audit) return '刷新后显示每日次数、短时窗口和异常标记。'
+    const riskLabel = riskFlagLabel(audit.risk_flags)
+    const visitorCounts = audit.daily_visitor_counts
+      .slice(0, 3)
+      .map(entry => `${entry.visitor_display_name || entry.visitor_username} ${entry.count}/${entry.limit}`)
+      .join('、')
+    return `${riskLabel}；近窗 ${audit.recent_window_count} 次；${visitorCounts || '暂无访客触达上限记录'}。`
+  })
+  const careReadableImpactSummary = computed(() => {
+    const careState = snapshot.value?.care_state
+    if (!careState) return '刷新庄园快照后显示照料收益、服务端落账和审计规则。'
+    const audit = careState.audit
+    const objectLimit = audit.object_limit_enforced ? '单物件限次已启用' : '单物件限次未启用'
+    return `${objectLimit} · ${audit.visitor_limit_enforced ? '访客日上限已启用' : '访客日上限未启用'} · ${audit.manor_limit_enforced ? '庄园日上限已启用' : '庄园日上限未启用'}`
   })
   const stealReadableLimitRows = computed(() => {
     const stealState = snapshot.value?.steal_state
