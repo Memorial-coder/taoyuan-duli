@@ -1042,7 +1042,7 @@
                   </span>
                 </div>
                 <p v-if="draft.final_spend_ledger_id" class="mt-2 text-[10px] leading-4 text-muted">基金流水：{{ draft.final_spend_ledger_id }}</p>
-                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <div class="mt-2 grid gap-2 sm:grid-cols-3">
                   <button
                     type="button"
                     class="online-action-btn online-action-btn--compact justify-center"
@@ -1062,6 +1062,69 @@
                   >
                     <Wallet :size="12" />
                     执行扣款
+                  </button>
+                  <button
+                    v-if="isHighRiskLargeFundSpendPurpose(draft.purpose)"
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canRecordHighRiskReceiptDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-fund-large-draft-receipt-${draft.id}`"
+                    @click="selectHighRiskReceiptDraft(draft)"
+                  >
+                    <ShieldCheck :size="12" />
+                    记录回执
+                  </button>
+                </div>
+                <div
+                  v-if="selectedHighRiskReceiptDraftId === draft.id"
+                  class="mt-2 border border-amber-300/20 bg-amber-500/10 p-2"
+                  data-testid="online-cohabitation-fund-high-risk-receipt-form"
+                >
+                  <div class="grid gap-2 sm:grid-cols-2">
+                    <select
+                      v-model="fundHighRiskReceiptOutcome"
+                      class="online-select text-xs"
+                      data-testid="online-cohabitation-fund-high-risk-receipt-outcome"
+                    >
+                      <option value="delivered">交付回执</option>
+                      <option value="refunded">退款回执</option>
+                    </select>
+                    <input
+                      v-model="fundHighRiskReceiptRef"
+                      class="online-input text-xs"
+                      data-testid="online-cohabitation-fund-high-risk-receipt-ref"
+                      maxlength="100"
+                      :placeholder="highRiskReceiptRefPlaceholder"
+                    >
+                    <input
+                      v-model="fundHighRiskReceiptMemo"
+                      class="online-input text-xs sm:col-span-2"
+                      data-testid="online-cohabitation-fund-high-risk-receipt-memo"
+                      maxlength="100"
+                      placeholder="回执备注（可选）"
+                    >
+                  </div>
+                  <label
+                    v-if="fundHighRiskReceiptOutcome === 'refunded'"
+                    class="mt-2 flex items-center gap-2 text-[10px] text-amber-100"
+                    data-testid="online-cohabitation-fund-high-risk-receipt-ack"
+                  >
+                    <input
+                      v-model="fundHighRiskReceiptCompensationAcknowledged"
+                      type="checkbox"
+                      class="online-input h-4 w-4 min-w-4 accent-accent"
+                    >
+                    已确认退款补偿方案
+                  </label>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact mt-2 w-full justify-center"
+                    :disabled="!canSubmitHighRiskReceipt || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-fund-high-risk-receipt-submit"
+                    @click="recordHighRiskReceipt"
+                  >
+                    <ShieldCheck :size="12" />
+                    提交高风险回执
                   </button>
                 </div>
               </div>
@@ -2211,6 +2274,7 @@
     maxAmount: number
     confirmationRequired: boolean
   }
+  type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
 
   const largeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
@@ -2277,6 +2341,11 @@
   const fundLargeDraftAmount = ref(1500)
   const fundLargeDraftTargetRef = ref('family_building:family_hall:build')
   const fundLargeDraftMemo = ref('')
+  const selectedHighRiskReceiptDraftId = ref('')
+  const fundHighRiskReceiptOutcome = ref<FundHighRiskReceiptOutcome>('delivered')
+  const fundHighRiskReceiptRef = ref('')
+  const fundHighRiskReceiptMemo = ref('')
+  const fundHighRiskReceiptCompensationAcknowledged = ref(false)
   const familyBuildingActionMessage = ref('')
   const familyBuildingActionOk = ref(false)
   const permissionActionMessage = ref('')
@@ -3649,6 +3718,39 @@
     cohabitationStore.fund?.summary.large_spend_execution_enabled === true &&
     cohabitationStore.fund?.permissions.can_spend_large === true &&
     (cohabitationStore.fund?.balance ?? 0) >= draft.amount
+  const canRecordHighRiskReceiptDraft = (draft: CohabitationFundLargeSpendDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    isHighRiskLargeFundSpendPurpose(draft.purpose) &&
+    draft.state === 'executed' &&
+    Boolean(draft.final_spend_ledger_id) &&
+    (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending') &&
+    cohabitationStore.fund?.permissions.can_spend_large === true
+  const selectedHighRiskReceiptDraft = computed(() =>
+    fundLargeSpendDrafts.value.find(draft => draft.id === selectedHighRiskReceiptDraftId.value) ?? null
+  )
+  const highRiskReceiptRefPlaceholder = computed(() => {
+    const draft = selectedHighRiskReceiptDraft.value
+    if (!draft) return 'receipt:ref'
+    if (draft.purpose === 'family_major_event') return `family_event:${draft.target_ref}:receipt`
+    return `delivery:${draft.target_ref}:receipt`
+  })
+  const canSubmitHighRiskReceipt = computed(() => {
+    const draft = selectedHighRiskReceiptDraft.value
+    if (!draft) return false
+    return canRecordHighRiskReceiptDraft(draft) &&
+      fundHighRiskReceiptRef.value.trim().length > 0 &&
+      (fundHighRiskReceiptOutcome.value === 'delivered' || fundHighRiskReceiptCompensationAcknowledged.value)
+  })
+
+  const selectHighRiskReceiptDraft = (draft: CohabitationFundLargeSpendDraft) => {
+    selectedHighRiskReceiptDraftId.value = draft.id
+    fundHighRiskReceiptOutcome.value = 'delivered'
+    fundHighRiskReceiptRef.value = draft.high_risk_receipt_ref || (draft.purpose === 'family_major_event'
+      ? `family_event:${draft.target_ref}:receipt`
+      : `delivery:${draft.target_ref}:receipt`)
+    fundHighRiskReceiptMemo.value = draft.high_risk_receipt_memo || ''
+    fundHighRiskReceiptCompensationAcknowledged.value = false
+  }
 
   const familyBuildingLedgerTargetId = (entry: CohabitationFamilyBuildingLedgerEntry) => {
     if (entry.building_id) return entry.building_id
@@ -4228,6 +4330,46 @@
         : '已执行共同基金大额草案扣款'
     } catch (error) {
       fundActionMessage.value = error instanceof Error ? error.message : '执行共同基金大额草案扣款失败'
+    }
+  }
+
+  const recordHighRiskReceipt = async () => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    const draft = selectedHighRiskReceiptDraft.value
+    const receiptRef = fundHighRiskReceiptRef.value.trim()
+    if (!draft || !canRecordHighRiskReceiptDraft(draft) || !receiptRef) {
+      fundActionMessage.value = '请选择已扣款且待回执的高风险草案，并填写回执引用'
+      return
+    }
+    if (fundHighRiskReceiptOutcome.value === 'refunded' && !fundHighRiskReceiptCompensationAcknowledged.value) {
+      fundActionMessage.value = '退款回执需要先确认补偿方案'
+      return
+    }
+    try {
+      const result = await cohabitationStore.recordSharedFundHighRiskReceipt(draft.id, {
+        outcome: fundHighRiskReceiptOutcome.value,
+        receipt_ref: receiptRef,
+        memo: fundHighRiskReceiptMemo.value.trim() || undefined,
+        compensation_plan_acknowledged: fundHighRiskReceiptOutcome.value === 'refunded'
+          ? fundHighRiskReceiptCompensationAcknowledged.value
+          : undefined,
+        idempotency_key: `ui-fund-high-risk-receipt-${draft.id}-${fundHighRiskReceiptOutcome.value}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      fundActionOk.value = true
+      const balance = result?.shared_fund?.balance_after ?? result?.fund?.balance
+      const refundAmount = result?.shared_fund?.refund_amount ?? 0
+      fundActionMessage.value = result?.idempotent || result?.already_recorded
+        ? '已读回既有高风险回执'
+        : fundHighRiskReceiptOutcome.value === 'refunded'
+          ? `已记录退款回执，退回共同基金 ${refundAmount} 文${typeof balance === 'number' ? `，余额 ${balance} 文` : ''}`
+          : '已记录交付回执，高风险草案收口'
+      selectedHighRiskReceiptDraftId.value = ''
+      fundHighRiskReceiptRef.value = ''
+      fundHighRiskReceiptMemo.value = ''
+      fundHighRiskReceiptCompensationAcknowledged.value = false
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '记录共同基金高风险回执失败'
     }
   }
 
@@ -4853,6 +4995,8 @@
       delivery_or_refund: '交付 / 退款收口',
       family_event_resolution_receipt: '家庭事件决议回执',
       child_arrangement_review: '孩子安排复核',
+      high_risk_purchase_governance_review: '高风险采购治理复核',
+      family_event_governance_review: '家庭事件治理复核',
       write_family_building_ledger: '建筑流水',
       real_build_apply: '真实建造落账',
       demolish_family_building: '拆除家族建筑',

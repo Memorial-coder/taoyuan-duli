@@ -44,6 +44,7 @@ import {
   petCohabitationSharedAnimal,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   plantCohabitationSharedPlot,
+  recordCohabitationFundHighRiskReceipt,
   recoverCohabitationWarehouseGovernance,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
@@ -89,6 +90,7 @@ import {
   type CohabitationFamilyRolePanel,
   type CohabitationFamilyVisibilityPanel,
   type CohabitationFundSnapshot,
+  type CohabitationFundHighRiskReceiptPayload,
   type CohabitationOfflineStatus,
   type CohabitationOverviewResponse,
   type CohabitationPermissionsPanel,
@@ -708,6 +710,29 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '执行共同基金大额草案扣款失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const recordSharedFundHighRiskReceipt = async (draftId: string, payload: CohabitationFundHighRiskReceiptPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recordCohabitationFundHighRiskReceipt(activeContractId.value, draftId, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录共同基金高风险回执失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -1691,6 +1716,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     createSharedFundLargeSpendDraft,
     confirmSharedFundLargeSpendDraft,
     executeSharedFundLargeSpendDraft,
+    recordSharedFundHighRiskReceipt,
     applyFamilyBuildingRealBuild,
     consumeFamilyBuildingMaterials,
     rollbackFamilyBuilding,

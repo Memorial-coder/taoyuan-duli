@@ -1582,6 +1582,14 @@ export interface CohabitationFundLargeSpendDraftExecutePayload {
   idempotency_key: string
 }
 
+export interface CohabitationFundHighRiskReceiptPayload {
+  outcome: 'delivered' | 'refunded'
+  receipt_ref: string
+  memo?: string
+  compensation_plan_acknowledged?: boolean
+  idempotency_key: string
+}
+
 export interface CohabitationFamilyBuildingLedgerPayload {
   building_ledger_id: string
   memo?: string
@@ -2027,6 +2035,22 @@ export interface CohabitationFundLargeSpendDraftResponse extends CohabitationDet
     confirmation_status?: string
     execution_enabled?: boolean
     building_ledger_written?: boolean
+  }
+}
+
+export interface CohabitationFundHighRiskReceiptResponse extends CohabitationFundLargeSpendDraftResponse {
+  receipt?: {
+    id: string
+    status: string
+    outcome: string
+    receipt_ref: string
+    recorded_at: number
+    recorded_by: string
+  }
+  refund_ledger_entry?: CohabitationFundLedgerEntry | null
+  already_recorded?: boolean
+  shared_fund?: CohabitationFundLargeSpendDraftResponse['shared_fund'] & {
+    refund_amount?: number
   }
 }
 
@@ -2590,6 +2614,14 @@ export const executeCohabitationFundLargeSpendDraft = async (contractId: string,
     contractPath(contractId, `/fund/large-spend-drafts/${encodeURIComponent(draftId)}/execute`),
     payload as unknown as Record<string, unknown>,
     '执行共同基金大额草案扣款失败'
+  )
+}
+
+export const recordCohabitationFundHighRiskReceipt = async (contractId: string, draftId: string, payload: CohabitationFundHighRiskReceiptPayload) => {
+  return postCohabitationJson<CohabitationFundHighRiskReceiptResponse>(
+    contractPath(contractId, `/fund/large-spend-drafts/${encodeURIComponent(draftId)}/high-risk-receipt`),
+    payload as unknown as Record<string, unknown>,
+    '记录共同基金高风险回执失败'
   )
 }
 
