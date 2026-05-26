@@ -682,6 +682,13 @@ export interface CohabitationFamilyBuildingLedgerEntry {
     idempotency_key: string
     written_at: number
   }>
+  real_build_demolition_main_state_preview_idempotency_key: string
+  real_build_demolition_main_state_previewed_at: number
+  real_build_demolition_main_state_previewed_by_username: string
+  real_build_demolition_main_state_previewed_by_display_name: string
+  real_build_demolition_main_state_manifest_hash: string
+  real_build_demolition_main_state_manifest: CohabitationFamilyBuildingMainStateManifestEntry[]
+  real_build_demolition_main_state_policy: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -690,6 +697,20 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   idempotency_key: string
   reversible: boolean
   status: string
+}
+
+export interface CohabitationFamilyBuildingMainStateManifestEntry {
+  username: string
+  username_key: string
+  save_slot: number | null
+  save_id: number | string | null
+  before_revision: number
+  real_build_ref: string
+  mapping_status: string
+  mutation_enabled: boolean
+  candidate_paths: string[]
+  blocked_reason: string
+  snapshot_hash: string
 }
 
 export interface CohabitationFamilyBuildingsPanel {
@@ -1404,6 +1425,7 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   already_rejected?: boolean
   already_execution_requested?: boolean
   already_written?: boolean
+  already_previewed?: boolean
   receipts?: Array<{
     username: string
     username_key: string
@@ -1417,6 +1439,16 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     idempotency_key: string
     written_at: number
   }>
+  main_state_preview?: {
+    manifest?: CohabitationFamilyBuildingMainStateManifestEntry[]
+    manifest_hash?: string
+    mutation_enabled?: boolean
+    blocked?: boolean
+    blocked_reason?: string
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
+  }
   rollback?: {
     shared_fund_refunded?: boolean
     shared_warehouse_restored?: boolean
@@ -1890,6 +1922,14 @@ export const writeCohabitationFamilyBuildingRealDemolitionPersonalSave = async (
     contractPath(contractId, '/family-buildings/real-demolition/write-personal-save'),
     payload as unknown as Record<string, unknown>,
     '写回家族建筑真实拆除个人存档失败'
+  )
+}
+
+export const previewCohabitationFamilyBuildingRealDemolitionMainState = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/preview-main-state'),
+    payload as unknown as Record<string, unknown>,
+    '预览家族建筑真实拆除个人主状态失败'
   )
 }
 

@@ -1205,8 +1205,14 @@
                   <p v-if="entry.real_build_demolition_personal_save_written_at || entry.real_build_demolition_execution_state === 'executed'">
                     存档写回：{{ entry.real_build_demolition_personal_save_written_by_display_name || entry.real_build_demolition_personal_save_written_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_personal_save_written_at) }} · {{ entry.real_build_demolition_personal_save_receipts?.length || 0 }} 份回执
                   </p>
+                  <p v-if="entry.real_build_demolition_main_state_previewed_at || entry.real_build_demolition_main_state_manifest_hash">
+                    主态预览：{{ entry.real_build_demolition_main_state_previewed_by_display_name || entry.real_build_demolition_main_state_previewed_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_main_state_previewed_at) }} · {{ entry.real_build_demolition_main_state_manifest?.length || 0 }} 人 · {{ entry.real_build_demolition_main_state_manifest_hash || '无 hash' }}
+                  </p>
+                  <p v-if="entry.real_build_demolition_main_state_policy">
+                    主态策略：{{ entry.real_build_demolition_main_state_policy }}
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-11">
+                <div class="mt-2 grid gap-2 md:grid-cols-12">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1316,6 +1322,16 @@
                   >
                     <CheckCircle2 :size="12" />
                     写回存档
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canPreviewFamilyBuildingRealDemolitionMainState(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-demolition-preview-main-state-${entry.id}`"
+                    @click="previewFamilyBuildingRealDemolitionMainState(entry)"
+                  >
+                    <ClipboardList :size="12" />
+                    预览主态
                   </button>
                 </div>
               </div>
@@ -2886,6 +2902,14 @@
     Boolean(entry.real_build_ref) &&
     entry.real_build_demolished !== true &&
     !entry.real_build_demolition_personal_save_write_idempotency_key
+  const canPreviewFamilyBuildingRealDemolitionMainState = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.real_build_demolition_execution_state === 'executed' &&
+    entry.real_build_demolished === true &&
+    Boolean(entry.real_build_demolition_personal_save_write_idempotency_key) &&
+    entry.real_build_applied === true &&
+    Boolean(entry.real_build_ref) &&
+    !entry.real_build_demolition_main_state_preview_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3316,6 +3340,28 @@
     }
   }
 
+  const previewFamilyBuildingRealDemolitionMainState = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.previewFamilyBuildingRealDemolitionMainState({
+        building_ledger_id: entry.id,
+        memo: `前端预览家族建筑真实拆除个人主状态：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-demolition-preview-main-state-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const manifestCount = result?.main_state_preview?.manifest?.length
+        ?? result?.building_ledger_entry?.real_build_demolition_main_state_manifest?.length
+        ?? entry.real_build_demolition_main_state_manifest?.length
+        ?? 0
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_previewed
+        ? `该真实拆除个人主状态预览已记录，已读回 ${manifestCount} 条阻断清单`
+        : `已生成个人主状态预览 ${manifestCount} 条，未删除个人房屋或建筑主状态`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '预览家族建筑真实拆除个人主状态失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -3453,6 +3499,7 @@
       real_build_demolition_manual_review: '真实拆除人工复核',
       real_build_demolition_execute: '真实拆除执行',
       real_build_demolition_personal_save_write: '真实拆除个人存档写回',
+      real_build_demolition_main_state_mapping: '真实拆除个人主状态映射',
       family_building_compensation_replay: '建筑补偿重放',
       family_building_rollback: '建筑回滚',
       publish_family_relation_graph_to_profile: '公开关系图到档案',
