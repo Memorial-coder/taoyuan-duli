@@ -3076,14 +3076,13 @@
     if (!selector.startsWith(`${candidatePath}.`)) return false
     const childKey = selector.slice(candidatePath.length + 1)
     if (!/^[a-z0-9_:-]{1,80}$/i.test(childKey)) return false
-    if (
-      candidatePath === 'home.homeRenovationStates' ||
-      candidatePath === 'home.farmhouseLevel' ||
-      candidatePath === 'home.caveChoice' ||
-      candidatePath === 'home.caveUnlocked' ||
-      candidatePath === 'home.cellarSlots' ||
-      candidatePath === 'home.greenhouseUnlocked'
-    ) return !targetKind || targetKind === 'home'
+    if (targetKind && targetKind !== 'home' && candidatePath.startsWith('home.')) return false
+    if (candidatePath === 'home.homeRenovationStates') return true
+    if (candidatePath === 'home.farmhouseLevel') return /^[1-3]$/.test(childKey)
+    if (candidatePath === 'home.caveChoice') return childKey === 'mushroom' || childKey === 'fruit_bat'
+    if (candidatePath === 'home.caveUnlocked') return childKey === 'true'
+    if (candidatePath === 'home.cellarSlots') return /^\d+$/.test(childKey)
+    if (candidatePath === 'home.greenhouseUnlocked') return childKey === 'true'
     if (candidatePath === 'decoration.placed' || candidatePath === 'decoration.owned') return !targetKind || targetKind === 'decoration'
     return false
   }

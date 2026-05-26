@@ -9,6 +9,7 @@
 - 农舍等级降级会先拒绝仍有酒窖陈酿槽、高等级宅院改造或宠物数量超过降级后容量的存档；成功时只写个人主状态变更回执和审计，不返还升级材料，不触碰个人铜币、背包、农田、共同基金或共同仓库。
 - 前端“执行变更”按钮同步允许 `home.farmhouseLevel`，在线 UI 结构 QA 增加该 selector 守护。
 - `qa:cohabitation-contract` 补充温室和农舍等级适配器断言，覆盖温室复位、农舍降级、mutation result、target kind，以及酒窖槽、高等级宅院改造和宠物容量超限拒绝。
+- 前端执行守卫进一步收紧：农舍等级只允许 `1-3`，酒窖槽只允许数字下标，山洞 / 温室布尔状态只允许 `true`，山洞用途只允许 `mushroom / fruit_bat`。
 
 ### 0526 家族建筑真实拆除个人主状态山洞开放态 selector
 - 后端精确变更适配器新增 `home.caveUnlocked.true` 窄 selector，只在个人存档当前山洞已开放且 `home.caveChoice` 已为 `none` 时把 `caveUnlocked` 复位为 `false`。
