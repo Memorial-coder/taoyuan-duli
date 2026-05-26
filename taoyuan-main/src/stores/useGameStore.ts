@@ -146,7 +146,8 @@ export const useGameStore = defineStore('game', () => {
     if (hours <= 0) return 0
     const cookingStore = useCookingStore()
     const speedBuff = cookingStore.activeBuff?.type === 'speed' ? cookingStore.activeBuff.value / 100 : 0
-    return hours * (1 - speedBuff)
+    const alchemySpeedBuff = cookingStore.getActiveAlchemyActionSpeedBonus()
+    return hours * (1 - speedBuff) * (1 - alchemySpeedBuff)
   }
 
   const advanceTime = (hours: number, options?: { skipSpeedBuff?: boolean }): { ok: boolean; passedOut: boolean; message: string } => {
