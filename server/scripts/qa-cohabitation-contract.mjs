@@ -3469,6 +3469,90 @@ assert.equal(familyBuildingRealDemolitionMainStateMapping.fund.balance, balanceB
 assert.equal(familyBuildingRealDemolitionMainStateMapping.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state mapping should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state mapping should not change restored rice')
 
+const mainStateMutationGuardPayload = {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  mapping_manifest_hash: familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest_hash,
+  confirmation_text: '确认主状态变更安全阀',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa guard personal main state mutation without deleting state',
+  idempotency_key: 'qa-family-building-real-demolition-main-state-mutation-guard',
+}
+
+await assert.rejects(
+  () => runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(largeContract.contract.id, {
+    ...mainStateMutationGuardPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-mutation-guard-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not guard real demolition personal main state mutation'
+)
+
+await assert.rejects(
+  () => runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(largeContract.contract.id, {
+    ...mainStateMutationGuardPayload,
+    confirmation_text: 'wrong confirmation',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-mutation-guard-bad-confirm',
+  }, actor(largeOwner)),
+  error => error?.status === 400,
+  'main state mutation guard should require explicit confirmation text'
+)
+
+await assert.rejects(
+  () => runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(largeContract.contract.id, {
+    ...mainStateMutationGuardPayload,
+    mapping_manifest_hash: 'bad-mapping-hash',
+    idempotency_key: 'qa-family-building-real-demolition-main-state-mutation-guard-bad-hash',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state mutation guard should reject mapping manifest hash drift'
+)
+
+const familyBuildingRealDemolitionMainStateMutationGuard = await runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(
+  largeContract.contract.id,
+  mainStateMutationGuardPayload,
+  actor(largeOwner)
+)
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.idempotent, false, 'first main state mutation guard should not be idempotent')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.already_guarded, false, 'first main state mutation guard should not report already guarded')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.building_ledger_entry.real_build_demolition_main_state_guard_idempotency_key, 'qa-family-building-real-demolition-main-state-mutation-guard', 'main state mutation guard should store idempotency key')
+assert.ok(/^[a-f0-9]{64}$/.test(familyBuildingRealDemolitionMainStateMutationGuard.building_ledger_entry.real_build_demolition_main_state_guard_manifest_hash), 'main state mutation guard should store guard manifest hash')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.manifest.length, 2, 'main state mutation guard should include one guard row per accepted member')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.mutation_enabled, false, 'main state mutation guard should keep mutation disabled')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.execution_enabled, false, 'main state mutation guard should keep execution disabled')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.personal_save_changed, false, 'main state mutation guard should not write personal saves')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.shared_fund_changed, false, 'main state mutation guard should not change shared fund')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.shared_warehouse_changed, false, 'main state mutation guard should not change shared warehouse')
+assert.ok(!familyBuildingRealDemolitionMainStateMutationGuard.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_mutation_guard'), 'main state mutation guard should clear guard deferred operation')
+assert.ok(familyBuildingRealDemolitionMainStateMutationGuard.building_ledger_entry.deferred_operations.includes('real_build_demolition_main_state_execute'), 'main state mutation guard should defer actual main state execution')
+assert.equal(
+  familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.manifest.every(item =>
+    item.guard_status === 'confirmed_pending_personal_main_state_mutation'
+    && item.compensation_required === true
+    && item.rollback_required === true
+    && item.mutation_enabled === false
+  ),
+  true,
+  'main state mutation guard should require compensation and rollback for every row'
+)
+assert.ok(familyBuildingRealDemolitionMainStateMutationGuard.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_mutation_guarded'), 'main state mutation guard should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state mutation guard should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state mutation guard should not rewrite partner save')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.fund.balance, balanceBeforeLargeDraft, 'main state mutation guard should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state mutation guard should not change restored wood')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state mutation guard should not change restored rice')
+
+const duplicateFamilyBuildingRealDemolitionMainStateMutationGuard = await runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(
+  largeContract.contract.id,
+  mainStateMutationGuardPayload,
+  actor(largeOwner)
+)
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMutationGuard.idempotent, true, 'same main state mutation guard key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMutationGuard.already_guarded, true, 'duplicate main state mutation guard should report already guarded')
+assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.manifest_hash, familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.manifest_hash, 'duplicate main state mutation guard should keep manifest hash')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite partner save')
+
 const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
   largeContract.contract.id,
   mainStateMappingPayload,

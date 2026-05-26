@@ -1752,6 +1752,33 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
       })).filter(item => item.username && item.binding_ref && item.candidate_path).slice(0, 12)
       : [],
     real_build_demolition_main_state_mapping_policy: sanitizeText(entry.real_build_demolition_main_state_mapping_policy, 180),
+    real_build_demolition_main_state_guard_idempotency_key: sanitizeText(entry.real_build_demolition_main_state_guard_idempotency_key, 120),
+    real_build_demolition_main_state_guarded_at: Math.max(0, Math.floor(Number(entry.real_build_demolition_main_state_guarded_at) || 0)),
+    real_build_demolition_main_state_guarded_by_username: normalizeUsername(entry.real_build_demolition_main_state_guarded_by_username),
+    real_build_demolition_main_state_guarded_by_display_name: sanitizeText(
+      entry.real_build_demolition_main_state_guarded_by_display_name
+        || entry.real_build_demolition_main_state_guarded_by_username,
+      60
+    ),
+    real_build_demolition_main_state_guard_manifest_hash: sanitizeText(entry.real_build_demolition_main_state_guard_manifest_hash, 100),
+    real_build_demolition_main_state_guard_manifest: Array.isArray(entry.real_build_demolition_main_state_guard_manifest)
+      ? entry.real_build_demolition_main_state_guard_manifest.map(item => ({
+        username: normalizeUsername(item?.username),
+        username_key: normalizeUsernameKey(item?.username_key || item?.username),
+        save_slot: normalizeSaveSlot(item?.save_slot),
+        save_id: normalizeSaveId(item?.save_id),
+        real_build_ref: sanitizeText(item?.real_build_ref, 120),
+        building_ledger_id: sanitizeText(item?.building_ledger_id, 100),
+        candidate_path: sanitizeText(item?.candidate_path, 100),
+        binding_ref: sanitizeText(item?.binding_ref, 160),
+        snapshot_hash: sanitizeText(item?.snapshot_hash, 100),
+        guard_status: sanitizeText(item?.guard_status, 80),
+        compensation_required: item?.compensation_required !== false,
+        rollback_required: item?.rollback_required !== false,
+        mutation_enabled: item?.mutation_enabled === true,
+      })).filter(item => item.username && item.binding_ref && item.candidate_path).slice(0, 12)
+      : [],
+    real_build_demolition_main_state_guard_policy: sanitizeText(entry.real_build_demolition_main_state_guard_policy, 180),
     reversible: entry.reversible !== false,
     status: ['fund_spend_recorded', 'build_applied', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
@@ -4616,6 +4643,24 @@ function normalizeFamilyBuildingRealDemolitionMainStateMappingPayload(payload = 
   };
 }
 
+function normalizeFamilyBuildingRealDemolitionMainStateMutationGuardPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态变更安全阀需要 idempotency_key，以防断线或重试时重复记录');
+  const confirmationText = sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation || '', 120);
+  return {
+    idempotency_key: idempotencyKey,
+    building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
+    draft_id: sanitizeText(payload.draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 120),
+    expected_mapping_manifest_hash: sanitizeText(payload.expected_mapping_manifest_hash || payload.mapping_manifest_hash || payload.manifest_hash, 100),
+    confirmation_text: confirmationText,
+    compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true || payload.ack_compensation === true,
+    rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true || payload.ack_rollback === true,
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+  };
+}
+
 function resolveSharedFundAutoPurchase(spend) {
   if (spend.auto_pay !== true) return null;
   const targetRef = sanitizeText(spend.target_ref, 120);
@@ -5650,6 +5695,44 @@ function hashFamilyBuildingRealDemolitionMainStateMappingManifest(manifest = [])
     binding_ref: entry.binding_ref,
     snapshot_hash: entry.snapshot_hash,
     mapping_status: entry.mapping_status,
+    mutation_enabled: entry.mutation_enabled,
+  }));
+  return hashStableObject(stableRows);
+}
+
+function buildFamilyBuildingRealDemolitionMainStateGuardManifest(mappingManifest = []) {
+  const mappingRows = Array.isArray(mappingManifest) ? mappingManifest : [];
+  if (mappingRows.length === 0) throw createError('请先完成个人主状态映射证明，再记录变更安全阀', 409);
+  return mappingRows.map(row => ({
+    username: row.username,
+    username_key: normalizeUsernameKey(row.username_key || row.username),
+    save_slot: normalizeSaveSlot(row.save_slot),
+    save_id: normalizeSaveId(row.save_id),
+    real_build_ref: sanitizeText(row.real_build_ref, 120),
+    building_ledger_id: sanitizeText(row.building_ledger_id, 100),
+    candidate_path: sanitizeText(row.candidate_path, 100),
+    binding_ref: sanitizeText(row.binding_ref, 160),
+    snapshot_hash: sanitizeText(row.snapshot_hash, 100),
+    guard_status: 'confirmed_pending_personal_main_state_mutation',
+    compensation_required: true,
+    rollback_required: true,
+    mutation_enabled: false,
+  })).filter(item => item.username && item.binding_ref && item.candidate_path);
+}
+
+function hashFamilyBuildingRealDemolitionMainStateGuardManifest(manifest = []) {
+  const stableRows = (Array.isArray(manifest) ? manifest : []).map(entry => ({
+    username_key: entry.username_key,
+    save_slot: entry.save_slot,
+    save_id: entry.save_id,
+    real_build_ref: entry.real_build_ref,
+    building_ledger_id: entry.building_ledger_id,
+    candidate_path: entry.candidate_path,
+    binding_ref: entry.binding_ref,
+    snapshot_hash: entry.snapshot_hash,
+    guard_status: entry.guard_status,
+    compensation_required: entry.compensation_required,
+    rollback_required: entry.rollback_required,
     mutation_enabled: entry.mutation_enabled,
   }));
   return hashStableObject(stableRows);
@@ -9770,6 +9853,165 @@ async function verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(co
   };
 }
 
+async function guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateMutationGuardPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '记录家族建筑真实拆除个人主状态变更安全阀');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('家族建筑真实拆除个人主状态变更安全阀只支持结拜庄园和合伙庄园', 403);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const canGuardMutation = actorPermissions.construction.demolish_building === true
+    || actorPermissions.fund.spend_large === true
+    || ['family_head', 'workshop_keeper'].includes(actorManorRole);
+  if (!canGuardMutation) throw createError('你没有记录家族建筑真实拆除个人主状态变更安全阀的权限', 403);
+  if (actorPermissions.confirmations.demolish_requires_both !== true) {
+    throw createError('家族建筑真实拆除个人主状态变更安全阀必须保留拆除双方确认安全阀', 409);
+  }
+  if (request.confirmation_text !== '确认主状态变更安全阀') {
+    throw createError('请明确确认主状态变更安全阀，避免误触个人房屋 / 建筑主状态流程', 400);
+  }
+  if (!request.compensation_plan_acknowledged || !request.rollback_plan_acknowledged) {
+    throw createError('进入个人主状态变更前必须确认补偿和回滚方案', 409);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const familyLedger = normalizeFamilyBuildingLedger(contract);
+  const previousGuardEntry = familyLedger.find(entry => entry.real_build_demolition_main_state_guard_idempotency_key === request.idempotency_key);
+  if (previousGuardEntry) {
+    const requestedEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+    if (requestedEntry && requestedEntry.id !== previousGuardEntry.id) {
+      throw createError('该真实拆除个人主状态变更安全阀幂等键已用于其他建筑流水，请更换 idempotency_key', 409);
+    }
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: previousGuardEntry,
+      idempotent: true,
+      already_guarded: true,
+      main_state_mutation_guard: {
+        manifest: previousGuardEntry.real_build_demolition_main_state_guard_manifest || [],
+        manifest_hash: previousGuardEntry.real_build_demolition_main_state_guard_manifest_hash,
+        mutation_enabled: false,
+        execution_enabled: false,
+        compensation_required: true,
+        rollback_required: true,
+        personal_save_changed: false,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+      },
+    };
+  }
+
+  const targetEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+  if (!targetEntry) throw createError('找不到可记录个人主状态变更安全阀的家族建筑流水', 404);
+  if (!targetEntry.real_build_demolition_main_state_mapping_idempotency_key) {
+    throw createError('请先完成个人主状态映射证明，再记录变更安全阀', 409);
+  }
+  if (!targetEntry.real_build_demolition_main_state_mapping_manifest_hash || request.expected_mapping_manifest_hash !== targetEntry.real_build_demolition_main_state_mapping_manifest_hash) {
+    throw createError('个人主状态映射 manifest hash 不匹配，请刷新后重试', 409);
+  }
+  if (targetEntry.real_build_demolition_main_state_guard_idempotency_key) {
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: targetEntry,
+      idempotent: true,
+      already_guarded: true,
+      main_state_mutation_guard: {
+        manifest: targetEntry.real_build_demolition_main_state_guard_manifest || [],
+        manifest_hash: targetEntry.real_build_demolition_main_state_guard_manifest_hash,
+        mutation_enabled: false,
+        execution_enabled: false,
+        compensation_required: true,
+        rollback_required: true,
+        personal_save_changed: false,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+      },
+    };
+  }
+
+  const guardManifest = buildFamilyBuildingRealDemolitionMainStateGuardManifest(
+    targetEntry.real_build_demolition_main_state_mapping_manifest
+  );
+  const guardManifestHash = hashFamilyBuildingRealDemolitionMainStateGuardManifest(guardManifest);
+  const operatedAt = nowSeconds();
+  const roleDef = getFamilyManorRoleDef(actorManorRole);
+  const nextDeferredOperations = [...new Set([
+    ...(Array.isArray(targetEntry.deferred_operations)
+      ? targetEntry.deferred_operations.filter(item => item && item !== 'real_build_demolition_main_state_mutation_guard')
+      : []),
+    'real_build_demolition_main_state_execute',
+  ])];
+  const nextEntry = normalizeFamilyBuildingLedgerEntry({
+    ...targetEntry,
+    real_build_demolition_main_state_guard_idempotency_key: request.idempotency_key,
+    real_build_demolition_main_state_guarded_at: operatedAt,
+    real_build_demolition_main_state_guarded_by_username: member.username,
+    real_build_demolition_main_state_guarded_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    real_build_demolition_main_state_guard_manifest: guardManifest,
+    real_build_demolition_main_state_guard_manifest_hash: guardManifestHash,
+    real_build_demolition_main_state_guard_policy: '已确认个人主状态变更安全阀、补偿方案和回滚方案；本步骤仍不修改个人 home / decoration 主状态，真实删除需另走执行接口。',
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: roleDef?.label || targetEntry.actor_manor_role_label,
+    deferred_operations: nextDeferredOperations,
+  });
+  contract.family_building_ledger = familyLedger.map(entry =>
+    entry.id === targetEntry.id ? nextEntry : entry
+  ).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  appendAudit(contract, 'family_building_real_demolition_main_state_mutation_guarded', actor, {
+    building_ledger_id: nextEntry.id,
+    draft_id: nextEntry.draft_id,
+    fund_ledger_id: nextEntry.fund_ledger_id,
+    target_ref: nextEntry.target_ref,
+    building_id: nextEntry.building_id,
+    project_id: nextEntry.project_id,
+    real_build_ref: nextEntry.real_build_ref,
+    mapping_manifest_hash: targetEntry.real_build_demolition_main_state_mapping_manifest_hash,
+    guard_manifest_hash: guardManifestHash,
+    guard_count: guardManifest.length,
+    mutation_enabled: false,
+    execution_enabled: false,
+    compensation_required: true,
+    rollback_required: true,
+    personal_save_changed: false,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+  }, request.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    building_ledger_entry: nextEntry,
+    idempotent: false,
+    already_guarded: false,
+    main_state_mutation_guard: {
+      manifest: guardManifest,
+      manifest_hash: guardManifestHash,
+      mutation_enabled: false,
+      execution_enabled: false,
+      compensation_required: true,
+      rollback_required: true,
+      personal_save_changed: false,
+      shared_fund_changed: false,
+      shared_warehouse_changed: false,
+      next_deferred_operation: 'real_build_demolition_main_state_execute',
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -11787,6 +12029,7 @@ module.exports = {
   writeCohabitationFamilyBuildingRealDemolitionPersonalSave,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping,
+  guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,
