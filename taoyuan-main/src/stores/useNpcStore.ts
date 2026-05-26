@@ -45,7 +45,7 @@ import type {
   Season,
   Weather
 } from '@/types'
-import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent } from '@/data'
+import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent, getCropById } from '@/data'
 import { RANDOM_NPC_LONG_STAY_STORY_EVENTS, RANDOM_NPC_TEMPLATES, RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
 import {
   createDefaultChildTrainingState,
@@ -107,6 +107,29 @@ const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
 const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
 const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
+
+type RandomNpcDialogueContextTarget = {
+  name: string
+  smallOrder: { title: string; requestedItems: Array<{ itemId: string; quantity: number }> }
+  smallOrderCompleted?: boolean
+  dialogueMemories: RandomNpcDialogueMemoryEntry[]
+}
+
+const RANDOM_NPC_SEASON_CONTEXT_LINES: Record<Season, string> = {
+  spring: '春日草木新发，话题自然绕回播种与新客。',
+  summer: '夏日气息正盛，路上的见闻也被晒得更明亮。',
+  autumn: '秋意压着田畴，收成和归途都更容易被提起。',
+  winter: '冬日村口清冷，炉火、储粮和去留都显得更近。'
+}
+
+const RANDOM_NPC_WEATHER_CONTEXT_LINES: Record<Weather, string> = {
+  sunny: '今日晴光好，对方说话时也多了几分舒展。',
+  rainy: '雨声压低了院外脚步，这段话听起来更像檐下闲谈。',
+  stormy: '雷雨将近，对方先望了望天色才继续说下去。',
+  snowy: '雪意落在村路上，对方把话说得慢而谨慎。',
+  windy: '风从田埂上掠过，对方顺势问起村里的近况。',
+  green_rain: '绿雨气息漫过山脚，对方明显被这场异象牵住了心神。'
+}
 
 type RegionRumorTemplate = {
   id: string
@@ -463,6 +486,58 @@ export const useNpcStore = defineStore('npc', () => {
     memory: RandomNpcDialogueMemoryEntry,
     limit = RANDOM_NPC_DIALOGUE_MEMORY_LIMIT
   ): RandomNpcDialogueMemoryEntry[] => [...memories, memory].slice(-limit)
+
+  const getRandomNpcFarmContextLine = (targetName: string): string => {
+    const farmStore = useFarmStore()
+    const allPlots = [...farmStore.plots, ...farmStore.greenhousePlots]
+    const harvestablePlot = allPlots.find(plot => plot.cropId && plot.state === 'harvestable')
+    const growingPlot = allPlots.find(plot =>
+      plot.cropId && (plot.state === 'planted' || plot.state === 'growing')
+    )
+    const plot = harvestablePlot ?? growingPlot
+    if (!plot?.cropId) return ''
+    const cropName = getCropById(plot.cropId)?.name ?? plot.cropId
+    if (plot.state === 'harvestable') {
+      return `田里的${cropName}已经能收，${targetName}顺势问起这批收成准备怎么用。`
+    }
+    return `你们提到地里的${cropName}还在长，话题转向这几天的照料。`
+  }
+
+  const getRandomNpcSmallOrderContextLine = (target: RandomNpcDialogueContextTarget): string => {
+    if (target.smallOrderCompleted || target.smallOrder.requestedItems.length === 0) return ''
+    const inventoryStore = useInventoryStore()
+    const progress = target.smallOrder.requestedItems.map(item => ({
+      ...item,
+      owned: inventoryStore.getTotalItemCount(item.itemId)
+    }))
+    if (progress.every(item => item.owned >= item.quantity)) {
+      return `小订单「${target.smallOrder.title}」的材料已备齐，${target.name}明显把后续安排说得更细。`
+    }
+    const partialItem = progress.find(item => item.owned > 0 && item.owned < item.quantity)
+    if (partialItem) {
+      const itemName = getItemById(partialItem.itemId)?.name ?? partialItem.itemId
+      return `你提到正在筹备${itemName}，${target.name}也记得小订单还差${partialItem.quantity - partialItem.owned}份。`
+    }
+    return `小订单「${target.smallOrder.title}」还没起头，${target.name}把请求留在试探里。`
+  }
+
+  const buildRandomNpcDialogueContextLine = (target: RandomNpcDialogueContextTarget): string => {
+    const gameStore = useGameStore()
+    const environmentLine = `${RANDOM_NPC_SEASON_CONTEXT_LINES[gameStore.season]}${RANDOM_NPC_WEATHER_CONTEXT_LINES[gameStore.weather]}`
+    const lastMemory = target.dialogueMemories[target.dialogueMemories.length - 1]
+    const behaviorLines = [
+      getRandomNpcFarmContextLine(target.name),
+      getRandomNpcSmallOrderContextLine(target),
+      lastMemory ? `上次关于“${lastMemory.choiceText}”的余波还在，这回回应多了一层旧话题的回声。` : ''
+    ].filter(Boolean)
+    const behaviorLine = behaviorLines.length > 0
+      ? pickBySeed(
+          behaviorLines,
+          `${target.name}:${gameStore.year}:${gameStore.season}:${gameStore.day}:${gameStore.weather}:${target.dialogueMemories.length}`
+        )
+      : ''
+    return [environmentLine, behaviorLine].filter(Boolean).join(' ')
+  }
 
   const applyRandomNpcRelationshipSignal = (
     signals: RandomNpcRelationshipSignals,
@@ -1125,6 +1200,8 @@ export const useNpcStore = defineStore('npc', () => {
     const cookingTopicLine = cookingTopic
       ? `你顺势提起刚做的${cookingTopic.recipeName}，话题落在${cookingTopic.triggerLabels.join('、')}上。`
       : ''
+    const contextLine = buildRandomNpcDialogueContextLine(visitor)
+    const response = [choice.response, contextLine, cookingTopicLine].filter(Boolean).join(' ')
 
     const nextRelationshipTag = choice.relationshipTag ?? visitor.relationshipTag
     const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
@@ -1138,7 +1215,7 @@ export const useNpcStore = defineStore('npc', () => {
       dayTag: visitor.lastVisitDayTag,
       choiceId: choice.id,
       choiceText: choice.text,
-      response: cookingTopicLine ? `${choice.response} ${cookingTopicLine}` : choice.response,
+      response,
       direction,
       affinityChange,
       relationshipTag: visitor.relationshipTag
@@ -1151,7 +1228,7 @@ export const useNpcStore = defineStore('npc', () => {
     visitor.dialogueMemories = appendRandomNpcDialogueMemory(visitor.dialogueMemories, dialogueMemory)
     visitor.keyEvents = [
       ...visitor.keyEvents,
-      `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}${cookingTopicLine ? ` ${cookingTopicLine}` : ''}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
+      `${visitor.lastVisitDayTag} ${choice.text}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
     ].slice(-6)
     if (visitor.tier === 'acquaintance' || visitor.tier === 'long_stay') {
       upsertRandomNpcAcquaintance(visitor)
@@ -1173,7 +1250,7 @@ export const useNpcStore = defineStore('npc', () => {
 
     return {
       success: true,
-      message: cookingTopicLine ? `${choice.response} ${cookingTopicLine}` : choice.response,
+      message: response,
       affinityChange,
       visitor
     }
@@ -1266,17 +1343,19 @@ export const useNpcStore = defineStore('npc', () => {
     const nextStage = event.stage >= 3 ? 3 : (event.stage + 1) as 1 | 2 | 3
     const nextRelationshipTag = choice.relationshipTag ?? resident.relationshipTag
     const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
+    const contextLine = buildRandomNpcDialogueContextLine(resident)
+    const response = [choice.response, contextLine].filter(Boolean).join(' ')
     const dialogueMemory = buildRandomNpcDialogueMemory({
       npcName: resident.name,
       dayTag,
       choiceId: choice.id,
       choiceText: `${event.title}：${choice.text}`,
-      response: choice.response,
+      response,
       direction,
       affinityChange: choice.affinityChange,
       relationshipTag: nextRelationshipTag
     })
-    const eventLine = `${dayTag} 【${event.title}】${choice.text}：${choice.response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
+    const eventLine = `${dayTag} 【${event.title}】${choice.text}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
     let nextResident: RandomNpcLongStayEntry | null = null
     randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
       if (entry.residentId !== residentId) return entry
@@ -1315,7 +1394,7 @@ export const useNpcStore = defineStore('npc', () => {
           : entry
       )
     }
-    return { success: true, message: choice.response, resident: nextResident ?? resident }
+    return { success: true, message: response, resident: nextResident ?? resident }
   }
 
   const getRandomNpcFamilyCommission = (residentId: string): RandomNpcFamilyCommissionDef | null => {
