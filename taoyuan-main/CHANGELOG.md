@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态精确执行前端阻断入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/execute-main-state-exact-targets`，共同庄园建筑流水卡片新增“精确阻断”按钮。
+- 按钮按已绑定精确目标、`exact_target_bound_pending_execute` 执行状态、精确目标 manifest hash、精确目标清单和尚未记录精确执行幂等禁用；提交时固定确认精确执行安全阀、补偿方案和回滚方案。
+- 提交后展示精确执行人、时间、阻断状态、阻断策略和待人工解析数量，并读回 `real_build_demolition_main_state_exact_target_manual_resolution` 暂缓项；本轮仍不删除个人 `home / decoration` 主状态、不改共同基金 / 共同仓库数量、不写个人铜币或背包。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态精确执行后端阻断闭环
 - 服务端新增 `/family-buildings/real-demolition/execute-main-state-exact-targets`，要求已绑定精确目标、目标 manifest hash 匹配、执行状态为 `exact_target_bound_pending_execute`，并明确确认精确执行安全阀、补偿方案和回滚方案。
 - 当前精确目标仍可能是前端 / QA 占位 selector，接口只记录 `blocked_unresolved_exact_target_selector`、操作者、策略和审计，清除 `real_build_demolition_main_state_exact_execute` 并推进到 `real_build_demolition_main_state_exact_target_manual_resolution`。
