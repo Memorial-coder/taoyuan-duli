@@ -6119,6 +6119,35 @@ function hashFamilyBuildingRealDemolitionMainStateGuardManifest(manifest = []) {
   return hashStableObject(stableRows);
 }
 
+function getFamilyBuildingMainStateTargetKindForCandidatePath(candidatePath = '') {
+  if (String(candidatePath).startsWith('home.')) return 'home';
+  if (String(candidatePath).startsWith('decoration.')) return 'decoration';
+  return '';
+}
+
+function parseFamilyBuildingMainStateExactSelector(candidatePath = '', selector = '', fieldLabel = 'selector') {
+  const normalizedCandidatePath = sanitizeText(candidatePath, 100);
+  const normalizedSelector = sanitizeText(selector, 180);
+  if (!normalizedCandidatePath || !normalizedSelector || !normalizedSelector.startsWith(`${normalizedCandidatePath}.`)) {
+    throw createError(`个人主状态变更 ${fieldLabel} 必须位于已验证候选路径下`, 409);
+  }
+  const childKey = normalizedSelector.slice(normalizedCandidatePath.length + 1);
+  if (!/^[a-z0-9_:-]{1,80}$/i.test(childKey)) {
+    throw createError(`个人主状态变更 ${fieldLabel} 只能指向候选路径下一层安全 ID`, 409);
+  }
+  return childKey;
+}
+
+function assertFamilyBuildingMainStateTargetKindMatchesCandidatePath(candidatePath = '', targetKind = '') {
+  const expectedKind = getFamilyBuildingMainStateTargetKindForCandidatePath(candidatePath);
+  const normalizedKind = sanitizeText(targetKind, 40);
+  if (!expectedKind) throw createError('个人主状态精确目标候选路径暂不支持真实变更', 409);
+  if (normalizedKind && normalizedKind !== expectedKind) {
+    throw createError('个人主状态精确目标 target_kind 与候选路径不一致', 409);
+  }
+  return expectedKind;
+}
+
 function buildFamilyBuildingRealDemolitionMainStateExactTargetManifest(guardManifest = [], requestTargets = []) {
   const guardRows = Array.isArray(guardManifest) ? guardManifest : [];
   if (guardRows.length === 0) throw createError('请先确认个人主状态变更安全阀，再绑定精确目标', 409);
@@ -6153,11 +6182,13 @@ function buildFamilyBuildingRealDemolitionMainStateExactTargetManifest(guardMani
     }
     const exactTargetRef = sanitizeText(target.exact_target_ref, 180);
     const deleteSelector = sanitizeText(target.delete_selector, 180);
-    const exactChildOfCandidate = exactTargetRef.startsWith(`${candidatePath}.`)
-      || exactTargetRef.startsWith(`${candidatePath}[`);
-    if (!exactChildOfCandidate || exactTargetRef === candidatePath || deleteSelector === candidatePath) {
-      throw createError('个人主状态精确目标必须指向候选宽路径下的具体字段、ID 或索引，不能直接使用宽路径', 409);
+    const exactTargetChildKey = parseFamilyBuildingMainStateExactSelector(candidatePath, exactTargetRef, 'exact_target_ref');
+    const deleteSelectorChildKey = parseFamilyBuildingMainStateExactSelector(candidatePath, deleteSelector, 'delete_selector');
+    if (exactTargetChildKey !== deleteSelectorChildKey) {
+      throw createError('个人主状态精确目标的 exact_target_ref 与 delete_selector 必须指向同一个目标', 409);
     }
+    const targetKind = sanitizeText(target.target_kind, 40) || getFamilyBuildingMainStateTargetKindForCandidatePath(candidatePath);
+    assertFamilyBuildingMainStateTargetKindMatchesCandidatePath(candidatePath, targetKind);
     result.push({
       username: row.username,
       username_key: rowKey,
@@ -6170,7 +6201,7 @@ function buildFamilyBuildingRealDemolitionMainStateExactTargetManifest(guardMani
       snapshot_hash: row.snapshot_hash,
       exact_target_ref: exactTargetRef,
       delete_selector: deleteSelector,
-      target_kind: sanitizeText(target.target_kind, 40) || (candidatePath.startsWith('decoration.') ? 'decoration' : 'home'),
+      target_kind: targetKind,
       target_status: 'exact_target_bound_pending_execute',
       mutation_enabled: false,
     });
@@ -6226,12 +6257,10 @@ function buildFamilyBuildingRealDemolitionMainStateResolvedExactTargetManifest(c
     const candidatePath = sanitizeText(row.candidate_path, 100);
     const exactTargetRef = sanitizeText(target.exact_target_ref, 180);
     const deleteSelector = sanitizeText(target.delete_selector, 180);
-    const exactChildOfCandidate = exactTargetRef.startsWith(`${candidatePath}.`)
-      || exactTargetRef.startsWith(`${candidatePath}[`);
-    const selectorChildOfCandidate = deleteSelector.startsWith(`${candidatePath}.`)
-      || deleteSelector.startsWith(`${candidatePath}[`);
-    if (!exactChildOfCandidate || !selectorChildOfCandidate || exactTargetRef === candidatePath || deleteSelector === candidatePath) {
-      throw createError('人工解析后的个人主状态精确目标必须指向候选宽路径下的具体字段、ID 或索引，不能直接使用宽路径', 409);
+    const exactTargetChildKey = parseFamilyBuildingMainStateExactSelector(candidatePath, exactTargetRef, 'exact_target_ref');
+    const deleteSelectorChildKey = parseFamilyBuildingMainStateExactSelector(candidatePath, deleteSelector, 'delete_selector');
+    if (exactTargetChildKey !== deleteSelectorChildKey) {
+      throw createError('人工解析后的个人主状态 exact_target_ref 与 delete_selector 必须指向同一个目标', 409);
     }
     if (isUnresolvedFamilyBuildingRealDemolitionMainStateExactTarget({
       exact_target_ref: exactTargetRef,
@@ -6240,11 +6269,13 @@ function buildFamilyBuildingRealDemolitionMainStateResolvedExactTargetManifest(c
       throw createError('人工解析后的个人主状态精确目标不能继续使用前端或 QA 占位 selector', 409);
     }
     if (!target.resolution_proof) throw createError('人工解析个人主状态精确目标需要 resolution_proof', 400);
+    const targetKind = sanitizeText(target.target_kind, 40) || row.target_kind;
+    assertFamilyBuildingMainStateTargetKindMatchesCandidatePath(candidatePath, targetKind);
     return {
       ...row,
       exact_target_ref: exactTargetRef,
       delete_selector: deleteSelector,
-      target_kind: sanitizeText(target.target_kind, 40) || row.target_kind,
+      target_kind: targetKind,
       target_status: 'exact_target_resolved_pending_adapter',
       mutation_enabled: false,
     };

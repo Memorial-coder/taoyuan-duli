@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态精确变更反作弊护栏
+- 后端精确目标绑定和人工解析统一使用安全 selector 解析：`exact_target_ref` 与 `delete_selector` 必须位于候选宽路径下一层安全 ID，且二者必须指向同一个 child key。
+- `target_kind` 必须与候选路径一致，`home.*` 只允许 `home`，`decoration.*` 只允许 `decoration`，防止人工解析阶段伪装目标类型。
+- 前端“执行变更”按钮同步收紧 selector 判断，拒绝 bracket、嵌套路径、不安全字符、占位 selector 和 `target_kind` 不匹配目标；当前仍只允许 `home.homeRenovationStates.<id>`、`decoration.placed.<id>`、`decoration.owned.<id>` 三类已验证窄 selector。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态精确变更 selector 覆盖
 - 后端精确变更适配器新增 `decoration.owned.<decorationId>` 窄 selector，只允许撤回一件未放置装饰库存；若拥有数量不存在、没有未放置余量，或会导致已放置数量超过拥有数量则拒绝。
 - 前端“执行变更”按钮同步允许 `decoration.owned`，仍拒绝宽路径、嵌套路径和前端 / QA 占位 selector。

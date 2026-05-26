@@ -3870,6 +3870,47 @@ await assert.rejects(
   'main state exact target resolution should reject placeholder selectors'
 )
 
+await assert.rejects(
+  () => runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetResolutionPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution-mismatched-selector',
+    targets: mainStateExactTargetResolutionPayload.targets.map((item, index) => ({
+      ...item,
+      exact_target_ref: `${item.candidate_path}.safe_target_${index}`,
+      delete_selector: `${item.candidate_path}.different_target_${index}`,
+    })),
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact target resolution should reject mismatched exact target and delete selector'
+)
+
+await assert.rejects(
+  () => runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetResolutionPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution-kind-mismatch',
+    targets: mainStateExactTargetResolutionPayload.targets.map(item => ({
+      ...item,
+      target_kind: item.candidate_path.startsWith('decoration.') ? 'home' : 'decoration',
+    })),
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact target resolution should reject target kind spoofing'
+)
+
+await assert.rejects(
+  () => runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(largeContract.contract.id, {
+    ...mainStateExactTargetResolutionPayload,
+    idempotency_key: 'qa-family-building-real-demolition-main-state-exact-target-resolution-unsafe-child',
+    targets: mainStateExactTargetResolutionPayload.targets.map(item => ({
+      ...item,
+      exact_target_ref: `${item.candidate_path}.bad/child`,
+      delete_selector: `${item.candidate_path}.bad/child`,
+    })),
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'main state exact target resolution should reject unsafe child selector ids'
+)
+
 const familyBuildingRealDemolitionMainStateExactTargetResolution = await runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
   largeContract.contract.id,
   mainStateExactTargetResolutionPayload,

@@ -3068,14 +3068,17 @@
     Array.isArray(entry.real_build_demolition_main_state_exact_target_manifest) &&
     entry.real_build_demolition_main_state_exact_target_manifest.length > 0 &&
     !entry.real_build_demolition_main_state_exact_target_resolution_idempotency_key
-  const isSupportedFamilyBuildingMainStateExactMutationSelector = (target: { candidate_path?: string; delete_selector?: string; exact_target_ref?: string }) => {
+  const isSupportedFamilyBuildingMainStateExactMutationSelector = (target: { candidate_path?: string; delete_selector?: string; exact_target_ref?: string; target_kind?: string }) => {
     const candidatePath = target.candidate_path || ''
     const selector = target.delete_selector || target.exact_target_ref || ''
+    const targetKind = target.target_kind || ''
     if (!candidatePath || !selector || selector.includes('.ui_exact_target_') || selector.includes('.qa_exact_target_') || selector.includes('.resolved_target_')) return false
-    if (!(selector.startsWith(`${candidatePath}.`) || selector.startsWith(`${candidatePath}[`))) return false
+    if (!selector.startsWith(`${candidatePath}.`)) return false
     const childKey = selector.slice(candidatePath.length + 1)
-    if (!childKey || childKey.includes('.') || childKey.includes('[') || childKey.includes(']')) return false
-    return candidatePath === 'home.homeRenovationStates' || candidatePath === 'decoration.placed' || candidatePath === 'decoration.owned'
+    if (!/^[a-z0-9_:-]{1,80}$/i.test(childKey)) return false
+    if (candidatePath === 'home.homeRenovationStates') return !targetKind || targetKind === 'home'
+    if (candidatePath === 'decoration.placed' || candidatePath === 'decoration.owned') return !targetKind || targetKind === 'decoration'
+    return false
   }
   const canExecuteFamilyBuildingRealDemolitionMainStateExactMutation = (entry: CohabitationFamilyBuildingLedgerEntry) =>
     cohabitationStore.canOpenSelectedContract &&
