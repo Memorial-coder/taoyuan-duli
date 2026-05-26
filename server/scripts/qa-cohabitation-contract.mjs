@@ -6155,4 +6155,75 @@ assert.equal(warehouseGovernanceAfterBlock.warehouse.items.find(item => item.ite
 assert.equal(getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat'), ownerWheatBeforeGovernanceBlock, 'blocked warehouse withdraw should not change personal inventory')
 assert.ok(warehouseGovernanceAfterBlock.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_high_frequency_outbound_blocked'), 'blocked warehouse withdraw should write governance audit')
 
+const warehouseInboundGovernanceOwner = 'cohabit_wgin_owner26'
+const warehouseInboundGovernancePartner = 'cohabit_wgin_part26'
+const warehouseInboundGovernanceContractId = await setupDualLargeFundContract({
+  ownerUsername: warehouseInboundGovernanceOwner,
+  partnerUsername: warehouseInboundGovernancePartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'warehouse-inbound-governance',
+})
+const warehouseInboundGovernanceAt = Math.floor(Date.now() / 1000)
+await mutateStoredContract(warehouseInboundGovernanceContractId, contract => {
+  const sourceOwnerKey = warehouseInboundGovernanceOwner.toLowerCase()
+  const recentDeposits = Array.from({ length: 12 }, (_, index) => ({
+    id: `qa-warehouse-inbound-governance-rice-deposit-${index + 1}`,
+    action: 'deposit',
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    actor_username: warehouseInboundGovernanceOwner,
+    actor_display_name: warehouseInboundGovernanceOwner,
+    source_owner_id: 'save:123456792',
+    source_owner_username: warehouseInboundGovernanceOwner,
+    source_owner_display_name: warehouseInboundGovernanceOwner,
+    source_owner_key: sourceOwnerKey,
+    source_save_id: 123456792,
+    source_save_slot: 0,
+    source_save_revision: 1,
+    source_inventory: 'inventory.items',
+    source_slots: [{ index: 0, quantity: 1 }],
+    target_inventory: 'shared_warehouse.items',
+    at: warehouseInboundGovernanceAt - (12 - index),
+    idempotency_key: `qa-warehouse-inbound-governance-existing-deposit-${index + 1}`,
+    reversible: true,
+    compensation_hint: 'QA injected high-frequency inbound governance stock',
+    status: 'committed',
+  }))
+  contract.shared_warehouse = contract.shared_warehouse || {}
+  contract.shared_warehouse.ledger = [
+    ...recentDeposits.slice().reverse(),
+    ...(Array.isArray(contract.shared_warehouse.ledger) ? contract.shared_warehouse.ledger : []),
+  ]
+})
+const warehouseInboundBeforeBlock = await runtime.getCohabitationWarehouse(warehouseInboundGovernanceContractId, actor(warehouseInboundGovernanceOwner))
+assert.equal(warehouseInboundBeforeBlock.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 12, 'warehouse inbound governance setup should leave stock available')
+assert.equal(warehouseInboundBeforeBlock.warehouse.summary.governance_blocked, true, 'high-frequency inbound should mark warehouse governance blocked')
+assert.equal(warehouseInboundBeforeBlock.warehouse.summary.high_frequency_inbound_count, 12, 'warehouse summary should count recent inbound actions')
+assert.equal(warehouseInboundBeforeBlock.warehouse.governance.actor_window.inbound_action_count, 12, 'warehouse governance should count recent inbound actions')
+assert.equal(warehouseInboundBeforeBlock.warehouse.governance.blocking.block_inbound, true, 'warehouse governance should expose inbound blocking flag')
+assert.ok(warehouseInboundBeforeBlock.warehouse.governance.suspicious_actors.some(entry => entry.actor_username === warehouseInboundGovernanceOwner && entry.inbound_action_count === 12), 'warehouse governance should list suspicious inbound actor')
+const inboundReplay = await runtime.depositCohabitationWarehouseItem(warehouseInboundGovernanceContractId, {
+  item_id: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-inbound-governance-existing-deposit-1',
+}, actor(warehouseInboundGovernanceOwner))
+assert.equal(inboundReplay.idempotent, true, 'high-frequency warehouse inbound should still allow idempotent deposit replay')
+const ownerRiceBeforeInboundBlock = getInventoryItemQuantity(warehouseInboundGovernanceOwner, 'rice')
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(warehouseInboundGovernanceContractId, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-warehouse-inbound-governance-blocked-deposit',
+  }, actor(warehouseInboundGovernanceOwner)),
+  error => error?.status === 429,
+  'high-frequency warehouse inbound should block new deposits'
+)
+const warehouseInboundAfterBlock = await runtime.getCohabitationWarehouse(warehouseInboundGovernanceContractId, actor(warehouseInboundGovernanceOwner))
+assert.equal(warehouseInboundAfterBlock.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 12, 'blocked warehouse deposit should not change shared stock')
+assert.equal(getInventoryItemQuantity(warehouseInboundGovernanceOwner, 'rice'), ownerRiceBeforeInboundBlock, 'blocked warehouse deposit should not change personal inventory')
+assert.ok(warehouseInboundAfterBlock.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_high_frequency_inbound_blocked'), 'blocked warehouse deposit should write governance audit')
+
 console.log('[qa-cohabitation-contract] OK')

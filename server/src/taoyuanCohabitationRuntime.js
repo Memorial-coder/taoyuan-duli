@@ -46,6 +46,7 @@ const WAREHOUSE_ITEM_MAX_STACK = 999;
 const WAREHOUSE_TEMP_BAG_CAPACITY = 10;
 const WAREHOUSE_GOVERNANCE_WINDOW_SECONDS = 10 * 60;
 const WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT = 6;
+const WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT = 12;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute', 'executed', 'rolled_back', 'expired']);
 const WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute']);
@@ -4885,8 +4886,9 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
       high_value_withdrawal_draft_count: withdrawalDrafts.length,
       active_high_value_withdrawal_draft_count: activeWithdrawalDrafts.length,
       sell_enabled: sellEnabled,
-      governance_blocked: governance.blocking.block_outbound === true,
+      governance_blocked: governance.blocking.block_outbound === true || governance.blocking.block_inbound === true,
       high_frequency_outbound_count: governance.actor_window.outbound_action_count,
+      high_frequency_inbound_count: governance.actor_window.inbound_action_count,
       family_manor_warehouse: familyWarehouse.enabled,
       role_based_storage_permissions: familyWarehouse.role_based_storage_permissions,
       source_owner_count: familyWarehouse.source_owner_summary.length,
@@ -4912,34 +4914,64 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
   const actorKey = normalizeUsernameKey(actorUsername);
   const checkedAt = nowSeconds();
   const windowStartedAt = Math.max(0, checkedAt - WAREHOUSE_GOVERNANCE_WINDOW_SECONDS);
+  const inboundActions = new Set(['deposit']);
   const outboundActions = new Set(['withdraw', 'sell']);
+  const recentInboundEntries = warehouse.ledger
+    .filter(entry => entry.status === 'committed')
+    .filter(entry => inboundActions.has(entry.action))
+    .filter(entry => entry.source_inventory === 'inventory.items')
+    .filter(entry => Math.max(0, Number(entry.at) || 0) >= windowStartedAt);
   const recentOutboundEntries = warehouse.ledger
     .filter(entry => entry.status === 'committed')
     .filter(entry => outboundActions.has(entry.action))
     .filter(entry => Math.max(0, Number(entry.at) || 0) >= windowStartedAt);
+  const actorInboundEntries = recentInboundEntries.filter(entry =>
+    normalizeUsernameKey(entry.actor_username) === actorKey
+  );
   const actorOutboundEntries = recentOutboundEntries.filter(entry =>
     normalizeUsernameKey(entry.actor_username) === actorKey
   );
   const byActor = new Map();
-  for (const entry of recentOutboundEntries) {
+  const trackActorWarehouseAction = (entry, direction) => {
     const key = normalizeUsernameKey(entry.actor_username) || 'unknown';
     const current = byActor.get(key) || {
       actor_username: entry.actor_username,
       actor_key: key,
+      inbound_action_count: 0,
+      inbound_quantity: 0,
       outbound_action_count: 0,
       outbound_quantity: 0,
       actions: {},
+      inbound_ledger_ids: [],
+      outbound_ledger_ids: [],
       ledger_ids: [],
     };
-    current.outbound_action_count += 1;
-    current.outbound_quantity += Math.max(0, Math.floor(Number(entry.quantity) || 0));
+    const quantity = Math.max(0, Math.floor(Number(entry.quantity) || 0));
+    if (direction === 'inbound') {
+      current.inbound_action_count += 1;
+      current.inbound_quantity += quantity;
+      if (entry.id && current.inbound_ledger_ids.length < 12) current.inbound_ledger_ids.push(entry.id);
+    } else {
+      current.outbound_action_count += 1;
+      current.outbound_quantity += quantity;
+      if (entry.id && current.outbound_ledger_ids.length < 12) current.outbound_ledger_ids.push(entry.id);
+      if (entry.id && current.ledger_ids.length < 12) current.ledger_ids.push(entry.id);
+    }
     current.actions[entry.action] = (current.actions[entry.action] || 0) + 1;
-    if (entry.id && current.ledger_ids.length < 12) current.ledger_ids.push(entry.id);
     byActor.set(key, current);
-  }
+  };
+  for (const entry of recentInboundEntries) trackActorWarehouseAction(entry, 'inbound');
+  for (const entry of recentOutboundEntries) trackActorWarehouseAction(entry, 'outbound');
   const suspiciousActors = [...byActor.values()]
-    .filter(entry => entry.outbound_action_count >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT)
-    .sort((left, right) => right.outbound_action_count - left.outbound_action_count)
+    .filter(entry =>
+      entry.outbound_action_count >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT
+      || entry.inbound_action_count >= WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT
+    )
+    .sort((left, right) => {
+      const rightScore = Math.max(right.outbound_action_count, right.inbound_action_count);
+      const leftScore = Math.max(left.outbound_action_count, left.inbound_action_count);
+      return rightScore - leftScore;
+    })
     .slice(0, 20);
   const activeHighValueDrafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts)
     .filter(draft => WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES.has(draft.state))
@@ -4956,11 +4988,18 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
       pending_member_usernames: draft.pending_member_usernames,
     }))
     .slice(0, 20);
+  const actorInboundCount = actorInboundEntries.length;
   const actorOutboundCount = actorOutboundEntries.length;
+  const actorInboundQuantity = actorInboundEntries.reduce(
+    (sum, entry) => sum + Math.max(0, Math.floor(Number(entry.quantity) || 0)),
+    0
+  );
   const actorOutboundQuantity = actorOutboundEntries.reduce(
     (sum, entry) => sum + Math.max(0, Math.floor(Number(entry.quantity) || 0)),
     0
   );
+  const blockInbound = actorInboundCount >= WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT;
+  const blockOutbound = actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT;
   const recentGovernanceAudits = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
     .filter(entry => [
       'warehouse_deposited',
@@ -4968,6 +5007,7 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
       'warehouse_sold',
       'warehouse_high_value_withdrawal_draft_created',
       'warehouse_high_value_withdrawal_executed',
+      'warehouse_high_frequency_inbound_blocked',
       'warehouse_high_frequency_outbound_blocked',
     ].includes(entry.action))
     .slice(0, 20);
@@ -4977,12 +5017,17 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
     actor_username: normalizeUsername(actorUsername),
     checked_at: checkedAt,
     window_seconds: WAREHOUSE_GOVERNANCE_WINDOW_SECONDS,
+    inbound_action_limit: WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT,
     outbound_action_limit: WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT,
     actor_window: {
+      inbound_action_count: actorInboundCount,
+      inbound_quantity: actorInboundQuantity,
       outbound_action_count: actorOutboundCount,
       outbound_quantity: actorOutboundQuantity,
+      inbound_ledger_ids: actorInboundEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
+      outbound_ledger_ids: actorOutboundEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
       ledger_ids: actorOutboundEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
-      actions: actorOutboundEntries.reduce((acc, entry) => {
+      actions: [...actorInboundEntries, ...actorOutboundEntries].reduce((acc, entry) => {
         acc[entry.action] = (acc[entry.action] || 0) + 1;
         return acc;
       }, {}),
@@ -4991,20 +5036,31 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
     active_high_value_withdrawal_drafts: activeHighValueDrafts,
     recent_audits: recentGovernanceAudits,
     blocking: {
-      block_outbound: actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT,
-      reason: actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT
+      block_inbound: blockInbound,
+      block_outbound: blockOutbound,
+      blocked_directions: [
+        blockInbound ? 'inbound' : '',
+        blockOutbound ? 'outbound' : '',
+      ].filter(Boolean),
+      reason: blockOutbound
         ? '当前成员短时间共同仓库取出 / 卖出次数过高，需等待窗口结束或走申诉恢复。'
+        : blockInbound
+          ? '当前成员短时间共同仓库放入次数过高，需等待窗口结束或走申诉恢复。'
         : '',
-      required_operation: actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT
+      required_operation: blockOutbound
         ? 'wait_or_appeal_shared_warehouse_outbound'
+        : blockInbound
+          ? 'wait_or_appeal_shared_warehouse_inbound'
         : '',
     },
     policy: {
       personal_inventory_merged: false,
       personal_money_merged: false,
       idempotent_replay_allowed: true,
+      high_frequency_manual_deposit_limited: true,
       high_value_withdraw_requires_freeze_and_confirm: true,
       appeal_recovery_required_for_blocked_outbound: true,
+      appeal_recovery_required_for_blocked_inbound: true,
     },
   };
 }
@@ -5025,6 +5081,25 @@ function assertSharedWarehouseOutboundGovernance(contract, actor = {}, operation
   }, idempotencyKey);
   if (store) saveContractStore(store);
   throw createError('共同仓库短时间取出 / 卖出次数过高，已暂时阻断本次操作，请稍后重试或走申诉恢复', 429);
+}
+
+function assertSharedWarehouseInboundGovernance(contract, actor = {}, operation = 'deposit', idempotencyKey = '', store = null) {
+  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actor.username);
+  if (governance.blocking.block_inbound !== true) return governance;
+  appendAudit(contract, 'warehouse_high_frequency_inbound_blocked', actor, {
+    operation: sanitizeText(operation, 80),
+    inbound_action_count: governance.actor_window.inbound_action_count,
+    inbound_quantity: governance.actor_window.inbound_quantity,
+    window_seconds: governance.window_seconds,
+    inbound_action_limit: governance.inbound_action_limit,
+    recent_ledger_ids: governance.actor_window.inbound_ledger_ids,
+    shared_warehouse_changed: false,
+    personal_inventory_merged: false,
+    personal_money_merged: false,
+    required_operation: governance.blocking.required_operation,
+  }, idempotencyKey);
+  if (store) saveContractStore(store);
+  throw createError('共同仓库短时间放入次数过高，已暂时阻断本次操作，请稍后重试或走申诉恢复', 429);
 }
 
 function buildFamilyWarehouseSummary(contract = {}, warehouse = {}, actorMember = null) {
@@ -10158,6 +10233,8 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
       idempotent: true,
     };
   }
+
+  assertSharedWarehouseInboundGovernance(contract, actor, 'deposit', deposit.idempotency_key, store);
 
   const context = getActiveSaveContext(
     actorUsername,
