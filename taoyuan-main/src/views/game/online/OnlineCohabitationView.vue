@@ -422,16 +422,19 @@
             </div>
             <div class="mt-3 overflow-x-auto pb-1">
               <div class="grid min-w-max gap-1" :style="mapGridStyle">
-                <div
+                <button
                   v-for="plot in cohabitationStore.sharedMap.plots"
                   :key="plot.id"
-                  class="flex h-9 w-9 flex-col items-center justify-center border text-[9px] leading-3"
-                  :class="plotClass(plot)"
+                  class="flex h-9 w-9 flex-col items-center justify-center border text-[9px] leading-3 transition-colors"
+                  :class="[plotClass(plot), selectedSharedFarmPlot?.id === plot.id ? 'ring-1 ring-accent/70' : '']"
                   :title="plotTitle(plot)"
+                  type="button"
+                  :data-testid="`online-cohabitation-shared-farm-plot-${plot.id}`"
+                  @click="selectSharedFarmPlot(plot)"
                 >
                   <span>{{ plotGlyph(plot) }}</span>
                   <span class="max-w-full truncate px-0.5">{{ plot.plot_state.crop_id || plotStateLabel(plot.plot_state.state) }}</span>
-                </div>
+                </button>
               </div>
             </div>
           </template>
@@ -449,6 +452,147 @@
                 </p>
                 <p class="mt-1 text-[10px] text-muted">来源：{{ region.origin_owner_id }}</p>
               </div>
+            </div>
+          </div>
+
+          <div class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">共同农田操作</p>
+              <span class="text-[10px] text-muted">{{ selectedSharedFarmPlot ? selectedSharedFarmPlot.source_area : '未选地块' }}</span>
+            </div>
+            <div v-if="!selectedSharedFarmPlot" class="mt-3 text-xs leading-5 text-muted">
+              点选左侧地块后，可按服务端权限执行浇水、种植或收获。
+            </div>
+            <div v-else class="mt-3 space-y-3">
+              <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+                <p class="truncate text-xs text-text">{{ selectedSharedFarmPlot.origin_owner_display_name || selectedSharedFarmPlot.origin_owner_username }}</p>
+                <p class="mt-1">地块：{{ selectedSharedFarmPlot.source_plot_id }} · {{ selectedSharedFarmPlot.permission_mode }}</p>
+                <p class="mt-1">状态：{{ plotStateLabel(selectedSharedFarmPlot.plot_state.state) }} · {{ selectedSharedFarmPlot.plot_state.crop_id || '无作物' }}</p>
+                <p class="mt-1">肥料：{{ selectedSharedFarmPlot.plot_state.fertilizer || '无' }}</p>
+                <p class="mt-1">管护：{{ selectedSharedFarmPlot.current_steward_display_name || selectedSharedFarmPlot.current_steward_username || '未记录' }}</p>
+              </div>
+              <label class="block">
+                <span class="text-[10px] text-muted">种子</span>
+                <select
+                  v-model="sharedFarmSeedItemId"
+                  class="online-select mt-1 text-xs"
+                  data-testid="online-cohabitation-shared-farm-seed"
+                >
+                  <option v-for="option in sharedFarmSeedOptions" :key="option.itemId" :value="option.itemId">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+              <div class="grid gap-2">
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canWaterSelectedSharedFarmPlot || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-farm-water"
+                  @click="waterSelectedSharedFarmPlot"
+                >
+                  <Droplets :size="12" />
+                  浇水
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canCureSelectedSharedFarmPlot || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-farm-cure-pests"
+                  @click="cureSelectedSharedFarmPlot"
+                >
+                  <Bug :size="12" />
+                  除虫
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canClearWeedsSelectedSharedFarmPlot || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-farm-clear-weeds"
+                  @click="clearWeedsSelectedSharedFarmPlot"
+                >
+                  <Scissors :size="12" />
+                  清草
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canPlantSelectedSharedFarmPlot || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-farm-plant"
+                  @click="plantSelectedSharedFarmPlot"
+                >
+                  <Sprout :size="12" />
+                  种植
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canFertilizeSelectedSharedFarmPlot || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-farm-fertilize"
+                  @click="fertilizeSelectedSharedFarmPlot"
+                >
+                  <Sprout :size="12" />
+                  基础施肥
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canHarvestSelectedSharedFarmPlot || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-farm-harvest"
+                  @click="harvestSelectedSharedFarmPlot"
+                >
+                  <Package :size="12" />
+                  收获入仓
+                </button>
+              </div>
+              <p v-if="sharedFarmActionMessage" class="text-[10px] leading-4" :class="sharedFarmActionOk ? 'text-emerald-200' : 'text-red-100'">
+                {{ sharedFarmActionMessage }}
+              </p>
+            </div>
+          </div>
+
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-shared-animals-panel">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">共同动物照料</p>
+              <span class="text-[10px] text-muted">{{ cohabitationStore.sharedAnimals?.summary.animal_count ?? 0 }} 只</span>
+            </div>
+            <div v-if="sharedAnimals.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有可照料的共同动物。</div>
+            <div v-else class="mt-3 space-y-3">
+              <div class="max-h-48 space-y-2 overflow-y-auto pr-1">
+                <button
+                  v-for="animal in sharedAnimals"
+                  :key="animal.id"
+                  type="button"
+                  class="w-full border p-2 text-left transition-colors"
+                  :class="animal.id === selectedSharedAnimalId ? 'border-accent/50 bg-accent/10' : 'border-accent/10 bg-black/10 hover:border-accent/30'"
+                  :data-testid="`online-cohabitation-shared-animal-${animal.id}`"
+                  @click="selectSharedAnimal(animal)"
+                >
+                  <p class="truncate text-xs text-text">{{ animal.name || animal.type }}</p>
+                  <p class="mt-1 text-[10px] text-muted">
+                    {{ animal.origin_owner_display_name || animal.origin_owner_username }} · {{ animal.permission_mode }} · {{ animal.animal_state.was_fed ? '已喂' : '待喂' }}
+                  </p>
+                </button>
+              </div>
+              <div v-if="selectedSharedAnimal" class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+                <p class="truncate text-xs text-text">{{ selectedSharedAnimal.name || selectedSharedAnimal.type }}</p>
+                <p class="mt-1">来源：{{ selectedSharedAnimal.origin_owner_display_name || selectedSharedAnimal.origin_owner_username }}</p>
+                <p class="mt-1">照料：{{ selectedSharedAnimal.current_keeper_display_name || selectedSharedAnimal.current_keeper_username || '未记录' }}</p>
+                <p class="mt-1">饲料：{{ selectedSharedAnimal.animal_state.fed_with || '无' }} · 饥饿 {{ selectedSharedAnimal.animal_state.hunger }}</p>
+              </div>
+              <button
+                class="online-action-btn online-action-btn--compact justify-center"
+                type="button"
+                :disabled="!canFeedSelectedSharedAnimal || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-shared-animal-feed"
+                @click="feedSelectedSharedAnimal"
+              >
+                <Package :size="12" />
+                干草喂食
+              </button>
+              <p v-if="sharedAnimalActionMessage" class="text-[10px] leading-4" :class="sharedAnimalActionOk ? 'text-emerald-200' : 'text-red-100'">
+                {{ sharedAnimalActionMessage }}
+              </p>
             </div>
           </div>
 
@@ -1867,17 +2011,21 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
   import {
+    Bug,
     Building2,
     CalendarDays,
     CheckCircle2,
     Clock3,
     ClipboardList,
+    Droplets,
     HeartHandshake,
     Lock,
     Map,
     Network,
     Package,
+    Scissors,
     ShieldCheck,
+    Sprout,
     Trophy,
     Wallet,
     XCircle,
@@ -1892,6 +2040,7 @@
     CohabitationFundLargeSpendDraft,
     CohabitationFundLedgerEntry,
     CohabitationMember,
+    CohabitationSharedAnimal,
     CohabitationSharedPlot,
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
@@ -1921,6 +2070,13 @@
   const warehouseActionOk = ref(false)
   const warehouseDepositItemId = ref('rice')
   const warehouseDepositQuantity = ref(1)
+  const sharedFarmActionMessage = ref('')
+  const sharedFarmActionOk = ref(false)
+  const selectedSharedFarmPlotId = ref('')
+  const sharedFarmSeedItemId = ref('seed_cabbage')
+  const sharedAnimalActionMessage = ref('')
+  const sharedAnimalActionOk = ref(false)
+  const selectedSharedAnimalId = ref('')
   const fundActionMessage = ref('')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
@@ -2196,6 +2352,17 @@
     if (!cohabitationStore.sharedMap) return '暂无地图'
     return `版本 ${cohabitationStore.sharedMap.revision}`
   })
+  const selectedSharedFarmPlot = computed(() => {
+    const plots = cohabitationStore.sharedMap?.plots ?? []
+    if (!plots.length) return null
+    if (!selectedSharedFarmPlotId.value) return null
+    return plots.find(plot => plot.id === selectedSharedFarmPlotId.value) ?? null
+  })
+  const sharedAnimals = computed(() => cohabitationStore.sharedAnimals?.animals ?? [])
+  const selectedSharedAnimal = computed(() => {
+    if (!sharedAnimals.value.length || !selectedSharedAnimalId.value) return null
+    return sharedAnimals.value.find(animal => animal.id === selectedSharedAnimalId.value) ?? null
+  })
   const warehouseItems = computed(() => cohabitationStore.warehouse?.items ?? [])
   const warehouseLedger = computed(() => cohabitationStore.warehouse?.ledger ?? [])
   const fundLedger = computed(() => cohabitationStore.fund?.ledger ?? [])
@@ -2421,6 +2588,53 @@
     itemId,
     label: warehouseItemLabels[itemId] ? `${warehouseItemLabels[itemId]}（${itemId}）` : itemId,
   }))
+  const sharedFarmSeedOptions = [
+    { itemId: 'seed_cabbage', label: '白菜种子' },
+    { itemId: 'seed_radish', label: '萝卜种子' },
+    { itemId: 'seed_rice', label: '水稻种子' },
+  ]
+  const sharedFarmFertilizerItemId = 'basic_fertilizer' as const
+  const canWaterSelectedSharedFarmPlot = computed(() => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    if (cohabitationStore.sharedMap?.summary.farm_water_write_enabled !== true) return false
+    return (plot.plot_state.state === 'planted' || plot.plot_state.state === 'growing') && plot.plot_state.watered !== true
+  })
+  const canCureSelectedSharedFarmPlot = computed(() => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    return plot.plot_state.infested === true
+  })
+  const canClearWeedsSelectedSharedFarmPlot = computed(() => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    return plot.plot_state.weedy === true
+  })
+  const canPlantSelectedSharedFarmPlot = computed(() => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    if (cohabitationStore.sharedMap?.summary.farm_plant_write_enabled !== true) return false
+    return plot.plot_state.state === 'tilled' && sharedFarmSeedOptions.some(option => option.itemId === sharedFarmSeedItemId.value)
+  })
+  const canFertilizeSelectedSharedFarmPlot = computed(() => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    const summary = cohabitationStore.sharedMap?.summary
+    if ((summary?.farm_fertilize_write_enabled ?? summary?.farm_plant_write_enabled) !== true) return false
+    return plot.plot_state.state !== 'wasteland' && !plot.plot_state.fertilizer
+  })
+  const canHarvestSelectedSharedFarmPlot = computed(() => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    if (cohabitationStore.sharedMap?.summary.farm_harvest_write_enabled !== true) return false
+    return plot.plot_state.state === 'harvestable' && Boolean(plot.plot_state.crop_id)
+  })
+  const canFeedSelectedSharedAnimal = computed(() => {
+    const animal = selectedSharedAnimal.value
+    if (!animal || !cohabitationStore.canOpenSelectedContract) return false
+    if (cohabitationStore.sharedAnimals?.summary.animal_feed_write_enabled !== true) return false
+    return animal.animal_state.was_fed !== true
+  })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -2563,6 +2777,10 @@
   const selectContract = async (contractId: string) => {
     await cohabitationStore.selectContract(contractId)
     warehouseActionMessage.value = ''
+    sharedFarmActionMessage.value = ''
+    sharedAnimalActionMessage.value = ''
+    selectedSharedFarmPlotId.value = ''
+    selectedSharedAnimalId.value = ''
     fundActionMessage.value = ''
     familyBuildingActionMessage.value = ''
     permissionActionMessage.value = ''
@@ -2620,6 +2838,158 @@
       }
     } catch (error) {
       contractActionMessage.value = error instanceof Error ? error.message : '创建共同庄园契约失败'
+    }
+  }
+
+  const selectSharedFarmPlot = (plot: CohabitationSharedPlot) => {
+    selectedSharedFarmPlotId.value = plot.id
+    sharedFarmActionMessage.value = ''
+    sharedFarmActionOk.value = false
+  }
+
+  const selectSharedAnimal = (animal: CohabitationSharedAnimal) => {
+    selectedSharedAnimalId.value = animal.id
+    sharedAnimalActionMessage.value = ''
+    sharedAnimalActionOk.value = false
+  }
+
+  const waterSelectedSharedFarmPlot = async () => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot) return
+    sharedFarmActionMessage.value = ''
+    sharedFarmActionOk.value = false
+    try {
+      const result = await cohabitationStore.waterSharedFarmPlot({
+        plot_id: plot.id,
+        memo: `前端共同农田浇水：${plot.id}`,
+        idempotency_key: `ui-shared-farm-water-${plot.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedFarmPlotId.value = result?.plot?.id || plot.id
+      sharedFarmActionOk.value = true
+      sharedFarmActionMessage.value = result?.idempotent || result?.already_watered
+        ? '已读回共同农田浇水记录'
+        : '共同农田已浇水，契约地图和农田流水已刷新'
+    } catch (error) {
+      sharedFarmActionMessage.value = error instanceof Error ? error.message : '浇水共同农田失败'
+    }
+  }
+
+  const careSelectedSharedFarmPlot = async (action: 'cure_pests' | 'clear_weeds') => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot) return
+    sharedFarmActionMessage.value = ''
+    sharedFarmActionOk.value = false
+    try {
+      const result = await cohabitationStore.careSharedFarmPlot({
+        plot_id: plot.id,
+        action,
+        memo: `前端共同农田${action === 'cure_pests' ? '除虫' : '清草'}：${plot.id}`,
+        idempotency_key: `ui-shared-farm-${action}-${plot.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedFarmPlotId.value = result?.plot?.id || plot.id
+      sharedFarmActionOk.value = true
+      sharedFarmActionMessage.value = result?.idempotent || result?.already_applied
+        ? `已读回共同农田${action === 'cure_pests' ? '除虫' : '清草'}记录`
+        : `共同农田已${action === 'cure_pests' ? '除虫' : '清草'}，契约地图和农田流水已刷新`
+    } catch (error) {
+      sharedFarmActionMessage.value = error instanceof Error ? error.message : '管护共同农田失败'
+    }
+  }
+
+  const cureSelectedSharedFarmPlot = async () => {
+    await careSelectedSharedFarmPlot('cure_pests')
+  }
+
+  const clearWeedsSelectedSharedFarmPlot = async () => {
+    await careSelectedSharedFarmPlot('clear_weeds')
+  }
+
+  const plantSelectedSharedFarmPlot = async () => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot) return
+    sharedFarmActionMessage.value = ''
+    sharedFarmActionOk.value = false
+    try {
+      const result = await cohabitationStore.plantSharedFarmPlot({
+        plot_id: plot.id,
+        seed_item_id: sharedFarmSeedItemId.value,
+        memo: `前端共同农田种植：${plot.id}`,
+        idempotency_key: `ui-shared-farm-plant-${plot.id}-${sharedFarmSeedItemId.value}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedFarmPlotId.value = result?.plot?.id || plot.id
+      sharedFarmActionOk.value = true
+      sharedFarmActionMessage.value = result?.idempotent || result?.already_planted
+        ? '已读回共同农田种植记录'
+        : '共同农田已种植，共同仓库扣种流水已刷新'
+    } catch (error) {
+      sharedFarmActionMessage.value = error instanceof Error ? error.message : '种植共同农田失败'
+    }
+  }
+
+  const fertilizeSelectedSharedFarmPlot = async () => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot) return
+    sharedFarmActionMessage.value = ''
+    sharedFarmActionOk.value = false
+    try {
+      const result = await cohabitationStore.fertilizeSharedFarmPlot({
+        plot_id: plot.id,
+        fertilizer_item_id: sharedFarmFertilizerItemId,
+        memo: `前端共同农田施肥：${plot.id}`,
+        idempotency_key: `ui-shared-farm-fertilize-${plot.id}-${sharedFarmFertilizerItemId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedFarmPlotId.value = result?.plot?.id || plot.id
+      sharedFarmActionOk.value = true
+      sharedFarmActionMessage.value = result?.idempotent || result?.already_fertilized
+        ? '已读回共同农田施肥记录'
+        : '共同农田已施基础肥料，共同仓库扣肥流水已刷新'
+    } catch (error) {
+      sharedFarmActionMessage.value = error instanceof Error ? error.message : '共同农田施肥失败'
+    }
+  }
+
+  const harvestSelectedSharedFarmPlot = async () => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot) return
+    sharedFarmActionMessage.value = ''
+    sharedFarmActionOk.value = false
+    try {
+      const result = await cohabitationStore.harvestSharedFarmPlot({
+        plot_id: plot.id,
+        memo: `前端共同农田收获：${plot.id}`,
+        idempotency_key: `ui-shared-farm-harvest-${plot.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedFarmPlotId.value = result?.plot?.id || plot.id
+      const outputItemId = result?.farm_action?.output_item_id || result?.ledger_entry?.output_item_id || plot.plot_state.crop_id || ''
+      const outputQuantity = result?.farm_action?.output_quantity || result?.ledger_entry?.output_quantity || 1
+      sharedFarmActionOk.value = true
+      sharedFarmActionMessage.value = result?.idempotent || result?.already_harvested
+        ? '已读回共同农田收获记录'
+        : `共同农田已收获，${warehouseItemLabels[outputItemId] || outputItemId || '产出'} x${outputQuantity} 已进入共同仓库`
+    } catch (error) {
+      sharedFarmActionMessage.value = error instanceof Error ? error.message : '收获共同农田失败'
+    }
+  }
+
+  const feedSelectedSharedAnimal = async () => {
+    const animal = selectedSharedAnimal.value
+    if (!animal) return
+    sharedAnimalActionMessage.value = ''
+    sharedAnimalActionOk.value = false
+    try {
+      const result = await cohabitationStore.feedSharedAnimal({
+        animal_id: animal.id,
+        feed_item_id: 'hay',
+        memo: `前端共同动物喂食：${animal.id}`,
+        idempotency_key: `ui-shared-animal-feed-${animal.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedAnimalId.value = result?.animal?.id || animal.id
+      sharedAnimalActionOk.value = true
+      sharedAnimalActionMessage.value = result?.idempotent || result?.already_fed
+        ? '已读回共同动物喂食记录'
+        : '共同动物已喂食，共同仓库干草扣料流水已刷新'
+    } catch (error) {
+      sharedAnimalActionMessage.value = error instanceof Error ? error.message : '喂食共同动物失败'
     }
   }
 

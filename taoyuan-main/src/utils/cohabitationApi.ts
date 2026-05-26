@@ -149,6 +149,38 @@ export interface CohabitationWarehouseLedgerEntry {
   created_at: number
 }
 
+export interface CohabitationSharedFarmLedgerEntry {
+  id: string
+  action: string
+  plot_id: string
+  shared_plot_id: string
+  source_plot_id: number
+  source_area: string
+  actor_username: string
+  actor_display_name: string
+  actor_key?: string
+  seed_item_id?: string
+  fertilizer_item_id?: string
+  crop_id?: string
+  output_item_id?: string
+  output_quantity?: number
+  output_quality?: string
+  warehouse_ledger_ids?: string[]
+  shared_warehouse_changed?: boolean
+  origin_owner_id: string
+  origin_owner_username: string
+  origin_owner_display_name: string
+  origin_save_id: number
+  source_save_slot: number | null
+  source_save_revision: number
+  before_plot_state: Record<string, unknown>
+  after_plot_state: Record<string, unknown>
+  permission_mode: string
+  idempotency_key: string
+  status: string
+  at: number
+}
+
 export interface CohabitationContract {
   id: string
   type: CohabitationRelationType | string
@@ -165,8 +197,12 @@ export interface CohabitationContract {
     items: CohabitationWarehouseItem[]
     ledger: CohabitationWarehouseLedgerEntry[]
   }
+  shared_farm_ledger?: CohabitationSharedFarmLedgerEntry[]
+  shared_animals?: CohabitationSharedAnimals | null
+  shared_animal_ledger?: CohabitationSharedAnimalLedgerEntry[]
   audit_log: CohabitationAuditEntry[]
   separation_previews?: CohabitationSeparationPreview[]
+  shared_map?: CohabitationSharedMap | null
   created_at: number
   updated_at: number
   activated_at?: number
@@ -196,8 +232,12 @@ export interface CohabitationSharedPlot {
   origin_owner_key: string
   origin_owner_manor_role?: string
   origin_owner_manor_role_label?: string
+  source_save_slot?: number | null
+  source_save_revision?: number
   current_steward_username: string
   current_steward_display_name: string
+  current_steward_manor_role?: string
+  current_steward_manor_role_label?: string
   permission_mode: string
   x: number
   y: number
@@ -206,6 +246,8 @@ export interface CohabitationSharedPlot {
   local_row: number
   local_col: number
   readonly: boolean
+  split_rule?: string
+  permission_restriction?: string
   plot_state: {
     state: string
     crop_id: string | null
@@ -247,6 +289,9 @@ export interface CohabitationSharedMap {
   status: string
   readonly: boolean
   writes_enabled: boolean
+  persisted?: boolean
+  persistence_policy?: string
+  persisted_at?: number
   generated_at: number
   revision: number
   layout: {
@@ -280,9 +325,104 @@ export interface CohabitationSharedMap {
     max_members: number
     personal_money_merged: boolean
     origin_trace_enabled: boolean
+    persisted_shared_manor_map?: boolean
+    farm_water_write_enabled?: boolean
+    farm_plant_write_enabled?: boolean
+    farm_fertilize_write_enabled?: boolean
+    farm_harvest_write_enabled?: boolean
+    farm_action_ledger_count?: number
+    shared_warehouse_harvest_deposit_enabled?: boolean
     shared_fund_balance: number
+    included_sources?: string[]
     deferred_writes: string[]
   }
+}
+
+export interface CohabitationSharedAnimal {
+  id: string
+  source_animal_id: string
+  type: string
+  name: string
+  origin_owner_id: string
+  origin_save_id: number
+  origin_owner_username: string
+  origin_owner_display_name: string
+  origin_owner_key: string
+  source_save_slot?: number | null
+  source_save_revision?: number
+  current_keeper_username: string
+  current_keeper_display_name: string
+  permission_mode: string
+  split_rule?: string
+  permission_restriction?: string
+  readonly?: boolean
+  animal_state: {
+    id?: string
+    type?: string
+    name?: string
+    friendship: number
+    mood: number
+    days_owned: number
+    days_since_product: number
+    was_fed: boolean
+    fed_with: string | null
+    was_petted: boolean
+    hunger: number
+    sick: boolean
+    sick_days: number
+  }
+}
+
+export interface CohabitationSharedAnimals {
+  contract_id: string
+  shared_manor_id: string
+  status: string
+  readonly: boolean
+  writes_enabled: boolean
+  persisted?: boolean
+  persistence_policy?: string
+  persisted_at?: number
+  generated_at: number
+  revision: number
+  animals: CohabitationSharedAnimal[]
+  summary: {
+    animal_count: number
+    fed_count: number
+    petted_count: number
+    sick_count: number
+    feedable_count: number
+    origin_owner_count: number
+    animal_feed_write_enabled?: boolean
+    animal_action_ledger_count?: number
+    shared_warehouse_feed_consume_enabled?: boolean
+    personal_save_changed?: boolean
+    deferred_writes?: string[]
+  }
+}
+
+export interface CohabitationSharedAnimalLedgerEntry {
+  id: string
+  action: string
+  animal_id: string
+  shared_animal_id: string
+  source_animal_id: string
+  actor_username: string
+  actor_display_name: string
+  feed_item_id?: string
+  warehouse_ledger_ids?: string[]
+  shared_warehouse_changed?: boolean
+  origin_owner_id: string
+  origin_owner_username: string
+  origin_owner_display_name: string
+  origin_save_id: number
+  source_save_slot: number | null
+  source_save_revision: number
+  before_animal_state: Record<string, unknown>
+  after_animal_state: Record<string, unknown>
+  permission_mode: string
+  idempotency_key: string
+  status: string
+  at: number
 }
 
 export interface CohabitationWarehouseItem {
@@ -1421,6 +1561,39 @@ export interface CohabitationWarehouseItemPayload {
   idempotency_key: string
 }
 
+export interface CohabitationSharedFarmWaterPayload {
+  plot_id: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSharedFarmCarePayload {
+  plot_id: string
+  action: 'cure_pests' | 'clear_weeds'
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSharedFarmPlantPayload {
+  plot_id: string
+  seed_item_id: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSharedFarmFertilizePayload {
+  plot_id: string
+  fertilizer_item_id: 'basic_fertilizer'
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSharedFarmHarvestPayload {
+  plot_id: string
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationContractCreatePayload {
   type: string
   title?: string
@@ -1527,6 +1700,64 @@ export interface CohabitationWarehouseItemResponse extends CohabitationDetailRes
     balance_after?: number
     target_ref?: string
     personal_money_merged: boolean
+  }
+}
+
+export interface CohabitationSharedFarmActionResponse extends CohabitationDetailResponse {
+  shared_map?: CohabitationSharedMap
+  warehouse?: CohabitationWarehouseSnapshot
+  plot?: CohabitationSharedPlot | null
+  ledger_entry?: CohabitationSharedFarmLedgerEntry | null
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  idempotent?: boolean
+  already_watered?: boolean
+  already_applied?: boolean
+  already_planted?: boolean
+  already_fertilized?: boolean
+  already_harvested?: boolean
+  farm_action?: {
+    action: string
+    plot_id: string
+    seed_item_id?: string
+    fertilizer_item_id?: string
+    crop_id?: string
+    output_item_id?: string
+    output_quantity?: number
+    output_quality?: string
+    warehouse_ledger_ids?: string[]
+    before_plot_state?: Record<string, unknown>
+    after_plot_state?: Record<string, unknown>
+    personal_save_changed?: boolean
+    shared_warehouse_changed?: boolean
+    shared_fund_changed?: boolean
+  }
+}
+
+export interface CohabitationSharedAnimalFeedPayload {
+  animal_id: string
+  feed_item_id?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSharedAnimalActionResponse extends CohabitationDetailResponse {
+  shared_animals?: CohabitationSharedAnimals
+  warehouse?: CohabitationWarehouseSnapshot
+  animal?: CohabitationSharedAnimal | null
+  ledger_entry?: CohabitationSharedAnimalLedgerEntry | null
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  idempotent?: boolean
+  already_fed?: boolean
+  animal_action?: {
+    action: string
+    animal_id: string
+    feed_item_id?: string
+    warehouse_ledger_ids?: string[]
+    before_animal_state?: Record<string, unknown>
+    after_animal_state?: Record<string, unknown>
+    personal_save_changed?: boolean
+    shared_warehouse_changed?: boolean
+    shared_fund_changed?: boolean
   }
 }
 
@@ -1988,6 +2219,60 @@ export const fetchCohabitationSharedMap = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     shared_map?: CohabitationSharedMap
   }>(contractPath(contractId, '/shared-map'), '获取共同农田地图失败')
+}
+
+export const fetchCohabitationSharedAnimals = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    shared_animals?: CohabitationSharedAnimals
+  }>(contractPath(contractId, '/shared-animals'), '获取共同动物失败')
+}
+
+export const feedCohabitationSharedAnimal = async (contractId: string, payload: CohabitationSharedAnimalFeedPayload) => {
+  return postCohabitationJson<CohabitationSharedAnimalActionResponse>(
+    contractPath(contractId, '/shared-animals/feed'),
+    payload as unknown as Record<string, unknown>,
+    '喂食共同动物失败'
+  )
+}
+
+export const waterCohabitationSharedPlot = async (contractId: string, payload: CohabitationSharedFarmWaterPayload) => {
+  return postCohabitationJson<CohabitationSharedFarmActionResponse>(
+    contractPath(contractId, '/shared-map/water'),
+    payload as unknown as Record<string, unknown>,
+    '浇水共同农田失败'
+  )
+}
+
+export const careCohabitationSharedPlot = async (contractId: string, payload: CohabitationSharedFarmCarePayload) => {
+  return postCohabitationJson<CohabitationSharedFarmActionResponse>(
+    contractPath(contractId, '/shared-map/care'),
+    payload as unknown as Record<string, unknown>,
+    '管护共同农田失败'
+  )
+}
+
+export const plantCohabitationSharedPlot = async (contractId: string, payload: CohabitationSharedFarmPlantPayload) => {
+  return postCohabitationJson<CohabitationSharedFarmActionResponse>(
+    contractPath(contractId, '/shared-map/plant'),
+    payload as unknown as Record<string, unknown>,
+    '种植共同农田失败'
+  )
+}
+
+export const fertilizeCohabitationSharedPlot = async (contractId: string, payload: CohabitationSharedFarmFertilizePayload) => {
+  return postCohabitationJson<CohabitationSharedFarmActionResponse>(
+    contractPath(contractId, '/shared-map/fertilize'),
+    payload as unknown as Record<string, unknown>,
+    '共同农田施肥失败'
+  )
+}
+
+export const harvestCohabitationSharedPlot = async (contractId: string, payload: CohabitationSharedFarmHarvestPayload) => {
+  return postCohabitationJson<CohabitationSharedFarmActionResponse>(
+    contractPath(contractId, '/shared-map/harvest'),
+    payload as unknown as Record<string, unknown>,
+    '收获共同农田失败'
+  )
 }
 
 export const fetchCohabitationWarehouse = async (contractId: string) => {

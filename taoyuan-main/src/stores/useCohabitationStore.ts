@@ -9,6 +9,7 @@ import {
   confirmCohabitationSeparationPreview,
   consumeCohabitationFamilyBuildingMaterials,
   contributeCohabitationFund,
+  careCohabitationSharedPlot,
   createCohabitationContract,
   createCohabitationFundLargeSpendDraft,
   createCohabitationSeparationPreview,
@@ -29,10 +30,15 @@ import {
   fetchCohabitationOfflineStatus,
   fetchCohabitationOverview,
   fetchCohabitationPermissions,
+  fetchCohabitationSharedAnimals,
   fetchCohabitationSharedMap,
   fetchCohabitationWarehouse,
+  feedCohabitationSharedAnimal,
+  fertilizeCohabitationSharedPlot,
   guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
+  harvestCohabitationSharedPlot,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
+  plantCohabitationSharedPlot,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
   rejectCohabitationFamilyBuildingRealDemolitionReview,
@@ -52,6 +58,7 @@ import {
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping,
+  waterCohabitationSharedPlot,
   writeCohabitationFamilyBuildingRealDemolitionPersonalSave,
   writeCohabitationSeparationPersonalFarmReturns,
   writeCohabitationSeparationPersonalFamilyReceipts,
@@ -59,6 +66,7 @@ import {
   withdrawCohabitationWarehouseItem,
   type CohabitationContract,
   type CohabitationContractCreatePayload,
+  type CohabitationSharedFarmCarePayload,
   type CohabitationFamilyBuildingsPanel,
   type CohabitationFamilyBuildingMainStateExecutePayload,
   type CohabitationFamilyBuildingMainStateExactExecutePayload,
@@ -89,6 +97,12 @@ import {
   type CohabitationSeparationPreviewPayload,
   type CohabitationSeparationSharedFundRefundPayload,
   type CohabitationSeparationSharedWarehouseReturnPayload,
+  type CohabitationSharedAnimalFeedPayload,
+  type CohabitationSharedAnimals,
+  type CohabitationSharedFarmHarvestPayload,
+  type CohabitationSharedFarmFertilizePayload,
+  type CohabitationSharedFarmPlantPayload,
+  type CohabitationSharedFarmWaterPayload,
   type CohabitationSharedMap,
   type CohabitationWarehouseSnapshot,
 } from '@/utils/cohabitationApi'
@@ -104,6 +118,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const errorMessage = ref('')
 
   const sharedMap = ref<CohabitationSharedMap | null>(null)
+  const sharedAnimals = ref<CohabitationSharedAnimals | null>(null)
   const warehouse = ref<CohabitationWarehouseSnapshot | null>(null)
   const fund = ref<CohabitationFundSnapshot | null>(null)
   const permissionsPanel = ref<CohabitationPermissionsPanel | null>(null)
@@ -129,6 +144,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
 
   const clearDetails = () => {
     sharedMap.value = null
+    sharedAnimals.value = null
     warehouse.value = null
     fund.value = null
     permissionsPanel.value = null
@@ -178,8 +194,9 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       errorMessage.value = ''
     }
     try {
-      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyFestivalSeatsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, familyVisibilityResult, offlineResult] = await Promise.all([
+      const [mapResult, animalsResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyFestivalSeatsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, familyVisibilityResult, offlineResult] = await Promise.all([
         fetchCohabitationSharedMap(contractId),
+        fetchCohabitationSharedAnimals(contractId),
         fetchCohabitationWarehouse(contractId),
         fetchCohabitationFund(contractId),
         fetchCohabitationPermissions(contractId),
@@ -193,6 +210,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
         fetchCohabitationOfflineStatus(contractId),
       ])
       sharedMap.value = mapResult?.shared_map ?? null
+      sharedAnimals.value = animalsResult?.shared_animals ?? null
       warehouse.value = warehouseResult?.warehouse ?? null
       fund.value = fundResult?.fund ?? null
       permissionsPanel.value = permissionsResult?.permissions_panel ?? null
@@ -206,6 +224,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       offlineStatus.value = offlineResult?.offline_status ?? null
       return {
         sharedMap: sharedMap.value,
+        sharedAnimals: sharedAnimals.value,
         warehouse: warehouse.value,
         fund: fund.value,
         permissionsPanel: permissionsPanel.value,
@@ -1287,6 +1306,120 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const waterSharedFarmPlot = async (payload: CohabitationSharedFarmWaterPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await waterCohabitationSharedPlot(activeContractId.value, payload)
+      if (result?.shared_map) sharedMap.value = result.shared_map
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '浇水共同农田失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const careSharedFarmPlot = async (payload: CohabitationSharedFarmCarePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await careCohabitationSharedPlot(activeContractId.value, payload)
+      if (result?.shared_map) sharedMap.value = result.shared_map
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '管护共同农田失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const plantSharedFarmPlot = async (payload: CohabitationSharedFarmPlantPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await plantCohabitationSharedPlot(activeContractId.value, payload)
+      if (result?.shared_map) sharedMap.value = result.shared_map
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '种植共同农田失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const fertilizeSharedFarmPlot = async (payload: CohabitationSharedFarmFertilizePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await fertilizeCohabitationSharedPlot(activeContractId.value, payload)
+      if (result?.shared_map) sharedMap.value = result.shared_map
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '共同农田施肥失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const harvestSharedFarmPlot = async (payload: CohabitationSharedFarmHarvestPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await harvestCohabitationSharedPlot(activeContractId.value, payload)
+      if (result?.shared_map) sharedMap.value = result.shared_map
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '收获共同农田失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const feedSharedAnimal = async (payload: CohabitationSharedAnimalFeedPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.animal_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await feedCohabitationSharedAnimal(activeContractId.value, payload)
+      if (result?.shared_animals) sharedAnimals.value = result.shared_animals
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '喂食共同动物失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberPermissions = async (payload: {
     target_username: string
     permissions: Record<string, Record<string, boolean>>
@@ -1352,6 +1485,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     actionLoading,
     errorMessage,
     sharedMap,
+    sharedAnimals,
     warehouse,
     fund,
     permissionsPanel,
@@ -1413,6 +1547,12 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,
+    waterSharedFarmPlot,
+    careSharedFarmPlot,
+    plantSharedFarmPlot,
+    fertilizeSharedFarmPlot,
+    harvestSharedFarmPlot,
+    feedSharedAnimal,
     updateMemberPermissions,
     updateMemberRole,
   }

@@ -224,6 +224,22 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_warehouse_deposit',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-map\/water$/i,
+    action: 'cohabitation_shared_farm_water',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-map\/plant$/i,
+    action: 'cohabitation_shared_farm_plant',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-map\/harvest$/i,
+    action: 'cohabitation_shared_farm_harvest',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-animals\/feed$/i,
+    action: 'cohabitation_shared_animal_feed',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/withdraw$/i,
     action: 'cohabitation_warehouse_withdraw',
   },
@@ -2876,6 +2892,58 @@ router.post('/taoyuan/online/manor/steal', createOnlineReleaseGuard('manor'), lo
   }
 });
 
+router.post('/taoyuan/online/manor/care-rooms', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const actor = {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    };
+    const result = await taoyuanManorRuntime.createManorCareRoom(req.body || {}, actor);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '建立庄园护理房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/care-rooms/:roomId/join', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const actor = {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    };
+    const result = await taoyuanManorRuntime.joinManorCareRoom(req.params.roomId, actor);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '加入庄园护理房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/care-rooms/:roomId/action', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const actor = {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    };
+    const result = await taoyuanManorRuntime.submitManorCareRoomAction(req.params.roomId, req.body || {}, actor);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交庄园护理动作失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/care-rooms/:roomId/settle', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const actor = {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    };
+    const result = await taoyuanManorRuntime.settleManorCareRoom(req.params.roomId, req.body || {}, actor);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '结算庄园护理房间失败' });
+  }
+});
+
 router.post('/taoyuan/online/manor/:username/favorite', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.favoriteManor(req.session.username, decodeRouteUsername(req.params.username), req.body || {});
@@ -2922,6 +2990,102 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-map', crea
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取共同农田地图失败' });
   }
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/water', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.waterCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '浇水共同农田失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/care', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.careCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '共同农田管护失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/plant', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.plantCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '种植共同农田失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/fertilize', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.fertilizeCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '共同农田施肥失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/harvest', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.harvestCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '收获共同农田失败' });
+    }
+  });
+});
+
+router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.getCohabitationSharedAnimals(req.params.contractId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取共同动物失败' });
+  }
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/feed', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.feedCohabitationSharedAnimal(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '喂食共同动物失败' });
+    }
+  });
 });
 
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/warehouse', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
@@ -4028,6 +4192,17 @@ router.get('/taoyuan/online/festival/rooms', createOnlineReleaseGuard('festival'
     res.json({ ok: true, ...overview });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取节会房间失败' });
+  }
+});
+
+router.get('/taoyuan/online/festival/memorials/:targetUsername', createOnlineReleaseGuard('festival'), loginRequired, async (req, res) => {
+  try {
+    const overview = taoyuanActivityRoomRuntime.listFestivalFriendMemorialOverview(req.session.username, {
+      target_username: req.params.targetUsername,
+    });
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取好友节会纪念失败' });
   }
 });
 
