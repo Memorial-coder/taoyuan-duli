@@ -835,6 +835,12 @@
                   <p class="mt-1 text-[10px] leading-4 text-muted">
                     主人：{{ entry.owner_compensation }} · 访客：{{ entry.visitor_reward }} · 单次 {{ entry.visitor_reward_quantity || entry.quantity || 1 }}
                   </p>
+                  <p data-testid="online-manor-steal-receipt-guard" class="mt-1 text-[10px] leading-4 text-muted">
+                    凭证：{{ stealEntryReceiptLabel(entry) }} · 主人保留 {{ stealEntryOwnerReservedPercent(entry) }} · 访客日上限 {{ entry.reward_daily_cap || snapshot.steal_state.limits.visitor_daily_limit }}
+                  </p>
+                  <p data-testid="online-manor-steal-use-summary" class="mt-1 text-[10px] leading-4 text-muted">
+                    用途：{{ stealEntryUseSummary(entry) }}
+                  </p>
                   <p v-if="entry.note" class="mt-1 text-[10px] leading-4 text-muted">留言：{{ entry.note }}</p>
                 </div>
               </div>
@@ -947,12 +953,13 @@
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
   import type { OnlineVisualObject } from '@/types/onlineVisual'
-  import type { OnlineManorCareRoom } from '@/utils/onlineProfileApi'
+  import type { OnlineManorCareRoom, OnlineManorSnapshot } from '@/utils/onlineProfileApi'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
   type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'care' | 'favorites'
   type ManorTabMeta = { key: ManorTabKey; label: string; summary: string }
   type ManorCareActionPayload = { objectId: string; actionId: string }
+  type OnlineManorStealEntry = OnlineManorSnapshot['steal_entries'][number]
   type GuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
   type VisitPurpose = 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
 
@@ -1207,6 +1214,16 @@
     const rewardCap = audit.visitor_reward_quantity_cap === undefined ? '未配置' : `${audit.visitor_reward_quantity_cap} 件`
     return `主人保留 ${reservedPercent} · 访客单次收益上限 ${rewardCap} · ${stealState.whitelist_summary}`
   })
+  const stealEntryReceiptLabel = (entry: OnlineManorStealEntry) =>
+    entry.settlement_receipt_id || entry.idempotency_key || entry.id
+  const stealEntryOwnerReservedPercent = (entry: OnlineManorStealEntry) => {
+    const ratio = Math.max(0, Math.min(1, Number(entry.owner_reserved_ratio ?? 1)))
+    return `${Math.round(ratio * 100)}%`
+  }
+  const stealEntryUseSummary = (entry: OnlineManorStealEntry) => {
+    const tags = Array.isArray(entry.use_tags) ? entry.use_tags : []
+    return entry.use_summary || (tags.length > 0 ? tags.join('、') : '用途标签未回传')
+  }
   const carePermissionLabel = computed(() => {
     if (snapshot.value?.care_state.can_care) return '可照料'
     return snapshot.value?.access_policy.care_mode === 'closed' ? '已关闭' : '受限'
