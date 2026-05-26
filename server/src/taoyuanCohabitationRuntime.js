@@ -5809,6 +5809,45 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
+  if (candidatePath === 'home.cellarSlots') {
+    if (!data.home || typeof data.home !== 'object') data.home = {};
+    if (!Array.isArray(data.home.cellarSlots)) data.home.cellarSlots = [];
+    if (!/^\d+$/.test(childKey)) {
+      throw createError('个人酒窖陈酿槽目标必须是数组下标', 409);
+    }
+    const slotIndex = Number(childKey);
+    if (!Number.isSafeInteger(slotIndex) || slotIndex < 0 || slotIndex >= data.home.cellarSlots.length) {
+      throw createError('个人酒窖陈酿槽目标不存在或已为空，不能执行真实删除', 409);
+    }
+    const slot = data.home.cellarSlots[slotIndex];
+    if (!slot || typeof slot !== 'object' || Array.isArray(slot)) {
+      throw createError('个人酒窖陈酿槽目标不是可审计的陈酿对象，不能执行真实删除', 409);
+    }
+    const beforeValue = {
+      itemId: sanitizeText(slot.itemId, 80),
+      quality: sanitizeText(slot.quality || 'normal', 30),
+      daysAging: Math.max(0, Math.floor(Number(slot.daysAging) || 0)),
+    };
+    if (!beforeValue.itemId) {
+      throw createError('个人酒窖陈酿槽缺少物品 ID，不能执行真实删除', 409);
+    }
+    return {
+      target_id: String(slotIndex),
+      target_kind: 'home_cellar_slot',
+      before_value: beforeValue,
+      apply() {
+        data.home.cellarSlots.splice(slotIndex, 1);
+        return {
+          mutation_result: 'home_cellar_slot_removed',
+          after_value: {
+            removed_index: slotIndex,
+            remaining_slots: data.home.cellarSlots.length,
+          },
+        };
+      },
+    };
+  }
+
   if (candidatePath === 'decoration.placed') {
     if (!data.decoration || typeof data.decoration !== 'object') data.decoration = {};
     if (!data.decoration.placed || typeof data.decoration.placed !== 'object' || Array.isArray(data.decoration.placed)) {
@@ -5866,7 +5905,7 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
-  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、已放置装饰和未放置装饰库存目标', 409);
+  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、酒窖陈酿槽、已放置装饰和未放置装饰库存目标', 409);
 }
 
 function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {}, buildingEntry = {}, payload = {}) {

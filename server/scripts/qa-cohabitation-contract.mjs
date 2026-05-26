@@ -141,7 +141,12 @@ const buildSaveData = username => ({
       caveChoice: username === 'cohabit_lg_cave25' ? 'mushroom' : 'none',
       caveUnlocked: username === 'cohabit_lg_cave25',
       greenhouseUnlocked: false,
-      cellarSlots: [],
+      cellarSlots: username === 'cohabit_lg_cellar25'
+        ? [
+            { itemId: 'peach_wine', quality: 'fine', daysAging: 3 },
+            { itemId: 'rice_vinegar', quality: 'normal', daysAging: 1 },
+          ]
+        : [],
       homeRenovationStates: username === 'cohabit_lg_owner25'
         ? { scholar_room: true, tea_corner: true }
         : username === 'cohabit_lg_partner25'
@@ -2493,26 +2498,33 @@ assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeMediumFundS
 const largeOwner = 'cohabit_lg_owner25'
 const largePartner = 'cohabit_lg_partner25'
 const largeCavePartner = 'cohabit_lg_cave25'
+const largeCellarPartner = 'cohabit_lg_cellar25'
 const largeOwnerRegister = await db.registerUser(largeOwner, 'SmokePass_0525', 'large fund owner')
 const largePartnerRegister = await db.registerUser(largePartner, 'SmokePass_0525', 'large fund partner')
 const largeCavePartnerRegister = await db.registerUser(largeCavePartner, 'SmokePass_0525', 'large cave partner')
+const largeCellarPartnerRegister = await db.registerUser(largeCellarPartner, 'SmokePass_0525', 'large cellar partner')
 assert.equal(largeOwnerRegister.ok, true, 'large fund owner QA user should register')
 assert.equal(largePartnerRegister.ok, true, 'large fund partner QA user should register')
 assert.equal(largeCavePartnerRegister.ok, true, 'large cave partner QA user should register')
+assert.equal(largeCellarPartnerRegister.ok, true, 'large cellar partner QA user should register')
 seedSave(largeOwner)
 seedSave(largePartner)
 seedSave(largeCavePartner)
+seedSave(largeCellarPartner)
 const largeFriendRequest = await socialRuntime.requestFriendship(largeOwner, { target_username: largePartner })
 await socialRuntime.acceptFriendRequest(largePartner, largeFriendRequest.id)
 const largeCaveFriendRequest = await socialRuntime.requestFriendship(largeOwner, { target_username: largeCavePartner })
 await socialRuntime.acceptFriendRequest(largeCavePartner, largeCaveFriendRequest.id)
+const largeCellarFriendRequest = await socialRuntime.requestFriendship(largeOwner, { target_username: largeCellarPartner })
+await socialRuntime.acceptFriendRequest(largeCellarPartner, largeCellarFriendRequest.id)
 const largeContract = await runtime.createCohabitationContract({
   type: 'business_partner',
-  target_usernames: [largePartner, largeCavePartner],
+  target_usernames: [largePartner, largeCavePartner, largeCellarPartner],
   idempotency_key: 'qa-large-fund-contract',
 }, actor(largeOwner))
 await runtime.acceptCohabitationContract(largeContract.contract.id, actor(largePartner))
 await runtime.acceptCohabitationContract(largeContract.contract.id, actor(largeCavePartner))
+await runtime.acceptCohabitationContract(largeContract.contract.id, actor(largeCellarPartner))
 
 const largeFundBeforePermission = await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))
 assert.equal(largeFundBeforePermission.fund.summary.large_spend_draft_enabled, false, 'large fund draft should require explicit spend_large permission')
@@ -2585,9 +2597,9 @@ assert.equal(largeDraft.idempotent, false, 'first large fund spend draft should 
 assert.equal(largeDraft.draft.confirmation_required, true, 'large fund draft should require confirmation')
 assert.equal(largeDraft.draft.confirmation_status, 'pending', 'large fund draft should wait for member confirmation')
 assert.equal(largeDraft.draft.state, 'pending_confirmation', 'large fund draft should stay in pending confirmation state')
-assert.deepEqual(largeDraft.draft.required_member_usernames.sort(), [largeOwner, largePartner, largeCavePartner].sort(), 'large fund draft should require all accepted members')
+assert.deepEqual(largeDraft.draft.required_member_usernames.sort(), [largeOwner, largePartner, largeCavePartner, largeCellarPartner].sort(), 'large fund draft should require all accepted members')
 assert.deepEqual(largeDraft.draft.confirmed_member_usernames, [largeOwner], 'large fund draft should auto-confirm requester only')
-assert.deepEqual(largeDraft.draft.pending_member_usernames.sort(), [largePartner, largeCavePartner].sort(), 'large fund draft should keep the other members pending')
+assert.deepEqual(largeDraft.draft.pending_member_usernames.sort(), [largePartner, largeCavePartner, largeCellarPartner].sort(), 'large fund draft should keep the other members pending')
 assert.equal(largeDraft.draft.confirmation_state.can_execute_now, false, 'large fund draft should not be executable immediately')
 assert.equal(largeDraft.draft.execution_enabled, false, 'large fund draft execution should stay disabled')
 assert.equal(largeDraft.shared_fund.deducted_amount, 0, 'large fund draft should not deduct shared fund')
@@ -2621,6 +2633,7 @@ assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor
 
 const largePartnerMoneyBeforeConfirm = readGameplayData(largePartner)?.player?.money
 const largeCavePartnerMoneyBeforeConfirm = readGameplayData(largeCavePartner)?.player?.money
+const largeCellarPartnerMoneyBeforeConfirm = readGameplayData(largeCellarPartner)?.player?.money
 const largeConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
   memo: 'qa partner confirms large family building draft',
   idempotency_key: 'qa-fund-large-building-draft-partner-confirm',
@@ -2630,9 +2643,9 @@ assert.equal(largeConfirm.draft.id, largeDraft.draft.id, 'large fund confirmatio
 assert.equal(largeConfirm.draft.state, 'pending_confirmation', 'large fund draft should stay pending until every accepted member confirms')
 assert.equal(largeConfirm.draft.confirmation_status, 'pending', 'large fund draft should stay pending after the second member confirms')
 assert.deepEqual(largeConfirm.draft.confirmed_member_usernames.sort(), [largeOwner, largePartner].sort(), 'large fund draft should record the first two confirmed members')
-assert.deepEqual(largeConfirm.draft.pending_member_usernames, [largeCavePartner], 'large fund draft should keep cave partner pending')
-assert.equal(largeConfirm.draft.confirmation_state.all_members_confirmed, false, 'large fund confirmation state should not complete before cave partner confirms')
-assert.equal(largeConfirm.draft.confirmation_state.ready_for_execution_request, false, 'large fund confirmation state should not allow execution while cave partner is pending')
+assert.deepEqual(largeConfirm.draft.pending_member_usernames.sort(), [largeCavePartner, largeCellarPartner].sort(), 'large fund draft should keep cave and cellar partners pending')
+assert.equal(largeConfirm.draft.confirmation_state.all_members_confirmed, false, 'large fund confirmation state should not complete before cave and cellar partners confirm')
+assert.equal(largeConfirm.draft.confirmation_state.ready_for_execution_request, false, 'large fund confirmation state should not allow execution while cave and cellar partners are pending')
 assert.equal(largeConfirm.draft.confirmation_state.can_execute_now, false, 'confirmed large fund draft should not execute immediately')
 assert.equal(largeConfirm.draft.execution_enabled, false, 'large fund execution should stay disabled after confirmation')
 assert.equal(largeConfirm.shared_fund.deducted_amount, 0, 'large fund confirmation should not deduct shared fund')
@@ -2658,21 +2671,52 @@ const largeCaveConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(la
 }, actor(largeCavePartner))
 assert.equal(largeCaveConfirm.idempotent, false, 'first cave partner large fund draft confirmation should not be idempotent')
 assert.equal(largeCaveConfirm.draft.id, largeDraft.draft.id, 'cave partner large fund confirmation should return the same draft')
-assert.equal(largeCaveConfirm.draft.state, 'ready_to_execute', 'large fund draft should become ready after all members confirm')
-assert.equal(largeCaveConfirm.draft.confirmation_status, 'confirmed', 'large fund draft should mark confirmation as complete')
-assert.deepEqual(largeCaveConfirm.draft.confirmed_member_usernames.sort(), [largeOwner, largePartner, largeCavePartner].sort(), 'large fund draft should record all confirmed members')
-assert.equal(largeCaveConfirm.draft.pending_member_usernames.length, 0, 'large fund draft should have no pending members after all confirmations')
-assert.equal(largeCaveConfirm.draft.confirmation_state.all_members_confirmed, true, 'large fund confirmation state should mark all members confirmed')
-assert.equal(largeCaveConfirm.draft.confirmation_state.ready_for_execution_request, true, 'large fund confirmation state should allow a later execution request')
-assert.equal(largeCaveConfirm.draft.confirmation_state.can_execute_now, false, 'confirmed large fund draft should not execute immediately')
-assert.equal(largeCaveConfirm.draft.execution_enabled, false, 'large fund execution should stay disabled after all confirmations')
+assert.equal(largeCaveConfirm.draft.state, 'pending_confirmation', 'large fund draft should stay pending until cellar partner confirms')
+assert.equal(largeCaveConfirm.draft.confirmation_status, 'pending', 'large fund draft should stay pending after cave partner confirms')
+assert.deepEqual(largeCaveConfirm.draft.confirmed_member_usernames.sort(), [largeOwner, largePartner, largeCavePartner].sort(), 'large fund draft should record cave partner confirmation')
+assert.deepEqual(largeCaveConfirm.draft.pending_member_usernames, [largeCellarPartner], 'large fund draft should keep cellar partner pending')
+assert.equal(largeCaveConfirm.draft.confirmation_state.all_members_confirmed, false, 'large fund confirmation state should not complete before cellar partner confirms')
+assert.equal(largeCaveConfirm.draft.confirmation_state.ready_for_execution_request, false, 'large fund confirmation state should not allow execution while cellar partner is pending')
+assert.equal(largeCaveConfirm.draft.confirmation_state.can_execute_now, false, 'partially confirmed large fund draft should not execute immediately')
+assert.equal(largeCaveConfirm.draft.execution_enabled, false, 'large fund execution should stay disabled until cellar partner confirms')
 assert.equal(largeCaveConfirm.shared_fund.deducted_amount, 0, 'cave partner large fund confirmation should not deduct shared fund')
 assert.equal(largeCaveConfirm.fund.balance, balanceBeforeLargeDraft, 'cave partner large fund confirmation should leave shared balance unchanged')
 assert.equal(readGameplayData(largeCavePartner)?.player?.money, largeCavePartnerMoneyBeforeConfirm, 'large fund confirmation should not touch cave partner personal money')
 assert.ok(largeCaveConfirm.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_confirmed'), 'cave partner large fund confirmation should be audited')
-assert.equal(largeCaveConfirm.fund.summary.pending_large_spend_draft_count, 0, 'fund snapshot should move confirmed large drafts out of pending count')
-assert.equal(largeCaveConfirm.fund.summary.ready_large_spend_draft_count, 1, 'fund snapshot should count ready large drafts')
+assert.equal(largeCaveConfirm.fund.summary.pending_large_spend_draft_count, 1, 'fund snapshot should keep cellar-pending large drafts pending')
+assert.equal(largeCaveConfirm.fund.summary.ready_large_spend_draft_count, 0, 'fund snapshot should not count cellar-pending large drafts as ready')
 assert.equal(largeCaveConfirm.fund.summary.large_spend_execution_enabled, false, 'fund snapshot should not enable execution for a member without spend_large permission')
+
+await assert.rejects(
+  () => runtime.executeCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+    idempotency_key: 'qa-fund-large-building-draft-execute-before-cellar-confirm',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'large fund drafts should not execute before cellar partner confirms'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft, 'rejected pre-cellar-confirm large execution should not change shared balance')
+
+const largeCellarConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  memo: 'qa cellar partner confirms large family building draft',
+  idempotency_key: 'qa-fund-large-building-draft-cellar-confirm',
+}, actor(largeCellarPartner))
+assert.equal(largeCellarConfirm.idempotent, false, 'first cellar partner large fund draft confirmation should not be idempotent')
+assert.equal(largeCellarConfirm.draft.id, largeDraft.draft.id, 'cellar partner large fund confirmation should return the same draft')
+assert.equal(largeCellarConfirm.draft.state, 'ready_to_execute', 'large fund draft should become ready after all members confirm')
+assert.equal(largeCellarConfirm.draft.confirmation_status, 'confirmed', 'large fund draft should mark confirmation as complete')
+assert.deepEqual(largeCellarConfirm.draft.confirmed_member_usernames.sort(), [largeOwner, largePartner, largeCavePartner, largeCellarPartner].sort(), 'large fund draft should record all confirmed members')
+assert.equal(largeCellarConfirm.draft.pending_member_usernames.length, 0, 'large fund draft should have no pending members after all confirmations')
+assert.equal(largeCellarConfirm.draft.confirmation_state.all_members_confirmed, true, 'large fund confirmation state should mark all members confirmed')
+assert.equal(largeCellarConfirm.draft.confirmation_state.ready_for_execution_request, true, 'large fund confirmation state should allow a later execution request')
+assert.equal(largeCellarConfirm.draft.confirmation_state.can_execute_now, false, 'confirmed large fund draft should not execute immediately')
+assert.equal(largeCellarConfirm.draft.execution_enabled, false, 'large fund execution should stay disabled after all confirmations')
+assert.equal(largeCellarConfirm.shared_fund.deducted_amount, 0, 'cellar partner large fund confirmation should not deduct shared fund')
+assert.equal(largeCellarConfirm.fund.balance, balanceBeforeLargeDraft, 'cellar partner large fund confirmation should leave shared balance unchanged')
+assert.equal(readGameplayData(largeCellarPartner)?.player?.money, largeCellarPartnerMoneyBeforeConfirm, 'large fund confirmation should not touch cellar partner personal money')
+assert.ok(largeCellarConfirm.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_confirmed'), 'cellar partner large fund confirmation should be audited')
+assert.equal(largeCellarConfirm.fund.summary.pending_large_spend_draft_count, 0, 'fund snapshot should move confirmed large drafts out of pending count')
+assert.equal(largeCellarConfirm.fund.summary.ready_large_spend_draft_count, 1, 'fund snapshot should count ready large drafts')
+assert.equal(largeCellarConfirm.fund.summary.large_spend_execution_enabled, false, 'fund snapshot should not enable execution for a member without spend_large permission')
 const largeOwnerReadyFund = await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))
 assert.equal(largeOwnerReadyFund.fund.summary.large_spend_execution_enabled, true, 'fund snapshot should enable large execution for a permitted actor after all members confirm')
 
@@ -2691,6 +2735,14 @@ assert.equal(duplicateCaveLargeConfirm.idempotent, true, 'same cave partner larg
 assert.equal(duplicateCaveLargeConfirm.draft.id, largeDraft.draft.id, 'idempotent cave confirmation should return the original draft')
 assert.equal(duplicateCaveLargeConfirm.fund.balance, balanceBeforeLargeDraft, 'idempotent cave confirmation should not deduct balance')
 assert.equal(readGameplayData(largeCavePartner)?.player?.money, largeCavePartnerMoneyBeforeConfirm, 'idempotent cave confirmation should not touch personal money')
+
+const duplicateCellarLargeConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  idempotency_key: 'qa-fund-large-building-draft-cellar-confirm',
+}, actor(largeCellarPartner))
+assert.equal(duplicateCellarLargeConfirm.idempotent, true, 'same cellar partner large fund confirmation idempotency key should be idempotent')
+assert.equal(duplicateCellarLargeConfirm.draft.id, largeDraft.draft.id, 'idempotent cellar confirmation should return the original draft')
+assert.equal(duplicateCellarLargeConfirm.fund.balance, balanceBeforeLargeDraft, 'idempotent cellar confirmation should not deduct balance')
+assert.equal(readGameplayData(largeCellarPartner)?.player?.money, largeCellarPartnerMoneyBeforeConfirm, 'idempotent cellar confirmation should not touch personal money')
 
 const alreadyConfirmedOwner = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
   idempotency_key: 'qa-fund-large-building-draft-owner-confirm-again',
@@ -3365,6 +3417,7 @@ assert.equal(alreadyFamilyBuildingRealDemolitionExecutionRequest.building_ledger
 const ownerDemolitionReceiptCountBeforeWrite = readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0
 const partnerDemolitionReceiptCountBeforeWrite = readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0
 const cavePartnerDemolitionReceiptCountBeforeWrite = readGameplayData(largeCavePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0
+const cellarPartnerDemolitionReceiptCountBeforeWrite = readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0
 await assert.rejects(
   () => runtime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(largeContract.contract.id, {
     building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3388,9 +3441,9 @@ assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry
 assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.real_build_demolished, true, 'real demolition personal save write should mark building demolished')
 assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.real_build_demolition_personal_save_write_idempotency_key, 'qa-family-building-real-demolition-personal-save-write', 'real demolition personal save write should store idempotency key')
 assert.ok(!familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.deferred_operations.includes('real_build_demolition_personal_save_write'), 'real demolition personal save write should clear deferred personal save op')
-assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.receipts.length, 3, 'real demolition personal save write should write one receipt per accepted member')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.receipts.length, 4, 'real demolition personal save write should write one receipt per accepted member')
 assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.personal_save_written, true, 'real demolition personal save write response should report personal save write')
-assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.receipt_count, 3, 'real demolition personal save write response should count receipts')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.receipt_count, 4, 'real demolition personal save write response should count receipts')
 assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.real_build_demolished, true, 'real demolition personal save write response should report demolished marker')
 assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.shared_fund_changed, false, 'real demolition personal save write should not change shared fund')
 assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.shared_warehouse_changed, false, 'real demolition personal save write should not change shared warehouse')
@@ -3403,14 +3456,17 @@ assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.warehouse.items.find(
 assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'real demolition personal save write should not touch owner personal money')
 assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'real demolition personal save write should not touch partner personal money')
 assert.equal(readGameplayData(largeCavePartner)?.player?.money, largeCavePartnerMoneyBeforeConfirm, 'real demolition personal save write should not touch cave partner personal money')
+assert.equal(readGameplayData(largeCellarPartner)?.player?.money, largeCellarPartnerMoneyBeforeConfirm, 'real demolition personal save write should not touch cellar partner personal money')
 assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), largeOwnerWoodBeforeMaterialDeposit - 28, 'real demolition personal save write should not write owner wood back to personal inventory')
 assert.equal(getInventoryItemQuantity(largeOwner, 'rice'), largeOwnerRiceBeforeMaterialDeposit - 12, 'real demolition personal save write should not write owner rice back to personal inventory')
 assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, ownerDemolitionReceiptCountBeforeWrite + 1, 'owner personal save should receive one real demolition receipt')
 assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, partnerDemolitionReceiptCountBeforeWrite + 1, 'partner personal save should receive one real demolition receipt')
 assert.equal(readGameplayData(largeCavePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, cavePartnerDemolitionReceiptCountBeforeWrite + 1, 'cave partner personal save should receive one real demolition receipt')
+assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, cellarPartnerDemolitionReceiptCountBeforeWrite + 1, 'cellar partner personal save should receive one real demolition receipt')
 assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'owner real demolition receipt should reference building ledger')
 assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'partner real demolition receipt should reference building ledger')
 assert.equal(readGameplayData(largeCavePartner)?.onlineCohabitation?.real_build_demolition_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'cave partner real demolition receipt should reference building ledger')
+assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_demolition_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'cellar partner real demolition receipt should reference building ledger')
 
 const duplicateFamilyBuildingRealDemolitionPersonalSaveWrite = await runtime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3418,10 +3474,11 @@ const duplicateFamilyBuildingRealDemolitionPersonalSaveWrite = await runtime.wri
 }, actor(largeOwner))
 assert.equal(duplicateFamilyBuildingRealDemolitionPersonalSaveWrite.idempotent, true, 'same real demolition personal save write idempotency key should be idempotent')
 assert.equal(duplicateFamilyBuildingRealDemolitionPersonalSaveWrite.already_written, true, 'duplicate real demolition personal save write should report already written')
-assert.equal(duplicateFamilyBuildingRealDemolitionPersonalSaveWrite.receipts.length, 3, 'duplicate real demolition personal save write should return existing receipts')
+assert.equal(duplicateFamilyBuildingRealDemolitionPersonalSaveWrite.receipts.length, 4, 'duplicate real demolition personal save write should return existing receipts')
 assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, ownerDemolitionReceiptCountBeforeWrite + 1, 'duplicate personal save write should not duplicate owner receipt')
 assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, partnerDemolitionReceiptCountBeforeWrite + 1, 'duplicate personal save write should not duplicate partner receipt')
 assert.equal(readGameplayData(largeCavePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, cavePartnerDemolitionReceiptCountBeforeWrite + 1, 'duplicate personal save write should not duplicate cave partner receipt')
+assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, cellarPartnerDemolitionReceiptCountBeforeWrite + 1, 'duplicate personal save write should not duplicate cellar partner receipt')
 
 const alreadyFamilyBuildingRealDemolitionPersonalSaveWrite = await runtime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3433,10 +3490,12 @@ assert.equal(alreadyFamilyBuildingRealDemolitionPersonalSaveWrite.building_ledge
 assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, ownerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate owner receipt')
 assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, partnerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate partner receipt')
 assert.equal(readGameplayData(largeCavePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, cavePartnerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate cave partner receipt')
+assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, cellarPartnerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate cellar partner receipt')
 
 const ownerRawBeforeMainStatePreview = saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw
 const partnerRawBeforeMainStatePreview = saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw
 const cavePartnerRawBeforeMainStatePreview = saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw
+const cellarPartnerRawBeforeMainStatePreview = saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw
 await assert.rejects(
   () => runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(largeContract.contract.id, {
     building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3456,7 +3515,7 @@ assert.equal(familyBuildingRealDemolitionMainStatePreview.already_previewed, fal
 assert.equal(familyBuildingRealDemolitionMainStatePreview.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'main state preview should update original building ledger')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.building_ledger_entry.real_build_demolition_main_state_preview_idempotency_key, 'qa-family-building-real-demolition-main-state-preview', 'main state preview should store idempotency key')
 assert.ok(/^[a-f0-9]{64}$/.test(familyBuildingRealDemolitionMainStatePreview.building_ledger_entry.real_build_demolition_main_state_manifest_hash), 'main state preview should store manifest hash')
-assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.length, 3, 'main state preview should include one manifest row per accepted member')
+assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.length, 4, 'main state preview should include one manifest row per accepted member')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.mutation_enabled, false, 'main state preview should keep mutation disabled')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.blocked, true, 'main state preview should be explicitly blocked without direct mapping')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.main_state_preview.personal_save_changed, false, 'main state preview should not write personal saves')
@@ -3476,6 +3535,7 @@ assert.ok(familyBuildingRealDemolitionMainStatePreview.contract.audit_log.find(e
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state preview should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state preview should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'main state preview should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'main state preview should not rewrite cellar partner save')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.fund.balance, balanceBeforeLargeDraft, 'main state preview should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state preview should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStatePreview.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state preview should not change restored rice')
@@ -3488,16 +3548,21 @@ const mainStateMappingPayload = {
   mappings: familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.map(item => {
     const useDecorationOwned = item.username === largePartner
     const useCaveChoice = item.username === largeCavePartner
+    const useCellarSlot = item.username === largeCellarPartner
     const candidatePath = useDecorationOwned
       ? 'decoration.owned'
       : useCaveChoice
         ? 'home.caveChoice'
-        : 'home.homeRenovationStates'
+        : useCellarSlot
+          ? 'home.cellarSlots'
+          : 'home.homeRenovationStates'
     const bindingPrefix = useDecorationOwned
       ? 'manual-decoration-owned'
       : useCaveChoice
         ? 'manual-cave-choice'
-        : 'manual-home-renovation'
+        : useCellarSlot
+          ? 'manual-cellar-slot'
+          : 'manual-home-renovation'
     return {
       username: item.username,
       username_key: item.username_key,
@@ -3530,7 +3595,7 @@ assert.equal(familyBuildingRealDemolitionMainStateMapping.idempotent, false, 'fi
 assert.equal(familyBuildingRealDemolitionMainStateMapping.already_mapped, false, 'first main state mapping should not report already mapped')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.building_ledger_entry.real_build_demolition_main_state_mapping_idempotency_key, 'qa-family-building-real-demolition-main-state-mapping', 'main state mapping should store idempotency key')
 assert.ok(/^[a-f0-9]{64}$/.test(familyBuildingRealDemolitionMainStateMapping.building_ledger_entry.real_build_demolition_main_state_mapping_manifest_hash), 'main state mapping should store mapping manifest hash')
-assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest.length, 3, 'main state mapping should include one mapping per accepted member')
+assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.manifest.length, 4, 'main state mapping should include one mapping per accepted member')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.mutation_enabled, false, 'main state mapping should keep mutation disabled')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.personal_save_changed, false, 'main state mapping should not write personal saves')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.main_state_mapping.shared_fund_changed, false, 'main state mapping should not change shared fund')
@@ -3544,6 +3609,7 @@ assert.equal(
     && (
       (item.username === largePartner && item.candidate_path === 'decoration.owned' && item.binding_ref.startsWith('manual-decoration-owned:'))
       || (item.username === largeCavePartner && item.candidate_path === 'home.caveChoice' && item.binding_ref.startsWith('manual-cave-choice:'))
+      || (item.username === largeCellarPartner && item.candidate_path === 'home.cellarSlots' && item.binding_ref.startsWith('manual-cellar-slot:'))
       || (item.username !== largePartner && item.candidate_path === 'home.homeRenovationStates' && item.binding_ref.startsWith('manual-home-renovation:'))
     )
   ),
@@ -3554,6 +3620,7 @@ assert.ok(familyBuildingRealDemolitionMainStateMapping.contract.audit_log.find(e
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state mapping should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state mapping should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'main state mapping should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'main state mapping should not rewrite cellar partner save')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.fund.balance, balanceBeforeLargeDraft, 'main state mapping should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state mapping should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateMapping.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state mapping should not change restored rice')
@@ -3606,7 +3673,7 @@ assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.idempotent, fals
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.already_guarded, false, 'first main state mutation guard should not report already guarded')
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.building_ledger_entry.real_build_demolition_main_state_guard_idempotency_key, 'qa-family-building-real-demolition-main-state-mutation-guard', 'main state mutation guard should store idempotency key')
 assert.ok(/^[a-f0-9]{64}$/.test(familyBuildingRealDemolitionMainStateMutationGuard.building_ledger_entry.real_build_demolition_main_state_guard_manifest_hash), 'main state mutation guard should store guard manifest hash')
-assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.manifest.length, 3, 'main state mutation guard should include one guard row per accepted member')
+assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.manifest.length, 4, 'main state mutation guard should include one guard row per accepted member')
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.mutation_enabled, false, 'main state mutation guard should keep mutation disabled')
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.execution_enabled, false, 'main state mutation guard should keep execution disabled')
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.main_state_mutation_guard.personal_save_changed, false, 'main state mutation guard should not write personal saves')
@@ -3628,6 +3695,7 @@ assert.ok(familyBuildingRealDemolitionMainStateMutationGuard.contract.audit_log.
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state mutation guard should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state mutation guard should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'main state mutation guard should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'main state mutation guard should not rewrite cellar partner save')
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.fund.balance, balanceBeforeLargeDraft, 'main state mutation guard should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state mutation guard should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateMutationGuard.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state mutation guard should not change restored rice')
@@ -3643,6 +3711,7 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMutationGuard.main_st
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'duplicate main state mutation guard should not rewrite cellar partner save')
 
 const mainStateExecutePayload = {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3690,6 +3759,7 @@ assert.ok(familyBuildingRealDemolitionMainStateExecute.contract.audit_log.find(e
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'blocked main state execute should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'blocked main state execute should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'blocked main state execute should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'blocked main state execute should not rewrite cellar partner save')
 assert.equal(familyBuildingRealDemolitionMainStateExecute.fund.balance, balanceBeforeLargeDraft, 'blocked main state execute should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStateExecute.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'blocked main state execute should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateExecute.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'blocked main state execute should not change restored rice')
@@ -3705,6 +3775,7 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExecute.main_state_ex
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'duplicate blocked main state execute should not rewrite cellar partner save')
 
 const mainStateExactTargets = familyBuildingRealDemolitionMainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest.map((row, index) => ({
   username: row.username,
@@ -3781,6 +3852,7 @@ assert.ok(familyBuildingRealDemolitionMainStateExactTargets.contract.audit_log.f
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state exact target bind should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state exact target bind should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'main state exact target bind should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'main state exact target bind should not rewrite cellar partner save')
 assert.equal(familyBuildingRealDemolitionMainStateExactTargets.fund.balance, balanceBeforeLargeDraft, 'main state exact target bind should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStateExactTargets.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state exact target bind should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateExactTargets.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state exact target bind should not change restored rice')
@@ -3796,6 +3868,7 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargets.main_sta
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state exact target bind should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state exact target bind should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'duplicate main state exact target bind should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'duplicate main state exact target bind should not rewrite cellar partner save')
 
 const mainStateExactExecutePayload = {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3856,6 +3929,7 @@ assert.ok(familyBuildingRealDemolitionMainStateExactExecute.contract.audit_log.f
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state exact execute block should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state exact execute block should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'main state exact execute block should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'main state exact execute block should not rewrite cellar partner save')
 assert.equal(familyBuildingRealDemolitionMainStateExactExecute.fund.balance, balanceBeforeLargeDraft, 'main state exact execute block should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStateExactExecute.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state exact execute block should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateExactExecute.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state exact execute block should not change restored rice')
@@ -3871,6 +3945,7 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactExecute.main_sta
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state exact execute block should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state exact execute block should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'duplicate main state exact execute block should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'duplicate main state exact execute block should not rewrite cellar partner save')
 
 const mainStateExactTargetResolutionPayload = {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3885,6 +3960,8 @@ const mainStateExactTargetResolutionPayload = {
       resolvedId = 'bamboo_lamp'
     } else if (item.candidate_path === 'home.caveChoice') {
       resolvedId = 'mushroom'
+    } else if (item.candidate_path === 'home.cellarSlots') {
+      resolvedId = '0'
     } else if (item.username === largeOwner) {
       resolvedId = 'scholar_room'
     }
@@ -4010,6 +4087,7 @@ assert.ok(familyBuildingRealDemolitionMainStateExactTargetResolution.contract.au
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state exact target resolution should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state exact target resolution should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'main state exact target resolution should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'main state exact target resolution should not rewrite cellar partner save')
 assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.fund.balance, balanceBeforeLargeDraft, 'main state exact target resolution should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state exact target resolution should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateExactTargetResolution.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state exact target resolution should not change restored rice')
@@ -4025,6 +4103,7 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactTargetResolution
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawBeforeMainStatePreview, 'duplicate main state exact target resolution should not rewrite cellar partner save')
 
 const mainStateExactMutationPayload = {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -4070,17 +4149,25 @@ const ownerHomeBeforeExactMutation = readGameplayData(largeOwner)?.home?.homeRen
 const partnerHomeBeforeExactMutation = readGameplayData(largePartner)?.home?.homeRenovationStates || {}
 const partnerDecorationBeforeExactMutation = readGameplayData(largePartner)?.decoration || {}
 const caveHomeBeforeExactMutation = readGameplayData(largeCavePartner)?.home || {}
+const cellarHomeBeforeExactMutation = readGameplayData(largeCellarPartner)?.home || {}
 assert.equal(ownerHomeBeforeExactMutation.scholar_room, true, 'owner should start with resolved home renovation target')
 assert.equal(partnerDecorationBeforeExactMutation.owned?.bamboo_lamp, 2, 'partner should start with removable decoration owned target')
 assert.equal(partnerDecorationBeforeExactMutation.placed?.bamboo_lamp, 1, 'partner should start with one placed decoration protected from owned-only removal')
 assert.equal(caveHomeBeforeExactMutation.caveUnlocked, true, 'cave partner should keep cave unlocked before exact mutation')
 assert.equal(caveHomeBeforeExactMutation.caveChoice, 'mushroom', 'cave partner should start with resolved cave choice target')
+assert.equal(cellarHomeBeforeExactMutation.cellarSlots?.length, 2, 'cellar partner should start with two cellar aging slots')
+assert.equal(cellarHomeBeforeExactMutation.cellarSlots?.[0]?.itemId, 'peach_wine', 'cellar partner first aging slot item should be peach wine')
+assert.equal(cellarHomeBeforeExactMutation.cellarSlots?.[0]?.quality, 'fine', 'cellar partner first aging slot quality should be fine')
+assert.equal(cellarHomeBeforeExactMutation.cellarSlots?.[0]?.daysAging, 3, 'cellar partner first aging slot days should be preserved before mutation')
 const ownerMoneyBeforeExactMutation = readGameplayData(largeOwner)?.player?.money
 const partnerMoneyBeforeExactMutation = readGameplayData(largePartner)?.player?.money
 const cavePartnerMoneyBeforeExactMutation = readGameplayData(largeCavePartner)?.player?.money
+const cellarPartnerMoneyBeforeExactMutation = readGameplayData(largeCellarPartner)?.player?.money
 const ownerInventoryBeforeExactMutation = getInventoryItemQuantity(largeOwner, 'wood')
 const partnerInventoryBeforeExactMutation = getInventoryItemQuantity(largePartner, 'wood')
 const cavePartnerInventoryBeforeExactMutation = getInventoryItemQuantity(largeCavePartner, 'wood')
+const cellarPartnerInventoryBeforeExactMutation = getInventoryItemQuantity(largeCellarPartner, 'wood')
+const cellarPartnerWineBeforeExactMutation = getInventoryItemQuantity(largeCellarPartner, 'peach_wine', 'fine')
 
 const familyBuildingRealDemolitionMainStateExactMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
   largeContract.contract.id,
@@ -4101,14 +4188,22 @@ assert.equal(readGameplayData(largePartner)?.decoration?.owned?.bamboo_lamp, 1, 
 assert.equal(readGameplayData(largePartner)?.decoration?.placed?.bamboo_lamp, 1, 'partner placed decoration should remain when only owned surplus is removed')
 assert.equal(readGameplayData(largeCavePartner)?.home?.caveChoice, 'none', 'cave partner resolved cave choice should be reset from personal main state')
 assert.equal(readGameplayData(largeCavePartner)?.home?.caveUnlocked, true, 'cave partner cave unlock flag should remain after cave choice reset')
+assert.equal(readGameplayData(largeCellarPartner)?.home?.cellarSlots?.length, 1, 'cellar partner resolved cellar slot should remove exactly one aging slot')
+assert.equal(readGameplayData(largeCellarPartner)?.home?.cellarSlots?.[0]?.itemId, 'rice_vinegar', 'cellar partner remaining aging slot item should shift without loss')
+assert.equal(readGameplayData(largeCellarPartner)?.home?.cellarSlots?.[0]?.quality, 'normal', 'cellar partner remaining aging slot quality should be preserved')
+assert.equal(readGameplayData(largeCellarPartner)?.home?.cellarSlots?.[0]?.daysAging, 1, 'cellar partner remaining aging slot days should be preserved')
+assert.equal(readGameplayData(largeCellarPartner)?.home?.farmhouseLevel, 3, 'cellar partner farmhouse level should remain after cellar slot removal')
 assert.equal(readGameplayData(largeOwner)?.home?.homeRenovationStates?.tea_corner, true, 'owner unrelated home renovation should remain')
 assert.equal(readGameplayData(largePartner)?.home?.homeRenovationStates?.scholar_room, true, 'partner unrelated home renovation should remain')
 assert.equal(readGameplayData(largeOwner)?.player?.money, ownerMoneyBeforeExactMutation, 'main state exact mutation adapter should not touch owner money')
 assert.equal(readGameplayData(largePartner)?.player?.money, partnerMoneyBeforeExactMutation, 'main state exact mutation adapter should not touch partner money')
 assert.equal(readGameplayData(largeCavePartner)?.player?.money, cavePartnerMoneyBeforeExactMutation, 'main state exact mutation adapter should not touch cave partner money')
+assert.equal(readGameplayData(largeCellarPartner)?.player?.money, cellarPartnerMoneyBeforeExactMutation, 'main state exact mutation adapter should not touch cellar partner money')
 assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), ownerInventoryBeforeExactMutation, 'main state exact mutation adapter should not touch owner inventory')
 assert.equal(getInventoryItemQuantity(largePartner, 'wood'), partnerInventoryBeforeExactMutation, 'main state exact mutation adapter should not touch partner inventory')
 assert.equal(getInventoryItemQuantity(largeCavePartner, 'wood'), cavePartnerInventoryBeforeExactMutation, 'main state exact mutation adapter should not touch cave partner inventory')
+assert.equal(getInventoryItemQuantity(largeCellarPartner, 'wood'), cellarPartnerInventoryBeforeExactMutation, 'main state exact mutation adapter should not touch cellar partner inventory')
+assert.equal(getInventoryItemQuantity(largeCellarPartner, 'peach_wine', 'fine'), cellarPartnerWineBeforeExactMutation, 'cellar slot removal should not return removed wine to personal inventory')
 assert.equal(familyBuildingRealDemolitionMainStateExactMutation.fund.balance, balanceBeforeLargeDraft, 'main state exact mutation adapter should not change shared fund balance')
 assert.equal(familyBuildingRealDemolitionMainStateExactMutation.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'main state exact mutation adapter should not change restored wood')
 assert.equal(familyBuildingRealDemolitionMainStateExactMutation.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'main state exact mutation adapter should not change restored rice')
@@ -4116,10 +4211,15 @@ assert.ok(familyBuildingRealDemolitionMainStateExactMutation.contract.audit_log.
 assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'owner main state mutation receipt should reference building ledger')
 assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'partner main state mutation receipt should reference building ledger')
 assert.equal(readGameplayData(largeCavePartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'cave partner main state mutation receipt should reference building ledger')
+assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'cellar partner main state mutation receipt should reference building ledger')
+assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.target_kind, 'home_cellar_slot', 'cellar partner main state mutation receipt should record cellar slot target kind')
+assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.mutation_result, 'home_cellar_slot_removed', 'cellar partner main state mutation receipt should record cellar slot removal result')
+assert.ok(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === largeCellarPartner && receipt.target_kind === 'home_cellar_slot' && receipt.mutation_result === 'home_cellar_slot_removed'), 'main state exact mutation response should include cellar slot receipt summary')
 
 const ownerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw
 const partnerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw
 const cavePartnerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw
+const cellarPartnerRawAfterExactMutation = saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw
 const duplicateFamilyBuildingRealDemolitionMainStateExactMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
   largeContract.contract.id,
   mainStateExactMutationPayload,
@@ -4130,6 +4230,7 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateExactMutation.already
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawAfterExactMutation, 'duplicate main state exact mutation adapter should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawAfterExactMutation, 'duplicate main state exact mutation adapter should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawAfterExactMutation, 'duplicate main state exact mutation adapter should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawAfterExactMutation, 'duplicate main state exact mutation adapter should not rewrite cellar partner save')
 
 const duplicateFamilyBuildingRealDemolitionMainStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
   largeContract.contract.id,
@@ -4142,6 +4243,7 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStateMapping.main_state_ma
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawAfterExactMutation, 'duplicate main state mapping should not rewrite owner save after exact mutation')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawAfterExactMutation, 'duplicate main state mapping should not rewrite partner save after exact mutation')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawAfterExactMutation, 'duplicate main state mapping should not rewrite cave partner save after exact mutation')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawAfterExactMutation, 'duplicate main state mapping should not rewrite cellar partner save after exact mutation')
 
 const duplicateFamilyBuildingRealDemolitionMainStatePreview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -4153,5 +4255,6 @@ assert.equal(duplicateFamilyBuildingRealDemolitionMainStatePreview.main_state_pr
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawAfterExactMutation, 'duplicate main state preview should not rewrite owner save after exact mutation')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawAfterExactMutation, 'duplicate main state preview should not rewrite partner save after exact mutation')
 assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, cavePartnerRawAfterExactMutation, 'duplicate main state preview should not rewrite cave partner save after exact mutation')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarPartnerRawAfterExactMutation, 'duplicate main state preview should not rewrite cellar partner save after exact mutation')
 
 console.log('[qa-cohabitation-contract] OK')

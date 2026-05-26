@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态酒窖陈酿槽 selector
+- 后端精确变更适配器新增 `home.cellarSlots.<index>` 窄 selector，只在个人存档中存在对应陈酿槽且槽位对象可审计时删除一个槽位。
+- 酒窖槽删除回执记录 `itemId / quality / daysAging`、删除下标和剩余槽位数；不把被移除酒 / 醋返还个人背包，不触碰个人铜币、农田、房屋等级、共同基金或共同仓库。
+- 前端“执行变更”按钮同步允许 `home.cellarSlots`，在线 UI 结构 QA 增加该 selector 守护；专项 QA 扩成四名家族成员，覆盖宅院改造删除、未放置装饰撤回、山洞用途复位和酒窖槽移除。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态山洞用途 selector
 - 后端精确变更适配器新增 `home.caveChoice.mushroom` / `home.caveChoice.fruit_bat` 窄 selector，只在个人存档当前山洞用途与 child key 完全一致时复位为 `none`。
 - 山洞用途复位保留 `home.caveUnlocked`，不触碰个人铜币、背包、农田、共同基金或共同仓库；个人存档仍写入 `real_build_main_state_mutation_receipts` 供审计、补偿和断线幂等读回。
