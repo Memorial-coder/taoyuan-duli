@@ -1229,6 +1229,12 @@
                   <p v-if="entry.real_build_demolition_main_state_execute_policy">
                     执行策略：{{ entry.real_build_demolition_main_state_execute_policy }}
                   </p>
+                  <p v-if="entry.real_build_demolition_main_state_exact_target_bound_at || entry.real_build_demolition_main_state_exact_target_manifest_hash">
+                    精确目标：{{ entry.real_build_demolition_main_state_exact_target_bound_by_display_name || entry.real_build_demolition_main_state_exact_target_bound_by_username || '已绑定' }} · {{ formatTime(entry.real_build_demolition_main_state_exact_target_bound_at) }} · {{ entry.real_build_demolition_main_state_exact_target_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_exact_target_manifest_hash || '无 hash' }}
+                  </p>
+                  <p v-if="entry.real_build_demolition_main_state_exact_target_policy">
+                    精确目标策略：{{ entry.real_build_demolition_main_state_exact_target_policy }}
+                  </p>
                 </div>
                 <div class="mt-2 grid gap-2 md:grid-cols-12">
                   <button
@@ -1380,6 +1386,16 @@
                   >
                     <ShieldCheck :size="12" />
                     阻断执行
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canBindFamilyBuildingRealDemolitionMainStateExactTargets(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-demolition-bind-main-state-exact-targets-${entry.id}`"
+                    @click="bindFamilyBuildingRealDemolitionMainStateExactTargets(entry)"
+                  >
+                    <ShieldCheck :size="12" />
+                    绑定目标
                   </button>
                 </div>
               </div>
@@ -2979,6 +2995,14 @@
     Array.isArray(entry.real_build_demolition_main_state_guard_manifest) &&
     entry.real_build_demolition_main_state_guard_manifest.length > 0 &&
     !entry.real_build_demolition_main_state_execute_idempotency_key
+  const canBindFamilyBuildingRealDemolitionMainStateExactTargets = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    Boolean(entry.real_build_demolition_main_state_execute_idempotency_key) &&
+    entry.real_build_demolition_main_state_execution_state === 'blocked_missing_exact_personal_target' &&
+    Boolean(entry.real_build_demolition_main_state_guard_manifest_hash) &&
+    Array.isArray(entry.real_build_demolition_main_state_guard_manifest) &&
+    entry.real_build_demolition_main_state_guard_manifest.length > 0 &&
+    !entry.real_build_demolition_main_state_exact_target_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3532,6 +3556,50 @@
     }
   }
 
+  const bindFamilyBuildingRealDemolitionMainStateExactTargets = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    const guardManifest = entry.real_build_demolition_main_state_guard_manifest || []
+    if (!entry.real_build_demolition_main_state_guard_manifest_hash || guardManifest.length === 0) {
+      familyBuildingActionMessage.value = '请先确认个人主状态变更安全阀'
+      return
+    }
+    try {
+      const result = await cohabitationStore.bindFamilyBuildingRealDemolitionMainStateExactTargets({
+        building_ledger_id: entry.id,
+        guard_manifest_hash: entry.real_build_demolition_main_state_guard_manifest_hash,
+        expected_execution_state: 'blocked_missing_exact_personal_target',
+        memo: `前端绑定家族建筑真实拆除个人主状态精确目标：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-demolition-main-state-exact-targets-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        targets: guardManifest.map((item, index) => {
+          const exactTargetRef = `${item.candidate_path}.ui_exact_target_${entry.id}_${index}`
+          return {
+            username: item.username,
+            username_key: item.username_key,
+            save_slot: item.save_slot,
+            save_id: item.save_id,
+            real_build_ref: item.real_build_ref,
+            candidate_path: item.candidate_path,
+            binding_ref: item.binding_ref,
+            snapshot_hash: item.snapshot_hash,
+            exact_target_ref: exactTargetRef,
+            delete_selector: exactTargetRef,
+            target_kind: item.candidate_path.startsWith('decoration.') ? 'decoration' : 'home',
+          }
+        }),
+      })
+      const targetCount = result?.building_ledger_entry?.real_build_demolition_main_state_exact_target_manifest?.length
+        ?? entry.real_build_demolition_main_state_exact_target_manifest?.length
+        ?? 0
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_bound
+        ? `该个人主状态精确目标已绑定，已读回 ${targetCount} 条`
+        : `已绑定个人主状态精确目标 ${targetCount} 条，仍未删除个人房屋或建筑主状态`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '绑定家族建筑真实拆除个人主状态精确目标失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -3673,6 +3741,7 @@
       real_build_demolition_main_state_mutation_guard: '真实拆除个人主状态变更安全阀',
       real_build_demolition_main_state_execute: '真实拆除个人主状态执行',
       real_build_demolition_main_state_exact_target_required: '真实拆除个人主状态精确目标待绑定',
+      real_build_demolition_main_state_exact_execute: '真实拆除个人主状态精确执行',
       family_building_compensation_replay: '建筑补偿重放',
       family_building_rollback: '建筑回滚',
       publish_family_relation_graph_to_profile: '公开关系图到档案',
@@ -4064,6 +4133,7 @@
     const labels: Record<string, string> = {
       blocked_missing_exact_personal_target: '缺精确目标已阻断',
       ready_for_exact_personal_target_execution: '精确目标待执行',
+      exact_target_bound_pending_execute: '精确目标已绑定待执行',
       real_build_demolition_main_state_exact_target_required: '待绑定精确目标',
       real_build_demolition_main_state_exact_execute: '待精确执行',
     }

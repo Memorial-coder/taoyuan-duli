@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态精确目标绑定前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/bind-main-state-exact-targets`，共同庄园建筑流水卡片新增“绑定目标”按钮；按钮只在已记录执行阻断、执行状态为 `blocked_missing_exact_personal_target`、guard manifest hash 与清单存在且尚未绑定精确目标时开放。提交后展示绑定人、时间、目标 manifest hash、目标数和策略，并识别 `real_build_demolition_main_state_exact_execute` 暂缓项；该入口仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库。
 - 家族建筑真实拆除个人主状态精确目标绑定后端闭环接入：共同庄园新增 `/family-buildings/real-demolition/bind-main-state-exact-targets`，要求已记录 `blocked_missing_exact_personal_target`、guard manifest hash 匹配，并逐成员提交位于候选宽路径之下的精确个人 `home / decoration` 字段目标；接口只记录精确目标 manifest、hash、绑定人、时间、审计和策略，把待办推进到 `real_build_demolition_main_state_exact_execute`。该步骤不删除个人主状态、不改共同基金或共同仓库；专项 QA 覆盖非成员拒绝、hash 漂移拒绝、宽路径拒绝、首次绑定、重复幂等和资产边界。
 - 家族建筑真实拆除个人主状态执行阻断前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/execute-main-state-mutation`，共同庄园建筑流水卡片新增“阻断执行”按钮；按钮只在主状态变更 guard、guard manifest hash 和 guard 清单已存在且尚未记录执行幂等时开放。提交后会展示主态执行人、时间、`blocked_missing_exact_personal_target` 等执行状态和执行策略，共同日志可读回“真实拆除主态执行阻断”，并识别 `real_build_demolition_main_state_exact_target_required` 暂缓项；该入口仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库。
 - 家族建筑真实拆除个人主状态执行阻断后端闭环接入：共同庄园新增 `/family-buildings/real-demolition/execute-main-state-mutation`，要求先确认主状态变更 guard、校验 guard manifest hash，并继续保留拆除双方确认安全阀；由于当前 guard 清单只有宽路径和绑定证明，缺少可删除的精确个人 `home / decoration` 字段目标，接口只记录 `blocked_missing_exact_personal_target`、操作者、策略和审计，把后续待办推进到 `real_build_demolition_main_state_exact_target_required`。该步骤不修改个人存档、不删除个人主状态、不改共同基金或共同仓库；专项 QA 覆盖非成员拒绝、hash 漂移拒绝、首次阻断执行、重复幂等和资产边界。

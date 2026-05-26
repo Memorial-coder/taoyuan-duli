@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态精确目标绑定前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/bind-main-state-exact-targets`，共同庄园建筑流水卡片新增“绑定目标”按钮。
+- 按钮按执行阻断幂等键、`blocked_missing_exact_personal_target` 执行状态、guard manifest hash、guard 清单和尚未绑定精确目标禁用；提交后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示精确目标绑定人、时间、manifest hash、目标数和策略，并读回 `real_build_demolition_main_state_exact_execute` 暂缓项；本轮仍不删除个人 `home / decoration` 主状态。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态精确目标绑定后端闭环
 - 服务端新增 `/family-buildings/real-demolition/bind-main-state-exact-targets`，要求已记录 `blocked_missing_exact_personal_target`、guard manifest hash 匹配，并逐成员提交位于候选宽路径之下的精确个人 `home / decoration` 字段目标。
 - 成功后只记录精确目标 manifest、hash、绑定人、时间、审计和策略，把暂缓项从 `real_build_demolition_main_state_exact_target_required` 推进到 `real_build_demolition_main_state_exact_execute`；重复请求幂等读回。
