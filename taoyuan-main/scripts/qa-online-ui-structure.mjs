@@ -53,6 +53,7 @@ utilitySources.set('components/game/online/OnlineOrderStoryFlowPanel.vue', await
 utilitySources.set('data/onlineFestivalSceneAssets.ts', await readFile(path.join(srcRoot, 'data', 'onlineFestivalSceneAssets.ts'), 'utf8'))
 utilitySources.set('data/onlineVisualFeatureFlags.ts', await readFile(path.join(srcRoot, 'data', 'onlineVisualFeatureFlags.ts'), 'utf8'))
 utilitySources.set('data/onlineVisualActivitySchedule.ts', await readFile(path.join(srcRoot, 'data', 'onlineVisualActivitySchedule.ts'), 'utf8'))
+utilitySources.set('data/onlineVisualRewardControl.ts', await readFile(path.join(srcRoot, 'data', 'onlineVisualRewardControl.ts'), 'utf8'))
 utilitySources.set('types/onlineVisual.ts', await readFile(path.join(srcRoot, 'types', 'onlineVisual.ts'), 'utf8'))
 utilitySources.set('scripts/qa-mobile-ui-smoke.mjs', await readFile(path.join(repoRoot, 'scripts', 'qa-mobile-ui-smoke.mjs'), 'utf8'))
 
@@ -398,6 +399,33 @@ for (const scheduleId of [
 expectCountAtLeast('data/onlineVisualActivitySchedule.ts', /rewardSettlement:/g, 16, '排期条目应声明服务端结算或只读边界')
 expectCountAtLeast('data/onlineVisualActivitySchedule.ts', /npcLine:/g, 16, '排期条目应给出现场 NPC 台词')
 expectCountAtLeast('data/onlineVisualActivitySchedule.ts', /replayRetention:/g, 16, '排期条目应定义过期后回看保留策略')
+expectContains('OnlineView.vue', 'online-visual-reward-control-panel', '在线中心应展示可视化活动奖励控制面板')
+expectContains('OnlineView.vue', 'onlineVisualRewardControlPolicies', '在线中心应读取可视化活动奖励控制定义')
+expectContains('OnlineView.vue', 'online-visual-reward-base', '奖励控制应展示基础奖励')
+expectContains('OnlineView.vue', 'online-visual-reward-performance', '奖励控制应展示表现与协作奖励')
+expectContains('OnlineView.vue', 'online-visual-reward-memorial', '奖励控制应展示纪念奖励')
+expectContains('OnlineView.vue', 'online-visual-reward-authority', '奖励控制应展示服务端权威结算边界')
+expectContains('OnlineView.vue', 'online-visual-reward-cap', '奖励控制应展示收益上限')
+expectContains('OnlineView.vue', 'online-visual-reward-anti-inflation', '奖励控制应展示反通胀规则')
+expectContains('OnlineView.vue', 'online-visual-reward-solo-parity', '奖励控制应展示单人玩家保底规则')
+expectContains('OnlineView.vue', 'online-visual-reward-global-guardrails', '奖励控制应展示全局投放护栏')
+expectContains('data/onlineVisualRewardControl.ts', 'ONLINE_VISUAL_REWARD_CONTROL_POLICIES', '应定义可视化活动奖励控制策略')
+expectContains('data/onlineVisualRewardControl.ts', 'ONLINE_VISUAL_REWARD_GLOBAL_GUARDRAILS', '应定义奖励投放全局护栏')
+for (const rewardKey of [
+  'visual_mini_games',
+  'manor_care',
+  'manor_steal',
+  'coop_order_relay',
+  'society_async_projects',
+  'festival_memorials',
+  'shared_manor_weekly_goal',
+]) {
+  expectContains('data/onlineVisualRewardControl.ts', `key: '${rewardKey}'`, `奖励控制应定义 ${rewardKey}`)
+}
+expectCountAtLeast('data/onlineVisualRewardControl.ts', /serverAuthority:/g, 7, '每类奖励控制都应声明服务端权威边界')
+expectCountAtLeast('data/onlineVisualRewardControl.ts', /capSummary:/g, 7, '每类奖励控制都应声明收益上限')
+expectCountAtLeast('data/onlineVisualRewardControl.ts', /antiInflationRule:/g, 7, '每类奖励控制都应声明反通胀规则')
+expectCountAtLeast('data/onlineVisualRewardControl.ts', /soloParityRule:/g, 7, '每类奖励控制都应声明单人玩家不被压过')
 expectContains('data/onlineFestivalSceneAssets.ts', 'main_lantern', '灯会现场素材应包含主灯')
 expectContains('data/onlineFestivalSceneAssets.ts', 'riddle_rack', '灯会现场素材应包含灯谜架')
 expectContains('data/onlineFestivalSceneAssets.ts', 'festival_stall', '灯会现场素材应包含摊位')

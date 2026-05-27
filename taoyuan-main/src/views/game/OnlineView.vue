@@ -228,6 +228,65 @@
           </div>
         </div>
       </div>
+      <div class="mt-3 border border-accent/10 bg-black/10 p-3" data-testid="online-visual-reward-control-panel">
+        <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div class="min-w-0">
+            <p class="text-xs leading-4 text-accent">奖励与投放控制</p>
+            <p class="mt-1 text-[10px] leading-4 text-muted">{{ onlineVisualRewardControlSummary }}</p>
+          </div>
+          <span class="text-[10px] leading-4 text-muted">服务端凭证优先 · 纪念优先</span>
+        </div>
+        <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <article
+            v-for="policy in onlineVisualRewardControlPolicies"
+            :key="policy.key"
+            class="border border-accent/10 bg-background/70 p-2"
+            :data-testid="policy.testId"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <p class="text-xs leading-4 text-text">{{ policy.label }}</p>
+              <span class="shrink-0 text-[10px] leading-4 text-accent">限额</span>
+            </div>
+            <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+              <div data-testid="online-visual-reward-base">
+                <dt class="text-accent">基础</dt>
+                <dd>{{ policy.baseReward }}</dd>
+              </div>
+              <div data-testid="online-visual-reward-performance">
+                <dt class="text-accent">表现 / 协作</dt>
+                <dd>{{ policy.performanceReward }} {{ policy.collaborationReward }}</dd>
+              </div>
+              <div data-testid="online-visual-reward-memorial">
+                <dt class="text-accent">纪念</dt>
+                <dd>{{ policy.memorialReward }}</dd>
+              </div>
+              <div data-testid="online-visual-reward-authority">
+                <dt class="text-accent">结算边界</dt>
+                <dd>{{ policy.serverAuthority }}</dd>
+              </div>
+              <div data-testid="online-visual-reward-cap">
+                <dt class="text-accent">上限</dt>
+                <dd>{{ policy.capSummary }}</dd>
+              </div>
+            </dl>
+            <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-anti-inflation">
+              {{ policy.antiInflationRule }}
+            </p>
+            <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-solo-parity">
+              {{ policy.soloParityRule }}
+            </p>
+          </article>
+        </div>
+        <ul class="mt-3 grid gap-1 sm:grid-cols-2" data-testid="online-visual-reward-global-guardrails">
+          <li
+            v-for="guardrail in onlineVisualRewardGlobalGuardrails"
+            :key="guardrail"
+            class="border border-accent/10 bg-background/70 p-2 text-[10px] leading-4 text-muted"
+          >
+            {{ guardrail }}
+          </li>
+        </ul>
+      </div>
     </section>
   </div>
 </template>
@@ -274,6 +333,10 @@
     ONLINE_VISUAL_WEEKLY_ACTIVITY_ROTATION,
     type OnlineVisualActivityScheduleEntry,
   } from '@/data/onlineVisualActivitySchedule'
+  import {
+    ONLINE_VISUAL_REWARD_CONTROL_POLICIES,
+    ONLINE_VISUAL_REWARD_GLOBAL_GUARDRAILS,
+  } from '@/data/onlineVisualRewardControl'
 
   type ModuleKey = 'manor' | 'cohabitation' | 'neighbor' | 'orders' | 'festival' | 'society'
   type ModuleStat = { label: string; value: string | number }
@@ -462,6 +525,11 @@
     name: entry.routeName,
     query: entry.routeQuery,
   })
+  const onlineVisualRewardControlPolicies = ONLINE_VISUAL_REWARD_CONTROL_POLICIES
+  const onlineVisualRewardGlobalGuardrails = ONLINE_VISUAL_REWARD_GLOBAL_GUARDRAILS
+  const onlineVisualRewardControlSummary = computed(() =>
+    `${onlineVisualRewardControlPolicies.length} 类奖励口径 · ${onlineVisualRewardGlobalGuardrails.length} 条全局护栏 · 不扩大前端发奖`
+  )
 
   const modules = computed<ModuleCard[]>(() => [
     {
