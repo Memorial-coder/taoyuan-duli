@@ -2209,7 +2209,7 @@
               </div>
             </div>
           </div>
-          <div class="game-panel-muted p-3">
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-shared-audit-log">
             <p class="text-sm text-accent">共同日志</p>
             <div v-if="sharedLog.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有共同日志。</div>
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
@@ -2221,7 +2221,7 @@
                   </div>
                   <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ sharedLogKindLabel(entry.action) }}</span>
                 </div>
-                <p v-if="sharedLogDetail(entry)" class="mt-2 text-[10px] leading-4 text-muted">{{ sharedLogDetail(entry) }}</p>
+                <p v-if="sharedLogDetail(entry)" class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-audit-detail">{{ sharedLogDetail(entry) }}</p>
               </div>
             </div>
           </div>
@@ -5277,13 +5277,16 @@
       warehouse_withdraw: '共同仓库取出',
       warehouse_sell: '共同仓库卖出',
       warehouse_governance_recovered: '仓库治理恢复',
-      fund_contribute: '共同基金注资',
-      fund_spend: '共同基金支出',
+      fund_contributed: '共同基金注资',
+      fund_spent: '共同基金支出',
       fund_large_spend_draft_created: '大额草案创建',
       fund_large_spend_draft_confirmed: '大额草案确认',
       fund_large_spend_draft_executed: '大额草案扣款',
       fund_large_spend_draft_expired: '大额草案过期',
+      fund_high_risk_receipt_recorded: '高风险回执收口',
+      fund_high_risk_execution_blocked: '高风险扣款阻断',
       fund_order_income: '公共订单入基金',
+      fund_order_income_credited: '公共订单入基金',
       family_building_real_build_applied: '建筑真实落账',
       family_building_materials_consumed: '建筑材料消耗',
       family_building_rollback_recorded: '建筑回滚记录',
@@ -5345,9 +5348,34 @@
       const directionLabel = direction === 'inbound' ? '入仓' : direction === 'outbound' ? '出仓' : '入仓 / 出仓'
       return expiresAt > 0 ? `${target || '成员'} ${directionLabel}恢复至 ${formatTime(expiresAt)}` : `${target || '成员'} ${directionLabel}恢复已记录`
     }
+    if (entry.action === 'fund_high_risk_receipt_recorded') {
+      const purpose = typeof detail.purpose === 'string' ? detail.purpose : ''
+      const purposeLabel = typeof detail.purpose_label === 'string'
+        ? detail.purpose_label
+        : purpose === 'shared_decoration_removal'
+          ? '共同装修拆除'
+          : '高风险支出'
+      const outcome = detail.outcome === 'refunded' ? '退款回执' : '交付回执'
+      const amount = Number(detail.amount) || 0
+      const refundLedgerId = typeof detail.refund_fund_ledger_id === 'string' ? detail.refund_fund_ledger_id : ''
+      const originalLedgerId = typeof detail.original_fund_ledger_id === 'string' ? detail.original_fund_ledger_id : ''
+      if (purpose === 'shared_decoration_removal') {
+        const suffix = refundLedgerId ? `，退款 ledger ${refundLedgerId}` : '，不改个人小屋或装修主状态'
+        return `${purposeLabel}已记录${outcome}，原基金 ledger ${originalLedgerId || '待核对'}，金额 ${amount} 文${suffix}`
+      }
+      return `${purposeLabel}已记录${outcome}，金额 ${amount} 文，个人铜币不合并`
+    }
+    if (entry.action === 'fund_high_risk_execution_blocked') {
+      const pendingCount = Number(detail.pending_receipt_count) || 0
+      const requiredOperation = typeof detail.required_operation === 'string' ? detail.required_operation : 'record_high_risk_receipt'
+      return `仍有 ${pendingCount} 笔高风险扣款未收口，已阻断新的共同基金高风险执行；需先 ${requiredOperation}`
+    }
     if (entry.action === 'separation_preview_created') {
       const version = Number(detail.preview_version) || 1
-      return `预览版本 v${version}，仅生成返还草案，未执行拆分`
+      const disputeCount = Number(detail.shared_decoration_removal_dispute_count) || Number(detail.shared_decoration_removal_disputes) || 0
+      return disputeCount > 0
+        ? `预览版本 v${version}，冻结 ${disputeCount} 笔共同装修拆除争议，仅生成返还草案，未执行拆分`
+        : `预览版本 v${version}，仅生成返还草案，未执行拆分`
     }
     if (entry.action === 'separation_preview_confirmed') {
       const pending = Array.isArray(detail.pending_member_usernames) ? detail.pending_member_usernames.length : 0
