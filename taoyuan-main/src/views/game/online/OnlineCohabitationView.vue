@@ -263,6 +263,33 @@
                       {{ deferredOperationLabel(item) }}
                     </span>
                   </div>
+                  <div
+                    v-if="separationSharedDecorationRemovalDisputes.length"
+                    class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-shared-decoration-removal-disputes"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">共同装修拆除争议冻结</p>
+                      <span>
+                        待收口 {{ separationSharedDecorationRemovalFreezeSummary.pending_count }} 笔 · 冻结 {{ separationSharedDecorationRemovalFreezeSummary.total_amount }} 铜币
+                      </span>
+                    </div>
+                    <p class="leading-4">
+                      策略：{{ separationSharedDecorationRemovalFreezePolicy.status }}；需拆除完成或退款回执收口，不改个人小屋、家具或个人铜币。
+                    </p>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <div
+                        v-for="dispute in separationSharedDecorationRemovalDisputes"
+                        :key="`${dispute.draft_id}-${dispute.target_ref}-${dispute.original_fund_ledger_id}`"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                      >
+                        <p class="text-accent">{{ dispute.target_ref || '未绑定目标' }}</p>
+                        <p class="mt-1">金额：{{ dispute.amount }} · 状态：{{ dispute.status }}</p>
+                        <p class="mt-1 break-all">草案：{{ dispute.draft_id || '未知' }}</p>
+                        <p class="mt-1 break-all">基金流水：{{ dispute.original_fund_ledger_id || '待写入' }}</p>
+                      </div>
+                    </div>
+                  </div>
                   <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[10px] text-muted">
                     <p>{{ separationPreviewConfirmationLabel }}</p>
                     <div class="flex flex-wrap gap-2">
@@ -2276,6 +2303,20 @@
   }
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
+  type SeparationSharedDecorationRemovalDispute = {
+    draft_id: string
+    target_ref: string
+    original_fund_ledger_id: string
+    amount: number
+    status: string
+  }
+  type SeparationSharedDecorationRemovalFreezeSummary = {
+    pending_count: number
+    total_amount: number
+  }
+  type SeparationSharedDecorationRemovalFreezePolicy = {
+    status: string
+  }
 
   const largeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
     'family_building',
@@ -2406,6 +2447,35 @@
   const selectedContract = computed(() => cohabitationStore.selectedContract)
   const latestSeparationPreview = computed(() => selectedContract.value?.separation_previews?.[0] ?? null)
   const separationPreviewDeferredOperations = computed(() => latestSeparationPreview.value?.deferred_operations ?? [])
+  const separationSharedDecorationRemovalDisputes = computed<SeparationSharedDecorationRemovalDispute[]>(() => {
+    const disputes = latestSeparationPreview.value?.asset_return?.shared_decoration_removal_disputes
+    if (!Array.isArray(disputes)) return []
+    return disputes.map((entry) => {
+      const item = entry as Record<string, unknown>
+      return {
+        draft_id: String(item.draft_id ?? ''),
+        target_ref: String(item.target_ref ?? ''),
+        original_fund_ledger_id: String(item.original_fund_ledger_id ?? ''),
+        amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
+        status: String(item.status ?? item.state ?? 'pending'),
+      }
+    }).filter(item => item.draft_id || item.target_ref || item.original_fund_ledger_id || item.amount > 0)
+  })
+  const separationSharedDecorationRemovalFreezeSummary = computed<SeparationSharedDecorationRemovalFreezeSummary>(() => {
+    const summary = latestSeparationPreview.value?.asset_return?.shared_decoration_removal_freeze_summary as Record<string, unknown> | undefined
+    const disputes = separationSharedDecorationRemovalDisputes.value
+    const fallbackAmount = disputes.reduce((sum, dispute) => sum + dispute.amount, 0)
+    return {
+      pending_count: Math.max(0, Math.floor(Number(summary?.pending_count) || disputes.length)),
+      total_amount: Math.max(0, Math.floor(Number(summary?.total_amount) || fallbackAmount)),
+    }
+  })
+  const separationSharedDecorationRemovalFreezePolicy = computed<SeparationSharedDecorationRemovalFreezePolicy>(() => {
+    const policy = latestSeparationPreview.value?.asset_return?.shared_decoration_removal_freeze_policy as Record<string, unknown> | undefined
+    return {
+      status: String(policy?.status ?? policy?.mode ?? '等待拆除完成或退款回执'),
+    }
+  })
   const canCreateSeparationPreview = computed(() =>
     selectedContract.value?.status === 'active' && cohabitationStore.canOpenSelectedContract
   )
@@ -5006,6 +5076,7 @@
       child_arrangement_review: '孩子安排复核',
       high_risk_purchase_governance_review: '高风险采购治理复核',
       family_event_governance_review: '家庭事件治理复核',
+      freeze_shared_decoration_removal_disputes: '冻结共同装修拆除争议',
       write_family_building_ledger: '建筑流水',
       real_build_apply: '真实建造落账',
       demolish_family_building: '拆除家族建筑',
