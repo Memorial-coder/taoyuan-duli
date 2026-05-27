@@ -1363,6 +1363,30 @@ const FEED_ITEMS: ItemDef[] = [
     description: '南瓜和稻米拌成的绵甜宠物饭，适合猫狗日常亲密喂食。',
     sellPrice: 75,
     edible: false
+  },
+  {
+    id: 'sesame_patrol_biscuit',
+    name: '芝麻巡院饼',
+    category: 'material',
+    description: '芝麻粉、红薯饱腹粮与蜂蜜压成的高阶宠物点心，适合田犬巡院前补气味记忆。',
+    sellPrice: 120,
+    edible: false
+  },
+  {
+    id: 'lotus_heart_cat_treat',
+    name: '莲心桂花糕',
+    category: 'material',
+    description: '莲心粉、桂花与蜂蜜揉成的高阶宠物点心，适合猫与灵宠记住草本香气。',
+    sellPrice: 150,
+    edible: false
+  },
+  {
+    id: 'spirit_fruit_mooncake',
+    name: '灵果月华糕',
+    category: 'material',
+    description: '蜜桃脯、月草与莲心粉制成的高阶灵宠点心，稀有灵果线索更强但冷却更长。',
+    sellPrice: 260,
+    edible: false
   }
 ]
 
@@ -1777,6 +1801,9 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   felt: '织布机加工',
   sweet_potato_filling_feed: '石磨加工',
   pumpkin_pet_rice: '石磨加工',
+  sesame_patrol_biscuit: '石磨加工（芝麻粉×1、红薯饱腹粮×1、蜂蜜×1）',
+  lotus_heart_cat_treat: '石磨加工（莲心粉×1、桂花×1、蜂蜜×1）',
+  spirit_fruit_mooncake: '石磨加工（蜜桃脯×1、月草×1、莲心粉×1）',
   fish_feed: '商店购买 / 磨坊加工（干草×5）/ 回收站（垃圾×4）/ 旅行商人',
   water_purifier: '商店购买 / 旅行商人',
   // 采集类

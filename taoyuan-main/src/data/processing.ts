@@ -2167,6 +2167,51 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     processingDays: 1,
     description: '将南瓜与稻米拌磨成绵甜宠物饭，给南瓜一个稳定亲密喂食出口。'
   },
+  {
+    id: 'mill_sesame_patrol_biscuit',
+    machineType: 'mill',
+    name: '芝麻巡院饼',
+    inputItemId: 'sesame_powder',
+    inputQuantity: 1,
+    extraInputs: [
+      { itemId: 'sweet_potato_filling_feed', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'sesame_patrol_biscuit',
+    outputQuantity: 2,
+    processingDays: 1,
+    description: '将芝麻粉、红薯饱腹粮和蜂蜜压成高阶田犬点心，提供辛香巡院喂食出口。'
+  },
+  {
+    id: 'mill_lotus_heart_cat_treat',
+    machineType: 'mill',
+    name: '莲心桂花糕',
+    inputItemId: 'lotus_heart_powder',
+    inputQuantity: 1,
+    extraInputs: [
+      { itemId: 'osmanthus', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'lotus_heart_cat_treat',
+    outputQuantity: 2,
+    processingDays: 1,
+    description: '将莲心粉、桂花和蜂蜜揉成高阶猫与灵宠点心，延伸草本与芳香作物用途。'
+  },
+  {
+    id: 'mill_spirit_fruit_mooncake',
+    machineType: 'mill',
+    name: '灵果月华糕',
+    inputItemId: 'candied_peach',
+    inputQuantity: 1,
+    extraInputs: [
+      { itemId: 'moon_herb', quantity: 1 },
+      { itemId: 'lotus_heart_powder', quantity: 1 }
+    ],
+    outputItemId: 'spirit_fruit_mooncake',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '将蜜桃脯、月草和莲心粉制成高阶灵宠点心，偏向稀有灵果线索但不稳定刷材料。'
+  },
   // 鱼饲料
   {
     id: 'mill_fish_feed',

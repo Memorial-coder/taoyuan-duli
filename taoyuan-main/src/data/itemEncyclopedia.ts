@@ -369,6 +369,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
 
   const petFeed = getPetSpecialFeedByItemId(item.id)
   if (petFeed) {
+    pushDetail(details, '宠物点心等级', petFeed.tier === 'advanced' ? '高阶点心' : '日常喂食')
     pushDetail(details, '宠物口味', getPetSpecialFeedTasteLabel(petFeed.taste))
     pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(getPetTypeLabel).join('、'))
     pushDetail(details, '宠物用途标签', getPetSpecialFeedUseText(item.id))
@@ -624,6 +625,7 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
     keywords.push(
       '宠物',
       '宠物粮',
+      '宠物点心',
       '特别喂食',
       petFeed.label,
       petFeed.shortLabel,
@@ -634,6 +636,9 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
       '宠物喂食读取用途标签',
       'pet_feed 用途标签',
     )
+    if (petFeed.tier === 'advanced') {
+      keywords.push('高阶宠物点心', '高阶宠物粮', '高级宠物点心', '宠物点心第一批', '加工宠物点心')
+    }
     if (petFeed.taste === 'spirit_fruit' || petFeed.preferredPetTypes.includes('spirit')) {
       keywords.push('灵宠', '灵果', '丹材', '稀有采集物')
     }

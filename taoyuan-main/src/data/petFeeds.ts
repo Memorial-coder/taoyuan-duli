@@ -13,6 +13,7 @@ export interface PetSpecialFeedDef {
   rareFindChance: number
   rareFindCooldownDays: number
   rareFindPool: string[]
+  tier?: 'advanced'
   description: string
   feedback: Partial<Record<PetType, string>> & { default: string }
 }
@@ -187,6 +188,69 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     }
   },
   {
+    id: 'sesame_patrol_biscuit_bowl',
+    itemId: 'sesame_patrol_biscuit',
+    label: '芝麻巡院饼',
+    shortLabel: '巡院饼',
+    taste: 'spicy',
+    preferredPetTypes: ['dog'],
+    friendshipGain: 11,
+    preferredBonus: 4,
+    rareFindChance: 0.045,
+    rareFindCooldownDays: 6,
+    rareFindPool: ['pine_cone', 'bamboo_shoot', 'wild_mushroom', 'herb'],
+    tier: 'advanced',
+    description: '高阶辛香宠物点心，田犬更容易记住院外气味和巡查看护线索，带回后冷却更长。',
+    feedback: {
+      dog: '芝麻巡院饼让田犬一早沿着院墙慢慢巡了一圈，回来时鼻尖还沾着一点山风气味。',
+      cat: '猫对芝麻巡院饼的辛香有点谨慎，只把边缘舔了几口就去窗边观察院外动静。',
+      spirit: '灵宠把芝麻巡院饼闻了闻，像是把辛香气味当作院门外的路标。',
+      default: '宠物吃过芝麻巡院饼后，第二天更在意院外的气味变化。'
+    }
+  },
+  {
+    id: 'lotus_heart_cat_treat_bowl',
+    itemId: 'lotus_heart_cat_treat',
+    label: '莲心桂花糕',
+    shortLabel: '莲心糕',
+    taste: 'herbal',
+    preferredPetTypes: ['cat', 'spirit'],
+    friendshipGain: 11,
+    preferredBonus: 4,
+    rareFindChance: 0.045,
+    rareFindCooldownDays: 6,
+    rareFindPool: ['herb', 'ginseng', 'lotus_heart_powder', 'seed_osmanthus'],
+    tier: 'advanced',
+    description: '高阶草本宠物点心，猫与灵宠更容易触发安神、草本和来客气味线索。',
+    feedback: {
+      dog: '莲心桂花糕让田犬安静了不少，它把食盆边的桂花香认真闻了一遍。',
+      cat: '猫吃过莲心桂花糕后，把爪印轻轻留在窗台上，像是在提醒你今天适合静静待客。',
+      spirit: '灵宠吃过莲心桂花糕后，绕着药碾和桂花枝来回轻转，像是记住了更细的草木气息。',
+      default: '宠物吃过莲心桂花糕后，第二天对安静的草木气味更敏锐。'
+    }
+  },
+  {
+    id: 'spirit_fruit_mooncake_bowl',
+    itemId: 'spirit_fruit_mooncake',
+    label: '灵果月华糕',
+    shortLabel: '月华糕',
+    taste: 'spirit_fruit',
+    preferredPetTypes: ['spirit'],
+    friendshipGain: 12,
+    preferredBonus: 4,
+    rareFindChance: 0.05,
+    rareFindCooldownDays: 8,
+    rareFindPool: ['moon_herb', 'ginseng_extract', 'lotus_heart_powder', 'herbal_paste'],
+    tier: 'advanced',
+    description: '高阶灵果宠物点心，灵宠更容易触发稀有果香和丹材线索，但长冷却防止稳定刷稀有材料。',
+    feedback: {
+      dog: '灵果月华糕的气息太轻，田犬只在食盆旁闻了很久，像是听见了远处山路的回声。',
+      cat: '猫吃过灵果月华糕后，眯着眼守在窗边，像是在等一阵很淡的果香飘过。',
+      spirit: '灵宠吃过灵果月华糕后，额前微光亮了很久，第二天更容易循着灵果香找到丹材线索。',
+      default: '宠物吃过灵果月华糕后，第二天对稀有果香和草木灵息更敏锐。'
+    }
+  },
+  {
     id: 'peach_mood_bowl',
     itemId: 'peach',
     label: '桃子心情餐',
@@ -301,10 +365,13 @@ export const isPetSpecialFeedPreferred = (feed: PetSpecialFeedDef, petType: PetT
 export const getPetSpecialFeedFeedback = (feed: PetSpecialFeedDef, petType: PetType): string => feed.feedback[petType] || feed.feedback.default
 
 export const getPetSpecialFeedUseText = (itemId: string): string => {
+  const feed = getPetSpecialFeedByItemId(itemId)
+  const baseUseText = feed?.tier === 'advanced' ? '高阶宠物点心' : '特别喂食'
   const matches = getCropUseTagMatches(itemId, PET_SPECIAL_FEED_VISIBLE_USE_TAGS)
-  if (matches.length === 0) return '用途：特别喂食'
+  if (matches.length === 0) return `用途：${baseUseText}`
 
-  return `用途：${matches.map(match => match.label).join(' / ')}`
+  const matchText = matches.map(match => match.label).join(' / ')
+  return `用途：${feed?.tier === 'advanced' ? `${baseUseText} / ` : ''}${matchText}`
 }
 
 const isSpecialFeedItemEnabled = (itemId: string): boolean => {
