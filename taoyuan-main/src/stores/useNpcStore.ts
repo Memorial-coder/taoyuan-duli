@@ -2511,6 +2511,27 @@ export const useNpcStore = defineStore('npc', () => {
     const dayTag = getCurrentNpcDayTag()
     const reputationDelta = 12
     const summary = `${tie?.name ?? resident.name}收下「${commission.title}」，对你处理${resident.name}家事的方式多了信任。`
+    const commissionScene = getRandomNpcTriggeredDialogueScene(resident, {
+      direction: 'family_impression',
+      choiceId: `family_commission:${commission.id}`,
+      choiceText: commission.title,
+      preferredKinds: ['request', 'gift', 'festival']
+    })
+    const commissionSceneDirection = commissionScene?.relationshipDirection ?? 'family_impression'
+    const commissionSceneLine = buildRandomNpcDialogueSceneLine(commissionScene)
+    const commissionDialogueMemory = commissionScene
+      ? buildRandomNpcDialogueMemory({
+          npcName: resident.name,
+          dayTag,
+          choiceId: `family_commission:${commission.id}`,
+          choiceText: `家族委托「${commission.title}」`,
+          response: commissionSceneLine,
+          scene: commissionScene,
+          direction: commissionSceneDirection,
+          affinityChange: 6,
+          relationshipTag: resident.relationshipTag
+        })
+      : null
     const review: RandomNpcFamilyReviewEntry = {
       id: `${dayTag}:${residentId}:${commission.id}:commission`,
       dayTag,
@@ -2528,7 +2549,7 @@ export const useNpcStore = defineStore('npc', () => {
         affinity: Math.min(100, entry.affinity + 6),
         relationshipSignals: applyRandomNpcRelationshipSignal(
           sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
-          'family_impression',
+          commissionSceneDirection,
           reputationDelta
         ),
         familyLine: {
@@ -2541,7 +2562,17 @@ export const useNpcStore = defineStore('npc', () => {
           ),
           completedCommissionIds: [...new Set([...currentLine.completedCommissionIds, commission.id])].slice(0, RANDOM_NPC_FAMILY_REVIEW_LIMIT)
         },
-        keyEvents: [...entry.keyEvents, `${dayTag} 完成家族委托「${commission.title}」：${commission.rewardSummary}`].slice(-8)
+        keyEvents: [
+          ...entry.keyEvents,
+          `${dayTag} 完成家族委托「${commission.title}」：${commission.rewardSummary}${commissionSceneLine ? ` ${commissionSceneLine}` : ''}`
+        ].slice(-8),
+        dialogueMemories: commissionDialogueMemory
+          ? appendRandomNpcDialogueMemory(
+              entry.dialogueMemories,
+              commissionDialogueMemory,
+              RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT
+            )
+          : entry.dialogueMemories
       }
       return nextResident
     })
@@ -2553,14 +2584,15 @@ export const useNpcStore = defineStore('npc', () => {
               ...entry,
               affinity: nextResident!.affinity,
               relationshipSignals: sanitizeRandomNpcRelationshipSignals(nextResident!.relationshipSignals),
-              keyEvents: nextResident!.keyEvents.slice(-6)
+              keyEvents: nextResident!.keyEvents.slice(-6),
+              dialogueMemories: nextResident!.dialogueMemories.slice(-6)
             }
           : entry
       )
     }
     return {
       success: true,
-      message: `${resident.name}的家族委托已完成，${commission.rewardSummary} 好感+6，家族评价+${reputationDelta}。`,
+      message: `${resident.name}的家族委托已完成，${commission.rewardSummary} 好感+6，家族评价+${reputationDelta}。${commissionSceneLine ? ` ${commissionSceneLine}` : ''}`,
       resident: nextResident ?? resident
     }
   }
