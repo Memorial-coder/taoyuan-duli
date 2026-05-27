@@ -785,7 +785,7 @@
     const alchemyLimit = processingStore.getAlchemyDailyLimitStatus(recipe.id)
     const alchemyLimitText = alchemyLimit ? `${ALCHEMY_PILL_ROLE_LABELS[alchemyLimit.role]} ${alchemyLimit.used}/${alchemyLimit.limit}` : ''
     const alchemyMetaText = recipe.alchemy
-      ? `${ALCHEMY_NATURE_LABELS[recipe.alchemy.nature]} · ${ALCHEMY_HEAT_LABELS[recipe.alchemy.heat]}`
+      ? `${ALCHEMY_NATURE_LABELS[recipe.alchemy.nature]} · ${ALCHEMY_HEAT_LABELS[recipe.alchemy.heat]} · ${getAlchemyHeatResultHint(recipe.alchemy.heat)}`
       : ''
     const cropUseText =
       recipe.alchemy
@@ -1429,6 +1429,12 @@
 
   const getItemName = (id: string): string => {
     return getItemById(id)?.name ?? id
+  }
+
+  const getAlchemyHeatResultHint = (heat: NonNullable<ProcessingRecipeDef['alchemy']>['heat']): string => {
+    if (heat === 'gentle') return '稳成丹'
+    if (heat === 'strong') return '易出奇丹'
+    return '均衡火候'
   }
 
   const getRecipeName = (recipeId: string): string => {

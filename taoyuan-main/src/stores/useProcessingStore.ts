@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { AlchemyResultKind, MachineType, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
+import type { AlchemyHeat, AlchemyResultKind, MachineType, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
 import {
   PROCESSING_MACHINES,
   SPRINKLERS,
@@ -113,6 +113,11 @@ export const useProcessingStore = defineStore('processing', () => {
     excellent: { success: 10, partial: -2, failed: -3, rare: 2 },
     supreme: { success: 14, partial: -3, failed: -4, rare: 4 }
   }
+  const ALCHEMY_HEAT_WEIGHT_BONUS: Record<AlchemyHeat, Partial<Record<AlchemyResultKind, number>>> = {
+    gentle: { success: 5, partial: 1, failed: -2, rare: -1 },
+    steady: { success: 2, partial: -1, failed: -1, rare: 1 },
+    strong: { success: -3, partial: -2, failed: 3, rare: 5 }
+  }
 
   const sanitizeAlchemyResult = (recipe: ProcessingRecipeDef | null, raw: unknown): ProcessingSlot['alchemyResult'] | undefined => {
     if (!recipe?.alchemy?.results?.length || !raw || typeof raw !== 'object') return undefined
@@ -141,7 +146,12 @@ export const useProcessingStore = defineStore('processing', () => {
 
     const weightedRules = recipe.alchemy.results.map(rule => ({
       rule,
-      weight: Math.max(0.1, rule.weight + (ALCHEMY_QUALITY_WEIGHT_BONUS[inputQuality][rule.kind] ?? 0))
+      weight: Math.max(
+        0.1,
+        rule.weight +
+          (ALCHEMY_QUALITY_WEIGHT_BONUS[inputQuality][rule.kind] ?? 0) +
+          (ALCHEMY_HEAT_WEIGHT_BONUS[recipe.alchemy!.heat][rule.kind] ?? 0)
+      )
     }))
     const totalWeight = weightedRules.reduce((sum, entry) => sum + entry.weight, 0)
     let roll = Math.random() * totalWeight
