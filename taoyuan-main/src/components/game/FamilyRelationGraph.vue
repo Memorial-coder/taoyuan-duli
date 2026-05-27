@@ -209,7 +209,10 @@
     mentor: '师门',
     caravan: '商队',
     old_debt: '旧债',
-    family_business: '家业'
+    family_business: '家业',
+    sworn_kin: '义亲',
+    old_flame: '前缘',
+    child: '孩子'
   }
 
   const familyTieAttitudeLabels = {

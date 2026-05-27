@@ -232,6 +232,63 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       requestedItems: [{ itemId: 'bamboo', quantity: 2 }, { itemId: 'pumpkin', quantity: 1 }],
       rewardSummary: '可回赠花灯墙修补心得和节会布置建议。'
     }
+  },
+  {
+    id: 'river_oath_weaver',
+    nameSeeds: ['沈织', '柳阿澄', '乔晚灯'],
+    ageBand: 'adult',
+    gender: 'female',
+    occupation: '河湾织补师',
+    origin: '旧渡织坊',
+    personalityTags: ['克制', '护短', '记恩'],
+    speechStyle: '说话像收针脚一样慢，提到旧事时会先把线头捻平。',
+    appearanceKeywords: ['青布针包', '旧渡护符', '细密补线'],
+    taboo: '不喜欢别人把义亲和血亲分出轻重。',
+    lifeGoal: '想攒够布料和路费，把义女接到一个安稳地方读书。',
+    currentTrouble: '旧渡来信说义女要换季衣裳，她手边缺耐用布料和暖食。',
+    villagePurpose: '来桃源找一处能稳定接织补活的地方，也想确认旧日承诺是否还算数。',
+    romanceView: '愿意重新相信人，但要先看对方能否尊重她的旧缘和孩子牵挂。',
+    developmentRoutes: ['craft', 'friendship'],
+    plotHook: '避祸',
+    familySeed: '她有一位结义兄长、一个远在旧渡的义女，以及一段不愿仓促重提的前缘。',
+    familyTies: [
+      { id: 'oath_brother_ferryman', kind: 'sworn_kin', name: '何渡', relation: '结义兄长', summary: '旧渡摆渡人，曾在水灾夜里替她守过织坊门。', attitude: 'supportive' },
+      { id: 'adopted_daughter_qing', kind: 'child', name: '小青', relation: '义女', summary: '被她收养的孩子，正在旧渡读书，来信总把想念写得很小心。', attitude: 'distant' },
+      { id: 'unfinished_betrothal', kind: 'old_flame', name: '裴照', relation: '旧日婚约', summary: '旧年未成的婚约，对方后来从商远行，留下的不是怨而是难说清的牵挂。', attitude: 'burdened' },
+      { id: 'old_ferry_looms', kind: 'family_business', name: '旧渡织坊', relation: '旧业', summary: '织坊仍挂着她的旧名，也等着她决定要不要把新布样寄回去。', attitude: 'testing' }
+    ],
+    familyCommission: {
+      id: 'daughter_winter_bundle',
+      tieId: 'adopted_daughter_qing',
+      title: '义女的换季包',
+      summary: '小青要入冬换衣，她想备一份结实布料和暖食寄回旧渡。',
+      requestedItems: [{ itemId: 'bamboo', quantity: 1 }, { itemId: 'rice', quantity: 2 }],
+      rewardSummary: '家族评价提升，并让她相信桃源能接住孩子牵挂。'
+    },
+    preferences: {
+      loved: ['rice', 'osmanthus'],
+      liked: ['bamboo', 'tea'],
+      disliked: ['chili']
+    },
+    dialogueOpening: '她坐在桥边补一只旧布包，针线停在半空，问你桃源有没有能寄信的熟路。',
+    dialogueChoices: [
+      { id: 'ask_child', text: '问那只布包是不是给孩子的。', response: '她愣了一下，随后把针线放软，说孩子长得快，衣裳总追不上。', affinityChange: 15, relationshipTag: 'acquaintance', relationshipDirection: 'family_impression' },
+      { id: 'offer_route', text: '帮她打听去旧渡的稳妥路。', response: '她认真记下路线，说愿意欠你一次正经人情。', affinityChange: 16, relationshipTag: 'friend', relationshipDirection: 'trust' },
+      { id: 'avoid_old_story', text: '只夸她针脚细密。', response: '她笑了笑，没有追问你为什么避开旧事，只把线头收得更整齐。', affinityChange: 8, relationshipDirection: 'ambiguity' }
+    ],
+    dialogueScenes: [
+      { id: 'weaver_first_bridge', kind: 'first_meeting', title: '桥边补包', summary: '初见时围绕旧渡来信、义女衣裳和桃源寄信路试探彼此分寸。', triggerHint: '首次来访或旧日召回后出现。', relationshipDirection: 'family_impression' },
+      { id: 'weaver_request_bundle', kind: 'request', title: '换季包裹', summary: '求助准备米粮和耐用材料，寄给远在旧渡的义女。', triggerHint: '小订单或家族委托后出现。', relationshipDirection: 'trust' },
+      { id: 'weaver_old_flame_rain', kind: 'rain', title: '雨中旧约', summary: '雨天提起旧日婚约和未寄出的回信，决定是放下还是把话说清。', triggerHint: '雨天、暧昧方向或前缘节点会面后出现。', relationshipDirection: 'ambiguity' },
+      { id: 'weaver_farewell_letter', kind: 'farewell', title: '未封的信', summary: '离别时把给义女和旧人的信分开，确认桃源这一页是否还要留白。', triggerHint: '归档、长住收束或离别事件时出现。', relationshipDirection: 'trust' }
+    ],
+    smallOrder: {
+      id: 'ferry_letter_bundle',
+      title: '旧渡信包',
+      summary: '想收米和桂花，做一份能随信寄走的温和小包。',
+      requestedItems: [{ itemId: 'rice', quantity: 2 }, { itemId: 'osmanthus', quantity: 1 }],
+      rewardSummary: '可回赠织补心得和一段旧渡人情线索。'
+    }
   }
 ]
 

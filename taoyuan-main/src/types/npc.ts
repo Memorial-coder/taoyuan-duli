@@ -157,7 +157,17 @@ export type RandomNpcRelationshipTag = 'passing' | 'acquaintance' | 'friend' | '
 export type RandomNpcRelationshipDirection = 'trust' | 'ambiguity' | 'misunderstanding' | 'family_impression'
 
 export type RandomNpcRelationshipSignals = Record<RandomNpcRelationshipDirection, number>
-export type RandomNpcFamilyTieKind = 'parent' | 'sibling' | 'distant_relative' | 'mentor' | 'caravan' | 'old_debt' | 'family_business'
+export type RandomNpcFamilyTieKind =
+  | 'parent'
+  | 'sibling'
+  | 'distant_relative'
+  | 'mentor'
+  | 'caravan'
+  | 'old_debt'
+  | 'family_business'
+  | 'sworn_kin'
+  | 'old_flame'
+  | 'child'
 
 export type RandomNpcShortRomanceStatus = 'none' | 'invited' | 'ended'
 export type RandomNpcShortRomanceAction = 'invite' | 'end'

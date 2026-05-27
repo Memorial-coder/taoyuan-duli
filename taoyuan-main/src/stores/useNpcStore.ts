@@ -807,7 +807,10 @@ export const useNpcStore = defineStore('npc', () => {
           entry.kind === 'mentor' ||
           entry.kind === 'caravan' ||
           entry.kind === 'old_debt' ||
-          entry.kind === 'family_business'
+          entry.kind === 'family_business' ||
+          entry.kind === 'sworn_kin' ||
+          entry.kind === 'old_flame' ||
+          entry.kind === 'child'
             ? entry.kind
             : 'distant_relative'
         const attitude =
