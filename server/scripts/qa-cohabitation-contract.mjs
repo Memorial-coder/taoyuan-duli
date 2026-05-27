@@ -6152,6 +6152,61 @@ assert.ok(!decorationRemovalClearedPreview.preview.deferred_operations.includes(
 assert.equal(readGameplayData(decorationRemovalOwner)?.player?.money, decorationRemovalOwnerMoneyBeforeDraft, 'shared decoration removal cleared preview should not touch owner personal money')
 assert.equal(readGameplayData(decorationRemovalPartner)?.player?.money, decorationRemovalPartnerMoneyBeforeConfirm, 'shared decoration removal cleared preview should not touch partner personal money')
 
+const decorationRemovalDeliveredOwner = 'cohabit_drd_o27'
+const decorationRemovalDeliveredPartner = 'cohabit_drd_p27'
+const decorationRemovalDeliveredContractId = await setupDualLargeFundContract({
+  ownerUsername: decorationRemovalDeliveredOwner,
+  partnerUsername: decorationRemovalDeliveredPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'decoration-removal-delivered',
+})
+const decorationRemovalDeliveredFundBeforeDraft = await runtime.getCohabitationFund(decorationRemovalDeliveredContractId, actor(decorationRemovalDeliveredOwner))
+const decorationRemovalDeliveredBalanceBeforeDraft = decorationRemovalDeliveredFundBeforeDraft.fund.balance
+const decorationRemovalDeliveredOwnerMoneyBeforeDraft = readGameplayData(decorationRemovalDeliveredOwner)?.player?.money
+const decorationRemovalDeliveredPartnerMoneyBeforeConfirm = readGameplayData(decorationRemovalDeliveredPartner)?.player?.money
+const decorationRemovalDeliveredDraft = await runtime.createCohabitationFundLargeSpendDraft(decorationRemovalDeliveredContractId, {
+  amount: 1300,
+  purpose: 'shared_decoration_removal',
+  target_ref: 'shared_decoration:stone_lantern:remove',
+  memo: 'qa shared decoration removal delivered draft',
+  idempotency_key: 'qa-shared-decoration-removal-delivered-draft',
+}, actor(decorationRemovalDeliveredOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
+  memo: 'qa partner confirms delivered shared decoration removal',
+  idempotency_key: 'qa-shared-decoration-removal-delivered-confirm',
+}, actor(decorationRemovalDeliveredPartner))
+const decorationRemovalDeliveredExecute = await runtime.executeCohabitationFundLargeSpendDraft(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
+  memo: 'qa execute delivered shared decoration removal',
+  idempotency_key: 'qa-shared-decoration-removal-delivered-execute',
+}, actor(decorationRemovalDeliveredOwner))
+const decorationRemovalDeliveredPendingPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
+  reason: 'qa shared decoration removal delivered pending dispute freeze',
+  idempotency_key: 'qa-shared-decoration-removal-delivered-pending-preview',
+}, actor(decorationRemovalDeliveredOwner))
+assert.equal(decorationRemovalDeliveredPendingPreview.preview.asset_return.shared_decoration_removal_disputes.length, 1, 'delivered-path shared decoration removal should enter pending dispute freeze before receipt')
+const decorationRemovalDeliveredReceipt = await runtime.recordCohabitationFundHighRiskReceipt(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
+  outcome: 'delivered',
+  receipt_ref: 'shared_decoration_removal_receipt:stone_lantern:done',
+  memo: 'qa shared decoration removal completed receipt',
+  idempotency_key: 'qa-shared-decoration-removal-delivered-receipt',
+}, actor(decorationRemovalDeliveredOwner))
+assert.equal(decorationRemovalDeliveredReceipt.receipt.outcome, 'delivered', 'shared decoration removal delivered receipt should record delivered outcome')
+assert.equal(decorationRemovalDeliveredReceipt.refund_ledger_entry, null, 'shared decoration removal delivered receipt should not refund shared fund')
+assert.equal(decorationRemovalDeliveredReceipt.fund.balance, decorationRemovalDeliveredBalanceBeforeDraft - 1300, 'shared decoration removal delivered receipt should keep fund deduction')
+assert.equal(decorationRemovalDeliveredReceipt.contract.family_building_ledger.length, 0, 'shared decoration removal delivered receipt should not create building ledger')
+assert.ok(decorationRemovalDeliveredReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.outcome === 'delivered'), 'shared decoration removal delivered receipt should be audited')
+const decorationRemovalDeliveredClearedPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
+  reason: 'qa shared decoration removal delivered receipt clears dispute freeze',
+  idempotency_key: 'qa-shared-decoration-removal-delivered-cleared-preview',
+}, actor(decorationRemovalDeliveredOwner))
+assert.deepEqual(decorationRemovalDeliveredClearedPreview.preview.asset_return.shared_decoration_removal_disputes, [], 'delivered shared decoration removal should leave no pending dispute in a new separation preview')
+assert.equal(decorationRemovalDeliveredClearedPreview.preview.asset_return.shared_decoration_removal_freeze_summary.pending_count, 0, 'delivered shared decoration removal should clear pending dispute count')
+assert.equal(decorationRemovalDeliveredClearedPreview.preview.asset_return.shared_decoration_removal_freeze_summary.freeze_required, false, 'delivered shared decoration removal should not require dispute freeze')
+assert.ok(!decorationRemovalDeliveredClearedPreview.preview.compensation_plan.find(item => item.id === 'shared_decoration_removal_dispute_freeze'), 'delivered shared decoration removal should not add dispute freeze compensation plan')
+assert.ok(!decorationRemovalDeliveredClearedPreview.preview.deferred_operations.includes('freeze_shared_decoration_removal_disputes'), 'delivered shared decoration removal should clear dispute freeze deferred operation')
+assert.equal(readGameplayData(decorationRemovalDeliveredOwner)?.player?.money, decorationRemovalDeliveredOwnerMoneyBeforeDraft, 'shared decoration removal delivered clear preview should not touch owner personal money')
+assert.equal(readGameplayData(decorationRemovalDeliveredPartner)?.player?.money, decorationRemovalDeliveredPartnerMoneyBeforeConfirm, 'shared decoration removal delivered clear preview should not touch partner personal money')
+
 const warehouseGovernanceOwner = 'cohabit_wgov_owner26'
 const warehouseGovernancePartner = 'cohabit_wgov_part26'
 const warehouseGovernanceContractId = await setupDualLargeFundContract({
