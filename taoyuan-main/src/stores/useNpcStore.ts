@@ -32,6 +32,7 @@ import type {
   RandomNpcFamilyReviewEntry,
   RandomNpcFamilyTieDef,
   RandomNpcFamilyTieKind,
+  RandomNpcCommitmentStatus,
   RandomNpcRelationLineKind,
   RandomNpcRelationLineState,
   RandomNpcRelationshipDirection,
@@ -745,6 +746,10 @@ export const useNpcStore = defineStore('npc', () => {
   const createDefaultRandomNpcRelationLineState = (): RandomNpcRelationLineState => ({
     kind: 'friend',
     stage: 0,
+    commitmentStatus: 'none',
+    commitmentDayTag: '',
+    marriedDayTag: '',
+    homeLifeNote: '尚未形成婚约或婚后日常。',
     startedDayTag: '',
     updatedDayTag: '',
     note: '尚未选择长期关系线。',
@@ -759,9 +764,19 @@ export const useNpcStore = defineStore('npc', () => {
         : 'friend'
     const rawStage = Number(source.stage)
     const stage: 0 | 1 | 2 | 3 = rawStage === 1 || rawStage === 2 || rawStage === 3 ? rawStage : 0
+    const commitmentStatus: RandomNpcCommitmentStatus =
+      source.commitmentStatus === 'engaged' || source.commitmentStatus === 'married'
+        ? source.commitmentStatus
+        : 'none'
+    const effectiveCommitmentStatus: RandomNpcCommitmentStatus =
+      kind === 'romance' && stage > 0 ? commitmentStatus : 'none'
     return {
       kind,
-      stage: kind === 'severed' ? 0 : stage,
+      stage: kind === 'severed' ? 0 : (effectiveCommitmentStatus === 'married' ? 3 : effectiveCommitmentStatus === 'engaged' ? Math.max(stage, 2) as 2 | 3 : stage),
+      commitmentStatus: kind === 'severed' ? 'none' : effectiveCommitmentStatus,
+      commitmentDayTag: typeof source.commitmentDayTag === 'string' ? source.commitmentDayTag : '',
+      marriedDayTag: typeof source.marriedDayTag === 'string' ? source.marriedDayTag : '',
+      homeLifeNote: typeof source.homeLifeNote === 'string' ? source.homeLifeNote : createDefaultRandomNpcRelationLineState().homeLifeNote,
       startedDayTag: typeof source.startedDayTag === 'string' ? source.startedDayTag : '',
       updatedDayTag: typeof source.updatedDayTag === 'string' ? source.updatedDayTag : '',
       note: typeof source.note === 'string' ? source.note : createDefaultRandomNpcRelationLineState().note,
@@ -776,7 +791,9 @@ export const useNpcStore = defineStore('npc', () => {
             id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? '旧日'}:${eventKind}:${index}`,
             dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
             kind: eventKind,
-            action: entry.action === 'sever' ? 'sever' as const : 'start' as const,
+            action: entry.action === 'sever' || entry.action === 'engage' || entry.action === 'marry' || entry.action === 'home'
+              ? entry.action
+              : 'start' as const,
             summary: typeof entry.summary === 'string' ? entry.summary : getRandomNpcRelationLineLabel(eventKind)
           }
         })
@@ -1949,6 +1966,10 @@ export const useNpcStore = defineStore('npc', () => {
         relationshipLine: {
           kind,
           stage: 1,
+          commitmentStatus: 'none',
+          commitmentDayTag: '',
+          marriedDayTag: '',
+          homeLifeNote: '尚未形成婚约或婚后日常。',
           startedDayTag: currentLine.startedDayTag || dayTag,
           updatedDayTag: dayTag,
           note,
@@ -2008,6 +2029,10 @@ export const useNpcStore = defineStore('npc', () => {
         relationshipLine: {
           kind: 'severed',
           stage: 0,
+          commitmentStatus: 'none',
+          commitmentDayTag: currentLine.commitmentDayTag,
+          marriedDayTag: currentLine.marriedDayTag,
+          homeLifeNote: currentLine.homeLifeNote,
           startedDayTag: currentLine.startedDayTag,
           updatedDayTag: dayTag,
           note,
@@ -2032,6 +2057,178 @@ export const useNpcStore = defineStore('npc', () => {
     }
 
     return { success: true, message: `${resident.name}已断缘，关系线不会继续推进。`, resident: nextResident ?? resident }
+  }
+
+  const canEngageRandomNpcRelationLine = (
+    residentId: string
+  ): { success: boolean; message: string } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (line.kind !== 'romance' || line.stage <= 0) return { success: false, message: '需要先进入恋爱线。' }
+    if (line.commitmentStatus === 'married') return { success: false, message: '已经成婚。' }
+    if (line.commitmentStatus === 'engaged') return { success: false, message: '已经订婚。' }
+    if (resident.affinity < 90) return { success: false, message: '订婚需要好感 90。' }
+    const signals = sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals)
+    if ((signals.family_impression ?? 0) < 8) return { success: false, message: '订婚需要家族印象 8。' }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '随机 NPC 模板缺失。' }
+    if (sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission).reputation < 55) {
+      return { success: false, message: '订婚需要家族评价 55。' }
+    }
+    const fixedCompanion = npcStates.value.find(state => state.married || state.dating || state.zhiji)
+    if (fixedCompanion) return { success: false, message: '已有固定 NPC 婚恋或知己关系，不能订婚。' }
+    const activeLine = getActiveRandomNpcExclusiveLine(residentId)
+    if (activeLine) return { success: false, message: `${activeLine.name}已在${getRandomNpcRelationLineLabel(activeLine.relationshipLine.kind)}中。` }
+    return { success: true, message: '可以订婚。' }
+  }
+
+  const engageRandomNpcRelationLine = (
+    residentId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const guard = canEngageRandomNpcRelationLine(residentId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !resident) return { ...guard, resident }
+    const dayTag = getCurrentNpcDayTag()
+    const currentLine = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    const note = `${resident.name}与你定下婚约，关系线进入婚约阶段。`
+    const event = {
+      id: `${dayTag}:${residentId}:engage`,
+      dayTag,
+      kind: 'romance' as const,
+      action: 'engage' as const,
+      summary: note
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      nextResident = {
+        ...entry,
+        affinity: Math.min(100, entry.affinity + 4),
+        relationshipLine: {
+          ...currentLine,
+          kind: 'romance',
+          stage: 2,
+          commitmentStatus: 'engaged',
+          commitmentDayTag: currentLine.commitmentDayTag || dayTag,
+          updatedDayTag: dayTag,
+          note,
+          history: appendRandomNpcRelationLineHistory(currentLine, event)
+        },
+        keyEvents: [...entry.keyEvents, `${dayTag} 订婚：${note}`].slice(-8)
+      }
+      return nextResident
+    })
+    return { success: true, message: `${resident.name}已与你订婚。`, resident: nextResident ?? resident }
+  }
+
+  const canMarryRandomNpcRelationLine = (
+    residentId: string
+  ): { success: boolean; message: string } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (line.kind !== 'romance' || line.commitmentStatus !== 'engaged') return { success: false, message: '需要先完成订婚。' }
+    if (resident.affinity < 95) return { success: false, message: '成婚需要好感 95。' }
+    if (weddingCountdown.value > 0 || weddingNpcId.value) return { success: false, message: '已有固定 NPC 婚礼安排，不能同时成婚。' }
+    const fixedCompanion = npcStates.value.find(state => state.married || state.dating || state.zhiji)
+    if (fixedCompanion) return { success: false, message: '已有固定 NPC 婚恋或知己关系，不能再与随机 NPC 成婚。' }
+    const activeLine = getActiveRandomNpcExclusiveLine(residentId)
+    if (activeLine) return { success: false, message: `${activeLine.name}已在${getRandomNpcRelationLineLabel(activeLine.relationshipLine.kind)}中。` }
+    return { success: true, message: '可以成婚。' }
+  }
+
+  const marryRandomNpcRelationLine = (
+    residentId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const guard = canMarryRandomNpcRelationLine(residentId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !resident) return { ...guard, resident }
+    const dayTag = getCurrentNpcDayTag()
+    const currentLine = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    const note = `${resident.name}与你在桃源村成婚，婚后内容仅写入本地随机 NPC 存档。`
+    const event = {
+      id: `${dayTag}:${residentId}:marry`,
+      dayTag,
+      kind: 'romance' as const,
+      action: 'marry' as const,
+      summary: note
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      nextResident = {
+        ...entry,
+        relationshipTag: 'friend',
+        affinity: Math.min(100, entry.affinity + 5),
+        relationshipLine: {
+          ...currentLine,
+          kind: 'romance',
+          stage: 3,
+          commitmentStatus: 'married',
+          marriedDayTag: currentLine.marriedDayTag || dayTag,
+          updatedDayTag: dayTag,
+          homeLifeNote: `${dayTag} 成婚后开始记录婚后日常。`,
+          note,
+          history: appendRandomNpcRelationLineHistory(currentLine, event)
+        },
+        keyEvents: [...entry.keyEvents, `${dayTag} 成婚：${note}`].slice(-8)
+      }
+      return nextResident
+    })
+    return { success: true, message: `${resident.name}已与你成婚。`, resident: nextResident ?? resident }
+  }
+
+  const recordRandomNpcMarriedLife = (
+    residentId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const currentLine = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (currentLine.kind !== 'romance' || currentLine.commitmentStatus !== 'married') {
+      return { success: false, message: '需要先与这位随机 NPC 成婚。', resident }
+    }
+    const dayTag = getCurrentNpcDayTag()
+    const homeEvents = [
+      `${resident.name}帮你整理了今日的村务清单，提醒你别忘了照看熟人册。`,
+      `${resident.name}带来家里人的近况，婚后关系继续保留在单机存档。`,
+      `${resident.name}与你商量晚饭和明日采买，家族评价小幅稳定。`,
+      `${resident.name}在院中留下一封短笺，记录今日相处。`
+    ]
+    const summary = homeEvents[(resident.keyEvents.length + currentLine.history.length) % homeEvents.length]!
+    const event = {
+      id: `${dayTag}:${residentId}:home:${currentLine.history.length}`,
+      dayTag,
+      kind: 'romance' as const,
+      action: 'home' as const,
+      summary
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)
+      if (!template) return entry
+      const nextFamilyLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission)
+      nextResident = {
+        ...entry,
+        affinity: Math.min(100, entry.affinity + 1),
+        familyLine: {
+          ...nextFamilyLine,
+          reputation: Math.min(100, nextFamilyLine.reputation + 1)
+        },
+        relationshipLine: {
+          ...currentLine,
+          stage: 3,
+          commitmentStatus: 'married',
+          updatedDayTag: dayTag,
+          homeLifeNote: summary,
+          history: appendRandomNpcRelationLineHistory(currentLine, event)
+        },
+        keyEvents: [...entry.keyEvents, `${dayTag} 婚后日常：${summary}`].slice(-8)
+      }
+      return nextResident
+    })
+    return { success: true, message: summary, resident: nextResident ?? resident }
   }
 
   // ============================================================
@@ -4783,6 +4980,11 @@ export const useNpcStore = defineStore('npc', () => {
     canStartRandomNpcRelationLine,
     startRandomNpcRelationLine,
     severRandomNpcRelationLine,
+    canEngageRandomNpcRelationLine,
+    engageRandomNpcRelationLine,
+    canMarryRandomNpcRelationLine,
+    marryRandomNpcRelationLine,
+    recordRandomNpcMarriedLife,
     rehydrateRelationshipPerks,
     serialize,
     deserialize

@@ -213,7 +213,8 @@ export interface RandomNpcFamilyLineState {
 }
 
 export type RandomNpcRelationLineKind = 'friend' | 'romance' | 'zhiji' | 'sworn' | 'severed'
-export type RandomNpcRelationLineAction = 'start' | 'sever'
+export type RandomNpcRelationLineAction = 'start' | 'sever' | 'engage' | 'marry' | 'home'
+export type RandomNpcCommitmentStatus = 'none' | 'engaged' | 'married'
 
 export interface RandomNpcRelationLineEvent {
   id: string
@@ -226,6 +227,10 @@ export interface RandomNpcRelationLineEvent {
 export interface RandomNpcRelationLineState {
   kind: RandomNpcRelationLineKind
   stage: 0 | 1 | 2 | 3
+  commitmentStatus: RandomNpcCommitmentStatus
+  commitmentDayTag: string
+  marriedDayTag: string
+  homeLifeNote: string
   startedDayTag: string
   updatedDayTag: string
   note: string

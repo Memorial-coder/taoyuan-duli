@@ -539,6 +539,18 @@
                   <span class="text-[10px] text-accent">{{ getRandomNpcRelationLineLabel(resident.relationshipLine.kind) }}</span>
                 </div>
                 <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ resident.relationshipLine.note }}</p>
+                <p
+                  v-if="resident.relationshipLine.commitmentStatus !== 'none'"
+                  class="text-[10px] text-success/90 leading-4 mt-0.5"
+                >
+                  {{ getRandomNpcCommitmentStatusText(resident) }}
+                </p>
+                <p
+                  v-if="resident.relationshipLine.commitmentStatus === 'married'"
+                  class="text-[10px] text-muted leading-4 mt-0.5"
+                >
+                  婚后日常：{{ resident.relationshipLine.homeLifeNote }}
+                </p>
                 <p class="text-[10px] text-muted leading-4 mt-0.5">{{ getRandomNpcRelationLineHint(resident) }}</p>
                 <div v-if="getRecentRandomNpcRelationLineHistory(resident).length > 0" class="mt-1 space-y-1">
                   <p
@@ -567,6 +579,32 @@
                 >
                   断缘
                 </Button>
+                <div
+                  v-if="resident.relationshipLine.kind === 'romance' && resident.relationshipLine.stage > 0"
+                  class="grid grid-cols-3 gap-1 mt-1"
+                >
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canEngageRandomNpcRelationLine(resident).success"
+                    @click="handleEngageRandomNpcRelationLine(resident.residentId)"
+                  >
+                    订婚
+                  </Button>
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canMarryRandomNpcRelationLine(resident).success"
+                    @click="handleMarryRandomNpcRelationLine(resident.residentId)"
+                  >
+                    成婚
+                  </Button>
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="resident.relationshipLine.commitmentStatus !== 'married'"
+                    @click="handleRecordRandomNpcMarriedLife(resident.residentId)"
+                  >
+                    日常
+                  </Button>
+                </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
@@ -1918,6 +1956,16 @@
     resident: RandomNpcLongStayEntry,
     kind: Exclude<RandomNpcRelationLineKind, 'severed'>
   ) => npcStore.canStartRandomNpcRelationLine(resident.residentId, kind)
+  const canEngageRandomNpcRelationLine = (resident: RandomNpcLongStayEntry) =>
+    npcStore.canEngageRandomNpcRelationLine(resident.residentId)
+  const canMarryRandomNpcRelationLine = (resident: RandomNpcLongStayEntry) =>
+    npcStore.canMarryRandomNpcRelationLine(resident.residentId)
+  const getRandomNpcCommitmentStatusText = (resident: RandomNpcLongStayEntry): string => {
+    const line = resident.relationshipLine
+    if (line.commitmentStatus === 'married') return `已成婚${line.marriedDayTag ? ` · ${line.marriedDayTag}` : ''}`
+    if (line.commitmentStatus === 'engaged') return `已订婚${line.commitmentDayTag ? ` · ${line.commitmentDayTag}` : ''}`
+    return '未订婚'
+  }
   const getRandomNpcRelationLineButtonText = (
     resident: RandomNpcLongStayEntry,
     kind: Exclude<RandomNpcRelationLineKind, 'severed'>
@@ -2068,6 +2116,24 @@
     const result = npcStore.severRandomNpcRelationLine(residentId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC断缘】${result.message}`)
+  }
+
+  const handleEngageRandomNpcRelationLine = (residentId: string) => {
+    const result = npcStore.engageRandomNpcRelationLine(residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC婚约】${result.message}`)
+  }
+
+  const handleMarryRandomNpcRelationLine = (residentId: string) => {
+    const result = npcStore.marryRandomNpcRelationLine(residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC成婚】${result.message}`)
+  }
+
+  const handleRecordRandomNpcMarriedLife = (residentId: string) => {
+    const result = npcStore.recordRandomNpcMarriedLife(residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC婚后日常】${result.message}`)
   }
 
   const getVillageProjectRequirementProgress = (projectId: string): VillageProjectRequirementProgress[] => {
