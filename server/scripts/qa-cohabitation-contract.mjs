@@ -1446,6 +1446,60 @@ assert.equal(duplicateSharedFarmHarvest.warehouse.items.find(item => item.item_i
 assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, harvestOwnerRawBeforeSharedFarmHarvest, 'idempotent shared farm harvest should not rewrite harvest owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, harvestPartnerRawBeforeSharedFarmHarvest, 'idempotent shared farm harvest should not rewrite harvest partner save')
 
+const sharedWorkshopOwnerRawBeforeProcess = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const sharedWorkshopPartnerRawBeforeProcess = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const sharedWorkshopProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_dried_cabbage',
+  memo: 'qa process shared harvested cabbage',
+  idempotency_key: 'qa-shared-workshop-dried-cabbage',
+}, actor(harvestPartner))
+assert.equal(sharedWorkshopProcess.idempotent, false, 'first shared workshop process should not be idempotent')
+assert.equal(sharedWorkshopProcess.recipe.id, 'shared_dried_cabbage', 'shared workshop process should expose recipe id')
+assert.equal(sharedWorkshopProcess.warehouse.items.find(item => item.item_id === 'cabbage')?.quantity || 0, 0, 'shared workshop process should consume harvested cabbage')
+assert.equal(sharedWorkshopProcess.warehouse.items.find(item => item.item_id === 'dried_cabbage')?.quantity, 1, 'shared workshop process output should enter shared warehouse')
+assert.equal(sharedWorkshopProcess.warehouse_ledger_entries.length, 2, 'shared workshop process should write consume and deposit warehouse ledgers')
+assert.ok(sharedWorkshopProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'cabbage'), 'shared workshop process should consume input through warehouse ledger')
+assert.ok(sharedWorkshopProcess.warehouse_ledger_entries.some(entry => entry.action === 'deposit' && entry.item_id === 'dried_cabbage'), 'shared workshop process should deposit output through warehouse ledger')
+assert.ok(sharedWorkshopProcess.ledger_entry.source_ledger_ids.some(id => sharedWorkshopProcess.warehouse_ledger_entries.some(entry => entry.id === id && entry.action === 'consume')), 'shared workshop output should reference consume ledgers')
+assert.equal(sharedWorkshopProcess.workshop_action.personal_save_changed, false, 'shared workshop process should not mutate personal saves')
+assert.equal(sharedWorkshopProcess.workshop_action.shared_warehouse_changed, true, 'shared workshop process should declare shared warehouse changes')
+assert.equal(sharedWorkshopProcess.workshop_action.shared_fund_changed, false, 'shared workshop process should not touch shared fund')
+assert.ok(sharedWorkshopProcess.contract.audit_log.find(entry => entry.action === 'shared_workshop_processed'), 'shared workshop process should be audited')
+assert.ok(sharedWorkshopProcess.contract.origin_assets.warehouse_items.some(item => item.ledger_id === sharedWorkshopProcess.ledger_entry.id && item.action === 'deposit'), 'origin assets should reference shared workshop output ledger')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'shared workshop process should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'shared workshop process should not rewrite harvest partner save')
+
+const duplicateSharedWorkshopProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_dried_cabbage',
+  idempotency_key: 'qa-shared-workshop-dried-cabbage',
+}, actor(harvestPartner))
+assert.equal(duplicateSharedWorkshopProcess.idempotent, true, 'same shared workshop process idempotency key should be idempotent')
+assert.equal(duplicateSharedWorkshopProcess.warehouse.items.find(item => item.item_id === 'cabbage')?.quantity || 0, 0, 'idempotent shared workshop process should not restore input')
+assert.equal(duplicateSharedWorkshopProcess.warehouse.items.find(item => item.item_id === 'dried_cabbage')?.quantity, 1, 'idempotent shared workshop process should not duplicate output')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'idempotent shared workshop process should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'idempotent shared workshop process should not rewrite harvest partner save')
+
+await runtime.updateCohabitationPermissions(harvestContractCreated.contract.id, {
+  target_username: harvestPartner,
+  permissions: {
+    construction: {
+      move_common_furniture: false,
+      buy_furniture: false,
+    },
+  },
+  idempotency_key: 'qa-disable-partner-shared-workshop-process',
+}, actor(harvestOwner))
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+    recipe_id: 'shared_rice_flour',
+    idempotency_key: 'qa-shared-workshop-process-denied',
+  }, actor(harvestPartner)),
+  error => error?.status === 403,
+  'shared workshop process should reject members without workshop construction permission'
+)
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'permission-denied shared workshop process should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'permission-denied shared workshop process should not rewrite harvest partner save')
+
 await runtime.updateCohabitationPermissions(harvestContractCreated.contract.id, {
   target_username: harvestPartner,
   permissions: {

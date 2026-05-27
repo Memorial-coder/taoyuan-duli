@@ -234,6 +234,35 @@ const SHARED_ANIMAL_PRODUCT_CATALOG = Object.freeze({
   camel: { product_id: 'camel_milk', produce_days: 2 },
   ostrich: { product_id: 'ostrich_egg', produce_days: 3 },
 });
+const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
+  shared_dried_cabbage: {
+    id: 'shared_dried_cabbage',
+    label: '共同晒制干菜',
+    station: 'drying_rack',
+    input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }],
+    output_item_id: 'dried_cabbage',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_rice_flour: {
+    id: 'shared_rice_flour',
+    label: '共同石磨米粉',
+    station: 'stone_mill',
+    input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }],
+    output_item_id: 'rice_flour',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_herb_paste: {
+    id: 'shared_herb_paste',
+    label: '共同药碾草药膏',
+    station: 'medicine_grinder',
+    input_items: [{ item_id: 'herb', quantity: 2, quality: 'normal' }],
+    output_item_id: 'herb_paste',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+});
 
 const RELATION_TYPE_DEFS = Object.freeze({
   lover_cohabitation: {
@@ -5196,6 +5225,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_log_available: true,
       shared_farm_offline_writes_enabled: true,
       shared_animal_offline_writes_enabled: true,
+      shared_workshop_offline_writes_enabled: true,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
@@ -5217,6 +5247,9 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       feed_shared_animal: actorPermissions.animal.feed === true,
       pet_shared_animal: actorPermissions.animal.pet === true,
       collect_shared_animal_product: actorPermissions.animal.collect_product === true,
+      process_shared_workshop_recipe: actorPermissions.construction.move_common_furniture === true
+        || actorPermissions.construction.buy_furniture === true
+        || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
       read_warehouse: true,
       deposit_warehouse: actorPermissions.storage.deposit === true,
       withdraw_warehouse_common: actorPermissions.storage.withdraw_common === true,
@@ -6004,6 +6037,31 @@ function normalizeSharedAnimalFeedPayload(payload = {}) {
     ...request,
     feed_item_id: feedItemId,
   };
+}
+
+function normalizeSharedWorkshopProcessPayload(payload = {}) {
+  const recipeId = sanitizeText(payload.recipe_id || payload.recipeId || payload.id, 100);
+  const recipe = SHARED_WORKSHOP_RECIPE_CATALOG[recipeId];
+  if (!recipe) throw createError('shared workshop processing only supports whitelisted recipes', 403);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('shared workshop processing requires idempotency_key');
+  return {
+    recipe_id: recipe.id,
+    idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function assertSharedWorkshopProcessAllowed(contract = {}, member = {}, actorPermissions = {}) {
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  if (
+    actorPermissions?.construction?.move_common_furniture === true
+    || actorPermissions?.construction?.buy_furniture === true
+    || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(actorManorRole)
+  ) {
+    return true;
+  }
+  throw createError('shared workshop processing permission denied', 403);
 }
 
 function findSharedMapPlot(sharedMap = {}, plotId = '') {
@@ -10743,6 +10801,172 @@ async function collectCohabitationSharedAnimalProduct(contractId, payload = {}, 
       warehouse_ledger_ids: [warehouseLedgerEntry.id],
       before_animal_state: beforeState,
       after_animal_state: afterState,
+      personal_save_changed: false,
+      shared_warehouse_changed: true,
+      shared_fund_changed: false,
+    },
+  };
+}
+
+async function processCohabitationSharedWorkshopRecipe(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const request = normalizeSharedWorkshopProcessPayload(payload);
+  const recipe = SHARED_WORKSHOP_RECIPE_CATALOG[request.recipe_id];
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'process shared workshop recipe');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  assertSharedWorkshopProcessAllowed(contract, member, actorPermissions);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+
+  const previousOutputEntry = contract.shared_warehouse.ledger.find(entry =>
+    entry.action === 'deposit'
+    && entry.idempotency_key
+    && entry.idempotency_key === request.idempotency_key
+    && entry.target_ref === `shared_workshop:${recipe.id}`
+  );
+  if (previousOutputEntry) {
+    const previousWarehouseEntries = contract.shared_warehouse.ledger.filter(entry =>
+      entry.idempotency_key === request.idempotency_key
+      && (entry.target_ref === `shared_workshop:${recipe.id}` || entry.source_inventory === 'shared_warehouse.items')
+    );
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      recipe,
+      ledger_entry: previousOutputEntry,
+      warehouse_ledger_entries: previousWarehouseEntries,
+      idempotent: true,
+      already_processed: true,
+      workshop_action: {
+        action: 'process',
+        recipe_id: recipe.id,
+        personal_save_changed: false,
+        shared_warehouse_changed: true,
+        shared_fund_changed: false,
+      },
+    };
+  }
+
+  const allocationResults = recipe.input_items.map(input => ({
+    input,
+    result: buildWarehouseWithdrawalAllocations(contract.shared_warehouse, input.item_id, input.quantity, input.quality),
+  }));
+  const missingInput = allocationResults.find(entry => !entry.result.ok);
+  if (missingInput) throw createError('shared warehouse does not have enough normal materials for this workshop recipe', 409);
+
+  const operatedAt = nowSeconds();
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const targetRef = `shared_workshop:${recipe.id}`;
+  const consumeLedgerEntries = allocationResults.flatMap(({ input, result }) =>
+    result.allocations.map(allocation => normalizeWarehouseLedgerEntry({
+      id: makeId('shared_warehouse_ledger'),
+      action: 'consume',
+      item_id: input.item_id,
+      quantity: allocation.quantity,
+      quality: input.quality,
+      actor_username: actorUsername,
+      actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+      actor_manor_role: actorManorRole,
+      actor_manor_role_label: actorManorRoleDef?.label || '',
+      source_owner_id: allocation.source_owner_id,
+      source_owner_username: allocation.source_owner_username,
+      source_owner_display_name: allocation.source_owner_display_name,
+      source_owner_key: allocation.source_owner_key,
+      source_owner_manor_role: allocation.source_owner_manor_role,
+      source_owner_manor_role_label: allocation.source_owner_manor_role_label,
+      source_save_id: allocation.source_save_id,
+      source_save_slot: allocation.source_save_slot,
+      source_save_revision: allocation.source_save_revision,
+      source_inventory: allocation.source_inventory || 'shared_warehouse.items',
+      source_ledger_ids: allocation.source_ledger_ids,
+      target_owner_id: `shared_workshop:${contract.id}`,
+      target_owner_username: 'shared_workshop',
+      target_owner_display_name: 'shared workshop',
+      target_owner_key: 'shared_workshop',
+      target_inventory: 'shared_workshop.inputs',
+      target_ref: targetRef,
+      at: operatedAt,
+      idempotency_key: request.idempotency_key,
+      reversible: true,
+      compensation_hint: 'shared workshop processing consumed shared warehouse inputs; rollback should replay the paired consume and output deposit ledgers.',
+      status: 'committed',
+    }))
+  ).filter(Boolean);
+  const outputLedgerEntry = normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'deposit',
+    item_id: recipe.output_item_id,
+    quantity: recipe.output_quantity,
+    quality: recipe.output_quality,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    source_owner_id: `shared_workshop:${contract.id}`,
+    source_owner_username: 'shared_workshop',
+    source_owner_display_name: recipe.label,
+    source_owner_key: 'shared_workshop',
+    source_owner_manor_role: actorManorRole,
+    source_owner_manor_role_label: actorManorRoleDef?.label || '',
+    source_inventory: 'shared_workshop.outputs',
+    source_ledger_ids: consumeLedgerEntries.map(entry => entry.id),
+    target_owner_id: `shared_warehouse:${contract.id}`,
+    target_owner_username: 'shared_warehouse',
+    target_owner_display_name: 'shared warehouse',
+    target_owner_key: 'shared_warehouse',
+    target_inventory: 'shared_warehouse.items',
+    target_ref: targetRef,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    reversible: true,
+    compensation_hint: 'shared workshop output was deposited into shared warehouse; personal saves and shared fund are unchanged.',
+    status: 'committed',
+  });
+  const warehouseLedgerEntries = [outputLedgerEntry, ...consumeLedgerEntries];
+  contract.shared_warehouse.ledger = [...warehouseLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.warehouse_items = [
+    ...warehouseLedgerEntries.map(buildWarehouseOriginAsset),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  appendAudit(contract, 'shared_workshop_processed', actor, {
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+    consume_ledger_ids: consumeLedgerEntries.map(entry => entry.id),
+    output_ledger_id: outputLedgerEntry.id,
+    recipe_id: recipe.id,
+    station: recipe.station,
+    input_items: recipe.input_items,
+    output_item_id: recipe.output_item_id,
+    output_quantity: recipe.output_quantity,
+    output_quality: recipe.output_quality,
+    actor_username: actorUsername,
+    target_ref: targetRef,
+    personal_save_changed: false,
+    shared_warehouse_changed: true,
+    shared_fund_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    recipe,
+    ledger_entry: outputLedgerEntry,
+    warehouse_ledger_entries: warehouseLedgerEntries,
+    idempotent: false,
+    already_processed: false,
+    workshop_action: {
+      action: 'process',
+      recipe_id: recipe.id,
+      station: recipe.station,
+      input_items: recipe.input_items,
+      output_item_id: recipe.output_item_id,
+      output_quantity: recipe.output_quantity,
+      warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
       personal_save_changed: false,
       shared_warehouse_changed: true,
       shared_fund_changed: false,
@@ -17887,6 +18111,7 @@ module.exports = {
   feedCohabitationSharedAnimal,
   petCohabitationSharedAnimal,
   collectCohabitationSharedAnimalProduct,
+  processCohabitationSharedWorkshopRecipe,
   depositCohabitationWarehouseItem,
   withdrawCohabitationWarehouseItem,
   createCohabitationWarehouseHighValueWithdrawalDraft,
