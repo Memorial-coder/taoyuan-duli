@@ -5865,6 +5865,7 @@ const highRiskFundBeforeDraft = await runtime.getCohabitationFund(highRiskContra
 const highRiskPurposeIds = highRiskFundBeforeDraft.fund.summary.allowed_large_spend_purposes.map(purpose => purpose.id)
 assert.ok(highRiskPurposeIds.includes('rare_item_purchase'), 'fund snapshot should expose rare item high-risk purpose')
 assert.ok(highRiskPurposeIds.includes('limited_decoration'), 'fund snapshot should expose limited decoration high-risk purpose')
+assert.ok(highRiskPurposeIds.includes('shared_decoration_removal'), 'fund snapshot should expose shared decoration removal high-risk purpose')
 assert.ok(highRiskPurposeIds.includes('family_major_event'), 'fund snapshot should expose family major event high-risk purpose')
 const highRiskBalanceBeforeDraft = highRiskFundBeforeDraft.fund.balance
 const highRiskOwnerMoneyBeforeDraft = readGameplayData(highRiskOwner)?.player?.money
@@ -6062,6 +6063,63 @@ const duplicateFamilyEventRefund = await runtime.recordCohabitationFundHighRiskR
 }, actor(familyEventOwner))
 assert.equal(duplicateFamilyEventRefund.idempotent, true, 'family event refund should be idempotent')
 assert.equal(duplicateFamilyEventRefund.fund.balance, familyEventBalanceBeforeDraft, 'family event duplicate refund should not double refund')
+
+const decorationRemovalOwner = 'cohabit_dr_owner27'
+const decorationRemovalPartner = 'cohabit_dr_part27'
+const decorationRemovalContractId = await setupDualLargeFundContract({
+  ownerUsername: decorationRemovalOwner,
+  partnerUsername: decorationRemovalPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'decoration-removal-fund',
+})
+const decorationRemovalFundBeforeDraft = await runtime.getCohabitationFund(decorationRemovalContractId, actor(decorationRemovalOwner))
+const decorationRemovalBalanceBeforeDraft = decorationRemovalFundBeforeDraft.fund.balance
+const decorationRemovalOwnerMoneyBeforeDraft = readGameplayData(decorationRemovalOwner)?.player?.money
+const decorationRemovalPartnerMoneyBeforeConfirm = readGameplayData(decorationRemovalPartner)?.player?.money
+const decorationRemovalDraft = await runtime.createCohabitationFundLargeSpendDraft(decorationRemovalContractId, {
+  amount: 1300,
+  purpose: 'shared_decoration_removal',
+  target_ref: 'shared_decoration:tea_room_wall:remove',
+  memo: 'qa shared decoration removal draft',
+  idempotency_key: 'qa-shared-decoration-removal-draft',
+}, actor(decorationRemovalOwner))
+assert.equal(decorationRemovalDraft.draft.purpose, 'shared_decoration_removal', 'shared decoration removal draft should keep purpose')
+assert.equal(decorationRemovalDraft.draft.spend_category, 'shared_decoration_removal', 'shared decoration removal draft should keep category')
+assert.equal(decorationRemovalDraft.draft.target_ref, 'shared_decoration:tea_room_wall:remove', 'shared decoration removal draft should keep target ref')
+assert.ok(decorationRemovalDraft.draft.deferred_operations.includes('shared_decoration_removal_receipt'), 'shared decoration removal draft should require removal receipt')
+assert.equal(decorationRemovalDraft.shared_fund.deducted_amount, 0, 'shared decoration removal draft should not deduct shared fund')
+assert.equal(decorationRemovalDraft.fund.balance, decorationRemovalBalanceBeforeDraft, 'shared decoration removal draft should leave balance unchanged')
+await runtime.confirmCohabitationFundLargeSpendDraft(decorationRemovalContractId, decorationRemovalDraft.draft.id, {
+  memo: 'qa partner confirms shared decoration removal',
+  idempotency_key: 'qa-shared-decoration-removal-confirm',
+}, actor(decorationRemovalPartner))
+const decorationRemovalExecute = await runtime.executeCohabitationFundLargeSpendDraft(decorationRemovalContractId, decorationRemovalDraft.draft.id, {
+  memo: 'qa execute shared decoration removal',
+  idempotency_key: 'qa-shared-decoration-removal-execute',
+}, actor(decorationRemovalOwner))
+assert.equal(decorationRemovalExecute.draft.state, 'executed', 'shared decoration removal draft should execute')
+assert.equal(decorationRemovalExecute.ledger_entry.purpose, 'shared_decoration_removal', 'shared decoration removal ledger should keep purpose')
+assert.equal(decorationRemovalExecute.shared_fund.balance_after, decorationRemovalBalanceBeforeDraft - 1300, 'shared decoration removal execution should deduct shared fund once')
+assert.equal(decorationRemovalExecute.shared_fund.building_ledger_written, false, 'shared decoration removal should not write building ledger')
+assert.equal(decorationRemovalExecute.building_ledger_entry, null, 'shared decoration removal should return no building ledger')
+assert.ok(decorationRemovalExecute.draft.deferred_operations.includes('shared_decoration_removal_receipt'), 'executed shared decoration removal should wait for receipt')
+assert.equal(decorationRemovalExecute.contract.family_building_ledger.length, 0, 'shared decoration removal should not create family building ledger')
+assert.equal(readGameplayData(decorationRemovalOwner)?.player?.money, decorationRemovalOwnerMoneyBeforeDraft, 'shared decoration removal should not touch owner personal money')
+assert.equal(readGameplayData(decorationRemovalPartner)?.player?.money, decorationRemovalPartnerMoneyBeforeConfirm, 'shared decoration removal should not touch partner personal money')
+const decorationRemovalRefund = await runtime.recordCohabitationFundHighRiskReceipt(decorationRemovalContractId, decorationRemovalDraft.draft.id, {
+  outcome: 'refunded',
+  receipt_ref: 'shared_decoration_removal_receipt:tea_room_wall:refund',
+  memo: 'qa shared decoration removal refund receipt',
+  compensation_plan_acknowledged: true,
+  idempotency_key: 'qa-shared-decoration-removal-refund',
+}, actor(decorationRemovalOwner))
+assert.equal(decorationRemovalRefund.receipt.outcome, 'refunded', 'shared decoration removal receipt should record refund outcome')
+assert.equal(decorationRemovalRefund.refund_ledger_entry.action, 'high_risk_fund_refund', 'shared decoration removal refund should write fund refund ledger')
+assert.equal(decorationRemovalRefund.shared_fund.balance_after, decorationRemovalBalanceBeforeDraft, 'shared decoration removal refund should restore shared fund')
+assert.equal(decorationRemovalRefund.contract.family_building_ledger.length, 0, 'shared decoration removal refund should not create building ledger')
+assert.ok(decorationRemovalRefund.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.purpose === 'shared_decoration_removal'), 'shared decoration removal refund should be audited')
+assert.equal(readGameplayData(decorationRemovalOwner)?.player?.money, decorationRemovalOwnerMoneyBeforeDraft, 'shared decoration removal refund should not touch owner personal money')
+assert.equal(readGameplayData(decorationRemovalPartner)?.player?.money, decorationRemovalPartnerMoneyBeforeConfirm, 'shared decoration removal refund should not touch partner personal money')
 
 const warehouseGovernanceOwner = 'cohabit_wgov_owner26'
 const warehouseGovernancePartner = 'cohabit_wgov_part26'

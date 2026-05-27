@@ -136,6 +136,11 @@ const LARGE_FUND_SPEND_PURPOSES = Object.freeze({
     category: 'limited_decoration',
     max_amount: 40000,
   },
+  shared_decoration_removal: {
+    label: 'Shared decoration removal',
+    category: 'shared_decoration_removal',
+    max_amount: 35000,
+  },
   family_major_event: {
     label: '孩子 / 家庭重大事件',
     category: 'family_major_event',
@@ -5958,6 +5963,11 @@ function getLargeFundSpendDeferredOperations(purpose, executed = false) {
       ? ['family_event_resolution_receipt', 'child_arrangement_review', 'fund_compensation_replay']
       : ['confirm_large_fund_spend', 'execute_large_fund_spend', 'family_event_resolution_receipt', 'child_arrangement_review', 'fund_compensation_replay'];
   }
+  if (normalizedPurpose === 'shared_decoration_removal') {
+    return executed
+      ? ['shared_decoration_removal_receipt', 'shared_decoration_dispute_review', 'fund_compensation_replay']
+      : ['confirm_large_fund_spend', 'execute_large_fund_spend', 'shared_decoration_removal_receipt', 'shared_decoration_dispute_review', 'fund_compensation_replay'];
+  }
   return executed
     ? ['confirm_high_risk_purchase_receipt', 'delivery_or_refund', 'fund_compensation_replay']
     : ['confirm_large_fund_spend', 'execute_large_fund_spend', 'high_risk_purchase_receipt', 'delivery_or_refund', 'fund_compensation_replay'];
@@ -6030,7 +6040,7 @@ function normalizeLargeFundSpendDraftPayload(payload = {}) {
   if (amount > purposeDef.max_amount) throw createError(`该大额共同基金用途单次确认不能超过 ${purposeDef.max_amount}`);
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额确认草案需要 idempotency_key，以防断线或重试时重复生成');
-  const targetRef = sanitizeText(payload.target_ref || payload.target_id || payload.building_id || payload.expansion_id || payload.item_id || payload.decoration_id || payload.event_id || payload.child_event_id, 120);
+  const targetRef = sanitizeText(payload.target_ref || payload.target_id || payload.building_id || payload.expansion_id || payload.item_id || payload.decoration_id || payload.removal_id || payload.event_id || payload.child_event_id, 120);
   if (!targetRef) throw createError('共同基金大额确认草案需要 target_ref 记录高风险支出目标');
   return {
     amount,

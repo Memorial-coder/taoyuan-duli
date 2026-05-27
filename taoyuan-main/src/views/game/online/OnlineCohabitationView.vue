@@ -2266,7 +2266,7 @@
     amount: number
     maxAmount: number
   }
-  type FundLargeSpendPurpose = 'family_building' | 'manor_expansion' | 'rare_item_purchase' | 'limited_decoration' | 'family_major_event'
+  type FundLargeSpendPurpose = 'family_building' | 'manor_expansion' | 'rare_item_purchase' | 'limited_decoration' | 'shared_decoration_removal' | 'family_major_event'
   type FundLargeSpendOption = {
     label: string
     purpose: FundLargeSpendPurpose
@@ -2282,11 +2282,13 @@
     'manor_expansion',
     'rare_item_purchase',
     'limited_decoration',
+    'shared_decoration_removal',
     'family_major_event',
   ]
   const highRiskLargeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
     'rare_item_purchase',
     'limited_decoration',
+    'shared_decoration_removal',
     'family_major_event',
   ]
   const largeFundSpendTargetRefs: Record<FundLargeSpendPurpose, string> = {
@@ -2294,6 +2296,7 @@
     manor_expansion: 'manor_expansion:shared_plot:north',
     rare_item_purchase: 'rare_item:lotus_seed_rare',
     limited_decoration: 'limited_decoration:spring_lantern',
+    shared_decoration_removal: 'shared_decoration:tea_room_wall:remove',
     family_major_event: 'family_major_event:child_schooling',
   }
 
@@ -3072,12 +3075,14 @@
   const selectedLargeFundSpendPolicyLabel = computed(() => {
     const purpose = selectedFundLargeSpendOption.value?.purpose
     if (purpose === 'family_major_event') return '家庭 / 孩子回执待收口'
+    if (purpose === 'shared_decoration_removal') return '拆除 / 退款回执待收口'
     if (purpose === 'rare_item_purchase' || purpose === 'limited_decoration') return '交付 / 退款回执待收口'
     return selectedFundLargeSpendOption.value?.confirmationRequired ? '双方确认后执行' : '确认安全阀关闭'
   })
   const selectedLargeFundSpendExecutionSummary = computed(() => {
     const purpose = selectedFundLargeSpendOption.value?.purpose
     if (purpose === 'family_major_event') return '执行会扣共同基金；家庭事件和孩子安排后续通过回执收口，不直接改个人家庭主状态。'
+    if (purpose === 'shared_decoration_removal') return '执行会扣共同基金；共同装修拆除完成或退款后续通过回执收口，不直接改个人小屋主状态。'
     if (purpose === 'rare_item_purchase' || purpose === 'limited_decoration') return '执行会扣共同基金；采购交付或退款后续通过回执收口，不直接改个人背包或小屋。'
     return '执行会扣共同基金并写建筑流水；真实落账和材料消耗在建筑页继续提交。'
   })
@@ -3667,6 +3672,7 @@
       manor_expansion: '大额庄园扩建',
       rare_item_purchase: '稀有物采购',
       limited_decoration: '限定装饰采购',
+      shared_decoration_removal: '共同装修拆除确认',
       family_major_event: '孩子 / 家庭重大事件',
     }
     return labels[value] || value || '大额草案'
@@ -3732,6 +3738,7 @@
     const draft = selectedHighRiskReceiptDraft.value
     if (!draft) return 'receipt:ref'
     if (draft.purpose === 'family_major_event') return `family_event:${draft.target_ref}:receipt`
+    if (draft.purpose === 'shared_decoration_removal') return `shared_decoration_removal:${draft.target_ref}:receipt`
     return `delivery:${draft.target_ref}:receipt`
   })
   const canSubmitHighRiskReceipt = computed(() => {
@@ -3747,7 +3754,9 @@
     fundHighRiskReceiptOutcome.value = 'delivered'
     fundHighRiskReceiptRef.value = draft.high_risk_receipt_ref || (draft.purpose === 'family_major_event'
       ? `family_event:${draft.target_ref}:receipt`
-      : `delivery:${draft.target_ref}:receipt`)
+      : draft.purpose === 'shared_decoration_removal'
+        ? `shared_decoration_removal:${draft.target_ref}:receipt`
+        : `delivery:${draft.target_ref}:receipt`)
     fundHighRiskReceiptMemo.value = draft.high_risk_receipt_memo || ''
     fundHighRiskReceiptCompensationAcknowledged.value = false
   }

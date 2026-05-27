@@ -141,6 +141,7 @@ expectContains('online/OnlineCohabitationView.vue', 'building_materials', '共�
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-large-draft-submit', '共同基金前端应提供大额草案创建入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-large-draft-execute', '共同基金前端应提供大额草案执行扣款入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-high-risk-receipt-form', '共同基金前端应提供高风险回执表单')
+expectContains('online/OnlineCohabitationView.vue', 'shared_decoration_removal', '共同基金前端应开放共同装修拆除确认用途')
 expectContains('utils/cohabitationApi.ts', 'recordCohabitationFundHighRiskReceipt', '共同基金前端 API 应接入高风险回执接口')
 expectContains('stores/useCohabitationStore.ts', 'recordSharedFundHighRiskReceipt', '共同基金 store 应封装高风险回执刷新链路')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-water', '共同农田地图应提供浇水入口')
