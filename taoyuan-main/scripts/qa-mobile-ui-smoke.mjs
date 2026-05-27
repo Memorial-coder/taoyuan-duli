@@ -337,20 +337,139 @@ function buildMobileSmokeLanternWallVisualProject(contributed = false) {
   }
 }
 
-function buildMobileSmokeSocietyOverview(contributed = false) {
-  const lanternWallProject = buildMobileSmokeLanternWallProject(contributed)
+function buildMobileSmokeBridgeProject(contributed = false) {
+  return {
+    id: 'bridge',
+    label: '修复溪桥',
+    summary: '把雨季冲坏的溪桥修好，让村社往来恢复通行。',
+    status: 'active',
+    status_label: '建设中',
+    progress: contributed ? 42 : 30,
+    target_progress: 100,
+    progress_percent: contributed ? 42 : 30,
+    remaining_progress: contributed ? 58 : 70,
+    completed_at: 0,
+    completed_by: '',
+    completed_by_display_name: '',
+    progress_note: contributed ? '施工班刚补上一段桥面。' : '脚手架已经搭好，桥面等待施工行动。',
+    completion_feedback: '',
+    world_feedback: '',
+    completion_rewards: [],
+    can_contribute: true,
+    my_contribution_count: contributed ? 1 : 0,
+    contribution_packages: [
+      {
+        id: 'labor_shift',
+        label: '施工行动',
+        kind: 'labor',
+        summary: '安排一段修桥工班，不消耗大宗材料。',
+        progress_gain: 12,
+        daily_limit: 1,
+        weekly_limit: 3,
+        costs: []
+      }
+    ],
+    recent_contributions: contributed
+      ? [{ id: 'mobile-smoke-bridge-contribution', username: 'mobile_smoke_owner', display_name: '移动端烟测号', package_id: 'labor_shift', package_label: '施工行动', progress_gain: 12, created_at: 4 }]
+      : []
+  }
+}
+
+function buildMobileSmokeBridgeVisualProject(contributed = false) {
+  return {
+    id: 'bridge',
+    label: '修复溪桥',
+    kind: 'village_bridge',
+    day_tag: 'mobile-smoke-day',
+    week_tag: 'mobile-smoke-week',
+    starts_at: 0,
+    ends_at: 0,
+    current_stage_id: contributed ? 'bridge_deck' : 'bridge_scaffold',
+    stages: [
+      {
+        id: 'bridge_scaffold',
+        label: '搭脚手架',
+        state: contributed ? 'complete' : 'active',
+        progress_value: contributed ? 100 : 30,
+        progress_target: 100,
+        object_ids: ['bridge_scaffold', 'bridge_tools'],
+        contribution_options: contributed ? [] : [
+          {
+            id: 'labor_shift',
+            label: '施工行动',
+            kind: 'labor',
+            available_action_id: 'labor_shift',
+            daily_limit: 1,
+            weekly_limit: 3,
+            resource_cost_preview: {},
+            progress_delta: 12,
+            reward_preview: '公共工程 +12'
+          }
+        ],
+        milestones: [{ id: 'scaffold_ready', label: '脚手架就绪', progress_required: 35, reached: contributed }]
+      },
+      {
+        id: 'bridge_deck',
+        label: '铺桥面',
+        state: contributed ? 'active' : 'pending',
+        progress_value: contributed ? 42 : 0,
+        progress_target: 100,
+        object_ids: ['bridge_deck', 'bridge_planks'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'bridge_rail',
+        label: '修栏杆',
+        state: 'pending',
+        progress_value: 0,
+        progress_target: 100,
+        object_ids: ['bridge_rail'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'bridge_open',
+        label: '挂灯通行',
+        state: 'pending',
+        progress_value: 0,
+        progress_target: 100,
+        object_ids: ['bridge_lanterns', 'bridge_memorial'],
+        contribution_options: [],
+        milestones: []
+      }
+    ],
+    contributors: contributed ? [
+      { username: 'mobile_smoke_owner', display_name: '移动端烟测号', contribution_value: 12, rank: 1 }
+    ] : [],
+    history: contributed ? [
+      { id: 'mobile-smoke-bridge-history', summary: '移动端烟测号补上一段修桥工班。', created_at: 4 }
+    ] : [],
+    completion_room_template_id: '',
+    completion_event_id: ''
+  }
+}
+
+function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lantern_wall') {
+  const isBridge = projectKind === 'bridge'
+  const publicProject = isBridge
+    ? buildMobileSmokeBridgeProject(contributed)
+    : buildMobileSmokeLanternWallProject(contributed)
+  const visualProject = isBridge
+    ? buildMobileSmokeBridgeVisualProject(contributed)
+    : buildMobileSmokeLanternWallVisualProject(contributed)
   return {
     ok: true,
     bulletin: '移动端村社 smoke',
     my_society: {
       id: 'mobile-smoke-society',
-      name: '清溪灯社',
+      name: isBridge ? '清溪桥社' : '清溪灯社',
       summary: '移动端公共建设测试村社',
-      notice: '本周先点亮花灯墙。',
-      emblem: 'lantern_medallion',
-      emblem_label: '灯章',
-      theme: 'festival_hosts',
-      theme_label: '节会主办',
+      notice: isBridge ? '本周先把溪桥修通。' : '本周先点亮花灯墙。',
+      emblem: isBridge ? 'bridge_badge' : 'lantern_medallion',
+      emblem_label: isBridge ? '桥章' : '灯章',
+      theme: isBridge ? 'public_works' : 'festival_hosts',
+      theme_label: isBridge ? '公共营造' : '节会主办',
       visibility: 'public',
       visibility_label: '公开',
       capacity: 24,
@@ -383,14 +502,16 @@ function buildMobileSmokeSocietyOverview(contributed = false) {
       activity_log: [],
       active_proposals: [],
       proposal_history: [],
-      public_projects: [lanternWallProject],
+      public_projects: [publicProject],
       visual_state: {
         ...emptyVisualState,
         board_type: 'async',
         board_id: 'society_public_projects',
-        selected_visual_id: 'lantern_wall',
-        recent_feedback: contributed ? '移动端烟测号写下一张愿望签，花灯墙亮了一角。' : '',
-        async_projects: [buildMobileSmokeLanternWallVisualProject(contributed)]
+        selected_visual_id: publicProject.id,
+        recent_feedback: contributed
+          ? (isBridge ? '移动端烟测号补上一段修桥工班，桥面推进了一截。' : '移动端烟测号写下一张愿望签，花灯墙亮了一角。')
+          : '',
+        async_projects: [visualProject]
       },
       welfare_unlocks: [],
       exclusive_festival: { id: '', label: '', summary: '', unlocked: false },
@@ -434,8 +555,8 @@ function buildMobileSmokeSocietyOverview(contributed = false) {
     join_requirement_options: [{ id: 'open', label: '来者皆可', summary: '' }],
     role_options: [{ id: 'president', label: '社长' }],
     proposal_kind_options: [{ id: 'governance', label: '治理', summary: '' }],
-    public_project_defs: [{ id: 'lantern_wall', label: '共建花灯墙', summary: '', target_progress: 100 }],
-    public_project_package_options: lanternWallProject.contribution_packages
+    public_project_defs: [{ id: publicProject.id, label: publicProject.label, summary: '', target_progress: 100 }],
+    public_project_package_options: publicProject.contribution_packages
   }
 }
 
@@ -1056,6 +1177,7 @@ function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
 async function createPage(browser, viewport, options = {}) {
   const mockSocial = Boolean(options.mockSocial)
   const mockSociety = Boolean(options.mockSociety)
+  const mockSocietyProject = options.mockSocietyProject || 'lantern_wall'
   const mockOrders = Boolean(options.mockOrders)
   const mockManor = Boolean(options.mockManor)
   const context = await browser.newContext({
@@ -1171,12 +1293,12 @@ async function createPage(browser, viewport, options = {}) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(buildMobileSmokeSocietyOverview(societyContributed))
+        body: JSON.stringify(buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject))
       })
     })
     await page.route('**/api/taoyuan/online/societies/public-projects/*/contribute', async route => {
       societyContributed = true
-      const overview = buildMobileSmokeSocietyOverview(societyContributed)
+      const overview = buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject)
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -1316,11 +1438,12 @@ async function captureScenario({
   primarySelector,
   mockSocial = false,
   mockSociety = false,
+  mockSocietyProject = 'lantern_wall',
   mockOrders = false,
   mockManor = false,
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockOrders, mockManor })
+  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -1592,6 +1715,43 @@ async function prepareOnlineSocietyProjectsMobile(page) {
   await expect(page.getByTestId('async-community-project-detail')).toContainText('挂花灯')
   await expect(page.getByText('移动端烟测号写下一张愿望签，花灯墙亮了一角。')).toBeVisible()
   await expect(page.getByTestId('online-society-project-contribute-lantern_wall-write_wish')).toBeVisible()
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-society-page"]')
+    if (!root) return ['online-society-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .async-community-board__project-tabs')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
+async function prepareOnlineSocietyBridgeMobile(page) {
+  await expect(page.getByTestId('online-society-page')).toBeVisible()
+  await expect(page.getByText('清溪桥社').first()).toBeVisible()
+  await expect(page.getByTestId('online-module-tab-projects')).toBeVisible()
+  await page.getByTestId('online-module-tab-projects').click()
+
+  await expect(page.getByTestId('async-community-board')).toBeVisible()
+  await expect(page.getByTestId('async-community-project-detail')).toContainText('搭脚手架')
+  await expect(page.getByTestId('online-society-async-contribute-bridge-labor_shift')).toBeVisible()
+  await page.getByTestId('online-society-async-contribute-bridge-labor_shift').click()
+  await expect(page.getByTestId('async-community-project-detail')).toContainText('铺桥面')
+  await expect(page.getByText('移动端烟测号补上一段修桥工班，桥面推进了一截。')).toBeVisible()
+  await expect(page.getByTestId('online-society-project-contribute-bridge-labor_shift')).toBeVisible()
 
   const clippedControls = await page.evaluate(() => {
     const root = document.querySelector('[data-testid="online-society-page"]')
@@ -1920,7 +2080,27 @@ async function main() {
       })
       await captureScenario({
         browser,
-        label: '30-online-manor-care-room-mobile-390x844',
+        label: '30-online-society-bridge-mobile-390x844',
+        hash: '/#/game/online/society?tab=projects',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyProject: 'bridge',
+        prepare: prepareOnlineSocietyBridgeMobile
+      })
+      await captureScenario({
+        browser,
+        label: '31-online-society-bridge-mobile-360x780',
+        hash: '/#/game/online/society?tab=projects',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyProject: 'bridge',
+        prepare: prepareOnlineSocietyBridgeMobile
+      })
+      await captureScenario({
+        browser,
+        label: '32-online-manor-care-room-mobile-390x844',
         hash: '/#/game/online/manor',
         viewport: { width: 390, height: 844 },
         primarySelector: '[data-testid="online-manor-page"]',
@@ -1929,7 +2109,7 @@ async function main() {
       })
       await captureScenario({
         browser,
-        label: '31-online-manor-care-room-mobile-360x780',
+        label: '33-online-manor-care-room-mobile-360x780',
         hash: '/#/game/online/manor',
         viewport: { width: 360, height: 780 },
         primarySelector: '[data-testid="online-manor-page"]',
@@ -1953,7 +2133,7 @@ async function main() {
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
         '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
-        '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙贡献按钮点击、贡献后阶段反馈和移动端横向溢出断言。',
+        '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、贡献后阶段反馈和移动端横向溢出断言。',
         '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]
     }

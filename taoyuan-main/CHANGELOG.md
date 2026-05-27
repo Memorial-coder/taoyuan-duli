@@ -13,6 +13,10 @@
 - 两档手机视口会断言护理房进度、顺序风险摘要、结算凭证、动作明细和横向溢出。
 - `qa:online-ui-structure` 同步守卫护理房移动端 smoke 的两档场景、准备函数、结算凭证和动作明细断言，防止浏览器路径被静默移除。
 
+### 0527 村社修桥移动端 smoke
+- `qa:mobile-ui-smoke` 新增在线村社修桥 mock，覆盖“清溪桥社”公共工程、`labor_shift` 施工行动点击和阶段反馈。
+- 两档手机视口会断言修桥从“搭脚手架”推进到“铺桥面”，并检查主要控件无横向溢出；`qa:online-ui-structure` 同步守卫该路径。
+
 ### 0527 公共订单接力移动端 smoke
 - `qa:mobile-ui-smoke` 新增在线委托接力单 mock，覆盖接力筛选、`AsyncCommunityBoard` 路线按钮点击、故事流转图和分账摘要。
 - 两档手机视口会点击 `accept_stage:stage_process`，断言阶段切到“送到灯会”并显示移动端接单反馈。
