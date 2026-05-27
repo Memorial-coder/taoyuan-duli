@@ -119,6 +119,23 @@
           <!-- 展开的机器明细 -->
           <div v-if="!collapsedGroups.has(group.machineType)" class="flex flex-col space-y-1.5 px-2 pb-2">
             <div
+              v-if="group.recommendationOptions.length > 0"
+              class="rounded-xs border border-accent/15 bg-accent/5 px-2 py-1.5"
+            >
+              <p class="text-[10px] text-accent mb-1">用途推荐</p>
+              <div
+                v-for="option in group.recommendationOptions"
+                :key="`recommend-${option.key}`"
+                class="flex items-start justify-between gap-2 py-0.5"
+              >
+                <div class="min-w-0">
+                  <p class="text-xs text-text truncate">{{ option.displayName }}</p>
+                  <p class="text-[10px] text-muted leading-snug">{{ option.recommendationText }}</p>
+                </div>
+                <span class="text-[10px] text-accent/80 shrink-0">{{ !option.disabled ? '可开工' : option.alchemyBlocked ? '今日已满' : '缺材料' }}</span>
+              </div>
+            </div>
+            <div
               v-for="{ slot, originalIndex } in group.slots"
               :key="originalIndex"
               class="border rounded-xs p-2"
@@ -674,6 +691,7 @@
     alchemyLimitText: string
     alchemyMetaText: string
     cropUseText: string
+    recommendationText: string
     alchemyBlocked: boolean
   }
 
@@ -693,6 +711,7 @@
     isSeedMaker: boolean
     recipeOptions: RecipeOptionViewModel[]
     seedRecipeOptions: RecipeOptionViewModel[]
+    recommendationOptions: RecipeOptionViewModel[]
     isEmpty: boolean
     emptyMessage: string
   }
@@ -747,6 +766,23 @@
   const formatCropUseTags = (itemIds: string[], tags: CropUseTag[]): string => {
     const labels = uniqueStrings(itemIds.flatMap(itemId => getCropUseTagMatches(itemId, tags).map(match => match.label)))
     return labels.length > 0 ? `用途：${labels.join('、')}` : ''
+  }
+
+  const buildProcessingRecommendationText = (
+    recipe: ProcessingRecipeDef,
+    available: boolean,
+    alchemyMetaText: string,
+    cropUseText: string
+  ): string => {
+    if (!recipe.alchemy || !available) return ''
+    const effectText = recipe.alchemy.effect.description
+    if (/宠物安抚/.test(effectText)) return `推荐：宠物安抚短效 · ${alchemyMetaText}`
+    if (/NPC 对话/.test(effectText)) return `推荐：NPC 文游对话短效 · ${alchemyMetaText}`
+    if (/节会奖金/.test(effectText)) return `推荐：节会前服用 · ${alchemyMetaText}`
+    if (/送礼/.test(effectText)) return `推荐：送礼拜访前服用 · ${alchemyMetaText}`
+    if (/采矿|矿洞/.test(effectText)) return `推荐：矿洞探索前服用 · ${alchemyMetaText}`
+    if (/远征|行动/.test(effectText)) return `推荐：行旅或公共订单前服用 · ${alchemyMetaText}`
+    return cropUseText ? `推荐：炼丹用途标签匹配 · ${alchemyMetaText}` : ''
   }
 
   const canAffordCraft = (craftCost: { itemId: string; quantity: number }[], craftMoney: number): boolean => {
@@ -804,6 +840,7 @@
             ['alchemy', 'medicine']
           )
         : ''
+    const recommendationText = buildProcessingRecommendationText(recipe, available && !alchemyLimit?.blocked, alchemyMetaText, cropUseText)
 
     return {
       key: quality ? `${recipe.id}:${quality}` : recipe.id,
@@ -820,6 +857,7 @@
       alchemyLimitText,
       alchemyMetaText,
       cropUseText,
+      recommendationText,
       alchemyBlocked: !!alchemyLimit?.blocked
     }
   }
@@ -873,6 +911,7 @@
           isSeedMaker: slot.machineType === 'seed_maker',
           recipeOptions: [],
           seedRecipeOptions: [],
+          recommendationOptions: [],
           isEmpty: false,
           emptyMessage: onlyAvailable.value ? '没有材料足够的配方' : '无可用配方'
         }
@@ -903,6 +942,9 @@
         group.recipeOptions = getRecipeOptions(group.machineType)
         group.isEmpty = group.recipeOptions.length === 0
       }
+      group.recommendationOptions = [...group.recipeOptions, ...group.seedRecipeOptions]
+        .filter(option => option.recommendationText)
+        .slice(0, 3)
     }
 
     return [...groupMap.values()].sort((a, b) => (machineTypeOrder.get(a.machineType) ?? 99) - (machineTypeOrder.get(b.machineType) ?? 99))

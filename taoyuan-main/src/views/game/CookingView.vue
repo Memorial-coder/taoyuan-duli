@@ -38,6 +38,22 @@
       </div>
     </div>
 
+    <!-- 用途推荐 -->
+    <div v-if="cookingRecommendations.length > 0" class="border border-accent/20 rounded-xs px-3 py-1.5 mb-3">
+      <p class="text-[10px] text-accent mb-1">用途推荐</p>
+      <div
+        v-for="info in cookingRecommendations"
+        :key="`recommend-${info.recipe.id}`"
+        class="flex items-start justify-between gap-2 py-0.5"
+      >
+        <div class="min-w-0">
+          <p class="text-xs text-text truncate">{{ info.recipe.name }}</p>
+          <p class="text-[10px] text-muted leading-snug">{{ info.recommendationText }}</p>
+        </div>
+        <button class="text-[10px] text-accent/80 shrink-0" @click="openModal(info.recipe.id)">查看</button>
+      </div>
+    </div>
+
     <!-- 食谱列表 -->
     <div v-if="displayedRecipeInfos.length > 0" class="border border-accent/20 rounded-xs divide-y divide-accent/10 mb-4">
       <div
@@ -62,6 +78,7 @@
         <p v-if="info.storyTriggerText" class="text-[10px] text-water/90 mt-0.5">{{ info.storyTriggerText }}</p>
         <p v-if="info.recipe.effect.buff" class="text-[10px] text-water mt-0.5">{{ info.recipe.effect.buff.description }}</p>
         <p v-if="info.cropUseText" class="text-[10px] text-muted mt-0.5">{{ info.cropUseText }}</p>
+        <p v-if="info.recommendationText" class="text-[10px] text-accent/80 mt-0.5">{{ info.recommendationText }}</p>
       </div>
     </div>
     <div v-else class="flex flex-col items-center justify-center py-8 mb-4">
@@ -103,6 +120,9 @@
             </p>
             <p v-if="modalInfo.recipe.effect.buff" class="text-xs text-water mt-0.5">
               {{ modalInfo.recipe.effect.buff.description }}
+            </p>
+            <p v-if="modalInfo.recommendationText" class="text-xs text-accent/80 mt-0.5">
+              {{ modalInfo.recommendationText }}
             </p>
           </div>
 
@@ -203,6 +223,23 @@
     return labels.length > 0 ? `用途：${labels.join('、')}` : ''
   }
 
+  const buildCookingRecommendationText = (
+    canCook: boolean,
+    categoryText: string,
+    storyTriggerText: string,
+    cropUseText: string
+  ): string => {
+    if (!canCook) return ''
+    const source = `${categoryText} ${storyTriggerText} ${cropUseText}`
+    if (/节会|供品/.test(source)) return '推荐：节会前备菜，可转成节会剧情线索。'
+    if (/宠物/.test(source)) return '推荐：宠物反馈料理，可用于牧场特别喂食。'
+    if (/家宴|团圆/.test(source)) return '推荐：家宴团圆话题，可用于村民闲谈。'
+    if (/送礼|好感|伴手礼/.test(source)) return '推荐：送礼话题料理，可辅助 NPC 关系推进。'
+    if (/旅途|补给/.test(source)) return '推荐：旅途补给，可用于行旅路线反馈。'
+    if (/订单|委托/.test(source)) return '推荐：订单委托备餐，可服务任务交付。'
+    return cropUseText ? '推荐：料理用途标签匹配，可作为作物消耗路径。' : ''
+  }
+
   /** 预计算食谱信息（不含数量，避免改数量触发全量重算） */
   const recipeInfos = computed(() => {
     return cookingStore.recipes.map(recipe => {
@@ -226,9 +263,12 @@
       const storyTriggerText = getRecipeStoryTriggerLabels(recipe).join('、')
       const cropUseLabels = uniqueStrings(ingredients.map(ing => ing.cropUseText.replace(/^用途：/, '')))
       const cropUseText = cropUseLabels.length > 0 ? `用途标签：${cropUseLabels.join('、')}` : ''
-      return { recipe, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText }
+      const recommendationText = buildCookingRecommendationText(canCook, categoryText, storyTriggerText, cropUseText)
+      return { recipe, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText, recommendationText }
     })
   })
+
+  const cookingRecommendations = computed(() => recipeInfos.value.filter(info => info.recommendationText).slice(0, 3))
 
   const displayedRecipeInfos = computed(() => {
     if (!showOnlyMakeable.value) return recipeInfos.value
