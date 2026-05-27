@@ -574,6 +574,10 @@
                 <span class="text-xs text-right">{{ CROP_USE_NATURE_LABELS[activeCropUseProfile.nature] }}</span>
               </div>
               <div class="flex items-start justify-between gap-2">
+                <span class="text-xs text-muted shrink-0">灵性</span>
+                <span class="text-xs text-right">{{ CROP_USE_SPIRITUALITY_LABELS[activeCropUseProfile.spirituality] }}</span>
+              </div>
+              <div class="flex items-start justify-between gap-2">
                 <span class="text-xs text-muted shrink-0">消耗定位</span>
                 <span class="text-xs text-right">{{ CROP_USE_RARITY_LABELS[activeCropUseProfile.rarityUse] }}</span>
               </div>
@@ -831,7 +835,7 @@
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { getItemById, getItemSource } from '@/data'
-  import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_TAG_FILTER_HINTS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
+  import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_SPIRITUALITY_LABELS, CROP_USE_TAG_FILTER_HINTS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
   import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
   import { getRecipeById } from '@/data/recipes'
   import { getWeaponById, getWeaponDisplayName, getWeaponSellPrice, getEnchantmentById, WEAPON_TYPE_NAMES } from '@/data/weapons'

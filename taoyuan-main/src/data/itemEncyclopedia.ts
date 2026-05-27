@@ -24,6 +24,7 @@ import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collect
 import {
   CROP_USE_NATURE_LABELS,
   CROP_USE_RARITY_LABELS,
+  CROP_USE_SPIRITUALITY_LABELS,
   getCropUseProfile,
   getCropUseTagLabels,
   getCropUseTagMatches,
@@ -219,6 +220,7 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
         pushDetail(details, '用途标签', getCropUseTagLabels(profile).join('、'))
         pushDetail(details, '风味', profile.flavor.join('、'))
         pushDetail(details, '药性', CROP_USE_NATURE_LABELS[profile.nature])
+        pushDetail(details, '灵性', CROP_USE_SPIRITUALITY_LABELS[profile.spirituality])
         pushDetail(details, '消耗定位', CROP_USE_RARITY_LABELS[profile.rarityUse])
         pushDetail(details, '推荐用途', profile.recommendedUses.join('、'))
         const recipeUseEntries = getCropRecipeUseEntries(item.id)
@@ -487,6 +489,10 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
           ...cropUseProfile.flavor,
           cropUseProfile.nature,
           CROP_USE_NATURE_LABELS[cropUseProfile.nature],
+          cropUseProfile.spirituality,
+          CROP_USE_SPIRITUALITY_LABELS[cropUseProfile.spirituality],
+          '作物灵性',
+          '灵性字段',
           cropUseProfile.rarityUse,
           CROP_USE_RARITY_LABELS[cropUseProfile.rarityUse],
           ...cropUseProfile.recommendedUses,

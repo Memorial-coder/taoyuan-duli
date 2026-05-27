@@ -11,7 +11,7 @@ import { RINGS } from './rings'
 import { HATS } from './hats'
 import { SHOES } from './shoes'
 import { WEAPONS, ENCHANTMENTS } from './weapons'
-import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_TAG_LABELS } from './cropUseProfiles'
+import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_SPIRITUALITY_LABELS, CROP_USE_TAG_LABELS } from './cropUseProfiles'
 import {
   getGlossaryEntryIdForItemId,
   getItemExtraDetails,
@@ -558,11 +558,12 @@ const buildGlossary = (): GlossaryEntry[] => {
     name: '作物用途标签',
     category: 'item',
     categoryLabel: '机制',
-    description: 'CropUseProfile 会为每种作物标记非卖钱用途、风味、药性、消耗定位和推荐消耗场景，背包详情、作物图鉴和百科搜索共用同一份资料。',
+    description: 'CropUseProfile 会为每种作物标记非卖钱用途、风味、药性、灵性、消耗定位和推荐消耗场景，背包详情、作物图鉴和百科搜索共用同一份资料。',
     details: [
       { label: '用途标签', value: Object.entries(CROP_USE_TAG_LABELS).map(([key, label]) => `${key}/${label}`).join('、') },
       { label: '风味', value: '甜、鲜、辛、香、土、苦' },
       { label: '药性', value: Object.entries(CROP_USE_NATURE_LABELS).map(([key, label]) => `${key}/${label}`).join('、') },
+      { label: '灵性', value: Object.entries(CROP_USE_SPIRITUALITY_LABELS).map(([key, label]) => `${key}/${label}`).join('、') },
       { label: '消耗定位', value: Object.entries(CROP_USE_RARITY_LABELS).map(([key, label]) => `${key}/${label}`).join('、') },
       { label: '覆盖范围', value: '首批核心作物保留人工档案，其余作物按名称、ID、描述和价格自动派生兜底档案。' },
     ],
@@ -614,6 +615,16 @@ const buildGlossary = (): GlossaryEntry[] => {
       '清凉',
       '温补',
       '中性',
+      '灵性',
+      '作物灵性',
+      '凡品',
+      '地气',
+      '灵息',
+      '玄妙',
+      'mundane',
+      'earth',
+      'spirit',
+      'mystic',
       'daily',
       'stable',
       'seasonal',
