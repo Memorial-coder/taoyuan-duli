@@ -93,6 +93,54 @@
           <p class="mt-2 text-[10px] leading-4 text-accent">{{ activity.status }}</p>
         </RouterLink>
       </div>
+      <div class="mt-3 border border-accent/10 bg-black/10 p-3" data-testid="online-visual-feature-flag-panel">
+        <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div class="min-w-0">
+            <p class="text-xs leading-4 text-accent">可视化功能开关</p>
+            <p class="mt-1 text-[10px] leading-4 text-muted">
+              {{ onlineVisualFeatureFlagSummary }}
+            </p>
+          </div>
+          <span class="text-[10px] leading-4 text-muted">关闭时保留旧入口或只读回看</span>
+        </div>
+        <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <article
+            v-for="featureFlag in onlineVisualFeatureFlagItems"
+            :key="featureFlag.key"
+            class="border border-accent/10 bg-background/70 p-2"
+            :data-testid="featureFlag.fallbackTestId"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <label class="flex min-w-0 items-start gap-2">
+                <input
+                  class="online-input mt-0.5 size-3 shrink-0"
+                  type="checkbox"
+                  :checked="featureFlag.enabled"
+                  disabled
+                  :aria-label="featureFlag.label"
+                />
+                <span class="min-w-0">
+                  <span class="block text-xs leading-4 text-text">{{ featureFlag.label }}</span>
+                  <span class="mt-1 block text-[10px] leading-4 text-muted">{{ featureFlag.summary }}</span>
+                </span>
+              </label>
+              <span class="shrink-0 text-[10px] leading-4 text-accent">
+                {{ featureFlag.enabled ? '开启' : '降级' }}
+              </span>
+            </div>
+            <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-feature-flag-fallback">
+              {{ featureFlag.fallbackLabel }}
+            </p>
+            <RouterLink
+              class="mt-2 inline-flex text-[10px] leading-4 text-accent hover:text-highlight"
+              :to="{ name: featureFlag.fallbackRouteName }"
+              data-testid="online-visual-feature-flag-fallback-link"
+            >
+              降级入口
+            </RouterLink>
+          </article>
+        </div>
+      </div>
     </section>
   </div>
 </template>
@@ -126,6 +174,11 @@
   import { useSocialStore } from '@/stores/useSocialStore'
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import OnlineModuleCard from '@/components/game/online/OnlineModuleCard.vue'
+  import {
+    ONLINE_VISUAL_FEATURE_FLAGS,
+    createOnlineVisualFeatureFlagState,
+    isOnlineVisualFeatureEnabled,
+  } from '@/data/onlineVisualFeatureFlags'
 
   type ModuleKey = 'manor' | 'cohabitation' | 'neighbor' | 'orders' | 'festival' | 'society'
   type ModuleStat = { label: string; value: string | number }
@@ -161,6 +214,7 @@
   const refreshing = ref(false)
   const lastRefreshedAt = ref(0)
   const moduleErrors = ref<Partial<Record<ModuleKey, string>>>({})
+  const onlineVisualFeatureFlagState = createOnlineVisualFeatureFlagState()
 
   const countLabel = (count: number | undefined, unit = '项') => `${count ?? 0}${unit}`
   const hasSummary = (value: unknown) => (value ? '已同步' : '未同步')
@@ -287,6 +341,18 @@
     const activeRooms = [festivalRoomStore.myRoom, expeditionRoomStore.myRoom].filter(Boolean).length
     const projectCount = societyStore.mySociety?.public_projects.length || 0
     return `${visualActivities.value.length} 类活动 · ${activeRooms} 间活动房 · ${projectCount} 项公共建设`
+  })
+
+  const onlineVisualFeatureFlagItems = computed(() =>
+    ONLINE_VISUAL_FEATURE_FLAGS.map(flag => ({
+      ...flag,
+      enabled: isOnlineVisualFeatureEnabled(onlineVisualFeatureFlagState, flag.key),
+    }))
+  )
+
+  const onlineVisualFeatureFlagSummary = computed(() => {
+    const enabledCount = onlineVisualFeatureFlagItems.value.filter(flag => flag.enabled).length
+    return `${enabledCount}/${onlineVisualFeatureFlagItems.value.length} 个开关默认开启 · 配置缺失时按定义保守降级`
   })
 
   const modules = computed<ModuleCard[]>(() => [
