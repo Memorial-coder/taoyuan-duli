@@ -31,6 +31,7 @@
 - 服务端新增 `shared-workshop/process` 写链，白名单共同加工配方会从共同仓库扣普通材料，并把产物回存共同仓库。
 - 成品 ledger 反链输入 consume ledger，专项 QA 覆盖幂等、权限拒绝、审计和个人资产边界；本轮不新增前端入口。
 - 共同加工会追溯输入材料来源；一名成员产出 / 放入材料、另一名最近活跃成员加工时，成品品质提升，并在共同仓库 ledger、来源资产、响应、审计和离线状态保留 `shared_workshop_process_quality` 与高价值取出保护证据。
+- `shared_rice_ball` 新增共同灶台饭团白名单，会从共同仓库扣普通稻米，产出饭团入仓；双人协作时饭团升为优质，并保留料理 process kind、来源资产和高价值取出保护。
 - `shared_herb_paste` 修正为 `herb_grinder -> herbal_paste` 炼丹预处理材料，产物以 `alchemy_material` 分类进入共同仓库，并沿用协作升品、来源资产和高价值取出保护。
 - `shared_qingxin_lotus_elixir` 新增共同丹炉成丹白名单，会从共同仓库扣莲子、莲藕和优质草药膏，产出清心莲丹入仓，并记录 `shared_alchemy_success_rate`、15% 协作成功率、成丹结果和高价值取出保护。
 - 清心莲系共同丹炉新增偏丹、废丹和奇丹三条结果白名单，产物进入共同仓库并保留结果类型、协作成功率、来源资产和高价值 / 稀有取出保护。

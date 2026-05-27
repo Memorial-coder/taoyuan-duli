@@ -258,6 +258,16 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_rice_ball: {
+    id: 'shared_rice_ball',
+    label: '共同灶台饭团',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [{ item_id: 'rice', quantity: 1, quality: 'normal' }],
+    output_item_id: 'food_rice_ball',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_herb_paste: {
     id: 'shared_herb_paste',
     label: '共同药碾草药膏',

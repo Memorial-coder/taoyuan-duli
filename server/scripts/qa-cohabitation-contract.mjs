@@ -1506,6 +1506,35 @@ const sharedWorkshopAlchemyOriginAsset = sharedWorkshopAlchemyProcess.contract.o
 assert.equal(sharedWorkshopAlchemyOriginAsset?.item_id, 'herbal_paste', 'shared herbal paste origin asset should use canonical item id')
 assert.equal(sharedWorkshopAlchemyOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared herbal paste origin should be high-quality protected')
 await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_rice_ball_rice_deposit',
+  idempotencyKey: 'qa-shared-rice-ball-rice-deposit',
+  sourceSaveId: 123456780,
+})
+const sharedWorkshopCookingProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_rice_ball',
+  memo: 'qa process shared rice ball',
+  idempotency_key: 'qa-shared-workshop-rice-ball',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopCookingProcess.recipe.output_item_id, 'food_rice_ball', 'shared cooking recipe should output food rice ball')
+assert.equal(sharedWorkshopCookingProcess.workshop_action.station, 'stove', 'shared cooking recipe should use stove station')
+assert.equal(sharedWorkshopCookingProcess.workshop_action.process_kind, 'cooking_dish', 'shared cooking recipe should be classified as cooking dish')
+assert.equal(sharedWorkshopCookingProcess.warehouse.items.find(item => item.item_id === 'rice')?.quantity || 0, 0, 'shared cooking should consume injected rice')
+assert.equal(sharedWorkshopCookingProcess.warehouse.items.find(item => item.item_id === 'food_rice_ball')?.quantity, 1, 'shared cooking output should enter shared warehouse')
+assert.equal(sharedWorkshopCookingProcess.ledger_entry.quality, 'fine', 'shared cooking cooperation should upgrade dish quality')
+assert.equal(sharedWorkshopCookingProcess.ledger_entry.simultaneous_online_bonus?.type, 'shared_workshop_process_quality', 'shared cooking ledger should reuse workshop quality bonus')
+assert.equal(sharedWorkshopCookingProcess.ledger_entry.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared cooking bonus should keep cooking process kind')
+assert.equal(sharedWorkshopCookingProcess.ledger_entry.simultaneous_online_bonus?.material_actor_username, harvestPartner, 'shared cooking bonus should keep material actor evidence')
+assert.ok(sharedWorkshopCookingProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'rice'), 'shared cooking should consume rice through warehouse ledger')
+assert.ok(sharedWorkshopCookingProcess.warehouse_ledger_entries.some(entry => entry.action === 'deposit' && entry.item_id === 'food_rice_ball'), 'shared cooking should deposit dish through warehouse ledger')
+const sharedWorkshopCookingOriginAsset = sharedWorkshopCookingProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopCookingProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopCookingOriginAsset?.item_id, 'food_rice_ball', 'shared cooking origin asset should use food item id')
+assert.equal(sharedWorkshopCookingOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared cooking origin should be high-quality protected')
+assert.equal(sharedWorkshopCookingOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared cooking origin should keep cooking process kind')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
   itemId: 'lotus_seed',
   quantity: 2,
   quality: 'normal',
