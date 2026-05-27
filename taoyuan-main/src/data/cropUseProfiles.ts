@@ -154,13 +154,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'sweet_potato',
-    tags: ['food', 'pet_feed', 'animal_feed', 'order', 'flour', 'online_cost'],
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'order', 'flour', 'online_cost'],
     flavor: ['甜', '土'],
     nature: 'warm',
-    spirituality: 'mundane',
+    spirituality: 'spirit',
     rarityUse: 'daily',
-    recommendedUses: ['饱腹料理', '宠物耐力餐', '家畜越冬料', '行旅干粮', '救济订单', '公共订单粗粮包', '粗粮粉'],
-    summary: '高产粗粮消耗口，适合日常料理、宠物耐力、家畜越冬料、行旅干粮、公共订单和村社救济。'
+    recommendedUses: ['饱腹料理', '温阳薯丸', '宠物耐力餐', '家畜越冬料', '行旅干粮', '救济订单', '公共订单粗粮包', '粗粮粉'],
+    summary: '高产粗粮消耗口，适合日常料理、温补辅丹、宠物耐力、家畜越冬料、行旅干粮、公共订单和村社救济。'
   },
   {
     cropId: 'pumpkin',
