@@ -733,16 +733,337 @@ function buildMobileSmokeCoopOrderOverview(accepted = false) {
   }
 }
 
+const mobileSmokeCareRoomActions = {
+  room_irrigate: {
+    role_id: 'irrigation',
+    role_label: '灌溉手',
+    object_id: 'manor_field',
+    object_label: '田地',
+    expected_order: 1,
+    health_delta: 15,
+    risk_delta: 8,
+    summary: '先稳住田区水分，为后续护理留出安全窗口。'
+  },
+  room_feed: {
+    role_id: 'feeding',
+    role_label: '喂食手',
+    object_id: 'manor_animal_shed',
+    object_label: '畜棚',
+    expected_order: 2,
+    health_delta: 14,
+    risk_delta: 7,
+    summary: '补足动物饲喂，降低护理窗口内的躁动风险。'
+  },
+  room_pest_control: {
+    role_id: 'pest_control',
+    role_label: '除虫手',
+    object_id: 'manor_field',
+    object_label: '田地',
+    expected_order: 3,
+    health_delta: 10,
+    risk_delta: 9,
+    summary: '集中处理虫害，把田区风险压到可控范围。'
+  },
+  room_tidy: {
+    role_id: 'tidy',
+    role_label: '收拾手',
+    object_id: 'manor_fruit_grove',
+    object_label: '果树',
+    expected_order: 4,
+    health_delta: 9,
+    risk_delta: 6,
+    summary: '收拾掉落物与边角产物，完成护理收尾。'
+  }
+}
+
+function buildMobileSmokeCareRoomAction(actionId, actualOrder) {
+  const action = mobileSmokeCareRoomActions[actionId] || mobileSmokeCareRoomActions.room_irrigate
+  const actor = actionId === 'room_feed'
+    ? { username: 'mobile_smoke_friend', display_name: '协作好友' }
+    : { username: 'mobile_smoke_owner', display_name: '移动端烟测号' }
+  return {
+    id: `mobile-smoke-${actionId}`,
+    action_id: actionId,
+    action_label: actionId === 'room_irrigate' ? '协作灌溉' : actionId === 'room_feed' ? '协作喂食' : actionId,
+    role_id: action.role_id,
+    role_label: action.role_label,
+    object_id: action.object_id,
+    object_label: action.object_label,
+    actor_username: actor.username,
+    actor_display_name: actor.display_name,
+    expected_order: action.expected_order,
+    actual_order: actualOrder,
+    order_risk: action.expected_order !== actualOrder,
+    role_matched: true,
+    risk_delta: action.expected_order !== actualOrder ? action.risk_delta : 0,
+    health_delta: action.health_delta,
+    idempotency_key: `mobile-smoke-care-room:${actionId}`,
+    summary: `${actor.display_name} 完成「${actionId === 'room_irrigate' ? '协作灌溉' : '协作喂食'}」：${action.summary}`,
+    created_at: 3 + actualOrder
+  }
+}
+
+function buildMobileSmokeCareRoom(actionIds = [], completed = false) {
+  const actions = actionIds.map((actionId, index) => buildMobileSmokeCareRoomAction(actionId, index + 1))
+  const remainingActionIds = ['room_irrigate', 'room_feed', 'room_pest_control', 'room_tidy']
+    .filter(actionId => !actionIds.includes(actionId))
+  const healthScore = actions.reduce((sum, action) => sum + action.health_delta, 0)
+  const riskScore = actions.reduce((sum, action) => sum + action.risk_delta, 0)
+  return {
+    id: 'mobile-smoke-care-room',
+    target_username: 'orchard_owner',
+    target_save_id: 987654321,
+    target_save_slot: 0,
+    creator_username: 'mobile_smoke_owner',
+    creator_display_name: '移动端烟测号',
+    member_limit: 2,
+    day_tag: 'mobile-smoke-day',
+    idempotency_key: 'mobile-smoke-care-room-create',
+    status: completed ? 'completed' : 'in_progress',
+    window_started_at: 1,
+    window_ends_at: 1893427200,
+    participants: [
+      { username: 'mobile_smoke_owner', display_name: '移动端烟测号', role_id: 'irrigation', role_label: '灌溉手', joined_at: 1 },
+      { username: 'mobile_smoke_friend', display_name: '协作好友', role_id: 'feeding', role_label: '喂食手', joined_at: 2 }
+    ],
+    actions,
+    risk_score: riskScore,
+    health_score: completed ? Math.max(0, 70 + healthScore - riskScore) : healthScore,
+    health_delta: completed ? healthScore - riskScore : 0,
+    settlement_receipt_id: completed ? 'mobile-smoke-care-room-settlement' : '',
+    settled_by: completed ? 'mobile_smoke_owner' : '',
+    settled_at: completed ? 6 : 0,
+    summary: completed
+      ? '护理房间已结算：健康度提升，协作窗口和分工记录已写入凭证。'
+      : actions.length > 0
+        ? actions[actions.length - 1].summary
+        : '护理房间已建立，等待成员分工处理。',
+    created_at: 1,
+    updated_at: completed ? 6 : 3 + actions.length,
+    viewer_is_member: true,
+    remaining_seconds: completed ? 0 : 1800,
+    available_action_ids: completed ? [] : remainingActionIds.slice(0, actions.length >= 1 ? 1 : 2),
+    can_join: false,
+    can_act: !completed && actions.length < 4,
+    can_settle: !completed && actions.length >= 2
+  }
+}
+
+function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
+  const activeRoom = careRoomStep === 'empty' ? null : buildMobileSmokeCareRoom(
+    careRoomStep === 'created'
+      ? []
+      : careRoomStep === 'irrigated'
+        ? ['room_irrigate']
+        : ['room_irrigate', 'room_feed'],
+    false
+  )
+  const completedRoom = careRoomStep === 'settled' ? buildMobileSmokeCareRoom(['room_irrigate', 'room_feed'], true) : null
+  const activeRooms = activeRoom ? [activeRoom] : []
+  const recentRecords = completedRoom ? [completedRoom] : []
+  const actionLabels = {
+    room_irrigate: '协作灌溉',
+    room_feed: '协作喂食',
+    room_pest_control: '协作除虫',
+    room_tidy: '协作收拾'
+  }
+  return {
+    username: 'orchard_owner',
+    display_name: '远山果匠',
+    visibility: 'public',
+    viewer_is_owner: false,
+    manor_name: '远山果园',
+    avatar_image_url: '',
+    avatar_image_alt: '',
+    cover_image_url: '',
+    cover_image_alt: '',
+    public_title: '果林庄园主',
+    showcase_theme: '雨后果林护理日',
+    season_progress: '春 2 年',
+    current_focus: '协作护理田地和畜棚',
+    weekly_goal: '完成一次 2 人护理房',
+    visual_summary: '田地、畜棚和果树开放护理',
+    placed_decoration_count: 0,
+    public_tags: [],
+    guestbook_entries: [],
+    visit_entries: [],
+    visitor_activity_entries: [],
+    guide_points: [],
+    guide_routes: [],
+    today_visit_summary: '今日 1 次护理协作',
+    is_favorited_by_viewer: false,
+    is_followed_by_viewer: false,
+    access_policy: {
+      visit_mode: 'public',
+      care_mode: 'public',
+      steal_mode: 'closed',
+      updated_at: 1,
+      options: [
+        { id: 'public', label: '公开' },
+        { id: 'friends', label: '好友' },
+        { id: 'mutual', label: '互关' },
+        { id: 'closed', label: '关闭' }
+      ]
+    },
+    relation_context: {
+      viewer_is_owner: false,
+      viewer_is_friend: true,
+      viewer_is_mutual: true,
+      viewer_follows_owner: true,
+      owner_follows_viewer: true,
+      mutual_follow: true,
+      can_visit: true,
+      can_care: true,
+      can_steal: false
+    },
+    visual_state: {
+      ...emptyVisualState,
+      board_type: 'scene',
+      board_id: 'manor_care_scene',
+      selected_visual_id: 'manor_field',
+      recent_feedback: careRoomStep === 'settled' ? '协作护理房已结算，健康度凭证已写入。' : '',
+      objects: [
+        {
+          id: 'manor_field',
+          label: '田地',
+          kind: 'field',
+          x: 24,
+          y: 58,
+          state: 'needs_action',
+          available_action_ids: ['water_field', 'cure_pests'],
+          progress_value: 1,
+          progress_target: 3,
+          handled_by: '',
+          handled_at: 0,
+          requires_cooperation: true,
+          cooperation_required_count: 2,
+          cooperation_current_count: activeRoom ? activeRoom.participants.length : 0
+        },
+        {
+          id: 'manor_animal_shed',
+          label: '畜棚',
+          kind: 'animal_shed',
+          x: 67,
+          y: 53,
+          state: 'needs_action',
+          available_action_ids: ['feed_animals'],
+          progress_value: 0,
+          progress_target: 2,
+          handled_by: '',
+          handled_at: 0,
+          requires_cooperation: true,
+          cooperation_required_count: 2,
+          cooperation_current_count: activeRoom ? activeRoom.participants.length : 0
+        }
+      ]
+    },
+    care_state: {
+      day_tag: 'mobile-smoke-day',
+      action_labels: { water_field: '帮忙浇水', cure_pests: '帮忙除虫', feed_animals: '帮忙喂食' },
+      scene_action_labels: { water_field: '帮忙浇水', cure_pests: '帮忙除虫', feed_animals: '帮忙喂食' },
+      action_effects: {
+        water_field: { owner_benefit: '作物获得今日灌溉保护', visitor_reward: '友情点 +1' },
+        feed_animals: { owner_benefit: '动物获得今日饱食保护', visitor_reward: '伴手草料 +1' }
+      },
+      limits: { visitor_daily_limit: 4, manor_daily_limit: 12 },
+      visitor_daily_count: 0,
+      manor_daily_count: 0,
+      remaining_care_count: 4,
+      manor_remaining_care_count: 12,
+      can_care: true,
+      audit: {
+        visitor_limit_enforced: true,
+        manor_limit_enforced: true,
+        object_limit_enforced: true,
+        whitelist_enforced: true,
+        recent_window_seconds: 600,
+        recent_window_count: 0,
+        risk_flags: [],
+        daily_visitor_counts: [],
+        dispute_log_available: true,
+        reward_cap_summary: '照料奖励由服务端凭证控制。',
+        settlement_summary: '照料不直接改主人库存。'
+      },
+      care_denied_reason: ''
+    },
+    steal_state: {
+      day_tag: 'mobile-smoke-day',
+      action_labels: {},
+      action_effects: {},
+      limits: { visitor_daily_limit: 2, manor_daily_limit: 6, object_daily_limit: 1 },
+      visitor_daily_count: 0,
+      manor_daily_count: 0,
+      remaining_steal_count: 0,
+      manor_remaining_steal_count: 0,
+      can_steal: false,
+      steal_denied_reason: '轻采已关闭。',
+      audit: {
+        visitor_limit_enforced: true,
+        manor_limit_enforced: true,
+        object_limit_enforced: true,
+        whitelist_enforced: true,
+        recent_window_seconds: 600,
+        recent_window_count: 0,
+        risk_flags: [],
+        daily_visitor_counts: [],
+        dispute_log_available: true,
+        owner_reserved_percent: 100,
+        visitor_reward_quantity_cap: 1,
+        reward_cap_summary: '轻采当前关闭。',
+        settlement_summary: '主人库存保留 100%。'
+      },
+      whitelist_summary: '轻采关闭',
+      target_use_hints: {}
+    },
+    care_entries: [],
+    steal_entries: [],
+    care_room_state: {
+      viewer_username: 'mobile_smoke_owner',
+      day_tag: 'mobile-smoke-day',
+      limits: { min_members: 2, max_members: 4, window_seconds: 1800 },
+      action_labels: actionLabels,
+      role_labels: {
+        irrigation: '灌溉手',
+        feeding: '喂食手',
+        pest_control: '除虫手',
+        tidy: '收拾手'
+      },
+      action_effects: mobileSmokeCareRoomActions,
+      can_create_room: careRoomStep === 'empty',
+      create_denied_reason: careRoomStep === 'empty' ? '' : '已有进行中的护理房间。',
+      active_rooms: activeRooms,
+      recent_records: recentRecords,
+      record_summary: careRoomStep === 'settled' ? '最近 1 条护理房结算记录。' : '护理房可创建、分工和结算。'
+    },
+    care_room_records: recentRecords,
+    theme_week: {
+      season: 'spring',
+      week_tag: 'mobile-smoke-week',
+      active_theme: '雨后果林护理日',
+      active_theme_source: 'showcase',
+      score: 12,
+      recommendations: [],
+      official_pick: null,
+      seasonal_options: ['春耕小院'],
+      template_id: 'showcase',
+      cover_image_url: '',
+      cover_image_alt: '',
+      template_options: [{ id: 'showcase', label: '展示类布局', summary: '突出当前主题。' }]
+    }
+  }
+}
+
 async function createPage(browser, viewport, options = {}) {
   const mockSocial = Boolean(options.mockSocial)
   const mockSociety = Boolean(options.mockSociety)
   const mockOrders = Boolean(options.mockOrders)
+  const mockManor = Boolean(options.mockManor)
   const context = await browser.newContext({
     viewport,
     locale: 'zh-CN',
     reducedMotion: 'reduce'
   })
-  if (mockSociety || mockOrders) {
+  if (mockSociety || mockOrders || mockManor) {
     await context.addInitScript(() => {
       window.localStorage.setItem('taoyuanxiang_current_account', 'mobile_smoke_owner')
     })
@@ -753,7 +1074,7 @@ async function createPage(browser, viewport, options = {}) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mockSocial || mockSociety || mockOrders
+      body: JSON.stringify(mockSocial || mockSociety || mockOrders || mockManor
         ? {
             ok: true,
             user: {
@@ -890,6 +1211,58 @@ async function createPage(browser, viewport, options = {}) {
     })
   }
 
+  if (mockManor) {
+    let careRoomStep = 'empty'
+    await page.route('**/api/taoyuan/online/manor/favorites/overview', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, favorites: [], same_theme_favorites: [], hot_manors: [] })
+      })
+    })
+    await page.route('**/api/taoyuan/online/manor', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, snapshot: buildMobileSmokeManorSnapshot(careRoomStep) })
+      })
+    })
+    await page.route('**/api/taoyuan/online/manor/care-rooms', async route => {
+      careRoomStep = 'created'
+      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, room: snapshot.care_room_state.active_rooms[0], snapshot, idempotent: false })
+      })
+    })
+    await page.route('**/api/taoyuan/online/manor/care-rooms/*/action', async route => {
+      const body = route.request().postDataJSON()
+      careRoomStep = body?.action_id === 'room_feed' ? 'fed' : 'irrigated'
+      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          action: snapshot.care_room_state.active_rooms[0]?.actions.at(-1),
+          room: snapshot.care_room_state.active_rooms[0],
+          snapshot,
+          idempotent: false
+        })
+      })
+    })
+    await page.route('**/api/taoyuan/online/manor/care-rooms/*/settle', async route => {
+      careRoomStep = 'settled'
+      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, room: snapshot.care_room_records[0], snapshot, idempotent: false })
+      })
+    })
+  }
+
   page.on('console', message => {
     if (message.type() === 'error') {
       consoleErrors.push(message.text())
@@ -944,9 +1317,10 @@ async function captureScenario({
   mockSocial = false,
   mockSociety = false,
   mockOrders = false,
+  mockManor = false,
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockOrders })
+  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockOrders, mockManor })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -1242,6 +1616,59 @@ async function prepareOnlineSocietyProjectsMobile(page) {
   expect(clippedControls).toEqual([])
 }
 
+async function prepareOnlineManorCareRoomMobile(page) {
+  await expect(page.getByTestId('online-manor-page')).toBeVisible()
+  await expect(page.getByTestId('online-module-tab-care')).toBeVisible()
+  await page.getByTestId('online-module-tab-care').click()
+
+  await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+  await expect(page.getByTestId('online-manor-care-readable-limits')).toContainText('访客今日照料')
+  await expect(page.getByTestId('online-manor-care-room-panel')).toBeVisible()
+  await expect(page.getByTestId('online-manor-care-room-create').first()).toBeVisible()
+  await page.getByTestId('online-manor-care-room-create').first().click()
+
+  await expect(page.getByTestId('online-manor-care-room-list')).toBeVisible()
+  await expect(page.getByTestId('online-manor-care-room-entry')).toContainText('护理中')
+  await expect(page.getByTestId('online-manor-care-room-entry')).toContainText('移动端烟测号')
+  await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('成员 2/2')
+  await page.getByTestId('online-manor-care-room-action').first().click()
+
+  await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作灌溉')
+  await expect(page.getByTestId('online-manor-care-room-risk-summary')).toContainText('累计风险')
+  await page.getByTestId('online-manor-care-room-action').first().click()
+  await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作喂食')
+  await expect(page.getByTestId('online-manor-care-room-settle')).toBeVisible()
+  await page.getByTestId('online-manor-care-room-settle').click()
+
+  await expect(page.getByTestId('online-manor-care-room-records')).toBeVisible()
+  await expect(page.getByTestId('online-manor-care-room-record')).toContainText('护理房间已结算')
+  await expect(page.getByTestId('online-manor-care-room-record-settlement')).toContainText('mobile-smoke-care-room-settlement')
+  await expect(page.getByTestId('online-manor-care-room-record-actions')).toContainText('协作灌溉')
+  await expect(page.getByTestId('online-manor-care-room-record-actions')).toContainText('协作喂食')
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-manor-page"]')
+    if (!root) return ['online-manor-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .visual-scene-board__stage')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
 async function main() {
   try {
     const probeBrowser = await chromium.launch()
@@ -1491,6 +1918,24 @@ async function main() {
         mockSociety: true,
         prepare: prepareOnlineSocietyProjectsMobile
       })
+      await captureScenario({
+        browser,
+        label: '30-online-manor-care-room-mobile-390x844',
+        hash: '/#/game/online/manor',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-manor-page"]',
+        mockManor: true,
+        prepare: prepareOnlineManorCareRoomMobile
+      })
+      await captureScenario({
+        browser,
+        label: '31-online-manor-care-room-mobile-360x780',
+        hash: '/#/game/online/manor',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-manor-page"]',
+        mockManor: true,
+        prepare: prepareOnlineManorCareRoomMobile
+      })
     } finally {
       await browser.close()
     }
@@ -1508,7 +1953,8 @@ async function main() {
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
         '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
-        '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙贡献按钮点击、贡献后阶段反馈和移动端横向溢出断言。'
+        '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙贡献按钮点击、贡献后阶段反馈和移动端横向溢出断言。',
+        '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]
     }
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), 'utf8')
