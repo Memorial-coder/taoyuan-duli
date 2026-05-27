@@ -547,6 +547,10 @@
               <span class="text-xs text-muted">丹药效果</span>
               <span class="text-xs text-accent">{{ activeItemElixirEffect.description }}</span>
             </div>
+            <div v-if="activeItemElixirEffect && cookingStore.activeElixir" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="text-xs text-muted shrink-0">今日丹药</span>
+              <span class="text-xs text-water text-right">{{ cookingStore.activeElixir.name }}</span>
+            </div>
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">来源</span>
               <span class="text-xs text-muted">{{ getItemSource(activeItem.itemId) }}</span>
@@ -608,9 +612,10 @@
               class="w-full justify-center"
               :icon="Zap"
               :icon-size="12"
+              :disabled="isUseBlocked(activeItem.itemId)"
               @click="handleUse(activeItem.itemId, activeItem.quality)"
             >
-              使用
+              {{ getUseButtonLabel(activeItem.itemId) }}
             </Button>
             <!-- 丢弃 -->
             <template v-if="!activeItem.locked">
@@ -1411,6 +1416,12 @@
   const isUsable = (itemId: string): boolean => {
     return USABLE_ITEMS.has(itemId) || !!getAlchemyRecipeByOutputItemId(itemId)
   }
+
+  const isAlchemyElixirItem = (itemId: string): boolean => !!getAlchemyRecipeByOutputItemId(itemId)
+
+  const isUseBlocked = (itemId: string): boolean => isAlchemyElixirItem(itemId) && !!cookingStore.activeElixir
+
+  const getUseButtonLabel = (itemId: string): string => (isUseBlocked(itemId) ? '今日已服丹' : '使用')
 
   const handleUse = (itemId: string, quality: Quality) => {
     const alchemyRecipe = getAlchemyRecipeByOutputItemId(itemId)

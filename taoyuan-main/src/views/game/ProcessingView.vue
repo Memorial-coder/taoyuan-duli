@@ -48,6 +48,14 @@
         <span class="text-[10px] text-muted">只显示有材料的配方</span>
       </label>
 
+      <div v-if="cookingStore.activeElixir" class="border border-water/20 rounded-xs px-2 py-1.5 mb-2">
+        <p class="text-[10px] text-water">
+          <FlaskConical :size="12" class="inline mr-0.5" />
+          今日丹药：{{ cookingStore.activeElixir.name }}
+        </p>
+        <p class="text-[10px] text-muted leading-snug mt-0.5">{{ cookingStore.activeElixir.description }}</p>
+      </div>
+
       <!-- 空状态 -->
       <div v-if="processingStore.machines.length === 0" class="flex flex-col items-center justify-center py-8">
         <Boxes :size="36" class="text-accent/20 mb-2" />
@@ -559,11 +567,12 @@
 
 <script setup lang="ts">
   import { ref, computed, watch } from 'vue'
-  import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle } from 'lucide-vue-next'
+  import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle, FlaskConical } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import type { MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { useAnimalStore } from '@/stores/useAnimalStore'
+  import { useCookingStore } from '@/stores/useCookingStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -599,6 +608,7 @@
   import { buildScopedSingleKey, migrateLegacySingleValue } from '@/utils/accountStorage'
 
   const processingStore = useProcessingStore()
+  const cookingStore = useCookingStore()
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
   const gameStore = useGameStore()
