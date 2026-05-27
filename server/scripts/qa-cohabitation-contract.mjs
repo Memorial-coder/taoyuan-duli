@@ -1481,6 +1481,30 @@ const sharedWorkshopOutputOriginAsset = sharedWorkshopProcess.contract.origin_as
 assert.equal(sharedWorkshopOutputOriginAsset?.simultaneous_online_bonus?.applied, true, 'origin assets should keep shared workshop cooperation bonus evidence')
 assert.equal(sharedWorkshopOutputOriginAsset?.withdrawal_risk_level, 'high_quality', 'upgraded shared workshop output origin should be high-quality protected')
 assert.equal(sharedWorkshopOutputOriginAsset?.high_value_withdrawal_required, true, 'upgraded shared workshop output origin should require high-value withdrawal flow')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'herb',
+  quantity: 2,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_workshop_herb_deposit',
+  idempotencyKey: 'qa-shared-workshop-herb-deposit',
+  sourceSaveId: 123456781,
+})
+const sharedWorkshopAlchemyProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_herb_paste',
+  memo: 'qa process shared herbal paste',
+  idempotency_key: 'qa-shared-workshop-herbal-paste',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopAlchemyProcess.recipe.output_item_id, 'herbal_paste', 'shared herb paste should output canonical herbal paste item')
+assert.equal(sharedWorkshopAlchemyProcess.workshop_action.station, 'herb_grinder', 'shared herb paste should use herb grinder station')
+assert.equal(sharedWorkshopAlchemyProcess.workshop_action.process_kind, 'alchemy_material', 'shared herb paste should be classified as alchemy material processing')
+assert.equal(sharedWorkshopAlchemyProcess.warehouse.items.find(item => item.item_id === 'herb')?.quantity || 0, 0, 'shared herb paste should consume injected herbs')
+assert.equal(sharedWorkshopAlchemyProcess.warehouse.items.find(item => item.item_id === 'herbal_paste')?.quantity, 1, 'shared herbal paste should enter shared warehouse')
+assert.equal(sharedWorkshopAlchemyProcess.ledger_entry.quality, 'fine', 'shared herbal paste should inherit cooperation quality bonus')
+assert.equal(sharedWorkshopAlchemyProcess.ledger_entry.simultaneous_online_bonus?.material_actor_username, harvestPartner, 'shared herbal paste should keep material actor evidence')
+const sharedWorkshopAlchemyOriginAsset = sharedWorkshopAlchemyProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopAlchemyProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopAlchemyOriginAsset?.item_id, 'herbal_paste', 'shared herbal paste origin asset should use canonical item id')
+assert.equal(sharedWorkshopAlchemyOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared herbal paste origin should be high-quality protected')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'shared workshop process should not rewrite harvest owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'shared workshop process should not rewrite harvest partner save')
 
