@@ -123,6 +123,7 @@ const RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX = '后续约定：'
 
 type RandomNpcDialogueContextTarget = {
   name: string
+  relationshipTag: RandomNpcRelationshipTag
   smallOrder: { title: string; requestedItems: Array<{ itemId: string; quantity: number }> }
   smallOrderCompleted?: boolean
   keyEvents: string[]
@@ -578,6 +579,36 @@ export const useNpcStore = defineStore('npc', () => {
 
   const buildRandomNpcDialogueSceneLine = (scene: RandomNpcDialogueSceneDef | null): string =>
     scene ? `对话场景「${scene.title}」触发（${getRandomNpcDialogueSceneKindLabel(scene.kind)}）：${scene.summary}` : ''
+
+  const buildRandomNpcLifecycleDialogueMemory = (
+    target: RandomNpcDialogueContextTarget,
+    params: {
+      dayTag: string
+      kind: RandomNpcDialogueSceneKind
+      choiceId: string
+      choiceText: string
+      direction: RandomNpcRelationshipDirection
+    }
+  ): RandomNpcDialogueMemoryEntry | null => {
+    const scene = getRandomNpcTriggeredDialogueScene(target, {
+      direction: params.direction,
+      choiceId: params.choiceId,
+      choiceText: params.choiceText,
+      preferredKinds: [params.kind]
+    })
+    if (!scene || scene.kind !== params.kind) return null
+    return buildRandomNpcDialogueMemory({
+      npcName: target.name,
+      dayTag: params.dayTag,
+      choiceId: params.choiceId,
+      choiceText: params.choiceText,
+      response: buildRandomNpcDialogueSceneLine(scene),
+      scene,
+      direction: scene.relationshipDirection ?? params.direction,
+      affinityChange: 0,
+      relationshipTag: target.relationshipTag
+    })
+  }
 
   const getRandomNpcFarmContextLine = (targetName: string): string => {
     const farmStore = useFarmStore()
@@ -1172,28 +1203,44 @@ export const useNpcStore = defineStore('npc', () => {
     }
   }
 
-  const summarizeRandomVisitor = (visitor: RandomNpcVisitorState, reason: string): RandomNpcArchiveSummary => ({
-    visitorId: visitor.id,
-    templateId: visitor.templateId,
-    name: visitor.name,
-    occupation: visitor.occupation,
-    relationshipTag: visitor.relationshipTag,
-    affinity: visitor.affinity,
-    lastSeenDayTag: visitor.lastVisitDayTag,
-    summary: `${visitor.name}（${visitor.occupation}）${reason}；最后印象：${visitor.currentTrouble}`,
-    keyEvents: visitor.keyEvents.slice(-3),
-    smallOrderCompleted: !!visitor.smallOrderCompleted,
-    locked: !!visitor.locked,
-    relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
-    dialogueMemories: visitor.dialogueMemories.slice(-3),
-    shortRomance: sanitizeRandomNpcShortRomanceState(visitor.shortRomance)
-  })
+  const summarizeRandomVisitor = (visitor: RandomNpcVisitorState, reason: string): RandomNpcArchiveSummary => {
+    const dayTag = getCurrentNpcDayTag()
+    const farewellMemory = buildRandomNpcLifecycleDialogueMemory(visitor, {
+      dayTag,
+      kind: 'farewell',
+      choiceId: 'lifecycle:short_visit_farewell',
+      choiceText: `离别：${reason}`,
+      direction: 'trust'
+    })
+    return {
+      visitorId: visitor.id,
+      templateId: visitor.templateId,
+      name: visitor.name,
+      occupation: visitor.occupation,
+      relationshipTag: visitor.relationshipTag,
+      affinity: visitor.affinity,
+      lastSeenDayTag: visitor.lastVisitDayTag,
+      summary: `${visitor.name}（${visitor.occupation}）${reason}；最后印象：${visitor.currentTrouble}`,
+      keyEvents: [
+        ...visitor.keyEvents,
+        ...(farewellMemory ? [`${dayTag} ${farewellMemory.response}`] : [])
+      ].slice(-3),
+      smallOrderCompleted: !!visitor.smallOrderCompleted,
+      locked: !!visitor.locked,
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+      dialogueMemories: [
+        ...visitor.dialogueMemories,
+        ...(farewellMemory ? [farewellMemory] : [])
+      ].slice(-3),
+      shortRomance: sanitizeRandomNpcShortRomanceState(visitor.shortRomance)
+    }
+  }
 
   const createRandomNpcVisitorFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcVisitorState | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === archive.templateId)
     if (!template) return null
     const dayTag = getCurrentNpcDayTag()
-    return {
+    const visitor: RandomNpcVisitorState = {
       id: archive.visitorId,
       templateId: template.id,
       name: archive.name || template.nameSeeds[0]!,
@@ -1238,6 +1285,18 @@ export const useNpcStore = defineStore('npc', () => {
       shortRomance: sanitizeRandomNpcShortRomanceState(archive.shortRomance),
       tier: 'short_visit'
     }
+    const reunionMemory = buildRandomNpcLifecycleDialogueMemory(visitor, {
+      dayTag,
+      kind: 'reunion',
+      choiceId: 'lifecycle:archive_reunion',
+      choiceText: '重逢：旧日来客召回',
+      direction: 'trust'
+    })
+    if (reunionMemory) {
+      visitor.keyEvents = [...visitor.keyEvents, `${dayTag} ${reunionMemory.response}`].slice(-6)
+      visitor.dialogueMemories = appendRandomNpcDialogueMemory(visitor.dialogueMemories, reunionMemory)
+    }
+    return visitor
   }
 
   const createRandomNpcLongStayResidentFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcLongStayEntry | null => {
@@ -1247,7 +1306,7 @@ export const useNpcStore = defineStore('npc', () => {
     const snapshot = sanitizeRandomNpcLongStayArchiveSnapshot(archive.longStaySnapshot, template, archive.visitorId)
     if (!snapshot) return null
     const familyTies = sanitizeRandomNpcFamilyTies(snapshot.familyTies, template.familyTies)
-    return {
+    const resident: RandomNpcLongStayEntry = {
       residentId: snapshot.residentId || `resident:${archive.visitorId}`,
       sourceVisitorId: archive.visitorId,
       templateId: template.id,
@@ -1293,6 +1352,22 @@ export const useNpcStore = defineStore('npc', () => {
       dialogueMemories: sanitizeRandomNpcDialogueMemories(archive.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT),
       relationshipLine: sanitizeRandomNpcRelationLineState(snapshot.relationshipLine)
     }
+    const reunionMemory = buildRandomNpcLifecycleDialogueMemory(resident, {
+      dayTag,
+      kind: 'reunion',
+      choiceId: 'lifecycle:long_stay_reunion',
+      choiceText: '重逢：旧日长住召回',
+      direction: 'trust'
+    })
+    if (reunionMemory) {
+      resident.keyEvents = [...resident.keyEvents, `${dayTag} ${reunionMemory.response}`].slice(-8)
+      resident.dialogueMemories = appendRandomNpcDialogueMemory(
+        resident.dialogueMemories,
+        reunionMemory,
+        RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT
+      )
+    }
+    return resident
   }
 
   const sanitizeRandomNpcLongStayArchiveSnapshot = (
@@ -1352,25 +1427,38 @@ export const useNpcStore = defineStore('npc', () => {
     acquaintance: RandomNpcAcquaintanceEntry,
     currentDayTag: string,
     inactiveDays: number
-  ): RandomNpcArchiveSummary => ({
-    visitorId: acquaintance.visitorId,
-    templateId: acquaintance.templateId,
-    name: acquaintance.name,
-    occupation: acquaintance.occupation,
-    relationshipTag: acquaintance.relationshipTag === 'passing' ? 'acquaintance' : acquaintance.relationshipTag,
-    affinity: acquaintance.affinity,
-    lastSeenDayTag: acquaintance.lastSeenDayTag,
-    summary: `${acquaintance.name}久未往来，已从熟人册冷归档为旧日熟人摘要，之后可从旧日摘要召回。`,
-    keyEvents: [
-      ...acquaintance.keyEvents,
-      `${currentDayTag} 久未互动 ${inactiveDays} 天，冷归档为旧日熟人摘要。`
-    ].slice(-3),
-    smallOrderCompleted: !!acquaintance.smallOrderCompleted,
-    locked: false,
-    relationshipSignals: sanitizeRandomNpcRelationshipSignals(acquaintance.relationshipSignals),
-    dialogueMemories: acquaintance.dialogueMemories.slice(-3),
-    shortRomance: sanitizeRandomNpcShortRomanceState(acquaintance.shortRomance)
-  })
+  ): RandomNpcArchiveSummary => {
+    const farewellMemory = buildRandomNpcLifecycleDialogueMemory(acquaintance, {
+      dayTag: currentDayTag,
+      kind: 'farewell',
+      choiceId: 'lifecycle:acquaintance_cold_archive',
+      choiceText: `离别：熟人冷归档 ${inactiveDays} 天`,
+      direction: 'trust'
+    })
+    return {
+      visitorId: acquaintance.visitorId,
+      templateId: acquaintance.templateId,
+      name: acquaintance.name,
+      occupation: acquaintance.occupation,
+      relationshipTag: acquaintance.relationshipTag === 'passing' ? 'acquaintance' : acquaintance.relationshipTag,
+      affinity: acquaintance.affinity,
+      lastSeenDayTag: acquaintance.lastSeenDayTag,
+      summary: `${acquaintance.name}久未往来，已从熟人册冷归档为旧日熟人摘要，之后可从旧日摘要召回。`,
+      keyEvents: [
+        ...acquaintance.keyEvents,
+        `${currentDayTag} 久未互动 ${inactiveDays} 天，冷归档为旧日熟人摘要。`,
+        ...(farewellMemory ? [`${currentDayTag} ${farewellMemory.response}`] : [])
+      ].slice(-3),
+      smallOrderCompleted: !!acquaintance.smallOrderCompleted,
+      locked: false,
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(acquaintance.relationshipSignals),
+      dialogueMemories: [
+        ...acquaintance.dialogueMemories,
+        ...(farewellMemory ? [farewellMemory] : [])
+      ].slice(-3),
+      shortRomance: sanitizeRandomNpcShortRomanceState(acquaintance.shortRomance)
+    }
+  }
 
   const getRandomNpcLongStayLastTouchedDayTag = (resident: RandomNpcLongStayEntry): string => {
     const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, RANDOM_NPC_TEMPLATES.find(template => template.id === resident.templateId)?.familyCommission ?? RANDOM_NPC_TEMPLATES[0]!.familyCommission)
@@ -1422,26 +1510,39 @@ export const useNpcStore = defineStore('npc', () => {
     resident: RandomNpcLongStayEntry,
     currentDayTag: string,
     inactiveDays: number
-  ): RandomNpcArchiveSummary => ({
-    visitorId: resident.sourceVisitorId,
-    templateId: resident.templateId,
-    name: resident.name,
-    occupation: resident.occupation,
-    relationshipTag: resident.relationshipTag === 'passing' ? 'acquaintance' : resident.relationshipTag,
-    affinity: resident.affinity,
-    lastSeenDayTag: getRandomNpcLongStayLastTouchedDayTag(resident) || resident.movedInDayTag,
-    summary: `${resident.name}长期未推进长住事件，已冷归档为旧日长住摘要；之后可在长住名额空余时召回。`,
-    keyEvents: [
-      ...resident.keyEvents,
-      `${currentDayTag} 长住低活跃 ${inactiveDays} 天，冷归档为旧日长住摘要。`
-    ].slice(-3),
-    smallOrderCompleted: !!resident.smallOrderCompleted,
-    locked: false,
-    relationshipSignals: sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals),
-    dialogueMemories: resident.dialogueMemories.slice(-3),
-    archivedTier: 'long_stay',
-    longStaySnapshot: createRandomNpcLongStayArchiveSnapshot(resident)
-  })
+  ): RandomNpcArchiveSummary => {
+    const farewellMemory = buildRandomNpcLifecycleDialogueMemory(resident, {
+      dayTag: currentDayTag,
+      kind: 'farewell',
+      choiceId: 'lifecycle:long_stay_cold_archive',
+      choiceText: `离别：长住冷归档 ${inactiveDays} 天`,
+      direction: 'trust'
+    })
+    return {
+      visitorId: resident.sourceVisitorId,
+      templateId: resident.templateId,
+      name: resident.name,
+      occupation: resident.occupation,
+      relationshipTag: resident.relationshipTag === 'passing' ? 'acquaintance' : resident.relationshipTag,
+      affinity: resident.affinity,
+      lastSeenDayTag: getRandomNpcLongStayLastTouchedDayTag(resident) || resident.movedInDayTag,
+      summary: `${resident.name}长期未推进长住事件，已冷归档为旧日长住摘要；之后可在长住名额空余时召回。`,
+      keyEvents: [
+        ...resident.keyEvents,
+        `${currentDayTag} 长住低活跃 ${inactiveDays} 天，冷归档为旧日长住摘要。`,
+        ...(farewellMemory ? [`${currentDayTag} ${farewellMemory.response}`] : [])
+      ].slice(-3),
+      smallOrderCompleted: !!resident.smallOrderCompleted,
+      locked: false,
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals),
+      dialogueMemories: [
+        ...resident.dialogueMemories,
+        ...(farewellMemory ? [farewellMemory] : [])
+      ].slice(-3),
+      archivedTier: 'long_stay',
+      longStaySnapshot: createRandomNpcLongStayArchiveSnapshot(resident)
+    }
+  }
 
   const archiveStaleRandomNpcLongStayResidents = (currentDayTag: string): RandomNpcArchiveSummary[] => {
     const staleArchives: RandomNpcArchiveSummary[] = []
