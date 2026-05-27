@@ -43,6 +43,7 @@ const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
 const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS = 1;
 const SHARED_DECORATION_COOP_ATMOSPHERE_BONUS = 1;
 const SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS = 1;
+const SHARED_ALCHEMY_COOP_SUCCESS_RATE_BONUS_PERCENT = 15;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
@@ -266,6 +267,21 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_item_id: 'herbal_paste',
     output_quantity: 1,
     output_quality: 'normal',
+  },
+  shared_qingxin_lotus_elixir: {
+    id: 'shared_qingxin_lotus_elixir',
+    label: '共同丹炉清心莲丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'lotus_seed', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_root', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'qingxin_lotus_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
   },
 });
 
@@ -1225,11 +1241,14 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           material_actor_username: normalizeUsername(entry.simultaneous_online_bonus.material_actor_username),
           processor_username: normalizeUsername(entry.simultaneous_online_bonus.processor_username),
           recipe_id: sanitizeText(entry.simultaneous_online_bonus.recipe_id, 100),
+          process_kind: sanitizeText(entry.simultaneous_online_bonus.process_kind, 60),
           source_ledger_ids: Array.isArray(entry.simultaneous_online_bonus.source_ledger_ids)
             ? entry.simultaneous_online_bonus.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
             : [],
           output_quality_before: normalizeQuality(entry.simultaneous_online_bonus.output_quality_before),
           output_quality_after: normalizeQuality(entry.simultaneous_online_bonus.output_quality_after),
+          alchemy_result_kind: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_kind, 40),
+          success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
           policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
         }
       : {
@@ -1241,9 +1260,12 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           material_actor_username: '',
           processor_username: '',
           recipe_id: '',
+          process_kind: '',
           source_ledger_ids: [],
           output_quality_before: 'normal',
           output_quality_after: 'normal',
+          alchemy_result_kind: '',
+          success_rate_bonus_percent: 0,
           policy: '',
         },
   };
@@ -5242,6 +5264,9 @@ function buildSharedAnimalCareCoopBonusSnapshot(contract = {}, actorUsername = '
 function buildSharedWorkshopProcessCoopBonusSnapshot(contract = {}, actorUsername = '', context = {}) {
   const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_workshop_process');
   const actorKey = normalizeUsernameKey(actorUsername);
+  const processKind = sanitizeText(context.process_kind, 60) || 'processing';
+  const alchemyResultKind = sanitizeText(context.alchemy_result_kind, 40);
+  const isAlchemyElixir = processKind === 'alchemy_elixir';
   const sourceEntries = Array.isArray(context.source_entries)
     ? context.source_entries.map(normalizeWarehouseLedgerEntry).filter(Boolean)
     : [];
@@ -5258,14 +5283,19 @@ function buildSharedWorkshopProcessCoopBonusSnapshot(contract = {}, actorUsernam
     ...base,
     action: 'shared_workshop_process',
     applied,
-    type: 'shared_workshop_process_quality',
-    bonus_value: applied ? SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS : 0,
+    type: isAlchemyElixir ? 'shared_alchemy_success_rate' : 'shared_workshop_process_quality',
+    bonus_value: applied
+      ? (isAlchemyElixir ? SHARED_ALCHEMY_COOP_SUCCESS_RATE_BONUS_PERCENT : SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS)
+      : 0,
     material_actor_username: normalizeUsername(materialEntry?.actor_username || materialEntry?.source_owner_username),
     processor_username: normalizeUsername(actorUsername),
     recipe_id: sanitizeText(context.recipe_id, 100),
+    process_kind: processKind,
     source_ledger_ids: sourceEntries.map(entry => entry.id).filter(Boolean).slice(0, 12),
     output_quality_before: outputQualityBefore,
     output_quality_after: outputQualityAfter,
+    alchemy_result_kind: alchemyResultKind,
+    success_rate_bonus_percent: applied && isAlchemyElixir ? SHARED_ALCHEMY_COOP_SUCCESS_RATE_BONUS_PERCENT : 0,
   };
 }
 
@@ -7032,8 +7062,11 @@ function buildWarehouseOriginAsset(entry) {
           material_actor_username: normalizeUsername(entry.simultaneous_online_bonus.material_actor_username),
           processor_username: normalizeUsername(entry.simultaneous_online_bonus.processor_username),
           recipe_id: sanitizeText(entry.simultaneous_online_bonus.recipe_id, 100),
+          process_kind: sanitizeText(entry.simultaneous_online_bonus.process_kind, 60),
           output_quality_before: normalizeQuality(entry.simultaneous_online_bonus.output_quality_before),
           output_quality_after: normalizeQuality(entry.simultaneous_online_bonus.output_quality_after),
+          alchemy_result_kind: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_kind, 40),
+          success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
         }
       : { applied: false },
   };
@@ -10936,11 +10969,15 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       workshop_action: {
         action: 'process',
         recipe_id: recipe.id,
+        station: recipe.station,
         process_kind: recipe.process_kind || 'processing',
+        input_items: recipe.input_items,
         output_item_id: previousOutputEntry.item_id,
         output_quantity: previousOutputEntry.quantity,
         output_quality: previousOutputEntry.quality,
         output_quality_before_bonus: previousOutputEntry.simultaneous_online_bonus?.output_quality_before || previousOutputEntry.quality,
+        alchemy_result_kind: recipe.alchemy_result_kind || '',
+        success_rate_bonus_percent: previousOutputEntry.simultaneous_online_bonus?.success_rate_bonus_percent || 0,
         warehouse_ledger_ids: previousWarehouseEntries.map(entry => entry.id),
         simultaneous_online_bonus: previousOutputEntry.simultaneous_online_bonus,
         personal_save_changed: false,
@@ -10969,6 +11006,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     .filter(Boolean);
   const simultaneousOnlineBonus = buildSharedWorkshopProcessCoopBonusSnapshot(contract, actorUsername, {
     recipe_id: recipe.id,
+    process_kind: recipe.process_kind || 'processing',
+    alchemy_result_kind: recipe.alchemy_result_kind || '',
     source_entries: sourceLedgerEntries,
     output_quality_before: recipe.output_quality,
   });
@@ -11054,6 +11093,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     recipe_id: recipe.id,
     station: recipe.station,
     process_kind: recipe.process_kind || 'processing',
+    alchemy_result_kind: recipe.alchemy_result_kind || '',
+    success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
     input_items: recipe.input_items,
     output_item_id: recipe.output_item_id,
     output_quantity: recipe.output_quantity,
@@ -11081,6 +11122,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       recipe_id: recipe.id,
       station: recipe.station,
       process_kind: recipe.process_kind || 'processing',
+      alchemy_result_kind: recipe.alchemy_result_kind || '',
+      success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
       input_items: recipe.input_items,
       output_item_id: recipe.output_item_id,
       output_quantity: recipe.output_quantity,
