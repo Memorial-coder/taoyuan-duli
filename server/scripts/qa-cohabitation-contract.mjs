@@ -1310,15 +1310,23 @@ const fertilizeResult = await runtime.fertilizeCohabitationSharedFarmPlot(create
   plot_id: plantedOwnerPlotForFertilize.id,
   fertilizer_item_id: 'basic_fertilizer',
   idempotency_key: 'qa-shared-farm-fertilize-basic',
-}, actor(owner))
+}, actor(partner))
 assert.equal(fertilizeResult.idempotent, false, 'first shared farm fertilize action should not be idempotent')
 assert.equal(fertilizeResult.plot.plot_state.fertilizer, 'basic_fertilizer', 'shared farm fertilize should mark the contract-map plot fertilizer')
-assert.equal(fertilizeResult.plot.current_steward_username, owner, 'shared farm fertilize should record current steward')
+assert.equal(fertilizeResult.plot.plot_state.cooperation_quality_bonus, 1, 'shared farm fertilize should apply same-time plant/fertilize cooperation quality bonus')
+assert.equal(fertilizeResult.plot.plot_state.last_cooperation_bonus_action, 'shared_farm_plant_fertilize', 'shared farm fertilize should record cooperation bonus action')
+assert.equal(fertilizeResult.plot.plot_state.last_cooperation_plant_actor_username, owner, 'shared farm fertilize should record the plant actor for cooperation bonus')
+assert.ok(fertilizeResult.plot.plot_state.last_cooperation_bonus_members.includes(owner), 'shared farm fertilize bonus should record the recently active plant actor')
+assert.ok(fertilizeResult.plot.plot_state.last_cooperation_bonus_members.includes(partner), 'shared farm fertilize bonus should record the recently active fertilizer actor')
+assert.equal(fertilizeResult.plot.current_steward_username, partner, 'shared farm fertilize should record current steward')
 assert.equal(fertilizeResult.shared_map.summary.farm_action_ledger_count, 5, 'shared farm fertilize should increment farm action ledger count after plant')
 assert.equal(fertilizeResult.warehouse.items.find(item => item.item_id === 'basic_fertilizer')?.quantity || 0, 0, 'shared farm fertilize should consume one basic fertilizer from shared warehouse')
 assert.equal(fertilizeResult.ledger_entry.action, 'fertilize', 'shared farm ledger should record fertilize action')
 assert.equal(fertilizeResult.ledger_entry.fertilizer_item_id, 'basic_fertilizer', 'shared farm fertilize ledger should keep fertilizer item id')
 assert.equal(fertilizeResult.ledger_entry.shared_warehouse_changed, true, 'shared farm fertilize ledger should declare shared warehouse change')
+assert.equal(fertilizeResult.ledger_entry.simultaneous_online_bonus.applied, true, 'shared farm fertilize ledger should record applied simultaneous online bonus')
+assert.equal(fertilizeResult.ledger_entry.simultaneous_online_bonus.bonus_value, 1, 'shared farm fertilize ledger should record cooperation quality bonus value')
+assert.equal(fertilizeResult.ledger_entry.simultaneous_online_bonus.plant_actor_username, owner, 'shared farm fertilize ledger should record plant actor')
 assert.equal(fertilizeResult.warehouse_ledger_entries.length, 1, 'shared farm fertilize should create one warehouse consume ledger')
 assert.equal(fertilizeResult.warehouse_ledger_entries[0].action, 'consume', 'shared farm fertilize should consume fertilizer through warehouse ledger')
 assert.ok(fertilizeResult.warehouse_ledger_entries[0].source_ledger_ids.includes(fertilizerDepositResult.ledger_entry.id), 'fertilizer consume ledger should reference source fertilizer deposit ledger')
@@ -1327,6 +1335,7 @@ assert.ok(fertilizeResult.contract.origin_assets.warehouse_items.some(item => it
 assert.ok(fertilizeResult.contract.origin_assets.plots.some(item => item.id === fertilizeResult.plot.id && item.plot_state?.fertilizer === 'basic_fertilizer'), 'origin assets should refresh fertilized plot state')
 assert.equal(fertilizeResult.farm_action.personal_save_changed, false, 'shared farm fertilize should not mutate personal saves after fertilizer入仓')
 assert.equal(fertilizeResult.farm_action.shared_warehouse_changed, true, 'shared farm fertilize action should declare fertilizer warehouse consumption')
+assert.equal(fertilizeResult.farm_action.simultaneous_online_bonus.applied, true, 'shared farm fertilize response should expose the applied simultaneous online bonus')
 assert.ok(fertilizeResult.contract.audit_log.find(entry => entry.action === 'shared_farm_fertilized'), 'shared farm fertilize should be audited')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedFarmFertilize, 'shared farm fertilize should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedFarmFertilize, 'shared farm fertilize should not rewrite partner save')
@@ -1335,7 +1344,7 @@ const duplicateSharedFarmFertilize = await runtime.fertilizeCohabitationSharedFa
   plot_id: plantedOwnerPlotForFertilize.id,
   fertilizer_item_id: 'basic_fertilizer',
   idempotency_key: 'qa-shared-farm-fertilize-basic',
-}, actor(owner))
+}, actor(partner))
 assert.equal(duplicateSharedFarmFertilize.idempotent, true, 'same shared farm fertilize idempotency key should be idempotent')
 assert.equal(duplicateSharedFarmFertilize.shared_map.summary.farm_action_ledger_count, 5, 'idempotent shared farm fertilize should not duplicate farm ledger rows')
 assert.equal(duplicateSharedFarmFertilize.warehouse.items.find(item => item.item_id === 'basic_fertilizer')?.quantity || 0, 0, 'idempotent shared farm fertilize should not consume another fertilizer')
@@ -1875,8 +1884,10 @@ assert.equal(offlineStatus.offline_status.summary.independent_operations_enabled
 assert.equal(offlineStatus.offline_status.summary.shared_farm_offline_writes_enabled, true, 'offline status should expose shared farm writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.shared_animal_offline_writes_enabled, true, 'offline status should expose shared animal writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_bonus_enabled, true, 'offline status should expose same-time online farm water bonus readiness')
+assert.equal(offlineStatus.offline_status.summary.simultaneous_online_farm_fertilize_bonus_enabled, true, 'offline status should expose same-time farm plant/fertilize bonus readiness')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_animal_bonus_enabled, true, 'offline status should expose same-time animal care bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.farm_water_health_bonus_enabled, true, 'offline status should expose farm water cooperation bonus readiness')
+assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.farm_plant_fertilize_quality_bonus_enabled, true, 'offline status should expose farm plant/fertilize cooperation bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.animal_feed_pet_mood_bonus_enabled, true, 'offline status should expose animal feed/pet cooperation bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.recent_member_count, 2, 'offline status should count both recently active members for cooperation bonus')
 assert.equal(offlineStatus.offline_status.summary.auto_offline_income_enabled, false, 'first pass should not enable offline auto income')

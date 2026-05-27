@@ -38,6 +38,7 @@ const SHARED_ANIMAL_LEDGER_LIMIT = 120;
 const SHARED_ANIMAL_LIMIT = 80;
 const COHABITATION_RECENT_ONLINE_SECONDS = 15 * 60;
 const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
+const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
 const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
@@ -1638,6 +1639,8 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
           recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
             ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
             : [],
+          plant_actor_username: normalizeUsername(entry.simultaneous_online_bonus.plant_actor_username),
+          plant_ledger_id: sanitizeText(entry.simultaneous_online_bonus.plant_ledger_id, 100),
           policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
         }
       : {
@@ -1646,6 +1649,8 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
           bonus_value: 0,
           recent_member_count: 0,
           recent_member_usernames: [],
+          plant_actor_username: '',
+          plant_ledger_id: '',
           policy: '',
         },
     permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
@@ -1742,6 +1747,14 @@ function summarizeFarmPlot(plot = {}) {
     watered: plot.watered === true,
     unwatered_days: Math.max(0, Math.floor(Number(plot.unwateredDays ?? plot.unwatered_days) || 0)),
     fertilizer: fertilizer || null,
+    cooperation_health_bonus: Math.max(0, Math.floor(Number(plot.cooperationHealthBonus ?? plot.cooperation_health_bonus) || 0)),
+    cooperation_quality_bonus: Math.max(0, Math.floor(Number(plot.cooperationQualityBonus ?? plot.cooperation_quality_bonus) || 0)),
+    last_cooperation_bonus_at: Math.max(0, Math.floor(Number(plot.lastCooperationBonusAt ?? plot.last_cooperation_bonus_at) || 0)),
+    last_cooperation_bonus_action: sanitizeText(plot.lastCooperationBonusAction ?? plot.last_cooperation_bonus_action, 80),
+    last_cooperation_bonus_members: Array.isArray(plot.lastCooperationBonusMembers ?? plot.last_cooperation_bonus_members)
+      ? (plot.lastCooperationBonusMembers ?? plot.last_cooperation_bonus_members).map(normalizeUsername).filter(Boolean).slice(0, 8)
+      : [],
+    last_cooperation_plant_actor_username: normalizeUsername(plot.lastCooperationPlantActorUsername ?? plot.last_cooperation_plant_actor_username),
     harvest_count: Math.max(0, Math.floor(Number(plot.harvestCount ?? plot.harvest_count) || 0)),
     giant_crop_group: giantCropGroup === null || giantCropGroup === undefined || giantCropGroup === ''
       ? null
@@ -4950,9 +4963,11 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     })
     .filter(member => member.recently_active);
   const farmWaterEnabled = contract.status === 'active' && recentMembers.length >= 2;
+  const farmPlantFertilizeEnabled = contract.status === 'active' && recentMembers.length >= 2;
   return {
     action: sanitizeText(action, 80),
     farm_water_health_bonus_enabled: farmWaterEnabled,
+    farm_plant_fertilize_quality_bonus_enabled: farmPlantFertilizeEnabled,
     animal_feed_pet_mood_bonus_enabled: contract.status === 'active' && recentMembers.length >= 2,
     applied: farmWaterEnabled && action === 'shared_farm_water',
     bonus_value: farmWaterEnabled && action === 'shared_farm_water' ? SHARED_FARM_WATER_COOP_HEALTH_BONUS : 0,
@@ -4963,6 +4978,32 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     personal_save_changed: false,
     shared_fund_changed: false,
     shared_warehouse_changed: false,
+  };
+}
+
+function buildSharedFarmPlantFertilizeCoopBonusSnapshot(contract = {}, actorUsername = '', plot = {}) {
+  const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_farm_fertilize');
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const plotId = sanitizeText(plot.id || plot.shared_plot_id || plot.plot_id, 140);
+  const plantEntry = normalizeFarmActionLedger(contract.shared_farm_ledger).find(entry =>
+    entry.action === 'plant'
+    && entry.status === 'committed'
+    && entry.plot_id === plotId
+  );
+  const plantActorKey = normalizeUsernameKey(plantEntry?.actor_key || plantEntry?.actor_username);
+  const applied = base.farm_plant_fertilize_quality_bonus_enabled === true
+    && !!plantEntry
+    && !!actorKey
+    && !!plantActorKey
+    && plantActorKey !== actorKey;
+  return {
+    ...base,
+    action: 'shared_farm_fertilize',
+    applied,
+    type: 'shared_farm_plant_fertilize_quality',
+    bonus_value: applied ? SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS : 0,
+    plant_actor_username: plantEntry?.actor_username || '',
+    plant_ledger_id: plantEntry?.id || '',
   };
 }
 
@@ -5026,6 +5067,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_farm_offline_writes_enabled: true,
       shared_animal_offline_writes_enabled: true,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
+      simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
       simultaneous_online_bonus_policy: simultaneousOnlineBonus.policy,
       auto_offline_income_enabled: false,
@@ -9420,10 +9462,16 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   const operatedAt = nowSeconds();
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const simultaneousOnlineBonus = buildSharedFarmPlantFertilizeCoopBonusSnapshot(contract, actorUsername, plot);
   const beforeState = { ...plotState };
   const afterState = {
     ...plotState,
     fertilizer: request.fertilizer_item_id,
+    cooperation_quality_bonus: Math.max(0, Math.floor(Number(plotState.cooperation_quality_bonus) || 0)) + simultaneousOnlineBonus.bonus_value,
+    last_cooperation_bonus_at: simultaneousOnlineBonus.applied ? operatedAt : Math.max(0, Math.floor(Number(plotState.last_cooperation_bonus_at) || 0)),
+    last_cooperation_bonus_action: simultaneousOnlineBonus.applied ? 'shared_farm_plant_fertilize' : sanitizeText(plotState.last_cooperation_bonus_action, 80),
+    last_cooperation_bonus_members: simultaneousOnlineBonus.applied ? simultaneousOnlineBonus.recent_member_usernames : (Array.isArray(plotState.last_cooperation_bonus_members) ? plotState.last_cooperation_bonus_members : []),
+    last_cooperation_plant_actor_username: simultaneousOnlineBonus.applied ? simultaneousOnlineBonus.plant_actor_username : normalizeUsername(plotState.last_cooperation_plant_actor_username),
   };
   const nextPlot = {
     ...plot,
@@ -9516,6 +9564,16 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     source_save_revision: plot.source_save_revision,
     before_plot_state: beforeState,
     after_plot_state: afterState,
+    simultaneous_online_bonus: {
+      applied: simultaneousOnlineBonus.applied,
+      type: simultaneousOnlineBonus.type,
+      bonus_value: simultaneousOnlineBonus.bonus_value,
+      recent_member_count: simultaneousOnlineBonus.recent_member_count,
+      recent_member_usernames: simultaneousOnlineBonus.recent_member_usernames,
+      plant_actor_username: simultaneousOnlineBonus.plant_actor_username,
+      plant_ledger_id: simultaneousOnlineBonus.plant_ledger_id,
+      policy: simultaneousOnlineBonus.policy,
+    },
     permission_mode: plot.permission_mode,
     idempotency_key: request.idempotency_key,
     at: operatedAt,
@@ -9548,6 +9606,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     quantity: 1,
     target_ref: warehouseTargetRef,
     permission_mode: plot.permission_mode,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     personal_save_changed: false,
     shared_warehouse_changed: true,
     shared_fund_changed: false,
@@ -9571,6 +9630,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
       warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
       before_plot_state: beforeState,
       after_plot_state: afterState,
+      simultaneous_online_bonus: simultaneousOnlineBonus,
       personal_save_changed: false,
       shared_warehouse_changed: true,
       shared_fund_changed: false,
