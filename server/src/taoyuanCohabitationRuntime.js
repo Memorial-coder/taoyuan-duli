@@ -36,6 +36,8 @@ const FAMILY_BUILDING_LEDGER_LIMIT = 80;
 const FARM_ACTION_LEDGER_LIMIT = 160;
 const SHARED_ANIMAL_LEDGER_LIMIT = 120;
 const SHARED_ANIMAL_LIMIT = 80;
+const COHABITATION_RECENT_ONLINE_SECONDS = 15 * 60;
+const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
@@ -1605,6 +1607,25 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
     source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
     before_plot_state: entry.before_plot_state && typeof entry.before_plot_state === 'object' ? entry.before_plot_state : {},
     after_plot_state: entry.after_plot_state && typeof entry.after_plot_state === 'object' ? entry.after_plot_state : {},
+    simultaneous_online_bonus: entry.simultaneous_online_bonus && typeof entry.simultaneous_online_bonus === 'object'
+      ? {
+          applied: entry.simultaneous_online_bonus.applied === true,
+          type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
+          bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
+          recent_member_count: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.recent_member_count) || 0)),
+          recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
+            ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+            : [],
+          policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
+        }
+      : {
+          applied: false,
+          type: '',
+          bonus_value: 0,
+          recent_member_count: 0,
+          recent_member_usernames: [],
+          policy: '',
+        },
     permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     at: Math.max(0, Math.floor(Number(entry.at) || Number(entry.created_at) || nowSeconds())),
@@ -4879,9 +4900,46 @@ function resolveMemberLastActive(contract = {}, member = {}) {
   );
 }
 
+function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '', action = '') {
+  const now = nowSeconds();
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const recentMembers = (contract.members || [])
+    .filter(member => member.status === 'accepted')
+    .map(member => {
+      const lastActiveAt = member.username_key === actorKey
+        ? now
+        : resolveMemberLastActive(contract, member);
+      const offlineSeconds = lastActiveAt > 0 ? Math.max(0, now - lastActiveAt) : null;
+      return {
+        username: member.username,
+        username_key: member.username_key,
+        display_name: member.display_name,
+        last_active_at: lastActiveAt,
+        offline_seconds: offlineSeconds,
+        recently_active: offlineSeconds !== null && offlineSeconds <= COHABITATION_RECENT_ONLINE_SECONDS,
+      };
+    })
+    .filter(member => member.recently_active);
+  const farmWaterEnabled = contract.status === 'active' && recentMembers.length >= 2;
+  return {
+    action: sanitizeText(action, 80),
+    farm_water_health_bonus_enabled: farmWaterEnabled,
+    applied: farmWaterEnabled && action === 'shared_farm_water',
+    bonus_value: farmWaterEnabled && action === 'shared_farm_water' ? SHARED_FARM_WATER_COOP_HEALTH_BONUS : 0,
+    recent_member_count: recentMembers.length,
+    recent_member_usernames: recentMembers.map(member => member.username).filter(Boolean).slice(0, 8),
+    recent_member_keys: recentMembers.map(member => member.username_key).filter(Boolean).slice(0, 8),
+    policy: 'two_recent_active_members_within_15_minutes',
+    personal_save_changed: false,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+  };
+}
+
 function buildOfflineOperationSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorMember?.username_key], contract.type);
+  const simultaneousOnlineBonus = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'offline_status');
   const now = nowSeconds();
   const members = (contract.members || []).map(member => {
     const lastActiveAt = resolveMemberLastActive(contract, member);
@@ -4912,6 +4970,8 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_log_available: true,
       shared_farm_offline_writes_enabled: true,
       shared_animal_offline_writes_enabled: true,
+      simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
+      simultaneous_online_bonus_policy: simultaneousOnlineBonus.policy,
       auto_offline_income_enabled: false,
       conflict_policy: '共同庄园第一版以服务端契约、仓库、基金和审计日志为准；离线自动收益与客户端本地合并暂不开放。',
     },
@@ -4939,6 +4999,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       manage_permissions: canManageCohabitationPermissions(actorMember),
       create_separation_preview: true,
     },
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     recent_shared_log: (contract.audit_log || []).slice(0, 30),
     deferred_operations: [
       'offline_auto_income',
@@ -8772,11 +8833,16 @@ async function waterCohabitationSharedFarmPlot(contractId, payload = {}, actor =
   const operatedAt = nowSeconds();
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const simultaneousOnlineBonus = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_farm_water');
   const beforeState = { ...plotState };
   const afterState = {
     ...plotState,
     watered: true,
     unwatered_days: 0,
+    cooperation_health_bonus: Math.max(0, Math.floor(Number(plotState.cooperation_health_bonus) || 0)) + simultaneousOnlineBonus.bonus_value,
+    last_cooperation_bonus_at: simultaneousOnlineBonus.applied ? operatedAt : Math.max(0, Math.floor(Number(plotState.last_cooperation_bonus_at) || 0)),
+    last_cooperation_bonus_action: simultaneousOnlineBonus.applied ? 'shared_farm_water' : sanitizeText(plotState.last_cooperation_bonus_action, 80),
+    last_cooperation_bonus_members: simultaneousOnlineBonus.applied ? simultaneousOnlineBonus.recent_member_usernames : (Array.isArray(plotState.last_cooperation_bonus_members) ? plotState.last_cooperation_bonus_members : []),
   };
   const nextPlot = {
     ...plot,
@@ -8821,6 +8887,14 @@ async function waterCohabitationSharedFarmPlot(contractId, payload = {}, actor =
     source_save_revision: plot.source_save_revision,
     before_plot_state: beforeState,
     after_plot_state: afterState,
+    simultaneous_online_bonus: {
+      applied: simultaneousOnlineBonus.applied,
+      type: 'shared_farm_water_health',
+      bonus_value: simultaneousOnlineBonus.bonus_value,
+      recent_member_count: simultaneousOnlineBonus.recent_member_count,
+      recent_member_usernames: simultaneousOnlineBonus.recent_member_usernames,
+      policy: simultaneousOnlineBonus.policy,
+    },
     permission_mode: plot.permission_mode,
     idempotency_key: request.idempotency_key,
     at: operatedAt,
@@ -8843,6 +8917,7 @@ async function waterCohabitationSharedFarmPlot(contractId, payload = {}, actor =
     origin_owner_username: plot.origin_owner_username,
     actor_username: actorUsername,
     permission_mode: plot.permission_mode,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     personal_save_changed: false,
     shared_warehouse_changed: false,
     shared_fund_changed: false,
@@ -8861,6 +8936,7 @@ async function waterCohabitationSharedFarmPlot(contractId, payload = {}, actor =
       plot_id: plot.id,
       before_plot_state: beforeState,
       after_plot_state: afterState,
+      simultaneous_online_bonus: simultaneousOnlineBonus,
       personal_save_changed: false,
       shared_warehouse_changed: false,
       shared_fund_changed: false,
