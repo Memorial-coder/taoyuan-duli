@@ -1614,6 +1614,70 @@ assert.equal(sharedWorkshopRiceFlourRollOriginAsset?.item_id, 'food_rice_flour_r
 assert.equal(sharedWorkshopRiceFlourRollOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared rice flour roll origin should be high-quality protected')
 assert.equal(sharedWorkshopRiceFlourRollOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared rice flour roll origin should keep cooking process kind')
 await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'rice',
+  quantity: 2,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_sesame_tangyuan_rice_deposit',
+  idempotencyKey: 'qa-shared-sesame-tangyuan-rice-deposit',
+  sourceSaveId: 123456762,
+})
+const sharedWorkshopTangyuanRiceFlourProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_rice_flour',
+  memo: 'qa process shared rice flour for sesame tangyuan',
+  idempotency_key: 'qa-shared-workshop-rice-flour-for-tangyuan',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopTangyuanRiceFlourProcess.recipe.output_item_id, 'rice_flour', 'shared tangyuan rice flour should output rice flour')
+assert.equal(sharedWorkshopTangyuanRiceFlourProcess.ledger_entry.quality, 'fine', 'shared tangyuan rice flour should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'sesame',
+  quantity: 2,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_sesame_tangyuan_sesame_deposit',
+  idempotencyKey: 'qa-shared-sesame-tangyuan-sesame-deposit',
+  sourceSaveId: 123456763,
+})
+const sharedWorkshopSesamePasteProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_sesame_paste',
+  memo: 'qa process shared sesame paste for tangyuan',
+  idempotency_key: 'qa-shared-workshop-sesame-paste-for-tangyuan',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopSesamePasteProcess.recipe.output_item_id, 'sesame_paste', 'shared sesame paste should output sesame paste')
+assert.equal(sharedWorkshopSesamePasteProcess.workshop_action.station, 'stone_mill', 'shared sesame paste should use stone mill station')
+assert.equal(sharedWorkshopSesamePasteProcess.workshop_action.process_kind, 'cooking_material', 'shared sesame paste should be classified as cooking material')
+assert.equal(sharedWorkshopSesamePasteProcess.ledger_entry.quality, 'fine', 'shared sesame paste should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'honey',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_sesame_tangyuan_honey_deposit',
+  idempotencyKey: 'qa-shared-sesame-tangyuan-honey-deposit',
+  sourceSaveId: 123456764,
+})
+const sharedWorkshopSesameTangyuanProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_sesame_tangyuan',
+  memo: 'qa process shared sesame tangyuan',
+  idempotency_key: 'qa-shared-workshop-sesame-tangyuan',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopSesameTangyuanProcess.recipe.output_item_id, 'food_sesame_tangyuan', 'shared sesame tangyuan should output food item')
+assert.equal(sharedWorkshopSesameTangyuanProcess.workshop_action.station, 'stove', 'shared sesame tangyuan should use stove station')
+assert.equal(sharedWorkshopSesameTangyuanProcess.workshop_action.process_kind, 'cooking_dish', 'shared sesame tangyuan should keep cooking process kind')
+assert.equal(sharedWorkshopSesameTangyuanProcess.warehouse.items.find(item => item.item_id === 'food_sesame_tangyuan')?.quantity, 1, 'shared sesame tangyuan should enter shared warehouse')
+assert.equal(sharedWorkshopSesameTangyuanProcess.ledger_entry.quality, 'fine', 'shared sesame tangyuan cooperation should upgrade dish quality')
+const sharedSesameTangyuanRiceFlourConsume = sharedWorkshopSesameTangyuanProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'rice_flour')
+assert.equal(sharedSesameTangyuanRiceFlourConsume?.quality, 'fine', 'shared sesame tangyuan should consume upgraded rice flour')
+assert.ok(sharedSesameTangyuanRiceFlourConsume?.source_ledger_ids.includes(sharedWorkshopTangyuanRiceFlourProcess.ledger_entry.id), 'shared sesame tangyuan should trace rice flour material ledger')
+const sharedSesameTangyuanPasteConsume = sharedWorkshopSesameTangyuanProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'sesame_paste')
+assert.equal(sharedSesameTangyuanPasteConsume?.quality, 'fine', 'shared sesame tangyuan should consume upgraded sesame paste')
+assert.ok(sharedSesameTangyuanPasteConsume?.source_ledger_ids.includes(sharedWorkshopSesamePasteProcess.ledger_entry.id), 'shared sesame tangyuan should trace sesame paste material ledger')
+assert.ok(sharedWorkshopSesameTangyuanProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'honey'), 'shared sesame tangyuan should consume honey')
+const sharedWorkshopSesameTangyuanOriginAsset = sharedWorkshopSesameTangyuanProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopSesameTangyuanProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopSesameTangyuanOriginAsset?.item_id, 'food_sesame_tangyuan', 'shared sesame tangyuan origin asset should use food item id')
+assert.equal(sharedWorkshopSesameTangyuanOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared sesame tangyuan origin should be high-quality protected')
+assert.equal(sharedWorkshopSesameTangyuanOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared sesame tangyuan origin should keep cooking process kind')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
   itemId: 'lotus_seed',
   quantity: 2,
   quality: 'normal',
