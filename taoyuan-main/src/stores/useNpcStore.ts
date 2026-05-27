@@ -29,6 +29,7 @@ import type {
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
   RandomNpcDialogueSceneDef,
+  RandomNpcDialogueSceneKind,
   RandomNpcDialogueMemoryEntry,
   RandomNpcFamilyBusinessEntry,
   RandomNpcFamilyCommissionDef,
@@ -125,6 +126,7 @@ type RandomNpcDialogueContextTarget = {
   smallOrder: { title: string; requestedItems: Array<{ itemId: string; quantity: number }> }
   smallOrderCompleted?: boolean
   keyEvents: string[]
+  dialogueScenes: RandomNpcDialogueSceneDef[]
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
 }
 
@@ -492,26 +494,90 @@ export const useNpcStore = defineStore('npc', () => {
     choiceId: string
     choiceText: string
     response: string
+    scene?: RandomNpcDialogueSceneDef | null
     direction: RandomNpcRelationshipDirection
     affinityChange: number
     relationshipTag: RandomNpcRelationshipTag
-  }): RandomNpcDialogueMemoryEntry => ({
-    id: `${params.dayTag}:${params.choiceId}:${params.direction}`,
-    dayTag: params.dayTag,
-    choiceId: params.choiceId,
-    choiceText: params.choiceText,
-    response: params.response,
-    direction: params.direction,
-    affinityChange: params.affinityChange,
-    relationshipTag: params.relationshipTag,
-    summary: `${params.npcName}因“${params.choiceText}”留下${getRandomNpcRelationshipDirectionLabel(params.direction)}记录。`
-  })
+  }): RandomNpcDialogueMemoryEntry => {
+    const sceneSummary = params.scene ? `，触发「${params.scene.title}」` : ''
+    return {
+      id: `${params.dayTag}:${params.choiceId}:${params.direction}`,
+      dayTag: params.dayTag,
+      choiceId: params.choiceId,
+      choiceText: params.choiceText,
+      response: params.response,
+      sceneId: params.scene?.id,
+      sceneKind: params.scene?.kind,
+      sceneTitle: params.scene?.title,
+      sceneSummary: params.scene?.summary,
+      direction: params.direction,
+      affinityChange: params.affinityChange,
+      relationshipTag: params.relationshipTag,
+      summary: `${params.npcName}因“${params.choiceText}”留下${getRandomNpcRelationshipDirectionLabel(params.direction)}记录${sceneSummary}。`
+    }
+  }
 
   const appendRandomNpcDialogueMemory = (
     memories: RandomNpcDialogueMemoryEntry[],
     memory: RandomNpcDialogueMemoryEntry,
     limit = RANDOM_NPC_DIALOGUE_MEMORY_LIMIT
   ): RandomNpcDialogueMemoryEntry[] => [...memories, memory].slice(-limit)
+
+  const getRandomNpcDialogueSceneKindLabel = (kind: RandomNpcDialogueSceneKind): string => {
+    if (kind === 'first_meeting') return '初见'
+    if (kind === 'gift') return '送礼'
+    if (kind === 'request') return '求助'
+    if (kind === 'misunderstanding') return '误会'
+    if (kind === 'festival') return '节会'
+    if (kind === 'rain') return '雨天'
+    if (kind === 'night') return '夜访'
+    if (kind === 'farewell') return '离别'
+    if (kind === 'reunion') return '重逢'
+    return '日常'
+  }
+
+  const getRandomNpcTriggeredDialogueScene = (
+    target: RandomNpcDialogueContextTarget,
+    params: {
+      direction: RandomNpcRelationshipDirection
+      choiceId: string
+      choiceText: string
+      preferredKinds?: RandomNpcDialogueSceneKind[]
+    }
+  ): RandomNpcDialogueSceneDef | null => {
+    const gameStore = useGameStore()
+    const scenes = sanitizeRandomNpcDialogueScenes(target.dialogueScenes)
+    if (scenes.length === 0) return null
+    const usedSceneIds = new Set(target.dialogueMemories.map(memory => memory.sceneId).filter(Boolean))
+    const lastSceneId = target.dialogueMemories[target.dialogueMemories.length - 1]?.sceneId
+    const preferredKinds: RandomNpcDialogueSceneKind[] = [
+      ...(params.preferredKinds ?? []),
+      ...(target.dialogueMemories.length === 0 ? ['first_meeting' as const] : []),
+      ...(params.direction === 'misunderstanding' ? ['misunderstanding' as const] : []),
+      ...(['rainy', 'stormy', 'green_rain'].includes(gameStore.weather) ? ['rain' as const] : []),
+      ...(gameStore.hour >= 20 || gameStore.hour < 6 ? ['night' as const] : []),
+      ...(params.direction === 'family_impression' ? ['festival' as const, 'request' as const] : []),
+      ...(params.direction === 'ambiguity' ? ['reunion' as const, 'night' as const] : []),
+      'daily'
+    ]
+    const byKind = preferredKinds
+      .map(kind => scenes.find(scene => scene.kind === kind && scene.id !== lastSceneId))
+      .find((scene): scene is RandomNpcDialogueSceneDef => !!scene)
+    if (byKind) return byKind
+    const byDirection = scenes.find(scene =>
+      scene.relationshipDirection === params.direction &&
+      scene.id !== lastSceneId &&
+      !usedSceneIds.has(scene.id)
+    )
+    if (byDirection) return byDirection
+    const freshScene = scenes.find(scene => scene.id !== lastSceneId && !usedSceneIds.has(scene.id))
+    if (freshScene) return freshScene
+    const seed = `${target.name}:${params.choiceId}:${params.choiceText}:${target.dialogueMemories.length}`
+    return scenes[hashText(seed) % scenes.length] ?? null
+  }
+
+  const buildRandomNpcDialogueSceneLine = (scene: RandomNpcDialogueSceneDef | null): string =>
+    scene ? `对话场景「${scene.title}」触发（${getRandomNpcDialogueSceneKindLabel(scene.kind)}）：${scene.summary}` : ''
 
   const getRandomNpcFarmContextLine = (targetName: string): string => {
     const farmStore = useFarmStore()
@@ -635,6 +701,22 @@ export const useNpcStore = defineStore('npc', () => {
           choiceId: typeof entry.choiceId === 'string' ? entry.choiceId : '',
           choiceText: typeof entry.choiceText === 'string' ? entry.choiceText : '',
           response: typeof entry.response === 'string' ? entry.response : '',
+          sceneId: typeof entry.sceneId === 'string' ? entry.sceneId : undefined,
+          sceneKind:
+            entry.sceneKind === 'first_meeting' ||
+            entry.sceneKind === 'daily' ||
+            entry.sceneKind === 'gift' ||
+            entry.sceneKind === 'request' ||
+            entry.sceneKind === 'misunderstanding' ||
+            entry.sceneKind === 'festival' ||
+            entry.sceneKind === 'rain' ||
+            entry.sceneKind === 'night' ||
+            entry.sceneKind === 'farewell' ||
+            entry.sceneKind === 'reunion'
+              ? entry.sceneKind
+              : undefined,
+          sceneTitle: typeof entry.sceneTitle === 'string' ? entry.sceneTitle : undefined,
+          sceneSummary: typeof entry.sceneSummary === 'string' ? entry.sceneSummary : undefined,
           direction,
           affinityChange: Number(entry.affinityChange) || 0,
           relationshipTag,
@@ -1878,24 +1960,73 @@ export const useNpcStore = defineStore('npc', () => {
       }
     }
 
-    const dayTag = getCurrentNpcDayTag()
-    const eventLine = `${dayTag} 完成小订单「${target.smallOrder.title}」：${target.smallOrder.rewardSummary}`
     const rewardAffinity = RANDOM_NPC_SMALL_ORDER_AFFINITY_REWARD
+    const dayTag = getCurrentNpcDayTag()
+    const orderScene = getRandomNpcTriggeredDialogueScene(target, {
+      direction: 'trust',
+      choiceId: `small_order:${target.smallOrder.id}`,
+      choiceText: target.smallOrder.title,
+      preferredKinds: ['request', 'gift']
+    })
+    const orderSceneDirection = orderScene?.relationshipDirection ?? 'trust'
+    const orderSceneLine = buildRandomNpcDialogueSceneLine(orderScene)
+    const eventLine = `${dayTag} 完成小订单「${target.smallOrder.title}」：${target.smallOrder.rewardSummary}${orderSceneLine ? ` ${orderSceneLine}` : ''}`
+    const orderDialogueMemory = orderScene
+      ? buildRandomNpcDialogueMemory({
+          npcName: target.name,
+          dayTag,
+          choiceId: `small_order:${target.smallOrder.id}`,
+          choiceText: `小订单「${target.smallOrder.title}」`,
+          response: orderSceneLine,
+          scene: orderScene,
+          direction: orderSceneDirection,
+          affinityChange: rewardAffinity,
+          relationshipTag: target.relationshipTag
+        })
+      : null
     if (visitor) {
       visitor.affinity = Math.min(100, visitor.affinity + rewardAffinity)
       visitor.smallOrderCompleted = true
       visitor.lastVisitDayTag = dayTag
+      if (orderDialogueMemory) {
+        visitor.relationshipSignals = applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+          orderSceneDirection,
+          rewardAffinity
+        )
+        visitor.dialogueMemories = appendRandomNpcDialogueMemory(visitor.dialogueMemories, orderDialogueMemory)
+      }
       visitor.keyEvents = [...visitor.keyEvents, eventLine].slice(-6)
     }
     if (acquaintance) {
       acquaintance.affinity = Math.min(100, acquaintance.affinity + rewardAffinity)
       acquaintance.smallOrderCompleted = true
       acquaintance.lastSeenDayTag = dayTag
+      if (orderDialogueMemory) {
+        acquaintance.relationshipSignals = applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(acquaintance.relationshipSignals),
+          orderSceneDirection,
+          rewardAffinity
+        )
+        acquaintance.dialogueMemories = appendRandomNpcDialogueMemory(acquaintance.dialogueMemories, orderDialogueMemory)
+      }
       acquaintance.keyEvents = [...acquaintance.keyEvents, eventLine].slice(-6)
     }
     if (resident) {
       resident.affinity = Math.min(100, resident.affinity + rewardAffinity)
       resident.smallOrderCompleted = true
+      if (orderDialogueMemory) {
+        resident.relationshipSignals = applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals),
+          orderSceneDirection,
+          rewardAffinity
+        )
+        resident.dialogueMemories = appendRandomNpcDialogueMemory(
+          resident.dialogueMemories,
+          orderDialogueMemory,
+          RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT
+        )
+      }
       resident.keyEvents = [...resident.keyEvents, eventLine].slice(-8)
     }
     if (visitor && (visitor.tier === 'acquaintance' || visitor.tier === 'long_stay')) {
@@ -1904,7 +2035,7 @@ export const useNpcStore = defineStore('npc', () => {
 
     return {
       success: true,
-      message: `${target.name}收下了「${target.smallOrder.title}」，${target.smallOrder.rewardSummary} 好感+${rewardAffinity}。`,
+      message: `${target.name}收下了「${target.smallOrder.title}」，${target.smallOrder.rewardSummary} 好感+${rewardAffinity}。${orderSceneLine ? ` ${orderSceneLine}` : ''}`,
       affinityChange: rewardAffinity
     }
   }
@@ -1930,6 +2061,12 @@ export const useNpcStore = defineStore('npc', () => {
 
     const nextRelationshipTag = choice.relationshipTag ?? visitor.relationshipTag
     const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
+    const dialogueScene = getRandomNpcTriggeredDialogueScene(visitor, {
+      direction,
+      choiceId: choice.id,
+      choiceText: choice.text
+    })
+    const dialogueSceneLine = buildRandomNpcDialogueSceneLine(dialogueScene)
     const contextLine = buildRandomNpcDialogueContextLine(visitor)
     const followUpAgreementLine = buildRandomNpcFollowUpAgreementLine({
       target: visitor,
@@ -1938,7 +2075,7 @@ export const useNpcStore = defineStore('npc', () => {
       direction,
       affinityChange
     })
-    const response = [choice.response, contextLine, cookingTopicLine, followUpAgreementLine].filter(Boolean).join(' ')
+    const response = [choice.response, dialogueSceneLine, contextLine, cookingTopicLine, followUpAgreementLine].filter(Boolean).join(' ')
     visitor.talkedToday = true
     visitor.conversationCount += 1
     visitor.affinity = Math.max(0, Math.min(100, visitor.affinity + affinityChange))
@@ -1950,6 +2087,7 @@ export const useNpcStore = defineStore('npc', () => {
       choiceId: choice.id,
       choiceText: choice.text,
       response,
+      scene: dialogueScene,
       direction,
       affinityChange,
       relationshipTag: visitor.relationshipTag
@@ -2077,6 +2215,13 @@ export const useNpcStore = defineStore('npc', () => {
     const nextStage = event.stage >= 3 ? 3 : (event.stage + 1) as 1 | 2 | 3
     const nextRelationshipTag = choice.relationshipTag ?? resident.relationshipTag
     const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
+    const dialogueScene = getRandomNpcTriggeredDialogueScene(resident, {
+      direction,
+      choiceId: choice.id,
+      choiceText: choice.text,
+      preferredKinds: event.stage >= 3 ? ['farewell'] : undefined
+    })
+    const dialogueSceneLine = buildRandomNpcDialogueSceneLine(dialogueScene)
     const contextLine = buildRandomNpcDialogueContextLine(resident)
     const followUpAgreementLine = buildRandomNpcFollowUpAgreementLine({
       target: resident,
@@ -2085,13 +2230,14 @@ export const useNpcStore = defineStore('npc', () => {
       direction,
       affinityChange: choice.affinityChange
     })
-    const response = [choice.response, contextLine, followUpAgreementLine].filter(Boolean).join(' ')
+    const response = [choice.response, dialogueSceneLine, contextLine, followUpAgreementLine].filter(Boolean).join(' ')
     const dialogueMemory = buildRandomNpcDialogueMemory({
       npcName: resident.name,
       dayTag,
       choiceId: choice.id,
       choiceText: `${event.title}：${choice.text}`,
       response,
+      scene: dialogueScene,
       direction,
       affinityChange: choice.affinityChange,
       relationshipTag: nextRelationshipTag

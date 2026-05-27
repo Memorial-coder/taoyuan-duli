@@ -185,6 +185,7 @@
                 >
                   <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
                   <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                  <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
                 </div>
               </div>
             </div>
@@ -341,6 +342,7 @@
                   >
                     <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }}</p>
                     <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                    <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
                   </div>
                 </div>
               </div>
@@ -577,6 +579,7 @@
                   >
                     <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
                     <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
+                    <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
                   </div>
                 </div>
               </div>

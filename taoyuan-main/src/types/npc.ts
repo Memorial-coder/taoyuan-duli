@@ -256,6 +256,10 @@ export interface RandomNpcDialogueMemoryEntry {
   choiceId: string
   choiceText: string
   response: string
+  sceneId?: string
+  sceneKind?: RandomNpcDialogueSceneKind
+  sceneTitle?: string
+  sceneSummary?: string
   direction: RandomNpcRelationshipDirection
   affinityChange: number
   relationshipTag: RandomNpcRelationshipTag
