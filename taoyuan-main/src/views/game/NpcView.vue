@@ -155,6 +155,13 @@
               <span class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ visitor.plotHook }}</span>
             </div>
             <p class="text-[10px] text-muted leading-4 mt-1">{{ visitor.dialogueOpening }}</p>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2 text-[10px]">
+              <p class="text-muted">人物卡</p>
+              <p class="text-accent/90 leading-4 mt-0.5">外貌：{{ visitor.appearanceKeywords.join('、') }}</p>
+              <p class="text-muted leading-4 mt-0.5">来村目的：{{ visitor.villagePurpose }}</p>
+              <p class="text-muted leading-4 mt-0.5">恋爱观：{{ visitor.romanceView }}</p>
+              <p class="text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(visitor.developmentRoutes) }}</p>
+            </div>
             <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
               <div class="border border-accent/10 rounded-xs px-1.5 py-1">
                 <span class="text-muted/60">好感</span>
@@ -304,6 +311,13 @@
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <p class="text-[10px] text-muted">人物卡</p>
+                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">外貌：{{ acquaintance.appearanceKeywords.join('、') }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">来村目的：{{ acquaintance.villagePurpose }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">恋爱观：{{ acquaintance.romanceView }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(acquaintance.developmentRoutes) }}</p>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <p class="text-[10px] text-muted">偏好</p>
                 <p class="text-[10px] text-accent/90 leading-4 mt-0.5">
                   最爱 {{ getRandomNpcPreferenceNames(acquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(acquaintance.preferences.liked) }}
@@ -370,6 +384,13 @@
               </div>
               <p class="text-[10px] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
               <p class="text-[10px] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <p class="text-[10px] text-muted">人物卡</p>
+                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">外貌：{{ resident.appearanceKeywords.join('、') }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">来村目的：{{ resident.villagePurpose }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">恋爱观：{{ resident.romanceView }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(resident.developmentRoutes) }}</p>
+              </div>
               <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-[10px] text-muted">家族节点</p>
@@ -1767,6 +1788,8 @@
     return '短访'
   }
   const getRandomNpcLongStayRouteLabel = (route: RandomNpcLongStayRoute): string => RANDOM_NPC_LONG_STAY_ROUTE_LABELS[route]
+  const getRandomNpcDevelopmentRouteText = (routes: RandomNpcLongStayRoute[]): string =>
+    routes.map(route => RANDOM_NPC_LONG_STAY_ROUTE_LABELS[route]).join('、') || '待观察'
   const getRandomNpcRelationshipDirectionLabel = (direction: RandomNpcRelationshipDirection): string =>
     RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS[direction]
   const getRandomNpcFamilyTieKindLabel = (kind: RandomNpcFamilyTieKind): string =>

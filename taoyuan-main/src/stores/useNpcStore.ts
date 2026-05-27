@@ -823,9 +823,13 @@ export const useNpcStore = defineStore('npc', () => {
       origin: template.origin,
       personalityTags: [...template.personalityTags],
       speechStyle: template.speechStyle,
+      appearanceKeywords: [...template.appearanceKeywords],
       taboo: template.taboo,
       lifeGoal: template.lifeGoal,
       currentTrouble: template.currentTrouble,
+      villagePurpose: template.villagePurpose,
+      romanceView: template.romanceView,
+      developmentRoutes: [...template.developmentRoutes],
       plotHook: template.plotHook,
       familySeed: template.familySeed,
       preferences: {
@@ -884,9 +888,13 @@ export const useNpcStore = defineStore('npc', () => {
       origin: template.origin,
       personalityTags: [...template.personalityTags],
       speechStyle: template.speechStyle,
+      appearanceKeywords: [...template.appearanceKeywords],
       taboo: template.taboo,
       lifeGoal: template.lifeGoal,
       currentTrouble: template.currentTrouble,
+      villagePurpose: template.villagePurpose,
+      romanceView: template.romanceView,
+      developmentRoutes: [...template.developmentRoutes],
       plotHook: template.plotHook,
       familySeed: template.familySeed,
       preferences: {
@@ -952,6 +960,10 @@ export const useNpcStore = defineStore('npc', () => {
     occupation: visitor.occupation,
     origin: visitor.origin,
     personalityTags: [...visitor.personalityTags],
+    appearanceKeywords: [...visitor.appearanceKeywords],
+    villagePurpose: visitor.villagePurpose,
+    romanceView: visitor.romanceView,
+    developmentRoutes: [...visitor.developmentRoutes],
     plotHook: visitor.plotHook,
     familySeed: visitor.familySeed,
     preferences: {
@@ -990,9 +1002,13 @@ export const useNpcStore = defineStore('npc', () => {
       origin: template.origin,
       personalityTags: [...template.personalityTags],
       speechStyle: template.speechStyle,
+      appearanceKeywords: [...template.appearanceKeywords],
       taboo: template.taboo,
       lifeGoal: template.lifeGoal,
       currentTrouble: template.currentTrouble,
+      villagePurpose: template.villagePurpose,
+      romanceView: template.romanceView,
+      developmentRoutes: [...template.developmentRoutes],
       plotHook: template.plotHook,
       familySeed: template.familySeed,
       familyTies: sanitizeRandomNpcFamilyTies(template.familyTies),
@@ -4211,9 +4227,19 @@ export const useNpcStore = defineStore('npc', () => {
             origin: template.origin,
             personalityTags: [...template.personalityTags],
             speechStyle: template.speechStyle,
+            appearanceKeywords: Array.isArray(visitor.appearanceKeywords)
+              ? visitor.appearanceKeywords.filter((text: unknown) => typeof text === 'string').slice(0, 4)
+              : [...template.appearanceKeywords],
             taboo: template.taboo,
             lifeGoal: template.lifeGoal,
             currentTrouble: template.currentTrouble,
+            villagePurpose: typeof visitor.villagePurpose === 'string' ? visitor.villagePurpose : template.villagePurpose,
+            romanceView: typeof visitor.romanceView === 'string' ? visitor.romanceView : template.romanceView,
+            developmentRoutes: Array.isArray(visitor.developmentRoutes)
+              ? visitor.developmentRoutes.filter((route: unknown): route is RandomNpcLongStayRoute =>
+                route === 'business' || route === 'caregiving' || route === 'craft' || route === 'friendship'
+              ).slice(0, 3)
+              : [...template.developmentRoutes],
             plotHook: template.plotHook,
             familySeed: template.familySeed,
             preferences: {
@@ -4263,6 +4289,16 @@ export const useNpcStore = defineStore('npc', () => {
                 occupation: template.occupation,
                 origin: template.origin,
                 personalityTags: [...template.personalityTags],
+                appearanceKeywords: Array.isArray(entry.appearanceKeywords)
+                  ? entry.appearanceKeywords.filter((text: unknown) => typeof text === 'string').slice(0, 4)
+                  : [...template.appearanceKeywords],
+                villagePurpose: typeof entry.villagePurpose === 'string' ? entry.villagePurpose : template.villagePurpose,
+                romanceView: typeof entry.romanceView === 'string' ? entry.romanceView : template.romanceView,
+                developmentRoutes: Array.isArray(entry.developmentRoutes)
+                  ? entry.developmentRoutes.filter((route: unknown): route is RandomNpcLongStayRoute =>
+                    route === 'business' || route === 'caregiving' || route === 'craft' || route === 'friendship'
+                  ).slice(0, 3)
+                  : [...template.developmentRoutes],
                 plotHook: template.plotHook,
                 familySeed: template.familySeed,
                 preferences: {
@@ -4311,9 +4347,19 @@ export const useNpcStore = defineStore('npc', () => {
                 origin: template.origin,
                 personalityTags: [...template.personalityTags],
                 speechStyle: template.speechStyle,
+                appearanceKeywords: Array.isArray(entry.appearanceKeywords)
+                  ? entry.appearanceKeywords.filter((text: unknown) => typeof text === 'string').slice(0, 4)
+                  : [...template.appearanceKeywords],
                 taboo: template.taboo,
                 lifeGoal: template.lifeGoal,
                 currentTrouble: template.currentTrouble,
+                villagePurpose: typeof entry.villagePurpose === 'string' ? entry.villagePurpose : template.villagePurpose,
+                romanceView: typeof entry.romanceView === 'string' ? entry.romanceView : template.romanceView,
+                developmentRoutes: Array.isArray(entry.developmentRoutes)
+                  ? entry.developmentRoutes.filter((route: unknown): route is RandomNpcLongStayRoute =>
+                    route === 'business' || route === 'caregiving' || route === 'craft' || route === 'friendship'
+                  ).slice(0, 3)
+                  : [...template.developmentRoutes],
                 plotHook: template.plotHook,
                 familySeed: template.familySeed,
                 familyTies: sanitizeRandomNpcFamilyTies(entry.familyTies, template.familyTies),

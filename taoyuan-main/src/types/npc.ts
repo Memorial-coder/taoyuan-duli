@@ -243,6 +243,25 @@ export interface RandomNpcSmallOrderDef {
   rewardSummary: string
 }
 
+export type RandomNpcLongStayRoute = 'friendship' | 'business' | 'caregiving' | 'craft'
+
+export interface GeneratedNpcProfile {
+  name: string
+  ageBand: RandomNpcAgeBand
+  gender: Gender
+  origin: string
+  occupation: string
+  personalityTags: string[]
+  speechStyle: string
+  appearanceKeywords: string[]
+  familyBackground: string
+  preferences: RandomNpcTemplate['preferences']
+  currentTrouble: string
+  villagePurpose: string
+  romanceView: string
+  developmentRoutes: RandomNpcLongStayRoute[]
+}
+
 export interface RandomNpcTemplate {
   id: string
   nameSeeds: string[]
@@ -252,9 +271,13 @@ export interface RandomNpcTemplate {
   origin: string
   personalityTags: string[]
   speechStyle: string
+  appearanceKeywords: string[]
   taboo: string
   lifeGoal: string
   currentTrouble: string
+  villagePurpose: string
+  romanceView: string
+  developmentRoutes: RandomNpcLongStayRoute[]
   plotHook: string
   familySeed: string
   familyTies: RandomNpcFamilyTieDef[]
@@ -279,9 +302,13 @@ export interface RandomNpcVisitorState {
   origin: string
   personalityTags: string[]
   speechStyle: string
+  appearanceKeywords: string[]
   taboo: string
   lifeGoal: string
   currentTrouble: string
+  villagePurpose: string
+  romanceView: string
+  developmentRoutes: RandomNpcLongStayRoute[]
   plotHook: string
   familySeed: string
   preferences: RandomNpcTemplate['preferences']
@@ -327,6 +354,10 @@ export interface RandomNpcAcquaintanceEntry {
   occupation: string
   origin: string
   personalityTags: string[]
+  appearanceKeywords: string[]
+  villagePurpose: string
+  romanceView: string
+  developmentRoutes: RandomNpcLongStayRoute[]
   plotHook: string
   familySeed: string
   preferences: RandomNpcTemplate['preferences']
@@ -342,8 +373,6 @@ export interface RandomNpcAcquaintanceEntry {
   relationshipSignals: RandomNpcRelationshipSignals
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
 }
-
-export type RandomNpcLongStayRoute = 'friendship' | 'business' | 'caregiving' | 'craft'
 
 export interface RandomNpcStoryChoiceDef {
   id: string
@@ -374,9 +403,13 @@ export interface RandomNpcLongStayEntry {
   origin: string
   personalityTags: string[]
   speechStyle: string
+  appearanceKeywords: string[]
   taboo: string
   lifeGoal: string
   currentTrouble: string
+  villagePurpose: string
+  romanceView: string
+  developmentRoutes: RandomNpcLongStayRoute[]
   plotHook: string
   familySeed: string
   familyTies: RandomNpcFamilyTieDef[]
