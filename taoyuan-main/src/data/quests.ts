@@ -1890,9 +1890,32 @@ const getCropUseTagMatchedSummary = (itemId: string, tags: CropUseTag[]): string
   const labels: Record<string, string> = {
     order: '订单交付',
     festival: '节会供品',
-    food: '料理备料'
+    food: '料理备料',
+    gift: '赠礼备货',
+    online_cost: '联机消耗',
+    alchemy: '炼丹主材',
+    medicine: '药材'
   }
   return `作物用途标签匹配：${matched.map(tag => labels[tag] ?? tag).join('、')}。`
+}
+
+const SPECIAL_ORDER_CROP_USE_TAGS: CropUseTag[] = ['order', 'festival', 'food', 'gift', 'online_cost', 'alchemy', 'medicine']
+
+const getSpecialOrderCropUseSummaries = (template: SpecialOrderTemplate): string[] => {
+  const itemIds = [
+    template.targetItemId,
+    ...(template.stageDefinitions?.map(stage => stage.targetItemId).filter((itemId): itemId is string => !!itemId) ?? []),
+    ...(template.comboRequirements?.map(requirement => requirement.itemId) ?? [])
+  ]
+  const summaries: string[] = []
+  const seen = new Set<string>()
+  for (const itemId of itemIds) {
+    const summary = getCropUseTagMatchedSummary(itemId, SPECIAL_ORDER_CROP_USE_TAGS)
+    if (!summary || seen.has(summary)) continue
+    seen.add(summary)
+    summaries.push(summary)
+  }
+  return summaries
 }
 
 const getVillagerQuestUseWeight = (template: VillagerQuestTemplate): number => {
@@ -2898,9 +2921,14 @@ export const generateSpecialOrder = (
     let weight = 1
     const weightReasons = ['基础权重 1']
     const marketCategory = getQuestMarketCategoryByItemId(template.targetItemId)
+    const cropUseSummaries = getSpecialOrderCropUseSummaries(template)
     if (BREEDING_SPECIAL_ORDER_TUNING_CONFIG.featureFlags.themeWeekBiasEnabled && options?.preferredThemeTag && template.themeTag === options.preferredThemeTag) {
       weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredThemeWeightBonus
       weightReasons.push(`主题周偏好 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredThemeWeightBonus}`)
+    }
+    if (cropUseSummaries.length > 0) {
+      weight += 1
+      weightReasons.push('作物用途标签匹配 +1')
     }
     if (template.preferredSeasons?.includes(season)) {
       weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredSeasonWeightBonus
@@ -2958,6 +2986,8 @@ export const generateSpecialOrder = (
   const npcDef = getNpcById(template.npcId)
   const npcName = npcDef?.name ?? template.npcId
   const tierLabel = TIER_LABELS[clampedTier - 1]
+  const specialOrderCropUseSummaries = getSpecialOrderCropUseSummaries(template)
+  const demandHints = [template.bonusSummary?.[0], ...specialOrderCropUseSummaries].filter((line): line is string => !!line)
 
   questCounter++
   return {
@@ -2985,7 +3015,7 @@ export const generateSpecialOrder = (
     activitySourceId: template.activitySourceId,
     activitySourceLabel: template.activitySourceLabel,
     orderStageType: template.orderStageType,
-    demandHint: template.bonusSummary?.[0],
+    demandHint: demandHints.length > 0 ? demandHints.join('；') : undefined,
     stageDefinitions: cloneStageDefinitions(template.stageDefinitions),
     comboRequirements: cloneComboRequirements(template.comboRequirements),
     orderScoreRule: template.orderScoreRule
@@ -3000,7 +3030,7 @@ export const generateSpecialOrder = (
     antiRepeatCooldownWeeks: template.antiRepeatCooldownWeeks,
     recommendedHybridIds: template.requiredHybridId ? [template.requiredHybridId] : undefined,
     preferredSeasons: template.preferredSeasons,
-    bonusSummary: template.bonusSummary,
+    bonusSummary: [...(template.bonusSummary ?? []), ...specialOrderCropUseSummaries],
     deliverySourceHint: buildSpecialOrderDeliverySourceHint(template, cloneStageDefinitions(template.stageDefinitions), cloneComboRequirements(template.comboRequirements)),
     requirementSummary: getRequirementSummary(template),
     requiredHybridId: template.requiredHybridId,
