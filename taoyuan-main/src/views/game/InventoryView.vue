@@ -39,6 +39,20 @@
         </Button>
         <Button class="py-0 px-1.5" :icon="ArrowDown01" :icon-size="12" @click="inventoryStore.sortItems()">整理</Button>
       </div>
+      <div v-if="cropUseRecommendations.length > 0" class="border border-accent/20 rounded-xs px-2 py-1.5 mb-2">
+        <p class="text-[10px] text-accent mb-1">库存用途建议</p>
+        <div
+          v-for="entry in cropUseRecommendations"
+          :key="entry.itemId"
+          class="flex items-start justify-between gap-2 py-0.5"
+        >
+          <div class="min-w-0">
+            <p class="text-xs text-text truncate">{{ entry.name }} ×{{ entry.quantity }}</p>
+            <p class="text-[10px] text-muted leading-snug">{{ entry.text }}</p>
+          </div>
+          <button class="text-[10px] text-accent/80 shrink-0" @click="openInventoryItem(entry.itemId)">查看</button>
+        </div>
+      </div>
       <div v-if="filteredItems.length > 0" class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
         <div
           v-for="(item, idx) in filteredItems"
@@ -587,6 +601,9 @@
               </div>
             </div>
             <p class="text-xs text-text leading-relaxed mt-1">{{ activeCropUseProfile.recommendedUses.join('、') }}</p>
+            <p v-if="activeCropUseRecommendationText" class="text-xs text-accent/80 leading-relaxed mt-1">
+              {{ activeCropUseRecommendationText }}
+            </p>
           </div>
 
           <div class="flex flex-col space-y-1.5">
@@ -920,6 +937,14 @@
 
   const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
   const getCropUseFilterHint = (tag: CropUseTag): string => `${CROP_USE_TAG_LABELS[tag]}：${CROP_USE_TAG_FILTER_HINTS[tag]}`
+  const CROP_USE_RECOMMENDATION_PRIORITY: CropUseTag[] = ['food', 'alchemy', 'pet_feed', 'animal_feed', 'order', 'gift', 'festival', 'online_cost', 'oil', 'flour', 'wine', 'pickle', 'medicine']
+
+  interface CropUseInventoryRecommendation {
+    itemId: string
+    name: string
+    quantity: number
+    text: string
+  }
 
   const isFilterActive = computed(() => settingsStore.inventoryFilter.length > 0 || settingsStore.inventoryCropUseFilter.length > 0)
 
@@ -938,6 +963,50 @@
       return !!profile && profile.tags.some(tag => allowedCropUseTags.has(tag))
     })
   })
+
+  const buildCropUseRecommendationText = (tags: CropUseTag[]): string => {
+    if (tags.includes('food') && tags.includes('alchemy')) return '推荐：料理 / 炼丹双路径作物，先按今日目标决定灶台或丹炉消耗。'
+    if (tags.includes('food')) return '推荐：灶台料理食材，可优先转成剧情料理或订单备餐。'
+    if (tags.includes('alchemy') || tags.includes('medicine')) return '推荐：丹炉药材，可留作主材 / 辅材和短效经营丹。'
+    if (tags.includes('pet_feed')) return '推荐：宠物特别喂食或高阶点心材料，适合灵宠反馈线。'
+    if (tags.includes('animal_feed')) return '推荐：牧场补料，可作为动物饲料储备。'
+    if (tags.includes('order')) return '推荐：订单交付储备，适合告示板或特殊订单。'
+    if (tags.includes('gift')) return '推荐：村民赠礼或关系话题材料。'
+    if (tags.includes('festival')) return '推荐：节会供品 / 宴席备菜，适合节前留存。'
+    if (tags.includes('online_cost')) return '推荐：公共仓、公共订单或联机消耗储备。'
+    return `推荐：${tags.map(tag => CROP_USE_TAG_LABELS[tag]).join('、')}用途储备。`
+  }
+
+  const cropUseRecommendations = computed<CropUseInventoryRecommendation[]>(() => {
+    const selectedTags = settingsStore.inventoryCropUseFilter.length > 0
+      ? settingsStore.inventoryCropUseFilter
+      : CROP_USE_RECOMMENDATION_PRIORITY
+    const selectedTagSet = new Set(selectedTags)
+
+    return inventoryStore.items
+      .map(item => {
+        const def = getItemById(item.itemId)
+        if (def?.category !== 'crop') return null
+        const profile = getCropUseProfile(def.id)
+        if (!profile) return null
+        const matchedTags = CROP_USE_RECOMMENDATION_PRIORITY.filter(tag => selectedTagSet.has(tag) && profile.tags.includes(tag))
+        if (matchedTags.length === 0) return null
+        return {
+          itemId: item.itemId,
+          name: def.name,
+          quantity: item.quantity,
+          text: buildCropUseRecommendationText(matchedTags)
+        }
+      })
+      .filter((entry): entry is CropUseInventoryRecommendation => !!entry)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 3)
+  })
+
+  const openInventoryItem = (itemId: string) => {
+    const index = inventoryStore.items.findIndex(item => item.itemId === itemId)
+    if (index >= 0) activeItemIndex.value = index
+  }
 
   const openFilterModal = () => {
     tempFilter.value = new Set(settingsStore.inventoryFilter)
@@ -1342,6 +1411,12 @@
   const activeCropUseTagLabels = computed(() => {
     if (!activeCropUseProfile.value) return []
     return getCropUseTagLabels(activeCropUseProfile.value)
+  })
+
+  const activeCropUseRecommendationText = computed(() => {
+    if (!activeCropUseProfile.value) return ''
+    const matchedTags = CROP_USE_RECOMMENDATION_PRIORITY.filter(tag => activeCropUseProfile.value?.tags.includes(tag))
+    return matchedTags.length > 0 ? buildCropUseRecommendationText(matchedTags) : ''
   })
 
   /** 烹饪品的buff描述 */
