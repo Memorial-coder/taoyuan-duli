@@ -450,22 +450,140 @@ function buildMobileSmokeBridgeVisualProject(contributed = false) {
   }
 }
 
+function buildMobileSmokeFestivalSquareProject(contributed = false) {
+  return {
+    id: 'festival_square',
+    label: '节庆筹备',
+    summary: '把空广场一步步备成节会现场，先完成备料、搭场、彩排和开幕布置。',
+    status: 'active',
+    status_label: '建设中',
+    progress: contributed ? 50 : 20,
+    target_progress: 100,
+    progress_percent: contributed ? 50 : 20,
+    remaining_progress: contributed ? 50 : 80,
+    completed_at: 0,
+    completed_by: '',
+    completed_by_display_name: '',
+    progress_note: contributed ? '布景板已经搭起，广场有了节会轮廓。' : '空广场正在备料，等待社员搭出第一批布景。',
+    completion_feedback: '',
+    world_feedback: '',
+    completion_rewards: [],
+    can_contribute: true,
+    my_contribution_count: contributed ? 1 : 0,
+    contribution_packages: [
+      {
+        id: 'festival_scenery',
+        label: '布景搭设',
+        kind: 'scenery',
+        summary: '搭出戏台、布景板和临时围挡。',
+        progress_gain: 30,
+        daily_limit: 1,
+        weekly_limit: 3,
+        costs: []
+      }
+    ],
+    recent_contributions: contributed
+      ? [{ id: 'mobile-smoke-festival-square-contribution', username: 'mobile_smoke_owner', display_name: '移动端烟测号', package_id: 'festival_scenery', package_label: '布景搭设', progress_gain: 30, created_at: 5 }]
+      : []
+  }
+}
+
+function buildMobileSmokeFestivalSquareVisualProject(contributed = false) {
+  return {
+    id: 'festival_square',
+    label: '节庆筹备',
+    kind: 'festival_square',
+    day_tag: 'mobile-smoke-day',
+    week_tag: '节庆筹备周目标',
+    starts_at: 0,
+    ends_at: 0,
+    current_stage_id: contributed ? 'festival_square_build' : 'festival_square_prepare',
+    stages: [
+      {
+        id: 'festival_square_prepare',
+        label: '备料',
+        state: contributed ? 'complete' : 'active',
+        progress_value: contributed ? 100 : 20,
+        progress_target: 100,
+        object_ids: ['festival_empty_square', 'festival_materials'],
+        contribution_options: contributed ? [] : [
+          {
+            id: 'festival_scenery',
+            label: '布景搭设',
+            kind: 'scenery',
+            available_action_id: 'festival_scenery',
+            daily_limit: 1,
+            weekly_limit: 3,
+            resource_cost_preview: {},
+            progress_delta: 30,
+            reward_preview: '节庆广场 +30'
+          }
+        ],
+        milestones: [{ id: 'festival_square_prepare_ready', label: '备料齐整', progress_required: 25, reached: contributed }]
+      },
+      {
+        id: 'festival_square_build',
+        label: '搭场',
+        state: contributed ? 'active' : 'pending',
+        progress_value: contributed ? 50 : 0,
+        progress_target: 100,
+        object_ids: ['festival_stage', 'festival_lantern_gate', 'festival_scene_panels'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'festival_square_rehearsal',
+        label: '彩排',
+        state: 'pending',
+        progress_value: 0,
+        progress_target: 100,
+        object_ids: ['festival_program_board', 'festival_riddle_board'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'festival_square_opening',
+        label: '开幕',
+        state: 'pending',
+        progress_value: 0,
+        progress_target: 100,
+        object_ids: ['festival_crowd', 'festival_photo_spot'],
+        contribution_options: [],
+        milestones: []
+      }
+    ],
+    contributors: contributed ? [
+      { username: 'mobile_smoke_owner', display_name: '移动端烟测号', contribution_value: 30, rank: 1 }
+    ] : [],
+    history: contributed ? [
+      { id: 'mobile-smoke-festival-square-history', summary: '移动端烟测号搭起第一批节庆布景。', created_at: 5 }
+    ] : [],
+    completion_room_template_id: 'lantern_fair',
+    completion_event_id: ''
+  }
+}
+
 function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lantern_wall') {
   const isBridge = projectKind === 'bridge'
+  const isFestivalSquare = projectKind === 'festival_square'
   const publicProject = isBridge
     ? buildMobileSmokeBridgeProject(contributed)
-    : buildMobileSmokeLanternWallProject(contributed)
+    : isFestivalSquare
+      ? buildMobileSmokeFestivalSquareProject(contributed)
+      : buildMobileSmokeLanternWallProject(contributed)
   const visualProject = isBridge
     ? buildMobileSmokeBridgeVisualProject(contributed)
-    : buildMobileSmokeLanternWallVisualProject(contributed)
+    : isFestivalSquare
+      ? buildMobileSmokeFestivalSquareVisualProject(contributed)
+      : buildMobileSmokeLanternWallVisualProject(contributed)
   return {
     ok: true,
     bulletin: '移动端村社 smoke',
     my_society: {
       id: 'mobile-smoke-society',
-      name: isBridge ? '清溪桥社' : '清溪灯社',
+      name: isBridge ? '清溪桥社' : isFestivalSquare ? '清溪节社' : '清溪灯社',
       summary: '移动端公共建设测试村社',
-      notice: isBridge ? '本周先把溪桥修通。' : '本周先点亮花灯墙。',
+      notice: isBridge ? '本周先把溪桥修通。' : isFestivalSquare ? '本周把广场搭成节会现场。' : '本周先点亮花灯墙。',
       emblem: isBridge ? 'bridge_badge' : 'lantern_medallion',
       emblem_label: isBridge ? '桥章' : '灯章',
       theme: isBridge ? 'public_works' : 'festival_hosts',
@@ -509,7 +627,11 @@ function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lan
         board_id: 'society_public_projects',
         selected_visual_id: publicProject.id,
         recent_feedback: contributed
-          ? (isBridge ? '移动端烟测号补上一段修桥工班，桥面推进了一截。' : '移动端烟测号写下一张愿望签，花灯墙亮了一角。')
+          ? (isBridge
+              ? '移动端烟测号补上一段修桥工班，桥面推进了一截。'
+              : isFestivalSquare
+                ? '移动端烟测号搭起第一批节庆布景，广场开始像节会现场。'
+                : '移动端烟测号写下一张愿望签，花灯墙亮了一角。')
           : '',
         async_projects: [visualProject]
       },
@@ -1776,6 +1898,43 @@ async function prepareOnlineSocietyBridgeMobile(page) {
   expect(clippedControls).toEqual([])
 }
 
+async function prepareOnlineSocietyFestivalSquareMobile(page) {
+  await expect(page.getByTestId('online-society-page')).toBeVisible()
+  await expect(page.getByText('清溪节社').first()).toBeVisible()
+  await expect(page.getByTestId('online-module-tab-projects')).toBeVisible()
+  await page.getByTestId('online-module-tab-projects').click()
+
+  await expect(page.getByTestId('async-community-board')).toBeVisible()
+  await expect(page.getByTestId('async-community-project-detail')).toContainText('备料')
+  await expect(page.getByTestId('online-society-async-contribute-festival_square-festival_scenery')).toBeVisible()
+  await page.getByTestId('online-society-async-contribute-festival_square-festival_scenery').click()
+  await expect(page.getByTestId('async-community-project-detail')).toContainText('搭场')
+  await expect(page.getByText('移动端烟测号搭起第一批节庆布景，广场开始像节会现场。')).toBeVisible()
+  await expect(page.getByTestId('online-society-project-contribute-festival_square-festival_scenery')).toBeVisible()
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-society-page"]')
+    if (!root) return ['online-society-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .async-community-board__project-tabs')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
 async function prepareOnlineManorCareRoomMobile(page) {
   await expect(page.getByTestId('online-manor-page')).toBeVisible()
   await expect(page.getByTestId('online-module-tab-care')).toBeVisible()
@@ -2100,7 +2259,27 @@ async function main() {
       })
       await captureScenario({
         browser,
-        label: '32-online-manor-care-room-mobile-390x844',
+        label: '32-online-society-festival-square-mobile-390x844',
+        hash: '/#/game/online/society?tab=projects',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyProject: 'festival_square',
+        prepare: prepareOnlineSocietyFestivalSquareMobile
+      })
+      await captureScenario({
+        browser,
+        label: '33-online-society-festival-square-mobile-360x780',
+        hash: '/#/game/online/society?tab=projects',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyProject: 'festival_square',
+        prepare: prepareOnlineSocietyFestivalSquareMobile
+      })
+      await captureScenario({
+        browser,
+        label: '34-online-manor-care-room-mobile-390x844',
         hash: '/#/game/online/manor',
         viewport: { width: 390, height: 844 },
         primarySelector: '[data-testid="online-manor-page"]',
@@ -2109,7 +2288,7 @@ async function main() {
       })
       await captureScenario({
         browser,
-        label: '33-online-manor-care-room-mobile-360x780',
+        label: '35-online-manor-care-room-mobile-360x780',
         hash: '/#/game/online/manor',
         viewport: { width: 360, height: 780 },
         primarySelector: '[data-testid="online-manor-page"]',
@@ -2133,7 +2312,7 @@ async function main() {
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
         '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
-        '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、贡献后阶段反馈和移动端横向溢出断言。',
+        '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、节庆筹备布景搭设、贡献后阶段反馈和移动端横向溢出断言。',
         '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]
     }

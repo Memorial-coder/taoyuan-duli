@@ -25,6 +25,10 @@
 - `qa:mobile-ui-smoke` 新增在线村社修桥 mock，覆盖“清溪桥社”公共工程、`labor_shift` 施工行动点击和阶段反馈。
 - 两档手机视口会断言修桥从“搭脚手架”推进到“铺桥面”，并检查主要控件无横向溢出；`qa:online-ui-structure` 同步守卫该路径。
 
+### 0527 节庆筹备移动端 smoke
+- `qa:mobile-ui-smoke` 新增在线村社节庆筹备 mock，覆盖“清溪节社”公共工程、`festival_scenery` 布景搭设点击和阶段反馈。
+- 两档手机视口会断言广场从“备料”推进到“搭场”，并检查主要控件无横向溢出；`qa:online-ui-structure` 同步守卫该路径。
+
 ### 0527 公共订单接力移动端 smoke
 - `qa:mobile-ui-smoke` 新增在线委托接力单 mock，覆盖接力筛选、`AsyncCommunityBoard` 路线按钮点击、故事流转图和分账摘要。
 - 两档手机视口会点击 `accept_stage:stage_process`，断言阶段切到“送到灯会”并显示移动端接单反馈。
