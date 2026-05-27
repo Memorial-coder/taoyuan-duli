@@ -26,6 +26,7 @@ import type {
 import type { Season } from '@/types/game'
 import { getNpcById } from './npcs'
 import { getCropById } from './crops'
+import { getCropUseProfile, type CropUseTag } from './cropUseProfiles'
 import { getBreedById } from './pondBreeds'
 import { getItemById } from './items'
 import { SECRET_NOTES } from './secretNotes'
@@ -1881,6 +1882,28 @@ const getQuestMarketCategoryByItemId = (itemId: string): QuestMarketCategory | n
   return mapItemCategoryToQuestMarketCategory(getItemById(itemId)?.category)
 }
 
+const getCropUseTagMatchedSummary = (itemId: string, tags: CropUseTag[]): string | undefined => {
+  const profile = getCropUseProfile(itemId)
+  if (!profile) return undefined
+  const matched = tags.filter(tag => profile.tags.includes(tag))
+  if (matched.length === 0) return undefined
+  const labels: Record<string, string> = {
+    order: '订单交付',
+    festival: '节会供品',
+    food: '料理备料'
+  }
+  return `作物用途标签匹配：${matched.map(tag => labels[tag] ?? tag).join('、')}。`
+}
+
+const getVillagerQuestUseWeight = (template: VillagerQuestTemplate): number => {
+  const profile = getCropUseProfile(template.targetItemId)
+  if (!profile) return 0
+  if (template.category === 'festival_prep' && profile.tags.includes('festival')) return 2
+  if (template.category === 'cooking' && (profile.tags.includes('food') || profile.tags.includes('order'))) return 1
+  if ((template.category === 'gathering' || template.category === 'errand') && profile.tags.includes('order')) return 1
+  return 0
+}
+
 const TIER_LABELS = ['简单', '普通', '困难', '极难']
 const TIER_FRIENDSHIP = [5, 8, 12, 15]
 
@@ -2494,7 +2517,11 @@ export const generateVillagerQuest = (
   if (valid.length === 0) return null
   const preferredPool = preferredCategory ? valid.filter(template => template.category === preferredCategory) : []
   const templatePool = preferredPool.length > 0 ? preferredPool : valid
-  const template = templatePool[Math.floor(Math.random() * templatePool.length)]!
+  const weightedTemplatePool = templatePool.flatMap(template => {
+    const weight = 1 + getVillagerQuestUseWeight(template)
+    return Array.from({ length: weight }, () => template)
+  })
+  const template = weightedTemplatePool[Math.floor(Math.random() * weightedTemplatePool.length)]!
   const npcDef = getNpcById(template.npcId)
   const npcName = npcDef?.name ?? template.npcId
   const baseQuantity = template.minQty + Math.floor(Math.random() * (template.maxQty - template.minQty + 1))
@@ -2509,6 +2536,12 @@ export const generateVillagerQuest = (
         .replace(/\{targetItemName\}/g, template.targetItemName)
         .replace(/\{quantity\}/g, String(quantity))
     : `${npcName}有一份${categoryLabel}委托：需要${quantity}个${template.targetItemName}。`
+  const cropUseSummary =
+    template.category === 'festival_prep'
+      ? getCropUseTagMatchedSummary(template.targetItemId, ['festival'])
+      : template.category === 'cooking'
+        ? getCropUseTagMatchedSummary(template.targetItemId, ['food', 'order'])
+        : getCropUseTagMatchedSummary(template.targetItemId, ['order'])
 
   questCounter++
   return {
@@ -2544,7 +2577,11 @@ export const generateVillagerQuest = (
     recipeReward: template.recipeReward,
     buildingClueId: template.buildingClueId,
     buildingClueText: template.buildingClueText,
-    bonusSummary: isRepeatVariant ? [...(template.bonusSummary ?? []), '这是做过同类委托后的熟客加急版。'] : template.bonusSummary
+    bonusSummary: [
+      ...(template.bonusSummary ?? []),
+      ...(cropUseSummary ? [cropUseSummary] : []),
+      ...(isRepeatVariant ? ['这是做过同类委托后的熟客加急版。'] : [])
+    ]
   }
 }
 
@@ -3041,8 +3078,15 @@ export const generateQuest = (
   const weightedTargets = validTargets.flatMap(target => {
     let weight = 1
     const marketCategory = getQuestMarketCategoryByItemId(target.itemId)
+    const cropUseProfile = getCropUseProfile(target.itemId)
     if (marketCategory && preferredMarketCategories.has(marketCategory)) {
       weight += 2
+    }
+    if (template.type === 'delivery' && cropUseProfile?.tags.includes('order')) {
+      weight += 2
+    }
+    if (template.type === 'delivery' && cropUseProfile?.tags.includes('festival')) {
+      weight += 1
     }
     if (marketCategory && discouragedMarketCategories.has(marketCategory)) {
       weight = Math.max(1, weight - 1)
@@ -3072,6 +3116,8 @@ export const generateQuest = (
     template.type === 'delivery'
       ? `${urgentPrefix}${npcName}需要${quantity}个${target.name}，请${verb}${npcName}。`
       : `${urgentPrefix}${npcName}委托：${verb}${quantity}个${target.name}。`
+  const cropUseDemandHint =
+    template.type === 'delivery' ? getCropUseTagMatchedSummary(target.itemId, ['order', 'festival']) : undefined
 
   return {
     id: `quest_${Date.now()}_${questCounter}`,
@@ -3089,6 +3135,7 @@ export const generateQuest = (
     accepted: false,
     activitySourceId: (template as any).activitySourceId,
     activitySourceLabel: (template as any).activitySourceLabel,
+    demandHint: cropUseDemandHint,
     isUrgent: isUrgent || undefined
   }
 }
