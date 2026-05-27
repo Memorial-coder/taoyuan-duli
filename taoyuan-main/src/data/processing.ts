@@ -2009,9 +2009,10 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
       shortEffect: '社交与节会拜访前的短时凝神',
       results: buildAlchemyResultRules('osmanthus_focus_elixir'),
       effect: {
-        description: '今日送礼好感×1.12，行动耗时-4%',
+        description: '今日送礼好感×1.12，行动耗时-4%，节会奖金×1.08',
         giftBonusMultiplier: 1.12,
-        actionSpeedBonus: 0.04
+        actionSpeedBonus: 0.04,
+        festivalRewardMultiplier: 1.08
       }
     },
     description: '桂花蜜、茶叶与莲子慢炼，香气沉静，适合社交与节会拜访前使用。'
@@ -2039,9 +2040,10 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
       shortEffect: '文游对话、节会拜访和好友长谈前的短时专注',
       results: buildAlchemyResultRules('tea_focus_elixir'),
       effect: {
-        description: '今日送礼好感×1.1，远征体力消耗-4%',
+        description: '今日送礼好感×1.1，远征体力消耗-4%，NPC 对话好感+4',
         giftBonusMultiplier: 1.1,
-        journeyStaminaReduction: 0.04
+        journeyStaminaReduction: 0.04,
+        dialogueAffinityBonus: 4
       }
     },
     description: '绿茶、莲心粉与蜂蜜清炼成丹，适合文游对话、节会拜访和好友长谈前凝神。'
@@ -2101,10 +2103,12 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
       shortEffect: '灵果药性主丹，适合社交、节会拜访和长线经营前醒神',
       results: buildAlchemyResultRules('spirit_peach_elixir'),
       effect: {
-        description: '今日送礼好感×1.15，行动耗时-6%，远征体力消耗-5%',
+        description: '今日送礼好感×1.15，行动耗时-6%，远征体力消耗-5%，NPC 对话好感+5，节会奖金×1.1',
         giftBonusMultiplier: 1.15,
         actionSpeedBonus: 0.06,
-        journeyStaminaReduction: 0.05
+        journeyStaminaReduction: 0.05,
+        dialogueAffinityBonus: 5,
+        festivalRewardMultiplier: 1.1
       }
     },
     description: '优质以上桃子、蜜桃脯与月草文火同炼，凝成带灵果药性的高阶醒神丹。'

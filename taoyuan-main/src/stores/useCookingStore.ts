@@ -61,6 +61,8 @@ type ActiveAlchemyElixir = {
   giftBonusMultiplier?: number
   actionSpeedBonus?: number
   defenseReduction?: number
+  dialogueAffinityBonus?: number
+  festivalRewardMultiplier?: number
 }
 
 export type CookingStoryTriggerRecord = {
@@ -87,6 +89,12 @@ const normalizeMultiplier = (value: unknown, fallback = 1) => {
   return Math.max(0.1, Math.min(3, numericValue))
 }
 
+const normalizeDialogueAffinityBonus = (value: unknown) => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 0
+  return Math.max(0, Math.min(20, Math.floor(numericValue)))
+}
+
 const normalizeActiveElixir = (value: unknown): ActiveAlchemyElixir | null => {
   if (!value || typeof value !== 'object') return null
   const raw = value as Partial<ActiveAlchemyElixir>
@@ -100,7 +108,9 @@ const normalizeActiveElixir = (value: unknown): ActiveAlchemyElixir | null => {
     journeyStaminaReduction: raw.journeyStaminaReduction === undefined ? undefined : normalizeReduction(raw.journeyStaminaReduction),
     giftBonusMultiplier: raw.giftBonusMultiplier === undefined ? undefined : normalizeMultiplier(raw.giftBonusMultiplier),
     actionSpeedBonus: raw.actionSpeedBonus === undefined ? undefined : normalizeReduction(raw.actionSpeedBonus),
-    defenseReduction: raw.defenseReduction === undefined ? undefined : normalizeReduction(raw.defenseReduction)
+    defenseReduction: raw.defenseReduction === undefined ? undefined : normalizeReduction(raw.defenseReduction),
+    dialogueAffinityBonus: raw.dialogueAffinityBonus === undefined ? undefined : normalizeDialogueAffinityBonus(raw.dialogueAffinityBonus),
+    festivalRewardMultiplier: raw.festivalRewardMultiplier === undefined ? undefined : normalizeMultiplier(raw.festivalRewardMultiplier)
   }
 }
 
@@ -190,6 +200,8 @@ export const useCookingStore = defineStore('cooking', () => {
   const getActiveAlchemyGiftBonusMultiplier = () => activeElixir.value?.giftBonusMultiplier ?? 1
   const getActiveAlchemyActionSpeedBonus = () => activeElixir.value?.actionSpeedBonus ?? 0
   const getActiveAlchemyDefenseReduction = () => activeElixir.value?.defenseReduction ?? 0
+  const getActiveAlchemyDialogueAffinityBonus = () => activeElixir.value?.dialogueAffinityBonus ?? 0
+  const getActiveAlchemyFestivalRewardMultiplier = () => activeElixir.value?.festivalRewardMultiplier ?? 1
   const getActiveDefenseReduction = () => (activeBuff.value?.type === 'defense' && isDefenseReductionBuff(activeBuff.value) ? activeBuff.value.value / 100 : 0)
   const getActiveDefenseFlatBonus = () => (activeBuff.value?.type === 'defense' && isDefenseFlatBuff(activeBuff.value) ? activeBuff.value.value : 0)
   const recentStoryTriggerRecords = computed(() => storyTriggerRecords.value.slice(0, STORY_TRIGGER_RECORD_LIMIT))
@@ -397,7 +409,9 @@ export const useCookingStore = defineStore('cooking', () => {
       journeyStaminaReduction: effect.journeyStaminaReduction,
       giftBonusMultiplier: effect.giftBonusMultiplier,
       actionSpeedBonus: effect.actionSpeedBonus,
-      defenseReduction: effect.defenseReduction
+      defenseReduction: effect.defenseReduction,
+      dialogueAffinityBonus: effect.dialogueAffinityBonus,
+      festivalRewardMultiplier: effect.festivalRewardMultiplier
     }
     activeElixir.value = normalizeActiveElixir(active)
     if (activeElixir.value?.staminaRestore) {
@@ -460,6 +474,8 @@ export const useCookingStore = defineStore('cooking', () => {
     getActiveAlchemyGiftBonusMultiplier,
     getActiveAlchemyActionSpeedBonus,
     getActiveAlchemyDefenseReduction,
+    getActiveAlchemyDialogueAffinityBonus,
+    getActiveAlchemyFestivalRewardMultiplier,
     getActiveDefenseReduction,
     getActiveDefenseFlatBonus,
     recipes,

@@ -2155,11 +2155,15 @@ export const useNpcStore = defineStore('npc', () => {
     const cookingStore = useCookingStore()
     const cookingTopic = cookingStore.consumeStoryTriggerRecord(RANDOM_NPC_COOKING_TOPIC_LABELS)
     const cookingAffinityBonus = cookingTopic ? RANDOM_NPC_COOKING_TOPIC_AFFINITY_BONUS : 0
-    const affinityChange = choice.affinityChange + cookingAffinityBonus
+    const alchemyDialogueBonus = cookingStore.getActiveAlchemyDialogueAffinityBonus()
+    const affinityChange = choice.affinityChange + cookingAffinityBonus + alchemyDialogueBonus
     const cookingTopicLine = cookingTopic
       ? `你顺势提起刚做的${cookingTopic.recipeName}，话题落在${cookingTopic.triggerLabels.join('、')}上。`
       : ''
 
+    const alchemyDialogueLine = alchemyDialogueBonus > 0
+      ? `丹药让谈吐更稳，${visitor.name}额外愿意多听几句。`
+      : ''
     const nextRelationshipTag = choice.relationshipTag ?? visitor.relationshipTag
     const direction = choice.relationshipDirection ?? inferRandomNpcRelationshipDirection(nextRelationshipTag, choice.id, choice.text)
     const dialogueScene = getRandomNpcTriggeredDialogueScene(visitor, {
@@ -2176,7 +2180,7 @@ export const useNpcStore = defineStore('npc', () => {
       direction,
       affinityChange
     })
-    const response = [choice.response, dialogueSceneLine, contextLine, cookingTopicLine, followUpAgreementLine].filter(Boolean).join(' ')
+    const response = [choice.response, dialogueSceneLine, contextLine, cookingTopicLine, alchemyDialogueLine, followUpAgreementLine].filter(Boolean).join(' ')
     visitor.talkedToday = true
     visitor.conversationCount += 1
     visitor.affinity = Math.max(0, Math.min(100, visitor.affinity + affinityChange))
@@ -3755,7 +3759,8 @@ export const useNpcStore = defineStore('npc', () => {
 
     state.talkedToday = true
     const cookingTopic = cookingStore.consumeStoryTriggerRecord(FIXED_NPC_TALK_COOKING_TOPIC_LABELS)
-    const friendshipGain = 20 + (cookingTopic ? FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS : 0)
+    const alchemyDialogueBonus = cookingStore.getActiveAlchemyDialogueAffinityBonus()
+    const friendshipGain = 20 + (cookingTopic ? FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS : 0) + alchemyDialogueBonus
     state.friendship = Math.min(state.friendship + friendshipGain, getEffectiveFriendshipCap(state))
     const unlockedMessages = syncRelationshipPerks(npcId)
 
@@ -3765,6 +3770,10 @@ export const useNpcStore = defineStore('npc', () => {
       unlockedMessages.push(
         `${npcDef.name}顺着${cookingTopic.recipeName}聊起${cookingTopic.triggerLabels.join('、')}，这条料理话题被记进了今天的闲谈。`
       )
+    }
+
+    if (alchemyDialogueBonus > 0) {
+      unlockedMessages.push(`丹药让谈吐更稳，${npcDef.name}对今天的闲谈更有兴致。`)
     }
 
     const scheduleStatus = getScheduleStatus(npcId)

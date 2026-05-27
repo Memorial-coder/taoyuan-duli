@@ -73,6 +73,8 @@ export interface AlchemyRecipeMeta {
     giftBonusMultiplier?: number
     actionSpeedBonus?: number
     defenseReduction?: number
+    dialogueAffinityBonus?: number
+    festivalRewardMultiplier?: number
   }
 }
 

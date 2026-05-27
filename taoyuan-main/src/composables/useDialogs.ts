@@ -153,9 +153,12 @@ export const closeFestival = (prize: number) => {
   if (prize > 0 && !claimedFestivalRewardKeys.value.includes(rewardKey)) {
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
+    const cookingStore = useCookingStore()
     const festivalBonusMoney = currentFestivalEvent.value?.effects.moneyReward ?? 0
     const festivalBonusItems = currentFestivalEvent.value?.effects.itemReward ?? []
-    const totalMoney = prize + festivalBonusMoney
+    const alchemyFestivalMultiplier = cookingStore.getActiveAlchemyFestivalRewardMultiplier()
+    const adjustedPrize = Math.max(0, Math.floor(prize * alchemyFestivalMultiplier))
+    const totalMoney = adjustedPrize + festivalBonusMoney
     if (totalMoney > 0) {
       playerStore.earnMoney(totalMoney)
     }
@@ -178,9 +181,12 @@ export const closeFestival = (prize: number) => {
     claimedFestivalRewardKeys.value = [...claimedFestivalRewardKeys.value, rewardKey]
     if (totalMoney > 0) {
       showFloat(`+${totalMoney}文`, 'accent')
-      addLog(festivalBonusMoney > 0 ? `节日奖金：${prize}文，年度奖池追加${festivalBonusMoney}文！` : `节日奖金：${prize}文！`)
+      addLog(festivalBonusMoney > 0 ? `节日奖金：${adjustedPrize}文，年度奖池追加${festivalBonusMoney}文！` : `节日奖金：${adjustedPrize}文！`)
+      if (alchemyFestivalMultiplier > 1 && adjustedPrize > prize) {
+        addLog(`丹药让节会发挥更稳，奖金提升至${adjustedPrize}文。`)
+      }
     }
-    const cookingTopic = useCookingStore().consumeStoryTriggerRecord(FESTIVAL_COOKING_TOPIC_LABELS)
+    const cookingTopic = cookingStore.consumeStoryTriggerRecord(FESTIVAL_COOKING_TOPIC_LABELS)
     if (cookingTopic) {
       addLog(`节会席面带上了${cookingTopic.recipeName}，${cookingTopic.triggerLabels.join('、')}线索已用于今天的节会反馈。`)
     }
