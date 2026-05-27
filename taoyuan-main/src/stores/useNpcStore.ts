@@ -32,6 +32,7 @@ import type {
   RandomNpcFamilyBusinessEntry,
   RandomNpcFamilyCommissionDef,
   RandomNpcFamilyLineState,
+  RandomNpcLongStayArchiveSnapshot,
   RandomNpcFamilyReviewEntry,
   RandomNpcFamilyTieDef,
   RandomNpcFamilyTieKind,
@@ -408,7 +409,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
   const randomNpcBoard = ref<RandomNpcBoardState>({
-    version: 6,
+    version: 7,
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
@@ -1115,6 +1116,92 @@ export const useNpcStore = defineStore('npc', () => {
     }
   }
 
+  const createRandomNpcLongStayResidentFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcLongStayEntry | null => {
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === archive.templateId)
+    if (!template || archive.archivedTier !== 'long_stay') return null
+    const dayTag = getCurrentNpcDayTag()
+    const snapshot = sanitizeRandomNpcLongStayArchiveSnapshot(archive.longStaySnapshot, template, archive.visitorId)
+    if (!snapshot) return null
+    const familyTies = sanitizeRandomNpcFamilyTies(snapshot.familyTies, template.familyTies)
+    return {
+      residentId: snapshot.residentId || `resident:${archive.visitorId}`,
+      sourceVisitorId: archive.visitorId,
+      templateId: template.id,
+      name: archive.name || template.nameSeeds[0]!,
+      ageBand: template.ageBand,
+      gender: template.gender,
+      occupation: template.occupation,
+      origin: template.origin,
+      personalityTags: [...template.personalityTags],
+      speechStyle: template.speechStyle,
+      appearanceKeywords: [...template.appearanceKeywords],
+      taboo: template.taboo,
+      lifeGoal: template.lifeGoal,
+      currentTrouble: template.currentTrouble,
+      villagePurpose: template.villagePurpose,
+      romanceView: template.romanceView,
+      developmentRoutes: [...template.developmentRoutes],
+      plotHook: template.plotHook,
+      familySeed: template.familySeed,
+      familyTies,
+      familyLine: sanitizeRandomNpcFamilyLineState(snapshot.familyLine, familyTies, template.familyCommission),
+      preferences: {
+        loved: [...template.preferences.loved],
+        liked: [...template.preferences.liked],
+        disliked: [...template.preferences.disliked]
+      },
+      smallOrder: {
+        ...template.smallOrder,
+        requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
+      },
+      smallOrderCompleted: !!archive.smallOrderCompleted,
+      relationshipTag: archive.relationshipTag,
+      affinity: archive.affinity,
+      movedInDayTag: snapshot.movedInDayTag,
+      residenceReason: snapshot.residenceReason || `${archive.name}从旧日长住摘要召回，继续在桃源村暂住。`,
+      route: snapshot.route,
+      relationshipEventStage: snapshot.relationshipEventStage,
+      completedStoryEventIds: snapshot.completedStoryEventIds.slice(-6),
+      lastStoryDayTag: dayTag,
+      keyEvents: [...archive.keyEvents, `${dayTag} 从旧日长住摘要召回，恢复长住名册。`].slice(-8),
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(archive.relationshipSignals),
+      dialogueMemories: sanitizeRandomNpcDialogueMemories(archive.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT),
+      relationshipLine: sanitizeRandomNpcRelationLineState(snapshot.relationshipLine)
+    }
+  }
+
+  const sanitizeRandomNpcLongStayArchiveSnapshot = (
+    raw: unknown,
+    template: typeof RANDOM_NPC_TEMPLATES[number],
+    visitorId: string
+  ): RandomNpcLongStayArchiveSnapshot | undefined => {
+    if (!raw || typeof raw !== 'object') return undefined
+    const source = raw as Partial<RandomNpcLongStayArchiveSnapshot>
+    const route: RandomNpcLongStayRoute =
+      source.route === 'business' || source.route === 'caregiving' || source.route === 'craft' || source.route === 'friendship'
+        ? source.route
+        : getRandomNpcLongStayRoute(template.id)
+    const stageValue = Number(source.relationshipEventStage)
+    const relationshipEventStage: 0 | 1 | 2 | 3 =
+      stageValue === 1 || stageValue === 2 || stageValue === 3 ? stageValue : 0
+    const familyTies = sanitizeRandomNpcFamilyTies(source.familyTies, template.familyTies)
+    return {
+      residentId: typeof source.residentId === 'string' ? source.residentId : `resident:${visitorId}`,
+      sourceVisitorId: visitorId,
+      movedInDayTag: typeof source.movedInDayTag === 'string' ? source.movedInDayTag : '',
+      residenceReason: typeof source.residenceReason === 'string' ? source.residenceReason : '',
+      route,
+      relationshipEventStage,
+      completedStoryEventIds: Array.isArray(source.completedStoryEventIds)
+        ? source.completedStoryEventIds.filter((text: unknown): text is string => typeof text === 'string').slice(-6)
+        : [],
+      lastStoryDayTag: typeof source.lastStoryDayTag === 'string' ? source.lastStoryDayTag : '',
+      familyTies,
+      familyLine: sanitizeRandomNpcFamilyLineState(source.familyLine, familyTies, template.familyCommission),
+      relationshipLine: sanitizeRandomNpcRelationLineState(source.relationshipLine)
+    }
+  }
+
   const trimRandomNpcArchives = (archives: RandomNpcArchiveSummary[]) => {
     const uniqueArchives = archives.filter((archive, index, entries) =>
       entries.findIndex(entry => entry.visitorId === archive.visitorId) === index
@@ -1159,6 +1246,100 @@ export const useNpcStore = defineStore('npc', () => {
     dialogueMemories: acquaintance.dialogueMemories.slice(-3),
     shortRomance: sanitizeRandomNpcShortRomanceState(acquaintance.shortRomance)
   })
+
+  const getRandomNpcLongStayLastTouchedDayTag = (resident: RandomNpcLongStayEntry): string => {
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, RANDOM_NPC_TEMPLATES.find(template => template.id === resident.templateId)?.familyCommission ?? RANDOM_NPC_TEMPLATES[0]!.familyCommission)
+    const lastFamilyReview = familyLine.reviewHistory[familyLine.reviewHistory.length - 1]
+    const lastFamilyBusiness = familyLine.familyBusinessHistory[familyLine.familyBusinessHistory.length - 1]
+    return [
+      resident.lastStoryDayTag,
+      sanitizeRandomNpcRelationLineState(resident.relationshipLine).updatedDayTag,
+      lastFamilyReview?.dayTag,
+      lastFamilyBusiness?.dayTag,
+      resident.movedInDayTag
+    ].find(dayTag => typeof dayTag === 'string' && dayTag.length > 0) ?? ''
+  }
+
+  const canArchiveRandomNpcLongStayResident = (resident: RandomNpcLongStayEntry, currentDayTag: string): boolean => {
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return false
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    const relationshipLine = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    const inactiveDays = getRandomNpcInactiveDays(getRandomNpcLongStayLastTouchedDayTag(resident), currentDayTag)
+    return (
+      inactiveDays >= RANDOM_NPC_VISITOR_CONFIG.longStayColdArchiveDays &&
+      resident.relationshipEventStage <= 1 &&
+      familyLine.familyBusinessStage === 0 &&
+      familyLine.completedCommissionIds.length === 0 &&
+      relationshipLine.commitmentStatus === 'none' &&
+      (relationshipLine.stage === 0 || relationshipLine.kind === 'severed')
+    )
+  }
+
+  const createRandomNpcLongStayArchiveSnapshot = (resident: RandomNpcLongStayEntry): RandomNpcLongStayArchiveSnapshot => {
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    return {
+      residentId: resident.residentId,
+      sourceVisitorId: resident.sourceVisitorId,
+      movedInDayTag: resident.movedInDayTag,
+      residenceReason: resident.residenceReason,
+      route: resident.route,
+      relationshipEventStage: resident.relationshipEventStage,
+      completedStoryEventIds: resident.completedStoryEventIds.slice(-6),
+      lastStoryDayTag: resident.lastStoryDayTag,
+      familyTies: sanitizeRandomNpcFamilyTies(resident.familyTies, template?.familyTies ?? []),
+      familyLine: sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template?.familyCommission ?? RANDOM_NPC_TEMPLATES[0]!.familyCommission),
+      relationshipLine: sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    }
+  }
+
+  const summarizeRandomNpcLongStayResident = (
+    resident: RandomNpcLongStayEntry,
+    currentDayTag: string,
+    inactiveDays: number
+  ): RandomNpcArchiveSummary => ({
+    visitorId: resident.sourceVisitorId,
+    templateId: resident.templateId,
+    name: resident.name,
+    occupation: resident.occupation,
+    relationshipTag: resident.relationshipTag === 'passing' ? 'acquaintance' : resident.relationshipTag,
+    affinity: resident.affinity,
+    lastSeenDayTag: getRandomNpcLongStayLastTouchedDayTag(resident) || resident.movedInDayTag,
+    summary: `${resident.name}长期未推进长住事件，已冷归档为旧日长住摘要；之后可在长住名额空余时召回。`,
+    keyEvents: [
+      ...resident.keyEvents,
+      `${currentDayTag} 长住低活跃 ${inactiveDays} 天，冷归档为旧日长住摘要。`
+    ].slice(-3),
+    smallOrderCompleted: !!resident.smallOrderCompleted,
+    locked: false,
+    relationshipSignals: sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals),
+    dialogueMemories: resident.dialogueMemories.slice(-3),
+    archivedTier: 'long_stay',
+    longStaySnapshot: createRandomNpcLongStayArchiveSnapshot(resident)
+  })
+
+  const archiveStaleRandomNpcLongStayResidents = (currentDayTag: string): RandomNpcArchiveSummary[] => {
+    const staleArchives: RandomNpcArchiveSummary[] = []
+    const keptResidents: RandomNpcLongStayEntry[] = []
+
+    for (const resident of randomNpcBoard.value.longStayResidents) {
+      const inactiveDays = getRandomNpcInactiveDays(getRandomNpcLongStayLastTouchedDayTag(resident), currentDayTag)
+      if (canArchiveRandomNpcLongStayResident(resident, currentDayTag)) {
+        staleArchives.push(summarizeRandomNpcLongStayResident(resident, currentDayTag, inactiveDays))
+      } else {
+        keptResidents.push(resident)
+      }
+    }
+
+    if (staleArchives.length === 0) return []
+
+    randomNpcBoard.value.longStayResidents = trimRandomNpcLongStayResidents(keptResidents)
+    randomNpcBoard.value.recentSummaries = trimRandomNpcArchives([
+      ...staleArchives,
+      ...randomNpcBoard.value.recentSummaries
+    ])
+    return staleArchives
+  }
 
   const archiveStaleRandomNpcAcquaintances = (currentDayTag: string): RandomNpcArchiveSummary[] => {
     const activeVisitorIds = new Set(randomNpcBoard.value.activeVisitors.map(visitor => visitor.id))
@@ -1322,6 +1503,7 @@ export const useNpcStore = defineStore('npc', () => {
       .map(visitor => summarizeRandomVisitor(visitor, '短暂停留后离开桃源村'))
     const currentDayTag = getCurrentNpcDayTag()
     archiveStaleRandomNpcAcquaintances(currentDayTag)
+    archiveStaleRandomNpcLongStayResidents(currentDayTag)
     const count = 1 + (hashText(`${weekId}:visitor_count`) % RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
     const start = hashText(`${weekId}:visitor_start`) % RANDOM_NPC_TEMPLATES.length
     const pickedTemplateIds: string[] = []
@@ -1406,6 +1588,21 @@ export const useNpcStore = defineStore('npc', () => {
     }
     if (randomNpcBoard.value.longStayResidents.some(entry => entry.sourceVisitorId === visitorId)) {
       return { success: false, message: `${archive.name}已经在桃源村长住。` }
+    }
+    if (archive.archivedTier === 'long_stay') {
+      if (randomNpcBoard.value.longStayResidents.length >= RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents) {
+        return { success: false, message: `长住名额已满（${RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents}人），请先整理长住名册再召回。` }
+      }
+      const resident = createRandomNpcLongStayResidentFromArchive(archive)
+      if (!resident) return { success: false, message: '这位旧日长住的归档信息已不可用，暂时不能召回。' }
+      randomNpcBoard.value.longStayResidents = trimRandomNpcLongStayResidents([
+        resident,
+        ...randomNpcBoard.value.longStayResidents
+      ])
+      randomNpcBoard.value.recentSummaries = trimRandomNpcArchives(
+        randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitorId)
+      )
+      return { success: true, message: `${resident.name}已从旧日长住摘要召回。` }
     }
     if (randomNpcBoard.value.activeVisitors.length >= RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors) {
       return { success: false, message: `本周来访位置已满（${RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors}人），请下周再召回。` }
@@ -4972,7 +5169,7 @@ export const useNpcStore = defineStore('npc', () => {
       const raw = (data as any).randomNpcBoard
       if (!raw || typeof raw !== 'object') {
         return {
-          version: 6,
+          version: 7,
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
@@ -5042,7 +5239,7 @@ export const useNpcStore = defineStore('npc', () => {
         })
       const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
       return {
-        version: Math.max(6, Number(raw.version) || 1),
+        version: Math.max(7, Number(raw.version) || 1),
         lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
         activeVisitors,
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)
@@ -5181,9 +5378,12 @@ export const useNpcStore = defineStore('npc', () => {
               typeof entry.templateId === 'string' &&
               validTemplateIds.has(entry.templateId)
             )
-            .map((entry: any): RandomNpcArchiveSummary => ({
+            .map((entry: any): RandomNpcArchiveSummary => {
+              const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)!
+              const archivedTier = entry.archivedTier === 'long_stay' ? 'long_stay' : undefined
+              return {
               visitorId: entry.visitorId,
-              templateId: typeof entry.templateId === 'string' ? entry.templateId : '',
+              templateId: template.id,
               name: typeof entry.name === 'string' ? entry.name : '旧日来客',
               occupation: typeof entry.occupation === 'string' ? entry.occupation : '来访者',
               relationshipTag: sanitizeRelationshipTag(entry.relationshipTag),
@@ -5195,8 +5395,13 @@ export const useNpcStore = defineStore('npc', () => {
               locked: !!entry.locked,
               relationshipSignals: sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
               dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, 3),
-              shortRomance: sanitizeRandomNpcShortRomanceState(entry.shortRomance)
-            }))
+              shortRomance: sanitizeRandomNpcShortRomanceState(entry.shortRomance),
+              archivedTier,
+              longStaySnapshot: archivedTier === 'long_stay'
+                ? sanitizeRandomNpcLongStayArchiveSnapshot(entry.longStaySnapshot, template, entry.visitorId)
+                : undefined
+              }
+            })
         )
       }
     })()

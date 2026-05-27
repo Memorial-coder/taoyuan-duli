@@ -697,6 +697,7 @@
             <div class="flex items-start justify-between gap-2">
               <p class="text-accent min-w-0">
                 {{ summary.name }} · {{ getRandomNpcRelationshipLabel(summary.relationshipTag) }} · {{ summary.affinity }}
+                <span v-if="summary.archivedTier === 'long_stay'" class="text-accent">· 长住旧档</span>
                 <span v-if="summary.locked" class="text-warning">· 已锁定</span>
               </p>
               <div class="flex shrink-0 items-center gap-1">
@@ -2061,11 +2062,17 @@
     if (activeVisitor?.locked || archive?.locked) return true
     return randomNpcLockedArchiveCount.value < randomNpcMaxLockedArchives
   }
-  const canRecallRandomNpcArchive = (summary: RandomNpcArchiveSummary): boolean =>
-    randomNpcBoard.value.activeVisitors.length < RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors &&
-    !randomNpcBoard.value.activeVisitors.some(visitor => visitor.id === summary.visitorId) &&
-    !randomNpcBoard.value.acquaintances.some(acquaintance => acquaintance.visitorId === summary.visitorId) &&
-    !randomNpcBoard.value.longStayResidents.some(resident => resident.sourceVisitorId === summary.visitorId)
+  const canRecallRandomNpcArchive = (summary: RandomNpcArchiveSummary): boolean => {
+    const hasExistingNpc =
+      randomNpcBoard.value.activeVisitors.some(visitor => visitor.id === summary.visitorId) ||
+      randomNpcBoard.value.acquaintances.some(acquaintance => acquaintance.visitorId === summary.visitorId) ||
+      randomNpcBoard.value.longStayResidents.some(resident => resident.sourceVisitorId === summary.visitorId)
+    if (hasExistingNpc) return false
+    if (summary.archivedTier === 'long_stay') {
+      return randomNpcBoard.value.longStayResidents.length < RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents
+    }
+    return randomNpcBoard.value.activeVisitors.length < RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors
+  }
   const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
   const canFulfillRandomNpcSmallOrder = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): boolean =>
     order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)

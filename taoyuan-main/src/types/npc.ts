@@ -381,6 +381,8 @@ export interface RandomNpcArchiveSummary {
   relationshipSignals?: RandomNpcRelationshipSignals
   dialogueMemories?: RandomNpcDialogueMemoryEntry[]
   shortRomance?: RandomNpcShortRomanceState
+  archivedTier?: RandomNpcVisitTier
+  longStaySnapshot?: RandomNpcLongStayArchiveSnapshot
 }
 
 export interface RandomNpcAcquaintanceEntry {
@@ -467,6 +469,20 @@ export interface RandomNpcLongStayEntry {
   keyEvents: string[]
   relationshipSignals: RandomNpcRelationshipSignals
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
+  relationshipLine: RandomNpcRelationLineState
+}
+
+export interface RandomNpcLongStayArchiveSnapshot {
+  residentId: string
+  sourceVisitorId: string
+  movedInDayTag: string
+  residenceReason: string
+  route: RandomNpcLongStayRoute
+  relationshipEventStage: 0 | 1 | 2 | 3
+  completedStoryEventIds: string[]
+  lastStoryDayTag: string
+  familyTies: RandomNpcFamilyTieDef[]
+  familyLine: RandomNpcFamilyLineState
   relationshipLine: RandomNpcRelationLineState
 }
 
