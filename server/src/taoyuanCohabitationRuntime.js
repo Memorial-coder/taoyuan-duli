@@ -268,6 +268,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_vegetable_soup: {
+    id: 'shared_vegetable_soup',
+    label: '共同灶台田园蔬菜汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'cabbage', quantity: 1, quality: 'normal' },
+      { item_id: 'radish', quantity: 1, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_vegetable_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_herb_paste: {
     id: 'shared_herb_paste',
     label: '共同药碾草药膏',

@@ -1534,6 +1534,40 @@ const sharedWorkshopCookingOriginAsset = sharedWorkshopCookingProcess.contract.o
 assert.equal(sharedWorkshopCookingOriginAsset?.item_id, 'food_rice_ball', 'shared cooking origin asset should use food item id')
 assert.equal(sharedWorkshopCookingOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared cooking origin should be high-quality protected')
 assert.equal(sharedWorkshopCookingOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared cooking origin should keep cooking process kind')
+const sharedVegetableSoupInputs = [
+  { itemId: 'cabbage', quantity: 1, ledgerId: 'qa_shared_vegetable_soup_cabbage_deposit', idempotencyKey: 'qa-shared-vegetable-soup-cabbage-deposit', sourceSaveId: 123456770 },
+  { itemId: 'radish', quantity: 1, ledgerId: 'qa_shared_vegetable_soup_radish_deposit', idempotencyKey: 'qa-shared-vegetable-soup-radish-deposit', sourceSaveId: 123456771 },
+  { itemId: 'firewood', quantity: 1, ledgerId: 'qa_shared_vegetable_soup_firewood_deposit', idempotencyKey: 'qa-shared-vegetable-soup-firewood-deposit', sourceSaveId: 123456772 },
+]
+for (const input of sharedVegetableSoupInputs) {
+  await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+    itemId: input.itemId,
+    quantity: input.quantity,
+    quality: 'normal',
+    sourceUsername: harvestPartner,
+    ledgerId: input.ledgerId,
+    idempotencyKey: input.idempotencyKey,
+    sourceSaveId: input.sourceSaveId,
+  })
+}
+const sharedWorkshopVegetableSoupProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_vegetable_soup',
+  memo: 'qa process shared vegetable soup',
+  idempotency_key: 'qa-shared-workshop-vegetable-soup',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopVegetableSoupProcess.recipe.output_item_id, 'food_vegetable_soup', 'shared vegetable soup should output food item')
+assert.equal(sharedWorkshopVegetableSoupProcess.workshop_action.station, 'stove', 'shared vegetable soup should use stove station')
+assert.equal(sharedWorkshopVegetableSoupProcess.workshop_action.process_kind, 'cooking_dish', 'shared vegetable soup should keep cooking process kind')
+assert.equal(sharedWorkshopVegetableSoupProcess.warehouse.items.find(item => item.item_id === 'food_vegetable_soup')?.quantity, 1, 'shared vegetable soup should enter shared warehouse')
+assert.equal(sharedWorkshopVegetableSoupProcess.ledger_entry.quality, 'fine', 'shared vegetable soup cooperation should upgrade dish quality')
+assert.equal(sharedWorkshopVegetableSoupProcess.ledger_entry.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared vegetable soup bonus should keep cooking process kind')
+for (const input of sharedVegetableSoupInputs) {
+  assert.ok(sharedWorkshopVegetableSoupProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === input.itemId), `shared vegetable soup should consume ${input.itemId}`)
+}
+const sharedWorkshopVegetableSoupOriginAsset = sharedWorkshopVegetableSoupProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopVegetableSoupProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopVegetableSoupOriginAsset?.item_id, 'food_vegetable_soup', 'shared vegetable soup origin asset should use food item id')
+assert.equal(sharedWorkshopVegetableSoupOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared vegetable soup origin should be high-quality protected')
+assert.equal(sharedWorkshopVegetableSoupOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared vegetable soup origin should keep cooking process kind')
 await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
   itemId: 'lotus_seed',
   quantity: 2,

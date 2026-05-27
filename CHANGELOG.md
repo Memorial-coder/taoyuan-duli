@@ -12,6 +12,7 @@
 - 共同加工同时在线品质加成：共同加工会追溯输入材料来源，一名成员产出 / 放入材料、另一名最近活跃成员加工时，成品品质提升，并在共同仓库 ledger、来源资产、响应、审计和离线状态保留 `shared_workshop_process_quality` 与高价值取出保护证据。
 - 共同加工后端最小闭环：新增 `shared-workshop/process` 服务端写链，白名单配方从共同仓库扣普通材料并把产物回存共同仓库，成品 ledger 反链输入 consume ledger，保持幂等、权限、审计和个人资产边界。
 - 共同灶台饭团料理闭环：新增 `shared_rice_ball` 白名单，从共同仓库扣普通稻米并把饭团回存共同仓库；同时在线协作会把饭团升为优质，并在 ledger / 来源资产写入 `shared_workshop_process_quality`、料理 process kind 和高价值取出保护。
+- 共同灶台田园蔬菜汤闭环：新增 `shared_vegetable_soup` 白名单，从共同仓库扣青菜、萝卜和木柴，产出田园蔬菜汤入仓；多输入 consume ledger、协作升品、来源资产高价值保护和个人存档边界已由同居契约 QA 覆盖。
 - 共同药碾草药膏炼丹预处理：共同工坊 `shared_herb_paste` 现在使用 `herb_grinder` 并产出规范 `herbal_paste`，产物按 `alchemy_material` 分类入共同仓库，继承协作升品与来源资产高价值保护。
 - 共同丹炉清心莲丹成丹闭环：新增 `shared_qingxin_lotus_elixir` 白名单，从共同仓库扣莲子、莲藕和优质草药膏，产出清心莲丹入仓，并在 ledger / 来源资产写入 `shared_alchemy_success_rate`、15% 协作成功率、成丹结果和高价值取出保护。
 - 共同丹炉偏丹 / 废丹 / 奇丹结果闭环：新增清心莲系 `shared_qingxin_lotus_partial`、`shared_qingxin_lotus_failed`、`shared_qingxin_lotus_rare` 白名单，分别产出偏丹膏、废丹灰和奇丹晶，保留结果类型、协作成功率证据、幂等和高价值 / 稀有取出保护。
