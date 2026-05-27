@@ -27,6 +27,7 @@ import type {
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
   RandomNpcDialogueMemoryEntry,
+  RandomNpcFamilyBusinessEntry,
   RandomNpcFamilyCommissionDef,
   RandomNpcFamilyLineState,
   RandomNpcFamilyReviewEntry,
@@ -662,6 +663,9 @@ export const useNpcStore = defineStore('npc', () => {
     reputation: 0,
     metTieIds: [],
     completedCommissionIds: [],
+    familyBusinessStage: 0,
+    familyBusinessNote: '尚未开启婚后家业线。',
+    familyBusinessHistory: [],
     lastReview: '尚未见过对方家人，家族评价仍待建立。',
     reviewHistory: []
   })
@@ -678,8 +682,22 @@ export const useNpcStore = defineStore('npc', () => {
       id: typeof entry.id === 'string' ? entry.id : `${tieId}:${entry.type ?? 'meeting'}`,
       dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
       tieId,
-      type: entry.type === 'commission' ? 'commission' : 'meeting',
+      type: entry.type === 'commission' || entry.type === 'business' ? entry.type : 'meeting',
       summary: typeof entry.summary === 'string' ? entry.summary : '家族评价已记录。',
+      reputationDelta: Math.max(-20, Math.min(20, Number(entry.reputationDelta) || 0))
+    }
+  }
+
+  const sanitizeRandomNpcFamilyBusinessEntry = (raw: unknown, index: number): RandomNpcFamilyBusinessEntry | null => {
+    if (!raw || typeof raw !== 'object') return null
+    const entry = raw as Partial<RandomNpcFamilyBusinessEntry>
+    const rawStage = Number(entry.stage)
+    const stage: 1 | 2 | 3 = rawStage === 2 || rawStage === 3 ? rawStage : 1
+    return {
+      id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? '旧日'}:business:${stage}:${index}`,
+      dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+      stage,
+      summary: typeof entry.summary === 'string' ? entry.summary : '婚后家业记录已保留。',
       reputationDelta: Math.max(-20, Math.min(20, Number(entry.reputationDelta) || 0))
     }
   }
@@ -702,10 +720,22 @@ export const useNpcStore = defineStore('npc', () => {
       .map(entry => sanitizeRandomNpcFamilyReview(entry, validTieIds, fallbackTieId))
       .filter((entry): entry is RandomNpcFamilyReviewEntry => !!entry)
       .slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+    const businessHistory = (Array.isArray(rawLine.familyBusinessHistory) ? rawLine.familyBusinessHistory : [])
+      .map((entry, index) => sanitizeRandomNpcFamilyBusinessEntry(entry, index))
+      .filter((entry): entry is RandomNpcFamilyBusinessEntry => !!entry)
+      .slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+    const rawBusinessStage = Number(rawLine.familyBusinessStage)
+    const familyBusinessStage: 0 | 1 | 2 | 3 =
+      rawBusinessStage === 1 || rawBusinessStage === 2 || rawBusinessStage === 3 ? rawBusinessStage : 0
     return {
       reputation: Math.max(0, Math.min(100, Number(rawLine.reputation) || 0)),
       metTieIds: [...new Set(metTieIds)].slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT),
       completedCommissionIds: [...new Set(completedCommissionIds)].slice(0, RANDOM_NPC_FAMILY_REVIEW_LIMIT),
+      familyBusinessStage,
+      familyBusinessNote: typeof rawLine.familyBusinessNote === 'string' && rawLine.familyBusinessNote
+        ? rawLine.familyBusinessNote
+        : createDefaultRandomNpcFamilyLineState().familyBusinessNote,
+      familyBusinessHistory: businessHistory,
       lastReview: typeof rawLine.lastReview === 'string' && rawLine.lastReview ? rawLine.lastReview : '尚未见过对方家人，家族评价仍待建立。',
       reviewHistory
     }
@@ -727,6 +757,11 @@ export const useNpcStore = defineStore('npc', () => {
     lastReview: review.summary,
     reviewHistory: [...familyLine.reviewHistory, review].slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
   })
+
+  const appendRandomNpcFamilyBusinessHistory = (
+    familyLine: RandomNpcFamilyLineState,
+    entry: RandomNpcFamilyBusinessEntry
+  ): RandomNpcFamilyBusinessEntry[] => [...familyLine.familyBusinessHistory, entry].slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
 
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string => {
     if (kind === 'romance') return '恋爱线'
@@ -2225,6 +2260,89 @@ export const useNpcStore = defineStore('npc', () => {
           history: appendRandomNpcRelationLineHistory(currentLine, event)
         },
         keyEvents: [...entry.keyEvents, `${dayTag} 婚后日常：${summary}`].slice(-8)
+      }
+      return nextResident
+    })
+    return { success: true, message: summary, resident: nextResident ?? resident }
+  }
+
+  const canDevelopRandomNpcFamilyBusiness = (
+    residentId: string
+  ): { success: boolean; message: string } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (line.kind !== 'romance' || line.commitmentStatus !== 'married') {
+      return { success: false, message: '需要先与这位随机 NPC 成婚。' }
+    }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '随机 NPC 模板缺失。' }
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    if (familyLine.familyBusinessStage >= 3) return { success: false, message: '婚后家业线已完成。' }
+    if (familyLine.reputation < 60) return { success: false, message: '婚后家业需要家族评价 60。' }
+    return { success: true, message: '可以推进婚后家业。' }
+  }
+
+  const developRandomNpcFamilyBusiness = (
+    residentId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const guard = canDevelopRandomNpcFamilyBusiness(residentId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !resident) return { ...guard, resident }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '随机 NPC 模板缺失。', resident }
+    const dayTag = getCurrentNpcDayTag()
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    const nextStage = Math.min(3, familyLine.familyBusinessStage + 1) as 1 | 2 | 3
+    const businessTie = resident.familyTies.find(tie => tie.kind === 'family_business') ?? resident.familyTies[0]
+    const routeText = resident.route === 'business'
+      ? '把商学账册整理成可执行的进货清单'
+      : resident.route === 'craft'
+        ? '把家中手艺和村中工坊排成固定协作'
+        : resident.route === 'caregiving'
+          ? '把照料人脉转成稳定的邻里互助'
+          : '把亲友往来整理成桃源村的长期照应'
+    const stageText = nextStage === 1 ? '立约' : nextStage === 2 ? '共营' : '稳业'
+    const reputationDelta = nextStage === 1 ? 6 : nextStage === 2 ? 5 : 4
+    const summary = `${resident.name}与你完成婚后家业${stageText}：${businessTie ? `${businessTie.name}见证，` : ''}${routeText}。`
+    const businessEntry: RandomNpcFamilyBusinessEntry = {
+      id: `${dayTag}:${residentId}:family-business:${nextStage}`,
+      dayTag,
+      stage: nextStage,
+      summary,
+      reputationDelta
+    }
+    const review: RandomNpcFamilyReviewEntry = {
+      id: `${dayTag}:${residentId}:family-business-review:${nextStage}`,
+      dayTag,
+      tieId: businessTie?.id ?? template.familyCommission.tieId,
+      type: 'business',
+      summary,
+      reputationDelta
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      const currentLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission)
+      const nextFamilyLine = appendRandomNpcFamilyReview(
+        {
+          ...currentLine,
+          familyBusinessStage: nextStage,
+          familyBusinessNote: summary,
+          familyBusinessHistory: appendRandomNpcFamilyBusinessHistory(currentLine, businessEntry)
+        },
+        review
+      )
+      nextResident = {
+        ...entry,
+        affinity: Math.min(100, entry.affinity + 2),
+        relationshipSignals: applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+          'family_impression',
+          reputationDelta
+        ),
+        familyLine: nextFamilyLine,
+        keyEvents: [...entry.keyEvents, `${dayTag} 婚后家业${stageText}：${summary}`].slice(-8)
       }
       return nextResident
     })
@@ -4985,6 +5103,8 @@ export const useNpcStore = defineStore('npc', () => {
     canMarryRandomNpcRelationLine,
     marryRandomNpcRelationLine,
     recordRandomNpcMarriedLife,
+    canDevelopRandomNpcFamilyBusiness,
+    developRandomNpcFamilyBusiness,
     rehydrateRelationshipPerks,
     serialize,
     deserialize

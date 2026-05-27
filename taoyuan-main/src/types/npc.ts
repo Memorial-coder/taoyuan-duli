@@ -199,7 +199,15 @@ export interface RandomNpcFamilyReviewEntry {
   id: string
   dayTag: string
   tieId: string
-  type: 'meeting' | 'commission'
+  type: 'meeting' | 'commission' | 'business'
+  summary: string
+  reputationDelta: number
+}
+
+export interface RandomNpcFamilyBusinessEntry {
+  id: string
+  dayTag: string
+  stage: 1 | 2 | 3
   summary: string
   reputationDelta: number
 }
@@ -208,6 +216,9 @@ export interface RandomNpcFamilyLineState {
   reputation: number
   metTieIds: string[]
   completedCommissionIds: string[]
+  familyBusinessStage: 0 | 1 | 2 | 3
+  familyBusinessNote: string
+  familyBusinessHistory: RandomNpcFamilyBusinessEntry[]
   lastReview: string
   reviewHistory: RandomNpcFamilyReviewEntry[]
 }

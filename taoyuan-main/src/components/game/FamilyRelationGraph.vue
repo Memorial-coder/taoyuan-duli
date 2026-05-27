@@ -131,7 +131,7 @@
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import type { RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcRelationshipTag } from '@/types'
+  import type { RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcLongStayEntry, RandomNpcRelationshipTag } from '@/types'
 
   defineEmits<{
     (event: 'selectNpc', npcId: string): void
@@ -180,6 +180,14 @@
     old_contact: '旧识',
     rival: '竞争者'
   }
+
+  const randomNpcRelationLineLabels = {
+    friend: '只做朋友',
+    romance: '恋爱线',
+    zhiji: '知己',
+    sworn: '结拜',
+    severed: '已断缘'
+  } as const
 
   const routeLabels = {
     friendship: '邻里常驻',
@@ -282,6 +290,17 @@
   const getRandomNpcFamilyTieKindLabel = (kind: RandomNpcFamilyTieKind): string => familyTieLabels[kind]
   const getRandomNpcFamilyTieAttitudeLabel = (attitude: RandomNpcFamilyTieDef['attitude']): string =>
     familyTieAttitudeLabels[attitude]
+  const getRandomNpcResidentRelationLabel = (resident: RandomNpcLongStayEntry): string => {
+    if (resident.relationshipLine.commitmentStatus === 'married') return '配偶'
+    if (resident.relationshipLine.commitmentStatus === 'engaged') return '婚约'
+    if (resident.relationshipLine.stage > 0) return randomNpcRelationLineLabels[resident.relationshipLine.kind]
+    return tagLabels[resident.relationshipTag]
+  }
+  const getRandomNpcFamilyBusinessStatus = (resident: RandomNpcLongStayEntry): string => {
+    if (resident.familyLine.familyBusinessStage > 0) return `婚后家业 ${resident.familyLine.familyBusinessStage}/3`
+    if (resident.relationshipLine.commitmentStatus === 'married') return '婚后家业待立约'
+    return `阶段 ${resident.relationshipEventStage}/3`
+  }
 
   const describeFixedNpcRelation = (npcId: string) => {
     const state = npcStore.getNpcState(npcId)
@@ -485,25 +504,40 @@
     })
 
     layoutRing(randomNpcBoard.value.longStayResidents, 34, 24, -35).forEach(({ entry, x, y }) => {
+      const relationLabel = getRandomNpcResidentRelationLabel(entry)
       nodes.push({
         id: `resident:${entry.residentId}`,
         name: entry.name,
-        shortLabel: '住',
+        shortLabel: entry.relationshipLine.commitmentStatus === 'married' ? '伴' : '住',
         group: 'resident',
         groupLabel: '长住随机 NPC',
-        relationLabel: tagLabels[entry.relationshipTag],
+        relationLabel,
         metricLabel: `${entry.affinity} 好感`,
-        statusLabel: `阶段 ${entry.relationshipEventStage}/3`,
+        statusLabel: getRandomNpcFamilyBusinessStatus(entry),
         detailLines: [
           `驻村理由：${entry.residenceReason}`,
           `关系线：${entry.relationshipLine.note}`,
+          entry.relationshipLine.commitmentStatus === 'married'
+            ? `婚后日常：${entry.relationshipLine.homeLifeNote}`
+            : '',
+          entry.familyLine.familyBusinessStage > 0
+            ? `婚后家业：${entry.familyLine.familyBusinessNote}`
+            : entry.relationshipLine.commitmentStatus === 'married'
+              ? '婚后家业：已成婚，可在 NPC 页推进家业立约。'
+              : '',
           entry.familyTies.length > 0 ? `家族节点：${entry.familyTies.map(tie => `${getRandomNpcFamilyTieKindLabel(tie.kind)}-${tie.relation}`).join('、')}` : '家族节点：尚未记录。',
           `家族评价：${entry.familyLine.reputation}/100；${entry.familyLine.lastReview}`,
           `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`,
           `路线：${routeLabels[entry.route]}；小订单：${entry.smallOrder.title}。`,
           `偏好：${formatItemNames(entry.preferences.loved.length > 0 ? entry.preferences.loved : entry.preferences.liked)}。`
-        ],
-        tags: [entry.occupation, entry.plotHook, entry.route],
+        ].filter(Boolean),
+        tags: [
+          entry.occupation,
+          entry.plotHook,
+          entry.route,
+          entry.relationshipLine.commitmentStatus === 'married' ? '婚后关系' : '',
+          entry.familyLine.familyBusinessStage > 0 ? `家业${entry.familyLine.familyBusinessStage}/3` : ''
+        ].filter(Boolean),
         x,
         y,
         circleClass: nodeClassByGroup('resident', selectedNodeId.value === `resident:${entry.residentId}`),
@@ -523,8 +557,11 @@
           statusLabel: getRandomNpcFamilyTieAttitudeLabel(tie.attitude),
           detailLines: [
             `${entry.name}的${tie.relation}：${tie.summary}`,
+            tie.kind === 'family_business' && entry.familyLine.familyBusinessStage > 0
+              ? `婚后家业：${entry.familyLine.familyBusinessNote}`
+              : '',
             '该节点只保存在单机随机 NPC 存档，不写入联机公开关系图。'
-          ],
+          ].filter(Boolean),
           tags: [getRandomNpcFamilyTieKindLabel(tie.kind), tie.attitude],
           x: tieX,
           y: tieY,

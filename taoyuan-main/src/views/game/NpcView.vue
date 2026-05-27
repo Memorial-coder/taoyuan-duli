@@ -509,13 +509,39 @@
                     {{ getRandomNpcFamilyCommissionButtonText(resident) }}
                   </Button>
                 </div>
+                <div
+                  v-if="resident.relationshipLine.commitmentStatus === 'married'"
+                  class="border-t border-accent/10 mt-2 pt-2"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[10px] text-accent">婚后家业线</p>
+                    <span class="text-[10px] text-muted">阶段 {{ resident.familyLine.familyBusinessStage }}/3</span>
+                  </div>
+                  <p class="text-[10px] text-muted leading-4 mt-1">{{ resident.familyLine.familyBusinessNote }}</p>
+                  <Button
+                    class="w-full justify-center !px-2 !py-1 mt-2"
+                    :disabled="!canDevelopRandomNpcFamilyBusiness(resident).success"
+                    @click="handleDevelopRandomNpcFamilyBusiness(resident.residentId)"
+                  >
+                    推进婚后家业
+                  </Button>
+                  <div v-if="getRecentRandomNpcFamilyBusinessHistory(resident).length > 0" class="mt-2 space-y-1">
+                    <p
+                      v-for="entry in getRecentRandomNpcFamilyBusinessHistory(resident)"
+                      :key="entry.id"
+                      class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    >
+                      {{ entry.dayTag }} · 阶段 {{ entry.stage }}/3：{{ entry.summary }}（评价{{ entry.reputationDelta >= 0 ? '+' : '' }}{{ entry.reputationDelta }}）
+                    </p>
+                  </div>
+                </div>
                 <div v-if="getRecentRandomNpcFamilyReviews(resident).length > 0" class="mt-2 space-y-1">
                   <p
                     v-for="review in getRecentRandomNpcFamilyReviews(resident)"
                     :key="review.id"
                     class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
-                    {{ review.dayTag }} · {{ review.type === 'commission' ? '家族委托' : '见家人' }}：{{ review.summary }}（评价{{ review.reputationDelta >= 0 ? '+' : '' }}{{ review.reputationDelta }}）
+                    {{ review.dayTag }} · {{ getRandomNpcFamilyReviewTypeLabel(review.type) }}：{{ review.summary }}（评价{{ review.reputationDelta >= 0 ? '+' : '' }}{{ review.reputationDelta }}）
                   </p>
                 </div>
               </div>
@@ -1927,6 +1953,13 @@
     resident.relationshipLine.history.slice(-3).reverse()
   const getRecentRandomNpcFamilyReviews = (resident: RandomNpcLongStayEntry) =>
     resident.familyLine.reviewHistory.slice(-3).reverse()
+  const getRecentRandomNpcFamilyBusinessHistory = (resident: RandomNpcLongStayEntry) =>
+    resident.familyLine.familyBusinessHistory.slice(-3).reverse()
+  const getRandomNpcFamilyReviewTypeLabel = (type: 'meeting' | 'commission' | 'business'): string => {
+    if (type === 'commission') return '家族委托'
+    if (type === 'business') return '婚后家业'
+    return '见家人'
+  }
   const getRandomNpcFamilyCommission = (resident: RandomNpcLongStayEntry): RandomNpcFamilyCommissionDef | null =>
     npcStore.getRandomNpcFamilyCommission(resident.residentId)
   const isRandomNpcFamilyCommissionCompleted = (resident: RandomNpcLongStayEntry): boolean => {
@@ -1941,6 +1974,8 @@
     if (!resident.familyLine.metTieIds.includes(commission.tieId)) return false
     return canFulfillRandomNpcSmallOrder(commission)
   }
+  const canDevelopRandomNpcFamilyBusiness = (resident: RandomNpcLongStayEntry) =>
+    npcStore.canDevelopRandomNpcFamilyBusiness(resident.residentId)
   const getRandomNpcFamilyCommissionButtonText = (resident: RandomNpcLongStayEntry): string => {
     const commission = getRandomNpcFamilyCommission(resident)
     if (!commission) return '暂无家族委托'
@@ -2051,6 +2086,12 @@
     const result = npcStore.fulfillRandomNpcFamilyCommission(residentId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC家族委托】${result.message}`)
+  }
+
+  const handleDevelopRandomNpcFamilyBusiness = (residentId: string) => {
+    const result = npcStore.developRandomNpcFamilyBusiness(residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC婚后家业】${result.message}`)
   }
 
   const handleToggleRandomNpcLock = (visitorId: string, locked: boolean) => {
