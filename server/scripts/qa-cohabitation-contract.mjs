@@ -1678,6 +1678,72 @@ assert.equal(sharedWorkshopSesameTangyuanOriginAsset?.item_id, 'food_sesame_tang
 assert.equal(sharedWorkshopSesameTangyuanOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared sesame tangyuan origin should be high-quality protected')
 assert.equal(sharedWorkshopSesameTangyuanOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared sesame tangyuan origin should keep cooking process kind')
 await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'dried_lotus_seed',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_lotus_sesame_cake_dried_lotus_deposit',
+  idempotencyKey: 'qa-shared-lotus-sesame-cake-dried-lotus-deposit',
+  sourceSaveId: 123456765,
+})
+const sharedWorkshopLotusHeartPowderProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_lotus_heart_powder',
+  memo: 'qa process shared lotus heart powder for calming cake',
+  idempotency_key: 'qa-shared-workshop-lotus-heart-powder-for-cake',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopLotusHeartPowderProcess.recipe.output_item_id, 'lotus_heart_powder', 'shared lotus heart powder should output lotus heart powder')
+assert.equal(sharedWorkshopLotusHeartPowderProcess.workshop_action.station, 'herb_grinder', 'shared lotus heart powder should use herb grinder station')
+assert.equal(sharedWorkshopLotusHeartPowderProcess.workshop_action.process_kind, 'cooking_material', 'shared lotus heart powder should be classified as cooking material')
+assert.equal(sharedWorkshopLotusHeartPowderProcess.ledger_entry.quality, 'fine', 'shared lotus heart powder should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'sesame',
+  quantity: 2,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_lotus_sesame_cake_sesame_deposit',
+  idempotencyKey: 'qa-shared-lotus-sesame-cake-sesame-deposit',
+  sourceSaveId: 123456766,
+})
+const sharedWorkshopSesamePowderProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_sesame_powder',
+  memo: 'qa process shared sesame powder for calming cake',
+  idempotency_key: 'qa-shared-workshop-sesame-powder-for-cake',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopSesamePowderProcess.recipe.output_item_id, 'sesame_powder', 'shared sesame powder should output sesame powder')
+assert.equal(sharedWorkshopSesamePowderProcess.workshop_action.station, 'stone_mill', 'shared sesame powder should use stone mill station')
+assert.equal(sharedWorkshopSesamePowderProcess.workshop_action.process_kind, 'cooking_material', 'shared sesame powder should be classified as cooking material')
+assert.equal(sharedWorkshopSesamePowderProcess.ledger_entry.quality, 'fine', 'shared sesame powder should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'honey',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_lotus_sesame_cake_honey_deposit',
+  idempotencyKey: 'qa-shared-lotus-sesame-cake-honey-deposit',
+  sourceSaveId: 123456767,
+})
+const sharedWorkshopLotusSesameCakeProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_lotus_sesame_calming_cake',
+  memo: 'qa process shared lotus sesame calming cake',
+  idempotency_key: 'qa-shared-workshop-lotus-sesame-calming-cake',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopLotusSesameCakeProcess.recipe.output_item_id, 'food_lotus_sesame_calming_cake', 'shared lotus sesame cake should output food item')
+assert.equal(sharedWorkshopLotusSesameCakeProcess.workshop_action.station, 'stove', 'shared lotus sesame cake should use stove station')
+assert.equal(sharedWorkshopLotusSesameCakeProcess.workshop_action.process_kind, 'cooking_dish', 'shared lotus sesame cake should keep cooking process kind')
+assert.equal(sharedWorkshopLotusSesameCakeProcess.warehouse.items.find(item => item.item_id === 'food_lotus_sesame_calming_cake')?.quantity, 1, 'shared lotus sesame cake should enter shared warehouse')
+assert.equal(sharedWorkshopLotusSesameCakeProcess.ledger_entry.quality, 'fine', 'shared lotus sesame cake cooperation should upgrade dish quality')
+const sharedLotusCakeLotusPowderConsume = sharedWorkshopLotusSesameCakeProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'lotus_heart_powder')
+assert.equal(sharedLotusCakeLotusPowderConsume?.quality, 'fine', 'shared lotus sesame cake should consume upgraded lotus heart powder')
+assert.ok(sharedLotusCakeLotusPowderConsume?.source_ledger_ids.includes(sharedWorkshopLotusHeartPowderProcess.ledger_entry.id), 'shared lotus sesame cake should trace lotus heart powder material ledger')
+const sharedLotusCakeSesamePowderConsume = sharedWorkshopLotusSesameCakeProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'sesame_powder')
+assert.equal(sharedLotusCakeSesamePowderConsume?.quality, 'fine', 'shared lotus sesame cake should consume upgraded sesame powder')
+assert.ok(sharedLotusCakeSesamePowderConsume?.source_ledger_ids.includes(sharedWorkshopSesamePowderProcess.ledger_entry.id), 'shared lotus sesame cake should trace sesame powder material ledger')
+assert.ok(sharedWorkshopLotusSesameCakeProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'honey'), 'shared lotus sesame cake should consume honey')
+const sharedWorkshopLotusSesameCakeOriginAsset = sharedWorkshopLotusSesameCakeProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopLotusSesameCakeProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopLotusSesameCakeOriginAsset?.item_id, 'food_lotus_sesame_calming_cake', 'shared lotus sesame cake origin asset should use food item id')
+assert.equal(sharedWorkshopLotusSesameCakeOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared lotus sesame cake origin should be high-quality protected')
+assert.equal(sharedWorkshopLotusSesameCakeOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared lotus sesame cake origin should keep cooking process kind')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
   itemId: 'lotus_seed',
   quantity: 2,
   quality: 'normal',
