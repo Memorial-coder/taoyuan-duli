@@ -6139,6 +6139,18 @@ assert.equal(decorationRemovalRefund.contract.family_building_ledger.length, 0, 
 assert.ok(decorationRemovalRefund.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.purpose === 'shared_decoration_removal'), 'shared decoration removal refund should be audited')
 assert.equal(readGameplayData(decorationRemovalOwner)?.player?.money, decorationRemovalOwnerMoneyBeforeDraft, 'shared decoration removal refund should not touch owner personal money')
 assert.equal(readGameplayData(decorationRemovalPartner)?.player?.money, decorationRemovalPartnerMoneyBeforeConfirm, 'shared decoration removal refund should not touch partner personal money')
+const decorationRemovalClearedPreview = await runtime.createSeparationPreview(decorationRemovalContractId, {
+  reason: 'qa shared decoration removal receipt clears dispute freeze',
+  idempotency_key: 'qa-shared-decoration-removal-cleared-preview',
+}, actor(decorationRemovalOwner))
+assert.deepEqual(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_disputes, [], 'refunded shared decoration removal should leave no pending dispute in a new separation preview')
+assert.equal(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_freeze_summary.pending_count, 0, 'refunded shared decoration removal should clear pending dispute count')
+assert.equal(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_freeze_summary.freeze_required, false, 'refunded shared decoration removal should not require dispute freeze')
+assert.equal(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_freeze_policy.status, 'clear', 'refunded shared decoration removal should expose clear freeze policy')
+assert.ok(!decorationRemovalClearedPreview.preview.compensation_plan.find(item => item.id === 'shared_decoration_removal_dispute_freeze'), 'refunded shared decoration removal should not add dispute freeze compensation plan')
+assert.ok(!decorationRemovalClearedPreview.preview.deferred_operations.includes('freeze_shared_decoration_removal_disputes'), 'refunded shared decoration removal should clear dispute freeze deferred operation')
+assert.equal(readGameplayData(decorationRemovalOwner)?.player?.money, decorationRemovalOwnerMoneyBeforeDraft, 'shared decoration removal cleared preview should not touch owner personal money')
+assert.equal(readGameplayData(decorationRemovalPartner)?.player?.money, decorationRemovalPartnerMoneyBeforeConfirm, 'shared decoration removal cleared preview should not touch partner personal money')
 
 const warehouseGovernanceOwner = 'cohabit_wgov_owner26'
 const warehouseGovernancePartner = 'cohabit_wgov_part26'
