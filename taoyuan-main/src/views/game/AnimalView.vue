@@ -944,9 +944,13 @@
   }
 
   const getPetPreferenceText = (companion: PetState): string => {
-    if (companion.type === 'dog') return '偏好：饱腹 / 辛香'
-    if (companion.type === 'spirit') return '偏好：草本 / 灵果'
-    return '偏好：清甜 / 芳香'
+    const learnedTaste =
+      companion.favoriteSpecialFeedType && companion.favoriteSpecialFeedScore >= 3
+        ? ` · 记住：${getPetSpecialFeedTasteLabel(companion.favoriteSpecialFeedType)}`
+        : ''
+    if (companion.type === 'dog') return `偏好：饱腹 / 辛香${learnedTaste}`
+    if (companion.type === 'spirit') return `偏好：草本 / 灵果${learnedTaste}`
+    return `偏好：清甜 / 芳香${learnedTaste}`
   }
 
   const getPetSpecialFeedUseHint = (itemId: string, description: string): string => {

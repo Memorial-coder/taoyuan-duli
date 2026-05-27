@@ -111,6 +111,8 @@ export interface PetState {
   specialFeedType: PetSpecialFeedType | null
   specialFeedDayTag: string | null
   specialFeedStreak: number
+  favoriteSpecialFeedType: PetSpecialFeedType | null
+  favoriteSpecialFeedScore: number
   rareFindCooldownDays: number
 }
 

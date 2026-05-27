@@ -472,6 +472,7 @@ export const useAnimalStore = defineStore('animal', () => {
   const isKnownPetType = (type: unknown): type is PetType => knownPetTypes.includes(type as PetType)
   const isKnownPetSpecialFeedType = (type: unknown): type is PetSpecialFeedType => knownPetSpecialFeedTypes.includes(type as PetSpecialFeedType)
   const getPetDefaultName = (type: PetType) => petDefaultNames[type]
+  const PET_FAVORITE_FEED_SCORE_MAX = 7
 
   const recordPetMilestones = (companion: PetState, previousFriendship: number) => {
     const playerStore = usePlayerStore()
@@ -501,6 +502,8 @@ export const useAnimalStore = defineStore('animal', () => {
       specialFeedType: null,
       specialFeedDayTag: null,
       specialFeedStreak: 0,
+      favoriteSpecialFeedType: null,
+      favoriteSpecialFeedScore: 0,
       rareFindCooldownDays: 0
     }
     pets.value.push(companion)
@@ -525,6 +528,29 @@ export const useAnimalStore = defineStore('animal', () => {
     companion.specialFeedItemId = null
     companion.specialFeedType = null
     companion.specialFeedDayTag = null
+  }
+
+  const recordPetSpecialFeedTaste = (companion: PetState, taste: PetSpecialFeedType) => {
+    if (companion.favoriteSpecialFeedType === taste) {
+      companion.favoriteSpecialFeedScore = Math.min(PET_FAVORITE_FEED_SCORE_MAX, companion.favoriteSpecialFeedScore + 2)
+      return
+    }
+
+    companion.favoriteSpecialFeedType = taste
+    companion.favoriteSpecialFeedScore = Math.max(1, Math.min(3, companion.favoriteSpecialFeedScore - 1))
+  }
+
+  const getSpiritSpecialFeedMoodText = (companion: PetState, taste: PetSpecialFeedType): string => {
+    if (companion.type !== 'spirit') return ''
+    if (taste === 'herbal') return ` ${companion.name}把草本气息记得更稳，明早更偏向药草和丹材线索。`
+    if (taste === 'spirit_fruit') return ` ${companion.name}追着灵果香转了几圈，明早更偏向稀有果香和丹材线索。`
+    return ''
+  }
+
+  const getSpiritRareFindMessage = (companion: PetState, taste: PetSpecialFeedType): string => {
+    if (taste === 'herbal') return `${companion.name}循着昨夜的草本灵息找到了丹材线索，短时间内不会连续外出寻宝。`
+    if (taste === 'spirit_fruit') return `${companion.name}循着昨夜的灵果香找到了稀有采集线索，短时间内不会连续外出寻宝。`
+    return `${companion.name}循着昨夜的${getPetSpecialFeedTasteLabel(taste)}灵息找到了丹材线索，短时间内不会连续外出寻宝。`
   }
 
   const feedPetSpecial = (petId: string, feedId: string): { success: boolean; message: string } => {
@@ -553,6 +579,7 @@ export const useAnimalStore = defineStore('animal', () => {
     companion.specialFeedType = feed.taste
     companion.specialFeedDayTag = dayTag
     companion.specialFeedStreak = Math.min(7, companion.specialFeedStreak + 1)
+    recordPetSpecialFeedTaste(companion, feed.taste)
     recordPetMilestones(companion, previousFriendship)
 
     const tasteLabel = getPetSpecialFeedTasteLabel(feed.taste)
@@ -560,7 +587,11 @@ export const useAnimalStore = defineStore('animal', () => {
     const cookingTopicText = cookingTopic
       ? ` ${companion.name}还认出了刚做过的${cookingTopic.recipeName}，这条宠物料理线索已经用在今天的喂食反馈里。`
       : ''
-    return { success: true, message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。${cookingTopicText}` }
+    const spiritMoodText = getSpiritSpecialFeedMoodText(companion, feed.taste)
+    return {
+      success: true,
+      message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。${spiritMoodText}${cookingTopicText}`
+    }
   }
 
   /** 每日宠物更新 */
@@ -613,11 +644,16 @@ export const useAnimalStore = defineStore('animal', () => {
         })
 
         const preferred = isPetSpecialFeedPreferred(specialFeed, companion.type)
-        const rareFindChance = Math.min(0.08, specialFeed.rareFindChance + (preferred ? 0.015 : 0))
+        const learnedFavoriteBonus =
+          companion.favoriteSpecialFeedType === specialFeed.taste && companion.favoriteSpecialFeedScore >= 3
+            ? Math.min(0.01, companion.favoriteSpecialFeedScore * 0.0015)
+            : 0
+        const spiritFruitCooldownBonus = companion.type === 'spirit' && specialFeed.taste === 'spirit_fruit' ? 1 : 0
+        const rareFindChance = Math.min(0.085, specialFeed.rareFindChance + (preferred ? 0.015 : 0) + learnedFavoriteBonus)
         if (companion.friendship >= 450 && companion.rareFindCooldownDays <= 0 && specialFeed.rareFindPool.length > 0 && Math.random() < rareFindChance) {
           const itemId = specialFeed.rareFindPool[Math.floor(Math.random() * specialFeed.rareFindPool.length)]!
           inventoryStore.addItem(itemId, 1)
-          companion.rareFindCooldownDays = specialFeed.rareFindCooldownDays
+          companion.rareFindCooldownDays = specialFeed.rareFindCooldownDays + spiritFruitCooldownBonus
           events.push({
             petId: companion.id,
             petName: companion.name,
@@ -627,12 +663,14 @@ export const useAnimalStore = defineStore('animal', () => {
               companion.type === 'dog'
                 ? `${companion.name}顺着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}气味巡了一圈，只带回一份小发现，接下来几天会先歇一歇。`
                 : companion.type === 'spirit'
-                  ? `${companion.name}循着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}灵息找到了丹材线索，短时间内不会连续外出寻宝。`
+                  ? getSpiritRareFindMessage(companion, specialFeed.taste)
                   : `${companion.name}循着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}余味找到了小物，短时间内不会连续外出寻宝。`
           })
         }
       } else {
         companion.specialFeedStreak = 0
+        companion.favoriteSpecialFeedScore = Math.max(0, companion.favoriteSpecialFeedScore - 1)
+        if (companion.favoriteSpecialFeedScore === 0) companion.favoriteSpecialFeedType = null
       }
 
       let emittedFollowup = false
@@ -1082,6 +1120,7 @@ export const useAnimalStore = defineStore('animal', () => {
   const normalizePetSave = (savedPet: any): PetState | null => {
     if (!savedPet || !isKnownPetType(savedPet.type)) return null
     const specialFeedType = isKnownPetSpecialFeedType(savedPet.specialFeedType) ? savedPet.specialFeedType : null
+    const favoriteSpecialFeedType = isKnownPetSpecialFeedType(savedPet.favoriteSpecialFeedType) ? savedPet.favoriteSpecialFeedType : null
 
     return {
       id: typeof savedPet.id === 'string' && savedPet.id.trim() ? savedPet.id : `${savedPet.type}_${Date.now()}`,
@@ -1094,6 +1133,10 @@ export const useAnimalStore = defineStore('animal', () => {
       specialFeedType,
       specialFeedDayTag: typeof savedPet.specialFeedDayTag === 'string' ? savedPet.specialFeedDayTag : null,
       specialFeedStreak: Number.isFinite(savedPet.specialFeedStreak) ? Math.max(0, Math.min(7, savedPet.specialFeedStreak)) : 0,
+      favoriteSpecialFeedType,
+      favoriteSpecialFeedScore: Number.isFinite(savedPet.favoriteSpecialFeedScore)
+        ? Math.max(0, Math.min(PET_FAVORITE_FEED_SCORE_MAX, savedPet.favoriteSpecialFeedScore))
+        : 0,
       rareFindCooldownDays: Number.isFinite(savedPet.rareFindCooldownDays) ? Math.max(0, savedPet.rareFindCooldownDays) : 0
     }
   }
