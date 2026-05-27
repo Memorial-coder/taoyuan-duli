@@ -1,11 +1,16 @@
 <template>
   <section class="visual-scene-board" data-testid="visual-scene-board">
-    <div class="visual-scene-board__stage" role="group" aria-label="可视化场景">
+    <div
+      class="visual-scene-board__stage"
+      role="group"
+      aria-label="可视化场景点击热区"
+      data-testid="visual-scene-hotzone-stage"
+    >
       <button
         v-for="object in visibleObjects"
         :key="object.id"
         type="button"
-        class="visual-scene-board__object"
+        class="visual-scene-board__object visual-scene-board__object--hotzone"
         :class="[
           `visual-scene-board__object--${object.state}`,
           { 'visual-scene-board__object--selected': object.id === activeObjectId },
@@ -81,13 +86,19 @@
         <span>选择一个物件</span>
       </div>
 
-      <div v-if="visibleObjects.length > 0" class="visual-scene-board__list" aria-label="场景物件列表">
+      <div
+        v-if="visibleObjects.length > 0"
+        class="visual-scene-board__list"
+        aria-label="场景物件列表"
+        data-testid="visual-scene-object-list"
+      >
         <button
           v-for="object in visibleObjects"
           :key="`list-${object.id}`"
           type="button"
           class="visual-scene-board__list-item"
           :class="{ 'visual-scene-board__list-item--selected': object.id === activeObjectId }"
+          :data-testid="`visual-scene-list-object-${object.id}`"
           @click="selectObject(object.id)"
         >
           <span>{{ object.label || object.kind || object.id }}</span>
@@ -234,7 +245,7 @@
     display: inline-flex;
     max-width: 8rem;
     min-width: 2.5rem;
-    min-height: 2.35rem;
+    min-height: 2.75rem;
     translate: -50% -50%;
     align-items: center;
     justify-content: center;
@@ -419,6 +430,7 @@
   .visual-scene-board__list-item {
     width: 100%;
     align-items: center;
+    min-height: 2.75rem;
     border: 1px solid color-mix(in srgb, var(--color-accent) 10%, transparent);
     background: transparent;
     padding: 0.35rem 0.45rem;

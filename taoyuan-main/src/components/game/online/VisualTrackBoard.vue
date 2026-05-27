@@ -15,7 +15,13 @@
         </button>
       </div>
 
-      <div v-if="activeTrack" class="visual-track-board__river" role="group" aria-label="可视化赛道">
+      <div
+        v-if="activeTrack"
+        class="visual-track-board__river"
+        role="group"
+        aria-label="可视化赛道滚动区"
+        data-testid="visual-track-scroll-lane"
+      >
         <div class="visual-track-board__river-head">
           <div class="min-w-0">
             <p class="visual-track-board__title">{{ activeTrack.label || activeTrack.id }}</p>
@@ -24,7 +30,7 @@
           <span class="visual-track-board__length">{{ activeCells.length }} / {{ activeTrack.length || activeCells.length }} 格</span>
         </div>
 
-        <div class="visual-track-board__cells" :style="trackGridStyle">
+        <div class="visual-track-board__cells" :style="trackGridStyle" data-testid="visual-track-cell-grid">
           <button
             v-for="cell in activeCells"
             :key="cell.id"
@@ -65,7 +71,7 @@
       </div>
     </div>
 
-    <div class="visual-track-board__side">
+    <div class="visual-track-board__side" data-testid="visual-track-side-panel">
       <div v-if="selectedCell && activeTrack" class="visual-track-board__detail" data-testid="visual-track-cell-detail">
         <div class="visual-track-board__detail-head">
           <div class="min-w-0">
@@ -107,7 +113,11 @@
           </p>
         </div>
 
-        <div v-if="selectedCell.available_action_ids.length > 0" class="visual-track-board__actions">
+        <div
+          v-if="selectedCell.available_action_ids.length > 0"
+          class="visual-track-board__actions"
+          data-testid="visual-track-action-panel"
+        >
           <button
             v-for="actionId in selectedCell.available_action_ids"
             :key="`${selectedCell.id}-${actionId}`"
@@ -626,6 +636,18 @@
   @media (max-width: 760px) {
     .visual-track-board {
       grid-template-columns: 1fr;
+    }
+
+    .visual-track-board__main {
+      order: 1;
+    }
+
+    .visual-track-board__side {
+      order: 2;
+    }
+
+    .visual-track-board__action {
+      width: 100%;
     }
 
     .visual-track-board__cells {

@@ -1943,6 +1943,9 @@ async function prepareOnlineManorCareRoomMobile(page) {
   await page.getByTestId('online-module-tab-care').click()
 
   await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+  await expect(page.getByTestId('visual-scene-hotzone-stage')).toBeVisible()
+  await expect(page.getByTestId('visual-scene-object-list')).toBeVisible()
+  await expect(page.getByTestId('visual-scene-list-object-manor_field')).toBeVisible()
   await expect(page.getByTestId('online-manor-care-readable-limits')).toContainText('访客今日照料')
   await expect(page.getByTestId('online-manor-care-room-panel')).toBeVisible()
   await expect(page.getByTestId('online-manor-care-room-create').first()).toBeVisible()
@@ -1988,6 +1991,24 @@ async function prepareOnlineManorCareRoomMobile(page) {
   })
 
   expect(clippedControls).toEqual([])
+
+  const smallSceneTargets = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="visual-scene-board"]')
+    if (!root) return ['visual-scene-board']
+    return Array.from(root.querySelectorAll('[data-testid^="visual-scene-object-"], [data-testid^="visual-scene-list-object-"]'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.getAttribute('data-testid') || element.textContent?.trim() || element.tagName,
+          width: rect.width,
+          height: rect.height,
+        }
+      })
+      .filter(entry => entry.width < 36 || entry.height < 36)
+      .map(entry => entry.label)
+  })
+
+  expect(smallSceneTargets).toEqual([])
 }
 
 async function main() {
