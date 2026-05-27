@@ -8456,8 +8456,51 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
   };
 }
 
-function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance }) {
+function buildSharedDecorationRemovalDisputeFreezePreview(contract) {
+  const drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const disputes = drafts
+    .filter(draft =>
+      draft.purpose === 'shared_decoration_removal'
+      && draft.state === 'executed'
+      && (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    )
+    .map(draft => ({
+      draft_id: draft.id,
+      target_ref: draft.target_ref,
+      amount: draft.amount,
+      requested_by: draft.requested_by,
+      executed_by: draft.executed_by,
+      executed_at: draft.executed_at,
+      original_fund_ledger_id: draft.final_spend_ledger_id,
+      receipt_status: draft.high_risk_receipt_status || 'pending',
+      freeze_reason: '共同装修拆除已扣共同基金但尚未提交拆除完成或退款回执。',
+      deferred_operations: ['shared_decoration_removal_receipt', 'fund_compensation_replay'],
+    }))
+    .slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT);
+  return {
+    disputes,
+    summary: {
+      pending_count: disputes.length,
+      total_amount: disputes.reduce((sum, entry) => sum + entry.amount, 0),
+      target_refs: [...new Set(disputes.map(entry => entry.target_ref).filter(Boolean))].slice(0, 20),
+      original_fund_ledger_ids: [...new Set(disputes.map(entry => entry.original_fund_ledger_id).filter(Boolean))].slice(0, 20),
+      freeze_required: disputes.length > 0,
+    },
+    policy: {
+      status: disputes.length > 0 ? 'manual_receipt_required' : 'clear',
+      freeze_scope: '只冻结分居预览中的争议处理，不自动改共同基金余额、个人铜币、个人小屋或装修主状态。',
+      release_condition: '提交拆除完成回执或带补偿确认的退款回执后，后续分居预览不再列入该争议冻结项。',
+      no_personal_home_mutation: true,
+      no_personal_money_mutation: true,
+    },
+  };
+}
+
+function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance, sharedDecorationRemovalDisputeFreeze }) {
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
+  const removalDisputeSummary = sharedDecorationRemovalDisputeFreeze?.summary || {};
   return [
     {
       id: 'preview_only',
@@ -8491,10 +8534,20 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fund
       passed: totalSuggestedFundRefund === fundBalance,
       detail: '共同基金余额按注资比例生成建议返还额。',
     },
+    {
+      id: 'shared_decoration_removal_disputes_traceable',
+      passed: !removalDisputeSummary.freeze_required
+        || (sharedDecorationRemovalDisputeFreeze.disputes || []).every(entry =>
+          entry.draft_id && entry.target_ref && entry.original_fund_ledger_id && entry.receipt_status === 'pending'
+        ),
+      detail: removalDisputeSummary.freeze_required
+        ? '共同装修拆除待回执草案已进入分居争议冻结预览，需先拆除完成或退款收口。'
+        : '当前没有待回执的共同装修拆除争议。',
+    },
   ];
 }
 
-function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, fundReturns, contract }) {
+function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, fundReturns, contract, sharedDecorationRemovalDisputeFreeze }) {
   const plan = [];
   if (plotReturnPreview.plot_return_summary.total_plots > 0) {
     plan.push({
@@ -8521,6 +8574,15 @@ function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, 
       action: 'refund_by_contribution_share',
       status: 'manual_execution_required',
       detail: '共同基金余额按注资比例预览返还；若后续出现经营收入或消费差额，需要双方确认补偿。',
+    });
+  }
+  if (sharedDecorationRemovalDisputeFreeze?.summary?.freeze_required) {
+    plan.push({
+      id: 'shared_decoration_removal_dispute_freeze',
+      target: 'shared_decoration_removal',
+      action: 'freeze_until_receipt_or_refund',
+      status: 'manual_execution_required',
+      detail: '共同装修拆除扣款未提交拆除 / 退款回执时，分居返还先冻结该争议项；收口前不改个人小屋、装修主状态或个人铜币。',
     });
   }
   if (contract.separation_policy?.keep_memorial !== false) {
@@ -15600,6 +15662,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const fundReturns = buildFundReturnPreview(contract);
   const decorationSplitManifest = buildDecorationSplitManifest(contract);
   const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
+  const sharedDecorationRemovalDisputeFreeze = buildSharedDecorationRemovalDisputeFreezePreview(contract);
   const totalFundContributions = fundReturns.reduce((sum, entry) => sum + entry.amount, 0);
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const requiredMemberUsernames = (contract.members || [])
@@ -15630,6 +15693,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       family_building_split_manifest: familyBuildingSplitManifest,
       family_building_split_manifest_hash: hashFamilyBuildingSplitManifest(familyBuildingSplitManifest),
       building_split_policy: '第一版只记录装饰 / 建筑拆分 ledger、hash、审计和补偿提示；不移动个人房屋、家具或真实建筑状态。',
+      shared_decoration_removal_disputes: sharedDecorationRemovalDisputeFreeze.disputes,
+      shared_decoration_removal_freeze_summary: sharedDecorationRemovalDisputeFreeze.summary,
+      shared_decoration_removal_freeze_policy: sharedDecorationRemovalDisputeFreeze.policy,
       fund_balance: contract.shared_fund.balance,
       fund_total_contributed: totalFundContributions,
       fund_suggested_refund_total: totalSuggestedFundRefund,
@@ -15641,6 +15707,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       warehouseReturns,
       fundReturns,
       contract,
+      sharedDecorationRemovalDisputeFreeze,
     }),
     narrative_hooks: [
       contract.type === 'marriage_home'
@@ -15667,6 +15734,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       warehouseReturns,
       fundReturns,
       fundBalance: contract.shared_fund.balance,
+      sharedDecorationRemovalDisputeFreeze,
     }),
     deferred_operations: [
       'execute_asset_return',
@@ -15674,6 +15742,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       'split_decorations',
       'resolve_family_story',
       'freeze_high_value_disputes',
+      ...(sharedDecorationRemovalDisputeFreeze.summary.freeze_required ? ['freeze_shared_decoration_removal_disputes'] : []),
     ],
     manual_execution_required: true,
     requires_both_confirm: true,

@@ -6106,6 +6106,25 @@ assert.ok(decorationRemovalExecute.draft.deferred_operations.includes('shared_de
 assert.equal(decorationRemovalExecute.contract.family_building_ledger.length, 0, 'shared decoration removal should not create family building ledger')
 assert.equal(readGameplayData(decorationRemovalOwner)?.player?.money, decorationRemovalOwnerMoneyBeforeDraft, 'shared decoration removal should not touch owner personal money')
 assert.equal(readGameplayData(decorationRemovalPartner)?.player?.money, decorationRemovalPartnerMoneyBeforeConfirm, 'shared decoration removal should not touch partner personal money')
+const decorationRemovalSeparationPreview = await runtime.createSeparationPreview(decorationRemovalContractId, {
+  reason: 'qa shared decoration removal pending receipt dispute freeze',
+  idempotency_key: 'qa-shared-decoration-removal-dispute-preview',
+}, actor(decorationRemovalOwner))
+const decorationRemovalDisputes = decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_disputes
+assert.equal(decorationRemovalDisputes.length, 1, 'pending shared decoration removal should enter separation dispute freeze preview')
+assert.equal(decorationRemovalDisputes[0].draft_id, decorationRemovalDraft.draft.id, 'shared decoration removal dispute should point to original draft')
+assert.equal(decorationRemovalDisputes[0].target_ref, 'shared_decoration:tea_room_wall:remove', 'shared decoration removal dispute should keep target ref')
+assert.equal(decorationRemovalDisputes[0].amount, 1300, 'shared decoration removal dispute should keep frozen amount')
+assert.equal(decorationRemovalDisputes[0].original_fund_ledger_id, decorationRemovalExecute.ledger_entry.id, 'shared decoration removal dispute should keep original fund ledger id')
+assert.equal(decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_freeze_summary.pending_count, 1, 'shared decoration removal freeze summary should count pending disputes')
+assert.equal(decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_freeze_summary.total_amount, 1300, 'shared decoration removal freeze summary should total pending amount')
+assert.equal(decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_freeze_policy.no_personal_home_mutation, true, 'shared decoration removal freeze should not mutate personal home')
+assert.equal(decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_freeze_policy.no_personal_money_mutation, true, 'shared decoration removal freeze should not mutate personal money')
+assert.ok(decorationRemovalSeparationPreview.preview.safety_checks.find(item => item.id === 'shared_decoration_removal_disputes_traceable')?.passed, 'shared decoration removal freeze safety check should pass')
+assert.ok(decorationRemovalSeparationPreview.preview.compensation_plan.find(item => item.id === 'shared_decoration_removal_dispute_freeze'), 'shared decoration removal freeze should add compensation plan')
+assert.ok(decorationRemovalSeparationPreview.preview.deferred_operations.includes('freeze_shared_decoration_removal_disputes'), 'shared decoration removal freeze should add deferred operation')
+assert.equal(readGameplayData(decorationRemovalOwner)?.player?.money, decorationRemovalOwnerMoneyBeforeDraft, 'shared decoration removal dispute preview should not touch owner personal money')
+assert.equal(readGameplayData(decorationRemovalPartner)?.player?.money, decorationRemovalPartnerMoneyBeforeConfirm, 'shared decoration removal dispute preview should not touch partner personal money')
 const decorationRemovalRefund = await runtime.recordCohabitationFundHighRiskReceipt(decorationRemovalContractId, decorationRemovalDraft.draft.id, {
   outcome: 'refunded',
   receipt_ref: 'shared_decoration_removal_receipt:tea_room_wall:refund',
