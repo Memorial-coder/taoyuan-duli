@@ -297,6 +297,10 @@ expectContains('utils/cohabitationApi.ts', 'CohabitationFamilyBuildingLedgerEntr
 expectContains('utils/cohabitationApi.ts', '/fund/large-spend-draft', '共同基金 API 应接入大额草案创建接口')
 expectContains('utils/cohabitationApi.ts', 'executeCohabitationFundLargeSpendDraft', '共同基金 API 应接入大额草案执行接口')
 expectContains('online/OnlineCohabitationView.vue', 'spend_medium', '共同庄园权限面板应提供中额基金开关')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-permission-grouped-toggles', '共同庄园权限面板应按权限组展示开关')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-permission-toggle-group-', '共同庄园权限面板应给每个权限组稳定测试钩子')
+expectContains('online/OnlineCohabitationView.vue', 'permissionToggleGroups', '共同庄园权限面板不应把全部权限开关堆成长表')
+expectContains('online/OnlineCohabitationView.vue', 'sm:grid-cols-2', '共同庄园权限组内开关在移动端应保持可读网格')
 expectContains('online/OnlineCohabitationView.vue', '个人铜币不合并', '共同庄园入口应显示个人铜币不合并边界')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineCohabitationView.vue', /overflow-y-auto/g, 8, '共同庄园长列表应保留滚动边界')
 

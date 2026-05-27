@@ -1203,19 +1203,36 @@
                   <p class="mt-1 text-[10px] leading-4 text-accent">{{ group.enabled }}/{{ group.total }}</p>
                 </div>
               </div>
-              <div v-if="canManagePermissionPanel" class="mt-3 grid gap-2">
-                <button
-                  v-for="option in permissionToggleOptions"
-                  :key="`${member.username}-${option.group}-${option.key}`"
-                  type="button"
-                  class="online-action-btn online-action-btn--compact justify-between"
-                  :disabled="cohabitationStore.actionLoading"
-                  :data-testid="`online-cohabitation-permission-${member.username}-${option.group}-${option.key}`"
-                  @click="toggleMemberPermission(member, option)"
+              <div
+                v-if="canManagePermissionPanel"
+                class="mt-3 grid gap-2"
+                data-testid="online-cohabitation-permission-grouped-toggles"
+              >
+                <div
+                  v-for="group in permissionToggleGroups(member.permissions)"
+                  :key="`${member.username}-toggle-group-${group.id}`"
+                  class="border border-accent/10 bg-bg/30 p-2"
+                  :data-testid="`online-cohabitation-permission-toggle-group-${group.id}`"
                 >
-                  <span>{{ option.label }}</span>
-                  <span>{{ member.permissions?.[option.group]?.[option.key] ? '开启' : '关闭' }}</span>
-                </button>
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[10px] text-accent">{{ permissionGroupLabel(group.id) }}</p>
+                    <span class="text-[10px] text-muted">{{ group.enabled }}/{{ group.total }}</span>
+                  </div>
+                  <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                    <button
+                      v-for="option in group.options"
+                      :key="`${member.username}-${option.group}-${option.key}`"
+                      type="button"
+                      class="online-action-btn online-action-btn--compact justify-between"
+                      :disabled="cohabitationStore.actionLoading"
+                      :data-testid="`online-cohabitation-permission-${member.username}-${option.group}-${option.key}`"
+                      @click="toggleMemberPermission(member, option)"
+                    >
+                      <span>{{ option.label }}</span>
+                      <span>{{ member.permissions?.[option.group]?.[option.key] ? '开启' : '关闭' }}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -5547,6 +5564,28 @@
       enabled: Object.values(values).filter(Boolean).length,
       total: Object.keys(values).length,
     }))
+
+  const permissionToggleGroups = (permissions: Record<string, Record<string, boolean>>) =>
+    permissionToggleOptions.reduce<Array<{
+      id: string
+      enabled: number
+      total: number
+      options: typeof permissionToggleOptions
+    }>>((groups, option) => {
+      let group = groups.find(entry => entry.id === option.group)
+      if (!group) {
+        const values = permissions?.[option.group] ?? {}
+        group = {
+          id: option.group,
+          enabled: Object.values(values).filter(Boolean).length,
+          total: Object.keys(values).length || permissionToggleOptions.filter(entry => entry.group === option.group).length,
+          options: [],
+        }
+        groups.push(group)
+      }
+      group.options.push(option)
+      return groups
+    }, [])
 
   const permissionGroupLabel = (value: string) => {
     const labels: Record<string, string> = {
