@@ -133,6 +133,9 @@
                   <p class="mt-0.5 truncate text-[9px] leading-3 text-muted/70" :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)">
                     {{ getPetSpecialFeedUseText(feed.itemId) }}
                   </p>
+                  <p class="mt-0.5 truncate text-[9px] leading-3 text-accent/70" :title="getPetSpecialFeedTargetText(feed)">
+                    {{ getPetSpecialFeedTargetText(feed) }}
+                  </p>
                 </div>
               </div>
               <p v-else class="text-[10px] text-muted/70 leading-4">暂无可喂的宠物食材</p>
@@ -447,9 +450,14 @@
             :class="selectedFeed === feed.id ? 'border-accent bg-accent/10' : 'border-accent/20 hover:bg-accent/5'"
             @click="selectedFeed = feed.id"
           >
-            <div class="flex items-center space-x-2">
-              <span class="text-xs" :class="selectedFeed === feed.id ? 'text-accent' : ''">{{ feed.name }}</span>
-              <span class="text-[10px] text-muted">{{ feed.description }}</span>
+            <div class="min-w-0">
+              <div class="flex items-center space-x-2">
+                <span class="text-xs" :class="selectedFeed === feed.id ? 'text-accent' : ''">{{ feed.name }}</span>
+                <span class="text-[10px] text-muted">{{ feed.description }}</span>
+              </div>
+              <p class="mt-0.5 text-[10px] text-muted/70 truncate" :title="getAnimalFeedTargetHint(feed.id)">
+                {{ getAnimalFeedTargetHint(feed.id) }}
+              </p>
             </div>
             <span class="text-xs text-muted">{{ feed.count }}</span>
           </div>
@@ -462,6 +470,7 @@
           <p class="text-xs text-muted">喂食</p>
           <span class="text-xs text-muted">{{ selectedFeedName }}库存：{{ selectedFeedCount }}</span>
         </div>
+        <p class="mb-1 text-[10px] text-accent/80 leading-4">{{ selectedFeedTargetHint }}</p>
         <div class="flex flex-col space-y-1">
           <div
             class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5"
@@ -701,7 +710,11 @@
     FEED_DEFS,
     getPetSpecialFeedTasteLabel,
     getPetTypeLabel,
-    getPetSpecialFeedUseText
+    getPetSpecialFeedUseText,
+    getCropUseProfile,
+    getCropUseTagMatches,
+    CROP_USE_TAG_LABELS,
+    type CropUseTag
   } from '@/data'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState, PetType } from '@/types'
@@ -818,6 +831,7 @@
 
   /** 当前选中饲料的价格 */
   const selectedFeedPrice = computed(() => FEED_DEFS.find(f => f.id === selectedFeed.value)?.price ?? 50)
+  const selectedFeedTargetHint = computed(() => getAnimalFeedTargetHint(selectedFeed.value))
 
   /** 未喂食动物数量 */
   const unfedCount = computed(() => animalStore.animals.filter(a => !a.wasFed).length)
@@ -955,6 +969,42 @@
 
   const getPetSpecialFeedUseHint = (itemId: string, description: string): string => {
     return `${getPetSpecialFeedUseText(itemId)}；${description}`
+  }
+
+  const animalFeedTargetFallbacks: Record<string, string> = {
+    hay: '目标：基础饲草，稳定喂饱家畜，适合每日低成本补料。',
+    premium_feed: '目标：牧场增心情 / 好感冲刺，适合节前或产出动物集中喂养。',
+    nourishing_feed: '目标：产出提速，适合牛奶、羊毛、蛋类循环前一日安排。',
+    vitality_feed: '目标：治疗与恢复，优先照看生病动物，避免产出链断档。'
+  }
+
+  const animalFeedVisibleTags: CropUseTag[] = ['animal_feed', 'pet_feed', 'order', 'festival', 'online_cost']
+
+  const getAnimalFeedTargetHint = (itemId: string): string => {
+    const profile = getCropUseProfile(itemId)
+    if (profile) {
+      const matches = getCropUseTagMatches(itemId, animalFeedVisibleTags)
+      const labels = matches.length > 0 ? matches.map(match => match.label).join(' / ') : profile.tags.map(tag => CROP_USE_TAG_LABELS[tag]).join(' / ')
+      return `作物饲料用途：${labels}；${profile.summary}`
+    }
+    return animalFeedTargetFallbacks[itemId] ?? '目标：牧场补料，维持动物日常照料节奏。'
+  }
+
+  const petFeedVisibleTags: CropUseTag[] = ['pet_feed', 'animal_feed', 'alchemy', 'medicine', 'gift', 'festival', 'order']
+
+  const getPetSpecialFeedTargetText = (feed: {
+    itemId: string
+    taste: string
+    tier?: string
+    preferredPetTypes: PetType[]
+  }): string => {
+    const tagLabels = getCropUseTagMatches(feed.itemId, petFeedVisibleTags).map(match => match.label)
+    if (feed.taste === 'herbal') return `目标：草本线索 / 丹材嗅探${tagLabels.includes('炼丹') ? ' / 炼丹' : ''}`
+    if (feed.taste === 'spirit_fruit') return '目标：灵果稀有线索（长冷却）'
+    if (feed.preferredPetTypes.includes('dog') && ['filling', 'spicy'].includes(feed.taste)) return '目标：护院 / 报信 / 来访提醒'
+    if (feed.preferredPetTypes.includes('cat') && ['sweet', 'fragrant', 'herbal'].includes(feed.taste)) return '目标：来客纸条 / 节会线索'
+    if (tagLabels.length > 0) return `目标：${tagLabels.slice(0, 3).join(' / ')}`
+    return feed.tier === 'advanced' ? '目标：高阶陪伴反馈' : '目标：日常陪伴反馈'
   }
 
   type PetCareGuideAction = {
