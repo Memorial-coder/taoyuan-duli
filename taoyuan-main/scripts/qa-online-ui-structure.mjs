@@ -52,6 +52,7 @@ utilitySources.set('components/game/online/OnlineVisualRoomShell.vue', await rea
 utilitySources.set('components/game/online/OnlineOrderStoryFlowPanel.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineOrderStoryFlowPanel.vue'), 'utf8'))
 utilitySources.set('data/onlineFestivalSceneAssets.ts', await readFile(path.join(srcRoot, 'data', 'onlineFestivalSceneAssets.ts'), 'utf8'))
 utilitySources.set('data/onlineVisualFeatureFlags.ts', await readFile(path.join(srcRoot, 'data', 'onlineVisualFeatureFlags.ts'), 'utf8'))
+utilitySources.set('data/onlineVisualActivitySchedule.ts', await readFile(path.join(srcRoot, 'data', 'onlineVisualActivitySchedule.ts'), 'utf8'))
 utilitySources.set('types/onlineVisual.ts', await readFile(path.join(srcRoot, 'types', 'onlineVisual.ts'), 'utf8'))
 utilitySources.set('scripts/qa-mobile-ui-smoke.mjs', await readFile(path.join(repoRoot, 'scripts', 'qa-mobile-ui-smoke.mjs'), 'utf8'))
 
@@ -362,6 +363,41 @@ expectContains('data/onlineVisualFeatureFlags.ts', 'fallbackLabel', '可视化�
 expectContains('data/onlineVisualFeatureFlags.ts', 'fallbackRouteName', '可视化功能开关应定义保留旧入口')
 expectCountAtLeast('data/onlineVisualFeatureFlags.ts', /fallbackLabel:/g, 6, '可视化功能开关应为 6 个负责范围开关定义降级说明')
 expectCountAtLeast('data/onlineVisualFeatureFlags.ts', /enabledByDefault: true/g, 6, '可视化功能开关默认应开启现有玩法')
+expectContains('OnlineView.vue', 'online-visual-activity-schedule', '在线中心应展示可视化活动排期')
+expectContains('OnlineView.vue', 'online-visual-festival-calendar', '在线中心应展示节会活动日历')
+expectContains('OnlineView.vue', 'online-visual-daily-rotation', '在线中心应展示每日短玩法')
+expectContains('OnlineView.vue', 'online-visual-weekly-rotation', '在线中心应展示每周长玩法')
+expectContains('OnlineView.vue', 'online-visual-seasonal-rotation', '在线中心应展示赛季活动')
+expectContains('OnlineView.vue', 'online-visual-expired-retention', '在线中心应展示过期纪念 / 复刻保留策略')
+expectContains('OnlineView.vue', 'routeForScheduleEntry', '活动排期入口应指向既有在线模块路由')
+expectContains('data/onlineVisualActivitySchedule.ts', 'ONLINE_VISUAL_FESTIVAL_ACTIVITY_CALENDAR', '应定义节会活动日历')
+expectContains('data/onlineVisualActivitySchedule.ts', 'ONLINE_VISUAL_DAILY_ACTIVITY_ROTATION', '应定义每日短玩法轮换')
+expectContains('data/onlineVisualActivitySchedule.ts', 'ONLINE_VISUAL_WEEKLY_ACTIVITY_ROTATION', '应定义每周长玩法轮换')
+expectContains('data/onlineVisualActivitySchedule.ts', 'ONLINE_VISUAL_SEASONAL_ACTIVITY_ROTATION', '应定义赛季玩法轮换')
+expectContains('data/onlineVisualActivitySchedule.ts', 'ONLINE_VISUAL_EXPIRED_ACTIVITY_RETENTION', '应定义活动过期后的纪念和复刻入口')
+for (const scheduleId of [
+  'yuanxiao_lantern_fair',
+  'duanwu_dragon_boat',
+  'qixi_stroll',
+  'mid_autumn_market',
+  'new_year_vigil',
+  'daily_manor_care',
+  'daily_public_order',
+  'daily_small_cavern',
+  'daily_random_visit',
+  'weekly_bridge_project',
+  'weekly_festival_square',
+  'weekly_family_order',
+  'weekly_shared_manor_goal',
+  'seasonal_family_manor_rating',
+  'seasonal_festival_album',
+  'seasonal_npc_memory_album',
+]) {
+  expectContains('data/onlineVisualActivitySchedule.ts', `id: '${scheduleId}'`, `活动排期应定义 ${scheduleId}`)
+}
+expectCountAtLeast('data/onlineVisualActivitySchedule.ts', /rewardSettlement:/g, 16, '排期条目应声明服务端结算或只读边界')
+expectCountAtLeast('data/onlineVisualActivitySchedule.ts', /npcLine:/g, 16, '排期条目应给出现场 NPC 台词')
+expectCountAtLeast('data/onlineVisualActivitySchedule.ts', /replayRetention:/g, 16, '排期条目应定义过期后回看保留策略')
 expectContains('data/onlineFestivalSceneAssets.ts', 'main_lantern', '灯会现场素材应包含主灯')
 expectContains('data/onlineFestivalSceneAssets.ts', 'riddle_rack', '灯会现场素材应包含灯谜架')
 expectContains('data/onlineFestivalSceneAssets.ts', 'festival_stall', '灯会现场素材应包含摊位')

@@ -141,6 +141,93 @@
           </article>
         </div>
       </div>
+      <div class="mt-3 border border-accent/10 bg-black/10 p-3" data-testid="online-visual-activity-schedule">
+        <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+          <div class="min-w-0">
+            <p class="text-xs leading-4 text-accent">活动排期</p>
+            <p class="mt-1 text-[10px] leading-4 text-muted">{{ onlineVisualScheduleSummary }}</p>
+          </div>
+          <span class="text-[10px] leading-4 text-muted">过期后保留纪念或复刻入口</span>
+        </div>
+        <div class="mt-2 grid gap-2 lg:grid-cols-5" data-testid="online-visual-festival-calendar">
+          <RouterLink
+            v-for="entry in onlineVisualFestivalCalendar"
+            :key="entry.id"
+            class="flex min-h-[148px] min-w-0 flex-col justify-between border border-accent/10 bg-background/70 p-2 text-left transition-colors hover:border-accent/35 hover:bg-accent/5"
+            :data-testid="entry.testId"
+            :to="routeForScheduleEntry(entry)"
+          >
+            <div class="min-w-0">
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-xs leading-4 text-text">{{ entry.title }}</p>
+                <span class="shrink-0 text-[10px] leading-4 text-accent">{{ entry.windowLabel }}</span>
+              </div>
+              <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.entryLabel }}</p>
+              <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-schedule-scene">
+                {{ entry.visualScene }}
+              </p>
+            </div>
+            <div class="mt-2 space-y-1">
+              <p class="text-[10px] leading-4 text-muted" data-testid="online-visual-schedule-reward-pool">
+                {{ entry.rewardPoolLabel }}
+              </p>
+              <p class="text-[10px] leading-4 text-accent" data-testid="online-visual-schedule-npc-line">
+                {{ entry.npcLine }}
+              </p>
+            </div>
+          </RouterLink>
+        </div>
+        <div class="mt-3 grid gap-2 lg:grid-cols-3">
+          <div class="border border-accent/10 bg-background/70 p-2" data-testid="online-visual-daily-rotation">
+            <p class="text-xs leading-4 text-accent">每日短玩法</p>
+            <RouterLink
+              v-for="entry in onlineVisualDailyRotation"
+              :key="entry.id"
+              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+              :data-testid="entry.testId"
+              :to="routeForScheduleEntry(entry)"
+            >
+              <span class="block text-text">{{ entry.title }} · {{ entry.windowLabel }}</span>
+              <span class="mt-1 block">{{ entry.rewardSettlement }}</span>
+            </RouterLink>
+          </div>
+          <div class="border border-accent/10 bg-background/70 p-2" data-testid="online-visual-weekly-rotation">
+            <p class="text-xs leading-4 text-accent">每周长玩法</p>
+            <RouterLink
+              v-for="entry in onlineVisualWeeklyRotation"
+              :key="entry.id"
+              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+              :data-testid="entry.testId"
+              :to="routeForScheduleEntry(entry)"
+            >
+              <span class="block text-text">{{ entry.title }} · {{ entry.entryLabel }}</span>
+              <span class="mt-1 block">{{ entry.replayRetention }}</span>
+            </RouterLink>
+          </div>
+          <div class="border border-accent/10 bg-background/70 p-2" data-testid="online-visual-seasonal-rotation">
+            <p class="text-xs leading-4 text-accent">赛季与过期保留</p>
+            <RouterLink
+              v-for="entry in onlineVisualSeasonalRotation"
+              :key="entry.id"
+              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+              :data-testid="entry.testId"
+              :to="routeForScheduleEntry(entry)"
+            >
+              <span class="block text-text">{{ entry.title }} · {{ entry.windowLabel }}</span>
+              <span class="mt-1 block">{{ entry.replayRetention }}</span>
+            </RouterLink>
+            <ul class="mt-2 space-y-1" data-testid="online-visual-expired-retention">
+              <li
+                v-for="retention in onlineVisualExpiredRetention"
+                :key="retention"
+                class="text-[10px] leading-4 text-muted"
+              >
+                {{ retention }}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </template>
@@ -179,6 +266,14 @@
     createOnlineVisualFeatureFlagState,
     isOnlineVisualFeatureEnabled,
   } from '@/data/onlineVisualFeatureFlags'
+  import {
+    ONLINE_VISUAL_DAILY_ACTIVITY_ROTATION,
+    ONLINE_VISUAL_EXPIRED_ACTIVITY_RETENTION,
+    ONLINE_VISUAL_FESTIVAL_ACTIVITY_CALENDAR,
+    ONLINE_VISUAL_SEASONAL_ACTIVITY_ROTATION,
+    ONLINE_VISUAL_WEEKLY_ACTIVITY_ROTATION,
+    type OnlineVisualActivityScheduleEntry,
+  } from '@/data/onlineVisualActivitySchedule'
 
   type ModuleKey = 'manor' | 'cohabitation' | 'neighbor' | 'orders' | 'festival' | 'society'
   type ModuleStat = { label: string; value: string | number }
@@ -353,6 +448,19 @@
   const onlineVisualFeatureFlagSummary = computed(() => {
     const enabledCount = onlineVisualFeatureFlagItems.value.filter(flag => flag.enabled).length
     return `${enabledCount}/${onlineVisualFeatureFlagItems.value.length} 个开关默认开启 · 配置缺失时按定义保守降级`
+  })
+
+  const onlineVisualFestivalCalendar = ONLINE_VISUAL_FESTIVAL_ACTIVITY_CALENDAR
+  const onlineVisualDailyRotation = ONLINE_VISUAL_DAILY_ACTIVITY_ROTATION
+  const onlineVisualWeeklyRotation = ONLINE_VISUAL_WEEKLY_ACTIVITY_ROTATION
+  const onlineVisualSeasonalRotation = ONLINE_VISUAL_SEASONAL_ACTIVITY_ROTATION
+  const onlineVisualExpiredRetention = ONLINE_VISUAL_EXPIRED_ACTIVITY_RETENTION
+  const onlineVisualScheduleSummary = computed(() =>
+    `${onlineVisualFestivalCalendar.length} 个节会 · ${onlineVisualDailyRotation.length} 个每日短玩法 · ${onlineVisualWeeklyRotation.length} 个每周目标`
+  )
+  const routeForScheduleEntry = (entry: OnlineVisualActivityScheduleEntry): RouteLocationRaw => ({
+    name: entry.routeName,
+    query: entry.routeQuery,
   })
 
   const modules = computed<ModuleCard[]>(() => [
