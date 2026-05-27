@@ -648,6 +648,34 @@
                     推荐玩法：{{ festivalRoomStore.recommendedGameplayTemplates.map(template => template.label).join(' / ') }}
                   </p>
                 </div>
+                <div
+                  v-if="selectedFestivalSceneAssetSpec"
+                  class="border border-warning/20 bg-warning/5 p-2"
+                  data-testid="online-festival-scene-asset-spec"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent">{{ selectedFestivalSceneAssetSpec.label }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ selectedFestivalSceneAssetSpec.firstScreenSignal }}</p>
+                    </div>
+                    <span class="shrink-0 text-[10px] text-warning">现场素材</span>
+                  </div>
+                  <div class="mt-2 grid gap-1.5 sm:grid-cols-2" data-testid="online-festival-scene-clickable-assets">
+                    <p
+                      v-for="asset in selectedFestivalSceneClickableAssets"
+                      :key="asset.id"
+                      class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] leading-4 text-muted"
+                    >
+                      <span class="text-text">{{ asset.label }}</span> · {{ asset.summary }}
+                    </p>
+                  </div>
+                  <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-collaboration-goal">
+                    协作目标：{{ selectedFestivalSceneAssetSpec.collaborationGoal }}
+                  </p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-solo-fallback">
+                    单人保底：{{ selectedFestivalSceneAssetSpec.soloFallbackGoal }}
+                  </p>
+                </div>
                 <div class="block">
                   <span class="text-[10px] text-muted">人数上限</span>
                   <div class="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="online-festival-room-member-limit-group">
@@ -1400,6 +1428,7 @@
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
+  import { getOnlineFestivalSceneAssetSpec } from '@/data/onlineFestivalSceneAssets'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
@@ -1425,6 +1454,12 @@
   const worldEventStore = useWorldEventStore()
   const festivalRoomStore = useFestivalRoomStore()
   const expeditionRoomStore = useExpeditionRoomStore()
+  const selectedFestivalSceneAssetSpec = computed(() =>
+    getOnlineFestivalSceneAssetSpec(festivalRoomStore.selectedTemplateId)
+  )
+  const selectedFestivalSceneClickableAssets = computed(() =>
+    selectedFestivalSceneAssetSpec.value?.assets.filter(asset => asset.clickable) ?? []
+  )
   type ChronicleSnapshot = WorldEventOverview['recent_chronicles'][number]
   type FestivalVisualActionPayload = { objectId: string; actionId: string }
   type FestivalTrackCellPayload = { trackId: string; cellId: string }
