@@ -768,21 +768,64 @@
     return labels.length > 0 ? `用途：${labels.join('、')}` : ''
   }
 
+  const getProcessingRecommendationTags = (recipe: ProcessingRecipeDef): CropUseTag[] => {
+    if (recipe.alchemy) return ['alchemy', 'medicine']
+    switch (recipe.machineType) {
+      case 'oil_press':
+        return ['oil', 'food', 'festival', 'order']
+      case 'mill':
+        return ['flour', 'food', 'pet_feed', 'order']
+      case 'wine_workshop':
+        return ['wine', 'gift', 'festival', 'online_cost']
+      case 'sauce_jar':
+        return ['pickle', 'food', 'order']
+      case 'sugar_jar':
+        return ['pet_feed', 'gift', 'festival', 'food']
+      case 'drying_rack':
+      case 'dehydrator':
+        return ['food', 'medicine', 'order', 'pet_feed']
+      case 'tea_maker':
+        return ['food', 'gift', 'medicine', 'festival']
+      case 'tofu_press':
+        return ['food', 'flour', 'order', 'pet_feed']
+      case 'herb_grinder':
+        return ['medicine', 'alchemy']
+      case 'incense_maker':
+        return ['gift', 'festival', 'medicine']
+      default:
+        return []
+    }
+  }
+
   const buildProcessingRecommendationText = (
     recipe: ProcessingRecipeDef,
     available: boolean,
     alchemyMetaText: string,
     cropUseText: string
   ): string => {
-    if (!recipe.alchemy || !available) return ''
-    const effectText = recipe.alchemy.effect.description
-    if (/宠物安抚/.test(effectText)) return `推荐：宠物安抚短效 · ${alchemyMetaText}`
-    if (/NPC 对话/.test(effectText)) return `推荐：NPC 文游对话短效 · ${alchemyMetaText}`
-    if (/节会奖金/.test(effectText)) return `推荐：节会前服用 · ${alchemyMetaText}`
-    if (/送礼/.test(effectText)) return `推荐：送礼拜访前服用 · ${alchemyMetaText}`
-    if (/采矿|矿洞/.test(effectText)) return `推荐：矿洞探索前服用 · ${alchemyMetaText}`
-    if (/远征|行动/.test(effectText)) return `推荐：行旅或公共订单前服用 · ${alchemyMetaText}`
-    return cropUseText ? `推荐：炼丹用途标签匹配 · ${alchemyMetaText}` : ''
+    if (!available) return ''
+    if (recipe.alchemy) {
+      const effectText = recipe.alchemy.effect.description
+      if (/宠物安抚/.test(effectText)) return `推荐：宠物安抚短效 · ${alchemyMetaText}`
+      if (/NPC 对话/.test(effectText)) return `推荐：NPC 文游对话短效 · ${alchemyMetaText}`
+      if (/节会奖金/.test(effectText)) return `推荐：节会前服用 · ${alchemyMetaText}`
+      if (/送礼/.test(effectText)) return `推荐：送礼拜访前服用 · ${alchemyMetaText}`
+      if (/采矿|矿洞/.test(effectText)) return `推荐：矿洞探索前服用 · ${alchemyMetaText}`
+      if (/远征|行动/.test(effectText)) return `推荐：行旅或公共订单前服用 · ${alchemyMetaText}`
+      return cropUseText ? `推荐：炼丹用途标签匹配 · ${alchemyMetaText}` : ''
+    }
+    if (!cropUseText) return ''
+    if (recipe.machineType === 'oil_press') return '推荐：榨油料理 / 节会备料，可作为订单与家宴消耗。'
+    if (recipe.machineType === 'mill') return '推荐：石磨粉料 / 宠物点心前置，可继续进灶台或牧场。'
+    if (recipe.machineType === 'wine_workshop') return '推荐：酿酒赠礼 / 节会饮品，可留作拜访和公共消耗。'
+    if (recipe.machineType === 'sauce_jar') return '推荐：腌制订单 / 家常配菜，可延长作物消耗链。'
+    if (recipe.machineType === 'sugar_jar') return '推荐：灵果点心 / 节会甜品，可接宠物与赠礼。'
+    if (recipe.machineType === 'drying_rack' || recipe.machineType === 'dehydrator') return '推荐：风干储备 / 药材订单，可做长期消耗。'
+    if (recipe.machineType === 'tea_maker') return '推荐：茶饮赠礼 / 药膳饮品，可接村民关系与节会。'
+    if (recipe.machineType === 'tofu_press') return '推荐：豆制料理 / 订单食材，可接灶台与宠物点心。'
+    if (recipe.machineType === 'herb_grinder') return '推荐：药材预处理，可继续进入丹炉辅材。'
+    if (recipe.machineType === 'incense_maker') return '推荐：制香赠礼 / 节会供品，可接拜访和祭礼。'
+    return '推荐：加工用途标签匹配，可作为作物二级消耗路径。'
   }
 
   const canAffordCraft = (craftCost: { itemId: string; quantity: number }[], craftMoney: number): boolean => {
@@ -833,13 +876,10 @@
     const alchemyMetaText = recipe.alchemy
       ? `${ALCHEMY_NATURE_LABELS[recipe.alchemy.nature]} · ${ALCHEMY_HEAT_LABELS[recipe.alchemy.heat]} · ${getAlchemyHeatResultHint(recipe.alchemy.heat)}`
       : ''
-    const cropUseText =
-      recipe.alchemy
-        ? formatCropUseTags(
-            [recipe.inputItemId, ...(recipe.extraInputs?.map(extra => extra.itemId) ?? [])].filter((itemId): itemId is string => !!itemId),
-            ['alchemy', 'medicine']
-          )
-        : ''
+    const cropUseText = formatCropUseTags(
+      [recipe.inputItemId, ...(recipe.extraInputs?.map(extra => extra.itemId) ?? [])].filter((itemId): itemId is string => !!itemId),
+      getProcessingRecommendationTags(recipe)
+    )
     const recommendationText = buildProcessingRecommendationText(recipe, available && !alchemyLimit?.blocked, alchemyMetaText, cropUseText)
 
     return {
