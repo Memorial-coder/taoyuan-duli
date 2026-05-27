@@ -571,8 +571,10 @@ export const useAnimalStore = defineStore('animal', () => {
 
     const previousFriendship = companion.friendship
     const preferred = isPetSpecialFeedPreferred(feed, companion.type)
-    const friendshipGain = feed.friendshipGain + (preferred ? feed.preferredBonus : 0)
-    const cookingTopic = useCookingStore().consumeStoryTriggerRecord(PET_COOKING_TOPIC_LABELS)
+    const cookingStore = useCookingStore()
+    const petCalmBonus = cookingStore.getActiveAlchemyPetCalmFriendshipBonus()
+    const friendshipGain = feed.friendshipGain + (preferred ? feed.preferredBonus : 0) + petCalmBonus
+    const cookingTopic = cookingStore.consumeStoryTriggerRecord(PET_COOKING_TOPIC_LABELS)
     companion.friendship = Math.min(1000, companion.friendship + friendshipGain)
     companion.specialFedToday = true
     companion.specialFeedItemId = feed.itemId
@@ -587,10 +589,13 @@ export const useAnimalStore = defineStore('animal', () => {
     const cookingTopicText = cookingTopic
       ? ` ${companion.name}还认出了刚做过的${cookingTopic.recipeName}，这条宠物料理线索已经用在今天的喂食反馈里。`
       : ''
+    const alchemyCalmText = petCalmBonus > 0
+      ? ` 丹药气息让${companion.name}更安心，宠物安抚额外好感+${petCalmBonus}。`
+      : ''
     const spiritMoodText = getSpiritSpecialFeedMoodText(companion, feed.taste)
     return {
       success: true,
-      message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。${spiritMoodText}${cookingTopicText}`
+      message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。${spiritMoodText}${alchemyCalmText}${cookingTopicText}`
     }
   }
 

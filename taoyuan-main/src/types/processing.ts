@@ -75,6 +75,7 @@ export interface AlchemyRecipeMeta {
     defenseReduction?: number
     dialogueAffinityBonus?: number
     festivalRewardMultiplier?: number
+    petCalmFriendshipBonus?: number
   }
 }
 

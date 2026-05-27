@@ -1858,9 +1858,10 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
       shortEffect: '探索前护心与降低疲劳波动',
       results: buildAlchemyResultRules('qingxin_lotus_elixir'),
       effect: {
-        description: '今日采矿体力消耗-8%，远征体力消耗-6%',
+        description: '今日采矿体力消耗-8%，远征体力消耗-6%，宠物安抚好感+3',
         miningStaminaReduction: 0.08,
-        journeyStaminaReduction: 0.06
+        journeyStaminaReduction: 0.06,
+        petCalmFriendshipBonus: 3
       }
     },
     description: '莲子、莲藕与草药膏同炼，成丹清润，可作探索前的护心丹。'
@@ -2103,12 +2104,13 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
       shortEffect: '灵果药性主丹，适合社交、节会拜访和长线经营前醒神',
       results: buildAlchemyResultRules('spirit_peach_elixir'),
       effect: {
-        description: '今日送礼好感×1.15，行动耗时-6%，远征体力消耗-5%，NPC 对话好感+5，节会奖金×1.1',
+        description: '今日送礼好感×1.15，行动耗时-6%，远征体力消耗-5%，NPC 对话好感+5，节会奖金×1.1，宠物安抚好感+4',
         giftBonusMultiplier: 1.15,
         actionSpeedBonus: 0.06,
         journeyStaminaReduction: 0.05,
         dialogueAffinityBonus: 5,
-        festivalRewardMultiplier: 1.1
+        festivalRewardMultiplier: 1.1,
+        petCalmFriendshipBonus: 4
       }
     },
     description: '优质以上桃子、蜜桃脯与月草文火同炼，凝成带灵果药性的高阶醒神丹。'
