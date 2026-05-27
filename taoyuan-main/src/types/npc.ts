@@ -159,6 +159,24 @@ export type RandomNpcRelationshipDirection = 'trust' | 'ambiguity' | 'misunderst
 export type RandomNpcRelationshipSignals = Record<RandomNpcRelationshipDirection, number>
 export type RandomNpcFamilyTieKind = 'parent' | 'sibling' | 'distant_relative' | 'mentor' | 'caravan' | 'old_debt' | 'family_business'
 
+export type RandomNpcShortRomanceStatus = 'none' | 'invited' | 'ended'
+export type RandomNpcShortRomanceAction = 'invite' | 'end'
+
+export interface RandomNpcShortRomanceEvent {
+  id: string
+  dayTag: string
+  action: RandomNpcShortRomanceAction
+  summary: string
+}
+
+export interface RandomNpcShortRomanceState {
+  status: RandomNpcShortRomanceStatus
+  startedDayTag: string
+  updatedDayTag: string
+  note: string
+  history: RandomNpcShortRomanceEvent[]
+}
+
 export interface RandomNpcFamilyTieDef {
   id: string
   kind: RandomNpcFamilyTieKind
@@ -326,6 +344,7 @@ export interface RandomNpcVisitorState {
   keyEvents: string[]
   relationshipSignals: RandomNpcRelationshipSignals
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
+  shortRomance: RandomNpcShortRomanceState
   tier: RandomNpcVisitTier
 }
 
@@ -343,6 +362,7 @@ export interface RandomNpcArchiveSummary {
   locked?: boolean
   relationshipSignals?: RandomNpcRelationshipSignals
   dialogueMemories?: RandomNpcDialogueMemoryEntry[]
+  shortRomance?: RandomNpcShortRomanceState
 }
 
 export interface RandomNpcAcquaintanceEntry {
@@ -372,6 +392,7 @@ export interface RandomNpcAcquaintanceEntry {
   keyEvents: string[]
   relationshipSignals: RandomNpcRelationshipSignals
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
+  shortRomance: RandomNpcShortRomanceState
 }
 
 export interface RandomNpcStoryChoiceDef {

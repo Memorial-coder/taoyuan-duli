@@ -188,6 +188,39 @@
               </div>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mt-2">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[10px] text-muted">短线恋爱</p>
+                <span class="text-[10px] text-accent">{{ getRandomNpcShortRomanceStatusText(visitor.shortRomance) }}</span>
+              </div>
+              <p class="text-[10px] text-muted leading-4 mt-1">{{ visitor.shortRomance.note }}</p>
+              <div v-if="getRecentRandomNpcShortRomanceHistory(visitor.shortRomance).length > 0" class="mt-1 space-y-1">
+                <p
+                  v-for="event in getRecentRandomNpcShortRomanceHistory(visitor.shortRomance)"
+                  :key="event.id"
+                  class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                >
+                  {{ event.dayTag }} · {{ event.summary }}
+                </p>
+              </div>
+              <div class="grid grid-cols-2 gap-1 mt-2">
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :disabled="!canStartRandomNpcShortRomance(visitor.id).success"
+                  :data-testid="`random-npc-short-romance-${visitor.id}`"
+                  @click="handleStartRandomNpcShortRomance(visitor.id)"
+                >
+                  暧昧邀约
+                </Button>
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :disabled="visitor.shortRomance.status !== 'invited'"
+                  @click="handleEndRandomNpcShortRomance(visitor.id)"
+                >
+                  收束
+                </Button>
+              </div>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2">
               <p class="text-[10px] text-muted">小订单：{{ visitor.smallOrder.title }}</p>
               <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ visitor.smallOrder.summary }}</p>
               <div class="flex flex-wrap gap-1 mt-1">
@@ -308,6 +341,39 @@
                     <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }}</p>
                     <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
                   </div>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">短线恋爱</p>
+                  <span class="text-[10px] text-accent">{{ getRandomNpcShortRomanceStatusText(acquaintance.shortRomance) }}</span>
+                </div>
+                <p class="text-[10px] text-muted leading-4 mt-1">{{ acquaintance.shortRomance.note }}</p>
+                <div v-if="getRecentRandomNpcShortRomanceHistory(acquaintance.shortRomance).length > 0" class="mt-1 space-y-1">
+                  <p
+                    v-for="event in getRecentRandomNpcShortRomanceHistory(acquaintance.shortRomance)"
+                    :key="event.id"
+                    class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    {{ event.dayTag }} · {{ event.summary }}
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="!canStartRandomNpcShortRomance(acquaintance.visitorId).success"
+                    :data-testid="`random-npc-acquaintance-short-romance-${acquaintance.visitorId}`"
+                    @click="handleStartRandomNpcShortRomance(acquaintance.visitorId)"
+                  >
+                    暧昧邀约
+                  </Button>
+                  <Button
+                    class="justify-center !px-2 !py-1"
+                    :disabled="acquaintance.shortRomance.status !== 'invited'"
+                    @click="handleEndRandomNpcShortRomance(acquaintance.visitorId)"
+                  >
+                    收束
+                  </Button>
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
@@ -1481,6 +1547,7 @@
     RandomNpcRelationshipDirection,
     RandomNpcRelationshipSignals,
     RandomNpcRelationshipTag,
+    RandomNpcShortRomanceState,
     RandomNpcStoryChoiceDef,
     RandomNpcVisitorState,
     RelationshipClueEntry,
@@ -1809,6 +1876,15 @@
   }
   const getRecentRandomNpcDialogueMemories = (memories: RandomNpcDialogueMemoryEntry[] = []): RandomNpcDialogueMemoryEntry[] =>
     memories.slice(-3).reverse()
+  const getRecentRandomNpcShortRomanceHistory = (line?: RandomNpcShortRomanceState) =>
+    (line?.history ?? []).slice(-3).reverse()
+  const getRandomNpcShortRomanceStatusText = (line?: RandomNpcShortRomanceState): string => {
+    if (line?.status === 'invited') return '短线暧昧中'
+    if (line?.status === 'ended') return '已收束'
+    return '未开启'
+  }
+  const canStartRandomNpcShortRomance = (visitorId: string) =>
+    npcStore.canStartRandomNpcShortRomance(visitorId)
   const getRecentRandomNpcRelationLineHistory = (resident: RandomNpcLongStayEntry) =>
     resident.relationshipLine.history.slice(-3).reverse()
   const getRecentRandomNpcFamilyReviews = (resident: RandomNpcLongStayEntry) =>
@@ -1903,6 +1979,18 @@
     const result = npcStore.fulfillRandomNpcSmallOrder(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC小订单】${result.message}`)
+  }
+
+  const handleStartRandomNpcShortRomance = (visitorId: string) => {
+    const result = npcStore.startRandomNpcShortRomance(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC短线恋爱】${result.message}`)
+  }
+
+  const handleEndRandomNpcShortRomance = (visitorId: string) => {
+    const result = npcStore.endRandomNpcShortRomance(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC短线恋爱】${result.message}`)
   }
 
   const handleMeetRandomNpcFamilyTie = (residentId: string, tieId: string) => {

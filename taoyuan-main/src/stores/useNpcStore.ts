@@ -40,6 +40,7 @@ import type {
   RandomNpcLongStayRoute,
   RandomNpcRelationshipTag,
   RandomNpcVisitorState,
+  RandomNpcShortRomanceState,
   RegionId,
   RegionRumorSupplyEntry,
   Season,
@@ -107,6 +108,9 @@ const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
 const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
 const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
+const RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT = 4
+const RANDOM_NPC_SHORT_ROMANCE_AFFINITY_REQUIREMENT = 45
+const RANDOM_NPC_SHORT_ROMANCE_AMBIGUITY_REQUIREMENT = 4
 const RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX = '后续约定：'
 
 type RandomNpcDialogueContextTarget = {
@@ -399,7 +403,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
   const randomNpcBoard = ref<RandomNpcBoardState>({
-    version: 4,
+    version: 5,
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
@@ -785,6 +789,43 @@ export const useNpcStore = defineStore('npc', () => {
     event: RandomNpcRelationLineState['history'][number]
   ): RandomNpcRelationLineState['history'] => [...line.history, event].slice(-RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT)
 
+  const createDefaultRandomNpcShortRomanceState = (): RandomNpcShortRomanceState => ({
+    status: 'none',
+    startedDayTag: '',
+    updatedDayTag: '',
+    note: '尚未开启短线暧昧邀约。',
+    history: []
+  })
+
+  const sanitizeRandomNpcShortRomanceState = (raw: unknown): RandomNpcShortRomanceState => {
+    const source = raw && typeof raw === 'object' ? raw as Partial<RandomNpcShortRomanceState> : {}
+    const status: RandomNpcShortRomanceState['status'] =
+      source.status === 'invited' || source.status === 'ended' ? source.status : 'none'
+    return {
+      status,
+      startedDayTag: typeof source.startedDayTag === 'string' ? source.startedDayTag : '',
+      updatedDayTag: typeof source.updatedDayTag === 'string' ? source.updatedDayTag : '',
+      note: typeof source.note === 'string' ? source.note : createDefaultRandomNpcShortRomanceState().note,
+      history: (Array.isArray(source.history) ? source.history : [])
+        .filter((entry: unknown): entry is Partial<RandomNpcShortRomanceState['history'][number]> => !!entry && typeof entry === 'object')
+        .map((entry, index) => {
+          const action = entry.action === 'end' ? 'end' as const : 'invite' as const
+          return {
+            id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? 'old-day'}:${action}:${index}`,
+            dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+            action,
+            summary: typeof entry.summary === 'string' ? entry.summary : (action === 'end' ? '短线暧昧已经收束。' : '短线暧昧邀约已经记录。')
+          }
+        })
+        .slice(-RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT)
+    }
+  }
+
+  const appendRandomNpcShortRomanceHistory = (
+    line: RandomNpcShortRomanceState,
+    event: RandomNpcShortRomanceState['history'][number]
+  ): RandomNpcShortRomanceState['history'] => [...line.history, event].slice(-RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT)
+
   const getRandomNpcRelationLineNote = (kind: RandomNpcRelationLineStartKind, name: string): string => {
     if (kind === 'romance') return `${name}与你确认了恋爱方向，后续只推进这一条亲密线。`
     if (kind === 'zhiji') return `${name}与你约为知己，默认不再进入婚恋线。`
@@ -854,6 +895,7 @@ export const useNpcStore = defineStore('npc', () => {
       keyEvents: [`${dayTag} 初次来访：${template.dialogueOpening}`],
       relationshipSignals: createDefaultRandomNpcRelationshipSignals(),
       dialogueMemories: [],
+      shortRomance: createDefaultRandomNpcShortRomanceState(),
       tier: 'short_visit'
     }
   }
@@ -871,7 +913,8 @@ export const useNpcStore = defineStore('npc', () => {
     smallOrderCompleted: !!visitor.smallOrderCompleted,
     locked: !!visitor.locked,
     relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
-    dialogueMemories: visitor.dialogueMemories.slice(-3)
+    dialogueMemories: visitor.dialogueMemories.slice(-3),
+    shortRomance: sanitizeRandomNpcShortRomanceState(visitor.shortRomance)
   })
 
   const createRandomNpcVisitorFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcVisitorState | null => {
@@ -919,6 +962,7 @@ export const useNpcStore = defineStore('npc', () => {
       keyEvents: [...archive.keyEvents, `${dayTag} 从旧日来客摘要召回，再次来到桃源村。`].slice(-6),
       relationshipSignals: sanitizeRandomNpcRelationshipSignals(archive.relationshipSignals),
       dialogueMemories: sanitizeRandomNpcDialogueMemories(archive.dialogueMemories),
+      shortRomance: sanitizeRandomNpcShortRomanceState(archive.shortRomance),
       tier: 'short_visit'
     }
   }
@@ -984,7 +1028,8 @@ export const useNpcStore = defineStore('npc', () => {
     conversationCount: visitor.conversationCount,
     keyEvents: visitor.keyEvents.slice(-6),
     relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
-    dialogueMemories: visitor.dialogueMemories.slice(-6)
+    dialogueMemories: visitor.dialogueMemories.slice(-6),
+    shortRomance: sanitizeRandomNpcShortRomanceState(visitor.shortRomance)
   })
 
   const createRandomNpcLongStayEntry = (acquaintance: RandomNpcAcquaintanceEntry): RandomNpcLongStayEntry | null => {
@@ -1031,7 +1076,13 @@ export const useNpcStore = defineStore('npc', () => {
       relationshipEventStage: 1,
       completedStoryEventIds: [],
       lastStoryDayTag: '',
-      keyEvents: [...acquaintance.keyEvents, `${dayTag} 成为长住 NPC，暂住桃源村。`].slice(-8),
+      keyEvents: [
+        ...acquaintance.keyEvents,
+        ...(sanitizeRandomNpcShortRomanceState(acquaintance.shortRomance).status === 'invited'
+          ? [`${dayTag} 短线暧昧转入长住观察；正式恋爱 / 知己 / 结拜仍需重新选择关系线。`]
+          : []),
+        `${dayTag} 成为长住 NPC，暂住桃源村。`
+      ].slice(-8),
       relationshipSignals: sanitizeRandomNpcRelationshipSignals(acquaintance.relationshipSignals),
       dialogueMemories: acquaintance.dialogueMemories.slice(-8),
       relationshipLine: createDefaultRandomNpcRelationLineState()
@@ -1162,7 +1213,8 @@ export const useNpcStore = defineStore('npc', () => {
         smallOrderCompleted: !!visitor.smallOrderCompleted,
         locked: !!visitor.locked,
         relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
-        dialogueMemories: visitor.dialogueMemories.slice(-3)
+        dialogueMemories: visitor.dialogueMemories.slice(-3),
+        shortRomance: sanitizeRandomNpcShortRomanceState(visitor.shortRomance)
       },
       ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitorId)
     ])
@@ -1177,6 +1229,172 @@ export const useNpcStore = defineStore('npc', () => {
         owned: inventoryStore.getTotalItemCount(item.itemId)
       }))
       .filter(item => item.owned < item.quantity)
+  }
+
+  const getRandomNpcShortRomanceTarget = (visitorId: string) => {
+    const visitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
+    const acquaintance = randomNpcBoard.value.acquaintances.find(entry => entry.visitorId === visitorId)
+    return visitor ?? acquaintance ?? null
+  }
+
+  const canStartRandomNpcShortRomance = (visitorId: string): { success: boolean; message: string } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const target = getRandomNpcShortRomanceTarget(visitorId)
+    if (!target) return { success: false, message: '这位随机 NPC 暂时不在短访或熟人名册中。' }
+    if (randomNpcBoard.value.longStayResidents.some(entry => entry.sourceVisitorId === visitorId)) {
+      return { success: false, message: `${target.name}已经进入长住名册，请使用正式关系线。` }
+    }
+    const shortRomance = sanitizeRandomNpcShortRomanceState(target.shortRomance)
+    if (shortRomance.status === 'invited') return { success: false, message: '短线暧昧邀约已经开启。' }
+    if (shortRomance.status === 'ended') return { success: false, message: '这段短线暧昧已经收束，本版不重复开启。' }
+    if (target.affinity < RANDOM_NPC_SHORT_ROMANCE_AFFINITY_REQUIREMENT) {
+      return { success: false, message: `好感不足，需要 ${RANDOM_NPC_SHORT_ROMANCE_AFFINITY_REQUIREMENT}。` }
+    }
+    const signals = sanitizeRandomNpcRelationshipSignals(target.relationshipSignals)
+    if (target.relationshipTag !== 'ambiguous' && signals.ambiguity < RANDOM_NPC_SHORT_ROMANCE_AMBIGUITY_REQUIREMENT) {
+      return { success: false, message: `暧昧方向不足，需要 ${RANDOM_NPC_SHORT_ROMANCE_AMBIGUITY_REQUIREMENT}。` }
+    }
+    const fixedCompanion = npcStates.value.find(state => state.married || state.dating || state.zhiji)
+    if (fixedCompanion) return { success: false, message: '已有固定 NPC 婚恋或知己关系，不能开启随机 NPC 短线恋爱。' }
+    const activeLongStayLine = getActiveRandomNpcExclusiveLine()
+    if (activeLongStayLine) {
+      return { success: false, message: `${activeLongStayLine.name}已经在${getRandomNpcRelationLineLabel(activeLongStayLine.relationshipLine.kind)}中。` }
+    }
+    const activeShortRomance =
+      randomNpcBoard.value.activeVisitors.find(entry =>
+        entry.id !== visitorId && sanitizeRandomNpcShortRomanceState(entry.shortRomance).status === 'invited'
+      ) ??
+      randomNpcBoard.value.acquaintances.find(entry =>
+        entry.visitorId !== visitorId && sanitizeRandomNpcShortRomanceState(entry.shortRomance).status === 'invited'
+      )
+    if (activeShortRomance) return { success: false, message: '已有随机 NPC 短线暧昧邀约，需先收束。' }
+    return { success: true, message: '可以开启短线暧昧邀约。' }
+  }
+
+  const applyRandomNpcShortRomancePatch = (
+    visitorId: string,
+    patch: {
+      relationshipTag: RandomNpcRelationshipTag
+      affinity: number
+      relationshipSignals: RandomNpcRelationshipSignals
+      shortRomance: RandomNpcShortRomanceState
+      keyEvent: string
+      dayTag: string
+    }
+  ) => {
+    randomNpcBoard.value.activeVisitors = randomNpcBoard.value.activeVisitors.map(visitor =>
+      visitor.id === visitorId
+        ? {
+            ...visitor,
+            relationshipTag: patch.relationshipTag,
+            affinity: patch.affinity,
+            lastVisitDayTag: patch.dayTag,
+            relationshipSignals: sanitizeRandomNpcRelationshipSignals(patch.relationshipSignals),
+            shortRomance: sanitizeRandomNpcShortRomanceState(patch.shortRomance),
+            keyEvents: [...visitor.keyEvents, patch.keyEvent].slice(-6)
+          }
+        : visitor
+    )
+    randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(acquaintance =>
+      acquaintance.visitorId === visitorId
+        ? {
+            ...acquaintance,
+            relationshipTag: patch.relationshipTag,
+            affinity: patch.affinity,
+            lastSeenDayTag: patch.dayTag,
+            relationshipSignals: sanitizeRandomNpcRelationshipSignals(patch.relationshipSignals),
+            shortRomance: sanitizeRandomNpcShortRomanceState(patch.shortRomance),
+            keyEvents: [...acquaintance.keyEvents, patch.keyEvent].slice(-6)
+          }
+        : acquaintance
+    )
+    randomNpcBoard.value.recentSummaries = trimRandomNpcArchives(
+      randomNpcBoard.value.recentSummaries.map(summary =>
+        summary.visitorId === visitorId
+          ? {
+              ...summary,
+              relationshipTag: patch.relationshipTag,
+              affinity: patch.affinity,
+              lastSeenDayTag: patch.dayTag,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(patch.relationshipSignals),
+              shortRomance: sanitizeRandomNpcShortRomanceState(patch.shortRomance),
+              keyEvents: [...summary.keyEvents, patch.keyEvent].slice(-3)
+            }
+          : summary
+      )
+    )
+  }
+
+  const startRandomNpcShortRomance = (visitorId: string): { success: boolean; message: string } => {
+    const guard = canStartRandomNpcShortRomance(visitorId)
+    const target = getRandomNpcShortRomanceTarget(visitorId)
+    if (!guard.success || !target) return guard
+    const dayTag = getCurrentNpcDayTag()
+    const currentLine = sanitizeRandomNpcShortRomanceState(target.shortRomance)
+    const note = `${target.name}与你约定先把这段心意留在短线相处里，不进入婚约或长住关系线。`
+    const event = {
+      id: `${dayTag}:${visitorId}:short-romance-invite`,
+      dayTag,
+      action: 'invite' as const,
+      summary: note
+    }
+    const shortRomance: RandomNpcShortRomanceState = {
+      status: 'invited',
+      startedDayTag: currentLine.startedDayTag || dayTag,
+      updatedDayTag: dayTag,
+      note,
+      history: appendRandomNpcShortRomanceHistory(currentLine, event)
+    }
+    const relationshipSignals = applyRandomNpcRelationshipSignal(
+      sanitizeRandomNpcRelationshipSignals(target.relationshipSignals),
+      'ambiguity',
+      8
+    )
+    const affinity = Math.min(100, target.affinity + 3)
+    const keyEvent = `${dayTag} 开启短线暧昧邀约：${note}`
+    applyRandomNpcShortRomancePatch(visitorId, {
+      relationshipTag: 'ambiguous',
+      affinity,
+      relationshipSignals,
+      shortRomance,
+      keyEvent,
+      dayTag
+    })
+    return { success: true, message: `${target.name}已开启短线暧昧邀约。` }
+  }
+
+  const endRandomNpcShortRomance = (visitorId: string): { success: boolean; message: string } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const target = getRandomNpcShortRomanceTarget(visitorId)
+    if (!target) return { success: false, message: '这位随机 NPC 暂时不在短访或熟人名册中。' }
+    const currentLine = sanitizeRandomNpcShortRomanceState(target.shortRomance)
+    if (currentLine.status !== 'invited') return { success: false, message: '当前没有可收束的短线暧昧邀约。' }
+    const dayTag = getCurrentNpcDayTag()
+    const note = `${target.name}与你把短线暧昧收束为旧识余温，后续若长住需重新建立正式关系线。`
+    const event = {
+      id: `${dayTag}:${visitorId}:short-romance-end`,
+      dayTag,
+      action: 'end' as const,
+      summary: note
+    }
+    const shortRomance: RandomNpcShortRomanceState = {
+      status: 'ended',
+      startedDayTag: currentLine.startedDayTag,
+      updatedDayTag: dayTag,
+      note,
+      history: appendRandomNpcShortRomanceHistory(currentLine, event)
+    }
+    const affinity = Math.max(0, target.affinity - 5)
+    const keyEvent = `${dayTag} 收束短线暧昧：${note}`
+    applyRandomNpcShortRomancePatch(visitorId, {
+      relationshipTag: target.relationshipTag === 'ambiguous' ? 'old_contact' : target.relationshipTag,
+      affinity,
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(target.relationshipSignals),
+      shortRomance,
+      keyEvent,
+      dayTag
+    })
+    return { success: true, message: `${target.name}的短线暧昧已收束。` }
   }
 
   const fulfillRandomNpcSmallOrder = (
@@ -4200,7 +4418,7 @@ export const useNpcStore = defineStore('npc', () => {
       const raw = (data as any).randomNpcBoard
       if (!raw || typeof raw !== 'object') {
         return {
-          version: 4,
+          version: 5,
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
@@ -4264,12 +4482,13 @@ export const useNpcStore = defineStore('npc', () => {
             keyEvents: Array.isArray(visitor.keyEvents) ? visitor.keyEvents.filter((entry: unknown) => typeof entry === 'string').slice(-6) : [],
             relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
             dialogueMemories: sanitizeRandomNpcDialogueMemories(visitor.dialogueMemories),
+            shortRomance: sanitizeRandomNpcShortRomanceState(visitor.shortRomance),
             tier: visitor.tier === 'acquaintance' || visitor.tier === 'long_stay' ? visitor.tier : 'short_visit'
           }
         })
       const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
       return {
-        version: Math.max(4, Number(raw.version) || 1),
+        version: Math.max(5, Number(raw.version) || 1),
         lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
         activeVisitors,
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)
@@ -4319,7 +4538,8 @@ export const useNpcStore = defineStore('npc', () => {
                 conversationCount: Math.max(0, Number(entry.conversationCount) || 0),
                 keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-6) : [],
                 relationshipSignals: sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
-                dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories)
+                dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories),
+                shortRomance: sanitizeRandomNpcShortRomanceState(entry.shortRomance)
               }
             }),
           ...activeVisitors
@@ -4420,7 +4640,8 @@ export const useNpcStore = defineStore('npc', () => {
               smallOrderCompleted: !!entry.smallOrderCompleted,
               locked: !!entry.locked,
               relationshipSignals: sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
-              dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, 3)
+              dialogueMemories: sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, 3),
+              shortRomance: sanitizeRandomNpcShortRomanceState(entry.shortRomance)
             }))
         )
       }
@@ -4548,6 +4769,9 @@ export const useNpcStore = defineStore('npc', () => {
     setRandomNpcLock,
     recallRandomNpcArchive,
     fulfillRandomNpcSmallOrder,
+    canStartRandomNpcShortRomance,
+    startRandomNpcShortRomance,
+    endRandomNpcShortRomance,
     addRandomVisitorToAcquaintanceBook,
     promoteRandomNpcAcquaintanceToLongStay,
     getNextRandomNpcLongStayStoryEvent,
