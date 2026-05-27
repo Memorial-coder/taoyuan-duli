@@ -1002,6 +1002,10 @@
 
   const routeTargetUsername = computed(() => getRouteQueryText(route.query.target_username))
   const routeTargetSaveId = computed(() => getRouteQueryText(route.query.target_save_id))
+  const routeTab = computed(() => {
+    const requestedTab = getRouteQueryText(route.query.tab)
+    return tabs.some(tab => tab.key === requestedTab) ? requestedTab as ManorTabKey : 'overview'
+  })
   const routeTargetContextLabel = computed(() => routeTargetUsername.value || (routeTargetSaveId.value ? `ID ${routeTargetSaveId.value}` : ''))
   const snapshot = computed(() => manorStore.snapshot)
   const isOwner = computed(() => snapshot.value?.viewer_is_owner !== false)
@@ -1527,13 +1531,14 @@
   }
 
   onMounted(() => {
+    activeTab.value = routeTab.value
     void refreshSnapshot()
   })
 
   watch(
-    () => [route.query.target_username, route.query.target_save_id],
+    () => [route.query.target_username, route.query.target_save_id, route.query.tab],
     () => {
-      activeTab.value = 'overview'
+      activeTab.value = routeTab.value
       void refreshSnapshot()
     }
   )

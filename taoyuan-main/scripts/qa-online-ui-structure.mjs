@@ -11,6 +11,7 @@ const srcRoot = path.join(repoRoot, 'src')
 const viewFiles = [
   'OnlineView.vue',
   'ExpeditionRoomView.vue',
+  'FriendStationView.vue',
   path.join('online', 'OnlineManorView.vue'),
   path.join('online', 'OnlineCohabitationView.vue'),
   path.join('online', 'OnlineNeighborView.vue'),
@@ -93,6 +94,11 @@ for (const [relativePath, source] of files.entries()) {
 
 expectContains('OnlineView.vue', '<OnlineModuleCard', '在线中心首页应继续使用模块卡组件')
 expectContains('OnlineView.vue', "routeName: 'online-cohabitation'", '在线中心首页应提供共同庄园入口')
+expectContains('FriendStationView.vue', 'region-social-friend-manor', '好友驿站应提供进入好友庄园入口')
+expectContains('FriendStationView.vue', 'region-social-friend-care', '好友驿站应提供好友庄园照料入口')
+expectContains('FriendStationView.vue', 'region-social-friend-cohabitation', '好友驿站应提供共同庄园邀请入口')
+expectContains('FriendStationView.vue', "tab: 'care'", '好友驿站照料入口应直达在线庄园照料标签')
+expectContains('FriendStationView.vue', "name: 'online-cohabitation'", '好友驿站共同庄园邀请应跳转共同庄园页')
 expectContains('OnlineView.vue', 'online-visual-activity-group', '在线中心首页应提供可视化活动分组')
 expectContains('OnlineView.vue', 'online-visual-activity-cavern', '在线中心可视化活动应提供协作矿洞入口')
 expectContains('OnlineView.vue', 'online-visual-activity-lantern', '在线中心可视化活动应提供灯会现场入口')
@@ -103,6 +109,7 @@ expectContains('OnlineView.vue', 'online-visual-activity-warehouse', '在线中�
 
 expectContains('online/OnlineManorView.vue', '<OnlineModuleShell', '庄园子页应继续使用在线模块壳')
 expectContains('online/OnlineManorView.vue', "activeTab = ref<ManorTabKey>('overview')", '庄园默认页应保持概览')
+expectContains('online/OnlineManorView.vue', 'route.query.tab', '在线庄园页应识别好友入口传入的标签页')
 expectContains('online/OnlineManorView.vue', "activeTab === 'theme'", '庄园主题表单应留在主题标签')
 expectContains('online/OnlineManorView.vue', 'online-manor-care-room-panel', '庄园照料页应提供协作护理房间入口')
 expectContains('online/OnlineManorView.vue', 'online-manor-care-room-action', '庄园照料页应提供协作护理动作入口')

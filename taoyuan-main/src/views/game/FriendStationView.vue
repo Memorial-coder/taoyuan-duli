@@ -165,7 +165,11 @@
                 <div class="flex flex-wrap gap-2 mt-2">
                   <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-manor-${entry.friendship_id || 'missing'}`" @click="openFriendManor(entry)">
                     <Map :size="11" />
-                    庄园
+                    进入庄园
+                  </button>
+                  <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-care-${entry.friendship_id || 'missing'}`" @click="openFriendManorCare(entry)">
+                    <HeartHandshake :size="11" />
+                    照料
                   </button>
                   <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'letter')">
                     <Mail :size="11" />
@@ -190,6 +194,10 @@
                   <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-coop-${entry.friendship_id || 'missing'}`" @click="openFriendCoop(entry)">
                     <Users :size="11" />
                     协作
+                  </button>
+                  <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-cohabitation-${entry.friendship_id || 'missing'}`" @click="openFriendCohabitationInvite(entry)">
+                    <HeartHandshake :size="11" />
+                    共同庄园
                   </button>
                   <button class="online-action-btn online-action-btn--compact online-action-btn--danger" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" :data-testid="`region-social-friend-remove-${entry.friendship_id || 'missing'}`" @click="removeFriend(entry)">删除</button>
                   <button class="online-action-btn online-action-btn--compact online-action-btn--danger" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" :data-testid="`region-social-friend-block-${entry.friendship_id || 'missing'}`" @click="blockRelation(entry)">拉黑</button>
@@ -231,7 +239,7 @@
 <script setup lang="ts">
   import { computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Ban, Copy, Gift, Mail, Map, RefreshCw, Search, UserPlus, Users } from 'lucide-vue-next'
+  import { Ban, Copy, Gift, HeartHandshake, Mail, Map, RefreshCw, Search, UserPlus, Users } from 'lucide-vue-next'
   import { showFloat } from '@/composables/useGameLog'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useSocialStore } from '@/stores/useSocialStore'
@@ -301,7 +309,13 @@
   const openFriendManor = (entry: OnlineRelationCard) => {
     const query = buildFriendTargetQuery(entry)
     if (!query) return
-    void router.push({ name: 'online-manor', query })
+    void router.push({ name: 'online-manor', query: { ...query, tab: 'overview' } })
+  }
+
+  const openFriendManorCare = (entry: OnlineRelationCard) => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'online-manor', query: { ...query, tab: 'care' } })
   }
 
   const openFriendMail = (entry: OnlineRelationCard, compose: 'letter' | 'gift') => {
@@ -332,6 +346,12 @@
     const query = buildFriendTargetQuery(entry)
     if (!query) return
     void router.push({ name: 'online-orders', query: { ...query, scope: 'friends', tab: 'publish' } })
+  }
+
+  const openFriendCohabitationInvite = (entry: OnlineRelationCard) => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'online-cohabitation', query: { ...query, invite: '1', tab: 'overview' } })
   }
 
   const refreshFriendStation = async () => {
