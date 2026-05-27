@@ -1958,6 +1958,37 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '芝麻、茶叶与蜂蜜文火合香，适合送礼、节会供品和拜访前稳定心神。'
   },
   {
+    id: 'alchemy_pumpkin_warmth_elixir',
+    machineType: 'alchemy_furnace',
+    name: '南瓜聚火丹',
+    inputItemId: 'pumpkin',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'sesame_powder', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'pumpkin_warmth_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'warm',
+      mainMaterialId: 'pumpkin',
+      supportMaterialIds: ['sesame_powder'],
+      primerItemId: 'honey',
+      heat: 'steady',
+      shortEffect: '节会备菜、宠物安抚和秋日订单前的短时暖身准备',
+      results: buildAlchemyResultRules('pumpkin_warmth_elixir'),
+      effect: {
+        description: '立即恢复15体力，今日节会奖金×1.05，宠物安抚好感+2',
+        staminaRestore: 15,
+        festivalRewardMultiplier: 1.05,
+        petCalmFriendshipBonus: 2
+      }
+    },
+    description: '南瓜、芝麻粉与蜂蜜中火聚暖，和南瓜料理的节会 / 宠物餐价值区分为短时节会与安抚辅丹。'
+  },
+  {
     id: 'alchemy_spicy_vitality_pill',
     machineType: 'alchemy_furnace',
     name: '辛火行气丸',

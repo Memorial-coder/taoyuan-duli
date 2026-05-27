@@ -1261,6 +1261,14 @@ const ELIXIR_ITEMS: ItemDef[] = [
     edible: false
   },
   {
+    id: 'pumpkin_warmth_elixir',
+    name: '南瓜聚火丹',
+    category: 'elixir',
+    description: '南瓜、芝麻粉与蜂蜜炼成的温补辅丹。定位为节会备菜、宠物安抚和秋日订单前的暖身丹药。',
+    sellPrice: 245,
+    edible: false
+  },
+  {
     id: 'osmanthus_focus_elixir',
     name: '桂露凝神丹',
     category: 'elixir',

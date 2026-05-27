@@ -164,13 +164,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'pumpkin',
-    tags: ['food', 'pet_feed', 'animal_feed', 'festival', 'order'],
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'festival', 'order'],
     flavor: ['甜', '土'],
     nature: 'warm',
     spirituality: 'earth',
     rarityUse: 'seasonal',
-    recommendedUses: ['南瓜汤', '节庆灯饰', '宠物亲密餐', '家畜甜口补料', '家庭餐桌事件', '丰收订单'],
-    summary: '丰收感强的节令作物，适合家庭料理、节庆装饰、宠物亲密、家畜甜口补料和订单。'
+    recommendedUses: ['南瓜汤', '南瓜聚火丹', '节庆灯饰', '宠物亲密餐', '家畜甜口补料', '家庭餐桌事件', '丰收订单'],
+    summary: '丰收感强的节令作物，适合家庭料理、温补辅丹、节庆装饰、宠物亲密、家畜甜口补料和订单。'
   },
   {
     cropId: 'radish',
