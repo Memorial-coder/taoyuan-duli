@@ -1744,6 +1744,93 @@ assert.equal(sharedWorkshopLotusSesameCakeOriginAsset?.item_id, 'food_lotus_sesa
 assert.equal(sharedWorkshopLotusSesameCakeOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared lotus sesame cake origin should be high-quality protected')
 assert.equal(sharedWorkshopLotusSesameCakeOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared lotus sesame cake origin should keep cooking process kind')
 await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'pumpkin',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_spicy_pumpkin_rice_pumpkin_deposit',
+  idempotencyKey: 'qa-shared-spicy-pumpkin-rice-pumpkin-deposit',
+  sourceSaveId: 123456768,
+})
+const sharedWorkshopPumpkinPreserveProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_pumpkin_preserve',
+  memo: 'qa process shared pumpkin preserve for spicy pumpkin rice',
+  idempotency_key: 'qa-shared-workshop-pumpkin-preserve-for-spicy-rice',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopPumpkinPreserveProcess.recipe.output_item_id, 'pumpkin_preserve', 'shared pumpkin preserve should output pumpkin preserve')
+assert.equal(sharedWorkshopPumpkinPreserveProcess.workshop_action.station, 'sauce_jar', 'shared pumpkin preserve should use sauce jar station')
+assert.equal(sharedWorkshopPumpkinPreserveProcess.workshop_action.process_kind, 'cooking_material', 'shared pumpkin preserve should be classified as cooking material')
+assert.equal(sharedWorkshopPumpkinPreserveProcess.ledger_entry.quality, 'fine', 'shared pumpkin preserve should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'chili',
+  quantity: 2,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_spicy_pumpkin_rice_chili_deposit',
+  idempotencyKey: 'qa-shared-spicy-pumpkin-rice-chili-deposit',
+  sourceSaveId: 123456769,
+})
+const sharedWorkshopPickledChiliProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_pickled_chili',
+  memo: 'qa process shared pickled chili for spicy pumpkin rice',
+  idempotency_key: 'qa-shared-workshop-pickled-chili-for-spicy-rice',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopPickledChiliProcess.recipe.output_item_id, 'pickled_chili', 'shared pickled chili should output pickled chili')
+assert.equal(sharedWorkshopPickledChiliProcess.workshop_action.station, 'sauce_jar', 'shared pickled chili should use sauce jar station')
+assert.equal(sharedWorkshopPickledChiliProcess.workshop_action.process_kind, 'cooking_material', 'shared pickled chili should be classified as cooking material')
+assert.equal(sharedWorkshopPickledChiliProcess.ledger_entry.quality, 'fine', 'shared pickled chili should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'sesame',
+  quantity: 3,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_spicy_pumpkin_rice_sesame_deposit',
+  idempotencyKey: 'qa-shared-spicy-pumpkin-rice-sesame-deposit',
+  sourceSaveId: 123456770,
+})
+const sharedWorkshopSesameOilProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_sesame_oil',
+  memo: 'qa process shared sesame oil for spicy pumpkin rice',
+  idempotency_key: 'qa-shared-workshop-sesame-oil-for-spicy-rice',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopSesameOilProcess.recipe.output_item_id, 'sesame_oil', 'shared sesame oil should output sesame oil')
+assert.equal(sharedWorkshopSesameOilProcess.workshop_action.station, 'oil_press', 'shared sesame oil should use oil press station')
+assert.equal(sharedWorkshopSesameOilProcess.workshop_action.process_kind, 'cooking_material', 'shared sesame oil should be classified as cooking material')
+assert.equal(sharedWorkshopSesameOilProcess.ledger_entry.quality, 'fine', 'shared sesame oil should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_spicy_pumpkin_rice_rice_deposit',
+  idempotencyKey: 'qa-shared-spicy-pumpkin-rice-rice-deposit',
+  sourceSaveId: 123456771,
+})
+const sharedWorkshopSpicyPumpkinRiceProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_spicy_pumpkin_rice',
+  memo: 'qa process shared spicy pumpkin rice',
+  idempotency_key: 'qa-shared-workshop-spicy-pumpkin-rice',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopSpicyPumpkinRiceProcess.recipe.output_item_id, 'food_spicy_pumpkin_rice', 'shared spicy pumpkin rice should output food item')
+assert.equal(sharedWorkshopSpicyPumpkinRiceProcess.workshop_action.station, 'stove', 'shared spicy pumpkin rice should use stove station')
+assert.equal(sharedWorkshopSpicyPumpkinRiceProcess.workshop_action.process_kind, 'cooking_dish', 'shared spicy pumpkin rice should keep cooking process kind')
+assert.equal(sharedWorkshopSpicyPumpkinRiceProcess.warehouse.items.find(item => item.item_id === 'food_spicy_pumpkin_rice')?.quantity, 1, 'shared spicy pumpkin rice should enter shared warehouse')
+assert.equal(sharedWorkshopSpicyPumpkinRiceProcess.ledger_entry.quality, 'fine', 'shared spicy pumpkin rice cooperation should upgrade dish quality')
+const sharedSpicyPumpkinPreserveConsume = sharedWorkshopSpicyPumpkinRiceProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'pumpkin_preserve')
+assert.equal(sharedSpicyPumpkinPreserveConsume?.quality, 'fine', 'shared spicy pumpkin rice should consume upgraded pumpkin preserve')
+assert.ok(sharedSpicyPumpkinPreserveConsume?.source_ledger_ids.includes(sharedWorkshopPumpkinPreserveProcess.ledger_entry.id), 'shared spicy pumpkin rice should trace pumpkin preserve material ledger')
+const sharedSpicyPumpkinPickledChiliConsume = sharedWorkshopSpicyPumpkinRiceProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'pickled_chili')
+assert.equal(sharedSpicyPumpkinPickledChiliConsume?.quality, 'fine', 'shared spicy pumpkin rice should consume upgraded pickled chili')
+assert.ok(sharedSpicyPumpkinPickledChiliConsume?.source_ledger_ids.includes(sharedWorkshopPickledChiliProcess.ledger_entry.id), 'shared spicy pumpkin rice should trace pickled chili material ledger')
+const sharedSpicyPumpkinSesameOilConsume = sharedWorkshopSpicyPumpkinRiceProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'sesame_oil')
+assert.equal(sharedSpicyPumpkinSesameOilConsume?.quality, 'fine', 'shared spicy pumpkin rice should consume upgraded sesame oil')
+assert.ok(sharedSpicyPumpkinSesameOilConsume?.source_ledger_ids.includes(sharedWorkshopSesameOilProcess.ledger_entry.id), 'shared spicy pumpkin rice should trace sesame oil material ledger')
+assert.ok(sharedWorkshopSpicyPumpkinRiceProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'rice'), 'shared spicy pumpkin rice should consume rice')
+const sharedWorkshopSpicyPumpkinRiceOriginAsset = sharedWorkshopSpicyPumpkinRiceProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopSpicyPumpkinRiceProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopSpicyPumpkinRiceOriginAsset?.item_id, 'food_spicy_pumpkin_rice', 'shared spicy pumpkin rice origin asset should use food item id')
+assert.equal(sharedWorkshopSpicyPumpkinRiceOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared spicy pumpkin rice origin should be high-quality protected')
+assert.equal(sharedWorkshopSpicyPumpkinRiceOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared spicy pumpkin rice origin should keep cooking process kind')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
   itemId: 'lotus_seed',
   quantity: 2,
   quality: 'normal',

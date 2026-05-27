@@ -21,6 +21,7 @@
 - 共同灶台米粉卷加工材料链：新增 `shared_rice_flour_roll` 白名单，可使用共同石磨产出的优质米粉与萝卜干制作米粉卷；QA 覆盖输入 ledger 追溯、协作升品、产物入共同仓库、来源资产保护和个人存档边界。
 - 共同灶台芝麻汤圆双加工材料链：新增 `shared_sesame_paste` 与 `shared_sesame_tangyuan` 白名单，可把稻米和芝麻分别加工成优质米粉 / 芝麻酱后制作芝麻汤圆；QA 覆盖双加工材料 ledger 追溯、协作升品、产物入共同仓库、来源资产保护和个人存档边界。
 - 共同灶台莲心芝麻安神糕双加工材料链：新增 `shared_lotus_heart_powder`、`shared_sesame_powder` 与 `shared_lotus_sesame_calming_cake` 白名单，可把干莲子和芝麻加工成优质莲心粉 / 芝麻粉后制作安神糕；QA 覆盖双加工材料 ledger 追溯、协作升品、产物入共同仓库、来源资产保护和个人存档边界。
+- 共同灶台赛舟辣南瓜饭三加工材料链：新增 `shared_pumpkin_preserve`、`shared_pickled_chili`、`shared_sesame_oil` 与 `shared_spicy_pumpkin_rice` 白名单，可把南瓜、辣椒和芝麻加工成优质南瓜酱 / 泡椒 / 芝麻油后制作赛舟辣南瓜饭；QA 覆盖三加工材料 ledger 追溯、协作升品、产物入共同仓库、来源资产保护和个人存档边界。
 - 共同药碾草药膏炼丹预处理：共同工坊 `shared_herb_paste` 现在使用 `herb_grinder` 并产出规范 `herbal_paste`，产物按 `alchemy_material` 分类入共同仓库，继承协作升品与来源资产高价值保护。
 - 共同丹炉清心莲丹成丹闭环：新增 `shared_qingxin_lotus_elixir` 白名单，从共同仓库扣莲子、莲藕和优质草药膏，产出清心莲丹入仓，并在 ledger / 来源资产写入 `shared_alchemy_success_rate`、15% 协作成功率、成丹结果和高价值取出保护。
 - 共同丹炉偏丹 / 废丹 / 奇丹结果闭环：新增清心莲系 `shared_qingxin_lotus_partial`、`shared_qingxin_lotus_failed`、`shared_qingxin_lotus_rare` 白名单，分别产出偏丹膏、废丹灰和奇丹晶，保留结果类型、协作成功率证据、幂等和高价值 / 稀有取出保护。
