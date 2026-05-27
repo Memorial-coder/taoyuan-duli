@@ -209,6 +209,8 @@ export interface RandomNpcFamilyBusinessEntry {
   dayTag: string
   stage: 1 | 2 | 3
   summary: string
+  rewardItems: Array<{ itemId: string; quantity: number }>
+  rewardSummary: string
   reputationDelta: number
 }
 

@@ -701,6 +701,17 @@ export const useNpcStore = defineStore('npc', () => {
       dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
       stage,
       summary: typeof entry.summary === 'string' ? entry.summary : '婚后家业记录已保留。',
+      rewardItems: Array.isArray(entry.rewardItems)
+        ? entry.rewardItems
+          .filter((item: unknown): item is { itemId?: unknown; quantity?: unknown } => !!item && typeof item === 'object')
+          .map(item => ({
+            itemId: typeof item.itemId === 'string' ? item.itemId : '',
+            quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)))
+          }))
+          .filter(item => !!item.itemId)
+          .slice(0, 3)
+        : [],
+      rewardSummary: typeof entry.rewardSummary === 'string' ? entry.rewardSummary : '',
       reputationDelta: Math.max(-20, Math.min(20, Number(entry.reputationDelta) || 0))
     }
   }
@@ -798,6 +809,41 @@ export const useNpcStore = defineStore('npc', () => {
     const hasMentorTie = resident.familyTies.some(tie => tie.kind === 'mentor' && resident.familyLine.metTieIds.includes(tie.id))
     if (hasMentorTie && resident.familyLine.familyBusinessStage >= 2) return 'spirit'
     return 'farm'
+  }
+
+  const getRandomNpcFamilyBusinessYield = (
+    resident: RandomNpcLongStayEntry,
+    stage: 1 | 2 | 3
+  ): { items: Array<{ itemId: string; quantity: number }>; summary: string } => {
+    const scale = stage === 1 ? 1 : stage === 2 ? 2 : 3
+    if (resident.route === 'business') {
+      return { items: [{ itemId: 'paper', quantity: scale + 1 }], summary: `家业账册带来纸张×${scale + 1}` }
+    }
+    if (resident.route === 'craft') {
+      return {
+        items: [
+          { itemId: 'bamboo', quantity: scale + 1 },
+          { itemId: 'wood', quantity: scale * 2 }
+        ],
+        summary: `手艺协作带来竹子×${scale + 1}、木材×${scale * 2}`
+      }
+    }
+    if (resident.route === 'caregiving') {
+      return {
+        items: [
+          { itemId: 'herb', quantity: scale },
+          { itemId: 'wild_berry', quantity: scale }
+        ],
+        summary: `邻里照料带来草药×${scale}、野果×${scale}`
+      }
+    }
+    return {
+      items: [
+        { itemId: 'wood', quantity: scale },
+        { itemId: 'herb', quantity: 1 }
+      ],
+      summary: `亲友照应带来木材×${scale}、草药×1`
+    }
   }
 
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string => {
@@ -2341,12 +2387,19 @@ export const useNpcStore = defineStore('npc', () => {
           : '把亲友往来整理成桃源村的长期照应'
     const stageText = nextStage === 1 ? '立约' : nextStage === 2 ? '共营' : '稳业'
     const reputationDelta = nextStage === 1 ? 6 : nextStage === 2 ? 5 : 4
+    const yieldReward = getRandomNpcFamilyBusinessYield(resident, nextStage)
+    const inventoryStore = useInventoryStore()
+    if (!inventoryStore.addItemsExact(yieldReward.items)) {
+      return { success: false, message: '背包空间不足，无法接收婚后家业收益。', resident }
+    }
     const summary = `${resident.name}与你完成婚后家业${stageText}：${businessTie ? `${businessTie.name}见证，` : ''}${routeText}。`
     const businessEntry: RandomNpcFamilyBusinessEntry = {
       id: `${dayTag}:${residentId}:family-business:${nextStage}`,
       dayTag,
       stage: nextStage,
       summary,
+      rewardItems: yieldReward.items,
+      rewardSummary: yieldReward.summary,
       reputationDelta
     }
     const review: RandomNpcFamilyReviewEntry = {
@@ -2379,11 +2432,11 @@ export const useNpcStore = defineStore('npc', () => {
           reputationDelta
         ),
         familyLine: nextFamilyLine,
-        keyEvents: [...entry.keyEvents, `${dayTag} 婚后家业${stageText}：${summary}`].slice(-8)
+        keyEvents: [...entry.keyEvents, `${dayTag} 婚后家业${stageText}：${summary}${yieldReward.summary}。`].slice(-8)
       }
       return nextResident
     })
-    return { success: true, message: summary, resident: nextResident ?? resident }
+    return { success: true, message: `${summary}${yieldReward.summary}。`, resident: nextResident ?? resident }
   }
 
   const canApplyRandomNpcFamilyInfluenceToChild = (

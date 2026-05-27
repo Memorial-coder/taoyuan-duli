@@ -549,7 +549,7 @@
                       :key="entry.id"
                       class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                     >
-                      {{ entry.dayTag }} · 阶段 {{ entry.stage }}/3：{{ entry.summary }}（评价{{ entry.reputationDelta >= 0 ? '+' : '' }}{{ entry.reputationDelta }}）
+                      {{ entry.dayTag }} · 阶段 {{ entry.stage }}/3：{{ entry.summary }}<span v-if="entry.rewardSummary">（{{ entry.rewardSummary }}）</span>（评价{{ entry.reputationDelta >= 0 ? '+' : '' }}{{ entry.reputationDelta }}）
                     </p>
                   </div>
                 </div>

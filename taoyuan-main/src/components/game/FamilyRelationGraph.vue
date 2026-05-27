@@ -520,6 +520,7 @@
 
     layoutRing(randomNpcBoard.value.longStayResidents, 34, 24, -35).forEach(({ entry, x, y }) => {
       const relationLabel = getRandomNpcResidentRelationLabel(entry)
+      const latestBusinessEntry = entry.familyLine.familyBusinessHistory[entry.familyLine.familyBusinessHistory.length - 1]
       nodes.push({
         id: `resident:${entry.residentId}`,
         name: entry.name,
@@ -540,6 +541,7 @@
             : entry.relationshipLine.commitmentStatus === 'married'
               ? '婚后家业：已成婚，可在 NPC 页推进家业立约。'
               : '',
+          latestBusinessEntry?.rewardSummary ? `家业收益：${latestBusinessEntry.rewardSummary}` : '',
           entry.familyTies.length > 0 ? `家族节点：${entry.familyTies.map(tie => `${getRandomNpcFamilyTieKindLabel(tie.kind)}-${tie.relation}`).join('、')}` : '家族节点：尚未记录。',
           `家族评价：${entry.familyLine.reputation}/100；${entry.familyLine.lastReview}`,
           `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`,
@@ -574,6 +576,9 @@
             `${entry.name}的${tie.relation}：${tie.summary}`,
             tie.kind === 'family_business' && entry.familyLine.familyBusinessStage > 0
               ? `婚后家业：${entry.familyLine.familyBusinessNote}`
+              : '',
+            tie.kind === 'family_business' && latestBusinessEntry?.rewardSummary
+              ? `最近收益：${latestBusinessEntry.rewardSummary}`
               : '',
             '该节点只保存在单机随机 NPC 存档，不写入联机公开关系图。'
           ].filter(Boolean),
