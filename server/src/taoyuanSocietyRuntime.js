@@ -934,6 +934,27 @@ function getSocietyProjectCompletionRoomTemplateId(project) {
   return '';
 }
 
+function buildSocietyProjectCompletionRoomLaunch(project) {
+  const normalized = normalizeSocietyPublicProject(project);
+  const templateId = getSocietyProjectCompletionRoomTemplateId(normalized);
+  if (!templateId) return null;
+  if (normalized.id === 'festival_square') {
+    const completedBy = normalized.completed_by_display_name || normalized.completed_by || '村社成员';
+    return {
+      id: `society_project_complete:${normalized.id}:lantern_fair`,
+      source_project_id: normalized.id,
+      source_event_id: `society_project_complete:${normalized.id}`,
+      template_id: 'lantern_fair',
+      gameplay_template_id: 'assembly',
+      title: '节庆广场开幕灯会',
+      label: '上元灯会房间',
+      summary: `${completedBy}完成节庆广场筹备后，村社可从完工现场创建上元灯会共建房间；该联动只提供入口，不直接发个人资产。`,
+      status: 'ready_to_create',
+    };
+  }
+  return null;
+}
+
 function normalizeSocietyPublicProject(entry) {
   const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[String(entry?.id || '').trim()] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
   return {
@@ -2526,6 +2547,7 @@ function buildSocietyVisualAsyncProject(project) {
     contributors: buildSocietyVisualAsyncContributors(normalized),
     history: buildSocietyVisualAsyncHistory(normalized),
     completion_room_template_id: getSocietyProjectCompletionRoomTemplateId(normalized),
+    completion_room_launch: buildSocietyProjectCompletionRoomLaunch(normalized),
     completion_event_id: normalized.status === 'completed' ? `society_project_complete:${normalized.id}` : '',
   };
 }
@@ -2615,6 +2637,7 @@ async function buildPublicProjectSnapshot(project, viewerUsername, viewerCanCont
     completion_feedback: normalized.completion_feedback || def.completion_feedback,
     world_feedback: normalized.world_feedback || def.world_feedback,
     completion_rewards: buildSocietyProjectCompletionRewards(normalized),
+    completion_room_launch: buildSocietyProjectCompletionRoomLaunch(normalized),
     can_contribute: viewerCanContribute && normalized.status !== 'completed',
     my_contribution_count: myContributionCount,
     contribution_packages: getSocietyProjectPackageOptions(normalized.id).map(buildPublicProjectPackageSnapshot),

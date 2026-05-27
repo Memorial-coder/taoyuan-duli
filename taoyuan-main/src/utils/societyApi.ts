@@ -120,6 +120,18 @@ export interface SocietyProjectCompletionRewardSnapshot {
   active: boolean
 }
 
+export interface SocietyCompletionRoomLaunchSnapshot {
+  id: string
+  source_project_id: string
+  source_event_id: string
+  template_id: string
+  gameplay_template_id: string
+  title: string
+  label: string
+  summary: string
+  status: string
+}
+
 export interface SocietyPublicProjectSnapshot {
   id: string
   label: string
@@ -137,6 +149,7 @@ export interface SocietyPublicProjectSnapshot {
   completion_feedback: string
   world_feedback: string
   completion_rewards: SocietyProjectCompletionRewardSnapshot[]
+  completion_room_launch?: SocietyCompletionRoomLaunchSnapshot | null
   can_contribute: boolean
   my_contribution_count: number
   contribution_packages: SocietyProjectPackageSnapshot[]

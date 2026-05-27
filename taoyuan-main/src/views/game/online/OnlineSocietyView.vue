@@ -578,6 +578,25 @@
             <p class="mt-2 text-[10px] leading-4 text-muted">{{ project.summary }}</p>
             <p v-if="project.progress_note" class="mt-1 text-[10px] leading-4 text-muted">{{ project.progress_note }}</p>
             <p v-if="project.status === 'completed'" class="mt-1 text-[10px] leading-4 text-success">{{ project.world_feedback || project.completion_feedback }}</p>
+            <RouterLink
+              v-if="project.completion_room_launch"
+              class="mt-2 flex items-center justify-between gap-2 border border-accent/20 bg-accent/10 px-2 py-2 text-[10px] text-accent"
+              :to="{
+                name: 'online-festival',
+                query: {
+                  tab: 'festival-room',
+                  template: project.completion_room_launch.template_id,
+                  gameplay: project.completion_room_launch.gameplay_template_id,
+                  title: project.completion_room_launch.title,
+                },
+              }"
+              data-testid="online-society-completion-room-launch"
+            >
+              <span class="min-w-0">
+                {{ project.completion_room_launch.label }}：{{ project.completion_room_launch.summary }}
+              </span>
+              <span class="shrink-0">创建房间</span>
+            </RouterLink>
             <div v-if="(project.completion_rewards || []).length > 0" class="mt-2 space-y-1 text-[10px] leading-4 text-muted">
               <p class="text-accent">完工效果</p>
               <p
@@ -842,7 +861,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
-  import { useRoute } from 'vue-router'
+  import { RouterLink, useRoute } from 'vue-router'
   import { ShieldCheck } from 'lucide-vue-next'
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'

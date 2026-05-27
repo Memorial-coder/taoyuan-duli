@@ -141,6 +141,18 @@ export interface OnlineVisualAsyncHistoryEntry {
   created_at: number
 }
 
+export interface OnlineVisualCompletionRoomLaunch {
+  id: string
+  source_project_id: string
+  source_event_id: string
+  template_id: string
+  gameplay_template_id: string
+  title: string
+  label: string
+  summary: string
+  status: string
+}
+
 export interface OnlineVisualAsyncProject {
   id: string
   label: string
@@ -154,6 +166,7 @@ export interface OnlineVisualAsyncProject {
   contributors: OnlineVisualAsyncContributor[]
   history: OnlineVisualAsyncHistoryEntry[]
   completion_room_template_id: string
+  completion_room_launch?: OnlineVisualCompletionRoomLaunch | null
   completion_event_id: string
 }
 

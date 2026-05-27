@@ -4470,6 +4470,12 @@ try {
     )
     const festivalVisualProject = completionBundle.data?.overview?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'festival_square')
     assert(festivalVisualProject?.completion_room_template_id === 'lantern_fair', 'festival square visual project did not expose lantern fair room unlock')
+    assert(
+      festivalVisualProject?.completion_room_launch?.template_id === 'lantern_fair' &&
+      festivalVisualProject?.completion_room_launch?.gameplay_template_id === 'assembly' &&
+      String(festivalVisualProject?.completion_room_launch?.summary || '').includes('不直接发个人资产'),
+      'festival square visual project did not expose authoritative completion room launch',
+    )
     assert(festivalVisualProject?.completion_event_id === 'society_project_complete:festival_square', 'festival square visual project did not expose completion event')
     assert(Array.isArray(festivalVisualProject?.stages) && festivalVisualProject.stages.every(entry => entry?.state === 'complete'), 'festival square visual project did not mark all stages complete')
     assert(
@@ -4497,6 +4503,12 @@ try {
     assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'festival square unlock readback payload is incomplete')
     const festivalProject = data?.my_society?.public_projects?.find(entry => entry?.id === 'festival_square')
     assert(festivalProject && String(festivalProject?.status || '') === 'completed', 'festival square unlock readback did not preserve completed status')
+    assert(
+      festivalProject?.completion_room_launch?.source_event_id === 'society_project_complete:festival_square' &&
+      festivalProject?.completion_room_launch?.template_id === 'lantern_fair' &&
+      festivalProject?.completion_room_launch?.status === 'ready_to_create',
+      'festival square unlock readback did not preserve completion room launch descriptor',
+    )
     const festivalRewards = Array.isArray(festivalProject?.completion_rewards) ? festivalProject.completion_rewards : []
     assert(
       festivalRewards.some(entry => entry?.id === 'festival_room_unlock' && entry?.active === true),
@@ -4508,6 +4520,11 @@ try {
     )
     const festivalVisualProject = data?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'festival_square')
     assert(festivalVisualProject?.completion_room_template_id === 'lantern_fair', 'festival square unlock readback did not preserve completion room template')
+    assert(
+      festivalVisualProject?.completion_room_launch?.source_project_id === 'festival_square' &&
+      festivalVisualProject?.completion_room_launch?.title === '节庆广场开幕灯会',
+      'festival square unlock readback did not preserve visual completion room launch',
+    )
     assert(
       Array.isArray(festivalVisualProject?.history) &&
       festivalVisualProject.history.some(entry => entry?.type === 'stage_complete' && String(entry?.summary || '').includes('开幕留影位')),

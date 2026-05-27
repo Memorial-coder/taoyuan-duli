@@ -104,7 +104,7 @@
         >
           <Sparkles :size="14" aria-hidden="true" />
           <span>{{ completionRoomLabel }}已解锁</span>
-          <small>去创建正式节会房间</small>
+          <small>{{ completionRoomSummary }}</small>
         </RouterLink>
 
         <div v-if="availableContributionOptions.length > 0" class="async-community-board__actions">
@@ -239,19 +239,29 @@
   const completionRoomTemplateId = computed(() => {
     const project = activeProject.value
     if (!project?.completion_event_id) return ''
-    return project.completion_room_template_id || ''
+    return project.completion_room_launch?.template_id || project.completion_room_template_id || ''
   })
   const completionRoomGameplayId = computed(() => {
+    const launch = activeProject.value?.completion_room_launch
+    if (launch?.gameplay_template_id) return launch.gameplay_template_id
     if (completionRoomTemplateId.value === 'lantern_fair') return 'assembly'
     return ''
   })
   const completionRoomLabel = computed(() => {
+    const launch = activeProject.value?.completion_room_launch
+    if (launch?.label) return launch.label
     if (completionRoomTemplateId.value === 'lantern_fair') return '上元灯会房间'
     return completionRoomTemplateId.value.split('_').filter(Boolean).join(' ') || '节会房间'
   })
   const completionRoomTitle = computed(() => {
+    const launch = activeProject.value?.completion_room_launch
+    if (launch?.title) return launch.title
     if (completionRoomTemplateId.value === 'lantern_fair') return '节庆广场开幕'
     return `${activeProject.value?.label || '公共工程'}庆典`
+  })
+  const completionRoomSummary = computed(() => {
+    const launch = activeProject.value?.completion_room_launch
+    return launch?.summary || '去创建正式节会房间'
   })
   const milestones = computed<OnlineVisualAsyncMilestone[]>(() => {
     const stage = currentStage.value || activeProject.value?.stages[0]
