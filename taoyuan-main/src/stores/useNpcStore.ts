@@ -3450,6 +3450,28 @@ export const useNpcStore = defineStore('npc', () => {
     return added
   }
 
+  const unlockFixedNpcGiftCookingTopicClue = (
+    npcId: string,
+    cookingTopic: { recipeId: string; recipeName: string; triggerLabels: string[] }
+  ) => {
+    const playerStore = usePlayerStore()
+    const npcName = getNpcById(npcId)?.name ?? npcId
+    const triggerSummary = cookingTopic.triggerLabels.length > 0 ? cookingTopic.triggerLabels.join(' / ') : '送礼话题'
+    const clueId = `gift_topic:${npcId}:${cookingTopic.recipeId}`
+    const added = addRelationshipClue(
+      npcId,
+      clueId,
+      `你记下了：${npcName}会把「${cookingTopic.recipeName}」当作${triggerSummary}来回应，之后准备礼物时可把这道菜作为话题铺垫。`,
+      {
+        kind: 'habit',
+        source: 'gift_test',
+        precision: 'exact'
+      }
+    )
+    if (added) playerStore.markGiftClueDiscovered(clueId, buildCurrentDayTag())
+    return added
+  }
+
   const syncSecretNoteGiftClues = (npcId: string) => {
     const secretNoteStore = useSecretNoteStore()
     const noteGiftClueMap: Array<{ noteId: number; npcId: string; clueId: string }> = [
@@ -3905,7 +3927,9 @@ export const useNpcStore = defineStore('npc', () => {
       state.friendship = Math.min(state.friendship + topicBonus, getEffectiveFriendshipCap(state))
       gain += topicBonus
       unlockedMessages.push(...syncRelationshipPerks(npcId))
+      const topicClueAdded = unlockFixedNpcGiftCookingTopicClue(npcId, cookingTopic)
       unlockedMessages.push(`${npcDef.name}认出了${cookingTopic.recipeName}里的送礼心意，额外增加了 ${topicBonus} 点好感。`)
+      if (topicClueAdded) unlockedMessages.push(`${npcDef.name}的送礼话题线索已记录，可在村民关系页回看。`)
     }
     const giftReturn = getNpcGiftReturn(npcId, getRelationshipStage(npcId))
     const returnedGift =
