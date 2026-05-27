@@ -42,6 +42,7 @@ const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
 const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
 const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS = 1;
 const SHARED_DECORATION_COOP_ATMOSPHERE_BONUS = 1;
+const SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS = 1;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
@@ -55,6 +56,7 @@ const WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT = 6;
 const WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT = 12;
 const WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT = 60;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
+const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute', 'executed', 'rolled_back', 'expired']);
 const WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute']);
 const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
@@ -1079,6 +1081,14 @@ function normalizeQuality(value) {
   return WAREHOUSE_QUALITIES.has(quality) ? quality : 'normal';
 }
 
+function upgradeWarehouseQuality(quality, steps = 1) {
+  const normalized = normalizeQuality(quality);
+  const currentIndex = WAREHOUSE_QUALITY_ORDER.indexOf(normalized);
+  const stepCount = Math.max(0, Math.floor(Number(steps) || 0));
+  const nextIndex = Math.min(WAREHOUSE_QUALITY_ORDER.length - 1, Math.max(0, currentIndex) + stepCount);
+  return WAREHOUSE_QUALITY_ORDER[nextIndex] || normalized;
+}
+
 function normalizePositiveInt(value, fallback = 0) {
   const normalized = Math.floor(Number(value) || 0);
   return normalized > 0 ? normalized : fallback;
@@ -1200,6 +1210,39 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     reversible: entry.reversible !== false,
     compensation_hint: sanitizeText(entry.compensation_hint, 180),
     status: ['committed', 'compensated', 'reverted'].includes(entry.status) ? entry.status : 'committed',
+    simultaneous_online_bonus: entry.simultaneous_online_bonus && typeof entry.simultaneous_online_bonus === 'object'
+      ? {
+          applied: entry.simultaneous_online_bonus.applied === true,
+          type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
+          bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
+          recent_member_count: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.recent_member_count) || 0)),
+          recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
+            ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+            : [],
+          material_actor_username: normalizeUsername(entry.simultaneous_online_bonus.material_actor_username),
+          processor_username: normalizeUsername(entry.simultaneous_online_bonus.processor_username),
+          recipe_id: sanitizeText(entry.simultaneous_online_bonus.recipe_id, 100),
+          source_ledger_ids: Array.isArray(entry.simultaneous_online_bonus.source_ledger_ids)
+            ? entry.simultaneous_online_bonus.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+            : [],
+          output_quality_before: normalizeQuality(entry.simultaneous_online_bonus.output_quality_before),
+          output_quality_after: normalizeQuality(entry.simultaneous_online_bonus.output_quality_after),
+          policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
+        }
+      : {
+          applied: false,
+          type: '',
+          bonus_value: 0,
+          recent_member_count: 0,
+          recent_member_usernames: [],
+          material_actor_username: '',
+          processor_username: '',
+          recipe_id: '',
+          source_ledger_ids: [],
+          output_quality_before: 'normal',
+          output_quality_after: 'normal',
+          policy: '',
+        },
   };
 }
 
@@ -5072,6 +5115,7 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     .filter(member => member.recently_active);
   const farmWaterEnabled = contract.status === 'active' && recentMembers.length >= 2;
   const farmPlantFertilizeEnabled = contract.status === 'active' && recentMembers.length >= 2;
+  const sharedWorkshopProcessEnabled = contract.status === 'active' && recentMembers.length >= 2;
   const orderConfirmEnabled = isFamilyRoleContractType(contract.type) && contract.status === 'active' && recentMembers.length >= 2;
   const decorationEnabled = isFamilyRoleContractType(contract.type) && contract.status === 'active' && recentMembers.length >= 2;
   return {
@@ -5079,6 +5123,7 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     farm_water_health_bonus_enabled: farmWaterEnabled,
     farm_plant_fertilize_quality_bonus_enabled: farmPlantFertilizeEnabled,
     animal_feed_pet_mood_bonus_enabled: contract.status === 'active' && recentMembers.length >= 2,
+    shared_workshop_process_quality_bonus_enabled: sharedWorkshopProcessEnabled,
     order_confirm_efficiency_bonus_enabled: orderConfirmEnabled,
     family_building_decoration_atmosphere_enabled: decorationEnabled,
     applied: farmWaterEnabled && action === 'shared_farm_water',
@@ -5191,6 +5236,36 @@ function buildSharedAnimalCareCoopBonusSnapshot(contract = {}, actorUsername = '
   };
 }
 
+function buildSharedWorkshopProcessCoopBonusSnapshot(contract = {}, actorUsername = '', context = {}) {
+  const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_workshop_process');
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const sourceEntries = Array.isArray(context.source_entries)
+    ? context.source_entries.map(normalizeWarehouseLedgerEntry).filter(Boolean)
+    : [];
+  const materialEntry = sourceEntries.find(entry => {
+    const materialActorKey = normalizeUsernameKey(entry.actor_username || entry.source_owner_username);
+    return !!actorKey && !!materialActorKey && materialActorKey !== actorKey;
+  });
+  const applied = base.shared_workshop_process_quality_bonus_enabled === true && !!materialEntry;
+  const outputQualityBefore = normalizeQuality(context.output_quality_before);
+  const outputQualityAfter = applied
+    ? upgradeWarehouseQuality(outputQualityBefore, SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS)
+    : outputQualityBefore;
+  return {
+    ...base,
+    action: 'shared_workshop_process',
+    applied,
+    type: 'shared_workshop_process_quality',
+    bonus_value: applied ? SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS : 0,
+    material_actor_username: normalizeUsername(materialEntry?.actor_username || materialEntry?.source_owner_username),
+    processor_username: normalizeUsername(actorUsername),
+    recipe_id: sanitizeText(context.recipe_id, 100),
+    source_ledger_ids: sourceEntries.map(entry => entry.id).filter(Boolean).slice(0, 12),
+    output_quality_before: outputQualityBefore,
+    output_quality_after: outputQualityAfter,
+  };
+}
+
 function buildOfflineOperationSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorMember?.username_key], contract.type);
@@ -5229,6 +5304,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
+      simultaneous_online_workshop_bonus_enabled: simultaneousOnlineBonus.shared_workshop_process_quality_bonus_enabled,
       simultaneous_online_order_bonus_enabled: simultaneousOnlineBonus.order_confirm_efficiency_bonus_enabled,
       simultaneous_online_decoration_bonus_enabled: simultaneousOnlineBonus.family_building_decoration_atmosphere_enabled,
       simultaneous_online_bonus_policy: simultaneousOnlineBonus.policy,
@@ -10842,6 +10918,12 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       workshop_action: {
         action: 'process',
         recipe_id: recipe.id,
+        output_item_id: previousOutputEntry.item_id,
+        output_quantity: previousOutputEntry.quantity,
+        output_quality: previousOutputEntry.quality,
+        output_quality_before_bonus: previousOutputEntry.simultaneous_online_bonus?.output_quality_before || previousOutputEntry.quality,
+        warehouse_ledger_ids: previousWarehouseEntries.map(entry => entry.id),
+        simultaneous_online_bonus: previousOutputEntry.simultaneous_online_bonus,
         personal_save_changed: false,
         shared_warehouse_changed: true,
         shared_fund_changed: false,
@@ -10860,6 +10942,18 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
   const targetRef = `shared_workshop:${recipe.id}`;
+  const sourceLedgerIds = [...new Set(allocationResults.flatMap(({ result }) =>
+    result.allocations.flatMap(allocation => allocation.source_ledger_ids || [])
+  ).map(id => sanitizeText(id, 100)).filter(Boolean))];
+  const sourceLedgerEntries = sourceLedgerIds
+    .map(id => contract.shared_warehouse.ledger.find(entry => entry.id === id))
+    .filter(Boolean);
+  const simultaneousOnlineBonus = buildSharedWorkshopProcessCoopBonusSnapshot(contract, actorUsername, {
+    recipe_id: recipe.id,
+    source_entries: sourceLedgerEntries,
+    output_quality_before: recipe.output_quality,
+  });
+  const outputQuality = simultaneousOnlineBonus.output_quality_after || recipe.output_quality;
   const consumeLedgerEntries = allocationResults.flatMap(({ input, result }) =>
     result.allocations.map(allocation => normalizeWarehouseLedgerEntry({
       id: makeId('shared_warehouse_ledger'),
@@ -10900,7 +10994,7 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     action: 'deposit',
     item_id: recipe.output_item_id,
     quantity: recipe.output_quantity,
-    quality: recipe.output_quality,
+    quality: outputQuality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
     actor_manor_role: actorManorRole,
@@ -10924,6 +11018,7 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     reversible: true,
     compensation_hint: 'shared workshop output was deposited into shared warehouse; personal saves and shared fund are unchanged.',
     status: 'committed',
+    simultaneous_online_bonus: simultaneousOnlineBonus,
   });
   const warehouseLedgerEntries = [outputLedgerEntry, ...consumeLedgerEntries];
   contract.shared_warehouse.ledger = [...warehouseLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
@@ -10942,7 +11037,9 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     input_items: recipe.input_items,
     output_item_id: recipe.output_item_id,
     output_quantity: recipe.output_quantity,
-    output_quality: recipe.output_quality,
+    output_quality: outputQuality,
+    output_quality_before_bonus: recipe.output_quality,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     actor_username: actorUsername,
     target_ref: targetRef,
     personal_save_changed: false,
@@ -10966,7 +11063,10 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       input_items: recipe.input_items,
       output_item_id: recipe.output_item_id,
       output_quantity: recipe.output_quantity,
+      output_quality: outputQuality,
+      output_quality_before_bonus: recipe.output_quality,
       warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+      simultaneous_online_bonus: simultaneousOnlineBonus,
       personal_save_changed: false,
       shared_warehouse_changed: true,
       shared_fund_changed: false,
