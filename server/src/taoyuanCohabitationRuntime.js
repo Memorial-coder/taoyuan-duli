@@ -40,6 +40,7 @@ const COHABITATION_RECENT_ONLINE_SECONDS = 15 * 60;
 const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
 const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
 const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
+const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS = 1;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
@@ -1000,6 +1001,33 @@ function normalizeFundLedgerEntry(entry = {}) {
     auto_pay: entry?.auto_pay === true,
     confirmation_required: entry?.confirmation_required === true,
     confirmation_status: sanitizeText(entry?.confirmation_status, 40) || (entry?.confirmation_required === true ? 'pending' : 'not_required'),
+    simultaneous_online_bonus: entry?.simultaneous_online_bonus && typeof entry.simultaneous_online_bonus === 'object'
+      ? {
+          applied: entry.simultaneous_online_bonus.applied === true,
+          type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
+          bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
+          recent_member_count: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.recent_member_count) || 0)),
+          recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
+            ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+            : [],
+          assignee_username: normalizeUsername(entry.simultaneous_online_bonus.assignee_username),
+          confirmer_username: normalizeUsername(entry.simultaneous_online_bonus.confirmer_username),
+          receipt_id: sanitizeText(entry.simultaneous_online_bonus.receipt_id, 100),
+          order_id: sanitizeText(entry.simultaneous_online_bonus.order_id, 100),
+          policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
+        }
+      : {
+          applied: false,
+          type: '',
+          bonus_value: 0,
+          recent_member_count: 0,
+          recent_member_usernames: [],
+          assignee_username: '',
+          confirmer_username: '',
+          receipt_id: '',
+          order_id: '',
+          policy: '',
+        },
     idempotency_key: sanitizeText(entry?.idempotency_key, 120),
     reversible: entry?.reversible !== false,
     compensation_hint: sanitizeText(entry?.compensation_hint, 180),
@@ -3363,6 +3391,13 @@ async function creditCohabitationOrderIncome(contractId, receipt = {}, actor = {
   const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
   const afterBalance = beforeBalance + amount;
   const operatedAt = nowSeconds();
+  const simultaneousOnlineBonus = buildSharedOrderConfirmCoopBonusSnapshot(contract, actorUsername, {
+    ...receipt,
+    receipt_id: receiptId,
+    order_id: orderId,
+    stage_id: stageId,
+    target_ref: targetRef,
+  });
   const creditPlan = buildSharedFundOrderIncomeCreditPlan(contract, {
     ...receipt,
     receipt_id: receiptId,
@@ -3393,6 +3428,18 @@ async function creditCohabitationOrderIncome(contractId, receipt = {}, actor = {
     spend_category: 'order_income',
     spend_purpose_label: '公共订单收入',
     balance_after: afterBalance,
+    simultaneous_online_bonus: {
+      applied: simultaneousOnlineBonus.applied,
+      type: simultaneousOnlineBonus.type,
+      bonus_value: simultaneousOnlineBonus.bonus_value,
+      recent_member_count: simultaneousOnlineBonus.recent_member_count,
+      recent_member_usernames: simultaneousOnlineBonus.recent_member_usernames,
+      assignee_username: simultaneousOnlineBonus.assignee_username,
+      confirmer_username: simultaneousOnlineBonus.confirmer_username,
+      receipt_id: simultaneousOnlineBonus.receipt_id,
+      order_id: simultaneousOnlineBonus.order_id,
+      policy: simultaneousOnlineBonus.policy,
+    },
     idempotency_key: idempotencyKey,
     reversible: true,
     compensation_hint: '公共订单收入已写入共同基金；若订单确认、基金写入或通知链路失败，应按该幂等键重放或进入补偿队列，避免个人奖励与共同基金双发。',
@@ -3414,6 +3461,7 @@ async function creditCohabitationOrderIncome(contractId, receipt = {}, actor = {
     assignee_username: assigneeMember.username,
     personal_reward_paid: false,
     duplicate_personal_reward_guard: true,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     reversible: true,
   }, idempotencyKey);
   saveContractStore(store);
@@ -3428,6 +3476,7 @@ async function creditCohabitationOrderIncome(contractId, receipt = {}, actor = {
       balance_before: beforeBalance,
       balance_after: afterBalance,
       personal_money_merged: false,
+      simultaneous_online_bonus: simultaneousOnlineBonus,
     },
   };
 }
@@ -4964,11 +5013,13 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     .filter(member => member.recently_active);
   const farmWaterEnabled = contract.status === 'active' && recentMembers.length >= 2;
   const farmPlantFertilizeEnabled = contract.status === 'active' && recentMembers.length >= 2;
+  const orderConfirmEnabled = isFamilyRoleContractType(contract.type) && contract.status === 'active' && recentMembers.length >= 2;
   return {
     action: sanitizeText(action, 80),
     farm_water_health_bonus_enabled: farmWaterEnabled,
     farm_plant_fertilize_quality_bonus_enabled: farmPlantFertilizeEnabled,
     animal_feed_pet_mood_bonus_enabled: contract.status === 'active' && recentMembers.length >= 2,
+    order_confirm_efficiency_bonus_enabled: orderConfirmEnabled,
     applied: farmWaterEnabled && action === 'shared_farm_water',
     bonus_value: farmWaterEnabled && action === 'shared_farm_water' ? SHARED_FARM_WATER_COOP_HEALTH_BONUS : 0,
     recent_member_count: recentMembers.length,
@@ -4978,6 +5029,28 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     personal_save_changed: false,
     shared_fund_changed: false,
     shared_warehouse_changed: false,
+  };
+}
+
+function buildSharedOrderConfirmCoopBonusSnapshot(contract = {}, actorUsername = '', receipt = {}) {
+  const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_order_confirm');
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const assigneeUsername = normalizeUsername(receipt.assignee_username);
+  const assigneeKey = normalizeUsernameKey(assigneeUsername);
+  const applied = base.order_confirm_efficiency_bonus_enabled === true
+    && !!actorKey
+    && !!assigneeKey
+    && actorKey !== assigneeKey;
+  return {
+    ...base,
+    action: 'shared_order_confirm',
+    applied,
+    type: 'shared_order_confirm_efficiency',
+    bonus_value: applied ? SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS : 0,
+    assignee_username: assigneeUsername,
+    confirmer_username: normalizeUsername(actorUsername),
+    receipt_id: sanitizeText(receipt.receipt_id || receipt.id, 100),
+    order_id: sanitizeText(receipt.order_id, 100),
   };
 }
 
@@ -5069,6 +5142,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
+      simultaneous_online_order_bonus_enabled: simultaneousOnlineBonus.order_confirm_efficiency_bonus_enabled,
       simultaneous_online_bonus_policy: simultaneousOnlineBonus.policy,
       auto_offline_income_enabled: false,
       conflict_policy: '共同庄园第一版以服务端契约、仓库、基金和审计日志为准；离线自动收益与客户端本地合并暂不开放。',

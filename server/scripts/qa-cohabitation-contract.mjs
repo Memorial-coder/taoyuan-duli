@@ -1886,9 +1886,11 @@ assert.equal(offlineStatus.offline_status.summary.shared_animal_offline_writes_e
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_bonus_enabled, true, 'offline status should expose same-time online farm water bonus readiness')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_farm_fertilize_bonus_enabled, true, 'offline status should expose same-time farm plant/fertilize bonus readiness')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_animal_bonus_enabled, true, 'offline status should expose same-time animal care bonus readiness')
+assert.equal(offlineStatus.offline_status.summary.simultaneous_online_order_bonus_enabled, false, 'romance offline status should not expose family order cooperation bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.farm_water_health_bonus_enabled, true, 'offline status should expose farm water cooperation bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.farm_plant_fertilize_quality_bonus_enabled, true, 'offline status should expose farm plant/fertilize cooperation bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.animal_feed_pet_mood_bonus_enabled, true, 'offline status should expose animal feed/pet cooperation bonus readiness')
+assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.order_confirm_efficiency_bonus_enabled, false, 'romance offline status should keep order cooperation bonus disabled')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.recent_member_count, 2, 'offline status should count both recently active members for cooperation bonus')
 assert.equal(offlineStatus.offline_status.summary.auto_offline_income_enabled, false, 'first pass should not enable offline auto income')
 assert.ok(offlineStatus.offline_status.members.find(member => member.username === owner)?.last_active_at > 0, 'offline status should expose owner last active time')
@@ -2345,8 +2347,13 @@ assert.equal(sharedFundIncomeConfirm.receipt.cohabitation_contract_id, familyCon
 assert.ok(sharedFundIncomeConfirm.receipt.shared_fund_ledger_id, 'shared fund order income should keep fund ledger id on receipt')
 assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.action, 'order_income', 'shared fund order income should write order_income ledger')
 assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.amount, 65, 'shared fund order income ledger should keep reward amount')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.simultaneous_online_bonus.applied, true, 'shared fund order income ledger should record applied order cooperation bonus')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.simultaneous_online_bonus.bonus_value, 1, 'shared fund order income ledger should record order efficiency bonus value')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.simultaneous_online_bonus.assignee_username, partner, 'shared fund order income ledger should record order assignee')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.simultaneous_online_bonus.confirmer_username, owner, 'shared fund order income ledger should record order confirmer')
 assert.equal(sharedFundIncomeConfirm.shared_fund_credit.shared_fund.balance_before, 0, 'shared fund order income should report previous fund balance')
 assert.equal(sharedFundIncomeConfirm.shared_fund_credit.shared_fund.balance_after, 65, 'shared fund order income should increase fund balance')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.shared_fund.simultaneous_online_bonus.applied, true, 'shared fund order income response should expose order cooperation bonus')
 assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSharedFundOrderIncome, 'shared fund order income should not pay partner personal save')
 const repeatedSharedFundOrderIncome = await runtime.creditCohabitationOrderIncome(
   familyContract.contract.id,
@@ -2355,6 +2362,7 @@ const repeatedSharedFundOrderIncome = await runtime.creditCohabitationOrderIncom
 )
 assert.equal(repeatedSharedFundOrderIncome.idempotent, true, 'shared fund order income helper should be idempotent')
 assert.equal(repeatedSharedFundOrderIncome.fund.balance, 65, 'shared fund order income helper should not credit balance twice')
+assert.equal(repeatedSharedFundOrderIncome.fund_ledger_entry.simultaneous_online_bonus.applied, true, 'idempotent shared fund order income should retain order cooperation bonus evidence')
 assert.ok(repeatedSharedFundOrderIncome.contract.audit_log.find(entry => entry.action === 'fund_order_income_credited'), 'shared fund order income should be audited')
 
 const partnerMoneyBeforeSharedFundCompensationReplay = readGameplayData(partner)?.player?.money
