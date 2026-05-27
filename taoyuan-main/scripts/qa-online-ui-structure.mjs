@@ -329,6 +329,8 @@ checkedScrollBoundaries += expectCountAtLeast('online/OnlineFestivalView.vue', /
 expectContains('ExpeditionRoomView.vue', '<OnlineVisualRoomShell', '远征房间应复用统一可视化房间壳')
 expectContains('ExpeditionRoomView.vue', '<VisualMapBoard', '远征房间应保留协作矿洞节点图')
 expectContains('ExpeditionRoomView.vue', '<VisualTrackBoard', '远征房间应保留护送轨道图')
+expectContains('ExpeditionRoomView.vue', 'createEscortConvoyMapNodes', '远征护送应把轨道格派生为 VisualMapBoard 路线节点')
+expectContains('ExpeditionRoomView.vue', "room.gameplay_template_id === 'expedition_escort'", '远征护送应复用地图棋盘展示路线节点')
 expectContains('ExpeditionRoomView.vue', 'expedition-cavern-combo-summary', '远征矿洞应展示全部节点组合收益')
 expectContains('ExpeditionRoomView.vue', 'expedition-cavern-withdrawal-summary', '远征矿洞应展示撤离点提前收尾摘要')
 expectContains('ExpeditionRoomView.vue', 'expedition-cavern-receipt-combos', '远征矿洞结算凭证应回看组合收益明细')

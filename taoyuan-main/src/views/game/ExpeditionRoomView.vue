@@ -585,7 +585,11 @@
 
   const expeditionVisualMapNodes = computed(() => {
     const room = expeditionRoomStore.myRoom
-    if (!room || room.visual_state.board_type !== 'map') return []
+    if (!room) return []
+    if (room.gameplay_template_id === 'expedition_escort' && room.visual_state.board_type === 'track') {
+      return createEscortConvoyMapNodes(expeditionVisualTracks.value)
+    }
+    if (room.visual_state.board_type !== 'map') return []
     if (room.visual_state.nodes.length > 0) return room.visual_state.nodes
     return createMockCavernNodes()
   })
@@ -621,6 +625,50 @@
 
   const hasExpeditionVisualTrackActions = computed(() => expeditionVisualTracks.value
     .some(track => track.cells.some(cell => cell.available_action_ids.length > 0)))
+
+  const createEscortConvoyMapNodes = (tracks: OnlineVisualTrack[]): OnlineVisualNode[] => {
+    const track = tracks.find(entry => entry.kind === 'escort_convoy') || tracks[0]
+    if (!track || track.cells.length === 0) return []
+    const convoyTeam = track.teams[0]
+    const positionIndex = Math.max(0, Math.floor(Number(convoyTeam?.position_index) || 0))
+    const sortedCells = [...track.cells].sort((left, right) => left.index - right.index)
+    const stepWidth = sortedCells.length > 1 ? 76 / (sortedCells.length - 1) : 0
+    return sortedCells.map((cell, index) => {
+      const hasConvoy = (cell.occupant_team_ids || []).includes(convoyTeam?.team_id || '')
+      const isPast = cell.index < positionIndex
+      const nextCell = sortedCells[index + 1]
+      const previousCell = sortedCells[index - 1]
+      const connectedNodeIds = [previousCell?.id, nextCell?.id].filter(Boolean) as string[]
+      const state: OnlineVisualNode['state'] = hasConvoy
+        ? 'active'
+        : isPast
+          ? 'resolved'
+          : cell.kind === 'finish'
+            ? 'exit'
+            : cell.kind === 'risk'
+              ? 'danger'
+              : cell.kind === 'boost'
+                ? 'reward'
+                : 'available'
+      return {
+        id: cell.id,
+        label: cell.label,
+        kind: `escort_${cell.kind}`,
+        x: Math.min(92, Math.max(8, 12 + stepWidth * index)),
+        y: index % 2 === 0 ? 42 : 58,
+        state,
+        connected_node_ids: connectedNodeIds,
+        event_id: cell.event_id,
+        available_action_ids: cell.available_action_ids,
+        owner_username: '',
+        claimed_by: hasConvoy ? (convoyTeam?.label || '车队') : '',
+        risk_preview: cell.risk_preview,
+        reward_preview: cell.reward_preview,
+        resource_cost_preview: {},
+        resource_reward_preview: {},
+      }
+    })
+  }
 
   const hasPrimaryExpeditionVisualActions = computed(() =>
     (expeditionVisualMapNodes.value.length > 0 && hasExpeditionVisualNodeActions.value)
