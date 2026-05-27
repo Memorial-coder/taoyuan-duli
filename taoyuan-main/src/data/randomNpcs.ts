@@ -55,6 +55,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'business_talk', text: '询问茶路行情。', response: '她一下子精神起来，给你讲了三处驿站的价差。', affinityChange: 12, relationshipTag: 'friend', relationshipDirection: 'trust' },
       { id: 'joke', text: '开玩笑说账册比茶还香。', response: '她愣了愣才笑，说这句话一定不能让姑母听见。', affinityChange: 8, relationshipDirection: 'family_impression' }
     ],
+    dialogueScenes: [
+      { id: 'tea_first_meeting', kind: 'first_meeting', title: '村口晒账', summary: '初见时围绕茶箱、账册和秋露试探彼此做事是否稳妥。', triggerHint: '首次来访或旧日召回后优先出现。', relationshipDirection: 'trust' },
+      { id: 'tea_gift_check', kind: 'gift', title: '试茶回礼', summary: '收到茶叶、桂花或蜂蜜时，会把礼物与姑母试茶礼联系起来。', triggerHint: '送礼或小订单交付后出现。', relationshipDirection: 'family_impression' },
+      { id: 'tea_reunion', kind: 'reunion', title: '旧路重逢', summary: '久别后重提茶路价差和桃源供货，判断关系是否还能续上。', triggerHint: '旧日摘要召回或长期未见后出现。', relationshipDirection: 'trust' }
+    ],
     smallOrder: {
       id: 'dry_tea_bundle',
       title: '回潮茶箱',
@@ -104,6 +109,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'pet_story', text: '讲讲自家宠物最近的习惯。', response: '对方听得很专心，还给你补了一句喂食提醒。', affinityChange: 14, relationshipTag: 'acquaintance', relationshipDirection: 'trust' },
       { id: 'offer_help', text: '帮忙整理药袋。', response: '药袋被重新分好格，对方看你的眼神明显柔和许多。', affinityChange: 18, relationshipTag: 'friend', relationshipDirection: 'trust' },
       { id: 'keep_distance', text: '只问是否需要买草药。', response: '对方点点头，把需求写得很清楚，没有多打扰。', affinityChange: 6, relationshipDirection: 'misunderstanding' }
+    ],
+    dialogueScenes: [
+      { id: 'healer_pet_daily', kind: 'daily', title: '爪印问诊', summary: '日常聊宠物胃口、牲畜脾性和温和喂食，偏向照料信任。', triggerHint: '宠物喂食、动物照料或普通聊天后出现。', relationshipDirection: 'trust' },
+      { id: 'healer_rain_shelter', kind: 'rain', title: '雨棚听诊', summary: '雨天一起听棚外动静，讨论潮湿天气对动物和草药的影响。', triggerHint: '雨天或潮湿季节来访时出现。', relationshipDirection: 'trust' },
+      { id: 'healer_night_search', kind: 'night', title: '夜里寻踪', summary: '夜访时追一串爪印，决定是陪她寻找还是劝她先休息。', triggerHint: '长住夜间事件或夜访扩展时出现。', relationshipDirection: 'ambiguity' }
     ],
     smallOrder: {
       id: 'calm_pet_pouch',
@@ -155,6 +165,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'ask_article', text: '问他策论打算写什么。', response: '他立刻打开话匣子，说农桑与人情都比书上鲜活。', affinityChange: 12, relationshipTag: 'friend', relationshipDirection: 'family_impression' },
       { id: 'tease', text: '打趣他是不是把村口当考场。', response: '他咳了一声，说“迷路亦是游学之一”。', affinityChange: 7, relationshipTag: 'rival', relationshipDirection: 'misunderstanding' }
     ],
+    dialogueScenes: [
+      { id: 'scholar_misread_map', kind: 'misunderstanding', title: '地图拿反', summary: '误会和玩笑容易让他逞强，也可能把竞争感转成旧识话题。', triggerHint: '误会方向分较高或打趣选项后出现。', relationshipDirection: 'misunderstanding' },
+      { id: 'scholar_request_notes', kind: 'request', title: '热饭换见闻', summary: '求助整理村中农桑见闻，用米饭和茶换一段策论素材。', triggerHint: '小订单、求助或订单委托关联时出现。', relationshipDirection: 'family_impression' },
+      { id: 'scholar_farewell_exam', kind: 'farewell', title: '赶考临别', summary: '离村前谈赶考路、家书和是否把桃源写进策论。', triggerHint: '归档、长住阶段收束或离别事件时出现。', relationshipDirection: 'trust' }
+    ],
     smallOrder: {
       id: 'warm_meal_notes',
       title: '热饭换见闻',
@@ -204,6 +219,11 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       { id: 'repair_lantern', text: '递上竹篾帮她撑灯骨。', response: '她看你手法稳，立刻让出半张工作凳。', affinityChange: 17, relationshipTag: 'friend', relationshipDirection: 'trust' },
       { id: 'ask_old_style', text: '问这盏灯的旧样式。', response: '她讲起河湾旧节，语气里有一点不肯熄的亮。', affinityChange: 13, relationshipTag: 'acquaintance', relationshipDirection: 'family_impression' },
       { id: 'practical', text: '建议换新灯更省事。', response: '她笑着摇头，说有些旧东西修好才有来处。', affinityChange: 4, relationshipDirection: 'misunderstanding' }
+    ],
+    dialogueScenes: [
+      { id: 'lantern_festival_wall', kind: 'festival', title: '灯墙留名', summary: '节会前后聊旧灯、愿望和桃源灯墙的新署名。', triggerHint: '节会、花灯布置或长住手艺线出现。', relationshipDirection: 'family_impression' },
+      { id: 'lantern_request_frame', kind: 'request', title: '旧灯补骨', summary: '求助竹篾、木料或南瓜灯材，完成后可接到师门评价。', triggerHint: '小订单、加工材料或家族委托后出现。', relationshipDirection: 'trust' },
+      { id: 'lantern_reunion_old_style', kind: 'reunion', title: '旧样重修', summary: '久别重逢时重提未完旧灯样，确认彼此是否仍愿意修下去。', triggerHint: '旧日召回、节会重逢或长住回归后出现。', relationshipDirection: 'ambiguity' }
     ],
     smallOrder: {
       id: 'old_lantern_frame',

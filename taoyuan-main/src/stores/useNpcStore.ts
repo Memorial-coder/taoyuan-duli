@@ -28,6 +28,7 @@ import type {
   RandomNpcAcquaintanceEntry,
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
+  RandomNpcDialogueSceneDef,
   RandomNpcDialogueMemoryEntry,
   RandomNpcFamilyBusinessEntry,
   RandomNpcFamilyCommissionDef,
@@ -409,7 +410,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
   const randomNpcBoard = ref<RandomNpcBoardState>({
-    version: 7,
+    version: 8,
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
@@ -641,6 +642,45 @@ export const useNpcStore = defineStore('npc', () => {
         }
       })
       .slice(-limit)
+
+  const sanitizeRandomNpcDialogueScenes = (
+    raw: unknown,
+    fallback: RandomNpcDialogueSceneDef[] = []
+  ): RandomNpcDialogueSceneDef[] => {
+    const source = Array.isArray(raw) && raw.length > 0 ? raw : fallback
+    return source
+      .filter((entry: unknown): entry is Partial<RandomNpcDialogueSceneDef> => !!entry && typeof entry === 'object')
+      .map((entry, index): RandomNpcDialogueSceneDef => {
+        const kind: RandomNpcDialogueSceneDef['kind'] =
+          entry.kind === 'daily' ||
+          entry.kind === 'gift' ||
+          entry.kind === 'request' ||
+          entry.kind === 'misunderstanding' ||
+          entry.kind === 'festival' ||
+          entry.kind === 'rain' ||
+          entry.kind === 'night' ||
+          entry.kind === 'farewell' ||
+          entry.kind === 'reunion'
+            ? entry.kind
+            : 'first_meeting'
+        const relationshipDirection: RandomNpcRelationshipDirection | undefined =
+          entry.relationshipDirection === 'ambiguity' ||
+          entry.relationshipDirection === 'misunderstanding' ||
+          entry.relationshipDirection === 'family_impression' ||
+          entry.relationshipDirection === 'trust'
+            ? entry.relationshipDirection
+            : undefined
+        return {
+          id: typeof entry.id === 'string' && entry.id ? entry.id : `${kind}:${index}`,
+          kind,
+          title: typeof entry.title === 'string' && entry.title ? entry.title : '日常闲谈',
+          summary: typeof entry.summary === 'string' && entry.summary ? entry.summary : '保留为随机 NPC 的轻量对话场景。',
+          triggerHint: typeof entry.triggerHint === 'string' && entry.triggerHint ? entry.triggerHint : '普通互动后出现。',
+          relationshipDirection
+        }
+      })
+      .slice(0, 4)
+  }
 
   const sanitizeRandomNpcFamilyTies = (raw: unknown, fallback: RandomNpcFamilyTieDef[] = []): RandomNpcFamilyTieDef[] => {
     const source = Array.isArray(raw) && raw.length > 0 ? raw : fallback
@@ -1029,6 +1069,7 @@ export const useNpcStore = defineStore('npc', () => {
       },
       dialogueOpening: template.dialogueOpening,
       dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
+      dialogueScenes: sanitizeRandomNpcDialogueScenes(template.dialogueScenes),
       smallOrder: {
         ...template.smallOrder,
         requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
@@ -1096,6 +1137,7 @@ export const useNpcStore = defineStore('npc', () => {
       },
       dialogueOpening: template.dialogueOpening,
       dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
+      dialogueScenes: sanitizeRandomNpcDialogueScenes(template.dialogueScenes),
       smallOrder: {
         ...template.smallOrder,
         requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
@@ -1150,6 +1192,7 @@ export const useNpcStore = defineStore('npc', () => {
         liked: [...template.preferences.liked],
         disliked: [...template.preferences.disliked]
       },
+      dialogueScenes: sanitizeRandomNpcDialogueScenes(template.dialogueScenes),
       smallOrder: {
         ...template.smallOrder,
         requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
@@ -1405,6 +1448,7 @@ export const useNpcStore = defineStore('npc', () => {
       liked: [...visitor.preferences.liked],
       disliked: [...visitor.preferences.disliked]
     },
+    dialogueScenes: sanitizeRandomNpcDialogueScenes(visitor.dialogueScenes),
     smallOrder: {
       ...visitor.smallOrder,
       requestedItems: visitor.smallOrder.requestedItems.map(item => ({ ...item }))
@@ -1453,6 +1497,7 @@ export const useNpcStore = defineStore('npc', () => {
         liked: [...template.preferences.liked],
         disliked: [...template.preferences.disliked]
       },
+      dialogueScenes: sanitizeRandomNpcDialogueScenes(acquaintance.dialogueScenes, template.dialogueScenes),
       smallOrder: {
         ...template.smallOrder,
         requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
@@ -5169,7 +5214,7 @@ export const useNpcStore = defineStore('npc', () => {
       const raw = (data as any).randomNpcBoard
       if (!raw || typeof raw !== 'object') {
         return {
-          version: 7,
+          version: 8,
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
@@ -5218,6 +5263,7 @@ export const useNpcStore = defineStore('npc', () => {
             },
             dialogueOpening: template.dialogueOpening,
             dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
+            dialogueScenes: sanitizeRandomNpcDialogueScenes(visitor.dialogueScenes, template.dialogueScenes),
             smallOrder: {
               ...template.smallOrder,
               requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
@@ -5239,7 +5285,7 @@ export const useNpcStore = defineStore('npc', () => {
         })
       const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
       return {
-        version: Math.max(7, Number(raw.version) || 1),
+        version: Math.max(8, Number(raw.version) || 1),
         lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
         activeVisitors,
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)
@@ -5276,6 +5322,7 @@ export const useNpcStore = defineStore('npc', () => {
                   liked: [...template.preferences.liked],
                   disliked: [...template.preferences.disliked]
                 },
+                dialogueScenes: sanitizeRandomNpcDialogueScenes(entry.dialogueScenes, template.dialogueScenes),
                 smallOrder: {
                   ...template.smallOrder,
                   requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
@@ -5344,6 +5391,7 @@ export const useNpcStore = defineStore('npc', () => {
                   liked: [...template.preferences.liked],
                   disliked: [...template.preferences.disliked]
                 },
+                dialogueScenes: sanitizeRandomNpcDialogueScenes(entry.dialogueScenes, template.dialogueScenes),
                 smallOrder: {
                   ...template.smallOrder,
                   requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))

@@ -271,6 +271,27 @@ export interface RandomNpcDialogueChoiceDef {
   relationshipDirection?: RandomNpcRelationshipDirection
 }
 
+export type RandomNpcDialogueSceneKind =
+  | 'first_meeting'
+  | 'daily'
+  | 'gift'
+  | 'request'
+  | 'misunderstanding'
+  | 'festival'
+  | 'rain'
+  | 'night'
+  | 'farewell'
+  | 'reunion'
+
+export interface RandomNpcDialogueSceneDef {
+  id: string
+  kind: RandomNpcDialogueSceneKind
+  title: string
+  summary: string
+  triggerHint: string
+  relationshipDirection?: RandomNpcRelationshipDirection
+}
+
 export interface RandomNpcSmallOrderDef {
   id: string
   title: string
@@ -325,6 +346,7 @@ export interface RandomNpcTemplate {
   }
   dialogueOpening: string
   dialogueChoices: RandomNpcDialogueChoiceDef[]
+  dialogueScenes: RandomNpcDialogueSceneDef[]
   smallOrder: RandomNpcSmallOrderDef
 }
 
@@ -350,6 +372,7 @@ export interface RandomNpcVisitorState {
   preferences: RandomNpcTemplate['preferences']
   dialogueOpening: string
   dialogueChoices: RandomNpcDialogueChoiceDef[]
+  dialogueScenes: RandomNpcDialogueSceneDef[]
   smallOrder: RandomNpcSmallOrderDef
   smallOrderCompleted?: boolean
   locked?: boolean
@@ -401,6 +424,7 @@ export interface RandomNpcAcquaintanceEntry {
   plotHook: string
   familySeed: string
   preferences: RandomNpcTemplate['preferences']
+  dialogueScenes: RandomNpcDialogueSceneDef[]
   smallOrder: RandomNpcSmallOrderDef
   smallOrderCompleted?: boolean
   relationshipTag: RandomNpcRelationshipTag
@@ -456,6 +480,7 @@ export interface RandomNpcLongStayEntry {
   familyTies: RandomNpcFamilyTieDef[]
   familyLine: RandomNpcFamilyLineState
   preferences: RandomNpcTemplate['preferences']
+  dialogueScenes: RandomNpcDialogueSceneDef[]
   smallOrder: RandomNpcSmallOrderDef
   smallOrderCompleted?: boolean
   relationshipTag: RandomNpcRelationshipTag
