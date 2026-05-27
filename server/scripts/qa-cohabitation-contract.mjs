@@ -1569,6 +1569,51 @@ assert.equal(sharedWorkshopVegetableSoupOriginAsset?.item_id, 'food_vegetable_so
 assert.equal(sharedWorkshopVegetableSoupOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared vegetable soup origin should be high-quality protected')
 assert.equal(sharedWorkshopVegetableSoupOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared vegetable soup origin should keep cooking process kind')
 await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'rice',
+  quantity: 2,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_rice_flour_roll_rice_deposit',
+  idempotencyKey: 'qa-shared-rice-flour-roll-rice-deposit',
+  sourceSaveId: 123456760,
+})
+const sharedWorkshopRiceFlourProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_rice_flour',
+  memo: 'qa process shared rice flour for cooking chain',
+  idempotency_key: 'qa-shared-workshop-rice-flour-for-roll',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopRiceFlourProcess.recipe.output_item_id, 'rice_flour', 'shared rice flour should output rice flour')
+assert.equal(sharedWorkshopRiceFlourProcess.workshop_action.station, 'stone_mill', 'shared rice flour should use stone mill station')
+assert.equal(sharedWorkshopRiceFlourProcess.workshop_action.process_kind, 'cooking_material', 'shared rice flour should be classified as cooking material')
+assert.equal(sharedWorkshopRiceFlourProcess.ledger_entry.quality, 'fine', 'shared rice flour should inherit cooperation quality bonus')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'dried_radish',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_rice_flour_roll_dried_radish_deposit',
+  idempotencyKey: 'qa-shared-rice-flour-roll-dried-radish-deposit',
+  sourceSaveId: 123456761,
+})
+const sharedWorkshopRiceFlourRollProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+  recipe_id: 'shared_rice_flour_roll',
+  memo: 'qa process shared rice flour roll',
+  idempotency_key: 'qa-shared-workshop-rice-flour-roll',
+}, actor(harvestOwner))
+assert.equal(sharedWorkshopRiceFlourRollProcess.recipe.output_item_id, 'food_rice_flour_roll', 'shared rice flour roll should output food item')
+assert.equal(sharedWorkshopRiceFlourRollProcess.workshop_action.station, 'stove', 'shared rice flour roll should use stove station')
+assert.equal(sharedWorkshopRiceFlourRollProcess.workshop_action.process_kind, 'cooking_dish', 'shared rice flour roll should keep cooking process kind')
+assert.equal(sharedWorkshopRiceFlourRollProcess.warehouse.items.find(item => item.item_id === 'food_rice_flour_roll')?.quantity, 1, 'shared rice flour roll should enter shared warehouse')
+assert.equal(sharedWorkshopRiceFlourRollProcess.ledger_entry.quality, 'fine', 'shared rice flour roll cooperation should upgrade dish quality')
+const sharedRiceFlourRollConsume = sharedWorkshopRiceFlourRollProcess.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'rice_flour')
+assert.equal(sharedRiceFlourRollConsume?.quality, 'fine', 'shared rice flour roll should consume upgraded rice flour')
+assert.ok(sharedRiceFlourRollConsume?.source_ledger_ids.includes(sharedWorkshopRiceFlourProcess.ledger_entry.id), 'shared rice flour roll should trace rice flour material ledger')
+assert.ok(sharedWorkshopRiceFlourRollProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'dried_radish'), 'shared rice flour roll should consume dried radish')
+const sharedWorkshopRiceFlourRollOriginAsset = sharedWorkshopRiceFlourRollProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopRiceFlourRollProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopRiceFlourRollOriginAsset?.item_id, 'food_rice_flour_roll', 'shared rice flour roll origin asset should use food item id')
+assert.equal(sharedWorkshopRiceFlourRollOriginAsset?.withdrawal_risk_level, 'high_quality', 'shared rice flour roll origin should be high-quality protected')
+assert.equal(sharedWorkshopRiceFlourRollOriginAsset?.simultaneous_online_bonus?.process_kind, 'cooking_dish', 'shared rice flour roll origin should keep cooking process kind')
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
   itemId: 'lotus_seed',
   quantity: 2,
   quality: 'normal',
