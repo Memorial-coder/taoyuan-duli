@@ -50,6 +50,7 @@ utilitySources.set('components/game/online/VisualTrackBoard.vue', await readFile
 utilitySources.set('components/game/online/OnlineVisualRoomShell.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineVisualRoomShell.vue'), 'utf8'))
 utilitySources.set('components/game/online/OnlineOrderStoryFlowPanel.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineOrderStoryFlowPanel.vue'), 'utf8'))
 utilitySources.set('types/onlineVisual.ts', await readFile(path.join(srcRoot, 'types', 'onlineVisual.ts'), 'utf8'))
+utilitySources.set('scripts/qa-mobile-ui-smoke.mjs', await readFile(path.join(repoRoot, 'scripts', 'qa-mobile-ui-smoke.mjs'), 'utf8'))
 
 const getFile = (relativePath) => files.get(relativePath) ?? utilitySources.get(relativePath) ?? ''
 
@@ -121,6 +122,11 @@ expectContains('online/OnlineManorView.vue', 'online-manor-visitor-dispute-summa
 expectContains('online/OnlineManorView.vue', 'visitorActivityKindBadgeClass', '庄园访客行为审计应区分来访 / 照料 / 轻采 / 护理房类型')
 expectContains('utils/onlineProfileApi.ts', '/api/taoyuan/online/manor/care-rooms', '庄园 API 应接入协作护理房间创建接口')
 expectContains('utils/onlineProfileApi.ts', 'submitManorCareRoomAction', '庄园 API 应导出协作护理动作方法')
+expectContains('scripts/qa-mobile-ui-smoke.mjs', 'prepareOnlineManorCareRoomMobile', '移动端 smoke 应保留在线庄园协作护理房浏览器路径')
+expectContains('scripts/qa-mobile-ui-smoke.mjs', '30-online-manor-care-room-mobile-390x844', '移动端 smoke 应覆盖 390x844 护理房视口')
+expectContains('scripts/qa-mobile-ui-smoke.mjs', '31-online-manor-care-room-mobile-360x780', '移动端 smoke 应覆盖 360x780 护理房视口')
+expectContains('scripts/qa-mobile-ui-smoke.mjs', 'mobile-smoke-care-room-settlement', '移动端 smoke 应断言护理房结算凭证回看')
+expectContains('scripts/qa-mobile-ui-smoke.mjs', 'online-manor-care-room-record-actions', '移动端 smoke 应断言护理房动作明细回看')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineManorView.vue', /overflow-y-auto/g, 3, '庄园长列表应保留滚动边界')
 
 expectContains('online/OnlineCohabitationView.vue', '<OnlineModuleShell', '共同庄园子页应继续使用在线模块壳')
