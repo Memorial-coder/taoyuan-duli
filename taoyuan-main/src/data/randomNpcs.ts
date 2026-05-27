@@ -6,6 +6,7 @@ export const RANDOM_NPC_VISITOR_CONFIG = {
   maxLockedArchives: 3,
   maxAcquaintances: 12,
   maxLongStayResidents: 3,
+  acquaintanceColdArchiveDays: 28,
   acquaintanceAffinityThreshold: 40,
   longStayAffinityThreshold: 70
 } as const
