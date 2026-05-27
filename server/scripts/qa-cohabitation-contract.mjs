@@ -717,18 +717,33 @@ assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalPet, 'permission-denied shared animal pet should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalPet, 'permission-denied shared animal pet should not rewrite partner save')
 
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    animal: { pet: true },
+  },
+  idempotency_key: 'qa-enable-partner-shared-animal-pet',
+}, actor(owner))
 const sharedAnimalPetResult = await runtime.petCohabitationSharedAnimal(created.contract.id, {
   animal_id: qaSharedAnimal.id,
   memo: 'qa shared animal pet',
   idempotency_key: 'qa-shared-animal-pet-cow',
-}, actor(owner))
+}, actor(partner))
 assert.equal(sharedAnimalPetResult.idempotent, false, 'first shared animal pet should not be idempotent')
 assert.equal(sharedAnimalPetResult.animal.animal_state.was_petted, true, 'shared animal pet should mark animal petted')
 assert.equal(sharedAnimalPetResult.animal.animal_state.friendship, 102, 'shared animal pet should increase contract animal friendship')
-assert.equal(sharedAnimalPetResult.animal.animal_state.mood, 125, 'shared animal pet should increase contract animal mood')
-assert.equal(sharedAnimalPetResult.animal.current_keeper_username, owner, 'shared animal pet should record current keeper')
+assert.equal(sharedAnimalPetResult.animal.animal_state.mood, 128, 'shared animal pet should apply base mood and same-time feed/pet cooperation mood bonus')
+assert.equal(sharedAnimalPetResult.animal.animal_state.cooperation_mood_bonus, 3, 'shared animal pet should persist cooperation mood bonus')
+assert.equal(sharedAnimalPetResult.animal.animal_state.last_cooperation_bonus_action, 'shared_animal_feed_pet', 'shared animal pet should record cooperation bonus action')
+assert.equal(sharedAnimalPetResult.animal.animal_state.last_cooperation_feed_actor_username, owner, 'shared animal pet should record the feed actor for cooperation bonus')
+assert.ok(sharedAnimalPetResult.animal.animal_state.last_cooperation_bonus_members.includes(owner), 'shared animal pet bonus should record the recently active feed actor')
+assert.ok(sharedAnimalPetResult.animal.animal_state.last_cooperation_bonus_members.includes(partner), 'shared animal pet bonus should record the recently active pet actor')
+assert.equal(sharedAnimalPetResult.animal.current_keeper_username, partner, 'shared animal pet should record current keeper')
 assert.equal(sharedAnimalPetResult.ledger_entry.action, 'pet', 'shared animal ledger should record pet action')
 assert.equal(sharedAnimalPetResult.ledger_entry.shared_warehouse_changed, false, 'shared animal pet ledger should not declare warehouse consumption')
+assert.equal(sharedAnimalPetResult.ledger_entry.simultaneous_online_bonus.applied, true, 'shared animal pet ledger should record applied simultaneous online bonus')
+assert.equal(sharedAnimalPetResult.ledger_entry.simultaneous_online_bonus.bonus_value, 3, 'shared animal pet ledger should record cooperation mood bonus value')
+assert.equal(sharedAnimalPetResult.ledger_entry.simultaneous_online_bonus.feed_actor_username, owner, 'shared animal pet ledger should record feed actor')
 assert.equal(sharedAnimalPetResult.warehouse_ledger_entries.length, 0, 'shared animal pet should not create warehouse ledger')
 assert.equal(sharedAnimalPetResult.shared_animals.summary.petted_count, 1, 'shared animal pet should refresh petted summary')
 assert.equal(sharedAnimalPetResult.shared_animals.summary.pettable_count, 0, 'shared animal pet should refresh pettable summary')
@@ -737,13 +752,14 @@ assert.ok(sharedAnimalPetResult.contract.origin_assets.animals.some(item => item
 assert.ok(sharedAnimalPetResult.contract.audit_log.find(entry => entry.action === 'shared_animal_petted'), 'shared animal pet should be audited')
 assert.equal(sharedAnimalPetResult.animal_action.personal_save_changed, false, 'shared animal pet should not mutate personal saves')
 assert.equal(sharedAnimalPetResult.animal_action.shared_warehouse_changed, false, 'shared animal pet should not mutate shared warehouse')
+assert.equal(sharedAnimalPetResult.animal_action.simultaneous_online_bonus.applied, true, 'shared animal pet response should expose the applied simultaneous online bonus')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalPet, 'shared animal pet should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalPet, 'shared animal pet should not rewrite partner save')
 
 const duplicateSharedAnimalPet = await runtime.petCohabitationSharedAnimal(created.contract.id, {
   animal_id: qaSharedAnimal.id,
   idempotency_key: 'qa-shared-animal-pet-cow',
-}, actor(owner))
+}, actor(partner))
 assert.equal(duplicateSharedAnimalPet.idempotent, true, 'same shared animal pet idempotency key should be idempotent')
 assert.equal(duplicateSharedAnimalPet.shared_animals.summary.animal_action_ledger_count, sharedAnimalPetResult.shared_animals.summary.animal_action_ledger_count, 'idempotent shared animal pet should not duplicate animal ledger rows')
 assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, warehouseBeforeSharedAnimalPet.warehouse.summary.total_quantity, 'idempotent shared animal pet should not change shared warehouse')
@@ -751,7 +767,7 @@ assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(
 await runtime.updateCohabitationPermissions(created.contract.id, {
   target_username: partner,
   permissions: {
-    animal: { collect_product: false },
+    animal: { collect_product: false, pet: false },
   },
   idempotency_key: 'qa-disable-partner-shared-animal-product',
 }, actor(owner))
@@ -1859,7 +1875,9 @@ assert.equal(offlineStatus.offline_status.summary.independent_operations_enabled
 assert.equal(offlineStatus.offline_status.summary.shared_farm_offline_writes_enabled, true, 'offline status should expose shared farm writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.shared_animal_offline_writes_enabled, true, 'offline status should expose shared animal writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_bonus_enabled, true, 'offline status should expose same-time online farm water bonus readiness')
+assert.equal(offlineStatus.offline_status.summary.simultaneous_online_animal_bonus_enabled, true, 'offline status should expose same-time animal care bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.farm_water_health_bonus_enabled, true, 'offline status should expose farm water cooperation bonus readiness')
+assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.animal_feed_pet_mood_bonus_enabled, true, 'offline status should expose animal feed/pet cooperation bonus readiness')
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.recent_member_count, 2, 'offline status should count both recently active members for cooperation bonus')
 assert.equal(offlineStatus.offline_status.summary.auto_offline_income_enabled, false, 'first pass should not enable offline auto income')
 assert.ok(offlineStatus.offline_status.members.find(member => member.username === owner)?.last_active_at > 0, 'offline status should expose owner last active time')

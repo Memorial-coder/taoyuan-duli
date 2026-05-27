@@ -38,6 +38,7 @@ const SHARED_ANIMAL_LEDGER_LIMIT = 120;
 const SHARED_ANIMAL_LIMIT = 80;
 const COHABITATION_RECENT_ONLINE_SECONDS = 15 * 60;
 const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
+const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
@@ -1555,6 +1556,27 @@ function normalizeAnimalActionLedgerEntry(entry = {}) {
     source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
     before_animal_state: entry.before_animal_state && typeof entry.before_animal_state === 'object' ? entry.before_animal_state : {},
     after_animal_state: entry.after_animal_state && typeof entry.after_animal_state === 'object' ? entry.after_animal_state : {},
+    simultaneous_online_bonus: entry.simultaneous_online_bonus && typeof entry.simultaneous_online_bonus === 'object'
+      ? {
+          applied: entry.simultaneous_online_bonus.applied === true,
+          type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
+          bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
+          recent_member_count: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.recent_member_count) || 0)),
+          recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
+            ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+            : [],
+          feed_actor_username: normalizeUsername(entry.simultaneous_online_bonus.feed_actor_username),
+          policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
+        }
+      : {
+          applied: false,
+          type: '',
+          bonus_value: 0,
+          recent_member_count: 0,
+          recent_member_usernames: [],
+          feed_actor_username: '',
+          policy: '',
+        },
     permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     at: Math.max(0, Math.floor(Number(entry.at) || Number(entry.created_at) || nowSeconds())),
@@ -1745,6 +1767,13 @@ function summarizeAnimal(animal = {}) {
     was_fed: animal.wasFed === true || animal.was_fed === true,
     fed_with: normalizeWarehouseItemId(animal.fedWith ?? animal.fed_with),
     was_petted: animal.wasPetted === true || animal.was_petted === true,
+    cooperation_mood_bonus: Math.max(0, Math.floor(Number(animal.cooperationMoodBonus ?? animal.cooperation_mood_bonus) || 0)),
+    last_cooperation_bonus_at: Math.max(0, Math.floor(Number(animal.lastCooperationBonusAt ?? animal.last_cooperation_bonus_at) || 0)),
+    last_cooperation_bonus_action: sanitizeText(animal.lastCooperationBonusAction ?? animal.last_cooperation_bonus_action, 80),
+    last_cooperation_bonus_members: Array.isArray(animal.lastCooperationBonusMembers ?? animal.last_cooperation_bonus_members)
+      ? (animal.lastCooperationBonusMembers ?? animal.last_cooperation_bonus_members).map(normalizeUsername).filter(Boolean).slice(0, 8)
+      : [],
+    last_cooperation_feed_actor_username: normalizeUsername(animal.lastCooperationFeedActorUsername ?? animal.last_cooperation_feed_actor_username),
     hunger: Math.max(0, Math.floor(Number(animal.hunger) || 0)),
     sick: animal.sick === true,
     sick_days: Math.max(0, Math.floor(Number(animal.sickDays ?? animal.sick_days) || 0)),
@@ -4924,6 +4953,7 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
   return {
     action: sanitizeText(action, 80),
     farm_water_health_bonus_enabled: farmWaterEnabled,
+    animal_feed_pet_mood_bonus_enabled: contract.status === 'active' && recentMembers.length >= 2,
     applied: farmWaterEnabled && action === 'shared_farm_water',
     bonus_value: farmWaterEnabled && action === 'shared_farm_water' ? SHARED_FARM_WATER_COOP_HEALTH_BONUS : 0,
     recent_member_count: recentMembers.length,
@@ -4933,6 +4963,31 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     personal_save_changed: false,
     shared_fund_changed: false,
     shared_warehouse_changed: false,
+  };
+}
+
+function buildSharedAnimalCareCoopBonusSnapshot(contract = {}, actorUsername = '', animal = {}) {
+  const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_animal_pet');
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const feedEntry = normalizeAnimalActionLedger(contract.shared_animal_ledger).find(entry =>
+    entry.action === 'feed'
+    && entry.status === 'committed'
+    && entry.animal_id === sanitizeText(animal.id || animal.shared_animal_id, 140)
+  );
+  const feedActorKey = normalizeUsernameKey(feedEntry?.actor_key || feedEntry?.actor_username);
+  const applied = base.animal_feed_pet_mood_bonus_enabled === true
+    && !!feedEntry
+    && !!actorKey
+    && !!feedActorKey
+    && feedActorKey !== actorKey;
+  return {
+    ...base,
+    action: 'shared_animal_pet',
+    applied,
+    type: 'shared_animal_feed_pet_mood',
+    bonus_value: applied ? SHARED_ANIMAL_CARE_COOP_MOOD_BONUS : 0,
+    feed_actor_username: feedEntry?.actor_username || '',
+    feed_ledger_id: feedEntry?.id || '',
   };
 }
 
@@ -4971,6 +5026,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_farm_offline_writes_enabled: true,
       shared_animal_offline_writes_enabled: true,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
+      simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
       simultaneous_online_bonus_policy: simultaneousOnlineBonus.policy,
       auto_offline_income_enabled: false,
       conflict_policy: '共同庄园第一版以服务端契约、仓库、基金和审计日志为准；离线自动收益与客户端本地合并暂不开放。',
@@ -10155,12 +10211,18 @@ async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {})
   const operatedAt = nowSeconds();
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const simultaneousOnlineBonus = buildSharedAnimalCareCoopBonusSnapshot(contract, actorUsername, animal);
   const beforeState = { ...animalState };
   const afterState = {
     ...animalState,
     was_petted: true,
     friendship: Math.max(0, Math.min(999, Math.floor(Number(animalState.friendship) || 0) + 2)),
-    mood: Math.max(0, Math.min(999, Math.floor(Number(animalState.mood) || 0) + 5)),
+    mood: Math.max(0, Math.min(999, Math.floor(Number(animalState.mood) || 0) + 5 + simultaneousOnlineBonus.bonus_value)),
+    cooperation_mood_bonus: Math.max(0, Math.floor(Number(animalState.cooperation_mood_bonus) || 0)) + simultaneousOnlineBonus.bonus_value,
+    last_cooperation_bonus_at: simultaneousOnlineBonus.applied ? operatedAt : Math.max(0, Math.floor(Number(animalState.last_cooperation_bonus_at) || 0)),
+    last_cooperation_bonus_action: simultaneousOnlineBonus.applied ? 'shared_animal_feed_pet' : sanitizeText(animalState.last_cooperation_bonus_action, 80),
+    last_cooperation_bonus_members: simultaneousOnlineBonus.applied ? simultaneousOnlineBonus.recent_member_usernames : (Array.isArray(animalState.last_cooperation_bonus_members) ? animalState.last_cooperation_bonus_members : []),
+    last_cooperation_feed_actor_username: simultaneousOnlineBonus.applied ? simultaneousOnlineBonus.feed_actor_username : normalizeUsername(animalState.last_cooperation_feed_actor_username),
   };
   const nextAnimal = {
     ...animal,
@@ -10193,6 +10255,15 @@ async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {})
     source_save_revision: animal.source_save_revision,
     before_animal_state: beforeState,
     after_animal_state: afterState,
+    simultaneous_online_bonus: {
+      applied: simultaneousOnlineBonus.applied,
+      type: simultaneousOnlineBonus.type,
+      bonus_value: simultaneousOnlineBonus.bonus_value,
+      recent_member_count: simultaneousOnlineBonus.recent_member_count,
+      recent_member_usernames: simultaneousOnlineBonus.recent_member_usernames,
+      feed_actor_username: simultaneousOnlineBonus.feed_actor_username,
+      policy: simultaneousOnlineBonus.policy,
+    },
     permission_mode: animal.permission_mode,
     idempotency_key: request.idempotency_key,
     at: operatedAt,
@@ -10239,6 +10310,7 @@ async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {})
     origin_owner_username: animal.origin_owner_username,
     actor_username: actorUsername,
     permission_mode: animal.permission_mode,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     personal_save_changed: false,
     shared_warehouse_changed: false,
     shared_fund_changed: false,
@@ -10258,6 +10330,7 @@ async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {})
       animal_id: animal.id,
       before_animal_state: beforeState,
       after_animal_state: afterState,
+      simultaneous_online_bonus: simultaneousOnlineBonus,
       personal_save_changed: false,
       shared_warehouse_changed: false,
       shared_fund_changed: false,
