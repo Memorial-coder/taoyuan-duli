@@ -1557,6 +1557,75 @@ const duplicateSharedWorkshopElixirProcess = await runtime.processCohabitationSh
 assert.equal(duplicateSharedWorkshopElixirProcess.idempotent, true, 'same shared alchemy process idempotency key should be idempotent')
 assert.equal(duplicateSharedWorkshopElixirProcess.warehouse.items.find(item => item.item_id === 'qingxin_lotus_elixir')?.quantity, 1, 'idempotent shared alchemy should not duplicate output')
 assert.equal(duplicateSharedWorkshopElixirProcess.workshop_action.success_rate_bonus_percent, 15, 'idempotent shared alchemy should retain success-rate bonus evidence')
+const sharedAlchemyResultCases = [
+  {
+    recipeId: 'shared_qingxin_lotus_partial',
+    resultKind: 'partial',
+    outputItemId: 'partial_elixir_slurry',
+    riskLevel: 'high_quality',
+  },
+  {
+    recipeId: 'shared_qingxin_lotus_failed',
+    resultKind: 'failed',
+    outputItemId: 'failed_elixir_ash',
+    riskLevel: 'high_quality',
+  },
+  {
+    recipeId: 'shared_qingxin_lotus_rare',
+    resultKind: 'rare',
+    outputItemId: 'rare_elixir_crystal',
+    riskLevel: 'rare',
+  },
+]
+for (const resultCase of sharedAlchemyResultCases) {
+  await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+    itemId: 'lotus_seed',
+    quantity: 2,
+    quality: 'normal',
+    sourceUsername: harvestPartner,
+    ledgerId: `qa_${resultCase.recipeId}_lotus_seed_deposit`,
+    idempotencyKey: `qa-${resultCase.recipeId}-lotus-seed-deposit`,
+    sourceSaveId: 123456784,
+  })
+  await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+    itemId: 'lotus_root',
+    quantity: 1,
+    quality: 'normal',
+    sourceUsername: harvestPartner,
+    ledgerId: `qa_${resultCase.recipeId}_lotus_root_deposit`,
+    idempotencyKey: `qa-${resultCase.recipeId}-lotus-root-deposit`,
+    sourceSaveId: 123456785,
+  })
+  await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+    itemId: 'herbal_paste',
+    quantity: 1,
+    quality: 'fine',
+    sourceUsername: harvestPartner,
+    ledgerId: `qa_${resultCase.recipeId}_herbal_paste_deposit`,
+    idempotencyKey: `qa-${resultCase.recipeId}-herbal-paste-deposit`,
+    sourceSaveId: 123456786,
+  })
+  const sharedAlchemyResultProcess = await runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
+    recipe_id: resultCase.recipeId,
+    memo: `qa process ${resultCase.recipeId}`,
+    idempotency_key: `qa-${resultCase.recipeId}-process`,
+  }, actor(harvestOwner))
+  assert.equal(sharedAlchemyResultProcess.recipe.output_item_id, resultCase.outputItemId, `shared alchemy ${resultCase.resultKind} should output expected item`)
+  assert.equal(sharedAlchemyResultProcess.workshop_action.process_kind, 'alchemy_elixir', `shared alchemy ${resultCase.resultKind} should use elixir process kind`)
+  assert.equal(sharedAlchemyResultProcess.workshop_action.alchemy_result_kind, resultCase.resultKind, `shared alchemy ${resultCase.resultKind} should expose result kind`)
+  assert.equal(sharedAlchemyResultProcess.workshop_action.success_rate_bonus_percent, 15, `shared alchemy ${resultCase.resultKind} should expose cooperation success rate bonus`)
+  assert.equal(sharedAlchemyResultProcess.ledger_entry.simultaneous_online_bonus?.type, 'shared_alchemy_success_rate', `shared alchemy ${resultCase.resultKind} should keep success rate bonus type`)
+  assert.equal(sharedAlchemyResultProcess.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `shared alchemy ${resultCase.resultKind} ledger should keep result kind`)
+  assert.equal(sharedAlchemyResultProcess.warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity, 1, `shared alchemy ${resultCase.resultKind} output should enter shared warehouse`)
+  assert.ok(sharedAlchemyResultProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'lotus_seed'), `shared alchemy ${resultCase.resultKind} should consume lotus seed`)
+  assert.ok(sharedAlchemyResultProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'lotus_root'), `shared alchemy ${resultCase.resultKind} should consume lotus root`)
+  assert.ok(sharedAlchemyResultProcess.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'herbal_paste' && entry.quality === 'fine'), `shared alchemy ${resultCase.resultKind} should consume fine herbal paste`)
+  const sharedAlchemyResultOriginAsset = sharedAlchemyResultProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedAlchemyResultProcess.ledger_entry.id && item.action === 'deposit')
+  assert.equal(sharedAlchemyResultOriginAsset?.item_id, resultCase.outputItemId, `shared alchemy ${resultCase.resultKind} origin asset should use expected item`)
+  assert.equal(sharedAlchemyResultOriginAsset?.withdrawal_risk_level, resultCase.riskLevel, `shared alchemy ${resultCase.resultKind} origin should keep withdrawal risk`)
+  assert.equal(sharedAlchemyResultOriginAsset?.high_value_withdrawal_required, true, `shared alchemy ${resultCase.resultKind} origin should require high-value withdrawal`)
+  assert.equal(sharedAlchemyResultOriginAsset?.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `shared alchemy ${resultCase.resultKind} origin should keep result kind`)
+}
 assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'shared workshop process should not rewrite harvest owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'shared workshop process should not rewrite harvest partner save')
 

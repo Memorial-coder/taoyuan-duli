@@ -283,6 +283,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quality: 'normal',
     alchemy_result_kind: 'success',
   },
+  shared_qingxin_lotus_partial: {
+    id: 'shared_qingxin_lotus_partial',
+    label: '共同丹炉清心偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'lotus_seed', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_root', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_qingxin_lotus_failed: {
+    id: 'shared_qingxin_lotus_failed',
+    label: '共同丹炉清心废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'lotus_seed', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_root', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_qingxin_lotus_rare: {
+    id: 'shared_qingxin_lotus_rare',
+    label: '共同丹炉清心奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'lotus_seed', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_root', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
 });
 
 const RELATION_TYPE_DEFS = Object.freeze({
