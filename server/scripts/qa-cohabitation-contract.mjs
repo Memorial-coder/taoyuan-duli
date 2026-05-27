@@ -3867,6 +3867,17 @@ assert.equal(
 assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'real build apply should not touch owner personal money')
 assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'real build apply should not touch partner personal money')
 
+const largePartnerConstructionPermission = await runtime.updateCohabitationPermissions(largeContract.contract.id, {
+  target_username: largePartner,
+  permissions: {
+    construction: {
+      buy_furniture: true,
+    },
+  },
+  idempotency_key: 'qa-large-partner-decoration-material-permission',
+}, actor(largeOwner))
+assert.equal(largePartnerConstructionPermission.permissions_panel.members.find(member => member.username === largePartner)?.permissions.construction.buy_furniture, true, 'partner should receive construction material consume permission for decoration cooperation')
+
 await assert.rejects(
   () => runtime.consumeCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
     building_ledger_id: largeExecute.building_ledger_entry.id,
@@ -3899,11 +3910,16 @@ const materialConsume = await runtime.consumeCohabitationFamilyBuildingMaterials
   building_ledger_id: largeExecute.building_ledger_entry.id,
   memo: 'qa consume family building materials',
   idempotency_key: 'qa-family-building-materials-consume',
-}, actor(largeOwner))
+}, actor(largePartner))
 assert.equal(materialConsume.idempotent, false, 'first family building material consume should not be idempotent')
 assert.equal(materialConsume.building_ledger_entry.id, realBuildApply.building_ledger_entry.id, 'material consume should update original building ledger')
 assert.equal(materialConsume.building_ledger_entry.shared_warehouse_materials_consumed, true, 'material consume should mark warehouse materials consumed')
 assert.equal(materialConsume.building_ledger_entry.materials_idempotency_key, 'qa-family-building-materials-consume', 'material consume should store idempotency key')
+assert.equal(materialConsume.building_ledger_entry.simultaneous_online_bonus.applied, true, 'material consume should record applied decoration cooperation bonus')
+assert.equal(materialConsume.building_ledger_entry.simultaneous_online_bonus.type, 'family_building_decoration_atmosphere', 'material consume should record decoration atmosphere bonus type')
+assert.equal(materialConsume.building_ledger_entry.simultaneous_online_bonus.applied_by_username, largeOwner, 'decoration cooperation bonus should record real build actor')
+assert.equal(materialConsume.building_ledger_entry.simultaneous_online_bonus.materials_actor_username, largePartner, 'decoration cooperation bonus should record material actor')
+assert.ok(materialConsume.building_ledger_entry.simultaneous_online_bonus.photo_moment_id, 'decoration cooperation bonus should generate a photo moment id')
 assert.equal(materialConsume.building_ledger_entry.material_consumptions.length, 2, 'material consume should store material consumption summary')
 assert.equal(materialConsume.material_ledger_entries.length, 2, 'material consume should write warehouse consume ledgers')
 assert.ok(materialConsume.material_ledger_entries.every(entry => entry.action === 'consume'), 'material consume should use warehouse consume action')
@@ -3912,6 +3928,7 @@ assert.ok(materialConsume.material_ledger_entries.some(entry => entry.item_id ==
 assert.equal(materialConsume.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'material consume should remove required wood from shared warehouse')
 assert.equal(materialConsume.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 0, 'material consume should remove required rice from shared warehouse')
 assert.equal(materialConsume.shared_warehouse.consumed_quantity, 40, 'material consume should report consumed quantity')
+assert.equal(materialConsume.shared_warehouse.simultaneous_online_bonus.applied, true, 'material consume response should expose decoration cooperation bonus')
 assert.equal(materialConsume.shared_fund.deducted_amount, 0, 'material consume should not deduct shared fund again')
 assert.equal(materialConsume.shared_fund.balance_after, balanceBeforeLargeDraft - 1300, 'material consume should preserve shared fund balance')
 assert.equal(materialConsume.family_buildings_panel.summary.warehouse_material_consumed_count, 1, 'family building panel should count material-consumed buildings')
@@ -3921,15 +3938,17 @@ assert.equal(
   'family building panel should mark material-consumed building state'
 )
 assert.ok(materialConsume.contract.audit_log.find(entry => entry.action === 'family_building_materials_consumed'), 'material consume should be audited')
+assert.equal(materialConsume.contract.audit_log.find(entry => entry.action === 'family_building_materials_consumed')?.detail?.simultaneous_online_bonus?.applied, true, 'material consume audit should record decoration cooperation bonus')
 assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'material consume should not touch owner personal money')
 assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'material consume should not touch partner personal money')
 
 const duplicateMaterialConsume = await runtime.consumeCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
   idempotency_key: 'qa-family-building-materials-consume',
-}, actor(largeOwner))
+}, actor(largePartner))
 assert.equal(duplicateMaterialConsume.idempotent, true, 'same material consume idempotency key should be idempotent')
 assert.equal(duplicateMaterialConsume.building_ledger_entry.shared_warehouse_materials_consumed, true, 'idempotent material consume should keep consumed flag')
+assert.equal(duplicateMaterialConsume.building_ledger_entry.simultaneous_online_bonus.applied, true, 'idempotent material consume should retain decoration cooperation evidence')
 assert.equal(duplicateMaterialConsume.material_ledger_entries.length, 2, 'idempotent material consume should return original consume ledgers')
 assert.equal(duplicateMaterialConsume.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'idempotent material consume should not restore or double-consume wood')
 

@@ -41,6 +41,7 @@ const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
 const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
 const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
 const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS = 1;
+const SHARED_DECORATION_COOP_ATMOSPHERE_BONUS = 1;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
@@ -2746,6 +2747,35 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
             : [],
         })).filter(item => item.item_id && item.quantity > 0).slice(0, 12)
       : [],
+    simultaneous_online_bonus: entry.simultaneous_online_bonus && typeof entry.simultaneous_online_bonus === 'object'
+      ? {
+          applied: entry.simultaneous_online_bonus.applied === true,
+          type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
+          bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
+          recent_member_count: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.recent_member_count) || 0)),
+          recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
+            ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+            : [],
+          applied_by_username: normalizeUsername(entry.simultaneous_online_bonus.applied_by_username),
+          materials_actor_username: normalizeUsername(entry.simultaneous_online_bonus.materials_actor_username),
+          building_ledger_id: sanitizeText(entry.simultaneous_online_bonus.building_ledger_id, 100),
+          family_atmosphere_event_id: sanitizeText(entry.simultaneous_online_bonus.family_atmosphere_event_id, 120),
+          photo_moment_id: sanitizeText(entry.simultaneous_online_bonus.photo_moment_id, 120),
+          policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
+        }
+      : {
+          applied: false,
+          type: '',
+          bonus_value: 0,
+          recent_member_count: 0,
+          recent_member_usernames: [],
+          applied_by_username: '',
+          materials_actor_username: '',
+          building_ledger_id: '',
+          family_atmosphere_event_id: '',
+          photo_moment_id: '',
+          policy: '',
+        },
     material_restorations: Array.isArray(entry.material_restorations)
       ? entry.material_restorations.map(item => ({
           item_id: normalizeWarehouseItemId(item?.item_id ?? item?.itemId),
@@ -5014,12 +5044,14 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
   const farmWaterEnabled = contract.status === 'active' && recentMembers.length >= 2;
   const farmPlantFertilizeEnabled = contract.status === 'active' && recentMembers.length >= 2;
   const orderConfirmEnabled = isFamilyRoleContractType(contract.type) && contract.status === 'active' && recentMembers.length >= 2;
+  const decorationEnabled = isFamilyRoleContractType(contract.type) && contract.status === 'active' && recentMembers.length >= 2;
   return {
     action: sanitizeText(action, 80),
     farm_water_health_bonus_enabled: farmWaterEnabled,
     farm_plant_fertilize_quality_bonus_enabled: farmPlantFertilizeEnabled,
     animal_feed_pet_mood_bonus_enabled: contract.status === 'active' && recentMembers.length >= 2,
     order_confirm_efficiency_bonus_enabled: orderConfirmEnabled,
+    family_building_decoration_atmosphere_enabled: decorationEnabled,
     applied: farmWaterEnabled && action === 'shared_farm_water',
     bonus_value: farmWaterEnabled && action === 'shared_farm_water' ? SHARED_FARM_WATER_COOP_HEALTH_BONUS : 0,
     recent_member_count: recentMembers.length,
@@ -5029,6 +5061,31 @@ function buildSimultaneousOnlineBonusSnapshot(contract = {}, actorUsername = '',
     personal_save_changed: false,
     shared_fund_changed: false,
     shared_warehouse_changed: false,
+  };
+}
+
+function buildFamilyBuildingDecorationCoopBonusSnapshot(contract = {}, actorUsername = '', buildingEntry = {}) {
+  const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'family_building_materials_consume');
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const appliedByUsername = normalizeUsername(buildingEntry.applied_by_username);
+  const appliedByKey = normalizeUsernameKey(appliedByUsername);
+  const buildingLedgerId = sanitizeText(buildingEntry.id, 100);
+  const applied = base.family_building_decoration_atmosphere_enabled === true
+    && buildingEntry.real_build_applied === true
+    && !!actorKey
+    && !!appliedByKey
+    && actorKey !== appliedByKey;
+  return {
+    ...base,
+    action: 'family_building_materials_consume',
+    applied,
+    type: 'family_building_decoration_atmosphere',
+    bonus_value: applied ? SHARED_DECORATION_COOP_ATMOSPHERE_BONUS : 0,
+    applied_by_username: appliedByUsername,
+    materials_actor_username: normalizeUsername(actorUsername),
+    building_ledger_id: buildingLedgerId,
+    family_atmosphere_event_id: applied ? `family_atmosphere:${buildingLedgerId}` : '',
+    photo_moment_id: applied ? `family_photo:${buildingLedgerId}` : '',
   };
 }
 
@@ -5143,6 +5200,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
       simultaneous_online_order_bonus_enabled: simultaneousOnlineBonus.order_confirm_efficiency_bonus_enabled,
+      simultaneous_online_decoration_bonus_enabled: simultaneousOnlineBonus.family_building_decoration_atmosphere_enabled,
       simultaneous_online_bonus_policy: simultaneousOnlineBonus.policy,
       auto_offline_income_enabled: false,
       conflict_policy: '共同庄园第一版以服务端契约、仓库、基金和审计日志为准；离线自动收益与客户端本地合并暂不开放。',
@@ -12997,6 +13055,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
       shared_warehouse: {
         consumed_quantity: 0,
         material_count: previousMaterialEntry.material_consumptions.length,
+        simultaneous_online_bonus: previousMaterialEntry.simultaneous_online_bonus,
         personal_inventory_merged: false,
       },
       shared_fund: {
@@ -13032,6 +13091,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
       shared_warehouse: {
         consumed_quantity: 0,
         material_count: targetEntry.material_consumptions.length,
+        simultaneous_online_bonus: targetEntry.simultaneous_online_bonus,
         personal_inventory_merged: false,
       },
       shared_fund: {
@@ -13058,6 +13118,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
   const operatedAt = nowSeconds();
   const roleDef = getFamilyManorRoleDef(actorManorRole);
   const targetRef = `family_building:${projectDefinition.id}:materials`;
+  const simultaneousOnlineBonus = buildFamilyBuildingDecorationCoopBonusSnapshot(contract, actorUsername, targetEntry);
   const materialLedgerEntries = materialAllocations.flatMap(({ plan, allocations }) =>
     allocations.map(allocation => normalizeWarehouseLedgerEntry({
       id: makeId('shared_warehouse_ledger'),
@@ -13102,6 +13163,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
     materials_consumed_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
     material_ledger_ids: materialLedgerEntries.map(entry => entry.id),
     material_consumptions: buildMaterialConsumptionSummary(projectDefinition, materialLedgerEntries),
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     compensation_hint: '家族建筑已完成真实落账并扣减共同仓库建材；若后续拆除、扩建或补偿失败，需按基金 ledger、材料 ledger 与建筑流水回滚或重放。',
     deferred_operations: [...new Set([
       ...(Array.isArray(targetEntry.deferred_operations) ? targetEntry.deferred_operations.filter(item => item !== 'consume_shared_building_materials') : []),
@@ -13140,6 +13202,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
     material_consumptions: nextEntry.material_consumptions,
     material_count: nextEntry.material_consumptions.length,
     consumed_quantity: nextEntry.material_consumptions.reduce((sum, item) => sum + item.quantity, 0),
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     shared_fund_deducted_again: false,
     personal_money_merged: false,
     personal_inventory_merged: false,
@@ -13159,6 +13222,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
     shared_warehouse: {
       consumed_quantity: nextEntry.material_consumptions.reduce((sum, item) => sum + item.quantity, 0),
       material_count: nextEntry.material_consumptions.length,
+      simultaneous_online_bonus: simultaneousOnlineBonus,
       personal_inventory_merged: false,
     },
     shared_fund: {
