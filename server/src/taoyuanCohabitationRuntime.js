@@ -15758,6 +15758,12 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     fund_groups: preview.asset_return.fund_contributions_by_origin_owner.length,
     decoration_groups: preview.asset_return.decorations_by_origin_owner.length,
     family_building_groups: preview.asset_return.family_buildings_by_origin_owner.length,
+    shared_decoration_removal_dispute_count: sharedDecorationRemovalDisputeFreeze.summary.pending_count,
+    shared_decoration_removal_dispute_amount: sharedDecorationRemovalDisputeFreeze.summary.total_amount,
+    shared_decoration_removal_freeze_required: sharedDecorationRemovalDisputeFreeze.summary.freeze_required,
+    shared_decoration_removal_fund_ledger_ids: sharedDecorationRemovalDisputeFreeze.summary.original_fund_ledger_ids,
+    shared_decoration_removal_target_refs: sharedDecorationRemovalDisputeFreeze.summary.target_refs,
+    shared_decoration_removal_freeze_status: sharedDecorationRemovalDisputeFreeze.policy.status,
     confirm_after_at: preview.confirm_after_at,
     requires_both_confirm: true,
   }, idempotencyKey);

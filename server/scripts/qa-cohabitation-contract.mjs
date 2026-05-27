@@ -6116,6 +6116,16 @@ assert.equal(decorationRemovalDisputes[0].draft_id, decorationRemovalDraft.draft
 assert.equal(decorationRemovalDisputes[0].target_ref, 'shared_decoration:tea_room_wall:remove', 'shared decoration removal dispute should keep target ref')
 assert.equal(decorationRemovalDisputes[0].amount, 1300, 'shared decoration removal dispute should keep frozen amount')
 assert.equal(decorationRemovalDisputes[0].original_fund_ledger_id, decorationRemovalExecute.ledger_entry.id, 'shared decoration removal dispute should keep original fund ledger id')
+const decorationRemovalPreviewAudit = decorationRemovalSeparationPreview.contract.audit_log.find(entry =>
+  entry.action === 'separation_preview_created' && entry.detail?.preview_id === decorationRemovalSeparationPreview.preview.id
+)
+assert.ok(decorationRemovalPreviewAudit, 'shared decoration removal dispute preview should write audit detail')
+assert.equal(decorationRemovalPreviewAudit.detail.shared_decoration_removal_dispute_count, 1, 'shared decoration removal dispute audit should include pending dispute count')
+assert.equal(decorationRemovalPreviewAudit.detail.shared_decoration_removal_dispute_amount, 1300, 'shared decoration removal dispute audit should include frozen amount')
+assert.equal(decorationRemovalPreviewAudit.detail.shared_decoration_removal_freeze_required, true, 'shared decoration removal dispute audit should flag freeze required')
+assert.deepEqual(decorationRemovalPreviewAudit.detail.shared_decoration_removal_fund_ledger_ids, [decorationRemovalExecute.ledger_entry.id], 'shared decoration removal dispute audit should include original fund ledger')
+assert.deepEqual(decorationRemovalPreviewAudit.detail.shared_decoration_removal_target_refs, ['shared_decoration:tea_room_wall:remove'], 'shared decoration removal dispute audit should include target refs')
+assert.equal(decorationRemovalPreviewAudit.detail.shared_decoration_removal_freeze_status, 'manual_receipt_required', 'shared decoration removal dispute audit should include freeze status')
 assert.equal(decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_freeze_summary.pending_count, 1, 'shared decoration removal freeze summary should count pending disputes')
 assert.equal(decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_freeze_summary.total_amount, 1300, 'shared decoration removal freeze summary should total pending amount')
 assert.equal(decorationRemovalSeparationPreview.preview.asset_return.shared_decoration_removal_freeze_policy.no_personal_home_mutation, true, 'shared decoration removal freeze should not mutate personal home')
@@ -6144,6 +6154,12 @@ const decorationRemovalClearedPreview = await runtime.createSeparationPreview(de
   idempotency_key: 'qa-shared-decoration-removal-cleared-preview',
 }, actor(decorationRemovalOwner))
 assert.deepEqual(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_disputes, [], 'refunded shared decoration removal should leave no pending dispute in a new separation preview')
+const decorationRemovalClearedPreviewAudit = decorationRemovalClearedPreview.contract.audit_log.find(entry =>
+  entry.action === 'separation_preview_created' && entry.detail?.preview_id === decorationRemovalClearedPreview.preview.id
+)
+assert.equal(decorationRemovalClearedPreviewAudit?.detail?.shared_decoration_removal_dispute_count, 0, 'refunded shared decoration removal preview audit should clear dispute count')
+assert.equal(decorationRemovalClearedPreviewAudit?.detail?.shared_decoration_removal_freeze_required, false, 'refunded shared decoration removal preview audit should clear freeze flag')
+assert.equal(decorationRemovalClearedPreviewAudit?.detail?.shared_decoration_removal_freeze_status, 'clear', 'refunded shared decoration removal preview audit should expose clear freeze status')
 assert.equal(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_freeze_summary.pending_count, 0, 'refunded shared decoration removal should clear pending dispute count')
 assert.equal(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_freeze_summary.freeze_required, false, 'refunded shared decoration removal should not require dispute freeze')
 assert.equal(decorationRemovalClearedPreview.preview.asset_return.shared_decoration_removal_freeze_policy.status, 'clear', 'refunded shared decoration removal should expose clear freeze policy')
