@@ -562,10 +562,22 @@ export type ChildStage = 'baby' | 'toddler' | 'child' | 'teen'
 
 export type ChildTrainingFocus = 'farm' | 'craft' | 'social' | 'spirit'
 
+export interface ChildTrainingInfluenceEntry {
+  id: string
+  dayTag: string
+  focus: ChildTrainingFocus
+  sourceResidentId: string
+  sourceName: string
+  summary: string
+}
+
 export interface ChildTrainingState {
   focus: ChildTrainingFocus | null
   lessonsThisWeek: number
   milestoneIds: string[]
+  familyInfluenceFocus: ChildTrainingFocus | null
+  familyInfluenceSource: string
+  familyInfluenceHistory: ChildTrainingInfluenceEntry[]
 }
 
 /** 子女状态 */

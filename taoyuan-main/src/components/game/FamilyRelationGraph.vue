@@ -131,7 +131,7 @@
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import type { RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcLongStayEntry, RandomNpcRelationshipTag } from '@/types'
+  import type { ChildTrainingFocus, RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcLongStayEntry, RandomNpcRelationshipTag } from '@/types'
 
   defineEmits<{
     (event: 'selectNpc', npcId: string): void
@@ -225,6 +225,13 @@
     child: '孩童',
     teen: '少年'
   } as const
+
+  const childTrainingFocusLabels: Record<ChildTrainingFocus, string> = {
+    farm: '农事',
+    craft: '手作',
+    social: '人情',
+    spirit: '灵性'
+  }
 
   const relationLinkClass = (kind: string) => {
     if (kind === 'spouse') return 'stroke-danger/80'
@@ -403,6 +410,8 @@
           selectableNpcId: entry.npcId
         })
       } else if (entry.kind === 'child') {
+        const childFocus = entry.child.trainingState.focus
+        const latestInfluence = entry.child.trainingState.familyInfluenceHistory[entry.child.trainingState.familyInfluenceHistory.length - 1]
         nodes.push({
           id: `child:${entry.child.id}`,
           name: entry.child.name,
@@ -412,7 +421,13 @@
           relationLabel: '孩子',
           metricLabel: `${entry.child.friendship} 亲密`,
           statusLabel: childStageLabels[entry.child.stage],
-          detailLines: [`成长方向：${entry.child.trainingState.focus ?? '未定'}；课程 ${entry.child.trainingState.lessonsThisWeek}/周。`],
+          detailLines: [
+            `成长方向：${childFocus ? childTrainingFocusLabels[childFocus] : '未定'}；课程 ${entry.child.trainingState.lessonsThisWeek}/周。`,
+            entry.child.trainingState.familyInfluenceSource
+              ? `家族影响：${entry.child.trainingState.familyInfluenceSource}引导${childFocus ? childTrainingFocusLabels[childFocus] : '兴趣'}。`
+              : '',
+            latestInfluence ? `最近记录：${latestInfluence.dayTag} · ${latestInfluence.summary}` : ''
+          ].filter(Boolean),
           tags: [entry.child.origin === 'adoption' ? '领养' : '出生', entry.child.birthQuality],
           x,
           y,

@@ -1141,7 +1141,10 @@ export const createDefaultFamilyWishBoardState = (): FamilyWishBoardState => ({
 export const createDefaultChildTrainingState = (): ChildTrainingState => ({
   focus: null,
   lessonsThisWeek: 0,
-  milestoneIds: []
+  milestoneIds: [],
+  familyInfluenceFocus: null,
+  familyInfluenceSource: '',
+  familyInfluenceHistory: []
 })
 
 export const WS09_ACCEPTANCE_SUMMARY = {

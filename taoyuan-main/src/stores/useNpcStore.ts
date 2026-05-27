@@ -11,6 +11,8 @@ import type {
   HeartEventDef,
   Quality,
   ChildState,
+  ChildTrainingFocus,
+  ChildTrainingInfluenceEntry,
   FamilyWishBoardState,
   HouseholdRoleId,
   HouseholdDivisionState,
@@ -111,6 +113,7 @@ const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
 const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
 const RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT = 4
+const CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT = 4
 const RANDOM_NPC_SHORT_ROMANCE_AFFINITY_REQUIREMENT = 45
 const RANDOM_NPC_SHORT_ROMANCE_AMBIGUITY_REQUIREMENT = 4
 const RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX = '后续约定：'
@@ -762,6 +765,40 @@ export const useNpcStore = defineStore('npc', () => {
     familyLine: RandomNpcFamilyLineState,
     entry: RandomNpcFamilyBusinessEntry
   ): RandomNpcFamilyBusinessEntry[] => [...familyLine.familyBusinessHistory, entry].slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+
+  const sanitizeChildTrainingInfluenceHistory = (raw: unknown): ChildTrainingInfluenceEntry[] =>
+    (Array.isArray(raw) ? raw : [])
+      .filter((entry: unknown): entry is Partial<ChildTrainingInfluenceEntry> => !!entry && typeof entry === 'object')
+      .map((entry, index): ChildTrainingInfluenceEntry => {
+        const focus: ChildTrainingFocus =
+          entry.focus === 'craft' || entry.focus === 'social' || entry.focus === 'spirit' || entry.focus === 'farm'
+            ? entry.focus
+            : 'social'
+        return {
+          id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? '旧日'}:family-influence:${index}`,
+          dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+          focus,
+          sourceResidentId: typeof entry.sourceResidentId === 'string' ? entry.sourceResidentId : '',
+          sourceName: typeof entry.sourceName === 'string' ? entry.sourceName : '家族成员',
+          summary: typeof entry.summary === 'string' ? entry.summary : '家族影响记录已保留。'
+        }
+      })
+      .slice(-CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT)
+
+  const getChildTrainingFocusLabel = (focus: ChildTrainingFocus): string => {
+    if (focus === 'craft') return '手作'
+    if (focus === 'social') return '人情'
+    if (focus === 'spirit') return '灵性'
+    return '农事'
+  }
+
+  const getRandomNpcFamilyInfluenceFocus = (resident: RandomNpcLongStayEntry): ChildTrainingFocus => {
+    if (resident.route === 'business' || resident.route === 'craft') return 'craft'
+    if (resident.route === 'caregiving') return 'social'
+    const hasMentorTie = resident.familyTies.some(tie => tie.kind === 'mentor' && resident.familyLine.metTieIds.includes(tie.id))
+    if (hasMentorTie && resident.familyLine.familyBusinessStage >= 2) return 'spirit'
+    return 'farm'
+  }
 
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string => {
     if (kind === 'romance') return '恋爱线'
@@ -2347,6 +2384,70 @@ export const useNpcStore = defineStore('npc', () => {
       return nextResident
     })
     return { success: true, message: summary, resident: nextResident ?? resident }
+  }
+
+  const canApplyRandomNpcFamilyInfluenceToChild = (
+    childId: number,
+    residentId: string
+  ): { success: boolean; message: string } => {
+    const child = children.value.find(entry => entry.id === childId)
+    if (!child) return { success: false, message: '找不到这个孩子。' }
+    if (child.stage === 'baby') return { success: false, message: '婴儿阶段还不能形成稳定兴趣。' }
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (line.kind !== 'romance' || line.commitmentStatus !== 'married') {
+      return { success: false, message: '需要先与这位随机 NPC 成婚。' }
+    }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '随机 NPC 模板缺失。' }
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    if (familyLine.familyBusinessStage <= 0 && familyLine.reputation < 70) {
+      return { success: false, message: '需要先推进婚后家业，或把家族评价提升到 70。' }
+    }
+    const focus = getRandomNpcFamilyInfluenceFocus({ ...resident, familyLine })
+    const history = sanitizeChildTrainingInfluenceHistory(child.trainingState.familyInfluenceHistory)
+    if (history.some(entry => entry.sourceResidentId === residentId && entry.focus === focus)) {
+      return { success: false, message: `${resident.name}已经影响过${child.name}的${getChildTrainingFocusLabel(focus)}兴趣。` }
+    }
+    return { success: true, message: `可以让${resident.name}影响${child.name}的${getChildTrainingFocusLabel(focus)}兴趣。` }
+  }
+
+  const applyRandomNpcFamilyInfluenceToChild = (
+    childId: number,
+    residentId: string
+  ): { success: boolean; message: string; child?: ChildState } => {
+    const guard = canApplyRandomNpcFamilyInfluenceToChild(childId, residentId)
+    const child = children.value.find(entry => entry.id === childId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !child || !resident) return { ...guard, child }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '随机 NPC 模板缺失。', child }
+    const dayTag = getCurrentNpcDayTag()
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    const focus = getRandomNpcFamilyInfluenceFocus({ ...resident, familyLine })
+    const focusLabel = getChildTrainingFocusLabel(focus)
+    const summary = `${resident.name}把婚后家业与${resident.familySeed}讲给${child.name}听，${child.name}开始偏向${focusLabel}兴趣。`
+    const influenceEntry: ChildTrainingInfluenceEntry = {
+      id: `${dayTag}:child:${childId}:family-influence:${residentId}:${focus}`,
+      dayTag,
+      focus,
+      sourceResidentId: residentId,
+      sourceName: resident.name,
+      summary
+    }
+    const milestoneId = `family-influence:${residentId}:${focus}`
+    child.trainingState = {
+      ...child.trainingState,
+      focus,
+      familyInfluenceFocus: focus,
+      familyInfluenceSource: resident.name,
+      familyInfluenceHistory: [...sanitizeChildTrainingInfluenceHistory(child.trainingState.familyInfluenceHistory), influenceEntry]
+        .slice(-CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT),
+      milestoneIds: [...new Set([...child.trainingState.milestoneIds, milestoneId])].slice(-8)
+    }
+    child.friendship = Math.min(300, child.friendship + 1)
+    return { success: true, message: summary, child }
   }
 
   // ============================================================
@@ -4655,7 +4756,16 @@ export const useNpcStore = defineStore('npc', () => {
           ? {
               focus: ['farm', 'craft', 'social', 'spirit'].includes(c.trainingState.focus) ? c.trainingState.focus : null,
               lessonsThisWeek: Math.max(0, Number(c.trainingState.lessonsThisWeek) || 0),
-              milestoneIds: Array.isArray(c.trainingState.milestoneIds) ? c.trainingState.milestoneIds.filter((id: unknown) => typeof id === 'string') : []
+              milestoneIds: Array.isArray(c.trainingState.milestoneIds)
+                ? c.trainingState.milestoneIds.filter((id: unknown) => typeof id === 'string').slice(-8)
+                : [],
+              familyInfluenceFocus: ['farm', 'craft', 'social', 'spirit'].includes(c.trainingState.familyInfluenceFocus)
+                ? c.trainingState.familyInfluenceFocus
+                : null,
+              familyInfluenceSource: typeof c.trainingState.familyInfluenceSource === 'string'
+                ? c.trainingState.familyInfluenceSource
+                : '',
+              familyInfluenceHistory: sanitizeChildTrainingInfluenceHistory(c.trainingState.familyInfluenceHistory)
             }
           : createDefaultChildTrainingState()
       }))
@@ -5105,6 +5215,8 @@ export const useNpcStore = defineStore('npc', () => {
     recordRandomNpcMarriedLife,
     canDevelopRandomNpcFamilyBusiness,
     developRandomNpcFamilyBusiness,
+    canApplyRandomNpcFamilyInfluenceToChild,
+    applyRandomNpcFamilyInfluenceToChild,
     rehydrateRelationshipPerks,
     serialize,
     deserialize
