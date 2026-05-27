@@ -1477,6 +1477,10 @@ assert.equal(sharedWorkshopProcess.workshop_action.output_quality, 'fine', 'shar
 assert.ok(sharedWorkshopProcess.contract.audit_log.find(entry => entry.action === 'shared_workshop_processed'), 'shared workshop process should be audited')
 assert.equal(sharedWorkshopProcess.contract.audit_log.find(entry => entry.action === 'shared_workshop_processed')?.detail?.simultaneous_online_bonus?.applied, true, 'shared workshop process audit should record cooperation bonus')
 assert.ok(sharedWorkshopProcess.contract.origin_assets.warehouse_items.some(item => item.ledger_id === sharedWorkshopProcess.ledger_entry.id && item.action === 'deposit'), 'origin assets should reference shared workshop output ledger')
+const sharedWorkshopOutputOriginAsset = sharedWorkshopProcess.contract.origin_assets.warehouse_items.find(item => item.ledger_id === sharedWorkshopProcess.ledger_entry.id && item.action === 'deposit')
+assert.equal(sharedWorkshopOutputOriginAsset?.simultaneous_online_bonus?.applied, true, 'origin assets should keep shared workshop cooperation bonus evidence')
+assert.equal(sharedWorkshopOutputOriginAsset?.withdrawal_risk_level, 'high_quality', 'upgraded shared workshop output origin should be high-quality protected')
+assert.equal(sharedWorkshopOutputOriginAsset?.high_value_withdrawal_required, true, 'upgraded shared workshop output origin should require high-value withdrawal flow')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'shared workshop process should not rewrite harvest owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'shared workshop process should not rewrite harvest partner save')
 

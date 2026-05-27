@@ -6989,6 +6989,7 @@ function resolveSharedFundAutoPurchase(spend) {
 }
 
 function buildWarehouseOriginAsset(entry) {
+  const withdrawalRiskLevel = getWarehouseWithdrawalRiskLevel(entry.item_id, entry.quality);
   return {
     ledger_id: entry.id,
     action: entry.action,
@@ -7018,6 +7019,20 @@ function buildWarehouseOriginAsset(entry) {
     target_save_slot: entry.target_save_slot,
     target_inventory: entry.target_inventory,
     idempotency_key: entry.idempotency_key,
+    withdrawal_risk_level: withdrawalRiskLevel,
+    high_value_withdrawal_required: withdrawalRiskLevel !== 'common',
+    simultaneous_online_bonus: entry.simultaneous_online_bonus?.applied === true
+      ? {
+          applied: true,
+          type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
+          bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
+          material_actor_username: normalizeUsername(entry.simultaneous_online_bonus.material_actor_username),
+          processor_username: normalizeUsername(entry.simultaneous_online_bonus.processor_username),
+          recipe_id: sanitizeText(entry.simultaneous_online_bonus.recipe_id, 100),
+          output_quality_before: normalizeQuality(entry.simultaneous_online_bonus.output_quality_before),
+          output_quality_after: normalizeQuality(entry.simultaneous_online_bonus.output_quality_after),
+        }
+      : { applied: false },
   };
 }
 
