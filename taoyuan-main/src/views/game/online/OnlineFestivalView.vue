@@ -676,6 +676,58 @@
                     单人保底：{{ selectedFestivalSceneAssetSpec.soloFallbackGoal }}
                   </p>
                 </div>
+                <div class="border border-accent/10 bg-black/10 p-2" data-testid="online-festival-scene-catalog">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent">节会现场总览</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">
+                        每个节会都先展示首屏现场、可点击物件、协作目标和单人保底，未接入房型只作为素材预备。
+                      </p>
+                    </div>
+                    <span class="shrink-0 text-[10px] text-warning">19.4</span>
+                  </div>
+                  <div class="mt-2 grid gap-2 lg:grid-cols-2">
+                    <article
+                      v-for="sceneSpec in festivalSceneAssetSpecs"
+                      :key="sceneSpec.templateId"
+                      class="border border-accent/10 bg-background/70 p-2"
+                      :data-testid="`online-festival-scene-catalog-card-${sceneSpec.templateId}`"
+                    >
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                          <p class="text-xs text-text">{{ sceneSpec.label }}</p>
+                          <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-first-screen">
+                            {{ sceneSpec.firstScreenSignal }}
+                          </p>
+                        </div>
+                        <span
+                          class="shrink-0 border border-accent/10 px-1.5 py-0.5 text-[10px] text-muted"
+                          data-testid="online-festival-scene-template-status"
+                        >
+                          {{ isFestivalSceneLiveTemplate(sceneSpec.templateId) ? '已接入房型' : '素材预备' }}
+                        </span>
+                      </div>
+                      <div class="mt-2 flex flex-wrap gap-1.5" data-testid="online-festival-scene-first-screen-assets">
+                        <span
+                          v-for="asset in festivalSceneFirstScreenAssets(sceneSpec)"
+                          :key="asset.id"
+                          class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                        >
+                          {{ asset.label }}
+                        </span>
+                      </div>
+                      <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-clickable-count">
+                        可点击物件：{{ festivalSceneClickableCount(sceneSpec) }} 个
+                      </p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-catalog-collaboration">
+                        协作目标：{{ sceneSpec.collaborationGoal }}
+                      </p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-catalog-solo">
+                        单人保底：{{ sceneSpec.soloFallbackGoal }}
+                      </p>
+                    </article>
+                  </div>
+                </div>
                 <div class="block">
                   <span class="text-[10px] text-muted">人数上限</span>
                   <div class="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="online-festival-room-member-limit-group">
@@ -1428,7 +1480,11 @@
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
-  import { getOnlineFestivalSceneAssetSpec } from '@/data/onlineFestivalSceneAssets'
+  import {
+    ONLINE_FESTIVAL_SCENE_ASSET_SPECS,
+    getOnlineFestivalSceneAssetSpec,
+    type OnlineFestivalSceneAssetSpec,
+  } from '@/data/onlineFestivalSceneAssets'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
@@ -1454,12 +1510,22 @@
   const worldEventStore = useWorldEventStore()
   const festivalRoomStore = useFestivalRoomStore()
   const expeditionRoomStore = useExpeditionRoomStore()
+  const festivalSceneAssetSpecs = ONLINE_FESTIVAL_SCENE_ASSET_SPECS
   const selectedFestivalSceneAssetSpec = computed(() =>
     getOnlineFestivalSceneAssetSpec(festivalRoomStore.selectedTemplateId)
   )
   const selectedFestivalSceneClickableAssets = computed(() =>
     selectedFestivalSceneAssetSpec.value?.assets.filter(asset => asset.clickable) ?? []
   )
+  const festivalSceneTemplateIds = computed(() =>
+    new Set(festivalRoomStore.templates.map(template => template.id))
+  )
+  const isFestivalSceneLiveTemplate = (templateId: string) =>
+    festivalSceneTemplateIds.value.has(templateId)
+  const festivalSceneClickableCount = (sceneSpec: OnlineFestivalSceneAssetSpec) =>
+    sceneSpec.assets.filter(asset => asset.clickable).length
+  const festivalSceneFirstScreenAssets = (sceneSpec: OnlineFestivalSceneAssetSpec) =>
+    sceneSpec.assets.filter(asset => asset.firstScreen)
   type ChronicleSnapshot = WorldEventOverview['recent_chronicles'][number]
   type FestivalVisualActionPayload = { objectId: string; actionId: string }
   type FestivalTrackCellPayload = { trackId: string; cellId: string }

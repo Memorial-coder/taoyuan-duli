@@ -336,6 +336,15 @@ expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-asset-spe
 expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-clickable-assets', '在线节会创建区应展示可点击现场物件')
 expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-collaboration-goal', '在线节会创建区应展示联机协作目标')
 expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-solo-fallback', '在线节会创建区应展示单人保底目标')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-catalog', '在线节会创建区应展示全部节会现场总览')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-catalog-card-', '节会现场总览应逐个渲染素材规格')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-first-screen', '节会现场总览应展示首屏现场辨识')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-first-screen-assets', '节会现场总览应展示首屏素材')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-clickable-count', '节会现场总览应展示可点击物件数量')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-catalog-collaboration', '节会现场总览应展示协作目标')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-catalog-solo', '节会现场总览应展示单人保底')
+expectContains('online/OnlineFestivalView.vue', 'online-festival-scene-template-status', '节会现场总览应标识已接入房型或素材预备')
+expectContains('online/OnlineFestivalView.vue', '素材预备', '未接入房型的节会现场应明确为素材预备')
 expectContains('data/onlineFestivalSceneAssets.ts', 'main_lantern', '灯会现场素材应包含主灯')
 expectContains('data/onlineFestivalSceneAssets.ts', 'riddle_rack', '灯会现场素材应包含灯谜架')
 expectContains('data/onlineFestivalSceneAssets.ts', 'festival_stall', '灯会现场素材应包含摊位')
@@ -371,6 +380,33 @@ expectContains('data/onlineFestivalSceneAssets.ts', 'bargain_table', '集市现�
 expectContains('data/onlineFestivalSceneAssets.ts', 'rare_merchant', '集市现场素材应包含稀有商人')
 expectContains('data/onlineFestivalSceneAssets.ts', 'random_npc_corner', '集市现场素材应包含随机 NPC')
 expectContains('data/onlineFestivalSceneAssets.ts', 'public_order_board', '集市现场素材应包含公共订单板')
+for (const templateId of ['lantern_fair', 'dragon_boat', 'qixi_stroll', 'mid_autumn_moonwatch', 'yuanri_vigil', 'market_fair']) {
+  const source = getFile('data/onlineFestivalSceneAssets.ts')
+  const specMatch = source.match(new RegExp(`templateId: '${templateId}'[\\s\\S]*?assets: \\[([\\s\\S]*?)\\n    \\],`))
+  if (!specMatch) {
+    addFailure('data/onlineFestivalSceneAssets.ts', `${templateId} 应定义节会现场素材规格`)
+    continue
+  }
+  const specSource = specMatch[0]
+  const assetSource = specMatch[1]
+  const firstScreenCount = assetSource.match(/firstScreen: true/g)?.length ?? 0
+  const clickableCount = assetSource.match(/clickable: true/g)?.length ?? 0
+  if (!specSource.includes('firstScreenSignal:')) {
+    addFailure('data/onlineFestivalSceneAssets.ts', `${templateId} 应定义首屏现场辨识`)
+  }
+  if (!specSource.includes('collaborationGoal:')) {
+    addFailure('data/onlineFestivalSceneAssets.ts', `${templateId} 应定义联机协作目标`)
+  }
+  if (!specSource.includes('soloFallbackGoal:')) {
+    addFailure('data/onlineFestivalSceneAssets.ts', `${templateId} 应定义单人保底目标`)
+  }
+  if (firstScreenCount < 3) {
+    addFailure('data/onlineFestivalSceneAssets.ts', `${templateId} 首屏素材少于 3 个，当前 ${firstScreenCount}`)
+  }
+  if (clickableCount < 3) {
+    addFailure('data/onlineFestivalSceneAssets.ts', `${templateId} 可点击物件少于 3 个，当前 ${clickableCount}`)
+  }
+}
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineFestivalView.vue', /overflow-y-auto/g, 20, '节会长列表应保留滚动边界')
 
 expectContains('ExpeditionRoomView.vue', '<OnlineVisualRoomShell', '远征房间应复用统一可视化房间壳')
