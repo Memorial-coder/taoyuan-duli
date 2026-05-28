@@ -319,8 +319,10 @@
     familyTies
       .map(tie => `${tie.relation}${getRandomNpcFamilySpecialStage(familyLine, tie.id)}/3`)
       .join('、')
-  const formatRandomNpcFamilySpecialEvent = (event: RandomNpcFamilySpecialEventEntry): string =>
-    `${event.dayTag} · ${event.title} ${event.stage}/3：${event.summary}`
+  const formatRandomNpcFamilySpecialEvent = (event: RandomNpcFamilySpecialEventEntry): string => {
+    const rewardSummary = event.rewardSummary ? `（${event.rewardSummary}）` : ''
+    return `${event.dayTag} · ${event.title} ${event.stage}/3：${event.summary}${rewardSummary}`
+  }
   const formatRandomNpcFamilySpecialHistory = (familyLine: RandomNpcFamilyLineState): string => {
     const recentEvents = getRecentRandomNpcFamilySpecialEvents(familyLine)
     return recentEvents.length > 0

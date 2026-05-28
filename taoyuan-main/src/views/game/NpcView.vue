@@ -518,7 +518,7 @@
                       :key="event.id"
                       class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                     >
-                      {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}
+                      {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}<span v-if="event.rewardSummary">（{{ event.rewardSummary }}）</span>
                     </p>
                   </div>
                   <p class="text-[10px] text-muted leading-4 mt-1">

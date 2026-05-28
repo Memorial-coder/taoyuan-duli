@@ -233,6 +233,8 @@ export interface RandomNpcFamilySpecialEventEntry {
   title: string
   summary: string
   relationshipDelta: number
+  rewardItems?: Array<{ itemId: string; quantity: number }>
+  rewardSummary?: string
 }
 
 export interface RandomNpcFamilyLineState {

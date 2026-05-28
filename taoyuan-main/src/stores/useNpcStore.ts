@@ -932,7 +932,18 @@ export const useNpcStore = defineStore('npc', () => {
       stage,
       title: typeof entry.title === 'string' ? entry.title : `${tie.relation}深谈 ${stage}/3`,
       summary: typeof entry.summary === 'string' ? entry.summary : `${tie.name}的深线事件已保留。`,
-      relationshipDelta: Math.max(0, Math.min(12, Number(entry.relationshipDelta) || 0))
+      relationshipDelta: Math.max(0, Math.min(12, Number(entry.relationshipDelta) || 0)),
+      rewardItems: Array.isArray(entry.rewardItems)
+        ? entry.rewardItems
+          .filter((item: unknown): item is { itemId?: unknown; quantity?: unknown } => !!item && typeof item === 'object')
+          .map(item => ({
+            itemId: typeof item.itemId === 'string' ? item.itemId : '',
+            quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)))
+          }))
+          .filter(item => !!item.itemId)
+          .slice(0, 3)
+        : [],
+      rewardSummary: typeof entry.rewardSummary === 'string' ? entry.rewardSummary.slice(0, 80) : ''
     }
   }
 
@@ -1263,6 +1274,50 @@ export const useNpcStore = defineStore('npc', () => {
     const hasMentorTie = resident.familyTies.some(tie => tie.kind === 'mentor' && resident.familyLine.metTieIds.includes(tie.id))
     if (hasMentorTie && resident.familyLine.familyBusinessStage >= 2) return 'spirit'
     return 'farm'
+  }
+
+  const getRandomNpcFamilySpecialEventReward = (
+    tie: RandomNpcFamilyTieDef,
+    stage: 1 | 2 | 3
+  ): { items: Array<{ itemId: string; quantity: number }>; summary: string } => {
+    const scale = stage === 1 ? 1 : stage === 2 ? 2 : 3
+    if (tie.kind === 'parent') {
+      return { items: [{ itemId: 'herb', quantity: scale }], summary: `长辈照应带来草药×${scale}` }
+    }
+    if (tie.kind === 'sibling') {
+      return { items: [{ itemId: 'paper', quantity: scale }], summary: `手足来信带来纸张×${scale}` }
+    }
+    if (tie.kind === 'distant_relative') {
+      return {
+        items: [
+          { itemId: 'paper', quantity: 1 },
+          { itemId: 'wood', quantity: scale }
+        ],
+        summary: `远亲往来带来纸张×1、木材×${scale}`
+      }
+    }
+    if (tie.kind === 'mentor') {
+      return { items: [{ itemId: 'bamboo', quantity: scale + 1 }], summary: `师门指点带来竹子×${scale + 1}` }
+    }
+    if (tie.kind === 'caravan') {
+      return { items: [{ itemId: 'hanhai_spice', quantity: scale }], summary: `商队担保带来西域香料×${scale}` }
+    }
+    if (tie.kind === 'old_debt') {
+      return { items: [{ itemId: stage >= 3 ? 'dried_herb' : 'herb', quantity: scale }], summary: `旧债清点带来${stage >= 3 ? '药材干' : '草药'}×${scale}` }
+    }
+    if (tie.kind === 'family_business') {
+      return {
+        items: [
+          { itemId: 'paper', quantity: scale },
+          { itemId: 'bamboo', quantity: 1 }
+        ],
+        summary: `家业小账带来纸张×${scale}、竹子×1`
+      }
+    }
+    if (tie.kind === 'sworn_kin') {
+      return { items: [{ itemId: 'cloth', quantity: 1 }], summary: '义亲托付带来布匹×1' }
+    }
+    return { items: [{ itemId: 'guest_green_tea', quantity: 1 }], summary: '前缘回信带来待客清茶×1' }
   }
 
   const getRandomNpcFamilyBusinessYield = (
@@ -2833,6 +2888,11 @@ export const useNpcStore = defineStore('npc', () => {
     const title = getRandomNpcFamilySpecialEventTitle(tie, stage)
     const summary = getRandomNpcFamilySpecialEventSummary(resident, tie, stage)
     const relationshipDelta = stage === 3 ? 4 : 3
+    const reward = getRandomNpcFamilySpecialEventReward(tie, stage)
+    const inventoryStore = useInventoryStore()
+    if (!inventoryStore.addItemsExact(reward.items)) {
+      return { success: false, message: '背包空间不足，无法接收核心家族深线奖励。', resident }
+    }
     const event: RandomNpcFamilySpecialEventEntry = {
       id: `${dayTag}:${residentId}:${tieId}:special:${stage}`,
       dayTag,
@@ -2841,7 +2901,9 @@ export const useNpcStore = defineStore('npc', () => {
       stage,
       title,
       summary,
-      relationshipDelta
+      relationshipDelta,
+      rewardItems: reward.items,
+      rewardSummary: reward.summary
     }
     let nextResident: RandomNpcLongStayEntry | null = null
     randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
@@ -2868,7 +2930,7 @@ export const useNpcStore = defineStore('npc', () => {
           specialTieEventHistory: appendRandomNpcFamilySpecialEventHistory(currentLine, event),
           lastReview: summary
         },
-        keyEvents: [...entry.keyEvents, `${dayTag} ${tie.relation}深线${guard.stage}/3：${summary}`].slice(-8)
+        keyEvents: [...entry.keyEvents, `${dayTag} ${tie.relation}深线${guard.stage}/3：${summary}（${reward.summary}）`].slice(-8)
       }
       nextResident = updatedResident
       return updatedResident
@@ -2889,7 +2951,7 @@ export const useNpcStore = defineStore('npc', () => {
 
     return {
       success: true,
-      message: `${title}：${summary} 好感+${relationshipDelta}。`,
+      message: `${title}：${summary} 好感+${relationshipDelta}，${reward.summary}。`,
       resident: nextResident ?? resident,
       event
     }
