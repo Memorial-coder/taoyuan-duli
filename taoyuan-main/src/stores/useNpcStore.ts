@@ -37,6 +37,7 @@ import type {
   RandomNpcFamilyLineState,
   RandomNpcLongStayArchiveSnapshot,
   RandomNpcFamilyReviewEntry,
+  RandomNpcFamilySpecialEventEntry,
   RandomNpcFamilyTieDef,
   RandomNpcFamilyTieKind,
   RandomNpcCommitmentStatus,
@@ -116,6 +117,7 @@ const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8
 const RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT = 6
 const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
+const RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT = 4
 const RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT = 4
 const CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT = 4
 const CHILD_TRAINING_FAMILY_EVENT_LIMIT = 4
@@ -841,6 +843,9 @@ export const useNpcStore = defineStore('npc', () => {
     metTieIds: [],
     familyMeetingStages: {},
     familyMeetingLastDayTags: {},
+    specialTieEventStages: {},
+    specialTieEventLastDayTags: {},
+    specialTieEventHistory: [],
     completedCommissionIds: [],
     familyBusinessStage: 0,
     familyBusinessNote: '尚未开启婚后家业线。',
@@ -892,6 +897,37 @@ export const useNpcStore = defineStore('npc', () => {
     }
   }
 
+  const isRandomNpcSpecialFamilyTieKind = (
+    kind: RandomNpcFamilyTieKind
+  ): kind is Extract<RandomNpcFamilyTieKind, 'sworn_kin' | 'old_flame'> =>
+    kind === 'sworn_kin' || kind === 'old_flame'
+
+  const sanitizeRandomNpcFamilySpecialEventEntry = (
+    raw: unknown,
+    validTieIds: Set<string>,
+    familyTies: RandomNpcFamilyTieDef[],
+    index: number
+  ): RandomNpcFamilySpecialEventEntry | null => {
+    if (!raw || typeof raw !== 'object') return null
+    const entry = raw as Partial<RandomNpcFamilySpecialEventEntry>
+    const tie = typeof entry.tieId === 'string' && validTieIds.has(entry.tieId)
+      ? familyTies.find(item => item.id === entry.tieId)
+      : null
+    if (!tie || !isRandomNpcSpecialFamilyTieKind(tie.kind)) return null
+    const rawStage = Number(entry.stage)
+    const stage: 1 | 2 | 3 = rawStage === 2 || rawStage === 3 ? rawStage : 1
+    return {
+      id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? '旧日'}:${tie.id}:special:${stage}:${index}`,
+      dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+      tieId: tie.id,
+      tieKind: tie.kind,
+      stage,
+      title: typeof entry.title === 'string' ? entry.title : `${tie.relation}深谈 ${stage}/3`,
+      summary: typeof entry.summary === 'string' ? entry.summary : `${tie.name}的深线事件已保留。`,
+      relationshipDelta: Math.max(0, Math.min(12, Number(entry.relationshipDelta) || 0))
+    }
+  }
+
   const sanitizeRandomNpcFamilyLineState = (
     raw: unknown,
     familyTies: RandomNpcFamilyTieDef[],
@@ -909,6 +945,12 @@ export const useNpcStore = defineStore('npc', () => {
     const rawMeetingLastDayTags = rawLine.familyMeetingLastDayTags && typeof rawLine.familyMeetingLastDayTags === 'object'
       ? rawLine.familyMeetingLastDayTags as Record<string, unknown>
       : {}
+    const rawSpecialStages = rawLine.specialTieEventStages && typeof rawLine.specialTieEventStages === 'object'
+      ? rawLine.specialTieEventStages as Record<string, unknown>
+      : {}
+    const rawSpecialLastDayTags = rawLine.specialTieEventLastDayTags && typeof rawLine.specialTieEventLastDayTags === 'object'
+      ? rawLine.specialTieEventLastDayTags as Record<string, unknown>
+      : {}
     const familyMeetingStages = familyTies.reduce<Record<string, 0 | 1 | 2 | 3>>((stages, tie) => {
       const rawStage = Number(rawMeetingStages[tie.id])
       const fallbackStage = metTieIds.includes(tie.id) ? 1 : 0
@@ -917,6 +959,18 @@ export const useNpcStore = defineStore('npc', () => {
     }, {})
     const familyMeetingLastDayTags = familyTies.reduce<Record<string, string>>((days, tie) => {
       const rawDayTag = rawMeetingLastDayTags[tie.id]
+      if (typeof rawDayTag === 'string' && rawDayTag) days[tie.id] = rawDayTag
+      return days
+    }, {})
+    const specialTieEventStages = familyTies.reduce<Record<string, 0 | 1 | 2 | 3>>((stages, tie) => {
+      if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return stages
+      const rawStage = Number(rawSpecialStages[tie.id])
+      stages[tie.id] = rawStage === 1 || rawStage === 2 || rawStage === 3 ? rawStage : 0
+      return stages
+    }, {})
+    const specialTieEventLastDayTags = familyTies.reduce<Record<string, string>>((days, tie) => {
+      if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return days
+      const rawDayTag = rawSpecialLastDayTags[tie.id]
       if (typeof rawDayTag === 'string' && rawDayTag) days[tie.id] = rawDayTag
       return days
     }, {})
@@ -931,6 +985,10 @@ export const useNpcStore = defineStore('npc', () => {
       .map((entry, index) => sanitizeRandomNpcFamilyBusinessEntry(entry, index))
       .filter((entry): entry is RandomNpcFamilyBusinessEntry => !!entry)
       .slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)
+    const specialTieEventHistory = (Array.isArray(rawLine.specialTieEventHistory) ? rawLine.specialTieEventHistory : [])
+      .map((entry, index) => sanitizeRandomNpcFamilySpecialEventEntry(entry, validTieIds, familyTies, index))
+      .filter((entry): entry is RandomNpcFamilySpecialEventEntry => !!entry)
+      .slice(-RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT)
     const rawBusinessStage = Number(rawLine.familyBusinessStage)
     const familyBusinessStage: 0 | 1 | 2 | 3 =
       rawBusinessStage === 1 || rawBusinessStage === 2 || rawBusinessStage === 3 ? rawBusinessStage : 0
@@ -939,6 +997,9 @@ export const useNpcStore = defineStore('npc', () => {
       metTieIds: [...new Set(metTieIds)].slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT),
       familyMeetingStages,
       familyMeetingLastDayTags,
+      specialTieEventStages,
+      specialTieEventLastDayTags,
+      specialTieEventHistory,
       completedCommissionIds: [...new Set(completedCommissionIds)].slice(0, RANDOM_NPC_FAMILY_REVIEW_LIMIT),
       familyBusinessStage,
       familyBusinessNote: typeof rawLine.familyBusinessNote === 'string' && rawLine.familyBusinessNote
@@ -973,6 +1034,38 @@ export const useNpcStore = defineStore('npc', () => {
     if (stage === 2) return `${tie.name}再次与你同坐，追问${resident.name}在桃源村的日常安排，${attitudeLine}。`
     return `${tie.name}给出家族定评，认可你们把${resident.familySeed}安放进长期关系中。`
   }
+
+  const getRandomNpcFamilySpecialEventTitle = (tie: RandomNpcFamilyTieDef, stage: 1 | 2 | 3): string => {
+    if (tie.kind === 'sworn_kin') {
+      if (stage === 1) return '义契重认'
+      if (stage === 2) return '旧义相托'
+      return '义亲定约'
+    }
+    if (stage === 1) return '旧约开口'
+    if (stage === 2) return '前缘分辨'
+    return '旧情收束'
+  }
+
+  const getRandomNpcFamilySpecialEventSummary = (
+    resident: RandomNpcLongStayEntry,
+    tie: RandomNpcFamilyTieDef,
+    stage: 1 | 2 | 3
+  ): string => {
+    if (tie.kind === 'sworn_kin') {
+      if (stage === 1) return `${tie.name}把旧日结义的来龙去脉说清，先确认你是否尊重${resident.name}已有的义亲边界。`
+      if (stage === 2) return `${tie.name}托你帮${resident.name}稳住一件旧人情，义亲关系从试探转为托付。`
+      return `${tie.name}正式把你记入这段义亲往来，约定往后有事先明说、不拿旧义压人。`
+    }
+    if (stage === 1) return `${tie.name}愿意把旧约说到明处，先确认你和${resident.name}不会把沉默当成答案。`
+    if (stage === 2) return `${tie.name}与${resident.name}分辨旧情和新日子的边界，把未寄出的牵挂拆成可说的话。`
+    return `${tie.name}把旧约收成一封可归档的回信，认可${resident.name}在桃源村继续往前走。`
+  }
+
+  const appendRandomNpcFamilySpecialEventHistory = (
+    familyLine: RandomNpcFamilyLineState,
+    entry: RandomNpcFamilySpecialEventEntry
+  ): RandomNpcFamilySpecialEventEntry[] =>
+    [...familyLine.specialTieEventHistory, entry].slice(-RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT)
 
   const appendRandomNpcFamilyReview = (
     familyLine: RandomNpcFamilyLineState,
@@ -2617,6 +2710,110 @@ export const useNpcStore = defineStore('npc', () => {
       success: true,
       message: `${summary} 见家人 ${nextMeetingStage}/3，家族评价+${reputationDelta}。`,
       resident: nextResident ?? resident
+    }
+  }
+
+  const canProgressRandomNpcFamilySpecialEvent = (
+    residentId: string,
+    tieId: string
+  ): { success: boolean; message: string; stage?: 1 | 2 | 3 } => {
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const tie = resident.familyTies.find(entry => entry.id === tieId)
+    if (!tie) return { success: false, message: '这条家族节点已经不可用。' }
+    if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return { success: false, message: '只有义亲或前缘节点有深线事件。' }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '这位长住 NPC 的模板已经不可用。' }
+    const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (line.kind === 'severed') return { success: false, message: '断缘后本版不再推进家族深线。' }
+    if (line.stage <= 0) return { success: false, message: '需要先开启朋友、恋爱、知己或结拜关系线。' }
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    const meetingStage = familyLine.familyMeetingStages[tieId] ?? (familyLine.metTieIds.includes(tieId) ? 1 : 0)
+    if (meetingStage <= 0) return { success: false, message: '需要先见过这个家族节点。' }
+    const currentStage = familyLine.specialTieEventStages[tieId] ?? 0
+    if (currentStage >= 3) return { success: false, message: `${tie.relation}深线已完成。` }
+    if (familyLine.specialTieEventLastDayTags[tieId] === getCurrentNpcDayTag()) {
+      return { success: false, message: `${tie.relation}深线今天已经推进过，明天再继续。` }
+    }
+    return { success: true, message: `可以推进${tie.relation}深线。`, stage: (currentStage + 1) as 1 | 2 | 3 }
+  }
+
+  const progressRandomNpcFamilySpecialEvent = (
+    residentId: string,
+    tieId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry; event?: RandomNpcFamilySpecialEventEntry } => {
+    const guard = canProgressRandomNpcFamilySpecialEvent(residentId, tieId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !resident || !guard.stage) return { ...guard, resident }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    const tie = resident.familyTies.find(entry => entry.id === tieId)
+    if (!template || !tie || !isRandomNpcSpecialFamilyTieKind(tie.kind)) {
+      return { success: false, message: '这条家族节点已经不可用。', resident }
+    }
+    const dayTag = getCurrentNpcDayTag()
+    const stage = guard.stage
+    const title = getRandomNpcFamilySpecialEventTitle(tie, stage)
+    const summary = getRandomNpcFamilySpecialEventSummary(resident, tie, stage)
+    const relationshipDelta = stage === 3 ? 4 : 3
+    const event: RandomNpcFamilySpecialEventEntry = {
+      id: `${dayTag}:${residentId}:${tieId}:special:${stage}`,
+      dayTag,
+      tieId,
+      tieKind: tie.kind,
+      stage,
+      title,
+      summary,
+      relationshipDelta
+    }
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      const currentLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission)
+      const updatedResident: RandomNpcLongStayEntry = {
+        ...entry,
+        affinity: Math.min(100, entry.affinity + relationshipDelta),
+        relationshipSignals: applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+          tie.kind === 'old_flame' ? 'ambiguity' : 'family_impression',
+          relationshipDelta
+        ),
+        familyLine: {
+          ...currentLine,
+          specialTieEventStages: {
+            ...currentLine.specialTieEventStages,
+            [tieId]: stage
+          },
+          specialTieEventLastDayTags: {
+            ...currentLine.specialTieEventLastDayTags,
+            [tieId]: dayTag
+          },
+          specialTieEventHistory: appendRandomNpcFamilySpecialEventHistory(currentLine, event),
+          lastReview: summary
+        },
+        keyEvents: [...entry.keyEvents, `${dayTag} ${tie.relation}深线${guard.stage}/3：${summary}`].slice(-8)
+      }
+      nextResident = updatedResident
+      return updatedResident
+    })
+
+    if (nextResident) {
+      randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+        entry.visitorId === nextResident!.sourceVisitorId
+          ? {
+              ...entry,
+              affinity: nextResident!.affinity,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(nextResident!.relationshipSignals),
+              keyEvents: nextResident!.keyEvents.slice(-6)
+            }
+          : entry
+      )
+    }
+
+    return {
+      success: true,
+      message: `${title}：${summary} 好感+${relationshipDelta}。`,
+      resident: nextResident ?? resident,
+      event
     }
   }
 
@@ -6129,6 +6326,8 @@ export const useNpcStore = defineStore('npc', () => {
     getRandomNpcFamilyCommission,
     canMeetRandomNpcFamilyTie,
     meetRandomNpcFamilyTie,
+    canProgressRandomNpcFamilySpecialEvent,
+    progressRandomNpcFamilySpecialEvent,
     fulfillRandomNpcFamilyCommission,
     canStartRandomNpcRelationLine,
     startRandomNpcRelationLine,
