@@ -186,6 +186,7 @@
     romance: '恋爱线',
     zhiji: '知己',
     sworn: '结拜',
+    rivalry: '宿怨',
     severed: '已断缘'
   } as const
 
@@ -821,7 +822,7 @@
             ? 'spouse'
             : node.relationLabel === '知己'
               ? 'zhiji'
-              : node.relationLabel === '竞争者'
+              : node.relationLabel === '竞争者' || node.relationLabel === '宿怨' || node.relationLabel === '旧日宿怨'
                 ? 'rival'
                 : node.relationLabel === '暧昧'
                   ? 'ambiguous'

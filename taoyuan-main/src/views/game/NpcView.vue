@@ -1987,9 +1987,10 @@
     romance: '恋爱线',
     zhiji: '知己线',
     sworn: '结拜线',
+    rivalry: '宿怨线',
     severed: '已断缘'
   }
-  const randomNpcRelationLineActions: Exclude<RandomNpcRelationLineKind, 'severed'>[] = ['friend', 'romance', 'zhiji', 'sworn']
+  const randomNpcRelationLineActions: Exclude<RandomNpcRelationLineKind, 'severed'>[] = ['friend', 'romance', 'zhiji', 'sworn', 'rivalry']
   const RANDOM_NPC_LONG_STAY_ROUTE_LABELS: Record<RandomNpcLongStayRoute, string> = {
     friendship: '邻里常驻',
     business: '商学暂住',
@@ -2166,8 +2167,11 @@
     if (resident.relationshipLine.stage > 0) return '当前关系线已锁定；如需更换方向，先断缘再重新选择。'
     const romance = canStartRandomNpcRelationLine(resident, 'romance')
     const zhiji = canStartRandomNpcRelationLine(resident, 'zhiji')
+    const rivalry = canStartRandomNpcRelationLine(resident, 'rivalry')
+    if (rivalry.success && (romance.success || zhiji.success)) return '可选择恋爱、知己或宿怨线；恋爱 / 知己互斥，宿怨线只记录误会化解。'
+    if (rivalry.success) return '可开启宿怨线：把误会或竞争记录为本地可回看的化解线，不占用恋爱 / 知己名额。'
     if (romance.success || zhiji.success) return '可选择恋爱或知己线；两者会与固定 NPC 婚恋 / 知己互斥。'
-    return romance.message || zhiji.message || '需要更多好感与关系方向记录。'
+    return rivalry.message || romance.message || zhiji.message || '需要更多好感与关系方向记录。'
   }
   const getLastRandomNpcEvent = (visitor: RandomNpcVisitorState): string => visitor.keyEvents[visitor.keyEvents.length - 1] ?? visitor.dialogueOpening
   const getLastRandomNpcAcquaintanceEvent = (acquaintance: RandomNpcAcquaintanceEntry): string =>
