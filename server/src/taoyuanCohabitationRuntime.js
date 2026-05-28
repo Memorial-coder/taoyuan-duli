@@ -36,6 +36,8 @@ const FAMILY_BUILDING_LEDGER_LIMIT = 80;
 const FARM_ACTION_LEDGER_LIMIT = 160;
 const SHARED_ANIMAL_LEDGER_LIMIT = 120;
 const SHARED_ANIMAL_LIMIT = 80;
+const SHARED_PET_LEDGER_LIMIT = 120;
+const SHARED_PET_LIMIT = 80;
 const COHABITATION_RECENT_ONLINE_SECONDS = 15 * 60;
 const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
 const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
@@ -1720,6 +1722,7 @@ function normalizeOriginAssets(value = {}) {
   return {
     plots: Array.isArray(value.plots) ? value.plots : [],
     animals: Array.isArray(value.animals) ? value.animals : [],
+    pets: Array.isArray(value.pets) ? value.pets : [],
     warehouse_items: Array.isArray(value.warehouse_items) ? value.warehouse_items : [],
     decorations: Array.isArray(value.decorations) ? value.decorations : [],
     fund_contributions: Array.isArray(value.fund_contributions) ? value.fund_contributions : [],
@@ -1898,9 +1901,136 @@ function normalizeAnimalActionLedgerEntry(entry = {}) {
   };
 }
 
+function normalizePetState(pet = {}) {
+  return {
+    type: sanitizeText(pet.type || pet.pet_type || pet.id, 80),
+    name: sanitizeText(pet.name || pet.pet_name || pet.type || pet.id, 80),
+    friendship: Math.max(0, Math.floor(Number(pet.friendship ?? pet.affection) || 0)),
+    mood: Math.max(0, Math.floor(Number(pet.mood) || 0)),
+    care_count: Math.max(0, Math.floor(Number(pet.care_count ?? pet.careCount) || 0)),
+    last_care_item_id: normalizeWarehouseItemId(pet.last_care_item_id || pet.lastCareItemId || pet.feedItemId),
+    last_cared_at: Math.max(0, Math.floor(Number(pet.last_cared_at ?? pet.lastCaredAt) || 0)),
+    last_caregiver_username: normalizeUsername(pet.last_caregiver_username || pet.lastCaregiverUsername),
+  };
+}
+
+function normalizeSharedPet(entry = {}) {
+  const id = sanitizeText(entry.id || entry.shared_pet_id, 140);
+  if (!id) return null;
+  const state = normalizePetState(entry.pet_state || entry.state || entry);
+  return {
+    id,
+    shared_pet_id: id,
+    source_pet_id: sanitizeText(entry.source_pet_id || state.name || id, 100),
+    type: sanitizeText(entry.type || state.type, 60),
+    name: sanitizeText(entry.name || state.name || id, 60),
+    origin_owner_id: sanitizeText(entry.origin_owner_id, 100),
+    origin_save_id: normalizeSaveId(entry.origin_save_id),
+    origin_owner_username: normalizeUsername(entry.origin_owner_username),
+    origin_owner_display_name: sanitizeText(entry.origin_owner_display_name || entry.origin_owner_username, 60),
+    origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
+    origin_owner_manor_role: sanitizeText(entry.origin_owner_manor_role, 40),
+    origin_owner_manor_role_label: sanitizeText(entry.origin_owner_manor_role_label, 40),
+    source_save_slot: normalizeSaveSlot(entry.source_save_slot),
+    source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
+    current_caregiver_username: normalizeUsername(entry.current_caregiver_username),
+    current_caregiver_display_name: sanitizeText(entry.current_caregiver_display_name || entry.current_caregiver_username, 60),
+    current_caregiver_manor_role: sanitizeText(entry.current_caregiver_manor_role, 40),
+    current_caregiver_manor_role_label: sanitizeText(entry.current_caregiver_manor_role_label, 40),
+    permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
+    split_rule: sanitizeText(entry.split_rule, 120) || 'return_to_origin_owner_on_separation',
+    permission_restriction: sanitizeText(entry.permission_restriction, 160) || 'origin_owner_or_member_with_animal_pet_permission',
+    readonly: false,
+    pet_state: state,
+  };
+}
+
+function countSharedPetStates(pets = []) {
+  return pets.reduce((summary, pet) => {
+    summary.total += 1;
+    if (pet?.pet_state?.care_count > 0) summary.cared += 1;
+    return summary;
+  }, { total: 0, cared: 0 });
+}
+
+function normalizeSharedPets(value = {}) {
+  const pets = Array.isArray(value.pets)
+    ? value.pets.map(normalizeSharedPet).filter(Boolean).slice(0, SHARED_PET_LIMIT)
+    : [];
+  const counts = countSharedPetStates(pets);
+  const summary = value.summary && typeof value.summary === 'object' ? value.summary : {};
+  return {
+    version: Math.max(1, Math.floor(Number(value.version) || 1)),
+    contract_id: sanitizeText(value.contract_id, 80),
+    shared_manor_id: sanitizeText(value.shared_manor_id, 80),
+    status: sanitizeText(value.status, 40),
+    readonly: value.readonly === true,
+    writes_enabled: value.writes_enabled !== false,
+    persisted: value.persisted === true,
+    persistence_policy: sanitizeText(value.persistence_policy, 160) || 'persist_contract_pets_without_rewriting_personal_saves',
+    generated_at: Math.max(0, Math.floor(Number(value.generated_at) || 0)),
+    persisted_at: Math.max(0, Math.floor(Number(value.persisted_at) || 0)),
+    revision: Math.max(0, Math.floor(Number(value.revision) || 0)),
+    pets,
+    summary: {
+      ...summary,
+      pet_count: counts.total,
+      cared_count: counts.cared,
+      pet_care_write_enabled: true,
+      shared_warehouse_pet_care_consume_enabled: true,
+      personal_save_changed: false,
+      included_sources: ['animal.pets'],
+      deferred_writes: Array.isArray(summary.deferred_writes) ? summary.deferred_writes.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 20) : [],
+    },
+  };
+}
+
+function normalizePetActionLedgerEntry(entry = {}) {
+  const action = sanitizeText(entry.action, 40) || 'care';
+  if (action !== 'care') return null;
+  const petId = sanitizeText(entry.pet_id || entry.shared_pet_id, 140);
+  if (!petId) return null;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('shared_pet_ledger'),
+    action,
+    pet_id: petId,
+    shared_pet_id: petId,
+    source_pet_id: sanitizeText(entry.source_pet_id, 100),
+    actor_username: normalizeUsername(entry.actor_username),
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
+    actor_key: normalizeUsernameKey(entry.actor_key || entry.actor_username),
+    actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
+    actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
+    care_item_id: normalizeWarehouseItemId(entry.care_item_id || entry.item_id),
+    warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids) ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12) : [],
+    shared_warehouse_changed: entry.shared_warehouse_changed === true,
+    origin_owner_id: sanitizeText(entry.origin_owner_id, 100),
+    origin_owner_username: normalizeUsername(entry.origin_owner_username),
+    origin_owner_display_name: sanitizeText(entry.origin_owner_display_name || entry.origin_owner_username, 60),
+    origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
+    origin_save_id: normalizeSaveId(entry.origin_save_id),
+    source_save_slot: normalizeSaveSlot(entry.source_save_slot),
+    source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
+    before_pet_state: entry.before_pet_state && typeof entry.before_pet_state === 'object' ? entry.before_pet_state : {},
+    after_pet_state: entry.after_pet_state && typeof entry.after_pet_state === 'object' ? entry.after_pet_state : {},
+    permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    at: Math.max(0, Math.floor(Number(entry.at) || Number(entry.created_at) || nowSeconds())),
+    reversible: entry.reversible !== false,
+    compensation_hint: sanitizeText(entry.compensation_hint, 240),
+    status: ['committed', 'rolled_back', 'blocked'].includes(entry.status) ? entry.status : 'committed',
+  };
+}
+
 function normalizeAnimalActionLedger(value = []) {
   return Array.isArray(value)
     ? value.map(normalizeAnimalActionLedgerEntry).filter(Boolean).slice(0, SHARED_ANIMAL_LEDGER_LIMIT)
+    : [];
+}
+
+function normalizePetActionLedger(value = []) {
+  return Array.isArray(value)
+    ? value.map(normalizePetActionLedgerEntry).filter(Boolean).slice(0, SHARED_PET_LEDGER_LIMIT)
     : [];
 }
 
@@ -2227,6 +2357,7 @@ function readMemberAnimalSnapshot(member = {}) {
         save_revision: 0,
         save_id: normalizeSaveId(member.save_id || identity?.save_id),
         animals: [],
+        pets: [],
       };
     }
     const entry = saves.slots[slot];
@@ -2243,10 +2374,12 @@ function readMemberAnimalSnapshot(member = {}) {
         save_revision: Number(entry.revision) || 0,
         save_id: normalizeSaveId(member.save_id || identity?.save_id),
         animals: [],
+        pets: [],
       };
     }
     const onlineIdentity = getContainerIdentity(saveContainer);
     const animals = Array.isArray(animalState.animals) ? animalState.animals : [];
+    const pets = Array.isArray(animalState.pets) ? animalState.pets : [];
     const saveId = normalizeSaveId(member.save_id || identity?.save_id || onlineIdentity?.save_id || onlineIdentity?.saveId);
     return {
       available: true,
@@ -2256,6 +2389,7 @@ function readMemberAnimalSnapshot(member = {}) {
       save_revision: Number(entry.revision) || 0,
       save_id: saveId,
       animals,
+      pets,
     };
   } catch {
     return {
@@ -2266,6 +2400,7 @@ function readMemberAnimalSnapshot(member = {}) {
       save_revision: 0,
       save_id: normalizeSaveId(member.save_id || identity?.save_id),
       animals: [],
+      pets: [],
     };
   }
 }
@@ -2627,6 +2762,83 @@ function buildSharedAnimalsFromSnapshots(contract, animalSnapshots, options = {}
   };
 }
 
+function buildSharedPetsFromSnapshots(contract, animalSnapshots, options = {}) {
+  const generatedAt = nowSeconds();
+  const pets = [];
+  for (const snapshot of animalSnapshots) {
+    const member = snapshot.member || {};
+    const ownerKey = normalizeUsernameKey(member.username_key || member.username);
+    const originOwnerId = `save:${snapshot.save_id || member.save_id || ownerKey}`;
+    const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    const roleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(manorRole) : null;
+    const permissionMode = getAnimalPermissionMode(contract, ownerKey);
+    if (!snapshot.available) continue;
+    for (const [index, rawPet] of (Array.isArray(snapshot.pets) ? snapshot.pets : []).entries()) {
+      const state = normalizePetState(rawPet);
+      const sourcePetId = sanitizeText(rawPet?.id || rawPet?.pet_id || state.name || `pet_${index}`, 100);
+      pets.push({
+        id: `${ownerKey}:pet:${sourcePetId}`,
+        source_pet_id: sourcePetId,
+        type: state.type,
+        name: state.name,
+        origin_owner_id: originOwnerId,
+        origin_save_id: snapshot.save_id,
+        origin_owner_username: member.username,
+        origin_owner_display_name: member.display_name,
+        origin_owner_key: ownerKey,
+        origin_owner_manor_role: manorRole,
+        origin_owner_manor_role_label: roleDef?.label || '',
+        source_save_slot: snapshot.save_slot,
+        source_save_revision: snapshot.save_revision,
+        current_caregiver_username: member.username,
+        current_caregiver_display_name: member.display_name,
+        current_caregiver_manor_role: manorRole,
+        current_caregiver_manor_role_label: roleDef?.label || '',
+        permission_mode: permissionMode,
+        split_rule: 'return_to_origin_owner_on_separation',
+        permission_restriction: permissionMode === 'shared'
+          ? 'accepted_members_with_animal_pet_permission_can_care'
+          : 'origin_owner_only_until_permission_changed',
+        readonly: false,
+        pet_state: state,
+      });
+    }
+  }
+  const normalizedPets = pets.map(normalizeSharedPet).filter(Boolean).slice(0, SHARED_PET_LIMIT);
+  const counts = countSharedPetStates(normalizedPets);
+  return {
+    version: 1,
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: contract.status,
+    readonly: false,
+    writes_enabled: true,
+    persisted: options.persisted === true,
+    persistence_policy: 'persist_contract_pets_without_rewriting_personal_saves',
+    generated_at: generatedAt,
+    persisted_at: options.persisted === true ? generatedAt : 0,
+    revision: Math.max(contract.updated_at || 0, ...animalSnapshots.map(snapshot => Number(snapshot.save_revision) || 0), generatedAt),
+    pets: normalizedPets,
+    summary: {
+      member_count: contract.members.length,
+      available_member_count: animalSnapshots.filter(snapshot => snapshot.available).length,
+      pet_count: counts.total,
+      cared_count: counts.cared,
+      origin_owner_count: new Set(normalizedPets.map(pet => pet.origin_owner_id).filter(Boolean)).size,
+      personal_money_merged: false,
+      personal_save_changed: false,
+      origin_trace_enabled: true,
+      persisted_shared_pets: options.persisted === true,
+      pet_care_write_enabled: true,
+      shared_warehouse_pet_care_consume_enabled: true,
+      shared_pet_ledger_count: Array.isArray(contract.shared_pet_ledger) ? contract.shared_pet_ledger.length : 0,
+      included_sources: ['animal.pets'],
+      deferred_sources: [],
+      deferred_writes: [],
+    },
+  };
+}
+
 function buildPlotOriginAssetFromSharedPlot(plot = {}) {
   return {
     id: sanitizeText(plot.id, 120),
@@ -2685,6 +2897,34 @@ function buildAnimalOriginAssetFromSharedAnimal(animal = {}) {
       ? 'accepted_members_with_animal_feed_permission_can_care'
       : 'origin_owner_only_until_permission_changed',
     animal_state: animal.animal_state && typeof animal.animal_state === 'object' ? { ...animal.animal_state } : summarizeAnimal({}),
+  };
+}
+
+function buildPetOriginAssetFromSharedPet(pet = {}) {
+  return {
+    id: sanitizeText(pet.id, 140),
+    source_pet_id: sanitizeText(pet.source_pet_id, 100),
+    type: sanitizeText(pet.type, 80),
+    name: sanitizeText(pet.name, 80),
+    origin_owner_id: sanitizeText(pet.origin_owner_id, 100),
+    origin_save_id: normalizeSaveId(pet.origin_save_id),
+    origin_owner_username: normalizeUsername(pet.origin_owner_username),
+    origin_owner_display_name: sanitizeText(pet.origin_owner_display_name || pet.origin_owner_username, 60),
+    origin_owner_key: normalizeUsernameKey(pet.origin_owner_key || pet.origin_owner_username),
+    origin_owner_manor_role: sanitizeText(pet.origin_owner_manor_role, 40),
+    origin_owner_manor_role_label: sanitizeText(pet.origin_owner_manor_role_label, 40),
+    source_save_slot: normalizeSaveSlot(pet.source_save_slot),
+    source_save_revision: Math.max(0, Math.floor(Number(pet.source_save_revision) || 0)),
+    current_caregiver_username: normalizeUsername(pet.current_caregiver_username),
+    current_caregiver_display_name: sanitizeText(pet.current_caregiver_display_name || pet.current_caregiver_username, 60),
+    current_caregiver_manor_role: sanitizeText(pet.current_caregiver_manor_role, 40),
+    current_caregiver_manor_role_label: sanitizeText(pet.current_caregiver_manor_role_label, 40),
+    permission_mode: sanitizeText(pet.permission_mode, 40) || 'owner_only',
+    split_rule: 'return_to_origin_owner_on_separation',
+    permission_restriction: pet.permission_mode === 'shared'
+      ? 'accepted_members_with_animal_pet_permission_can_care'
+      : 'origin_owner_only_until_permission_changed',
+    pet_state: pet.pet_state && typeof pet.pet_state === 'object' ? { ...pet.pet_state } : normalizePetState({}),
   };
 }
 
@@ -2826,6 +3066,49 @@ function refreshSharedAnimalsContractFields(contract, sharedAnimals) {
       shared_animal_ledger_count: Array.isArray(contract.shared_animal_ledger) ? contract.shared_animal_ledger.length : 0,
       deferred_writes: (normalized.summary?.deferred_writes || [])
         .filter(item => item !== 'animal.collect_product' && item !== 'collect_product'),
+    },
+  };
+}
+
+function refreshSharedPetsContractFields(contract, sharedPets) {
+  const normalized = normalizeSharedPets(sharedPets);
+  const memberByKey = new Map((contract.members || []).map(member => [member.username_key, member]));
+  const pets = (normalized.pets || []).map(pet => {
+    const ownerKey = normalizeUsernameKey(pet.origin_owner_key || pet.origin_owner_username);
+    const owner = memberByKey.get(ownerKey) || null;
+    const manorRole = normalizeFamilyManorRole(owner?.manor_role || pet.origin_owner_manor_role, contract.type, owner?.role || 'member');
+    const roleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(manorRole) : null;
+    return {
+      ...pet,
+      origin_owner_manor_role: manorRole,
+      origin_owner_manor_role_label: roleDef?.label || '',
+      permission_mode: getAnimalPermissionMode(contract, ownerKey),
+      readonly: false,
+    };
+  });
+  const counts = countSharedPetStates(pets);
+  return {
+    ...normalized,
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: contract.status,
+    readonly: false,
+    writes_enabled: true,
+    pets,
+    summary: {
+      ...(normalized.summary || {}),
+      member_count: contract.members.length,
+      pet_count: counts.total,
+      cared_count: counts.cared,
+      origin_owner_count: new Set(pets.map(pet => pet.origin_owner_id).filter(Boolean)).size,
+      personal_money_merged: false,
+      personal_save_changed: false,
+      origin_trace_enabled: true,
+      persisted_shared_pets: normalized.persisted === true,
+      pet_care_write_enabled: true,
+      shared_warehouse_pet_care_consume_enabled: true,
+      shared_pet_ledger_count: Array.isArray(contract.shared_pet_ledger) ? contract.shared_pet_ledger.length : 0,
+      deferred_writes: (normalized.summary?.deferred_writes || []).filter(item => item !== 'pet.care' && item !== 'animal.pet.care'),
     },
   };
 }
@@ -3348,6 +3631,8 @@ function normalizeContract(entry = {}) {
     shared_farm_ledger: normalizeFarmActionLedger(entry.shared_farm_ledger),
     shared_animals: normalizeSharedAnimals(entry.shared_animals),
     shared_animal_ledger: normalizeAnimalActionLedger(entry.shared_animal_ledger),
+    shared_pets: normalizeSharedPets(entry.shared_pets),
+    shared_pet_ledger: normalizePetActionLedger(entry.shared_pet_ledger),
     shared_fund: normalizeSharedFund(entry.shared_fund),
     shared_warehouse: normalizeSharedWarehouse(entry.shared_warehouse),
     shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(entry.shared_warehouse_withdrawal_drafts),
@@ -3431,6 +3716,8 @@ function toPublicContract(contract) {
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries),
     shared_animals: normalizeSharedAnimals(contract.shared_animals),
     shared_animal_ledger: normalizeAnimalActionLedger(contract.shared_animal_ledger),
+    shared_pets: normalizeSharedPets(contract.shared_pets),
+    shared_pet_ledger: normalizePetActionLedger(contract.shared_pet_ledger),
     fund_large_spend_drafts: Array.isArray(contract.fund_large_spend_drafts)
       ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
       : [],
@@ -6321,6 +6608,23 @@ function normalizeSharedAnimalActionPayload(payload = {}) {
   };
 }
 
+function normalizeSharedPetCarePayload(payload = {}) {
+  const petId = sanitizeText(payload.pet_id || payload.shared_pet_id || payload.id, 140);
+  if (!petId) throw createError('shared pet pet_id is required');
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('shared pet care requires idempotency_key');
+  const careItemId = normalizeWarehouseItemId(payload.care_item_id || payload.careItemId || payload.item_id || payload.itemId || 'vitality_feed');
+  if (careItemId !== 'vitality_feed') {
+    throw createError('shared pet care only supports vitality_feed in this pass', 403);
+  }
+  return {
+    pet_id: petId,
+    care_item_id: careItemId,
+    idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeSharedAnimalFeedPayload(payload = {}) {
   const request = normalizeSharedAnimalActionPayload(payload);
   const feedItemId = normalizeWarehouseItemId(payload.feed_item_id || payload.feedItemId || payload.item_id || payload.itemId || 'hay');
@@ -6374,6 +6678,14 @@ function findSharedAnimal(sharedAnimals = {}, animalId = '') {
   ) || null;
 }
 
+function findSharedPet(sharedPets = {}, petId = '') {
+  const normalizedPetId = sanitizeText(petId, 140);
+  return (Array.isArray(sharedPets.pets) ? sharedPets.pets : []).find(pet =>
+    sanitizeText(pet?.id, 140) === normalizedPetId
+    || sanitizeText(pet?.shared_pet_id, 140) === normalizedPetId
+  ) || null;
+}
+
 function assertSharedFarmActionAllowed(contract = {}, member = {}, plot = {}, actorPermissions = {}, permissionKey = 'water') {
   if (actorPermissions?.farm?.[permissionKey] !== true) throw createError(`shared farm ${permissionKey} permission denied`, 403);
   const actorKey = normalizeUsernameKey(member.username_key || member.username);
@@ -6419,6 +6731,15 @@ function assertSharedAnimalPetAllowed(contract = {}, member = {}, animal = {}, a
   if (actorKey && originOwnerKey && actorKey === originOwnerKey) return true;
   if (animal.permission_mode === 'shared') return true;
   throw createError('shared animal is owner-only', 403);
+}
+
+function assertSharedPetCareAllowed(contract = {}, member = {}, pet = {}, actorPermissions = {}) {
+  if (actorPermissions?.animal?.pet !== true) throw createError('shared pet care permission denied', 403);
+  const actorKey = normalizeUsernameKey(member.username_key || member.username);
+  const originOwnerKey = normalizeUsernameKey(pet.origin_owner_key || pet.origin_owner_username);
+  if (actorKey && originOwnerKey && actorKey === originOwnerKey) return true;
+  if (pet.permission_mode === 'shared') return true;
+  throw createError('shared pet is owner-only', 403);
 }
 
 function assertSharedAnimalProductCollectAllowed(contract = {}, member = {}, animal = {}, actorPermissions = {}) {
@@ -9395,6 +9716,31 @@ async function getCohabitationSharedAnimals(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationSharedPets(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看共同宠物');
+  if (!contract.shared_pets?.persisted) {
+    contract.shared_pets = buildSharedPetsFromSnapshots(contract, contract.members.map(readMemberAnimalSnapshot), {
+      persisted: true,
+    });
+    contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+    contract.origin_assets.pets = contract.shared_pets.pets
+      .map(buildPetOriginAssetFromSharedPet)
+      .filter(entry => entry.id)
+      .slice(0, SHARED_PET_LIMIT);
+    saveContractStore(store);
+  } else {
+    contract.shared_pets = refreshSharedPetsContractFields(contract, contract.shared_pets);
+  }
+  return {
+    contract: toPublicContract(contract),
+    shared_pets: contract.shared_pets,
+  };
+}
+
 async function waterCohabitationSharedFarmPlot(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
@@ -11113,6 +11459,218 @@ async function collectCohabitationSharedAnimalProduct(contractId, payload = {}, 
       warehouse_ledger_ids: [warehouseLedgerEntry.id],
       before_animal_state: beforeState,
       after_animal_state: afterState,
+      personal_save_changed: false,
+      shared_warehouse_changed: true,
+      shared_fund_changed: false,
+    },
+  };
+}
+
+async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeSharedPetCarePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '照料共同宠物');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  contract.shared_pet_ledger = normalizePetActionLedger(contract.shared_pet_ledger);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_pets = normalizeSharedPets(contract.shared_pets);
+
+  const previousEntry = contract.shared_pet_ledger.find(entry =>
+    entry.action === 'care' && entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousEntry) {
+    if (previousEntry.pet_id !== request.pet_id || previousEntry.care_item_id !== request.care_item_id) {
+      throw createError('idempotency_key cannot be reused for another shared pet care request', 409);
+    }
+    const previousWarehouseEntries = contract.shared_warehouse.ledger.filter(entry =>
+      previousEntry.warehouse_ledger_ids.includes(entry.id)
+      || (entry.action === 'consume' && entry.idempotency_key === request.idempotency_key)
+    );
+    return {
+      contract: toPublicContract(contract),
+      shared_pets: contract.shared_pets,
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      pet: findSharedPet(contract.shared_pets, previousEntry.pet_id),
+      ledger_entry: previousEntry,
+      warehouse_ledger_entries: previousWarehouseEntries,
+      idempotent: true,
+      already_cared: previousEntry.status === 'committed',
+    };
+  }
+
+  if (!contract.shared_pets.persisted) {
+    contract.shared_pets = buildSharedPetsFromSnapshots(contract, contract.members.map(readMemberAnimalSnapshot), {
+      persisted: true,
+    });
+  }
+  const sharedPets = refreshSharedPetsContractFields(contract, contract.shared_pets);
+  const pet = findSharedPet(sharedPets, request.pet_id);
+  if (!pet) throw createError('shared pet not found', 404);
+  assertSharedPetCareAllowed(contract, member, pet, actorPermissions);
+  const petState = pet.pet_state && typeof pet.pet_state === 'object' ? pet.pet_state : normalizePetState({});
+
+  const allocationResult = buildWarehouseWithdrawalAllocations(
+    contract.shared_warehouse,
+    request.care_item_id,
+    1,
+    'normal'
+  );
+  if (!allocationResult.ok) throw createError('共同仓库中可用于共同宠物照料的活力饲料不足', 409);
+
+  const operatedAt = nowSeconds();
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const beforeState = { ...petState };
+  const afterState = {
+    ...petState,
+    friendship: Math.max(0, Math.min(999, Math.floor(Number(petState.friendship) || 0) + 3)),
+    mood: Math.max(0, Math.min(999, Math.floor(Number(petState.mood) || 0) + 8)),
+    care_count: Math.max(0, Math.floor(Number(petState.care_count) || 0)) + 1,
+    last_care_item_id: request.care_item_id,
+    last_cared_at: operatedAt,
+    last_caregiver_username: actorUsername,
+  };
+  const nextPet = {
+    ...pet,
+    pet_state: afterState,
+    current_caregiver_username: member.username,
+    current_caregiver_display_name: member.display_name || member.username,
+    current_caregiver_manor_role: actorManorRole,
+    current_caregiver_manor_role_label: actorManorRoleDef?.label || '',
+    readonly: false,
+  };
+  const warehouseTargetRef = `shared_pet:care:${pet.id}`;
+  const warehouseLedgerEntries = allocationResult.allocations.map(allocation => normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'consume',
+    item_id: request.care_item_id,
+    quantity: allocation.quantity,
+    quality: 'normal',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    source_owner_id: allocation.source_owner_id,
+    source_owner_username: allocation.source_owner_username,
+    source_owner_display_name: allocation.source_owner_display_name,
+    source_owner_key: allocation.source_owner_key,
+    source_owner_manor_role: allocation.source_owner_manor_role,
+    source_owner_manor_role_label: allocation.source_owner_manor_role_label,
+    source_save_id: allocation.source_save_id,
+    source_save_slot: allocation.source_save_slot,
+    source_save_revision: allocation.source_save_revision,
+    source_inventory: allocation.source_inventory || 'shared_warehouse.items',
+    source_ledger_ids: allocation.source_ledger_ids,
+    target_owner_id: `shared_pets:${contract.id}`,
+    target_owner_username: 'shared_pets',
+    target_owner_display_name: '共同宠物',
+    target_owner_key: 'shared_pets',
+    target_inventory: 'shared_pets.pets',
+    target_ref: warehouseTargetRef,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    reversible: true,
+    compensation_hint: '共同宠物照料已扣减共同仓库活力饲料并写入契约宠物镜像；个人宠物存档保持不变。',
+    status: 'committed',
+  })).filter(Boolean);
+
+  contract.shared_warehouse.ledger = [...warehouseLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const nextPets = sharedPets.pets.map(entry => entry.id === pet.id ? nextPet : entry);
+  const counts = countSharedPetStates(nextPets);
+  const ledgerEntry = normalizePetActionLedgerEntry({
+    id: makeId('shared_pet_ledger'),
+    action: 'care',
+    pet_id: pet.id,
+    source_pet_id: pet.source_pet_id,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_key: member.username_key,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    care_item_id: request.care_item_id,
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+    shared_warehouse_changed: true,
+    origin_owner_id: pet.origin_owner_id,
+    origin_owner_username: pet.origin_owner_username,
+    origin_owner_display_name: pet.origin_owner_display_name,
+    origin_owner_key: pet.origin_owner_key,
+    origin_save_id: pet.origin_save_id,
+    source_save_slot: pet.source_save_slot,
+    source_save_revision: pet.source_save_revision,
+    before_pet_state: beforeState,
+    after_pet_state: afterState,
+    permission_mode: pet.permission_mode,
+    idempotency_key: request.idempotency_key,
+    at: operatedAt,
+    reversible: true,
+    compensation_hint: 'contract-pet shared care consumes one shared-warehouse vitality_feed; personal saves are unchanged after material deposit.',
+    status: 'committed',
+  });
+  contract.shared_pet_ledger = [ledgerEntry, ...contract.shared_pet_ledger].slice(0, SHARED_PET_LEDGER_LIMIT);
+  contract.shared_pets = {
+    ...sharedPets,
+    revision: Math.max(sharedPets.revision || 0, operatedAt),
+    pets: nextPets,
+    summary: {
+      ...sharedPets.summary,
+      pet_count: counts.total,
+      cared_count: counts.cared,
+      pet_care_write_enabled: true,
+      shared_warehouse_pet_care_consume_enabled: true,
+      shared_pet_ledger_count: contract.shared_pet_ledger.length,
+      deferred_writes: (sharedPets.summary?.deferred_writes || []).filter(item => item !== 'pet.care' && item !== 'animal.pet.care'),
+    },
+  };
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  const petAsset = buildPetOriginAssetFromSharedPet(nextPet);
+  const replacedPetAssets = contract.origin_assets.pets.map(entry =>
+    sanitizeText(entry?.id, 140) === pet.id ? petAsset : entry
+  );
+  contract.origin_assets.pets = replacedPetAssets.some(entry => sanitizeText(entry?.id, 140) === pet.id)
+    ? replacedPetAssets
+    : [petAsset, ...replacedPetAssets].slice(0, SHARED_PET_LIMIT);
+  contract.origin_assets.warehouse_items = [
+    ...warehouseLedgerEntries.map(buildWarehouseOriginAsset),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  appendAudit(contract, 'shared_pet_cared', actor, {
+    ledger_id: ledgerEntry.id,
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+    pet_id: pet.id,
+    source_pet_id: pet.source_pet_id,
+    origin_owner_id: pet.origin_owner_id,
+    origin_owner_username: pet.origin_owner_username,
+    actor_username: actorUsername,
+    care_item_id: request.care_item_id,
+    quantity: 1,
+    target_ref: warehouseTargetRef,
+    permission_mode: pet.permission_mode,
+    personal_save_changed: false,
+    shared_warehouse_changed: true,
+    shared_fund_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    shared_pets: contract.shared_pets,
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    pet: nextPet,
+    ledger_entry: ledgerEntry,
+    warehouse_ledger_entries: warehouseLedgerEntries,
+    idempotent: false,
+    already_cared: false,
+    pet_action: {
+      action: 'care',
+      pet_id: pet.id,
+      care_item_id: request.care_item_id,
+      warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+      before_pet_state: beforeState,
+      after_pet_state: afterState,
       personal_save_changed: false,
       shared_warehouse_changed: true,
       shared_fund_changed: false,
@@ -16476,6 +17034,7 @@ async function createCohabitationContract(payload = {}, actor = {}) {
     origin_assets: {
       plots: [],
       animals: [],
+      pets: [],
       warehouse_items: [],
       decorations: [],
       fund_contributions: [],
@@ -16540,6 +17099,17 @@ async function acceptCohabitationContract(contractId, actor = {}) {
         .filter(entry => entry.id)
         .slice(0, SHARED_ANIMAL_LIMIT);
     }
+    if (!contract.shared_pets?.persisted) {
+      const animalSnapshots = contract.members.map(readMemberAnimalSnapshot);
+      contract.shared_pets = buildSharedPetsFromSnapshots(contract, animalSnapshots, {
+        persisted: true,
+      });
+      contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+      contract.origin_assets.pets = contract.shared_pets.pets
+        .map(buildPetOriginAssetFromSharedPet)
+        .filter(entry => entry.id)
+        .slice(0, SHARED_PET_LIMIT);
+    }
     contract.shared_fund.ledger = [
       {
         id: makeId('shared_fund_ledger'),
@@ -16558,6 +17128,8 @@ async function acceptCohabitationContract(contractId, actor = {}) {
       shared_map_plot_count: contract.shared_map?.summary?.total_plots || 0,
       shared_animals_persisted: contract.shared_animals?.persisted === true,
       shared_animal_count: contract.shared_animals?.summary?.animal_count || 0,
+      shared_pets_persisted: contract.shared_pets?.persisted === true,
+      shared_pet_count: contract.shared_pets?.summary?.pet_count || 0,
     });
   }
   saveContractStore(store);
@@ -18441,6 +19013,7 @@ module.exports = {
   listCohabitationContracts,
   getCohabitationSharedMap,
   getCohabitationSharedAnimals,
+  getCohabitationSharedPets,
   getCohabitationWarehouse,
   getCohabitationFund,
   getCohabitationPermissions,
@@ -18460,6 +19033,7 @@ module.exports = {
   feedCohabitationSharedAnimal,
   petCohabitationSharedAnimal,
   collectCohabitationSharedAnimalProduct,
+  careCohabitationSharedPet,
   processCohabitationSharedWorkshopRecipe,
   depositCohabitationWarehouseItem,
   withdrawCohabitationWarehouseItem,

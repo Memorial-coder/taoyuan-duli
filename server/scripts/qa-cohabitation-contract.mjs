@@ -145,6 +145,7 @@ const buildSaveData = username => ({
             { itemId: 'rice', quantity: 6, quality: 'normal', locked: false },
             { itemId: 'basic_fertilizer', quantity: 2, quality: 'normal', locked: false },
             { itemId: 'hay', quantity: 2, quality: 'normal', locked: false },
+            { itemId: 'vitality_feed', quantity: 2, quality: 'normal', locked: false },
             { itemId: 'ancient_waybill', quantity: 1, quality: 'normal', locked: false },
           ]
         : username === partner
@@ -207,9 +208,9 @@ const buildSaveData = username => ({
             },
           ]
         : [],
-      pets: username === 'cohabit_lg_fh25' || username === 'qa_lg_pet_f'
+      pets: username === owner || username === 'cohabit_lg_fh25' || username === 'qa_lg_pet_f'
         ? [
-            { type: 'cat', name: 'Mimi' },
+            { id: 'qa_cat_1', type: 'cat', name: 'Mimi', friendship: 20, mood: 30 },
             { type: 'dog', name: 'Wang' },
           ]
         : [],
@@ -444,6 +445,9 @@ assert.equal(accepted.contract.origin_assets.plots.length, 32, 'activation shoul
 assert.equal(accepted.contract.shared_animals?.persisted, true, 'activation should persist shared animal state')
 assert.equal(accepted.contract.shared_animals?.summary?.animal_count, 1, 'activation should persist owner animal into shared animals')
 assert.equal(accepted.contract.origin_assets.animals.length, 1, 'activation should persist animal origin assets for separation return')
+assert.equal(accepted.contract.shared_pets?.persisted, true, 'activation should persist shared pet state')
+assert.equal(accepted.contract.shared_pets?.summary?.pet_count, 2, 'activation should persist owner pets into shared pets')
+assert.equal(accepted.contract.origin_assets.pets.length, 2, 'activation should persist pet origin assets for separation return')
 assert.ok(accepted.contract.audit_log.find(entry => entry.action === 'contract_activated'), 'activation should be audited')
 
 const activeOverview = await runtime.listCohabitationContracts(partner)
@@ -685,6 +689,96 @@ assert.equal(sharedAnimalFeedResult.animal_action.personal_save_changed, false, 
 assert.equal(sharedAnimalFeedResult.animal_action.shared_warehouse_changed, true, 'shared animal feed should declare hay warehouse consumption')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalFeed, 'shared animal feed should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalFeed, 'shared animal feed should not rewrite partner save')
+
+const sharedPetsInitial = await runtime.getCohabitationSharedPets(created.contract.id, actor(owner))
+assert.equal(sharedPetsInitial.shared_pets.persisted, true, 'shared pet snapshot should be persisted on contract')
+assert.equal(sharedPetsInitial.shared_pets.summary.pet_care_write_enabled, true, 'shared pet snapshot should expose care writes')
+const qaSharedPet = sharedPetsInitial.shared_pets.pets.find(pet => pet.source_pet_id === 'qa_cat_1')
+assert.ok(qaSharedPet, 'shared pet snapshot should expose owner cat')
+assert.equal(qaSharedPet.origin_owner_username, owner, 'shared pet should keep origin owner username')
+assert.equal(qaSharedPet.pet_state.care_count, 0, 'shared pet should start without care count')
+
+const ownerVitalityFeedBeforeDeposit = getInventoryItemQuantity(owner, 'vitality_feed')
+assert.equal(ownerVitalityFeedBeforeDeposit, 2, 'owner seed save should include vitality_feed before shared pet care deposit')
+const vitalityFeedDepositResult = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'vitality_feed',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-vitality-feed-for-shared-pet-care',
+}, actor(owner))
+assert.equal(vitalityFeedDepositResult.idempotent, false, 'first vitality feed deposit for shared pet care should not be idempotent')
+assert.equal(getInventoryItemQuantity(owner, 'vitality_feed'), 1, 'shared pet vitality feed deposit should deduct one owner feed')
+assert.equal(vitalityFeedDepositResult.warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity, 1, 'shared warehouse should expose vitality feed before shared pet care')
+
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    animal: { pet: false },
+  },
+  idempotency_key: 'qa-disable-partner-shared-pet-care',
+}, actor(owner))
+const ownerRawBeforeSharedPetCare = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeSharedPetCare = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+await assert.rejects(
+  () => runtime.careCohabitationSharedPet(created.contract.id, {
+    pet_id: qaSharedPet.id,
+    care_item_id: 'vitality_feed',
+    idempotency_key: 'qa-shared-pet-care-denied',
+  }, actor(partner)),
+  error => error?.status === 403,
+  'shared pet care should reject members without animal pet permission'
+)
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity, 1, 'permission-denied shared pet care should not consume vitality feed')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedPetCare, 'permission-denied shared pet care should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedPetCare, 'permission-denied shared pet care should not rewrite partner save')
+
+const sharedPetCareResult = await runtime.careCohabitationSharedPet(created.contract.id, {
+  pet_id: qaSharedPet.id,
+  care_item_id: 'vitality_feed',
+  memo: 'qa shared pet care',
+  idempotency_key: 'qa-shared-pet-care-cat',
+}, actor(owner))
+assert.equal(sharedPetCareResult.idempotent, false, 'first shared pet care should not be idempotent')
+assert.equal(sharedPetCareResult.pet.pet_state.care_count, 1, 'shared pet care should increment contract pet care count')
+assert.equal(sharedPetCareResult.pet.pet_state.last_care_item_id, 'vitality_feed', 'shared pet care should record care item')
+assert.equal(sharedPetCareResult.pet.pet_state.last_caregiver_username, owner, 'shared pet care should record caregiver')
+assert.equal(sharedPetCareResult.pet.pet_state.friendship, 23, 'shared pet care should increase contract pet friendship')
+assert.equal(sharedPetCareResult.pet.pet_state.mood, 38, 'shared pet care should increase contract pet mood')
+assert.equal(sharedPetCareResult.pet.current_caregiver_username, owner, 'shared pet care should record current caregiver')
+assert.equal(sharedPetCareResult.warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 0, 'shared pet care should consume one vitality_feed from shared warehouse')
+assert.equal(sharedPetCareResult.ledger_entry.action, 'care', 'shared pet ledger should record care action')
+assert.equal(sharedPetCareResult.ledger_entry.care_item_id, 'vitality_feed', 'shared pet ledger should keep care item id')
+assert.equal(sharedPetCareResult.ledger_entry.shared_warehouse_changed, true, 'shared pet ledger should declare shared warehouse consumption')
+assert.equal(sharedPetCareResult.warehouse_ledger_entries.length, 1, 'shared pet care should create one warehouse consume ledger')
+assert.equal(sharedPetCareResult.warehouse_ledger_entries[0].action, 'consume', 'shared pet care should consume vitality feed through warehouse ledger')
+assert.ok(sharedPetCareResult.warehouse_ledger_entries[0].source_ledger_ids.includes(vitalityFeedDepositResult.ledger_entry.id), 'shared pet care consume ledger should reference vitality feed deposit ledger')
+assert.ok(sharedPetCareResult.ledger_entry.warehouse_ledger_ids.includes(sharedPetCareResult.warehouse_ledger_entries[0].id), 'shared pet ledger should reference warehouse consume ledger')
+assert.equal(sharedPetCareResult.shared_pets.summary.cared_count, 1, 'shared pet care should refresh cared summary')
+assert.equal(sharedPetCareResult.shared_pets.summary.shared_pet_ledger_count, 1, 'shared pet care should refresh pet ledger summary')
+assert.ok(sharedPetCareResult.contract.origin_assets.pets.some(item => item.id === sharedPetCareResult.pet.id && item.pet_state?.care_count === 1), 'origin assets should refresh cared pet state')
+assert.ok(sharedPetCareResult.contract.origin_assets.warehouse_items.some(item => item.ledger_id === sharedPetCareResult.warehouse_ledger_entries[0].id && item.action === 'consume'), 'origin assets should reference pet care consume ledger')
+assert.ok(sharedPetCareResult.contract.audit_log.find(entry => entry.action === 'shared_pet_cared'), 'shared pet care should be audited')
+assert.equal(sharedPetCareResult.pet_action.personal_save_changed, false, 'shared pet care should not mutate personal saves after feed deposit')
+assert.equal(sharedPetCareResult.pet_action.shared_warehouse_changed, true, 'shared pet care should declare vitality feed warehouse consumption')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedPetCare, 'shared pet care should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedPetCare, 'shared pet care should not rewrite partner save')
+
+const duplicateSharedPetCare = await runtime.careCohabitationSharedPet(created.contract.id, {
+  pet_id: qaSharedPet.id,
+  care_item_id: 'vitality_feed',
+  idempotency_key: 'qa-shared-pet-care-cat',
+}, actor(owner))
+assert.equal(duplicateSharedPetCare.idempotent, true, 'same shared pet care idempotency key should be idempotent')
+assert.equal(duplicateSharedPetCare.warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 0, 'idempotent shared pet care should not consume vitality_feed twice')
+assert.equal(duplicateSharedPetCare.shared_pets.summary.shared_pet_ledger_count, sharedPetCareResult.shared_pets.summary.shared_pet_ledger_count, 'idempotent shared pet care should not duplicate pet ledger rows')
+
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    animal: { pet: true },
+  },
+  idempotency_key: 'qa-restore-partner-shared-pet-care-after-denied-check',
+}, actor(owner))
 
 const duplicateSharedAnimalFeed = await runtime.feedCohabitationSharedAnimal(created.contract.id, {
   animal_id: qaSharedAnimal.id,
