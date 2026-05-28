@@ -899,8 +899,16 @@ export const useNpcStore = defineStore('npc', () => {
 
   const isRandomNpcSpecialFamilyTieKind = (
     kind: RandomNpcFamilyTieKind
-  ): kind is Extract<RandomNpcFamilyTieKind, 'parent' | 'sibling' | 'mentor' | 'sworn_kin' | 'old_flame'> =>
-    kind === 'parent' || kind === 'sibling' || kind === 'mentor' || kind === 'sworn_kin' || kind === 'old_flame'
+  ): kind is Extract<RandomNpcFamilyTieKind, 'parent' | 'sibling' | 'distant_relative' | 'mentor' | 'caravan' | 'old_debt' | 'family_business' | 'sworn_kin' | 'old_flame'> =>
+    kind === 'parent' ||
+    kind === 'sibling' ||
+    kind === 'distant_relative' ||
+    kind === 'mentor' ||
+    kind === 'caravan' ||
+    kind === 'old_debt' ||
+    kind === 'family_business' ||
+    kind === 'sworn_kin' ||
+    kind === 'old_flame'
 
   const sanitizeRandomNpcFamilySpecialEventEntry = (
     raw: unknown,
@@ -1046,10 +1054,30 @@ export const useNpcStore = defineStore('npc', () => {
       if (stage === 2) return '旧事拆台'
       return '手足认同'
     }
+    if (tie.kind === 'distant_relative') {
+      if (stage === 1) return '远亲认门'
+      if (stage === 2) return '族谱问路'
+      return '远亲留名'
+    }
     if (tie.kind === 'mentor') {
       if (stage === 1) return '师门问艺'
       if (stage === 2) return '师训验心'
       return '师门背书'
+    }
+    if (tie.kind === 'caravan') {
+      if (stage === 1) return '商路盘账'
+      if (stage === 2) return '货信同担'
+      return '商队担保'
+    }
+    if (tie.kind === 'old_debt') {
+      if (stage === 1) return '旧债摊开'
+      if (stage === 2) return '人情偿还'
+      return '旧账落印'
+    }
+    if (tie.kind === 'family_business') {
+      if (stage === 1) return '旧业点账'
+      if (stage === 2) return '新样试做'
+      return '家业定名'
     }
     if (tie.kind === 'sworn_kin') {
       if (stage === 1) return '义契重认'
@@ -1076,10 +1104,30 @@ export const useNpcStore = defineStore('npc', () => {
       if (stage === 2) return `${tie.name}把一段旧日小事拆开来说，逼${resident.name}承认自己也需要被人照看。`
       return `${tie.name}把你列入手足可托的往来名单，约定往后有消息先互相通气。`
     }
+    if (tie.kind === 'distant_relative') {
+      if (stage === 1) return `${tie.name}先按远亲礼数认门，确认你是否知道${resident.name}旧家谱里哪些话能问、哪些话要缓。`
+      if (stage === 2) return `${tie.name}把一段旁支往来讲清，要求你们别让远亲消息变成无边界的人情催促。`
+      return `${tie.name}愿意在族谱旁支里留下桃源这一页，只保留必要往来，不把旧家事压到${resident.name}身上。`
+    }
     if (tie.kind === 'mentor') {
       if (stage === 1) return `${tie.name}追问${resident.name}在桃源村是否还守着旧日手艺和规矩，先看你是否尊重师门来处。`
       if (stage === 2) return `${tie.name}出一道现实里的师训考题，让你们用桃源日常证明不是只会说好听话。`
       return `${tie.name}给出师门背书，允许${resident.name}把新日子写进旧师门的回信里。`
+    }
+    if (tie.kind === 'caravan') {
+      if (stage === 1) return `${tie.name}先盘问桃源村的供货、路费和消息口径，确认你们不会让${resident.name}独自担商路风险。`
+      if (stage === 2) return `${tie.name}拿一封货信试你们的应对，把信任从客套变成可追溯的商路协作。`
+      return `${tie.name}愿意给${resident.name}的桃源往来做商队担保，但约定收益、风险和人情账都要明写。`
+    }
+    if (tie.kind === 'old_debt') {
+      if (stage === 1) return `${tie.name}把旧债的来处摊开，先确认你不会逼${resident.name}用新的承诺去填旧缺口。`
+      if (stage === 2) return `${tie.name}列出可偿还的人情步骤，让旧债从压在心里的账变成能慢慢处理的事。`
+      return `${tie.name}给旧账落下阶段印记，认可${resident.name}可以在桃源村一边还情、一边过新日子。`
+    }
+    if (tie.kind === 'family_business') {
+      if (stage === 1) return `${tie.name}先点清旧业名分和库存来处，确认你是否尊重${resident.name}不急着接手的选择。`
+      if (stage === 2) return `${tie.name}拿一份新样或小账试做，让旧业和桃源日常先接上一个小口。`
+      return `${tie.name}把桃源分支写进家业定名，约好不让产业压过${resident.name}自己的去留。`
     }
     if (tie.kind === 'sworn_kin') {
       if (stage === 1) return `${tie.name}把旧日结义的来龙去脉说清，先确认你是否尊重${resident.name}已有的义亲边界。`
@@ -2751,7 +2799,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
     const tie = resident.familyTies.find(entry => entry.id === tieId)
     if (!tie) return { success: false, message: '这条家族节点已经不可用。' }
-    if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return { success: false, message: '只有父母、兄弟姐妹、师门、义亲或前缘节点有深线事件。' }
+    if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return { success: false, message: '只有核心家族节点有深线事件。' }
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
     if (!template) return { success: false, message: '这位长住 NPC 的模板已经不可用。' }
     const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)

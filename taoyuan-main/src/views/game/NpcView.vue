@@ -522,7 +522,7 @@
                     </p>
                   </div>
                   <p class="text-[10px] text-muted leading-4 mt-1">
-                    父母、兄弟姐妹、师门、义亲与前缘各自最多 3 段，同一节点每日只推进 1 段；记录只保留最近 4 条。
+                    核心家族节点各自最多 3 段，同一节点每日只推进 1 段；记录只保留最近 4 条。
                   </p>
                 </div>
                 <div v-if="getRandomNpcFamilyCommission(resident)" class="border-t border-accent/10 mt-2 pt-2">
@@ -2059,7 +2059,17 @@
   const canMeetRandomNpcFamilyTie = (resident: RandomNpcLongStayEntry, tieId: string) =>
     npcStore.canMeetRandomNpcFamilyTie(resident.residentId, tieId)
   const getSpecialFamilyTies = (resident: RandomNpcLongStayEntry): RandomNpcFamilyTieDef[] =>
-    resident.familyTies.filter(tie => tie.kind === 'parent' || tie.kind === 'sibling' || tie.kind === 'mentor' || tie.kind === 'sworn_kin' || tie.kind === 'old_flame')
+    resident.familyTies.filter(tie =>
+      tie.kind === 'parent' ||
+      tie.kind === 'sibling' ||
+      tie.kind === 'distant_relative' ||
+      tie.kind === 'mentor' ||
+      tie.kind === 'caravan' ||
+      tie.kind === 'old_debt' ||
+      tie.kind === 'family_business' ||
+      tie.kind === 'sworn_kin' ||
+      tie.kind === 'old_flame'
+    )
   const canProgressRandomNpcFamilySpecialEvent = (resident: RandomNpcLongStayEntry, tieId: string) =>
     npcStore.canProgressRandomNpcFamilySpecialEvent(resident.residentId, tieId)
   const getRandomNpcFamilyMeetingStage = (resident: RandomNpcLongStayEntry, tieId: string): 0 | 1 | 2 | 3 =>

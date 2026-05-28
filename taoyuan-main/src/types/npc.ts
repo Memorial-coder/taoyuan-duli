@@ -228,7 +228,7 @@ export interface RandomNpcFamilySpecialEventEntry {
   id: string
   dayTag: string
   tieId: string
-  tieKind: Extract<RandomNpcFamilyTieKind, 'parent' | 'sibling' | 'mentor' | 'sworn_kin' | 'old_flame'>
+  tieKind: Extract<RandomNpcFamilyTieKind, 'parent' | 'sibling' | 'distant_relative' | 'mentor' | 'caravan' | 'old_debt' | 'family_business' | 'sworn_kin' | 'old_flame'>
   stage: 1 | 2 | 3
   title: string
   summary: string
