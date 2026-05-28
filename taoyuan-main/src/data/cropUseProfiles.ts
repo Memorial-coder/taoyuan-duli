@@ -194,13 +194,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'peach',
-    tags: ['gift', 'wine', 'pet_feed', 'festival', 'food', 'alchemy'],
+    tags: ['gift', 'wine', 'pet_feed', 'festival', 'food', 'alchemy', 'order'],
     flavor: ['甜', '鲜'],
     nature: 'neutral',
     spirituality: 'spirit',
     rarityUse: 'seasonal',
-    recommendedUses: ['鲜果赠礼', '桃酒', '宠物心情餐', '灵果醒神丹', '恋爱剧情道具', '春日节会点心'],
-    summary: '偏社交和情绪反馈的果类作物，适合赠礼、酿酒、宠物心情、灵果炼丹和恋爱剧情。'
+    recommendedUses: ['鲜果赠礼', '桃酒', '宠物心情餐', '灵果醒神丹', '恋爱剧情道具', '春日鲜果订单', '春日节会点心'],
+    summary: '偏社交和情绪反馈的果类作物，适合赠礼、酿酒、宠物心情、灵果炼丹、恋爱剧情和春日鲜果订单。'
   },
   {
     cropId: 'chili',
