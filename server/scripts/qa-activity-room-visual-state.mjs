@@ -202,6 +202,20 @@ const assertDragonBoatVisualTrack = (room, expectedRevision = 0, options = {}) =
   return { track, team, occupiedCell }
 }
 
+const assertDragonBoatRaceReplay = (replay, expectedTeamCount, expectedScaleText) => {
+  assert.equal(replay?.kind, 'dragon_boat', 'dragon boat settlement receipt should expose route replay')
+  assert.equal(replay.race_result.mode, 'race', 'dragon boat should settle as multi-team race mode')
+  assert.equal(replay.race_result.team_count, expectedTeamCount, `dragon boat ${expectedScaleText} should settle expected team count`)
+  assert.equal(replay.race_rankings.length, expectedTeamCount, `dragon boat ${expectedScaleText} should expose every race lane ranking row`)
+  assert.ok(replay.summary.includes(expectedScaleText), `dragon boat summary should mention ${expectedScaleText}`)
+  assert.ok(replay.race_rankings.some(item => item.team_id === 'team_dragon_boat'), 'dragon boat ranking should include the room team')
+  assert.deepEqual(
+    replay.race_rankings.map(item => item.rank),
+    Array.from({ length: expectedTeamCount }, (_, index) => index + 1),
+    'dragon boat ranking rows should keep sequential ranks'
+  )
+}
+
 const assertEscortConvoyVisualTrack = (room, expectedRevision = 0, options = {}) => {
   const visualState = room?.visual_state
   const tracks = visualState?.tracks || []
@@ -348,6 +362,18 @@ festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
     ...room,
     state: 'running',
     running_started_at: 12341,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
+  if (room.id === dragonBoatDuo.room.id) return {
+    ...room,
+    state: 'running',
+    running_started_at: 12345,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
+  if (room.id === dragonBoatEight.room.id) return {
+    ...room,
+    state: 'running',
+    running_started_at: 12346,
     members: room.members.map(member => ({ ...member, status: 'active' })),
   }
   if (room.id === escortConvoy.room.id) return {
@@ -572,8 +598,45 @@ assert.ok(dragonReceiptReplay.race_result.popularity_bonus > 0, 'dragon boat rep
 assert.equal(dragonReceiptReplay.race_result.team_count, 3, 'default dragon boat should settle three race lane teams')
 assert.equal(dragonReceiptReplay.race_rankings.length, 3, 'dragon boat replay should include race lane ranking rows')
 assert.ok(dragonReceiptReplay.race_rankings.some(item => item.team_id === 'team_dragon_boat'), 'dragon boat ranking should include the room team')
+assertDragonBoatRaceReplay(dragonReceiptReplay, 3, '三船竞速')
 const dragonSettledSnapshotReceipt = dragonSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon')
 assert.equal(dragonSettledSnapshotReceipt?.route_replay?.kind, 'dragon_boat', 'room snapshot dragon boat receipt should include route replay')
+
+const dragonDuoActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoatDuo.room.id, {
+  action_id: 'sync_oar',
+}, actor('visual_host_dragon_duo'))
+assertDragonBoatVisualTrack(dragonDuoActionResult.room, 1, {
+  expectedTeamCount: 2,
+  minPosition: 1,
+  expectedLastAction: 'sync_oar',
+  expectSelectedOccupied: true,
+})
+const dragonDuoSettledResult = await runtime.settleFestivalRoom(dragonBoatDuo.room.id, actor('visual_host_dragon_duo'))
+const dragonDuoReplay = dragonDuoSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === dragonBoatDuo.room.id)?.route_replay
+assertDragonBoatRaceReplay(dragonDuoReplay, 2, '双船演练')
+assert.equal(
+  dragonDuoSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon_duo')?.route_replay?.race_result?.team_count,
+  2,
+  'room snapshot duo dragon boat receipt should keep two-team race result'
+)
+
+const dragonEightActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoatEight.room.id, {
+  action_id: 'lift_applause',
+}, actor('visual_host_dragon_eight'))
+assertDragonBoatVisualTrack(dragonEightActionResult.room, 1, {
+  expectedTeamCount: 4,
+  minPosition: 2,
+  expectedLastAction: 'lift_applause',
+  expectSelectedOccupied: true,
+})
+const dragonEightSettledResult = await runtime.settleFestivalRoom(dragonBoatEight.room.id, actor('visual_host_dragon_eight'))
+const dragonEightReplay = dragonEightSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === dragonBoatEight.room.id)?.route_replay
+assertDragonBoatRaceReplay(dragonEightReplay, 4, '四船扩展')
+assert.equal(
+  dragonEightSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon_eight')?.route_replay?.race_result?.team_count,
+  4,
+  'room snapshot eight-player dragon boat receipt should keep four-team race result'
+)
 const dragonSettlementStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 const dragonStoredReceipt = dragonSettlementStore.receipts.find(receipt => receipt.room_id === dragonBoat.room.id && receipt.target_username === 'visual_host_dragon')
 assert.ok(dragonStoredReceipt?.idempotency_key, 'dragon boat stored receipt should keep idempotency key')

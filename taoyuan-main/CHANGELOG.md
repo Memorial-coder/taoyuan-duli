@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0528 龙舟多队成绩单收口
+- `dragon_boat` 结算 `route_replay.summary` 现在直接标出双船演练 / 三船竞速 / 四船扩展，脱离前端映射时也能读懂竞速规模。
+- 服务端专项 QA 覆盖 2 人、默认 4 人、8 人房真实行动后结算的 `race_result.team_count`、顺序名次、`race_rankings` 行数和房间快照凭证；不改 `reward_payload` 或结算幂等键。
+
 ### 0528 灯会留影收口回看
 - 服务端专项 QA 新增真实 `lantern_fair + group_photo` 房间，执行合法 `lock_pose` 后会在留影点、结算 `memory_records`、个人纪念册 `photo_line` 与好友只读回看中保留“留影收口”署名。
 - 本轮只补灯会纪念与好友回看的服务端证据，不新增奖励，不改 `reward_payload` 或结算幂等键。

@@ -2938,6 +2938,14 @@ function getDragonBoatRaceTeamCount(room) {
   return 2;
 }
 
+function getDragonBoatRaceScaleLabel(teamCount) {
+  const normalizedTeamCount = Math.max(1, Math.floor(Number(teamCount) || 0));
+  if (normalizedTeamCount >= 4) return '四船扩展';
+  if (normalizedTeamCount >= 3) return '三船竞速';
+  if (normalizedTeamCount >= 2) return '双船演练';
+  return '单船练习';
+}
+
 function getDragonBoatRivalPositionIndex(room, festivalState, basePositionIndex, trackLength, definition, rivalIndex) {
   const gameplayState = room?.gameplay_state || {};
   const scoreValue = Math.max(0, Math.floor(Number(gameplayState.score_value) || 0));
@@ -4206,7 +4214,8 @@ function buildDragonBoatRouteReplay(room) {
   );
   const popularityLabel = popularityBonus > 0 ? `节会人气 +${popularityBonus}` : '节会人气持平';
   const titleLabel = FESTIVAL_TITLE_REWARD_MAP[room.template_id]?.label || '';
-  const summary = `赛道推进 ${Math.min(positionIndex + 1, trackLength)}/${trackLength} 格，${reachedFinish ? '已经冲过终点' : '尚未冲线'}；默契值 ${gameplayState.score_value}，压力峰值 ${pressurePeak.value}/${FESTIVAL_ROUND_PRESSURE_MAX}；${rankLabel}，${popularityLabel}${titleLabel ? `，称号「${titleLabel}」` : ''}。`;
+  const raceScaleLabel = getDragonBoatRaceScaleLabel(raceRankings.length || getDragonBoatRaceTeamCount(room));
+  const summary = `${raceScaleLabel}：赛道推进 ${Math.min(positionIndex + 1, trackLength)}/${trackLength} 格，${reachedFinish ? '已经冲过终点' : '尚未冲线'}；默契值 ${gameplayState.score_value}，压力峰值 ${pressurePeak.value}/${FESTIVAL_ROUND_PRESSURE_MAX}；${rankLabel}，${popularityLabel}${titleLabel ? `，称号「${titleLabel}」` : ''}。`;
   return normalizeReceiptRouteReplay({
     kind: 'dragon_boat',
     title: '端午赛舟成绩单',
