@@ -174,13 +174,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'radish',
-    tags: ['food', 'pet_feed', 'animal_feed', 'alchemy', 'order', 'pickle'],
+    tags: ['food', 'pet_feed', 'animal_feed', 'alchemy', 'order', 'pickle', 'medicine'],
     flavor: ['甜', '辛'],
     nature: 'cool',
     spirituality: 'mundane',
     rarityUse: 'daily',
-    recommendedUses: ['家常料理', '动物饲料', '低级炼丹辅料', '村民订单', '腌萝卜'],
-    summary: '常见作物的稳定出口，适合料理、饲料、低级炼丹、腌制和村民订单。'
+    recommendedUses: ['家常料理', '动物饲料', '石根护脉丸', '村民订单', '腌萝卜'],
+    summary: '常见作物的稳定出口，适合料理、饲料、石根护脉丸防护丹药材、腌制和村民订单。'
   },
   {
     cropId: 'tea',
