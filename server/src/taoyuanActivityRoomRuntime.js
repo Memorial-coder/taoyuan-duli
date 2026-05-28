@@ -4393,12 +4393,13 @@ function applyExpeditionCavernWithdrawal(room, cavernState, actor, actionOption,
   }
   applyExpeditionCavernResourceDelta(cavernState, baseResourceDelta);
   const comboRecords = applyExpeditionCavernNodeCombos(room, cavernState, actor);
+  const lockedComboCount = Math.max(comboRecords.length, Array.isArray(cavernState.combo_records) ? cavernState.combo_records.length : 0);
   cavernState.withdrawal_state = 'confirmed';
   cavernState.withdrawal_actor_username = sanitizeText(actor.username, 40);
   cavernState.withdrawal_actor_display_name = sanitizeText(actor.displayName || actor.username, 40);
   cavernState.withdrawal_at = nowSeconds();
-  cavernState.withdrawal_summary = comboRecords.length > 0
-    ? `提前撤离已确认，并结算 ${comboRecords.length} 个节点组合收益。`
+  cavernState.withdrawal_summary = lockedComboCount > 0
+    ? `提前撤离已确认，并锁定 ${lockedComboCount} 个节点组合收益。`
     : '提前撤离已确认，当前探索成果已锁定。';
   room.gameplay_state.phase = 'completed';
   room.gameplay_state.completed_at = nowSeconds();

@@ -636,12 +636,22 @@ assert.ok(currentEventNodes.length > 0, 'round transition should remap visual no
 assert.ok(advancedResult.room.gameplay.cavern_state.combo_records.some(record => record.combo_id === 'route_then_mine'), 'cavern should record node combo benefits after route and mine actions')
 assert.ok(advancedResult.room.gameplay.cavern_state.combo_records[0]?.summary.includes('补给'), 'cavern combo record should explain resource benefit')
 
+const stabilizedResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
+  action_id: 'stabilize_collapse',
+}, actor('visual_action_host'))
+const cavernComboIds = new Set(stabilizedResult.room.gameplay.cavern_state.combo_records.map(record => record.combo_id))
+assert.ok(cavernComboIds.has('route_then_mine'), 'cavern should keep route then mine combo after later actions')
+assert.ok(cavernComboIds.has('support_then_mine'), 'cavern should record support then mine combo benefits')
+assert.ok(cavernComboIds.has('route_with_support'), 'cavern should record route with support combo benefits')
+assert.equal(stabilizedResult.room.gameplay.cavern_state.combo_records.length, 3, 'cavern should record all configured node combo benefits once')
+
 const withdrawalResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
   action_id: 'confirm_withdrawal',
 }, actor('visual_action_host'))
 assert.equal(withdrawalResult.room.gameplay.phase, 'completed', 'cavern withdrawal should complete the gameplay phase early')
 assert.equal(withdrawalResult.room.gameplay.cavern_state.withdrawal_state, 'confirmed', 'cavern should record confirmed withdrawal state')
 assert.ok(withdrawalResult.room.gameplay.cavern_state.withdrawal_summary.includes('提前撤离'), 'cavern withdrawal should expose readable summary')
+assert.ok(withdrawalResult.room.gameplay.cavern_state.withdrawal_summary.includes('3 个节点组合收益'), 'cavern withdrawal should lock all accumulated node combos')
 const withdrawalNode = withdrawalResult.room.visual_state.nodes.find(node => node.id === 'cavern_exit')
 assert.equal(withdrawalNode?.state, 'resolved', 'withdrawal action should resolve the exit node')
 assert.deepEqual(withdrawalNode?.available_action_ids, [], 'resolved exit node should stop offering withdrawal action')
@@ -654,6 +664,7 @@ assert.deepEqual(receiptReplay.route_nodes.map(node => node.id), [
   'cavern_entrance',
   'cavern_ore_vein',
   'cavern_route_marker',
+  'cavern_collapse_support',
   'cavern_exit',
 ], 'cavern route replay should preserve explored route order')
 assert.ok(receiptReplay.highlight_nodes.length > 0, 'cavern route replay should keep highlight nodes')
@@ -661,8 +672,12 @@ assert.ok(receiptReplay.risk_peak.value >= 3, 'cavern route replay should record
 assert.ok(receiptReplay.summary.includes('组合收益'), 'cavern route replay should mention node combo benefits')
 assert.ok(receiptReplay.summary.includes('提前撤离'), 'cavern route replay should mention early withdrawal closure')
 assert.ok(receiptReplay.combo_records.some(record => record.combo_id === 'route_then_mine'), 'cavern route replay should expose structured node combo records')
+assert.ok(receiptReplay.combo_records.some(record => record.combo_id === 'support_then_mine'), 'cavern route replay should expose support then mine combo records')
+assert.ok(receiptReplay.combo_records.some(record => record.combo_id === 'route_with_support'), 'cavern route replay should expose route with support combo records')
+assert.equal(receiptReplay.combo_records.length, 3, 'cavern route replay should expose all configured node combo records')
 assert.ok(receiptReplay.combo_records[0]?.resource_delta_text, 'cavern route replay combo records should include readable resource deltas')
 assert.equal(receiptReplay.withdrawal_state, 'confirmed', 'cavern route replay should expose structured withdrawal state')
+assert.ok(receiptReplay.withdrawal_summary.includes('3 个节点组合收益'), 'cavern route replay should preserve accumulated combo withdrawal summary')
 assert.equal(receiptReplay.withdrawal_actor_username, 'visual_action_host', 'cavern route replay should preserve withdrawal actor')
 assert.ok(receiptReplay.member_contributions.some(item => item.username === 'visual_action_host'), 'cavern route replay should include member contribution')
 const settledSnapshotReceipt = settledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_action_host')
