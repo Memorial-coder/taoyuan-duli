@@ -204,13 +204,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'chili',
-    tags: ['food', 'alchemy', 'medicine', 'pickle', 'festival'],
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'festival', 'order'],
     flavor: ['辛', '香'],
     nature: 'warm',
     spirituality: 'earth',
     rarityUse: 'stable',
-    recommendedUses: ['辛火丹', '泡椒', '料理增味', '驱虫药', '龙舟热血餐', '暖身小菜'],
-    summary: '辛热型功能作物，适合料理提味、泡椒腌制、炼丹、驱虫药和热闹节会餐。'
+    recommendedUses: ['辛火丹', '泡椒', '料理增味', '驱虫药', '龙舟热血餐', '暖身小菜订单'],
+    summary: '辛热型功能作物，适合料理提味、泡椒腌制、炼丹、驱虫药、热闹节会餐和暖身小菜订单。'
   }
 ]
 
