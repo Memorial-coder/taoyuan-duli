@@ -2518,6 +2518,7 @@ assert.equal(offlineStatus.offline_status.summary.offline_member_blocks_operatio
 assert.equal(offlineStatus.offline_status.summary.independent_operations_enabled, true, 'active members should be able to operate independently')
 assert.equal(offlineStatus.offline_status.summary.shared_farm_offline_writes_enabled, true, 'offline status should expose shared farm writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.shared_animal_offline_writes_enabled, true, 'offline status should expose shared animal writes as server-authoritative')
+assert.equal(offlineStatus.offline_status.summary.shared_pet_offline_writes_enabled, true, 'offline status should expose shared pet care writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_bonus_enabled, true, 'offline status should expose same-time online farm water bonus readiness')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_farm_fertilize_bonus_enabled, true, 'offline status should expose same-time farm plant/fertilize bonus readiness')
 assert.equal(offlineStatus.offline_status.summary.simultaneous_online_animal_bonus_enabled, true, 'offline status should expose same-time animal care bonus readiness')
@@ -2541,6 +2542,7 @@ assert.equal(offlineStatus.offline_status.actor_capabilities.care_shared_farm, t
 assert.equal(offlineStatus.offline_status.actor_capabilities.fertilize_shared_farm_basic, true, 'owner should be able to apply basic shared farm fertilizer while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.feed_shared_animal, true, 'owner should be able to feed shared animals while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.pet_shared_animal, true, 'owner should be able to pet shared animals while partner is not required online')
+assert.equal(offlineStatus.offline_status.actor_capabilities.care_shared_pet, true, 'owner should be able to care shared pets while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.collect_shared_animal_product, true, 'owner should be able to collect shared animal products while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.deposit_warehouse, true, 'owner should still be able to deposit while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, true, 'owner should be able to withdraw ordinary warehouse items while partner is not required online')
@@ -2560,6 +2562,7 @@ assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.care_shared_
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.fertilize_shared_farm_basic, false, 'offline status should reflect updated partner basic fertilizer permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.feed_shared_animal, false, 'offline status should reflect updated partner shared animal feed permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.pet_shared_animal, false, 'offline status should reflect updated partner shared animal pet permission')
+assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.care_shared_pet, false, 'offline status should reflect updated partner shared pet care permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.collect_shared_animal_product, false, 'offline status should reflect updated partner shared animal product permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.manage_permissions, false, 'partner should not manage permissions in offline status')
 

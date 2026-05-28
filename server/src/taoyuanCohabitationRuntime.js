@@ -5805,6 +5805,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_log_available: true,
       shared_farm_offline_writes_enabled: true,
       shared_animal_offline_writes_enabled: true,
+      shared_pet_offline_writes_enabled: true,
       shared_workshop_offline_writes_enabled: true,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
@@ -5827,6 +5828,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       read_shared_animals: true,
       feed_shared_animal: actorPermissions.animal.feed === true,
       pet_shared_animal: actorPermissions.animal.pet === true,
+      care_shared_pet: actorPermissions.animal.pet === true,
       collect_shared_animal_product: actorPermissions.animal.collect_product === true,
       process_shared_workshop_recipe: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.buy_furniture === true
