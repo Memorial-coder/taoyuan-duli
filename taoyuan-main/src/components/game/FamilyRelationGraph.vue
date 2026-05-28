@@ -131,13 +131,13 @@
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import type { ChildTrainingFocus, RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcLongStayEntry, RandomNpcRelationshipTag } from '@/types'
+  import type { ChildTrainingFocus, RandomNpcArchiveSummary, RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcLongStayEntry, RandomNpcRelationshipTag } from '@/types'
 
   defineEmits<{
     (event: 'selectNpc', npcId: string): void
   }>()
 
-  type RelationNodeGroup = 'self' | 'family' | 'pet' | 'visitor' | 'acquaintance' | 'resident' | 'villager' | 'spirit' | 'kin'
+  type RelationNodeGroup = 'self' | 'family' | 'pet' | 'visitor' | 'acquaintance' | 'resident' | 'archive' | 'villager' | 'spirit' | 'kin'
 
   interface RelationNode {
     id: string
@@ -245,6 +245,7 @@
     if (kind === 'acquaintance') return 'stroke-success/60'
     if (kind === 'visitor') return 'stroke-accent/50'
     if (kind === 'resident') return 'stroke-warning/70'
+    if (kind === 'archive') return 'stroke-muted/45'
     if (kind === 'spirit') return 'stroke-water/70'
     if (kind === 'kin') return 'stroke-success/70'
     return 'stroke-muted/35'
@@ -258,6 +259,7 @@
     if (group === 'resident') return `fill-warning stroke-warning${selectedRing}`
     if (group === 'acquaintance') return `fill-success stroke-success${selectedRing}`
     if (group === 'visitor') return `fill-accent stroke-accent${selectedRing}`
+    if (group === 'archive') return `fill-muted stroke-muted${selectedRing}`
     if (group === 'spirit') return `fill-water stroke-water${selectedRing}`
     if (group === 'kin') return `fill-success stroke-success${selectedRing}`
     return `fill-muted stroke-muted${selectedRing}`
@@ -270,6 +272,7 @@
     if (group === 'resident') return 'text-warning'
     if (group === 'acquaintance') return 'text-success'
     if (group === 'visitor') return 'text-accent'
+    if (group === 'archive') return 'text-muted'
     if (group === 'spirit') return 'text-water'
     if (group === 'kin') return 'text-success'
     return 'text-muted'
@@ -306,10 +309,29 @@
     if (resident.relationshipLine.stage > 0) return randomNpcRelationLineLabels[resident.relationshipLine.kind]
     return tagLabels[resident.relationshipTag]
   }
+  const getRandomNpcArchiveRelationLabel = (archive: RandomNpcArchiveSummary): string => {
+    const line = archive.longStaySnapshot?.relationshipLine
+    if (archive.archivedTier === 'long_stay' && line) {
+      if (line.commitmentStatus === 'married') return '旧日配偶'
+      if (line.commitmentStatus === 'engaged') return '旧日婚约'
+      if (line.stage > 0) return `旧日${randomNpcRelationLineLabels[line.kind]}`
+      return '旧日长住'
+    }
+    return `旧日${tagLabels[archive.relationshipTag]}`
+  }
   const getRandomNpcFamilyBusinessStatus = (resident: RandomNpcLongStayEntry): string => {
     if (resident.familyLine.familyBusinessStage > 0) return `婚后家业 ${resident.familyLine.familyBusinessStage}/3`
     if (resident.relationshipLine.commitmentStatus === 'married') return '婚后家业待立约'
     return `阶段 ${resident.relationshipEventStage}/3`
+  }
+  const getRandomNpcArchiveStatus = (archive: RandomNpcArchiveSummary): string => {
+    const snapshot = archive.longStaySnapshot
+    if (archive.archivedTier === 'long_stay' && snapshot) {
+      if (snapshot.familyLine.familyBusinessStage > 0) return `旧档家业 ${snapshot.familyLine.familyBusinessStage}/3`
+      if (snapshot.relationshipLine.commitmentStatus === 'married') return '旧档婚后关系'
+      return `旧档长住阶段 ${snapshot.relationshipEventStage}/3`
+    }
+    return archive.locked ? '已锁定旧档' : '可召回旧档'
   }
 
   const describeFixedNpcRelation = (npcId: string) => {
@@ -463,6 +485,7 @@
 
     const longStaySourceIds = new Set(randomNpcBoard.value.longStayResidents.map(entry => entry.sourceVisitorId))
     const acquaintanceIds = new Set(randomNpcBoard.value.acquaintances.map(entry => entry.visitorId))
+    const activeVisitorIds = new Set(randomNpcBoard.value.activeVisitors.map(entry => entry.id))
 
     layoutRing(
       randomNpcBoard.value.activeVisitors.filter(entry => !longStaySourceIds.has(entry.id) && !acquaintanceIds.has(entry.id)),
@@ -591,6 +614,94 @@
           circleClass: nodeClassByGroup('kin', selectedNodeId.value === tieId),
           textClass: textClassByGroup('kin'),
           anchorNodeId: `resident:${entry.residentId}`
+        })
+      })
+    })
+
+    layoutRing(
+      randomNpcBoard.value.recentSummaries.filter(entry =>
+        !activeVisitorIds.has(entry.visitorId) &&
+        !acquaintanceIds.has(entry.visitorId) &&
+        !longStaySourceIds.has(entry.visitorId)
+      ),
+      41,
+      28,
+      142
+    ).forEach(({ entry, x, y }) => {
+      const snapshot = entry.longStaySnapshot
+      const latestMemory = entry.dialogueMemories?.slice(-1)[0]
+      const latestBusinessEntry = snapshot?.familyLine.familyBusinessHistory[snapshot.familyLine.familyBusinessHistory.length - 1]
+      const relationLabel = getRandomNpcArchiveRelationLabel(entry)
+      nodes.push({
+        id: `archive:${entry.visitorId}`,
+        name: entry.name,
+        shortLabel: entry.archivedTier === 'long_stay' ? '旧' : '档',
+        group: 'archive',
+        groupLabel: entry.archivedTier === 'long_stay' ? '旧日长住归档' : '旧日来客归档',
+        relationLabel,
+        metricLabel: `${entry.affinity} 好感`,
+        statusLabel: getRandomNpcArchiveStatus(entry),
+        detailLines: [
+          `最近见面：${entry.lastSeenDayTag || '未记录'}；${entry.summary}`,
+          entry.locked ? '该旧档已锁定，摘要会优先保留。' : '该旧档受近期摘要上限控制，可在 NPC 页召回。',
+          entry.smallOrderCompleted ? '小订单：已完成。' : '小订单：未完成或未记录。',
+          latestMemory ? `最近记忆：${latestMemory.dayTag} · ${latestMemory.summary}` : '',
+          snapshot
+            ? `旧日驻村：${routeLabels[snapshot.route]}；${snapshot.residenceReason}`
+            : '',
+          snapshot
+            ? `旧日关系线：${snapshot.relationshipLine.note}`
+            : '',
+          snapshot?.relationshipLine.homeLifeNote
+            ? `婚后日常：${snapshot.relationshipLine.homeLifeNote}`
+            : '',
+          snapshot && snapshot.familyLine.familyBusinessStage > 0
+            ? `旧档家业：${snapshot.familyLine.familyBusinessNote}`
+            : '',
+          latestBusinessEntry?.rewardSummary ? `旧档收益：${latestBusinessEntry.rewardSummary}` : '',
+          snapshot
+            ? `旧档家族评价：${snapshot.familyLine.reputation}/100；${snapshot.familyLine.lastReview}`
+            : '',
+          `关键记录：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`
+        ].filter(Boolean),
+        tags: [
+          entry.occupation,
+          entry.archivedTier === 'long_stay' ? '长住快照' : '短访摘要',
+          entry.locked ? '锁定' : '',
+          snapshot?.relationshipLine.commitmentStatus === 'married' ? '旧日婚后' : '',
+          snapshot && snapshot.familyLine.familyBusinessStage > 0 ? `旧档家业${snapshot.familyLine.familyBusinessStage}/3` : ''
+        ].filter(Boolean),
+        x,
+        y,
+        circleClass: nodeClassByGroup('archive', selectedNodeId.value === `archive:${entry.visitorId}`),
+        textClass: textClassByGroup('archive')
+      })
+
+      if (!snapshot) return
+      layoutAroundNode(snapshot.familyTies, x, y, 7.5, 6, 25).forEach(({ entry: tie, x: tieX, y: tieY }) => {
+        const tieId = `archive-kin:${entry.visitorId}:${tie.id}`
+        nodes.push({
+          id: tieId,
+          name: tie.name,
+          shortLabel: getRandomNpcFamilyTieKindLabel(tie.kind).slice(0, 1),
+          group: 'kin',
+          groupLabel: '旧档随机 NPC 家族',
+          relationLabel: tie.relation,
+          metricLabel: getRandomNpcFamilyTieKindLabel(tie.kind),
+          statusLabel: getRandomNpcFamilyTieAttitudeLabel(tie.attitude),
+          detailLines: [
+            `${entry.name}旧档中的${tie.relation}：${tie.summary}`,
+            tie.kind === 'family_business' && snapshot.familyLine.familyBusinessStage > 0
+              ? `旧档家业：${snapshot.familyLine.familyBusinessNote}`
+              : '',
+            '该节点来自旧日长住快照；召回后会恢复到长住名册并继续只保存在单机存档。'
+          ].filter(Boolean),
+          tags: [getRandomNpcFamilyTieKindLabel(tie.kind), tie.attitude, '旧档快照'],
+          x: tieX,
+          y: tieY,
+          circleClass: nodeClassByGroup('kin', selectedNodeId.value === tieId),
+          textClass: textClassByGroup('kin'),
+          anchorNodeId: `archive:${entry.visitorId}`
         })
       })
     })
