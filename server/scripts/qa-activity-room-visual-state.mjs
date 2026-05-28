@@ -420,6 +420,7 @@ const lanternRewardAfterClose = readRewardSave('visual_host_lantern_memorial')
 assert.equal(lanternRewardAfterClose.onlineFestivalRewards.memorials.length, 1, 'lantern fair receipt persistence should add one memorial')
 assert.ok(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_records.some(record => record.type === 'main_lantern'), 'lantern fair memorial should retain main lantern memory')
 assert.ok(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_records.some(record => record.type === 'order'), 'lantern fair memorial should retain order memory')
+
 await seedFriendship('visual_host_festival', 'visual_host_lantern_memorial')
 const friendMemorialOverview = runtime.listFestivalFriendMemorialOverview('visual_host_festival', {
   target_username: 'visual_host_lantern_memorial',
@@ -429,6 +430,51 @@ assert.equal(friendMemorialOverview.memorials.length, 1, 'friend memorial overvi
 assert.ok(friendMemorialOverview.memorials[0].memory_records.some(record => record.type === 'main_lantern'), 'friend memorial overview should expose lantern memories')
 assert.throws(
   () => runtime.listFestivalFriendMemorialOverview('visual_host_expedition', { target_username: 'visual_host_lantern_memorial' }),
+  /只能查看已互为好友/,
+  'non-friend should not read main lantern festival memorials'
+)
+
+const lanternPhotoRoom = await runtime.createFestivalRoom({
+  template_id: 'lantern_fair',
+  gameplay_template_id: 'group_photo',
+  title: 'visual lantern photo smoke',
+}, actor('visual_host_lantern_photo'))
+const lanternPhotoStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+lanternPhotoStore.rooms = lanternPhotoStore.rooms.map(room => room.id === lanternPhotoRoom.room.id
+  ? {
+      ...room,
+      state: 'running',
+      running_started_at: 12345,
+      members: room.members.map(member => ({ ...member, status: 'active' })),
+    }
+  : room
+)
+await writeFile(roomStoreFile, JSON.stringify(lanternPhotoStore, null, 2), 'utf8')
+const lanternPhotoActionResult = await runtime.submitFestivalRoomGameplayAction(lanternPhotoRoom.room.id, {
+  action_id: 'lock_pose',
+}, actor('visual_host_lantern_photo'))
+assert.equal(lanternPhotoActionResult.room.visual_state.selected_visual_id, 'lantern_photo_spot', 'lantern fair photo action should select the photo spot object')
+assert.equal(lanternPhotoActionResult.room.visual_state.objects.find(object => object.id === 'lantern_photo_spot')?.handled_by, 'visual_host_lantern_photo', 'lantern fair photo spot should mark who locked the pose')
+seedRewardSave('visual_host_lantern_photo')
+await runtime.settleFestivalRoom(lanternPhotoRoom.room.id, actor('visual_host_lantern_photo'))
+const lanternPhotoClosedResult = await runtime.closeFestivalRoom(lanternPhotoRoom.room.id, actor('visual_host_lantern_photo'))
+assert.equal(lanternPhotoClosedResult.room.state, 'closed', 'lantern fair photo room should close after receipt persistence')
+const lanternPhotoRewardAfterClose = readRewardSave('visual_host_lantern_photo')
+const lanternPhotoMemorial = lanternPhotoRewardAfterClose.onlineFestivalRewards.memorials.find(entry => entry.room_id === lanternPhotoRoom.room.id)
+assert.ok(lanternPhotoMemorial, 'lantern fair photo room should persist a memorial entry')
+assert.ok(lanternPhotoMemorial.memory_records.some(record => record.type === 'photo' && record.actor_username === 'visual_host_lantern_photo'), 'lantern fair memorial should retain signed photo memory')
+assert.ok(lanternPhotoMemorial.photo_line.includes('留影收口由visual_host_lantern_photo完成'), 'lantern fair memorial photo line should mention signed photo closure')
+
+await seedFriendship('visual_host_festival', 'visual_host_lantern_photo')
+const friendPhotoMemorialOverview = runtime.listFestivalFriendMemorialOverview('visual_host_festival', {
+  target_username: 'visual_host_lantern_photo',
+})
+assert.equal(friendPhotoMemorialOverview.is_friend, true, 'friend memorial overview should require and report friendship')
+assert.equal(friendPhotoMemorialOverview.memorials.length, 1, 'friend memorial overview should read target festival memorials')
+assert.ok(friendPhotoMemorialOverview.memorials[0].memory_records.some(record => record.type === 'photo' && record.actor_username === 'visual_host_lantern_photo'), 'friend memorial overview should expose signed lantern photo memories')
+assert.ok(friendPhotoMemorialOverview.memorials[0].photo_line.includes('留影收口由visual_host_lantern_photo完成'), 'friend memorial overview should expose readable lantern photo line')
+assert.throws(
+  () => runtime.listFestivalFriendMemorialOverview('visual_host_expedition', { target_username: 'visual_host_lantern_photo' }),
   /只能查看已互为好友/,
   'non-friend should not read festival memorials'
 )
