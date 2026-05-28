@@ -993,6 +993,23 @@ function normalizeSocietyWarehouseEntry(entry) {
   };
 }
 
+function normalizeSocietyWarehouseStockSnapshot(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map(entry => {
+      const itemId = sanitizeText(entry?.item_id, 40);
+      const quantity = Math.max(0, Math.floor(Number(entry?.quantity) || 0));
+      if (!itemId || quantity <= 0) return null;
+      return {
+        item_id: itemId,
+        quantity,
+        label: sanitizeText(entry?.label, 80) || `${quantity} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
 function normalizeSocietyWarehouseLogEntry(entry) {
   return {
     id: sanitizeText(entry?.id || makeId('society_warehouse_log'), 80),
@@ -1006,6 +1023,10 @@ function normalizeSocietyWarehouseLogEntry(entry) {
     weekly_points: Math.max(0, Math.floor(Number(entry?.weekly_points) || 0)),
     context_id: sanitizeText(entry?.context_id, 40),
     idempotency_key: sanitizeText(entry?.idempotency_key, 80),
+    settlement_scope: sanitizeText(entry?.settlement_scope, 40),
+    authority_summary: sanitizeText(entry?.authority_summary, 160),
+    personal_asset_effect: sanitizeText(entry?.personal_asset_effect, 80),
+    warehouse_stock_after: normalizeSocietyWarehouseStockSnapshot(entry?.warehouse_stock_after),
     entries: Array.isArray(entry?.entries)
       ? entry.entries.map(normalizeSocietyWarehouseEntry).filter(Boolean).slice(0, 8)
       : [],
@@ -1356,6 +1377,10 @@ function buildWarehouseLogSnapshot(entry) {
     weekly_points: deposit?.weekly_points || normalized.weekly_points || 0,
     context_id: normalized.context_id,
     idempotency_key: normalized.idempotency_key,
+    settlement_scope: normalized.settlement_scope,
+    authority_summary: normalized.authority_summary,
+    personal_asset_effect: normalized.personal_asset_effect,
+    warehouse_stock_after: normalized.warehouse_stock_after,
     entries: normalized.entries.map(cost => ({
       ...cost,
       label: cost.label || (cost.type === 'money'
@@ -1611,6 +1636,15 @@ function consumeFromPublicWarehouse(society, actorUsername, actorDisplayName, co
   warehouse.logs = [logEntry, ...warehouse.logs].slice(0, 40);
   society.public_warehouse = warehouse;
   appendSocietyActivity(society, `${actorDisplayName}为「${consume.label}」消耗了公共仓食材`, 'warehouse');
+  const stockAfter = Object.entries(warehouse.items).map(([itemId, quantity]) => ({
+    item_id: itemId,
+    quantity: Number(quantity) || 0,
+    label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
+  }));
+  logEntry.settlement_scope = 'public_warehouse_only';
+  logEntry.authority_summary = `服务端已为${consume.label}只扣公共仓，目标上下文 ${consume.context_id}。`;
+  logEntry.personal_asset_effect = 'none_after_deposit';
+  logEntry.warehouse_stock_after = stockAfter;
   return { consume, warehouse, logEntry, idempotentReplay: false };
 }
 
