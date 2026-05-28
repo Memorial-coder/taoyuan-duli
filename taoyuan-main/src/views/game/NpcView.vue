@@ -492,9 +492,12 @@
                     :disabled="!canMeetRandomNpcFamilyTie(resident, tie.id).success"
                     @click="handleMeetRandomNpcFamilyTie(resident.residentId, tie.id)"
                   >
-                    {{ resident.familyLine.metTieIds.includes(tie.id) ? `已见${tie.relation}` : `见${tie.relation}` }}
+                    {{ getRandomNpcFamilyMeetingButtonText(resident, tie.id, tie.relation) }}
                   </Button>
                 </div>
+                <p class="text-[10px] text-muted leading-4 mt-1">
+                  每个家族节点最多推进 3 轮见面；同一节点每日只推进 1 轮，记录仍保留在本地随机 NPC 存档。
+                </p>
                 <div v-if="getRandomNpcFamilyCommission(resident)" class="border-t border-accent/10 mt-2 pt-2">
                   <div class="flex items-center justify-between gap-2">
                     <p class="text-[10px] text-accent">{{ getRandomNpcFamilyCommission(resident)?.title }}</p>
@@ -2000,6 +2003,19 @@
   }
   const canMeetRandomNpcFamilyTie = (resident: RandomNpcLongStayEntry, tieId: string) =>
     npcStore.canMeetRandomNpcFamilyTie(resident.residentId, tieId)
+  const getRandomNpcFamilyMeetingStage = (resident: RandomNpcLongStayEntry, tieId: string): 0 | 1 | 2 | 3 =>
+    resident.familyLine.familyMeetingStages?.[tieId] ?? (resident.familyLine.metTieIds.includes(tieId) ? 1 : 0)
+  const getRandomNpcFamilyMeetingButtonText = (
+    resident: RandomNpcLongStayEntry,
+    tieId: string,
+    relation: string
+  ): string => {
+    const stage = getRandomNpcFamilyMeetingStage(resident, tieId)
+    if (stage >= 3) return `${relation}定评完成`
+    const guard = canMeetRandomNpcFamilyTie(resident, tieId)
+    if (!guard.success) return guard.message
+    return stage <= 0 ? `见${relation} 1/3` : `再见${relation} ${stage + 1}/3`
+  }
   const canFulfillRandomNpcFamilyCommission = (resident: RandomNpcLongStayEntry): boolean => {
     const commission = getRandomNpcFamilyCommission(resident)
     if (!commission || isRandomNpcFamilyCommissionCompleted(resident)) return false

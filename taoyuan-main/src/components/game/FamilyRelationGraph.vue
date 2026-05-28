@@ -569,6 +569,7 @@
               : '',
           latestBusinessEntry?.rewardSummary ? `家业收益：${latestBusinessEntry.rewardSummary}` : '',
           entry.familyTies.length > 0 ? `家族节点：${entry.familyTies.map(tie => `${getRandomNpcFamilyTieKindLabel(tie.kind)}-${tie.relation}`).join('、')}` : '家族节点：尚未记录。',
+          entry.familyTies.length > 0 ? `见家人进度：${entry.familyTies.map(tie => `${tie.relation}${entry.familyLine.familyMeetingStages?.[tie.id] ?? (entry.familyLine.metTieIds.includes(tie.id) ? 1 : 0)}/3`).join('、')}` : '',
           `家族评价：${entry.familyLine.reputation}/100；${entry.familyLine.lastReview}`,
           `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`,
           `路线：${routeLabels[entry.route]}；小订单：${entry.smallOrder.title}。`,
@@ -661,6 +662,9 @@
           latestBusinessEntry?.rewardSummary ? `旧档收益：${latestBusinessEntry.rewardSummary}` : '',
           snapshot
             ? `旧档家族评价：${snapshot.familyLine.reputation}/100；${snapshot.familyLine.lastReview}`
+            : '',
+          snapshot && snapshot.familyTies.length > 0
+            ? `旧档见家人：${snapshot.familyTies.map(tie => `${tie.relation}${snapshot.familyLine.familyMeetingStages?.[tie.id] ?? (snapshot.familyLine.metTieIds.includes(tie.id) ? 1 : 0)}/3`).join('、')}`
             : '',
           `关键记录：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`
         ].filter(Boolean),

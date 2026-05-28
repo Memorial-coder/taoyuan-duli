@@ -413,7 +413,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
   const randomNpcBoard = ref<RandomNpcBoardState>({
-    version: 8,
+    version: 9,
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
@@ -835,6 +835,8 @@ export const useNpcStore = defineStore('npc', () => {
   const createDefaultRandomNpcFamilyLineState = (): RandomNpcFamilyLineState => ({
     reputation: 0,
     metTieIds: [],
+    familyMeetingStages: {},
+    familyMeetingLastDayTags: {},
     completedCommissionIds: [],
     familyBusinessStage: 0,
     familyBusinessNote: '尚未开启婚后家业线。',
@@ -897,6 +899,23 @@ export const useNpcStore = defineStore('npc', () => {
     const metTieIds = Array.isArray(rawLine.metTieIds)
       ? rawLine.metTieIds.filter((tieId: unknown): tieId is string => typeof tieId === 'string' && validTieIds.has(tieId))
       : []
+    const rawMeetingStages = rawLine.familyMeetingStages && typeof rawLine.familyMeetingStages === 'object'
+      ? rawLine.familyMeetingStages as Record<string, unknown>
+      : {}
+    const rawMeetingLastDayTags = rawLine.familyMeetingLastDayTags && typeof rawLine.familyMeetingLastDayTags === 'object'
+      ? rawLine.familyMeetingLastDayTags as Record<string, unknown>
+      : {}
+    const familyMeetingStages = familyTies.reduce<Record<string, 0 | 1 | 2 | 3>>((stages, tie) => {
+      const rawStage = Number(rawMeetingStages[tie.id])
+      const fallbackStage = metTieIds.includes(tie.id) ? 1 : 0
+      stages[tie.id] = rawStage === 1 || rawStage === 2 || rawStage === 3 ? rawStage : fallbackStage
+      return stages
+    }, {})
+    const familyMeetingLastDayTags = familyTies.reduce<Record<string, string>>((days, tie) => {
+      const rawDayTag = rawMeetingLastDayTags[tie.id]
+      if (typeof rawDayTag === 'string' && rawDayTag) days[tie.id] = rawDayTag
+      return days
+    }, {})
     const completedCommissionIds = Array.isArray(rawLine.completedCommissionIds)
       ? rawLine.completedCommissionIds.filter((id: unknown): id is string => typeof id === 'string' && id === commission.id)
       : []
@@ -914,6 +933,8 @@ export const useNpcStore = defineStore('npc', () => {
     return {
       reputation: Math.max(0, Math.min(100, Number(rawLine.reputation) || 0)),
       metTieIds: [...new Set(metTieIds)].slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT),
+      familyMeetingStages,
+      familyMeetingLastDayTags,
       completedCommissionIds: [...new Set(completedCommissionIds)].slice(0, RANDOM_NPC_FAMILY_REVIEW_LIMIT),
       familyBusinessStage,
       familyBusinessNote: typeof rawLine.familyBusinessNote === 'string' && rawLine.familyBusinessNote
@@ -930,6 +951,23 @@ export const useNpcStore = defineStore('npc', () => {
     if (tie.attitude === 'testing') return 6
     if (tie.attitude === 'burdened') return 5
     return 4
+  }
+
+  const getRandomNpcFamilyMeetingStageSummary = (
+    resident: RandomNpcLongStayEntry,
+    tie: RandomNpcFamilyTieDef,
+    stage: 1 | 2 | 3
+  ): string => {
+    const attitudeLine = tie.attitude === 'supportive'
+      ? '愿意替你们说几句稳妥话'
+      : tie.attitude === 'testing'
+        ? '把话题转到日后能否守信'
+        : tie.attitude === 'burdened'
+          ? '先问清这段关系会不会加重家中牵挂'
+          : '保持距离，只留下几句观察'
+    if (stage === 1) return `${tie.name}与你正式见面，${attitudeLine}，记下你和${resident.name}的相处方式。`
+    if (stage === 2) return `${tie.name}再次与你同坐，追问${resident.name}在桃源村的日常安排，${attitudeLine}。`
+    return `${tie.name}给出家族定评，认可你们把${resident.familySeed}安放进长期关系中。`
   }
 
   const appendRandomNpcFamilyReview = (
@@ -2409,7 +2447,11 @@ export const useNpcStore = defineStore('npc', () => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
     if (!template) return { success: false, message: '这位长住 NPC 的模板已经不可用。' }
     const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
-    if (familyLine.metTieIds.includes(tieId)) return { success: false, message: `已经见过${tie.name}。` }
+    const meetingStage = familyLine.familyMeetingStages[tieId] ?? (familyLine.metTieIds.includes(tieId) ? 1 : 0)
+    if (meetingStage >= 3) return { success: false, message: `${tie.name}的见家人线已经完成。` }
+    if (familyLine.familyMeetingLastDayTags[tieId] === getCurrentNpcDayTag()) {
+      return { success: false, message: `${tie.name}今天已经见过了，明天再继续。` }
+    }
     if (resident.relationshipLine.kind === 'severed') return { success: false, message: '断缘后本版不再推进家族线。' }
     if (resident.relationshipLine.stage <= 0) return { success: false, message: '需要先开启朋友、恋爱、知己或结拜关系线。' }
     return { success: true, message: '可以见家人。' }
@@ -2427,10 +2469,13 @@ export const useNpcStore = defineStore('npc', () => {
     if (!template || !tie) return { success: false, message: '这条家族节点已经不可用。', resident }
 
     const dayTag = getCurrentNpcDayTag()
-    const reputationDelta = getRandomNpcFamilyMeetingReputationDelta(tie)
-    const summary = `${tie.name}与你正式见面，记下了你和${resident.name}的相处方式。`
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    const nextMeetingStage = Math.min(3, (familyLine.familyMeetingStages[tieId] ?? (familyLine.metTieIds.includes(tieId) ? 1 : 0)) + 1) as 1 | 2 | 3
+    const baseDelta = getRandomNpcFamilyMeetingReputationDelta(tie)
+    const reputationDelta = nextMeetingStage === 1 ? baseDelta : nextMeetingStage === 2 ? Math.max(3, baseDelta - 1) : Math.max(4, baseDelta)
+    const summary = getRandomNpcFamilyMeetingStageSummary(resident, tie, nextMeetingStage)
     const review: RandomNpcFamilyReviewEntry = {
-      id: `${dayTag}:${residentId}:${tieId}:meeting`,
+      id: `${dayTag}:${residentId}:${tieId}:meeting:${nextMeetingStage}`,
       dayTag,
       tieId,
       type: 'meeting',
@@ -2440,10 +2485,11 @@ export const useNpcStore = defineStore('npc', () => {
     let nextResident: RandomNpcLongStayEntry | null = null
     randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
       if (entry.residentId !== residentId) return entry
-      const familyLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission)
+      const currentLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission)
+      const nextMetTieIds = [...new Set([...currentLine.metTieIds, tieId])].slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)
       nextResident = {
         ...entry,
-        affinity: Math.min(100, entry.affinity + 2),
+        affinity: Math.min(100, entry.affinity + (nextMeetingStage >= 3 ? 4 : 2)),
         relationshipSignals: applyRandomNpcRelationshipSignal(
           sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
           'family_impression',
@@ -2452,14 +2498,30 @@ export const useNpcStore = defineStore('npc', () => {
         familyLine: {
           ...appendRandomNpcFamilyReview(
             {
-              ...familyLine,
-              metTieIds: [...familyLine.metTieIds, tieId].slice(-RANDOM_NPC_FAMILY_TIE_LIMIT)
+              ...currentLine,
+              metTieIds: nextMetTieIds,
+              familyMeetingStages: {
+                ...currentLine.familyMeetingStages,
+                [tieId]: nextMeetingStage
+              },
+              familyMeetingLastDayTags: {
+                ...currentLine.familyMeetingLastDayTags,
+                [tieId]: dayTag
+              }
             },
             review
           ),
-          metTieIds: [...new Set([...familyLine.metTieIds, tieId])].slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)
+          metTieIds: nextMetTieIds,
+          familyMeetingStages: {
+            ...currentLine.familyMeetingStages,
+            [tieId]: nextMeetingStage
+          },
+          familyMeetingLastDayTags: {
+            ...currentLine.familyMeetingLastDayTags,
+            [tieId]: dayTag
+          }
         },
-        keyEvents: [...entry.keyEvents, `${dayTag} 见家人：${summary}（家族评价+${reputationDelta}）`].slice(-8)
+        keyEvents: [...entry.keyEvents, `${dayTag} 见家人${nextMeetingStage}/3：${summary}（家族评价+${reputationDelta}）`].slice(-8)
       }
       return nextResident
     })
@@ -2478,7 +2540,7 @@ export const useNpcStore = defineStore('npc', () => {
     }
     return {
       success: true,
-      message: `${summary} 家族评价+${reputationDelta}。`,
+      message: `${summary} 见家人 ${nextMeetingStage}/3，家族评价+${reputationDelta}。`,
       resident: nextResident ?? resident
     }
   }
@@ -5529,7 +5591,7 @@ export const useNpcStore = defineStore('npc', () => {
       const raw = (data as any).randomNpcBoard
       if (!raw || typeof raw !== 'object') {
         return {
-          version: 8,
+          version: 9,
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
@@ -5600,7 +5662,7 @@ export const useNpcStore = defineStore('npc', () => {
         })
       const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
       return {
-        version: Math.max(8, Number(raw.version) || 1),
+        version: Math.max(9, Number(raw.version) || 1),
         lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
         activeVisitors,
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)

@@ -227,6 +227,8 @@ export interface RandomNpcFamilyBusinessEntry {
 export interface RandomNpcFamilyLineState {
   reputation: number
   metTieIds: string[]
+  familyMeetingStages: Record<string, 0 | 1 | 2 | 3>
+  familyMeetingLastDayTags: Record<string, string>
   completedCommissionIds: string[]
   familyBusinessStage: 0 | 1 | 2 | 3
   familyBusinessNote: string
