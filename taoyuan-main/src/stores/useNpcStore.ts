@@ -899,8 +899,8 @@ export const useNpcStore = defineStore('npc', () => {
 
   const isRandomNpcSpecialFamilyTieKind = (
     kind: RandomNpcFamilyTieKind
-  ): kind is Extract<RandomNpcFamilyTieKind, 'sworn_kin' | 'old_flame'> =>
-    kind === 'sworn_kin' || kind === 'old_flame'
+  ): kind is Extract<RandomNpcFamilyTieKind, 'parent' | 'sibling' | 'mentor' | 'sworn_kin' | 'old_flame'> =>
+    kind === 'parent' || kind === 'sibling' || kind === 'mentor' || kind === 'sworn_kin' || kind === 'old_flame'
 
   const sanitizeRandomNpcFamilySpecialEventEntry = (
     raw: unknown,
@@ -1036,6 +1036,21 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const getRandomNpcFamilySpecialEventTitle = (tie: RandomNpcFamilyTieDef, stage: 1 | 2 | 3): string => {
+    if (tie.kind === 'parent') {
+      if (stage === 1) return '家书问安'
+      if (stage === 2) return '长辈托付'
+      return '父母定评'
+    }
+    if (tie.kind === 'sibling') {
+      if (stage === 1) return '手足试探'
+      if (stage === 2) return '旧事拆台'
+      return '手足认同'
+    }
+    if (tie.kind === 'mentor') {
+      if (stage === 1) return '师门问艺'
+      if (stage === 2) return '师训验心'
+      return '师门背书'
+    }
     if (tie.kind === 'sworn_kin') {
       if (stage === 1) return '义契重认'
       if (stage === 2) return '旧义相托'
@@ -1051,6 +1066,21 @@ export const useNpcStore = defineStore('npc', () => {
     tie: RandomNpcFamilyTieDef,
     stage: 1 | 2 | 3
   ): string => {
+    if (tie.kind === 'parent') {
+      if (stage === 1) return `${tie.name}先问清${resident.name}在桃源村的起居和病痛，确认你是否把日常照看放在心上。`
+      if (stage === 2) return `${tie.name}托你在关键事上别只顺着${resident.name}逞强，把长辈牵挂转成可执行的照应。`
+      return `${tie.name}给出父母定评，认可你们把家书里的担心安放进长期关系里。`
+    }
+    if (tie.kind === 'sibling') {
+      if (stage === 1) return `${tie.name}先用玩笑试探你的分寸，看看你能不能接住${resident.name}家里的直话。`
+      if (stage === 2) return `${tie.name}把一段旧日小事拆开来说，逼${resident.name}承认自己也需要被人照看。`
+      return `${tie.name}把你列入手足可托的往来名单，约定往后有消息先互相通气。`
+    }
+    if (tie.kind === 'mentor') {
+      if (stage === 1) return `${tie.name}追问${resident.name}在桃源村是否还守着旧日手艺和规矩，先看你是否尊重师门来处。`
+      if (stage === 2) return `${tie.name}出一道现实里的师训考题，让你们用桃源日常证明不是只会说好听话。`
+      return `${tie.name}给出师门背书，允许${resident.name}把新日子写进旧师门的回信里。`
+    }
     if (tie.kind === 'sworn_kin') {
       if (stage === 1) return `${tie.name}把旧日结义的来龙去脉说清，先确认你是否尊重${resident.name}已有的义亲边界。`
       if (stage === 2) return `${tie.name}托你帮${resident.name}稳住一件旧人情，义亲关系从试探转为托付。`
@@ -2721,7 +2751,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
     const tie = resident.familyTies.find(entry => entry.id === tieId)
     if (!tie) return { success: false, message: '这条家族节点已经不可用。' }
-    if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return { success: false, message: '只有义亲或前缘节点有深线事件。' }
+    if (!isRandomNpcSpecialFamilyTieKind(tie.kind)) return { success: false, message: '只有父母、兄弟姐妹、师门、义亲或前缘节点有深线事件。' }
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
     if (!template) return { success: false, message: '这位长住 NPC 的模板已经不可用。' }
     const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)

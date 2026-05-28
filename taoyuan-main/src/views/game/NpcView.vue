@@ -499,7 +499,7 @@
                   每个家族节点最多推进 3 轮见面；同一节点每日只推进 1 轮，记录仍保留在本地随机 NPC 存档。
                 </p>
                 <div v-if="getSpecialFamilyTies(resident).length > 0" class="border-t border-accent/10 mt-2 pt-2">
-                  <p class="text-[10px] text-accent">义亲 / 前缘深线</p>
+                  <p class="text-[10px] text-accent">核心家族深线</p>
                   <div class="grid grid-cols-1 gap-1 mt-1">
                     <Button
                       v-for="tie in getSpecialFamilyTies(resident)"
@@ -522,7 +522,7 @@
                     </p>
                   </div>
                   <p class="text-[10px] text-muted leading-4 mt-1">
-                    义亲与前缘各自最多 3 段，同一节点每日只推进 1 段；记录只保留最近 4 条。
+                    父母、兄弟姐妹、师门、义亲与前缘各自最多 3 段，同一节点每日只推进 1 段；记录只保留最近 4 条。
                   </p>
                 </div>
                 <div v-if="getRandomNpcFamilyCommission(resident)" class="border-t border-accent/10 mt-2 pt-2">
@@ -2059,7 +2059,7 @@
   const canMeetRandomNpcFamilyTie = (resident: RandomNpcLongStayEntry, tieId: string) =>
     npcStore.canMeetRandomNpcFamilyTie(resident.residentId, tieId)
   const getSpecialFamilyTies = (resident: RandomNpcLongStayEntry): RandomNpcFamilyTieDef[] =>
-    resident.familyTies.filter(tie => tie.kind === 'sworn_kin' || tie.kind === 'old_flame')
+    resident.familyTies.filter(tie => tie.kind === 'parent' || tie.kind === 'sibling' || tie.kind === 'mentor' || tie.kind === 'sworn_kin' || tie.kind === 'old_flame')
   const canProgressRandomNpcFamilySpecialEvent = (resident: RandomNpcLongStayEntry, tieId: string) =>
     npcStore.canProgressRandomNpcFamilySpecialEvent(resident.residentId, tieId)
   const getRandomNpcFamilyMeetingStage = (resident: RandomNpcLongStayEntry, tieId: string): 0 | 1 | 2 | 3 =>
