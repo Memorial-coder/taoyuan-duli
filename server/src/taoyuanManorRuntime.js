@@ -313,6 +313,8 @@ const MANOR_CARE_RECENT_LOG_LIMIT = 24;
 const MANOR_CARE_REWARD_MAX_STACK = 999;
 const MANOR_STEAL_DAILY_VISITOR_LIMIT = 2;
 const MANOR_STEAL_DAILY_MANOR_LIMIT = 6;
+const MANOR_STEAL_OBJECT_DAILY_LIMIT = 1;
+const MANOR_STEAL_REWARD_QUANTITY_CAP = 1;
 const MANOR_STEAL_RECENT_LOG_LIMIT = 24;
 const MANOR_ACTIVITY_RECENT_WINDOW_SECONDS = 10 * 60;
 const MANOR_CARE_ROOM_MIN_MEMBERS = 2;
@@ -757,8 +759,22 @@ function normalizeManorCareEntry(entry) {
 function normalizeManorStealEntry(entry) {
   const id = String(entry?.id || makeId('manor_steal'));
   const idempotencyKey = sanitizeText(entry?.idempotency_key, 160);
-  const visitorRewardQuantity = Math.min(1, Math.max(0, Math.floor(Number(entry?.visitor_reward_quantity ?? entry?.quantity) || 0)));
+  const visitorRewardQuantity = Math.min(MANOR_STEAL_REWARD_QUANTITY_CAP, Math.max(0, Math.floor(Number(entry?.visitor_reward_quantity ?? entry?.quantity) || 0)));
   const ownerReservedRatio = clampNumber(entry?.owner_reserved_ratio ?? 1, 0, 1);
+  const ownerReservedPercent = Math.round(ownerReservedRatio * 100);
+  const visitorDailyLimit = Math.max(1, Math.floor(Number(entry?.visitor_daily_limit ?? entry?.reward_daily_cap) || MANOR_STEAL_DAILY_VISITOR_LIMIT));
+  const visitorDailyCount = Math.max(0, Math.floor(Number(entry?.visitor_daily_count) || 0));
+  const manorDailyLimit = Math.max(1, Math.floor(Number(entry?.manor_daily_limit) || MANOR_STEAL_DAILY_MANOR_LIMIT));
+  const manorDailyCount = Math.max(0, Math.floor(Number(entry?.manor_daily_count) || 0));
+  const objectDailyLimit = Math.max(1, Math.floor(Number(entry?.object_daily_limit) || MANOR_STEAL_OBJECT_DAILY_LIMIT));
+  const objectDailyCount = Math.max(0, Math.floor(Number(entry?.object_daily_count) || 0));
+  const recentWindowSeconds = Math.max(1, Math.floor(Number(entry?.recent_window_seconds) || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS));
+  const recentWindowCount = Math.max(0, Math.floor(Number(entry?.recent_window_count) || 0));
+  const riskFlags = Array.isArray(entry?.risk_flags)
+    ? entry.risk_flags.map(flag => sanitizeText(flag, 40)).filter(Boolean).slice(0, 8)
+    : [];
+  const antiAbuseSummary = sanitizeText(entry?.anti_abuse_summary, 180)
+    || `反刷窗口 ${Math.max(1, Math.floor(recentWindowSeconds / 60))} 分钟内 ${recentWindowCount} 次；访客 ${visitorDailyCount}/${visitorDailyLimit}，庄园 ${manorDailyCount}/${manorDailyLimit}，物件 ${objectDailyCount}/${objectDailyLimit}。`;
   return {
     id,
     target_username: String(entry?.target_username || '').trim(),
@@ -784,8 +800,23 @@ function normalizeManorStealEntry(entry) {
     owner_compensation: sanitizeText(entry?.owner_compensation, 140),
     visitor_reward: sanitizeText(entry?.visitor_reward, 80),
     visitor_reward_quantity: visitorRewardQuantity,
-    reward_daily_cap: Math.max(1, Math.floor(Number(entry?.reward_daily_cap) || MANOR_STEAL_DAILY_VISITOR_LIMIT)),
+    visitor_reward_quantity_cap: MANOR_STEAL_REWARD_QUANTITY_CAP,
+    reward_daily_cap: visitorDailyLimit,
+    visitor_daily_count: visitorDailyCount,
+    visitor_daily_limit: visitorDailyLimit,
+    visitor_daily_remaining: Math.max(0, visitorDailyLimit - visitorDailyCount),
+    manor_daily_count: manorDailyCount,
+    manor_daily_limit: manorDailyLimit,
+    manor_daily_remaining: Math.max(0, manorDailyLimit - manorDailyCount),
+    object_daily_count: objectDailyCount,
+    object_daily_limit: objectDailyLimit,
+    object_daily_remaining: Math.max(0, objectDailyLimit - objectDailyCount),
     owner_reserved_ratio: ownerReservedRatio,
+    owner_reserved_percent: ownerReservedPercent,
+    recent_window_seconds: recentWindowSeconds,
+    recent_window_count: recentWindowCount,
+    risk_flags: riskFlags,
+    anti_abuse_summary: antiAbuseSummary,
     settlement_receipt_id: sanitizeText(entry?.settlement_receipt_id, 120) || idempotencyKey || id,
     note: sanitizeText(entry?.note, 80),
     summary: sanitizeText(entry?.summary, 200),
@@ -1289,7 +1320,14 @@ function buildManorVisitorActivityEntries(visitEntries = [], careEntries = [], s
     summary: entry.summary || `${entry.object_label || '庄园物件'} 有轻采记录`,
     object_label: entry.object_label,
     action_label: entry.action_label,
-    audit_note: `凭证 ${entry.settlement_receipt_id || entry.id} · 单次 ${entry.visitor_reward_quantity || entry.quantity || 1} · 主人保留 ${Math.round((entry.owner_reserved_ratio || 1) * 100)}%`,
+    settlement_receipt_id: entry.settlement_receipt_id || entry.id,
+    visitor_daily_progress: `${entry.visitor_daily_count || 0}/${entry.visitor_daily_limit || entry.reward_daily_cap || MANOR_STEAL_DAILY_VISITOR_LIMIT}`,
+    manor_daily_progress: `${entry.manor_daily_count || 0}/${entry.manor_daily_limit || MANOR_STEAL_DAILY_MANOR_LIMIT}`,
+    object_daily_progress: `${entry.object_daily_count || 0}/${entry.object_daily_limit || MANOR_STEAL_OBJECT_DAILY_LIMIT}`,
+    owner_reserved_percent: entry.owner_reserved_percent ?? Math.round((entry.owner_reserved_ratio || 1) * 100),
+    visitor_reward_quantity_cap: entry.visitor_reward_quantity_cap || MANOR_STEAL_REWARD_QUANTITY_CAP,
+    risk_flags: Array.isArray(entry.risk_flags) ? entry.risk_flags : [],
+    audit_note: `凭证 ${entry.settlement_receipt_id || entry.id} · 访客 ${entry.visitor_daily_count || 0}/${entry.visitor_daily_limit || entry.reward_daily_cap || MANOR_STEAL_DAILY_VISITOR_LIMIT} · 庄园 ${entry.manor_daily_count || 0}/${entry.manor_daily_limit || MANOR_STEAL_DAILY_MANOR_LIMIT} · 反刷 ${entry.recent_window_count || 0}/${entry.recent_window_seconds || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS}s`,
     created_at: entry.created_at,
   }));
   const roomRecords = careRoomRecords.map(room => ({
@@ -1722,7 +1760,7 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
       limits: {
         visitor_daily_limit: MANOR_STEAL_DAILY_VISITOR_LIMIT,
         manor_daily_limit: MANOR_STEAL_DAILY_MANOR_LIMIT,
-        object_daily_limit: 1,
+        object_daily_limit: MANOR_STEAL_OBJECT_DAILY_LIMIT,
       },
       visitor_daily_count: viewerStealEntries.length,
       manor_daily_count: todayStealEntries.length,
@@ -1735,10 +1773,10 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
         manor_limit_enforced: true,
         object_limit_enforced: true,
         whitelist_enforced: true,
-        reward_cap_summary: `每位访客每日 ${MANOR_STEAL_DAILY_VISITOR_LIMIT} 次，每座庄园每日 ${MANOR_STEAL_DAILY_MANOR_LIMIT} 次，每个物件每日 1 次；单次只生成 1 份轻采凭证。`,
+        reward_cap_summary: `每位访客每日 ${MANOR_STEAL_DAILY_VISITOR_LIMIT} 次，每座庄园每日 ${MANOR_STEAL_DAILY_MANOR_LIMIT} 次，每个物件每日 ${MANOR_STEAL_OBJECT_DAILY_LIMIT} 次；单次只生成 ${MANOR_STEAL_REWARD_QUANTITY_CAP} 份轻采凭证。`,
         settlement_summary: '偷菜不扣主人库存，只记录服务端轻采凭证、用途标签、主人补偿和留言，争议可按最近访客行为回看。',
         owner_reserved_percent: 100,
-        visitor_reward_quantity_cap: 1,
+        visitor_reward_quantity_cap: MANOR_STEAL_REWARD_QUANTITY_CAP,
         recent_window_seconds: MANOR_ACTIVITY_RECENT_WINDOW_SECONDS,
         recent_window_count: countRecentWindowEntries(todayStealEntries),
         daily_visitor_counts: stealVisitorCounts,
@@ -2298,7 +2336,7 @@ async function submitManorStealAction(payload = {}, actor = {}) {
     throw createError('这座庄园今天已经被轻采得足够多了', 429);
   }
   const objectDailyCount = countCareEntries(todaySteals, entry => entry.object_id === actionDef.object_id);
-  if (objectDailyCount >= 1) {
+  if (objectDailyCount >= MANOR_STEAL_OBJECT_DAILY_LIMIT) {
     throw createError('这个庄园物件今天已经被轻采过了', 409);
   }
 
@@ -2314,6 +2352,18 @@ async function submitManorStealAction(payload = {}, actor = {}) {
     : '';
   const objectDef = MANOR_CARE_VISUAL_OBJECT_DEFS.find(definition => definition.id === actionDef.object_id);
   const objectLabel = objectDef?.label || actionDef.object_id;
+  const createdAt = nowSeconds();
+  const projectedSteals = [
+    {
+      visitor_username: visitorUsername,
+      visitor_display_name: actor.displayName || visitorUsername,
+      created_at: createdAt,
+    },
+    ...todaySteals,
+  ];
+  const projectedVisitorCounts = buildDailyVisitorCountEntries(projectedSteals, MANOR_STEAL_DAILY_VISITOR_LIMIT);
+  const projectedRiskFlags = new Set(buildInteractionRiskFlags(projectedSteals, projectedVisitorCounts, MANOR_STEAL_DAILY_VISITOR_LIMIT, MANOR_STEAL_DAILY_MANOR_LIMIT, 2));
+  if (objectDailyCount + 1 >= MANOR_STEAL_OBJECT_DAILY_LIMIT) projectedRiskFlags.add('object_daily_limit_reached');
   const entry = normalizeManorStealEntry({
     id: makeId('manor_steal'),
     target_username: targetUsername,
@@ -2336,13 +2386,28 @@ async function submitManorStealAction(payload = {}, actor = {}) {
     idempotency_key: idempotencyKey,
     owner_compensation: actionDef.owner_compensation,
     visitor_reward: actionDef.visitor_reward,
-    visitor_reward_quantity: 1,
+    visitor_reward_quantity: MANOR_STEAL_REWARD_QUANTITY_CAP,
+    visitor_reward_quantity_cap: MANOR_STEAL_REWARD_QUANTITY_CAP,
     reward_daily_cap: MANOR_STEAL_DAILY_VISITOR_LIMIT,
+    visitor_daily_count: visitorDailyCount + 1,
+    visitor_daily_limit: MANOR_STEAL_DAILY_VISITOR_LIMIT,
+    visitor_daily_remaining: Math.max(0, MANOR_STEAL_DAILY_VISITOR_LIMIT - visitorDailyCount - 1),
+    manor_daily_count: todaySteals.length + 1,
+    manor_daily_limit: MANOR_STEAL_DAILY_MANOR_LIMIT,
+    manor_daily_remaining: Math.max(0, MANOR_STEAL_DAILY_MANOR_LIMIT - todaySteals.length - 1),
+    object_daily_count: objectDailyCount + 1,
+    object_daily_limit: MANOR_STEAL_OBJECT_DAILY_LIMIT,
+    object_daily_remaining: Math.max(0, MANOR_STEAL_OBJECT_DAILY_LIMIT - objectDailyCount - 1),
     owner_reserved_ratio: 1,
+    owner_reserved_percent: 100,
+    recent_window_seconds: MANOR_ACTIVITY_RECENT_WINDOW_SECONDS,
+    recent_window_count: countRecentWindowEntries(projectedSteals),
+    risk_flags: Array.from(projectedRiskFlags),
+    anti_abuse_summary: `反刷窗口 ${Math.floor(MANOR_ACTIVITY_RECENT_WINDOW_SECONDS / 60)} 分钟内 ${countRecentWindowEntries(projectedSteals)} 次；访客 ${visitorDailyCount + 1}/${MANOR_STEAL_DAILY_VISITOR_LIMIT}，庄园 ${todaySteals.length + 1}/${MANOR_STEAL_DAILY_MANOR_LIMIT}，物件 ${objectDailyCount + 1}/${MANOR_STEAL_OBJECT_DAILY_LIMIT}。`,
     settlement_receipt_id: idempotencyKey,
     note,
     summary: `${actor.displayName || visitorUsername} 在${objectLabel}轻采「${stealTarget.label}」：${actionDef.owner_compensation}，主人库存不扣减。`,
-    created_at: nowSeconds(),
+    created_at: createdAt,
   });
   store.steals = [entry, ...steals].slice(0, 1000);
   saveCareStore(store);
