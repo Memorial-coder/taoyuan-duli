@@ -134,13 +134,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'lotus_seed',
-    tags: ['food', 'alchemy', 'pet_feed', 'gift', 'medicine'],
+    tags: ['food', 'alchemy', 'pet_feed', 'gift', 'medicine', 'order'],
     flavor: ['甜', '土'],
     nature: 'cool',
     spirituality: 'spirit',
     rarityUse: 'valuable',
-    recommendedUses: ['清心丹', '莲子甜汤', 'NPC 赠礼', '宠物安神餐', '药膳辅料'],
-    summary: '清凉药食两用作物，适合低频高价值料理、炼丹、赠礼和宠物安抚。'
+    recommendedUses: ['清心丹', '莲子甜汤', 'NPC 赠礼', '宠物安神餐', '药膳辅料', '安神药膳订单'],
+    summary: '清凉药食两用作物，适合低频高价值料理、炼丹、赠礼、宠物安抚和安神药膳订单。'
   },
   {
     cropId: 'osmanthus',
