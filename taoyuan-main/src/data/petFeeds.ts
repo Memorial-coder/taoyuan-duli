@@ -290,6 +290,26 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     }
   },
   {
+    id: 'tea_spirit_leaf_bowl',
+    itemId: 'tea',
+    label: '清茶灵叶餐',
+    shortLabel: '清茶',
+    taste: 'herbal',
+    preferredPetTypes: ['spirit', 'cat'],
+    friendshipGain: 8,
+    preferredBonus: 3,
+    rareFindChance: 0.035,
+    rareFindCooldownDays: 6,
+    rareFindPool: ['herb', 'moon_herb', 'herbal_paste', 'green_tea_drink'],
+    description: '茶叶做成的清苦草本食物，灵宠更容易触发药草、茶香和丹材线索，猫类也会给出待客气味反馈。',
+    feedback: {
+      dog: '清茶灵叶餐的气味太淡，田犬只是认真闻了闻食盆边缘。',
+      cat: '猫吃过清茶灵叶餐后，安静守在门边，像是在等一位带着茶香的来客。',
+      spirit: '灵宠吃过清茶灵叶餐后，绕着茶篓轻轻停了一会儿，像是记住了草木清苦的丹材气息。',
+      default: '宠物吃过清茶灵叶餐后，第二天对茶香和草本气味更敏锐。'
+    }
+  },
+  {
     id: 'moon_herb_spirit_bowl',
     itemId: 'moon_herb',
     label: '月草灵息餐',

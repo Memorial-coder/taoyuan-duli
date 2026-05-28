@@ -184,13 +184,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'tea',
-    tags: ['food', 'alchemy', 'gift', 'order', 'medicine'],
+    tags: ['food', 'alchemy', 'pet_feed', 'gift', 'order', 'medicine'],
     flavor: ['苦', '香'],
     nature: 'cool',
     spirituality: 'spirit',
     rarityUse: 'valuable',
-    recommendedUses: ['清醒饮品', '茶心凝神丹', '待客茶', 'NPC 好感赠礼', '行旅抗疲劳', '茶商订单'],
-    summary: '高价值饮品与社交作物，适合制茶、凝神炼丹、待客、赠礼、抗疲劳和茶商订单。'
+    recommendedUses: ['清醒饮品', '茶心凝神丹', '待客茶', '灵宠清茶餐', 'NPC 好感赠礼', '行旅抗疲劳', '茶商订单'],
+    summary: '高价值饮品与社交作物，适合制茶、凝神炼丹、灵宠清茶草本反馈、待客、赠礼、抗疲劳和茶商订单。'
   },
   {
     cropId: 'peach',
