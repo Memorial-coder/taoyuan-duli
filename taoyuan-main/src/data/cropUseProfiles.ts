@@ -124,13 +124,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'sesame',
-    tags: ['oil', 'flour', 'food', 'alchemy', 'pet_feed', 'festival', 'online_cost'],
+    tags: ['oil', 'flour', 'food', 'alchemy', 'pet_feed', 'festival', 'online_cost', 'order'],
     flavor: ['香', '土'],
     nature: 'warm',
     spirituality: 'earth',
     rarityUse: 'stable',
-    recommendedUses: ['芝麻油', '芝麻粉', '糕点辅料', '辛火丹辅料', '田犬辛香餐', '节会供品'],
-    summary: '小作物走加工增值，适合榨油、制粉、糕点、温补炼丹和宠物辛香反馈。'
+    recommendedUses: ['芝麻油', '芝麻粉', '糕点辅料', '辛火丹辅料', '田犬辛香餐', '节会供品', '点心订单'],
+    summary: '小作物走加工增值，适合榨油、制粉、糕点、温补炼丹、宠物辛香反馈和点心订单。'
   },
   {
     cropId: 'lotus_seed',
