@@ -144,13 +144,13 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'osmanthus',
-    tags: ['food', 'alchemy', 'pet_feed', 'gift', 'festival', 'medicine'],
+    tags: ['food', 'alchemy', 'pet_feed', 'wine', 'gift', 'festival', 'medicine'],
     flavor: ['香', '甜'],
     nature: 'cool',
     spirituality: 'spirit',
     rarityUse: 'seasonal',
-    recommendedUses: ['桂露', '桂花香囊', '凝神丹', '宠物芳香点心', '灯谜奖励兑换', '节会茶点'],
-    summary: '芳香型节令作物，适合节会、赠礼、凝神炼丹、宠物芳香反馈和花香料理。'
+    recommendedUses: ['桂花蜜', '桂花酿', '桂花茶', '桂花香', '桂露凝神丹', '宠物芳香点心', '灯谜奖励兑换', '节会茶点'],
+    summary: '芳香型节令作物，适合桂花蜜、酿酒、制茶、制香、凝神炼丹、宠物芳香反馈和节会赠礼。'
   },
   {
     cropId: 'sweet_potato',
