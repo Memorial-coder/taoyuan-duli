@@ -952,6 +952,8 @@ try {
   let relayCoopOrderId = ''
   let relayStageOneId = ''
   let relayStageTwoId = ''
+  let relayStageOneReceiptId = ''
+  let relayStageTwoReceiptId = ''
   let expiringCoopOrderId = ''
   let neighborConsignmentListingId = ''
   let neighborConsignmentExpiredListingId = ''
@@ -5328,6 +5330,16 @@ try {
     })
     assert(response.ok, `multi-stage stage one confirm returned ${response.status}`)
     assert(data?.ok === true && data?.stage?.delivery_status === 'confirmed', 'multi-stage stage one confirm payload is incomplete')
+    relayStageOneReceiptId = String(data?.receipt?.id || '')
+    assert(relayStageOneReceiptId, 'multi-stage stage one confirm did not return receipt id')
+    assert(data?.receipt?.relay_split_mode === 'stage_pool_weighted', 'stage one receipt should keep relay split mode')
+    assert(Number(data?.receipt?.relay_pool_reward_value) === 2, 'stage one receipt should keep relay pool reward value')
+    assert(Number(data?.receipt?.relay_stage_count) === 2, 'stage one receipt should keep relay stage count')
+    assert(Number(data?.receipt?.relay_stage_sequence) === 1, 'stage one receipt should keep relay stage sequence')
+    assert(Number(data?.receipt?.relay_participant_count) === 2, 'stage one receipt should keep relay participant count')
+    assert(Number(data?.receipt?.relay_share_percent) === 50, 'stage one receipt should keep relay share percent')
+    assert(Number(data?.receipt?.relay_allocated_reward_value) === 2, 'stage one receipt should keep allocated reward value')
+    assert(String(data?.receipt?.relay_share_summary || '').includes('1/2'), 'stage one receipt should keep relay share summary')
     assert(data?.order?.status === 'open', 'multi-stage order should stay open until all stages are confirmed')
   })
 
@@ -5354,6 +5366,15 @@ try {
     })
     assert(response.ok, `multi-stage stage two confirm returned ${response.status}`)
     assert(data?.ok === true && data?.stage?.delivery_status === 'confirmed', 'multi-stage stage two confirm payload is incomplete')
+    relayStageTwoReceiptId = String(data?.receipt?.id || '')
+    assert(relayStageTwoReceiptId, 'multi-stage stage two confirm did not return receipt id')
+    assert(data?.receipt?.relay_split_mode === 'stage_pool_weighted', 'stage two receipt should keep relay split mode')
+    assert(Number(data?.receipt?.relay_pool_reward_value) === 2, 'stage two receipt should keep relay pool reward value')
+    assert(Number(data?.receipt?.relay_stage_count) === 2, 'stage two receipt should keep relay stage count')
+    assert(Number(data?.receipt?.relay_stage_sequence) === 2, 'stage two receipt should keep relay stage sequence')
+    assert(Number(data?.receipt?.relay_share_percent) === 50, 'stage two receipt should keep relay share percent')
+    assert(Number(data?.receipt?.relay_pending_reward_value) === 1, 'stage two receipt should preserve pending pool value before final close')
+    assert(String(data?.receipt?.relay_share_summary || '').includes('2/2'), 'stage two receipt should keep relay share summary')
     assert(data?.order?.status === 'closed', 'multi-stage order should close after all stages are confirmed')
   })
 
@@ -5370,6 +5391,15 @@ try {
     assert(Array.isArray(relayOrder.relay_settlement_summary?.shares) && relayOrder.relay_settlement_summary.shares.length === 2, 'multi-stage order relay settlement shares missing')
     assert(relayOrder.relay_settlement_summary.shares.every(share => Number(share.reward_value) === 1 && Number(share.share_percent) === 50), 'multi-stage order relay settlement shares should split the reward pool evenly')
     assert(relayOrder.relay_settlement_summary.shares.every(share => share.settlement_receipt_id && share.settlement_status === 'confirmed'), 'multi-stage order relay settlement shares did not retain confirmed receipts')
+    const relayReceipts = primaryOverview.data?.receipts?.filter(entry => entry?.order_id === relayCoopOrderId) || []
+    assert(relayReceipts.length >= 2, 'multi-stage order receipts did not persist both relay stage receipts')
+    const stageOneReceipt = relayReceipts.find(entry => entry?.id === relayStageOneReceiptId)
+    const stageTwoReceipt = relayReceipts.find(entry => entry?.id === relayStageTwoReceiptId)
+    assert(stageOneReceipt?.relay_split_mode === 'stage_pool_weighted' && stageTwoReceipt?.relay_split_mode === 'stage_pool_weighted', 'relay receipts did not persist split mode')
+    assert(Number(stageOneReceipt?.relay_pool_reward_value) === 2 && Number(stageTwoReceipt?.relay_pool_reward_value) === 2, 'relay receipts did not persist pool value')
+    assert(Number(stageOneReceipt?.relay_stage_sequence) === 1 && Number(stageTwoReceipt?.relay_stage_sequence) === 2, 'relay receipts did not persist stage sequence')
+    assert(Number(stageOneReceipt?.relay_share_percent) === 50 && Number(stageTwoReceipt?.relay_share_percent) === 50, 'relay receipts did not persist share percent')
+    assert(String(stageOneReceipt?.relay_share_summary || '').includes('1/2') && String(stageTwoReceipt?.relay_share_summary || '').includes('2/2'), 'relay receipts did not persist share summaries')
     assert(relayOrder?.visual_state?.board_type === 'async', 'multi-stage order did not expose async relay visual state')
     const relayVisualProject = relayOrder.visual_state.async_projects?.[0]
     assert(relayVisualProject?.kind === 'order_relay', 'multi-stage order visual project kind mismatch')

@@ -147,6 +147,12 @@ function normalizeCollaborationMode(value) {
   return COLLABORATION_MODES.includes(normalized) ? normalized : 'single';
 }
 
+function clampPercentValue(value) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) return 0;
+  return Math.max(0, Math.min(100, Math.round(normalized * 100) / 100));
+}
+
 function normalizeSaveId(value) {
   const saveId = Number(value);
   return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
@@ -348,6 +354,15 @@ function normalizeSettlementReceipt(entry) {
     reward_value: Math.max(0, Math.floor(Number(entry?.reward_value) || 0)),
     reward_label: sanitizeText(entry?.reward_label, 40),
     reward_route: ['personal', 'shared_fund'].includes(entry?.reward_route) ? entry.reward_route : 'personal',
+    relay_split_mode: sanitizeText(entry?.relay_split_mode, 40),
+    relay_pool_reward_value: Math.max(0, Math.floor(Number(entry?.relay_pool_reward_value) || 0)),
+    relay_stage_count: Math.max(0, Math.floor(Number(entry?.relay_stage_count) || 0)),
+    relay_stage_sequence: Math.max(0, Math.floor(Number(entry?.relay_stage_sequence) || 0)),
+    relay_participant_count: Math.max(0, Math.floor(Number(entry?.relay_participant_count) || 0)),
+    relay_share_percent: clampPercentValue(entry?.relay_share_percent),
+    relay_allocated_reward_value: Math.max(0, Math.floor(Number(entry?.relay_allocated_reward_value) || 0)),
+    relay_pending_reward_value: Math.max(0, Math.floor(Number(entry?.relay_pending_reward_value) || 0)),
+    relay_share_summary: sanitizeText(entry?.relay_share_summary, 160),
     cohabitation_contract_id: sanitizeText(entry?.cohabitation_contract_id, 80),
     shared_fund_ledger_id: sanitizeText(entry?.shared_fund_ledger_id, 100),
     delivered_items: deliveredItems,
@@ -1698,6 +1713,15 @@ async function submitCoopOrderStageDelivery(orderId, stageId, payload = {}, acto
     reward_type: order.reward_type,
     reward_value: stage.reward_value,
     reward_label: stage.reward_label || order.reward_label,
+    relay_split_mode: 'stage_pool_weighted',
+    relay_pool_reward_value: order.reward_value,
+    relay_stage_count: order.stages.length,
+    relay_stage_sequence: stage.sequence,
+    relay_participant_count: order.stages.filter(entry => entry.assignee_username).length,
+    relay_share_percent: order.reward_value > 0 ? Math.round((stage.reward_value / order.reward_value) * 10000) / 100 : 0,
+    relay_allocated_reward_value: order.stages.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.reward_value) || 0)), 0),
+    relay_pending_reward_value: Math.max(0, order.reward_value - order.stages.filter(entry => entry.delivery_status === 'confirmed').reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.reward_value) || 0)), 0)),
+    relay_share_summary: `接力分账 ${stage.sequence}/${order.stages.length}：本段 ${stage.reward_value}/${order.reward_value} ${stage.reward_label || order.reward_label}，按阶段池加权结算。`,
     delivered_items: deliveredItems,
     result_note: resultNote,
     idempotency_key: idempotencyKey,
