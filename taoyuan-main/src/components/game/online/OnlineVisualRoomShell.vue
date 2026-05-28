@@ -6,19 +6,26 @@
   >
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0 space-y-2">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="border px-2 py-0.5 text-[10px]" :class="statusClass">{{ statusLabel || '未载入' }}</span>
-          <span v-if="phaseLabel" class="border border-accent/15 px-2 py-0.5 text-[10px] text-muted">{{ phaseLabel }}</span>
-          <span v-if="countdownLabel" class="border border-warning/25 bg-warning/10 px-2 py-0.5 text-[10px] text-warning">{{ countdownLabel }}</span>
+        <div class="flex flex-wrap items-center gap-2" data-testid="online-visual-room-status-strip">
+          <span class="border px-2 py-0.5 text-[10px]" :class="statusClass" data-testid="online-visual-room-status">{{ statusLabel || '未载入' }}</span>
+          <span v-if="phaseLabel" class="border border-accent/15 px-2 py-0.5 text-[10px] text-muted" data-testid="online-visual-room-phase">{{ phaseLabel }}</span>
+          <span
+            v-if="countdownLabel"
+            class="border border-warning/25 bg-warning/10 px-2 py-0.5 text-[10px] text-warning"
+            data-testid="online-visual-room-countdown"
+            aria-live="polite"
+          >
+            {{ countdownLabel }}
+          </span>
         </div>
         <div class="min-w-0">
-          <p class="truncate text-sm text-accent">{{ title }}</p>
-          <p class="mt-1 text-[10px] leading-4 text-muted">{{ subtitle }}</p>
+          <p class="truncate text-sm text-accent" data-testid="online-visual-room-title">{{ title }}</p>
+          <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-visual-room-subtitle">{{ subtitle }}</p>
         </div>
-        <p v-if="stateReason" class="text-[10px] leading-4 text-warning">{{ stateReason }}</p>
-        <p v-if="actionFeedback" class="text-[10px] leading-4 text-success" aria-live="polite">{{ actionFeedback }}</p>
-        <p v-if="connectionLabel" class="text-[10px] leading-4" :class="connectionClass">{{ connectionLabel }}</p>
-        <p v-if="conflictMessage" class="text-[10px] leading-4 text-danger">{{ conflictMessage }}</p>
+        <p v-if="stateReason" class="text-[10px] leading-4 text-warning" data-testid="online-visual-room-state-reason">{{ stateReason }}</p>
+        <p v-if="actionFeedback" class="text-[10px] leading-4 text-success" data-testid="online-visual-room-action-feedback" aria-live="polite">{{ actionFeedback }}</p>
+        <p v-if="connectionLabel" class="text-[10px] leading-4" :class="connectionClass" data-testid="online-visual-room-connection">{{ connectionLabel }}</p>
+        <p v-if="conflictMessage" class="text-[10px] leading-4 text-danger" data-testid="online-visual-room-conflict">{{ conflictMessage }}</p>
       </div>
 
       <div
@@ -70,33 +77,68 @@
     </div>
 
     <div class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-      <div class="border border-accent/10 bg-bg/10 p-2">
+      <div class="border border-accent/10 bg-bg/10 p-2" data-testid="online-visual-room-members">
         <div class="flex items-center justify-between gap-2">
           <p class="text-[10px] text-muted">成员</p>
-          <span class="text-[10px] text-accent">{{ readyMemberCount }} / {{ memberLimit }} 已准备</span>
+          <span class="text-[10px] text-accent" data-testid="online-visual-room-ready-summary">{{ readyMemberCount }} / {{ memberLimit }} 已准备</span>
         </div>
-        <div v-if="members.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1">
+        <div v-if="members.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1" role="list" aria-label="房间成员">
           <span
             v-for="member in members"
             :key="member.username"
             class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
             :class="member.isHost ? 'bg-accent/10 text-accent' : ''"
+            :data-testid="`online-visual-room-member-${member.username}`"
+            role="listitem"
           >
             {{ member.displayName }} · {{ member.statusLabel }}<template v-if="member.isHost"> · 房主</template>
           </span>
         </div>
-        <p v-else class="mt-2 text-[10px] leading-4 text-muted">成员信息载入后会显示准备、离线和房主状态。</p>
+        <p v-else class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-room-members-empty">成员信息载入后会显示准备、离线和房主状态。</p>
       </div>
 
-      <div class="border border-accent/10 bg-bg/10 p-2">
+      <div class="border border-accent/10 bg-bg/10 p-2" data-testid="online-visual-room-reward-preview">
         <div class="flex items-center justify-between gap-2">
           <p class="text-[10px] text-muted">奖励预览</p>
-          <span class="text-[10px] text-muted">{{ rewardPreview.length }} 项</span>
+          <span class="text-[10px] text-muted" data-testid="online-visual-room-reward-count">{{ rewardPreview.length }} 项</span>
         </div>
-        <div v-if="rewardPreview.length > 0" class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
-          <p v-for="reward in rewardPreview" :key="reward" class="text-[10px] leading-4 text-muted">{{ reward }}</p>
+        <div v-if="rewardPreview.length > 0" class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1" role="list" aria-label="奖励预览">
+          <p v-for="reward in rewardPreview" :key="reward" class="text-[10px] leading-4 text-muted" data-testid="online-visual-room-reward-item" role="listitem">{{ reward }}</p>
         </div>
-        <p v-else class="mt-2 text-[10px] leading-4 text-muted">结算前会展示服务端返回的行动收益、凭证或可保留成果。</p>
+        <p v-else class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-room-reward-empty">结算前会展示服务端返回的行动收益、凭证或可保留成果。</p>
+      </div>
+    </div>
+
+    <div
+      v-if="settlementRecords.length > 0"
+      class="border border-success/20 bg-success/10 p-2"
+      data-testid="online-visual-room-settlement-replay"
+      aria-live="polite"
+    >
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-[10px] text-success">结算 / 回看凭证</p>
+        <span class="text-[10px] text-muted" data-testid="online-visual-room-settlement-count">{{ settlementRecords.length }} 条</span>
+      </div>
+      <div class="mt-2 grid gap-1 md:grid-cols-2" role="list" aria-label="结算和回看凭证">
+        <article
+          v-for="record in settlementRecords"
+          :key="record.id"
+          class="border border-success/15 bg-bg/20 p-2"
+          data-testid="online-visual-room-settlement-item"
+          role="listitem"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <p class="truncate text-[10px] text-text">{{ record.targetLabel }}</p>
+            <span class="shrink-0 text-[10px] text-success">{{ record.statusLabel }}</span>
+          </div>
+          <p class="mt-1 text-[10px] leading-4 text-muted">{{ record.summary }}</p>
+          <p v-if="record.replayLabel" class="mt-1 text-[10px] leading-4 text-accent" data-testid="online-visual-room-replay-label">
+            {{ record.replayLabel }}
+          </p>
+          <p v-if="record.rewardLabel" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-visual-room-reward-label">
+            {{ record.rewardLabel }}
+          </p>
+        </article>
       </div>
     </div>
 
@@ -114,6 +156,15 @@
     displayName: string
     statusLabel: string
     isHost?: boolean
+  }
+
+  export interface OnlineVisualRoomShellSettlementRecord {
+    id: string
+    targetLabel: string
+    statusLabel: string
+    summary: string
+    replayLabel?: string
+    rewardLabel?: string
   }
 
   const props = withDefaults(defineProps<{
@@ -135,6 +186,7 @@
     readyMemberCount: number
     memberLimit: number
     rewardPreview: string[]
+    settlementRecords?: OnlineVisualRoomShellSettlementRecord[]
   }>(), {
     phaseLabel: '',
     stateReason: '',
@@ -150,6 +202,7 @@
     focusGuideSummary: '可视化房间保留原按钮键盘操作，并把行动结果、失败原因和权限提示固定在房间顶部。',
     countdownSeconds: 0,
     countdownRemainingSeconds: 0,
+    settlementRecords: () => [],
   })
 
   const normalizedStatus = computed(() => props.statusLabel.toLowerCase())

@@ -679,6 +679,11 @@ expectContains('ExpeditionRoomView.vue', '服务端落账：${rewardParts.join',
 expectCountAtLeast('online/OnlineFestivalView.vue', /<template #actions>/g, 1, '在线节会房间应把 ready、倒计时、断线和结算操作收进统一房间壳')
 expectContains('online/OnlineFestivalView.vue', ':settlement-records="festivalRoomSettlementRecords"', '在线节会房间应把服务端结算 / 留影回看凭证传入统一房间壳')
 expectContains('online/OnlineFestivalView.vue', '服务端落账：${rewardParts.join', '在线节会统一房间壳应只读展示服务端返回的奖励落账摘要')
+expectContains('online/OnlineFestivalView.vue', ':settlement-records="expeditionRoomSettlementRecords"', '在线节会远征标签也应把服务端结算凭证传入统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'online-expedition-room-shell-settle-submit', '在线节会远征标签应把结算操作收进统一房间壳')
+expectContains('online/OnlineFestivalView.vue', 'online-expedition-room-settle-submit', '在线节会远征标签应保留旧结算按钮降级入口')
+expectContains('online/OnlineFestivalView.vue', '组合收益 ${comboCount} 条', '在线节会远征标签房间壳应读回矿洞组合收益数量')
+expectContains('online/OnlineFestivalView.vue', '提前撤离 · ${withdrawalText}', '在线节会远征标签房间壳应读回矿洞提前撤离摘要')
 
 expectContains('online/OnlineSocietyView.vue', '<OnlineModuleShell', '村社子页应继续使用在线模块壳')
 expectContains('online/OnlineSocietyView.vue', "return 'overview'", '村社默认页应保持总览')

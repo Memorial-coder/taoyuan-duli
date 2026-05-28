@@ -87,6 +87,7 @@
             :ready-member-count="expeditionRoomStore.myRoom.ready_member_count"
             :member-limit="expeditionRoomStore.myRoom.member_limit"
             :reward-preview="expeditionRoomRewardPreview"
+            :settlement-records="expeditionRoomSettlementRecords"
           >
             <template #actions>
               <Button
@@ -762,6 +763,44 @@
       .map(receipt => `${receipt.target_display_name} · ${receipt.status_label} · ${receipt.summary}`)
     return [...actionHints, ...receiptHints]
   })
+
+  const expeditionRoomSettlementRecords = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    return room.settlement_receipts.slice(0, 4).map(receipt => {
+      const routeReplay = receipt.route_replay
+      const rewardItems = receipt.reward_payload.items
+        .map(item => `${item.item_id} x${item.quantity}`)
+        .join('、')
+      const rewardParts = [
+        receipt.reward_payload.money > 0 ? `${receipt.reward_payload.money} 铜钱` : '',
+        receipt.reward_payload.reward_tickets > 0 ? `${receipt.reward_payload.reward_tickets} 张奖券` : '',
+        rewardItems,
+      ].filter(Boolean)
+      return {
+        id: receipt.id,
+        targetLabel: receipt.target_display_name,
+        statusLabel: receipt.status_label,
+        summary: receipt.summary,
+        replayLabel: formatExpeditionRoomShellReplay(routeReplay),
+        rewardLabel: rewardParts.length > 0 ? `服务端落账：${rewardParts.join('、')}` : '服务端凭证已生成，暂无额外物品落账。',
+      }
+    })
+  })
+
+  const formatExpeditionRoomShellReplay = (routeReplay: NonNullable<typeof expeditionRoomStore.myRoom>['settlement_receipts'][number]['route_replay']) => {
+    if (!routeReplay?.kind) return ''
+    if (routeReplay.kind === 'expedition_cavern') {
+      const parts = [
+        routeReplay.summary || routeReplay.title,
+        routeReplay.combo_records.length > 0 ? `组合收益 ${routeReplay.combo_records.length} 条` : '',
+        routeReplay.withdrawal_state === 'confirmed' ? `提前撤离 · ${routeReplay.withdrawal_summary || routeReplayWithdrawalActorLabel(routeReplay)}` : '',
+        routeReplay.risk_peak?.summary ? `风险峰值：${routeReplay.risk_peak.summary}` : '',
+      ].filter(Boolean)
+      return parts.join('；')
+    }
+    return routeReplay.summary || routeReplay.title || ''
+  }
 
   const formatSignedCavernDelta = (value: number) => {
     const numeric = Math.floor(Number(value) || 0)

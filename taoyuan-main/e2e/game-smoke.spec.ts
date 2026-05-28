@@ -2694,8 +2694,10 @@ test.describe('web game smoke', () => {
           room_title: currentRoom.title,
           template_label: currentRoom.template_label,
           target_username: 'tester',
+          target_display_name: '测试者',
           target_slot: 0,
           status_label: '已结算',
+          reward_payload: { money: 120, reward_tickets: 1, items: [{ item_id: 'ore', quantity: 2 }] },
           summary: '矿洞探索记录已生成，包含组合收益与提前撤离。',
           route_replay: buildCavernRouteReplay(),
           created_at: 1760000001
@@ -2723,10 +2725,16 @@ test.describe('web game smoke', () => {
     await expect(page.getByText('提前撤离已确认，并结算 1 个节点组合收益。').first()).toBeVisible()
     await expect(page.getByText('确认人：测试者').first()).toBeVisible()
     await expect(page.getByTestId('online-expedition-room-gameplay-action-split_mine')).toHaveCount(0)
-    await page.getByRole('button', { name: '撤离并结算' }).click()
+    await expect(page.getByTestId('online-expedition-room-settle-submit')).toBeVisible()
+    await page.getByTestId('online-expedition-room-shell-settle-submit').click()
 
     await expect(page.getByText('组合收益：路线采脉').first()).toBeVisible()
     await expect(page.getByText('提前收尾：提前撤离已确认').first()).toBeVisible()
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('结算 / 回看凭证')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('组合收益 1 条')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('提前撤离 · 提前撤离已确认')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('风险峰值')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('服务端落账：120 铜钱、1 张奖券、ore x2')
   })
 
   test('online festival visual scene supports lantern object actions', async ({ page }) => {
