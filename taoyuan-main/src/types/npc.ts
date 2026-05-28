@@ -630,6 +630,17 @@ export interface ChildTrainingInfluenceEntry {
   summary: string
 }
 
+export interface ChildTrainingFamilyEventEntry {
+  id: string
+  dayTag: string
+  focus: ChildTrainingFocus
+  stage: 1 | 2 | 3
+  sourceResidentId: string
+  sourceName: string
+  title: string
+  summary: string
+}
+
 export interface ChildTrainingState {
   focus: ChildTrainingFocus | null
   lessonsThisWeek: number
@@ -637,6 +648,9 @@ export interface ChildTrainingState {
   familyInfluenceFocus: ChildTrainingFocus | null
   familyInfluenceSource: string
   familyInfluenceHistory: ChildTrainingInfluenceEntry[]
+  familyEventStages: Record<string, 0 | 1 | 2 | 3>
+  familyEventLastDayTags: Record<string, string>
+  familyEventHistory: ChildTrainingFamilyEventEntry[]
 }
 
 /** 子女状态 */

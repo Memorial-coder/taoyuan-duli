@@ -546,9 +546,32 @@
                       >
                         {{ child.name }}：{{ getChildFamilyInfluenceButtonText(child, resident) }}
                       </Button>
+                      <Button
+                        v-for="child in npcStore.children"
+                        :key="`${resident.residentId}-child-family-event-${child.id}`"
+                        class="justify-center !px-2 !py-1"
+                        :disabled="!canProgressRandomNpcChildFamilyEvent(child.id, resident).success"
+                        :data-testid="`random-npc-child-family-event-${resident.residentId}-${child.id}`"
+                        @click="handleProgressRandomNpcChildFamilyEvent(child.id, resident.residentId)"
+                      >
+                        {{ child.name }}：{{ getChildFamilyEventButtonText(child, resident) }}
+                      </Button>
+                    </div>
+                    <div
+                      v-for="child in npcStore.children"
+                      :key="`${resident.residentId}-child-family-event-history-${child.id}`"
+                      class="mt-1 space-y-1"
+                    >
+                      <p
+                        v-for="event in getRecentChildFamilyEvents(child, resident)"
+                        :key="event.id"
+                        class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                      >
+                        {{ child.name }} · {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}
+                      </p>
                     </div>
                     <p class="text-[10px] text-muted leading-4 mt-1">
-                      仅写入本地孩子训练记录，最近影响记录最多保留 4 条。
+                      仅写入本地孩子训练记录；同一孩子、NPC 与兴趣方向最多 3 段，每日限推进 1 段，最近事件最多保留 4 条。
                     </p>
                   </div>
                   <div v-if="getRecentRandomNpcFamilyBusinessHistory(resident).length > 0" class="mt-2 space-y-1">
@@ -1624,6 +1647,7 @@
   import { handleEndDay } from '@/composables/useEndDay'
   import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
   import type {
+    ChildTrainingFamilyEventEntry,
     ChildState,
     FriendshipLevel,
     GiftPreference,
@@ -2026,12 +2050,28 @@
     npcStore.canDevelopRandomNpcFamilyBusiness(resident.residentId)
   const canApplyRandomNpcFamilyInfluenceToChild = (childId: number, resident: RandomNpcLongStayEntry) =>
     npcStore.canApplyRandomNpcFamilyInfluenceToChild(childId, resident.residentId)
+  const canProgressRandomNpcChildFamilyEvent = (childId: number, resident: RandomNpcLongStayEntry) =>
+    npcStore.canProgressRandomNpcChildFamilyEvent(childId, resident.residentId)
   const getChildFamilyInfluenceButtonText = (child: ChildState, resident: RandomNpcLongStayEntry): string => {
     const guard = canApplyRandomNpcFamilyInfluenceToChild(child.id, resident)
     if (guard.success) return '写入家族影响'
     const latest = child.trainingState.familyInfluenceHistory[child.trainingState.familyInfluenceHistory.length - 1]
     return latest ? `已受${latest.sourceName}影响` : guard.message
   }
+  const getChildFamilyEventButtonText = (child: ChildState, resident: RandomNpcLongStayEntry): string => {
+    const guard = canProgressRandomNpcChildFamilyEvent(child.id, resident)
+    if (guard.success && guard.stage) return `推进兴趣事件 ${guard.stage}/3`
+    const latest = getRecentChildFamilyEvents(child, resident)[0]
+    return latest ? `${latest.title}已到${latest.stage}/3` : guard.message
+  }
+  const getRecentChildFamilyEvents = (
+    child: ChildState,
+    resident: RandomNpcLongStayEntry
+  ): ChildTrainingFamilyEventEntry[] =>
+    [...(child.trainingState.familyEventHistory ?? [])]
+      .filter(event => event.sourceResidentId === resident.residentId)
+      .slice(-2)
+      .reverse()
   const getRandomNpcFamilyCommissionButtonText = (resident: RandomNpcLongStayEntry): string => {
     const commission = getRandomNpcFamilyCommission(resident)
     if (!commission) return '暂无家族委托'
@@ -2160,6 +2200,12 @@
     const result = npcStore.applyRandomNpcFamilyInfluenceToChild(childId, residentId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【孩子兴趣】${result.message}`)
+  }
+
+  const handleProgressRandomNpcChildFamilyEvent = (childId: number, residentId: string) => {
+    const result = npcStore.progressRandomNpcChildFamilyEvent(childId, residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【孩子兴趣事件】${result.message}`)
   }
 
   const handleToggleRandomNpcLock = (visitorId: string, locked: boolean) => {

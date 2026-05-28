@@ -1144,7 +1144,10 @@ export const createDefaultChildTrainingState = (): ChildTrainingState => ({
   milestoneIds: [],
   familyInfluenceFocus: null,
   familyInfluenceSource: '',
-  familyInfluenceHistory: []
+  familyInfluenceHistory: [],
+  familyEventStages: {},
+  familyEventLastDayTags: {},
+  familyEventHistory: []
 })
 
 export const WS09_ACCEPTANCE_SUMMARY = {

@@ -437,6 +437,7 @@
       } else if (entry.kind === 'child') {
         const childFocus = entry.child.trainingState.focus
         const latestInfluence = entry.child.trainingState.familyInfluenceHistory[entry.child.trainingState.familyInfluenceHistory.length - 1]
+        const latestFamilyEvent = entry.child.trainingState.familyEventHistory?.[entry.child.trainingState.familyEventHistory.length - 1]
         nodes.push({
           id: `child:${entry.child.id}`,
           name: entry.child.name,
@@ -450,6 +451,9 @@
             `成长方向：${childFocus ? childTrainingFocusLabels[childFocus] : '未定'}；课程 ${entry.child.trainingState.lessonsThisWeek}/周。`,
             entry.child.trainingState.familyInfluenceSource
               ? `家族影响：${entry.child.trainingState.familyInfluenceSource}引导${childFocus ? childTrainingFocusLabels[childFocus] : '兴趣'}。`
+              : '',
+            latestFamilyEvent
+              ? `兴趣事件：${latestFamilyEvent.dayTag} · ${latestFamilyEvent.title} ${latestFamilyEvent.stage}/3。`
               : '',
             latestInfluence ? `最近记录：${latestInfluence.dayTag} · ${latestInfluence.summary}` : ''
           ].filter(Boolean),

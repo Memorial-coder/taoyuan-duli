@@ -12,6 +12,7 @@ import type {
   Quality,
   ChildState,
   ChildTrainingFocus,
+  ChildTrainingFamilyEventEntry,
   ChildTrainingInfluenceEntry,
   FamilyWishBoardState,
   HouseholdRoleId,
@@ -117,6 +118,9 @@ const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
 const RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT = 4
 const CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT = 4
+const CHILD_TRAINING_FAMILY_EVENT_LIMIT = 4
+const CHILD_TRAINING_FAMILY_EVENT_CHAIN_STAGE_LIMIT = 3
+const CHILD_TRAINING_FAMILY_EVENT_STAGE_KEY_LIMIT = 12
 const RANDOM_NPC_SHORT_ROMANCE_AFFINITY_REQUIREMENT = 45
 const RANDOM_NPC_SHORT_ROMANCE_AMBIGUITY_REQUIREMENT = 4
 const RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX = '后续约定：'
@@ -1004,11 +1008,82 @@ export const useNpcStore = defineStore('npc', () => {
       })
       .slice(-CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT)
 
+  const sanitizeChildTrainingFamilyEventHistory = (raw: unknown): ChildTrainingFamilyEventEntry[] =>
+    (Array.isArray(raw) ? raw : [])
+      .filter((entry: unknown): entry is Partial<ChildTrainingFamilyEventEntry> => !!entry && typeof entry === 'object')
+      .map((entry, index): ChildTrainingFamilyEventEntry => {
+        const focus: ChildTrainingFocus =
+          entry.focus === 'craft' || entry.focus === 'social' || entry.focus === 'spirit' || entry.focus === 'farm'
+            ? entry.focus
+            : 'social'
+        const stage = entry.stage === 2 || entry.stage === 3 ? entry.stage : 1
+        return {
+          id: typeof entry.id === 'string' ? entry.id : `${entry.dayTag ?? '旧日'}:family-event:${index}`,
+          dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
+          focus,
+          stage,
+          sourceResidentId: typeof entry.sourceResidentId === 'string' ? entry.sourceResidentId : '',
+          sourceName: typeof entry.sourceName === 'string' ? entry.sourceName : '家族成员',
+          title: typeof entry.title === 'string' ? entry.title : `家族兴趣事件 ${stage}/3`,
+          summary: typeof entry.summary === 'string' ? entry.summary : '家族兴趣事件记录已保留。'
+        }
+      })
+      .slice(-CHILD_TRAINING_FAMILY_EVENT_LIMIT)
+
+  const sanitizeChildTrainingFamilyEventStages = (raw: unknown): Record<string, 0 | 1 | 2 | 3> => {
+    if (!raw || typeof raw !== 'object') return {}
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([key]) => typeof key === 'string' && key.includes(':'))
+      .slice(-CHILD_TRAINING_FAMILY_EVENT_STAGE_KEY_LIMIT)
+      .reduce<Record<string, 0 | 1 | 2 | 3>>((acc, [key, value]) => {
+        const stage = Number(value)
+        acc[key] = stage >= 3 ? 3 : stage >= 2 ? 2 : stage >= 1 ? 1 : 0
+        return acc
+      }, {})
+  }
+
+  const sanitizeChildTrainingFamilyEventLastDayTags = (raw: unknown): Record<string, string> => {
+    if (!raw || typeof raw !== 'object') return {}
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([key, value]) => typeof key === 'string' && key.includes(':') && typeof value === 'string')
+      .slice(-CHILD_TRAINING_FAMILY_EVENT_STAGE_KEY_LIMIT)
+      .reduce<Record<string, string>>((acc, [key, value]) => {
+        acc[key] = value as string
+        return acc
+      }, {})
+  }
+
   const getChildTrainingFocusLabel = (focus: ChildTrainingFocus): string => {
     if (focus === 'craft') return '手作'
     if (focus === 'social') return '人情'
     if (focus === 'spirit') return '灵性'
     return '农事'
+  }
+
+  const getRandomNpcChildFamilyEventKey = (residentId: string, focus: ChildTrainingFocus): string =>
+    `${residentId}:${focus}`
+
+  const getRandomNpcChildFamilyEventTitle = (focus: ChildTrainingFocus, stage: 1 | 2 | 3): string => {
+    const focusLabel = getChildTrainingFocusLabel(focus)
+    if (stage === 1) return `${focusLabel}启蒙`
+    if (stage === 2) return `${focusLabel}试炼`
+    return `${focusLabel}定向`
+  }
+
+  const buildRandomNpcChildFamilyEventSummary = (
+    child: ChildState,
+    resident: RandomNpcLongStayEntry,
+    focus: ChildTrainingFocus,
+    stage: 1 | 2 | 3
+  ): string => {
+    const focusLabel = getChildTrainingFocusLabel(focus)
+    if (stage === 1) {
+      return `${resident.name}带${child.name}翻看${resident.familySeed}的家书，先把${focusLabel}兴趣变成可练习的小目标。`
+    }
+    if (stage === 2) {
+      return `${child.name}跟着${resident.name}完成一次${focusLabel}试练，把家族见闻写进自己的成长记录。`
+    }
+    return `${resident.name}和家中长辈一起给出建议，${child.name}确认会把${focusLabel}作为近期兴趣方向。`
   }
 
   const getRandomNpcFamilyInfluenceFocus = (resident: RandomNpcLongStayEntry): ChildTrainingFocus => {
@@ -3163,10 +3238,98 @@ export const useNpcStore = defineStore('npc', () => {
       familyInfluenceSource: resident.name,
       familyInfluenceHistory: [...sanitizeChildTrainingInfluenceHistory(child.trainingState.familyInfluenceHistory), influenceEntry]
         .slice(-CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT),
+      familyEventStages: sanitizeChildTrainingFamilyEventStages(child.trainingState.familyEventStages),
+      familyEventLastDayTags: sanitizeChildTrainingFamilyEventLastDayTags(child.trainingState.familyEventLastDayTags),
+      familyEventHistory: sanitizeChildTrainingFamilyEventHistory(child.trainingState.familyEventHistory),
       milestoneIds: [...new Set([...child.trainingState.milestoneIds, milestoneId])].slice(-8)
     }
     child.friendship = Math.min(300, child.friendship + 1)
     return { success: true, message: summary, child }
+  }
+
+  const canProgressRandomNpcChildFamilyEvent = (
+    childId: number,
+    residentId: string
+  ): { success: boolean; message: string; stage?: 1 | 2 | 3; focus?: ChildTrainingFocus } => {
+    const child = children.value.find(entry => entry.id === childId)
+    if (!child) return { success: false, message: '找不到这个孩子。' }
+    if (child.stage === 'baby') return { success: false, message: '婴儿阶段还不能推进兴趣事件。' }
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
+    if (line.kind !== 'romance' || line.commitmentStatus !== 'married') {
+      return { success: false, message: '需要先与这位随机 NPC 成婚。' }
+    }
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
+    if (!template) return { success: false, message: '随机 NPC 模板缺失。' }
+    const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
+    const focus = getRandomNpcFamilyInfluenceFocus({ ...resident, familyLine })
+    const influenceHistory = sanitizeChildTrainingInfluenceHistory(child.trainingState.familyInfluenceHistory)
+    if (!influenceHistory.some(entry => entry.sourceResidentId === residentId && entry.focus === focus)) {
+      return { success: false, message: `需要先写入${resident.name}的${getChildTrainingFocusLabel(focus)}家族影响。`, focus }
+    }
+    const key = getRandomNpcChildFamilyEventKey(residentId, focus)
+    const stages = sanitizeChildTrainingFamilyEventStages(child.trainingState.familyEventStages)
+    const currentStage = stages[key] ?? 0
+    if (currentStage >= CHILD_TRAINING_FAMILY_EVENT_CHAIN_STAGE_LIMIT) {
+      return { success: false, message: `${child.name}的${getChildTrainingFocusLabel(focus)}家族兴趣事件已完成。`, focus }
+    }
+    const lastDayTags = sanitizeChildTrainingFamilyEventLastDayTags(child.trainingState.familyEventLastDayTags)
+    const dayTag = getCurrentNpcDayTag()
+    if (lastDayTags[key] === dayTag) {
+      return { success: false, message: '同一天不能重复推进同一条孩子兴趣事件。', focus }
+    }
+    const nextStage = (currentStage + 1) as 1 | 2 | 3
+    return {
+      success: true,
+      message: `可以推进${child.name}的${getChildTrainingFocusLabel(focus)}兴趣事件 ${nextStage}/3。`,
+      stage: nextStage,
+      focus
+    }
+  }
+
+  const progressRandomNpcChildFamilyEvent = (
+    childId: number,
+    residentId: string
+  ): { success: boolean; message: string; child?: ChildState; event?: ChildTrainingFamilyEventEntry } => {
+    const guard = canProgressRandomNpcChildFamilyEvent(childId, residentId)
+    const child = children.value.find(entry => entry.id === childId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !child || !resident || !guard.stage || !guard.focus) return { ...guard, child }
+    const dayTag = getCurrentNpcDayTag()
+    const key = getRandomNpcChildFamilyEventKey(residentId, guard.focus)
+    const title = getRandomNpcChildFamilyEventTitle(guard.focus, guard.stage)
+    const summary = buildRandomNpcChildFamilyEventSummary(child, resident, guard.focus, guard.stage)
+    const event: ChildTrainingFamilyEventEntry = {
+      id: `${dayTag}:child:${childId}:family-event:${residentId}:${guard.focus}:${guard.stage}`,
+      dayTag,
+      focus: guard.focus,
+      stage: guard.stage,
+      sourceResidentId: residentId,
+      sourceName: resident.name,
+      title,
+      summary
+    }
+    child.trainingState = {
+      ...child.trainingState,
+      focus: guard.focus,
+      familyInfluenceFocus: guard.focus,
+      familyInfluenceSource: resident.name,
+      familyInfluenceHistory: sanitizeChildTrainingInfluenceHistory(child.trainingState.familyInfluenceHistory),
+      familyEventStages: {
+        ...sanitizeChildTrainingFamilyEventStages(child.trainingState.familyEventStages),
+        [key]: guard.stage
+      },
+      familyEventLastDayTags: {
+        ...sanitizeChildTrainingFamilyEventLastDayTags(child.trainingState.familyEventLastDayTags),
+        [key]: dayTag
+      },
+      familyEventHistory: [...sanitizeChildTrainingFamilyEventHistory(child.trainingState.familyEventHistory), event]
+        .slice(-CHILD_TRAINING_FAMILY_EVENT_LIMIT),
+      milestoneIds: [...new Set([...child.trainingState.milestoneIds, `family-event:${residentId}:${guard.focus}:${guard.stage}`])].slice(-8)
+    }
+    child.friendship = Math.min(300, child.friendship + (guard.stage === 3 ? 2 : 1))
+    return { success: true, message: `${title}：${summary}`, child, event }
   }
 
   // ============================================================
@@ -5513,7 +5676,10 @@ export const useNpcStore = defineStore('npc', () => {
               familyInfluenceSource: typeof c.trainingState.familyInfluenceSource === 'string'
                 ? c.trainingState.familyInfluenceSource
                 : '',
-              familyInfluenceHistory: sanitizeChildTrainingInfluenceHistory(c.trainingState.familyInfluenceHistory)
+              familyInfluenceHistory: sanitizeChildTrainingInfluenceHistory(c.trainingState.familyInfluenceHistory),
+              familyEventStages: sanitizeChildTrainingFamilyEventStages(c.trainingState.familyEventStages),
+              familyEventLastDayTags: sanitizeChildTrainingFamilyEventLastDayTags(c.trainingState.familyEventLastDayTags),
+              familyEventHistory: sanitizeChildTrainingFamilyEventHistory(c.trainingState.familyEventHistory)
             }
           : createDefaultChildTrainingState()
       }))
@@ -5976,6 +6142,8 @@ export const useNpcStore = defineStore('npc', () => {
     developRandomNpcFamilyBusiness,
     canApplyRandomNpcFamilyInfluenceToChild,
     applyRandomNpcFamilyInfluenceToChild,
+    canProgressRandomNpcChildFamilyEvent,
+    progressRandomNpcChildFamilyEvent,
     rehydrateRelationshipPerks,
     serialize,
     deserialize
