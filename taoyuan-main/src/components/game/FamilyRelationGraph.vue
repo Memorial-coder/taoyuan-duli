@@ -131,7 +131,7 @@
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import type { ChildTrainingFocus, RandomNpcArchiveSummary, RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcLongStayEntry, RandomNpcRelationshipTag } from '@/types'
+  import type { ChildTrainingFocus, RandomNpcArchiveSummary, RandomNpcFamilyLineState, RandomNpcFamilySpecialEventEntry, RandomNpcFamilyTieDef, RandomNpcFamilyTieKind, RandomNpcLongStayEntry, RandomNpcRelationshipTag } from '@/types'
 
   defineEmits<{
     (event: 'selectNpc', npcId: string): void
@@ -303,6 +303,30 @@
   const getRandomNpcFamilyTieKindLabel = (kind: RandomNpcFamilyTieKind): string => familyTieLabels[kind]
   const getRandomNpcFamilyTieAttitudeLabel = (attitude: RandomNpcFamilyTieDef['attitude']): string =>
     familyTieAttitudeLabels[attitude]
+  const getRandomNpcFamilySpecialStage = (familyLine: RandomNpcFamilyLineState, tieId: string): 0 | 1 | 2 | 3 =>
+    familyLine.specialTieEventStages?.[tieId] ?? 0
+  const getRecentRandomNpcFamilySpecialEvents = (familyLine: RandomNpcFamilyLineState): RandomNpcFamilySpecialEventEntry[] =>
+    [...(familyLine.specialTieEventHistory ?? [])].slice(-3).reverse()
+  const getLatestRandomNpcFamilySpecialEvent = (
+    familyLine: RandomNpcFamilyLineState,
+    tieId: string
+  ): RandomNpcFamilySpecialEventEntry | undefined =>
+    [...(familyLine.specialTieEventHistory ?? [])].reverse().find(event => event.tieId === tieId)
+  const formatRandomNpcFamilySpecialProgress = (
+    familyLine: RandomNpcFamilyLineState,
+    familyTies: RandomNpcFamilyTieDef[]
+  ): string =>
+    familyTies
+      .map(tie => `${tie.relation}${getRandomNpcFamilySpecialStage(familyLine, tie.id)}/3`)
+      .join('、')
+  const formatRandomNpcFamilySpecialEvent = (event: RandomNpcFamilySpecialEventEntry): string =>
+    `${event.dayTag} · ${event.title} ${event.stage}/3：${event.summary}`
+  const formatRandomNpcFamilySpecialHistory = (familyLine: RandomNpcFamilyLineState): string => {
+    const recentEvents = getRecentRandomNpcFamilySpecialEvents(familyLine)
+    return recentEvents.length > 0
+      ? `最近核心深线：${recentEvents.map(formatRandomNpcFamilySpecialEvent).join('；')}`
+      : '最近核心深线：尚未推进。'
+  }
   const getRandomNpcResidentRelationLabel = (resident: RandomNpcLongStayEntry): string => {
     if (resident.relationshipLine.commitmentStatus === 'married') return '配偶'
     if (resident.relationshipLine.commitmentStatus === 'engaged') return '婚约'
@@ -574,6 +598,8 @@
           latestBusinessEntry?.rewardSummary ? `家业收益：${latestBusinessEntry.rewardSummary}` : '',
           entry.familyTies.length > 0 ? `家族节点：${entry.familyTies.map(tie => `${getRandomNpcFamilyTieKindLabel(tie.kind)}-${tie.relation}`).join('、')}` : '家族节点：尚未记录。',
           entry.familyTies.length > 0 ? `见家人进度：${entry.familyTies.map(tie => `${tie.relation}${entry.familyLine.familyMeetingStages?.[tie.id] ?? (entry.familyLine.metTieIds.includes(tie.id) ? 1 : 0)}/3`).join('、')}` : '',
+          entry.familyTies.length > 0 ? `核心深线进度：${formatRandomNpcFamilySpecialProgress(entry.familyLine, entry.familyTies)}` : '',
+          formatRandomNpcFamilySpecialHistory(entry.familyLine),
           `家族评价：${entry.familyLine.reputation}/100；${entry.familyLine.lastReview}`,
           `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`,
           `路线：${routeLabels[entry.route]}；小订单：${entry.smallOrder.title}。`,
@@ -594,6 +620,8 @@
 
       layoutAroundNode(entry.familyTies, x, y, 8.5, 6.5, 205).forEach(({ entry: tie, x: tieX, y: tieY }) => {
         const tieId = `kin:${entry.residentId}:${tie.id}`
+        const latestSpecialEvent = getLatestRandomNpcFamilySpecialEvent(entry.familyLine, tie.id)
+        const specialStage = getRandomNpcFamilySpecialStage(entry.familyLine, tie.id)
         nodes.push({
           id: tieId,
           name: tie.name,
@@ -611,6 +639,8 @@
             tie.kind === 'family_business' && latestBusinessEntry?.rewardSummary
               ? `最近收益：${latestBusinessEntry.rewardSummary}`
               : '',
+            `核心深线：${specialStage}/3`,
+            latestSpecialEvent ? `最近深线：${formatRandomNpcFamilySpecialEvent(latestSpecialEvent)}` : '最近深线：尚未推进。',
             '该节点只保存在单机随机 NPC 存档，不写入联机公开关系图。'
           ].filter(Boolean),
           tags: [getRandomNpcFamilyTieKindLabel(tie.kind), tie.attitude],
@@ -670,6 +700,10 @@
           snapshot && snapshot.familyTies.length > 0
             ? `旧档见家人：${snapshot.familyTies.map(tie => `${tie.relation}${snapshot.familyLine.familyMeetingStages?.[tie.id] ?? (snapshot.familyLine.metTieIds.includes(tie.id) ? 1 : 0)}/3`).join('、')}`
             : '',
+          snapshot && snapshot.familyTies.length > 0
+            ? `旧档核心深线：${formatRandomNpcFamilySpecialProgress(snapshot.familyLine, snapshot.familyTies)}`
+            : '',
+          snapshot ? formatRandomNpcFamilySpecialHistory(snapshot.familyLine).replace('最近核心深线', '旧档最近深线') : '',
           `关键记录：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`
         ].filter(Boolean),
         tags: [
@@ -688,6 +722,8 @@
       if (!snapshot) return
       layoutAroundNode(snapshot.familyTies, x, y, 7.5, 6, 25).forEach(({ entry: tie, x: tieX, y: tieY }) => {
         const tieId = `archive-kin:${entry.visitorId}:${tie.id}`
+        const latestSpecialEvent = getLatestRandomNpcFamilySpecialEvent(snapshot.familyLine, tie.id)
+        const specialStage = getRandomNpcFamilySpecialStage(snapshot.familyLine, tie.id)
         nodes.push({
           id: tieId,
           name: tie.name,
@@ -702,6 +738,8 @@
             tie.kind === 'family_business' && snapshot.familyLine.familyBusinessStage > 0
               ? `旧档家业：${snapshot.familyLine.familyBusinessNote}`
               : '',
+            `旧档核心深线：${specialStage}/3`,
+            latestSpecialEvent ? `旧档最近深线：${formatRandomNpcFamilySpecialEvent(latestSpecialEvent)}` : '旧档最近深线：尚未推进。',
             '该节点来自旧日长住快照；召回后会恢复到长住名册并继续只保存在单机存档。'
           ].filter(Boolean),
           tags: [getRandomNpcFamilyTieKindLabel(tie.kind), tie.attitude, '旧档快照'],

@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0528 随机 NPC 核心家族深线关系图回看
+- 长住随机 NPC 与旧档长住关系图节点现在会显示核心家族深线总进度和最近 3 条记录，便于从关系图回看父母、兄弟姐妹、师门、远亲、商队、旧债、家族产业等深线推进。
+- 家族节点与旧档家族节点会显示本节点深线阶段和最近一条深线；只读取 `specialTieEventStages / specialTieEventHistory`，不新增存档字段，也不写入联机公开关系图。
+
 ### 0528 协作矿洞组合撤离回看
 - 撤离摘要改为锁定当前累计节点组合收益数，避免前序已落账组合在撤离收尾文案里漏报。
 - 服务端专项 QA 覆盖 `route_then_mine`、`support_then_mine`、`route_with_support` 三种组合全部进入 `combo_records`、撤离摘要和结算 `route_replay`；不改 `reward_payload` 或结算幂等键。
