@@ -52,6 +52,30 @@
           </button>
         </div>
 
+        <div
+          v-if="currentStageSiteObjects.length > 0"
+          class="async-community-board__site-objects"
+          data-testid="async-community-site-objects"
+          aria-label="当前现场物件"
+        >
+          <div class="async-community-board__site-objects-head">
+            <span>当前现场</span>
+            <strong>{{ currentStage?.label || activeProject.label }}</strong>
+          </div>
+          <div class="async-community-board__site-object-grid">
+            <div
+              v-for="object in currentStageSiteObjects"
+              :key="object.id"
+              class="async-community-board__site-object"
+              :data-testid="`async-community-site-object-${object.id}`"
+            >
+              <component :is="object.icon" :size="13" aria-hidden="true" />
+              <span>{{ object.label }}</span>
+              <small>{{ object.stateLabel }}</small>
+            </div>
+          </div>
+        </div>
+
         <div class="async-community-board__stages" aria-label="工程阶段">
           <div
             v-for="stage in activeProject.stages"
@@ -86,6 +110,17 @@
             </p>
           </div>
           <span v-if="activeProject.completion_event_id" class="async-community-board__event">已完工</span>
+        </div>
+
+        <div class="async-community-board__readback" data-testid="async-community-project-readback">
+          <div
+            v-for="entry in projectReadbackRows"
+            :key="entry.id"
+            class="async-community-board__readback-row"
+          >
+            <span>{{ entry.label }}</span>
+            <strong>{{ entry.value }}</strong>
+          </div>
         </div>
 
         <RouterLink
@@ -187,6 +222,13 @@
     icon: Component
   }
 
+  interface SiteObject {
+    id: string
+    label: string
+    stateLabel: string
+    icon: Component
+  }
+
   const props = withDefaults(defineProps<{
     projects: OnlineVisualAsyncProject[]
     selectedProjectId?: string
@@ -267,6 +309,31 @@
     const stage = currentStage.value || activeProject.value?.stages[0]
     return stage?.milestones ?? []
   })
+  const projectReadbackRows = computed(() => {
+    const project = activeProject.value
+    if (!project) return []
+    const historyCount = project.history.length
+    const contributorCount = project.contributors.length
+    const stageLabel = currentStage.value?.label || '等待阶段'
+    const stageState = currentStage.value ? stageStateLabel(currentStage.value.state) : '未开始'
+    return [
+      { id: 'kind', label: '共建类型', value: projectKindLabel(project.kind) },
+      { id: 'progress', label: '阶段收口', value: `${completedStageCount.value}/${project.stages.length} 阶段 · ${activeProjectPercent.value}%` },
+      { id: 'stage', label: '当前回看', value: `${stageLabel} · ${stageState}` },
+      { id: 'records', label: '贡献记录', value: `${contributorCount} 人 · ${historyCount} 条历史` },
+    ]
+  })
+  const currentStageSiteObjects = computed<SiteObject[]>(() => {
+    const stage = currentStage.value
+    if (!stage) return []
+    const objectIds = stage.object_ids.length > 0 ? stage.object_ids : [stage.id]
+    return objectIds.map(objectId => ({
+      id: objectId,
+      label: markerLabel(objectId, stage.label),
+      stateLabel: stageStateLabel(stage.state),
+      icon: markerIcon(objectId, stage.state),
+    }))
+  })
   const stageMarkers = computed<StageMarker[]>(() => {
     const project = activeProject.value
     if (!project) return []
@@ -342,8 +409,13 @@
     if (objectId.includes('lantern_wall_memorial')) return '纪念墙'
     if (objectId.includes('lantern_wall_archive')) return '愿望册'
     if (objectId.includes('lantern_wall')) return '花灯墙'
-    if (objectId.includes('festival_empty')) return '空场'
+    if (objectId.includes('festival_square_empty') || objectId.includes('festival_empty')) return '空场'
     if (objectId.includes('festival_material')) return '备料'
+    if (objectId.includes('festival_square_supply_table')) return '备料桌'
+    if (objectId.includes('festival_square_stage')) return '戏台'
+    if (objectId.includes('festival_square_lantern_gate')) return '灯门'
+    if (objectId.includes('festival_square_crowd')) return '人气'
+    if (objectId.includes('festival_square_photo')) return '留影'
     if (objectId.includes('festival_lantern_crates')) return '灯笼'
     if (objectId.includes('festival_food_table')) return '食案'
     if (objectId.includes('festival_stage')) return '戏台'
@@ -445,6 +517,7 @@
   .async-community-board__empty,
   .async-community-board__feedback,
   .async-community-board__contributors,
+  .async-community-board__readback,
   .async-community-board__history {
     border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
     background: rgb(0 0 0 / 0.1);
@@ -479,6 +552,7 @@
   .async-community-board__empty,
   .async-community-board__stage,
   .async-community-board__milestone,
+  .async-community-board__readback-row,
   .async-community-board__history-entry {
     color: var(--color-muted);
     font-size: 0.68rem;
@@ -698,9 +772,64 @@
   .async-community-board__actions,
   .async-community-board__milestones,
   .async-community-board__contributors,
+  .async-community-board__readback,
+  .async-community-board__site-objects,
   .async-community-board__history {
     display: grid;
     gap: 0.5rem;
+  }
+
+  .async-community-board__site-objects {
+    margin-top: 0.625rem;
+  }
+
+  .async-community-board__site-objects-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: var(--color-muted);
+    font-size: 0.68rem;
+  }
+
+  .async-community-board__site-objects-head strong {
+    min-width: 0;
+    overflow: hidden;
+    color: rgb(var(--color-text));
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .async-community-board__site-object-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .async-community-board__site-object {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: rgb(0 0 0 / 0.08);
+    padding: 0.4rem 0.5rem;
+    color: rgb(var(--color-text));
+    font-size: 0.7rem;
+  }
+
+  .async-community-board__site-object span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .async-community-board__site-object small {
+    color: var(--color-muted);
+    font-size: 0.64rem;
   }
 
   .async-community-board__stages {
@@ -766,11 +895,32 @@
 
   .async-community-board__milestone,
   .async-community-board__contributor,
+  .async-community-board__readback-row,
   .async-community-board__history-entry {
     align-items: center;
     border: 1px solid color-mix(in srgb, var(--color-accent) 10%, transparent);
     background: transparent;
     padding: 0.35rem 0.45rem;
+  }
+
+  .async-community-board__readback {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 0.5rem;
+  }
+
+  .async-community-board__readback-row {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .async-community-board__readback-row strong {
+    min-width: 0;
+    overflow: hidden;
+    color: rgb(var(--color-text));
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .async-community-board__milestone--reached,
@@ -822,6 +972,14 @@
     }
 
     .async-community-board__stages {
+      grid-template-columns: 1fr;
+    }
+
+    .async-community-board__readback {
+      grid-template-columns: 1fr;
+    }
+
+    .async-community-board__site-object-grid {
       grid-template-columns: 1fr;
     }
   }

@@ -159,8 +159,8 @@ function buildRoomSnapshot(room: {
       completed_at: 0,
       contributions: [],
       available_actions: [buildGameplayAction(room.actionId, room.actionLabel)],
-      cavern_state: null,
-      festival_state: null
+      cavern_state: null as Record<string, unknown> | null,
+      festival_state: null as Record<string, unknown> | null
     },
     state: 'running',
     state_label: '进行中',
@@ -182,14 +182,25 @@ function buildRoomSnapshot(room: {
     can_host_close: false,
     can_disconnect: false,
     can_reconnect: false,
-    visual_state: room.visualState
+    visual_state: room.visualState,
+    settlement_receipts: [] as unknown[]
   }
 }
 
 async function mockOnlineVisualRoom(page: Page, options: {
   domain: 'festival' | 'expedition'
   room: ReturnType<typeof buildRoomSnapshot>
+  onAction?: (room: ReturnType<typeof buildRoomSnapshot>, actionId: string) => {
+    room: ReturnType<typeof buildRoomSnapshot>
+    recentReceipts?: unknown[]
+  }
+  onSettle?: (room: ReturnType<typeof buildRoomSnapshot>) => {
+    room: ReturnType<typeof buildRoomSnapshot>
+    recentReceipts?: unknown[]
+  }
 }) {
+  let currentRoom = options.room
+  let currentExpeditionRecentReceipts: unknown[] = []
   await page.unroute('**/api/me').catch(() => {})
   await page.route('**/api/me', async route => {
     await route.fulfill({
@@ -207,46 +218,188 @@ async function mockOnlineVisualRoom(page: Page, options: {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildWorldEventOverview()) })
   })
 
-  const festivalOverview = {
+  const buildFestivalOverview = () => ({
     ok: true,
     bulletin: '节会测试',
-    templates: [{ id: 'lantern_fair', label: '上元灯会', summary: '', default_member_limit: 4, opening_title: '', recommended_gameplay_template_ids: ['assembly'] }],
-    gameplay_templates: [{ id: 'assembly', label: '灯会共建', kind: 'scene', summary: '', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['lantern_fair'], action_options: [] }],
-    my_room: options.domain === 'festival' ? options.room : null,
+    templates: [
+      { id: 'dragon_boat', label: '端午赛舟', summary: '2 人演练，4-8 人扩展多队竞速。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 8, opening_title: '', recommended_gameplay_template_ids: ['squad_coop'] },
+      { id: 'lantern_fair', label: '上元灯会', summary: '', default_member_limit: 4, min_member_limit: 2, max_member_limit: 4, opening_title: '', recommended_gameplay_template_ids: ['assembly'] }
+    ],
+    gameplay_templates: [
+      { id: 'squad_coop', label: '龙舟协作', kind: 'track', summary: '', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['dragon_boat'], action_options: [] },
+      { id: 'assembly', label: '灯会共建', kind: 'scene', summary: '', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['lantern_fair'], action_options: [] }
+    ],
+    my_room: options.domain === 'festival' ? currentRoom : null,
     invited_rooms: [],
     visible_rooms: [],
     recent_memorials: [],
     recent_receipts: []
-  }
-  const expeditionOverview = {
+  })
+  const buildExpeditionOverview = () => ({
     ok: true,
     bulletin: '远征测试',
     templates: [{ id: 'expedition_outpost', label: '协作远征', summary: '', default_member_limit: 4, opening_title: '', recommended_gameplay_template_ids: ['expedition_cavern'] }],
     gameplay_templates: [{ id: 'expedition_cavern', label: '协作矿洞', kind: 'map', summary: '', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['expedition_outpost'], action_options: [] }],
-    my_room: options.domain === 'expedition' ? options.room : null,
+    my_room: options.domain === 'expedition' ? currentRoom : null,
     invited_rooms: [],
     visible_rooms: [],
-    recent_receipts: []
-  }
+    recent_receipts: currentExpeditionRecentReceipts
+  })
 
   await page.route('**/api/taoyuan/online/festival/rooms', async route => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(festivalOverview) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildFestivalOverview()) })
   })
   await page.route('**/api/taoyuan/online/festival/rooms/*/action', async route => {
+    let payload: { action_id?: string } = {}
+    try {
+      payload = route.request().postDataJSON() as { action_id?: string }
+    } catch {
+      payload = {}
+    }
+    const actionId = String(payload.action_id || '')
+    const actionResult = options.onAction?.(currentRoom, actionId)
+    if (actionResult) {
+      currentRoom = actionResult.room
+    } else if (actionId) {
+      currentRoom = {
+        ...currentRoom,
+        gameplay: {
+          ...currentRoom.gameplay,
+          available_actions: currentRoom.gameplay.available_actions.filter(action => action.id !== actionId)
+        }
+      }
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, overview: festivalOverview, room: options.room })
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
     })
   })
   await page.route('**/api/taoyuan/online/expedition/rooms', async route => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(expeditionOverview) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildExpeditionOverview()) })
   })
   await page.route('**/api/taoyuan/online/expedition/rooms/*/action', async route => {
+    let payload: { action_id?: string } = {}
+    try {
+      payload = route.request().postDataJSON() as { action_id?: string }
+    } catch {
+      payload = {}
+    }
+    const actionResult = options.onAction?.(currentRoom, String(payload.action_id || ''))
+    if (actionResult) {
+      currentRoom = actionResult.room
+      currentExpeditionRecentReceipts = actionResult.recentReceipts ?? currentExpeditionRecentReceipts
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, overview: expeditionOverview, room: options.room })
+      body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
+    })
+  })
+  await page.route('**/api/taoyuan/online/expedition/rooms/*/settle', async route => {
+    const settleResult = options.onSettle?.(currentRoom)
+    if (settleResult) {
+      currentRoom = settleResult.room
+      currentExpeditionRecentReceipts = settleResult.recentReceipts ?? currentExpeditionRecentReceipts
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
+    })
+  })
+}
+
+function buildFestivalFriendMemorialOverview() {
+  const memoryRecords = [
+    {
+      type: 'main_lantern',
+      label: '点亮主灯',
+      actor_username: 'friend_lantern',
+      actor_display_name: '灯会好友',
+      action_id: 'lock_piece',
+      action_label: '锁定灯片',
+      object_id: 'lantern_main_lantern',
+      object_label: '主灯',
+      round_number: 1,
+      summary: '主灯在第一轮稳定亮起。'
+    },
+    {
+      type: 'riddle',
+      label: '解开灯谜',
+      actor_username: 'friend_riddle',
+      actor_display_name: '灯谜手',
+      action_id: 'buzz_correct',
+      action_label: '抢答灯谜',
+      object_id: 'lantern_riddle_rack',
+      object_label: '灯谜架',
+      round_number: 2,
+      summary: '灯谜架完成三道题签。'
+    },
+    {
+      type: 'order',
+      label: '维持秩序',
+      actor_username: 'friend_order',
+      actor_display_name: '巡场人',
+      action_id: 'steady_rudder',
+      action_label: '稳住人群',
+      object_id: 'lantern_crowd',
+      object_label: '人群秩序',
+      round_number: 3,
+      summary: '人群退到灯绳外侧。'
+    },
+    {
+      type: 'photo',
+      label: '留影收口',
+      actor_username: 'friend_photo',
+      actor_display_name: '合影人',
+      action_id: 'lock_pose',
+      action_label: '锁定合影',
+      object_id: 'lantern_photo_spot',
+      object_label: '留影点',
+      round_number: 4,
+      summary: '留影点收进好友合照。'
+    }
+  ]
+  return {
+    ok: true,
+    target_username: 'friend_lantern',
+    target_display_name: '灯会好友',
+    viewer_username: 'tester',
+    is_self: false,
+    is_friend: true,
+    memorials: [
+      {
+        memorial_id: 'festival_memorial:friend_lantern:e2e',
+        label: '上元灯会纪念',
+        room_id: 'friend-lantern-room',
+        template_id: 'lantern_fair',
+        template_label: '上元灯会',
+        gameplay_template_id: 'assembly',
+        gameplay_template_label: '灯会共建',
+        awarded_at: 1,
+        reward_summary: '只读好友纪念，不发奖励。',
+        reward_money: 0,
+        reward_ticket_quantity: 0,
+        decoration_label: '',
+        title_label: '',
+        squadmate_display_names: ['测试者', '灯谜手', '巡场人'],
+        squadmate_friend_display_names: ['测试者'],
+        photo_moment_label: '上元灯会合影',
+        photo_line: '灯会好友 与 测试者、灯谜手、巡场人 在 上元灯会 留下了一张灯会共建留影。',
+        photo_taken: true,
+        memory_records: memoryRecords
+      }
+    ]
+  }
+}
+
+async function mockFestivalFriendMemorials(page: Page) {
+  await page.route('**/api/taoyuan/online/festival/memorials/*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildFestivalFriendMemorialOverview())
     })
   })
 }
@@ -400,14 +553,292 @@ function buildLanternWallVisualProject(contributed = false) {
   }
 }
 
-function buildSocietyOverview(options: { focus?: 'bridge' | 'lantern_wall'; contributed?: boolean } = {}) {
+function buildFestivalSquareProject(contributed = false) {
+  const completionRoomLaunch = contributed
+    ? {
+        template_id: 'lantern_fair',
+        gameplay_template_id: 'assembly',
+        title: '节庆广场开幕',
+        label: '上元灯会房间',
+        summary: '用共建广场开启正式灯会房间'
+      }
+    : null
+
+  return {
+    id: 'festival_square',
+    label: '节庆筹备',
+    summary: '把空广场搭成可开幕的节会现场。',
+    status: contributed ? 'completed' : 'active',
+    status_label: contributed ? '已开幕' : '建设中',
+    progress: contributed ? 100 : 35,
+    target_progress: 100,
+    progress_percent: contributed ? 100 : 35,
+    remaining_progress: contributed ? 0 : 65,
+    completed_at: contributed ? 8 : 0,
+    completed_by: contributed ? 'tester' : '',
+    completed_by_display_name: contributed ? '测试者' : '',
+    progress_note: contributed ? '节庆广场已开幕，可创建正式灯会房间。' : '备料桌等着第一批节庆布景。',
+    completion_feedback: contributed ? '节庆广场开幕，灯会房间入口已开放。' : '',
+    world_feedback: contributed ? '广场灯门亮起，社员可以开上元灯会房间。' : '',
+    completion_room_launch: completionRoomLaunch,
+    completion_rewards: contributed
+      ? [{ id: 'festival_square_memorial', label: '开幕留影纪念', summary: '公共史册记录广场开幕，不发个人资产。' }]
+      : [],
+    can_contribute: !contributed,
+    my_contribution_count: contributed ? 1 : 0,
+    contribution_packages: contributed ? [] : [
+      {
+        id: 'festival_scenery',
+        label: '布景搭设',
+        kind: 'scenery',
+        summary: '搭起第一批节庆布景，让空广场变成节会现场。',
+        progress_gain: 65,
+        daily_limit: 1,
+        weekly_limit: 3,
+        costs: []
+      }
+    ],
+    recent_contributions: contributed
+      ? [{ id: 'festival-square-e2e-contribution', username: 'tester', display_name: '测试者', package_id: 'festival_scenery', package_label: '布景搭设', progress_gain: 65, created_at: 7 }]
+      : []
+  }
+}
+
+function buildFestivalSquareVisualProject(contributed = false) {
+  return {
+    id: 'festival_square',
+    label: '节庆筹备',
+    kind: 'festival_square',
+    day_tag: 'e2e-day',
+    week_tag: 'e2e-week',
+    starts_at: 0,
+    ends_at: 0,
+    current_stage_id: contributed ? 'festival_square_opening' : 'festival_square_prepare',
+    stages: [
+      {
+        id: 'festival_square_prepare',
+        label: '备料',
+        state: contributed ? 'complete' : 'active',
+        progress_value: contributed ? 100 : 35,
+        progress_target: 100,
+        object_ids: ['festival_square_empty', 'festival_square_supply_table'],
+        contribution_options: contributed ? [] : [
+          {
+            id: 'festival_scenery',
+            label: '布景搭设',
+            kind: 'scenery',
+            available_action_id: 'festival_scenery',
+            daily_limit: 1,
+            weekly_limit: 3,
+            resource_cost_preview: {},
+            progress_delta: 65,
+            reward_preview: '公共布景 +65'
+          }
+        ],
+        milestones: [{ id: 'festival_square_first_scene', label: '第一批布景', progress_required: 60, reached: contributed }]
+      },
+      {
+        id: 'festival_square_build',
+        label: '搭场',
+        state: contributed ? 'complete' : 'pending',
+        progress_value: contributed ? 100 : 0,
+        progress_target: 100,
+        object_ids: ['festival_square_stage', 'festival_square_lantern_gate'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'festival_square_rehearsal',
+        label: '彩排',
+        state: contributed ? 'complete' : 'pending',
+        progress_value: contributed ? 100 : 0,
+        progress_target: 100,
+        object_ids: ['festival_square_riddle_tags', 'festival_square_program'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'festival_square_opening',
+        label: '开幕',
+        state: contributed ? 'complete' : 'pending',
+        progress_value: contributed ? 100 : 0,
+        progress_target: 100,
+        object_ids: ['festival_square_crowd', 'festival_square_photo_spot'],
+        contribution_options: [],
+        milestones: []
+      }
+    ],
+    contributors: contributed ? [
+      { username: 'tester', display_name: '测试者', contribution_value: 65, rank: 1 }
+    ] : [],
+    history: contributed ? [
+      { id: 'festival-square-history-open', summary: '测试者搭起第一批节庆布景，广场准备开幕。', created_at: 7 }
+    ] : [],
+    completion_room_template_id: contributed ? 'lantern_fair' : '',
+    completion_event_id: contributed ? 'festival-square-opened' : '',
+    completion_room_launch: contributed
+      ? {
+          template_id: 'lantern_fair',
+          gameplay_template_id: 'assembly',
+          title: '节庆广场开幕',
+          label: '上元灯会房间',
+          summary: '用共建广场开启正式灯会房间'
+        }
+      : null
+  }
+}
+
+function buildPublicWarehouse(deposited = false, consumed = false) {
+  const categories = [
+    { id: 'grain', label: '粮食', count: deposited ? 1 : 0, points: deposited ? 10 : 0 },
+    { id: 'herb', label: '药草', count: 0, points: 0 },
+    { id: 'wood', label: '木材', count: 0, points: 0 },
+    { id: 'cloth', label: '布料', count: 0, points: 0 },
+    { id: 'fish', label: '鱼获', count: 0, points: 0 }
+  ]
+
+  return {
+    funds: 120,
+    items: deposited && !consumed ? [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }] : [],
+    logs: deposited ? [
+      {
+        id: 'warehouse-e2e-rice-log',
+        username: 'tester',
+        display_name: '测试者',
+        action: 'deposit',
+        deposit_id: 'grain_rice',
+        deposit_label: '稻米入仓',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 10,
+        context_id: 'warehouse-e2e',
+        idempotency_key: 'warehouse-e2e-rice',
+        entries: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }],
+        created_at: 5
+      }
+    ].concat(consumed ? [
+      {
+        id: 'warehouse-e2e-cookpot-log',
+        username: 'tester',
+        display_name: '测试者',
+        action: 'consume',
+        deposit_id: 'laba_cookpot_base',
+        deposit_label: '腊八共灶底料',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 0,
+        context_id: 'warehouse-e2e',
+        idempotency_key: 'warehouse-e2e-cookpot',
+        entries: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }],
+        created_at: 6
+      }
+    ] : []) : [],
+    weekly_settlement: {
+      window_started_at: 0,
+      window_ends_at: 7,
+      status: deposited ? 'collecting' : 'empty',
+      status_label: deposited ? '收集中' : '待入仓',
+      total_points: deposited ? 10 : 0,
+      contributor_count: deposited ? 1 : 0,
+      covered_category_count: deposited ? 1 : 0,
+      categories,
+      effects: {
+        disaster_response: {
+          active: deposited,
+          level: deposited ? 1 : 0,
+          label: '灾害应对',
+          summary: deposited ? '灾害应对预备 +1' : '等待粮食、药草等基础物资。'
+        },
+        festival_cost_discount: {
+          active: false,
+          percent: 0,
+          label: '节会成本下降',
+          summary: '五类物资齐备后降低公共节会成本。'
+        },
+        public_task_bonus: {
+          active: false,
+          level: 0,
+          label: '公共任务加成',
+          summary: '周结算达标后提升公共任务起步效率。'
+        }
+      }
+    },
+    deposit_options: [
+      {
+        id: 'grain_rice',
+        label: '稻米入仓',
+        summary: '把本周富余稻米交入村社仓廪，优先补粮食格。',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 10,
+        costs: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }]
+      },
+      {
+        id: 'herb_mugwort',
+        label: '艾草入仓',
+        summary: '补入常备药草，周结算时提高灾后恢复余量。',
+        category_id: 'herb',
+        category_label: '药草',
+        weekly_points: 8,
+        costs: [{ item_id: 'mugwort', quantity: 2, label: '艾草 x2' }]
+      },
+      {
+        id: 'wood_bundle',
+        label: '木材入仓',
+        summary: '补足修桥、修灯和临时棚架需要的木材。',
+        category_id: 'wood',
+        category_label: '木材',
+        weekly_points: 8,
+        costs: [{ item_id: 'wood', quantity: 3, label: '木材 x3' }]
+      },
+      {
+        id: 'cloth_roll',
+        label: '布料入仓',
+        summary: '补入遮雨布和节会灯幔，服务公共活动消耗。',
+        category_id: 'cloth',
+        category_label: '布料',
+        weekly_points: 8,
+        costs: [{ item_id: 'cloth', quantity: 2, label: '布料 x2' }]
+      },
+      {
+        id: 'fish_basket',
+        label: '鱼获入仓',
+        summary: '补入可快分的鱼获，供公共任务和救急餐使用。',
+        category_id: 'fish',
+        category_label: '鱼获',
+        weekly_points: 8,
+        costs: [{ item_id: 'fish', quantity: 2, label: '鱼获 x2' }]
+      }
+    ],
+    consume_options: deposited && !consumed ? [
+      {
+        id: 'laba_cookpot_base',
+        label: '腊八共灶底料',
+        summary: '从公共仓取稻米开灶，只扣公共仓，不发个人奖励。',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 0,
+        costs: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }]
+      }
+    ] : []
+  }
+}
+
+function buildSocietyOverview(options: { focus?: 'bridge' | 'lantern_wall' | 'festival_square' | 'warehouse'; contributed?: boolean; warehouseDeposited?: boolean; warehouseConsumed?: boolean } = {}) {
   const focus = options.focus || 'bridge'
   const bridgeProject = buildSocietyProject()
   const lanternWallProject = buildLanternWallProject(Boolean(options.contributed))
-  const publicProjects = focus === 'lantern_wall' ? [lanternWallProject, bridgeProject] : [bridgeProject]
+  const festivalSquareProject = buildFestivalSquareProject(Boolean(options.contributed))
+  const publicProjects = focus === 'lantern_wall'
+    ? [lanternWallProject, bridgeProject]
+    : focus === 'festival_square'
+      ? [festivalSquareProject, bridgeProject]
+      : [bridgeProject]
   const asyncProjects = focus === 'lantern_wall'
     ? [buildLanternWallVisualProject(Boolean(options.contributed))]
-    : [
+    : focus === 'festival_square'
+      ? [buildFestivalSquareVisualProject(Boolean(options.contributed))]
+      : [
         {
           id: 'bridge',
           label: '村社修桥',
@@ -452,9 +883,9 @@ function buildSocietyOverview(options: { focus?: 'bridge' | 'lantern_wall'; cont
     bulletin: '村社 smoke',
     my_society: {
       id: 'society-e2e',
-      name: '清溪灯社',
+      name: focus === 'warehouse' ? '清溪仓社' : focus === 'festival_square' ? '清溪节社' : '清溪灯社',
       summary: '测试公共建设',
-      notice: '本周先修桥。',
+      notice: focus === 'warehouse' ? '本周先补齐村社仓廪。' : focus === 'festival_square' ? '本周先把广场搭成节会现场。' : '本周先修桥。',
       emblem: 'plum_seal',
       emblem_label: '梅印',
       theme: 'harvest_union',
@@ -497,7 +928,11 @@ function buildSocietyOverview(options: { focus?: 'bridge' | 'lantern_wall'; cont
         board_type: 'async',
         board_id: 'society_public_projects',
         selected_visual_id: focus,
-        recent_feedback: focus === 'lantern_wall' && options.contributed ? '测试者写下一张愿望签，花灯墙亮了一角。' : '',
+        recent_feedback: focus === 'lantern_wall' && options.contributed
+          ? '测试者写下一张愿望签，花灯墙亮了一角。'
+          : focus === 'festival_square' && options.contributed
+            ? '测试者搭起第一批节庆布景，广场开始像节会现场。'
+            : '',
         async_projects: asyncProjects
       },
       welfare_unlocks: [],
@@ -511,12 +946,7 @@ function buildSocietyOverview(options: { focus?: 'bridge' | 'lantern_wall'; cont
         famous_members: [],
         seasonal_records: []
       },
-      public_warehouse: {
-        funds: 0,
-        items: [],
-        logs: [],
-        deposit_options: []
-      }
+      public_warehouse: buildPublicWarehouse(Boolean(options.warehouseDeposited), Boolean(options.warehouseConsumed))
     },
     visible_societies: [],
     incoming_invites: [],
@@ -531,15 +961,18 @@ function buildSocietyOverview(options: { focus?: 'bridge' | 'lantern_wall'; cont
     proposal_kind_options: [{ id: 'governance', label: '治理', summary: '' }],
     public_project_defs: [
       { id: 'bridge', label: '村社修桥', summary: '', target_progress: 100 },
-      { id: 'lantern_wall', label: '共建花灯墙', summary: '', target_progress: 100 }
+      { id: 'lantern_wall', label: '共建花灯墙', summary: '', target_progress: 100 },
+      { id: 'festival_square', label: '节庆筹备', summary: '', target_progress: 100 }
     ],
     public_project_package_options: publicProjects.flatMap(project => project.contribution_packages)
   }
   return overview
 }
 
-async function mockOnlineSociety(page: Page, options: { focus?: 'bridge' | 'lantern_wall' } = {}) {
+async function mockOnlineSociety(page: Page, options: { focus?: 'bridge' | 'lantern_wall' | 'festival_square' | 'warehouse' } = {}) {
   let contributed = false
+  let warehouseDeposited = false
+  let warehouseConsumed = false
   await page.unroute('**/api/me').catch(() => {})
   await page.route('**/api/me', async route => {
     await route.fulfill({
@@ -554,12 +987,12 @@ async function mockOnlineSociety(page: Page, options: { focus?: 'bridge' | 'lant
   })
 
   await page.route('**/api/taoyuan/online/societies', async route => {
-    const overview = buildSocietyOverview({ focus: options.focus, contributed })
+    const overview = buildSocietyOverview({ focus: options.focus, contributed, warehouseDeposited, warehouseConsumed })
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(overview) })
   })
   await page.route('**/api/taoyuan/online/societies/public-projects/*/contribute', async route => {
     contributed = true
-    const overview = buildSocietyOverview({ focus: options.focus, contributed })
+    const overview = buildSocietyOverview({ focus: options.focus, contributed, warehouseDeposited, warehouseConsumed })
     const project = overview.my_society.public_projects.find(entry => route.request().url().includes(`/public-projects/${entry.id}/`))
       || overview.my_society.public_projects[0]
     await route.fulfill({
@@ -568,6 +1001,36 @@ async function mockOnlineSociety(page: Page, options: { focus?: 'bridge' | 'lant
       body: JSON.stringify({
         ok: true,
         project,
+        society: overview.my_society,
+        overview,
+        player_money: 999
+      })
+    })
+  })
+  await page.route('**/api/taoyuan/online/societies/public-warehouse/deposit', async route => {
+    warehouseDeposited = true
+    const overview = buildSocietyOverview({ focus: options.focus, contributed, warehouseDeposited, warehouseConsumed })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        warehouse: overview.my_society.public_warehouse,
+        society: overview.my_society,
+        overview,
+        player_money: 999
+      })
+    })
+  })
+  await page.route('**/api/taoyuan/online/societies/public-warehouse/consume', async route => {
+    warehouseConsumed = true
+    const overview = buildSocietyOverview({ focus: options.focus, contributed, warehouseDeposited, warehouseConsumed })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        warehouse: overview.my_society.public_warehouse,
         society: overview.my_society,
         overview,
         player_money: 999
@@ -673,6 +1136,167 @@ async function mockOnlineCohabitation(page: Page) {
   const contract = buildCohabitationContract()
   let helperDepositEnabled = false
   let permissionAudits: any[] = []
+  let sharedPetCareCount = 0
+  let sharedPetLastCareItemId = ''
+  const sharedPetCareItems: Record<string, {
+    label: string
+    effect: string
+    friendshipGain: number
+    moodGain: number
+    riskLevel?: string
+    requiresConfirmation?: boolean
+    confirmationPhrase?: string
+  }> = {
+    vitality_feed: { label: '活力饲料', effect: '活力照料', friendshipGain: 3, moodGain: 8, riskLevel: 'standard' },
+    premium_feed: { label: '精饲料', effect: '亲密照料', friendshipGain: 6, moodGain: 12, riskLevel: 'standard' },
+    nourishing_feed: { label: '滋补饲料', effect: '滋养照料', friendshipGain: 4, moodGain: 10, riskLevel: 'standard' },
+    lotus_heart_cat_treat: {
+      label: '莲心桂花糕',
+      effect: '高阶灵宠点心',
+      friendshipGain: 10,
+      moodGain: 16,
+      riskLevel: 'high_value_pet_treat',
+      requiresConfirmation: true,
+      confirmationPhrase: '确认消耗共同宠物高阶点心'
+    },
+  }
+  const sharedWarehouseStock: Record<string, number> = {
+    vitality_feed: 3,
+    premium_feed: 2,
+    nourishing_feed: 1,
+    lotus_heart_cat_treat: 1
+  }
+  const sharedPetId = 'shared-pet-e2e'
+
+  const buildSharedWarehouse = () => ({
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: 'active',
+    items: Object.entries(sharedWarehouseStock)
+      .filter(([, quantity]) => quantity > 0)
+      .map(([itemId, quantity]) => ({
+          item_id: itemId,
+          quantity,
+          quality: 'common',
+          label: sharedPetCareItems[itemId]?.label || itemId,
+          source_owner_username: 'tester',
+          source_owner_display_name: '测试者'
+        })),
+    ledger: sharedPetCareCount > 0
+      ? [{
+          id: 'warehouse-ledger-shared-pet-care-e2e',
+          action: 'consume_for_shared_pet_care',
+          item_id: sharedPetLastCareItemId || 'vitality_feed',
+          quantity: 1,
+          quality: 'common',
+          actor_username: 'tester',
+          actor_display_name: '测试者',
+          source_owner_username: 'tester',
+          source_owner_display_name: '测试者',
+          source_save_id: 1,
+          source_save_slot: 1,
+          idempotency_key: 'shared-pet-care-e2e',
+          status: 'committed',
+          created_at: 2
+        }]
+      : [],
+    summary: {
+      item_count: Object.values(sharedWarehouseStock).filter(quantity => quantity > 0).length,
+      total_quantity: Object.values(sharedWarehouseStock).reduce((sum, quantity) => sum + quantity, 0),
+      ledger_count: sharedPetCareCount > 0 ? 1 : 0,
+      personal_money_merged: false,
+      deposit_enabled: true,
+      withdraw_enabled: true,
+      sell_enabled: true,
+      idempotency_required: true,
+      compensation_policy: 'audit'
+    },
+    permissions: {}
+  })
+
+  const buildSharedPet = () => {
+    const careItem = sharedPetCareItems[sharedPetLastCareItemId || 'vitality_feed'] ?? sharedPetCareItems.vitality_feed
+    return {
+      id: sharedPetId,
+      shared_pet_id: sharedPetId,
+      source_pet_id: 'pet:qa-cat-1',
+      type: 'cat',
+      name: '狸花灵猫',
+      origin_owner_id: 'save-1',
+      origin_save_id: 1,
+      origin_owner_username: 'tester',
+      origin_owner_display_name: '测试者',
+      origin_owner_key: 'tester',
+      source_save_slot: 1,
+      source_save_revision: 1,
+      current_caregiver_username: sharedPetCareCount > 0 ? 'tester' : '',
+      current_caregiver_display_name: sharedPetCareCount > 0 ? '测试者' : '',
+      permission_mode: 'shared_care',
+      split_rule: 'return_to_origin_owner',
+      permission_restriction: 'shared_warehouse_feed_only',
+      readonly: false,
+      pet_state: {
+        type: 'cat',
+        name: '狸花灵猫',
+        friendship: sharedPetCareCount > 0 ? 20 + careItem.friendshipGain : 20,
+        mood: sharedPetCareCount > 0 ? 30 + careItem.moodGain + 2 : 30,
+        care_count: sharedPetCareCount,
+        last_care_item_id: sharedPetCareCount > 0 ? sharedPetLastCareItemId : '',
+        last_care_item_label: sharedPetCareCount > 0 ? careItem.label : '',
+        last_care_item_effect: sharedPetCareCount > 0 ? careItem.effect : '',
+        last_cared_at: sharedPetCareCount > 0 ? 2 : 0,
+        last_caregiver_username: sharedPetCareCount > 0 ? 'tester' : '',
+        cooperation_mood_bonus: sharedPetCareCount > 0 ? 2 : 0,
+        last_cooperation_bonus_action: sharedPetCareCount > 0 ? 'shared_pet_care' : '',
+        last_cooperation_bonus_members: sharedPetCareCount > 0 ? ['测试者', '帮手'] : []
+      }
+    }
+  }
+
+  const buildSharedPets = () => ({
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: 'active',
+    readonly: false,
+    writes_enabled: true,
+    persisted: true,
+    persistence_policy: 'contract_shared_pet_state',
+    persisted_at: 1,
+    generated_at: 1 + sharedPetCareCount,
+    revision: 1 + sharedPetCareCount,
+    pets: [buildSharedPet()],
+    summary: {
+      pet_count: 1,
+      cared_count: sharedPetCareCount,
+      pet_care_write_enabled: true,
+      shared_warehouse_pet_care_consume_enabled: true,
+      supported_care_item_ids: ['vitality_feed', 'premium_feed', 'nourishing_feed', 'lotus_heart_cat_treat'],
+      personal_save_changed: false,
+      included_sources: ['tester:slot:1'],
+      deferred_writes: []
+    }
+  })
+
+  const buildSharedAnimals = () => ({
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: 'active',
+    readonly: false,
+    writes_enabled: true,
+    generated_at: 1,
+    revision: 1,
+    animals: [],
+    summary: {
+      animal_count: 0,
+      product_ready_count: 0,
+      animal_feed_write_enabled: true,
+      animal_pet_write_enabled: true,
+      animal_product_collect_enabled: true,
+      shared_warehouse_product_deposit_enabled: true,
+      personal_save_changed: false,
+      deferred_writes: []
+    }
+  })
 
   const overview = () => ({
     ok: true,
@@ -741,8 +1365,141 @@ async function mockOnlineCohabitation(page: Page) {
       }))
     })
   })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/shared-animals', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({ shared_animals: buildSharedAnimals() }))
+    })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/shared-pets', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({ shared_pets: buildSharedPets() }))
+    })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/shared-pets/care', async route => {
+    const payload = route.request().postDataJSON() as {
+      care_item_id?: string
+      confirmed_high_value_care?: boolean
+      risk_acknowledged?: boolean
+      confirmation_text?: string
+      rollback_plan_acknowledged?: boolean
+      compensation_plan_acknowledged?: boolean
+    } | null
+    const careItemId = payload?.care_item_id && sharedPetCareItems[payload.care_item_id]
+      ? payload.care_item_id
+      : 'vitality_feed'
+    const careItem = sharedPetCareItems[careItemId]
+    if (careItem.requiresConfirmation) {
+      expect(payload?.confirmed_high_value_care).toBe(true)
+      expect(payload?.risk_acknowledged).toBe(true)
+      expect(payload?.confirmation_text).toBe(careItem.confirmationPhrase)
+      expect(payload?.rollback_plan_acknowledged).toBe(true)
+      expect(payload?.compensation_plan_acknowledged).toBe(true)
+    }
+    const beforePet = buildSharedPet()
+    sharedPetLastCareItemId = careItemId
+    sharedPetCareCount = Math.max(sharedPetCareCount, 1)
+    sharedWarehouseStock[careItemId] = Math.max(0, (sharedWarehouseStock[careItemId] ?? 0) - 1)
+    const pet = buildSharedPet()
+    const warehouse = buildSharedWarehouse()
+    const ledgerEntry = {
+      id: 'shared-pet-ledger-e2e',
+      action: 'care',
+      pet_id: sharedPetId,
+      shared_pet_id: sharedPetId,
+      source_pet_id: 'pet:qa-cat-1',
+      actor_username: 'tester',
+      actor_display_name: '测试者',
+      care_item_id: careItemId,
+      care_item_label: careItem.label,
+      care_item_effect: careItem.effect,
+      care_item_profile: {
+        item_id: careItemId,
+        label: careItem.label,
+        care_effect: careItem.effect,
+        friendship_gain: careItem.friendshipGain,
+        mood_gain: careItem.moodGain,
+        risk_level: careItem.riskLevel,
+        requires_confirmation: careItem.requiresConfirmation === true,
+        confirmation_phrase: careItem.confirmationPhrase || ''
+      },
+      friendship_gain: careItem.friendshipGain,
+      mood_gain: careItem.moodGain,
+      risk_level: careItem.riskLevel || 'standard',
+      confirmation_required: careItem.requiresConfirmation === true,
+      confirmed_high_value_care: careItem.requiresConfirmation === true,
+      risk_acknowledged: careItem.requiresConfirmation === true,
+      confirmation_text: careItem.requiresConfirmation ? careItem.confirmationPhrase : '',
+      rollback_plan_acknowledged: careItem.requiresConfirmation === true,
+      compensation_plan_acknowledged: careItem.requiresConfirmation === true,
+      warehouse_ledger_ids: ['warehouse-ledger-shared-pet-care-e2e'],
+      shared_warehouse_changed: true,
+      origin_owner_id: 'save-1',
+      origin_owner_username: 'tester',
+      origin_owner_display_name: '测试者',
+      origin_save_id: 1,
+      source_save_slot: 1,
+      before_pet_state: beforePet.pet_state,
+      after_pet_state: pet.pet_state,
+      idempotency_key: 'shared-pet-care-e2e',
+      status: 'committed',
+      at: 2
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({
+        shared_pets: buildSharedPets(),
+        warehouse,
+        pet,
+        ledger_entry: ledgerEntry,
+        warehouse_ledger_entries: warehouse.ledger,
+        idempotent: false,
+        already_cared: false,
+        pet_action: {
+          action: 'care',
+          pet_id: sharedPetId,
+          care_item_id: careItemId,
+          care_item_label: careItem.label,
+          care_item_effect: careItem.effect,
+          care_item_profile: {
+            item_id: careItemId,
+            label: careItem.label,
+            care_effect: careItem.effect,
+            friendship_gain: careItem.friendshipGain,
+            mood_gain: careItem.moodGain,
+            risk_level: careItem.riskLevel,
+            requires_confirmation: careItem.requiresConfirmation === true,
+            confirmation_phrase: careItem.confirmationPhrase || ''
+          },
+          friendship_gain: careItem.friendshipGain,
+          mood_gain: careItem.moodGain,
+          risk_level: careItem.riskLevel || 'standard',
+          confirmation_required: careItem.requiresConfirmation === true,
+          confirmed_high_value_care: careItem.requiresConfirmation === true,
+          risk_acknowledged: careItem.requiresConfirmation === true,
+          confirmation_text: careItem.requiresConfirmation ? careItem.confirmationPhrase : '',
+          rollback_plan_acknowledged: careItem.requiresConfirmation === true,
+          compensation_plan_acknowledged: careItem.requiresConfirmation === true,
+          before_pet_state: beforePet.pet_state,
+          after_pet_state: pet.pet_state,
+          personal_save_changed: false,
+          shared_warehouse_changed: true,
+          shared_fund_changed: false,
+          simultaneous_online_bonus: {
+            applied: true,
+            bonus_value: 2,
+            members: ['测试者', '帮手']
+          }
+        }
+      }))
+    })
+  })
   await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/warehouse', async route => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ warehouse: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', items: [], ledger: [], summary: { item_count: 0, total_quantity: 0, ledger_count: 0, personal_money_merged: false, deposit_enabled: true, withdraw_enabled: true, sell_enabled: true, idempotency_required: true, compensation_policy: 'audit' }, permissions: {} } })) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ warehouse: buildSharedWarehouse() })) })
   })
   await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/fund', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', balance: 300, ledger: [], large_spend_drafts: [], summary: { balance: 300, ledger_count: 0, personal_money_merged: false, contribution_enabled: true, spend_enabled: true, idempotency_required: true, large_spend_requires_both: true, compensation_policy: 'audit' }, permissions: {} } })) })
@@ -905,6 +1662,70 @@ function buildRelayOrder(accepted = false) {
     priority_score: 12,
     priority_reasons: ['接力路线可视化', '节庆备货'],
     stages,
+    relay_settlement_summary: {
+      split_mode: 'stage_pool_weighted',
+      status: accepted ? 'settling' : 'planned',
+      reward_type: 'money',
+      pool_reward_value: 260,
+      allocated_reward_value: 260,
+      confirmed_reward_value: 80,
+      pending_reward_value: 180,
+      compensation_pending_reward_value: 0,
+      reward_label: '铜钱',
+      shares: [
+        {
+          stage_id: 'stage_collect',
+          stage_title: '采收青菜',
+          sequence: 1,
+          assignee_username: 'helper_done',
+          assignee_display_name: '已完成的帮手',
+          share_percent: 31,
+          reward_value: 80,
+          reward_label: '铜钱',
+          delivery_status: 'confirmed',
+          settlement_status: 'confirmed',
+          settlement_receipt_id: 'receipt-stage-collect',
+          reward_route: 'personal',
+          cohabitation_contract_id: '',
+          shared_fund_ledger_id: '',
+          confirmed_at: 2
+        },
+        {
+          stage_id: 'stage_process',
+          stage_title: '加工干菜',
+          sequence: 2,
+          assignee_username: accepted ? 'tester' : '',
+          assignee_display_name: accepted ? '测试者' : '',
+          share_percent: 35,
+          reward_value: 90,
+          reward_label: '铜钱',
+          delivery_status: 'none',
+          settlement_status: accepted ? 'pending_owner_confirm' : 'pending',
+          settlement_receipt_id: '',
+          reward_route: accepted ? 'shared_fund' : 'personal',
+          cohabitation_contract_id: accepted ? 'cohab-e2e-family' : '',
+          shared_fund_ledger_id: '',
+          confirmed_at: 0
+        },
+        {
+          stage_id: 'stage_deliver',
+          stage_title: '送到灯会',
+          sequence: 3,
+          assignee_username: '',
+          assignee_display_name: '',
+          share_percent: 35,
+          reward_value: 90,
+          reward_label: '铜钱',
+          delivery_status: 'none',
+          settlement_status: 'pending',
+          settlement_receipt_id: '',
+          reward_route: 'personal',
+          cohabitation_contract_id: '',
+          shared_fund_ledger_id: '',
+          confirmed_at: 0
+        }
+      ]
+    },
     visual_state: {
       ...emptyVisualState,
       board_type: 'async',
@@ -995,6 +1816,40 @@ function buildCoopOrderOverview(accepted = false) {
       relay_orders: 1,
       open_relay_orders: 1
     },
+    society_order_board: {
+      public_orders: 1,
+      open_public_orders: 1,
+      public_relay_orders: 1,
+      open_public_relay_orders: 1,
+      reward_pool_value: 260,
+      confirmed_reward_value: 80,
+      pending_reward_value: 180,
+      compensation_pending_reward_value: 0,
+      compensation_count: 0,
+      settlement_status_counts: {
+        planned: accepted ? 0 : 1,
+        settling: accepted ? 1 : 0,
+        settled: 0,
+        compensation_pending: 0
+      },
+      recent_receipts: [
+        {
+          receipt_id: 'receipt-stage-collect',
+          order_id: 'relay-order-e2e',
+          order_title: '灯会干菜接力单',
+          stage_id: 'stage_collect',
+          stage_title: '采收青菜',
+          assignee_display_name: '已完成的帮手',
+          reward_type: 'money',
+          reward_value: 80,
+          reward_label: '铜钱',
+          reward_route: 'personal',
+          status: 'confirmed',
+          confirmed_at: 2,
+          updated_at: 2
+        }
+      ]
+    },
     reputation_summary: {
       total: 0,
       by_order_type: {},
@@ -1039,7 +1894,150 @@ async function mockOnlineOrders(page: Page) {
   })
 }
 
-function buildFriendManorSnapshot(cared = false) {
+function buildManorInteractionAudit(kind: 'care' | 'steal', used = false) {
+  const visitorLimit = kind === 'care' ? 4 : 2
+  const rewardLabel = kind === 'care'
+    ? '照料伴手礼每日封顶，重复提交只读回原凭证。'
+    : '普通轻采单次最多 1 件，重复提交只读回原凭证。'
+  const settlementLabel = kind === 'care'
+    ? '照料收益由服务端写入主人日志和访客伴手礼凭证。'
+    : '轻采由服务端写入 settlement_receipt_id，主人库存保留 100%。'
+  return {
+    visitor_limit_enforced: true,
+    manor_limit_enforced: true,
+    object_limit_enforced: true,
+    whitelist_enforced: kind === 'steal',
+    reward_cap_summary: rewardLabel,
+    settlement_summary: settlementLabel,
+    owner_reserved_percent: kind === 'steal' ? 100 : undefined,
+    visitor_reward_quantity_cap: kind === 'steal' ? 1 : undefined,
+    recent_window_seconds: 600,
+    recent_window_count: used ? 1 : 0,
+    daily_visitor_counts: [{
+      visitor_username: 'tester',
+      visitor_display_name: '测试者',
+      count: used ? 1 : 0,
+      limit: visitorLimit,
+    }],
+    risk_flags: [],
+    dispute_log_available: true,
+  }
+}
+
+const manorCareRoomActionDefs = {
+  room_irrigate: {
+    label: '协作灌溉',
+    role_id: 'irrigation',
+    role_label: '灌溉手',
+    object_id: 'friend_plot_1',
+    object_label: '春菜田',
+    health_delta: 8,
+    summary: '稳住田区水分，为后续护理留出安全窗口。'
+  },
+  room_feed: {
+    label: '协作喂食',
+    role_id: 'feeding',
+    role_label: '喂食手',
+    object_id: 'friend_coop_1',
+    object_label: '鸡舍',
+    health_delta: 7,
+    summary: '补足鸡舍饲喂，降低护理窗口内的躁动风险。'
+  },
+  room_pest_control: {
+    label: '协作除虫',
+    role_id: 'pest_control',
+    role_label: '除虫手',
+    object_id: 'friend_plot_1',
+    object_label: '春菜田',
+    health_delta: 6,
+    summary: '清掉叶背害虫，护理健康度继续提升。'
+  },
+  room_tidy: {
+    label: '协作收拾',
+    role_id: 'tidy',
+    role_label: '收拾手',
+    object_id: 'friend_coop_1',
+    object_label: '鸡舍',
+    health_delta: 5,
+    summary: '收拾掉落物与边角产物，完成护理收尾。'
+  }
+}
+
+const manorCareRoomActionOrder = Object.keys(manorCareRoomActionDefs)
+
+function buildFriendManorCareRoom(actionIds: string[] = [], completed = false) {
+  const actions = actionIds.map((actionId, index) => {
+    const action = manorCareRoomActionDefs[actionId as keyof typeof manorCareRoomActionDefs] || manorCareRoomActionDefs.room_irrigate
+    const actor = index % 2 === 0
+      ? { username: 'tester', display_name: '测试者' }
+      : { username: 'friend_helper', display_name: '协作好友' }
+    return {
+      id: `care-room-action-${actionId}`,
+      action_id: actionId,
+      action_label: action.label,
+      role_id: action.role_id,
+      role_label: action.role_label,
+      object_id: action.object_id,
+      object_label: action.object_label,
+      actor_username: actor.username,
+      actor_display_name: actor.display_name,
+      expected_order: index + 1,
+      actual_order: index + 1,
+      order_risk: false,
+      role_matched: true,
+      risk_delta: 0,
+      health_delta: action.health_delta,
+      idempotency_key: `care-room-e2e:${actionId}`,
+      summary: `${actor.display_name} 完成「${action.label}」：${action.summary}`,
+      created_at: 5 + index
+    }
+  })
+  const healthScore = actions.reduce((sum, action) => sum + action.health_delta, 0)
+  return {
+    id: 'care-room-e2e-1',
+    target_username: 'friend_owner',
+    target_save_id: 1,
+    target_save_slot: null,
+    creator_username: 'tester',
+    creator_display_name: '测试者',
+    member_limit: 2,
+    day_tag: '2026-05-25',
+    idempotency_key: 'care-room-e2e-create',
+    status: completed ? 'completed' : 'in_progress',
+    window_started_at: 1,
+    window_ends_at: 1760000600,
+    participants: [
+      { username: 'tester', display_name: '测试者', role_id: 'irrigation', role_label: '灌溉手', joined_at: 1 },
+      { username: 'friend_helper', display_name: '协作好友', role_id: 'feeding', role_label: '喂食手', joined_at: 2 }
+    ],
+    actions,
+    risk_score: 0,
+    health_score: healthScore,
+    health_delta: completed ? healthScore : 0,
+    settlement_receipt_id: completed ? 'care-room-e2e-settlement-1' : '',
+    settled_by: completed ? '测试者' : '',
+    settled_at: completed ? 10 : 0,
+    summary: completed
+      ? '护理房间已结算：灌溉、喂食、除虫、收拾四项完成，健康度提升 26。'
+      : actions.length > 0
+        ? actions[actions.length - 1].summary
+        : '护理房间已建立，等待成员完成灌溉、喂食、除虫、收拾。',
+    created_at: 1,
+    updated_at: completed ? 10 : 5 + actions.length,
+    viewer_is_member: true,
+    remaining_seconds: completed ? 0 : 560,
+    available_action_ids: completed ? [] : manorCareRoomActionOrder.filter(actionId => !actionIds.includes(actionId)),
+    can_join: false,
+    can_act: !completed,
+    can_settle: !completed && actionIds.length >= manorCareRoomActionOrder.length
+  }
+}
+
+function buildFriendManorSnapshot(cared = false, stolen = false, careRoomActionIds: string[] = [], careRoomSettled = false, careRoomCreated = false) {
+  const activeCareRoom = careRoomCreated || careRoomActionIds.length > 0 || careRoomSettled
+    ? buildFriendManorCareRoom(careRoomActionIds, careRoomSettled)
+    : null
+  const recentCareRoomRecords = careRoomSettled && activeCareRoom ? [activeCareRoom] : []
   const objects = [
     {
       id: 'friend_plot_1',
@@ -1072,6 +2070,38 @@ function buildFriendManorSnapshot(cared = false) {
       requires_cooperation: false,
       cooperation_required_count: 1,
       cooperation_current_count: 0
+    },
+    {
+      id: 'friend_tidy_corner_1',
+      label: '收拾角',
+      kind: 'storage',
+      x: 72,
+      y: 34,
+      state: careRoomSettled ? 'busy' : 'needs_action',
+      available_action_ids: [],
+      progress_value: careRoomSettled ? 4 : careRoomActionIds.length,
+      progress_target: 4,
+      handled_by: careRoomSettled ? '测试者、协作好友' : '',
+      handled_at: careRoomSettled ? 10 : 0,
+      requires_cooperation: true,
+      cooperation_required_count: 2,
+      cooperation_current_count: activeCareRoom ? activeCareRoom.participants.length : 0
+    },
+    {
+      id: 'friend_apple_tree_1',
+      label: '秋苹果树',
+      kind: 'fruit_tree',
+      x: 52,
+      y: 35,
+      state: stolen ? 'busy' : 'needs_action',
+      available_action_ids: stolen ? [] : ['light_harvest'],
+      progress_value: stolen ? 1 : 0,
+      progress_target: 1,
+      handled_by: stolen ? '测试者' : '',
+      handled_at: stolen ? 4 : 0,
+      requires_cooperation: false,
+      cooperation_required_count: 1,
+      cooperation_current_count: stolen ? 1 : 0
     }
   ]
   return {
@@ -1102,7 +2132,7 @@ function buildFriendManorSnapshot(cared = false) {
     access_policy: {
       visit_mode: 'public',
       care_mode: 'friends',
-      steal_mode: 'closed',
+      steal_mode: 'mutual',
       updated_at: 3,
       options: [
         { id: 'public', label: '公开' },
@@ -1120,16 +2150,16 @@ function buildFriendManorSnapshot(cared = false) {
       mutual_follow: true,
       can_visit: true,
       can_care: true,
-      can_steal: false
+      can_steal: true
     },
     visual_state: {
       ...emptyVisualState,
       board_type: 'scene',
       board_id: 'friend_manor_care',
-      revision: cared ? 2 : 1,
-      selected_visual_id: 'friend_plot_1',
+      revision: stolen ? 3 : cared ? 2 : 1,
+      selected_visual_id: stolen ? 'friend_apple_tree_1' : 'friend_plot_1',
       objects,
-      recent_feedback: cared ? '测试者帮春菜田浇了水。' : ''
+      recent_feedback: stolen ? '测试者轻采了秋苹果树，主人库存保持完整。' : cared ? '测试者帮春菜田浇了水。' : ''
     },
     care_state: {
       day_tag: '2026-05-25',
@@ -1145,21 +2175,32 @@ function buildFriendManorSnapshot(cared = false) {
       remaining_care_count: cared ? 3 : 4,
       manor_remaining_care_count: cared ? 11 : 12,
       can_care: true,
+      audit: buildManorInteractionAudit('care', cared),
       care_denied_reason: ''
     },
     steal_state: {
       day_tag: '2026-05-25',
-      action_labels: {},
-      action_effects: {},
-      limits: { visitor_daily_limit: 0, manor_daily_limit: 0, object_daily_limit: 0 },
-      visitor_daily_count: 0,
-      manor_daily_count: 0,
-      remaining_steal_count: 0,
-      manor_remaining_steal_count: 0,
-      can_steal: false,
-      steal_denied_reason: '主人暂未开放偷菜。',
-      whitelist_summary: '偷菜关闭',
-      target_use_hints: {}
+      action_labels: { light_harvest: '轻采果实' },
+      action_effects: {
+        light_harvest: { owner_compensation: '主人保留 100% 库存并收到轻采凭证', visitor_reward: '普通苹果 x1' }
+      },
+      limits: { visitor_daily_limit: 2, manor_daily_limit: 6, object_daily_limit: 1 },
+      visitor_daily_count: stolen ? 1 : 0,
+      manor_daily_count: stolen ? 1 : 0,
+      remaining_steal_count: stolen ? 1 : 2,
+      manor_remaining_steal_count: stolen ? 5 : 6,
+      can_steal: true,
+      steal_denied_reason: '',
+      audit: buildManorInteractionAudit('steal', stolen),
+      whitelist_summary: '只允许普通成熟果实、普通作物和边角产物，关键物、稀有物、唯一物和活动核心物排除。',
+      target_use_hints: {
+        friend_apple_tree_1: {
+          item_id: 'apple',
+          label: '普通苹果',
+          use_tags: ['food', 'order', 'festival'],
+          use_summary: '可用于料理、订单与节会备料。'
+        }
+      }
     },
     care_entries: cared ? [{
       id: 'care-entry-1',
@@ -1179,7 +2220,63 @@ function buildFriendManorSnapshot(cared = false) {
       summary: '测试者帮春菜田浇了水。',
       created_at: 3
     }] : [],
-    steal_entries: [],
+    steal_entries: stolen ? [{
+      id: 'steal-entry-1',
+      target_username: 'friend_owner',
+      target_save_id: 1,
+      target_save_slot: null,
+      visitor_username: 'tester',
+      visitor_display_name: '测试者',
+      action_id: 'light_harvest',
+      action_label: '轻采果实',
+      object_id: 'friend_apple_tree_1',
+      object_label: '秋苹果树',
+      target_id: 'friend_apple_tree_1',
+      target_label: '秋苹果树',
+      item_id: 'apple',
+      item_label: '普通苹果',
+      quantity: 1,
+      use_tags: ['food', 'order', 'festival'],
+      use_summary: '可用于料理、订单与节会备料。',
+      day_tag: '2026-05-25',
+      idempotency_key: 'steal-e2e-1',
+      owner_compensation: '主人保留 100% 库存并收到轻采凭证',
+      visitor_reward: '普通苹果 x1',
+      visitor_reward_quantity: 1,
+      reward_daily_cap: 2,
+      owner_reserved_ratio: 1,
+      settlement_receipt_id: 'receipt-steal-e2e-1',
+      note: '轻采后给主人留了感谢。',
+      summary: '测试者轻采了秋苹果树，主人库存保持完整。',
+      created_at: 4
+    }] : [],
+    care_room_state: {
+      day_tag: '2026-05-25',
+      action_labels: Object.fromEntries(Object.entries(manorCareRoomActionDefs).map(([id, action]) => [id, action.label])),
+      action_effects: Object.fromEntries(Object.entries(manorCareRoomActionDefs).map(([id, action]) => [id, {
+        role_id: action.role_id,
+        role_label: action.role_label,
+        object_id: action.object_id,
+        object_label: action.object_label,
+        health_delta: action.health_delta,
+        risk_delta: 0,
+        summary: action.summary
+      }])),
+      limits: {
+        room_daily_limit: 2,
+        member_daily_limit: 2,
+        window_seconds: 600,
+        min_member_count: 2,
+        max_member_count: 4,
+        min_action_count_to_settle: 4
+      },
+      can_create_room: !activeCareRoom,
+      create_denied_reason: activeCareRoom ? '已有进行中的护理房间。' : '',
+      active_rooms: activeCareRoom && !careRoomSettled ? [activeCareRoom] : [],
+      recent_records: recentCareRoomRecords,
+      record_summary: careRoomSettled ? '最近 1 条护理房结算记录。' : '护理房可创建、分工和结算。'
+    },
+    care_room_records: recentCareRoomRecords,
     theme_week: {
       season: 'spring',
       week_tag: '2026-W22',
@@ -1199,6 +2296,10 @@ function buildFriendManorSnapshot(cared = false) {
 
 async function mockOnlineManorCare(page: Page) {
   let cared = false
+  let stolen = false
+  let careRoomActionIds: string[] = []
+  let careRoomSettled = false
+  let careRoomCreated = false
   await page.unroute('**/api/me').catch(() => {})
   await page.route('**/api/me', async route => {
     await route.fulfill({
@@ -1222,20 +2323,73 @@ async function mockOnlineManorCare(page: Page) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, snapshot: buildFriendManorSnapshot(cared) })
+      body: JSON.stringify({ ok: true, snapshot: buildFriendManorSnapshot(cared, stolen, careRoomActionIds, careRoomSettled, careRoomCreated) })
     })
   })
   await page.route('**/api/taoyuan/online/manor/care', async route => {
     cared = true
+    const snapshot = buildFriendManorSnapshot(true, stolen, careRoomActionIds, careRoomSettled, careRoomCreated)
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         ok: true,
-        entry: buildFriendManorSnapshot(true).care_entries[0],
-        snapshot: buildFriendManorSnapshot(true),
+        entry: snapshot.care_entries[0],
+        snapshot,
         idempotent: false
       })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/steal', async route => {
+    stolen = true
+    const snapshot = buildFriendManorSnapshot(cared, true, careRoomActionIds, careRoomSettled, careRoomCreated)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        entry: snapshot.steal_entries[0],
+        snapshot,
+        idempotent: false
+      })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/care-rooms', async route => {
+    careRoomActionIds = []
+    careRoomSettled = false
+    careRoomCreated = true
+    const snapshot = buildFriendManorSnapshot(cared, stolen, careRoomActionIds, careRoomSettled, careRoomCreated)
+    const room = buildFriendManorCareRoom(careRoomActionIds, false)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, room, snapshot, idempotent: false })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/care-rooms/*/action', async route => {
+    const payload = route.request().postDataJSON() as { action_id?: string }
+    const actionId = String(payload.action_id || '')
+    if (manorCareRoomActionOrder.includes(actionId) && !careRoomActionIds.includes(actionId)) {
+      careRoomActionIds = [...careRoomActionIds, actionId]
+    }
+    careRoomCreated = true
+    const snapshot = buildFriendManorSnapshot(cared, stolen, careRoomActionIds, careRoomSettled, careRoomCreated)
+    const room = buildFriendManorCareRoom(careRoomActionIds, false)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, action: room.actions[room.actions.length - 1], room, snapshot, idempotent: false })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/care-rooms/*/settle', async route => {
+    careRoomSettled = true
+    careRoomCreated = true
+    const snapshot = buildFriendManorSnapshot(cared, stolen, careRoomActionIds, careRoomSettled, careRoomCreated)
+    const room = buildFriendManorCareRoom(careRoomActionIds, true)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, room, snapshot, idempotent: false })
     })
   })
 }
@@ -1299,6 +2453,61 @@ test.describe('web game smoke', () => {
     await expect(page.getByText('公会等级').first()).toBeVisible()
   })
 
+  test('online center visual activity entries navigate to real activity pages', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '入口')
+
+    const entries = [
+      {
+        testId: 'online-visual-activity-cavern',
+        pageTestId: 'online-festival-page',
+        url: /#\/game\/online\/festival\?tab=expedition-room/,
+        text: '在线节会',
+      },
+      {
+        testId: 'online-visual-activity-lantern',
+        pageTestId: 'online-festival-page',
+        url: /#\/game\/online\/festival\?tab=festival-room/,
+        text: '在线节会',
+      },
+      {
+        testId: 'online-visual-activity-dragon-boat',
+        pageTestId: 'online-festival-page',
+        url: /#\/game\/online\/festival\?tab=festival-room/,
+        text: '在线节会',
+      },
+      {
+        testId: 'online-visual-activity-society-projects',
+        pageTestId: 'online-society-page',
+        url: /#\/game\/online\/society\?tab=projects/,
+        text: '在线村社',
+      },
+      {
+        testId: 'online-visual-activity-relay-orders',
+        pageTestId: 'online-orders-page',
+        url: /#\/game\/online\/orders\?tab=available/,
+        text: '在线委托',
+      },
+      {
+        testId: 'online-visual-activity-warehouse',
+        pageTestId: 'online-society-page',
+        url: /#\/game\/online\/society\?tab=storage/,
+        text: '在线村社',
+      },
+    ]
+
+    for (const entry of entries) {
+      await page.goto('/#/game/online')
+      await expect(page.getByTestId('online-center')).toBeVisible()
+      await expect(page.getByTestId('online-visual-activity-group')).toBeVisible()
+      await expect(page.getByTestId(entry.testId)).toBeVisible()
+      await page.getByTestId(entry.testId).click()
+      await expect(page).toHaveURL(entry.url)
+      await expect(page.getByTestId(entry.pageTestId)).toBeVisible()
+      await expect(page.getByText(entry.text).first()).toBeVisible()
+    }
+  })
+
   test('can load the built-in breeding sample in dev mode', async ({ page }) => {
     await openHome(page)
     await loadBuiltInSample(page, sampleId)
@@ -1313,6 +2522,42 @@ test.describe('web game smoke', () => {
   test('online expedition visual map supports cavern node actions', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '矿洞')
+
+    const cavernComboRecord = {
+      combo_id: 'route_then_mine',
+      label: '路线采脉',
+      action_ids: ['chalk_route', 'split_mine'],
+      node_ids: ['cavern_crossroad', 'cavern_ore'],
+      summary: '路标先定，矿脉分采更稳，额外回收补给。',
+      score_delta: 2,
+      risk_delta: -1,
+      resource_delta: { torch: 1 },
+      resource_delta_text: '补给 +1'
+    }
+    const buildCavernRouteReplay = () => ({
+      kind: 'expedition_cavern',
+      title: '矿洞探索记录',
+      route_nodes: [
+        { id: 'cavern_crossroad', label: '岔路口', kind: 'crossroad', state: 'resolved', summary: '路线已标记。' },
+        { id: 'cavern_ore', label: '闪光矿脉', kind: 'ore', state: 'resolved', summary: '矿脉已分采。' },
+        { id: 'cavern_exit', label: '撤离点', kind: 'exit', state: 'resolved', summary: '提前撤离收口。' }
+      ],
+      highlight_nodes: [
+        { node_id: 'cavern_ore', label: '闪光矿脉', summary: '采脉与路标形成组合收益。' }
+      ],
+      risk_peak: { value: 3, label: '风险峰值 3' },
+      summary: '路线 岔路口 -> 闪光矿脉 -> 撤离点；组合收益已记录，提前撤离收口。',
+      member_contributions: [
+        { username: 'tester', display_name: '测试者', role_label: '领队', action_count: 3 }
+      ],
+      memory_records: [],
+      combo_records: [cavernComboRecord],
+      withdrawal_state: 'confirmed',
+      withdrawal_summary: '提前撤离已确认，并结算 1 个节点组合收益。',
+      withdrawal_actor_username: 'tester',
+      withdrawal_actor_display_name: '测试者',
+      withdrawal_at: 1760000000
+    })
 
     const room = buildRoomSnapshot({
       id: 'e2e-cavern-room',
@@ -1362,21 +2607,126 @@ test.describe('web game smoke', () => {
             reward_preview: '矿石 +2',
             resource_cost_preview: { torch: -1 },
             resource_reward_preview: { ore: 2 }
+          },
+          {
+            id: 'cavern_exit',
+            label: '撤离点',
+            kind: 'exit',
+            x: 88,
+            y: 54,
+            state: 'exit',
+            connected_node_ids: ['cavern_ore'],
+            event_id: 'exit',
+            available_action_ids: ['confirm_withdrawal'],
+            owner_username: '',
+            claimed_by: '',
+            risk_preview: '可提前收尾',
+            reward_preview: '保住组合收益并进入结算',
+            resource_cost_preview: {},
+            resource_reward_preview: {}
           }
         ]
       }
     })
-    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    room.gameplay.available_actions.push(buildGameplayAction('confirm_withdrawal', '确认撤离'))
+    room.gameplay.cavern_state = {
+      round_text: '第 2 回合',
+      current_event: {
+        id: 'ore',
+        summary: '路标已经稳定，矿脉可收口。',
+        risk_hint: '继续深入会推高风险。',
+        resource_hint: '组合收益会保留在结算回看。'
+      },
+      risk_text: '3/8',
+      combo_records: [cavernComboRecord],
+      withdrawal_state: '',
+      withdrawal_summary: '',
+      withdrawal_actor_username: '',
+      withdrawal_actor_display_name: '',
+      withdrawal_at: 0,
+      team_resources: [
+        { id: 'torch', label: '灯火', value: 3, max_value: 5 },
+        { id: 'rope', label: '绳索', value: 2, max_value: 4 }
+      ],
+      role_assignments: [
+        { username: 'tester', display_name: '测试者', role_id: 'lead', role_label: '领队' }
+      ],
+      my_role: { role_id: 'lead', role_label: '领队', role_summary: '负责确认撤离点与收尾。' },
+      round_log: [
+        { id: 'combo-log-1', round_number: 2, action_id: 'node_combo', action_label: '节点组合收益', role_label: '领队', summary: '路线采脉形成组合收益。' }
+      ],
+      recent_feedback: '路线采脉形成组合收益。'
+    }
+    await mockOnlineVisualRoom(page, {
+      domain: 'expedition',
+      room,
+      onAction: (currentRoom, actionId) => {
+        if (actionId !== 'confirm_withdrawal') return { room: currentRoom }
+        const cavernState = currentRoom.gameplay.cavern_state as Record<string, unknown>
+        cavernState.withdrawal_state = 'confirmed'
+        cavernState.withdrawal_summary = '提前撤离已确认，并结算 1 个节点组合收益。'
+        cavernState.withdrawal_actor_username = 'tester'
+        cavernState.withdrawal_actor_display_name = '测试者'
+        cavernState.withdrawal_at = 1760000000
+        cavernState.recent_feedback = '测试者在撤离点提前收尾，组合收益已锁定。'
+        currentRoom.gameplay.phase = 'completed'
+        currentRoom.gameplay.phase_label = '已完成'
+        currentRoom.gameplay.last_action_id = 'confirm_withdrawal'
+        currentRoom.gameplay.last_action_summary = '测试者在撤离点提前收尾，组合收益已锁定。'
+        currentRoom.state_label = '已完成'
+        currentRoom.visual_state = {
+          ...currentRoom.visual_state,
+          revision: 2,
+          selected_visual_id: 'cavern_exit',
+          recent_feedback: '测试者在撤离点提前收尾，组合收益已锁定。',
+          nodes: ((currentRoom.visual_state.nodes || []) as Array<Record<string, unknown>>).map(node =>
+            node.id === 'cavern_exit'
+              ? { ...node, label: '撤离点已锁定', state: 'resolved', available_action_ids: [] }
+              : node
+          )
+        }
+        return { room: currentRoom }
+      },
+      onSettle: (currentRoom) => {
+        const receipt = {
+          id: 'receipt-cavern-e2e-1',
+          room_id: currentRoom.id,
+          room_title: currentRoom.title,
+          template_label: currentRoom.template_label,
+          target_username: 'tester',
+          target_slot: 0,
+          status_label: '已结算',
+          summary: '矿洞探索记录已生成，包含组合收益与提前撤离。',
+          route_replay: buildCavernRouteReplay(),
+          created_at: 1760000001
+        }
+        currentRoom.settlement_receipts = [receipt]
+        return { room: currentRoom, recentReceipts: [receipt] }
+      }
+    })
 
     await page.goto('/#/game/online/festival?tab=expedition-room')
     await expect(page.getByTestId('online-expedition-room-my-room')).toBeVisible()
     await expect(page.getByTestId('visual-map-board')).toBeVisible()
+    await expect(page.getByText('路线采脉：路标先定').first()).toBeVisible()
 
     await page.getByTestId('visual-map-node-cavern_ore').click()
-    await expect(page.getByTestId('visual-map-node-detail')).toContainText('闪光矿脉')
-    await page.getByTestId('visual-map-action-split_mine').click()
+    await expect(page.getByTestId('visual-map-readable-feedback')).toContainText('影响范围：风险：采矿会推高风险')
+    await expect(page.getByTestId('visual-map-readable-feedback')).toContainText('收益：矿石 +2')
+    await expect(page.getByTestId('visual-map-readable-feedback')).toContainText('产出 ore x2')
 
+    await page.getByTestId('visual-map-node-cavern_exit').click()
+    await expect(page.getByTestId('visual-map-node-detail')).toContainText('撤离点')
+    await page.getByTestId('visual-map-action-confirm_withdrawal').click()
+
+    await expect(page.getByTestId('visual-map-action-result')).toContainText('提前收尾')
+    await expect(page.getByText('提前撤离已确认，并结算 1 个节点组合收益。').first()).toBeVisible()
+    await expect(page.getByText('确认人：测试者').first()).toBeVisible()
     await expect(page.getByTestId('online-expedition-room-gameplay-action-split_mine')).toHaveCount(0)
+    await page.getByRole('button', { name: '撤离并结算' }).click()
+
+    await expect(page.getByText('组合收益：路线采脉').first()).toBeVisible()
+    await expect(page.getByText('提前收尾：提前撤离已确认').first()).toBeVisible()
   })
 
   test('online festival visual scene supports lantern object actions', async ({ page }) => {
@@ -1413,6 +2763,22 @@ test.describe('web game smoke', () => {
             requires_cooperation: true,
             cooperation_required_count: 2,
             cooperation_current_count: 1
+          },
+          {
+            id: 'lantern_blocked_queue',
+            label: '分粥队伍',
+            kind: 'queue',
+            x: 76,
+            y: 62,
+            state: 'blocked',
+            available_action_ids: [],
+            progress_value: 0,
+            progress_target: 1,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: false,
+            cooperation_required_count: 0,
+            cooperation_current_count: 0
           }
         ]
       }
@@ -1423,11 +2789,230 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
 
+    await page.getByTestId('visual-scene-object-lantern_blocked_queue').click()
+    await expect(page.getByTestId('visual-scene-readable-feedback')).toContainText('失败原因：物件当前受阻')
+    await expect(page.getByTestId('visual-scene-readable-feedback')).toContainText('需要先处理前置物件或等待权限恢复')
+
     await page.getByTestId('visual-scene-object-lantern_main_lamp').click()
     await expect(page.getByTestId('visual-scene-object-detail')).toContainText('主灯')
     await page.getByTestId('visual-scene-action-lock_piece').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-lock_piece')).toHaveCount(0)
+  })
+
+  test('online festival visual scene supports laba cookpot object actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '腊八')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-laba-cookpot-room',
+      title: '腊八共灶 smoke',
+      templateId: 'laba_cookpot',
+      templateLabel: '腊八共灶',
+      gameplayId: 'squad_coop',
+      gameplayLabel: '小队协作',
+      actionId: 'steady_rudder',
+      actionLabel: '补稳节奏',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'scene',
+        board_id: 'laba_cookpot_courtyard',
+        selected_visual_id: '',
+        recent_feedback: '腊八共灶现场待补稳火候。',
+        objects: [
+          {
+            id: 'laba_cookpot_big_pot',
+            label: '腊八大锅',
+            kind: 'cookpot',
+            x: 48,
+            y: 42,
+            state: 'active',
+            available_action_ids: [],
+            progress_value: 3,
+            progress_target: 8,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: true,
+            cooperation_required_count: 2,
+            cooperation_current_count: 1
+          },
+          {
+            id: 'laba_cookpot_stove',
+            label: '灶台火候',
+            kind: 'stove',
+            x: 34,
+            y: 61,
+            state: 'overheated',
+            available_action_ids: ['steady_rudder'],
+            progress_value: 2,
+            progress_target: 6,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: false,
+            cooperation_required_count: 0,
+            cooperation_current_count: 0
+          },
+          {
+            id: 'laba_cookpot_rice_tub',
+            label: '米桶',
+            kind: 'ingredient',
+            x: 17,
+            y: 66,
+            state: 'active',
+            available_action_ids: [],
+            progress_value: 1,
+            progress_target: 4,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: false,
+            cooperation_required_count: 0,
+            cooperation_current_count: 0
+          },
+          {
+            id: 'laba_cookpot_ingredient_basket',
+            label: '配料篮',
+            kind: 'ingredient',
+            x: 68,
+            y: 66,
+            state: 'active',
+            available_action_ids: [],
+            progress_value: 1,
+            progress_target: 4,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: false,
+            cooperation_required_count: 0,
+            cooperation_current_count: 0
+          },
+          {
+            id: 'laba_cookpot_serving_queue',
+            label: '分粥队伍',
+            kind: 'queue',
+            x: 79,
+            y: 43,
+            state: 'active',
+            available_action_ids: [],
+            progress_value: 2,
+            progress_target: 5,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: true,
+            cooperation_required_count: 2,
+            cooperation_current_count: 1
+          },
+          {
+            id: 'laba_cookpot_aroma_table',
+            label: '留香案',
+            kind: 'memory',
+            x: 53,
+            y: 24,
+            state: 'active',
+            available_action_ids: [],
+            progress_value: 0,
+            progress_target: 3,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: false,
+            cooperation_required_count: 0,
+            cooperation_current_count: 0
+          }
+        ]
+      }
+    })
+    await mockOnlineVisualRoom(page, {
+      domain: 'festival',
+      room,
+      onAction: (currentRoom, actionId) => {
+        if (actionId !== 'steady_rudder') return { room: currentRoom }
+        const visualState = currentRoom.visual_state as Record<string, unknown>
+        const objects = (visualState.objects as Array<Record<string, unknown>>).map(object => {
+          if (object.id !== 'laba_cookpot_stove') return object
+          return {
+            ...object,
+            state: 'active',
+            available_action_ids: [],
+            progress_value: 4,
+            handled_by: '测试者',
+            handled_at: 1760000000
+          }
+        })
+        return {
+          room: {
+            ...currentRoom,
+            gameplay: {
+              ...currentRoom.gameplay,
+              last_action_id: 'steady_rudder',
+              last_action_summary: '测试者把灶台火候稳住，分粥队伍没有被挤乱。',
+              last_actor_username: 'tester',
+              last_actor_display_name: '测试者',
+              available_actions: []
+            },
+            visual_state: {
+              ...visualState,
+              objects,
+              selected_visual_id: 'laba_cookpot_stove',
+              recent_feedback: '测试者把灶台火候稳住，分粥队伍没有被挤乱。',
+              revision: Number(visualState.revision || 1) + 1
+            }
+          }
+        }
+      }
+    })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+    await expect(page.getByText('腊八大锅').first()).toBeVisible()
+    await expect(page.getByText('灶台火候').first()).toBeVisible()
+    await expect(page.getByText('米桶').first()).toBeVisible()
+    await expect(page.getByText('配料篮').first()).toBeVisible()
+    await expect(page.getByText('分粥队伍').first()).toBeVisible()
+    await expect(page.getByText('留香案').first()).toBeVisible()
+
+    await page.getByTestId('visual-scene-object-laba_cookpot_stove').click()
+    await expect(page.getByTestId('visual-scene-object-detail')).toContainText('灶台火候')
+    await expect(page.getByTestId('visual-scene-readable-feedback')).toContainText('过热会提高现场压力')
+    await page.getByTestId('visual-scene-action-steady_rudder').click()
+
+    await expect(page.getByTestId('visual-scene-action-result')).toContainText('测试者把灶台火候稳住，分粥队伍没有被挤乱。')
+    await expect(page.getByTestId('visual-scene-object-detail')).toContainText('测试者')
+    await expect(page.getByTestId('online-festival-room-gameplay-action-steady_rudder')).toHaveCount(0)
+  })
+
+  test('online festival memorials can load friend lantern photo replay', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '灯会好友')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-lantern-memorial-room',
+      title: '灯会好友回看 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'scene',
+        board_id: 'lantern_fair_street',
+        selected_visual_id: ''
+      }
+    })
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+    await mockFestivalFriendMemorials(page)
+
+    await page.goto('/#/game/online/festival?tab=memorials')
+    await expect(page.getByTestId('online-festival-page')).toBeVisible()
+    await page.getByTestId('online-festival-friend-memorial-username-input').fill('friend_lantern')
+    await page.getByTestId('online-festival-friend-memorial-submit').click()
+
+    await expect(page.getByTestId('online-festival-friend-memorial-overview')).toContainText('灯会好友')
+    await expect(page.getByTestId('online-festival-friend-photo-line')).toContainText('纪念留影')
+    await expect(page.getByTestId('online-festival-friend-lantern-memory-record-main_lantern')).toContainText('点亮主灯：灯会好友')
+    await expect(page.getByTestId('online-festival-friend-lantern-memory-record-riddle')).toContainText('解开灯谜：灯谜手')
+    await expect(page.getByTestId('online-festival-friend-lantern-memory-record-order')).toContainText('维持秩序：巡场人')
+    await expect(page.getByTestId('online-festival-friend-lantern-memory-record-photo')).toContainText('留影收口：合影人')
   })
 
   test('online manor visual scene supports friend care actions', async ({ page }) => {
@@ -1446,6 +3031,69 @@ test.describe('web game smoke', () => {
 
     await expect(page.getByText('测试者帮春菜田浇了水。')).toBeVisible()
     await expect(page.getByTestId('online-manor-care-log')).toContainText('帮忙浇水')
+  })
+
+  test('online manor visual scene supports limited steal actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '轻采')
+    await mockOnlineManorCare(page)
+
+    await page.goto('/#/game/online/manor?target_username=friend_owner')
+    await expect(page.getByTestId('online-manor-page')).toBeVisible()
+    await page.getByRole('button', { name: '照料' }).click()
+    await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+    await expect(page.getByTestId('online-manor-steal-readable-limits')).toContainText('0/2')
+
+    await page.getByTestId('visual-scene-object-friend_apple_tree_1').click()
+    await expect(page.getByTestId('visual-scene-object-detail')).toContainText('秋苹果树')
+    await page.getByTestId('visual-scene-action-light_harvest').click()
+
+    await expect(page.getByTestId('visual-scene-action-result')).toContainText('测试者轻采了秋苹果树，主人库存保持完整。')
+    await expect(page.getByTestId('online-manor-steal-readable-limits')).toContainText('1/2')
+    await expect(page.getByTestId('online-manor-steal-anti-abuse-summary')).toContainText('近窗 1 次')
+    await expect(page.getByTestId('online-manor-steal-log')).toContainText('测试者 · 轻采果实')
+    await expect(page.getByTestId('online-manor-steal-receipt-guard')).toContainText('receipt-steal-e2e-1')
+    await expect(page.getByTestId('online-manor-steal-receipt-guard')).toContainText('主人保留 100%')
+    await expect(page.getByTestId('online-manor-steal-use-summary')).toContainText('料理、订单与节会备料')
+  })
+
+  test('online manor care room supports full cooperation settlement', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '护理')
+    await mockOnlineManorCare(page)
+
+    await page.goto('/#/game/online/manor?target_username=friend_owner')
+    await expect(page.getByTestId('online-manor-page')).toBeVisible()
+    await page.getByRole('button', { name: '照料' }).click()
+    await expect(page.getByTestId('online-manor-care-room-panel')).toBeVisible()
+    await page.getByTestId('online-manor-care-room-create').first().click()
+
+    await expect(page.getByTestId('online-manor-care-room-entry')).toContainText('护理中')
+    await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('0/4 项')
+    await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('成员 2/2')
+
+    await page.getByRole('button', { name: '协作灌溉' }).click()
+    await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作灌溉')
+    await page.getByRole('button', { name: '协作喂食' }).click()
+    await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作喂食')
+    await page.getByRole('button', { name: '协作除虫' }).click()
+    await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作除虫')
+    await page.getByRole('button', { name: '协作收拾' }).click()
+
+    await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作收拾')
+    await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('4/4 项')
+    await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('健康 26')
+    await expect(page.getByTestId('online-manor-care-room-settle')).toBeVisible()
+    await page.getByTestId('online-manor-care-room-settle').click()
+
+    await expect(page.getByTestId('online-manor-care-room-records')).toBeVisible()
+    await expect(page.getByTestId('online-manor-care-room-record')).toContainText('健康度 26')
+    await expect(page.getByTestId('online-manor-care-room-record')).toContainText('灌溉、喂食、除虫、收拾四项完成')
+    await expect(page.getByTestId('online-manor-care-room-record-settlement')).toContainText('care-room-e2e-settlement-1')
+    await expect(page.getByTestId('online-manor-care-room-record-actions')).toContainText('协作灌溉')
+    await expect(page.getByTestId('online-manor-care-room-record-actions')).toContainText('协作喂食')
+    await expect(page.getByTestId('online-manor-care-room-record-actions')).toContainText('协作除虫')
+    await expect(page.getByTestId('online-manor-care-room-record-actions')).toContainText('协作收拾')
   })
 
   test('processing workshop can start an alchemy furnace recipe', async ({ page }) => {
@@ -1551,6 +3199,45 @@ test.describe('web game smoke', () => {
     await expect(page.getByText('帮手 的「仓库放入」已开启')).toBeVisible()
   })
 
+  test('online cohabitation shared pet care uses shared warehouse feed', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '宠物')
+    await mockOnlineCohabitation(page)
+
+    await page.goto('/#/game/online/cohabitation')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-shared-pets-panel')).toBeVisible()
+
+    const sharedPet = page.getByTestId('online-cohabitation-shared-pet-shared-pet-e2e')
+    await expect(sharedPet).toContainText('狸花灵猫')
+    await expect(sharedPet).toContainText('照料 0 次')
+    await sharedPet.click()
+
+    await expect(page.getByTestId('online-cohabitation-shared-pet-coop-bonus')).toContainText('暂无')
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-item-select')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-item-stock')).toContainText('活力饲料 · 活力照料 · 共同仓库 3 个')
+    await page.getByTestId('online-cohabitation-shared-pet-care-item-select').selectOption('premium_feed')
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-item-stock')).toContainText('精饲料 · 亲密照料 · 共同仓库 2 个')
+    await page.getByTestId('online-cohabitation-shared-pet-care').click()
+
+    await expect(page.getByText('共同宠物已照料，共同仓库精饲料已扣料，并触发同时在线心情 +2')).toBeVisible()
+    await expect(page.getByText('用品：精饲料 · 好感 26 · 心情 44')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-item-stock')).toContainText('精饲料 · 亲密照料 · 共同仓库 1 个')
+    await expect(page.getByTestId('online-cohabitation-shared-pet-coop-bonus')).toContainText('心情 +2 · 测试者 / 帮手')
+    await page.getByTestId('online-cohabitation-shared-pet-care-item-select').selectOption('lotus_heart_cat_treat')
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-item-stock')).toContainText('莲心桂花糕 · 高阶灵宠点心 · 共同仓库 1 个')
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-risk-panel')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-risk-label')).toContainText('high_value_pet_treat')
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care')).toBeDisabled()
+    await page.getByTestId('online-cohabitation-shared-pet-care-risk-confirm').check()
+    await page.getByTestId('online-cohabitation-shared-pet-care-risk-text').fill('确认消耗共同宠物高阶点心')
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care')).toBeEnabled()
+    await page.getByTestId('online-cohabitation-shared-pet-care').click()
+    await expect(page.getByText('共同宠物已照料，共同仓库莲心桂花糕已扣料，并触发同时在线心情 +2')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-shared-pet-care-item-stock')).toContainText('莲心桂花糕 · 高阶灵宠点心 · 共同仓库 0 个')
+    await expect(sharedPet).toContainText('照料 1 次')
+  })
+
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '赛舟')
@@ -1574,7 +3261,7 @@ test.describe('web game smoke', () => {
             id: 'dragon_boat_river',
             label: '端午河道',
             kind: 'river',
-            length: 3,
+            length: 4,
             current_round: 0,
             cells: [
               {
@@ -1594,7 +3281,7 @@ test.describe('web game smoke', () => {
                 label: '鼓点窗口',
                 index: 1,
                 kind: 'boost',
-                occupant_team_ids: [],
+                occupant_team_ids: ['team_east'],
                 event_id: 'drum',
                 effect_ids: ['boost'],
                 available_action_ids: ['sync_oar'],
@@ -1603,10 +3290,22 @@ test.describe('web game smoke', () => {
               },
               {
                 id: 'dragon_cell_2',
-                label: '终点',
+                label: '回浪',
                 index: 2,
+                kind: 'risk',
+                occupant_team_ids: ['team_west'],
+                event_id: 'wave',
+                effect_ids: ['blocked'],
+                available_action_ids: [],
+                risk_preview: '回浪会拖慢节奏',
+                reward_preview: ''
+              },
+              {
+                id: 'dragon_cell_3',
+                label: '终点',
+                index: 3,
                 kind: 'finish',
-                occupant_team_ids: [],
+                occupant_team_ids: ['team_north'],
                 event_id: '',
                 effect_ids: [],
                 available_action_ids: [],
@@ -1622,6 +3321,30 @@ test.describe('web game smoke', () => {
                 position_index: 0,
                 state: 'idle',
                 last_action_id: ''
+              },
+              {
+                team_id: 'team_east',
+                label: '东岸龙舟',
+                marker: '东',
+                position_index: 1,
+                state: 'boosted',
+                last_action_id: 'drum_call'
+              },
+              {
+                team_id: 'team_west',
+                label: '西湾龙舟',
+                marker: '西',
+                position_index: 2,
+                state: 'blocked',
+                last_action_id: 'steady_rudder'
+              },
+              {
+                team_id: 'team_north',
+                label: '北渡龙舟',
+                marker: '北',
+                position_index: 3,
+                state: 'finished',
+                last_action_id: 'finish_sprint'
               }
             ]
           }
@@ -1632,10 +3355,29 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/festival?tab=festival-room')
     await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('2 人')
+    await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('4 人')
+    await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('6 人')
+    await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('8 人')
+    await expect(page.getByTestId('online-festival-room-member-limit-8')).toBeVisible()
+    await page.getByTestId('online-festival-room-member-limit-2').click()
+    await expect(page.getByTestId('online-festival-room-member-limit-2')).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('visual-track-board')).toBeVisible()
+
+    await page.getByTestId('visual-track-cell-dragon_cell_2').click()
+    await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('失败原因：当前赛道格没有可用行动')
+    await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('影响范围：风险：回浪会拖慢节奏')
+    await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('影响队伍：西湾龙舟')
 
     await page.getByTestId('visual-track-cell-dragon_cell_1').click()
     await expect(page.getByTestId('visual-track-cell-detail')).toContainText('鼓点窗口')
+    await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('影响队伍：东岸龙舟')
+    await expect(page.getByTestId('visual-track-team-standings')).toBeVisible()
+    await expect(page.getByTestId('visual-track-team-row-team_north')).toContainText('第 1 名')
+    await expect(page.getByTestId('visual-track-team-row-team_north')).toContainText('完赛')
+    await expect(page.getByTestId('visual-track-team-row-team_west')).toContainText('第 2 名')
+    await expect(page.getByTestId('visual-track-team-row-team_east')).toContainText('第 3 名')
+    await expect(page.getByTestId('visual-track-team-row-team_dragon')).toContainText('第 4 名')
     await page.getByTestId('visual-track-action-sync_oar').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-sync_oar')).toHaveCount(0)
@@ -1664,13 +3406,107 @@ test.describe('web game smoke', () => {
     await page.goto('/#/game/online/society?tab=projects')
     await expect(page.getByTestId('online-society-page')).toBeVisible()
     await expect(page.getByTestId('async-community-board')).toBeVisible()
+    await expect(page.getByTestId('async-community-board')).toContainText('好友留言')
+    await expect(page.getByTestId('async-community-board')).toContainText('修灯赠灯')
+    await expect(page.getByTestId('async-community-board')).toContainText('祝福成墙')
+    await expect(page.getByTestId('async-community-board')).toContainText('纪念墙')
+    await expect(page.getByTestId('async-community-board')).toContainText('愿望册')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('愿望签')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('好友留言')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('共建类型')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('花灯墙')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('阶段收口')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('当前回看')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('写愿望 · 进行中')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('贡献记录')
     await expect(page.getByTestId('async-community-project-detail')).toContainText('写愿望')
 
     await page.getByTestId('online-society-async-contribute-lantern_wall-write_wish').click()
 
     await expect(page.getByTestId('async-community-project-detail')).toContainText('挂花灯')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('灯线')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('挂花灯 · 进行中')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('1 人 · 1 条历史')
     await expect(page.getByText('测试者写下一张愿望签，花灯墙亮了一角。')).toBeVisible()
     await expect(page.getByTestId('online-society-project-contribute-lantern_wall-write_wish')).toBeVisible()
+    await expect(page.getByTestId('online-society-page')).toContainText('新愿望签已经挂上墙。')
+    await expect(page.getByTestId('online-society-page')).toContainText('测试者 提交了 写愿望（+10）')
+    await expect(page.getByTestId('async-community-board')).toContainText('测试者写下一张愿望签。')
+  })
+
+  test('online society festival square contribution unlocks festival room launch', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '节庆筹备')
+    await mockOnlineSociety(page, { focus: 'festival_square' })
+
+    await page.goto('/#/game/online/society?tab=projects')
+    await expect(page.getByTestId('online-society-page')).toBeVisible()
+    await expect(page.getByText('清溪节社').first()).toBeVisible()
+    await expect(page.getByTestId('async-community-board')).toContainText('节庆筹备')
+    await expect(page.getByTestId('async-community-board')).toContainText('备料')
+    await expect(page.getByTestId('async-community-board')).toContainText('搭场')
+    await expect(page.getByTestId('async-community-board')).toContainText('开幕')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('空场')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('备料桌')
+    await expect(page.getByTestId('async-community-project-detail')).toContainText('备料')
+
+    await page.getByTestId('online-society-async-contribute-festival_square-festival_scenery').click()
+
+    await expect(page.getByTestId('async-community-project-detail')).toContainText('开幕')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('人气')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('留影')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('开幕 · 已完成')
+    await expect(page.getByText('测试者搭起第一批节庆布景，广场开始像节会现场。')).toBeVisible()
+    await expect(page.getByTestId('async-community-completion-room-link')).toContainText('上元灯会房间')
+    await expect(page.getByTestId('async-community-completion-room-link')).toContainText('用共建广场开启正式灯会房间')
+    await expect(page.getByTestId('online-society-completion-room-launch')).toContainText('创建房间')
+
+    await page.getByTestId('async-community-completion-room-link').click()
+
+    await expect(page).toHaveURL(/#\/game\/online\/festival\?/)
+    expect(page.url()).toContain('tab=festival-room')
+    expect(page.url()).toContain('template=lantern_fair')
+    expect(page.url()).toContain('gameplay=assembly')
+  })
+
+  test('online society warehouse supports public deposit actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '仓廪')
+    await mockOnlineSociety(page, { focus: 'warehouse' })
+
+    await page.goto('/#/game/online/society?tab=storage')
+    await expect(page.getByTestId('online-society-page')).toBeVisible()
+    await expect(page.getByText('清溪仓社').first()).toBeVisible()
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('待入仓')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('0/5 类齐备')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('粮食')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('药草')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('木材')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('布料')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('鱼获')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('节会成本下降')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('公共任务加成')
+    await expect(page.getByTestId('online-society-warehouse-deposit-herb_mugwort')).toBeVisible()
+    await expect(page.getByTestId('online-society-warehouse-deposit-wood_bundle')).toBeVisible()
+    await expect(page.getByTestId('online-society-warehouse-deposit-cloth_roll')).toBeVisible()
+    await expect(page.getByTestId('online-society-warehouse-deposit-fish_basket')).toBeVisible()
+
+    await page.getByTestId('online-society-warehouse-deposit-grain_rice').click()
+
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('收集中')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('10 分')
+    await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('1/5 类齐备')
+    await expect(page.getByTestId('online-society-page')).toContainText('稻米 x2')
+    await expect(page.getByTestId('online-society-page')).toContainText('测试者 补入了 稻米入仓')
+    await expect(page.getByTestId('online-society-page')).toContainText('灾害应对预备 +1')
+    await expect(page.getByTestId('online-society-warehouse-consume-panel')).toContainText('公共消耗')
+    await expect(page.getByTestId('online-society-warehouse-consume-panel')).toContainText('只扣公共仓')
+    await expect(page.getByTestId('online-society-warehouse-consume-laba_cookpot_base')).toBeVisible()
+
+    await page.getByTestId('online-society-warehouse-consume-laba_cookpot_base').click()
+
+    await expect(page.getByTestId('online-society-page')).toContainText('测试者 消耗了 腊八共灶底料')
+    await expect(page.getByTestId('online-society-page')).toContainText('只扣公共仓')
   })
 
   test('online orders async board supports public relay route actions', async ({ page }) => {
@@ -1688,11 +3524,34 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-orders-available-entry')).toContainText('阶段 1/3 已确认')
     await expect(page.getByTestId('async-community-board')).toBeVisible()
     await expect(page.getByTestId('async-community-project-detail')).toContainText('加工干菜')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('共建类型')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('公共订单接力')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('阶段收口')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('1/3 阶段')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('当前回看')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('加工干菜 · 进行中')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('贡献记录')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('0 人 · 1 条历史')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('待接')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('任务')
+    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('分账池：赏金 260 · 待分账')
+    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('已落账 80 / 待结 180')
+    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('采收青菜：31% / 80 · 个人铜钱')
+    await expect(page.getByTestId('online-orders-society-board')).toContainText('公开订单')
+    await expect(page.getByTestId('online-orders-society-board')).toContainText('1 张')
+    await expect(page.getByTestId('online-orders-society-board-settlement')).toContainText('分账池 260 · 已落账 80 · 待结 180 · 补偿中 0')
+    await expect(page.getByTestId('online-orders-society-board-receipts')).toContainText('灯会干菜接力单 · 采收青菜')
+    await expect(page.getByTestId('online-orders-society-board-receipts')).toContainText('已完成的帮手 · 赏金 80 · 个人铜钱')
 
     await page.getByTestId('online-society-async-contribute-relay_route-accept_stage:stage_process').click()
 
     await expect(page.getByTestId('async-community-project-detail')).toContainText('送到灯会')
+    await expect(page.getByTestId('async-community-site-objects')).toContainText('待接')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('送到灯会 · 进行中')
+    await expect(page.getByTestId('async-community-project-readback')).toContainText('1 人 · 1 条历史')
     await expect(page.getByText('测试者已接下加工干菜这一段。')).toBeVisible()
+    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('分账池：赏金 260 · 分账进行中')
+    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('加工干菜：35% / 90 · 共同基金')
   })
 
   test('can load the built-in region map showcase in dev mode', async ({ page }) => {
