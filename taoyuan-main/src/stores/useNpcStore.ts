@@ -1328,7 +1328,22 @@ export const useNpcStore = defineStore('npc', () => {
     return { items: [{ itemId: 'guest_green_tea', quantity: 1 }], summary: '前缘回信带来待客清茶×1' }
   }
 
+  const getRandomNpcFamilyLineStageThreeRewardBonus = (
+    tie: RandomNpcFamilyTieDef
+  ): { itemId: string; quantity: number; summary: string } => {
+    if (tie.kind === 'parent') return { itemId: 'honey', quantity: 1, summary: '长辈高阶加赠蜂蜜×1' }
+    if (tie.kind === 'sibling') return { itemId: 'wild_berry', quantity: 2, summary: '手足高阶加赠野果×2' }
+    if (tie.kind === 'distant_relative') return { itemId: 'jade', quantity: 1, summary: '远亲高阶加赠翡翠×1' }
+    if (tie.kind === 'mentor') return { itemId: 'dried_herb', quantity: 2, summary: '师门高阶加赠药材干×2' }
+    if (tie.kind === 'caravan') return { itemId: 'hanhai_silk', quantity: 1, summary: '商队高阶加赠丝绸×1' }
+    if (tie.kind === 'old_debt') return { itemId: 'jade', quantity: 1, summary: '旧债高阶加赠翡翠×1' }
+    if (tie.kind === 'family_business') return { itemId: 'cloth', quantity: 1, summary: '家业高阶加赠布匹×1' }
+    if (tie.kind === 'sworn_kin') return { itemId: 'guest_green_tea', quantity: 2, summary: '义亲高阶加赠待客清茶×2' }
+    return { itemId: 'guest_green_tea', quantity: 1, summary: '前缘高阶加赠待客清茶×1' }
+  }
+
   const getRandomNpcFamilyLineSpecialEventRewardBonus = (
+    tie: RandomNpcFamilyTieDef,
     stage: 1 | 2 | 3
   ): { items: Array<{ itemId: string; quantity: number }>; summary: string } => {
     if (stage === 1) {
@@ -1337,7 +1352,11 @@ export const useNpcStore = defineStore('npc', () => {
     if (stage === 2) {
       return { items: [{ itemId: 'honey', quantity: 1 }], summary: '家人线加赠蜂蜜×1' }
     }
-    return { items: [{ itemId: 'dried_herb', quantity: 1 }], summary: '家人线加赠药材干×1' }
+    const highTierBonus = getRandomNpcFamilyLineStageThreeRewardBonus(tie)
+    return {
+      items: [{ itemId: highTierBonus.itemId, quantity: highTierBonus.quantity }],
+      summary: `家人线高阶加赠：${highTierBonus.summary}`
+    }
   }
 
   const getRandomNpcFamilyLineSpecialEventReward = (
@@ -1347,7 +1366,7 @@ export const useNpcStore = defineStore('npc', () => {
   ): { items: Array<{ itemId: string; quantity: number }>; summary: string } => {
     const baseReward = getRandomNpcFamilySpecialEventReward(tie, stage)
     if (resident.relationshipLine.kind !== 'family' || resident.relationshipLine.stage <= 0) return baseReward
-    const bonus = getRandomNpcFamilyLineSpecialEventRewardBonus(stage)
+    const bonus = getRandomNpcFamilyLineSpecialEventRewardBonus(tie, stage)
     return {
       items: mergeRandomNpcFamilySpecialEventRewardItems([...baseReward.items, ...bonus.items]),
       summary: `${baseReward.summary}；${bonus.summary}`
