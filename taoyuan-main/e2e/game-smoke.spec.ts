@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 const sampleId = 'breeding_specialist'
 const regionMapSampleId = 'region_map_showcase'
@@ -292,7 +292,9 @@ async function mockOnlineVisualRoom(page: Page, options: {
   await page.route('**/api/taoyuan/online/expedition/rooms', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildExpeditionOverview()) })
   })
-  await page.route('**/api/taoyuan/online/expedition/rooms/*/action', async route => {
+  const isExpeditionActionUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/action(?:\?.*)?$/.test(url)
+  const isExpeditionSettleUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/settle(?:\?.*)?$/.test(url)
+  const fulfillExpeditionAction = async (route: Route) => {
     let payload: { action_id?: string } = {}
     try {
       payload = route.request().postDataJSON() as { action_id?: string }
@@ -309,8 +311,8 @@ async function mockOnlineVisualRoom(page: Page, options: {
       contentType: 'application/json',
       body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
     })
-  })
-  await page.route('**/api/taoyuan/online/expedition/rooms/*/settle', async route => {
+  }
+  const fulfillExpeditionSettle = async (route: Route) => {
     const settleResult = options.onSettle?.(currentRoom)
     if (settleResult) {
       currentRoom = settleResult.room
@@ -321,7 +323,9 @@ async function mockOnlineVisualRoom(page: Page, options: {
       contentType: 'application/json',
       body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
     })
-  })
+  }
+  await page.route(isExpeditionActionUrl, fulfillExpeditionAction)
+  await page.route(isExpeditionSettleUrl, fulfillExpeditionSettle)
 }
 
 function buildFestivalFriendMemorialOverview() {
@@ -2579,7 +2583,7 @@ test.describe('web game smoke', () => {
       highlight_nodes: [
         { node_id: 'cavern_ore', label: '闪光矿脉', summary: '采脉与路标形成组合收益。' }
       ],
-      risk_peak: { value: 3, label: '风险峰值 3' },
+      risk_peak: { value: 3, round_number: 2, action_label: '确认撤离', actor_display_name: '测试者', summary: '撤离前确认风险峰值 3' },
       summary: '路线 岔路口 -> 闪光矿脉 -> 撤离点；组合收益已记录，提前撤离收口。',
       member_contributions: [
         { username: 'tester', display_name: '测试者', role_label: '领队', action_count: 3 }
@@ -2588,6 +2592,8 @@ test.describe('web game smoke', () => {
       combo_records: [cavernComboRecord],
       withdrawal_state: 'confirmed',
       withdrawal_summary: '提前撤离已确认，并结算 1 个节点组合收益。',
+      withdrawal_locked_combo_ids: ['route_then_mine'],
+      withdrawal_locked_combo_count: 1,
       withdrawal_actor_username: 'tester',
       withdrawal_actor_display_name: '测试者',
       withdrawal_at: 1760000000
@@ -2675,6 +2681,8 @@ test.describe('web game smoke', () => {
       combo_records: [cavernComboRecord],
       withdrawal_state: '',
       withdrawal_summary: '',
+      withdrawal_locked_combo_ids: [],
+      withdrawal_locked_combo_count: 0,
       withdrawal_actor_username: '',
       withdrawal_actor_display_name: '',
       withdrawal_at: 0,
@@ -2696,19 +2704,29 @@ test.describe('web game smoke', () => {
       room,
       onAction: (currentRoom, actionId) => {
         if (actionId !== 'confirm_withdrawal') return { room: currentRoom }
-        const cavernState = currentRoom.gameplay.cavern_state as Record<string, unknown>
-        cavernState.withdrawal_state = 'confirmed'
-        cavernState.withdrawal_summary = '提前撤离已确认，并结算 1 个节点组合收益。'
-        cavernState.withdrawal_actor_username = 'tester'
-        cavernState.withdrawal_actor_display_name = '测试者'
-        cavernState.withdrawal_at = 1760000000
-        cavernState.recent_feedback = '测试者在撤离点提前收尾，组合收益已锁定。'
-        currentRoom.gameplay.phase = 'completed'
-        currentRoom.gameplay.phase_label = '已完成'
-        currentRoom.gameplay.last_action_id = 'confirm_withdrawal'
-        currentRoom.gameplay.last_action_summary = '测试者在撤离点提前收尾，组合收益已锁定。'
-        currentRoom.state_label = '已完成'
-        currentRoom.visual_state = {
+        const cavernState = {
+          ...(currentRoom.gameplay.cavern_state as Record<string, unknown>),
+          withdrawal_state: 'confirmed',
+          withdrawal_summary: '提前撤离已确认，并结算 1 个节点组合收益。',
+          withdrawal_locked_combo_ids: ['route_then_mine'],
+          withdrawal_locked_combo_count: 1,
+          withdrawal_actor_username: 'tester',
+          withdrawal_actor_display_name: '测试者',
+          withdrawal_at: 1760000000,
+          recent_feedback: '测试者在撤离点提前收尾，组合收益已锁定。'
+        }
+        const updatedRoom = {
+          ...currentRoom,
+          state_label: '已完成',
+          gameplay: {
+            ...currentRoom.gameplay,
+            phase: 'completed',
+            phase_label: '已完成',
+            last_action_id: 'confirm_withdrawal',
+            last_action_summary: '测试者在撤离点提前收尾，组合收益已锁定。',
+            cavern_state: cavernState,
+          },
+          visual_state: {
           ...currentRoom.visual_state,
           revision: 2,
           selected_visual_id: 'cavern_exit',
@@ -2718,8 +2736,9 @@ test.describe('web game smoke', () => {
               ? { ...node, label: '撤离点已锁定', state: 'resolved', available_action_ids: [] }
               : node
           )
+          }
         }
-        return { room: currentRoom }
+        return { room: updatedRoom }
       },
       onSettle: (currentRoom) => {
         const receipt = {
@@ -2736,8 +2755,7 @@ test.describe('web game smoke', () => {
           route_replay: buildCavernRouteReplay(),
           created_at: 1760000001
         }
-        currentRoom.settlement_receipts = [receipt]
-        return { room: currentRoom, recentReceipts: [receipt] }
+        return { room: { ...currentRoom, settlement_receipts: [receipt] }, recentReceipts: [receipt] }
       }
     })
 
@@ -2753,7 +2771,17 @@ test.describe('web game smoke', () => {
 
     await page.getByTestId('visual-map-node-cavern_exit').click()
     await expect(page.getByTestId('visual-map-node-detail')).toContainText('撤离点')
+    await expect(page.getByTestId('visual-map-action-confirm_withdrawal')).toBeEnabled()
+    const withdrawalResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/action')
+      && response.status() === 200
+    )
     await page.getByTestId('visual-map-action-confirm_withdrawal').click()
+    const withdrawalResponse = await withdrawalResponsePromise
+    expect(withdrawalResponse.request().postData() || '').toContain('confirm_withdrawal')
+    const withdrawalData = await withdrawalResponse.json()
+    expect(String(withdrawalData?.room?.gameplay?.last_action_id || '')).toBe('confirm_withdrawal')
 
     await expect(page.getByTestId('visual-map-action-result')).toContainText('提前收尾')
     await expect(page.getByText('提前撤离已确认，并结算 1 个节点组合收益。').first()).toBeVisible()
@@ -2767,7 +2795,7 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('结算 / 回看凭证')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('组合收益 1 条')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('提前撤离 · 提前撤离已确认')
-    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('风险峰值')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('风险峰值：第 2 回合 · 测试者 · 确认撤离 · 撤离前确认风险峰值 3')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('服务端落账：120 铜钱、1 张奖券、ore x2')
   })
 
