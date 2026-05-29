@@ -67,7 +67,9 @@ const WAREHOUSE_WITHDRAWAL_COMPENSATION_REVIEW_STATUSES = new Set(['none', 'requ
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS = new Set(['manual_restore_recorded', 'manual_compensation_recorded', 'no_compensation_needed', 'audit_only']);
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_ACTIONS = new Set(['manual_restore_recorded', 'manual_compensation_recorded', 'no_compensation_needed']);
 const WAREHOUSE_WITHDRAWAL_AUTO_COMPENSATION_ACTIONS = new Set(['auto_restore_shared_warehouse', 'auto_restore_personal_inventory', 'auto_compensation_execute']);
+const WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_ACTIONS = new Set(['manual_appeal_restored', 'manual_appeal_compensated', 'manual_appeal_denied', 'audit_only']);
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT = 'CONFIRM_MANUAL_COMPENSATION_RECORDED';
+const WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_CONFIRMATION_TEXT = 'CONFIRM_MANUAL_APPEAL_RESOLUTION_RECORDED';
 const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
   rice: 35,
   wheat: 55,
@@ -1676,6 +1678,17 @@ function normalizeWarehouseWithdrawalDraft(entry = {}) {
     compensation_execution_recorded_by_username: normalizeUsername(entry.compensation_execution_recorded_by_username),
     compensation_execution_record_only: entry.compensation_execution_record_only !== false,
     compensation_execution_required_confirmation_text: sanitizeText(entry.compensation_execution_required_confirmation_text || WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT, 120),
+    compensation_appeal_resolution_status: ['none', 'recorded'].includes(entry.compensation_appeal_resolution_status) ? entry.compensation_appeal_resolution_status : 'none',
+    compensation_appeal_resolution_action: WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_ACTIONS.has(entry.compensation_appeal_resolution_action) ? entry.compensation_appeal_resolution_action : '',
+    compensation_appeal_resolution_receipt: sanitizeText(entry.compensation_appeal_resolution_receipt, 160),
+    compensation_appeal_resolution_note: sanitizeText(entry.compensation_appeal_resolution_note, 240),
+    compensation_appeal_resolution_execution_idempotency_key: sanitizeText(entry.compensation_appeal_resolution_execution_idempotency_key, 120),
+    compensation_appeal_resolution_execution_audit_id: sanitizeText(entry.compensation_appeal_resolution_execution_audit_id, 100),
+    compensation_appeal_resolution_idempotency_key: sanitizeText(entry.compensation_appeal_resolution_idempotency_key, 120),
+    compensation_appeal_resolution_recorded_at: Math.max(0, Math.floor(Number(entry.compensation_appeal_resolution_recorded_at) || 0)),
+    compensation_appeal_resolution_recorded_by_username: normalizeUsername(entry.compensation_appeal_resolution_recorded_by_username),
+    compensation_appeal_resolution_record_only: entry.compensation_appeal_resolution_record_only !== false,
+    compensation_appeal_resolution_required_confirmation_text: sanitizeText(entry.compensation_appeal_resolution_required_confirmation_text || WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_CONFIRMATION_TEXT, 120),
     rolled_back_at: Math.max(0, Math.floor(Number(entry.rolled_back_at) || 0)),
     rolled_back_by_username: normalizeUsername(entry.rolled_back_by_username),
     rollback_reason: sanitizeText(entry.rollback_reason, 160),
@@ -7182,6 +7195,32 @@ function normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(paylo
     execution_note: sanitizeText(payload.execution_note || payload.operator_note || payload.note || payload.memo, 240),
     preflight_idempotency_key: preflightIdempotencyKey,
     preflight_audit_id: preflightAuditId,
+    confirmation_text: confirmationText,
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('warehouse manual appeal resolution requires idempotency_key', 400);
+  const rawResolutionAction = payload.resolution_action || payload.appeal_action || payload.action;
+  const resolutionAction = WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_ACTIONS.has(rawResolutionAction) ? rawResolutionAction : '';
+  if (!resolutionAction) throw createError('warehouse manual appeal resolution requires a supported resolution_action', 400);
+  const receipt = sanitizeText(payload.resolution_receipt || payload.appeal_receipt || payload.receipt || payload.receipt_id, 160);
+  if (!receipt) throw createError('warehouse manual appeal resolution requires resolution_receipt', 400);
+  const resolutionNote = sanitizeText(payload.resolution_note || payload.appeal_note || payload.operator_note || payload.note || payload.memo, 240);
+  if (!resolutionNote) throw createError('warehouse manual appeal resolution requires resolution_note', 400);
+  const confirmationText = sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation, 120);
+  if (confirmationText !== WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_CONFIRMATION_TEXT) throw createError('warehouse manual appeal resolution confirmation text mismatch', 400);
+  const executionIdempotencyKey = sanitizeText(payload.execution_idempotency_key || payload.execution_key, 120);
+  const executionAuditId = sanitizeText(payload.execution_audit_id || payload.execution_id, 100);
+  if (!executionIdempotencyKey && !executionAuditId) throw createError('warehouse manual appeal resolution requires execution audit reference', 400);
+  return {
+    idempotency_key: idempotencyKey,
+    resolution_action: resolutionAction,
+    resolution_receipt: receipt,
+    resolution_note: resolutionNote,
+    execution_idempotency_key: executionIdempotencyKey,
+    execution_audit_id: executionAuditId,
     confirmation_text: confirmationText,
   };
 }
@@ -13636,6 +13675,17 @@ function findWarehouseCompensationPreflightAudit(contract = {}, draft = {}, requ
   }) || null;
 }
 
+function findWarehouseCompensationExecutionAudit(contract = {}, draft = {}, request = {}) {
+  const audits = Array.isArray(contract.audit_log) ? contract.audit_log : [];
+  return audits.find(entry => {
+    if (entry.action !== 'warehouse_high_value_withdrawal_compensation_execution_recorded') return false;
+    if (entry.detail?.draft_id !== draft.id) return false;
+    if (request.execution_audit_id && entry.id === request.execution_audit_id) return true;
+    if (request.execution_idempotency_key && entry.idempotency_key === request.execution_idempotency_key) return true;
+    return false;
+  }) || null;
+}
+
 function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorUsername = '') {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const auditActions = new Set([
@@ -13646,6 +13696,7 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
     'warehouse_high_value_withdrawal_compensation_review_resolved',
     'warehouse_high_value_withdrawal_compensation_preflight_recorded',
     'warehouse_high_value_withdrawal_compensation_execution_recorded',
+    'warehouse_high_value_withdrawal_manual_appeal_resolution_recorded',
     'warehouse_high_value_withdrawal_rolled_back',
   ]);
   const draftAudits = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
@@ -13668,11 +13719,13 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
   ].includes(entry.action));
   const preflightAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_preflight_recorded');
   const executionAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_execution_recorded');
+  const appealResolutionAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_manual_appeal_resolution_recorded');
   const timelineComplete = Boolean(
     withdrawLedgerEntries.length > 0
     && reviewAudits.length > 0
     && preflightAudits.length > 0
     && (draft.compensation_execution_status !== 'recorded' || executionAudits.length > 0)
+    && (draft.compensation_appeal_resolution_status !== 'recorded' || appealResolutionAudits.length > 0)
   );
   return {
     contract_id: contract.id,
@@ -13703,6 +13756,13 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
       compensation_execution_preflight_audit_id: draft.compensation_execution_preflight_audit_id,
       compensation_execution_recorded_by_username: draft.compensation_execution_recorded_by_username,
       compensation_execution_recorded_at: draft.compensation_execution_recorded_at,
+      compensation_appeal_resolution_status: draft.compensation_appeal_resolution_status,
+      compensation_appeal_resolution_action: draft.compensation_appeal_resolution_action,
+      compensation_appeal_resolution_record_only: draft.compensation_appeal_resolution_record_only,
+      compensation_appeal_resolution_execution_idempotency_key: draft.compensation_appeal_resolution_execution_idempotency_key,
+      compensation_appeal_resolution_execution_audit_id: draft.compensation_appeal_resolution_execution_audit_id,
+      compensation_appeal_resolution_recorded_by_username: draft.compensation_appeal_resolution_recorded_by_username,
+      compensation_appeal_resolution_recorded_at: draft.compensation_appeal_resolution_recorded_at,
     },
     ledger_evidence: {
       withdraw_ledger_entries: withdrawLedgerEntries,
@@ -13715,6 +13775,7 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
     review_audits: reviewAudits,
     preflight_audits: preflightAudits,
     execution_audits: executionAudits,
+    appeal_resolution_audits: appealResolutionAudits,
     appeal_packet: {
       enabled: true,
       record_only: true,
@@ -13725,8 +13786,9 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
         reviewAudits.length > 0 ? '' : 'compensation_review_audit',
         preflightAudits.length > 0 ? '' : 'compensation_preflight_audit',
         draft.compensation_execution_status === 'recorded' && executionAudits.length < 1 ? 'compensation_execution_audit' : '',
+        draft.compensation_appeal_resolution_status === 'recorded' && appealResolutionAudits.length < 1 ? 'manual_appeal_resolution_audit' : '',
       ].filter(Boolean),
-      next_supported_actions: ['operator_receipt_audit_review', 'manual_appeal_resolution'],
+      next_supported_actions: draft.compensation_appeal_resolution_status === 'recorded' ? ['operator_receipt_audit_review'] : ['operator_receipt_audit_review', 'manual_appeal_resolution'],
     },
     asset_boundary: {
       personal_money_merged: false,
@@ -13916,6 +13978,140 @@ async function recordCohabitationWarehouseHighValueWithdrawalCompensationExecuti
     warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
     draft,
     compensation_execution: execution,
+    idempotent: false,
+  };
+}
+
+function buildWarehouseManualAppealResolutionRecord(contract = {}, draft = {}, request = {}, actorUsername = '', executionAudit = null) {
+  const targetEvidence = buildWarehouseCompensationTargetSaveEvidence(contract, draft);
+  const executionFailedChecks = Array.isArray(executionAudit?.detail?.failed_checks)
+    ? executionAudit.detail.failed_checks.map(id => sanitizeText(id, 80)).filter(Boolean)
+    : [];
+  const requiredChecks = [
+    { id: 'compensation_execution_recorded', passed: draft.compensation_execution_status === 'recorded', evidence: draft.compensation_execution_status },
+    { id: 'compensation_execution_audit_present', passed: Boolean(executionAudit), evidence: executionAudit?.id || request.execution_idempotency_key || request.execution_audit_id },
+    { id: 'execution_record_only', passed: draft.compensation_execution_record_only !== false, evidence: draft.compensation_execution_record_only },
+    { id: 'resolution_action_supported', passed: WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_ACTIONS.has(request.resolution_action), evidence: request.resolution_action },
+    { id: 'operator_resolution_receipt_present', passed: Boolean(request.resolution_receipt), evidence: request.resolution_receipt },
+    { id: 'resolution_note_present', passed: Boolean(request.resolution_note), evidence: request.resolution_note },
+    { id: 'confirmation_text_matched', passed: request.confirmation_text === WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_CONFIRMATION_TEXT, evidence: WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_CONFIRMATION_TEXT },
+    { id: 'target_save_present', passed: targetEvidence.save_available === true, evidence: targetEvidence.unavailable_reason || targetEvidence.target_save_id || targetEvidence.target_save_slot },
+    { id: 'withdraw_ledger_present', passed: (draft.warehouse_ledger_ids || []).length > 0, evidence: draft.warehouse_ledger_ids },
+    { id: 'source_ledger_trace_present', passed: (draft.source_ledger_ids || []).length > 0, evidence: draft.source_ledger_ids },
+    { id: 'personal_inventory_mutation_forbidden', passed: true, evidence: false },
+    { id: 'shared_warehouse_restore_forbidden', passed: true, evidence: false },
+    { id: 'record_only_resolution', passed: true, evidence: 'manual appeal resolution is recorded only' },
+  ];
+  const failedChecks = requiredChecks.filter(check => check.passed !== true).map(check => check.id);
+  return {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quality: draft.quality,
+    quantity: draft.quantity,
+    risk_level: draft.risk_level,
+    resolution_action: request.resolution_action,
+    resolution_receipt: request.resolution_receipt,
+    resolution_note: request.resolution_note,
+    compensation_execution_status: draft.compensation_execution_status,
+    compensation_execution_action: draft.compensation_execution_action,
+    execution_audit_id: executionAudit?.id || request.execution_audit_id,
+    execution_idempotency_key: executionAudit?.idempotency_key || request.execution_idempotency_key,
+    execution_failed_checks: executionFailedChecks,
+    target_save: targetEvidence,
+    required_checks: requiredChecks,
+    failed_checks: failedChecks,
+    auto_compensation_enabled: false,
+    record_only: true,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    personal_inventory_mutation_enabled: false,
+    shared_warehouse_restore_enabled: false,
+    recorded_by_username: normalizeUsername(actorUsername),
+    recorded_at: nowSeconds(),
+    policy: {
+      executor_kind: 'manual_appeal_resolution_record',
+      personal_inventory_mutation_enabled: false,
+      shared_warehouse_restore_enabled: false,
+      next_required_operation: 'operator_receipt_audit_review',
+    },
+  };
+}
+
+async function recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const request = normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'record warehouse manual appeal resolution');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('warehouse high-value draft not found', 404);
+  let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
+  if (draft.state !== 'executed') throw createError('manual appeal resolution requires executed high-value withdrawal draft', 409);
+  if (draft.compensation_execution_status !== 'recorded') throw createError('manual appeal resolution requires recorded compensation execution receipt', 409);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const canGovern = isContractOwner(contract, actorUsername)
+    || actorPermissions.storage.withdraw_rare === true
+    || actorPermissions.storage.withdraw_high_quality === true;
+  if (!canGovern) throw createError('warehouse manual appeal resolution requires owner or high-value warehouse permission', 403);
+  const executionAudit = findWarehouseCompensationExecutionAudit(contract, draft, request);
+  if (draft.compensation_appeal_resolution_idempotency_key === request.idempotency_key && draft.compensation_appeal_resolution_status === 'recorded') {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      manual_appeal_resolution: buildWarehouseManualAppealResolutionRecord(contract, draft, request, actorUsername, executionAudit),
+      idempotent: true,
+    };
+  }
+  if (draft.compensation_appeal_resolution_status === 'recorded') throw createError('warehouse manual appeal resolution already recorded', 409);
+  const resolution = buildWarehouseManualAppealResolutionRecord(contract, draft, request, actorUsername, executionAudit);
+  if (resolution.failed_checks.length > 0) throw createError(`manual appeal resolution blocked by failed checks: ${resolution.failed_checks.join(',')}`, 409);
+  draft = normalizeWarehouseWithdrawalDraft({
+    ...draft,
+    compensation_appeal_resolution_status: 'recorded',
+    compensation_appeal_resolution_action: request.resolution_action,
+    compensation_appeal_resolution_receipt: request.resolution_receipt,
+    compensation_appeal_resolution_note: request.resolution_note,
+    compensation_appeal_resolution_execution_idempotency_key: resolution.execution_idempotency_key,
+    compensation_appeal_resolution_execution_audit_id: resolution.execution_audit_id,
+    compensation_appeal_resolution_idempotency_key: request.idempotency_key,
+    compensation_appeal_resolution_recorded_at: resolution.recorded_at,
+    compensation_appeal_resolution_recorded_by_username: actorUsername,
+    compensation_appeal_resolution_record_only: true,
+  });
+  contract.shared_warehouse_withdrawal_drafts[draftIndex] = draft;
+  appendAudit(contract, 'warehouse_high_value_withdrawal_manual_appeal_resolution_recorded', actor, {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quality: draft.quality,
+    quantity: draft.quantity,
+    risk_level: draft.risk_level,
+    resolution_action: request.resolution_action,
+    resolution_receipt: request.resolution_receipt,
+    execution_audit_id: resolution.execution_audit_id,
+    execution_idempotency_key: resolution.execution_idempotency_key,
+    withdraw_ledger_ids: draft.warehouse_ledger_ids,
+    source_ledger_ids: draft.source_ledger_ids,
+    required_check_ids: resolution.required_checks.map(check => check.id),
+    failed_checks: resolution.failed_checks,
+    auto_compensation_enabled: false,
+    personal_inventory_mutation_enabled: false,
+    shared_warehouse_restore_enabled: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    record_only: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    manual_appeal_resolution: resolution,
     idempotent: false,
   };
 }
@@ -20516,6 +20712,7 @@ module.exports = {
   getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle,
   rollbackCohabitationWarehouseHighValueWithdrawalDraft,
   recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
+  recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution,
   recoverCohabitationWarehouseGovernance,
   sellCohabitationWarehouseItem,
   creditCohabitationOrderIncome,

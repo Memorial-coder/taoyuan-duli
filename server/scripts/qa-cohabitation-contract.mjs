@@ -3185,6 +3185,91 @@ assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.asset_bounda
 assert.equal(rareCrystalCompensationAudit.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeCompensationAudit.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal compensation audit bundle should not restore shared warehouse stock')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeCompensationAudit, 'rare crystal compensation audit bundle should not rewrite harvest owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeCompensationAudit, 'rare crystal compensation audit bundle should not rewrite harvest partner save')
+const rareCrystalOwnerRawBeforeManualAppealResolution = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeManualAppealResolution = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWarehouseBeforeManualAppealResolution = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    resolution_action: 'manual_appeal_compensated',
+    resolution_receipt: 'qa-manual-appeal-resolution-receipt-rare-crystal',
+    resolution_note: 'partner without high-value permission cannot record manual appeal resolution',
+    confirmation_text: 'CONFIRM_MANUAL_APPEAL_RESOLUTION_RECORDED',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+    idempotency_key: 'qa-rare-crystal-manual-appeal-resolution-denied',
+  }, actor(harvestPartner)),
+  error => error?.status === 403,
+  'rare crystal manual appeal resolution should require owner or high-value warehouse permission'
+)
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    resolution_action: 'manual_appeal_compensated',
+    resolution_receipt: 'qa-manual-appeal-resolution-receipt-rare-crystal',
+    resolution_note: 'wrong confirmation should be rejected',
+    confirmation_text: 'wrong confirmation',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+    idempotency_key: 'qa-rare-crystal-manual-appeal-resolution-wrong-confirmation',
+  }, actor(harvestOwner)),
+  error => error?.status === 400,
+  'rare crystal manual appeal resolution should require exact confirmation text'
+)
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    resolution_action: 'manual_appeal_compensated',
+    resolution_receipt: 'qa-manual-appeal-resolution-receipt-rare-crystal',
+    resolution_note: 'missing execution audit should be rejected',
+    confirmation_text: 'CONFIRM_MANUAL_APPEAL_RESOLUTION_RECORDED',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution-missing',
+    idempotency_key: 'qa-rare-crystal-manual-appeal-resolution-missing-execution',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal manual appeal resolution should require matching execution audit'
+)
+const rareCrystalManualAppealResolution = await runtime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  resolution_action: 'manual_appeal_compensated',
+  resolution_receipt: 'qa-manual-appeal-resolution-receipt-rare-crystal',
+  resolution_note: 'QA records manual appeal resolution after operator receipt audit without mutating assets',
+  confirmation_text: 'CONFIRM_MANUAL_APPEAL_RESOLUTION_RECORDED',
+  execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+  idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+}, actor(harvestOwner))
+assert.equal(rareCrystalManualAppealResolution.idempotent, false, 'rare crystal manual appeal resolution should commit once')
+assert.equal(rareCrystalManualAppealResolution.draft.compensation_appeal_resolution_status, 'recorded', 'rare crystal manual appeal resolution should mark draft recorded')
+assert.equal(rareCrystalManualAppealResolution.draft.compensation_appeal_resolution_action, 'manual_appeal_compensated', 'rare crystal manual appeal resolution should record action')
+assert.equal(rareCrystalManualAppealResolution.draft.compensation_appeal_resolution_record_only, true, 'rare crystal manual appeal resolution should remain record-only')
+assert.equal(rareCrystalManualAppealResolution.manual_appeal_resolution.auto_compensation_enabled, false, 'rare crystal manual appeal resolution should keep auto compensation disabled')
+assert.equal(rareCrystalManualAppealResolution.manual_appeal_resolution.personal_inventory_mutation_enabled, false, 'rare crystal manual appeal resolution should forbid personal inventory mutation')
+assert.equal(rareCrystalManualAppealResolution.manual_appeal_resolution.shared_warehouse_restore_enabled, false, 'rare crystal manual appeal resolution should forbid shared warehouse restore')
+assert.ok(rareCrystalManualAppealResolution.manual_appeal_resolution.required_checks.find(check => check.id === 'record_only_resolution' && check.passed === true), 'rare crystal manual appeal resolution should expose record-only check')
+assert.ok(rareCrystalManualAppealResolution.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_manual_appeal_resolution_recorded' && entry.detail?.draft_id === rareCrystalExecuteDraft.draft.id && entry.detail?.record_only === true && entry.detail?.personal_save_changed === false), 'rare crystal manual appeal resolution should write record-only audit')
+assert.equal(rareCrystalManualAppealResolution.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeManualAppealResolution.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal manual appeal resolution should not restore shared warehouse stock')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeManualAppealResolution, 'rare crystal manual appeal resolution should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeManualAppealResolution, 'rare crystal manual appeal resolution should not rewrite harvest partner save')
+const duplicateRareCrystalManualAppealResolution = await runtime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  resolution_action: 'manual_appeal_compensated',
+  resolution_receipt: 'qa-manual-appeal-resolution-receipt-rare-crystal',
+  resolution_note: 'duplicate QA manual appeal resolution',
+  confirmation_text: 'CONFIRM_MANUAL_APPEAL_RESOLUTION_RECORDED',
+  execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+  idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalManualAppealResolution.idempotent, true, 'duplicate rare crystal manual appeal resolution should replay by idempotency key')
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    resolution_action: 'manual_appeal_denied',
+    resolution_receipt: 'qa-manual-appeal-resolution-receipt-rare-crystal-second',
+    resolution_note: 'second appeal resolution should be rejected',
+    confirmation_text: 'CONFIRM_MANUAL_APPEAL_RESOLUTION_RECORDED',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+    idempotency_key: 'qa-rare-crystal-manual-appeal-resolution-second',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal manual appeal resolution should reject a second resolution with a different idempotency key'
+)
+const rareCrystalAuditAfterManualAppealResolution = await runtime.getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, actor(harvestOwner))
+assert.ok(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.appeal_resolution_audits.some(entry => entry.idempotency_key === 'qa-rare-crystal-manual-appeal-resolution'), 'rare crystal audit bundle should include manual appeal resolution audit')
+assert.deepEqual(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.appeal_packet.next_supported_actions, ['operator_receipt_audit_review'], 'rare crystal audit bundle should close manual appeal resolution action after record')
+assert.equal(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.appeal_packet.timeline_complete, true, 'rare crystal audit bundle should remain timeline-complete after manual appeal resolution')
+assert.equal(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.asset_boundary.personal_inventory_mutation_enabled, false, 'rare crystal audit bundle should keep personal inventory mutation disabled after manual appeal resolution')
 await assert.rejects(
   () => runtime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
     reason: 'cannot reopen resolved rare crystal compensation review',

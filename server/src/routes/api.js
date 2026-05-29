@@ -292,6 +292,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_warehouse_high_value_withdrawal_compensation_execution',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/compensation-review\/appeal-resolution$/i,
+    action: 'cohabitation_warehouse_high_value_withdrawal_manual_appeal_resolution',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/compensation-review\/audit$/i,
     action: 'cohabitation_warehouse_high_value_withdrawal_compensation_audit_read',
   },
@@ -3500,6 +3504,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '???????????????????' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/appeal-resolution', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(req.params.contractId, req.params.draftId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'record warehouse manual appeal resolution failed' });
     }
   });
 });
