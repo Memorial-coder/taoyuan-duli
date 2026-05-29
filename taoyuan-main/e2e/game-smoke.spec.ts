@@ -200,6 +200,7 @@ async function mockOnlineVisualRoom(page: Page, options: {
   }
 }) {
   let currentRoom = options.room
+  let currentFestivalRecentReceipts: unknown[] = []
   let currentExpeditionRecentReceipts: unknown[] = []
   await page.unroute('**/api/me').catch(() => {})
   await page.route('**/api/me', async route => {
@@ -233,7 +234,7 @@ async function mockOnlineVisualRoom(page: Page, options: {
     invited_rooms: [],
     visible_rooms: [],
     recent_memorials: [],
-    recent_receipts: []
+    recent_receipts: currentFestivalRecentReceipts
   })
   const buildExpeditionOverview = () => ({
     ok: true,
@@ -260,6 +261,7 @@ async function mockOnlineVisualRoom(page: Page, options: {
     const actionResult = options.onAction?.(currentRoom, actionId)
     if (actionResult) {
       currentRoom = actionResult.room
+      currentFestivalRecentReceipts = actionResult.recentReceipts ?? currentFestivalRecentReceipts
     } else if (actionId) {
       currentRoom = {
         ...currentRoom,
@@ -268,6 +270,18 @@ async function mockOnlineVisualRoom(page: Page, options: {
           available_actions: currentRoom.gameplay.available_actions.filter(action => action.id !== actionId)
         }
       }
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
+    })
+  })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/settle', async route => {
+    const settleResult = options.onSettle?.(currentRoom)
+    if (settleResult) {
+      currentRoom = settleResult.room
+      currentFestivalRecentReceipts = settleResult.recentReceipts ?? currentFestivalRecentReceipts
     }
     await route.fulfill({
       status: 200,
@@ -2761,6 +2775,33 @@ test.describe('web game smoke', () => {
     await openHome(page)
     await startNewJourney(page, '灯会')
 
+    const buildLanternRouteReplay = () => ({
+      kind: 'lantern_fair',
+      title: '\u706f\u4f1a\u7559\u5f71\u8bb0\u5f55',
+      summary: '\u4e3b\u706f\u3001\u706f\u8c1c\u3001\u79e9\u5e8f\u548c\u7559\u5f71\u6536\u53e3\u90fd\u5df2\u5199\u5165\u706f\u4f1a\u7eaa\u5ff5\u3002',
+      route_nodes: [
+        { id: 'lantern_main_lamp', label: '\u4e3b\u706f', kind: 'lantern', state: 'resolved', order: 1 },
+        { id: 'lantern_riddle_rack', label: '\u706f\u8c1c\u67b6', kind: 'riddle', state: 'resolved', order: 2 },
+        { id: 'lantern_blocked_queue', label: '\u5206\u7ca5\u961f\u4f0d', kind: 'queue', state: 'resolved', order: 3 },
+        { id: 'lantern_photo_spot', label: '\u7559\u5f71\u70b9', kind: 'photo', state: 'resolved', order: 4 }
+      ],
+      highlight_nodes: [
+        { node_id: 'lantern_photo_spot', label: '\u7559\u5f71\u70b9', summary: '\u5408\u5f71\u4eba\u5b8c\u6210\u7559\u5f71\u6536\u53e3\u3002', type: 'memory' }
+      ],
+      risk_peak: { value: 4, round_number: 3, action_label: '\u7ef4\u6301\u79e9\u5e8f', actor_display_name: '\u5de1\u573a\u4eba', summary: '\u538b\u529b\u5cf0\u503c 4' },
+      member_contributions: [
+        { username: 'tester', display_name: '\u6d4b\u8bd5\u8005', role_label: '\u706f\u4f1a\u4e3b\u7406', progress_value: 6, score_value: 8, action_count: 4, summary: '\u5b8c\u6210\u4e3b\u706f\u548c\u7559\u5f71\u8bb0\u5f55\u3002' }
+      ],
+      race_result: { mode: '', rank: 0, rank_label: '', team_count: 0, title_label: '', popularity_bonus: 0, popularity_label: '', reached_finish: false },
+      race_rankings: [],
+      memory_records: [
+        { type: 'main_lantern', label: '\u70b9\u4eae\u4e3b\u706f', actor_username: 'tester', actor_display_name: '\u6d4b\u8bd5\u8005', action_id: 'lock_piece', action_label: '\u9501\u5b9a\u706f\u7247', object_id: 'lantern_main_lamp', object_label: '\u4e3b\u706f', round_number: 1, summary: '\u4e3b\u706f\u7a33\u5b9a\u4eae\u8d77\u3002' },
+        { type: 'riddle', label: '\u89e3\u5f00\u706f\u8c1c', actor_username: 'riddle_helper', actor_display_name: '\u706f\u8c1c\u624b', action_id: 'solve_riddle', action_label: '\u89e3\u5f00\u706f\u8c1c', object_id: 'lantern_riddle_rack', object_label: '\u706f\u8c1c\u67b6', round_number: 2, summary: '\u706f\u8c1c\u67b6\u5b8c\u6210\u4e09\u9053\u9898\u7b7e\u3002' },
+        { type: 'order', label: '\u7ef4\u6301\u79e9\u5e8f', actor_username: 'order_keeper', actor_display_name: '\u5de1\u573a\u4eba', action_id: 'clear_queue', action_label: '\u7ef4\u6301\u79e9\u5e8f', object_id: 'lantern_blocked_queue', object_label: '\u5206\u7ca5\u961f\u4f0d', round_number: 3, summary: '\u961f\u4f0d\u91cd\u65b0\u6392\u597d\u3002' },
+        { type: 'photo', label: '\u7559\u5f71\u6536\u53e3', actor_username: 'photo_helper', actor_display_name: '\u5408\u5f71\u4eba', action_id: 'lock_pose', action_label: '\u5b9a\u683c\u7559\u5f71', object_id: 'lantern_photo_spot', object_label: '\u7559\u5f71\u70b9', round_number: 4, summary: '\u5408\u5f71\u59ff\u52bf\u5df2\u9501\u5b9a\u3002' }
+      ]
+    })
+
     const room = buildRoomSnapshot({
       id: 'e2e-lantern-room',
       title: '灯会共建 smoke',
@@ -2811,7 +2852,33 @@ test.describe('web game smoke', () => {
         ]
       }
     })
-    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+    await mockOnlineVisualRoom(page, {
+      domain: 'festival',
+      room,
+      onSettle: (currentRoom) => {
+        const receipt = {
+          id: 'receipt-lantern-shell-e2e-1',
+          room_id: currentRoom.id,
+          room_title: currentRoom.title,
+          template_label: currentRoom.template_label,
+          target_username: 'tester',
+          target_display_name: '\u6d4b\u8bd5\u8005',
+          target_slot: 0,
+          status: 'persisted',
+          status_label: '\u5df2\u7ed3\u7b97',
+          reward_payload: { money: 80, reward_tickets: 1, items: [] },
+          summary: '\u706f\u4f1a\u7559\u5f71\u8bb0\u5f55\u5df2\u751f\u6210\uff0c\u56db\u7c7b\u7eaa\u5ff5\u53ef\u56de\u770b\u3002',
+          route_replay: buildLanternRouteReplay(),
+          created_at: 1760000100
+        }
+        currentRoom.state = 'settled'
+        currentRoom.state_label = '\u5df2\u7ed3\u7b97'
+        currentRoom.gameplay.phase = 'completed'
+        currentRoom.gameplay.phase_label = '\u5df2\u5b8c\u6210'
+        currentRoom.settlement_receipts = [receipt]
+        return { room: currentRoom, recentReceipts: [receipt] }
+      }
+    })
 
     await page.goto('/#/game/online/festival?tab=festival-room')
     await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
@@ -2826,6 +2893,14 @@ test.describe('web game smoke', () => {
     await page.getByTestId('visual-scene-action-lock_piece').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-lock_piece')).toHaveCount(0)
+    await page.getByTestId('online-festival-room-settle-submit').click()
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u706f\u4f1a\u7eaa\u5ff5')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u70b9\u4eae\u4e3b\u706f\uff1a\u6d4b\u8bd5\u8005')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u89e3\u5f00\u706f\u8c1c\uff1a\u706f\u8c1c\u624b')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u7ef4\u6301\u79e9\u5e8f\uff1a\u5de1\u573a\u4eba')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u7559\u5f71\u6536\u53e3\uff1a\u5408\u5f71\u4eba')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u538b\u529b\u5cf0\u503c')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u670d\u52a1\u7aef\u843d\u8d26\uff1a80 \u94dc\u94b1\u30011 \u5f20\u5956\u5238')
   })
 
   test('online festival visual scene supports laba cookpot object actions', async ({ page }) => {
@@ -3381,7 +3456,58 @@ test.describe('web game smoke', () => {
         ]
       }
     })
-    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+    await mockOnlineVisualRoom(page, {
+      domain: 'festival',
+      room,
+      onSettle: (currentRoom) => {
+        const receipt = {
+          id: 'receipt-dragon-shell-e2e-1',
+          room_id: currentRoom.id,
+          room_title: currentRoom.title,
+          template_label: currentRoom.template_label,
+          target_username: 'tester',
+          target_display_name: '\u6d4b\u8bd5\u8005',
+          target_slot: 0,
+          status: 'persisted',
+          status_label: '\u5df2\u7ed3\u7b97',
+          reward_payload: { money: 100, reward_tickets: 2, items: [] },
+          summary: '\u7aef\u5348\u8d5b\u821f\u6210\u7ee9\u5355\u5df2\u751f\u6210\uff0c\u591a\u961f\u540d\u6b21\u53ef\u56de\u770b\u3002',
+          route_replay: {
+            kind: 'dragon_boat',
+            title: '\u7aef\u5348\u8d5b\u821f\u6210\u7ee9\u5355',
+            summary: '\u56db\u8239\u6269\u5c55\u5b8c\u6210\uff0c\u524d\u56db\u961f\u540d\u6b21\u5199\u5165\u8d5b\u9053\u699c\u3002',
+            route_nodes: [
+              { id: 'dragon_cell_0', label: '\u8d77\u70b9', kind: 'normal', state: 'resolved', order: 1 },
+              { id: 'dragon_cell_1', label: '\u9f13\u70b9\u7a97\u53e3', kind: 'boost', state: 'resolved', order: 2 },
+              { id: 'dragon_cell_2', label: '\u56de\u6d6a', kind: 'risk', state: 'resolved', order: 3 },
+              { id: 'dragon_cell_3', label: '\u7ec8\u70b9', kind: 'finish', state: 'resolved', order: 4 }
+            ],
+            highlight_nodes: [
+              { node_id: 'dragon_cell_1', label: '\u9f13\u70b9\u7a97\u53e3', summary: '\u6843\u6e90\u9f99\u821f\u62a2\u5230\u9f13\u70b9\u7a97\u53e3\u3002', type: 'boost' }
+            ],
+            risk_peak: { value: 5, round_number: 2, action_label: '\u5408\u62cd\u5212\u6868', actor_display_name: '\u6d4b\u8bd5\u8005', summary: '\u538b\u529b\u5cf0\u503c 5' },
+            member_contributions: [
+              { username: 'tester', display_name: '\u6d4b\u8bd5\u8005', role_label: '\u9f13\u624b', progress_value: 4, score_value: 9, action_count: 2, summary: '\u9f13\u70b9\u7a97\u53e3\u5408\u62cd\u3002' }
+            ],
+            race_result: { mode: 'multi_team', rank: 4, rank_label: '\u7b2c 4 \u540d', team_count: 4, title_label: '\u540c\u821f\u6025\u5148\u950b', popularity_bonus: 12, popularity_label: '\u8282\u4f1a\u4eba\u6c14 +12', reached_finish: false },
+            race_rankings: [
+              { team_id: 'team_north', label: '\u5317\u6e21\u9f99\u821f', rank: 1, rank_label: '\u7b2c 1 \u540d', position_index: 3, score_value: 12, finished: true, summary: '\u5df2\u51b2\u7ebf' },
+              { team_id: 'team_west', label: '\u897f\u6e7e\u9f99\u821f', rank: 2, rank_label: '\u7b2c 2 \u540d', position_index: 2, score_value: 8, finished: false, summary: '\u4ecd\u5728\u8d5b\u9053\u4e2d' },
+              { team_id: 'team_east', label: '\u4e1c\u5cb8\u9f99\u821f', rank: 3, rank_label: '\u7b2c 3 \u540d', position_index: 1, score_value: 6, finished: false, summary: '\u4ecd\u5728\u8d5b\u9053\u4e2d' },
+              { team_id: 'team_dragon', label: '\u6843\u6e90\u9f99\u821f', rank: 4, rank_label: '\u7b2c 4 \u540d', position_index: 0, score_value: 4, finished: false, summary: '\u4ecd\u5728\u8d5b\u9053\u4e2d' }
+            ],
+            memory_records: []
+          },
+          created_at: 1760000200
+        }
+        currentRoom.state = 'settled'
+        currentRoom.state_label = '\u5df2\u7ed3\u7b97'
+        currentRoom.gameplay.phase = 'completed'
+        currentRoom.gameplay.phase_label = '\u5df2\u5b8c\u6210'
+        currentRoom.settlement_receipts = [receipt]
+        return { room: currentRoom, recentReceipts: [receipt] }
+      }
+    })
 
     await page.goto('/#/game/online/festival?tab=festival-room')
     await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
@@ -3411,6 +3537,13 @@ test.describe('web game smoke', () => {
     await page.getByTestId('visual-track-action-sync_oar').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-sync_oar')).toHaveCount(0)
+    await page.getByTestId('online-festival-room-settle-submit').click()
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u7ade\u901f\u89c4\u6a21\uff1a\u56db\u8239\u6269\u5c55')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u9f99\u821f\u6210\u7ee9\uff1a\u7b2c 4 \u540d')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u8d5b\u9053\u540d\u6b21\uff1a\u7b2c 1 \u540d \u5317\u6e21\u9f99\u821f')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u8d5b\u821f\u5206 12')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u538b\u529b\u5cf0\u503c')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u670d\u52a1\u7aef\u843d\u8d26\uff1a100 \u94dc\u94b1\u30012 \u5f20\u5956\u5238')
   })
 
   test('online society async board supports bridge contribution actions', async ({ page }) => {
