@@ -2,6 +2,7 @@
 
 最后整理：2026-05-29
 
+- 同居共同仓库高价值人工回执审计复核后端收口：新增 `/compensation-review/operator-receipt-audit` record-only 写链，要求补偿执行审计引用和固定确认文本，可绑定申诉恢复审计；成功后关闭证据包后续动作，不自动还仓、不改个人背包或存档。
 - 同居共同仓库高价值人工申诉恢复前端入口：共同仓库补偿审计证据包面板新增 record-only 申诉恢复表单，提交处理动作、回执、说明、执行审计引用、固定确认文本和幂等键后刷新恢复状态；不自动还仓、不改个人背包或存档。
 - 同居共同仓库高价值人工申诉恢复记录闭环：新增 `/compensation-review/appeal-resolution` record-only 写链，要求人工补偿执行回执和执行审计引用，写 `warehouse_high_value_withdrawal_manual_appeal_resolution_recorded` 审计后收口证据包后续动作；不自动还仓、不改个人背包或存档。
 - 同居共同仓库高价值自动补偿执行器安全阀：自动还仓 / 自动改包 / 自动执行动作会在 `/compensation-review/execute` 写 `warehouse_high_value_withdrawal_auto_compensation_blocked` 审计后 409，重复幂等键不重复写审计，不恢复共同仓库、不改个人背包或存档。

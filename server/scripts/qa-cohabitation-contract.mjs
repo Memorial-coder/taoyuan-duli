@@ -3270,6 +3270,97 @@ assert.ok(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.
 assert.deepEqual(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.appeal_packet.next_supported_actions, ['operator_receipt_audit_review'], 'rare crystal audit bundle should close manual appeal resolution action after record')
 assert.equal(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.appeal_packet.timeline_complete, true, 'rare crystal audit bundle should remain timeline-complete after manual appeal resolution')
 assert.equal(rareCrystalAuditAfterManualAppealResolution.compensation_audit_bundle.asset_boundary.personal_inventory_mutation_enabled, false, 'rare crystal audit bundle should keep personal inventory mutation disabled after manual appeal resolution')
+const rareCrystalOwnerRawBeforeOperatorReceiptAuditReview = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeOperatorReceiptAuditReview = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWarehouseBeforeOperatorReceiptAuditReview = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    audit_action: 'operator_receipt_verified',
+    audit_receipt: 'qa-operator-receipt-audit-review-rare-crystal',
+    audit_note: 'partner without high-value permission cannot review operator receipt audit',
+    confirmation_text: 'CONFIRM_OPERATOR_RECEIPT_AUDIT_REVIEWED',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+    appeal_resolution_idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+    idempotency_key: 'qa-rare-crystal-operator-receipt-audit-denied',
+  }, actor(harvestPartner)),
+  error => error?.status === 403,
+  'rare crystal operator receipt audit review should require owner or high-value warehouse permission'
+)
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    audit_action: 'operator_receipt_verified',
+    audit_receipt: 'qa-operator-receipt-audit-review-rare-crystal',
+    audit_note: 'wrong confirmation should be rejected',
+    confirmation_text: 'wrong confirmation',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+    appeal_resolution_idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+    idempotency_key: 'qa-rare-crystal-operator-receipt-audit-wrong-confirmation',
+  }, actor(harvestOwner)),
+  error => error?.status === 400,
+  'rare crystal operator receipt audit review should require exact confirmation text'
+)
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    audit_action: 'operator_receipt_verified',
+    audit_receipt: 'qa-operator-receipt-audit-review-rare-crystal',
+    audit_note: 'missing execution audit should be rejected',
+    confirmation_text: 'CONFIRM_OPERATOR_RECEIPT_AUDIT_REVIEWED',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution-missing',
+    appeal_resolution_idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+    idempotency_key: 'qa-rare-crystal-operator-receipt-audit-missing-execution',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal operator receipt audit review should require matching execution audit'
+)
+const rareCrystalOperatorReceiptAuditReview = await runtime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  audit_action: 'operator_receipt_verified',
+  audit_receipt: 'qa-operator-receipt-audit-review-rare-crystal',
+  audit_note: 'QA reviews operator receipt and appeal resolution evidence without mutating assets',
+  confirmation_text: 'CONFIRM_OPERATOR_RECEIPT_AUDIT_REVIEWED',
+  execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+  appeal_resolution_idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+  idempotency_key: 'qa-rare-crystal-operator-receipt-audit-review',
+}, actor(harvestOwner))
+assert.equal(rareCrystalOperatorReceiptAuditReview.idempotent, false, 'rare crystal operator receipt audit review should commit once')
+assert.equal(rareCrystalOperatorReceiptAuditReview.draft.compensation_operator_receipt_audit_status, 'recorded', 'rare crystal operator receipt audit review should mark draft recorded')
+assert.equal(rareCrystalOperatorReceiptAuditReview.draft.compensation_operator_receipt_audit_action, 'operator_receipt_verified', 'rare crystal operator receipt audit review should record audit action')
+assert.equal(rareCrystalOperatorReceiptAuditReview.draft.compensation_operator_receipt_audit_record_only, true, 'rare crystal operator receipt audit review should remain record-only')
+assert.equal(rareCrystalOperatorReceiptAuditReview.operator_receipt_audit_review.record_only, true, 'rare crystal operator receipt audit review response should be record-only')
+assert.equal(rareCrystalOperatorReceiptAuditReview.operator_receipt_audit_review.personal_inventory_mutation_enabled, false, 'rare crystal operator receipt audit review should forbid personal inventory mutation')
+assert.equal(rareCrystalOperatorReceiptAuditReview.operator_receipt_audit_review.shared_warehouse_restore_enabled, false, 'rare crystal operator receipt audit review should forbid shared warehouse restore')
+assert.ok(rareCrystalOperatorReceiptAuditReview.operator_receipt_audit_review.required_checks.find(check => check.id === 'record_only_operator_receipt_audit' && check.passed === true), 'rare crystal operator receipt audit review should expose record-only check')
+assert.ok(rareCrystalOperatorReceiptAuditReview.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_operator_receipt_audit_reviewed' && entry.detail?.draft_id === rareCrystalExecuteDraft.draft.id && entry.detail?.record_only === true && entry.detail?.personal_save_changed === false), 'rare crystal operator receipt audit review should write record-only audit')
+assert.equal(rareCrystalOperatorReceiptAuditReview.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeOperatorReceiptAuditReview.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal operator receipt audit review should not restore shared warehouse stock')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeOperatorReceiptAuditReview, 'rare crystal operator receipt audit review should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeOperatorReceiptAuditReview, 'rare crystal operator receipt audit review should not rewrite harvest partner save')
+const duplicateRareCrystalOperatorReceiptAuditReview = await runtime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  audit_action: 'operator_receipt_verified',
+  audit_receipt: 'qa-operator-receipt-audit-review-rare-crystal',
+  audit_note: 'duplicate QA operator receipt audit review',
+  confirmation_text: 'CONFIRM_OPERATOR_RECEIPT_AUDIT_REVIEWED',
+  execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+  appeal_resolution_idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+  idempotency_key: 'qa-rare-crystal-operator-receipt-audit-review',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalOperatorReceiptAuditReview.idempotent, true, 'duplicate rare crystal operator receipt audit review should replay by idempotency key')
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    audit_action: 'operator_receipt_disputed',
+    audit_receipt: 'qa-operator-receipt-audit-review-rare-crystal-second',
+    audit_note: 'second operator receipt audit review should be rejected',
+    confirmation_text: 'CONFIRM_OPERATOR_RECEIPT_AUDIT_REVIEWED',
+    execution_idempotency_key: 'qa-rare-crystal-compensation-execution',
+    appeal_resolution_idempotency_key: 'qa-rare-crystal-manual-appeal-resolution',
+    idempotency_key: 'qa-rare-crystal-operator-receipt-audit-review-second',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal operator receipt audit review should reject a second review with a different idempotency key'
+)
+const rareCrystalAuditAfterOperatorReceiptAuditReview = await runtime.getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, actor(harvestOwner))
+assert.ok(rareCrystalAuditAfterOperatorReceiptAuditReview.compensation_audit_bundle.operator_receipt_audit_reviews.some(entry => entry.idempotency_key === 'qa-rare-crystal-operator-receipt-audit-review'), 'rare crystal audit bundle should include operator receipt audit review')
+assert.deepEqual(rareCrystalAuditAfterOperatorReceiptAuditReview.compensation_audit_bundle.appeal_packet.next_supported_actions, [], 'rare crystal audit bundle should close all appeal actions after operator receipt audit review')
+assert.equal(rareCrystalAuditAfterOperatorReceiptAuditReview.compensation_audit_bundle.appeal_packet.timeline_complete, true, 'rare crystal audit bundle should remain timeline-complete after operator receipt audit review')
+assert.equal(rareCrystalAuditAfterOperatorReceiptAuditReview.compensation_audit_bundle.asset_boundary.shared_warehouse_restore_enabled, false, 'rare crystal audit bundle should keep warehouse restore disabled after operator receipt audit review')
 await assert.rejects(
   () => runtime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
     reason: 'cannot reopen resolved rare crystal compensation review',
