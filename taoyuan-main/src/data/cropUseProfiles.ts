@@ -411,6 +411,166 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'seasonal',
     recommendedUses: ['荔枝干', '岭南鲜果赠礼', '夏日甜品', '脱水果脯', '节会果盘', '果商订单'],
     summary: '夏季岭南果类，适合鲜果食用、脱水荔枝干、甜品果盘、赠礼、节会供品和果商订单。'
+  },
+  {
+    cropId: 'green_bean',
+    tags: ['food', 'pet_feed', 'animal_feed', 'pickle', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['清炒豆角', '豆角焖面', '宠物清脆餐', '家畜蛋白补料', '腌豆角', '夏日小菜订单', '节会素菜'],
+    summary: '跨春夏高频豆荚，适合家常料理、宠物清脆反馈、家畜蛋白补料、腌制小菜、节会素菜和夏日订单。'
+  },
+  {
+    cropId: 'loofah',
+    tags: ['food', 'medicine', 'pet_feed', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['丝瓜汤', '清暑药膳', '灵宠清润餐', '夏日节会清供', '水乡小菜订单'],
+    summary: '清润瓜蔬，适合丝瓜汤、清暑药膳、灵宠清润喂食、夏日节会清供和水乡小菜订单。'
+  },
+  {
+    cropId: 'eggplant',
+    tags: ['food', 'pickle', 'gift', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['酱烧茄子', '茄盒家宴', '酱茄子', '邻里素菜赠礼', '丰收宴备菜', '市集茄菜订单'],
+    summary: '夏季稳定蔬菜，适合酱烧料理、家宴茄盒、酱缸腌制、邻里赠礼、丰收宴备菜和市集订单。'
+  },
+  {
+    cropId: 'yam',
+    tags: ['food', 'alchemy', 'medicine', 'pet_feed', 'gift', 'order'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['山药粥', '温补药膳', '固元山药丹', '灵宠滋养餐', '长辈滋补赠礼', '药膳订单'],
+    summary: '秋季滋补根茎，适合山药粥、温补药膳、固元炼丹辅材、灵宠滋养餐、长辈赠礼和药膳订单。'
+  },
+  {
+    cropId: 'spinach',
+    tags: ['food', 'pet_feed', 'animal_feed', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'mundane',
+    rarityUse: 'daily',
+    recommendedUses: ['菠菜面', '冬菜汤', '宠物青蔬餐', '家畜青饲', '冬日备菜', '早春青菜订单'],
+    summary: '冬季耐寒叶菜，适合面点汤菜、宠物青蔬喂食、家畜青饲、冬日备菜和早春青菜订单。'
+  },
+  {
+    cropId: 'mustard_green',
+    tags: ['food', 'medicine', 'pickle', 'festival', 'order'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['芥菜汤', '腌芥菜', '暖冬腌菜', '节会小菜', '冬储腌菜订单'],
+    summary: '辛香耐寒叶菜，适合汤菜、酱缸腌制、暖冬腌菜、节会小菜和冬储订单。'
+  },
+  {
+    cropId: 'garlic',
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'festival', 'order'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['蒜蓉调味', '蒜香萝卜', '驱寒丹引子', '腌蒜', '龙舟暖菜', '辛香调料订单'],
+    summary: '冬季辛香调料，适合料理增香、腌制、驱寒炼丹引子、龙舟暖菜、节会调料和辛香订单。'
+  },
+  {
+    cropId: 'longan',
+    tags: ['food', 'medicine', 'wine', 'gift', 'festival', 'order'],
+    flavor: ['甜', '鲜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['桂圆甜汤', '龙眼干', '桂圆酒', '滋补赠礼', '年节甜品', '补气果品订单'],
+    summary: '夏季滋补甜果，适合甜汤、晒干果、酿酒、滋补赠礼、年节甜品和补气果品订单。'
+  },
+  {
+    cropId: 'zizania',
+    tags: ['food', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['茭白炒肉', '水乡清供', '清润药膳', '端午备菜', '水乡特产赠礼', '水路商单'],
+    summary: '深水水乡作物，适合茭白炒肉、清润药膳、端午备菜、水乡赠礼和水路商队订单。'
+  },
+  {
+    cropId: 'bitter_gourd',
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'festival', 'order'],
+    flavor: ['苦', '鲜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['苦瓜汤', '凉拌苦瓜', '清暑丹辅材', '腌苦瓜', '夏日清供', '解暑订单'],
+    summary: '苦凉消暑瓜蔬，适合汤菜凉拌、清暑炼丹辅材、腌制、夏日节会清供和解暑订单。'
+  },
+  {
+    cropId: 'chestnut',
+    tags: ['food', 'flour', 'pet_feed', 'gift', 'festival', 'order'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['板栗糕', '栗子粉', '栗香宠物餐', '秋收赠礼', '节会糖炒栗子', '冬储点心订单'],
+    summary: '秋季坚果作物，适合糕点、制粉、栗香宠物餐、秋收赠礼、节会糖炒栗子和冬储点心订单。'
+  },
+  {
+    cropId: 'shepherd_purse',
+    tags: ['food', 'medicine', 'pet_feed', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['荠菜饺', '早春野蔬汤', '灵宠野蔬餐', '春寒药膳', '上巳供品', '早春野菜订单'],
+    summary: '冬末春初野蔬，适合荠菜饺、野蔬汤、灵宠野蔬喂食、春寒药膳、上巳供品和早春订单。'
+  },
+  {
+    cropId: 'snow_mustard',
+    tags: ['food', 'medicine', 'pickle', 'animal_feed', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '鲜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['雪菜面', '雪里蕻腌菜', '冬储酸菜', '家畜冬青料', '年节腌菜', '公共仓腌菜包', '冬储订单'],
+    summary: '耐寒腌菜原料，适合雪菜面、酱缸腌菜、冬储酸菜、家畜青饲、年节腌菜、公共仓腌菜包和冬储订单。'
+  },
+  {
+    cropId: 'winter_bamboo',
+    tags: ['food', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['冬笋汤', '腊味冬笋', '清润药膳', '山野鲜味赠礼', '冬至备菜', '山货订单'],
+    summary: '冬季山货鲜蔬，适合冬笋汤、腊味菜、清润药膳、山野赠礼、冬至备菜和山货订单。'
+  },
+  {
+    cropId: 'cotton',
+    tags: ['gift', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '鲜'],
+    nature: 'neutral',
+    spirituality: 'mundane',
+    rarityUse: 'stable',
+    recommendedUses: ['纺织布匹原料', '亲友棉包赠礼', '节会灯绸', '冬衣订单', '公共仓布料包'],
+    summary: '经济纤维作物，适合纺织原料、亲友棉包赠礼、节会灯绸、冬衣订单和公共仓布料包。'
+  },
+  {
+    cropId: 'mulberry',
+    tags: ['food', 'medicine', 'animal_feed', 'gift', 'festival', 'order'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['桑叶茶', '蚕房饲叶', '清热药饮', '端午香囊叶', '药茶赠礼', '养蚕订单'],
+    summary: '桑蚕与药茶作物，适合桑叶茶、蚕房饲叶、清热药饮、端午香囊叶、药茶赠礼和养蚕订单。'
   }
 ]
 
