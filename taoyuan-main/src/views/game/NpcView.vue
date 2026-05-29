@@ -806,11 +806,21 @@
                 >
                   托旧物
                 </Button>
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :icon="Sparkles"
+                  :disabled="!canRecallRandomNpcArchiveByFestivalReunion(summary)"
+                  :data-testid="`random-npc-archive-festival-reunion-${summary.visitorId}`"
+                  @click="handleRecallRandomNpcArchiveByFestivalReunion(summary.visitorId)"
+                >
+                  节会重逢
+                </Button>
               </div>
+
             </div>
             <p class="text-muted leading-4">{{ summary.summary }}</p>
             <p class="text-[10px] text-muted leading-4 mt-0.5">
-              旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}，仍受本周短访 / 长住名额上限约束。
+              旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}；节会重逢需今日有节会（{{ randomNpcFestivalReunionEventName }}），仍受本周短访 / 长住名额上限约束。
             </p>
           </div>
         </div>
@@ -2249,6 +2259,8 @@
     canRecallRandomNpcArchive(summary) && randomNpcOldLetterCount.value >= randomNpcOldLetterCostQuantity
   const canRecallRandomNpcArchiveByOldKeepsake = (summary: RandomNpcArchiveSummary): boolean =>
     canRecallRandomNpcArchive(summary) && randomNpcOldKeepsakeCount.value >= randomNpcOldKeepsakeCostQuantity
+  const canRecallRandomNpcArchiveByFestivalReunion = (summary: RandomNpcArchiveSummary): boolean =>
+    canRecallRandomNpcArchive(summary) && !!todayEvent.value
   const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
   const canFulfillRandomNpcSmallOrder = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): boolean =>
     order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)
@@ -2333,10 +2345,10 @@
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC召回】${result.message}`)
   }
-
   const handleRecallRandomNpcArchiveByOldLetter = (visitorId: string) => {
     const result = npcStore.recallRandomNpcArchiveByOldLetter(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
+
     addLog(`【随机NPC旧信】${result.message}`)
   }
 
@@ -2344,6 +2356,12 @@
     const result = npcStore.recallRandomNpcArchiveByOldKeepsake(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC旧物】${result.message}`)
+  }
+
+  const handleRecallRandomNpcArchiveByFestivalReunion = (visitorId: string) => {
+    const result = npcStore.recallRandomNpcArchiveByFestivalReunion(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC节会重逢】${result.message}`)
   }
 
   if (import.meta.env.DEV) {
@@ -2536,6 +2554,7 @@
     return '暂时还没有摸清礼物偏好，可以通过对话、纸条、节日和送礼继续记录。'
   })
   const todayEvent = computed(() => getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()) ?? null)
+  const randomNpcFestivalReunionEventName = computed(() => todayEvent.value?.name ?? '无节会')
   const canInteractWithSelectedNpc = computed(() => {
     if (!selectedNpc.value) return false
     if (selectedNpcState.value?.married) return true
