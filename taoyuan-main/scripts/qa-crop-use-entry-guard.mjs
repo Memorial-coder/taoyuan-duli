@@ -1,10 +1,14 @@
+import fs from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { pathToFileURL, fileURLToPath } from 'node:url'
+import { registerHooks } from 'node:module'
+import ts from 'typescript'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '..')
+const srcRoot = path.join(projectRoot, 'src')
 
 const readSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
 
@@ -22,6 +26,100 @@ const assert = (condition, message) => {
 
 const assertIncludes = (source, fragment, message) => {
   assert(source.includes(fragment), message)
+}
+
+const hookState = {
+  registered: false,
+  modulesPromise: null
+}
+
+const tryResolveFile = candidate => {
+  const variants = [
+    candidate,
+    `${candidate}.ts`,
+    `${candidate}.js`,
+    path.join(candidate, 'index.ts'),
+    path.join(candidate, 'index.js')
+  ]
+  for (const item of variants) {
+    try {
+      if (fs.statSync(item).isFile()) return item
+    } catch {}
+  }
+  return null
+}
+
+const installTypeScriptHooks = () => {
+  if (hookState.registered) return
+  registerHooks({
+    resolve(specifier, context, nextResolve) {
+      if (specifier.startsWith('@/')) {
+        const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
+        if (!resolved) throw new Error(`无法解析模块：${specifier}`)
+        return { url: pathToFileURL(resolved).href, shortCircuit: true }
+      }
+
+      if ((specifier.startsWith('./') || specifier.startsWith('../')) && context.parentURL?.startsWith('file:')) {
+        const parentPath = fileURLToPath(context.parentURL)
+        const resolved = tryResolveFile(path.resolve(path.dirname(parentPath), specifier))
+        if (resolved) return { url: pathToFileURL(resolved).href, shortCircuit: true }
+      }
+
+      return nextResolve(specifier, context)
+    },
+    load(url, context, nextLoad) {
+      if (url.startsWith('file:') && /\.(ts|tsx)$/.test(url)) {
+        const filePath = fileURLToPath(url)
+        const source = fs.readFileSync(filePath, 'utf8')
+        const transpiled = ts.transpileModule(source, {
+          compilerOptions: {
+            module: ts.ModuleKind.ESNext,
+            target: ts.ScriptTarget.ES2022,
+            jsx: ts.JsxEmit.Preserve,
+            esModuleInterop: true,
+            allowSyntheticDefaultImports: true
+          },
+          fileName: filePath
+        })
+        return {
+          format: 'module',
+          source: transpiled.outputText,
+          shortCircuit: true
+        }
+      }
+
+      return nextLoad(url, context)
+    }
+  })
+  hookState.registered = true
+}
+
+const loadRuntimeModules = async () => {
+  if (!hookState.modulesPromise) {
+    hookState.modulesPromise = (async () => {
+      installTypeScriptHooks()
+      const cropUseProfilesModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/cropUseProfiles.ts')).href)
+      const itemsModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
+      const itemEncyclopediaModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/itemEncyclopedia.ts')).href)
+
+      return {
+        getCropUseProfile: cropUseProfilesModule.getCropUseProfile,
+        getCropUseTagLabels: cropUseProfilesModule.getCropUseTagLabels,
+        getCropUseTagSearchKeywords: cropUseProfilesModule.getCropUseTagSearchKeywords,
+        getItemById: itemsModule.getItemById,
+        getItemExtraDetails: itemEncyclopediaModule.getItemExtraDetails,
+        getItemSearchKeywords: itemEncyclopediaModule.getItemSearchKeywords
+      }
+    })()
+  }
+
+  return hookState.modulesPromise
+}
+
+const getDetailValue = (details, label) => details.find(detail => detail.label === label)?.value ?? ''
+
+const assertRuntimeIncludes = (values, fragment, message) => {
+  assert(values.some(value => String(value).includes(fragment)), message)
 }
 
 const requiredTags = [
@@ -82,6 +180,115 @@ assertIncludes(itemEncyclopedia, "'炼丹读取用途标签'", '百科搜索必�
 assertIncludes(itemEncyclopedia, "'宠物喂食读取用途标签'", '百科搜索必须保留宠物喂食用途标签入口')
 assertIncludes(itemEncyclopedia, "'订单用途筛选'", '百科搜索必须保留订单用途筛选入口')
 assertIncludes(itemEncyclopedia, "'节会用途筛选'", '百科搜索必须保留节会用途筛选入口')
+
+const {
+  getCropUseProfile,
+  getCropUseTagLabels,
+  getCropUseTagSearchKeywords,
+  getItemById,
+  getItemExtraDetails,
+  getItemSearchKeywords
+} = await loadRuntimeModules()
+
+const cropRuntimeCases = [
+  {
+    cropId: 'chives',
+    tags: ['food', 'medicine', 'festival', 'order'],
+    labels: ['料理', '订单', '节会', '药材'],
+    recommendedUses: ['韭菜炒蛋'],
+    keywordFragments: ['作物用途标签', 'CropUseProfile', '订单用途筛选', '节会用途筛选', 'order 用途标签', 'festival 用途标签'],
+    detailFragments: ['韭菜炒蛋', '料理按用途标签读取：韭菜炒蛋']
+  },
+  {
+    cropId: 'hanhai_cactus',
+    tags: ['food', 'medicine', 'gift', 'festival', 'order'],
+    labels: ['料理', '赠礼', '订单', '节会', '药材'],
+    recommendedUses: ['仙人掌汤'],
+    keywordFragments: ['作物用途标签', 'CropUseProfile', '仙人掌汤', '料理按用途标签读取：仙人掌汤', '订单用途筛选', '节会用途筛选'],
+    detailFragments: ['仙人掌汤', '料理按用途标签读取：仙人掌汤']
+  },
+  {
+    cropId: 'hanhai_date',
+    tags: ['food', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    labels: ['料理', '赠礼', '订单', '节会', '联机消耗', '药材'],
+    recommendedUses: ['枣糕', '公共仓干粮包'],
+    keywordFragments: ['作物用途标签', 'CropUseProfile', '枣糕', '料理按用途标签读取：枣糕', '订单用途筛选', '节会用途筛选', 'online_cost 用途标签'],
+    detailFragments: ['枣糕', '公共仓干粮包', '料理按用途标签读取：枣糕']
+  },
+  {
+    cropId: 'lychee',
+    tags: ['food', 'gift', 'festival', 'order'],
+    labels: ['料理', '赠礼', '订单', '节会'],
+    recommendedUses: ['荔枝干', '岭南鲜果赠礼'],
+    keywordFragments: ['作物用途标签', 'CropUseProfile', '荔枝干', '岭南鲜果赠礼', '订单用途筛选', '节会用途筛选'],
+    detailFragments: ['荔枝干', '岭南鲜果赠礼']
+  },
+  {
+    cropId: 'radish',
+    tags: ['food', 'pet_feed', 'animal_feed', 'alchemy', 'order', 'pickle', 'medicine'],
+    labels: ['料理', '炼丹', '宠物粮', '动物饲料', '订单', '腌制', '药材'],
+    recommendedUses: ['石根护脉丸'],
+    keywordFragments: ['炼丹读取用途标签', '炼丹按用途标签读取：石根护脉丸', '宠物喂食读取用途标签', '灵宠', '订单用途筛选'],
+    detailFragments: ['石根护脉丸', '炼丹按用途标签读取：石根护脉丸']
+  },
+  {
+    cropId: 'tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'gift', 'order', 'medicine'],
+    labels: ['料理', '炼丹', '宠物粮', '赠礼', '订单', '药材'],
+    recommendedUses: ['茶心凝神丹', '灵宠清茶餐'],
+    keywordFragments: ['炼丹读取用途标签', '宠物喂食读取用途标签', '灵宠', '清茶灵叶餐', 'pet_feed 用途标签'],
+    detailFragments: ['茶心凝神丹', '宠物偏好', '灵宠']
+  },
+  {
+    cropId: 'pumpkin',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'festival', 'order'],
+    labels: ['料理', '炼丹', '宠物粮', '动物饲料', '订单', '节会'],
+    recommendedUses: ['南瓜汤', '南瓜聚火丹', '宠物亲密餐'],
+    keywordFragments: ['炼丹读取用途标签', '炼丹按用途标签读取：南瓜聚火丹', '宠物喂食读取用途标签', '动物喂食读取用途标签', '订单用途筛选'],
+    detailFragments: ['南瓜聚火丹', '炼丹按用途标签读取：南瓜聚火丹', '宠物偏好']
+  }
+]
+
+for (const runtimeCase of cropRuntimeCases) {
+  const profile = getCropUseProfile(runtimeCase.cropId)
+  assert(!!profile, `运行态缺少 ${runtimeCase.cropId} CropUseProfile`)
+  if (!profile) continue
+
+  const item = getItemById(runtimeCase.cropId)
+  assert(item?.category === 'crop', `运行态 ${runtimeCase.cropId} 必须能作为作物物品进入百科`)
+  if (!item) continue
+
+  for (const tag of runtimeCase.tags) {
+    assert(profile.tags.includes(tag), `运行态 ${runtimeCase.cropId} 缺少用途标签 ${tag}`)
+  }
+
+  for (const recommendedUse of runtimeCase.recommendedUses) {
+    assert(profile.recommendedUses.includes(recommendedUse), `运行态 ${runtimeCase.cropId} 推荐用途缺少 ${recommendedUse}`)
+  }
+
+  const tagLabels = getCropUseTagLabels(profile)
+  for (const label of runtimeCase.labels) {
+    assert(tagLabels.includes(label), `运行态 ${runtimeCase.cropId} 标签中文名缺少 ${label}`)
+  }
+
+  const tagSearchKeywords = getCropUseTagSearchKeywords(profile.tags)
+  for (const tag of runtimeCase.tags) {
+    assertRuntimeIncludes(tagSearchKeywords, tag, `运行态 ${runtimeCase.cropId} 标签搜索关键词缺少 ${tag}`)
+  }
+
+  const extraDetails = getItemExtraDetails(item)
+  assert(getDetailValue(extraDetails, '用途标签').length > 0, `运行态 ${runtimeCase.cropId} 百科详情缺少用途标签`)
+  assert(getDetailValue(extraDetails, '推荐用途').length > 0, `运行态 ${runtimeCase.cropId} 百科详情缺少推荐用途`)
+  const detailValues = extraDetails.flatMap(detail => [detail.label, detail.value])
+  for (const fragment of runtimeCase.detailFragments) {
+    assertRuntimeIncludes(detailValues, fragment, `运行态 ${runtimeCase.cropId} 百科详情缺少 ${fragment}`)
+  }
+
+  const searchKeywords = getItemSearchKeywords(item)
+  for (const fragment of runtimeCase.keywordFragments) {
+    assertRuntimeIncludes(searchKeywords, fragment, `运行态 ${runtimeCase.cropId} 百科搜索缺少 ${fragment}`)
+  }
+}
 
 if (errors.length > 0) {
   console.error('[qa-crop-use-entry-guard] FAILED')
