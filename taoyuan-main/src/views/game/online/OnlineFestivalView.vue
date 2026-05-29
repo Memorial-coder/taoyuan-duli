@@ -1116,6 +1116,9 @@
                         <p class="mt-1 text-[10px] leading-4 text-muted">
                           {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
                         </p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-expedition-cavern-withdrawal-locked-combos">
+                          {{ cavernWithdrawalLockedComboLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
+                        </p>
                         <p class="mt-1 text-[10px] leading-4 text-muted">
                           {{ cavernWithdrawalActorLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                         </p>
@@ -1809,7 +1812,19 @@
     const actor = replay.withdrawal_actor_display_name || replay.withdrawal_actor_username || '撤离确认人未记录'
     const time = formatActivityTimestamp(replay.withdrawal_at)
     const summary = replay.withdrawal_summary || '撤离点已确认。'
-    return [summary, time ? `${actor} · ${time}` : actor].filter(Boolean).join(' · ')
+    const lockedComboText = routeReplayWithdrawalLockedComboLabel(replay)
+    return [summary, lockedComboText, time ? `${actor} · ${time}` : actor].filter(Boolean).join(' · ')
+  }
+  const formatLockedComboIds = (comboIds: string[] = []) => comboIds.length > 0 ? comboIds.join('、') : '无新增组合'
+  const cavernWithdrawalLockedComboLabel = (cavernState: ExpeditionCavernStateSnapshot) => {
+    const count = cavernState.withdrawal_locked_combo_count || cavernState.withdrawal_locked_combo_ids.length || 0
+    return `锁定组合 ${count} 条：${formatLockedComboIds(cavernState.withdrawal_locked_combo_ids)}`
+  }
+  const routeReplayWithdrawalLockedComboLabel = (replay: ActivityRouteReplay) => {
+    if (!hasRouteReplay(replay) || replay.kind !== 'expedition_cavern' || !('withdrawal_locked_combo_ids' in replay)) return ''
+    const comboIds = replay.withdrawal_locked_combo_ids || []
+    const count = replay.withdrawal_locked_combo_count || comboIds.length || 0
+    return `锁定组合 ${count} 条：${formatLockedComboIds(comboIds)}`
   }
   const routeReplayPeakLabel = (replay?: ActivityRouteReplay | null) =>
     replay?.kind === 'dragon_boat' || replay?.kind === 'lantern_fair' ? '压力峰值' : '风险峰值'

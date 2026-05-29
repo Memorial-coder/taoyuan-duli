@@ -299,6 +299,20 @@ export interface FestivalRoomRouteReplay {
   race_result: FestivalRoomRouteReplayRaceResult
   race_rankings: FestivalRoomRouteReplayRaceRanking[]
   memory_records: FestivalRoomRouteReplayMemoryRecord[]
+  combo_records?: Array<{
+    combo_id: string
+    label: string
+    score_delta: number
+    risk_delta: number
+    resource_delta_text: string
+  }>
+  withdrawal_state?: string
+  withdrawal_summary?: string
+  withdrawal_locked_combo_ids?: string[]
+  withdrawal_locked_combo_count?: number
+  withdrawal_actor_username?: string
+  withdrawal_actor_display_name?: string
+  withdrawal_at?: number
 }
 
 export interface FestivalRoomReceiptPreview {

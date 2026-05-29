@@ -256,6 +256,9 @@
                   <p class="mt-1 text-[10px] leading-4 text-muted">
                     {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
                   </p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="expedition-cavern-withdrawal-locked-combos">
+                    {{ cavernWithdrawalLockedComboLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
+                  </p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">
                     {{ cavernWithdrawalActorLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                   </p>
@@ -432,7 +435,7 @@
                 </p>
               </div>
               <p v-if="receipt.route_replay.withdrawal_state === 'confirmed'" data-testid="expedition-cavern-receipt-withdrawal" class="mt-2 text-[10px] text-muted leading-4">
-                提前收尾：{{ receipt.route_replay.withdrawal_summary || '撤离点已确认。' }} · {{ routeReplayWithdrawalActorLabel(receipt.route_replay) }}
+                提前收尾：{{ receipt.route_replay.withdrawal_summary || '撤离点已确认。' }} · {{ routeReplayWithdrawalLockedComboLabel(receipt.route_replay) }} · {{ routeReplayWithdrawalActorLabel(receipt.route_replay) }}
               </p>
             </div>
           </div>
@@ -794,7 +797,7 @@
       const parts = [
         routeReplay.summary || routeReplay.title,
         routeReplay.combo_records.length > 0 ? `组合收益 ${routeReplay.combo_records.length} 条` : '',
-        routeReplay.withdrawal_state === 'confirmed' ? `提前撤离 · ${routeReplay.withdrawal_summary || routeReplayWithdrawalActorLabel(routeReplay)}` : '',
+        routeReplay.withdrawal_state === 'confirmed' ? `提前撤离 · ${routeReplay.withdrawal_summary || routeReplayWithdrawalActorLabel(routeReplay)} · ${routeReplayWithdrawalLockedComboLabel(routeReplay)}` : '',
         routeReplay.risk_peak?.summary ? `风险峰值：${routeReplay.risk_peak.summary}` : '',
       ].filter(Boolean)
       return parts.join('；')
@@ -823,6 +826,18 @@
     const actor = cavernState.withdrawal_actor_display_name || cavernState.withdrawal_actor_username || '撤离确认人未记录'
     const time = formatExpeditionTime(cavernState.withdrawal_at)
     return time ? `${actor} · ${time}` : actor
+  }
+
+  const formatLockedComboIds = (comboIds: string[] = []) => comboIds.length > 0 ? comboIds.join('、') : '无新增组合'
+
+  const cavernWithdrawalLockedComboLabel = (cavernState: NonNullable<typeof expeditionRoomStore.myRoom>['gameplay']['cavern_state']) => {
+    const count = cavernState?.withdrawal_locked_combo_count || cavernState?.withdrawal_locked_combo_ids?.length || 0
+    return `锁定组合 ${count} 条：${formatLockedComboIds(cavernState?.withdrawal_locked_combo_ids || [])}`
+  }
+
+  const routeReplayWithdrawalLockedComboLabel = (routeReplay: NonNullable<typeof expeditionRoomStore.myRoom>['settlement_receipts'][number]['route_replay']) => {
+    const count = routeReplay.withdrawal_locked_combo_count || routeReplay.withdrawal_locked_combo_ids.length || 0
+    return `锁定组合 ${count} 条：${formatLockedComboIds(routeReplay.withdrawal_locked_combo_ids)}`
   }
 
   const routeReplayWithdrawalActorLabel = (routeReplay: NonNullable<typeof expeditionRoomStore.myRoom>['settlement_receipts'][number]['route_replay']) => {

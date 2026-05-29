@@ -171,6 +171,8 @@ export interface ExpeditionCavernStateSnapshot {
   combo_records: ExpeditionCavernComboRecordSnapshot[]
   withdrawal_state: string
   withdrawal_summary: string
+  withdrawal_locked_combo_ids: string[]
+  withdrawal_locked_combo_count: number
   withdrawal_actor_username: string
   withdrawal_actor_display_name: string
   withdrawal_at: number
@@ -325,6 +327,8 @@ export interface ExpeditionRoomRouteReplay {
   combo_records: ExpeditionCavernComboRecordSnapshot[]
   withdrawal_state: string
   withdrawal_summary: string
+  withdrawal_locked_combo_ids: string[]
+  withdrawal_locked_combo_count: number
   withdrawal_actor_username: string
   withdrawal_actor_display_name: string
   withdrawal_at: number

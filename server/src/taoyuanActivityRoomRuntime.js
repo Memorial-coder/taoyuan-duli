@@ -1769,6 +1769,8 @@ function normalizeReceiptRouteReplay(value) {
       combo_records: [],
       withdrawal_state: '',
       withdrawal_summary: '',
+      withdrawal_locked_combo_ids: [],
+      withdrawal_locked_combo_count: 0,
       withdrawal_actor_username: '',
       withdrawal_actor_display_name: '',
       withdrawal_at: 0,
@@ -1814,6 +1816,17 @@ function normalizeReceiptRouteReplay(value) {
       : [],
     withdrawal_state: sanitizeText(source.withdrawal_state, 24),
     withdrawal_summary: sanitizeText(source.withdrawal_summary, 180),
+    withdrawal_locked_combo_ids: normalizeExpeditionCavernLockedComboIds(
+      source.withdrawal_locked_combo_ids,
+      source.withdrawal_state === 'confirmed' ? source.combo_records : [],
+    ),
+    withdrawal_locked_combo_count: Math.max(
+      normalizeExpeditionCavernLockedComboIds(
+        source.withdrawal_locked_combo_ids,
+        source.withdrawal_state === 'confirmed' ? source.combo_records : [],
+      ).length,
+      Math.floor(Number(source.withdrawal_locked_combo_count) || 0),
+    ),
     withdrawal_actor_username: sanitizeText(source.withdrawal_actor_username, 40),
     withdrawal_actor_display_name: sanitizeText(source.withdrawal_actor_display_name, 40),
     withdrawal_at: Math.max(0, Math.floor(Number(source.withdrawal_at) || 0)),
@@ -2294,12 +2307,31 @@ function normalizeExpeditionCavernComboRecord(entry) {
   };
 }
 
+function normalizeExpeditionCavernLockedComboIds(value, fallbackComboRecords = []) {
+  const ids = Array.isArray(value)
+    ? value.map(item => sanitizeText(item, 60)).filter(Boolean)
+    : [];
+  if (ids.length > 0) return [...new Set(ids)].slice(0, 12);
+  return Array.isArray(fallbackComboRecords)
+    ? fallbackComboRecords.map(entry => sanitizeText(entry?.combo_id, 60)).filter(Boolean).slice(0, 12)
+    : [];
+}
+
 function normalizeExpeditionCavernState(value) {
   const initial = createInitialExpeditionCavernState();
   const source = value && typeof value === 'object' ? value : {};
   const roundNumber = Math.max(1, Math.floor(Number(source.round_number) || initial.round_number));
   const event = EXPEDITION_CAVERN_ROUND_EVENTS.find(item => item.id === sanitizeText(source.current_event_id, 40))
     || getExpeditionCavernEventByRound(roundNumber);
+  const comboRecords = Array.isArray(source.combo_records)
+    ? source.combo_records.map(normalizeExpeditionCavernComboRecord).filter(Boolean).slice(0, 12)
+    : [];
+  const fallbackLockedComboIds = source.withdrawal_state === 'confirmed' ? comboRecords : [];
+  const withdrawalLockedComboIds = normalizeExpeditionCavernLockedComboIds(source.withdrawal_locked_combo_ids, fallbackLockedComboIds);
+  const withdrawalLockedComboCount = Math.max(
+    withdrawalLockedComboIds.length,
+    Math.floor(Number(source.withdrawal_locked_combo_count) || 0),
+  );
   return {
     round_number: roundNumber,
     current_event_id: event.id,
@@ -2312,11 +2344,11 @@ function normalizeExpeditionCavernState(value) {
     round_actions: Array.isArray(source.round_actions)
       ? source.round_actions.map(normalizeExpeditionCavernRoundAction).filter(item => item.actor_username && item.action_id)
       : [],
-    combo_records: Array.isArray(source.combo_records)
-      ? source.combo_records.map(normalizeExpeditionCavernComboRecord).filter(Boolean).slice(0, 12)
-      : [],
+    combo_records: comboRecords,
     withdrawal_state: sanitizeText(source.withdrawal_state, 24),
     withdrawal_summary: sanitizeText(source.withdrawal_summary, 180),
+    withdrawal_locked_combo_ids: withdrawalLockedComboIds,
+    withdrawal_locked_combo_count: withdrawalLockedComboCount,
     withdrawal_actor_username: sanitizeText(source.withdrawal_actor_username, 40),
     withdrawal_actor_display_name: sanitizeText(source.withdrawal_actor_display_name, 40),
     withdrawal_at: Math.max(0, Math.floor(Number(source.withdrawal_at) || 0)),
@@ -3930,6 +3962,8 @@ function buildExpeditionCavernRouteReplay(room) {
     combo_records: cavernState.combo_records,
     withdrawal_state: cavernState.withdrawal_state,
     withdrawal_summary: cavernState.withdrawal_summary,
+    withdrawal_locked_combo_ids: cavernState.withdrawal_locked_combo_ids,
+    withdrawal_locked_combo_count: cavernState.withdrawal_locked_combo_count,
     withdrawal_actor_username: cavernState.withdrawal_actor_username,
     withdrawal_actor_display_name: cavernState.withdrawal_actor_display_name,
     withdrawal_at: cavernState.withdrawal_at,
@@ -4402,8 +4436,12 @@ function applyExpeditionCavernWithdrawal(room, cavernState, actor, actionOption,
   }
   applyExpeditionCavernResourceDelta(cavernState, baseResourceDelta);
   const comboRecords = applyExpeditionCavernNodeCombos(room, cavernState, actor);
-  const lockedComboCount = Math.max(comboRecords.length, Array.isArray(cavernState.combo_records) ? cavernState.combo_records.length : 0);
+  const lockedComboRecords = Array.isArray(cavernState.combo_records) ? cavernState.combo_records.slice(0, 12) : [];
+  const lockedComboIds = lockedComboRecords.map(entry => sanitizeText(entry?.combo_id, 60)).filter(Boolean);
+  const lockedComboCount = lockedComboIds.length;
   cavernState.withdrawal_state = 'confirmed';
+  cavernState.withdrawal_locked_combo_ids = lockedComboIds;
+  cavernState.withdrawal_locked_combo_count = lockedComboCount;
   cavernState.withdrawal_actor_username = sanitizeText(actor.username, 40);
   cavernState.withdrawal_actor_display_name = sanitizeText(actor.displayName || actor.username, 40);
   cavernState.withdrawal_at = nowSeconds();
@@ -4792,6 +4830,8 @@ function buildExpeditionCavernSnapshot(room, viewerMember, gameplayState) {
     })),
     withdrawal_state: cavernState.withdrawal_state,
     withdrawal_summary: cavernState.withdrawal_summary,
+    withdrawal_locked_combo_ids: cavernState.withdrawal_locked_combo_ids,
+    withdrawal_locked_combo_count: cavernState.withdrawal_locked_combo_count,
     withdrawal_actor_username: cavernState.withdrawal_actor_username,
     withdrawal_actor_display_name: cavernState.withdrawal_actor_display_name,
     withdrawal_at: cavernState.withdrawal_at,
