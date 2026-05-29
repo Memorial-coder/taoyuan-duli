@@ -3,6 +3,7 @@
   "version": "2.6.0",
   "private": true,
   "description": "桃源乡独立版后端",
+  "license": "CC-BY-NC-4.0",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

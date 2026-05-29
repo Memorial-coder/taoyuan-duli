@@ -31,6 +31,7 @@
   },
   "description": "一款文字版田园模拟经营游戏，灵感来自星露谷物语",
   "author": "setube",
+  "license": "CC-BY-NC-4.0",
   "dependencies": {
     "@capacitor/android": "^8.1.0",
     "@capacitor/app": "^8.0.1",
