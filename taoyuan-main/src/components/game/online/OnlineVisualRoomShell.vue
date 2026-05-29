@@ -106,6 +106,25 @@
       </p>
     </div>
 
+    <div
+      class="grid gap-1 border border-accent/10 bg-bg/10 p-2 sm:hidden"
+      data-testid="online-visual-room-mobile-readback"
+      role="list"
+      aria-label="移动端房间读回"
+    >
+      <p class="text-[10px] text-accent">移动端读回</p>
+      <div
+        v-for="row in mobileReadbackRows"
+        :key="row.id"
+        class="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2 border border-accent/10 px-2 py-1 text-[10px] leading-4"
+        :data-testid="`online-visual-room-mobile-readback-${row.id}`"
+        role="listitem"
+      >
+        <span class="text-muted">{{ row.label }}</span>
+        <span class="min-w-0 whitespace-normal break-words" :class="row.valueClass">{{ row.value }}</span>
+      </div>
+    </div>
+
     <div class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <div class="border border-accent/10 bg-bg/10 p-2" data-testid="online-visual-room-members">
         <div class="flex items-center justify-between gap-2">
@@ -279,6 +298,58 @@
   const fallbackEntryStatus = computed(() =>
     props.fallbackEntryVisible ? '旧入口当前可见' : '主可视化入口优先'
   )
+
+  const mobileFeedbackLabel = computed(() => {
+    if (props.actionFeedback) return props.actionFeedback
+    if (props.conflictMessage) return props.conflictMessage
+    if (connectionLabel.value) return connectionLabel.value
+    if (props.stateReason) return props.stateReason
+    if (props.errorMessages.length > 0) return props.errorMessages[0]
+    if (props.permissionHints.length > 0) return props.permissionHints[0]
+    return '暂无新的行动反馈'
+  })
+
+  const mobileReplayLabel = computed(() => {
+    const firstRecord = props.settlementRecords[0]
+    if (firstRecord) {
+      return `${props.settlementRecords.length} 条 · ${firstRecord.replayLabel || firstRecord.summary || firstRecord.targetLabel}`
+    }
+    if (props.rewardPreview.length > 0) return `奖励预览 ${props.rewardPreview.length} 项`
+    return '结算后会显示服务端回看凭证'
+  })
+
+  const mobileReadbackRows = computed(() => [
+    {
+      id: 'status',
+      label: '状态',
+      value: props.phaseLabel ? `${props.statusLabel || '未载入'} · ${props.phaseLabel}` : (props.statusLabel || '未载入'),
+      valueClass: 'text-accent',
+    },
+    {
+      id: 'entry',
+      label: '入口',
+      value: props.visualContentLabel,
+      valueClass: 'text-muted',
+    },
+    {
+      id: 'fallback',
+      label: '旧入口',
+      value: `${fallbackEntryStatus.value} · ${props.fallbackEntryLabel}`,
+      valueClass: props.fallbackEntryVisible ? 'text-warning' : 'text-muted',
+    },
+    {
+      id: 'feedback',
+      label: '反馈',
+      value: mobileFeedbackLabel.value,
+      valueClass: props.actionFeedback ? 'text-success' : props.conflictMessage || props.errorMessages.length > 0 ? 'text-danger' : 'text-muted',
+    },
+    {
+      id: 'replay',
+      label: '回看',
+      value: mobileReplayLabel.value,
+      valueClass: props.settlementRecords.length > 0 ? 'text-success' : 'text-muted',
+    },
+  ])
 
   const screenReaderSummary = computed(() => {
     const parts = [`${props.title}，状态 ${props.statusLabel || '未载入'}`]
