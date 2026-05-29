@@ -211,6 +211,86 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'stable',
     recommendedUses: ['辛火丹', '泡椒', '料理增味', '驱虫药', '龙舟热血餐', '暖身小菜订单'],
     summary: '辛热型功能作物，适合料理提味、泡椒腌制、炼丹、驱虫药、热闹节会餐和暖身小菜订单。'
+  },
+  {
+    cropId: 'cabbage',
+    tags: ['food', 'pickle', 'animal_feed', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'mundane',
+    rarityUse: 'daily',
+    recommendedUses: ['炒青菜', '蔬菜汤', '酸菜', '干菜米粉汤', '家畜青饲', '修桥慰劳饭', '公共仓热饭'],
+    summary: '基础叶菜消耗口，适合家常料理、腌制干菜、家畜青饲、修桥慰劳饭、公共仓热饭和日常订单。'
+  },
+  {
+    cropId: 'potato',
+    tags: ['food', 'alchemy', 'animal_feed', 'order'],
+    flavor: ['甜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['矿工便当', '炒土豆', '石根护脉丸辅材', '矿工订单', '家畜饱腹补料', '山路干粮'],
+    summary: '耐饱根茎作物，适合矿工料理、护脉丹辅材、饱腹型家畜补料、行旅干粮和矿工订单。'
+  },
+  {
+    cropId: 'watermelon',
+    tags: ['food', 'wine', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['消暑鲜果', '西瓜酒', '丰收宴拼盘', '夏日解暑订单', '节会冰镇果盘', '公共仓消暑备料'],
+    summary: '盛夏清凉果类，适合消暑料理、酿酒、丰收宴席、节会果盘、公共仓解暑备料和夏日订单。'
+  },
+  {
+    cropId: 'lotus_root',
+    tags: ['food', 'alchemy', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['桂花糯米藕', '清心莲丹辅材', '药膳汤底', '夏日清供', '药师订单', '清凉赠礼'],
+    summary: '深水清凉作物，适合药膳料理、清心莲丹辅材、节会清供、清凉赠礼和药师订单。'
+  },
+  {
+    cropId: 'rapeseed',
+    tags: ['oil', 'food', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['菜籽油', '菜油春笋米粉卷', '油菜花蜜', '春日伴手礼', '节会备油', '公共仓油料订单'],
+    summary: '春季油料作物，适合榨油、料理增香、蜂箱花蜜、节会备油、公共仓油料订单和春日赠礼。'
+  },
+  {
+    cropId: 'corn',
+    tags: ['food', 'flour', 'wine', 'animal_feed', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['玉米饼', '玉米粉', '玉米酒', '精饲料', '秋收订单', '公共仓粗粮包'],
+    summary: '跨季粗粮作物，适合料理、制粉、酿酒、精饲料、秋收订单和公共仓粗粮消耗。'
+  },
+  {
+    cropId: 'ginger',
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'festival', 'order'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['姜汤', '清蒸鱼佐料', '温阳薯丸引子', '腌姜', '冬日暖身订单', '节会暖饮'],
+    summary: '温热辛香作物，适合姜汤、鱼料理、温阳薯丸引子、腌姜、冬日暖身订单和节会暖饮。'
+  },
+  {
+    cropId: 'winter_wheat',
+    tags: ['food', 'flour', 'animal_feed', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['小麦粉', '冬麦面点', '鱼麦便当', '冬季家畜料', '年节面食', '公共仓面粉包'],
+    summary: '耐寒主粮作物，适合制粉、冬季料理、家畜补料、年节面食、订单交付和公共仓面粉包。'
   }
 ]
 
