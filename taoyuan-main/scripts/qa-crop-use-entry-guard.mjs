@@ -99,10 +99,12 @@ const loadRuntimeModules = async () => {
     hookState.modulesPromise = (async () => {
       installTypeScriptHooks()
       const cropUseProfilesModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/cropUseProfiles.ts')).href)
+      const cropsModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/crops.ts')).href)
       const itemsModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
       const itemEncyclopediaModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/itemEncyclopedia.ts')).href)
 
       return {
+        CROPS: cropsModule.CROPS,
         getCropUseProfile: cropUseProfilesModule.getCropUseProfile,
         getCropUseTagLabels: cropUseProfilesModule.getCropUseTagLabels,
         getCropUseTagSearchKeywords: cropUseProfilesModule.getCropUseTagSearchKeywords,
@@ -183,6 +185,7 @@ assertIncludes(itemEncyclopedia, "'订单用途筛选'", '百科搜索必须保�
 assertIncludes(itemEncyclopedia, "'节会用途筛选'", '百科搜索必须保留节会用途筛选入口')
 
 const {
+  CROPS,
   getCropUseProfile,
   getCropUseTagLabels,
   getCropUseTagSearchKeywords,
@@ -382,6 +385,25 @@ for (const runtimeCase of publicWarehouseRuntimeCases) {
   for (const fragment of runtimeCase.keywordFragments) {
     assertRuntimeIncludes(searchKeywords, fragment, `运行态 ${runtimeCase.cropId} 公共仓搜索缺少 ${fragment}`)
   }
+}
+
+for (const crop of CROPS) {
+  const profile = getCropUseProfile(crop.id)
+  if (!profile?.tags.includes('online_cost')) continue
+
+  const item = getItemById(crop.id)
+  assert(item?.category === 'crop', `运行态 ${crop.id} online_cost 作物必须能作为物品进入百科`)
+  if (!item) continue
+
+  const usedInEntries = getItemUsedIn(item.id)
+  assertRuntimeIncludes(usedInEntries, '村社公共仓', `运行态 ${crop.id} online_cost 作物缺少公共仓可用于入口`)
+  assertRuntimeIncludes(usedInEntries, crop.name, `运行态 ${crop.id} online_cost 公共仓入口缺少作物名 ${crop.name}`)
+
+  const searchKeywords = getItemSearchKeywords(item)
+  assertRuntimeIncludes(searchKeywords, '联机消耗', `运行态 ${crop.id} online_cost 作物搜索缺少联机消耗`)
+  assertRuntimeIncludes(searchKeywords, '公共仓消耗', `运行态 ${crop.id} online_cost 作物搜索缺少公共仓消耗`)
+  assertRuntimeIncludes(searchKeywords, '公共订单', `运行态 ${crop.id} online_cost 作物搜索缺少公共订单`)
+  assertRuntimeIncludes(searchKeywords, 'online_cost 用途标签', `运行态 ${crop.id} online_cost 作物搜索缺少 online_cost 用途标签`)
 }
 
 if (errors.length > 0) {

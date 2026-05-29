@@ -201,6 +201,23 @@ const PUBLIC_WAREHOUSE_USES: Record<string, string[]> = {
   ]
 }
 
+const getPublicWarehouseUses = (itemId: string): string[] => {
+  const explicitUses = PUBLIC_WAREHOUSE_USES[itemId] ?? []
+  const profile = getCropUseProfile(itemId)
+  if (!profile?.tags.includes('online_cost')) return explicitUses
+
+  const crop = getCropById(itemId)
+  const cropName = crop?.name ?? getItemName(itemId)
+  const publicRecommendedUses = profile.recommendedUses.filter(use => use.includes('公共') || use.includes('订单') || use.includes('节会')).slice(0, 4)
+  const useText = publicRecommendedUses.length > 0 ? publicRecommendedUses.join('、') : '公共仓备料、公共订单'
+
+  return uniqueStrings([
+    ...explicitUses,
+    `村社公共仓：${cropName}入仓，可用于${useText}`,
+    `公共订单：${cropName}可作为公共仓消耗备料，不扣个人背包`
+  ])
+}
+
 const ANIMAL_FEED_USES: Record<string, string[]> = {
   rice: ['动物饲料：稻米可作为家畜补料，适合公共仓或牧场日常消耗'],
   sweet_potato: ['动物饲料：红薯可作为家畜越冬料，偏饱腹和耐储'],
@@ -425,7 +442,7 @@ export const getItemUsedIn = (itemId: string): string[] => {
     return `${machine?.name ?? recipe.machineType}：${recipe.name} → ${getItemName(recipe.outputItemId)}`
   })
   const cookingUses = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId)).map(recipe => `料理：${recipe.name}`)
-  const publicWarehouseUses = PUBLIC_WAREHOUSE_USES[itemId] ?? []
+  const publicWarehouseUses = getPublicWarehouseUses(itemId)
   const animalFeedUses = ANIMAL_FEED_USES[itemId] ?? []
   const manorCareUses = MANOR_CARE_USES[itemId] ?? []
 
@@ -676,7 +693,7 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
   if (animalFeedKeywords.length > 0) {
     keywords.push('动物饲料', '家畜饲料', '牧场补料', ...animalFeedKeywords)
   }
-  const publicWarehouseKeywords = PUBLIC_WAREHOUSE_USES[item.id] ?? []
+  const publicWarehouseKeywords = getPublicWarehouseUses(item.id)
   if (publicWarehouseKeywords.length > 0) {
     keywords.push('联机消耗', '公共仓消耗', '公共订单', ...publicWarehouseKeywords)
   }
