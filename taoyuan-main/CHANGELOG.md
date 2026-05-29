@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0529 作物用途入口静态 QA
+- 新增 `qa:crop-use-entry-guard`，检查全量用途标签映射、筛选提示、搜索关键词和 `CropUseProfile` 导出保持可用。
+- 静态守护背包用途筛选、库存用途建议、作物详情推荐用途和百科搜索关键词继续读取同一用途档案；本轮不改料理 / 丹炉同类材料自动替换。
+
 ### 0529 协作矿洞提前撤离锁定证据
 - `expedition_cavern` 提前撤离会把已锁定的节点组合收益写成 `withdrawal_locked_combo_ids / withdrawal_locked_combo_count`，并随 `cavern_state` 与结算 `route_replay` 读回。
 - 远征独立页、在线节会远征 tab 和统一房间壳会展示锁定组合 ID 与数量；专项 QA / 静态 QA 守护该字段，不改奖励 payload、个人落账或结算幂等键。
