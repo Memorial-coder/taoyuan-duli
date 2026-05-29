@@ -622,6 +622,18 @@ export interface CohabitationWarehouseHighValueWithdrawalDraft {
   compensation_appeal_resolution_recorded_by_username?: string
   compensation_appeal_resolution_recorded_at?: number
   compensation_appeal_resolution_record_only?: boolean
+  compensation_operator_receipt_audit_status?: string
+  compensation_operator_receipt_audit_action?: string
+  compensation_operator_receipt_audit_receipt?: string
+  compensation_operator_receipt_audit_note?: string
+  compensation_operator_receipt_audit_execution_idempotency_key?: string
+  compensation_operator_receipt_audit_execution_audit_id?: string
+  compensation_operator_receipt_audit_appeal_resolution_idempotency_key?: string
+  compensation_operator_receipt_audit_appeal_resolution_audit_id?: string
+  compensation_operator_receipt_audit_idempotency_key?: string
+  compensation_operator_receipt_audit_recorded_by_username?: string
+  compensation_operator_receipt_audit_recorded_at?: number
+  compensation_operator_receipt_audit_record_only?: boolean
   created_at: number
   executed_at: number
   rolled_back_at: number
@@ -646,6 +658,7 @@ export interface CohabitationWarehouseCompensationAuditBundle {
   preflight_audits: CohabitationAuditEntry[]
   execution_audits: CohabitationAuditEntry[]
   appeal_resolution_audits?: CohabitationAuditEntry[]
+  operator_receipt_audit_reviews?: CohabitationAuditEntry[]
   appeal_packet: {
     enabled: boolean
     record_only: boolean
@@ -728,6 +741,38 @@ export interface CohabitationWarehouseManualAppealResolution {
   execution_audit_id: string
   execution_idempotency_key: string
   execution_failed_checks: string[]
+  target_save: Record<string, unknown>
+  required_checks: Array<Record<string, unknown>>
+  failed_checks: string[]
+  auto_compensation_enabled: boolean
+  record_only: boolean
+  personal_save_changed: boolean
+  shared_warehouse_changed: boolean
+  personal_inventory_mutation_enabled: boolean
+  shared_warehouse_restore_enabled: boolean
+  recorded_by_username: string
+  recorded_at: number
+  policy?: Record<string, unknown>
+}
+
+export interface CohabitationWarehouseOperatorReceiptAuditReview {
+  draft_id: string
+  item_id: string
+  quality: string
+  quantity: number
+  risk_level: string
+  audit_action: string
+  audit_receipt: string
+  audit_note?: string
+  compensation_execution_status: string
+  compensation_execution_action: string
+  execution_audit_id: string
+  execution_idempotency_key: string
+  execution_failed_checks: string[]
+  appeal_resolution_status?: string
+  appeal_resolution_action?: string
+  appeal_resolution_audit_id?: string
+  appeal_resolution_idempotency_key?: string
   target_save: Record<string, unknown>
   required_checks: Array<Record<string, unknown>>
   failed_checks: string[]
@@ -1997,6 +2042,18 @@ export interface CohabitationWarehouseManualAppealResolutionPayload {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseOperatorReceiptAuditReviewPayload {
+  audit_action: 'operator_receipt_verified' | 'operator_receipt_disputed' | 'audit_only' | string
+  audit_receipt: string
+  audit_note: string
+  confirmation_text: string
+  execution_idempotency_key?: string
+  execution_audit_id?: string
+  appeal_resolution_idempotency_key?: string
+  appeal_resolution_audit_id?: string
+  idempotency_key: string
+}
+
 export interface CohabitationWarehouseGovernanceRecoveryPayload {
   target_username?: string
   direction: 'inbound' | 'outbound' | 'all'
@@ -2179,6 +2236,13 @@ export interface CohabitationWarehouseManualAppealResolutionResponse extends Coh
   warehouse?: CohabitationWarehouseSnapshot
   draft?: CohabitationWarehouseHighValueWithdrawalDraft
   manual_appeal_resolution?: CohabitationWarehouseManualAppealResolution
+  idempotent?: boolean
+}
+
+export interface CohabitationWarehouseOperatorReceiptAuditReviewResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  draft?: CohabitationWarehouseHighValueWithdrawalDraft
+  operator_receipt_audit_review?: CohabitationWarehouseOperatorReceiptAuditReview
   idempotent?: boolean
 }
 
@@ -2963,6 +3027,14 @@ export const recordCohabitationWarehouseHighValueWithdrawalManualAppealResolutio
     contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/appeal-resolution`),
     payload as unknown as Record<string, unknown>,
     '记录共同仓库高价值取出人工申诉恢复失败'
+  )
+}
+
+export const recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview = async (contractId: string, draftId: string, payload: CohabitationWarehouseOperatorReceiptAuditReviewPayload) => {
+  return postCohabitationJson<CohabitationWarehouseOperatorReceiptAuditReviewResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/operator-receipt-audit`),
+    payload as unknown as Record<string, unknown>,
+    '记录共同仓库高价值取出操作回执审计复核失败'
   )
 }
 

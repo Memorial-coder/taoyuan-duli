@@ -51,6 +51,7 @@ import {
   recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
   recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight,
   recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution,
+  recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview,
   recoverCohabitationWarehouseGovernance,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
@@ -120,6 +121,7 @@ import {
   type CohabitationWarehouseCompensationExecutionPayload,
   type CohabitationWarehouseCompensationPreflightPayload,
   type CohabitationWarehouseManualAppealResolutionPayload,
+  type CohabitationWarehouseOperatorReceiptAuditReviewPayload,
   type CohabitationWarehouseGovernanceRecoveryPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
@@ -1526,6 +1528,23 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const recordWarehouseHighValueWithdrawalOperatorReceiptAuditReview = async (draftId: string, payload: CohabitationWarehouseOperatorReceiptAuditReviewPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(activeContractId.value, draftId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值取出操作回执审计复核失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const recoverWarehouseGovernance = async (payload: CohabitationWarehouseGovernanceRecoveryPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value) return null
     actionLoading.value = true
@@ -1858,6 +1877,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     recordWarehouseHighValueWithdrawalCompensationPreflight,
     recordWarehouseHighValueWithdrawalCompensationExecution,
     recordWarehouseHighValueWithdrawalManualAppealResolution,
+    recordWarehouseHighValueWithdrawalOperatorReceiptAuditReview,
     waterSharedFarmPlot,
     careSharedFarmPlot,
     plantSharedFarmPlot,

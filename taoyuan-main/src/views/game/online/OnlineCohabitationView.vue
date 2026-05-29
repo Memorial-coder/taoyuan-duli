@@ -1134,6 +1134,62 @@
                   记录申诉恢复
                 </button>
               </div>
+              <p
+                v-if="warehouseOperatorReceiptAuditAlreadyRecorded"
+                class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] leading-4 text-emerald-100"
+                data-testid="online-cohabitation-warehouse-operator-receipt-audit-recorded"
+              >
+                操作回执审计复核已记录：{{ warehouseOperatorReceiptAuditActionLabel(String(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_recorded_at'] || 0)) }} · record-only
+              </p>
+              <div
+                v-if="warehouseOperatorReceiptAuditVisible"
+                class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2"
+                data-testid="online-cohabitation-warehouse-operator-receipt-audit-form"
+              >
+                <p class="text-[10px] leading-4 text-muted">操作回执审计复核只登记人工核验结论，引用补偿执行审计和可选申诉恢复审计，不改个人存档或共同仓库。</p>
+                <select
+                  v-model="warehouseOperatorReceiptAuditAction"
+                  class="online-select text-xs"
+                  data-testid="online-cohabitation-warehouse-operator-receipt-audit-action"
+                >
+                  <option value="operator_receipt_verified">回执已核验</option>
+                  <option value="operator_receipt_disputed">回执存在争议</option>
+                  <option value="audit_only">仅审计归档</option>
+                </select>
+                <input
+                  v-model.trim="warehouseOperatorReceiptAuditReceipt"
+                  class="online-input text-xs"
+                  maxlength="80"
+                  placeholder="操作回执审计编号"
+                  data-testid="online-cohabitation-warehouse-operator-receipt-audit-receipt"
+                />
+                <input
+                  v-model.trim="warehouseOperatorReceiptAuditNote"
+                  class="online-input text-xs"
+                  maxlength="120"
+                  placeholder="复核说明"
+                  data-testid="online-cohabitation-warehouse-operator-receipt-audit-note"
+                />
+                <label class="flex items-center gap-2 text-[10px] text-muted">
+                  <input
+                    v-model="warehouseOperatorReceiptAuditConfirmed"
+                    class="online-input size-3 accent-[var(--ty-accent)]"
+                    type="checkbox"
+                    data-testid="online-cohabitation-warehouse-operator-receipt-audit-confirm"
+                  />
+                  确认只登记操作回执审计复核，保持个人存档与共同仓库不变
+                </label>
+                <button
+                  type="button"
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  :disabled="!canRecordHighValueWarehouseOperatorReceiptAuditReview || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-warehouse-operator-receipt-audit-submit"
+                  @click="recordHighValueWarehouseOperatorReceiptAuditReview"
+                >
+                  <ShieldCheck :size="12" />
+                  记录回执审计
+                </button>
+              </div>
             </div>
           </div>
           <div class="game-panel-muted p-3">
@@ -2744,6 +2800,10 @@
   const warehouseManualAppealResolutionReceipt = ref('')
   const warehouseManualAppealResolutionNote = ref('')
   const warehouseManualAppealResolutionConfirmed = ref(false)
+  const warehouseOperatorReceiptAuditAction = ref('operator_receipt_verified')
+  const warehouseOperatorReceiptAuditReceipt = ref('')
+  const warehouseOperatorReceiptAuditNote = ref('')
+  const warehouseOperatorReceiptAuditConfirmed = ref(false)
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
   const activeSharedMapRegionIndex = ref(0)
@@ -3193,6 +3253,7 @@
       { label: '复核审计', value: bundle.review_audits.length },
       { label: '预检审计', value: bundle.preflight_audits.length },
       { label: '执行审计', value: bundle.execution_audits.length },
+      { label: '回执复核', value: bundle.operator_receipt_audit_reviews?.length ?? 0 },
     ]
   })
   const warehouseCompensationAuditAssetRows = computed(() => {
@@ -3223,7 +3284,16 @@
       warehouse_high_value_withdrawal_compensation_preflight_recorded: '补偿预检记录',
       warehouse_high_value_withdrawal_compensation_execution_recorded: '人工补偿回执',
       warehouse_high_value_withdrawal_manual_appeal_resolution_recorded: '人工申诉恢复',
+      warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
+    }
+    return labels[action] || action
+  }
+  const warehouseOperatorReceiptAuditActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      operator_receipt_verified: '回执已核验',
+      operator_receipt_disputed: '回执存在争议',
+      audit_only: '仅审计归档',
     }
     return labels[action] || action
   }
@@ -3317,8 +3387,15 @@
   const warehouseManualAppealResolutionAlreadyRecorded = computed(() =>
     String(warehouseCompensationAuditDraft.value['compensation_appeal_resolution_status'] || '') === 'recorded'
   )
+  const warehouseOperatorReceiptAuditAlreadyRecorded = computed(() =>
+    String(warehouseCompensationAuditDraft.value['compensation_operator_receipt_audit_status'] || '') === 'recorded'
+  )
   const warehouseCompensationExecutionAudit = computed(() => {
     const audits = warehouseCompensationAuditBundle.value?.execution_audits ?? []
+    return audits[0] ?? null
+  })
+  const warehouseManualAppealResolutionAudit = computed(() => {
+    const audits = warehouseCompensationAuditBundle.value?.appeal_resolution_audits ?? []
     return audits[0] ?? null
   })
   const warehouseManualAppealResolutionVisible = computed(() => {
@@ -3326,6 +3403,14 @@
     return warehouseCompensationExecutionAlreadyRecorded.value === true &&
       warehouseManualAppealResolutionAlreadyRecorded.value === false &&
       nextActions.includes('manual_appeal_resolution')
+  })
+  const warehouseOperatorReceiptAuditVisible = computed(() => {
+    const nextActions = warehouseCompensationAuditBundle.value?.appeal_packet.next_supported_actions ?? []
+    return warehouseCompensationExecutionAlreadyRecorded.value === true &&
+      warehouseOperatorReceiptAuditAlreadyRecorded.value === false &&
+      Boolean(warehouseCompensationExecutionAudit.value?.idempotency_key || warehouseCompensationExecutionAudit.value?.id) &&
+      (!warehouseManualAppealResolutionAlreadyRecorded.value || Boolean(warehouseManualAppealResolutionAudit.value?.idempotency_key || warehouseManualAppealResolutionAudit.value?.id)) &&
+      nextActions.includes('operator_receipt_audit_review')
   })
   const canRecordHighValueWarehouseCompensationExecution = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -3345,6 +3430,14 @@
     warehouseManualAppealResolutionConfirmed.value === true &&
     warehouseManualAppealResolutionReceipt.value.trim().length >= 4 &&
     warehouseManualAppealResolutionNote.value.trim().length >= 4
+  )
+  const canRecordHighValueWarehouseOperatorReceiptAuditReview = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    Boolean(warehouseCompensationAuditBundle.value?.draft_id) &&
+    warehouseOperatorReceiptAuditVisible.value === true &&
+    warehouseOperatorReceiptAuditConfirmed.value === true &&
+    warehouseOperatorReceiptAuditReceipt.value.trim().length >= 4 &&
+    warehouseOperatorReceiptAuditNote.value.trim().length >= 4
   )
   const warehouseGovernance = computed(() => cohabitationStore.warehouse?.governance ?? null)
   const warehouseGovernanceBlocking = computed(() => warehouseGovernance.value?.blocking ?? null)
@@ -4864,6 +4957,10 @@
     warehouseManualAppealResolutionReceipt.value = draft.compensation_appeal_resolution_receipt || ''
     warehouseManualAppealResolutionNote.value = draft.compensation_appeal_resolution_note || ''
     warehouseManualAppealResolutionConfirmed.value = false
+    warehouseOperatorReceiptAuditAction.value = draft.compensation_operator_receipt_audit_action || 'operator_receipt_verified'
+    warehouseOperatorReceiptAuditReceipt.value = draft.compensation_operator_receipt_audit_receipt || ''
+    warehouseOperatorReceiptAuditNote.value = draft.compensation_operator_receipt_audit_note || ''
+    warehouseOperatorReceiptAuditConfirmed.value = false
     try {
       const result = await cohabitationStore.fetchWarehouseHighValueWithdrawalCompensationAuditBundle(draft.id)
       const bundle = result?.compensation_audit_bundle
@@ -4943,6 +5040,48 @@
       warehouseActionMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值人工申诉恢复失败'
     } finally {
       warehouseManualAppealResolutionConfirmed.value = false
+    }
+  }
+
+  const recordHighValueWarehouseOperatorReceiptAuditReview = async () => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    const bundle = warehouseCompensationAuditBundle.value
+    const executionAudit = warehouseCompensationExecutionAudit.value
+    const appealResolutionAudit = warehouseManualAppealResolutionAudit.value
+    if (!bundle?.draft_id || !executionAudit) {
+      warehouseActionMessage.value = '请先读取包含执行回执审计的补偿审计证据包'
+      return
+    }
+    if (warehouseManualAppealResolutionAlreadyRecorded.value && !appealResolutionAudit) {
+      warehouseActionMessage.value = '人工申诉恢复已记录，请先读取包含申诉恢复审计的证据包'
+      return
+    }
+    if (!canRecordHighValueWarehouseOperatorReceiptAuditReview.value) {
+      warehouseActionMessage.value = '请确认补偿回执已记录、回执审计仍可复核，并填写审计编号与复核说明'
+      return
+    }
+    try {
+      const result = await cohabitationStore.recordWarehouseHighValueWithdrawalOperatorReceiptAuditReview(bundle.draft_id, {
+        audit_action: warehouseOperatorReceiptAuditAction.value,
+        audit_receipt: warehouseOperatorReceiptAuditReceipt.value.trim(),
+        audit_note: warehouseOperatorReceiptAuditNote.value.trim(),
+        confirmation_text: 'CONFIRM_OPERATOR_RECEIPT_AUDIT_REVIEWED',
+        execution_idempotency_key: executionAudit.idempotency_key || undefined,
+        execution_audit_id: executionAudit.id || undefined,
+        appeal_resolution_idempotency_key: appealResolutionAudit?.idempotency_key || undefined,
+        appeal_resolution_audit_id: appealResolutionAudit?.id || undefined,
+        idempotency_key: `ui-warehouse-operator-receipt-audit-${bundle.draft_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseActionMessage.value = result?.operator_receipt_audit_review?.record_only
+        ? '已记录操作回执审计复核，个人存档与共同仓库保持不变'
+        : '已提交操作回执审计复核'
+      await cohabitationStore.fetchWarehouseHighValueWithdrawalCompensationAuditBundle(bundle.draft_id)
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值操作回执审计复核失败'
+    } finally {
+      warehouseOperatorReceiptAuditConfirmed.value = false
     }
   }
 
@@ -6074,6 +6213,8 @@
       warehouse_high_value_withdrawal_compensation_review_resolved: '补偿复核处理',
       warehouse_high_value_withdrawal_compensation_preflight_recorded: '补偿预检记录',
       warehouse_high_value_withdrawal_compensation_execution_recorded: '人工补偿回执',
+      warehouse_high_value_withdrawal_manual_appeal_resolution_recorded: '人工申诉恢复',
+      warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
       fund_contributed: '共同基金注资',
       fund_spent: '共同基金支出',
