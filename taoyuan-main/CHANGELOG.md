@@ -4,6 +4,9 @@
 
 ## [未发布]
 
+### 0529 在线中心可视化开关安全收尾读回
+- 可视化功能开关卡片新增“收尾 / 缺失”只读说明，直接读回 `activeRoomClosePolicy` 与 `missingConfigFallback`，让玩家在入口层看到已开房继续收尾、旧入口保留和配置缺失保守降级口径。
+- `qa:online-visual-feature-flags` 追加在线中心 UI 读回守护；本轮不新增奖励、不改活动房间结算。
 ### 0529 节庆筹备完工自动开房
 - `festival_square` 完工后服务端会以完成人为房主自动创建 `lantern_fair / assembly` 节庆广场开幕灯会房间，并把 `completion_room_launch.status=created`、`room_id`、创建者和时间写回公共工程。
 - 自动创建的房间会邀请同村社成员；创建失败时只记录 `create_failed / failure_reason` 并保留手动入口，仍不发个人资产奖励。

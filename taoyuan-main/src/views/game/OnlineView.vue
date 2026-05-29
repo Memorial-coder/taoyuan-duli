@@ -131,6 +131,16 @@
             <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-feature-flag-fallback">
               {{ featureFlag.fallbackLabel }}
             </p>
+            <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+              <div data-testid="online-visual-feature-flag-safe-close">
+                <dt class="text-accent">收尾</dt>
+                <dd>{{ featureFlag.activeRoomClosePolicy }}</dd>
+              </div>
+              <div data-testid="online-visual-feature-flag-missing-config">
+                <dt class="text-accent">缺失</dt>
+                <dd>{{ featureFlag.missingConfigFallback }}</dd>
+              </div>
+            </dl>
             <RouterLink
               class="mt-2 inline-flex text-[10px] leading-4 text-accent hover:text-highlight"
               :to="{ name: featureFlag.fallbackRouteName }"

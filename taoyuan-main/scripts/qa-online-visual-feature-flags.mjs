@@ -10,6 +10,7 @@ const featureFlagSource = await readFile(
   path.join(appRoot, 'src', 'data', 'onlineVisualFeatureFlags.ts'),
   'utf8',
 )
+const onlineViewSource = await readFile(path.join(appRoot, 'src', 'views', 'game', 'OnlineView.vue'), 'utf8')
 const packageJson = JSON.parse(await readFile(path.join(appRoot, 'package.json'), 'utf8'))
 
 const requiredFlagKeys = [
@@ -71,6 +72,22 @@ assert.ok(
 assert.ok(
   featureFlagSource.includes('state[key] !== true'),
   'feature enable check should require explicit true',
+)
+assert.ok(
+  onlineViewSource.includes('online-visual-feature-flag-safe-close'),
+  'online center should display active-room safe close policy',
+)
+assert.ok(
+  onlineViewSource.includes('featureFlag.activeRoomClosePolicy'),
+  'online center should read the safe close policy from flag config',
+)
+assert.ok(
+  onlineViewSource.includes('online-visual-feature-flag-missing-config'),
+  'online center should display missing-config fallback policy',
+)
+assert.ok(
+  onlineViewSource.includes('featureFlag.missingConfigFallback'),
+  'online center should read missing-config fallback from flag config',
 )
 assert.equal(
   packageJson.scripts['qa:online-visual-feature-flags'],
