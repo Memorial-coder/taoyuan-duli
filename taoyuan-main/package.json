@@ -24,6 +24,7 @@
     "qa:mailbox-account-reset": "node scripts/qa-mailbox-account-reset.mjs",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",
+    "qa:random-npc-save-guard": "node scripts/qa-random-npc-save-guard.mjs",
     "qa:late-game": "npm run qa:late-game-samples && npm run type-check && npm run lint",
     "check": "npm run type-check && npm run lint",
     "build:electron": "npm run build:inner && esbuild electron/main.js --bundle --platform=node --format=esm --outfile=dist-electron/main.js --external:electron && esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=dist-electron/preload.js --external:electron && electron-builder",
