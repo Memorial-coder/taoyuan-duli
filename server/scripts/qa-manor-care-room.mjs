@@ -106,12 +106,29 @@ const seedSave = username => {
   saveRuntime.setActiveSaveSlot(username, 0)
 }
 
+const getGameplayData = username => {
+  const slots = saveRuntime.loadUserSaveSlots(username)
+  const decrypted = saveRuntime.decryptTaoyuanRaw(slots.slots[0]?.raw || '')
+  return decrypted?.data && decrypted.data.player ? decrypted.data : decrypted?.gameplayData
+}
+
+const getOwnerManorSaveSnapshot = () => {
+  const data = getGameplayData(owner) || {}
+  return JSON.stringify({
+    farm: data.farm || {},
+    animal: data.animal || {},
+    fishPond: data.fishPond || {},
+    decoration: data.decoration || {},
+  })
+}
+
 await db.registerUser(owner, 'SmokePass_0526', '护理主人')
 await db.registerUser(visitor, 'SmokePass_0526', '护理访客')
 await db.registerUser(overflowVisitor, 'SmokePass_0526', '满员访客')
 seedSave(owner)
 seedSave(visitor)
 seedSave(overflowVisitor)
+const ownerManorSaveBeforeCareRoom = getOwnerManorSaveSnapshot()
 
 await runtime.updateManorAccessPolicy(owner, {
   visit_mode: 'public',
@@ -127,6 +144,7 @@ assert.equal(created.room.member_limit, 2, 'care room should clamp and persist m
 assert.equal(created.room.participants.length, 1, 'creator should become first participant')
 assert.equal(created.snapshot.care_room_state.active_rooms.length, 1, 'snapshot should expose active care room')
 assert.equal(created.snapshot.care_room_state.limits.min_members, 2, 'snapshot should expose min member limit')
+assert.equal(getOwnerManorSaveSnapshot(), ownerManorSaveBeforeCareRoom, 'care room creation should not mutate owner manor save data')
 
 await assert.rejects(
   () => runtime.submitManorCareRoomAction(created.room.id, { action_id: 'room_irrigate' }, actor(owner)),
@@ -137,6 +155,7 @@ await assert.rejects(
 const joined = await runtime.joinManorCareRoom(created.room.id, actor(visitor))
 assert.equal(joined.room.participants.length, 2, 'visitor should join care room')
 assert.equal(joined.room.status, 'in_progress', 'care room should enter progress after two members')
+assert.equal(getOwnerManorSaveSnapshot(), ownerManorSaveBeforeCareRoom, 'joining care room should not mutate owner manor save data')
 
 await assert.rejects(
   () => runtime.joinManorCareRoom(created.room.id, actor(overflowVisitor)),
@@ -149,12 +168,14 @@ const outOfOrder = await runtime.submitManorCareRoomAction(joined.room.id, {
 }, actor(visitor))
 assert.equal(outOfOrder.action.order_risk, true, 'out-of-order room care action should record risk')
 assert.ok(outOfOrder.action.risk_delta > 0, 'out-of-order action should add risk')
+assert.equal(getOwnerManorSaveSnapshot(), ownerManorSaveBeforeCareRoom, 'out-of-order care room action should not mutate owner manor save data')
 
 const irrigated = await runtime.submitManorCareRoomAction(joined.room.id, {
   action_id: 'room_irrigate',
 }, actor(owner))
 assert.equal(irrigated.action.order_risk, false, 'missing first step can still be recovered without extra risk')
 assert.equal(irrigated.room.available_action_ids.includes('room_feed'), false, 'completed care room action should not remain available')
+assert.equal(getOwnerManorSaveSnapshot(), ownerManorSaveBeforeCareRoom, 'care room action should not mutate owner manor save data')
 
 const settled = await runtime.settleManorCareRoom(joined.room.id, {}, actor(owner))
 assert.equal(settled.room.status, 'completed', 'care room should settle to completed')
@@ -162,9 +183,11 @@ assert.ok(settled.room.health_score > 0, 'care room settlement should produce he
 assert.ok(settled.room.settlement_receipt_id, 'care room settlement should expose receipt id')
 assert.equal(settled.snapshot.care_room_records[0]?.id, settled.room.id, 'snapshot should expose care room record')
 assert.equal(settled.snapshot.visitor_activity_entries[0]?.kind, 'care_room', 'visitor activity audit should include care room record')
+assert.equal(getOwnerManorSaveSnapshot(), ownerManorSaveBeforeCareRoom, 'care room settlement should not mutate owner manor save data')
 
 const duplicateSettle = await runtime.settleManorCareRoom(joined.room.id, {}, actor(owner))
 assert.equal(duplicateSettle.idempotent, true, 'completed care room settlement should be idempotent')
 assert.equal(duplicateSettle.room.settlement_receipt_id, settled.room.settlement_receipt_id, 'duplicate settlement should keep receipt id')
+assert.equal(getOwnerManorSaveSnapshot(), ownerManorSaveBeforeCareRoom, 'duplicate care room settlement should keep owner manor save data unchanged')
 
 console.log('[qa-manor-care-room] OK')
