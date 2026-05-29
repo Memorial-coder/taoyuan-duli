@@ -295,6 +295,22 @@ const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
     .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 }
 
+const mutateGameplaySave = (username, mutate) => {
+  const saves = saveRuntime.loadUserSaveSlots(username)
+  const slot = 0
+  const current = saves.slots[slot]
+  assert.ok(current?.raw, `${username} should have slot ${slot} save before mutation`)
+  const container = saveRuntime.normalizeGameplaySaveContainer(saveRuntime.decryptTaoyuanRaw(current.raw))
+  assert.ok(container?.gameplayData, `${username} save should decrypt before mutation`)
+  mutate(container.gameplayData)
+  saves.slots[slot] = {
+    ...current,
+    raw: saveRuntime.encryptTaoyuanData(saveRuntime.serializeGameplaySaveContainer(container)),
+    revision: Math.max(0, Number(current.revision) || 0) + 1,
+  }
+  saveRuntime.saveUserSaveSlots(username, saves)
+}
+
 const injectSharedWarehouseDepositLedger = async (contractId, {
   itemId,
   quantity,
@@ -693,10 +709,13 @@ assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBefo
 const sharedPetsInitial = await runtime.getCohabitationSharedPets(created.contract.id, actor(owner))
 assert.equal(sharedPetsInitial.shared_pets.persisted, true, 'shared pet snapshot should be persisted on contract')
 assert.equal(sharedPetsInitial.shared_pets.summary.pet_care_write_enabled, true, 'shared pet snapshot should expose care writes')
+assert.deepEqual(sharedPetsInitial.shared_pets.summary.supported_care_item_ids, ['premium_feed', 'nourishing_feed', 'vitality_feed', 'sesame_patrol_biscuit', 'lotus_heart_cat_treat', 'spirit_fruit_mooncake'], 'shared pet snapshot should expose supported care item catalog')
 const qaSharedPet = sharedPetsInitial.shared_pets.pets.find(pet => pet.source_pet_id === 'qa_cat_1')
 assert.ok(qaSharedPet, 'shared pet snapshot should expose owner cat')
 assert.equal(qaSharedPet.origin_owner_username, owner, 'shared pet should keep origin owner username')
 assert.equal(qaSharedPet.pet_state.care_count, 0, 'shared pet should start without care count')
+const qaOfflineSharedPet = sharedPetsInitial.shared_pets.pets.find(pet => pet.id !== qaSharedPet.id)
+assert.ok(qaOfflineSharedPet, 'shared pet snapshot should expose a second pet for offline queue daily care coverage')
 
 const ownerVitalityFeedBeforeDeposit = getInventoryItemQuantity(owner, 'vitality_feed')
 assert.equal(ownerVitalityFeedBeforeDeposit, 2, 'owner seed save should include vitality_feed before shared pet care deposit')
@@ -731,6 +750,16 @@ await assert.rejects(
 assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity, 1, 'permission-denied shared pet care should not consume vitality feed')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedPetCare, 'permission-denied shared pet care should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedPetCare, 'permission-denied shared pet care should not rewrite partner save')
+await assert.rejects(
+  () => runtime.careCohabitationSharedPet(created.contract.id, {
+    pet_id: qaSharedPet.id,
+    care_item_id: 'tea',
+    idempotency_key: 'qa-shared-pet-care-unsupported-item',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'shared pet care should reject items outside the shared care catalog'
+)
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity, 1, 'unsupported shared pet care item should not consume existing vitality feed')
 
 const sharedPetCareResult = await runtime.careCohabitationSharedPet(created.contract.id, {
   pet_id: qaSharedPet.id,
@@ -741,14 +770,27 @@ const sharedPetCareResult = await runtime.careCohabitationSharedPet(created.cont
 assert.equal(sharedPetCareResult.idempotent, false, 'first shared pet care should not be idempotent')
 assert.equal(sharedPetCareResult.pet.pet_state.care_count, 1, 'shared pet care should increment contract pet care count')
 assert.equal(sharedPetCareResult.pet.pet_state.last_care_item_id, 'vitality_feed', 'shared pet care should record care item')
+assert.equal(sharedPetCareResult.pet.pet_state.last_care_item_label, '活力饲料', 'shared pet care should record care item label')
+assert.equal(sharedPetCareResult.pet.pet_state.last_care_item_effect, 'vitality_care', 'shared pet care should record care item effect')
 assert.equal(sharedPetCareResult.pet.pet_state.last_caregiver_username, owner, 'shared pet care should record caregiver')
+assert.equal(sharedPetCareResult.pet.pet_state.last_care_day_key, `save:${qaSharedPet.origin_save_id}:slot:0:y1:sspring:d12`, 'shared pet care should record actor game-day key')
 assert.equal(sharedPetCareResult.pet.pet_state.friendship, 23, 'shared pet care should increase contract pet friendship')
-assert.equal(sharedPetCareResult.pet.pet_state.mood, 38, 'shared pet care should increase contract pet mood')
+assert.equal(sharedPetCareResult.pet.pet_state.mood, 40, 'shared pet care should increase contract pet mood with simultaneous online bonus')
+assert.equal(sharedPetCareResult.pet.pet_state.cooperation_mood_bonus, 2, 'shared pet care should record simultaneous online mood bonus')
+assert.equal(sharedPetCareResult.pet.pet_state.last_cooperation_bonus_action, 'shared_pet_care', 'shared pet care should record cooperation action')
+assert.ok(sharedPetCareResult.pet.pet_state.last_cooperation_bonus_members.includes(owner), 'shared pet care should include owner in cooperation members')
+assert.ok(sharedPetCareResult.pet.pet_state.last_cooperation_bonus_members.includes(partner), 'shared pet care should include partner in cooperation members')
 assert.equal(sharedPetCareResult.pet.current_caregiver_username, owner, 'shared pet care should record current caregiver')
 assert.equal(sharedPetCareResult.warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 0, 'shared pet care should consume one vitality_feed from shared warehouse')
 assert.equal(sharedPetCareResult.ledger_entry.action, 'care', 'shared pet ledger should record care action')
 assert.equal(sharedPetCareResult.ledger_entry.care_item_id, 'vitality_feed', 'shared pet ledger should keep care item id')
+assert.equal(sharedPetCareResult.ledger_entry.care_item_profile.friendship_gain, 3, 'shared pet ledger should keep care item friendship gain')
+assert.equal(sharedPetCareResult.ledger_entry.care_item_profile.mood_gain, 8, 'shared pet ledger should keep care item mood gain')
+assert.equal(sharedPetCareResult.ledger_entry.care_day_key, sharedPetCareResult.pet.pet_state.last_care_day_key, 'shared pet ledger should keep care day key')
 assert.equal(sharedPetCareResult.ledger_entry.shared_warehouse_changed, true, 'shared pet ledger should declare shared warehouse consumption')
+assert.equal(sharedPetCareResult.ledger_entry.simultaneous_online_bonus.applied, true, 'shared pet ledger should record simultaneous online bonus')
+assert.equal(sharedPetCareResult.ledger_entry.simultaneous_online_bonus.bonus_value, 2, 'shared pet ledger should record pet mood bonus value')
+assert.equal(sharedPetCareResult.ledger_entry.simultaneous_online_bonus.type, 'shared_pet_care_mood', 'shared pet ledger should classify pet care cooperation')
 assert.equal(sharedPetCareResult.warehouse_ledger_entries.length, 1, 'shared pet care should create one warehouse consume ledger')
 assert.equal(sharedPetCareResult.warehouse_ledger_entries[0].action, 'consume', 'shared pet care should consume vitality feed through warehouse ledger')
 assert.ok(sharedPetCareResult.warehouse_ledger_entries[0].source_ledger_ids.includes(vitalityFeedDepositResult.ledger_entry.id), 'shared pet care consume ledger should reference vitality feed deposit ledger')
@@ -757,9 +799,10 @@ assert.equal(sharedPetCareResult.shared_pets.summary.cared_count, 1, 'shared pet
 assert.equal(sharedPetCareResult.shared_pets.summary.shared_pet_ledger_count, 1, 'shared pet care should refresh pet ledger summary')
 assert.ok(sharedPetCareResult.contract.origin_assets.pets.some(item => item.id === sharedPetCareResult.pet.id && item.pet_state?.care_count === 1), 'origin assets should refresh cared pet state')
 assert.ok(sharedPetCareResult.contract.origin_assets.warehouse_items.some(item => item.ledger_id === sharedPetCareResult.warehouse_ledger_entries[0].id && item.action === 'consume'), 'origin assets should reference pet care consume ledger')
-assert.ok(sharedPetCareResult.contract.audit_log.find(entry => entry.action === 'shared_pet_cared'), 'shared pet care should be audited')
+assert.ok(sharedPetCareResult.contract.audit_log.find(entry => entry.action === 'shared_pet_cared' && entry.detail?.simultaneous_online_bonus?.applied === true), 'shared pet care should audit simultaneous online bonus')
 assert.equal(sharedPetCareResult.pet_action.personal_save_changed, false, 'shared pet care should not mutate personal saves after feed deposit')
 assert.equal(sharedPetCareResult.pet_action.shared_warehouse_changed, true, 'shared pet care should declare vitality feed warehouse consumption')
+assert.equal(sharedPetCareResult.pet_action.simultaneous_online_bonus.applied, true, 'shared pet action should expose simultaneous online bonus')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedPetCare, 'shared pet care should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedPetCare, 'shared pet care should not rewrite partner save')
 
@@ -771,6 +814,285 @@ const duplicateSharedPetCare = await runtime.careCohabitationSharedPet(created.c
 assert.equal(duplicateSharedPetCare.idempotent, true, 'same shared pet care idempotency key should be idempotent')
 assert.equal(duplicateSharedPetCare.warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 0, 'idempotent shared pet care should not consume vitality_feed twice')
 assert.equal(duplicateSharedPetCare.shared_pets.summary.shared_pet_ledger_count, sharedPetCareResult.shared_pets.summary.shared_pet_ledger_count, 'idempotent shared pet care should not duplicate pet ledger rows')
+
+await runtime.depositCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'vitality_feed',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-vitality-feed-for-same-day-pet-care-replay',
+}, actor(owner))
+const sameDaySharedPetCareReplay = await runtime.careCohabitationSharedPet(created.contract.id, {
+  pet_id: qaSharedPet.id,
+  care_item_id: 'vitality_feed',
+  idempotency_key: 'qa-shared-pet-care-cat-same-game-day-replay',
+}, actor(owner))
+assert.equal(sameDaySharedPetCareReplay.idempotent, true, 'same game-day shared pet care should replay existing care')
+assert.equal(sameDaySharedPetCareReplay.already_cared, true, 'same game-day shared pet care should be reported as already cared')
+assert.equal(sameDaySharedPetCareReplay.pet_action.daily_replay, true, 'same game-day shared pet care should expose daily replay marker')
+assert.equal(sameDaySharedPetCareReplay.pet_action.shared_warehouse_changed, false, 'same game-day shared pet care should not consume shared warehouse again')
+assert.equal(sameDaySharedPetCareReplay.ledger_entry.id, sharedPetCareResult.ledger_entry.id, 'same game-day shared pet care should return original ledger entry')
+assert.equal(sameDaySharedPetCareReplay.pet.pet_state.care_count, 1, 'same game-day shared pet care should not increment care count')
+assert.equal(sameDaySharedPetCareReplay.warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 1, 'same game-day shared pet care should keep newly deposited vitality feed')
+assert.equal(sameDaySharedPetCareReplay.shared_pets.summary.shared_pet_ledger_count, sharedPetCareResult.shared_pets.summary.shared_pet_ledger_count, 'same game-day shared pet care should not duplicate pet ledger rows')
+assert.ok(sameDaySharedPetCareReplay.contract.audit_log.find(entry => entry.action === 'shared_pet_care_daily_replayed' && entry.detail?.care_day_key === sharedPetCareResult.ledger_entry.care_day_key), 'same game-day shared pet care replay should be audited')
+
+await injectSharedWarehouseDepositLedger(created.contract.id, {
+  itemId: 'premium_feed',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: owner,
+  ledgerId: 'qa-warehouse-premium-feed-for-cross-day-pet-care-ledger',
+  idempotencyKey: 'qa-warehouse-premium-feed-for-cross-day-pet-care',
+  sourceSaveId: qaSharedPet.origin_save_id,
+})
+mutateGameplaySave(owner, gameplayData => {
+  gameplayData.game = {
+    ...(gameplayData.game || {}),
+    year: 1,
+    season: 'spring',
+    day: 13,
+  }
+})
+const ownerRawBeforeCrossDaySharedPetCare = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeCrossDaySharedPetCare = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const crossDaySharedPetCare = await runtime.careCohabitationSharedPet(created.contract.id, {
+  pet_id: qaSharedPet.id,
+  care_item_id: 'premium_feed',
+  memo: 'qa shared pet care cross day premium feed',
+  idempotency_key: 'qa-shared-pet-care-cat-cross-game-day-premium-feed',
+}, actor(owner))
+assert.equal(crossDaySharedPetCare.idempotent, false, 'next game-day shared pet care should commit instead of daily replay')
+assert.equal(crossDaySharedPetCare.already_cared, false, 'next game-day shared pet care should not be marked already cared')
+assert.equal(crossDaySharedPetCare.pet.pet_state.care_count, 2, 'next game-day shared pet care should increment care count')
+assert.equal(crossDaySharedPetCare.pet.pet_state.last_care_item_id, 'premium_feed', 'next game-day shared pet care should record premium feed')
+assert.equal(crossDaySharedPetCare.pet.pet_state.last_care_item_label, '精饲料', 'next game-day shared pet care should record premium feed label')
+assert.equal(crossDaySharedPetCare.pet.pet_state.last_care_item_effect, 'affection_care', 'next game-day shared pet care should record premium feed effect')
+assert.equal(crossDaySharedPetCare.pet.pet_state.last_care_day_key, `save:${qaSharedPet.origin_save_id}:slot:0:y1:sspring:d13`, 'next game-day shared pet care should record advanced actor game-day key')
+assert.equal(crossDaySharedPetCare.pet.pet_state.friendship, 29, 'premium shared pet care should apply catalog friendship gain')
+assert.equal(crossDaySharedPetCare.pet.pet_state.mood, 54, 'premium shared pet care should apply catalog mood gain plus simultaneous online bonus')
+assert.equal(crossDaySharedPetCare.ledger_entry.care_item_id, 'premium_feed', 'next game-day pet ledger should keep premium feed id')
+assert.equal(crossDaySharedPetCare.ledger_entry.care_item_profile.care_effect, 'affection_care', 'next game-day pet ledger should keep premium feed effect')
+assert.equal(crossDaySharedPetCare.ledger_entry.friendship_gain, 6, 'next game-day pet ledger should keep premium feed friendship gain')
+assert.equal(crossDaySharedPetCare.ledger_entry.mood_gain, 12, 'next game-day pet ledger should keep premium feed mood gain')
+assert.equal(crossDaySharedPetCare.ledger_entry.care_day_key, crossDaySharedPetCare.pet.pet_state.last_care_day_key, 'next game-day pet ledger should keep care day key')
+assert.equal(crossDaySharedPetCare.warehouse.items.find(item => item.item_id === 'premium_feed')?.quantity ?? 0, 0, 'next game-day shared pet care should consume premium feed from shared warehouse')
+assert.equal(crossDaySharedPetCare.warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 1, 'next game-day premium care should not consume reserved vitality feed')
+assert.ok(crossDaySharedPetCare.warehouse_ledger_entries[0].source_ledger_ids.includes('qa-warehouse-premium-feed-for-cross-day-pet-care-ledger'), 'next game-day premium care should reference premium feed deposit ledger')
+assert.equal(crossDaySharedPetCare.shared_pets.summary.shared_pet_ledger_count, sharedPetCareResult.shared_pets.summary.shared_pet_ledger_count + 1, 'next game-day shared pet care should create a second pet ledger row')
+assert.ok(crossDaySharedPetCare.contract.audit_log.find(entry => entry.action === 'shared_pet_cared' && entry.detail?.care_item_id === 'premium_feed' && entry.detail?.care_day_key === crossDaySharedPetCare.ledger_entry.care_day_key), 'next game-day premium care should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeCrossDaySharedPetCare, 'next game-day shared pet care should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeCrossDaySharedPetCare, 'next game-day shared pet care should not rewrite partner save')
+
+const offlineQueueOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const offlineQueuePartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlineQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-merge-pet-care',
+  operations: [
+    {
+      action: 'care_shared_pet',
+      operation_id: 'qa-offline-pet-care-op-1',
+      idempotency_key: 'qa-offline-pet-care-op-1-idem',
+      pet_id: qaOfflineSharedPet.id,
+      care_item_id: 'vitality_feed',
+    },
+  ],
+}, actor(owner))
+assert.equal(offlineQueueMerge.offline_queue_merge.accepted_count, 1, 'offline queue merge should accept one shared pet care operation')
+assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.status, 'committed', 'offline queue pet care should commit through server authoritative merge')
+assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.personal_save_changed, false, 'offline queue pet care should not mutate personal saves')
+assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.shared_warehouse_changed, true, 'offline queue first pet care should consume shared warehouse feed')
+assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.care_day_key, crossDaySharedPetCare.ledger_entry.care_day_key, 'offline queue pet care should carry current server game-day key')
+assert.equal(offlineQueueMerge.offline_status.summary.offline_queue_merge_enabled, true, 'offline status should expose offline queue merge readiness')
+assert.ok(offlineQueueMerge.offline_status.summary.offline_queue_supported_actions.includes('care_shared_pet'), 'offline queue should expose shared pet care as supported action')
+assert.ok(!offlineQueueMerge.offline_status.deferred_operations.includes('offline_worker_queue'), 'offline worker queue should no longer be marked deferred after minimum merge path')
+assert.ok(!offlineQueueMerge.offline_status.deferred_operations.includes('conflict_merge_tool'), 'conflict merge tool should no longer be marked deferred after minimum merge path')
+assert.ok(offlineQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-merge-pet-care'), 'offline queue merge should write audit log')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineQueueOwnerRawBefore, 'offline queue merge should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineQueuePartnerRawBefore, 'offline queue merge should not rewrite partner save')
+const duplicateOfflineQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-merge-pet-care',
+  operations: [
+    {
+      action: 'care_shared_pet',
+      operation_id: 'qa-offline-pet-care-op-1',
+      idempotency_key: 'qa-offline-pet-care-op-1-idem',
+      pet_id: qaOfflineSharedPet.id,
+      care_item_id: 'vitality_feed',
+    },
+  ],
+}, actor(owner))
+assert.equal(duplicateOfflineQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline queue merge should replay by queue idempotency key')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 0, 'duplicate offline queue merge should not consume vitality feed twice')
+
+await injectSharedWarehouseDepositLedger(created.contract.id, {
+  itemId: 'lotus_heart_cat_treat',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: owner,
+  ledgerId: 'qa-warehouse-lotus-treat-for-high-risk-pet-care-ledger',
+  idempotencyKey: 'qa-warehouse-lotus-treat-for-high-risk-pet-care',
+  sourceSaveId: qaSharedPet.origin_save_id,
+})
+mutateGameplaySave(owner, gameplayData => {
+  gameplayData.game = {
+    ...(gameplayData.game || {}),
+    year: 1,
+    season: 'spring',
+    day: 14,
+  }
+})
+const ownerRawBeforeHighRiskSharedPetCare = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeHighRiskSharedPetCare = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+await assert.rejects(
+  () => runtime.careCohabitationSharedPet(created.contract.id, {
+    pet_id: qaSharedPet.id,
+    care_item_id: 'lotus_heart_cat_treat',
+    memo: 'qa shared pet high risk care without confirmation',
+    idempotency_key: 'qa-shared-pet-care-high-risk-missing-confirmation',
+  }, actor(owner)),
+  error => error?.status === 409,
+  'high value shared pet care should reject missing confirmation before warehouse consumption'
+)
+const highRiskBlockedWarehouse = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+assert.equal(highRiskBlockedWarehouse.warehouse.items.find(item => item.item_id === 'lotus_heart_cat_treat')?.quantity ?? 0, 1, 'blocked high risk shared pet care should not consume pet treat')
+assert.ok(highRiskBlockedWarehouse.contract.audit_log.find(entry => entry.action === 'shared_pet_care_high_risk_blocked' && entry.detail?.care_item_id === 'lotus_heart_cat_treat'), 'blocked high risk shared pet care should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeHighRiskSharedPetCare, 'blocked high risk shared pet care should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeHighRiskSharedPetCare, 'blocked high risk shared pet care should not rewrite partner save')
+
+const highValuePetCareConfirmationText = '确认消耗共同宠物高阶点心'
+const highRiskSharedPetCare = await runtime.careCohabitationSharedPet(created.contract.id, {
+  pet_id: qaSharedPet.id,
+  care_item_id: 'lotus_heart_cat_treat',
+  confirmed_high_value_care: true,
+  risk_acknowledged: true,
+  confirmation_text: highValuePetCareConfirmationText,
+  rollback_plan_acknowledged: true,
+  compensation_plan_acknowledged: true,
+  memo: 'qa shared pet high risk care confirmed',
+  idempotency_key: 'qa-shared-pet-care-high-risk-lotus-confirmed',
+}, actor(owner))
+assert.equal(highRiskSharedPetCare.idempotent, false, 'confirmed high risk shared pet care should commit')
+assert.equal(highRiskSharedPetCare.pet.pet_state.care_count, 3, 'confirmed high risk shared pet care should increment care count after cross-day care')
+assert.equal(highRiskSharedPetCare.pet.pet_state.last_care_item_id, 'lotus_heart_cat_treat', 'confirmed high risk shared pet care should record high value treat')
+assert.equal(highRiskSharedPetCare.pet.pet_state.last_care_item_label, '莲心桂花糕', 'confirmed high risk shared pet care should record high value treat label')
+assert.equal(highRiskSharedPetCare.pet.pet_state.last_care_day_key, `save:${qaSharedPet.origin_save_id}:slot:0:y1:sspring:d14`, 'confirmed high risk shared pet care should record advanced game-day key')
+assert.equal(highRiskSharedPetCare.pet.pet_state.friendship, 39, 'confirmed high risk shared pet care should apply high value treat friendship gain')
+assert.equal(highRiskSharedPetCare.pet.pet_state.mood, 72, 'confirmed high risk shared pet care should apply high value treat mood gain plus simultaneous online bonus')
+assert.equal(highRiskSharedPetCare.ledger_entry.risk_level, 'high_value_pet_treat', 'high risk shared pet ledger should record risk level')
+assert.equal(highRiskSharedPetCare.ledger_entry.confirmation_required, true, 'high risk shared pet ledger should record confirmation requirement')
+assert.equal(highRiskSharedPetCare.ledger_entry.confirmed_high_value_care, true, 'high risk shared pet ledger should record confirmation flag')
+assert.equal(highRiskSharedPetCare.ledger_entry.confirmation_text, highValuePetCareConfirmationText, 'high risk shared pet ledger should keep confirmation text')
+assert.equal(highRiskSharedPetCare.ledger_entry.rollback_plan_acknowledged, true, 'high risk shared pet ledger should keep rollback acknowledgement')
+assert.equal(highRiskSharedPetCare.ledger_entry.compensation_plan_acknowledged, true, 'high risk shared pet ledger should keep compensation acknowledgement')
+assert.equal(highRiskSharedPetCare.ledger_entry.care_item_profile.requires_confirmation, true, 'high risk shared pet ledger profile should require confirmation')
+assert.ok(highRiskSharedPetCare.ledger_entry.rollback_plan, 'high risk shared pet ledger should keep rollback plan')
+assert.ok(highRiskSharedPetCare.ledger_entry.compensation_hint, 'high risk shared pet ledger should keep compensation hint')
+assert.equal(highRiskSharedPetCare.warehouse.items.find(item => item.item_id === 'lotus_heart_cat_treat')?.quantity ?? 0, 0, 'confirmed high risk shared pet care should consume treat from shared warehouse')
+assert.ok(highRiskSharedPetCare.warehouse_ledger_entries[0].source_ledger_ids.includes('qa-warehouse-lotus-treat-for-high-risk-pet-care-ledger'), 'confirmed high risk shared pet care should reference high value treat deposit ledger')
+assert.ok(highRiskSharedPetCare.contract.audit_log.find(entry => entry.action === 'shared_pet_cared' && entry.detail?.confirmation_required === true && entry.detail?.care_item_id === 'lotus_heart_cat_treat'), 'confirmed high risk shared pet care should audit confirmation evidence')
+assert.equal(highRiskSharedPetCare.pet_action.confirmation_required, true, 'high risk shared pet action should expose confirmation requirement')
+assert.equal(highRiskSharedPetCare.pet_action.compensation_plan_acknowledged, true, 'high risk shared pet action should expose compensation acknowledgement')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeHighRiskSharedPetCare, 'confirmed high risk shared pet care should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeHighRiskSharedPetCare, 'confirmed high risk shared pet care should not rewrite partner save')
+
+await injectSharedWarehouseDepositLedger(created.contract.id, {
+  itemId: 'spirit_fruit_mooncake',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: owner,
+  ledgerId: 'qa-warehouse-spirit-fruit-treat-for-offline-high-risk-pet-care-ledger',
+  idempotencyKey: 'qa-warehouse-spirit-fruit-treat-for-offline-high-risk-pet-care',
+  sourceSaveId: qaSharedPet.origin_save_id,
+})
+mutateGameplaySave(owner, gameplayData => {
+  gameplayData.game = {
+    ...(gameplayData.game || {}),
+    year: 1,
+    season: 'spring',
+    day: 15,
+  }
+})
+const ownerRawBeforeOfflineHighRiskSharedPetCare = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeOfflineHighRiskSharedPetCare = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlineHighRiskMissingConfirmation = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-high-risk-pet-care-missing-confirmation',
+  operations: [
+    {
+      action: 'care_shared_pet',
+      operation_id: 'qa-offline-high-risk-pet-care-missing-confirmation-op',
+      idempotency_key: 'qa-offline-high-risk-pet-care-missing-confirmation-op-idem',
+      pet_id: qaSharedPet.id,
+      care_item_id: 'spirit_fruit_mooncake',
+      memo: 'qa offline shared pet high risk care without confirmation',
+    },
+  ],
+}, actor(owner))
+assert.equal(offlineHighRiskMissingConfirmation.offline_queue_merge.accepted_count, 0, 'offline high risk pet care without confirmation should not commit')
+assert.equal(offlineHighRiskMissingConfirmation.offline_queue_merge.rejected_count, 1, 'offline high risk pet care without confirmation should return one rejected operation')
+assert.equal(offlineHighRiskMissingConfirmation.offline_queue_merge.rejected[0]?.reason, 'high_value_pet_care_confirmation_required', 'offline high risk pet care should expose confirmation rejection reason')
+assert.equal(offlineHighRiskMissingConfirmation.offline_queue_merge.rejected[0]?.confirmation_required, true, 'offline high risk rejection should expose confirmation requirement')
+assert.equal(offlineHighRiskMissingConfirmation.offline_queue_merge.rejected[0]?.shared_warehouse_changed, false, 'offline high risk rejection should not mark shared warehouse changed')
+assert.equal(offlineHighRiskMissingConfirmation.offline_queue_merge.rejected[0]?.personal_save_changed, false, 'offline high risk rejection should not mark personal saves changed')
+assert.equal(offlineHighRiskMissingConfirmation.offline_queue_merge.rejected[0]?.risk_level, 'rare_pet_treat', 'offline high risk rejection should keep rare treat risk level')
+assert.equal(offlineHighRiskMissingConfirmation.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-high-risk-pet-care-missing-confirmation')?.detail?.rejected_count, 1, 'offline rejected high risk queue should write merge audit evidence')
+assert.ok(offlineHighRiskMissingConfirmation.contract.audit_log.find(entry => entry.action === 'shared_pet_care_high_risk_blocked' && entry.detail?.care_item_id === 'spirit_fruit_mooncake'), 'offline high risk rejection should keep care-level blocked audit')
+assert.equal(offlineHighRiskMissingConfirmation.contract.shared_warehouse.items.find(item => item.item_id === 'spirit_fruit_mooncake')?.quantity ?? 0, 1, 'offline high risk rejection should keep rare treat in shared warehouse')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeOfflineHighRiskSharedPetCare, 'offline high risk rejection should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeOfflineHighRiskSharedPetCare, 'offline high risk rejection should not rewrite partner save')
+const duplicateOfflineHighRiskMissingConfirmation = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-high-risk-pet-care-missing-confirmation',
+  operations: [
+    {
+      action: 'care_shared_pet',
+      operation_id: 'qa-offline-high-risk-pet-care-missing-confirmation-op',
+      idempotency_key: 'qa-offline-high-risk-pet-care-missing-confirmation-op-idem',
+      pet_id: qaSharedPet.id,
+      care_item_id: 'spirit_fruit_mooncake',
+    },
+  ],
+}, actor(owner))
+assert.equal(duplicateOfflineHighRiskMissingConfirmation.offline_queue_merge.idempotent, true, 'duplicate rejected offline high risk queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineHighRiskMissingConfirmation.offline_queue_merge.rejected_count, 1, 'duplicate rejected offline high risk queue should replay rejected count')
+
+const offlineHighRiskConfirmed = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-high-risk-pet-care-confirmed',
+  operations: [
+    {
+      action: 'care_shared_pet',
+      operation_id: 'qa-offline-high-risk-pet-care-confirmed-op',
+      idempotency_key: 'qa-offline-high-risk-pet-care-confirmed-op-idem',
+      pet_id: qaSharedPet.id,
+      care_item_id: 'spirit_fruit_mooncake',
+      confirmed_high_value_care: true,
+      risk_acknowledged: true,
+      confirmation_text: highValuePetCareConfirmationText,
+      rollback_plan_acknowledged: true,
+      compensation_plan_acknowledged: true,
+      memo: 'qa offline shared pet high risk care confirmed',
+    },
+  ],
+}, actor(owner))
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.accepted_count, 1, 'offline confirmed high risk pet care should commit')
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.rejected_count, 0, 'offline confirmed high risk pet care should not reject')
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.results[0]?.status, 'committed', 'offline confirmed high risk pet care should commit through server queue')
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.results[0]?.care_item_id, 'spirit_fruit_mooncake', 'offline confirmed high risk result should keep rare treat id')
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.results[0]?.risk_level, 'rare_pet_treat', 'offline confirmed high risk result should keep rare treat risk level')
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.results[0]?.confirmation_required, true, 'offline confirmed high risk result should expose confirmation requirement')
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.results[0]?.confirmed_high_value_care, true, 'offline confirmed high risk result should expose confirmation flag')
+assert.equal(offlineHighRiskConfirmed.offline_queue_merge.results[0]?.compensation_plan_acknowledged, true, 'offline confirmed high risk result should expose compensation acknowledgement')
+assert.equal(offlineHighRiskConfirmed.contract.shared_warehouse.items.find(item => item.item_id === 'spirit_fruit_mooncake')?.quantity ?? 0, 0, 'offline confirmed high risk care should consume rare treat from shared warehouse')
+assert.ok(offlineHighRiskConfirmed.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-high-risk-pet-care-confirmed' && entry.detail?.result_ledger_ids?.length === 1), 'offline confirmed high risk queue should write result ledger audit')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeOfflineHighRiskSharedPetCare, 'offline confirmed high risk pet care should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeOfflineHighRiskSharedPetCare, 'offline confirmed high risk pet care should not rewrite partner save')
+
+await assert.rejects(
+  () => runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+    idempotency_key: 'qa-offline-queue-merge-unsupported',
+    operations: [{ action: 'harvest_shared_farm', operation_id: 'qa-unsupported-offline-op' }],
+  }, actor(owner)),
+  error => error?.status === 422 && error?.offline_queue_merge?.rejected?.[0]?.reason === 'unsupported_offline_queue_action',
+  'offline queue merge should reject unsupported actions before mutating shared state'
+)
 
 await runtime.updateCohabitationPermissions(created.contract.id, {
   target_username: partner,
@@ -927,6 +1249,115 @@ const sharedAnimalProductCleanup = await runtime.withdrawCohabitationWarehouseIt
   idempotency_key: 'qa-shared-animal-product-cleanup-withdraw',
 }, actor(owner))
 assert.equal(sharedAnimalProductCleanup.warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 0, 'shared animal product cleanup should remove milk before base warehouse flow')
+
+const offlineAnimalHayDeposit = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'hay',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-hay-for-offline-shared-animal-queue',
+}, actor(owner))
+assert.equal(offlineAnimalHayDeposit.warehouse.items.find(item => item.item_id === 'hay')?.quantity, 1, 'shared warehouse should expose hay before offline shared animal queue')
+await mutateStoredContract(created.contract.id, contract => {
+  const animal = contract.shared_animals.animals.find(entry => entry.id === qaSharedAnimal.id)
+  assert.ok(animal, 'shared animal should exist before offline animal queue reset')
+  animal.animal_state = {
+    ...(animal.animal_state || {}),
+    was_fed: false,
+    fed_with: '',
+    was_petted: false,
+    hunger: 25,
+    days_since_product: 1,
+  }
+  animal.current_keeper_username = ''
+  animal.current_keeper_display_name = ''
+})
+const offlineAnimalQueueOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const offlineAnimalQueuePartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlineAnimalQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-animal-actions',
+  operations: [
+    {
+      action: 'feed_shared_animal',
+      operation_id: 'qa-offline-shared-animal-feed-op',
+      idempotency_key: 'qa-offline-shared-animal-feed-op-idem',
+      animal_id: qaSharedAnimal.id,
+      feed_item_id: 'hay',
+      memo: 'qa offline shared animal feed',
+    },
+    {
+      action: 'pet_shared_animal',
+      operation_id: 'qa-offline-shared-animal-pet-op',
+      idempotency_key: 'qa-offline-shared-animal-pet-op-idem',
+      animal_id: qaSharedAnimal.id,
+      memo: 'qa offline shared animal pet',
+    },
+    {
+      action: 'collect_shared_animal_product',
+      operation_id: 'qa-offline-shared-animal-product-op',
+      idempotency_key: 'qa-offline-shared-animal-product-op-idem',
+      animal_id: qaSharedAnimal.id,
+      memo: 'qa offline shared animal product collect',
+    },
+  ],
+}, actor(owner))
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.accepted_count, 3, 'offline queue merge should accept shared animal feed pet and product operations')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.rejected_count, 0, 'offline shared animal queue should not reject valid animal operations')
+assert.deepEqual(
+  offlineAnimalQueueMerge.offline_queue_merge.results.map(entry => entry.action),
+  ['feed_shared_animal', 'pet_shared_animal', 'collect_shared_animal_product'],
+  'offline shared animal queue should preserve operation order in results'
+)
+assert.ok(offlineAnimalQueueMerge.offline_status.summary.offline_queue_supported_actions.includes('feed_shared_animal'), 'offline status should expose shared animal feed as supported queue action')
+assert.ok(offlineAnimalQueueMerge.offline_status.summary.offline_queue_supported_actions.includes('pet_shared_animal'), 'offline status should expose shared animal pet as supported queue action')
+assert.ok(offlineAnimalQueueMerge.offline_status.summary.offline_queue_supported_actions.includes('collect_shared_animal_product'), 'offline status should expose shared animal product collect as supported queue action')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[0]?.status, 'committed', 'offline shared animal feed should commit')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[0]?.feed_item_id, 'hay', 'offline shared animal feed result should keep feed item')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[0]?.shared_warehouse_changed, true, 'offline shared animal feed should consume shared warehouse hay')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[1]?.status, 'committed', 'offline shared animal pet should commit')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[1]?.shared_warehouse_changed, false, 'offline shared animal pet should not change shared warehouse')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[2]?.status, 'committed', 'offline shared animal product collect should commit')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[2]?.product_item_id, 'milk', 'offline shared animal product result should keep product item')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[2]?.product_quantity, 1, 'offline shared animal product result should keep product quantity')
+assert.equal(offlineAnimalQueueMerge.offline_queue_merge.results[2]?.shared_warehouse_changed, true, 'offline shared animal product should deposit into shared warehouse')
+assert.equal(offlineAnimalQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'hay')?.quantity ?? 0, 0, 'offline shared animal feed should consume queued hay')
+assert.equal(offlineAnimalQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 1, 'offline shared animal product should enter shared warehouse')
+assert.ok(offlineAnimalQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-shared-animal-actions' && entry.detail?.operation_count === 3), 'offline shared animal queue should write merge audit with operation count')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineAnimalQueueOwnerRawBefore, 'offline shared animal queue should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineAnimalQueuePartnerRawBefore, 'offline shared animal queue should not rewrite partner save')
+const duplicateOfflineAnimalQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-animal-actions',
+  operations: [
+    {
+      action: 'feed_shared_animal',
+      operation_id: 'qa-offline-shared-animal-feed-op',
+      idempotency_key: 'qa-offline-shared-animal-feed-op-idem',
+      animal_id: qaSharedAnimal.id,
+      feed_item_id: 'hay',
+    },
+    {
+      action: 'pet_shared_animal',
+      operation_id: 'qa-offline-shared-animal-pet-op',
+      idempotency_key: 'qa-offline-shared-animal-pet-op-idem',
+      animal_id: qaSharedAnimal.id,
+    },
+    {
+      action: 'collect_shared_animal_product',
+      operation_id: 'qa-offline-shared-animal-product-op',
+      idempotency_key: 'qa-offline-shared-animal-product-op-idem',
+      animal_id: qaSharedAnimal.id,
+    },
+  ],
+}, actor(owner))
+assert.equal(duplicateOfflineAnimalQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline shared animal queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineAnimalQueueMerge.offline_queue_merge.accepted_count, 3, 'duplicate offline shared animal queue should replay accepted count')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 1, 'duplicate offline shared animal queue should not duplicate product deposit')
+const offlineAnimalProductCleanup = await runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'milk',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-offline-shared-animal-product-cleanup-withdraw',
+}, actor(owner))
+assert.equal(offlineAnimalProductCleanup.warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 0, 'offline shared animal product cleanup should remove milk before base warehouse flow')
 
 await injectSharedWarehouseDepositLedger(created.contract.id, {
   itemId: 'lotus',
@@ -2060,6 +2491,726 @@ assert.equal(duplicateSharedWorkshopProcess.workshop_action.output_quality, 'fin
 assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'idempotent shared workshop process should not rewrite harvest owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'idempotent shared workshop process should not rewrite harvest partner save')
 
+await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+  itemId: 'cabbage',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: harvestPartner,
+  ledgerId: 'qa_shared_offline_workshop_cabbage_deposit',
+  idempotencyKey: 'qa-shared-offline-workshop-cabbage-deposit',
+  sourceSaveId: 123456787,
+})
+const offlineWorkshopOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const offlineWorkshopPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const offlineWorkshopQueueMerge = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-workshop-process',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-workshop-process-op',
+      idempotency_key: 'qa-offline-shared-workshop-process-op-idem',
+      recipe_id: 'shared_dried_cabbage',
+      memo: 'qa offline shared workshop dried cabbage',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.accepted_count, 1, 'offline queue merge should accept shared workshop process operation')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.rejected_count, 0, 'offline shared workshop queue should not reject valid recipe')
+assert.ok(offlineWorkshopQueueMerge.offline_status.summary.offline_queue_supported_actions.includes('process_shared_workshop_recipe'), 'offline status should expose shared workshop process as supported queue action')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.status, 'committed', 'offline shared workshop process should commit')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.recipe_id, 'shared_dried_cabbage', 'offline shared workshop result should keep recipe id')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.output_item_id, 'dried_cabbage', 'offline shared workshop result should keep output item')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.output_quantity, 1, 'offline shared workshop result should keep output quantity')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.output_quality, 'fine', 'offline shared workshop result should keep cooperation-upgraded output quality')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.output_quality_before_bonus, 'normal', 'offline shared workshop result should keep pre-bonus output quality')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.shared_warehouse_changed, true, 'offline shared workshop result should declare shared warehouse change')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.personal_save_changed, false, 'offline shared workshop result should not mutate personal saves')
+assert.equal(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.consume_ledger_ids.length, 1, 'offline shared workshop result should expose consume ledger id')
+assert.ok(offlineWorkshopQueueMerge.offline_queue_merge.results[0]?.output_ledger_id, 'offline shared workshop result should expose output ledger id')
+assert.equal(offlineWorkshopQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'cabbage')?.quantity ?? 0, 0, 'offline shared workshop should consume queued cabbage')
+assert.equal(offlineWorkshopQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'dried_cabbage' && item.quality === 'fine')?.quantity ?? 0, 2, 'offline shared workshop should add one upgraded dried cabbage output')
+assert.ok(offlineWorkshopQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-shared-workshop-process' && entry.detail?.operation_count === 1), 'offline shared workshop queue should write merge audit')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, offlineWorkshopOwnerRawBefore, 'offline shared workshop queue should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, offlineWorkshopPartnerRawBefore, 'offline shared workshop queue should not rewrite harvest partner save')
+const duplicateOfflineWorkshopQueueMerge = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-workshop-process',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-workshop-process-op',
+      idempotency_key: 'qa-offline-shared-workshop-process-op-idem',
+      recipe_id: 'shared_dried_cabbage',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(duplicateOfflineWorkshopQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline shared workshop queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineWorkshopQueueMerge.offline_queue_merge.accepted_count, 1, 'duplicate offline shared workshop queue should replay accepted count')
+assert.equal((await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))).warehouse.items.find(item => item.item_id === 'dried_cabbage' && item.quality === 'fine')?.quantity ?? 0, 2, 'duplicate offline shared workshop queue should not duplicate output')
+
+const offlineCookingAlchemyInputs = [
+  {
+    itemId: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    ledgerId: 'qa_shared_offline_cooking_rice_deposit',
+    idempotencyKey: 'qa-shared-offline-cooking-rice-deposit',
+    sourceSaveId: 123456788,
+  },
+  {
+    itemId: 'lotus_seed',
+    quantity: 2,
+    quality: 'normal',
+    ledgerId: 'qa_shared_offline_alchemy_lotus_seed_deposit',
+    idempotencyKey: 'qa-shared-offline-alchemy-lotus-seed-deposit',
+    sourceSaveId: 123456789,
+  },
+  {
+    itemId: 'lotus_root',
+    quantity: 1,
+    quality: 'normal',
+    ledgerId: 'qa_shared_offline_alchemy_lotus_root_deposit',
+    idempotencyKey: 'qa-shared-offline-alchemy-lotus-root-deposit',
+    sourceSaveId: 123456790,
+  },
+  {
+    itemId: 'herbal_paste',
+    quantity: 1,
+    quality: 'fine',
+    ledgerId: 'qa_shared_offline_alchemy_herbal_paste_deposit',
+    idempotencyKey: 'qa-shared-offline-alchemy-herbal-paste-deposit',
+    sourceSaveId: 123456791,
+  },
+]
+for (const input of offlineCookingAlchemyInputs) {
+  await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+    itemId: input.itemId,
+    quantity: input.quantity,
+    quality: input.quality,
+    sourceUsername: harvestPartner,
+    ledgerId: input.ledgerId,
+    idempotencyKey: input.idempotencyKey,
+    sourceSaveId: input.sourceSaveId,
+  })
+}
+const offlineCookingAlchemyOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const offlineCookingAlchemyPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const offlineCookingAlchemyQueueMerge = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-cooking-alchemy-process',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-cooking-rice-ball-op',
+      idempotency_key: 'qa-offline-shared-cooking-rice-ball-op-idem',
+      recipe_id: 'shared_rice_ball',
+      memo: 'qa offline shared cooking rice ball',
+    },
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-alchemy-elixir-op',
+      idempotency_key: 'qa-offline-shared-alchemy-elixir-op-idem',
+      recipe_id: 'shared_qingxin_lotus_elixir',
+      memo: 'qa offline shared alchemy qingxin lotus elixir',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(offlineCookingAlchemyQueueMerge.offline_queue_merge.accepted_count, 2, 'offline queue merge should accept cooking and alchemy shared workshop operations')
+assert.equal(offlineCookingAlchemyQueueMerge.offline_queue_merge.rejected_count, 0, 'offline cooking/alchemy queue should not reject valid shared workshop recipes')
+const offlineCookingResult = offlineCookingAlchemyQueueMerge.offline_queue_merge.results.find(entry => entry.recipe_id === 'shared_rice_ball')
+const offlineAlchemyResult = offlineCookingAlchemyQueueMerge.offline_queue_merge.results.find(entry => entry.recipe_id === 'shared_qingxin_lotus_elixir')
+assert.equal(offlineCookingResult?.status, 'committed', 'offline shared cooking operation should commit')
+assert.equal(offlineCookingResult?.station, 'stove', 'offline shared cooking result should keep stove station')
+assert.equal(offlineCookingResult?.process_kind, 'cooking_dish', 'offline shared cooking result should keep cooking process kind')
+assert.equal(offlineCookingResult?.output_item_id, 'food_rice_ball', 'offline shared cooking result should keep dish output')
+assert.equal(offlineCookingResult?.output_quality, 'fine', 'offline shared cooking result should keep cooperation-upgraded output quality')
+assert.equal(offlineCookingResult?.output_quality_before_bonus, 'normal', 'offline shared cooking result should keep pre-bonus output quality')
+assert.equal(offlineCookingResult?.consume_ledger_ids.length, 1, 'offline shared cooking result should expose consume ledger id')
+assert.ok(offlineCookingResult?.output_ledger_id, 'offline shared cooking result should expose output ledger id')
+assert.equal(offlineCookingResult?.personal_save_changed, false, 'offline shared cooking should not mutate personal saves')
+assert.equal(offlineAlchemyResult?.status, 'committed', 'offline shared alchemy operation should commit')
+assert.equal(offlineAlchemyResult?.station, 'alchemy_furnace', 'offline shared alchemy result should keep furnace station')
+assert.equal(offlineAlchemyResult?.process_kind, 'alchemy_elixir', 'offline shared alchemy result should keep alchemy process kind')
+assert.equal(offlineAlchemyResult?.alchemy_result_kind, 'success', 'offline shared alchemy result should keep elixir result kind')
+assert.equal(offlineAlchemyResult?.success_rate_bonus_percent, 15, 'offline shared alchemy result should expose cooperation success-rate bonus')
+assert.equal(offlineAlchemyResult?.output_item_id, 'qingxin_lotus_elixir', 'offline shared alchemy result should keep elixir output')
+assert.equal(offlineAlchemyResult?.output_quality, 'fine', 'offline shared alchemy result should keep cooperation-upgraded output quality')
+assert.equal(offlineAlchemyResult?.consume_ledger_ids.length, 3, 'offline shared alchemy result should expose all consume ledger ids')
+assert.ok(offlineAlchemyResult?.output_ledger_id, 'offline shared alchemy result should expose output ledger id')
+assert.equal(offlineAlchemyResult?.personal_save_changed, false, 'offline shared alchemy should not mutate personal saves')
+assert.equal(offlineCookingAlchemyQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 0, 'offline shared cooking should consume queued rice')
+assert.equal(offlineCookingAlchemyQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'lotus_seed')?.quantity ?? 0, 0, 'offline shared alchemy should consume queued lotus seed')
+assert.equal(offlineCookingAlchemyQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'lotus_root')?.quantity ?? 0, 0, 'offline shared alchemy should consume queued lotus root')
+assert.equal(offlineCookingAlchemyQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'herbal_paste')?.quantity ?? 0, 0, 'offline shared alchemy should consume queued fine herbal paste')
+assert.equal(offlineCookingAlchemyQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'food_rice_ball' && item.quality === 'fine')?.quantity ?? 0, 2, 'offline shared cooking should add one upgraded rice ball output')
+assert.equal(offlineCookingAlchemyQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'qingxin_lotus_elixir' && item.quality === 'fine')?.quantity ?? 0, 2, 'offline shared alchemy should add one upgraded elixir output')
+assert.ok(offlineCookingAlchemyQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-shared-cooking-alchemy-process' && entry.detail?.operation_count === 2), 'offline cooking/alchemy queue should write merge audit')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, offlineCookingAlchemyOwnerRawBefore, 'offline shared cooking/alchemy queue should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, offlineCookingAlchemyPartnerRawBefore, 'offline shared cooking/alchemy queue should not rewrite harvest partner save')
+const duplicateOfflineCookingAlchemyQueueMerge = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-cooking-alchemy-process',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-cooking-rice-ball-op',
+      idempotency_key: 'qa-offline-shared-cooking-rice-ball-op-idem',
+      recipe_id: 'shared_rice_ball',
+    },
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-alchemy-elixir-op',
+      idempotency_key: 'qa-offline-shared-alchemy-elixir-op-idem',
+      recipe_id: 'shared_qingxin_lotus_elixir',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(duplicateOfflineCookingAlchemyQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline shared cooking/alchemy queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineCookingAlchemyQueueMerge.offline_queue_merge.accepted_count, 2, 'duplicate offline shared cooking/alchemy queue should replay accepted count')
+const warehouseAfterDuplicateOfflineCookingAlchemy = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+assert.equal(warehouseAfterDuplicateOfflineCookingAlchemy.warehouse.items.find(item => item.item_id === 'food_rice_ball' && item.quality === 'fine')?.quantity ?? 0, 2, 'duplicate offline shared cooking queue should not duplicate dish output')
+assert.equal(warehouseAfterDuplicateOfflineCookingAlchemy.warehouse.items.find(item => item.item_id === 'qingxin_lotus_elixir' && item.quality === 'fine')?.quantity ?? 0, 2, 'duplicate offline shared alchemy queue should not duplicate elixir output')
+
+const rareCrystalStockBeforeOfflineRareItems = warehouseAfterDuplicateOfflineCookingAlchemy.warehouse.items
+  .filter(item => item.item_id === 'rare_elixir_crystal' && Number(item.quantity || 0) > 0)
+const rareCrystalStockBeforeOfflineRare = rareCrystalStockBeforeOfflineRareItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+if (rareCrystalStockBeforeOfflineRare > 0) {
+  const rareCrystalCleanupEntries = rareCrystalStockBeforeOfflineRareItems.map((item, index) => {
+    const sourceLedger = warehouseAfterDuplicateOfflineCookingAlchemy.warehouse.ledger.find(entry =>
+      ['deposit', 'compensate'].includes(entry.action)
+      && entry.item_id === 'rare_elixir_crystal'
+      && entry.quality === item.quality
+    ) || {}
+    const sourceOwnerKey = sourceLedger.source_owner_key || item.source_owner_keys?.[0] || 'shared_workshop'
+    const sourceOwnerUsername = sourceLedger.source_owner_username || sourceOwnerKey
+    return {
+      id: `qa_warehouse_rare_crystal_cleanup_revert_${item.quality || 'normal'}_${index}`,
+      action: 'withdraw',
+      item_id: 'rare_elixir_crystal',
+      quantity: Number(item.quantity || 0),
+      quality: item.quality || 'normal',
+      actor_username: harvestOwner,
+      actor_display_name: harvestOwner,
+      source_owner_id: sourceLedger.source_owner_id || `qa:${sourceOwnerKey}`,
+      source_owner_username: sourceOwnerUsername,
+      source_owner_display_name: sourceLedger.source_owner_display_name || sourceOwnerUsername,
+      source_owner_key: sourceOwnerKey,
+      source_save_id: sourceLedger.source_save_id,
+      source_save_slot: sourceLedger.source_save_slot,
+      source_inventory: 'shared_warehouse.items',
+      source_ledger_ids: sourceLedger.id ? [sourceLedger.id] : [],
+      target_inventory: 'qa.cleanup',
+      target_ref: `qa-offline-rare-alchemy-source-isolation:${item.quality || 'normal'}`,
+      at: 1771951500 + index,
+      idempotency_key: `qa-warehouse-rare-crystal-cleanup-revert-${item.quality || 'normal'}-${index}`,
+      reversible: false,
+      compensation_hint: 'QA cleanup before offline rare alchemy high-value draft coverage',
+      status: 'committed',
+    }
+  })
+  await mutateStoredContract(harvestContractCreated.contract.id, contract => {
+    contract.shared_warehouse = contract.shared_warehouse || {}
+    const ledger = Array.isArray(contract.shared_warehouse.ledger)
+      ? contract.shared_warehouse.ledger.filter(entry => !String(entry?.id || '').startsWith('qa_warehouse_rare_crystal_cleanup_revert'))
+      : []
+    contract.shared_warehouse.ledger = [
+      ...rareCrystalCleanupEntries,
+      ...ledger,
+    ]
+  })
+}
+const rareCrystalStockBeforeOfflineRareAfterCleanup = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+assert.equal(rareCrystalStockBeforeOfflineRareAfterCleanup.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal')?.quantity ?? 0, 0, 'QA cleanup should isolate rare crystal stock before offline rare alchemy')
+
+const offlineRareAlchemyInputs = [
+  {
+    itemId: 'lotus_seed',
+    quantity: 2,
+    quality: 'normal',
+    ledgerId: 'qa_shared_offline_rare_alchemy_lotus_seed_deposit',
+    idempotencyKey: 'qa-shared-offline-rare-alchemy-lotus-seed-deposit',
+    sourceSaveId: 123456792,
+  },
+  {
+    itemId: 'lotus_root',
+    quantity: 1,
+    quality: 'normal',
+    ledgerId: 'qa_shared_offline_rare_alchemy_lotus_root_deposit',
+    idempotencyKey: 'qa-shared-offline-rare-alchemy-lotus-root-deposit',
+    sourceSaveId: 123456793,
+  },
+  {
+    itemId: 'herbal_paste',
+    quantity: 1,
+    quality: 'fine',
+    ledgerId: 'qa_shared_offline_rare_alchemy_herbal_paste_deposit',
+    idempotencyKey: 'qa-shared-offline-rare-alchemy-herbal-paste-deposit',
+    sourceSaveId: 123456794,
+  },
+]
+for (const input of offlineRareAlchemyInputs) {
+  await injectSharedWarehouseDepositLedger(harvestContractCreated.contract.id, {
+    itemId: input.itemId,
+    quantity: input.quantity,
+    quality: input.quality,
+    sourceUsername: harvestPartner,
+    ledgerId: input.ledgerId,
+    idempotencyKey: input.idempotencyKey,
+    sourceSaveId: input.sourceSaveId,
+  })
+}
+const offlineRareAlchemyOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const offlineRareAlchemyPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const offlineRareAlchemyQueueMerge = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-rare-alchemy-process',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-rare-alchemy-op',
+      idempotency_key: 'qa-offline-shared-rare-alchemy-op-idem',
+      recipe_id: 'shared_qingxin_lotus_rare',
+      memo: 'qa offline shared rare alchemy crystal',
+    },
+  ],
+}, actor(harvestOwner))
+const offlineRareAlchemyResult = offlineRareAlchemyQueueMerge.offline_queue_merge.results[0]
+assert.equal(offlineRareAlchemyQueueMerge.offline_queue_merge.accepted_count, 1, 'offline rare alchemy queue should accept one operation')
+assert.equal(offlineRareAlchemyQueueMerge.offline_queue_merge.rejected_count, 0, 'offline rare alchemy queue should not reject valid materials')
+assert.equal(offlineRareAlchemyResult?.recipe_id, 'shared_qingxin_lotus_rare', 'offline rare alchemy result should keep recipe id')
+assert.equal(offlineRareAlchemyResult?.alchemy_result_kind, 'rare', 'offline rare alchemy result should expose rare result kind')
+assert.equal(offlineRareAlchemyResult?.output_item_id, 'rare_elixir_crystal', 'offline rare alchemy result should keep rare output item')
+assert.equal(offlineRareAlchemyResult?.output_quality, 'fine', 'offline rare alchemy result should keep cooperative upgraded rare output quality')
+assert.equal(offlineRareAlchemyResult?.withdrawal_risk_level, 'rare', 'offline rare alchemy result should expose rare withdrawal risk')
+assert.equal(offlineRareAlchemyResult?.high_value_withdrawal_required, true, 'offline rare alchemy result should require high-value withdrawal confirmation')
+assert.equal(offlineRareAlchemyResult?.reversible, true, 'offline rare alchemy result should expose rollback-ready ledger evidence')
+assert.ok(offlineRareAlchemyResult?.compensation_hint.includes('shared warehouse'), 'offline rare alchemy result should expose compensation hint')
+assert.ok(offlineRareAlchemyResult?.rollback_plan.includes('consume ledgers'), 'offline rare alchemy result should expose rollback plan')
+assert.equal(offlineRareAlchemyResult?.consume_ledger_ids.length, 3, 'offline rare alchemy result should expose all consume ledger ids')
+assert.equal(offlineRareAlchemyResult?.output_source_ledger_ids.length, 3, 'offline rare alchemy result should link output back to consume ledgers')
+assert.equal(offlineRareAlchemyResult?.personal_save_changed, false, 'offline rare alchemy should not mutate personal saves')
+const offlineRareAlchemyOriginAsset = offlineRareAlchemyQueueMerge.contract.origin_assets.warehouse_items.find(entry => entry.ledger_id === offlineRareAlchemyResult.output_ledger_id)
+assert.equal(offlineRareAlchemyOriginAsset?.withdrawal_risk_level, 'rare', 'offline rare alchemy origin asset should be protected as rare')
+assert.equal(offlineRareAlchemyOriginAsset?.high_value_withdrawal_required, true, 'offline rare alchemy origin asset should require high-value withdrawal confirmation')
+assert.equal(offlineRareAlchemyOriginAsset?.simultaneous_online_bonus?.success_rate_bonus_percent, 15, 'offline rare alchemy origin asset should keep cooperation success-rate evidence')
+assert.equal(offlineRareAlchemyQueueMerge.contract.shared_warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 1, 'offline rare alchemy should add one rare crystal output')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, offlineRareAlchemyOwnerRawBefore, 'offline rare alchemy queue should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, offlineRareAlchemyPartnerRawBefore, 'offline rare alchemy queue should not rewrite harvest partner save')
+const duplicateOfflineRareAlchemyQueueMerge = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-rare-alchemy-process',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-rare-alchemy-op',
+      idempotency_key: 'qa-offline-shared-rare-alchemy-op-idem',
+      recipe_id: 'shared_qingxin_lotus_rare',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(duplicateOfflineRareAlchemyQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline rare alchemy queue should replay by queue idempotency key')
+assert.equal((await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))).warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 1, 'duplicate offline rare alchemy queue should not duplicate rare output')
+
+await runtime.updateCohabitationPermissions(harvestContractCreated.contract.id, {
+  target_username: harvestOwner,
+  permissions: {
+    storage: {
+      withdraw_high_quality: true,
+      withdraw_rare: true,
+    },
+  },
+  idempotency_key: 'qa-enable-harvest-owner-rare-crystal-withdrawal-draft',
+}, actor(harvestOwner))
+const rareCrystalOwnerRawBeforeDraft = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeDraft = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWithdrawLedgerCountBeforeDraft = (await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))).warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'rare_elixir_crystal').length
+const rareCrystalDraft = await runtime.createCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, {
+  item_id: 'rare_elixir_crystal',
+  quantity: 1,
+  quality: offlineRareAlchemyResult.output_quality,
+  reason: 'QA rare alchemy crystal freeze before withdrawal',
+  idempotency_key: 'qa-rare-crystal-high-value-draft',
+}, actor(harvestOwner))
+assert.equal(rareCrystalDraft.idempotent, false, 'rare crystal high-value draft should be created once')
+assert.equal(rareCrystalDraft.draft.risk_level, 'rare', 'rare crystal draft should be classified as rare')
+assert.equal(rareCrystalDraft.draft.high_value_withdrawal_required, true, 'rare crystal draft should require high-value withdrawal confirmation')
+assert.equal(rareCrystalDraft.draft.frozen_quantity, 1, 'rare crystal draft should freeze current offline rare crystal')
+assert.equal(rareCrystalDraft.draft.freeze_release_available, true, 'rare crystal draft should expose pre-execute freeze release')
+assert.equal(rareCrystalDraft.draft.execution_compensation_required, false, 'pre-execute rare crystal draft should not require execution compensation yet')
+assert.ok(rareCrystalDraft.draft.source_ledger_ids.includes(offlineRareAlchemyResult.output_ledger_id), 'rare crystal draft should include offline rare alchemy output ledger as frozen source')
+assert.equal(rareCrystalDraft.warehouse.summary.frozen_quantity >= 1, true, 'warehouse summary should include frozen rare crystal quantity')
+assert.equal(rareCrystalDraft.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 1, 'rare crystal draft should not deduct shared warehouse stock')
+assert.equal(rareCrystalDraft.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'rare_elixir_crystal').length, rareCrystalWithdrawLedgerCountBeforeDraft, 'rare crystal draft should not write withdraw ledger')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeDraft, 'rare crystal draft should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeDraft, 'rare crystal draft should not rewrite harvest partner save')
+assert.ok(rareCrystalDraft.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_draft_created' && entry.detail?.risk_level === 'rare'), 'rare crystal draft creation should be audited')
+const rareCrystalRollback = await runtime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, rareCrystalDraft.draft.id, {
+  reason: 'QA release rare crystal freeze before execution',
+  idempotency_key: 'qa-rare-crystal-high-value-rollback',
+}, actor(harvestOwner))
+assert.equal(rareCrystalRollback.idempotent, false, 'rare crystal high-value rollback should commit once')
+assert.equal(rareCrystalRollback.draft.state, 'rolled_back', 'rare crystal rollback should mark draft rolled back')
+assert.equal(rareCrystalRollback.draft.freeze_release_available, false, 'rolled back rare crystal draft should no longer expose active freeze release')
+assert.equal(rareCrystalRollback.warehouse.summary.frozen_quantity, 0, 'rare crystal rollback should release frozen rare stock')
+assert.equal(rareCrystalRollback.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 1, 'rare crystal rollback should not consume shared warehouse stock')
+assert.equal(rareCrystalRollback.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'rare_elixir_crystal').length, rareCrystalWithdrawLedgerCountBeforeDraft, 'rare crystal rollback should not write withdraw ledger')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeDraft, 'rare crystal rollback should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeDraft, 'rare crystal rollback should not rewrite harvest partner save')
+assert.ok(rareCrystalRollback.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_rolled_back' && entry.detail?.risk_level === 'rare'), 'rare crystal rollback should be audited')
+const duplicateRareCrystalRollback = await runtime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, rareCrystalDraft.draft.id, {
+  reason: 'duplicate QA release rare crystal freeze before execution',
+  idempotency_key: 'qa-rare-crystal-high-value-rollback',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalRollback.idempotent, true, 'duplicate rare crystal rollback should replay by idempotency key')
+assert.equal(duplicateRareCrystalRollback.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 1, 'duplicate rare crystal rollback should not change shared warehouse stock')
+
+const rareCrystalExecuteDraft = await runtime.createCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, {
+  item_id: 'rare_elixir_crystal',
+  quantity: 1,
+  quality: offlineRareAlchemyResult.output_quality,
+  reason: 'QA rare alchemy crystal execute after confirmation',
+  idempotency_key: 'qa-rare-crystal-high-value-execute-draft',
+}, actor(harvestOwner))
+assert.equal(rareCrystalExecuteDraft.idempotent, false, 'rare crystal execute draft should be created once')
+assert.equal(rareCrystalExecuteDraft.draft.state, 'pending_confirmation', 'rare crystal execute draft should wait for partner confirmation')
+assert.ok(rareCrystalExecuteDraft.draft.source_ledger_ids.includes(offlineRareAlchemyResult.output_ledger_id), 'rare crystal execute draft should freeze offline rare output ledger')
+const rareCrystalExecuteConfirm = await runtime.confirmCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  confirmation_text: 'confirm rare crystal high-value withdrawal execution',
+  freeze_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  idempotency_key: 'qa-rare-crystal-high-value-execute-confirm',
+}, actor(harvestPartner))
+assert.equal(rareCrystalExecuteConfirm.idempotent, false, 'rare crystal execute confirmation should commit once')
+assert.equal(rareCrystalExecuteConfirm.draft.state, 'ready_to_execute', 'rare crystal execute draft should become ready after partner confirmation')
+assert.equal(rareCrystalExecuteConfirm.warehouse.summary.frozen_quantity, 1, 'confirmed rare crystal execute draft should keep stock frozen')
+const rareCrystalOwnerRawBeforeExecute = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeExecute = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalOwnerMoneyBeforeExecute = readGameplayData(harvestOwner)?.player?.money
+const rareCrystalPartnerMoneyBeforeExecute = readGameplayData(harvestPartner)?.player?.money
+const rareCrystalOwnerQuantityBeforeExecute = getInventoryItemQuantity(harvestOwner, 'rare_elixir_crystal', offlineRareAlchemyResult.output_quality)
+const rareCrystalWithdrawLedgerCountBeforeExecute = rareCrystalExecuteConfirm.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'rare_elixir_crystal' && entry.quality === offlineRareAlchemyResult.output_quality).length
+const rareCrystalExecute = await runtime.executeCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  expected_state: 'ready_to_execute',
+  reason: 'QA execute rare crystal high-value withdrawal',
+  idempotency_key: 'qa-rare-crystal-high-value-execute',
+}, actor(harvestOwner))
+assert.equal(rareCrystalExecute.idempotent, false, 'rare crystal high-value execute should commit once')
+assert.equal(rareCrystalExecute.draft.state, 'executed', 'rare crystal execute should mark draft executed')
+assert.equal(rareCrystalExecute.draft.execution_compensation_required, true, 'executed rare crystal draft should require compensation review if later disputed')
+assert.equal(rareCrystalExecute.draft.freeze_release_available, false, 'executed rare crystal draft should not expose pre-execute freeze release')
+assert.equal(rareCrystalExecute.ledger_entries.length, 1, 'rare crystal execute should write one withdraw ledger')
+assert.equal(rareCrystalExecute.ledger_entries[0].action, 'withdraw', 'rare crystal execute should write withdraw ledger')
+assert.equal(rareCrystalExecute.ledger_entries[0].target_ref, rareCrystalExecuteDraft.draft.id, 'rare crystal withdraw ledger should point back to draft')
+assert.ok(rareCrystalExecute.ledger_entries[0].source_ledger_ids.includes(offlineRareAlchemyResult.output_ledger_id), 'rare crystal withdraw ledger should reference offline rare output ledger')
+assert.equal(rareCrystalExecute.ledger_entries[0].reversible, true, 'rare crystal withdraw ledger should remain reversible for compensation review')
+assert.ok(rareCrystalExecute.ledger_entries[0].compensation_hint.includes('补偿复核'), 'rare crystal withdraw ledger should expose compensation review hint')
+assert.equal(rareCrystalExecute.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 0, 'rare crystal execute should deduct shared warehouse stock')
+assert.equal(rareCrystalExecute.warehouse.summary.frozen_quantity, 0, 'executed rare crystal draft should release active frozen quantity')
+assert.equal(rareCrystalExecute.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'rare_elixir_crystal' && entry.quality === offlineRareAlchemyResult.output_quality).length, rareCrystalWithdrawLedgerCountBeforeExecute + 1, 'rare crystal execute should write one withdraw ledger only')
+assert.equal(rareCrystalExecute.personal_inventory.added_quantity, 1, 'rare crystal execute should report personal inventory gain')
+assert.equal(getInventoryItemQuantity(harvestOwner, 'rare_elixir_crystal', offlineRareAlchemyResult.output_quality), rareCrystalOwnerQuantityBeforeExecute + 1, 'rare crystal execute should add rare crystal to requester inventory once')
+assert.notEqual(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeExecute, 'rare crystal execute should rewrite requester save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeExecute, 'rare crystal execute should not rewrite partner save')
+assert.equal(readGameplayData(harvestOwner)?.player?.money, rareCrystalOwnerMoneyBeforeExecute, 'rare crystal execute should not change requester personal money')
+assert.equal(readGameplayData(harvestPartner)?.player?.money, rareCrystalPartnerMoneyBeforeExecute, 'rare crystal execute should not change partner personal money')
+assert.ok(rareCrystalExecute.contract.origin_assets.warehouse_items.some(item => item.ledger_id === rareCrystalExecute.ledger_entries[0].id && item.action === 'withdraw'), 'rare crystal execute origin assets should reference withdraw ledger')
+assert.ok(rareCrystalExecute.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_executed' && entry.detail?.risk_level === 'rare' && entry.detail?.compensation_required === true), 'rare crystal execute should audit compensation requirement')
+const rareCrystalOwnerQuantityAfterExecute = getInventoryItemQuantity(harvestOwner, 'rare_elixir_crystal', offlineRareAlchemyResult.output_quality)
+const duplicateRareCrystalExecute = await runtime.executeCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  expected_state: 'ready_to_execute',
+  reason: 'duplicate QA execute rare crystal high-value withdrawal',
+  idempotency_key: 'qa-rare-crystal-high-value-execute',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalExecute.idempotent, true, 'duplicate rare crystal execute should replay by idempotency key')
+assert.equal(getInventoryItemQuantity(harvestOwner, 'rare_elixir_crystal', offlineRareAlchemyResult.output_quality), rareCrystalOwnerQuantityAfterExecute, 'duplicate rare crystal execute should not add personal inventory twice')
+assert.equal(duplicateRareCrystalExecute.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 0, 'duplicate rare crystal execute should not restore shared warehouse stock')
+await assert.rejects(
+  () => runtime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    reason: 'executed rare crystal must use compensation review',
+    idempotency_key: 'qa-rare-crystal-high-value-rollback-after-execute',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'executed rare crystal draft should reject direct rollback and require compensation review'
+)
+const rareCrystalOwnerRawBeforeCompensationReview = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeCompensationReview = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWarehouseBeforeCompensationReview = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+await assert.rejects(
+  () => runtime.resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    decision: 'approved',
+    compensation_action: 'manual_compensation_recorded',
+    resolution_note: 'cannot resolve before request',
+    idempotency_key: 'qa-rare-crystal-compensation-resolve-before-request',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal compensation review should require request before resolution'
+)
+const rareCrystalCompensationRequest = await runtime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  reason: 'QA rare crystal disputed after execute',
+  requested_action: 'manual_restore_recorded',
+  evidence_note: 'source ledger and target bag slot need operator review',
+  compensation_plan: 'operator reviews withdraw ledger and records manual compensation receipt without automatic bag mutation',
+  idempotency_key: 'qa-rare-crystal-compensation-review-request',
+}, actor(harvestOwner))
+assert.equal(rareCrystalCompensationRequest.idempotent, false, 'rare crystal compensation request should commit once')
+assert.equal(rareCrystalCompensationRequest.draft.compensation_review_status, 'requested', 'rare crystal compensation request should mark draft requested')
+assert.equal(rareCrystalCompensationRequest.draft.execution_compensation_required, true, 'requested rare crystal compensation should still require resolution')
+assert.equal(rareCrystalCompensationRequest.draft.compensation_review_requested_by_username, harvestOwner, 'rare crystal compensation request should record requester')
+assert.equal(rareCrystalCompensationRequest.draft.compensation_review_requested_action, 'manual_restore_recorded', 'rare crystal compensation request should record requested action')
+assert.equal(rareCrystalCompensationRequest.draft.compensation_review_record_only, true, 'rare crystal compensation request should be record-only')
+assert.deepEqual(rareCrystalCompensationRequest.draft.warehouse_ledger_ids, rareCrystalExecute.draft.warehouse_ledger_ids, 'rare crystal compensation request should keep executed withdraw ledger ids')
+assert.ok(rareCrystalCompensationRequest.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_review_requested' && entry.detail?.draft_id === rareCrystalExecuteDraft.draft.id && entry.detail?.personal_save_changed === false), 'rare crystal compensation request should write record-only audit')
+assert.equal(rareCrystalCompensationRequest.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeCompensationReview.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal compensation request should not restore shared warehouse stock automatically')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeCompensationReview, 'rare crystal compensation request should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeCompensationReview, 'rare crystal compensation request should not rewrite harvest partner save')
+const duplicateRareCrystalCompensationRequest = await runtime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  reason: 'duplicate QA rare crystal disputed after execute',
+  requested_action: 'manual_restore_recorded',
+  idempotency_key: 'qa-rare-crystal-compensation-review-request',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalCompensationRequest.idempotent, true, 'duplicate rare crystal compensation request should replay by idempotency key')
+assert.equal(duplicateRareCrystalCompensationRequest.draft.compensation_review_status, 'requested', 'duplicate rare crystal compensation request should keep requested state')
+await assert.rejects(
+  () => runtime.resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    decision: 'approved',
+    compensation_action: 'manual_compensation_recorded',
+    resolution_note: 'partner without high-value permission cannot resolve compensation review',
+    idempotency_key: 'qa-rare-crystal-compensation-resolve-denied',
+  }, actor(harvestPartner)),
+  error => error?.status === 403,
+  'rare crystal compensation resolution should require owner or high-value warehouse permission'
+)
+await assert.rejects(
+  () => runtime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalRollback.draft.id, {
+    reason: 'rolled back draft cannot request compensation',
+    idempotency_key: 'qa-rare-crystal-rolled-back-compensation-request',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rolled back rare crystal draft should not accept execution compensation request'
+)
+const rareCrystalCompensationResolve = await runtime.resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  decision: 'approved',
+  compensation_action: 'manual_compensation_recorded',
+  compensation_receipt: 'qa-manual-compensation-receipt-rare-crystal',
+  resolution_note: 'QA operator recorded manual compensation receipt without mutating personal save',
+  idempotency_key: 'qa-rare-crystal-compensation-review-resolve',
+}, actor(harvestOwner))
+assert.equal(rareCrystalCompensationResolve.idempotent, false, 'rare crystal compensation resolution should commit once')
+assert.equal(rareCrystalCompensationResolve.draft.compensation_review_status, 'approved', 'rare crystal compensation resolution should mark approved')
+assert.equal(rareCrystalCompensationResolve.draft.execution_compensation_required, false, 'approved rare crystal compensation should close execution compensation requirement')
+assert.equal(rareCrystalCompensationResolve.draft.compensation_review_decision, 'approved', 'rare crystal compensation resolution should record decision')
+assert.equal(rareCrystalCompensationResolve.draft.compensation_review_compensation_action, 'manual_compensation_recorded', 'rare crystal compensation resolution should record compensation action')
+assert.equal(rareCrystalCompensationResolve.draft.compensation_review_compensation_receipt, 'qa-manual-compensation-receipt-rare-crystal', 'rare crystal compensation resolution should record receipt')
+assert.equal(rareCrystalCompensationResolve.draft.compensation_review_record_only, true, 'rare crystal compensation resolution should remain record-only')
+assert.ok(rareCrystalCompensationResolve.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_review_resolved' && entry.detail?.decision === 'approved' && entry.detail?.personal_save_changed === false), 'rare crystal compensation resolution should write record-only audit')
+assert.equal(rareCrystalCompensationResolve.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 0, 'rare crystal compensation resolution should not restore shared warehouse stock automatically')
+assert.equal(getInventoryItemQuantity(harvestOwner, 'rare_elixir_crystal', offlineRareAlchemyResult.output_quality), rareCrystalOwnerQuantityAfterExecute, 'rare crystal compensation resolution should not mutate requester inventory automatically')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeCompensationReview, 'rare crystal compensation resolution should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeCompensationReview, 'rare crystal compensation resolution should not rewrite harvest partner save')
+const duplicateRareCrystalCompensationResolve = await runtime.resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  decision: 'approved',
+  compensation_action: 'manual_compensation_recorded',
+  compensation_receipt: 'qa-manual-compensation-receipt-rare-crystal',
+  resolution_note: 'duplicate QA operator recorded manual compensation receipt',
+  idempotency_key: 'qa-rare-crystal-compensation-review-resolve',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalCompensationResolve.idempotent, true, 'duplicate rare crystal compensation resolution should replay by idempotency key')
+const rareCrystalOwnerRawBeforeCompensationPreflight = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeCompensationPreflight = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWarehouseBeforeCompensationPreflight = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    operator_note: 'partner without high-value permission cannot record preflight',
+    idempotency_key: 'qa-rare-crystal-compensation-preflight-denied',
+  }, actor(harvestPartner)),
+  error => error?.status === 403,
+  'rare crystal compensation preflight should require owner or high-value warehouse permission'
+)
+const rareCrystalCompensationPreflight = await runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  operator_note: 'QA record-only auto compensation preflight after approved review',
+  idempotency_key: 'qa-rare-crystal-compensation-preflight',
+}, actor(harvestOwner))
+assert.equal(rareCrystalCompensationPreflight.idempotent, false, 'rare crystal compensation preflight should commit once')
+assert.equal(rareCrystalCompensationPreflight.compensation_preflight.auto_compensation_enabled, false, 'rare crystal compensation preflight should keep automatic compensation disabled')
+assert.equal(rareCrystalCompensationPreflight.compensation_preflight.ready_for_auto_compensation, false, 'rare crystal compensation preflight should not claim auto compensation is ready')
+assert.equal(rareCrystalCompensationPreflight.compensation_preflight.record_only, true, 'rare crystal compensation preflight should be record-only')
+assert.equal(rareCrystalCompensationPreflight.compensation_preflight.personal_save_changed, false, 'rare crystal compensation preflight should not mutate personal save')
+assert.equal(rareCrystalCompensationPreflight.compensation_preflight.shared_warehouse_changed, false, 'rare crystal compensation preflight should not mutate shared warehouse')
+assert.ok(rareCrystalCompensationPreflight.compensation_preflight.withdraw_ledger_ids.includes(rareCrystalExecute.ledger_entries[0].id), 'rare crystal compensation preflight should include withdraw ledger id')
+assert.ok(rareCrystalCompensationPreflight.compensation_preflight.source_ledger_ids.includes(offlineRareAlchemyResult.output_ledger_id), 'rare crystal compensation preflight should keep source output ledger id')
+assert.ok(rareCrystalCompensationPreflight.compensation_preflight.target_save.target_item_slot_evidence_present, 'rare crystal compensation preflight should find requester target item slot evidence')
+assert.ok(rareCrystalCompensationPreflight.compensation_preflight.required_checks.find(check => check.id === 'operator_receipt_required' && check.passed === true), 'rare crystal compensation preflight should require and see manual receipt')
+assert.ok(rareCrystalCompensationPreflight.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_preflight_recorded' && entry.detail?.draft_id === rareCrystalExecuteDraft.draft.id && entry.detail?.auto_compensation_enabled === false && entry.detail?.personal_save_changed === false), 'rare crystal compensation preflight should write record-only audit')
+assert.equal(rareCrystalCompensationPreflight.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeCompensationPreflight.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal compensation preflight should not restore shared warehouse stock')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeCompensationPreflight, 'rare crystal compensation preflight should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeCompensationPreflight, 'rare crystal compensation preflight should not rewrite harvest partner save')
+const duplicateRareCrystalCompensationPreflight = await runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  operator_note: 'duplicate QA record-only auto compensation preflight after approved review',
+  idempotency_key: 'qa-rare-crystal-compensation-preflight',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalCompensationPreflight.idempotent, true, 'duplicate rare crystal compensation preflight should replay by idempotency key')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeCompensationPreflight, 'duplicate rare crystal compensation preflight should not rewrite harvest owner save')
+const rareCrystalOwnerRawBeforeCompensationExecution = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeCompensationExecution = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWarehouseBeforeCompensationExecution = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    execution_action: 'manual_compensation_recorded',
+    execution_receipt: 'qa-manual-compensation-execution-receipt-rare-crystal',
+    confirmation_text: 'CONFIRM_MANUAL_COMPENSATION_RECORDED',
+    preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight-missing',
+    idempotency_key: 'qa-rare-crystal-compensation-execution-missing-preflight',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal compensation execution should require a matching preflight audit'
+)
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    execution_action: 'manual_compensation_recorded',
+    execution_receipt: 'qa-manual-compensation-execution-receipt-rare-crystal',
+    confirmation_text: 'wrong confirmation',
+    preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight',
+    idempotency_key: 'qa-rare-crystal-compensation-execution-wrong-confirmation',
+  }, actor(harvestOwner)),
+  error => error?.status === 400,
+  'rare crystal compensation execution should require exact manual execution confirmation text'
+)
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    execution_action: 'manual_compensation_recorded',
+    execution_receipt: 'qa-manual-compensation-execution-receipt-rare-crystal',
+    confirmation_text: 'CONFIRM_MANUAL_COMPENSATION_RECORDED',
+    preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight',
+    idempotency_key: 'qa-rare-crystal-compensation-execution-denied',
+  }, actor(harvestPartner)),
+  error => error?.status === 403,
+  'rare crystal compensation execution should require owner or high-value warehouse permission'
+)
+const rareCrystalCompensationExecution = await runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  execution_action: 'manual_compensation_recorded',
+  execution_receipt: 'qa-manual-compensation-execution-receipt-rare-crystal',
+  execution_note: 'QA operator recorded manual compensation execution receipt after preflight',
+  confirmation_text: 'CONFIRM_MANUAL_COMPENSATION_RECORDED',
+  preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight',
+  idempotency_key: 'qa-rare-crystal-compensation-execution',
+}, actor(harvestOwner))
+assert.equal(rareCrystalCompensationExecution.idempotent, false, 'rare crystal compensation execution should commit once')
+assert.equal(rareCrystalCompensationExecution.draft.compensation_execution_status, 'recorded', 'rare crystal compensation execution should mark draft recorded')
+assert.equal(rareCrystalCompensationExecution.draft.compensation_execution_record_only, true, 'rare crystal compensation execution should remain record-only')
+assert.equal(rareCrystalCompensationExecution.compensation_execution.auto_compensation_enabled, false, 'rare crystal compensation execution should keep automatic compensation disabled')
+assert.equal(rareCrystalCompensationExecution.compensation_execution.ready_for_auto_compensation, false, 'rare crystal compensation execution should not claim auto compensation readiness')
+assert.equal(rareCrystalCompensationExecution.compensation_execution.record_only, true, 'rare crystal compensation execution should be record-only')
+assert.equal(rareCrystalCompensationExecution.compensation_execution.personal_save_changed, false, 'rare crystal compensation execution should not mutate personal save')
+assert.equal(rareCrystalCompensationExecution.compensation_execution.shared_warehouse_changed, false, 'rare crystal compensation execution should not mutate shared warehouse')
+assert.ok(rareCrystalCompensationExecution.compensation_execution.preflight_idempotency_key === 'qa-rare-crystal-compensation-preflight', 'rare crystal compensation execution should bind the preflight idempotency key')
+assert.ok(rareCrystalCompensationExecution.compensation_execution.required_checks.find(check => check.id === 'record_only_execution' && check.passed === true), 'rare crystal compensation execution should expose record-only execution check')
+assert.ok(rareCrystalCompensationExecution.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_execution_recorded' && entry.detail?.draft_id === rareCrystalExecuteDraft.draft.id && entry.detail?.record_only === true && entry.detail?.personal_save_changed === false), 'rare crystal compensation execution should write record-only audit')
+assert.equal(rareCrystalCompensationExecution.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeCompensationExecution.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal compensation execution should not restore shared warehouse stock')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeCompensationExecution, 'rare crystal compensation execution should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeCompensationExecution, 'rare crystal compensation execution should not rewrite harvest partner save')
+const duplicateRareCrystalCompensationExecution = await runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+  execution_action: 'manual_compensation_recorded',
+  execution_receipt: 'qa-manual-compensation-execution-receipt-rare-crystal',
+  confirmation_text: 'CONFIRM_MANUAL_COMPENSATION_RECORDED',
+  preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight',
+  idempotency_key: 'qa-rare-crystal-compensation-execution',
+}, actor(harvestOwner))
+assert.equal(duplicateRareCrystalCompensationExecution.idempotent, true, 'duplicate rare crystal compensation execution should replay by idempotency key')
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    execution_action: 'manual_compensation_recorded',
+    execution_receipt: 'qa-manual-compensation-execution-receipt-rare-crystal-duplicate',
+    confirmation_text: 'CONFIRM_MANUAL_COMPENSATION_RECORDED',
+    preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight',
+    idempotency_key: 'qa-rare-crystal-compensation-execution-new-key',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal compensation execution should reject a second execution with a different idempotency key'
+)
+await assert.rejects(
+  () => runtime.getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not read rare crystal compensation audit bundle'
+)
+const rareCrystalOwnerRawBeforeCompensationAudit = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeCompensationAudit = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWarehouseBeforeCompensationAudit = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+const rareCrystalCompensationAudit = await runtime.getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, actor(harvestPartner))
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.draft_id, rareCrystalExecuteDraft.draft.id, 'rare crystal compensation audit bundle should bind the draft id')
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.appeal_packet.enabled, true, 'rare crystal compensation audit bundle should expose appeal packet readiness')
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.appeal_packet.record_only, true, 'rare crystal compensation audit bundle should be record-only')
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.appeal_packet.timeline_complete, true, 'rare crystal compensation audit bundle should include complete review/preflight/execution timeline')
+assert.deepEqual(rareCrystalCompensationAudit.compensation_audit_bundle.appeal_packet.missing_evidence, [], 'rare crystal compensation audit bundle should not miss evidence after execution record')
+assert.ok(rareCrystalCompensationAudit.compensation_audit_bundle.ledger_evidence.withdraw_ledger_entries.some(entry => entry.id === rareCrystalExecute.ledger_entries[0].id), 'rare crystal compensation audit bundle should include withdraw ledger')
+assert.ok(rareCrystalCompensationAudit.compensation_audit_bundle.ledger_evidence.source_ledger_entries.some(entry => entry.id === offlineRareAlchemyResult.output_ledger_id), 'rare crystal compensation audit bundle should include source ledger')
+assert.ok(rareCrystalCompensationAudit.compensation_audit_bundle.review_audits.some(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_review_resolved'), 'rare crystal compensation audit bundle should include review resolution audit')
+assert.ok(rareCrystalCompensationAudit.compensation_audit_bundle.preflight_audits.some(entry => entry.idempotency_key === 'qa-rare-crystal-compensation-preflight'), 'rare crystal compensation audit bundle should include preflight audit')
+assert.ok(rareCrystalCompensationAudit.compensation_audit_bundle.execution_audits.some(entry => entry.idempotency_key === 'qa-rare-crystal-compensation-execution'), 'rare crystal compensation audit bundle should include execution audit')
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.asset_boundary.personal_money_merged, false, 'rare crystal compensation audit bundle should keep personal money boundary')
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.asset_boundary.personal_save_changed, false, 'rare crystal compensation audit bundle should not mutate personal saves')
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.asset_boundary.shared_warehouse_changed, false, 'rare crystal compensation audit bundle should not mutate shared warehouse')
+assert.equal(rareCrystalCompensationAudit.compensation_audit_bundle.asset_boundary.auto_compensation_enabled, false, 'rare crystal compensation audit bundle should keep auto compensation disabled')
+assert.equal(rareCrystalCompensationAudit.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeCompensationAudit.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal compensation audit bundle should not restore shared warehouse stock')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeCompensationAudit, 'rare crystal compensation audit bundle should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeCompensationAudit, 'rare crystal compensation audit bundle should not rewrite harvest partner save')
+await assert.rejects(
+  () => runtime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    reason: 'cannot reopen resolved rare crystal compensation review',
+    idempotency_key: 'qa-rare-crystal-compensation-review-reopen',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'resolved rare crystal compensation review should not reopen'
+)
+
+const offlineWorkshopInsufficientOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const offlineWorkshopInsufficientPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const offlineWorkshopInsufficientQueue = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-workshop-insufficient-materials',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-cooking-missing-rice-op',
+      idempotency_key: 'qa-offline-shared-cooking-missing-rice-op-idem',
+      recipe_id: 'shared_rice_ball',
+      memo: 'qa offline shared cooking missing rice',
+    },
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-alchemy-missing-materials-op',
+      idempotency_key: 'qa-offline-shared-alchemy-missing-materials-op-idem',
+      recipe_id: 'shared_qingxin_lotus_elixir',
+      memo: 'qa offline shared alchemy missing materials',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(offlineWorkshopInsufficientQueue.offline_queue_merge.accepted_count, 0, 'offline shared workshop insufficient queue should not accept missing-material operations')
+assert.equal(offlineWorkshopInsufficientQueue.offline_queue_merge.rejected_count, 2, 'offline shared workshop insufficient queue should reject both missing-material operations')
+assert.deepEqual(offlineWorkshopInsufficientQueue.offline_queue_merge.rejected.map(entry => entry.reason), ['insufficient_shared_workshop_materials', 'insufficient_shared_workshop_materials'], 'offline shared workshop missing materials should use deterministic rejection reason')
+assert.equal(offlineWorkshopInsufficientQueue.offline_queue_merge.rejected.find(entry => entry.recipe_id === 'shared_rice_ball')?.process_kind, 'cooking_dish', 'offline shared cooking rejection should keep process kind')
+assert.equal(offlineWorkshopInsufficientQueue.offline_queue_merge.rejected.find(entry => entry.recipe_id === 'shared_qingxin_lotus_elixir')?.process_kind, 'alchemy_elixir', 'offline shared alchemy rejection should keep process kind')
+assert.equal(offlineWorkshopInsufficientQueue.offline_queue_merge.rejected.find(entry => entry.recipe_id === 'shared_qingxin_lotus_elixir')?.alchemy_result_kind, 'success', 'offline shared alchemy rejection should keep result kind')
+assert.equal(offlineWorkshopInsufficientQueue.offline_queue_merge.rejected.every(entry => entry.shared_warehouse_changed === false && entry.personal_save_changed === false), true, 'offline shared workshop rejections should declare no warehouse or personal save mutation')
+assert.equal(offlineWorkshopInsufficientQueue.contract.shared_warehouse.items.find(item => item.item_id === 'food_rice_ball' && item.quality === 'fine')?.quantity ?? 0, 2, 'offline shared cooking rejection should not duplicate dish output')
+assert.equal(offlineWorkshopInsufficientQueue.contract.shared_warehouse.items.find(item => item.item_id === 'qingxin_lotus_elixir' && item.quality === 'fine')?.quantity ?? 0, 2, 'offline shared alchemy rejection should not duplicate elixir output')
+assert.ok(offlineWorkshopInsufficientQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-shared-workshop-insufficient-materials' && entry.detail?.rejected_count === 2), 'offline shared workshop insufficient queue should write rejected audit')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, offlineWorkshopInsufficientOwnerRawBefore, 'offline shared workshop insufficient queue should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, offlineWorkshopInsufficientPartnerRawBefore, 'offline shared workshop insufficient queue should not rewrite harvest partner save')
+const duplicateOfflineWorkshopInsufficientQueue = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-workshop-insufficient-materials',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-cooking-missing-rice-op',
+      idempotency_key: 'qa-offline-shared-cooking-missing-rice-op-idem',
+      recipe_id: 'shared_rice_ball',
+    },
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-alchemy-missing-materials-op',
+      idempotency_key: 'qa-offline-shared-alchemy-missing-materials-op-idem',
+      recipe_id: 'shared_qingxin_lotus_elixir',
+    },
+  ],
+}, actor(harvestOwner))
+assert.equal(duplicateOfflineWorkshopInsufficientQueue.offline_queue_merge.idempotent, true, 'duplicate offline shared workshop insufficient queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineWorkshopInsufficientQueue.offline_queue_merge.rejected_count, 2, 'duplicate offline shared workshop insufficient queue should replay rejected count')
+assert.equal(duplicateOfflineWorkshopInsufficientQueue.offline_queue_merge.rejected[0]?.reason, 'insufficient_shared_workshop_materials', 'duplicate offline shared workshop insufficient queue should replay rejection reason')
+
 await runtime.updateCohabitationPermissions(harvestContractCreated.contract.id, {
   target_username: harvestPartner,
   permissions: {
@@ -2070,6 +3221,8 @@ await runtime.updateCohabitationPermissions(harvestContractCreated.contract.id, 
   },
   idempotency_key: 'qa-disable-partner-shared-workshop-process',
 }, actor(harvestOwner))
+const sharedWorkshopDeniedOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const sharedWorkshopDeniedPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
 await assert.rejects(
   () => runtime.processCohabitationSharedWorkshopRecipe(harvestContractCreated.contract.id, {
     recipe_id: 'shared_rice_flour',
@@ -2078,8 +3231,29 @@ await assert.rejects(
   error => error?.status === 403,
   'shared workshop process should reject members without workshop construction permission'
 )
-assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopOwnerRawBeforeProcess, 'permission-denied shared workshop process should not rewrite harvest owner save')
-assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopPartnerRawBeforeProcess, 'permission-denied shared workshop process should not rewrite harvest partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopDeniedOwnerRawBefore, 'permission-denied shared workshop process should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopDeniedPartnerRawBefore, 'permission-denied shared workshop process should not rewrite harvest partner save')
+const offlineWorkshopPermissionQueue = await runtime.mergeCohabitationOfflineQueue(harvestContractCreated.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-workshop-permission-denied',
+  operations: [
+    {
+      action: 'process_shared_workshop_recipe',
+      operation_id: 'qa-offline-shared-workshop-permission-denied-op',
+      idempotency_key: 'qa-offline-shared-workshop-permission-denied-op-idem',
+      recipe_id: 'shared_rice_flour',
+      memo: 'qa offline shared workshop permission denied',
+    },
+  ],
+}, actor(harvestPartner))
+assert.equal(offlineWorkshopPermissionQueue.offline_queue_merge.accepted_count, 0, 'offline shared workshop permission queue should not accept denied operation')
+assert.equal(offlineWorkshopPermissionQueue.offline_queue_merge.rejected_count, 1, 'offline shared workshop permission queue should reject denied operation')
+assert.equal(offlineWorkshopPermissionQueue.offline_queue_merge.rejected[0]?.reason, 'shared_workshop_permission_denied', 'offline shared workshop permission queue should expose permission rejection reason')
+assert.equal(offlineWorkshopPermissionQueue.offline_queue_merge.rejected[0]?.recipe_id, 'shared_rice_flour', 'offline shared workshop permission rejection should keep recipe id')
+assert.equal(offlineWorkshopPermissionQueue.offline_queue_merge.rejected[0]?.shared_warehouse_changed, false, 'offline shared workshop permission rejection should not mutate warehouse')
+assert.equal(offlineWorkshopPermissionQueue.offline_queue_merge.rejected[0]?.personal_save_changed, false, 'offline shared workshop permission rejection should not mutate personal save')
+assert.ok(offlineWorkshopPermissionQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-shared-workshop-permission-denied' && entry.detail?.rejected_count === 1), 'offline shared workshop permission queue should write rejected audit')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, sharedWorkshopDeniedOwnerRawBefore, 'offline permission-denied shared workshop queue should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, sharedWorkshopDeniedPartnerRawBefore, 'offline permission-denied shared workshop queue should not rewrite harvest partner save')
 
 await runtime.updateCohabitationPermissions(harvestContractCreated.contract.id, {
   target_username: harvestPartner,
@@ -2090,6 +3264,8 @@ await runtime.updateCohabitationPermissions(harvestContractCreated.contract.id, 
 }, actor(harvestOwner))
 const harvestSharedMapBeforeDenied = (await runtime.getCohabitationSharedMap(harvestContractCreated.contract.id, actor(harvestOwner))).shared_map
 const deniedRiceHarvestPlot = harvestSharedMapBeforeDenied.plots.find(plot => plot.origin_owner_username === harvestOwner && plot.source_plot_id === 3)
+const harvestDeniedOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const harvestDeniedPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
 await assert.rejects(
   () => runtime.harvestCohabitationSharedFarmPlot(harvestContractCreated.contract.id, {
     plot_id: deniedRiceHarvestPlot.id,
@@ -2099,8 +3275,8 @@ await assert.rejects(
   'shared farm harvest should reject members without farm harvest permission'
 )
 assert.equal((await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))).warehouse.items.find(item => item.item_id === 'rice')?.quantity || 0, 0, 'permission-denied shared farm harvest should not deposit output')
-assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, harvestOwnerRawBeforeSharedFarmHarvest, 'permission-denied shared farm harvest should not rewrite harvest owner save')
-assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, harvestPartnerRawBeforeSharedFarmHarvest, 'permission-denied shared farm harvest should not rewrite harvest partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, harvestDeniedOwnerRawBefore, 'permission-denied shared farm harvest should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, harvestDeniedPartnerRawBefore, 'permission-denied shared farm harvest should not rewrite harvest partner save')
 
 const ownerFishFeedBeforeFundPurchase = getInventoryItemQuantity(owner, 'fish_feed')
 const ownerMoneyBeforeFeedPurchase = readGameplayData(owner)?.player?.money

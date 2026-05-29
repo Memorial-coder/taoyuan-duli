@@ -444,6 +444,122 @@ export interface CohabitationSharedAnimalLedgerEntry {
   at: number
 }
 
+export interface CohabitationSharedPet {
+  id: string
+  shared_pet_id: string
+  source_pet_id: string
+  type: string
+  name: string
+  origin_owner_id: string
+  origin_save_id: number
+  origin_owner_username: string
+  origin_owner_display_name: string
+  origin_owner_key: string
+  source_save_slot?: number | null
+  source_save_revision?: number
+  current_caregiver_username: string
+  current_caregiver_display_name: string
+  permission_mode: string
+  split_rule?: string
+  permission_restriction?: string
+  readonly?: boolean
+  pet_state: {
+    type?: string
+    name?: string
+    friendship: number
+    mood: number
+    care_count: number
+    last_care_item_id?: string
+    last_care_item_label?: string
+    last_care_item_effect?: string
+    last_cared_at?: number
+    last_care_day_key?: string
+    last_caregiver_username?: string
+    cooperation_mood_bonus?: number
+    last_cooperation_bonus_action?: string
+    last_cooperation_bonus_members?: string[]
+  }
+}
+
+export interface CohabitationSharedPets {
+  contract_id: string
+  shared_manor_id: string
+  status: string
+  readonly: boolean
+  writes_enabled: boolean
+  persisted?: boolean
+  persistence_policy?: string
+  persisted_at?: number
+  generated_at: number
+  revision: number
+  pets: CohabitationSharedPet[]
+  summary: {
+    pet_count: number
+    cared_count: number
+    pet_care_write_enabled?: boolean
+    shared_warehouse_pet_care_consume_enabled?: boolean
+    supported_care_item_ids?: string[]
+    personal_save_changed?: boolean
+    included_sources?: string[]
+    deferred_writes?: string[]
+  }
+}
+
+export interface CohabitationSharedPetLedgerEntry {
+  id: string
+  action: string
+  pet_id: string
+  shared_pet_id: string
+  source_pet_id: string
+  actor_username: string
+  actor_display_name: string
+  care_item_id?: string
+  care_item_label?: string
+  care_item_effect?: string
+  care_item_profile?: {
+    item_id: string
+    label?: string
+    care_effect?: string
+    friendship_gain?: number
+    mood_gain?: number
+    risk_level?: string
+    requires_confirmation?: boolean
+    confirmation_phrase?: string
+    rollback_plan?: string
+    compensation_hint?: string
+    quantity?: number
+    quality?: string
+    source_inventory?: string
+  }
+  friendship_gain?: number
+  mood_gain?: number
+  risk_level?: string
+  confirmation_required?: boolean
+  confirmed_high_value_care?: boolean
+  risk_acknowledged?: boolean
+  confirmation_text?: string
+  rollback_plan_acknowledged?: boolean
+  compensation_plan_acknowledged?: boolean
+  rollback_plan?: string
+  compensation_hint?: string
+  care_day_key?: string
+  warehouse_ledger_ids?: string[]
+  shared_warehouse_changed?: boolean
+  origin_owner_id: string
+  origin_owner_username: string
+  origin_owner_display_name: string
+  origin_save_id: number
+  source_save_slot: number | null
+  source_save_revision: number
+  before_pet_state: Record<string, unknown>
+  after_pet_state: Record<string, unknown>
+  simultaneous_online_bonus?: Record<string, unknown>
+  permission_mode: string
+  idempotency_key: string
+  status: string
+  at: number
+}
+
 export interface CohabitationWarehouseItem {
   item_id: string
   quantity: number
@@ -479,11 +595,51 @@ export interface CohabitationWarehouseHighValueWithdrawalDraft {
   compensation_hint: string
   rollback_plan: string
   warehouse_ledger_ids: string[]
+  source_ledger_ids?: string[]
+  target_owner_username?: string
+  target_save_id?: number
+  target_save_slot?: number | null
+  compensation_review_status?: string
+  compensation_execution_status?: string
   created_at: number
   executed_at: number
   rolled_back_at: number
 }
 
+
+export interface CohabitationWarehouseCompensationAuditBundle {
+  contract_id: string
+  draft_id: string
+  generated_at: number
+  requested_by_username: string
+  draft: Record<string, unknown>
+  ledger_evidence: {
+    withdraw_ledger_entries: CohabitationWarehouseLedgerEntry[]
+    source_ledger_entries: CohabitationWarehouseLedgerEntry[]
+    withdraw_ledger_count: number
+    source_ledger_count: number
+  }
+  target_save: Record<string, unknown>
+  audit_timeline: CohabitationAuditEntry[]
+  review_audits: CohabitationAuditEntry[]
+  preflight_audits: CohabitationAuditEntry[]
+  execution_audits: CohabitationAuditEntry[]
+  appeal_packet: {
+    enabled: boolean
+    record_only: boolean
+    timeline_complete: boolean
+    missing_evidence: string[]
+    next_supported_actions: string[]
+  }
+  asset_boundary: {
+    personal_money_merged: boolean
+    personal_save_changed: boolean
+    shared_warehouse_changed: boolean
+    auto_compensation_enabled: boolean
+    shared_warehouse_restore_enabled: boolean
+    personal_inventory_mutation_enabled: boolean
+  }
+}
 export interface CohabitationWarehouseGovernanceRecovery {
   id: string
   state: string
@@ -1873,6 +2029,12 @@ export interface CohabitationWarehouseHighValueWithdrawalDraftResponse extends C
   personal_inventory?: Record<string, unknown>
 }
 
+export interface CohabitationWarehouseCompensationAuditBundleResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  draft?: CohabitationWarehouseHighValueWithdrawalDraft
+  compensation_audit_bundle?: CohabitationWarehouseCompensationAuditBundle
+}
+
 export interface CohabitationWarehouseGovernanceRecoveryResponse extends CohabitationDetailResponse {
   warehouse?: CohabitationWarehouseSnapshot
   governance?: CohabitationWarehouseGovernanceSnapshot
@@ -1949,6 +2111,55 @@ export interface CohabitationSharedAnimalActionResponse extends CohabitationDeta
     warehouse_ledger_ids?: string[]
     before_animal_state?: Record<string, unknown>
     after_animal_state?: Record<string, unknown>
+    personal_save_changed?: boolean
+    shared_warehouse_changed?: boolean
+    shared_fund_changed?: boolean
+  }
+}
+
+export interface CohabitationSharedPetCarePayload {
+  pet_id: string
+  care_item_id?: string
+  memo?: string
+  confirmed_high_value_care?: boolean
+  risk_acknowledged?: boolean
+  confirmation_text?: string
+  rollback_plan_acknowledged?: boolean
+  compensation_plan_acknowledged?: boolean
+  idempotency_key: string
+}
+
+export interface CohabitationSharedPetActionResponse extends CohabitationDetailResponse {
+  shared_pets?: CohabitationSharedPets
+  warehouse?: CohabitationWarehouseSnapshot
+  pet?: CohabitationSharedPet | null
+  ledger_entry?: CohabitationSharedPetLedgerEntry | null
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  idempotent?: boolean
+  already_cared?: boolean
+  pet_action?: {
+    action: string
+    pet_id: string
+    care_item_id?: string
+    care_item_label?: string
+    care_item_effect?: string
+    care_item_profile?: Record<string, unknown>
+    friendship_gain?: number
+    mood_gain?: number
+    risk_level?: string
+    confirmation_required?: boolean
+    confirmed_high_value_care?: boolean
+    risk_acknowledged?: boolean
+    confirmation_text?: string
+    rollback_plan_acknowledged?: boolean
+    compensation_plan_acknowledged?: boolean
+    rollback_plan?: string
+    compensation_hint?: string
+    care_day_key?: string
+    warehouse_ledger_ids?: string[]
+    before_pet_state?: Record<string, unknown>
+    after_pet_state?: Record<string, unknown>
+    simultaneous_online_bonus?: Record<string, unknown>
     personal_save_changed?: boolean
     shared_warehouse_changed?: boolean
     shared_fund_changed?: boolean
@@ -2437,6 +2648,12 @@ export const fetchCohabitationSharedAnimals = async (contractId: string) => {
   }>(contractPath(contractId, '/shared-animals'), '获取共同动物失败')
 }
 
+export const fetchCohabitationSharedPets = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    shared_pets?: CohabitationSharedPets
+  }>(contractPath(contractId, '/shared-pets'), '获取共同宠物失败')
+}
+
 export const feedCohabitationSharedAnimal = async (contractId: string, payload: CohabitationSharedAnimalFeedPayload) => {
   return postCohabitationJson<CohabitationSharedAnimalActionResponse>(
     contractPath(contractId, '/shared-animals/feed'),
@@ -2458,6 +2675,14 @@ export const collectCohabitationSharedAnimalProduct = async (contractId: string,
     contractPath(contractId, '/shared-animals/collect-product'),
     payload as unknown as Record<string, unknown>,
     '收取共同动物产物失败'
+  )
+}
+
+export const careCohabitationSharedPet = async (contractId: string, payload: CohabitationSharedPetCarePayload) => {
+  return postCohabitationJson<CohabitationSharedPetActionResponse>(
+    contractPath(contractId, '/shared-pets/care'),
+    payload as unknown as Record<string, unknown>,
+    '照料共同宠物失败'
   )
 }
 
@@ -2560,6 +2785,13 @@ export const rollbackCohabitationWarehouseHighValueWithdrawalDraft = async (cont
     contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/rollback`),
     payload as unknown as Record<string, unknown>,
     '回滚共同仓库高价值取出草案失败'
+  )
+}
+
+export const fetchCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle = async (contractId: string, draftId: string) => {
+  return fetchCohabitationJson<CohabitationWarehouseCompensationAuditBundleResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/audit`),
+    '获取共同仓库高价值取出补偿审计失败'
   )
 }
 

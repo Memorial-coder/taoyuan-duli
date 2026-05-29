@@ -42,6 +42,7 @@ const COHABITATION_RECENT_ONLINE_SECONDS = 15 * 60;
 const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
 const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
 const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
+const SHARED_PET_CARE_COOP_MOOD_BONUS = 2;
 const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS = 1;
 const SHARED_DECORATION_COOP_ATMOSPHERE_BONUS = 1;
 const SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS = 1;
@@ -62,6 +63,10 @@ const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute', 'executed', 'rolled_back', 'expired']);
 const WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute']);
+const WAREHOUSE_WITHDRAWAL_COMPENSATION_REVIEW_STATUSES = new Set(['none', 'requested', 'approved', 'rejected']);
+const WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS = new Set(['manual_restore_recorded', 'manual_compensation_recorded', 'no_compensation_needed', 'audit_only']);
+const WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_ACTIONS = new Set(['manual_restore_recorded', 'manual_compensation_recorded', 'no_compensation_needed']);
+const WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT = 'CONFIRM_MANUAL_COMPENSATION_RECORDED';
 const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
   rice: 35,
   wheat: 55,
@@ -209,6 +214,79 @@ const SHARED_FUND_AUTO_PURCHASE_CATALOG = Object.freeze({
     category: 'feed',
   },
 });
+const SHARED_PET_CARE_ITEM_CATALOG = Object.freeze({
+  premium_feed: {
+    item_id: 'premium_feed',
+    label: '精饲料',
+    care_effect: 'affection_care',
+    friendship_gain: 6,
+    mood_gain: 12,
+    risk_level: 'standard',
+    requires_confirmation: false,
+  },
+  nourishing_feed: {
+    item_id: 'nourishing_feed',
+    label: '滋补饲料',
+    care_effect: 'recovery_care',
+    friendship_gain: 4,
+    mood_gain: 10,
+    risk_level: 'standard',
+    requires_confirmation: false,
+  },
+  vitality_feed: {
+    item_id: 'vitality_feed',
+    label: '活力饲料',
+    care_effect: 'vitality_care',
+    friendship_gain: 3,
+    mood_gain: 8,
+    risk_level: 'standard',
+    requires_confirmation: false,
+  },
+  sesame_patrol_biscuit: {
+    item_id: 'sesame_patrol_biscuit',
+    label: '芝麻巡院饼',
+    care_effect: 'patrol_memory_care',
+    friendship_gain: 8,
+    mood_gain: 14,
+    risk_level: 'high_value_pet_treat',
+    requires_confirmation: true,
+    confirmation_phrase: '确认消耗共同宠物高阶点心',
+    rollback_plan: '提交前缺少确认会阻断；提交后只写契约宠物镜像和共同仓库 consume ledger，异常时按 ledger 人工补偿。',
+    compensation_hint: '高阶宠物点心已从共同仓库扣减；若照料或审计异常，按共同宠物 ledger 与仓库 consume ledger 返还或重放。',
+  },
+  lotus_heart_cat_treat: {
+    item_id: 'lotus_heart_cat_treat',
+    label: '莲心桂花糕',
+    care_effect: 'calming_care',
+    friendship_gain: 10,
+    mood_gain: 16,
+    risk_level: 'high_value_pet_treat',
+    requires_confirmation: true,
+    confirmation_phrase: '确认消耗共同宠物高阶点心',
+    rollback_plan: '提交前缺少确认会阻断；提交后只写契约宠物镜像和共同仓库 consume ledger，异常时按 ledger 人工补偿。',
+    compensation_hint: '高阶宠物点心已从共同仓库扣减；若照料或审计异常，按共同宠物 ledger 与仓库 consume ledger 返还或重放。',
+  },
+  spirit_fruit_mooncake: {
+    item_id: 'spirit_fruit_mooncake',
+    label: '灵果月华糕',
+    care_effect: 'moonlit_spirit_care',
+    friendship_gain: 14,
+    mood_gain: 20,
+    risk_level: 'rare_pet_treat',
+    requires_confirmation: true,
+    confirmation_phrase: '确认消耗共同宠物高阶点心',
+    rollback_plan: '提交前缺少确认会阻断；提交后只写契约宠物镜像和共同仓库 consume ledger，异常时按 ledger 人工补偿。',
+    compensation_hint: '稀有灵果点心已从共同仓库扣减；若照料或审计异常，按共同宠物 ledger 与仓库 consume ledger 返还或重放。',
+  },
+});
+const SHARED_PET_CARE_ITEM_IDS = Object.freeze(Object.keys(SHARED_PET_CARE_ITEM_CATALOG));
+const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
+  'feed_shared_animal',
+  'pet_shared_animal',
+  'collect_shared_animal_product',
+  'care_shared_pet',
+  'process_shared_workshop_recipe',
+]);
 const SHARED_FARM_SEED_CATALOG = Object.freeze(Object.fromEntries(
   Object.values(SHARED_FUND_AUTO_PURCHASE_CATALOG)
     .filter(item => item.category === 'seed')
@@ -832,6 +910,14 @@ const FAMILY_FESTIVAL_SEAT_TEMPLATE_DEFS = Object.freeze([
 
 function nowSeconds() {
   return Math.floor(Date.now() / 1000);
+}
+
+function buildRealtimeDayKey(timestamp = nowSeconds()) {
+  const date = new Date(Math.max(0, Math.floor(Number(timestamp) || nowSeconds())) * 1000);
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getUTCDate()}`.padStart(2, '0');
+  return `realtime:${year}-${month}-${day}`;
 }
 
 function sanitizeText(value, maxLength = 120) {
@@ -1512,14 +1598,21 @@ function normalizeWarehouseWithdrawalDraft(entry = {}) {
   const sourceAllocations = Array.isArray(entry.source_allocations)
     ? entry.source_allocations.map(normalizeWarehouseWithdrawalAllocation).filter(Boolean).slice(0, 12)
     : [];
+  const sourceLedgerIds = [...new Set(sourceAllocations.flatMap(allocation => allocation.source_ledger_ids || []))]
+    .map(id => sanitizeText(id, 100))
+    .filter(Boolean)
+    .slice(0, 24);
   const state = WAREHOUSE_WITHDRAWAL_DRAFT_STATES.has(entry.state) ? entry.state : 'pending_confirmation';
+  const riskLevel = ['high_quality', 'rare'].includes(entry.risk_level) ? entry.risk_level : getWarehouseWithdrawalRiskLevel(itemId, quality);
+  const compensationReviewStatus = WAREHOUSE_WITHDRAWAL_COMPENSATION_REVIEW_STATUSES.has(entry.compensation_review_status) ? entry.compensation_review_status : 'none';
   return {
     id: sanitizeText(entry.id, 100) || makeId('warehouse_withdrawal_draft'),
     state,
     item_id: itemId,
     quality,
     quantity,
-    risk_level: ['high_quality', 'rare'].includes(entry.risk_level) ? entry.risk_level : getWarehouseWithdrawalRiskLevel(itemId, quality),
+    risk_level: riskLevel,
+    high_value_withdrawal_required: riskLevel !== 'common',
     requester_username: normalizeUsername(entry.requester_username || entry.actor_username),
     requester_display_name: sanitizeText(entry.requester_display_name || entry.requester_username || entry.actor_username, 60),
     requester_username_key: normalizeUsernameKey(entry.requester_username_key || entry.requester_username || entry.actor_username),
@@ -1538,11 +1631,14 @@ function normalizeWarehouseWithdrawalDraft(entry = {}) {
       last_confirmed_at: lastEvent?.confirmed_at || 0,
     },
     source_allocations: sourceAllocations,
+    source_ledger_ids: sourceLedgerIds,
     frozen_quantity: Math.min(quantity, normalizePositiveInt(entry.frozen_quantity ?? quantity, quantity)),
     frozen_at: Math.max(0, Math.floor(Number(entry.frozen_at) || 0)),
+    freeze_release_available: ['pending_confirmation', 'ready_to_execute'].includes(state),
     freeze_policy: sanitizeText(entry.freeze_policy, 180) || '草案确认期间锁定共同仓库高价值库存，不写个人背包；撤销草案会释放冻结数量。',
     compensation_hint: sanitizeText(entry.compensation_hint, 220) || '执行取出后若个人背包写入或审计链路异常，需按 draft、withdraw ledger 与目标背包落点人工补偿或重放。',
     rollback_plan: sanitizeText(entry.rollback_plan, 220) || '执行前可撤销草案释放冻结；执行后不自动回收个人背包，需走补偿复核。',
+    execution_compensation_required: state === 'executed' && !['approved', 'rejected'].includes(compensationReviewStatus),
     created_at: Math.max(0, Math.floor(Number(entry.created_at) || 0)) || nowSeconds(),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     execute_idempotency_key: sanitizeText(entry.execute_idempotency_key, 120),
@@ -1551,7 +1647,34 @@ function normalizeWarehouseWithdrawalDraft(entry = {}) {
     warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids)
       ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
       : [],
+    compensation_review_status: compensationReviewStatus,
+    compensation_review_requested_at: Math.max(0, Math.floor(Number(entry.compensation_review_requested_at) || 0)),
+    compensation_review_requested_by_username: normalizeUsername(entry.compensation_review_requested_by_username),
+    compensation_review_reason: sanitizeText(entry.compensation_review_reason, 180),
+    compensation_review_requested_action: WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS.has(entry.compensation_review_requested_action) ? entry.compensation_review_requested_action : '',
+    compensation_review_evidence_note: sanitizeText(entry.compensation_review_evidence_note, 240),
+    compensation_review_plan: sanitizeText(entry.compensation_review_plan, 240),
+    compensation_review_idempotency_key: sanitizeText(entry.compensation_review_idempotency_key, 120),
+    compensation_review_resolved_at: Math.max(0, Math.floor(Number(entry.compensation_review_resolved_at) || 0)),
+    compensation_review_resolved_by_username: normalizeUsername(entry.compensation_review_resolved_by_username),
+    compensation_review_decision: ['approved', 'rejected'].includes(entry.compensation_review_decision) ? entry.compensation_review_decision : '',
+    compensation_review_resolution_note: sanitizeText(entry.compensation_review_resolution_note, 240),
+    compensation_review_compensation_action: WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS.has(entry.compensation_review_compensation_action) ? entry.compensation_review_compensation_action : '',
+    compensation_review_compensation_receipt: sanitizeText(entry.compensation_review_compensation_receipt, 160),
+    compensation_review_resolve_idempotency_key: sanitizeText(entry.compensation_review_resolve_idempotency_key, 120),
+    compensation_review_record_only: entry.compensation_review_record_only !== false,
     rollback_idempotency_key: sanitizeText(entry.rollback_idempotency_key, 120),
+    compensation_execution_status: ['none', 'recorded'].includes(entry.compensation_execution_status) ? entry.compensation_execution_status : 'none',
+    compensation_execution_action: WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_ACTIONS.has(entry.compensation_execution_action) ? entry.compensation_execution_action : '',
+    compensation_execution_receipt: sanitizeText(entry.compensation_execution_receipt, 160),
+    compensation_execution_note: sanitizeText(entry.compensation_execution_note, 240),
+    compensation_execution_preflight_idempotency_key: sanitizeText(entry.compensation_execution_preflight_idempotency_key, 120),
+    compensation_execution_preflight_audit_id: sanitizeText(entry.compensation_execution_preflight_audit_id, 100),
+    compensation_execution_idempotency_key: sanitizeText(entry.compensation_execution_idempotency_key, 120),
+    compensation_execution_recorded_at: Math.max(0, Math.floor(Number(entry.compensation_execution_recorded_at) || 0)),
+    compensation_execution_recorded_by_username: normalizeUsername(entry.compensation_execution_recorded_by_username),
+    compensation_execution_record_only: entry.compensation_execution_record_only !== false,
+    compensation_execution_required_confirmation_text: sanitizeText(entry.compensation_execution_required_confirmation_text || WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT, 120),
     rolled_back_at: Math.max(0, Math.floor(Number(entry.rolled_back_at) || 0)),
     rolled_back_by_username: normalizeUsername(entry.rolled_back_by_username),
     rollback_reason: sanitizeText(entry.rollback_reason, 160),
@@ -1909,8 +2032,17 @@ function normalizePetState(pet = {}) {
     mood: Math.max(0, Math.floor(Number(pet.mood) || 0)),
     care_count: Math.max(0, Math.floor(Number(pet.care_count ?? pet.careCount) || 0)),
     last_care_item_id: normalizeWarehouseItemId(pet.last_care_item_id || pet.lastCareItemId || pet.feedItemId),
+    last_care_item_label: sanitizeText(pet.last_care_item_label || pet.lastCareItemLabel, 60),
+    last_care_item_effect: sanitizeText(pet.last_care_item_effect || pet.lastCareItemEffect, 80),
     last_cared_at: Math.max(0, Math.floor(Number(pet.last_cared_at ?? pet.lastCaredAt) || 0)),
+    last_care_day_key: sanitizeText(pet.last_care_day_key ?? pet.lastCareDayKey, 120),
     last_caregiver_username: normalizeUsername(pet.last_caregiver_username || pet.lastCaregiverUsername),
+    cooperation_mood_bonus: Math.max(0, Math.floor(Number(pet.cooperationMoodBonus ?? pet.cooperation_mood_bonus) || 0)),
+    last_cooperation_bonus_at: Math.max(0, Math.floor(Number(pet.lastCooperationBonusAt ?? pet.last_cooperation_bonus_at) || 0)),
+    last_cooperation_bonus_action: sanitizeText(pet.lastCooperationBonusAction ?? pet.last_cooperation_bonus_action, 80),
+    last_cooperation_bonus_members: Array.isArray(pet.lastCooperationBonusMembers ?? pet.last_cooperation_bonus_members)
+      ? (pet.lastCooperationBonusMembers ?? pet.last_cooperation_bonus_members).map(normalizeUsername).filter(Boolean).slice(0, 8)
+      : [],
   };
 }
 
@@ -1978,10 +2110,35 @@ function normalizeSharedPets(value = {}) {
       cared_count: counts.cared,
       pet_care_write_enabled: true,
       shared_warehouse_pet_care_consume_enabled: true,
+      supported_care_item_ids: SHARED_PET_CARE_ITEM_IDS,
       personal_save_changed: false,
       included_sources: ['animal.pets'],
       deferred_writes: Array.isArray(summary.deferred_writes) ? summary.deferred_writes.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 20) : [],
     },
+  };
+}
+
+function getSharedPetCareItemProfile(itemId = '') {
+  const normalizedItemId = normalizeWarehouseItemId(itemId);
+  return SHARED_PET_CARE_ITEM_CATALOG[normalizedItemId] || null;
+}
+
+function buildSharedPetCareItemSnapshot(profile = {}) {
+  if (!profile || !profile.item_id) return null;
+  return {
+    item_id: normalizeWarehouseItemId(profile.item_id),
+    label: sanitizeText(profile.label || profile.item_id, 60),
+    care_effect: sanitizeText(profile.care_effect, 80),
+    friendship_gain: normalizePositiveInt(profile.friendship_gain, 0),
+    mood_gain: normalizePositiveInt(profile.mood_gain, 0),
+    risk_level: sanitizeText(profile.risk_level || 'standard', 40) || 'standard',
+    requires_confirmation: profile.requires_confirmation === true,
+    confirmation_phrase: sanitizeText(profile.confirmation_phrase, 120),
+    rollback_plan: sanitizeText(profile.rollback_plan, 220),
+    compensation_hint: sanitizeText(profile.compensation_hint, 220),
+    quantity: 1,
+    quality: 'normal',
+    source_inventory: 'shared_warehouse.items',
   };
 }
 
@@ -1990,6 +2147,21 @@ function normalizePetActionLedgerEntry(entry = {}) {
   if (action !== 'care') return null;
   const petId = sanitizeText(entry.pet_id || entry.shared_pet_id, 140);
   if (!petId) return null;
+  const careItemId = normalizeWarehouseItemId(entry.care_item_id || entry.item_id);
+  const careItemProfile = getSharedPetCareItemProfile(careItemId);
+  const rawCareItemProfile = entry.care_item_profile && typeof entry.care_item_profile === 'object'
+    ? entry.care_item_profile
+    : null;
+  const friendshipGain = normalizePositiveInt(entry.friendship_gain ?? rawCareItemProfile?.friendship_gain, careItemProfile?.friendship_gain || 0);
+  const moodGain = normalizePositiveInt(entry.mood_gain ?? rawCareItemProfile?.mood_gain, careItemProfile?.mood_gain || 0);
+  const careItemSnapshot = buildSharedPetCareItemSnapshot({
+    ...(careItemProfile || {}),
+    ...(rawCareItemProfile || {}),
+    item_id: careItemId,
+    friendship_gain: friendshipGain,
+    mood_gain: moodGain,
+  });
+  const confirmationRequired = entry.confirmation_required === true || careItemSnapshot?.requires_confirmation === true;
   return {
     id: sanitizeText(entry.id, 100) || makeId('shared_pet_ledger'),
     action,
@@ -2001,7 +2173,20 @@ function normalizePetActionLedgerEntry(entry = {}) {
     actor_key: normalizeUsernameKey(entry.actor_key || entry.actor_username),
     actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
     actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
-    care_item_id: normalizeWarehouseItemId(entry.care_item_id || entry.item_id),
+    care_item_id: careItemId,
+    care_item_label: sanitizeText(entry.care_item_label || rawCareItemProfile?.label || careItemProfile?.label || careItemId, 60),
+    care_item_effect: sanitizeText(entry.care_item_effect || rawCareItemProfile?.care_effect || careItemProfile?.care_effect, 80),
+    care_item_profile: careItemSnapshot,
+    friendship_gain: friendshipGain,
+    mood_gain: moodGain,
+    risk_level: sanitizeText(entry.risk_level || careItemSnapshot?.risk_level, 40) || 'standard',
+    confirmation_required: confirmationRequired,
+    confirmed_high_value_care: entry.confirmed_high_value_care === true,
+    risk_acknowledged: entry.risk_acknowledged === true || entry.confirmed_high_value_care === true,
+    confirmation_text: sanitizeText(entry.confirmation_text, 120),
+    rollback_plan_acknowledged: entry.rollback_plan_acknowledged === true,
+    compensation_plan_acknowledged: entry.compensation_plan_acknowledged === true,
+    rollback_plan: sanitizeText(entry.rollback_plan || careItemSnapshot?.rollback_plan, 220),
     warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids) ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12) : [],
     shared_warehouse_changed: entry.shared_warehouse_changed === true,
     origin_owner_id: sanitizeText(entry.origin_owner_id, 100),
@@ -2013,11 +2198,23 @@ function normalizePetActionLedgerEntry(entry = {}) {
     source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
     before_pet_state: entry.before_pet_state && typeof entry.before_pet_state === 'object' ? entry.before_pet_state : {},
     after_pet_state: entry.after_pet_state && typeof entry.after_pet_state === 'object' ? entry.after_pet_state : {},
+    care_day_key: sanitizeText(entry.care_day_key || entry.day_key || entry.operation_day_key, 120),
+    simultaneous_online_bonus: entry.simultaneous_online_bonus && typeof entry.simultaneous_online_bonus === 'object'
+      ? {
+          ...entry.simultaneous_online_bonus,
+          recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
+            ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+            : [],
+          recent_member_keys: Array.isArray(entry.simultaneous_online_bonus.recent_member_keys)
+            ? entry.simultaneous_online_bonus.recent_member_keys.map(normalizeUsernameKey).filter(Boolean).slice(0, 8)
+            : [],
+        }
+      : { applied: false, bonus_value: 0, policy: 'two_recent_active_members_within_15_minutes' },
     permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     at: Math.max(0, Math.floor(Number(entry.at) || Number(entry.created_at) || nowSeconds())),
     reversible: entry.reversible !== false,
-    compensation_hint: sanitizeText(entry.compensation_hint, 240),
+    compensation_hint: sanitizeText(entry.compensation_hint || careItemSnapshot?.compensation_hint, 240),
     status: ['committed', 'rolled_back', 'blocked'].includes(entry.status) ? entry.status : 'committed',
   };
 }
@@ -2403,6 +2600,30 @@ function readMemberAnimalSnapshot(member = {}) {
       pets: [],
     };
   }
+}
+
+function buildSharedOperationDayKeyForMember(member = {}, actorUsername = '', timestamp = nowSeconds()) {
+  const targetUsername = normalizeUsername(member.username || actorUsername);
+  const identity = resolveMemberIdentity(member);
+  try {
+    const saves = loadUserSaveSlots(targetUsername);
+    const slot = resolveMemberSaveSlot({ ...member, username: targetUsername }, saves, identity);
+    if (slot !== null) {
+      const entry = saves.slots?.[slot];
+      const decrypted = decryptTaoyuanRaw(entry?.raw);
+      const saveContainer = normalizeGameplaySaveContainer(decrypted);
+      const gameplay = saveContainer?.gameplayData;
+      const game = gameplay?.game && typeof gameplay.game === 'object' ? gameplay.game : {};
+      const year = Math.max(1, Math.floor(Number(game.year) || 1));
+      const season = sanitizeText(game.season || 'unknown', 40) || 'unknown';
+      const day = Math.max(1, Math.floor(Number(game.day) || 1));
+      const saveId = normalizeSaveId(member.save_id || identity?.save_id || getContainerIdentity(saveContainer)?.save_id || getContainerIdentity(saveContainer)?.saveId);
+      return `save:${saveId || targetUsername}:slot:${slot}:y${year}:s${season}:d${day}`;
+    }
+  } catch {
+    // Fall back to a real-time key; failing to read the save must not open unlimited daily care.
+  }
+  return `${targetUsername || 'unknown'}:${buildRealtimeDayKey(timestamp)}`;
 }
 
 function getPlotPermissionMode(contract = {}, ownerKey = '') {
@@ -2831,6 +3052,7 @@ function buildSharedPetsFromSnapshots(contract, animalSnapshots, options = {}) {
       persisted_shared_pets: options.persisted === true,
       pet_care_write_enabled: true,
       shared_warehouse_pet_care_consume_enabled: true,
+      supported_care_item_ids: SHARED_PET_CARE_ITEM_IDS,
       shared_pet_ledger_count: Array.isArray(contract.shared_pet_ledger) ? contract.shared_pet_ledger.length : 0,
       included_sources: ['animal.pets'],
       deferred_sources: [],
@@ -3107,6 +3329,7 @@ function refreshSharedPetsContractFields(contract, sharedPets) {
       persisted_shared_pets: normalized.persisted === true,
       pet_care_write_enabled: true,
       shared_warehouse_pet_care_consume_enabled: true,
+      supported_care_item_ids: SHARED_PET_CARE_ITEM_IDS,
       shared_pet_ledger_count: Array.isArray(contract.shared_pet_ledger) ? contract.shared_pet_ledger.length : 0,
       deferred_writes: (normalized.summary?.deferred_writes || []).filter(item => item !== 'pet.care' && item !== 'animal.pet.care'),
     },
@@ -5733,6 +5956,21 @@ function buildSharedAnimalCareCoopBonusSnapshot(contract = {}, actorUsername = '
   };
 }
 
+function buildSharedPetCareCoopBonusSnapshot(contract = {}, actorUsername = '', pet = {}) {
+  const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_pet_care');
+  const petId = sanitizeText(pet.id || pet.shared_pet_id, 140);
+  const applied = base.animal_feed_pet_mood_bonus_enabled === true && !!petId;
+  return {
+    ...base,
+    action: 'shared_pet_care',
+    applied,
+    type: 'shared_pet_care_mood',
+    bonus_value: applied ? SHARED_PET_CARE_COOP_MOOD_BONUS : 0,
+    caregiver_username: normalizeUsername(actorUsername),
+    pet_id: petId,
+  };
+}
+
 function buildSharedWorkshopProcessCoopBonusSnapshot(contract = {}, actorUsername = '', context = {}) {
   const base = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'shared_workshop_process');
   const actorKey = normalizeUsernameKey(actorUsername);
@@ -5807,6 +6045,8 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_animal_offline_writes_enabled: true,
       shared_pet_offline_writes_enabled: true,
       shared_workshop_offline_writes_enabled: true,
+      offline_queue_merge_enabled: true,
+      offline_queue_supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
@@ -5844,14 +6084,13 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       read_permissions: true,
       manage_permissions: canManageCohabitationPermissions(actorMember),
       create_separation_preview: true,
+      merge_offline_queue: true,
     },
     simultaneous_online_bonus: simultaneousOnlineBonus,
     recent_shared_log: (contract.audit_log || []).slice(0, 30),
     deferred_operations: [
       'offline_auto_income',
-      'offline_worker_queue',
       'simultaneous_online_bonus',
-      'conflict_merge_tool',
     ],
   };
 }
@@ -6616,14 +6855,49 @@ function normalizeSharedPetCarePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('shared pet care requires idempotency_key');
   const careItemId = normalizeWarehouseItemId(payload.care_item_id || payload.careItemId || payload.item_id || payload.itemId || 'vitality_feed');
-  if (careItemId !== 'vitality_feed') {
-    throw createError('shared pet care only supports vitality_feed in this pass', 403);
-  }
+  const careItemProfile = getSharedPetCareItemProfile(careItemId);
+  if (!careItemProfile) throw createError(`shared pet care does not support ${careItemId || 'unknown item'} in this pass`, 403);
   return {
     pet_id: petId,
     care_item_id: careItemId,
+    care_item_profile: buildSharedPetCareItemSnapshot(careItemProfile),
     idempotency_key: idempotencyKey,
     memo: sanitizeText(payload.memo || payload.note, 160),
+    confirmed_high_value_care: payload.confirmed_high_value_care === true || payload.high_value_confirmed === true,
+    risk_acknowledged: payload.risk_acknowledged === true || payload.confirmed_high_value_care === true || payload.high_value_confirmed === true,
+    confirmation_text: sanitizeText(payload.confirmation_text || payload.confirmationText, 120),
+    rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true,
+    compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true,
+  };
+}
+
+function normalizeOfflineQueueMergePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.queue_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('offline queue merge requires idempotency_key');
+  const rawOperations = Array.isArray(payload.operations)
+    ? payload.operations
+    : (Array.isArray(payload.queue) ? payload.queue : []);
+  if (!rawOperations.length) throw createError('offline queue merge requires operations');
+  if (rawOperations.length > 10) throw createError('offline queue merge supports at most 10 operations per request', 413);
+  const operations = rawOperations.map((entry, index) => {
+    const action = sanitizeText(entry?.action || entry?.type || '', 60);
+    const operationId = sanitizeText(entry?.operation_id || entry?.id || entry?.idempotency_key || `${idempotencyKey}:${index}`, 120);
+    const operationIdempotencyKey = sanitizeText(entry?.idempotency_key || entry?.operation_id || `${idempotencyKey}:${operationId}`, 120);
+    return {
+      index,
+      action,
+      operation_id: operationId,
+      idempotency_key: operationIdempotencyKey,
+      client_base_revision: Math.max(0, Math.floor(Number(entry?.client_base_revision || entry?.base_revision) || 0)),
+      payload: entry?.payload && typeof entry.payload === 'object' && !Array.isArray(entry.payload)
+        ? entry.payload
+        : entry,
+    };
+  });
+  return {
+    idempotency_key: idempotencyKey,
+    client_queue_revision: Math.max(0, Math.floor(Number(payload.client_queue_revision || payload.base_revision) || 0)),
+    operations,
   };
 }
 
@@ -6826,6 +7100,73 @@ function normalizeWarehouseHighValueWithdrawalRollbackPayload(payload = {}) {
   return {
     idempotency_key: idempotencyKey,
     reason: sanitizeText(payload.reason || payload.memo || payload.note || '撤销高价值取出草案并释放冻结库存', 160),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalCompensationReviewPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('高价值取出补偿复核需要 idempotency_key，以防断线或重试时重复提交');
+  const reason = sanitizeText(payload.reason || payload.dispute_reason || payload.memo || payload.note, 180);
+  if (!reason) throw createError('高价值取出补偿复核必须填写争议或补偿原因');
+  return {
+    idempotency_key: idempotencyKey,
+    reason,
+    requested_action: WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS.has(payload.requested_action)
+      ? payload.requested_action
+      : 'manual_restore_recorded',
+    evidence_note: sanitizeText(payload.evidence_note || payload.evidence || payload.detail, 240),
+    compensation_plan: sanitizeText(payload.compensation_plan || payload.plan || '按取出流水、目标背包落点和来源 ledger 人工复核后补偿或登记无需补偿', 240),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalCompensationResolvePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('高价值取出补偿复核处理需要 idempotency_key，以防断线或重试时重复处理');
+  const decision = sanitizeText(payload.decision || payload.status || payload.result, 40);
+  if (!['approved', 'rejected'].includes(decision)) throw createError('高价值取出补偿复核处理结果必须是 approved 或 rejected', 400);
+  const resolutionNote = sanitizeText(payload.resolution_note || payload.reason || payload.memo || payload.note, 240);
+  if (!resolutionNote) throw createError('高价值取出补偿复核处理必须填写处理说明');
+  return {
+    idempotency_key: idempotencyKey,
+    decision,
+    compensation_action: WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS.has(payload.compensation_action)
+      ? payload.compensation_action
+      : (decision === 'approved' ? 'manual_compensation_recorded' : 'audit_only'),
+    resolution_note: resolutionNote,
+    compensation_receipt: sanitizeText(payload.compensation_receipt || payload.receipt || payload.receipt_id, 160),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalCompensationPreflightPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('高价值取出补偿预检需要 idempotency_key，以防断线或重试时重复记录');
+  return {
+    idempotency_key: idempotencyKey,
+    operator_note: sanitizeText(payload.operator_note || payload.note || payload.memo, 240),
+  };
+}
+
+function normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('warehouse compensation execution requires idempotency_key');
+  const rawExecutionAction = payload.execution_action || payload.compensation_action;
+  const executionAction = WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_ACTIONS.has(rawExecutionAction) ? rawExecutionAction : '';
+  if (!executionAction) throw createError('warehouse compensation execution requires a supported execution_action', 400);
+  const receipt = sanitizeText(payload.execution_receipt || payload.compensation_receipt || payload.receipt || payload.receipt_id, 160);
+  if (!receipt) throw createError('warehouse compensation execution requires execution_receipt', 400);
+  const confirmationText = sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation, 120);
+  if (confirmationText !== WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT) throw createError('warehouse compensation execution confirmation text mismatch', 400);
+  const preflightIdempotencyKey = sanitizeText(payload.preflight_idempotency_key || payload.preflight_key, 120);
+  const preflightAuditId = sanitizeText(payload.preflight_audit_id || payload.preflight_id, 100);
+  if (!preflightIdempotencyKey && !preflightAuditId) throw createError('warehouse compensation execution requires preflight reference', 400);
+  return {
+    idempotency_key: idempotencyKey,
+    execution_action: executionAction,
+    execution_receipt: receipt,
+    execution_note: sanitizeText(payload.execution_note || payload.operator_note || payload.note || payload.memo, 240),
+    preflight_idempotency_key: preflightIdempotencyKey,
+    preflight_audit_id: preflightAuditId,
+    confirmation_text: confirmationText,
   };
 }
 
@@ -10859,6 +11200,292 @@ async function getCohabitationOfflineStatus(contractId, actor = {}) {
   };
 }
 
+async function executeCohabitationOfflineQueueOperation(contractId, operation = {}, actor = {}) {
+  const payload = operation.payload || {};
+  if (operation.action === 'feed_shared_animal') {
+    return feedCohabitationSharedAnimal(contractId, {
+      ...payload,
+      animal_id: payload.animal_id || payload.shared_animal_id || payload.id,
+      feed_item_id: payload.feed_item_id || payload.item_id || 'hay',
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared animal feed merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'pet_shared_animal') {
+    return petCohabitationSharedAnimal(contractId, {
+      ...payload,
+      animal_id: payload.animal_id || payload.shared_animal_id || payload.id,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared animal pet merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'collect_shared_animal_product') {
+    return collectCohabitationSharedAnimalProduct(contractId, {
+      ...payload,
+      animal_id: payload.animal_id || payload.shared_animal_id || payload.id,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared animal product merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'process_shared_workshop_recipe') {
+    return processCohabitationSharedWorkshopRecipe(contractId, {
+      ...payload,
+      recipe_id: payload.recipe_id || payload.recipeId || payload.id,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared workshop process merge', 160),
+    }, actor);
+  }
+  const careItemId = normalizeWarehouseItemId(payload.care_item_id || payload.item_id || 'vitality_feed');
+  return careCohabitationSharedPet(contractId, {
+    ...payload,
+    pet_id: payload.pet_id || payload.shared_pet_id || payload.id,
+    care_item_id: careItemId,
+    idempotency_key: operation.idempotency_key,
+    memo: sanitizeText(payload.memo || payload.note || 'offline queue shared pet care merge', 160),
+  }, actor);
+}
+
+function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
+  const action = sanitizeText(operation.action, 60);
+  const actionResult = result.animal_action || result.pet_action || result.workshop_action || {};
+  const ledgerEntry = result.ledger_entry || {};
+  const warehouseLedgerEntries = Array.isArray(result.warehouse_ledger_entries)
+    ? result.warehouse_ledger_entries
+    : [];
+  const entry = {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action,
+    status: result.idempotent ? 'idempotent' : 'committed',
+    idempotency_key: operation.idempotency_key,
+    ledger_id: ledgerEntry.id || '',
+    warehouse_ledger_ids: warehouseLedgerEntries.map(item => item.id).filter(Boolean),
+    target_ref: warehouseLedgerEntries[0]?.target_ref || '',
+    personal_save_changed: false,
+    shared_warehouse_changed: actionResult.shared_warehouse_changed === true || ledgerEntry.shared_warehouse_changed === true,
+    shared_fund_changed: actionResult.shared_fund_changed === true || ledgerEntry.shared_fund_changed === true,
+    server_authoritative: true,
+  };
+  if (action === 'care_shared_pet') {
+    return {
+      ...entry,
+      target_ref: entry.target_ref || `shared_pet:care:${result.pet?.id || ''}`,
+      care_item_id: actionResult.care_item_id || ledgerEntry.care_item_id || normalizeWarehouseItemId(operation.payload?.care_item_id || operation.payload?.item_id || 'vitality_feed'),
+      care_item_label: actionResult.care_item_label || ledgerEntry.care_item_label || '',
+      risk_level: actionResult.risk_level || ledgerEntry.risk_level || 'standard',
+      confirmation_required: actionResult.confirmation_required === true || ledgerEntry.confirmation_required === true,
+      confirmed_high_value_care: actionResult.confirmed_high_value_care === true || ledgerEntry.confirmed_high_value_care === true,
+      rollback_plan_acknowledged: actionResult.rollback_plan_acknowledged === true || ledgerEntry.rollback_plan_acknowledged === true,
+      compensation_plan_acknowledged: actionResult.compensation_plan_acknowledged === true || ledgerEntry.compensation_plan_acknowledged === true,
+      already_cared: result.already_cared === true,
+      care_day_key: actionResult.care_day_key || ledgerEntry.care_day_key || '',
+    };
+  }
+  if (action === 'process_shared_workshop_recipe') {
+    const consumeEntries = warehouseLedgerEntries.filter(item => item.action === 'consume');
+    const outputEntry = warehouseLedgerEntries.find(item => item.action === 'deposit') || ledgerEntry;
+    const outputItemId = actionResult.output_item_id || outputEntry.item_id || result.recipe?.output_item_id || '';
+    const outputQuality = sanitizeText(actionResult.output_quality || outputEntry.quality || result.recipe?.output_quality || 'normal', 40);
+    const withdrawalRiskLevel = getWarehouseWithdrawalRiskLevel(outputItemId, outputQuality);
+    return {
+      ...entry,
+      target_ref: entry.target_ref || `shared_workshop:${actionResult.recipe_id || result.recipe?.id || ledgerEntry.target_ref || ''}`,
+      recipe_id: actionResult.recipe_id || result.recipe?.id || sanitizeText(operation.payload?.recipe_id || operation.payload?.recipeId || operation.payload?.id, 100),
+      station: actionResult.station || result.recipe?.station || '',
+      process_kind: actionResult.process_kind || result.recipe?.process_kind || 'processing',
+      input_items: Array.isArray(actionResult.input_items) ? actionResult.input_items : (Array.isArray(result.recipe?.input_items) ? result.recipe.input_items : []),
+      consume_ledger_ids: consumeEntries.map(item => item.id).filter(Boolean),
+      output_ledger_id: outputEntry.id || ledgerEntry.id || '',
+      output_item_id: outputItemId,
+      output_quantity: Math.max(0, Math.floor(Number(actionResult.output_quantity || outputEntry.quantity || result.recipe?.output_quantity) || 0)),
+      output_quality: outputQuality,
+      output_quality_before_bonus: sanitizeText(actionResult.output_quality_before_bonus || actionResult.output_quality_before || outputEntry.simultaneous_online_bonus?.output_quality_before || result.recipe?.output_quality || 'normal', 40),
+      withdrawal_risk_level: withdrawalRiskLevel,
+      high_value_withdrawal_required: withdrawalRiskLevel !== 'common',
+      reversible: outputEntry.reversible === true,
+      compensation_hint: outputEntry.compensation_hint || 'shared workshop output stays in shared warehouse; personal saves and shared fund are unchanged.',
+      rollback_plan: outputEntry.reversible === true
+        ? 'rollback should replay paired shared workshop consume ledgers and the output deposit ledger under the same idempotency key.'
+        : '',
+      output_source_ledger_ids: Array.isArray(outputEntry.source_ledger_ids) ? outputEntry.source_ledger_ids : [],
+      alchemy_result_kind: actionResult.alchemy_result_kind || result.recipe?.alchemy_result_kind || '',
+      success_rate_bonus_percent: Math.max(0, Math.floor(Number(actionResult.success_rate_bonus_percent || outputEntry.simultaneous_online_bonus?.success_rate_bonus_percent) || 0)),
+      already_processed: result.already_processed === true,
+      simultaneous_online_bonus: actionResult.simultaneous_online_bonus || outputEntry.simultaneous_online_bonus || null,
+    };
+  }
+  return {
+    ...entry,
+    target_ref: entry.target_ref || `shared_animal:${action}:${result.animal?.id || ledgerEntry.animal_id || ''}`,
+    animal_id: actionResult.animal_id || ledgerEntry.animal_id || sanitizeText(operation.payload?.animal_id || operation.payload?.shared_animal_id || operation.payload?.id, 140),
+    feed_item_id: actionResult.feed_item_id || ledgerEntry.feed_item_id || '',
+    product_item_id: actionResult.product_item_id || ledgerEntry.product_item_id || '',
+    product_quantity: Math.max(0, Math.floor(Number(actionResult.product_quantity || ledgerEntry.product_quantity) || 0)),
+    product_quality: sanitizeText(actionResult.product_quality || ledgerEntry.product_quality, 40),
+    already_fed: result.already_fed === true,
+    already_petted: result.already_petted === true,
+    already_collected: result.already_collected === true,
+    simultaneous_online_bonus: actionResult.simultaneous_online_bonus || ledgerEntry.simultaneous_online_bonus || null,
+  };
+}
+
+function buildCohabitationOfflineWorkshopRejection(operation = {}, error = {}) {
+  if (operation.action !== 'process_shared_workshop_recipe') return null;
+  const payload = operation.payload || {};
+  const recipeId = sanitizeText(payload.recipe_id || payload.recipeId || payload.id, 100);
+  const recipe = SHARED_WORKSHOP_RECIPE_CATALOG[recipeId] || null;
+  const message = String(error?.message || '');
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  let reason = '';
+  if (status === 403 && message.includes('permission denied')) {
+    reason = 'shared_workshop_permission_denied';
+  } else if (status === 409 && message.includes('shared warehouse does not have enough')) {
+    reason = 'insufficient_shared_workshop_materials';
+  } else if (status === 403 && message.includes('whitelisted recipes')) {
+    reason = 'unsupported_shared_workshop_recipe';
+  }
+  if (!reason) return null;
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    idempotency_key: operation.idempotency_key,
+    recipe_id: recipeId,
+    station: recipe?.station || '',
+    process_kind: recipe?.process_kind || '',
+    alchemy_result_kind: recipe?.alchemy_result_kind || '',
+    input_items: Array.isArray(recipe?.input_items) ? recipe.input_items : [],
+    output_item_id: recipe?.output_item_id || '',
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    compensation_hint: 'offline shared workshop operation was rejected before any shared warehouse or personal save mutation.',
+  };
+}
+
+async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeOfflineQueueMergePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '合并离线经营队列');
+
+  const previousMergeAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'offline_queue_merged' && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousMergeAudit) {
+    const previousRejected = Array.isArray(previousMergeAudit.detail?.rejected_operations)
+      ? previousMergeAudit.detail.rejected_operations
+      : [];
+    return {
+      contract: toPublicContract(contract),
+      offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+      offline_queue_merge: {
+        idempotency_key: request.idempotency_key,
+        accepted_count: Math.max(0, Math.floor(Number(previousMergeAudit.detail?.operation_count) || 0)),
+        rejected_count: Math.max(0, Math.floor(Number(previousMergeAudit.detail?.rejected_count) || previousRejected.length || 0)),
+        conflict_policy: 'server_authoritative_idempotent_replay',
+        supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
+        idempotent: true,
+        results: [],
+        rejected: previousRejected,
+      },
+    };
+  }
+
+  const unsupportedOperations = request.operations.filter(operation => !OFFLINE_QUEUE_SUPPORTED_ACTIONS.includes(operation.action));
+  if (unsupportedOperations.length) {
+    throw Object.assign(createError('offline queue merge contains unsupported operations', 422), {
+      offline_queue_merge: {
+        accepted_count: 0,
+        rejected: unsupportedOperations.map(operation => ({
+          index: operation.index,
+          operation_id: operation.operation_id,
+          action: operation.action,
+          status: 'rejected',
+          reason: 'unsupported_offline_queue_action',
+        })),
+      },
+    });
+  }
+
+  const results = [];
+  const rejected = [];
+  for (const operation of request.operations) {
+    const careItemId = normalizeWarehouseItemId(operation.payload.care_item_id || operation.payload.item_id || 'vitality_feed');
+    let result;
+    try {
+      result = await executeCohabitationOfflineQueueOperation(contractId, operation, actor);
+    } catch (error) {
+      const workshopRejection = buildCohabitationOfflineWorkshopRejection(operation, error);
+      if (workshopRejection) {
+        rejected.push(workshopRejection);
+        continue;
+      }
+      const careItemProfile = getSharedPetCareItemProfile(careItemId);
+      const isMissingHighRiskConfirmation = error?.status === 409
+        && operation.action === 'care_shared_pet'
+        && careItemProfile?.requires_confirmation === true
+        && String(error?.message || '').includes('需要确认文本');
+      if (!isMissingHighRiskConfirmation) throw error;
+      rejected.push({
+        index: operation.index,
+        operation_id: operation.operation_id,
+        action: operation.action,
+        status: 'rejected',
+        reason: 'high_value_pet_care_confirmation_required',
+        idempotency_key: operation.idempotency_key,
+        pet_id: sanitizeText(operation.payload.pet_id || operation.payload.shared_pet_id || operation.payload.id, 140),
+        care_item_id: careItemId,
+        care_item_label: sanitizeText(careItemProfile.label || careItemId, 80),
+        risk_level: sanitizeText(careItemProfile.risk_level || 'high_value_pet_treat', 60),
+        confirmation_required: true,
+        expected_confirmation_text: sanitizeText(careItemProfile.confirmation_phrase, 120),
+        rollback_plan: sanitizeText(careItemProfile.rollback_plan, 240),
+        compensation_hint: sanitizeText(careItemProfile.compensation_hint, 240),
+        shared_warehouse_changed: false,
+        personal_save_changed: false,
+        server_authoritative: true,
+      });
+      continue;
+    }
+    results.push(buildCohabitationOfflineQueueResult(operation, result));
+  }
+  const latestStore = loadContractStore();
+  const latestContract = latestStore.contracts.find(entry => entry.id === sanitizeText(contractId, 80)) || contract;
+  appendAudit(latestContract, 'offline_queue_merged', actor, {
+    queue_id: request.idempotency_key,
+    operation_count: results.length,
+    rejected_count: rejected.length,
+    rejected_operation_ids: rejected.map(entry => entry.operation_id).filter(Boolean),
+    rejected_operations: rejected,
+    supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
+    result_ledger_ids: results.map(entry => entry.ledger_id).filter(Boolean),
+    client_queue_revision: request.client_queue_revision,
+    server_authoritative: true,
+    personal_save_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(latestStore);
+  return {
+    contract: toPublicContract(latestContract),
+    offline_status: buildOfflineOperationSnapshot(latestContract, actorUsername),
+    offline_queue_merge: {
+      idempotency_key: request.idempotency_key,
+      accepted_count: results.length,
+      rejected_count: rejected.length,
+      conflict_policy: 'server_authoritative_idempotent_replay',
+      supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
+      results,
+      rejected,
+    },
+  };
+}
+
 async function feedCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -11513,6 +12140,105 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
   if (!pet) throw createError('shared pet not found', 404);
   assertSharedPetCareAllowed(contract, member, pet, actorPermissions);
   const petState = pet.pet_state && typeof pet.pet_state === 'object' ? pet.pet_state : normalizePetState({});
+  const careItemProfile = request.care_item_profile || buildSharedPetCareItemSnapshot(getSharedPetCareItemProfile(request.care_item_id));
+  const operatedAt = nowSeconds();
+  const careDayKey = buildSharedOperationDayKeyForMember(member, actorUsername, operatedAt);
+  const previousDailyEntry = contract.shared_pet_ledger.find(entry =>
+    entry.action === 'care'
+    && entry.status === 'committed'
+    && entry.pet_id === pet.id
+    && entry.care_day_key
+    && entry.care_day_key === careDayKey
+  );
+  if (previousDailyEntry) {
+    const previousWarehouseEntries = contract.shared_warehouse.ledger.filter(entry =>
+      previousDailyEntry.warehouse_ledger_ids.includes(entry.id)
+      || (entry.action === 'consume' && entry.idempotency_key === previousDailyEntry.idempotency_key)
+    );
+    appendAudit(contract, 'shared_pet_care_daily_replayed', actor, {
+      ledger_id: previousDailyEntry.id,
+      pet_id: pet.id,
+      source_pet_id: pet.source_pet_id,
+      actor_username: actorUsername,
+      care_day_key: careDayKey,
+      replay_care_item_id: request.care_item_id,
+      original_idempotency_key: previousDailyEntry.idempotency_key,
+      replay_idempotency_key: request.idempotency_key,
+      shared_warehouse_changed: false,
+      personal_save_changed: false,
+      reason: 'same_pet_already_cared_this_game_day',
+    }, request.idempotency_key);
+    saveContractStore(store);
+    return {
+      contract: toPublicContract(contract),
+      shared_pets: contract.shared_pets,
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      pet: findSharedPet(contract.shared_pets, previousDailyEntry.pet_id),
+      ledger_entry: previousDailyEntry,
+      warehouse_ledger_entries: previousWarehouseEntries,
+      idempotent: true,
+      already_cared: true,
+      pet_action: {
+        action: 'care',
+        pet_id: pet.id,
+        care_item_id: previousDailyEntry.care_item_id,
+        care_item_label: previousDailyEntry.care_item_label,
+        care_item_effect: previousDailyEntry.care_item_effect,
+        care_item_profile: previousDailyEntry.care_item_profile,
+        friendship_gain: previousDailyEntry.friendship_gain,
+        mood_gain: previousDailyEntry.mood_gain,
+        risk_level: previousDailyEntry.risk_level,
+        confirmation_required: previousDailyEntry.confirmation_required === true,
+        confirmed_high_value_care: previousDailyEntry.confirmed_high_value_care === true,
+        risk_acknowledged: previousDailyEntry.risk_acknowledged === true,
+        confirmation_text: previousDailyEntry.confirmation_text,
+        rollback_plan_acknowledged: previousDailyEntry.rollback_plan_acknowledged === true,
+        compensation_plan_acknowledged: previousDailyEntry.compensation_plan_acknowledged === true,
+        rollback_plan: previousDailyEntry.rollback_plan,
+        compensation_hint: previousDailyEntry.compensation_hint,
+        care_day_key: careDayKey,
+        warehouse_ledger_ids: previousDailyEntry.warehouse_ledger_ids,
+        before_pet_state: previousDailyEntry.before_pet_state,
+        after_pet_state: previousDailyEntry.after_pet_state,
+        simultaneous_online_bonus: previousDailyEntry.simultaneous_online_bonus,
+        personal_save_changed: false,
+        shared_warehouse_changed: false,
+        shared_fund_changed: false,
+        daily_replay: true,
+      },
+    };
+  }
+
+  const confirmationRequired = careItemProfile.requires_confirmation === true;
+  const expectedConfirmationText = sanitizeText(careItemProfile.confirmation_phrase, 120);
+  const confirmedHighRiskCare = confirmationRequired
+    ? request.confirmed_high_value_care === true
+      && request.risk_acknowledged === true
+      && request.rollback_plan_acknowledged === true
+      && request.compensation_plan_acknowledged === true
+      && (!expectedConfirmationText || request.confirmation_text === expectedConfirmationText)
+    : false;
+  if (confirmationRequired && !confirmedHighRiskCare) {
+    appendAudit(contract, 'shared_pet_care_high_risk_blocked', actor, {
+      pet_id: pet.id,
+      source_pet_id: pet.source_pet_id,
+      actor_username: actorUsername,
+      care_item_id: request.care_item_id,
+      care_item_label: careItemProfile.label,
+      risk_level: careItemProfile.risk_level,
+      confirmation_required: true,
+      expected_confirmation_text: expectedConfirmationText,
+      confirmation_text: request.confirmation_text,
+      rollback_plan: careItemProfile.rollback_plan,
+      compensation_hint: careItemProfile.compensation_hint,
+      care_day_key: careDayKey,
+      shared_warehouse_changed: false,
+      personal_save_changed: false,
+      reason: 'missing_high_value_pet_care_confirmation',
+    }, request.idempotency_key);
+    saveContractStore(store);
+    throw createError(`共同宠物高阶用品${careItemProfile.label}需要确认文本、补偿和回滚确认后才能照料`, 409);
+  }
 
   const allocationResult = buildWarehouseWithdrawalAllocations(
     contract.shared_warehouse,
@@ -11520,20 +12246,27 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
     1,
     'normal'
   );
-  if (!allocationResult.ok) throw createError('共同仓库中可用于共同宠物照料的活力饲料不足', 409);
+  if (!allocationResult.ok) throw createError(`共同仓库中可用于共同宠物照料的${careItemProfile?.label || request.care_item_id}不足`, 409);
 
-  const operatedAt = nowSeconds();
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const simultaneousOnlineBonus = buildSharedPetCareCoopBonusSnapshot(contract, actorUsername, pet);
   const beforeState = { ...petState };
   const afterState = {
     ...petState,
-    friendship: Math.max(0, Math.min(999, Math.floor(Number(petState.friendship) || 0) + 3)),
-    mood: Math.max(0, Math.min(999, Math.floor(Number(petState.mood) || 0) + 8)),
+    friendship: Math.max(0, Math.min(999, Math.floor(Number(petState.friendship) || 0) + careItemProfile.friendship_gain)),
+    mood: Math.max(0, Math.min(999, Math.floor(Number(petState.mood) || 0) + careItemProfile.mood_gain + simultaneousOnlineBonus.bonus_value)),
     care_count: Math.max(0, Math.floor(Number(petState.care_count) || 0)) + 1,
     last_care_item_id: request.care_item_id,
+    last_care_item_label: careItemProfile.label,
+    last_care_item_effect: careItemProfile.care_effect,
     last_cared_at: operatedAt,
+    last_care_day_key: careDayKey,
     last_caregiver_username: actorUsername,
+    cooperation_mood_bonus: Math.max(0, Math.floor(Number(petState.cooperation_mood_bonus) || 0)) + simultaneousOnlineBonus.bonus_value,
+    last_cooperation_bonus_at: simultaneousOnlineBonus.applied ? operatedAt : Math.max(0, Math.floor(Number(petState.last_cooperation_bonus_at) || 0)),
+    last_cooperation_bonus_action: simultaneousOnlineBonus.applied ? 'shared_pet_care' : sanitizeText(petState.last_cooperation_bonus_action, 80),
+    last_cooperation_bonus_members: simultaneousOnlineBonus.applied ? simultaneousOnlineBonus.recent_member_usernames : Array.isArray(petState.last_cooperation_bonus_members) ? petState.last_cooperation_bonus_members : [],
   };
   const nextPet = {
     ...pet,
@@ -11545,6 +12278,8 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
     readonly: false,
   };
   const warehouseTargetRef = `shared_pet:care:${pet.id}`;
+  const petCareCompensationHint = careItemProfile.compensation_hint
+    || `共同宠物照料已扣减共同仓库${careItemProfile.label}并写入契约宠物镜像；个人宠物存档保持不变。`;
   const warehouseLedgerEntries = allocationResult.allocations.map(allocation => normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
     action: 'consume',
@@ -11575,7 +12310,7 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
     at: operatedAt,
     idempotency_key: request.idempotency_key,
     reversible: true,
-    compensation_hint: '共同宠物照料已扣减共同仓库活力饲料并写入契约宠物镜像；个人宠物存档保持不变。',
+    compensation_hint: petCareCompensationHint,
     status: 'committed',
   })).filter(Boolean);
 
@@ -11594,6 +12329,19 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     care_item_id: request.care_item_id,
+    care_item_label: careItemProfile.label,
+    care_item_effect: careItemProfile.care_effect,
+    care_item_profile: careItemProfile,
+    friendship_gain: careItemProfile.friendship_gain,
+    mood_gain: careItemProfile.mood_gain,
+    risk_level: careItemProfile.risk_level,
+    confirmation_required: confirmationRequired,
+    confirmed_high_value_care: confirmedHighRiskCare,
+    risk_acknowledged: confirmationRequired ? request.risk_acknowledged === true : false,
+    confirmation_text: confirmationRequired ? request.confirmation_text : '',
+    rollback_plan_acknowledged: confirmationRequired ? request.rollback_plan_acknowledged === true : false,
+    compensation_plan_acknowledged: confirmationRequired ? request.compensation_plan_acknowledged === true : false,
+    rollback_plan: careItemProfile.rollback_plan,
     warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     shared_warehouse_changed: true,
     origin_owner_id: pet.origin_owner_id,
@@ -11605,11 +12353,13 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
     source_save_revision: pet.source_save_revision,
     before_pet_state: beforeState,
     after_pet_state: afterState,
+    care_day_key: careDayKey,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     permission_mode: pet.permission_mode,
     idempotency_key: request.idempotency_key,
     at: operatedAt,
     reversible: true,
-    compensation_hint: 'contract-pet shared care consumes one shared-warehouse vitality_feed; personal saves are unchanged after material deposit.',
+    compensation_hint: petCareCompensationHint,
     status: 'committed',
   });
   contract.shared_pet_ledger = [ledgerEntry, ...contract.shared_pet_ledger].slice(0, SHARED_PET_LEDGER_LIMIT);
@@ -11623,6 +12373,7 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
       cared_count: counts.cared,
       pet_care_write_enabled: true,
       shared_warehouse_pet_care_consume_enabled: true,
+      supported_care_item_ids: SHARED_PET_CARE_ITEM_IDS,
       shared_pet_ledger_count: contract.shared_pet_ledger.length,
       deferred_writes: (sharedPets.summary?.deferred_writes || []).filter(item => item !== 'pet.care' && item !== 'animal.pet.care'),
     },
@@ -11648,12 +12399,28 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
     origin_owner_username: pet.origin_owner_username,
     actor_username: actorUsername,
     care_item_id: request.care_item_id,
+    care_item_label: careItemProfile.label,
+    care_item_effect: careItemProfile.care_effect,
+    care_item_profile: careItemProfile,
+    friendship_gain: careItemProfile.friendship_gain,
+    mood_gain: careItemProfile.mood_gain,
+    risk_level: careItemProfile.risk_level,
+    confirmation_required: confirmationRequired,
+    confirmed_high_value_care: confirmedHighRiskCare,
+    risk_acknowledged: confirmationRequired ? request.risk_acknowledged === true : false,
+    confirmation_text: confirmationRequired ? request.confirmation_text : '',
+    rollback_plan_acknowledged: confirmationRequired ? request.rollback_plan_acknowledged === true : false,
+    compensation_plan_acknowledged: confirmationRequired ? request.compensation_plan_acknowledged === true : false,
+    rollback_plan: careItemProfile.rollback_plan,
+    compensation_hint: petCareCompensationHint,
+    care_day_key: careDayKey,
     quantity: 1,
     target_ref: warehouseTargetRef,
     permission_mode: pet.permission_mode,
     personal_save_changed: false,
     shared_warehouse_changed: true,
     shared_fund_changed: false,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
   }, request.idempotency_key);
   saveContractStore(store);
 
@@ -11670,9 +12437,25 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
       action: 'care',
       pet_id: pet.id,
       care_item_id: request.care_item_id,
+      care_item_label: careItemProfile.label,
+      care_item_effect: careItemProfile.care_effect,
+      care_item_profile: careItemProfile,
+      friendship_gain: careItemProfile.friendship_gain,
+      mood_gain: careItemProfile.mood_gain,
+      risk_level: careItemProfile.risk_level,
+      confirmation_required: confirmationRequired,
+      confirmed_high_value_care: confirmedHighRiskCare,
+      risk_acknowledged: confirmationRequired ? request.risk_acknowledged === true : false,
+      confirmation_text: confirmationRequired ? request.confirmation_text : '',
+      rollback_plan_acknowledged: confirmationRequired ? request.rollback_plan_acknowledged === true : false,
+      compensation_plan_acknowledged: confirmationRequired ? request.compensation_plan_acknowledged === true : false,
+      rollback_plan: careItemProfile.rollback_plan,
+      compensation_hint: petCareCompensationHint,
+      care_day_key: careDayKey,
       warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
       before_pet_state: beforeState,
       after_pet_state: afterState,
+      simultaneous_online_bonus: simultaneousOnlineBonus,
       personal_save_changed: false,
       shared_warehouse_changed: true,
       shared_fund_changed: false,
@@ -12450,6 +13233,645 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
       target_slots: addResult.target_slots,
       personal_money_merged: false,
     },
+  };
+}
+
+async function requestCohabitationWarehouseHighValueWithdrawalCompensationReview(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseHighValueWithdrawalCompensationReviewPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '提交共同仓库高价值取出补偿复核');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同仓库高价值取出草案不存在', 404);
+  let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
+  if (draft.state !== 'executed') throw createError('只有已执行的高价值取出可以提交补偿复核', 409);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const isRequester = draft.requester_username_key === member.username_key;
+  const canGovern = actorPermissions.storage.withdraw_rare === true
+    || actorPermissions.storage.withdraw_high_quality === true
+    || isContractOwner(contract, actorUsername);
+  if (!isRequester && !canGovern) throw createError('只有草案发起人、owner 或具备高价值仓库权限的成员可以提交补偿复核', 403);
+  if (draft.compensation_review_idempotency_key === request.idempotency_key || draft.compensation_review_status === 'requested') {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      compensation_review: {
+        status: draft.compensation_review_status,
+        requested_action: draft.compensation_review_requested_action,
+        record_only: draft.compensation_review_record_only,
+      },
+      idempotent: true,
+    };
+  }
+  if (['approved', 'rejected'].includes(draft.compensation_review_status)) {
+    throw createError('该高价值取出补偿复核已处理，不能重复提交', 409);
+  }
+
+  const requestedAt = nowSeconds();
+  draft = normalizeWarehouseWithdrawalDraft({
+    ...draft,
+    compensation_review_status: 'requested',
+    compensation_review_requested_at: requestedAt,
+    compensation_review_requested_by_username: actorUsername,
+    compensation_review_reason: request.reason,
+    compensation_review_requested_action: request.requested_action,
+    compensation_review_evidence_note: request.evidence_note,
+    compensation_review_plan: request.compensation_plan,
+    compensation_review_idempotency_key: request.idempotency_key,
+    compensation_review_record_only: true,
+  });
+  contract.shared_warehouse_withdrawal_drafts[draftIndex] = draft;
+  appendAudit(contract, 'warehouse_high_value_withdrawal_compensation_review_requested', actor, {
+    draft_id: draft.id,
+    ledger_ids: draft.warehouse_ledger_ids,
+    item_id: draft.item_id,
+    quantity: draft.quantity,
+    quality: draft.quality,
+    risk_level: draft.risk_level,
+    requested_action: request.requested_action,
+    reason: request.reason,
+    compensation_plan: request.compensation_plan,
+    source_ledger_ids: draft.source_ledger_ids,
+    target_save_id: draft.target_save_id,
+    target_save_slot: draft.target_save_slot,
+    shared_warehouse_changed: false,
+    personal_save_changed: false,
+    record_only: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    compensation_review: {
+      status: draft.compensation_review_status,
+      requested_action: draft.compensation_review_requested_action,
+      record_only: true,
+    },
+    idempotent: false,
+  };
+}
+
+async function resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseHighValueWithdrawalCompensationResolvePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '处理共同仓库高价值取出补偿复核');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同仓库高价值取出草案不存在', 404);
+  let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
+  if (draft.state !== 'executed') throw createError('只有已执行的高价值取出可以处理补偿复核', 409);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const canGovern = isContractOwner(contract, actorUsername)
+    || actorPermissions.storage.withdraw_rare === true
+    || actorPermissions.storage.withdraw_high_quality === true;
+  if (!canGovern) throw createError('只有契约 owner 或具备高价值仓库权限的成员可以处理补偿复核', 403);
+  if (draft.compensation_review_resolve_idempotency_key === request.idempotency_key && ['approved', 'rejected'].includes(draft.compensation_review_status)) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      compensation_review: {
+        status: draft.compensation_review_status,
+        decision: draft.compensation_review_decision,
+        compensation_action: draft.compensation_review_compensation_action,
+        record_only: draft.compensation_review_record_only,
+      },
+      idempotent: true,
+    };
+  }
+  if (draft.compensation_review_status !== 'requested') throw createError('请先提交高价值取出补偿复核申请，再处理复核结论', 409);
+
+  const resolvedAt = nowSeconds();
+  draft = normalizeWarehouseWithdrawalDraft({
+    ...draft,
+    compensation_review_status: request.decision,
+    compensation_review_resolved_at: resolvedAt,
+    compensation_review_resolved_by_username: actorUsername,
+    compensation_review_decision: request.decision,
+    compensation_review_resolution_note: request.resolution_note,
+    compensation_review_compensation_action: request.compensation_action,
+    compensation_review_compensation_receipt: request.compensation_receipt,
+    compensation_review_resolve_idempotency_key: request.idempotency_key,
+    compensation_review_record_only: true,
+  });
+  contract.shared_warehouse_withdrawal_drafts[draftIndex] = draft;
+  appendAudit(contract, 'warehouse_high_value_withdrawal_compensation_review_resolved', actor, {
+    draft_id: draft.id,
+    ledger_ids: draft.warehouse_ledger_ids,
+    item_id: draft.item_id,
+    quantity: draft.quantity,
+    quality: draft.quality,
+    risk_level: draft.risk_level,
+    decision: request.decision,
+    compensation_action: request.compensation_action,
+    compensation_receipt: request.compensation_receipt,
+    resolution_note: request.resolution_note,
+    shared_warehouse_changed: false,
+    personal_save_changed: false,
+    record_only: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    compensation_review: {
+      status: draft.compensation_review_status,
+      decision: draft.compensation_review_decision,
+      compensation_action: draft.compensation_review_compensation_action,
+      record_only: true,
+    },
+    idempotent: false,
+  };
+}
+
+function buildWarehouseCompensationTargetSaveEvidence(contract = {}, draft = {}) {
+  const targetMember = (contract.members || []).find(member => member.username_key === draft.requester_username_key) || null;
+  const targetUsername = normalizeUsername(draft.requester_username || targetMember?.username);
+  const targetSaveSlot = normalizeSaveSlot(draft.target_save_slot ?? targetMember?.save_slot);
+  const targetSaveId = normalizeSaveId(draft.target_save_id || targetMember?.save_id);
+  const evidence = {
+    target_username: targetUsername,
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    save_available: false,
+    save_revision: 0,
+    target_slot_evidence: [],
+    target_item_quantity: 0,
+    target_item_slot_evidence_present: false,
+    target_slot_quantity_matches: false,
+    personal_money_snapshot: 0,
+    unavailable_reason: '',
+  };
+  if (!targetUsername) {
+    evidence.unavailable_reason = 'missing target username';
+    return evidence;
+  }
+  try {
+    const saves = loadUserSaveSlots(targetUsername);
+    let slot = targetSaveSlot;
+    if (slot === null || !saves?.slots?.[slot]?.raw) {
+      const identity = targetSaveId ? findSaveIdentityById(targetSaveId) : null;
+      slot = resolveMemberSaveSlot({ ...(targetMember || {}), username: targetUsername, save_slot: targetSaveSlot, save_id: targetSaveId }, saves, identity);
+    }
+    if (slot === null || !saves?.slots?.[slot]?.raw) {
+      evidence.unavailable_reason = 'target save slot is unavailable';
+      return evidence;
+    }
+    const entry = saves.slots[slot];
+    const decrypted = decryptTaoyuanRaw(entry.raw);
+    const saveContainer = normalizeGameplaySaveContainer(decrypted);
+    const gameplay = saveContainer?.gameplayData;
+    const onlineIdentity = getContainerIdentity(saveContainer);
+    evidence.save_available = true;
+    evidence.save_revision = Math.max(0, Math.floor(Number(entry.revision) || 0));
+    evidence.target_save_slot = slot;
+    evidence.target_save_id = normalizeSaveId(targetSaveId || onlineIdentity?.save_id || onlineIdentity?.saveId);
+    evidence.personal_money_snapshot = Math.max(0, Math.floor(Number(gameplay?.player?.money) || 0));
+    ensureInventoryState(gameplay || {});
+    const inventory = gameplay?.inventory || {};
+    const targetSlotKeys = new Set((draft.warehouse_ledger_ids || [])
+      .flatMap(ledgerId => (contract.shared_warehouse?.ledger || [])
+        .filter(entry => entry.id === ledgerId)
+        .flatMap(entry => entry.target_slots || []))
+      .map(slot => `${slot.bag || 'inventory.items'}:${Math.max(0, Math.floor(Number(slot.index) || 0))}`));
+    const inspectSlot = (bag, slotEntry, index) => {
+      const itemId = normalizeWarehouseItemId(slotEntry?.itemId ?? slotEntry?.item_id);
+      const quality = normalizeQuality(slotEntry?.quality);
+      const quantity = normalizePositiveInt(slotEntry?.quantity, 0);
+      if (itemId === draft.item_id && quality === draft.quality && quantity > 0) {
+        evidence.target_item_quantity += quantity;
+      }
+      const key = `${bag}:${index}`;
+      if (!targetSlotKeys.has(key)) return;
+      evidence.target_slot_evidence.push({
+        bag,
+        index,
+        item_id: itemId,
+        quality,
+        quantity,
+        expected_item_id: draft.item_id,
+        expected_quality: draft.quality,
+        matches_item: itemId === draft.item_id && quality === draft.quality,
+      });
+    };
+    (Array.isArray(inventory.items) ? inventory.items : []).forEach((slotEntry, index) => inspectSlot('inventory.items', slotEntry, index));
+    (Array.isArray(inventory.tempItems) ? inventory.tempItems : []).forEach((slotEntry, index) => inspectSlot('inventory.tempItems', slotEntry, index));
+    evidence.target_item_slot_evidence_present = evidence.target_slot_evidence.some(slot => slot.matches_item && slot.quantity > 0);
+    const matchedSlotQuantity = evidence.target_slot_evidence
+      .filter(slot => slot.matches_item)
+      .reduce((sum, slot) => sum + normalizePositiveInt(slot.quantity, 0), 0);
+    evidence.target_slot_quantity_matches = matchedSlotQuantity >= draft.quantity;
+    return evidence;
+  } catch (error) {
+    evidence.unavailable_reason = sanitizeText(error?.message || 'target save read failed', 160);
+    return evidence;
+  }
+}
+
+function buildWarehouseHighValueWithdrawalCompensationPreflight(contract = {}, draft = {}, request = {}, actorUsername = '') {
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const withdrawLedgerEntries = warehouse.ledger.filter(entry => (draft.warehouse_ledger_ids || []).includes(entry.id));
+  const targetEvidence = buildWarehouseCompensationTargetSaveEvidence(contract, draft);
+  const requiredChecks = [
+    { id: 'target_save_present', passed: targetEvidence.save_available === true, evidence: targetEvidence.unavailable_reason || targetEvidence.target_save_id || targetEvidence.target_save_slot },
+    { id: 'withdraw_ledger_present', passed: withdrawLedgerEntries.length > 0, evidence: draft.warehouse_ledger_ids },
+    { id: 'source_ledger_trace_present', passed: (draft.source_ledger_ids || []).length > 0, evidence: draft.source_ledger_ids },
+    { id: 'target_item_slot_evidence_present', passed: targetEvidence.target_item_slot_evidence_present === true, evidence: targetEvidence.target_slot_evidence },
+    { id: 'target_slot_quantity_matches', passed: targetEvidence.target_slot_quantity_matches === true, evidence: targetEvidence.target_item_quantity },
+    { id: 'operator_receipt_required', passed: Boolean(draft.compensation_review_compensation_receipt), evidence: draft.compensation_review_compensation_receipt },
+    { id: 'idempotency_key_required', passed: Boolean(request.idempotency_key), evidence: request.idempotency_key },
+    { id: 'audit_required', passed: true, evidence: 'warehouse_high_value_withdrawal_compensation_preflight_recorded' },
+    { id: 'personal_money_mutation_forbidden', passed: true, evidence: targetEvidence.personal_money_snapshot },
+    { id: 'manual_rollback_or_compensation_path_required', passed: true, evidence: draft.compensation_review_compensation_action || draft.compensation_review_requested_action },
+  ];
+  const failedChecks = requiredChecks.filter(check => check.passed !== true).map(check => check.id);
+  return {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quality: draft.quality,
+    quantity: draft.quantity,
+    risk_level: draft.risk_level,
+    state: draft.state,
+    reviewed_status: draft.compensation_review_status,
+    requested_action: draft.compensation_review_requested_action,
+    compensation_action: draft.compensation_review_compensation_action,
+    compensation_receipt: draft.compensation_review_compensation_receipt,
+    requested_by_username: draft.compensation_review_requested_by_username,
+    resolved_by_username: draft.compensation_review_resolved_by_username,
+    requested_at: draft.compensation_review_requested_at,
+    resolved_at: draft.compensation_review_resolved_at,
+    source_ledger_ids: draft.source_ledger_ids,
+    withdraw_ledger_ids: draft.warehouse_ledger_ids,
+    withdraw_ledger_entries: withdrawLedgerEntries.map(entry => ({
+      ledger_id: entry.id,
+      source_ledger_ids: entry.source_ledger_ids,
+      target_save_id: entry.target_save_id,
+      target_save_slot: entry.target_save_slot,
+      target_slots: entry.target_slots,
+      target_owner_username: entry.target_owner_username,
+      target_save_revision: entry.target_save_revision,
+    })),
+    target_save: targetEvidence,
+    required_checks: requiredChecks,
+    failed_checks: failedChecks,
+    ready_for_auto_compensation: false,
+    auto_compensation_enabled: false,
+    record_only: true,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    operator_note: request.operator_note,
+    checked_by_username: normalizeUsername(actorUsername),
+    checked_at: nowSeconds(),
+    policy: {
+      auto_compensation_reason: 'personal inventory mutation remains disabled until operator receipt, target slot evidence, idempotency, audit and rollback policy are all implemented for a real compensation executor',
+      next_required_operation: 'manual_compensation_or_rollback_receipt_review',
+      personal_money_merged: false,
+    },
+  };
+}
+
+async function recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseHighValueWithdrawalCompensationPreflightPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '记录共同仓库高价值取出补偿预检');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draft = contract.shared_warehouse_withdrawal_drafts.find(entry => entry.id === normalizedDraftId);
+  if (!draft) throw createError('共同仓库高价值取出草案不存在', 404);
+  if (draft.state !== 'executed') throw createError('只有已执行的高价值取出可以记录补偿预检', 409);
+  if (!['approved', 'rejected'].includes(draft.compensation_review_status)) throw createError('请先完成高价值取出补偿复核，再记录补偿预检', 409);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const canGovern = isContractOwner(contract, actorUsername)
+    || actorPermissions.storage.withdraw_rare === true
+    || actorPermissions.storage.withdraw_high_quality === true;
+  if (!canGovern) throw createError('只有契约 owner 或具备高价值仓库权限的成员可以记录补偿预检', 403);
+  const preflight = buildWarehouseHighValueWithdrawalCompensationPreflight(contract, draft, request, actorUsername);
+  const existingAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'warehouse_high_value_withdrawal_compensation_preflight_recorded'
+    && entry.idempotency_key === request.idempotency_key
+    && entry.detail?.draft_id === draft.id
+  );
+  if (existingAudit) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      compensation_preflight: preflight,
+      idempotent: true,
+    };
+  }
+  appendAudit(contract, 'warehouse_high_value_withdrawal_compensation_preflight_recorded', actor, {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quality: draft.quality,
+    quantity: draft.quantity,
+    risk_level: draft.risk_level,
+    compensation_review_status: draft.compensation_review_status,
+    compensation_action: draft.compensation_review_compensation_action,
+    compensation_receipt: draft.compensation_review_compensation_receipt,
+    withdraw_ledger_ids: draft.warehouse_ledger_ids,
+    source_ledger_ids: draft.source_ledger_ids,
+    required_check_ids: preflight.required_checks.map(check => check.id),
+    failed_checks: preflight.failed_checks,
+    auto_compensation_enabled: false,
+    ready_for_auto_compensation: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    record_only: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    compensation_preflight: preflight,
+    idempotent: false,
+  };
+}
+
+function findWarehouseCompensationPreflightAudit(contract = {}, draft = {}, request = {}) {
+  const audits = Array.isArray(contract.audit_log) ? contract.audit_log : [];
+  return audits.find(entry => {
+    if (entry.action !== 'warehouse_high_value_withdrawal_compensation_preflight_recorded') return false;
+    if (entry.detail?.draft_id !== draft.id) return false;
+    if (request.preflight_audit_id && entry.id === request.preflight_audit_id) return true;
+    if (request.preflight_idempotency_key && entry.idempotency_key === request.preflight_idempotency_key) return true;
+    return false;
+  }) || null;
+}
+
+function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorUsername = '') {
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const auditActions = new Set([
+    'warehouse_high_value_withdrawal_draft_created',
+    'warehouse_high_value_withdrawal_draft_confirmed',
+    'warehouse_high_value_withdrawal_executed',
+    'warehouse_high_value_withdrawal_compensation_review_requested',
+    'warehouse_high_value_withdrawal_compensation_review_resolved',
+    'warehouse_high_value_withdrawal_compensation_preflight_recorded',
+    'warehouse_high_value_withdrawal_compensation_execution_recorded',
+    'warehouse_high_value_withdrawal_rolled_back',
+  ]);
+  const draftAudits = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
+    .filter(entry => auditActions.has(entry.action) && entry.detail?.draft_id === draft.id)
+    .map(entry => ({
+      id: entry.id,
+      action: entry.action,
+      at: entry.at,
+      actor_username: entry.actor_username,
+      actor_display_name: entry.actor_display_name,
+      idempotency_key: entry.idempotency_key,
+      detail: entry.detail,
+    }));
+  const withdrawLedgerEntries = warehouse.ledger.filter(entry => (draft.warehouse_ledger_ids || []).includes(entry.id));
+  const sourceLedgerEntries = warehouse.ledger.filter(entry => (draft.source_ledger_ids || []).includes(entry.id));
+  const targetEvidence = buildWarehouseCompensationTargetSaveEvidence(contract, draft);
+  const reviewAudits = draftAudits.filter(entry => [
+    'warehouse_high_value_withdrawal_compensation_review_requested',
+    'warehouse_high_value_withdrawal_compensation_review_resolved',
+  ].includes(entry.action));
+  const preflightAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_preflight_recorded');
+  const executionAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_execution_recorded');
+  const timelineComplete = Boolean(
+    withdrawLedgerEntries.length > 0
+    && reviewAudits.length > 0
+    && preflightAudits.length > 0
+    && (draft.compensation_execution_status !== 'recorded' || executionAudits.length > 0)
+  );
+  return {
+    contract_id: contract.id,
+    draft_id: draft.id,
+    generated_at: nowSeconds(),
+    requested_by_username: normalizeUsername(actorUsername),
+    draft: {
+      id: draft.id,
+      state: draft.state,
+      item_id: draft.item_id,
+      quality: draft.quality,
+      quantity: draft.quantity,
+      risk_level: draft.risk_level,
+      requester_username: draft.requester_username,
+      target_owner_username: draft.target_owner_username,
+      target_save_id: draft.target_save_id,
+      target_save_slot: draft.target_save_slot,
+      warehouse_ledger_ids: draft.warehouse_ledger_ids,
+      source_ledger_ids: draft.source_ledger_ids,
+      compensation_review_status: draft.compensation_review_status,
+      compensation_review_requested_action: draft.compensation_review_requested_action,
+      compensation_review_compensation_action: draft.compensation_review_compensation_action,
+      compensation_review_record_only: draft.compensation_review_record_only,
+      compensation_execution_status: draft.compensation_execution_status,
+      compensation_execution_action: draft.compensation_execution_action,
+      compensation_execution_record_only: draft.compensation_execution_record_only,
+      compensation_execution_preflight_idempotency_key: draft.compensation_execution_preflight_idempotency_key,
+      compensation_execution_preflight_audit_id: draft.compensation_execution_preflight_audit_id,
+      compensation_execution_recorded_by_username: draft.compensation_execution_recorded_by_username,
+      compensation_execution_recorded_at: draft.compensation_execution_recorded_at,
+    },
+    ledger_evidence: {
+      withdraw_ledger_entries: withdrawLedgerEntries,
+      source_ledger_entries: sourceLedgerEntries,
+      withdraw_ledger_count: withdrawLedgerEntries.length,
+      source_ledger_count: sourceLedgerEntries.length,
+    },
+    target_save: targetEvidence,
+    audit_timeline: draftAudits,
+    review_audits: reviewAudits,
+    preflight_audits: preflightAudits,
+    execution_audits: executionAudits,
+    appeal_packet: {
+      enabled: true,
+      record_only: true,
+      timeline_complete: timelineComplete,
+      missing_evidence: [
+        withdrawLedgerEntries.length > 0 ? '' : 'withdraw_ledger',
+        sourceLedgerEntries.length > 0 ? '' : 'source_ledger',
+        reviewAudits.length > 0 ? '' : 'compensation_review_audit',
+        preflightAudits.length > 0 ? '' : 'compensation_preflight_audit',
+        draft.compensation_execution_status === 'recorded' && executionAudits.length < 1 ? 'compensation_execution_audit' : '',
+      ].filter(Boolean),
+      next_supported_actions: ['operator_receipt_audit_review', 'manual_appeal_resolution'],
+    },
+    asset_boundary: {
+      personal_money_merged: false,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      auto_compensation_enabled: false,
+      shared_warehouse_restore_enabled: false,
+      personal_inventory_mutation_enabled: false,
+    },
+  };
+}
+
+async function getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(contractId, draftId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看共同仓库高价值取出补偿审计');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draft = contract.shared_warehouse_withdrawal_drafts.find(entry => entry.id === normalizedDraftId);
+  if (!draft) throw createError('共同仓库高价值取出草案不存在', 404);
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    compensation_audit_bundle: buildWarehouseCompensationAuditBundle(contract, draft, actorUsername),
+  };
+}
+
+function buildWarehouseCompensationExecutionRecord(contract = {}, draft = {}, request = {}, actorUsername = '', preflightAudit = null) {
+  const targetEvidence = buildWarehouseCompensationTargetSaveEvidence(contract, draft);
+  const preflightFailedChecks = Array.isArray(preflightAudit?.detail?.failed_checks)
+    ? preflightAudit.detail.failed_checks.map(id => sanitizeText(id, 80)).filter(Boolean)
+    : [];
+  const blockingFailedChecks = preflightFailedChecks.filter(id => !['target_slot_quantity_matches'].includes(id));
+  const requiredChecks = [
+    { id: 'review_approved', passed: draft.compensation_review_status === 'approved', evidence: draft.compensation_review_status },
+    { id: 'execution_action_matches_review', passed: request.execution_action === draft.compensation_review_compensation_action, evidence: { requested: request.execution_action, approved: draft.compensation_review_compensation_action } },
+    { id: 'preflight_audit_present', passed: Boolean(preflightAudit), evidence: preflightAudit?.id || request.preflight_idempotency_key },
+    { id: 'preflight_blocking_failures_absent', passed: blockingFailedChecks.length === 0, evidence: blockingFailedChecks },
+    { id: 'operator_receipt_present', passed: Boolean(request.execution_receipt), evidence: request.execution_receipt },
+    { id: 'confirmation_text_matched', passed: request.confirmation_text === WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT, evidence: WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT },
+    { id: 'target_save_present', passed: targetEvidence.save_available === true, evidence: targetEvidence.unavailable_reason || targetEvidence.target_save_id || targetEvidence.target_save_slot },
+    { id: 'withdraw_ledger_present', passed: (draft.warehouse_ledger_ids || []).length > 0, evidence: draft.warehouse_ledger_ids },
+    { id: 'source_ledger_trace_present', passed: (draft.source_ledger_ids || []).length > 0, evidence: draft.source_ledger_ids },
+    { id: 'personal_money_mutation_forbidden', passed: true, evidence: targetEvidence.personal_money_snapshot },
+    { id: 'record_only_execution', passed: true, evidence: 'manual compensation execution is recorded only' },
+  ];
+  const failedChecks = requiredChecks.filter(check => check.passed !== true).map(check => check.id);
+  return {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quality: draft.quality,
+    quantity: draft.quantity,
+    risk_level: draft.risk_level,
+    execution_action: request.execution_action,
+    execution_receipt: request.execution_receipt,
+    execution_note: request.execution_note,
+    compensation_review_status: draft.compensation_review_status,
+    compensation_action: draft.compensation_review_compensation_action,
+    compensation_receipt: draft.compensation_review_compensation_receipt,
+    preflight_audit_id: preflightAudit?.id || '',
+    preflight_idempotency_key: preflightAudit?.idempotency_key || request.preflight_idempotency_key,
+    preflight_failed_checks: preflightFailedChecks,
+    target_save: targetEvidence,
+    required_checks: requiredChecks,
+    failed_checks: failedChecks,
+    ready_for_auto_compensation: false,
+    auto_compensation_enabled: false,
+    record_only: true,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    recorded_by_username: normalizeUsername(actorUsername),
+    recorded_at: nowSeconds(),
+    policy: {
+      executor_kind: 'manual_operator_receipt',
+      personal_inventory_mutation_enabled: false,
+      shared_warehouse_restore_enabled: false,
+      next_required_operation: 'operator_receipt_audit_or_appeal_review',
+    },
+  };
+}
+
+async function recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const request = normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'record warehouse compensation execution');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
+  const normalizedDraftId = sanitizeText(draftId, 100);
+  const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('warehouse high-value draft not found', 404);
+  let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
+  if (draft.state !== 'executed') throw createError('only executed high-value withdrawal drafts can record compensation execution', 409);
+  if (draft.compensation_review_status !== 'approved') throw createError('compensation execution requires approved review', 409);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const canGovern = isContractOwner(contract, actorUsername)
+    || actorPermissions.storage.withdraw_rare === true
+    || actorPermissions.storage.withdraw_high_quality === true;
+  if (!canGovern) throw createError('warehouse compensation execution requires owner or high-value warehouse permission', 403);
+  if (draft.compensation_execution_idempotency_key === request.idempotency_key && draft.compensation_execution_status === 'recorded') {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      draft,
+      compensation_execution: buildWarehouseCompensationExecutionRecord(contract, draft, request, actorUsername, findWarehouseCompensationPreflightAudit(contract, draft, request)),
+      idempotent: true,
+    };
+  }
+  if (draft.compensation_execution_status === 'recorded') throw createError('warehouse compensation execution already recorded', 409);
+  const preflightAudit = findWarehouseCompensationPreflightAudit(contract, draft, request);
+  if (!preflightAudit) throw createError('compensation execution requires matching preflight audit', 409);
+  const execution = buildWarehouseCompensationExecutionRecord(contract, draft, request, actorUsername, preflightAudit);
+  if (execution.failed_checks.length > 0) throw createError(`compensation execution blocked by failed checks: ${execution.failed_checks.join(',')}`, 409);
+  draft = normalizeWarehouseWithdrawalDraft({
+    ...draft,
+    compensation_execution_status: 'recorded',
+    compensation_execution_action: request.execution_action,
+    compensation_execution_receipt: request.execution_receipt,
+    compensation_execution_note: request.execution_note,
+    compensation_execution_preflight_idempotency_key: execution.preflight_idempotency_key,
+    compensation_execution_preflight_audit_id: execution.preflight_audit_id,
+    compensation_execution_idempotency_key: request.idempotency_key,
+    compensation_execution_recorded_at: execution.recorded_at,
+    compensation_execution_recorded_by_username: actorUsername,
+    compensation_execution_record_only: true,
+  });
+  contract.shared_warehouse_withdrawal_drafts[draftIndex] = draft;
+  appendAudit(contract, 'warehouse_high_value_withdrawal_compensation_execution_recorded', actor, {
+    draft_id: draft.id,
+    item_id: draft.item_id,
+    quality: draft.quality,
+    quantity: draft.quantity,
+    risk_level: draft.risk_level,
+    execution_action: request.execution_action,
+    execution_receipt: request.execution_receipt,
+    preflight_audit_id: execution.preflight_audit_id,
+    preflight_idempotency_key: execution.preflight_idempotency_key,
+    withdraw_ledger_ids: draft.warehouse_ledger_ids,
+    source_ledger_ids: draft.source_ledger_ids,
+    required_check_ids: execution.required_checks.map(check => check.id),
+    failed_checks: execution.failed_checks,
+    auto_compensation_enabled: false,
+    ready_for_auto_compensation: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    record_only: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    compensation_execution: execution,
+    idempotent: false,
   };
 }
 
@@ -19027,6 +20449,7 @@ module.exports = {
   getCohabitationFamilyVisibility,
   getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
+  mergeCohabitationOfflineQueue,
   waterCohabitationSharedFarmPlot,
   careCohabitationSharedFarmPlot,
   plantCohabitationSharedFarmPlot,
@@ -19042,7 +20465,12 @@ module.exports = {
   createCohabitationWarehouseHighValueWithdrawalDraft,
   confirmCohabitationWarehouseHighValueWithdrawalDraft,
   executeCohabitationWarehouseHighValueWithdrawalDraft,
+  requestCohabitationWarehouseHighValueWithdrawalCompensationReview,
+  resolveCohabitationWarehouseHighValueWithdrawalCompensationReview,
+  recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight,
+  getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle,
   rollbackCohabitationWarehouseHighValueWithdrawalDraft,
+  recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
   recoverCohabitationWarehouseGovernance,
   sellCohabitationWarehouseItem,
   creditCohabitationOrderIncome,

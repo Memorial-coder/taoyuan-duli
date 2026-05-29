@@ -142,6 +142,95 @@
             </div>
           </div>
 
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-shared-pets-panel">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">共同宠物照料</p>
+              <span class="text-[10px] text-muted">{{ cohabitationStore.sharedPets?.summary.pet_count ?? 0 }} 只 · {{ cohabitationStore.sharedPets?.summary.cared_count ?? 0 }} 已照料</span>
+            </div>
+            <div v-if="sharedPets.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有可照料的共同宠物。</div>
+            <div v-else class="mt-3 space-y-3">
+              <div class="max-h-48 space-y-2 overflow-y-auto pr-1">
+                <button
+                  v-for="pet in sharedPets"
+                  :key="pet.id"
+                  type="button"
+                  class="w-full border p-2 text-left transition-colors"
+                  :class="pet.id === selectedSharedPetId ? 'border-accent/50 bg-accent/10' : 'border-accent/10 bg-black/10 hover:border-accent/30'"
+                  :data-testid="`online-cohabitation-shared-pet-${pet.id}`"
+                  @click="selectSharedPet(pet)"
+                >
+                  <p class="truncate text-xs text-text">{{ pet.name || pet.type }}</p>
+                  <p class="mt-1 text-[10px] text-muted">
+                    {{ pet.origin_owner_display_name || pet.origin_owner_username }} · {{ pet.permission_mode }} · 照料 {{ pet.pet_state.care_count }} 次 · 心情 {{ pet.pet_state.mood }}
+                  </p>
+                </button>
+              </div>
+              <div v-if="selectedSharedPet" class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+                <p class="truncate text-xs text-text">{{ selectedSharedPet.name || selectedSharedPet.type }}</p>
+                <p class="mt-1">来源：{{ selectedSharedPet.origin_owner_display_name || selectedSharedPet.origin_owner_username }}</p>
+                <p class="mt-1">照料：{{ selectedSharedPet.current_caregiver_display_name || selectedSharedPet.current_caregiver_username || '未记录' }}</p>
+                <p class="mt-1">用品：{{ selectedSharedPet.pet_state.last_care_item_label || selectedSharedPet.pet_state.last_care_item_id || '未使用' }} · 好感 {{ selectedSharedPet.pet_state.friendship }} · 心情 {{ selectedSharedPet.pet_state.mood }}</p>
+                <p class="mt-1" data-testid="online-cohabitation-shared-pet-coop-bonus">
+                  同时在线加成：{{ sharedPetCoopBonusLabel(selectedSharedPet) }}
+                </p>
+              </div>
+              <label class="block text-[10px] leading-4 text-muted">
+                <span>照料用品</span>
+                <select
+                  v-model="selectedSharedPetCareItemId"
+                  class="online-select mt-1 w-full"
+                  data-testid="online-cohabitation-shared-pet-care-item-select"
+                >
+                  <option v-for="item in sharedPetCareOptions" :key="item.itemId" :value="item.itemId">
+                    {{ item.label }} · 库存 {{ item.quantity }} · 好感 +{{ item.friendshipGain }} / 心情 +{{ item.moodGain }}
+                  </option>
+                </select>
+              </label>
+              <p v-if="selectedSharedPetCareItem" class="text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-pet-care-item-stock">
+                {{ selectedSharedPetCareItem.label }} · {{ selectedSharedPetCareItem.effect }} · 共同仓库 {{ selectedSharedPetCareItem.quantity }} 个
+              </p>
+              <div
+                v-if="selectedSharedPetCareItem?.requiresConfirmation"
+                class="space-y-2 border border-amber-300/30 bg-amber-950/20 p-2 text-[10px] leading-4 text-amber-100"
+                data-testid="online-cohabitation-shared-pet-care-risk-panel"
+              >
+                <p data-testid="online-cohabitation-shared-pet-care-risk-label">
+                  {{ selectedSharedPetCareItem.label }} · {{ selectedSharedPetCareItem.riskLevel || 'high_value_pet_treat' }}
+                </p>
+                <p>回滚：{{ selectedSharedPetCareItem.rollbackPlan }}</p>
+                <p>补偿：{{ selectedSharedPetCareItem.compensationHint }}</p>
+                <label class="flex items-center gap-2">
+                  <input
+                    v-model="sharedPetCareRiskAcknowledged"
+                    type="checkbox"
+                    class="online-input h-4 w-4 min-w-4 accent-accent"
+                    data-testid="online-cohabitation-shared-pet-care-risk-confirm"
+                  >
+                  已确认高阶用品消耗、补偿和回滚方案
+                </label>
+                <input
+                  v-model="sharedPetCareConfirmationText"
+                  class="online-input w-full"
+                  :placeholder="sharedPetCareConfirmationPhrase"
+                  data-testid="online-cohabitation-shared-pet-care-risk-text"
+                >
+              </div>
+              <button
+                class="online-action-btn online-action-btn--compact w-full justify-center"
+                type="button"
+                :disabled="!canCareSelectedSharedPet || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-shared-pet-care"
+                @click="careSelectedSharedPet"
+              >
+                <Heart :size="12" />
+                {{ selectedSharedPetCareItem?.label || '用品' }}照料
+              </button>
+              <p v-if="sharedPetActionMessage" class="text-[10px] leading-4" :class="sharedPetActionOk ? 'text-emerald-200' : 'text-red-100'">
+                {{ sharedPetActionMessage }}
+              </p>
+            </div>
+          </div>
+
           <div class="game-panel-muted p-3">
             <div class="flex items-center gap-2 text-accent">
               <HeartHandshake :size="13" />
@@ -447,10 +536,46 @@
                 <p class="mt-1 text-xs text-accent">{{ stat.value }}</p>
               </div>
             </div>
+            <div
+              v-if="mapRegions.length > 0"
+              class="mt-3 space-y-2"
+              data-testid="online-cohabitation-shared-map-region-tabs"
+            >
+              <div class="overflow-x-auto pb-1">
+                <div class="flex min-w-max gap-2">
+                  <button
+                    v-for="region in mapRegions"
+                    :key="region.region_index"
+                    type="button"
+                    class="min-h-[2.75rem] border px-3 py-2 text-left text-[10px] leading-4 transition-colors"
+                    :class="activeSharedMapRegion?.region_index === region.region_index ? 'border-accent/60 bg-accent/10 text-accent' : 'border-accent/10 bg-black/10 text-muted hover:border-accent/30'"
+                    :data-testid="`online-cohabitation-shared-map-region-tab-${region.region_index}`"
+                    @click="setActiveSharedMapRegion(region.region_index)"
+                  >
+                    <span class="block text-xs">第 {{ region.region_index + 1 }} 区</span>
+                    <span class="block max-w-28 truncate">{{ region.member_display_name || region.member_username }}</span>
+                  </button>
+                </div>
+              </div>
+              <div
+                v-if="activeSharedMapRegion"
+                class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
+                data-testid="online-cohabitation-shared-map-region-page-summary"
+              >
+                当前显示第 {{ activeSharedMapRegion.region_index + 1 }} 区 ·
+                {{ activeSharedMapRegion.member_display_name || activeSharedMapRegion.member_username }} ·
+                {{ pagedSharedFarmPlots.length }} / {{ activeSharedMapRegion.field_plot_count }} 块 ·
+                {{ activeSharedMapRegion.permission_mode }}
+              </div>
+            </div>
             <div class="mt-3 overflow-x-auto pb-1">
-              <div class="grid min-w-max gap-1" :style="mapGridStyle">
+              <div
+                class="grid min-w-max gap-1"
+                :style="pagedMapGridStyle"
+                data-testid="online-cohabitation-shared-map-page-grid"
+              >
                 <button
-                  v-for="plot in cohabitationStore.sharedMap.plots"
+                  v-for="plot in pagedSharedFarmPlots"
                   :key="plot.id"
                   class="flex h-9 w-9 flex-col items-center justify-center border text-[9px] leading-3 transition-colors"
                   :class="[plotClass(plot), selectedSharedFarmPlot?.id === plot.id ? 'ring-1 ring-accent/70' : '']"
@@ -472,13 +597,21 @@
             <p class="text-sm text-accent">成员区域</p>
             <div v-if="mapRegions.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有可展示的成员区域。</div>
             <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
-              <div v-for="region in mapRegions" :key="region.region_index" class="border border-accent/10 bg-black/10 p-2">
+              <button
+                v-for="region in mapRegions"
+                :key="region.region_index"
+                type="button"
+                class="w-full border p-2 text-left transition-colors"
+                :class="activeSharedMapRegion?.region_index === region.region_index ? 'border-accent/50 bg-accent/10' : 'border-accent/10 bg-black/10 hover:border-accent/30'"
+                :data-testid="`online-cohabitation-shared-map-region-card-${region.region_index}`"
+                @click="setActiveSharedMapRegion(region.region_index)"
+              >
                 <p class="truncate text-xs text-text">{{ region.member_display_name || region.member_username }}</p>
                 <p class="mt-1 text-[10px] text-muted">
                   第 {{ region.region_index + 1 }} 区 · {{ region.field_plot_count }} 块 · {{ region.permission_mode }}
                 </p>
                 <p class="mt-1 text-[10px] text-muted">来源：{{ region.origin_owner_id }}</p>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -841,7 +974,58 @@
                   >
                     撤销冻结
                   </button>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact"
+                    :disabled="!canReadHighValueWarehouseCompensationAudit(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-warehouse-high-value-compensation-audit-${draft.id}`"
+                    @click="readHighValueWarehouseCompensationAudit(draft)"
+                  >
+                    <ClipboardList :size="12" />
+                    审计回看
+                  </button>
                 </div>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-warehouse-compensation-audit-panel">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">补偿审计证据包</p>
+              <span class="text-[10px] text-muted">record-only</span>
+            </div>
+            <div v-if="!warehouseCompensationAuditBundle" class="mt-3 text-xs leading-5 text-muted">暂无补偿审计证据包。</div>
+            <div v-else class="mt-3 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-warehouse-compensation-audit-bundle">
+              <p class="truncate text-xs text-text" data-testid="online-cohabitation-warehouse-compensation-audit-summary">
+                草案 {{ warehouseCompensationAuditBundle.draft_id }} · {{ warehouseCompensationAuditBundle.appeal_packet.timeline_complete ? '时间线完整' : '证据待补' }}
+              </p>
+              <div class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-evidence">
+                <p v-for="row in warehouseCompensationAuditBundleRows" :key="row.label" class="border border-accent/10 px-2 py-1">
+                  {{ row.label }} {{ row.value }}
+                </p>
+              </div>
+              <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-missing">
+                缺失证据：{{ warehouseCompensationAuditMissingEvidenceLabel }}
+              </p>
+              <div class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-target-save">
+                <p v-for="row in warehouseCompensationAuditTargetRows" :key="row.label" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
+              </div>
+              <div v-if="warehouseCompensationAuditTargetSlotRows.length" class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-target-slots">
+                <p v-for="row in warehouseCompensationAuditTargetSlotRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
+              </div>
+              <div class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-ledger-ids">
+                <p v-if="warehouseCompensationAuditLedgerRows.length === 0" class="border border-accent/10 px-2 py-1">暂无流水证据。</p>
+                <p v-for="row in warehouseCompensationAuditLedgerRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
+              </div>
+              <div class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-timeline">
+                <p v-if="warehouseCompensationAuditTimelineRows.length === 0" class="border border-accent/10 px-2 py-1">暂无审计时间线。</p>
+                <p v-for="row in warehouseCompensationAuditTimelineRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-appeal-actions">
+                <span v-if="warehouseCompensationAuditAppealActionRows.length === 0" class="border border-accent/10 px-2 py-1">无后续动作</span>
+                <span v-for="row in warehouseCompensationAuditAppealActionRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}</span>
+              </div>
+              <div class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-asset-boundary">
+                <p v-for="row in warehouseCompensationAuditAssetRows" :key="row.label" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
             </div>
           </div>
@@ -2262,7 +2446,8 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
+  import { useRoute } from 'vue-router'
   import {
     Bug,
     Building2,
@@ -2295,7 +2480,10 @@
     CohabitationFundLedgerEntry,
     CohabitationMember,
     CohabitationSharedAnimal,
+    CohabitationSharedPet,
     CohabitationSharedPlot,
+    CohabitationSharedRegion,
+    CohabitationWarehouseCompensationAuditBundle,
     CohabitationWarehouseHighValueWithdrawalDraft,
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
@@ -2320,6 +2508,18 @@
   }
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
+  type SharedPetCareItemInfo = {
+    itemId: string
+    label: string
+    effect: string
+    friendshipGain: number
+    moodGain: number
+    riskLevel?: string
+    requiresConfirmation?: boolean
+    confirmationPhrase?: string
+    rollbackPlan?: string
+    compensationHint?: string
+  }
   type SeparationSharedDecorationRemovalDispute = {
     draft_id: string
     target_ref: string
@@ -2379,7 +2579,49 @@
     camel: { productId: 'camel_milk', produceDays: 2 },
     ostrich: { productId: 'ostrich_egg', produceDays: 3 },
   }
+  const sharedPetCareItemCatalog: Record<string, SharedPetCareItemInfo> = {
+    vitality_feed: { itemId: 'vitality_feed', label: '活力饲料', effect: '活力照料', friendshipGain: 3, moodGain: 8, riskLevel: 'standard' },
+    premium_feed: { itemId: 'premium_feed', label: '精饲料', effect: '亲密照料', friendshipGain: 6, moodGain: 12, riskLevel: 'standard' },
+    nourishing_feed: { itemId: 'nourishing_feed', label: '滋补饲料', effect: '滋养照料', friendshipGain: 4, moodGain: 10, riskLevel: 'standard' },
+    sesame_patrol_biscuit: {
+      itemId: 'sesame_patrol_biscuit',
+      label: '芝麻巡院饼',
+      effect: '巡院照料',
+      friendshipGain: 8,
+      moodGain: 14,
+      riskLevel: 'high_value_pet_treat',
+      requiresConfirmation: true,
+      confirmationPhrase: '确认消耗共同宠物高阶点心',
+      rollbackPlan: '缺少确认会被服务端阻断，提交后按共同宠物与仓库 ledger 补偿。',
+      compensationHint: '异常时按共同宠物照料 ledger 和共同仓库扣料 ledger 返还或重放。',
+    },
+    lotus_heart_cat_treat: {
+      itemId: 'lotus_heart_cat_treat',
+      label: '莲心桂花糕',
+      effect: '高阶灵宠点心',
+      friendshipGain: 10,
+      moodGain: 16,
+      riskLevel: 'high_value_pet_treat',
+      requiresConfirmation: true,
+      confirmationPhrase: '确认消耗共同宠物高阶点心',
+      rollbackPlan: '缺少确认会被服务端阻断，提交后按共同宠物与仓库 ledger 补偿。',
+      compensationHint: '异常时按共同宠物照料 ledger 和共同仓库扣料 ledger 返还或重放。',
+    },
+    spirit_fruit_mooncake: {
+      itemId: 'spirit_fruit_mooncake',
+      label: '灵果月华糕',
+      effect: '稀有灵宠点心',
+      friendshipGain: 14,
+      moodGain: 20,
+      riskLevel: 'rare_pet_treat',
+      requiresConfirmation: true,
+      confirmationPhrase: '确认消耗共同宠物高阶点心',
+      rollbackPlan: '缺少确认会被服务端阻断，提交后按共同宠物与仓库 ledger 补偿。',
+      compensationHint: '异常时按共同宠物照料 ledger 和共同仓库扣料 ledger 返还或重放。',
+    },
+  }
 
+  const route = useRoute()
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
   const lastRefreshAttemptAt = ref(0)
@@ -2390,11 +2632,18 @@
   const warehouseGovernanceRecoverReason = ref('')
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
+  const activeSharedMapRegionIndex = ref(0)
   const selectedSharedFarmPlotId = ref('')
   const sharedFarmSeedItemId = ref('seed_cabbage')
   const sharedAnimalActionMessage = ref('')
   const sharedAnimalActionOk = ref(false)
   const selectedSharedAnimalId = ref('')
+  const sharedPetActionMessage = ref('')
+  const sharedPetActionOk = ref(false)
+  const selectedSharedPetId = ref('')
+  const selectedSharedPetCareItemId = ref('vitality_feed')
+  const sharedPetCareRiskAcknowledged = ref(false)
+  const sharedPetCareConfirmationText = ref('')
   const fundActionMessage = ref('')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
@@ -2436,6 +2685,16 @@
     { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
+
+  const cohabitationTabKeys = new Set<CohabitationTabKey>(tabs.map(tab => tab.key))
+
+  const syncActiveTabFromRoute = () => {
+    const tab = route.query.tab
+    const candidate = Array.isArray(tab) ? tab[0] : tab
+    if (candidate && cohabitationTabKeys.has(candidate as CohabitationTabKey)) {
+      activeTab.value = candidate as CohabitationTabKey
+    }
+  }
 
   const normalizeActorKey = (value = '') => value.trim().toLocaleLowerCase('zh-CN')
 
@@ -2697,8 +2956,32 @@
     { label: '来源玩家', value: cohabitationStore.sharedMap?.summary.origin_owner_count ?? 0 },
   ])
   const mapRegions = computed(() => cohabitationStore.sharedMap?.layout.regions ?? [])
-  const mapGridStyle = computed(() => ({
-    gridTemplateColumns: `repeat(${Math.max(1, cohabitationStore.sharedMap?.layout.columns ?? 1)}, minmax(2.25rem, 1fr))`,
+  const activeSharedMapRegion = computed(() => {
+    const regions = mapRegions.value
+    if (!regions.length) return null
+    return regions.find(region => region.region_index === activeSharedMapRegionIndex.value) ?? regions[0] ?? null
+  })
+  const plotMatchesSharedMapRegion = (plot: CohabitationSharedPlot, region: CohabitationSharedRegion) => {
+    if (plot.origin_owner_id === region.origin_owner_id) return true
+    if (plot.origin_owner_username === region.member_username) return true
+    if (plot.origin_owner_key === region.member_username_key) return true
+    const plotX = Number(plot.x)
+    const plotY = Number(plot.y)
+    return Number.isFinite(plotX) &&
+      Number.isFinite(plotY) &&
+      plotX >= region.x &&
+      plotX < region.x + region.width &&
+      plotY >= region.y &&
+      plotY < region.y + region.height
+  }
+  const pagedSharedFarmPlots = computed(() => {
+    const plots = cohabitationStore.sharedMap?.plots ?? []
+    const region = activeSharedMapRegion.value
+    if (!region) return plots
+    return plots.filter(plot => plotMatchesSharedMapRegion(plot, region))
+  })
+  const pagedMapGridStyle = computed(() => ({
+    gridTemplateColumns: `repeat(${Math.max(1, activeSharedMapRegion.value?.width || pagedSharedFarmPlots.value.length || cohabitationStore.sharedMap?.layout.columns || 1)}, minmax(2.25rem, 1fr))`,
   }))
   const mapRevisionLabel = computed(() => {
     if (!cohabitationStore.sharedMap) return '暂无地图'
@@ -2715,6 +2998,55 @@
     if (!sharedAnimals.value.length || !selectedSharedAnimalId.value) return null
     return sharedAnimals.value.find(animal => animal.id === selectedSharedAnimalId.value) ?? null
   })
+  const sharedPets = computed(() => cohabitationStore.sharedPets?.pets ?? [])
+  const selectedSharedPet = computed(() => {
+    if (!sharedPets.value.length || !selectedSharedPetId.value) return null
+    return sharedPets.value.find(pet => pet.id === selectedSharedPetId.value) ?? null
+  })
+  const sharedPetCareItemQuantity = (itemId: string) => (cohabitationStore.warehouse?.items ?? [])
+    .filter(item => item.item_id === itemId)
+    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)), 0)
+  const sharedPetCareOptions = computed(() => {
+    const supported = cohabitationStore.sharedPets?.summary.supported_care_item_ids
+    const itemIds = Array.isArray(supported) && supported.length
+      ? supported
+      : ['vitality_feed']
+    return Array.from(new Set(itemIds))
+      .map(itemId => {
+        const info = sharedPetCareItemCatalog[itemId] ?? {
+          itemId,
+          label: itemId,
+          effect: '照料',
+          friendshipGain: 0,
+          moodGain: 0,
+        }
+        return {
+          ...info,
+          quantity: sharedPetCareItemQuantity(itemId),
+        }
+      })
+  })
+  const selectedSharedPetCareItem = computed(() =>
+    sharedPetCareOptions.value.find(item => item.itemId === selectedSharedPetCareItemId.value) ??
+    sharedPetCareOptions.value[0] ??
+    null
+  )
+  const selectedSharedPetCareRequiresConfirmation = computed(() => selectedSharedPetCareItem.value?.requiresConfirmation === true)
+  const sharedPetCareConfirmationPhrase = computed(() =>
+    selectedSharedPetCareItem.value?.confirmationPhrase || '确认消耗共同宠物高阶点心'
+  )
+  const sharedPetCareRiskConfirmed = computed(() =>
+    !selectedSharedPetCareRequiresConfirmation.value ||
+    (sharedPetCareRiskAcknowledged.value && sharedPetCareConfirmationText.value.trim() === sharedPetCareConfirmationPhrase.value)
+  )
+  const sharedPetCoopBonusLabel = (pet: CohabitationSharedPet | null | undefined) => {
+    const bonus = Math.max(0, Math.floor(Number(pet?.pet_state?.cooperation_mood_bonus) || 0))
+    const members = Array.isArray(pet?.pet_state?.last_cooperation_bonus_members)
+      ? pet.pet_state.last_cooperation_bonus_members.filter(Boolean)
+      : []
+    if (bonus <= 0) return '暂无'
+    return members.length ? `心情 +${bonus} · ${members.join(' / ')}` : `心情 +${bonus}`
+  }
   const getSharedAnimalProductInfo = (animal: CohabitationSharedAnimal | null | undefined) => {
     if (!animal) return null
     return sharedAnimalProductCatalog[animal.type || animal.animal_state.type || ''] ?? null
@@ -2737,6 +3069,110 @@
   const warehouseItems = computed(() => cohabitationStore.warehouse?.items ?? [])
   const warehouseLedger = computed(() => cohabitationStore.warehouse?.ledger ?? [])
   const warehouseHighValueWithdrawalDrafts = computed(() => cohabitationStore.warehouse?.high_value_withdrawal_drafts ?? [])
+  const warehouseCompensationAuditBundle = computed<CohabitationWarehouseCompensationAuditBundle | null>(() => cohabitationStore.warehouseCompensationAuditBundle)
+  const warehouseCompensationAuditBundleRows = computed(() => {
+    const bundle = warehouseCompensationAuditBundle.value
+    if (!bundle) return []
+    return [
+      { label: '取出流水', value: bundle.ledger_evidence.withdraw_ledger_count },
+      { label: '来源流水', value: bundle.ledger_evidence.source_ledger_count },
+      { label: '复核审计', value: bundle.review_audits.length },
+      { label: '预检审计', value: bundle.preflight_audits.length },
+      { label: '执行审计', value: bundle.execution_audits.length },
+    ]
+  })
+  const warehouseCompensationAuditAssetRows = computed(() => {
+    const boundary = warehouseCompensationAuditBundle.value?.asset_boundary
+    if (!boundary) return []
+    return [
+      { label: '个人铜币合并', value: boundary.personal_money_merged ? '是' : '否' },
+      { label: '个人存档', value: boundary.personal_save_changed ? '已变更' : '不变' },
+      { label: '共同仓库', value: boundary.shared_warehouse_changed ? '已变更' : '不变' },
+      { label: '自动补偿', value: boundary.auto_compensation_enabled ? '开启' : '关闭' },
+      { label: '个人背包写入', value: boundary.personal_inventory_mutation_enabled ? '开启' : '关闭' },
+    ]
+  })
+  const warehouseCompensationAuditMissingEvidenceLabel = computed(() => warehouseCompensationAuditBundle.value?.appeal_packet.missing_evidence.length ? warehouseCompensationAuditBundle.value.appeal_packet.missing_evidence.join(' / ') : '无')
+  const auditValueLabel = (value: unknown, fallback = '?') => {
+    if (typeof value === 'string') return value.trim() || fallback
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+    if (typeof value === 'boolean') return value ? '是' : '否'
+    return fallback
+  }
+  const warehouseCompensationAuditActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      warehouse_high_value_withdrawal_draft_created: '高价值草案创建',
+      warehouse_high_value_withdrawal_draft_confirmed: '高价值草案确认',
+      warehouse_high_value_withdrawal_executed: '高价值取出执行',
+      warehouse_high_value_withdrawal_compensation_review_requested: '补偿复核申请',
+      warehouse_high_value_withdrawal_compensation_review_resolved: '补偿复核处理',
+      warehouse_high_value_withdrawal_compensation_preflight_recorded: '补偿预检记录',
+      warehouse_high_value_withdrawal_compensation_execution_recorded: '人工补偿回执',
+      warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
+    }
+    return labels[action] || action
+  }
+  const warehouseCompensationAuditAppealActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      operator_receipt_audit_review: '回执审计复核',
+      manual_appeal_resolution: '人工申诉处理',
+    }
+    return labels[action] || action
+  }
+  const warehouseCompensationAuditTargetRows = computed(() => {
+    const target: Record<string, unknown> = warehouseCompensationAuditBundle.value?.target_save ?? {}
+    return [
+      { label: '目标玩家', value: auditValueLabel(target['target_username']) },
+      { label: '目标存档', value: `${auditValueLabel(target['target_save_id'])} / 槽 ${auditValueLabel(target['target_save_slot'])}` },
+      { label: '存档可读', value: auditValueLabel(target['save_available'], '未知') },
+      { label: '目标物数量', value: auditValueLabel(target['target_item_quantity'], '0') },
+      { label: '槽位证据', value: auditValueLabel(target['target_item_slot_evidence_present'], '未知') },
+      { label: '槽位数量匹配', value: auditValueLabel(target['target_slot_quantity_matches'], '未知') },
+      { label: '个人铜币快照', value: `${auditValueLabel(target['personal_money_snapshot'], '0')} 铜币` },
+      { label: '不可读原因', value: auditValueLabel(target['unavailable_reason'], '无') },
+    ]
+  })
+  const warehouseCompensationAuditTargetSlotRows = computed(() => {
+    const target: Record<string, unknown> = warehouseCompensationAuditBundle.value?.target_save ?? {}
+    const slots = Array.isArray(target['target_slot_evidence']) ? target['target_slot_evidence'] : []
+    return slots.map((slot, index) => {
+      const row = slot && typeof slot === 'object' ? slot as Record<string, unknown> : {}
+      const bag = auditValueLabel(row['bag'], 'inventory.items')
+      const slotIndex = auditValueLabel(row['index'], String(index))
+      const matches = row['matches_item'] === true ? '匹配' : '不匹配'
+      return {
+        id: `${bag}:${slotIndex}:${index}`,
+        label: `${bag} #${slotIndex}`,
+        value: `${auditValueLabel(row['item_id'])} ${auditValueLabel(row['quality'], 'normal')} x${auditValueLabel(row['quantity'], '0')} / ${matches}`,
+      }
+    }).slice(0, 6)
+  })
+  const warehouseCompensationAuditLedgerRows = computed(() => {
+    const evidence = warehouseCompensationAuditBundle.value?.ledger_evidence
+    if (!evidence) return []
+    return [
+      ...evidence.withdraw_ledger_entries.map(entry => ({
+        id: `withdraw:${entry.id}`,
+        label: `取出 ledger ${entry.id}`,
+        value: `${entry.item_id} ${entry.quality || 'normal'} x${entry.quantity} / ${entry.actor_display_name || entry.actor_username || '未知'} / ${formatTime(entry.created_at)}`,
+      })),
+      ...evidence.source_ledger_entries.map(entry => ({
+        id: `source:${entry.id}`,
+        label: `来源 ledger ${entry.id}`,
+        value: `${entry.item_id} ${entry.quality || 'normal'} x${entry.quantity} / ${entry.actor_display_name || entry.actor_username || '未知'} / ${formatTime(entry.created_at)}`,
+      })),
+    ].slice(0, 8)
+  })
+  const warehouseCompensationAuditTimelineRows = computed(() => {
+    const timeline = warehouseCompensationAuditBundle.value?.audit_timeline ?? []
+    return timeline.map(entry => ({
+      id: entry.id || `${entry.action}:${entry.at}`,
+      label: warehouseCompensationAuditActionLabel(entry.action),
+      value: `${entry.actor_display_name || entry.actor_username || '未知'} / ${formatTime(entry.at)} / ${entry.idempotency_key || '无幂等键'}`,
+    })).slice(0, 8)
+  })
+  const warehouseCompensationAuditAppealActionRows = computed(() => (warehouseCompensationAuditBundle.value?.appeal_packet.next_supported_actions ?? [])
+    .map(action => ({ id: action, label: warehouseCompensationAuditAppealActionLabel(action) })))
   const warehouseGovernance = computed(() => cohabitationStore.warehouse?.governance ?? null)
   const warehouseGovernanceBlocking = computed(() => warehouseGovernance.value?.blocking ?? null)
   const warehouseGovernanceActiveRecovery = computed(() => warehouseGovernance.value?.active_recoveries?.[0] ?? null)
@@ -3043,6 +3479,14 @@
     if (cohabitationStore.sharedAnimals?.summary.shared_warehouse_product_deposit_enabled !== true) return false
     return isSharedAnimalProductReady(animal)
   })
+  const canCareSelectedSharedPet = computed(() => {
+    const pet = selectedSharedPet.value
+    if (!pet || !cohabitationStore.canOpenSelectedContract) return false
+    if (cohabitationStore.sharedPets?.summary.pet_care_write_enabled !== true) return false
+    if (cohabitationStore.sharedPets?.summary.shared_warehouse_pet_care_consume_enabled !== true) return false
+    if (!sharedPetCareRiskConfirmed.value) return false
+    return (selectedSharedPetCareItem.value?.quantity ?? 0) > 0
+  })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -3232,14 +3676,24 @@
     lastRefreshAttemptAt.value = Date.now()
   }
 
+  const resetSharedPetCareConfirmation = () => {
+    sharedPetCareRiskAcknowledged.value = false
+    sharedPetCareConfirmationText.value = ''
+  }
+
   const selectContract = async (contractId: string) => {
     await cohabitationStore.selectContract(contractId)
     warehouseActionMessage.value = ''
     warehouseGovernanceRecoverReason.value = ''
     sharedFarmActionMessage.value = ''
     sharedAnimalActionMessage.value = ''
+    sharedPetActionMessage.value = ''
+    activeSharedMapRegionIndex.value = 0
     selectedSharedFarmPlotId.value = ''
     selectedSharedAnimalId.value = ''
+    selectedSharedPetId.value = ''
+    selectedSharedPetCareItemId.value = 'vitality_feed'
+    resetSharedPetCareConfirmation()
     fundActionMessage.value = ''
     familyBuildingActionMessage.value = ''
     permissionActionMessage.value = ''
@@ -3306,10 +3760,26 @@
     sharedFarmActionOk.value = false
   }
 
+  const setActiveSharedMapRegion = (regionIndex: number) => {
+    activeSharedMapRegionIndex.value = regionIndex
+    if (!pagedSharedFarmPlots.value.some(plot => plot.id === selectedSharedFarmPlotId.value)) {
+      selectedSharedFarmPlotId.value = ''
+      sharedFarmActionMessage.value = ''
+      sharedFarmActionOk.value = false
+    }
+  }
+
   const selectSharedAnimal = (animal: CohabitationSharedAnimal) => {
     selectedSharedAnimalId.value = animal.id
     sharedAnimalActionMessage.value = ''
     sharedAnimalActionOk.value = false
+  }
+
+  const selectSharedPet = (pet: CohabitationSharedPet) => {
+    selectedSharedPetId.value = pet.id
+    sharedPetActionMessage.value = ''
+    sharedPetActionOk.value = false
+    resetSharedPetCareConfirmation()
   }
 
   const waterSelectedSharedFarmPlot = async () => {
@@ -3491,6 +3961,41 @@
         : '共同动物产物已进入共同仓库，来源流水已刷新'
     } catch (error) {
       sharedAnimalActionMessage.value = error instanceof Error ? error.message : '收取共同动物产物失败'
+    }
+  }
+
+  const careSelectedSharedPet = async () => {
+    const pet = selectedSharedPet.value
+    const careItem = selectedSharedPetCareItem.value
+    if (!pet || !careItem) return
+    sharedPetActionMessage.value = ''
+    sharedPetActionOk.value = false
+    try {
+      const result = await cohabitationStore.careSharedPet({
+        pet_id: pet.id,
+        care_item_id: careItem.itemId,
+        memo: `前端共同宠物照料：${pet.id}:${careItem.itemId}`,
+        ...(careItem.requiresConfirmation ? {
+          confirmed_high_value_care: true,
+          risk_acknowledged: sharedPetCareRiskAcknowledged.value,
+          confirmation_text: sharedPetCareConfirmationText.value.trim(),
+          rollback_plan_acknowledged: sharedPetCareRiskAcknowledged.value,
+          compensation_plan_acknowledged: sharedPetCareRiskAcknowledged.value,
+        } : {}),
+        idempotency_key: `ui-shared-pet-care-${pet.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedPetId.value = result?.pet?.id || pet.id
+      sharedPetActionOk.value = true
+      resetSharedPetCareConfirmation()
+      const bonus = Number(result?.pet_action?.simultaneous_online_bonus?.bonus_value) || 0
+      const usedItemLabel = result?.pet_action?.care_item_label || result?.ledger_entry?.care_item_label || careItem.label
+      sharedPetActionMessage.value = result?.idempotent || result?.already_cared
+        ? '已读回共同宠物照料记录'
+        : bonus > 0
+          ? `共同宠物已照料，共同仓库${usedItemLabel}已扣料，并触发同时在线心情 +${bonus}`
+          : `共同宠物已照料，共同仓库${usedItemLabel}扣料流水已刷新`
+    } catch (error) {
+      sharedPetActionMessage.value = error instanceof Error ? error.message : '照料共同宠物失败'
     }
   }
 
@@ -4172,6 +4677,24 @@
     (currentActorKeys.value.has(normalizeActorKey(draft.requester_username)) ||
       currentActorKeys.value.has(normalizeActorKey(draft.requester_username_key || '')) ||
       cohabitationStore.warehouse?.permissions.can_create_high_value_withdrawal_draft === true)
+
+  const canReadHighValueWarehouseCompensationAudit = (draft: CohabitationWarehouseHighValueWithdrawalDraft) =>
+    cohabitationStore.canOpenSelectedContract && Boolean(draft.id)
+
+  const readHighValueWarehouseCompensationAudit = async (draft: CohabitationWarehouseHighValueWithdrawalDraft) => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    try {
+      const result = await cohabitationStore.fetchWarehouseHighValueWithdrawalCompensationAuditBundle(draft.id)
+      const bundle = result?.compensation_audit_bundle
+      warehouseActionOk.value = true
+      warehouseActionMessage.value = bundle?.appeal_packet.timeline_complete
+        ? '已读取补偿审计证据包，时间线完整'
+        : `已读取补偿审计证据包，缺失证据：${bundle?.appeal_packet.missing_evidence.join(' / ') || '无'}`
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '读取补偿审计证据包失败'
+    }
+  }
 
   const createHighValueWarehouseWithdrawalDraft = async (item: CohabitationWarehouseItem) => {
     warehouseActionMessage.value = ''
@@ -5294,6 +5817,14 @@
       warehouse_withdraw: '共同仓库取出',
       warehouse_sell: '共同仓库卖出',
       warehouse_governance_recovered: '仓库治理恢复',
+      warehouse_high_value_withdrawal_draft_created: '高价值草案创建',
+      warehouse_high_value_withdrawal_draft_confirmed: '高价值草案确认',
+      warehouse_high_value_withdrawal_executed: '高价值取出执行',
+      warehouse_high_value_withdrawal_compensation_review_requested: '补偿复核申请',
+      warehouse_high_value_withdrawal_compensation_review_resolved: '补偿复核处理',
+      warehouse_high_value_withdrawal_compensation_preflight_recorded: '补偿预检记录',
+      warehouse_high_value_withdrawal_compensation_execution_recorded: '人工补偿回执',
+      warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
       fund_contributed: '共同基金注资',
       fund_spent: '共同基金支出',
       fund_large_spend_draft_created: '大额草案创建',
@@ -5651,6 +6182,17 @@
   }
 
   onMounted(() => {
+    syncActiveTabFromRoute()
     void refreshModule()
+  })
+
+  watch(() => route.query.tab, () => {
+    syncActiveTabFromRoute()
+  })
+
+  watch(selectedSharedPetCareItemId, () => {
+    resetSharedPetCareConfirmation()
+    sharedPetActionMessage.value = ''
+    sharedPetActionOk.value = false
   })
 </script>

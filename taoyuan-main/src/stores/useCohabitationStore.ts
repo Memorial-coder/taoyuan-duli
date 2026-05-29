@@ -11,6 +11,7 @@ import {
   consumeCohabitationFamilyBuildingMaterials,
   contributeCohabitationFund,
   careCohabitationSharedPlot,
+  careCohabitationSharedPet,
   collectCohabitationSharedAnimalProduct,
   createCohabitationContract,
   createCohabitationFundLargeSpendDraft,
@@ -36,7 +37,9 @@ import {
   fetchCohabitationPermissions,
   fetchCohabitationSharedAnimals,
   fetchCohabitationSharedMap,
+  fetchCohabitationSharedPets,
   fetchCohabitationWarehouse,
+  fetchCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle,
   feedCohabitationSharedAnimal,
   fertilizeCohabitationSharedPlot,
   guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
@@ -110,11 +113,14 @@ import {
   type CohabitationWarehouseHighValueWithdrawalDraftPayload,
   type CohabitationWarehouseHighValueWithdrawalExecutePayload,
   type CohabitationWarehouseHighValueWithdrawalRollbackPayload,
+  type CohabitationWarehouseCompensationAuditBundle,
   type CohabitationWarehouseGovernanceRecoveryPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
   type CohabitationSharedAnimalProductPayload,
   type CohabitationSharedAnimals,
+  type CohabitationSharedPetCarePayload,
+  type CohabitationSharedPets,
   type CohabitationSharedFarmHarvestPayload,
   type CohabitationSharedFarmFertilizePayload,
   type CohabitationSharedFarmPlantPayload,
@@ -135,7 +141,9 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
 
   const sharedMap = ref<CohabitationSharedMap | null>(null)
   const sharedAnimals = ref<CohabitationSharedAnimals | null>(null)
+  const sharedPets = ref<CohabitationSharedPets | null>(null)
   const warehouse = ref<CohabitationWarehouseSnapshot | null>(null)
+  const warehouseCompensationAuditBundle = ref<CohabitationWarehouseCompensationAuditBundle | null>(null)
   const fund = ref<CohabitationFundSnapshot | null>(null)
   const permissionsPanel = ref<CohabitationPermissionsPanel | null>(null)
   const rolePanel = ref<CohabitationFamilyRolePanel | null>(null)
@@ -161,6 +169,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const clearDetails = () => {
     sharedMap.value = null
     sharedAnimals.value = null
+    sharedPets.value = null
     warehouse.value = null
     fund.value = null
     permissionsPanel.value = null
@@ -172,6 +181,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyReputationPanel.value = null
     familyVisibilityPanel.value = null
     offlineStatus.value = null
+    warehouseCompensationAuditBundle.value = null
   }
 
   const pickDefaultContract = () => {
@@ -210,9 +220,10 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       errorMessage.value = ''
     }
     try {
-      const [mapResult, animalsResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyFestivalSeatsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, familyVisibilityResult, offlineResult] = await Promise.all([
+      const [mapResult, animalsResult, petsResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyFestivalSeatsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, familyVisibilityResult, offlineResult] = await Promise.all([
         fetchCohabitationSharedMap(contractId),
         fetchCohabitationSharedAnimals(contractId),
+        fetchCohabitationSharedPets(contractId),
         fetchCohabitationWarehouse(contractId),
         fetchCohabitationFund(contractId),
         fetchCohabitationPermissions(contractId),
@@ -227,6 +238,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       ])
       sharedMap.value = mapResult?.shared_map ?? null
       sharedAnimals.value = animalsResult?.shared_animals ?? null
+      sharedPets.value = petsResult?.shared_pets ?? null
       warehouse.value = warehouseResult?.warehouse ?? null
       fund.value = fundResult?.fund ?? null
       permissionsPanel.value = permissionsResult?.permissions_panel ?? null
@@ -241,6 +253,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return {
         sharedMap: sharedMap.value,
         sharedAnimals: sharedAnimals.value,
+        sharedPets: sharedPets.value,
         warehouse: warehouse.value,
         fund: fund.value,
         permissionsPanel: permissionsPanel.value,
@@ -293,6 +306,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
 
   const selectContract = async (contractId: string) => {
     activeContractId.value = contractId
+    warehouseCompensationAuditBundle.value = null
     await refreshSelectedDetails().catch(() => {})
   }
 
@@ -1437,6 +1451,24 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const fetchWarehouseHighValueWithdrawalCompensationAuditBundle = async (draftId: string) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await fetchCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(activeContractId.value, draftId)
+      warehouseCompensationAuditBundle.value = result?.compensation_audit_bundle ?? null
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '获取共同仓库高价值取出补偿审计失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const recoverWarehouseGovernance = async (payload: CohabitationWarehouseGovernanceRecoveryPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value) return null
     actionLoading.value = true
@@ -1611,6 +1643,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const careSharedPet = async (payload: CohabitationSharedPetCarePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.pet_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await careCohabitationSharedPet(activeContractId.value, payload)
+      if (result?.shared_pets) sharedPets.value = result.shared_pets
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '照料共同宠物失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberPermissions = async (payload: {
     target_username: string
     permissions: Record<string, Record<string, boolean>>
@@ -1674,9 +1725,11 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     loading,
     detailsLoading,
     actionLoading,
+    warehouseCompensationAuditBundle,
     errorMessage,
     sharedMap,
     sharedAnimals,
+    sharedPets,
     warehouse,
     fund,
     permissionsPanel,
@@ -1744,6 +1797,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     executeWarehouseHighValueWithdrawalDraft,
     rollbackWarehouseHighValueWithdrawalDraft,
     recoverWarehouseGovernance,
+    fetchWarehouseHighValueWithdrawalCompensationAuditBundle,
     waterSharedFarmPlot,
     careSharedFarmPlot,
     plantSharedFarmPlot,
@@ -1752,6 +1806,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     feedSharedAnimal,
     petSharedAnimal,
     collectSharedAnimalProduct,
+    careSharedPet,
     updateMemberPermissions,
     updateMemberRole,
   }

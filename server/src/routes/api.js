@@ -252,6 +252,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_shared_pet_care',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-queue\/merge$/i,
+    action: 'cohabitation_offline_queue_merge',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-workshop\/process$/i,
     action: 'cohabitation_shared_workshop_process',
   },
@@ -270,6 +274,26 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/execute$/i,
     action: 'cohabitation_warehouse_high_value_withdrawal_execute',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/compensation-review$/i,
+    action: 'cohabitation_warehouse_high_value_withdrawal_compensation_review_request',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/compensation-review\/resolve$/i,
+    action: 'cohabitation_warehouse_high_value_withdrawal_compensation_review_resolve',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/compensation-review\/preflight$/i,
+    action: 'cohabitation_warehouse_high_value_withdrawal_compensation_preflight',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/compensation-review\/execute$/i,
+    action: 'cohabitation_warehouse_high_value_withdrawal_compensation_execution',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/compensation-review\/audit$/i,
+    action: 'cohabitation_warehouse_high_value_withdrawal_compensation_audit_read',
   },
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/high-value-withdrawal-drafts\/([^/]+)\/rollback$/i,
@@ -3340,6 +3364,20 @@ router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('
   }
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-queue/merge', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.mergeCohabitationOfflineQueue(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      return sendJson(res, result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/deposit', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -3408,6 +3446,74 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行共同仓库高价值取出草案失败' });
     }
   });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(req.params.contractId, req.params.draftId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '提交共同仓库高价值取出补偿复核失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/resolve', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(req.params.contractId, req.params.draftId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '处理共同仓库高价值取出补偿复核失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/preflight', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(req.params.contractId, req.params.draftId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '记录共同仓库高价值取出补偿预检失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/execute', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(req.params.contractId, req.params.draftId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '???????????????????' });
+    }
+  });
+});
+
+router.get('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/audit', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(req.params.contractId, req.params.draftId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取共同仓库高价值取出补偿审计失败' });
+  }
 });
 
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/rollback', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
