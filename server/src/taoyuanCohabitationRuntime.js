@@ -66,6 +66,7 @@ const WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation'
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_REVIEW_STATUSES = new Set(['none', 'requested', 'approved', 'rejected']);
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS = new Set(['manual_restore_recorded', 'manual_compensation_recorded', 'no_compensation_needed', 'audit_only']);
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_ACTIONS = new Set(['manual_restore_recorded', 'manual_compensation_recorded', 'no_compensation_needed']);
+const WAREHOUSE_WITHDRAWAL_AUTO_COMPENSATION_ACTIONS = new Set(['auto_restore_shared_warehouse', 'auto_restore_personal_inventory', 'auto_compensation_execute']);
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_CONFIRMATION_TEXT = 'CONFIRM_MANUAL_COMPENSATION_RECORDED';
 const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
   rice: 35,
@@ -7146,6 +7147,21 @@ function normalizeWarehouseHighValueWithdrawalCompensationPreflightPayload(paylo
   };
 }
 
+function normalizeWarehouseHighValueWithdrawalAutoCompensationBlockPayload(payload = {}) {
+  const rawExecutionAction = payload.execution_action || payload.compensation_action;
+  if (!WAREHOUSE_WITHDRAWAL_AUTO_COMPENSATION_ACTIONS.has(rawExecutionAction)) return null;
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('warehouse automatic compensation guard requires idempotency_key', 400);
+  return {
+    idempotency_key: idempotencyKey,
+    requested_action: sanitizeText(rawExecutionAction, 80),
+    requested_receipt: sanitizeText(payload.execution_receipt || payload.compensation_receipt || payload.receipt || payload.receipt_id, 160),
+    requested_note: sanitizeText(payload.execution_note || payload.operator_note || payload.note || payload.memo, 240),
+    preflight_idempotency_key: sanitizeText(payload.preflight_idempotency_key || payload.preflight_key, 120),
+    preflight_audit_id: sanitizeText(payload.preflight_audit_id || payload.preflight_id, 100),
+  };
+}
+
 function normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('warehouse compensation execution requires idempotency_key');
@@ -13799,7 +13815,8 @@ function buildWarehouseCompensationExecutionRecord(contract = {}, draft = {}, re
 async function recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload);
+  const autoCompensationBlock = normalizeWarehouseHighValueWithdrawalAutoCompensationBlockPayload(payload);
+  const request = autoCompensationBlock ? null : normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload);
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'record warehouse compensation execution');
@@ -13816,6 +13833,34 @@ async function recordCohabitationWarehouseHighValueWithdrawalCompensationExecuti
     || actorPermissions.storage.withdraw_rare === true
     || actorPermissions.storage.withdraw_high_quality === true;
   if (!canGovern) throw createError('warehouse compensation execution requires owner or high-value warehouse permission', 403);
+  if (autoCompensationBlock) {
+    const previousBlockAudit = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
+      .find(entry => entry.action === 'warehouse_high_value_withdrawal_auto_compensation_blocked'
+        && entry.detail?.draft_id === draft.id
+        && entry.idempotency_key === autoCompensationBlock.idempotency_key);
+    if (!previousBlockAudit) {
+      appendAudit(contract, 'warehouse_high_value_withdrawal_auto_compensation_blocked', actor, {
+        draft_id: draft.id,
+        item_id: draft.item_id,
+        quality: draft.quality,
+        quantity: draft.quantity,
+        risk_level: draft.risk_level,
+        requested_action: autoCompensationBlock.requested_action,
+        requested_receipt_present: Boolean(autoCompensationBlock.requested_receipt),
+        requested_note_present: Boolean(autoCompensationBlock.requested_note),
+        preflight_idempotency_key: autoCompensationBlock.preflight_idempotency_key,
+        preflight_audit_id: autoCompensationBlock.preflight_audit_id,
+        auto_compensation_enabled: false,
+        shared_warehouse_restore_enabled: false,
+        personal_inventory_mutation_enabled: false,
+        personal_save_changed: false,
+        shared_warehouse_changed: false,
+        required_manual_path: 'compensation-review/execute with manual receipt or manual_appeal_resolution',
+      }, autoCompensationBlock.idempotency_key);
+      saveContractStore(store);
+    }
+    throw createError('warehouse automatic compensation executor is disabled; record manual receipt or use manual appeal resolution', 409);
+  }
   if (draft.compensation_execution_idempotency_key === request.idempotency_key && draft.compensation_execution_status === 'recorded') {
     return {
       contract: toPublicContract(contract),

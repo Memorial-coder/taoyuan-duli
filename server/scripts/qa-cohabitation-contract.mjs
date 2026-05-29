@@ -3081,6 +3081,38 @@ await assert.rejects(
   error => error?.status === 403,
   'rare crystal compensation execution should require owner or high-value warehouse permission'
 )
+const rareCrystalOwnerRawBeforeAutoCompensationBlock = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const rareCrystalPartnerRawBeforeAutoCompensationBlock = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const rareCrystalWarehouseBeforeAutoCompensationBlock = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    execution_action: 'auto_restore_shared_warehouse',
+    execution_receipt: 'qa-auto-compensation-should-stay-blocked',
+    preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight',
+    idempotency_key: 'qa-rare-crystal-auto-compensation-blocked',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'rare crystal automatic compensation executor should stay disabled before manual receipt path'
+)
+await assert.rejects(
+  () => runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
+    execution_action: 'auto_restore_shared_warehouse',
+    execution_receipt: 'qa-auto-compensation-should-stay-blocked-duplicate',
+    preflight_idempotency_key: 'qa-rare-crystal-compensation-preflight',
+    idempotency_key: 'qa-rare-crystal-auto-compensation-blocked',
+  }, actor(harvestOwner)),
+  error => error?.status === 409,
+  'duplicate rare crystal automatic compensation block should keep returning disabled status'
+)
+const rareCrystalAfterAutoCompensationBlock = await runtime.getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, actor(harvestOwner))
+const autoCompensationBlockAudits = rareCrystalAfterAutoCompensationBlock.contract.audit_log.filter(entry => entry.action === 'warehouse_high_value_withdrawal_auto_compensation_blocked' && entry.detail?.draft_id === rareCrystalExecuteDraft.draft.id && entry.idempotency_key === 'qa-rare-crystal-auto-compensation-blocked')
+assert.equal(autoCompensationBlockAudits.length, 1, 'rare crystal automatic compensation block should audit once per idempotency key')
+assert.equal(autoCompensationBlockAudits[0].detail?.auto_compensation_enabled, false, 'rare crystal automatic compensation block should keep auto compensation disabled')
+assert.equal(autoCompensationBlockAudits[0].detail?.shared_warehouse_restore_enabled, false, 'rare crystal automatic compensation block should forbid shared warehouse restore')
+assert.equal(autoCompensationBlockAudits[0].detail?.personal_inventory_mutation_enabled, false, 'rare crystal automatic compensation block should forbid personal inventory mutation')
+assert.equal(rareCrystalAfterAutoCompensationBlock.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, rareCrystalWarehouseBeforeAutoCompensationBlock.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 'rare crystal automatic compensation block should not restore shared warehouse stock')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeAutoCompensationBlock, 'rare crystal automatic compensation block should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeAutoCompensationBlock, 'rare crystal automatic compensation block should not rewrite harvest partner save')
 const rareCrystalCompensationExecution = await runtime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(harvestContractCreated.contract.id, rareCrystalExecuteDraft.draft.id, {
   execution_action: 'manual_compensation_recorded',
   execution_receipt: 'qa-manual-compensation-execution-receipt-rare-crystal',
