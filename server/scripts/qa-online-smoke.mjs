@@ -4504,6 +4504,11 @@ try {
       String(festivalVisualProject?.completion_room_launch?.summary || '').includes('不直接发个人资产'),
       'festival square visual project did not expose authoritative completion room launch',
     )
+    const autoFestivalRoomId = String(festivalVisualProject?.completion_room_launch?.room_id || '')
+    assert(
+      festivalVisualProject?.completion_room_launch?.status === 'created' && autoFestivalRoomId.startsWith('festival_room_'),
+      'festival square completion did not auto-create a lantern fair room',
+    )
     assert(festivalVisualProject?.completion_event_id === 'society_project_complete:festival_square', 'festival square visual project did not expose completion event')
     assert(Array.isArray(festivalVisualProject?.stages) && festivalVisualProject.stages.every(entry => entry?.state === 'complete'), 'festival square visual project did not mark all stages complete')
     assert(
@@ -4530,11 +4535,13 @@ try {
     assert(response.ok, `festival square unlock readback returned ${response.status}`)
     assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'festival square unlock readback payload is incomplete')
     const festivalProject = data?.my_society?.public_projects?.find(entry => entry?.id === 'festival_square')
+    const autoFestivalRoomId = String(festivalProject?.completion_room_launch?.room_id || '')
     assert(festivalProject && String(festivalProject?.status || '') === 'completed', 'festival square unlock readback did not preserve completed status')
     assert(
       festivalProject?.completion_room_launch?.source_event_id === 'society_project_complete:festival_square' &&
       festivalProject?.completion_room_launch?.template_id === 'lantern_fair' &&
-      festivalProject?.completion_room_launch?.status === 'ready_to_create',
+      festivalProject?.completion_room_launch?.status === 'created' &&
+      autoFestivalRoomId.startsWith('festival_room_'),
       'festival square unlock readback did not preserve completion room launch descriptor',
     )
     const festivalRewards = Array.isArray(festivalProject?.completion_rewards) ? festivalProject.completion_rewards : []
@@ -4550,7 +4557,9 @@ try {
     assert(festivalVisualProject?.completion_room_template_id === 'lantern_fair', 'festival square unlock readback did not preserve completion room template')
     assert(
       festivalVisualProject?.completion_room_launch?.source_project_id === 'festival_square' &&
-      festivalVisualProject?.completion_room_launch?.title === '节庆广场开幕灯会',
+      festivalVisualProject?.completion_room_launch?.title === '节庆广场开幕灯会' &&
+      festivalVisualProject?.completion_room_launch?.status === 'created' &&
+      festivalVisualProject?.completion_room_launch?.room_id === autoFestivalRoomId,
       'festival square unlock readback did not preserve visual completion room launch',
     )
     assert(
@@ -4570,6 +4579,25 @@ try {
     assert(
       Array.isArray(roomOverview.data?.templates) && roomOverview.data.templates.some(entry => entry?.id === 'lantern_fair'),
       'festival square unlock did not point to an available lantern fair room template',
+    )
+    assert(
+      Array.isArray(roomOverview.data?.invited_rooms) && roomOverview.data.invited_rooms.some(room =>
+        room?.id === autoFestivalRoomId &&
+        room?.template_id === 'lantern_fair' &&
+        room?.gameplay_template_id === 'assembly'
+      ),
+      'festival square auto-created room did not invite the society member',
+    )
+    const hostRoomOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/festival/rooms')
+    assert(hostRoomOverview.response.ok, `festival room host overview after square unlock returned ${hostRoomOverview.response.status}`)
+    assert(
+      Array.isArray(hostRoomOverview.data?.visible_rooms) && hostRoomOverview.data.visible_rooms.some(room =>
+        room?.id === autoFestivalRoomId &&
+        room?.template_id === 'lantern_fair' &&
+        room?.gameplay_template_id === 'assembly' &&
+        room?.title === '节庆广场开幕灯会'
+      ),
+      'festival square auto-created room was not visible to the completion actor',
     )
   })
 

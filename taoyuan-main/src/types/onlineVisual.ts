@@ -151,6 +151,11 @@ export interface OnlineVisualCompletionRoomLaunch {
   label: string
   summary: string
   status: string
+  room_id?: string
+  failure_reason?: string
+  created_at?: number
+  created_by?: string
+  created_by_display_name?: string
 }
 
 export interface OnlineVisualAsyncProject {

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const taoyuanActivityRoomRuntime = require('./taoyuanActivityRoomRuntime');
 const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
@@ -940,7 +941,20 @@ function buildSocietyProjectCompletionRoomLaunch(project) {
   if (!templateId) return null;
   if (normalized.id === 'festival_square') {
     const completedBy = normalized.completed_by_display_name || normalized.completed_by || '村社成员';
-    return {
+    const storedLaunch = normalized.completion_room_launch && typeof normalized.completion_room_launch === 'object'
+      ? normalized.completion_room_launch
+      : {};
+    const roomId = sanitizeText(storedLaunch.room_id, 80);
+    const launchStatus = roomId
+      ? 'created'
+      : sanitizeText(storedLaunch.status, 40) || 'ready_to_create';
+    const failureReason = sanitizeText(storedLaunch.failure_reason, 120);
+    const summary = roomId
+      ? `${completedBy}完成节庆广场筹备后，系统已自动创建上元灯会共建房间；该联动只提供房间入口，不直接发个人资产。`
+      : failureReason
+        ? `${completedBy}完成节庆广场筹备后，自动创建上元灯会房间未成功：${failureReason}。仍可从入口手动创建，且不直接发个人资产。`
+        : `${completedBy}完成节庆广场筹备后，村社可从完工现场创建上元灯会共建房间；该联动只提供入口，不直接发个人资产。`;
+    const launch = {
       id: `society_project_complete:${normalized.id}:lantern_fair`,
       source_project_id: normalized.id,
       source_event_id: `society_project_complete:${normalized.id}`,
@@ -948,9 +962,15 @@ function buildSocietyProjectCompletionRoomLaunch(project) {
       gameplay_template_id: 'assembly',
       title: '节庆广场开幕灯会',
       label: '上元灯会房间',
-      summary: `${completedBy}完成节庆广场筹备后，村社可从完工现场创建上元灯会共建房间；该联动只提供入口，不直接发个人资产。`,
-      status: 'ready_to_create',
+      summary,
+      status: launchStatus,
     };
+    if (roomId) launch.room_id = roomId;
+    if (failureReason && !roomId) launch.failure_reason = failureReason;
+    if (storedLaunch.created_at) launch.created_at = Math.max(0, Math.floor(Number(storedLaunch.created_at) || 0));
+    if (storedLaunch.created_by) launch.created_by = normalizeUsername(storedLaunch.created_by);
+    if (storedLaunch.created_by_display_name) launch.created_by_display_name = sanitizeText(storedLaunch.created_by_display_name, 40);
+    return launch;
   }
   return null;
 }
@@ -971,6 +991,9 @@ function normalizeSocietyPublicProject(entry) {
     contributions: Array.isArray(entry?.contributions)
       ? entry.contributions.map(normalizeSocietyPublicProjectContribution).filter(item => item.id).slice(0, 60)
       : [],
+    completion_room_launch: entry?.completion_room_launch && typeof entry.completion_room_launch === 'object'
+      ? { ...entry.completion_room_launch }
+      : null,
   };
 }
 
@@ -3338,6 +3361,53 @@ async function closeSocietyProposal(proposalId, payload = {}, actor = {}) {
   };
 }
 
+async function createSocietyProjectCompletionRoom(project, society, actor = {}) {
+  const normalized = normalizeSocietyPublicProject(project);
+  if (normalized.status !== 'completed') return null;
+  if (normalized.id !== 'festival_square') return null;
+  if (normalized.completion_room_launch?.room_id) return normalized.completion_room_launch;
+
+  const actorUsername = normalizeUsername(actor.username || normalized.completed_by);
+  const actorDisplayName = sanitizeText(actor.displayName || normalized.completed_by_display_name, 40) || actorUsername;
+  const baseLaunch = buildSocietyProjectCompletionRoomLaunch(normalized) || {};
+  try {
+    const result = await taoyuanActivityRoomRuntime.createFestivalRoom({
+      template_id: 'lantern_fair',
+      gameplay_template_id: 'assembly',
+      title: baseLaunch.title || '节庆广场开幕灯会',
+      countdown_seconds: 5,
+    }, {
+      username: actorUsername,
+      displayName: actorDisplayName,
+    });
+    const roomId = sanitizeText(result?.room?.id, 80);
+    if (!roomId) throw new Error('活动房间创建后未返回房间 ID');
+    for (const member of (society.members || []).map(normalizeSocietyMember)) {
+      if (!member.username || member.username === actorUsername) continue;
+      try {
+        await taoyuanActivityRoomRuntime.inviteFestivalRoomMember(roomId, { target_username: member.username }, {
+          username: actorUsername,
+          displayName: actorDisplayName,
+        });
+      } catch {}
+    }
+    return {
+      ...baseLaunch,
+      status: 'created',
+      room_id: roomId,
+      created_at: nowSeconds(),
+      created_by: actorUsername,
+      created_by_display_name: actorDisplayName,
+    };
+  } catch (error) {
+    return {
+      ...baseLaunch,
+      status: 'create_failed',
+      failure_reason: sanitizeText(error?.message || '自动创建活动房间失败', 120),
+    };
+  }
+}
+
 async function contributeSocietyPublicProject(projectId, payload = {}, actor = {}) {
   const store = loadSocietyStore();
   const actorUsername = normalizeUsername(actor.username);
@@ -3399,6 +3469,11 @@ async function contributeSocietyPublicProject(projectId, payload = {}, actor = {
     const completionRewardText = buildSocietyProjectCompletionRewardText(project);
     project.progress_note = [project.completion_feedback, completionRewardText ? `完工效果：${completionRewardText}` : ''].filter(Boolean).join(' ');
     appendSocietyActivity(society, `${actorDisplayName}带队完成了公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」`, 'public_project_complete');
+    const completionRoomLaunch = await createSocietyProjectCompletionRoom(project, society, {
+      username: actorUsername,
+      displayName: actorDisplayName,
+    });
+    if (completionRoomLaunch) project.completion_room_launch = completionRoomLaunch;
   } else {
     appendSocietyActivity(society, `${actorDisplayName}为公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」捐献了${contributionPackage.label}`, 'public_project');
   }

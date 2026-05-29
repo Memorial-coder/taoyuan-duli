@@ -4,6 +4,9 @@
 
 ## [未发布]
 
+### 0529 节庆筹备完工自动开房
+- `festival_square` 完工后服务端会以完成人为房主自动创建 `lantern_fair / assembly` 节庆广场开幕灯会房间，并把 `completion_room_launch.status=created`、`room_id`、创建者和时间写回公共工程。
+- 自动创建的房间会邀请同村社成员；创建失败时只记录 `create_failed / failure_reason` 并保留手动入口，仍不发个人资产奖励。
 ### 0529 同居共同仓库人工申诉恢复记录闭环
 - 新增 `/compensation-review/appeal-resolution` record-only 服务端写链和签名动作，只有契约 owner 或高价值仓库权限成员可记录人工申诉恢复回执。
 - 该路径要求已记录人工补偿执行回执、执行审计引用、固定确认文本和幂等键；成功后写恢复审计并让证据包关闭 `manual_appeal_resolution` 后续动作，继续不自动还仓、不改个人背包或存档。

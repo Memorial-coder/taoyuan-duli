@@ -2,6 +2,7 @@
 
 最后整理：2026-05-29
 
+- 节庆筹备完工自动开房：`festival_square` 完工后服务端会自动创建 `lantern_fair / assembly` 节庆广场开幕灯会房间，写回 `room_id` 并邀请同村社成员；失败只记录原因并保留手动入口，不发个人资产。
 - 同居共同仓库高价值人工回执审计复核后端收口：新增 `/compensation-review/operator-receipt-audit` record-only 写链，要求补偿执行审计引用和固定确认文本，可绑定申诉恢复审计；成功后关闭证据包后续动作，不自动还仓、不改个人背包或存档。
 - 同居共同仓库高价值人工申诉恢复前端入口：共同仓库补偿审计证据包面板新增 record-only 申诉恢复表单，提交处理动作、回执、说明、执行审计引用、固定确认文本和幂等键后刷新恢复状态；不自动还仓、不改个人背包或存档。
 - 同居共同仓库高价值人工申诉恢复记录闭环：新增 `/compensation-review/appeal-resolution` record-only 写链，要求人工补偿执行回执和执行审计引用，写 `warehouse_high_value_withdrawal_manual_appeal_resolution_recorded` 审计后收口证据包后续动作；不自动还仓、不改个人背包或存档。
