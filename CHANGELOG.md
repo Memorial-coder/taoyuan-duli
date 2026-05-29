@@ -2,6 +2,7 @@
 
 最后整理：2026-05-29
 
+- 有限制偷菜主人存档边界 QA：`qa:manor-steal` 会在普通作物轻采、重复幂等回放和果树轻采后比对主人 `farm` 存档快照，确认轻采只写凭证 / 访客记录，不改变主人地块、果树或产物状态。
 - 龙舟 6 人容量服务端 smoke：`qa:activity-room-visual-state` 新增 `member_limit=6` 端午赛舟真实流程，守住 4-7 人扩展区间仍生成三船、行动后结算为“三船竞速”，并在房间快照凭证读回 `race_result.team_count=3`；不改奖励落账或结算幂等键。
 - 灯会纪念结构化回看摘要：个人纪念和好友只读回看新增 `memory_record_summary` / `friend_replay_summary`，统计主灯、灯谜、秩序、留影四类记忆的署名与待署名状态；在线节会纪念页展示摘要，专项 QA 和静态 QA 守护；不改奖励落账或结算幂等键。
 - 协作矿洞提前撤离锁定证据：撤离时服务端固化 `withdrawal_locked_combo_ids / withdrawal_locked_combo_count`，结算回看和统一房间壳读回锁定组合 ID 与数量；不改奖励 payload 或结算幂等键。

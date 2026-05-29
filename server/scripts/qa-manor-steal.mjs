@@ -106,10 +106,19 @@ const seedSave = username => {
   saveRuntime.setActiveSaveSlot(username, 0)
 }
 
+const getGameplayData = username => {
+  const slots = saveRuntime.loadUserSaveSlots(username)
+  const decrypted = saveRuntime.decryptTaoyuanRaw(slots.slots[0]?.raw || '')
+  return decrypted?.data && decrypted.data.player ? decrypted.data : decrypted?.gameplayData
+}
+
+const getOwnerFarmSnapshot = () => JSON.stringify(getGameplayData(owner)?.farm || {})
+
 await db.registerUser(owner, 'SmokePass_0523', '偷菜主人')
 await db.registerUser(visitor, 'SmokePass_0523', '偷菜访客')
 seedSave(owner)
 seedSave(visitor)
+const ownerFarmBeforeSteal = getOwnerFarmSnapshot()
 
 await runtime.updateManorAccessPolicy(owner, {
   visit_mode: 'public',
@@ -141,6 +150,7 @@ assert.equal(firstSteal.entry.quantity, 1, 'steal should only grant a small quan
 assert.equal(firstSteal.entry.visitor_reward_quantity, 1, 'steal receipt should cap visitor reward quantity')
 assert.equal(firstSteal.entry.visitor_reward_quantity_cap, 1, 'steal receipt should expose reward quantity cap')
 assert.equal(firstSteal.entry.owner_reserved_percent, 100, 'steal receipt should expose owner reserved percent')
+assert.equal(getOwnerFarmSnapshot(), ownerFarmBeforeSteal, 'steal should not mutate owner farm save data')
 assert.equal(firstSteal.entry.visitor_daily_count, 1, 'steal receipt should expose visitor daily count after action')
 assert.equal(firstSteal.entry.visitor_daily_limit, 2, 'steal receipt should expose visitor daily limit')
 assert.equal(firstSteal.entry.visitor_daily_remaining, 1, 'steal receipt should expose visitor daily remaining count')
@@ -178,6 +188,7 @@ assert.equal(duplicateSteal.idempotent, true, 'duplicate steal should be idempot
 assert.equal(duplicateSteal.entry.id, firstSteal.entry.id, 'duplicate steal should return original entry')
 assert.equal(duplicateSteal.snapshot.steal_state.remaining_steal_count, 1, 'duplicate steal should not consume another count')
 assert.equal(duplicateSteal.snapshot.visitor_activity_entries.filter(entry => entry.kind === 'steal').length, 1, 'duplicate steal should not duplicate audit activity')
+assert.equal(getOwnerFarmSnapshot(), ownerFarmBeforeSteal, 'duplicate steal should keep owner farm save data unchanged')
 
 await assert.rejects(
   () => runtime.submitManorStealAction({
@@ -196,6 +207,7 @@ await runtime.submitManorStealAction({
   action_id: 'steal_fruit_sample',
   target_id: 'fruit:1',
 }, actor(visitor))
+assert.equal(getOwnerFarmSnapshot(), ownerFarmBeforeSteal, 'fruit steal should not mutate owner fruit tree save data')
 
 await assert.rejects(
   () => runtime.submitManorStealAction({
