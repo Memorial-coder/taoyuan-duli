@@ -19,6 +19,7 @@ process.env.MYSQL_DATABASE = ''
 const require = createRequire(import.meta.url)
 const runtime = require('../src/taoyuanActivityRoomRuntime')
 const saveRuntime = require('../src/taoyuanSaveRuntime')
+const db = require('../src/db')
 
 const actor = username => ({
   username,
@@ -353,6 +354,98 @@ const seedFriendship = (usernameA, usernameB) => writeFile(socialStoreFile, JSON
   neighbor_join_requests: [],
   subscriptions: [],
 }, null, 2), 'utf8')
+
+const lifecycleHost = 'vlife_host'
+const lifecycleGuest = 'vlife_guest'
+assert.equal((await db.registerUser(lifecycleHost, 'SmokePass_0529', '房间生命周期房主')).ok, true, 'activity room lifecycle host should register')
+assert.equal((await db.registerUser(lifecycleGuest, 'SmokePass_0529', '房间生命周期访客')).ok, true, 'activity room lifecycle guest should register')
+seedRewardSave(lifecycleHost)
+seedRewardSave(lifecycleGuest)
+const lifecycleRoom = await runtime.createFestivalRoom({
+  template_id: 'lantern_fair',
+  gameplay_template_id: 'assembly',
+  title: 'visual lifecycle smoke',
+  countdown_seconds: 1,
+}, actor(lifecycleHost))
+assert.equal(lifecycleRoom.room.state, 'created', 'activity room lifecycle smoke should start from created state')
+assert.equal(lifecycleRoom.room.members[0]?.status, 'joined', 'activity room lifecycle host should join on creation')
+assertLanternFairVisualObjects(lifecycleRoom.room, 0)
+
+const lifecycleInvited = await runtime.inviteFestivalRoomMember(lifecycleRoom.room.id, {
+  target_username: lifecycleGuest,
+}, actor(lifecycleHost))
+assert.equal(lifecycleInvited.room.state, 'inviting', 'activity room lifecycle invite should move room to inviting')
+assert.equal(lifecycleInvited.room.invitations.find(invite => invite.target_username === lifecycleGuest)?.status, 'pending', 'activity room lifecycle invite should create pending invitation')
+assert.equal(lifecycleInvited.room.members.find(member => member.username === lifecycleGuest)?.status, 'invited', 'activity room lifecycle invite should add invited member')
+const lifecycleGuestInviteOverview = await runtime.listFestivalRoomOverview(lifecycleGuest)
+const lifecycleGuestInvite = lifecycleGuestInviteOverview.invited_rooms.find(room => room.id === lifecycleRoom.room.id)
+assert.ok(lifecycleGuestInvite, 'activity room lifecycle guest should see invited room')
+assert.equal(lifecycleGuestInvite.can_join, true, 'activity room lifecycle invited guest should be able to join')
+
+const lifecycleJoined = await runtime.joinFestivalRoom(lifecycleRoom.room.id, actor(lifecycleGuest))
+assert.equal(lifecycleJoined.room.my_member_status, 'joined', 'activity room lifecycle guest should join room')
+assert.equal(lifecycleJoined.room.invitations.find(invite => invite.target_username === lifecycleGuest)?.status, 'accepted', 'activity room lifecycle join should accept invitation')
+assert.equal(lifecycleJoined.room.joined_member_count, 2, 'activity room lifecycle room should have two joined members')
+
+const lifecycleReadyCheck = await runtime.startFestivalRoomReadyCheck(lifecycleRoom.room.id, actor(lifecycleHost))
+assert.equal(lifecycleReadyCheck.room.state, 'ready_check', 'activity room lifecycle host should start ready check')
+assert.equal(lifecycleReadyCheck.room.ready_member_count, 0, 'activity room lifecycle ready check should reset ready count')
+assert.equal(lifecycleReadyCheck.room.can_host_start_countdown, false, 'activity room lifecycle countdown should wait for readiness')
+const lifecycleHostReady = await runtime.setFestivalRoomReady(lifecycleRoom.room.id, true, actor(lifecycleHost))
+assert.equal(lifecycleHostReady.room.members.find(member => member.username === lifecycleHost)?.status, 'ready', 'activity room lifecycle host should become ready')
+assert.equal(lifecycleHostReady.room.ready_member_count, 1, 'activity room lifecycle should count host readiness')
+const lifecycleGuestReady = await runtime.setFestivalRoomReady(lifecycleRoom.room.id, true, actor(lifecycleGuest))
+assert.equal(lifecycleGuestReady.room.members.find(member => member.username === lifecycleGuest)?.status, 'ready', 'activity room lifecycle guest should become ready')
+assert.equal(lifecycleGuestReady.room.ready_member_count, 2, 'activity room lifecycle should count all ready members')
+
+const lifecycleCountdown = await runtime.startFestivalRoomCountdown(lifecycleRoom.room.id, actor(lifecycleHost))
+assert.equal(lifecycleCountdown.room.state, 'countdown', 'activity room lifecycle host should start countdown')
+assert.ok(lifecycleCountdown.room.countdown_ends_at > lifecycleCountdown.room.countdown_started_at, 'activity room lifecycle countdown should expose end time')
+assert.ok(lifecycleCountdown.room.members.every(member => member.status === 'countdown_locked'), 'activity room lifecycle countdown should lock ready members')
+
+const lifecycleCountdownStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+lifecycleCountdownStore.rooms = lifecycleCountdownStore.rooms.map(room => room.id === lifecycleRoom.room.id
+  ? {
+      ...room,
+      countdown_ends_at: 1,
+    }
+  : room
+)
+await writeFile(roomStoreFile, JSON.stringify(lifecycleCountdownStore, null, 2), 'utf8')
+const lifecycleRunningOverview = await runtime.listFestivalRoomOverview(lifecycleHost)
+const lifecycleRunningRoom = lifecycleRunningOverview.my_room
+assert.equal(lifecycleRunningRoom.state, 'running', 'activity room lifecycle countdown should materialize into running state')
+assert.ok(lifecycleRunningRoom.members.every(member => member.status === 'active'), 'activity room lifecycle running room should activate members')
+assert.equal(lifecycleRunningRoom.gameplay.phase, 'active', 'activity room lifecycle running room should activate gameplay phase')
+
+const lifecyclePaused = await runtime.disconnectFestivalRoom(lifecycleRoom.room.id, actor(lifecycleGuest))
+assert.equal(lifecyclePaused.room.state, 'paused', 'activity room lifecycle disconnect should pause room')
+assert.equal(lifecyclePaused.room.my_member_status, 'disconnected', 'activity room lifecycle disconnected member should see disconnected status')
+assert.equal(lifecyclePaused.room.can_reconnect, true, 'activity room lifecycle disconnected member should be able to reconnect')
+const lifecycleReconnected = await runtime.reconnectFestivalRoom(lifecycleRoom.room.id, actor(lifecycleGuest))
+assert.equal(lifecycleReconnected.room.state, 'running', 'activity room lifecycle reconnect should resume room')
+assert.equal(lifecycleReconnected.room.my_member_status, 'active', 'activity room lifecycle reconnect should restore active member')
+
+const lifecycleActionResult = await runtime.submitFestivalRoomGameplayAction(lifecycleRoom.room.id, {
+  action_id: 'lock_piece',
+}, actor(lifecycleGuest))
+assert.equal(lifecycleActionResult.room.visual_state.revision, 1, 'activity room lifecycle visual action should advance visual revision')
+assert.equal(lifecycleActionResult.room.visual_state.objects.find(object => object.id === 'lantern_main_lantern')?.handled_by, lifecycleGuest, 'activity room lifecycle visual action should mark actor')
+
+const lifecycleSettled = await runtime.settleFestivalRoom(lifecycleRoom.room.id, actor(lifecycleHost))
+assert.equal(lifecycleSettled.room.state, 'settling', 'activity room lifecycle settlement should move room to settling')
+assert.equal(lifecycleSettled.room.settlement_receipts.length, 2, 'activity room lifecycle settlement should create one receipt per member')
+assert.deepEqual(new Set(lifecycleSettled.room.settlement_receipts.map(receipt => receipt.target_username)), new Set([lifecycleHost, lifecycleGuest]), 'activity room lifecycle settlement should target host and guest')
+await assert.rejects(
+  runtime.settleFestivalRoom(lifecycleRoom.room.id, actor(lifecycleHost)),
+  /当前房间已经生成过结算凭证了|只有进行中的活动房间才能进入结算/,
+  'activity room lifecycle should reject duplicate settlement creation'
+)
+const lifecycleClosed = await runtime.retryAdminActivityRoomSettlement(lifecycleRoom.room.id)
+assert.equal(lifecycleClosed.room.state, 'closed', 'activity room lifecycle settlement replay should persist and close room')
+assert.ok(lifecycleClosed.room.members.every(member => member.status === 'settled'), 'activity room lifecycle close should settle all members')
+assert.equal(Object.keys(readRewardSave(lifecycleHost).onlineFestivalRewards.appliedReceipts).length, 1, 'activity room lifecycle host reward should persist exactly once')
+assert.equal(Object.keys(readRewardSave(lifecycleGuest).onlineFestivalRewards.appliedReceipts).length, 1, 'activity room lifecycle guest reward should persist exactly once')
 const festivalActionStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
   if (room.id === festival.room.id) return {
