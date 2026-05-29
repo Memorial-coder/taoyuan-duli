@@ -1478,13 +1478,23 @@
           </div>
           <div v-if="festivalRoomStore.recentMemorials.length === 0" class="mt-3 text-xs text-muted">当前没有节会纪念记录。</div>
           <div v-else class="mt-3 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
-            <div v-for="memorial in festivalRoomStore.recentMemorials.slice(0, 6)" :key="memorial.memorial_id" class="border border-accent/10 bg-black/10 p-2">
+            <div
+              v-for="memorial in festivalRoomStore.recentMemorials.slice(0, 6)"
+              :key="memorial.memorial_id"
+              class="border border-accent/10 bg-black/10 p-2"
+              :data-testid="`online-festival-memorial-card-${memorial.memorial_id}`"
+            >
               <p class="truncate text-xs text-accent">{{ memorial.label }}</p>
               <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
               <p class="mt-1 text-[10px] text-muted">{{ memorial.reward_summary }}</p>
-              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.photo_line }}</p>
+              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-memorial-photo-line">纪念留影：{{ memorial.photo_line }}</p>
+              <p v-if="festivalMemorySummaryText(memorial.memory_record_summary)" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-lantern-memory-summary">灯会回看摘要：{{ festivalMemorySummaryText(memorial.memory_record_summary) }}</p>
               <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-lantern-memorial-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
-                <p v-for="record in festivalMemoryRecords(memorial.memory_records)" :key="`${memorial.memorial_id}-${record.type}`">
+                <p
+                  v-for="record in festivalMemoryRecords(memorial.memory_records)"
+                  :key="`${memorial.memorial_id}-${record.type}`"
+                  :data-testid="`online-festival-lantern-memorial-memory-record-${record.type}`"
+                >
                   {{ formatFestivalMemoryRecord(record) }}
                 </p>
               </div>
@@ -1513,17 +1523,30 @@
               查看
             </Button>
           </div>
-          <p v-if="festivalRoomStore.friendMemorialOverview" class="mt-2 text-[10px] leading-4 text-muted">
+          <p v-if="festivalRoomStore.friendMemorialOverview" class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-memorial-overview">
             {{ festivalRoomStore.friendMemorialOverview.target_display_name || festivalRoomStore.friendMemorialOverview.target_username }} · {{ festivalRoomStore.friendMemorialOverview.is_self ? '自己的纪念册' : '好友纪念册' }}
+          </p>
+          <p v-if="festivalRoomStore.friendMemorialOverview?.friend_replay_summary?.summary" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-replay-summary">
+            好友回看摘要：{{ formatFestivalFriendReplaySummary(festivalRoomStore.friendMemorialOverview.friend_replay_summary) }}
           </p>
           <div v-if="festivalRoomStore.friendMemorials.length === 0" class="mt-3 text-xs text-muted">当前没有可回看的好友灯会纪念。</div>
           <div v-else class="mt-3 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
-            <div v-for="memorial in festivalRoomStore.friendMemorials.slice(0, 6)" :key="`friend-${memorial.memorial_id}`" class="border border-accent/10 bg-black/10 p-2">
+            <div
+              v-for="memorial in festivalRoomStore.friendMemorials.slice(0, 6)"
+              :key="`friend-${memorial.memorial_id}`"
+              class="border border-accent/10 bg-black/10 p-2"
+              :data-testid="`online-festival-friend-memorial-card-${memorial.memorial_id}`"
+            >
               <p class="truncate text-xs text-accent">{{ memorial.label }}</p>
               <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
-              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.photo_line }}</p>
+              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-photo-line">纪念留影：{{ memorial.photo_line }}</p>
+              <p v-if="festivalMemorySummaryText(memorial.memory_record_summary)" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-memory-summary">灯会回看摘要：{{ festivalMemorySummaryText(memorial.memory_record_summary) }}</p>
               <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-friend-lantern-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
-                <p v-for="record in festivalMemoryRecords(memorial.memory_records)" :key="`friend-${memorial.memorial_id}-${record.type}`">
+                <p
+                  v-for="record in festivalMemoryRecords(memorial.memory_records)"
+                  :key="`friend-${memorial.memorial_id}-${record.type}`"
+                  :data-testid="`online-festival-friend-lantern-memory-record-${record.type}`"
+                >
                   {{ formatFestivalMemoryRecord(record) }}
                 </p>
               </div>
@@ -1595,7 +1618,7 @@
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { OnlineVisualNode, OnlineVisualObject, OnlineVisualTrack } from '@/types/onlineVisual'
   import type { ExpeditionCavernComboRecordSnapshot, ExpeditionCavernStateSnapshot, ExpeditionRoomRouteReplay } from '@/utils/expeditionRoomApi'
-  import type { FestivalRoomRouteReplay, FestivalRoomRouteReplayMemoryRecord } from '@/utils/festivalRoomApi'
+  import type { FestivalFriendReplaySummary, FestivalMemoryRecordSummary, FestivalRoomRouteReplay, FestivalRoomRouteReplayMemoryRecord } from '@/utils/festivalRoomApi'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
 
   type FestivalTabKey = 'world' | 'festival-room' | 'expedition-room' | 'memorials'
@@ -1769,6 +1792,22 @@
     (Array.isArray(records) ? records : [])
       .filter(record => record.label || record.type || record.summary)
       .slice(0, 8)
+  const festivalMemorySummaryText = (summary?: FestivalMemoryRecordSummary | null) => {
+    if (!summary || summary.total_count <= 0) return ''
+    const signedText = '署名 ' + summary.signed_count + '/' + summary.total_count
+    const pendingText = summary.pending_count > 0 ? '待署名 ' + summary.pending_count : ''
+    const typeText = summary.record_types.length > 0 ? '类型 ' + summary.record_types.join(' / ') : ''
+    const actorText = summary.signed_actor_display_names.length > 0 ? '署名人 ' + summary.signed_actor_display_names.slice(0, 3).join('、') : ''
+    return [summary.summary, signedText, pendingText, typeText, actorText].filter(Boolean).join(' · ')
+  }
+  const formatFestivalFriendReplaySummary = (summary?: FestivalFriendReplaySummary | null) => {
+    if (!summary) return ''
+    const countText = '纪念 ' + summary.memorial_count + ' 条'
+    const signedText = '署名 ' + summary.signed_memory_record_count + '/' + summary.memory_record_total_count
+    const typeText = summary.memory_record_types.length > 0 ? '类型 ' + summary.memory_record_types.join(' / ') : ''
+    const photoText = summary.has_photo_line ? '含留影文案' : ''
+    return [summary.summary, countText, signedText, typeText, photoText].filter(Boolean).join(' · ')
+  }
   const routeReplayMemoryRecords = (replay?: ActivityRouteReplay | null) => {
     if (!hasRouteReplay(replay) || replay?.kind !== 'lantern_fair' || !('memory_records' in replay)) return []
     return festivalMemoryRecords(replay.memory_records as FestivalRoomRouteReplayMemoryRecord[])

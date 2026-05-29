@@ -343,6 +343,28 @@ export interface FestivalRoomOpeningCeremony {
   countdown_remaining_seconds: number
 }
 
+export interface FestivalMemoryRecordSummary {
+  total_count: number
+  signed_count: number
+  pending_count: number
+  memory_record_counts: Record<string, number>
+  record_types: string[]
+  signed_record_types: string[]
+  pending_record_types: string[]
+  signed_actor_display_names: string[]
+  summary: string
+}
+
+export interface FestivalFriendReplaySummary {
+  memorial_count: number
+  memory_record_total_count: number
+  signed_memory_record_count: number
+  memory_record_types: string[]
+  memory_record_counts: Record<string, number>
+  has_photo_line: boolean
+  summary: string
+}
+
 export interface FestivalMemorialSnapshot {
   memorial_id: string
   label: string
@@ -363,6 +385,7 @@ export interface FestivalMemorialSnapshot {
   photo_line: string
   photo_taken: boolean
   memory_records: FestivalRoomRouteReplayMemoryRecord[]
+  memory_record_summary: FestivalMemoryRecordSummary
 }
 
 export interface FestivalRoomSnapshot {
@@ -455,6 +478,7 @@ export interface FestivalFriendMemorialOverview {
   viewer_username: string
   is_self: boolean
   is_friend: boolean
+  friend_replay_summary: FestivalFriendReplaySummary
   memorials: FestivalMemorialSnapshot[]
 }
 
@@ -512,6 +536,15 @@ export const fetchFestivalFriendMemorials = async (targetUsername: string): Prom
     viewer_username: data.viewer_username,
     is_self: data.is_self,
     is_friend: data.is_friend,
+    friend_replay_summary: data.friend_replay_summary ?? {
+      memorial_count: data.memorials?.length ?? 0,
+      memory_record_total_count: 0,
+      signed_memory_record_count: 0,
+      memory_record_types: [],
+      memory_record_counts: {},
+      has_photo_line: data.memorials?.some(memorial => Boolean(memorial.photo_line)) ?? false,
+      summary: '',
+    },
     memorials: data.memorials ?? [],
   }
 }

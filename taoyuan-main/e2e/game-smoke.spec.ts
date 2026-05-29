@@ -368,6 +368,15 @@ function buildFestivalFriendMemorialOverview() {
     viewer_username: 'tester',
     is_self: false,
     is_friend: true,
+    friend_replay_summary: {
+      memorial_count: 1,
+      memory_record_total_count: 4,
+      signed_memory_record_count: 4,
+      memory_record_types: ['main_lantern', 'riddle', 'order', 'photo'],
+      memory_record_counts: { main_lantern: 1, riddle: 1, order: 1, photo: 1 },
+      has_photo_line: true,
+      summary: '可回看 1 条纪念，4/4 条灯会记忆已署名。'
+    },
     memorials: [
       {
         memorial_id: 'festival_memorial:friend_lantern:e2e',
@@ -388,7 +397,18 @@ function buildFestivalFriendMemorialOverview() {
         photo_moment_label: '上元灯会合影',
         photo_line: '灯会好友 与 测试者、灯谜手、巡场人 在 上元灯会 留下了一张灯会共建留影。',
         photo_taken: true,
-        memory_records: memoryRecords
+        memory_records: memoryRecords,
+        memory_record_summary: {
+          total_count: 4,
+          signed_count: 4,
+          pending_count: 0,
+          memory_record_counts: { main_lantern: 1, riddle: 1, order: 1, photo: 1 },
+          record_types: ['main_lantern', 'riddle', 'order', 'photo'],
+          signed_record_types: ['main_lantern', 'riddle', 'order', 'photo'],
+          pending_record_types: [],
+          signed_actor_display_names: ['灯会好友', '灯谜手', '巡场人', '合影人'],
+          summary: '灯会记忆 4/4 条已署名'
+        }
       }
     ]
   }
@@ -3016,6 +3036,8 @@ test.describe('web game smoke', () => {
     await page.getByTestId('online-festival-friend-memorial-submit').click()
 
     await expect(page.getByTestId('online-festival-friend-memorial-overview')).toContainText('灯会好友')
+    await expect(page.getByTestId('online-festival-friend-replay-summary')).toContainText('4/4')
+    await expect(page.getByTestId('online-festival-friend-memory-summary')).toContainText('灯会记忆 4/4 条已署名')
     await expect(page.getByTestId('online-festival-friend-photo-line')).toContainText('纪念留影')
     await expect(page.getByTestId('online-festival-friend-lantern-memory-record-main_lantern')).toContainText('点亮主灯：灯会好友')
     await expect(page.getByTestId('online-festival-friend-lantern-memory-record-riddle')).toContainText('解开灯谜：灯谜手')

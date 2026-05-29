@@ -5135,6 +5135,20 @@ function addInventoryRewardItems(mainSlots, mainCapacity, tempSlots, tempCapacit
   };
 }
 
+function cloneFestivalMemoryRecordSummary(summary) {
+  return {
+    total_count: summary.total_count,
+    signed_count: summary.signed_count,
+    pending_count: summary.pending_count,
+    memory_record_counts: { ...summary.memory_record_counts },
+    record_types: [...summary.record_types],
+    signed_record_types: [...summary.signed_record_types],
+    pending_record_types: [...summary.pending_record_types],
+    signed_actor_display_names: [...summary.signed_actor_display_names],
+    summary: summary.summary,
+  };
+}
+
 function buildFestivalMemorialOverview(username) {
   try {
     const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源乡存档，暂时无法读取节会纪念册');
@@ -5163,10 +5177,39 @@ function buildFestivalMemorialOverview(username) {
         photo_line: entry.photo_line,
         photo_taken: entry.photo_taken,
         memory_records: [...entry.memory_records],
+        memory_record_summary: cloneFestivalMemoryRecordSummary(entry.memory_record_summary),
       }));
   } catch {
     return [];
   }
+}
+
+function buildFestivalFriendReplaySummary(memorials) {
+  const safeMemorials = Array.isArray(memorials) ? memorials : [];
+  const memoryRecordCounts = {};
+  const recordTypeSet = new Set();
+  let memoryRecordTotalCount = 0;
+  let signedMemoryRecordCount = 0;
+  for (const memorial of safeMemorials) {
+    const summary = normalizeFestivalMemoryRecordSummary(memorial?.memory_record_summary, memorial?.memory_records);
+    memoryRecordTotalCount += summary.total_count;
+    signedMemoryRecordCount += summary.signed_count;
+    for (const type of summary.record_types) recordTypeSet.add(type);
+    for (const [type, count] of Object.entries(summary.memory_record_counts)) {
+      memoryRecordCounts[type] = (memoryRecordCounts[type] || 0) + count;
+    }
+  }
+  return {
+    memorial_count: safeMemorials.length,
+    memory_record_total_count: memoryRecordTotalCount,
+    signed_memory_record_count: signedMemoryRecordCount,
+    memory_record_types: Array.from(recordTypeSet).slice(0, 8),
+    memory_record_counts: memoryRecordCounts,
+    has_photo_line: safeMemorials.some(memorial => sanitizeText(memorial?.photo_line, 120)),
+    summary: safeMemorials.length > 0
+      ? '可回看 ' + safeMemorials.length + ' 条纪念，' + signedMemoryRecordCount + '/' + (memoryRecordTotalCount || 0) + ' 条灯会记忆已署名。'
+      : '暂无可回看的灯会纪念。',
+  };
 }
 
 function listFestivalFriendMemorialOverview(viewerUsername, payload = {}) {
@@ -5177,13 +5220,15 @@ function listFestivalFriendMemorialOverview(viewerUsername, payload = {}) {
   const isSelf = viewer === targetUsername;
   const isFriend = isSelf || taoyuanSocialRuntime.isFriendWith(viewer, targetUsername);
   if (!isFriend) throw createError('只能查看已互为好友的节会纪念', 403);
+  const memorials = buildFestivalMemorialOverview(targetUsername);
   return {
     target_username: targetUsername,
     target_display_name: targetUsername,
     viewer_username: viewer,
     is_self: isSelf,
     is_friend: true,
-    memorials: buildFestivalMemorialOverview(targetUsername),
+    friend_replay_summary: buildFestivalFriendReplaySummary(memorials),
+    memorials,
   };
 }
 
@@ -5221,7 +5266,71 @@ function ensureFestivalRewardState(saveData) {
   return saveData.onlineFestivalRewards;
 }
 
+function normalizeFestivalMemoryRecordSummary(source, fallbackRecords = []) {
+  const fallbackMemoryRecords = Array.isArray(fallbackRecords)
+    ? fallbackRecords.map(normalizeReceiptRouteReplayMemoryRecord).filter(Boolean).slice(0, 8)
+    : [];
+  const sourceCounts = source?.memory_record_counts && typeof source.memory_record_counts === 'object'
+    ? source.memory_record_counts
+    : {};
+  const memoryRecordCounts = {};
+  for (const record of fallbackMemoryRecords) {
+    memoryRecordCounts[record.type] = (memoryRecordCounts[record.type] || 0) + 1;
+  }
+  for (const [rawType, rawCount] of Object.entries(sourceCounts)) {
+    const type = sanitizeText(rawType, 40);
+    if (!type) continue;
+    memoryRecordCounts[type] = Math.max(memoryRecordCounts[type] || 0, Math.floor(Number(rawCount) || 0));
+  }
+  const sourceRecordTypes = Array.isArray(source?.record_types)
+    ? source.record_types.map(item => sanitizeText(item, 40)).filter(Boolean)
+    : [];
+  const hasLanternMemorySummary = fallbackMemoryRecords.length > 0
+    || sourceRecordTypes.length > 0
+    || Object.keys(memoryRecordCounts).length > 0
+    || Math.floor(Number(source?.total_count) || 0) > 0;
+  const recordTypes = Array.from(new Set([
+    ...(hasLanternMemorySummary ? LANTERN_FAIR_MEMORY_DEFS.map(definition => definition.type) : []),
+    ...fallbackMemoryRecords.map(record => record.type),
+    ...sourceRecordTypes,
+  ])).slice(0, 8);
+  const signedRecords = fallbackMemoryRecords.filter(record => record.actor_username);
+  const signedRecordTypes = Array.from(new Set([
+    ...signedRecords.map(record => record.type),
+    ...(Array.isArray(source?.signed_record_types) ? source.signed_record_types.map(item => sanitizeText(item, 40)).filter(Boolean) : []),
+  ])).slice(0, 8);
+  const pendingRecordTypes = Array.from(new Set([
+    ...recordTypes.filter(type => !signedRecordTypes.includes(type)),
+    ...(Array.isArray(source?.pending_record_types) ? source.pending_record_types.map(item => sanitizeText(item, 40)).filter(Boolean) : []),
+  ])).filter(type => !signedRecordTypes.includes(type)).slice(0, 8);
+  const signedActorDisplayNames = Array.from(new Set([
+    ...signedRecords.map(record => record.actor_display_name || record.actor_username).filter(Boolean),
+    ...(Array.isArray(source?.signed_actor_display_names) ? source.signed_actor_display_names.map(item => sanitizeText(item, 40)).filter(Boolean) : []),
+  ])).slice(0, 8);
+  const totalCount = Math.max(
+    fallbackMemoryRecords.length,
+    Math.floor(Number(source?.total_count) || 0),
+    Object.values(memoryRecordCounts).reduce((sum, count) => sum + Math.max(0, Math.floor(Number(count) || 0)), 0),
+  );
+  const signedCount = Math.max(signedRecords.length, Math.floor(Number(source?.signed_count) || 0));
+  const pendingCount = Math.max(0, Math.max(totalCount, recordTypes.length) - signedCount);
+  return {
+    total_count: totalCount,
+    signed_count: signedCount,
+    pending_count: Math.max(pendingCount, Math.floor(Number(source?.pending_count) || 0)),
+    memory_record_counts: memoryRecordCounts,
+    record_types: recordTypes,
+    signed_record_types: signedRecordTypes,
+    pending_record_types: pendingRecordTypes,
+    signed_actor_display_names: signedActorDisplayNames,
+    summary: sanitizeText(source?.summary, 140) || '灯会记忆 ' + signedCount + '/' + Math.max(totalCount, recordTypes.length) + ' 条已署名',
+  };
+}
+
 function normalizeFestivalMemorialEntry(entry) {
+  const memoryRecords = Array.isArray(entry?.memory_records)
+    ? entry.memory_records.map(normalizeReceiptRouteReplayMemoryRecord).filter(Boolean).slice(0, 8)
+    : [];
   return {
     memorial_id: sanitizeText(entry?.memorial_id, 120),
     label: sanitizeText(entry?.label, 40),
@@ -5251,9 +5360,8 @@ function normalizeFestivalMemorialEntry(entry) {
     photo_moment_label: sanitizeText(entry?.photo_moment_label, 40),
     photo_line: sanitizeText(entry?.photo_line, 120),
     photo_taken: entry?.photo_taken === true,
-    memory_records: Array.isArray(entry?.memory_records)
-      ? entry.memory_records.map(normalizeReceiptRouteReplayMemoryRecord).filter(Boolean).slice(0, 8)
-      : [],
+    memory_records: memoryRecords,
+    memory_record_summary: normalizeFestivalMemoryRecordSummary(entry?.memory_record_summary, memoryRecords),
   };
 }
 
@@ -5390,6 +5498,7 @@ function buildFestivalMemorialEntry(room, receipt) {
   const titleLabel = sanitizeText(receipt.reward_breakdown?.title_reward?.label, 40);
   const decorationLabel = sanitizeText(receipt.reward_breakdown?.decoration_reward?.label, 40);
   const memoryRecords = normalizeReceiptRouteReplay(receipt.route_replay).memory_records;
+  const memoryRecordSummary = normalizeFestivalMemoryRecordSummary(null, memoryRecords);
   const signedMemoryRecords = memoryRecords.filter(record => record.actor_username);
   const memoryLine = signedMemoryRecords.length > 0
     ? `高光：${signedMemoryRecords.map(record => `${record.label}由${record.actor_display_name || record.actor_username}完成`).join('、')}`
@@ -5416,6 +5525,7 @@ function buildFestivalMemorialEntry(room, receipt) {
     photo_line: `${receipt.target_display_name} 与 ${squadmateDisplayLine} 在 ${template.label} 留下了一张${gameplayTemplate.label}留影。${friendDisplayLine}${memoryLine ? `；${memoryLine}` : ''}`,
     photo_taken: true,
     memory_records: memoryRecords,
+    memory_record_summary: memoryRecordSummary,
   });
 }
 

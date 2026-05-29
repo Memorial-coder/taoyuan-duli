@@ -446,6 +446,9 @@ const lanternRewardAfterClose = readRewardSave('visual_host_lantern_memorial')
 assert.equal(lanternRewardAfterClose.onlineFestivalRewards.memorials.length, 1, 'lantern fair receipt persistence should add one memorial')
 assert.ok(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_records.some(record => record.type === 'main_lantern'), 'lantern fair memorial should retain main lantern memory')
 assert.ok(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_records.some(record => record.type === 'order'), 'lantern fair memorial should retain order memory')
+assert.equal(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_record_summary.total_count, 4, 'lantern fair memorial summary should count four memory record types')
+assert.equal(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_record_summary.signed_count, 2, 'lantern fair memorial summary should count signed memories')
+assert.deepEqual(lanternRewardAfterClose.onlineFestivalRewards.memorials[0].memory_record_summary.record_types, ['main_lantern', 'riddle', 'order', 'photo'], 'lantern fair memorial summary should expose stable memory types')
 
 await seedFriendship('visual_host_festival', 'visual_host_lantern_memorial')
 const friendMemorialOverview = runtime.listFestivalFriendMemorialOverview('visual_host_festival', {
@@ -454,6 +457,10 @@ const friendMemorialOverview = runtime.listFestivalFriendMemorialOverview('visua
 assert.equal(friendMemorialOverview.is_friend, true, 'friend memorial overview should require and report friendship')
 assert.equal(friendMemorialOverview.memorials.length, 1, 'friend memorial overview should read target festival memorials')
 assert.ok(friendMemorialOverview.memorials[0].memory_records.some(record => record.type === 'main_lantern'), 'friend memorial overview should expose lantern memories')
+assert.equal(friendMemorialOverview.memorials[0].memory_record_summary.signed_count, 2, 'friend memorial overview should expose per-memorial signed memory count')
+assert.equal(friendMemorialOverview.friend_replay_summary.memorial_count, 1, 'friend replay summary should count memorial cards')
+assert.equal(friendMemorialOverview.friend_replay_summary.signed_memory_record_count, 2, 'friend replay summary should aggregate signed lantern memories')
+assert.ok(friendMemorialOverview.friend_replay_summary.memory_record_types.includes('main_lantern'), 'friend replay summary should expose lantern memory types')
 assert.throws(
   () => runtime.listFestivalFriendMemorialOverview('visual_host_expedition', { target_username: 'visual_host_lantern_memorial' }),
   /只能查看已互为好友/,
@@ -499,6 +506,9 @@ assert.equal(friendPhotoMemorialOverview.is_friend, true, 'friend memorial overv
 assert.equal(friendPhotoMemorialOverview.memorials.length, 1, 'friend memorial overview should read target festival memorials')
 assert.ok(friendPhotoMemorialOverview.memorials[0].memory_records.some(record => record.type === 'photo' && record.actor_username === 'visual_host_lantern_photo'), 'friend memorial overview should expose signed lantern photo memories')
 assert.ok(friendPhotoMemorialOverview.memorials[0].photo_line.includes('留影收口由visual_host_lantern_photo完成'), 'friend memorial overview should expose readable lantern photo line')
+assert.equal(friendPhotoMemorialOverview.memorials[0].memory_record_summary.memory_record_counts.photo, 1, 'friend memorial overview should expose structured photo memory count')
+assert.equal(friendPhotoMemorialOverview.friend_replay_summary.has_photo_line, true, 'friend replay summary should report photo line availability')
+assert.ok(friendPhotoMemorialOverview.friend_replay_summary.memory_record_types.includes('photo'), 'friend replay summary should expose photo memory type')
 assert.throws(
   () => runtime.listFestivalFriendMemorialOverview('visual_host_expedition', { target_username: 'visual_host_lantern_photo' }),
   /只能查看已互为好友/,
