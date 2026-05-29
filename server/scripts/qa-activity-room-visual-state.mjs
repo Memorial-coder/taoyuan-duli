@@ -65,6 +65,13 @@ const readRewardSave = username => {
   return saveRuntime.normalizeGameplaySaveContainer(saveRuntime.decryptTaoyuanRaw(raw))?.gameplayData
 }
 
+const sumRewardInventoryQuantity = (saveData, itemId) => {
+  const normalizedItemId = String(itemId || '')
+  return [...(saveData?.items || []), ...(saveData?.tempItems || [])]
+    .filter(slot => (slot?.itemId || slot?.item_id) === normalizedItemId)
+    .reduce((sum, slot) => sum + Math.max(0, Math.floor(Number(slot?.quantity) || 0)), 0)
+}
+
 const assertVisualStateShape = (visualState, expectedBoardType, expectedBoardIdPrefix) => {
   assert.equal(visualState?.board_type, expectedBoardType, 'visual_state board_type mismatch')
   assert.equal(typeof visualState.board_id, 'string', 'visual_state board_id should be string')
@@ -903,6 +910,8 @@ const withdrawalNode = withdrawalResult.room.visual_state.nodes.find(node => nod
 assert.equal(withdrawalNode?.state, 'resolved', 'withdrawal action should resolve the exit node')
 assert.deepEqual(withdrawalNode?.available_action_ids, [], 'resolved exit node should stop offering withdrawal action')
 
+seedRewardSave('visual_action_host')
+const cavernRewardBeforeClose = readRewardSave('visual_action_host')
 const settledResult = await runtime.settleExpeditionRoom(actionExpedition.room.id, actor('visual_action_host'))
 const receiptReplay = settledResult.overview.recent_receipts.find(receipt => receipt.room_id === actionExpedition.room.id)?.route_replay
 assert.equal(receiptReplay?.kind, 'expedition_cavern', 'cavern settlement receipt should expose route replay')
@@ -931,6 +940,71 @@ assert.equal(receiptReplay.withdrawal_actor_username, 'visual_action_host', 'cav
 assert.ok(receiptReplay.member_contributions.some(item => item.username === 'visual_action_host'), 'cavern route replay should include member contribution')
 const settledSnapshotReceipt = settledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_action_host')
 assert.equal(settledSnapshotReceipt?.route_replay?.kind, 'expedition_cavern', 'room snapshot settlement receipt should include route replay')
+const cavernSettlementStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+const cavernStoredReceipt = cavernSettlementStore.receipts.find(receipt => receipt.room_id === actionExpedition.room.id && receipt.target_username === 'visual_action_host')
+assert.ok(cavernStoredReceipt?.idempotency_key, 'cavern stored receipt should keep idempotency key')
+const cavernRewardMoney = Math.max(0, Math.floor(Number(cavernStoredReceipt.reward_payload?.money) || 0))
+const cavernRewardItems = new Map()
+for (const item of cavernStoredReceipt.reward_payload?.items || []) {
+  const itemId = String(item?.item_id || item?.itemId || '')
+  if (!itemId) continue
+  const quantity = Math.max(0, Math.floor(Number(item?.quantity) || 0))
+  cavernRewardItems.set(itemId, (cavernRewardItems.get(itemId) || 0) + quantity)
+}
+
+const cavernClosedResult = await runtime.closeExpeditionRoom(actionExpedition.room.id, actor('visual_action_host'))
+assert.equal(cavernClosedResult.room.state, 'closed', 'cavern room should close after receipt persistence')
+const cavernRewardAfterClose = readRewardSave('visual_action_host')
+assert.equal(cavernRewardAfterClose.player.money, cavernRewardBeforeClose.player.money + cavernRewardMoney, 'first cavern receipt persistence should add expedition money once')
+assert.equal(Object.keys(cavernRewardAfterClose.onlineFestivalRewards.appliedReceipts).length, 1, 'first cavern receipt persistence should record one applied receipt key')
+assert.ok(cavernRewardAfterClose.onlineFestivalRewards.appliedReceipts[cavernStoredReceipt.idempotency_key], 'cavern applied receipt key should match settlement idempotency key')
+for (const [itemId, quantity] of cavernRewardItems) {
+  assert.equal(
+    sumRewardInventoryQuantity(cavernRewardAfterClose, itemId),
+    sumRewardInventoryQuantity(cavernRewardBeforeClose, itemId) + quantity,
+    `first cavern receipt persistence should add ${itemId} once`
+  )
+}
+
+const cavernReplayStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+cavernReplayStore.rooms = cavernReplayStore.rooms.map(room => room.id === actionExpedition.room.id
+  ? {
+      ...room,
+      state: 'settling',
+      state_message: 'QA replaying the same persisted cavern receipt',
+      closed_at: 0,
+    }
+  : room
+)
+cavernReplayStore.receipts = cavernReplayStore.receipts.map(receipt => receipt.id === cavernStoredReceipt.id
+  ? {
+      ...receipt,
+      status: 'pending_persist',
+      reward_result: '',
+      persisted_at: 0,
+    }
+  : receipt
+)
+await writeFile(roomStoreFile, JSON.stringify(cavernReplayStore, null, 2), 'utf8')
+
+const cavernReplayResult = await runtime.retryAdminActivityRoomSettlement(actionExpedition.room.id)
+assert.equal(cavernReplayResult.room.state, 'closed', 'admin settlement retry should close replayed cavern room')
+const cavernRewardAfterReplay = readRewardSave('visual_action_host')
+assert.equal(cavernRewardAfterReplay.player.money, cavernRewardAfterClose.player.money, 'replayed cavern receipt should not add money twice')
+assert.equal(Object.keys(cavernRewardAfterReplay.onlineFestivalRewards.appliedReceipts).length, 1, 'replayed cavern receipt should not create duplicate applied receipt keys')
+for (const [itemId] of cavernRewardItems) {
+  assert.equal(
+    sumRewardInventoryQuantity(cavernRewardAfterReplay, itemId),
+    sumRewardInventoryQuantity(cavernRewardAfterClose, itemId),
+    `replayed cavern receipt should not duplicate ${itemId}`
+  )
+}
+const cavernReplayedReceipt = cavernReplayResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_action_host')
+assert.equal(cavernReplayedReceipt?.status, 'persisted', 'replayed cavern receipt should return to persisted status')
+assert.equal(cavernReplayedReceipt?.route_replay?.kind, 'expedition_cavern', 'replayed cavern receipt should keep route replay')
+assert.equal(cavernReplayedReceipt?.route_replay?.combo_records?.length, 3, 'replayed cavern receipt should keep all combo records')
+assert.equal(cavernReplayedReceipt?.route_replay?.withdrawal_locked_combo_count, 3, 'replayed cavern receipt should keep locked combo count')
+assert.ok(cavernReplayedReceipt?.route_replay?.summary.includes('提前撤离'), 'replayed cavern receipt should keep early withdrawal summary')
 
 const escortActionResult = await runtime.submitExpeditionRoomGameplayAction(escortConvoy.room.id, {
   action_id: 'escort_step',
