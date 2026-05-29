@@ -305,6 +305,15 @@ const dragonBoatDuo = await runtime.createFestivalRoom({
 assert.equal(dragonBoatDuo.room.member_limit, 2, 'dragon boat should allow 2 player room capacity')
 assertDragonBoatVisualTrack(dragonBoatDuo.room, 0, { expectedTeamCount: 2, expectSelectedOccupied: true })
 
+const dragonBoatSix = await runtime.createFestivalRoom({
+  template_id: 'dragon_boat',
+  gameplay_template_id: 'squad_coop',
+  title: 'visual dragon boat six smoke',
+  member_limit: 6,
+}, actor('visual_host_dragon_six'))
+assert.equal(dragonBoatSix.room.member_limit, 6, 'dragon boat should allow 6 player room capacity')
+assertDragonBoatVisualTrack(dragonBoatSix.room, 0, { expectedTeamCount: 3, expectSelectedOccupied: true })
+
 const dragonBoatEight = await runtime.createFestivalRoom({
   template_id: 'dragon_boat',
   gameplay_template_id: 'squad_coop',
@@ -370,10 +379,16 @@ festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
     running_started_at: 12345,
     members: room.members.map(member => ({ ...member, status: 'active' })),
   }
-  if (room.id === dragonBoatEight.room.id) return {
+  if (room.id === dragonBoatSix.room.id) return {
     ...room,
     state: 'running',
     running_started_at: 12346,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
+  if (room.id === dragonBoatEight.room.id) return {
+    ...room,
+    state: 'running',
+    running_started_at: 12347,
     members: room.members.map(member => ({ ...member, status: 'active' })),
   }
   if (room.id === escortConvoy.room.id) return {
@@ -628,6 +643,24 @@ assert.equal(
   dragonDuoSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon_duo')?.route_replay?.race_result?.team_count,
   2,
   'room snapshot duo dragon boat receipt should keep two-team race result'
+)
+
+const dragonSixActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoatSix.room.id, {
+  action_id: 'keep_beat',
+}, actor('visual_host_dragon_six'))
+assertDragonBoatVisualTrack(dragonSixActionResult.room, 1, {
+  expectedTeamCount: 3,
+  minPosition: 1,
+  expectedLastAction: 'keep_beat',
+  expectSelectedOccupied: true,
+})
+const dragonSixSettledResult = await runtime.settleFestivalRoom(dragonBoatSix.room.id, actor('visual_host_dragon_six'))
+const dragonSixReplay = dragonSixSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === dragonBoatSix.room.id)?.route_replay
+assertDragonBoatRaceReplay(dragonSixReplay, 3, '三船竞速')
+assert.equal(
+  dragonSixSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon_six')?.route_replay?.race_result?.team_count,
+  3,
+  'room snapshot six-player dragon boat receipt should keep three-team race result'
 )
 
 const dragonEightActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoatEight.room.id, {

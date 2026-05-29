@@ -2,6 +2,7 @@
 
 最后整理：2026-05-29
 
+- 龙舟 6 人容量服务端 smoke：`qa:activity-room-visual-state` 新增 `member_limit=6` 端午赛舟真实流程，守住 4-7 人扩展区间仍生成三船、行动后结算为“三船竞速”，并在房间快照凭证读回 `race_result.team_count=3`；不改奖励落账或结算幂等键。
 - 灯会纪念结构化回看摘要：个人纪念和好友只读回看新增 `memory_record_summary` / `friend_replay_summary`，统计主灯、灯谜、秩序、留影四类记忆的署名与待署名状态；在线节会纪念页展示摘要，专项 QA 和静态 QA 守护；不改奖励落账或结算幂等键。
 - 协作矿洞提前撤离锁定证据：撤离时服务端固化 `withdrawal_locked_combo_ids / withdrawal_locked_combo_count`，结算回看和统一房间壳读回锁定组合 ID 与数量；不改奖励 payload 或结算幂等键。
 - 作物用途标签第二批基础作物：青菜、土豆、西瓜、莲藕、油菜、玉米、生姜、冬小麦改为人工用途档案，背包筛选、作物详情和百科搜索可读回料理、炼丹、加工、动物饲料、订单、节会与联机消耗出口。
