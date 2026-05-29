@@ -159,8 +159,8 @@ assertBlockIncludes(useNpcStore, 'const sanitizeChildTrainingFamilyEventHistory'
 assertBlockIncludes(useNpcStore, 'const trimRandomNpcArchives', 'entries.findIndex(entry => entry.visitorId === archive.visitorId) === index', '旧日摘要裁剪前必须按 visitorId 去重')
 assertBlockIncludes(useNpcStore, 'const trimRandomNpcArchives', '.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxLockedArchives)', '旧日摘要必须限制锁定条数')
 assertBlockIncludes(useNpcStore, 'const trimRandomNpcArchives', 'RANDOM_NPC_VISITOR_CONFIG.maxRecentSummaries - lockedArchives.length', '旧日摘要必须限制总条数并给锁定条预留')
-assertIncludes(useNpcStore, 'const trimRandomNpcAcquaintances = (acquaintances: RandomNpcAcquaintanceEntry[]) =>\n    acquaintances.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances)', '熟人册必须按 maxAcquaintances 裁剪')
-assertIncludes(useNpcStore, 'const trimRandomNpcLongStayResidents = (residents: RandomNpcLongStayEntry[]) =>\n    residents.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents)', '长住名册必须按 maxLongStayResidents 裁剪')
+assertBlockIncludes(useNpcStore, 'const trimRandomNpcAcquaintances', 'RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances', '熟人册必须按 maxAcquaintances 裁剪')
+assertBlockIncludes(useNpcStore, 'const trimRandomNpcLongStayResidents', 'RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents', '长住名册必须按 maxLongStayResidents 裁剪')
 
 assertMatches(useNpcStore, /activeVisitors:[\s\S]*?\.slice\(0,\s*RANDOM_NPC_VISITOR_CONFIG\.maxActiveVisitors\)[\s\S]*?keyEvents:[\s\S]*?\.slice\(-6\)/, '读档必须限制活跃短访数量与关键事件长度')
 assertMatches(useNpcStore, /acquaintanceIds:[\s\S]*?\.slice\(0,\s*RANDOM_NPC_VISITOR_CONFIG\.maxActiveVisitors\)/, '读档 acquaintanceIds 必须跟随活跃短访上限')

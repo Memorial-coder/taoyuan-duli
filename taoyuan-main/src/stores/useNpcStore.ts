@@ -1701,6 +1701,147 @@ export const useNpcStore = defineStore('npc', () => {
     return visitor
   }
 
+  const createRandomNpcVisitorFromAcquaintance = (acquaintance: RandomNpcAcquaintanceEntry): RandomNpcVisitorState | null => {
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === acquaintance.templateId)
+    if (!template) return null
+    const dayTag = getCurrentNpcDayTag()
+    const visitor: RandomNpcVisitorState = {
+      id: acquaintance.visitorId,
+      templateId: template.id,
+      name: acquaintance.name || template.nameSeeds[0]!,
+      ageBand: template.ageBand,
+      gender: template.gender,
+      occupation: template.occupation,
+      origin: template.origin,
+      personalityTags: [...template.personalityTags],
+      speechStyle: template.speechStyle,
+      appearanceKeywords: [...template.appearanceKeywords],
+      taboo: template.taboo,
+      lifeGoal: template.lifeGoal,
+      currentTrouble: template.currentTrouble,
+      villagePurpose: acquaintance.villagePurpose || template.villagePurpose,
+      romanceView: acquaintance.romanceView || template.romanceView,
+      developmentRoutes: acquaintance.developmentRoutes.length > 0 ? [...acquaintance.developmentRoutes] : [...template.developmentRoutes],
+      plotHook: acquaintance.plotHook || template.plotHook,
+      familySeed: acquaintance.familySeed || template.familySeed,
+      preferences: {
+        loved: [...acquaintance.preferences.loved],
+        liked: [...acquaintance.preferences.liked],
+        disliked: [...acquaintance.preferences.disliked]
+      },
+      dialogueOpening: template.dialogueOpening,
+      dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
+      dialogueScenes: sanitizeRandomNpcDialogueScenes(acquaintance.dialogueScenes, template.dialogueScenes),
+      smallOrder: {
+        ...acquaintance.smallOrder,
+        requestedItems: acquaintance.smallOrder.requestedItems.map(item => ({ ...item }))
+      },
+      smallOrderCompleted: !!acquaintance.smallOrderCompleted,
+      locked: false,
+      relationshipTag: acquaintance.relationshipTag === 'passing' ? 'acquaintance' : acquaintance.relationshipTag,
+      affinity: acquaintance.affinity,
+      firstVisitWeekId: acquaintance.firstMetWeekId,
+      lastVisitDayTag: dayTag,
+      talkedToday: false,
+      conversationCount: acquaintance.conversationCount,
+      keyEvents: [...acquaintance.keyEvents, `${dayTag} 跨周重逢，再次来到桃源村。`].slice(-6),
+      relationshipSignals: sanitizeRandomNpcRelationshipSignals(acquaintance.relationshipSignals),
+      dialogueMemories: sanitizeRandomNpcDialogueMemories(acquaintance.dialogueMemories),
+      shortRomance: sanitizeRandomNpcShortRomanceState(acquaintance.shortRomance),
+      tier: 'acquaintance'
+    }
+    const reunionMemory = buildRandomNpcLifecycleDialogueMemory(visitor, {
+      dayTag,
+      kind: 'reunion',
+      choiceId: 'lifecycle:acquaintance_weekly_reunion',
+      choiceText: '重逢：熟人跨周再访',
+      direction: 'trust'
+    })
+    if (reunionMemory) {
+      visitor.keyEvents = [...visitor.keyEvents, `${dayTag} ${reunionMemory.response}`].slice(-6)
+      visitor.dialogueMemories = appendRandomNpcDialogueMemory(visitor.dialogueMemories, reunionMemory)
+    }
+    randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+      entry.visitorId === acquaintance.visitorId
+        ? {
+            ...entry,
+            relationshipTag: visitor.relationshipTag,
+            affinity: visitor.affinity,
+            lastSeenDayTag: dayTag,
+            keyEvents: visitor.keyEvents.slice(-6),
+            relationshipSignals: sanitizeRandomNpcRelationshipSignals(visitor.relationshipSignals),
+            dialogueMemories: visitor.dialogueMemories.slice(-6),
+            shortRomance: sanitizeRandomNpcShortRomanceState(visitor.shortRomance)
+          }
+        : entry
+    )
+    return visitor
+  }
+
+  const getRandomNpcWeeklyReunionArchiveCandidates = (weekId: string, currentDayTag: string): RandomNpcArchiveSummary[] => {
+    const activeIds = new Set(randomNpcBoard.value.activeVisitors.map(visitor => visitor.id))
+    const acquaintanceIds = new Set(randomNpcBoard.value.acquaintances.map(acquaintance => acquaintance.visitorId))
+    const longStayIds = new Set(randomNpcBoard.value.longStayResidents.map(resident => resident.sourceVisitorId))
+    return randomNpcBoard.value.recentSummaries
+      .filter(archive =>
+        archive.archivedTier !== 'long_stay' &&
+        !activeIds.has(archive.visitorId) &&
+        !acquaintanceIds.has(archive.visitorId) &&
+        !longStayIds.has(archive.visitorId) &&
+        getRandomNpcInactiveDays(archive.lastSeenDayTag, currentDayTag) >= RANDOM_NPC_VISITOR_CONFIG.weeklyReunionCooldownDays
+      )
+      .sort((a, b) => {
+        const lockedDelta = Number(!!b.locked) - Number(!!a.locked)
+        if (lockedDelta !== 0) return lockedDelta
+        const affinityDelta = b.affinity - a.affinity
+        if (affinityDelta !== 0) return affinityDelta
+        return hashText(`${weekId}:archive:${a.visitorId}`) - hashText(`${weekId}:archive:${b.visitorId}`)
+      })
+  }
+
+  const getRandomNpcWeeklyReunionAcquaintanceCandidates = (weekId: string, currentDayTag: string): RandomNpcAcquaintanceEntry[] => {
+    const activeIds = new Set(randomNpcBoard.value.activeVisitors.map(visitor => visitor.id))
+    const longStayIds = new Set(randomNpcBoard.value.longStayResidents.map(resident => resident.sourceVisitorId))
+    return randomNpcBoard.value.acquaintances
+      .filter(acquaintance =>
+        !activeIds.has(acquaintance.visitorId) &&
+        !longStayIds.has(acquaintance.visitorId) &&
+        getRandomNpcInactiveDays(acquaintance.lastSeenDayTag, currentDayTag) >= RANDOM_NPC_VISITOR_CONFIG.weeklyReunionCooldownDays
+      )
+      .sort((a, b) => {
+        const affinityDelta = b.affinity - a.affinity
+        if (affinityDelta !== 0) return affinityDelta
+        return hashText(`${weekId}:acquaintance:${a.visitorId}`) - hashText(`${weekId}:acquaintance:${b.visitorId}`)
+      })
+  }
+
+  const createRandomNpcWeeklyReunionVisitors = (weekId: string, currentDayTag: string): RandomNpcVisitorState[] => {
+    const maxCount = Math.min(RANDOM_NPC_VISITOR_CONFIG.maxWeeklyReunionVisitors, RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+    const visitors: RandomNpcVisitorState[] = []
+
+    for (const archive of getRandomNpcWeeklyReunionArchiveCandidates(weekId, currentDayTag)) {
+      if (visitors.length >= maxCount) break
+      const visitor = createRandomNpcVisitorFromArchive(archive)
+      if (visitor) {
+        visitor.keyEvents = [...visitor.keyEvents, `${currentDayTag} 本周自然重逢，占用一个短访名额。`].slice(-6)
+        visitors.push(visitor)
+      }
+    }
+
+    const usedIds = new Set(visitors.map(visitor => visitor.id))
+    for (const acquaintance of getRandomNpcWeeklyReunionAcquaintanceCandidates(weekId, currentDayTag)) {
+      if (visitors.length >= maxCount) break
+      if (usedIds.has(acquaintance.visitorId)) continue
+      const visitor = createRandomNpcVisitorFromAcquaintance(acquaintance)
+      if (visitor) {
+        visitors.push(visitor)
+        usedIds.add(visitor.id)
+      }
+    }
+
+    return visitors
+  }
+
   const createRandomNpcLongStayResidentFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcLongStayEntry | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === archive.templateId)
     if (!template || archive.archivedTier !== 'long_stay') return null
@@ -2134,20 +2275,30 @@ export const useNpcStore = defineStore('npc', () => {
     const currentDayTag = getCurrentNpcDayTag()
     archiveStaleRandomNpcAcquaintances(currentDayTag)
     archiveStaleRandomNpcLongStayResidents(currentDayTag)
-    const count = 1 + (hashText(`${weekId}:visitor_count`) % RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+    const reunionVisitors = createRandomNpcWeeklyReunionVisitors(weekId, currentDayTag)
+    const weeklyVisitorCount = 1 + (hashText(`${weekId}:visitor_count`) % RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+    const count = Math.max(0, weeklyVisitorCount - reunionVisitors.length)
     const start = hashText(`${weekId}:visitor_start`) % RANDOM_NPC_TEMPLATES.length
+    const reunionTemplateIds = new Set(reunionVisitors.map(visitor => visitor.templateId))
     const pickedTemplateIds: string[] = []
     for (let i = 0; i < RANDOM_NPC_TEMPLATES.length && pickedTemplateIds.length < count; i++) {
-      pickedTemplateIds.push(RANDOM_NPC_TEMPLATES[(start + i) % RANDOM_NPC_TEMPLATES.length]!.id)
+      const templateId = RANDOM_NPC_TEMPLATES[(start + i) % RANDOM_NPC_TEMPLATES.length]!.id
+      if (!reunionTemplateIds.has(templateId)) pickedTemplateIds.push(templateId)
     }
+    const newVisitors = pickedTemplateIds
+      .map((templateId, index) => createRandomNpcVisitor(templateId, weekId, index))
+      .filter((visitor): visitor is RandomNpcVisitorState => Boolean(visitor))
+    const activeVisitors = [...reunionVisitors, ...newVisitors].slice(0, RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+    const activeVisitorIds = new Set(activeVisitors.map(visitor => visitor.id))
 
     randomNpcBoard.value = {
       ...randomNpcBoard.value,
       lastGeneratedWeekId: weekId,
-      activeVisitors: pickedTemplateIds
-        .map((templateId, index) => createRandomNpcVisitor(templateId, weekId, index))
-        .filter((visitor): visitor is RandomNpcVisitorState => Boolean(visitor)),
-      recentSummaries: trimRandomNpcArchives([...outgoing, ...randomNpcBoard.value.recentSummaries])
+      activeVisitors,
+      recentSummaries: trimRandomNpcArchives([
+        ...outgoing,
+        ...randomNpcBoard.value.recentSummaries.filter(summary => !activeVisitorIds.has(summary.visitorId))
+      ])
     }
   }
 
@@ -3168,7 +3319,6 @@ export const useNpcStore = defineStore('npc', () => {
         message: `${getRandomNpcRelationshipDirectionLabel(requirement.signal)}方向不足，需要 ${requirement.signalValue}。`
       }
     }
-
     if (kind === 'family') {
       const familyLine = sanitizeRandomNpcFamilyLineState(
         resident.familyLine,

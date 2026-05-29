@@ -6,6 +6,8 @@ export const RANDOM_NPC_VISITOR_CONFIG = {
   maxLockedArchives: 3,
   maxAcquaintances: 12,
   maxLongStayResidents: 3,
+  maxWeeklyReunionVisitors: 1,
+  weeklyReunionCooldownDays: 7,
   acquaintanceColdArchiveDays: 28,
   longStayColdArchiveDays: 56,
   acquaintanceAffinityThreshold: 40,

@@ -284,6 +284,15 @@
                 >
                   {{ visitor.tier === 'short_visit' ? '记入熟人册' : '已记录' }}
                 </Button>
+                <Button
+                  v-if="visitor.tier === 'acquaintance'"
+                  class="justify-center !px-2 !py-1"
+                  :class="{ '!bg-success !text-bg': visitor.affinity >= randomNpcLongStayThreshold }"
+                  :disabled="visitor.affinity < randomNpcLongStayThreshold || isRandomNpcLongStay(visitor.id)"
+                  @click="handlePromoteRandomNpcToLongStay(visitor.id)"
+                >
+                  {{ isRandomNpcLongStay(visitor.id) ? '已长住' : '邀长住' }}
+                </Button>
               </div>
             </div>
           </div>
