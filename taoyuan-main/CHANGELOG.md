@@ -12,6 +12,7 @@
 - 新增 `qa:crop-use-entry-guard`，检查全量用途标签映射、筛选提示、搜索关键词和 `CropUseProfile` 导出保持可用。
 - 静态守护背包用途筛选、库存用途建议、作物详情推荐用途和百科搜索关键词继续读取同一用途档案；本轮不改料理 / 丹炉同类材料自动替换。
 - 运行态守护会导入 `cropUseProfiles / items / itemEncyclopedia`，断言韭菜、仙人掌、椰枣、荔枝人工档案，以及萝卜、茶叶、南瓜代表料理 / 炼丹 / 宠物入口都能被百科详情和搜索读回。
+- 运行态守护继续覆盖稻米 / 青菜公共仓 `getItemUsedIn()` 和搜索关键词，确保公共仓粥底、联机节会备菜、修桥慰劳饭、公共订单与 `online_cost` 入口不会掉出百科 / 搜索。
 
 ### 0529 协作矿洞提前撤离锁定证据
 - `expedition_cavern` 提前撤离会把已锁定的节点组合收益写成 `withdrawal_locked_combo_ids / withdrawal_locked_combo_count`，并随 `cavern_state` 与结算 `route_replay` 读回。

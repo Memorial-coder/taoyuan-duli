@@ -108,6 +108,7 @@ const loadRuntimeModules = async () => {
         getCropUseTagSearchKeywords: cropUseProfilesModule.getCropUseTagSearchKeywords,
         getItemById: itemsModule.getItemById,
         getItemExtraDetails: itemEncyclopediaModule.getItemExtraDetails,
+        getItemUsedIn: itemEncyclopediaModule.getItemUsedIn,
         getItemSearchKeywords: itemEncyclopediaModule.getItemSearchKeywords
       }
     })()
@@ -187,6 +188,7 @@ const {
   getCropUseTagSearchKeywords,
   getItemById,
   getItemExtraDetails,
+  getItemUsedIn,
   getItemSearchKeywords
 } = await loadRuntimeModules()
 
@@ -249,6 +251,26 @@ const cropRuntimeCases = [
   }
 ]
 
+const publicWarehouseRuntimeCases = [
+  {
+    cropId: 'rice',
+    expectedUses: [
+      '村社公共仓：稻米入仓',
+      '联机节会：节庆宴席备菜消耗公共仓稻米',
+      '村社修桥：修桥慰劳饭消耗公共仓稻米'
+    ],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓粥底', '联机消耗筛选', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'cabbage',
+    expectedUses: [
+      '村社公共仓：青菜入仓',
+      '村社修桥：修桥慰劳饭消耗公共仓青菜'
+    ],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '修桥慰劳饭', '公共仓热饭', 'online_cost 用途标签']
+  }
+]
+
 for (const runtimeCase of cropRuntimeCases) {
   const profile = getCropUseProfile(runtimeCase.cropId)
   assert(!!profile, `运行态缺少 ${runtimeCase.cropId} CropUseProfile`)
@@ -287,6 +309,27 @@ for (const runtimeCase of cropRuntimeCases) {
   const searchKeywords = getItemSearchKeywords(item)
   for (const fragment of runtimeCase.keywordFragments) {
     assertRuntimeIncludes(searchKeywords, fragment, `运行态 ${runtimeCase.cropId} 百科搜索缺少 ${fragment}`)
+  }
+}
+
+for (const runtimeCase of publicWarehouseRuntimeCases) {
+  const profile = getCropUseProfile(runtimeCase.cropId)
+  assert(!!profile, `运行态 ${runtimeCase.cropId} 公共仓校验缺少 CropUseProfile`)
+  if (!profile) continue
+  assert(profile.tags.includes('online_cost'), `运行态 ${runtimeCase.cropId} 公共仓校验缺少 online_cost 标签`)
+
+  const item = getItemById(runtimeCase.cropId)
+  assert(item?.category === 'crop', `运行态 ${runtimeCase.cropId} 公共仓校验必须能作为作物物品进入百科`)
+  if (!item) continue
+
+  const usedInEntries = getItemUsedIn(item.id)
+  for (const fragment of runtimeCase.expectedUses) {
+    assertRuntimeIncludes(usedInEntries, fragment, `运行态 ${runtimeCase.cropId} 可用于列表缺少 ${fragment}`)
+  }
+
+  const searchKeywords = getItemSearchKeywords(item)
+  for (const fragment of runtimeCase.keywordFragments) {
+    assertRuntimeIncludes(searchKeywords, fragment, `运行态 ${runtimeCase.cropId} 公共仓搜索缺少 ${fragment}`)
   }
 }
 
