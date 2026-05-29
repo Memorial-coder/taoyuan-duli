@@ -13776,18 +13776,35 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
   const executionAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_compensation_execution_recorded');
   const appealResolutionAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_manual_appeal_resolution_recorded');
   const operatorReceiptAuditReviews = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_operator_receipt_audit_reviewed');
-  const timelineComplete = Boolean(
-    withdrawLedgerEntries.length > 0
-    && reviewAudits.length > 0
-    && preflightAudits.length > 0
-    && (draft.compensation_execution_status !== 'recorded' || executionAudits.length > 0)
-    && (draft.compensation_appeal_resolution_status !== 'recorded' || appealResolutionAudits.length > 0)
-    && (draft.compensation_operator_receipt_audit_status !== 'recorded' || operatorReceiptAuditReviews.length > 0)
-  );
-  const nextSupportedActions = [
-    draft.compensation_operator_receipt_audit_status === 'recorded' ? '' : 'operator_receipt_audit_review',
-    draft.compensation_appeal_resolution_status === 'recorded' ? '' : 'manual_appeal_resolution',
-  ].filter(Boolean);
+  const rollbackAudits = draftAudits.filter(entry => entry.action === 'warehouse_high_value_withdrawal_rolled_back');
+  const isRolledBackDraft = draft.state === 'rolled_back';
+  const timelineComplete = isRolledBackDraft
+    ? rollbackAudits.length > 0
+    : Boolean(
+      withdrawLedgerEntries.length > 0
+      && reviewAudits.length > 0
+      && preflightAudits.length > 0
+      && (draft.compensation_execution_status !== 'recorded' || executionAudits.length > 0)
+      && (draft.compensation_appeal_resolution_status !== 'recorded' || appealResolutionAudits.length > 0)
+      && (draft.compensation_operator_receipt_audit_status !== 'recorded' || operatorReceiptAuditReviews.length > 0)
+    );
+  const missingEvidence = isRolledBackDraft
+    ? [rollbackAudits.length > 0 ? '' : 'rollback_audit'].filter(Boolean)
+    : [
+      withdrawLedgerEntries.length > 0 ? '' : 'withdraw_ledger',
+      sourceLedgerEntries.length > 0 ? '' : 'source_ledger',
+      reviewAudits.length > 0 ? '' : 'compensation_review_audit',
+      preflightAudits.length > 0 ? '' : 'compensation_preflight_audit',
+      draft.compensation_execution_status === 'recorded' && executionAudits.length < 1 ? 'compensation_execution_audit' : '',
+      draft.compensation_appeal_resolution_status === 'recorded' && appealResolutionAudits.length < 1 ? 'manual_appeal_resolution_audit' : '',
+      draft.compensation_operator_receipt_audit_status === 'recorded' && operatorReceiptAuditReviews.length < 1 ? 'operator_receipt_audit_review' : '',
+    ].filter(Boolean);
+  const nextSupportedActions = isRolledBackDraft
+    ? []
+    : [
+      draft.compensation_operator_receipt_audit_status === 'recorded' ? '' : 'operator_receipt_audit_review',
+      draft.compensation_appeal_resolution_status === 'recorded' ? '' : 'manual_appeal_resolution',
+    ].filter(Boolean);
   return {
     contract_id: contract.id,
     draft_id: draft.id,
@@ -13806,6 +13823,15 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
       target_save_slot: draft.target_save_slot,
       warehouse_ledger_ids: draft.warehouse_ledger_ids,
       source_ledger_ids: draft.source_ledger_ids,
+      frozen_quantity: draft.frozen_quantity,
+      frozen_at: draft.frozen_at,
+      freeze_release_available: draft.freeze_release_available,
+      freeze_policy: draft.freeze_policy,
+      rollback_plan: draft.rollback_plan,
+      rollback_idempotency_key: draft.rollback_idempotency_key,
+      rolled_back_at: draft.rolled_back_at,
+      rolled_back_by_username: draft.rolled_back_by_username,
+      rollback_reason: draft.rollback_reason,
       compensation_review_status: draft.compensation_review_status,
       compensation_review_requested_action: draft.compensation_review_requested_action,
       compensation_review_compensation_action: draft.compensation_review_compensation_action,
@@ -13850,19 +13876,12 @@ function buildWarehouseCompensationAuditBundle(contract = {}, draft = {}, actorU
     execution_audits: executionAudits,
     appeal_resolution_audits: appealResolutionAudits,
     operator_receipt_audit_reviews: operatorReceiptAuditReviews,
+    rollback_audits: rollbackAudits,
     appeal_packet: {
       enabled: true,
       record_only: true,
       timeline_complete: timelineComplete,
-      missing_evidence: [
-        withdrawLedgerEntries.length > 0 ? '' : 'withdraw_ledger',
-        sourceLedgerEntries.length > 0 ? '' : 'source_ledger',
-        reviewAudits.length > 0 ? '' : 'compensation_review_audit',
-        preflightAudits.length > 0 ? '' : 'compensation_preflight_audit',
-        draft.compensation_execution_status === 'recorded' && executionAudits.length < 1 ? 'compensation_execution_audit' : '',
-        draft.compensation_appeal_resolution_status === 'recorded' && appealResolutionAudits.length < 1 ? 'manual_appeal_resolution_audit' : '',
-        draft.compensation_operator_receipt_audit_status === 'recorded' && operatorReceiptAuditReviews.length < 1 ? 'operator_receipt_audit_review' : '',
-      ].filter(Boolean),
+      missing_evidence: missingEvidence,
       next_supported_actions: nextSupportedActions,
     },
     asset_boundary: {

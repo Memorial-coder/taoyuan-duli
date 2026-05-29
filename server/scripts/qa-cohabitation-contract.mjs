@@ -2859,6 +2859,29 @@ const duplicateRareCrystalRollback = await runtime.rollbackCohabitationWarehouse
 assert.equal(duplicateRareCrystalRollback.idempotent, true, 'duplicate rare crystal rollback should replay by idempotency key')
 assert.equal(duplicateRareCrystalRollback.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 1, 'duplicate rare crystal rollback should not change shared warehouse stock')
 
+const rareCrystalRollbackAuditBundle = await runtime.getCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle(harvestContractCreated.contract.id, rareCrystalDraft.draft.id, actor(harvestOwner))
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.draft.state, 'rolled_back', 'rolled back rare crystal audit bundle should expose rolled back state')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.draft.frozen_quantity, 1, 'rolled back rare crystal audit bundle should expose released frozen quantity')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.draft.freeze_release_available, false, 'rolled back rare crystal audit bundle should close freeze release')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.draft.rollback_idempotency_key, 'qa-rare-crystal-high-value-rollback', 'rolled back rare crystal audit bundle should expose rollback idempotency key')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.draft.rollback_reason, 'QA release rare crystal freeze before execution', 'rolled back rare crystal audit bundle should expose rollback reason')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.draft.rolled_back_by_username, harvestOwner, 'rolled back rare crystal audit bundle should expose rollback actor')
+assert.ok(rareCrystalRollbackAuditBundle.compensation_audit_bundle.rollback_audits.some(entry => entry.idempotency_key === 'qa-rare-crystal-high-value-rollback'), 'rolled back rare crystal audit bundle should include rollback audit')
+const rareCrystalRollbackAuditEvidence = rareCrystalRollbackAuditBundle.compensation_audit_bundle.rollback_audits.find(entry => entry.idempotency_key === 'qa-rare-crystal-high-value-rollback')
+assert.equal(rareCrystalRollbackAuditEvidence.detail?.released_frozen_quantity, 1, 'rolled back rare crystal audit should expose released frozen quantity')
+assert.equal(rareCrystalRollbackAuditEvidence.detail?.shared_warehouse_changed, false, 'rolled back rare crystal audit should state shared warehouse unchanged')
+assert.equal(rareCrystalRollbackAuditEvidence.detail?.personal_save_changed, false, 'rolled back rare crystal audit should state personal save unchanged')
+assert.deepEqual(rareCrystalRollbackAuditBundle.compensation_audit_bundle.appeal_packet.next_supported_actions, [], 'rolled back rare crystal audit bundle should close manual compensation actions')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.appeal_packet.timeline_complete, true, 'rolled back rare crystal audit bundle should treat rollback audit as complete timeline')
+assert.deepEqual(rareCrystalRollbackAuditBundle.compensation_audit_bundle.appeal_packet.missing_evidence, [], 'rolled back rare crystal audit bundle should not require executed withdrawal evidence')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.asset_boundary.shared_warehouse_changed, false, 'rolled back rare crystal audit bundle should keep shared warehouse asset boundary')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.asset_boundary.personal_save_changed, false, 'rolled back rare crystal audit bundle should keep personal save asset boundary')
+assert.equal(rareCrystalRollbackAuditBundle.compensation_audit_bundle.asset_boundary.personal_inventory_mutation_enabled, false, 'rolled back rare crystal audit bundle should keep personal inventory mutation disabled')
+assert.equal(rareCrystalRollbackAuditBundle.warehouse.items.find(item => item.item_id === 'rare_elixir_crystal' && item.quality === offlineRareAlchemyResult.output_quality)?.quantity ?? 0, 1, 'rolled back rare crystal audit bundle should not change shared warehouse stock')
+assert.equal(rareCrystalRollbackAuditBundle.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'rare_elixir_crystal').length, rareCrystalWithdrawLedgerCountBeforeDraft, 'rolled back rare crystal audit bundle should not add withdraw ledger')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, rareCrystalOwnerRawBeforeDraft, 'rolled back rare crystal audit bundle should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, rareCrystalPartnerRawBeforeDraft, 'rolled back rare crystal audit bundle should not rewrite harvest partner save')
+
 const rareCrystalExecuteDraft = await runtime.createCohabitationWarehouseHighValueWithdrawalDraft(harvestContractCreated.contract.id, {
   item_id: 'rare_elixir_crystal',
   quantity: 1,
