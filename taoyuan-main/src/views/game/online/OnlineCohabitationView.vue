@@ -985,6 +985,13 @@
                     审计回看
                   </button>
                 </div>
+                <p
+                  v-if="draft.compensation_execution_status === 'recorded'"
+                  class="mt-2 text-[10px] text-emerald-200"
+                  :data-testid="`online-cohabitation-warehouse-compensation-execution-recorded-${draft.id}`"
+                >
+                  补偿回执已记录：{{ draft.compensation_execution_action || 'manual' }} · {{ formatTime(draft.compensation_execution_recorded_at || 0) }}
+                </p>
               </div>
             </div>
           </div>
@@ -1026,6 +1033,42 @@
               </div>
               <div class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-asset-boundary">
                 <p v-for="row in warehouseCompensationAuditAssetRows" :key="row.label" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
+              </div>
+              <div class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-warehouse-compensation-execution-form">
+                <p class="text-[10px] leading-4 text-muted">补偿执行只记录人工回执，不自动扣个人背包、不恢复共同仓库。</p>
+                <input
+                  v-model.trim="warehouseCompensationExecutionReceipt"
+                  class="online-input text-xs"
+                  maxlength="80"
+                  placeholder="人工回执编号"
+                  data-testid="online-cohabitation-warehouse-compensation-execution-receipt"
+                />
+                <input
+                  v-model.trim="warehouseCompensationExecutionNote"
+                  class="online-input text-xs"
+                  maxlength="100"
+                  placeholder="回执说明"
+                  data-testid="online-cohabitation-warehouse-compensation-execution-note"
+                />
+                <label class="flex items-center gap-2 text-[10px] text-muted">
+                  <input
+                    v-model="warehouseCompensationExecutionConfirmed"
+                    class="online-input size-3 accent-[var(--ty-accent)]"
+                    type="checkbox"
+                    data-testid="online-cohabitation-warehouse-compensation-execution-confirm"
+                  />
+                  确认只登记人工补偿 / 无需补偿回执，保持个人存档与共同仓库不变
+                </label>
+                <button
+                  type="button"
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  :disabled="!canRecordHighValueWarehouseCompensationExecution || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-warehouse-compensation-execution-submit"
+                  @click="recordHighValueWarehouseCompensationExecution"
+                >
+                  <ShieldCheck :size="12" />
+                  记录补偿回执
+                </button>
               </div>
             </div>
           </div>
@@ -2630,6 +2673,9 @@
   const warehouseDepositItemId = ref('rice')
   const warehouseDepositQuantity = ref(1)
   const warehouseGovernanceRecoverReason = ref('')
+  const warehouseCompensationExecutionReceipt = ref('')
+  const warehouseCompensationExecutionNote = ref('')
+  const warehouseCompensationExecutionConfirmed = ref(false)
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
   const activeSharedMapRegionIndex = ref(0)
@@ -3173,6 +3219,33 @@
   })
   const warehouseCompensationAuditAppealActionRows = computed(() => (warehouseCompensationAuditBundle.value?.appeal_packet.next_supported_actions ?? [])
     .map(action => ({ id: action, label: warehouseCompensationAuditAppealActionLabel(action) })))
+  const warehouseCompensationAuditDraft = computed(() => {
+    const raw = warehouseCompensationAuditBundle.value?.draft
+    return raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+  })
+  const warehouseCompensationExecutionAction = computed(() => {
+    const reviewAction = String(warehouseCompensationAuditDraft.value['compensation_review_compensation_action'] || '')
+    return ['manual_restore_recorded', 'manual_compensation_recorded', 'no_compensation_needed'].includes(reviewAction)
+      ? reviewAction
+      : 'manual_compensation_recorded'
+  })
+  const warehouseCompensationExecutionPreflightAudit = computed(() => {
+    const audits = warehouseCompensationAuditBundle.value?.preflight_audits ?? []
+    return audits[0] ?? null
+  })
+  const warehouseCompensationExecutionAlreadyRecorded = computed(() =>
+    String(warehouseCompensationAuditDraft.value['compensation_execution_status'] || '') === 'recorded'
+  )
+  const canRecordHighValueWarehouseCompensationExecution = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    Boolean(warehouseCompensationAuditBundle.value?.draft_id) &&
+    String(warehouseCompensationAuditDraft.value['state'] || '') === 'executed' &&
+    String(warehouseCompensationAuditDraft.value['compensation_review_status'] || '') === 'approved' &&
+    Boolean(warehouseCompensationExecutionPreflightAudit.value?.idempotency_key || warehouseCompensationExecutionPreflightAudit.value?.id) &&
+    warehouseCompensationExecutionAlreadyRecorded.value === false &&
+    warehouseCompensationExecutionConfirmed.value === true &&
+    warehouseCompensationExecutionReceipt.value.trim().length >= 4
+  )
   const warehouseGovernance = computed(() => cohabitationStore.warehouse?.governance ?? null)
   const warehouseGovernanceBlocking = computed(() => warehouseGovernance.value?.blocking ?? null)
   const warehouseGovernanceActiveRecovery = computed(() => warehouseGovernance.value?.active_recoveries?.[0] ?? null)
@@ -4684,6 +4757,9 @@
   const readHighValueWarehouseCompensationAudit = async (draft: CohabitationWarehouseHighValueWithdrawalDraft) => {
     warehouseActionMessage.value = ''
     warehouseActionOk.value = false
+    warehouseCompensationExecutionReceipt.value = draft.compensation_execution_receipt || ''
+    warehouseCompensationExecutionNote.value = draft.compensation_execution_note || ''
+    warehouseCompensationExecutionConfirmed.value = false
     try {
       const result = await cohabitationStore.fetchWarehouseHighValueWithdrawalCompensationAuditBundle(draft.id)
       const bundle = result?.compensation_audit_bundle
@@ -4693,6 +4769,41 @@
         : `已读取补偿审计证据包，缺失证据：${bundle?.appeal_packet.missing_evidence.join(' / ') || '无'}`
     } catch (error) {
       warehouseActionMessage.value = error instanceof Error ? error.message : '读取补偿审计证据包失败'
+    }
+  }
+
+  const recordHighValueWarehouseCompensationExecution = async () => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    const bundle = warehouseCompensationAuditBundle.value
+    const preflightAudit = warehouseCompensationExecutionPreflightAudit.value
+    if (!bundle?.draft_id || !preflightAudit) {
+      warehouseActionMessage.value = '请先读取包含预检记录的补偿审计证据包'
+      return
+    }
+    if (!canRecordHighValueWarehouseCompensationExecution.value) {
+      warehouseActionMessage.value = '请确认草案已执行、补偿复核已通过、预检审计存在，并填写人工回执编号'
+      return
+    }
+    try {
+      const result = await cohabitationStore.recordWarehouseHighValueWithdrawalCompensationExecution(bundle.draft_id, {
+        execution_action: warehouseCompensationExecutionAction.value,
+        execution_receipt: warehouseCompensationExecutionReceipt.value.trim(),
+        execution_note: warehouseCompensationExecutionNote.value.trim() || '前端记录共同仓库高价值补偿人工回执',
+        confirmation_text: 'CONFIRM_MANUAL_COMPENSATION_RECORDED',
+        preflight_idempotency_key: preflightAudit.idempotency_key || undefined,
+        preflight_audit_id: preflightAudit.id || undefined,
+        idempotency_key: `ui-warehouse-compensation-execution-${bundle.draft_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseActionMessage.value = result?.compensation_execution?.record_only
+        ? '已记录人工补偿回执，个人存档与共同仓库保持不变'
+        : '已提交补偿回执记录'
+      await cohabitationStore.fetchWarehouseHighValueWithdrawalCompensationAuditBundle(bundle.draft_id)
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值补偿回执失败'
+    } finally {
+      warehouseCompensationExecutionConfirmed.value = false
     }
   }
 

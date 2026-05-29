@@ -48,6 +48,8 @@ import {
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   plantCohabitationSharedPlot,
   recordCohabitationFundHighRiskReceipt,
+  recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
+  recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight,
   recoverCohabitationWarehouseGovernance,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
@@ -114,6 +116,8 @@ import {
   type CohabitationWarehouseHighValueWithdrawalExecutePayload,
   type CohabitationWarehouseHighValueWithdrawalRollbackPayload,
   type CohabitationWarehouseCompensationAuditBundle,
+  type CohabitationWarehouseCompensationExecutionPayload,
+  type CohabitationWarehouseCompensationPreflightPayload,
   type CohabitationWarehouseGovernanceRecoveryPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
@@ -1469,6 +1473,40 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const recordWarehouseHighValueWithdrawalCompensationPreflight = async (draftId: string, payload: CohabitationWarehouseCompensationPreflightPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(activeContractId.value, draftId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值取出补偿预检失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const recordWarehouseHighValueWithdrawalCompensationExecution = async (draftId: string, payload: CohabitationWarehouseCompensationExecutionPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(activeContractId.value, draftId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值取出补偿回执失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const recoverWarehouseGovernance = async (payload: CohabitationWarehouseGovernanceRecoveryPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value) return null
     actionLoading.value = true
@@ -1798,6 +1836,8 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     rollbackWarehouseHighValueWithdrawalDraft,
     recoverWarehouseGovernance,
     fetchWarehouseHighValueWithdrawalCompensationAuditBundle,
+    recordWarehouseHighValueWithdrawalCompensationPreflight,
+    recordWarehouseHighValueWithdrawalCompensationExecution,
     waterSharedFarmPlot,
     careSharedFarmPlot,
     plantSharedFarmPlot,

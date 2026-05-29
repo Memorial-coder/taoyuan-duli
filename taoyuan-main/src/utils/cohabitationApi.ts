@@ -600,7 +600,18 @@ export interface CohabitationWarehouseHighValueWithdrawalDraft {
   target_save_id?: number
   target_save_slot?: number | null
   compensation_review_status?: string
+  compensation_review_requested_action?: string
+  compensation_review_compensation_action?: string
+  compensation_review_compensation_receipt?: string
   compensation_execution_status?: string
+  compensation_execution_action?: string
+  compensation_execution_receipt?: string
+  compensation_execution_note?: string
+  compensation_execution_preflight_idempotency_key?: string
+  compensation_execution_preflight_audit_id?: string
+  compensation_execution_recorded_by_username?: string
+  compensation_execution_recorded_at?: number
+  compensation_execution_record_only?: boolean
   created_at: number
   executed_at: number
   rolled_back_at: number
@@ -639,6 +650,57 @@ export interface CohabitationWarehouseCompensationAuditBundle {
     shared_warehouse_restore_enabled: boolean
     personal_inventory_mutation_enabled: boolean
   }
+}
+
+export interface CohabitationWarehouseCompensationPreflight {
+  draft_id: string
+  item_id: string
+  quality: string
+  quantity: number
+  risk_level: string
+  reviewed_status: string
+  requested_action: string
+  compensation_action: string
+  compensation_receipt: string
+  source_ledger_ids: string[]
+  withdraw_ledger_ids: string[]
+  target_save: Record<string, unknown>
+  required_checks: Array<Record<string, unknown>>
+  failed_checks: string[]
+  ready_for_auto_compensation: boolean
+  auto_compensation_enabled: boolean
+  record_only: boolean
+  personal_save_changed: boolean
+  shared_warehouse_changed: boolean
+  operator_note?: string
+  checked_by_username: string
+  checked_at: number
+  policy?: Record<string, unknown>
+}
+
+export interface CohabitationWarehouseCompensationExecution {
+  draft_id: string
+  item_id: string
+  quality: string
+  quantity: number
+  risk_level: string
+  execution_action: string
+  execution_receipt: string
+  execution_note?: string
+  preflight_audit_id: string
+  preflight_idempotency_key: string
+  preflight_failed_checks: string[]
+  target_save: Record<string, unknown>
+  required_checks: Array<Record<string, unknown>>
+  failed_checks: string[]
+  ready_for_auto_compensation: boolean
+  auto_compensation_enabled: boolean
+  record_only: boolean
+  personal_save_changed: boolean
+  shared_warehouse_changed: boolean
+  recorded_by_username: string
+  recorded_at: number
+  policy?: Record<string, unknown>
 }
 export interface CohabitationWarehouseGovernanceRecovery {
   id: string
@@ -1871,6 +1933,21 @@ export interface CohabitationWarehouseHighValueWithdrawalRollbackPayload {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseCompensationPreflightPayload {
+  operator_note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationWarehouseCompensationExecutionPayload {
+  execution_action: 'manual_restore_recorded' | 'manual_compensation_recorded' | 'no_compensation_needed' | string
+  execution_receipt: string
+  execution_note?: string
+  confirmation_text: string
+  preflight_idempotency_key?: string
+  preflight_audit_id?: string
+  idempotency_key: string
+}
+
 export interface CohabitationWarehouseGovernanceRecoveryPayload {
   target_username?: string
   direction: 'inbound' | 'outbound' | 'all'
@@ -2033,6 +2110,20 @@ export interface CohabitationWarehouseCompensationAuditBundleResponse extends Co
   warehouse?: CohabitationWarehouseSnapshot
   draft?: CohabitationWarehouseHighValueWithdrawalDraft
   compensation_audit_bundle?: CohabitationWarehouseCompensationAuditBundle
+}
+
+export interface CohabitationWarehouseCompensationPreflightResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  draft?: CohabitationWarehouseHighValueWithdrawalDraft
+  compensation_preflight?: CohabitationWarehouseCompensationPreflight
+  idempotent?: boolean
+}
+
+export interface CohabitationWarehouseCompensationExecutionResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  draft?: CohabitationWarehouseHighValueWithdrawalDraft
+  compensation_execution?: CohabitationWarehouseCompensationExecution
+  idempotent?: boolean
 }
 
 export interface CohabitationWarehouseGovernanceRecoveryResponse extends CohabitationDetailResponse {
@@ -2792,6 +2883,22 @@ export const fetchCohabitationWarehouseHighValueWithdrawalCompensationAuditBundl
   return fetchCohabitationJson<CohabitationWarehouseCompensationAuditBundleResponse>(
     contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/audit`),
     '获取共同仓库高价值取出补偿审计失败'
+  )
+}
+
+export const recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight = async (contractId: string, draftId: string, payload: CohabitationWarehouseCompensationPreflightPayload) => {
+  return postCohabitationJson<CohabitationWarehouseCompensationPreflightResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/preflight`),
+    payload as unknown as Record<string, unknown>,
+    '记录共同仓库高价值取出补偿预检失败'
+  )
+}
+
+export const recordCohabitationWarehouseHighValueWithdrawalCompensationExecution = async (contractId: string, draftId: string, payload: CohabitationWarehouseCompensationExecutionPayload) => {
+  return postCohabitationJson<CohabitationWarehouseCompensationExecutionResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/execute`),
+    payload as unknown as Record<string, unknown>,
+    '记录共同仓库高价值取出补偿回执失败'
   )
 }
 
