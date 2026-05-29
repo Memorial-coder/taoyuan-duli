@@ -2,8 +2,13 @@
   <section
     class="space-y-3 border border-accent/15 bg-black/10 p-3"
     data-testid="online-visual-room-shell"
+    role="region"
     :aria-label="`${title} 房间状态`"
   >
+    <p class="sr-only" data-testid="online-visual-room-screen-reader-summary" aria-live="polite">
+      {{ screenReaderSummary }}
+    </p>
+
     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div class="min-w-0 space-y-2">
         <div class="flex flex-wrap items-center gap-2" data-testid="online-visual-room-status-strip">
@@ -142,7 +147,13 @@
       </div>
     </div>
 
-    <div v-if="$slots.default" class="space-y-3">
+    <div
+      v-if="$slots.default"
+      class="space-y-3"
+      data-testid="online-visual-room-content"
+      role="group"
+      aria-label="房间可视化内容与降级入口"
+    >
       <slot />
     </div>
   </section>
@@ -230,5 +241,19 @@
     if (props.connectionState === 'conflict' || props.connectionState === 'disconnected') return 'text-danger'
     if (props.connectionState === 'reconnecting') return 'text-warning'
     return 'text-muted'
+  })
+
+  const screenReaderSummary = computed(() => {
+    const parts = [`${props.title}，状态 ${props.statusLabel || '未载入'}`]
+    if (props.phaseLabel) parts.push(`阶段 ${props.phaseLabel}`)
+    if (countdownLabel.value) parts.push(countdownLabel.value)
+    parts.push(`成员 ${props.readyMemberCount}/${props.memberLimit} 已准备`)
+    parts.push(`奖励预览 ${props.rewardPreview.length} 项`)
+    if (props.settlementRecords.length > 0) parts.push(`结算回看 ${props.settlementRecords.length} 条`)
+    if (connectionLabel.value) parts.push(connectionLabel.value)
+    if (props.actionFeedback) parts.push(`最近反馈：${props.actionFeedback}`)
+    if (props.errorMessages.length > 0) parts.push(`错误 ${props.errorMessages.length} 条`)
+    if (props.permissionHints.length > 0) parts.push(`权限提示 ${props.permissionHints.length} 条`)
+    return parts.join('。')
   })
 </script>
