@@ -291,6 +291,86 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'stable',
     recommendedUses: ['小麦粉', '冬麦面点', '鱼麦便当', '冬季家畜料', '年节面食', '公共仓面粉包'],
     summary: '耐寒主粮作物，适合制粉、冬季料理、家畜补料、年节面食、订单交付和公共仓面粉包。'
+  },
+  {
+    cropId: 'chrysanthemum',
+    tags: ['food', 'medicine', 'wine', 'gift', 'festival', 'order'],
+    flavor: ['香', '苦'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['菊花茶', '菊花蜜', '菊花酒', '重阳供品', '清热药饮', '秋日赠礼订单'],
+    summary: '秋季清香花材，适合制茶、蜂箱花蜜、重阳菊花酒、清热药饮、节会供品、赠礼和秋日订单。'
+  },
+  {
+    cropId: 'broad_bean',
+    tags: ['food', 'animal_feed', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['蚕豆豆腐', '豆类料理', '家畜蛋白补料', '春豆订单'],
+    summary: '春季豆类作物，适合豆腐坊加工、豆类料理、家畜蛋白补料和春豆订单。'
+  },
+  {
+    cropId: 'bamboo_shoot',
+    tags: ['food', 'medicine', 'festival', 'gift', 'order'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'daily',
+    recommendedUses: ['菜油春笋米粉卷', '春卷', '端午粽子', '竹香料理', '踏青赠礼', '春日订单'],
+    summary: '早春鲜蔬作物，适合春笋料理、节令米粉卷、端午粽子、清润药膳、踏青赠礼和春日订单。'
+  },
+  {
+    cropId: 'peanut',
+    tags: ['food', 'animal_feed', 'festival', 'order'],
+    flavor: ['香', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['花生糖', '花生豆腐', '腊八粥', '花生汤圆', '家畜蛋白补料', '年节点心订单'],
+    summary: '香暖坚果作物，适合点心料理、花生豆腐、腊八粥、汤圆、家畜蛋白补料、节会供品和年节订单。'
+  },
+  {
+    cropId: 'jujube',
+    tags: ['food', 'medicine', 'wine', 'gift', 'festival', 'order'],
+    flavor: ['甜', '鲜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['红枣糕', '红枣酒', '百收粥', '滋补药膳', '秋收赠礼', '补气订单'],
+    summary: '温补秋果作物，适合糕点、红枣酒、百收粥、滋补药膳、赠礼、节会甜品和补气订单。'
+  },
+  {
+    cropId: 'persimmon',
+    tags: ['food', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['柿饼', '晒架冬储点心', '脱水机果脯', '年节甜品', '旅人伴手礼', '公共仓冬储备料'],
+    summary: '秋季甜果作物，适合柿饼料理、晒架或脱水加工、冬储点心、年节甜品、赠礼订单和公共仓冬储备料。'
+  },
+  {
+    cropId: 'napa_cabbage',
+    tags: ['food', 'animal_feed', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'mundane',
+    rarityUse: 'daily',
+    recommendedUses: ['年夜饺', '冬至饺', '冬季炖菜', '家畜青饲', '冬储订单', '公共仓备菜'],
+    summary: '冬季高频叶菜，适合饺子、冬季炖菜、家畜青饲、冬储订单、节会备菜和公共仓消耗。'
+  },
+  {
+    cropId: 'snow_lotus',
+    tags: ['food', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雪梅羹', '雪莲蜜', '月华丹信物', '高阶药材', '冬日清供', '药师高价订单'],
+    summary: '高价值寒性灵材，适合雪梅羹、雪莲蜜、月华丹信物、高阶药材、冬日清供、赠礼和药师高价订单。'
   }
 ]
 
