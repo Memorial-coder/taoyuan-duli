@@ -788,9 +788,21 @@
                 >
                   召回
                 </Button>
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :icon="Mail"
+                  :disabled="!canRecallRandomNpcArchiveByOldLetter(summary)"
+                  :data-testid="`random-npc-archive-old-letter-${summary.visitorId}`"
+                  @click="handleRecallRandomNpcArchiveByOldLetter(summary.visitorId)"
+                >
+                  寄旧信
+                </Button>
               </div>
             </div>
             <p class="text-muted leading-4">{{ summary.summary }}</p>
+            <p class="text-[10px] text-muted leading-4 mt-0.5">
+              旧信召回消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}，仍受本周短访 / 长住名额上限约束。
+            </p>
           </div>
         </div>
       </div>
@@ -1659,7 +1671,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw } from 'lucide-vue-next'
+  import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond, Star, RotateCcw, Mail } from 'lucide-vue-next'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -1747,6 +1759,10 @@
   const randomNpcMaxLongStayResidents = RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents
   const randomNpcMaxRecentSummaries = RANDOM_NPC_VISITOR_CONFIG.maxRecentSummaries
   const randomNpcMaxLockedArchives = RANDOM_NPC_VISITOR_CONFIG.maxLockedArchives
+  const randomNpcOldLetterItemId = 'paper'
+  const randomNpcOldLetterCostQuantity = 1
+  const randomNpcOldLetterItemName = computed(() => getItemById(randomNpcOldLetterItemId)?.name ?? '纸张')
+  const randomNpcOldLetterCount = computed(() => inventoryStore.getTotalItemCount(randomNpcOldLetterItemId))
   const randomNpcLockedArchiveCount = computed(() => {
     const lockedIds = new Set<string>()
     randomNpcBoard.value.activeVisitors.forEach(visitor => {
@@ -2216,6 +2232,8 @@
     }
     return randomNpcBoard.value.activeVisitors.length < RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors
   }
+  const canRecallRandomNpcArchiveByOldLetter = (summary: RandomNpcArchiveSummary): boolean =>
+    canRecallRandomNpcArchive(summary) && randomNpcOldLetterCount.value >= randomNpcOldLetterCostQuantity
   const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
   const canFulfillRandomNpcSmallOrder = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): boolean =>
     order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)
@@ -2299,6 +2317,12 @@
     const result = npcStore.recallRandomNpcArchive(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC召回】${result.message}`)
+  }
+
+  const handleRecallRandomNpcArchiveByOldLetter = (visitorId: string) => {
+    const result = npcStore.recallRandomNpcArchiveByOldLetter(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC旧信】${result.message}`)
   }
 
   if (import.meta.env.DEV) {

@@ -232,6 +232,13 @@ const MANOR_CARE_USES: Record<string, string[]> = {
   ]
 }
 
+const NPC_RECALL_USES: Record<string, string[]> = {
+  paper: [
+    '随机 NPC 旧信召回：NPC 页旧日来客摘要可消耗纸张寄旧信，召回归档 NPC',
+    '文游关系：旧信召回仍受短访 / 长住名额上限约束，并只写入单机随机 NPC 存档'
+  ]
+}
+
 export const getItemSourceText = (itemId: string): string => getItemSource(itemId)
 
 export const getItemUsageText = (item: ItemDef): string => getCollectionUsageText(item)
@@ -445,8 +452,9 @@ export const getItemUsedIn = (itemId: string): string[] => {
   const publicWarehouseUses = getPublicWarehouseUses(itemId)
   const animalFeedUses = ANIMAL_FEED_USES[itemId] ?? []
   const manorCareUses = MANOR_CARE_USES[itemId] ?? []
+  const npcRecallUses = NPC_RECALL_USES[itemId] ?? []
 
-  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses, ...animalFeedUses, ...manorCareUses])
+  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses, ...animalFeedUses, ...manorCareUses, ...npcRecallUses])
 }
 
 export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
@@ -696,6 +704,10 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
   const publicWarehouseKeywords = getPublicWarehouseUses(item.id)
   if (publicWarehouseKeywords.length > 0) {
     keywords.push('联机消耗', '公共仓消耗', '公共订单', ...publicWarehouseKeywords)
+  }
+  const npcRecallKeywords = NPC_RECALL_USES[item.id] ?? []
+  if (npcRecallKeywords.length > 0) {
+    keywords.push('随机 NPC', '旧信召回', '旧日来客', '归档召回', '文游关系', ...npcRecallKeywords)
   }
 
   return uniqueStrings(keywords)

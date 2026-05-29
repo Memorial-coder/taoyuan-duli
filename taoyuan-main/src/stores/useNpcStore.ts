@@ -126,6 +126,10 @@ const CHILD_TRAINING_FAMILY_EVENT_STAGE_KEY_LIMIT = 12
 const RANDOM_NPC_SHORT_ROMANCE_AFFINITY_REQUIREMENT = 45
 const RANDOM_NPC_SHORT_ROMANCE_AMBIGUITY_REQUIREMENT = 4
 const RANDOM_NPC_FOLLOW_UP_EVENT_PREFIX = '后续约定：'
+const RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID = 'paper'
+const RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY = 1
+
+type RandomNpcArchiveRecallTrigger = 'manual' | 'weekly_reunion' | 'old_letter'
 
 type RandomNpcDialogueContextTarget = {
   name: string
@@ -1638,7 +1642,55 @@ export const useNpcStore = defineStore('npc', () => {
     }
   }
 
-  const createRandomNpcVisitorFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcVisitorState | null => {
+  const getRandomNpcArchiveRecallEventText = (
+    trigger: RandomNpcArchiveRecallTrigger,
+    archivedTier?: RandomNpcArchiveSummary['archivedTier']
+  ): string => {
+    if (trigger === 'old_letter') {
+      return archivedTier === 'long_stay'
+        ? '收到旧信后回村，恢复长住名册。'
+        : '循着一封旧信再次来到桃源村。'
+    }
+    if (trigger === 'weekly_reunion') return '本周自然重逢，再次来到桃源村。'
+    return archivedTier === 'long_stay'
+      ? '从旧日长住摘要召回，恢复长住名册。'
+      : '从旧日来客摘要召回，再次来到桃源村。'
+  }
+
+  const getRandomNpcArchiveRecallChoiceText = (
+    trigger: RandomNpcArchiveRecallTrigger,
+    archivedTier?: RandomNpcArchiveSummary['archivedTier']
+  ): string => {
+    if (trigger === 'old_letter') return archivedTier === 'long_stay' ? '重逢：旧信召回长住' : '重逢：旧信召回'
+    if (trigger === 'weekly_reunion') return '重逢：跨周自然再访'
+    return archivedTier === 'long_stay' ? '重逢：旧日长住召回' : '重逢：旧日来客召回'
+  }
+
+  const getRandomNpcArchiveRecallChoiceId = (
+    trigger: RandomNpcArchiveRecallTrigger,
+    archivedTier?: RandomNpcArchiveSummary['archivedTier']
+  ): string => {
+    if (trigger === 'old_letter') return archivedTier === 'long_stay' ? 'lifecycle:old_letter_long_stay_reunion' : 'lifecycle:old_letter_reunion'
+    if (trigger === 'weekly_reunion') return 'lifecycle:archive_weekly_reunion'
+    return archivedTier === 'long_stay' ? 'lifecycle:long_stay_reunion' : 'lifecycle:archive_reunion'
+  }
+
+  const consumeRandomNpcArchiveRecallCost = (trigger: RandomNpcArchiveRecallTrigger): { success: boolean; message?: string } => {
+    if (trigger !== 'old_letter') return { success: true }
+    const inventoryStore = useInventoryStore()
+    if (inventoryStore.getTotalItemCount(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID) < RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY) {
+      return { success: false, message: `需要纸张×${RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY}才能寄出旧信。` }
+    }
+    if (!inventoryStore.removeItemAnywhere(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID, RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY)) {
+      return { success: false, message: '纸张扣除失败，旧信没有寄出。' }
+    }
+    return { success: true }
+  }
+
+  const createRandomNpcVisitorFromArchive = (
+    archive: RandomNpcArchiveSummary,
+    trigger: RandomNpcArchiveRecallTrigger = 'manual'
+  ): RandomNpcVisitorState | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === archive.templateId)
     if (!template) return null
     const dayTag = getCurrentNpcDayTag()
@@ -1681,7 +1733,7 @@ export const useNpcStore = defineStore('npc', () => {
       lastVisitDayTag: dayTag,
       talkedToday: false,
       conversationCount: 0,
-      keyEvents: [...archive.keyEvents, `${dayTag} 从旧日来客摘要召回，再次来到桃源村。`].slice(-6),
+      keyEvents: [...archive.keyEvents, `${dayTag} ${getRandomNpcArchiveRecallEventText(trigger, archive.archivedTier)}`].slice(-6),
       relationshipSignals: sanitizeRandomNpcRelationshipSignals(archive.relationshipSignals),
       dialogueMemories: sanitizeRandomNpcDialogueMemories(archive.dialogueMemories),
       shortRomance: sanitizeRandomNpcShortRomanceState(archive.shortRomance),
@@ -1690,8 +1742,8 @@ export const useNpcStore = defineStore('npc', () => {
     const reunionMemory = buildRandomNpcLifecycleDialogueMemory(visitor, {
       dayTag,
       kind: 'reunion',
-      choiceId: 'lifecycle:archive_reunion',
-      choiceText: '重逢：旧日来客召回',
+      choiceId: getRandomNpcArchiveRecallChoiceId(trigger, archive.archivedTier),
+      choiceText: getRandomNpcArchiveRecallChoiceText(trigger, archive.archivedTier),
       direction: 'trust'
     })
     if (reunionMemory) {
@@ -1821,7 +1873,7 @@ export const useNpcStore = defineStore('npc', () => {
 
     for (const archive of getRandomNpcWeeklyReunionArchiveCandidates(weekId, currentDayTag)) {
       if (visitors.length >= maxCount) break
-      const visitor = createRandomNpcVisitorFromArchive(archive)
+      const visitor = createRandomNpcVisitorFromArchive(archive, 'weekly_reunion')
       if (visitor) {
         visitor.keyEvents = [...visitor.keyEvents, `${currentDayTag} 本周自然重逢，占用一个短访名额。`].slice(-6)
         visitors.push(visitor)
@@ -1842,7 +1894,10 @@ export const useNpcStore = defineStore('npc', () => {
     return visitors
   }
 
-  const createRandomNpcLongStayResidentFromArchive = (archive: RandomNpcArchiveSummary): RandomNpcLongStayEntry | null => {
+  const createRandomNpcLongStayResidentFromArchive = (
+    archive: RandomNpcArchiveSummary,
+    trigger: RandomNpcArchiveRecallTrigger = 'manual'
+  ): RandomNpcLongStayEntry | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === archive.templateId)
     if (!template || archive.archivedTier !== 'long_stay') return null
     const dayTag = getCurrentNpcDayTag()
@@ -1885,12 +1940,12 @@ export const useNpcStore = defineStore('npc', () => {
       relationshipTag: archive.relationshipTag,
       affinity: archive.affinity,
       movedInDayTag: snapshot.movedInDayTag,
-      residenceReason: snapshot.residenceReason || `${archive.name}从旧日长住摘要召回，继续在桃源村暂住。`,
+      residenceReason: snapshot.residenceReason || `${archive.name}${trigger === 'old_letter' ? '收到旧信后回村' : '从旧日长住摘要召回'}，继续在桃源村暂住。`,
       route: snapshot.route,
       relationshipEventStage: snapshot.relationshipEventStage,
       completedStoryEventIds: snapshot.completedStoryEventIds.slice(-6),
       lastStoryDayTag: dayTag,
-      keyEvents: [...archive.keyEvents, `${dayTag} 从旧日长住摘要召回，恢复长住名册。`].slice(-8),
+      keyEvents: [...archive.keyEvents, `${dayTag} ${getRandomNpcArchiveRecallEventText(trigger, archive.archivedTier)}`].slice(-8),
       relationshipSignals: sanitizeRandomNpcRelationshipSignals(archive.relationshipSignals),
       dialogueMemories: sanitizeRandomNpcDialogueMemories(archive.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT),
       relationshipLine: sanitizeRandomNpcRelationLineState(snapshot.relationshipLine)
@@ -1898,8 +1953,8 @@ export const useNpcStore = defineStore('npc', () => {
     const reunionMemory = buildRandomNpcLifecycleDialogueMemory(resident, {
       dayTag,
       kind: 'reunion',
-      choiceId: 'lifecycle:long_stay_reunion',
-      choiceText: '重逢：旧日长住召回',
+      choiceId: getRandomNpcArchiveRecallChoiceId(trigger, archive.archivedTier),
+      choiceText: getRandomNpcArchiveRecallChoiceText(trigger, archive.archivedTier),
       direction: 'trust'
     })
     if (reunionMemory) {
@@ -2358,7 +2413,10 @@ export const useNpcStore = defineStore('npc', () => {
     return { success: true, message: locked ? `${targetName}已锁定为关注来客。` : `${targetName}已取消锁定。` }
   }
 
-  const recallRandomNpcArchive = (visitorId: string): { success: boolean; message: string; visitor?: RandomNpcVisitorState } => {
+  const recallRandomNpcArchive = (
+    visitorId: string,
+    trigger: RandomNpcArchiveRecallTrigger = 'manual'
+  ): { success: boolean; message: string; visitor?: RandomNpcVisitorState } => {
     ensureRandomVisitorsForCurrentWeek()
     const archive = randomNpcBoard.value.recentSummaries.find(entry => entry.visitorId === visitorId)
     if (!archive) return { success: false, message: '旧日来客摘要里没有这位 NPC。' }
@@ -2374,8 +2432,10 @@ export const useNpcStore = defineStore('npc', () => {
       if (randomNpcBoard.value.longStayResidents.length >= RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents) {
         return { success: false, message: `长住名额已满（${RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents}人），请先整理长住名册再召回。` }
       }
-      const resident = createRandomNpcLongStayResidentFromArchive(archive)
+      const resident = createRandomNpcLongStayResidentFromArchive(archive, trigger)
       if (!resident) return { success: false, message: '这位旧日长住的归档信息已不可用，暂时不能召回。' }
+      const costResult = consumeRandomNpcArchiveRecallCost(trigger)
+      if (!costResult.success) return { success: false, message: costResult.message ?? '召回消耗不足。' }
       randomNpcBoard.value.longStayResidents = trimRandomNpcLongStayResidents([
         resident,
         ...randomNpcBoard.value.longStayResidents
@@ -2383,21 +2443,25 @@ export const useNpcStore = defineStore('npc', () => {
       randomNpcBoard.value.recentSummaries = trimRandomNpcArchives(
         randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitorId)
       )
-      return { success: true, message: `${resident.name}已从旧日长住摘要召回。` }
+      return { success: true, message: trigger === 'old_letter' ? `${resident.name}收到旧信后回到桃源村长住。` : `${resident.name}已从旧日长住摘要召回。` }
     }
     if (randomNpcBoard.value.activeVisitors.length >= RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors) {
       return { success: false, message: `本周来访位置已满（${RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors}人），请下周再召回。` }
     }
 
-    const visitor = createRandomNpcVisitorFromArchive(archive)
+    const visitor = createRandomNpcVisitorFromArchive(archive, trigger)
     if (!visitor) return { success: false, message: '这位旧日来客的模板已经不可用，暂时不能召回。' }
+    const costResult = consumeRandomNpcArchiveRecallCost(trigger)
+    if (!costResult.success) return { success: false, message: costResult.message ?? '召回消耗不足。' }
     randomNpcBoard.value.activeVisitors = [visitor, ...randomNpcBoard.value.activeVisitors].slice(0, RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
     randomNpcBoard.value.recentSummaries = trimRandomNpcArchives([
       {
         ...archive,
         affinity: visitor.affinity,
         lastSeenDayTag: visitor.lastVisitDayTag,
-        summary: `${archive.name}已被召回到本周来访名单，等待重新熟悉。`,
+        summary: trigger === 'old_letter'
+          ? `${archive.name}收到旧信后回到本周来访名单，等待重新熟悉。`
+          : `${archive.name}已被召回到本周来访名单，等待重新熟悉。`,
         keyEvents: visitor.keyEvents.slice(-3),
         smallOrderCompleted: !!visitor.smallOrderCompleted,
         locked: !!visitor.locked,
@@ -2407,8 +2471,11 @@ export const useNpcStore = defineStore('npc', () => {
       },
       ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitorId)
     ])
-    return { success: true, message: `${visitor.name}已从旧日来客摘要召回。`, visitor }
+    return { success: true, message: trigger === 'old_letter' ? `${visitor.name}收到旧信后回到桃源村。` : `${visitor.name}已从旧日来客摘要召回。`, visitor }
   }
+
+  const recallRandomNpcArchiveByOldLetter = (visitorId: string): { success: boolean; message: string; visitor?: RandomNpcVisitorState } =>
+    recallRandomNpcArchive(visitorId, 'old_letter')
 
   const getRandomNpcSmallOrderMissingItems = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }) => {
     const inventoryStore = useInventoryStore()
@@ -6676,6 +6743,7 @@ export const useNpcStore = defineStore('npc', () => {
     talkToRandomVisitor,
     setRandomNpcLock,
     recallRandomNpcArchive,
+    recallRandomNpcArchiveByOldLetter,
     fulfillRandomNpcSmallOrder,
     canStartRandomNpcShortRomance,
     startRandomNpcShortRomance,
