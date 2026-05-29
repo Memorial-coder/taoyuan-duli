@@ -8,10 +8,11 @@ const projectRoot = path.resolve(__dirname, '..')
 
 const readProjectSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
 
-const [randomNpcs, npcView, useNpcStore] = await Promise.all([
+const [randomNpcs, npcView, useNpcStore, familyRelationGraph] = await Promise.all([
   readProjectSource('src/data/randomNpcs.ts'),
   readProjectSource('src/views/game/NpcView.vue'),
-  readProjectSource('src/stores/useNpcStore.ts')
+  readProjectSource('src/stores/useNpcStore.ts'),
+  readProjectSource('src/components/game/FamilyRelationGraph.vue')
 ])
 
 const errors = []
@@ -29,11 +30,41 @@ const getTemplateBlock = id => {
   return end > start ? randomNpcs.slice(start, end) : randomNpcs.slice(start, start + 5000)
 }
 
-const templateIds = [...randomNpcs.matchAll(/^  \{\n    id: '([^']+)',/gm)].map(match => match[1])
+const templateArrayStart = randomNpcs.indexOf('export const RANDOM_NPC_TEMPLATES')
+const templateArrayEnd = randomNpcs.indexOf('\n]\n\nexport const RANDOM_NPC_LONG_STAY_STORY_EVENTS', templateArrayStart)
+const templateArray = templateArrayStart >= 0 && templateArrayEnd > templateArrayStart
+  ? randomNpcs.slice(templateArrayStart, templateArrayEnd)
+  : ''
+assert(templateArray.length > 0, 'random NPC template array should be parseable')
+
+const templateIds = [...templateArray.matchAll(/^  \{\n    id: '([^']+)',/gm)].map(match => match[1])
 assert(templateIds.length >= 8, `random NPC template count should be at least 8, got ${templateIds.length}`)
 
 for (const hook of ['寻亲', '避祸', '学艺', '经商', '报恩', '逃婚', '科考', '游历']) {
   assertIncludes(randomNpcs, `plotHook: '${hook}'`, `missing random NPC plot hook: ${hook}`)
+}
+
+for (const kind of ['first_meeting', 'daily', 'gift', 'request', 'misunderstanding', 'festival', 'rain', 'night', 'farewell', 'reunion']) {
+  assertIncludes(randomNpcs, `kind: '${kind}'`, `missing random NPC dialogue scene kind: ${kind}`)
+}
+
+for (const kind of ['parent', 'sibling', 'mentor', 'distant_relative', 'caravan', 'old_debt', 'family_business', 'sworn_kin', 'old_flame', 'child']) {
+  assertIncludes(randomNpcs, `kind: '${kind}'`, `missing random NPC family tie kind: ${kind}`)
+}
+
+for (const id of templateIds) {
+  const block = getTemplateBlock(id)
+  const dialogueSceneCount = (block.match(/kind: '(first_meeting|daily|gift|request|misunderstanding|festival|rain|night|farewell|reunion)'/g) ?? []).length
+  const dialogueChoiceCount = (block.match(/relationshipDirection: '/g) ?? []).length
+  const familyTieSection = block.match(/familyTies: \[([\s\S]*?)\n    \],\n    familyCommission:/)?.[1] ?? ''
+  const familyTieIds = [...familyTieSection.matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(match => match[1])
+  const commissionTieId = block.match(/familyCommission: \{[\s\S]*?\n      tieId: '([^']+)'/)?.[1]
+
+  assert(dialogueSceneCount >= 3, `${id} should keep at least 3 dialogue scenes, got ${dialogueSceneCount}`)
+  assert(dialogueChoiceCount >= 3, `${id} should keep 3 relationship-direction choices, got ${dialogueChoiceCount}`)
+  assert(familyTieIds.length >= 3, `${id} should keep at least 3 family ties, got ${familyTieIds.length}`)
+  assert(familyTieIds.length <= 4, `${id} should respect the 4 family tie save limit, got ${familyTieIds.length}`)
+  assert(!!commissionTieId && familyTieIds.includes(commissionTieId), `${id} family commission should target a local family tie`)
 }
 
 for (const [id, checks] of Object.entries({
@@ -88,7 +119,14 @@ for (const fragment of [
   '来村目的',
   '恋爱观',
   '发展路线',
-  '对话场景'
+  '对话场景',
+  'getRecentRandomNpcDialogueMemories(visitor.dialogueMemories)',
+  'getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories)',
+  'getRecentRandomNpcDialogueMemories(resident.dialogueMemories)',
+  '见家人与家族评价',
+  '核心家族深线',
+  'getRecentRandomNpcFamilyReviews(resident)',
+  'getRecentRandomNpcFamilySpecialEvents(resident)'
 ]) {
   assertIncludes(npcView, fragment, `NPC page should expose random NPC content entry: ${fragment}`)
 }
@@ -96,9 +134,31 @@ for (const fragment of [
 for (const fragment of [
   'plotHook: template.plotHook',
   'familyTies: sanitizeRandomNpcFamilyTies(template.familyTies)',
-  'RANDOM_NPC_TEMPLATES.length'
+  'RANDOM_NPC_TEMPLATES.length',
+  'const RANDOM_NPC_DIALOGUE_MEMORY_LIMIT = 6',
+  'const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8',
+  'const RANDOM_NPC_FAMILY_TIE_LIMIT = 4',
+  'const RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT = 4',
+  'sanitizeRandomNpcDialogueScenes',
+  'sanitizeRandomNpcFamilyTies',
+  '.slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)',
+  '.slice(-RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT)',
+  'sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT)'
 ]) {
   assertIncludes(useNpcStore, fragment, `NPC store should continue reading template content: ${fragment}`)
+}
+
+for (const fragment of [
+  'longStaySnapshot',
+  '见家人进度',
+  '核心深线进度',
+  '旧档见家人',
+  '旧档核心深线',
+  '旧档随机 NPC 家族',
+  '该节点只保存在单机随机 NPC 存档，不写入联机公开关系图。',
+  'formatRandomNpcFamilySpecialProgress'
+]) {
+  assertIncludes(familyRelationGraph, fragment, `family graph should expose random NPC family recall entry: ${fragment}`)
 }
 
 if (errors.length > 0) {
