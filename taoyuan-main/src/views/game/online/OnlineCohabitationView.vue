@@ -1034,6 +1034,9 @@
                 <p v-if="warehouseCompensationAuditTimelineRows.length === 0" class="border border-accent/10 px-2 py-1">暂无审计时间线。</p>
                 <p v-for="row in warehouseCompensationAuditTimelineRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
+              <div v-if="warehouseCompensationRollbackAuditRows.length" class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-rollback-evidence">
+                <p v-for="row in warehouseCompensationRollbackAuditRows" :key="row.label" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
+              </div>
               <div class="mt-2 flex flex-wrap gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-appeal-actions">
                 <span v-if="warehouseCompensationAuditAppealActionRows.length === 0" class="border border-accent/10 px-2 py-1">无后续动作</span>
                 <span v-for="row in warehouseCompensationAuditAppealActionRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}</span>
@@ -3263,6 +3266,7 @@
       { label: '预检审计', value: bundle.preflight_audits.length },
       { label: '执行审计', value: bundle.execution_audits.length },
       { label: '回执复核', value: bundle.operator_receipt_audit_reviews?.length ?? 0 },
+      { label: '回滚审计', value: bundle.rollback_audits?.length ?? 0 },
     ]
   })
   const warehouseCompensationAuditAssetRows = computed(() => {
@@ -3373,6 +3377,30 @@
       label: warehouseCompensationAuditActionLabel(entry.action),
       value: `${entry.actor_display_name || entry.actor_username || '未知'} / ${formatTime(entry.at)} / ${entry.idempotency_key || '无幂等键'}`,
     })).slice(0, 8)
+  })
+  const warehouseCompensationRollbackAuditRows = computed(() => {
+    const audit = warehouseCompensationAuditBundle.value?.rollback_audits?.[0]
+    const detail = audit?.detail && typeof audit.detail === 'object' ? audit.detail as Record<string, unknown> : {}
+    const draft = warehouseCompensationAuditDraft.value
+    const state = String(draft['state'] || '')
+    if (state !== 'rolled_back' && !audit) return []
+    const frozenAt = Number(draft['frozen_at'] || 0)
+    const rolledBackAt = Number(draft['rolled_back_at'] || audit?.at || 0)
+    const releaseLabel = draft['freeze_release_available'] === true ? '仍可释放' : '已释放 / 不可继续释放'
+    const sharedWarehouseChanged = detail['shared_warehouse_changed'] === true ? '已变更' : '不变'
+    const personalSaveChanged = detail['personal_save_changed'] === true ? '已变更' : '不变'
+    const rows = [
+      { label: '冻结数量', value: auditValueLabel(draft['frozen_quantity'], '0') },
+      { label: '冻结时间', value: frozenAt > 0 ? formatTime(frozenAt) : '未记录' },
+      { label: '释放状态', value: releaseLabel },
+      { label: '回滚幂等键', value: auditValueLabel(draft['rollback_idempotency_key'] || audit?.idempotency_key, '无幂等键') },
+      { label: '回滚原因', value: auditValueLabel(draft['rollback_reason'] || detail['reason'], '未记录') },
+      { label: '回滚人', value: auditValueLabel(draft['rolled_back_by_username'] || audit?.actor_display_name || audit?.actor_username, '未知') },
+      { label: '回滚时间', value: rolledBackAt > 0 ? formatTime(rolledBackAt) : '未记录' },
+      { label: '释放冻结', value: auditValueLabel(detail['released_frozen_quantity'], '0') },
+      { label: '资产边界', value: `共同仓库${sharedWarehouseChanged} / 个人存档${personalSaveChanged}` },
+    ]
+    return rows.filter(row => row.value !== '')
   })
   const warehouseCompensationAuditAppealActionRows = computed(() => (warehouseCompensationAuditBundle.value?.appeal_packet.next_supported_actions ?? [])
     .map(action => ({ id: action, label: warehouseCompensationAuditAppealActionLabel(action) })))

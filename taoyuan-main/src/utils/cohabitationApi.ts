@@ -591,10 +591,12 @@ export interface CohabitationWarehouseHighValueWithdrawalDraft {
   }
   frozen_quantity: number
   frozen_at: number
+  freeze_release_available?: boolean
   freeze_policy: string
   compensation_hint: string
   rollback_plan: string
   warehouse_ledger_ids: string[]
+  rollback_idempotency_key?: string
   source_ledger_ids?: string[]
   target_owner_username?: string
   target_save_id?: number
@@ -637,6 +639,8 @@ export interface CohabitationWarehouseHighValueWithdrawalDraft {
   created_at: number
   executed_at: number
   rolled_back_at: number
+  rolled_back_by_username?: string
+  rollback_reason?: string
 }
 
 
@@ -659,6 +663,7 @@ export interface CohabitationWarehouseCompensationAuditBundle {
   execution_audits: CohabitationAuditEntry[]
   appeal_resolution_audits?: CohabitationAuditEntry[]
   operator_receipt_audit_reviews?: CohabitationAuditEntry[]
+  rollback_audits?: CohabitationAuditEntry[]
   appeal_packet: {
     enabled: boolean
     record_only: boolean
