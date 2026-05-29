@@ -797,11 +797,20 @@
                 >
                   寄旧信
                 </Button>
+                <Button
+                  class="justify-center !px-2 !py-1"
+                  :icon="Package"
+                  :disabled="!canRecallRandomNpcArchiveByOldKeepsake(summary)"
+                  :data-testid="`random-npc-archive-old-keepsake-${summary.visitorId}`"
+                  @click="handleRecallRandomNpcArchiveByOldKeepsake(summary.visitorId)"
+                >
+                  托旧物
+                </Button>
               </div>
             </div>
             <p class="text-muted leading-4">{{ summary.summary }}</p>
             <p class="text-[10px] text-muted leading-4 mt-0.5">
-              旧信召回消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}，仍受本周短访 / 长住名额上限约束。
+              旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}，仍受本周短访 / 长住名额上限约束。
             </p>
           </div>
         </div>
@@ -1763,6 +1772,10 @@
   const randomNpcOldLetterCostQuantity = 1
   const randomNpcOldLetterItemName = computed(() => getItemById(randomNpcOldLetterItemId)?.name ?? '纸张')
   const randomNpcOldLetterCount = computed(() => inventoryStore.getTotalItemCount(randomNpcOldLetterItemId))
+  const randomNpcOldKeepsakeItemId = 'silk_ribbon'
+  const randomNpcOldKeepsakeCostQuantity = 1
+  const randomNpcOldKeepsakeItemName = computed(() => getItemById(randomNpcOldKeepsakeItemId)?.name ?? '丝帕')
+  const randomNpcOldKeepsakeCount = computed(() => inventoryStore.getTotalItemCount(randomNpcOldKeepsakeItemId))
   const randomNpcLockedArchiveCount = computed(() => {
     const lockedIds = new Set<string>()
     randomNpcBoard.value.activeVisitors.forEach(visitor => {
@@ -2234,6 +2247,8 @@
   }
   const canRecallRandomNpcArchiveByOldLetter = (summary: RandomNpcArchiveSummary): boolean =>
     canRecallRandomNpcArchive(summary) && randomNpcOldLetterCount.value >= randomNpcOldLetterCostQuantity
+  const canRecallRandomNpcArchiveByOldKeepsake = (summary: RandomNpcArchiveSummary): boolean =>
+    canRecallRandomNpcArchive(summary) && randomNpcOldKeepsakeCount.value >= randomNpcOldKeepsakeCostQuantity
   const getRandomNpcSmallOrderItemCount = (itemId: string): number => inventoryStore.getTotalItemCount(itemId)
   const canFulfillRandomNpcSmallOrder = (order: { requestedItems: Array<{ itemId: string; quantity: number }> }): boolean =>
     order.requestedItems.every(item => getRandomNpcSmallOrderItemCount(item.itemId) >= item.quantity)
@@ -2323,6 +2338,12 @@
     const result = npcStore.recallRandomNpcArchiveByOldLetter(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【随机NPC旧信】${result.message}`)
+  }
+
+  const handleRecallRandomNpcArchiveByOldKeepsake = (visitorId: string) => {
+    const result = npcStore.recallRandomNpcArchiveByOldKeepsake(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC旧物】${result.message}`)
   }
 
   if (import.meta.env.DEV) {

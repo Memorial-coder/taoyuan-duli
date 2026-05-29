@@ -202,6 +202,9 @@ assertBlockIncludes(useNpcStore, 'const recallRandomNpcArchive', 'randomNpcBoard
 assertIncludes(useNpcStore, "const RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID = 'paper'", '旧信召回必须消耗纸张而不是新建无限信件存档')
 assertBlockIncludes(useNpcStore, 'const consumeRandomNpcArchiveRecallCost', 'inventoryStore.removeItemAnywhere(RANDOM_NPC_OLD_LETTER_RECALL_ITEM_ID, RANDOM_NPC_OLD_LETTER_RECALL_ITEM_QUANTITY)', '旧信召回必须扣除背包纸张')
 assertIncludes(useNpcStore, "recallRandomNpcArchive(visitorId, 'old_letter')", '旧信召回必须走同一套旧档召回容量与去重逻辑')
+assertIncludes(useNpcStore, "const RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_ID = 'silk_ribbon'", '旧物召回必须消耗已有丝帕物品而不是新建无限信物存档')
+assertBlockIncludes(useNpcStore, 'const consumeRandomNpcArchiveRecallCost', 'inventoryStore.removeItemAnywhere(RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_ID, RANDOM_NPC_OLD_KEEPSAKE_RECALL_ITEM_QUANTITY)', '旧物召回必须扣除背包丝帕')
+assertIncludes(useNpcStore, "recallRandomNpcArchive(visitorId, 'old_keepsake')", '旧物召回必须走同一套旧档召回容量与去重逻辑')
 
 assertIncludes(npcView, '熟人 {{ randomNpcBoard.acquaintances.length }}/{{ randomNpcMaxAcquaintances }} · 旧档 {{ randomNpcBoard.recentSummaries.length }}/{{ randomNpcMaxRecentSummaries }} · 锁定 {{ randomNpcLockedArchiveCount }}/{{ randomNpcMaxLockedArchives }}', 'NPC 页必须展示熟人 / 旧档 / 锁定上限')
 assertIncludes(npcView, '长住 {{ randomNpcBoard.longStayResidents.length }}/{{ randomNpcMaxLongStayResidents }}', 'NPC 页必须展示长住名额上限')
@@ -209,9 +212,12 @@ assertIncludes(npcView, '最多 {{ randomNpcMaxRecentSummaries }} 条，锁定 {
 assertBlockIncludes(npcView, 'const canRecallRandomNpcArchive', 'randomNpcBoard.value.longStayResidents.length < RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents', 'NPC 页长住旧档召回按钮必须读取长住名额上限')
 assertBlockIncludes(npcView, 'const canRecallRandomNpcArchive', 'randomNpcBoard.value.activeVisitors.length < RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors', 'NPC 页短访旧档召回按钮必须读取活跃短访上限')
 assertIncludes(npcView, 'random-npc-archive-old-letter', 'NPC 页旧档摘要必须提供旧信召回入口')
-assertIncludes(npcView, '旧信召回消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}', 'NPC 页必须展示旧信召回消耗')
+assertIncludes(npcView, 'random-npc-archive-old-keepsake', 'NPC 页旧档摘要必须提供旧物召回入口')
+assertIncludes(npcView, '旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}', 'NPC 页必须展示旧信和旧物召回消耗')
 assertIncludes(itemEncyclopedia, '随机 NPC 旧信召回：NPC 页旧日来客摘要可消耗纸张寄旧信', '百科必须能读回纸张的随机 NPC 旧信召回用途')
 assertIncludes(itemEncyclopedia, "'旧信召回'", '百科搜索必须能搜到旧信召回')
+assertIncludes(itemEncyclopedia, '随机 NPC 旧物召回：NPC 页旧日来客摘要可消耗丝帕托付旧物', '百科必须能读回丝帕的随机 NPC 旧物召回用途')
+assertIncludes(itemEncyclopedia, "'旧物召回'", '百科搜索必须能搜到旧物召回')
 
 assertIncludes(familyRelationGraph, 'randomNpcBoard.value.recentSummaries.filter', '家族关系图必须能展示旧日随机 NPC 摘要')
 assertIncludes(familyRelationGraph, 'const snapshot = entry.longStaySnapshot', '家族关系图必须读取旧日长住轻量快照')

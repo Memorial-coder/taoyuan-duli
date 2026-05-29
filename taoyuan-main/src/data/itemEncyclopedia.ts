@@ -236,6 +236,10 @@ const NPC_RECALL_USES: Record<string, string[]> = {
   paper: [
     '随机 NPC 旧信召回：NPC 页旧日来客摘要可消耗纸张寄旧信，召回归档 NPC',
     '文游关系：旧信召回仍受短访 / 长住名额上限约束，并只写入单机随机 NPC 存档'
+  ],
+  silk_ribbon: [
+    '随机 NPC 旧物召回：NPC 页旧日来客摘要可消耗丝帕托付旧物，召回归档 NPC',
+    '文游关系：旧物召回仍复用旧档容量、重复对象和长住名额校验，不新增无限信物日志'
   ]
 }
 
@@ -707,7 +711,7 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
   }
   const npcRecallKeywords = NPC_RECALL_USES[item.id] ?? []
   if (npcRecallKeywords.length > 0) {
-    keywords.push('随机 NPC', '旧信召回', '旧日来客', '归档召回', '文游关系', ...npcRecallKeywords)
+    keywords.push('随机 NPC', '旧信召回', '旧物召回', '旧日来客', '归档召回', '文游关系', ...npcRecallKeywords)
   }
 
   return uniqueStrings(keywords)
