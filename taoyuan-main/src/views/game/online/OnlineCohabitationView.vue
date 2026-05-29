@@ -1142,6 +1142,15 @@
                 操作回执审计复核已记录：{{ warehouseOperatorReceiptAuditActionLabel(String(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_recorded_at'] || 0)) }} · record-only
               </p>
               <div
+                v-if="warehouseOperatorReceiptAuditEvidenceRows.length"
+                class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2"
+                data-testid="online-cohabitation-warehouse-operator-receipt-audit-evidence"
+              >
+                <p v-for="row in warehouseOperatorReceiptAuditEvidenceRows" :key="row.label" class="border border-accent/10 px-2 py-1">
+                  {{ row.label }}：{{ row.value }}
+                </p>
+              </div>
+              <div
                 v-if="warehouseOperatorReceiptAuditVisible"
                 class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2"
                 data-testid="online-cohabitation-warehouse-operator-receipt-audit-form"
@@ -3367,6 +3376,28 @@
   })
   const warehouseCompensationAuditAppealActionRows = computed(() => (warehouseCompensationAuditBundle.value?.appeal_packet.next_supported_actions ?? [])
     .map(action => ({ id: action, label: warehouseCompensationAuditAppealActionLabel(action) })))
+  const warehouseOperatorReceiptAuditEvidenceRows = computed(() => {
+    const audit = warehouseCompensationAuditBundle.value?.operator_receipt_audit_reviews?.[0]
+    const detail = audit?.detail && typeof audit.detail === 'object' ? audit.detail as Record<string, unknown> : {}
+    const draft = warehouseCompensationAuditDraft.value
+    const status = String(draft['compensation_operator_receipt_audit_status'] || '')
+    if (status !== 'recorded' && !audit) return []
+    const recordedAt = Number(draft['compensation_operator_receipt_audit_recorded_at'] || audit?.at || 0)
+    const action = String(draft['compensation_operator_receipt_audit_action'] || detail['audit_action'] || '')
+    const rows = [
+      { label: '复核结论', value: warehouseOperatorReceiptAuditActionLabel(action || 'audit_only') },
+      { label: '复核回执', value: auditValueLabel(draft['compensation_operator_receipt_audit_receipt'] || detail['audit_receipt'], '未记录') },
+      { label: '复核说明', value: auditValueLabel(draft['compensation_operator_receipt_audit_note'] || detail['audit_note'], '未记录') },
+      { label: '执行审计', value: auditValueLabel(draft['compensation_operator_receipt_audit_execution_audit_id'] || detail['execution_audit_id'], '未引用') },
+      { label: '执行幂等键', value: auditValueLabel(draft['compensation_operator_receipt_audit_execution_idempotency_key'] || detail['execution_idempotency_key'], '未引用') },
+      { label: '申诉审计', value: auditValueLabel(draft['compensation_operator_receipt_audit_appeal_resolution_audit_id'] || detail['appeal_resolution_audit_id'], '未绑定') },
+      { label: '申诉幂等键', value: auditValueLabel(draft['compensation_operator_receipt_audit_appeal_resolution_idempotency_key'] || detail['appeal_resolution_idempotency_key'], '未绑定') },
+      { label: '记录人', value: auditValueLabel(draft['compensation_operator_receipt_audit_recorded_by_username'] || audit?.actor_display_name || audit?.actor_username, '未知') },
+      { label: '记录时间', value: recordedAt > 0 ? formatTime(recordedAt) : '未记录' },
+      { label: '资产边界', value: 'record-only / 不改个人背包 / 不还共同仓库' },
+    ]
+    return rows.filter(row => row.value !== '')
+  })
   const warehouseCompensationAuditDraft = computed(() => {
     const raw = warehouseCompensationAuditBundle.value?.draft
     return raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
