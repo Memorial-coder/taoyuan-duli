@@ -992,6 +992,13 @@
                 >
                   补偿回执已记录：{{ draft.compensation_execution_action || 'manual' }} · {{ formatTime(draft.compensation_execution_recorded_at || 0) }}
                 </p>
+                <p
+                  v-if="draft.compensation_appeal_resolution_status === 'recorded'"
+                  class="mt-1 text-[10px] text-emerald-200"
+                  :data-testid="`online-cohabitation-warehouse-manual-appeal-resolution-recorded-${draft.id}`"
+                >
+                  申诉恢复已记录：{{ warehouseManualAppealResolutionActionLabel(draft.compensation_appeal_resolution_action || 'audit_only') }} · {{ formatTime(draft.compensation_appeal_resolution_recorded_at || 0) }}
+                </p>
               </div>
             </div>
           </div>
@@ -1068,6 +1075,63 @@
                 >
                   <ShieldCheck :size="12" />
                   记录补偿回执
+                </button>
+              </div>
+              <p
+                v-if="warehouseManualAppealResolutionAlreadyRecorded"
+                class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] leading-4 text-emerald-100"
+                data-testid="online-cohabitation-warehouse-manual-appeal-resolution-recorded"
+              >
+                人工申诉恢复已记录：{{ warehouseManualAppealResolutionActionLabel(String(warehouseCompensationAuditDraft['compensation_appeal_resolution_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_appeal_resolution_recorded_at'] || 0)) }} · record-only
+              </p>
+              <div
+                v-if="warehouseManualAppealResolutionVisible"
+                class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2"
+                data-testid="online-cohabitation-warehouse-manual-appeal-resolution-form"
+              >
+                <p class="text-[10px] leading-4 text-muted">人工申诉恢复只登记处理结论与执行审计引用，不自动还仓、不改个人背包。</p>
+                <select
+                  v-model="warehouseManualAppealResolutionAction"
+                  class="online-select text-xs"
+                  data-testid="online-cohabitation-warehouse-manual-appeal-resolution-action"
+                >
+                  <option value="manual_appeal_compensated">人工补偿已处理</option>
+                  <option value="manual_appeal_restored">人工恢复已处理</option>
+                  <option value="manual_appeal_denied">申诉驳回</option>
+                  <option value="audit_only">仅审计归档</option>
+                </select>
+                <input
+                  v-model.trim="warehouseManualAppealResolutionReceipt"
+                  class="online-input text-xs"
+                  maxlength="80"
+                  placeholder="人工申诉恢复回执"
+                  data-testid="online-cohabitation-warehouse-manual-appeal-resolution-receipt"
+                />
+                <input
+                  v-model.trim="warehouseManualAppealResolutionNote"
+                  class="online-input text-xs"
+                  maxlength="120"
+                  placeholder="处理说明"
+                  data-testid="online-cohabitation-warehouse-manual-appeal-resolution-note"
+                />
+                <label class="flex items-center gap-2 text-[10px] text-muted">
+                  <input
+                    v-model="warehouseManualAppealResolutionConfirmed"
+                    class="online-input size-3 accent-[var(--ty-accent)]"
+                    type="checkbox"
+                    data-testid="online-cohabitation-warehouse-manual-appeal-resolution-confirm"
+                  />
+                  确认只登记人工申诉恢复结论，保持个人存档与共同仓库不变
+                </label>
+                <button
+                  type="button"
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  :disabled="!canRecordHighValueWarehouseManualAppealResolution || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-warehouse-manual-appeal-resolution-submit"
+                  @click="recordHighValueWarehouseManualAppealResolution"
+                >
+                  <ShieldCheck :size="12" />
+                  记录申诉恢复
                 </button>
               </div>
             </div>
@@ -2676,6 +2740,10 @@
   const warehouseCompensationExecutionReceipt = ref('')
   const warehouseCompensationExecutionNote = ref('')
   const warehouseCompensationExecutionConfirmed = ref(false)
+  const warehouseManualAppealResolutionAction = ref('manual_appeal_compensated')
+  const warehouseManualAppealResolutionReceipt = ref('')
+  const warehouseManualAppealResolutionNote = ref('')
+  const warehouseManualAppealResolutionConfirmed = ref(false)
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
   const activeSharedMapRegionIndex = ref(0)
@@ -3154,7 +3222,17 @@
       warehouse_high_value_withdrawal_compensation_review_resolved: '补偿复核处理',
       warehouse_high_value_withdrawal_compensation_preflight_recorded: '补偿预检记录',
       warehouse_high_value_withdrawal_compensation_execution_recorded: '人工补偿回执',
+      warehouse_high_value_withdrawal_manual_appeal_resolution_recorded: '人工申诉恢复',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
+    }
+    return labels[action] || action
+  }
+  const warehouseManualAppealResolutionActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      manual_appeal_restored: '人工恢复已处理',
+      manual_appeal_compensated: '人工补偿已处理',
+      manual_appeal_denied: '申诉驳回',
+      audit_only: '仅审计归档',
     }
     return labels[action] || action
   }
@@ -3236,6 +3314,19 @@
   const warehouseCompensationExecutionAlreadyRecorded = computed(() =>
     String(warehouseCompensationAuditDraft.value['compensation_execution_status'] || '') === 'recorded'
   )
+  const warehouseManualAppealResolutionAlreadyRecorded = computed(() =>
+    String(warehouseCompensationAuditDraft.value['compensation_appeal_resolution_status'] || '') === 'recorded'
+  )
+  const warehouseCompensationExecutionAudit = computed(() => {
+    const audits = warehouseCompensationAuditBundle.value?.execution_audits ?? []
+    return audits[0] ?? null
+  })
+  const warehouseManualAppealResolutionVisible = computed(() => {
+    const nextActions = warehouseCompensationAuditBundle.value?.appeal_packet.next_supported_actions ?? []
+    return warehouseCompensationExecutionAlreadyRecorded.value === true &&
+      warehouseManualAppealResolutionAlreadyRecorded.value === false &&
+      nextActions.includes('manual_appeal_resolution')
+  })
   const canRecordHighValueWarehouseCompensationExecution = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
     Boolean(warehouseCompensationAuditBundle.value?.draft_id) &&
@@ -3245,6 +3336,15 @@
     warehouseCompensationExecutionAlreadyRecorded.value === false &&
     warehouseCompensationExecutionConfirmed.value === true &&
     warehouseCompensationExecutionReceipt.value.trim().length >= 4
+  )
+  const canRecordHighValueWarehouseManualAppealResolution = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    Boolean(warehouseCompensationAuditBundle.value?.draft_id) &&
+    warehouseManualAppealResolutionVisible.value === true &&
+    Boolean(warehouseCompensationExecutionAudit.value?.idempotency_key || warehouseCompensationExecutionAudit.value?.id) &&
+    warehouseManualAppealResolutionConfirmed.value === true &&
+    warehouseManualAppealResolutionReceipt.value.trim().length >= 4 &&
+    warehouseManualAppealResolutionNote.value.trim().length >= 4
   )
   const warehouseGovernance = computed(() => cohabitationStore.warehouse?.governance ?? null)
   const warehouseGovernanceBlocking = computed(() => warehouseGovernance.value?.blocking ?? null)
@@ -4760,6 +4860,10 @@
     warehouseCompensationExecutionReceipt.value = draft.compensation_execution_receipt || ''
     warehouseCompensationExecutionNote.value = draft.compensation_execution_note || ''
     warehouseCompensationExecutionConfirmed.value = false
+    warehouseManualAppealResolutionAction.value = draft.compensation_appeal_resolution_action || 'manual_appeal_compensated'
+    warehouseManualAppealResolutionReceipt.value = draft.compensation_appeal_resolution_receipt || ''
+    warehouseManualAppealResolutionNote.value = draft.compensation_appeal_resolution_note || ''
+    warehouseManualAppealResolutionConfirmed.value = false
     try {
       const result = await cohabitationStore.fetchWarehouseHighValueWithdrawalCompensationAuditBundle(draft.id)
       const bundle = result?.compensation_audit_bundle
@@ -4804,6 +4908,41 @@
       warehouseActionMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值补偿回执失败'
     } finally {
       warehouseCompensationExecutionConfirmed.value = false
+    }
+  }
+
+  const recordHighValueWarehouseManualAppealResolution = async () => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    const bundle = warehouseCompensationAuditBundle.value
+    const executionAudit = warehouseCompensationExecutionAudit.value
+    if (!bundle?.draft_id || !executionAudit) {
+      warehouseActionMessage.value = '请先读取包含执行回执审计的补偿审计证据包'
+      return
+    }
+    if (!canRecordHighValueWarehouseManualAppealResolution.value) {
+      warehouseActionMessage.value = '请确认补偿回执已记录、申诉恢复仍可处理，并填写回执与处理说明'
+      return
+    }
+    try {
+      const result = await cohabitationStore.recordWarehouseHighValueWithdrawalManualAppealResolution(bundle.draft_id, {
+        resolution_action: warehouseManualAppealResolutionAction.value,
+        resolution_receipt: warehouseManualAppealResolutionReceipt.value.trim(),
+        resolution_note: warehouseManualAppealResolutionNote.value.trim(),
+        confirmation_text: 'CONFIRM_MANUAL_APPEAL_RESOLUTION_RECORDED',
+        execution_idempotency_key: executionAudit.idempotency_key || undefined,
+        execution_audit_id: executionAudit.id || undefined,
+        idempotency_key: `ui-warehouse-manual-appeal-resolution-${bundle.draft_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseActionMessage.value = result?.manual_appeal_resolution?.record_only
+        ? '已记录人工申诉恢复结论，个人存档与共同仓库保持不变'
+        : '已提交人工申诉恢复记录'
+      await cohabitationStore.fetchWarehouseHighValueWithdrawalCompensationAuditBundle(bundle.draft_id)
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值人工申诉恢复失败'
+    } finally {
+      warehouseManualAppealResolutionConfirmed.value = false
     }
   }
 

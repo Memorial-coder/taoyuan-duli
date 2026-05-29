@@ -612,6 +612,16 @@ export interface CohabitationWarehouseHighValueWithdrawalDraft {
   compensation_execution_recorded_by_username?: string
   compensation_execution_recorded_at?: number
   compensation_execution_record_only?: boolean
+  compensation_appeal_resolution_status?: string
+  compensation_appeal_resolution_action?: string
+  compensation_appeal_resolution_receipt?: string
+  compensation_appeal_resolution_note?: string
+  compensation_appeal_resolution_execution_idempotency_key?: string
+  compensation_appeal_resolution_execution_audit_id?: string
+  compensation_appeal_resolution_idempotency_key?: string
+  compensation_appeal_resolution_recorded_by_username?: string
+  compensation_appeal_resolution_recorded_at?: number
+  compensation_appeal_resolution_record_only?: boolean
   created_at: number
   executed_at: number
   rolled_back_at: number
@@ -635,6 +645,7 @@ export interface CohabitationWarehouseCompensationAuditBundle {
   review_audits: CohabitationAuditEntry[]
   preflight_audits: CohabitationAuditEntry[]
   execution_audits: CohabitationAuditEntry[]
+  appeal_resolution_audits?: CohabitationAuditEntry[]
   appeal_packet: {
     enabled: boolean
     record_only: boolean
@@ -698,6 +709,34 @@ export interface CohabitationWarehouseCompensationExecution {
   record_only: boolean
   personal_save_changed: boolean
   shared_warehouse_changed: boolean
+  recorded_by_username: string
+  recorded_at: number
+  policy?: Record<string, unknown>
+}
+
+export interface CohabitationWarehouseManualAppealResolution {
+  draft_id: string
+  item_id: string
+  quality: string
+  quantity: number
+  risk_level: string
+  resolution_action: string
+  resolution_receipt: string
+  resolution_note?: string
+  compensation_execution_status: string
+  compensation_execution_action: string
+  execution_audit_id: string
+  execution_idempotency_key: string
+  execution_failed_checks: string[]
+  target_save: Record<string, unknown>
+  required_checks: Array<Record<string, unknown>>
+  failed_checks: string[]
+  auto_compensation_enabled: boolean
+  record_only: boolean
+  personal_save_changed: boolean
+  shared_warehouse_changed: boolean
+  personal_inventory_mutation_enabled: boolean
+  shared_warehouse_restore_enabled: boolean
   recorded_by_username: string
   recorded_at: number
   policy?: Record<string, unknown>
@@ -1948,6 +1987,16 @@ export interface CohabitationWarehouseCompensationExecutionPayload {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseManualAppealResolutionPayload {
+  resolution_action: 'manual_appeal_restored' | 'manual_appeal_compensated' | 'manual_appeal_denied' | 'audit_only' | string
+  resolution_receipt: string
+  resolution_note: string
+  confirmation_text: string
+  execution_idempotency_key?: string
+  execution_audit_id?: string
+  idempotency_key: string
+}
+
 export interface CohabitationWarehouseGovernanceRecoveryPayload {
   target_username?: string
   direction: 'inbound' | 'outbound' | 'all'
@@ -2123,6 +2172,13 @@ export interface CohabitationWarehouseCompensationExecutionResponse extends Coha
   warehouse?: CohabitationWarehouseSnapshot
   draft?: CohabitationWarehouseHighValueWithdrawalDraft
   compensation_execution?: CohabitationWarehouseCompensationExecution
+  idempotent?: boolean
+}
+
+export interface CohabitationWarehouseManualAppealResolutionResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  draft?: CohabitationWarehouseHighValueWithdrawalDraft
+  manual_appeal_resolution?: CohabitationWarehouseManualAppealResolution
   idempotent?: boolean
 }
 
@@ -2899,6 +2955,14 @@ export const recordCohabitationWarehouseHighValueWithdrawalCompensationExecution
     contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/execute`),
     payload as unknown as Record<string, unknown>,
     '记录共同仓库高价值取出补偿回执失败'
+  )
+}
+
+export const recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution = async (contractId: string, draftId: string, payload: CohabitationWarehouseManualAppealResolutionPayload) => {
+  return postCohabitationJson<CohabitationWarehouseManualAppealResolutionResponse>(
+    contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/compensation-review/appeal-resolution`),
+    payload as unknown as Record<string, unknown>,
+    '记录共同仓库高价值取出人工申诉恢复失败'
   )
 }
 

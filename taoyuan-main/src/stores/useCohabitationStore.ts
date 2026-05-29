@@ -50,6 +50,7 @@ import {
   recordCohabitationFundHighRiskReceipt,
   recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
   recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight,
+  recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution,
   recoverCohabitationWarehouseGovernance,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
@@ -118,6 +119,7 @@ import {
   type CohabitationWarehouseCompensationAuditBundle,
   type CohabitationWarehouseCompensationExecutionPayload,
   type CohabitationWarehouseCompensationPreflightPayload,
+  type CohabitationWarehouseManualAppealResolutionPayload,
   type CohabitationWarehouseGovernanceRecoveryPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
@@ -1507,6 +1509,23 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const recordWarehouseHighValueWithdrawalManualAppealResolution = async (draftId: string, payload: CohabitationWarehouseManualAppealResolutionPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(activeContractId.value, draftId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录共同仓库高价值取出人工申诉恢复失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const recoverWarehouseGovernance = async (payload: CohabitationWarehouseGovernanceRecoveryPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value) return null
     actionLoading.value = true
@@ -1838,6 +1857,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     fetchWarehouseHighValueWithdrawalCompensationAuditBundle,
     recordWarehouseHighValueWithdrawalCompensationPreflight,
     recordWarehouseHighValueWithdrawalCompensationExecution,
+    recordWarehouseHighValueWithdrawalManualAppealResolution,
     waterSharedFarmPlot,
     careSharedFarmPlot,
     plantSharedFarmPlot,
