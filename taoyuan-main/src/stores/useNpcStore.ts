@@ -1356,6 +1356,7 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const getRandomNpcRelationLineLabel = (kind: RandomNpcRelationLineKind): string => {
+    if (kind === 'family') return '家人线'
     if (kind === 'romance') return '恋爱线'
     if (kind === 'zhiji') return '知己线'
     if (kind === 'sworn') return '结拜线'
@@ -1365,6 +1366,7 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const getRandomNpcRelationLineRequirement = (kind: RandomNpcRelationLineStartKind) => {
+    if (kind === 'family') return { affinity: 75, signal: 'family_impression' as const, signalValue: 8 }
     if (kind === 'romance') return { affinity: 85, signal: 'ambiguity' as const, signalValue: 8 }
     if (kind === 'zhiji') return { affinity: 85, signal: 'trust' as const, signalValue: 10 }
     if (kind === 'sworn') return { affinity: 80, signal: 'family_impression' as const, signalValue: 6 }
@@ -1388,7 +1390,7 @@ export const useNpcStore = defineStore('npc', () => {
   const sanitizeRandomNpcRelationLineState = (raw: unknown): RandomNpcRelationLineState => {
     const source = raw && typeof raw === 'object' ? raw as Partial<RandomNpcRelationLineState> : {}
     const kind: RandomNpcRelationLineKind =
-      source.kind === 'romance' || source.kind === 'zhiji' || source.kind === 'sworn' || source.kind === 'rivalry' || source.kind === 'severed'
+      source.kind === 'family' || source.kind === 'romance' || source.kind === 'zhiji' || source.kind === 'sworn' || source.kind === 'rivalry' || source.kind === 'severed'
         ? source.kind
         : 'friend'
     const rawStage = Number(source.stage)
@@ -1413,7 +1415,7 @@ export const useNpcStore = defineStore('npc', () => {
         .filter((entry: unknown): entry is Partial<RandomNpcRelationLineState['history'][number]> => !!entry && typeof entry === 'object')
         .map((entry, index) => {
           const eventKind: RandomNpcRelationLineKind =
-            entry.kind === 'romance' || entry.kind === 'zhiji' || entry.kind === 'sworn' || entry.kind === 'rivalry' || entry.kind === 'severed'
+            entry.kind === 'family' || entry.kind === 'romance' || entry.kind === 'zhiji' || entry.kind === 'sworn' || entry.kind === 'rivalry' || entry.kind === 'severed'
               ? entry.kind
               : 'friend'
           return {
@@ -1473,6 +1475,7 @@ export const useNpcStore = defineStore('npc', () => {
   ): RandomNpcShortRomanceState['history'] => [...line.history, event].slice(-RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT)
 
   const getRandomNpcRelationLineNote = (kind: RandomNpcRelationLineStartKind, name: string): string => {
+    if (kind === 'family') return `${name}与你约为家人往来，后续按见家人、家族委托和核心深线记录。`
     if (kind === 'romance') return `${name}与你确认了恋爱方向，后续只推进这一条亲密线。`
     if (kind === 'zhiji') return `${name}与你约为知己，默认不再进入婚恋线。`
     if (kind === 'sworn') return `${name}与你结拜为义亲，后续按家族 / 义亲方向记录。`
@@ -2758,7 +2761,7 @@ export const useNpcStore = defineStore('npc', () => {
       return { success: false, message: `${tie.name}今天已经见过了，明天再继续。` }
     }
     if (resident.relationshipLine.kind === 'severed') return { success: false, message: '断缘后本版不再推进家族线。' }
-    if (resident.relationshipLine.stage <= 0) return { success: false, message: '需要先开启朋友、恋爱、知己、结拜或宿怨关系线。' }
+    if (resident.relationshipLine.stage <= 0) return { success: false, message: '需要先开启朋友、家人、恋爱、知己、结拜或宿怨关系线。' }
     return { success: true, message: '可以见家人。' }
   }
 
@@ -2863,7 +2866,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!template) return { success: false, message: '这位长住 NPC 的模板已经不可用。' }
     const line = sanitizeRandomNpcRelationLineState(resident.relationshipLine)
     if (line.kind === 'severed') return { success: false, message: '断缘后本版不再推进家族深线。' }
-    if (line.stage <= 0) return { success: false, message: '需要先开启朋友、恋爱、知己、结拜或宿怨关系线。' }
+    if (line.stage <= 0) return { success: false, message: '需要先开启朋友、家人、恋爱、知己、结拜或宿怨关系线。' }
     const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
     const meetingStage = familyLine.familyMeetingStages[tieId] ?? (familyLine.metTieIds.includes(tieId) ? 1 : 0)
     if (meetingStage <= 0) return { success: false, message: '需要先见过这个家族节点。' }
@@ -3113,6 +3116,15 @@ export const useNpcStore = defineStore('npc', () => {
       }
     }
 
+    if (kind === 'family') {
+      const familyLine = sanitizeRandomNpcFamilyLineState(
+        resident.familyLine,
+        resident.familyTies,
+        RANDOM_NPC_TEMPLATES.find(template => template.id === resident.templateId)?.familyCommission ?? RANDOM_NPC_TEMPLATES[0]!.familyCommission
+      )
+      if (familyLine.metTieIds.length <= 0) return { success: false, message: '家人线需要先至少见过一个家族节点。' }
+    }
+
     if (kind === 'romance' || kind === 'zhiji') {
       const fixedCompanion = npcStates.value.find(state => state.married || state.dating || state.zhiji)
       if (fixedCompanion) return { success: false, message: '已有固定 NPC 婚恋或知己关系，不能再开启随机 NPC 亲密线。' }
@@ -3154,7 +3166,7 @@ export const useNpcStore = defineStore('npc', () => {
         ? 'ambiguous'
         : kind === 'rivalry'
           ? 'rival'
-        : kind === 'friend' || kind === 'zhiji' || kind === 'sworn'
+        : kind === 'friend' || kind === 'family' || kind === 'zhiji' || kind === 'sworn'
           ? 'friend'
           : resident.relationshipTag
     const eventLine = `${dayTag} 开启${getRandomNpcRelationLineLabel(kind)}：${note}`

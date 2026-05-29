@@ -183,6 +183,7 @@
 
   const randomNpcRelationLineLabels = {
     friend: '只做朋友',
+    family: '家人线',
     romance: '恋爱线',
     zhiji: '知己',
     sworn: '结拜',

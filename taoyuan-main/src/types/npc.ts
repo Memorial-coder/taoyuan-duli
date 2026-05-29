@@ -253,7 +253,7 @@ export interface RandomNpcFamilyLineState {
   reviewHistory: RandomNpcFamilyReviewEntry[]
 }
 
-export type RandomNpcRelationLineKind = 'friend' | 'romance' | 'zhiji' | 'sworn' | 'rivalry' | 'severed'
+export type RandomNpcRelationLineKind = 'friend' | 'family' | 'romance' | 'zhiji' | 'sworn' | 'rivalry' | 'severed'
 export type RandomNpcRelationLineAction = 'start' | 'sever' | 'engage' | 'marry' | 'home'
 export type RandomNpcCommitmentStatus = 'none' | 'engaged' | 'married'
 

@@ -1984,13 +1984,14 @@
   } as const
   const RANDOM_NPC_RELATION_LINE_LABELS: Record<RandomNpcRelationLineKind, string> = {
     friend: '只做朋友',
+    family: '家人线',
     romance: '恋爱线',
     zhiji: '知己线',
     sworn: '结拜线',
     rivalry: '宿怨线',
     severed: '已断缘'
   }
-  const randomNpcRelationLineActions: Exclude<RandomNpcRelationLineKind, 'severed'>[] = ['friend', 'romance', 'zhiji', 'sworn', 'rivalry']
+  const randomNpcRelationLineActions: Exclude<RandomNpcRelationLineKind, 'severed'>[] = ['friend', 'family', 'romance', 'zhiji', 'sworn', 'rivalry']
   const RANDOM_NPC_LONG_STAY_ROUTE_LABELS: Record<RandomNpcLongStayRoute, string> = {
     friendship: '邻里常驻',
     business: '商学暂住',
@@ -2165,13 +2166,16 @@
   const getRandomNpcRelationLineHint = (resident: RandomNpcLongStayEntry): string => {
     if (resident.relationshipLine.kind === 'severed') return '断缘后本版不再重新开启关系线，只保留旧识记录。'
     if (resident.relationshipLine.stage > 0) return '当前关系线已锁定；如需更换方向，先断缘再重新选择。'
+    const family = canStartRandomNpcRelationLine(resident, 'family')
     const romance = canStartRandomNpcRelationLine(resident, 'romance')
     const zhiji = canStartRandomNpcRelationLine(resident, 'zhiji')
     const rivalry = canStartRandomNpcRelationLine(resident, 'rivalry')
+    if (family.success && rivalry.success && (romance.success || zhiji.success)) return '可选择家人、恋爱、知己或宿怨线；家人 / 宿怨不占用恋爱 / 知己名额，但仍需先断缘才能改线。'
+    if (family.success) return '可开启家人线：把见家人、家族委托和核心深线作为本地可回看的长期关系，不写入联机公开关系图。'
     if (rivalry.success && (romance.success || zhiji.success)) return '可选择恋爱、知己或宿怨线；恋爱 / 知己互斥，宿怨线只记录误会化解。'
     if (rivalry.success) return '可开启宿怨线：把误会或竞争记录为本地可回看的化解线，不占用恋爱 / 知己名额。'
     if (romance.success || zhiji.success) return '可选择恋爱或知己线；两者会与固定 NPC 婚恋 / 知己互斥。'
-    return rivalry.message || romance.message || zhiji.message || '需要更多好感与关系方向记录。'
+    return family.message || rivalry.message || romance.message || zhiji.message || '需要更多好感与关系方向记录。'
   }
   const getLastRandomNpcEvent = (visitor: RandomNpcVisitorState): string => visitor.keyEvents[visitor.keyEvents.length - 1] ?? visitor.dialogueOpening
   const getLastRandomNpcAcquaintanceEvent = (acquaintance: RandomNpcAcquaintanceEntry): string =>

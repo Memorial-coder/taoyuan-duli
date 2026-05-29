@@ -8,8 +8,9 @@ const projectRoot = path.resolve(__dirname, '..')
 
 const readProjectSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
 
-const [randomNpcs, npcView, useNpcStore, familyRelationGraph] = await Promise.all([
+const [randomNpcs, npcTypes, npcView, useNpcStore, familyRelationGraph] = await Promise.all([
   readProjectSource('src/data/randomNpcs.ts'),
+  readProjectSource('src/types/npc.ts'),
   readProjectSource('src/views/game/NpcView.vue'),
   readProjectSource('src/stores/useNpcStore.ts'),
   readProjectSource('src/components/game/FamilyRelationGraph.vue')
@@ -113,6 +114,14 @@ for (const [id, checks] of Object.entries({
 }
 
 for (const fragment of [
+  "export type RandomNpcRelationLineKind = 'friend' | 'family' | 'romance' | 'zhiji' | 'sworn' | 'rivalry' | 'severed'",
+  'kind: RandomNpcRelationLineKind',
+  'history: RandomNpcRelationLineEvent[]'
+]) {
+  assertIncludes(npcTypes, fragment, `NPC types should expose bounded random NPC family relation line: ${fragment}`)
+}
+
+for (const fragment of [
   'visitor.plotHook',
   'acquaintance.plotHook',
   'resident.plotHook',
@@ -126,7 +135,10 @@ for (const fragment of [
   '见家人与家族评价',
   '核心家族深线',
   'getRecentRandomNpcFamilyReviews(resident)',
-  'getRecentRandomNpcFamilySpecialEvents(resident)'
+  'getRecentRandomNpcFamilySpecialEvents(resident)',
+  "family: '家人线'",
+  "const randomNpcRelationLineActions: Exclude<RandomNpcRelationLineKind, 'severed'>[] = ['friend', 'family', 'romance', 'zhiji', 'sworn', 'rivalry']",
+  '可开启家人线：把见家人、家族委托和核心深线作为本地可回看的长期关系，不写入联机公开关系图。'
 ]) {
   assertIncludes(npcView, fragment, `NPC page should expose random NPC content entry: ${fragment}`)
 }
@@ -139,6 +151,14 @@ for (const fragment of [
   'const RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT = 8',
   'const RANDOM_NPC_FAMILY_TIE_LIMIT = 4',
   'const RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT = 4',
+  "if (kind === 'family') return '家人线'",
+  "if (kind === 'family') return { affinity: 75, signal: 'family_impression' as const, signalValue: 8 }",
+  "source.kind === 'family' || source.kind === 'romance'",
+  "entry.kind === 'family' || entry.kind === 'romance'",
+  "if (kind === 'family') return `${name}与你约为家人往来，后续按见家人、家族委托和核心深线记录。`",
+  "if (kind === 'family') {",
+  "if (familyLine.metTieIds.length <= 0) return { success: false, message: '家人线需要先至少见过一个家族节点。' }",
+  "kind === 'friend' || kind === 'family' || kind === 'zhiji' || kind === 'sworn'",
   'sanitizeRandomNpcDialogueScenes',
   'sanitizeRandomNpcFamilyTies',
   '.slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)',
@@ -150,6 +170,7 @@ for (const fragment of [
 
 for (const fragment of [
   'longStaySnapshot',
+  "family: '家人线'",
   '见家人进度',
   '核心深线进度',
   '旧档见家人',
