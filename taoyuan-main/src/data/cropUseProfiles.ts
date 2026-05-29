@@ -371,6 +371,46 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['雪梅羹', '雪莲蜜', '月华丹信物', '高阶药材', '冬日清供', '药师高价订单'],
     summary: '高价值寒性灵材，适合雪梅羹、雪莲蜜、月华丹信物、高阶药材、冬日清供、赠礼和药师高价订单。'
+  },
+  {
+    cropId: 'chives',
+    tags: ['food', 'medicine', 'festival', 'order'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'daily',
+    recommendedUses: ['韭菜炒蛋', '春日辛香小菜', '冬春温补菜', '早春节会备菜', '家常订单'],
+    summary: '冬春再生辛香作物，适合韭菜炒蛋、春日小菜、温补家常菜、节会备菜和日常订单。'
+  },
+  {
+    cropId: 'hanhai_cactus',
+    tags: ['food', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['苦', '鲜'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['仙人掌汤', '瀚海清暑药膳', '西域旅人赠礼', '沙漠集市订单', '夏日节会清供'],
+    summary: '瀚海高价值耐旱作物，适合仙人掌汤、清暑药膳、西域赠礼、沙漠集市订单和夏日节会清供。'
+  },
+  {
+    cropId: 'hanhai_date',
+    tags: ['food', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['枣糕', '瀚海旅粮', '西域甜点赠礼', '商队订单', '节会甜品', '公共仓干粮包'],
+    summary: '瀚海甜果作物，适合枣糕、旅粮甜点、商队赠礼、节会甜品、公共仓干粮包和商队订单。'
+  },
+  {
+    cropId: 'lychee',
+    tags: ['food', 'gift', 'festival', 'order'],
+    flavor: ['甜', '鲜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['荔枝干', '岭南鲜果赠礼', '夏日甜品', '脱水果脯', '节会果盘', '果商订单'],
+    summary: '夏季岭南果类，适合鲜果食用、脱水荔枝干、甜品果盘、赠礼、节会供品和果商订单。'
   }
 ]
 
