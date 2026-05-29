@@ -131,5 +131,19 @@ export const isOnlineVisualFeatureEnabled = (
   return (flag.requires ?? []).every(requiredKey => state[requiredKey] === true)
 }
 
+export const ONLINE_VISUAL_SCENE_FEATURE_FLAG_KEYS: Partial<Record<string, OnlineVisualFeatureFlagKey>> = {
+  expedition_cavern: 'expedition_cavern',
+  lantern_fair: 'lantern_fair',
+  dragon_boat: 'dragon_boat',
+  manor_care: 'manor_care',
+  manor_steal: 'manor_steal',
+}
+
+export const getOnlineVisualFeatureFlagConfig = (key: OnlineVisualFeatureFlagKey) =>
+  ONLINE_VISUAL_FEATURE_FLAGS.find(flag => flag.key === key) ?? null
+
+export const getOnlineVisualFeatureFlagKeyForSceneSpec = (sceneSpecId: string | undefined) =>
+  sceneSpecId ? ONLINE_VISUAL_SCENE_FEATURE_FLAG_KEYS[sceneSpecId] : undefined
+
 export const getOnlineVisualFeatureFallback = (key: OnlineVisualFeatureFlagKey) =>
   ONLINE_VISUAL_FEATURE_FLAGS.find(flag => flag.key === key)?.fallbackLabel ?? ''

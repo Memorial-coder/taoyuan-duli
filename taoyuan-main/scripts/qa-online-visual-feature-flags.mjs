@@ -11,6 +11,10 @@ const featureFlagSource = await readFile(
   'utf8',
 )
 const onlineViewSource = await readFile(path.join(appRoot, 'src', 'views', 'game', 'OnlineView.vue'), 'utf8')
+const activityScheduleSource = await readFile(
+  path.join(appRoot, 'src', 'data', 'onlineVisualActivitySchedule.ts'),
+  'utf8',
+)
 const packageJson = JSON.parse(await readFile(path.join(appRoot, 'package.json'), 'utf8'))
 
 const requiredFlagKeys = [
@@ -74,6 +78,22 @@ assert.ok(
   'feature enable check should require explicit true',
 )
 assert.ok(
+  featureFlagSource.includes('ONLINE_VISUAL_SCENE_FEATURE_FLAG_KEYS'),
+  'feature flags should expose sceneSpecId to feature-flag mapping',
+)
+for (const key of ['expedition_cavern', 'lantern_fair', 'dragon_boat', 'manor_care', 'manor_steal']) {
+  assert.ok(
+    featureFlagSource.includes(`${key}: '${key}'`),
+    `${key} sceneSpecId should map to the matching feature flag`,
+  )
+}
+for (const key of ['expedition_cavern', 'lantern_fair', 'dragon_boat', 'manor_care']) {
+  assert.ok(
+    activityScheduleSource.includes(`sceneSpecId: '${key}'`),
+    `${key} schedule entry should carry a sceneSpecId for fallback routing`,
+  )
+}
+assert.ok(
   onlineViewSource.includes('online-visual-feature-flag-safe-close'),
   'online center should display active-room safe close policy',
 )
@@ -88,6 +108,34 @@ assert.ok(
 assert.ok(
   onlineViewSource.includes('featureFlag.missingConfigFallback'),
   'online center should read missing-config fallback from flag config',
+)
+assert.ok(
+  onlineViewSource.includes('getOnlineVisualFeatureFlagKeyForSceneSpec'),
+  'online center should resolve schedule entries through sceneSpecId feature flags',
+)
+assert.ok(
+  onlineViewSource.includes('resolveVisualFeatureFallback'),
+  'online center should share one fallback resolver for visual entries and schedules',
+)
+assert.ok(
+  onlineViewSource.includes('targetRoute: enabled ? primaryRoute : fallbackRoute ?? primaryRoute'),
+  'online center should route disabled or missing-config features to the old fallback route',
+)
+assert.ok(
+  onlineViewSource.includes(':to="activity.targetRoute"'),
+  'visual activity cards should use resolved fallback-aware routes',
+)
+assert.ok(
+  onlineViewSource.includes(':to="entry.targetRoute"'),
+  'visual schedule cards should use resolved fallback-aware routes',
+)
+assert.ok(
+  onlineViewSource.includes('online-visual-activity-fallback'),
+  'visual activity cards should display the fallback path readback',
+)
+assert.ok(
+  onlineViewSource.includes('online-visual-schedule-fallback'),
+  'visual schedules should display the fallback path readback',
 )
 assert.equal(
   packageJson.scripts['qa:online-visual-feature-flags'],

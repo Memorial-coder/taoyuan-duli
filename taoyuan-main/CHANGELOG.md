@@ -4,6 +4,9 @@
 
 ## [未发布]
 
+### 0529 在线中心活动入口降级联动
+- 可视化活动入口卡和活动排期现在共用功能开关降级解析，协作矿洞、灯会、龙舟和好友照料会按 `featureFlagKey` 或 `sceneSpecId` 解析到旧入口。
+- 关闭或缺失配置时入口显示旧入口 / 只读回看说明并跳降级路由；`qa:online-visual-feature-flags` 守住映射、路由和 UI 读回。本轮不新增奖励、不改服务端结算。
 ### 0529 在线中心可视化开关安全收尾读回
 - 可视化功能开关卡片新增“收尾 / 缺失”只读说明，直接读回 `activeRoomClosePolicy` 与 `missingConfigFallback`，让玩家在入口层看到已开房继续收尾、旧入口保留和配置缺失保守降级口径。
 - `qa:online-visual-feature-flags` 追加在线中心 UI 读回守护；本轮不新增奖励、不改活动房间结算。
