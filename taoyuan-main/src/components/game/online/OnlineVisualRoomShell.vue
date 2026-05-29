@@ -81,6 +81,31 @@
       </ul>
     </div>
 
+    <div
+      class="border border-accent/10 bg-bg/10 p-2"
+      data-testid="online-visual-room-entry-readback"
+      aria-live="polite"
+    >
+      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div class="min-w-0">
+          <p class="text-[10px] text-accent">入口与降级</p>
+          <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-visual-room-primary-entry">
+            {{ visualContentLabel }}
+          </p>
+        </div>
+        <span
+          class="w-fit shrink-0 border px-1.5 py-0.5 text-[10px]"
+          :class="fallbackEntryVisible ? 'border-warning/30 bg-warning/10 text-warning' : 'border-accent/15 bg-accent/5 text-muted'"
+          data-testid="online-visual-room-fallback-status"
+        >
+          {{ fallbackEntryStatus }}
+        </span>
+      </div>
+      <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-room-fallback-entry">
+        {{ fallbackEntryLabel }}：{{ fallbackEntryHint }}
+      </p>
+    </div>
+
     <div class="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <div class="border border-accent/10 bg-bg/10 p-2" data-testid="online-visual-room-members">
         <div class="flex items-center justify-between gap-2">
@@ -191,6 +216,10 @@
     permissionHints?: string[]
     focusHints?: string[]
     focusGuideSummary?: string
+    visualContentLabel?: string
+    fallbackEntryLabel?: string
+    fallbackEntryHint?: string
+    fallbackEntryVisible?: boolean
     countdownSeconds?: number
     countdownRemainingSeconds?: number
     members: OnlineVisualRoomShellMember[]
@@ -211,6 +240,10 @@
       'Enter 或 Space 触发当前聚焦按钮，行动结果会回到房间反馈区。',
     ],
     focusGuideSummary: '可视化房间保留原按钮键盘操作，并把行动结果、失败原因和权限提示固定在房间顶部。',
+    visualContentLabel: '可视化棋盘、场景或轨道作为主要入口；旧按钮面板继续作为兼容路径保留。',
+    fallbackEntryLabel: '旧按钮降级入口',
+    fallbackEntryHint: '当可视化入口关闭、缺失或没有可用热区动作时，玩家仍可使用旧按钮继续提交同一服务端行动意图。',
+    fallbackEntryVisible: false,
     countdownSeconds: 0,
     countdownRemainingSeconds: 0,
     settlementRecords: () => [],
@@ -243,6 +276,10 @@
     return 'text-muted'
   })
 
+  const fallbackEntryStatus = computed(() =>
+    props.fallbackEntryVisible ? '旧入口当前可见' : '主可视化入口优先'
+  )
+
   const screenReaderSummary = computed(() => {
     const parts = [`${props.title}，状态 ${props.statusLabel || '未载入'}`]
     if (props.phaseLabel) parts.push(`阶段 ${props.phaseLabel}`)
@@ -250,6 +287,8 @@
     parts.push(`成员 ${props.readyMemberCount}/${props.memberLimit} 已准备`)
     parts.push(`奖励预览 ${props.rewardPreview.length} 项`)
     if (props.settlementRecords.length > 0) parts.push(`结算回看 ${props.settlementRecords.length} 条`)
+    parts.push(`入口 ${props.visualContentLabel}`)
+    parts.push(`${props.fallbackEntryLabel}${props.fallbackEntryVisible ? '当前可见' : '作为降级保留'}`)
     if (connectionLabel.value) parts.push(connectionLabel.value)
     if (props.actionFeedback) parts.push(`最近反馈：${props.actionFeedback}`)
     if (props.errorMessages.length > 0) parts.push(`错误 ${props.errorMessages.length} 条`)

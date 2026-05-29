@@ -294,6 +294,10 @@
                   :error-messages="festivalRoomShellErrors"
                   :permission-hints="festivalRoomPermissionHints"
                   :focus-hints="festivalRoomFocusHints"
+                  :visual-content-label="festivalRoomVisualContentLabel"
+                  :fallback-entry-label="festivalRoomFallbackEntryLabel"
+                  :fallback-entry-hint="festivalRoomFallbackEntryHint"
+                  :fallback-entry-visible="festivalRoomFallbackActionsVisible"
                   :countdown-seconds="festivalRoomStore.myRoom.countdown_seconds"
                   :countdown-remaining-seconds="festivalRoomStore.myRoom.opening_ceremony?.countdown_remaining_seconds || 0"
                   :members="festivalRoomShellMembers"
@@ -911,6 +915,10 @@
                   :error-messages="expeditionRoomShellErrors"
                   :permission-hints="expeditionRoomPermissionHints"
                   :focus-hints="expeditionRoomFocusHints"
+                  :visual-content-label="expeditionRoomVisualContentLabel"
+                  :fallback-entry-label="expeditionRoomFallbackEntryLabel"
+                  :fallback-entry-hint="expeditionRoomFallbackEntryHint"
+                  :fallback-entry-visible="showExpeditionFallbackActions"
                   :countdown-seconds="expeditionRoomStore.myRoom.countdown_seconds"
                   :countdown-remaining-seconds="expeditionRoomStore.myRoom.opening_ceremony?.countdown_remaining_seconds || 0"
                   :members="expeditionRoomShellMembers"
@@ -1163,7 +1171,7 @@
                   </div>
                 </div>
 
-                <div v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0 && !hasPrimaryExpeditionVisualActions" class="space-y-2">
+                <div v-if="showExpeditionFallbackActions" class="space-y-2">
                   <p class="text-[10px] text-muted">玩法动作</p>
                   <div class="grid gap-2 md:grid-cols-2">
                     <div
@@ -1903,6 +1911,18 @@
   })
   const showFestivalSceneBoard = computed(() => festivalSceneObjects.value.length > 0)
   const showFestivalTrackBoard = computed(() => festivalTracks.value.some(track => track.cells.length > 0))
+  const festivalRoomFallbackActionsVisible = computed(() =>
+    (festivalRoomStore.myRoom?.gameplay.available_actions.length ?? 0) > 0
+  )
+  const festivalRoomVisualContentLabel = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return '节会可视化内容尚未载入。'
+    if (showFestivalTrackBoard.value) return '龙舟或节会轨道作为主入口，赛道格动作继续提交服务端节会行动。'
+    if (showFestivalSceneBoard.value) return '节会现场物件作为主入口，点灯、解谜、秩序和留影都从场景热区提交。'
+    return '当前房间没有可用场景或轨道热区，旧节会按钮作为主入口。'
+  })
+  const festivalRoomFallbackEntryLabel = '旧节会按钮降级入口'
+  const festivalRoomFallbackEntryHint = '节会旧玩法动作面板继续保留在可视化内容下方，移动端与键盘用户可用它提交同一服务端节会行动；结算和关闭按钮仍在房间壳操作区。'
   const selectedFestivalSceneObjectId = computed(() =>
     selectedFestivalVisualObjectId.value || festivalRoomStore.myRoom?.visual_state.selected_visual_id || ''
   )
@@ -2199,6 +2219,18 @@
     (showExpeditionMapBoard.value && hasExpeditionVisualNodeActions.value)
     || (showExpeditionTrackBoard.value && hasExpeditionVisualTrackActions.value)
   )
+  const showExpeditionFallbackActions = computed(() =>
+    (expeditionRoomStore.myRoom?.gameplay.available_actions.length ?? 0) > 0 && !hasPrimaryExpeditionVisualActions.value
+  )
+  const expeditionRoomVisualContentLabel = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return '远征可视化内容尚未载入。'
+    if (showExpeditionTrackBoard.value) return '远征轨道或护送路线作为主入口，轨道格动作继续提交服务端远征行动。'
+    if (showExpeditionMapBoard.value) return '矿洞节点地图作为主入口，撤离点、采集、支护和探路都从节点动作提交。'
+    return '当前房间没有可用地图或轨道热区，旧远征按钮作为主入口。'
+  })
+  const expeditionRoomFallbackEntryLabel = '旧远征按钮降级入口'
+  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一服务端远征行动；结算和关闭按钮仍在房间壳操作区。'
   const expeditionVisualActionLabels = computed<Record<string, string>>(() =>
     Object.fromEntries(Array.from(expeditionGameplayActionMap.value.values()).map(action => [action.id, action.label]))
   )

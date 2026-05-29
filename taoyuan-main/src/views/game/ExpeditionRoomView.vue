@@ -82,6 +82,10 @@
             :error-messages="expeditionRoomShellErrors"
             :permission-hints="expeditionRoomPermissionHints"
             :focus-hints="expeditionRoomFocusHints"
+            :visual-content-label="expeditionRoomVisualContentLabel"
+            :fallback-entry-label="expeditionRoomFallbackEntryLabel"
+            :fallback-entry-hint="expeditionRoomFallbackEntryHint"
+            :fallback-entry-visible="showExpeditionFallbackActions"
             :countdown-seconds="expeditionRoomStore.myRoom.countdown_seconds"
             :members="expeditionRoomShellMembers"
             :ready-member-count="expeditionRoomStore.myRoom.ready_member_count"
@@ -306,7 +310,7 @@
           </label>
 
           <div
-            v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0 && !hasPrimaryExpeditionVisualActions"
+            v-if="showExpeditionFallbackActions"
             class="space-y-2"
           >
             <p class="text-[10px] text-muted">降级玩法动作</p>
@@ -678,6 +682,21 @@
     (expeditionVisualMapNodes.value.length > 0 && hasExpeditionVisualNodeActions.value)
     || (showExpeditionTrackBoard.value && hasExpeditionVisualTrackActions.value)
   )
+
+  const showExpeditionFallbackActions = computed(() =>
+    (expeditionRoomStore.myRoom?.gameplay.available_actions.length ?? 0) > 0 && !hasPrimaryExpeditionVisualActions.value
+  )
+
+  const expeditionRoomVisualContentLabel = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return '远征可视化内容尚未载入。'
+    if (showExpeditionTrackBoard.value) return '远征轨道或护送路线作为主入口，轨道格动作继续提交服务端远征行动。'
+    if (expeditionVisualMapNodes.value.length > 0) return '矿洞节点地图作为主入口，撤离点、采集、支护和探路都从节点动作提交。'
+    return '当前房间没有可用地图或轨道热区，旧玩法按钮作为主入口。'
+  })
+
+  const expeditionRoomFallbackEntryLabel = '旧远征按钮降级入口'
+  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一服务端远征行动；结算和关闭按钮仍在房间壳操作区。'
 
   const expeditionVisualActionLabels = computed(() => {
     const room = expeditionRoomStore.myRoom
