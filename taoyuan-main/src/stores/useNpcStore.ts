@@ -3078,6 +3078,92 @@ export const useNpcStore = defineStore('npc', () => {
     return { success: true, message: response, resident: nextResident ?? resident }
   }
 
+  const canProgressRandomNpcFestivalCompanion = (
+    residentId: string
+  ): { success: boolean; message: string; eventName?: string } => {
+    const dayTag = getCurrentNpcDayTag()
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    const eventName = getCurrentFestivalRecallEventName()
+    if (!eventName) return { success: false, message: '今日没有节会，暂时不能触发节会同行。' }
+    if (resident.lastStoryDayTag === dayTag) {
+      return { success: false, message: `${resident.name}今天已经聊过一段长住事了。`, eventName }
+    }
+    return { success: true, message: `今日可与${resident.name}在${eventName}同行。`, eventName }
+  }
+
+  const progressRandomNpcFestivalCompanion = (
+    residentId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const guard = canProgressRandomNpcFestivalCompanion(residentId)
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!guard.success || !resident || !guard.eventName) return { ...guard, resident }
+    const dayTag = getCurrentNpcDayTag()
+    const direction: RandomNpcRelationshipDirection = 'family_impression'
+    const affinityChange = 4
+    const choiceText = `节会同行：${guard.eventName}`
+    const dialogueScene = getRandomNpcTriggeredDialogueScene(resident, {
+      direction,
+      choiceId: 'festival:long_stay_companion',
+      choiceText,
+      preferredKinds: ['festival']
+    })
+    const dialogueSceneLine = buildRandomNpcDialogueSceneLine(dialogueScene)
+    const contextLine = buildRandomNpcDialogueContextLine(resident)
+    const response = [
+      `${resident.name}与你在${guard.eventName}里同行，把家族、旧识和桃源当下的热闹重新对上。`,
+      dialogueSceneLine,
+      contextLine
+    ].filter(Boolean).join(' ')
+    const dialogueMemory = buildRandomNpcDialogueMemory({
+      npcName: resident.name,
+      dayTag,
+      choiceId: 'festival:long_stay_companion',
+      choiceText,
+      response,
+      scene: dialogueScene,
+      direction,
+      affinityChange,
+      relationshipTag: resident.relationshipTag
+    })
+    const eventLine = `${dayTag} 【节会同行】${guard.eventName}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      nextResident = {
+        ...entry,
+        affinity: Math.min(100, entry.affinity + affinityChange),
+        lastStoryDayTag: dayTag,
+        relationshipSignals: applyRandomNpcRelationshipSignal(
+          sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+          direction,
+          affinityChange
+        ),
+        dialogueMemories: appendRandomNpcDialogueMemory(
+          entry.dialogueMemories,
+          dialogueMemory,
+          RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT
+        ),
+        keyEvents: [...entry.keyEvents, eventLine].slice(-8)
+      }
+      return nextResident
+    })
+    if (nextResident) {
+      randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+        entry.visitorId === nextResident!.sourceVisitorId
+          ? {
+              ...entry,
+              affinity: nextResident!.affinity,
+              relationshipSignals: sanitizeRandomNpcRelationshipSignals(nextResident!.relationshipSignals),
+              dialogueMemories: nextResident!.dialogueMemories.slice(-6),
+              keyEvents: nextResident!.keyEvents.slice(-6)
+            }
+          : entry
+      )
+    }
+    return { success: true, message: response, resident: nextResident ?? resident }
+  }
+
   const getRandomNpcFamilyCommission = (residentId: string): RandomNpcFamilyCommissionDef | null => {
     const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
     const template = resident ? RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId) : null
@@ -6823,6 +6909,8 @@ export const useNpcStore = defineStore('npc', () => {
     promoteRandomNpcAcquaintanceToLongStay,
     getNextRandomNpcLongStayStoryEvent,
     progressRandomNpcLongStayStory,
+    canProgressRandomNpcFestivalCompanion,
+    progressRandomNpcFestivalCompanion,
     getRandomNpcFamilyCommission,
     canMeetRandomNpcFamilyTie,
     meetRandomNpcFamilyTie,

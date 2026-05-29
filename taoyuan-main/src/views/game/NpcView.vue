@@ -738,6 +738,22 @@
                 </Button>
               </div>
               <p class="text-[10px] text-success/80 mt-1">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-accent">今日节会同行</p>
+                  <span class="text-[10px] text-muted">{{ randomNpcFestivalReunionEventName }}</span>
+                </div>
+                <p class="text-[10px] text-muted leading-4 mt-1">{{ getRandomNpcFestivalCompanionHint(resident) }}</p>
+                <Button
+                  class="w-full justify-center !px-2 !py-1 mt-2"
+                  :icon="Sparkles"
+                  :disabled="!canProgressRandomNpcFestivalCompanion(resident).success"
+                  :data-testid="`random-npc-festival-companion-${resident.residentId}`"
+                  @click="handleProgressRandomNpcFestivalCompanion(resident.residentId)"
+                >
+                  节会同行
+                </Button>
+              </div>
               <div v-if="getRandomNpcLongStayStoryEvent(resident)" class="border border-accent/10 rounded-xs p-2 mt-2">
                 <p class="text-[10px] text-accent">{{ getRandomNpcLongStayStoryEvent(resident)?.title }}</p>
                 <p class="text-[10px] text-muted leading-4 mt-1">{{ getRandomNpcLongStayStoryEvent(resident)?.opening }}</p>
@@ -2234,6 +2250,13 @@
     npcStore.getNextRandomNpcLongStayStoryEvent(resident)
   const getRandomNpcLongStayStoryChoices = (resident: RandomNpcLongStayEntry): RandomNpcStoryChoiceDef[] =>
     getRandomNpcLongStayStoryEvent(resident)?.choices ?? []
+  const canProgressRandomNpcFestivalCompanion = (resident: RandomNpcLongStayEntry) =>
+    npcStore.canProgressRandomNpcFestivalCompanion(resident.residentId)
+  const getRandomNpcFestivalCompanionHint = (resident: RandomNpcLongStayEntry): string => {
+    const guard = canProgressRandomNpcFestivalCompanion(resident)
+    if (guard.success) return `今日有${guard.eventName}，同行会写入长住文游记忆，同日只记一次。`
+    return guard.message
+  }
   const getRandomNpcPreferenceNames = (itemIds: string[]): string =>
     itemIds.map(itemId => getItemById(itemId)?.name ?? itemId).join('、') || '尚未记录'
   const isRandomNpcLongStay = (visitorId: string): boolean =>
@@ -2400,6 +2423,12 @@
     const result = npcStore.progressRandomNpcLongStayStory(residentId, choiceId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【文游对话】${result.message}`)
+  }
+
+  const handleProgressRandomNpcFestivalCompanion = (residentId: string) => {
+    const result = npcStore.progressRandomNpcFestivalCompanion(residentId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【随机NPC节会同行】${result.message}`)
   }
 
   const handleStartRandomNpcRelationLine = (
