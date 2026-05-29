@@ -1276,6 +1276,14 @@ export const useNpcStore = defineStore('npc', () => {
     return 'farm'
   }
 
+  const mergeRandomNpcFamilySpecialEventRewardItems = (
+    items: Array<{ itemId: string; quantity: number }>
+  ): Array<{ itemId: string; quantity: number }> => {
+    const merged = new Map<string, number>()
+    for (const item of items) merged.set(item.itemId, (merged.get(item.itemId) ?? 0) + item.quantity)
+    return [...merged.entries()].map(([itemId, quantity]) => ({ itemId, quantity })).slice(0, 3)
+  }
+
   const getRandomNpcFamilySpecialEventReward = (
     tie: RandomNpcFamilyTieDef,
     stage: 1 | 2 | 3
@@ -1318,6 +1326,32 @@ export const useNpcStore = defineStore('npc', () => {
       return { items: [{ itemId: 'cloth', quantity: 1 }], summary: '义亲托付带来布匹×1' }
     }
     return { items: [{ itemId: 'guest_green_tea', quantity: 1 }], summary: '前缘回信带来待客清茶×1' }
+  }
+
+  const getRandomNpcFamilyLineSpecialEventRewardBonus = (
+    stage: 1 | 2 | 3
+  ): { items: Array<{ itemId: string; quantity: number }>; summary: string } => {
+    if (stage === 1) {
+      return { items: [{ itemId: 'guest_green_tea', quantity: 1 }], summary: '家人线加赠待客清茶×1' }
+    }
+    if (stage === 2) {
+      return { items: [{ itemId: 'honey', quantity: 1 }], summary: '家人线加赠蜂蜜×1' }
+    }
+    return { items: [{ itemId: 'dried_herb', quantity: 1 }], summary: '家人线加赠药材干×1' }
+  }
+
+  const getRandomNpcFamilyLineSpecialEventReward = (
+    resident: RandomNpcLongStayEntry,
+    tie: RandomNpcFamilyTieDef,
+    stage: 1 | 2 | 3
+  ): { items: Array<{ itemId: string; quantity: number }>; summary: string } => {
+    const baseReward = getRandomNpcFamilySpecialEventReward(tie, stage)
+    if (resident.relationshipLine.kind !== 'family' || resident.relationshipLine.stage <= 0) return baseReward
+    const bonus = getRandomNpcFamilyLineSpecialEventRewardBonus(stage)
+    return {
+      items: mergeRandomNpcFamilySpecialEventRewardItems([...baseReward.items, ...bonus.items]),
+      summary: `${baseReward.summary}；${bonus.summary}`
+    }
   }
 
   const getRandomNpcFamilyBusinessYield = (
@@ -2895,7 +2929,7 @@ export const useNpcStore = defineStore('npc', () => {
     const title = getRandomNpcFamilySpecialEventTitle(tie, stage)
     const summary = getRandomNpcFamilySpecialEventSummary(resident, tie, stage)
     const relationshipDelta = stage === 3 ? 4 : 3
-    const reward = getRandomNpcFamilySpecialEventReward(tie, stage)
+    const reward = getRandomNpcFamilyLineSpecialEventReward(resident, tie, stage)
     const inventoryStore = useInventoryStore()
     if (!inventoryStore.addItemsExact(reward.items)) {
       return { success: false, message: '背包空间不足，无法接收核心家族深线奖励。', resident }
