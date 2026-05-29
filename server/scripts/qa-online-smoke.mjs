@@ -134,14 +134,40 @@ const l81MemberCState = createSessionState()
 const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
 let originalOnlineReleaseConfig = null
 
+const parseCookieHeader = cookie => String(cookie || '')
+  .split(';')
+  .map(part => part.trim())
+  .filter(Boolean)
+  .reduce((cookies, part) => {
+    const separatorIndex = part.indexOf('=')
+    if (separatorIndex < 0) return cookies
+    const name = part.slice(0, separatorIndex).trim()
+    if (!name) return cookies
+    cookies.set(name, part.slice(separatorIndex + 1).trim())
+    return cookies
+  }, new Map())
+
+const serializeCookieHeader = cookies => Array.from(cookies.entries())
+  .map(([name, value]) => `${name}=${value}`)
+  .join('; ')
+
 const updateCookie = (session, response) => {
   const rawSetCookie = typeof response.headers.getSetCookie === 'function'
     ? response.headers.getSetCookie()
     : []
   if (!rawSetCookie.length) return
-  const cookieParts = rawSetCookie.map(item => String(item).split(';', 1)[0]).filter(Boolean)
-  if (!cookieParts.length) return
-  session.cookie = cookieParts.join('; ')
+  const cookies = parseCookieHeader(session.cookie)
+  for (const item of rawSetCookie) {
+    const cookiePair = String(item).split(';', 1)[0]
+    const separatorIndex = cookiePair.indexOf('=')
+    if (separatorIndex < 0) continue
+    const name = cookiePair.slice(0, separatorIndex).trim()
+    const value = cookiePair.slice(separatorIndex + 1).trim()
+    if (!name) continue
+    if (value) cookies.set(name, value)
+    else cookies.delete(name)
+  }
+  session.cookie = serializeCookieHeader(cookies)
 }
 
 const fetchSessionJson = async (session, pathname, init = {}) => {
