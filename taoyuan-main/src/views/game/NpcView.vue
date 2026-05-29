@@ -436,7 +436,7 @@
                     <span class="text-[10px] text-muted ml-1">{{ resident.occupation }}</span>
                   </p>
                   <p class="text-[10px] text-muted mt-0.5 truncate">
-                    {{ getRandomNpcLongStayRouteLabel(resident.route) }} · {{ resident.origin }} · {{ getRandomNpcRelationshipLabel(resident.relationshipTag) }}
+                    {{ getRandomNpcLongStayRouteLabel(resident.route) }} · {{ resident.origin }} · {{ getRandomNpcRelationshipLabel(resident.relationshipTag) }} · {{ resident.plotHook }}
                   </p>
                 </div>
                 <span class="text-[10px] text-success whitespace-nowrap">阶段 {{ resident.relationshipEventStage }}/3</span>

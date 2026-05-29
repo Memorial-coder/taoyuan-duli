@@ -289,6 +289,172 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       requestedItems: [{ itemId: 'rice', quantity: 2 }, { itemId: 'osmanthus', quantity: 1 }],
       rewardSummary: '可回赠织补心得和一段旧渡人情线索。'
     }
+  },
+  {
+    id: 'missing_sister_apothecary',
+    nameSeeds: ['许寻', '阿灯', '白小蓁'],
+    ageBand: 'young',
+    gender: 'male',
+    occupation: '寻亲药童',
+    origin: '西坡药棚',
+    personalityTags: ['谨慎', '记路', '怕欠人情'],
+    speechStyle: '说话会先确认地名和药名，像怕把重要线索听岔。',
+    appearanceKeywords: ['旧药篓', '半张寻人纸', '草木灰袖口'],
+    taboo: '不喜欢别人把寻亲当成茶余饭后的奇闻。',
+    lifeGoal: '想找到随药队走失的妹妹，也想把母亲留下的药方补全。',
+    currentTrouble: '寻人纸被雨泡坏，需要能稳住心神的药材和一顿热饭。',
+    villagePurpose: '听说桃源有人见过相似药铃，来村里核对药队去向和旧路标记。',
+    romanceView: '先要确认彼此能不能守住秘密，感情不能拿寻亲线索交换。',
+    developmentRoutes: ['caregiving', 'friendship'],
+    plotHook: '寻亲',
+    familySeed: '母亲早年行医未归，妹妹跟药队走散，只剩师父偶尔寄来含糊线索。',
+    familyTies: [
+      { id: 'missing_mother_healer', kind: 'parent', name: '许兰舟', relation: '母亲', summary: '曾沿西坡药路行医，失踪前留下半张安神方。', attitude: 'distant' },
+      { id: 'lost_sister_bell', kind: 'sibling', name: '小铃', relation: '妹妹', summary: '随药队走失的孩子，药铃声是他最确定的线索。', attitude: 'distant' },
+      { id: 'apothecary_master', kind: 'mentor', name: '西坡药师', relation: '师父', summary: '教他认药，也提醒他别把全部人生都押在一张旧纸上。', attitude: 'testing' }
+    ],
+    familyCommission: {
+      id: 'sister_clue_tonic',
+      tieId: 'lost_sister_bell',
+      title: '药铃线索汤',
+      summary: '他想备一份温和药汤寄给带来线索的药队，请你帮忙准备草药和莲子。',
+      requestedItems: [{ itemId: 'herb', quantity: 2 }, { itemId: 'lotus_seed', quantity: 1 }],
+      rewardSummary: '家族评价提升，并让寻亲线索从传闻变成可继续追的方向。'
+    },
+    preferences: {
+      loved: ['herb', 'lotus_seed'],
+      liked: ['tea', 'honey'],
+      disliked: ['copper_ore']
+    },
+    dialogueOpening: '他在井边摊开半张寻人纸，先问你有没有听过一串细小的药铃声。',
+    dialogueChoices: [
+      { id: 'protect_secret', text: '答应先替他保密。', response: '他把寻人纸折得更平，说能守口的人比路标更难得。', affinityChange: 16, relationshipTag: 'acquaintance', relationshipDirection: 'trust' },
+      { id: 'ask_medicine_route', text: '问清药队经过的路线。', response: '他立刻在地上画出三条岔路，眼神终于有了焦点。', affinityChange: 13, relationshipTag: 'friend', relationshipDirection: 'family_impression' },
+      { id: 'doubt_story', text: '提醒他线索也许只是误传。', response: '他沉默很久，说误传也得亲自确认过才算结束。', affinityChange: 5, relationshipTag: 'rival', relationshipDirection: 'misunderstanding' }
+    ],
+    dialogueScenes: [
+      { id: 'apothecary_first_notice', kind: 'first_meeting', title: '半张寻人纸', summary: '初见时围绕药铃、旧纸和是否保密建立第一层信任。', triggerHint: '首次来访或旧日召回后出现。', relationshipDirection: 'trust' },
+      { id: 'apothecary_request_tonic', kind: 'request', title: '线索药汤', summary: '用草药和莲子备一份温和汤剂，换取药队线索继续推进。', triggerHint: '小订单、家族委托或药材充足时出现。', relationshipDirection: 'family_impression' },
+      { id: 'apothecary_reunion_bell', kind: 'reunion', title: '药铃再响', summary: '久别重逢时重听药铃传闻，确认寻亲线是否还愿意一起追。', triggerHint: '旧日召回或跨周重逢时出现。', relationshipDirection: 'trust' }
+    ],
+    smallOrder: {
+      id: 'rain_damaged_notice',
+      title: '雨泡寻人纸',
+      summary: '想收草药和茶叶，重新誊写一份不易被潮气毁掉的寻人纸。',
+      requestedItems: [{ itemId: 'herb', quantity: 2 }, { itemId: 'tea', quantity: 1 }],
+      rewardSummary: '可回赠一段药路线索和安神方残页。'
+    }
+  },
+  {
+    id: 'runaway_betrothal_tailor',
+    nameSeeds: ['纪鸢', '阿缎', '沈棠'],
+    ageBand: 'young',
+    gender: 'female',
+    occupation: '逃婚绣娘',
+    origin: '东市绣坊',
+    personalityTags: ['倔强', '手快', '怕被安排'],
+    speechStyle: '话说得轻，但每句都像已经在心里拆过线。',
+    appearanceKeywords: ['素色盖头布', '藏针袖袋', '未拆红线'],
+    taboo: '不喜欢别人替她决定婚嫁或去留。',
+    lifeGoal: '想用自己的绣样换一份正经生计，而不是被一纸婚约卖掉。',
+    currentTrouble: '追来的媒人快到邻镇，她需要能改装行囊的布料和隐蔽落脚处。',
+    villagePurpose: '想在桃源暂避旧婚约，也试着接几单绣活证明自己能养活自己。',
+    romanceView: '最怕被承诺捆住，若要靠近，必须先尊重她的选择权。',
+    developmentRoutes: ['craft', 'friendship'],
+    plotHook: '逃婚',
+    familySeed: '家中父亲重名声，兄长暗中帮她逃出东市，旧婚约对象仍在找她。',
+    familyTies: [
+      { id: 'strict_tailor_father', kind: 'parent', name: '纪掌柜', relation: '父亲', summary: '东市绣坊掌柜，把家业和婚约绑在同一张账上。', attitude: 'testing' },
+      { id: 'helper_elder_brother', kind: 'sibling', name: '纪衡', relation: '兄长', summary: '嘴硬心软，偷偷把她的针包塞进行囊。', attitude: 'supportive' },
+      { id: 'unwanted_betrothal', kind: 'old_flame', name: '许二郎', relation: '旧婚约', summary: '未必恶毒，却从没真正问过她愿不愿意。', attitude: 'burdened' },
+      { id: 'east_market_embroidery', kind: 'family_business', name: '东市绣坊', relation: '家业', summary: '绣坊靠嫁衣闻名，她却想做自己的花样。', attitude: 'testing' }
+    ],
+    familyCommission: {
+      id: 'brother_hidden_parcel',
+      tieId: 'helper_elder_brother',
+      title: '兄长的暗线包',
+      summary: '纪衡托人带来一封短笺，请你备布匹和桂花，帮她把行囊改得不显眼。',
+      requestedItems: [{ itemId: 'cloth', quantity: 1 }, { itemId: 'osmanthus', quantity: 1 }],
+      rewardSummary: '家人评价提升，并让她确认桃源不是另一处牢笼。'
+    },
+    preferences: {
+      loved: ['cloth', 'silk_ribbon'],
+      liked: ['osmanthus', 'tea'],
+      disliked: ['chili']
+    },
+    dialogueOpening: '她把一截红线绕在指尖又松开，问你这里有没有不查来历的绣活。',
+    dialogueChoices: [
+      { id: 'respect_choice', text: '先问她想不想留下。', response: '她抬眼看你，像终于听到一个没有安排好的问题。', affinityChange: 17, relationshipTag: 'friend', relationshipDirection: 'trust' },
+      { id: 'offer_workbench', text: '借她一张安静的工作台。', response: '针脚很快落稳，她说有活干时，人就不那么像逃犯。', affinityChange: 14, relationshipTag: 'acquaintance', relationshipDirection: 'family_impression' },
+      { id: 'ask_betrothal', text: '追问婚约细节。', response: '她把红线收进袖口，说有些话不是不能讲，是不能被逼着讲。', affinityChange: 4, relationshipDirection: 'misunderstanding' }
+    ],
+    dialogueScenes: [
+      { id: 'tailor_first_red_thread', kind: 'first_meeting', title: '未拆红线', summary: '初见围绕红线、绣活和是否尊重选择权展开。', triggerHint: '首次来访或逃婚线索出现时触发。', relationshipDirection: 'trust' },
+      { id: 'tailor_night_hideout', kind: 'night', title: '夜改行囊', summary: '夜里改装行囊，决定是继续逃、暂住还是写信把话说清。', triggerHint: '夜访、暧昧方向或旧婚约节点后出现。', relationshipDirection: 'ambiguity' },
+      { id: 'tailor_misread_promise', kind: 'misunderstanding', title: '承诺误听', summary: '任何替她决定的承诺都会变成误会，需要用尊重化解。', triggerHint: '误会方向较高或追问婚约后出现。', relationshipDirection: 'misunderstanding' }
+    ],
+    smallOrder: {
+      id: 'plain_travel_cloak',
+      title: '素面行衣',
+      summary: '想收一匹布和一份茶叶，做一件不起眼的赶路外衣。',
+      requestedItems: [{ itemId: 'cloth', quantity: 1 }, { itemId: 'tea', quantity: 1 }],
+      rewardSummary: '可回赠绣样和一段旧婚约线索。'
+    }
+  },
+  {
+    id: 'wandering_map_painter',
+    nameSeeds: ['唐野', '叶行川', '阿路'],
+    ageBand: 'adult',
+    gender: 'male',
+    occupation: '游历绘图人',
+    origin: '四海道',
+    personalityTags: ['爱看热闹', '记性好', '不爱久留'],
+    speechStyle: '说话常把方位和故事混在一起，像在口头画地图。',
+    appearanceKeywords: ['旧地图筒', '磨破草鞋', '竹片量尺'],
+    taboo: '不喜欢别人把游历说成无所事事。',
+    lifeGoal: '想画一张能标出人情而不只标出道路的桃源周边图。',
+    currentTrouble: '地图筒裂了，最近又缺能当路粮的清淡食物。',
+    villagePurpose: '途经桃源时发现村路和人情比官道更难画，决定停几日补图。',
+    romanceView: '不轻易许诺久留，但会认真记住愿意同行的人。',
+    developmentRoutes: ['business', 'friendship'],
+    plotHook: '游历',
+    familySeed: '他跟着商队长大，有一位远亲在驿站收信，也欠旧路向导一份人情。',
+    familyTies: [
+      { id: 'post_station_cousin', kind: 'distant_relative', name: '唐小驿', relation: '远亲', summary: '在驿站替他收信，嘴上嫌他漂泊，仍会留一盏灯。', attitude: 'supportive' },
+      { id: 'four_seas_caravan', kind: 'caravan', name: '四海道商队', relation: '商队', summary: '给他看过很多路，也会催他把地图卖出个价钱。', attitude: 'testing' },
+      { id: 'old_guide_debt', kind: 'old_debt', name: '旧路向导', relation: '旧债', summary: '曾在山雾里救过他，他一直想画一张能还人情的路图。', attitude: 'burdened' }
+    ],
+    familyCommission: {
+      id: 'guide_map_case',
+      tieId: 'old_guide_debt',
+      title: '旧向导的地图筒',
+      summary: '他想寄回一只结实地图筒，请你备竹子和木材，好把新图送到旧路口。',
+      requestedItems: [{ itemId: 'bamboo', quantity: 2 }, { itemId: 'wood', quantity: 2 }],
+      rewardSummary: '商队和旧债评价提升，并让桃源路图多一条可回看的来路。'
+    },
+    preferences: {
+      loved: ['peach', 'tea'],
+      liked: ['bamboo', 'rice'],
+      disliked: ['quartz']
+    },
+    dialogueOpening: '他蹲在村口量路宽，抬头问你桃源哪条小路最容易让人走着走着就熟了。',
+    dialogueChoices: [
+      { id: 'show_shortcut', text: '带他看一条田埂近路。', response: '他把田埂画得很细，说这条路不该只叫近路。', affinityChange: 15, relationshipTag: 'acquaintance', relationshipDirection: 'trust' },
+      { id: 'ask_map_price', text: '问他的地图卖给谁。', response: '他笑着说卖给想来的人，也卖给想回去的人。', affinityChange: 11, relationshipTag: 'friend', relationshipDirection: 'family_impression' },
+      { id: 'tease_wander', text: '打趣他是不是哪里都留不住。', response: '他没有生气，只在地图边角写下“未必”。', affinityChange: 7, relationshipDirection: 'ambiguity' }
+    ],
+    dialogueScenes: [
+      { id: 'map_first_field_path', kind: 'first_meeting', title: '田埂量路', summary: '初见时一起确认村路、近路和人情路的差别。', triggerHint: '首次来访或游历钩子出现时触发。', relationshipDirection: 'trust' },
+      { id: 'map_festival_crowd', kind: 'festival', title: '集市人流图', summary: '节会或集市前后记录人流、货摊和愿意停步的人。', triggerHint: '节会、订单或集市相关线索后出现。', relationshipDirection: 'family_impression' },
+      { id: 'map_farewell_margin', kind: 'farewell', title: '地图边角', summary: '离别时在地图边角留下桃源注记，决定这条路是否会再回来。', triggerHint: '归档、长住收束或离别事件时出现。', relationshipDirection: 'ambiguity' }
+    ],
+    smallOrder: {
+      id: 'road_food_map_case',
+      title: '路粮和地图筒',
+      summary: '想收米和竹子，修好地图筒后再备一份轻便路粮。',
+      requestedItems: [{ itemId: 'rice', quantity: 2 }, { itemId: 'bamboo', quantity: 1 }],
+      rewardSummary: '可回赠一段桃源周边路图和商队消息。'
+    }
   }
 ]
 
