@@ -262,12 +262,63 @@ const publicWarehouseRuntimeCases = [
     keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓粥底', '联机消耗筛选', 'online_cost 用途标签']
   },
   {
+    cropId: 'sesame',
+    expectedUses: [
+      '村社公共仓：芝麻入仓',
+      '公共订单：点心订单可消耗公共仓芝麻'
+    ],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓点心备料', '点心订单', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'sweet_potato',
+    expectedUses: [
+      '村社公共仓：红薯入仓',
+      '公共订单：粗粮包可消耗公共仓红薯'
+    ],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共订单粗粮包', '行旅干粮', 'online_cost 用途标签']
+  },
+  {
     cropId: 'cabbage',
     expectedUses: [
       '村社公共仓：青菜入仓',
       '村社修桥：修桥慰劳饭消耗公共仓青菜'
     ],
     keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '修桥慰劳饭', '公共仓热饭', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'watermelon',
+    expectedUses: ['村社公共仓：西瓜入仓'],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓消暑备料', '节会冰镇果盘', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'rapeseed',
+    expectedUses: ['村社公共仓：油菜入仓'],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓油料订单', '节会备油', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'corn',
+    expectedUses: ['村社公共仓：玉米入仓'],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓粗粮包', '秋收订单', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'winter_wheat',
+    expectedUses: ['村社公共仓：冬小麦入仓'],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓面粉包', '年节面食', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'persimmon',
+    expectedUses: ['村社公共仓：柿子入仓'],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓冬储备料', '柿饼', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'napa_cabbage',
+    expectedUses: ['村社公共仓：白菜入仓'],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓备菜', '年夜饺', 'online_cost 用途标签']
+  },
+  {
+    cropId: 'hanhai_date',
+    expectedUses: ['村社公共仓：椰枣入仓'],
+    keywordFragments: ['联机消耗', '公共仓消耗', '公共订单', '公共仓干粮包', '瀚海旅粮', 'online_cost 用途标签']
   }
 ]
 
