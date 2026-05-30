@@ -376,6 +376,9 @@ const lifecycleRoom = await runtime.createFestivalRoom({
 }, actor(lifecycleHost))
 assert.equal(lifecycleRoom.room.state, 'created', 'activity room lifecycle smoke should start from created state')
 assert.equal(lifecycleRoom.room.members[0]?.status, 'joined', 'activity room lifecycle host should join on creation')
+assert.equal(lifecycleRoom.room.action_log[0]?.action, 'room.create', 'activity room should audit room creation')
+assert.equal(lifecycleRoom.room.action_log[0]?.actor_username, lifecycleHost, 'activity room creation audit should record actor')
+assert.equal(lifecycleRoom.room.action_log[0]?.target_ref, `activity_room:${lifecycleRoom.room.id}`, 'activity room creation audit should record target ref')
 assertLanternFairVisualObjects(lifecycleRoom.room, 0)
 
 const lifecycleInvited = await runtime.inviteFestivalRoomMember(lifecycleRoom.room.id, {
@@ -393,6 +396,8 @@ const lifecycleJoined = await runtime.joinFestivalRoom(lifecycleRoom.room.id, ac
 assert.equal(lifecycleJoined.room.my_member_status, 'joined', 'activity room lifecycle guest should join room')
 assert.equal(lifecycleJoined.room.invitations.find(invite => invite.target_username === lifecycleGuest)?.status, 'accepted', 'activity room lifecycle join should accept invitation')
 assert.equal(lifecycleJoined.room.joined_member_count, 2, 'activity room lifecycle room should have two joined members')
+assert.equal(lifecycleJoined.room.action_log[0]?.action, 'room.join', 'activity room should audit member join')
+assert.equal(lifecycleJoined.room.action_log[0]?.member_count, 2, 'activity room join audit should record member count')
 
 const lifecycleReadyCheck = await runtime.startFestivalRoomReadyCheck(lifecycleRoom.room.id, actor(lifecycleHost))
 assert.equal(lifecycleReadyCheck.room.state, 'ready_check', 'activity room lifecycle host should start ready check')
@@ -438,11 +443,19 @@ const lifecycleActionResult = await runtime.submitFestivalRoomGameplayAction(lif
 }, actor(lifecycleGuest))
 assert.equal(lifecycleActionResult.room.visual_state.revision, 1, 'activity room lifecycle visual action should advance visual revision')
 assert.equal(lifecycleActionResult.room.visual_state.objects.find(object => object.id === 'lantern_main_lantern')?.handled_by, lifecycleGuest, 'activity room lifecycle visual action should mark actor')
+assert.equal(lifecycleActionResult.room.action_log[0]?.action, 'room.action', 'activity room should audit gameplay action')
+assert.equal(lifecycleActionResult.room.action_log[0]?.gameplay_action_id, 'lock_piece', 'activity room gameplay audit should record action id')
+assert.equal(lifecycleActionResult.room.action_log[0]?.gameplay_action_label, '拼上一块', 'activity room gameplay audit should record action label')
+assert.equal(lifecycleActionResult.room.action_log[0]?.gameplay_phase, 'active', 'activity room gameplay audit should record gameplay phase')
 
 const lifecycleSettled = await runtime.settleFestivalRoom(lifecycleRoom.room.id, actor(lifecycleHost))
 assert.equal(lifecycleSettled.room.state, 'settling', 'activity room lifecycle settlement should move room to settling')
 assert.equal(lifecycleSettled.room.settlement_receipts.length, 2, 'activity room lifecycle settlement should create one receipt per member')
 assert.deepEqual(new Set(lifecycleSettled.room.settlement_receipts.map(receipt => receipt.target_username)), new Set([lifecycleHost, lifecycleGuest]), 'activity room lifecycle settlement should target host and guest')
+assert.equal(lifecycleSettled.room.action_log[0]?.action, 'room.settle', 'activity room should audit settlement creation')
+assert.equal(lifecycleSettled.room.action_log[0]?.room_state, 'settling', 'activity room settlement audit should record room state')
+assert.deepEqual(lifecycleSettled.room.action_log[0]?.settlement_receipt_ids, lifecycleSettled.room.settlement_receipts.map(receipt => receipt.id), 'activity room settlement audit should record receipt ids')
+assert.match(lifecycleSettled.room.action_log[0]?.compensation_hint || '', /retryAdminActivityRoomSettlement/, 'activity room settlement audit should include compensation hint')
 await assert.rejects(
   runtime.settleFestivalRoom(lifecycleRoom.room.id, actor(lifecycleHost)),
   /当前房间已经生成过结算凭证了|只有进行中的活动房间才能进入结算/,
@@ -451,6 +464,9 @@ await assert.rejects(
 const lifecycleClosed = await runtime.retryAdminActivityRoomSettlement(lifecycleRoom.room.id)
 assert.equal(lifecycleClosed.room.state, 'closed', 'activity room lifecycle settlement replay should persist and close room')
 assert.ok(lifecycleClosed.room.members.every(member => member.status === 'settled'), 'activity room lifecycle close should settle all members')
+assert.equal(lifecycleClosed.room.action_log[0]?.action, 'room.close', 'activity room should audit room close')
+assert.equal(lifecycleClosed.room.action_log[0]?.room_state, 'closed', 'activity room close audit should record final state')
+assert.ok(lifecycleClosed.room.action_log.some(entry => entry.action === 'room.start'), 'activity room audit log should preserve countdown materialized start')
 assert.equal(Object.keys(readRewardSave(lifecycleHost).onlineFestivalRewards.appliedReceipts).length, 1, 'activity room lifecycle host reward should persist exactly once')
 assert.equal(Object.keys(readRewardSave(lifecycleGuest).onlineFestivalRewards.appliedReceipts).length, 1, 'activity room lifecycle guest reward should persist exactly once')
 const festivalActionStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))

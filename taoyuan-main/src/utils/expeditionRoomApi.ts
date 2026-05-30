@@ -240,6 +240,31 @@ export interface ExpeditionRoomEventSnapshot {
   created_at: number
 }
 
+export interface ExpeditionRoomActionLogSnapshot {
+  id: string
+  room_id: string
+  activity_domain: string
+  template_id: string
+  action: string
+  action_category: string
+  actor_username: string
+  actor_display_name: string
+  room_state: string
+  room_state_reason: string
+  gameplay_template_id: string
+  gameplay_phase: string
+  gameplay_action_id: string
+  gameplay_action_label: string
+  target_ref: string
+  idempotency_key: string
+  member_count: number
+  settlement_version: number
+  settlement_receipt_ids: string[]
+  compensation_hint: string
+  summary: string
+  created_at: number
+}
+
 export interface ExpeditionRoomReceiptPreview {
   id: string
   idempotency_key: string
@@ -385,6 +410,7 @@ export interface ExpeditionRoomSnapshot {
   members: ExpeditionRoomMemberSnapshot[]
   invitations: ExpeditionRoomInvitationSnapshot[]
   recent_events: ExpeditionRoomEventSnapshot[]
+  action_log: ExpeditionRoomActionLogSnapshot[]
   settlement_receipts: ExpeditionRoomReceiptPreview[]
   visual_state: OnlineVisualState
   gameplay: ExpeditionGameplaySnapshot

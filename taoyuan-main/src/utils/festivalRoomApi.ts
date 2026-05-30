@@ -222,6 +222,31 @@ export interface FestivalRoomEventSnapshot {
   created_at: number
 }
 
+export interface FestivalRoomActionLogSnapshot {
+  id: string
+  room_id: string
+  activity_domain: string
+  template_id: string
+  action: string
+  action_category: string
+  actor_username: string
+  actor_display_name: string
+  room_state: string
+  room_state_reason: string
+  gameplay_template_id: string
+  gameplay_phase: string
+  gameplay_action_id: string
+  gameplay_action_label: string
+  target_ref: string
+  idempotency_key: string
+  member_count: number
+  settlement_version: number
+  settlement_receipt_ids: string[]
+  compensation_hint: string
+  summary: string
+  created_at: number
+}
+
 export interface FestivalRoomRouteReplayNode {
   id: string
   label: string
@@ -417,6 +442,7 @@ export interface FestivalRoomSnapshot {
   members: FestivalRoomMemberSnapshot[]
   invitations: FestivalRoomInvitationSnapshot[]
   recent_events: FestivalRoomEventSnapshot[]
+  action_log: FestivalRoomActionLogSnapshot[]
   settlement_receipts: FestivalRoomReceiptPreview[]
   visual_state: OnlineVisualState
   gameplay: FestivalGameplaySnapshot

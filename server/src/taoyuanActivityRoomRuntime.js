@@ -22,6 +22,7 @@ const MEMBER_STATES = Object.freeze(['invited', 'joined', 'ready', 'countdown_lo
 const INVITATION_STATES = Object.freeze(['pending', 'accepted', 'rejected']);
 const RECEIPT_STATES = Object.freeze(['created', 'persist_preview', 'pending_persist', 'persisted', 'compensation_pending']);
 const EVENT_LIMIT = 40;
+const ACTION_LOG_LIMIT = 80;
 const RECEIPT_LIMIT = 60;
 const DEFAULT_COUNTDOWN_SECONDS = 6;
 const DEFAULT_RECONNECT_WINDOW_SECONDS = 90;
@@ -1635,6 +1636,37 @@ function normalizeRoomEvent(entry) {
     actor_display_name: sanitizeText(entry?.actor_display_name, 40),
     summary: sanitizeText(entry?.summary, 160),
     created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function normalizeRoomActionLogEntry(entry) {
+  const action = sanitizeText(entry?.action || entry?.event, 60);
+  const createdAt = Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds()));
+  return {
+    id: String(entry?.id || makeId('activity_room_action_log')),
+    room_id: sanitizeText(entry?.room_id, 60),
+    activity_domain: normalizeActivityDomain(entry?.activity_domain),
+    template_id: sanitizeText(entry?.template_id, 40),
+    action,
+    action_category: sanitizeText(entry?.action_category || action.split('.')[1] || action.split('.')[0], 40) || 'room',
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    actor_display_name: sanitizeText(entry?.actor_display_name, 40),
+    room_state: sanitizeText(entry?.room_state, 24),
+    room_state_reason: sanitizeText(entry?.room_state_reason, 120),
+    gameplay_template_id: sanitizeText(entry?.gameplay_template_id, 40),
+    gameplay_phase: sanitizeText(entry?.gameplay_phase, 24),
+    gameplay_action_id: sanitizeText(entry?.gameplay_action_id, 60),
+    gameplay_action_label: sanitizeText(entry?.gameplay_action_label, 60),
+    target_ref: sanitizeText(entry?.target_ref, 120),
+    idempotency_key: sanitizeText(entry?.idempotency_key, 120),
+    member_count: Math.max(0, Math.floor(Number(entry?.member_count) || 0)),
+    settlement_version: Math.max(0, Math.floor(Number(entry?.settlement_version) || 0)),
+    settlement_receipt_ids: Array.isArray(entry?.settlement_receipt_ids)
+      ? entry.settlement_receipt_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, RECEIPT_LIMIT)
+      : [],
+    compensation_hint: sanitizeText(entry?.compensation_hint, 160),
+    summary: sanitizeText(entry?.summary, 180),
+    created_at: createdAt,
   };
 }
 
@@ -3675,6 +3707,7 @@ function normalizeRoom(entry) {
     members: Array.isArray(entry?.members) ? entry.members.map(normalizeRoomMember).filter(member => member.username) : [],
     invitations: Array.isArray(entry?.invitations) ? entry.invitations.map(normalizeRoomInvitation).filter(invite => invite.target_username) : [],
     events: Array.isArray(entry?.events) ? entry.events.map(normalizeRoomEvent).slice(0, EVENT_LIMIT) : [],
+    action_log: Array.isArray(entry?.action_log) ? entry.action_log.map(normalizeRoomActionLogEntry).slice(0, ACTION_LOG_LIMIT) : [],
     gameplay_state: normalizeGameplayState(entry?.gameplay_state, gameplayTemplate.id, template.id, activityDomain),
     visual_state: normalizeOnlineVisualState(entry?.visual_state, {
       activity_domain: activityDomain,
@@ -3695,14 +3728,53 @@ function getReceiptListForRoom(store, room) {
     .sort((left, right) => (right.created_at || 0) - (left.created_at || 0));
 }
 
-function recordRoomEvent(room, event, actor, summary) {
+function buildRoomActionLogEntry(room, event, actor, summary, options = {}) {
+  const gameplayState = normalizeGameplayState(room.gameplay_state, room.gameplay_template_id, room.template_id, room.activity_domain);
+  const actionId = sanitizeText(options.gameplay_action_id || gameplayState.last_action_id, 60);
+  const contribution = actionId
+    ? (gameplayState.contributions || []).find(item => item.last_action_id === actionId && item.username === sanitizeText(actor?.username, 40))
+    : null;
+  const settlementReceiptIds = Array.isArray(options.settlement_receipt_ids)
+    ? options.settlement_receipt_ids
+    : (event === 'room.settle' || event === 'room.close' ? room.settlement_receipt_ids : []);
+  return normalizeRoomActionLogEntry({
+    action: event,
+    room_id: room.id,
+    activity_domain: room.activity_domain,
+    template_id: room.template_id,
+    action_category: sanitizeText(options.action_category || event.split('.')[1] || 'room', 40),
+    actor_username: actor?.username,
+    actor_display_name: actor?.displayName || actor?.username,
+    room_state: room.state,
+    room_state_reason: room.state_reason,
+    gameplay_template_id: room.gameplay_template_id,
+    gameplay_phase: gameplayState.phase,
+    gameplay_action_id: actionId,
+    gameplay_action_label: sanitizeText(options.gameplay_action_label || contribution?.last_action_label || '', 60),
+    target_ref: sanitizeText(options.target_ref || `activity_room:${room.id}`, 120),
+    idempotency_key: options.idempotency_key,
+    member_count: getJoinedMembers(room).length,
+    settlement_version: room.settlement_version,
+    settlement_receipt_ids: settlementReceiptIds,
+    compensation_hint: sanitizeText(options.compensation_hint || (event === 'room.close' || event === 'room.settle' ? 'retryAdminActivityRoomSettlement 可重放待补偿房间结算。' : ''), 160),
+    summary,
+    created_at: options.created_at || nowSeconds(),
+  });
+}
+
+function recordRoomEvent(room, event, actor, summary, options = {}) {
+  const createdAt = options.created_at || nowSeconds();
   room.events = [normalizeRoomEvent({
     event,
     actor_username: actor?.username,
     actor_display_name: actor?.displayName || actor?.username,
     summary,
-    created_at: nowSeconds(),
+    created_at: createdAt,
   }), ...(room.events || []).map(normalizeRoomEvent)].slice(0, EVENT_LIMIT);
+  room.action_log = [buildRoomActionLogEntry(room, event, actor, summary, {
+    ...options,
+    created_at: createdAt,
+  }), ...(room.action_log || []).map(normalizeRoomActionLogEntry)].slice(0, ACTION_LOG_LIMIT);
 }
 
 function getRoomMember(room, username) {
@@ -5819,6 +5891,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
       responded_at: invite.responded_at,
     })),
     recent_events: (room.events || []).map(normalizeRoomEvent).slice(0, 8),
+    action_log: (room.action_log || []).map(normalizeRoomActionLogEntry).slice(0, 12),
     settlement_receipts: settlementReceipts.map(receipt => ({
       id: receipt.id,
       idempotency_key: receipt.idempotency_key,
