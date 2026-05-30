@@ -3,6 +3,9 @@
 ---
 
 ## [未发布]
+### 0530 行旅护送货物完整度回看
+- `expedition_escort` 房间动作现在从服务端 `escort_state` 记录货物完整度、货损、稳固次数、途中事件处理和最近完整度变化，结算 `route_replay.cargo_integrity` 可读回同一摘要。
+- 远征独立页、在线节会页和统一房间壳会展示护送完整度、状态、货损 / 稳固 / 事件计数与最近变化；该读回不进入奖励 payload、不改变结算幂等键或个人落账。
 
 ### 0530 Cohabitation Warehouse Freeze Availability
 - Shared warehouse snapshots now expose frozen, available, and active high-value withdrawal draft IDs, so pending high-value withdrawal drafts reserve stock instead of remaining consumable.

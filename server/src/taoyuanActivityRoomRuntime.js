@@ -556,6 +556,9 @@ const ESCORT_CONVOY_ACTION_EFFECT_MAP = Object.freeze({
   answer_incident: 'blocked',
 });
 
+const ESCORT_CONVOY_CARGO_INTEGRITY_MAX = 100;
+const ESCORT_CONVOY_CARGO_INITIAL_INTEGRITY = 100;
+
 const ESCORT_CONVOY_VISUAL_TRACK_CELLS = Object.freeze([
   {
     id: 'escort_convoy_gate',
@@ -1774,6 +1777,7 @@ function normalizeReceiptRouteReplay(value) {
       withdrawal_actor_username: '',
       withdrawal_actor_display_name: '',
       withdrawal_at: 0,
+      cargo_integrity: normalizeReceiptRouteReplayCargoIntegrity(null),
     };
   }
   return {
@@ -1830,6 +1834,7 @@ function normalizeReceiptRouteReplay(value) {
     withdrawal_actor_username: sanitizeText(source.withdrawal_actor_username, 40),
     withdrawal_actor_display_name: sanitizeText(source.withdrawal_actor_display_name, 40),
     withdrawal_at: Math.max(0, Math.floor(Number(source.withdrawal_at) || 0)),
+    cargo_integrity: normalizeReceiptRouteReplayCargoIntegrity(source.cargo_integrity),
   };
 }
 
@@ -2423,7 +2428,136 @@ function applyExpeditionCavernResourceDelta(cavernState, resourceDelta) {
 function formatSignedDelta(value) {
   const numeric = Math.floor(Number(value) || 0);
   if (numeric > 0) return `+${numeric}`;
+
   return String(numeric);
+}
+function getEscortConvoyCargoIntegrityLabel(value, maxValue) {
+  const max = Math.max(1, Math.floor(Number(maxValue) || ESCORT_CONVOY_CARGO_INTEGRITY_MAX));
+  const percent = Math.round((clampNumber(value, 0, max) / max) * 100);
+  if (percent >= 90) return '封条完整';
+  if (percent >= 75) return '轻微磨损';
+  if (percent >= 55) return '可交付';
+  if (percent >= 35) return '明显受损';
+  return '需补偿核验';
+}
+
+function buildEscortConvoyCargoIntegritySummary(escortState) {
+  const max = Math.max(1, Math.floor(Number(escortState?.cargo_integrity_max) || ESCORT_CONVOY_CARGO_INTEGRITY_MAX));
+  const value = clampNumber(escortState?.cargo_integrity_value, 0, max);
+  const label = sanitizeText(escortState?.cargo_integrity_label, 40) || getEscortConvoyCargoIntegrityLabel(value, max);
+  const protectCount = Math.max(0, Math.floor(Number(escortState?.cargo_protect_count) || 0));
+  const incidentCount = Math.max(0, Math.floor(Number(escortState?.incident_handled_count) || 0));
+  const damageCount = Math.max(0, Math.floor(Number(escortState?.cargo_damage_count) || 0));
+  return `货物完整度 ${value}/${max}（${label}），稳固 ${protectCount} 次，处理事件 ${incidentCount} 次，货损 ${damageCount} 次。`;
+}
+
+function normalizeEscortConvoyState(entry) {
+  const source = entry && typeof entry === 'object' ? entry : {};
+  const max = Math.max(1, Math.floor(Number(source.cargo_integrity_max) || ESCORT_CONVOY_CARGO_INTEGRITY_MAX));
+  const rawValue = source.cargo_integrity_value ?? source.integrity_value ?? ESCORT_CONVOY_CARGO_INITIAL_INTEGRITY;
+  const value = clampNumber(rawValue, 0, max);
+  const state = {
+    cargo_integrity_value: value,
+    cargo_integrity_max: max,
+    cargo_integrity_label: sanitizeText(source.cargo_integrity_label, 40) || getEscortConvoyCargoIntegrityLabel(value, max),
+    cargo_damage_count: Math.max(0, Math.floor(Number(source.cargo_damage_count) || 0)),
+    cargo_protect_count: Math.max(0, Math.floor(Number(source.cargo_protect_count) || 0)),
+    incident_handled_count: Math.max(0, Math.floor(Number(source.incident_handled_count) || 0)),
+    last_integrity_delta: clampNumber(source.last_integrity_delta, -max, max),
+    last_integrity_reason: sanitizeText(source.last_integrity_reason, 120) || '车队整备完成，货箱封条完整。',
+    last_action_id: sanitizeText(source.last_action_id, 40),
+    last_actor_username: sanitizeText(source.last_actor_username, 40),
+    last_actor_display_name: sanitizeText(source.last_actor_display_name, 40),
+    updated_at: Math.max(0, Math.floor(Number(source.updated_at) || 0)),
+  };
+  state.cargo_integrity_summary = sanitizeText(source.cargo_integrity_summary, 180) || buildEscortConvoyCargoIntegritySummary(state);
+  return state;
+}
+
+function createInitialEscortConvoyState() {
+  return normalizeEscortConvoyState({
+    cargo_integrity_value: ESCORT_CONVOY_CARGO_INITIAL_INTEGRITY,
+    cargo_integrity_max: ESCORT_CONVOY_CARGO_INTEGRITY_MAX,
+    cargo_integrity_summary: '货物完整度 100/100（封条完整），稳固 0 次，处理事件 0 次，货损 0 次。',
+    last_integrity_reason: '车队整备完成，货箱封条完整。',
+  });
+}
+
+function normalizeReceiptRouteReplayCargoIntegrity(entry) {
+  const source = entry && typeof entry === 'object' ? entry : {};
+  const max = Math.max(0, Math.floor(Number(source.max ?? source.cargo_integrity_max) || 0));
+  const value = max > 0 ? clampNumber(source.value ?? source.cargo_integrity_value, 0, max) : 0;
+  return {
+    value,
+    max,
+    label: sanitizeText(source.label ?? source.cargo_integrity_label, 40),
+    damage_count: Math.max(0, Math.floor(Number(source.damage_count ?? source.cargo_damage_count) || 0)),
+    protect_count: Math.max(0, Math.floor(Number(source.protect_count ?? source.cargo_protect_count) || 0)),
+    incident_handled_count: Math.max(0, Math.floor(Number(source.incident_handled_count) || 0)),
+    last_delta: clampNumber(source.last_delta ?? source.last_integrity_delta, -ESCORT_CONVOY_CARGO_INTEGRITY_MAX, ESCORT_CONVOY_CARGO_INTEGRITY_MAX),
+    last_reason: sanitizeText(source.last_reason ?? source.last_integrity_reason, 120),
+    summary: sanitizeText(source.summary ?? source.cargo_integrity_summary, 180),
+  };
+}
+
+function buildEscortConvoyCargoIntegritySnapshot(escortState) {
+  const state = normalizeEscortConvoyState(escortState);
+  return normalizeReceiptRouteReplayCargoIntegrity({
+    value: state.cargo_integrity_value,
+    max: state.cargo_integrity_max,
+    label: state.cargo_integrity_label,
+    damage_count: state.cargo_damage_count,
+    protect_count: state.cargo_protect_count,
+    incident_handled_count: state.incident_handled_count,
+    last_delta: state.last_integrity_delta,
+    last_reason: state.last_integrity_reason,
+    summary: state.cargo_integrity_summary,
+
+  });
+}
+function applyEscortConvoyCargoIntegrityAction(escortState, actor, actionOption, progressDelta) {
+  const state = normalizeEscortConvoyState(escortState);
+  const actionId = sanitizeText(actionOption?.id, 40);
+  let delta = 0;
+  let reason = '';
+  if (actionId === 'escort_step') {
+    const guarded = state.last_action_id === 'stabilize_cargo';
+    delta = guarded ? -1 : -4;
+    state.cargo_damage_count += guarded ? 0 : 1;
+    reason = guarded ? '稳货余效抵消了大部分路损。' : '护送推进造成轻微颠簸磨损。';
+  } else if (actionId === 'stabilize_cargo') {
+    delta = 6;
+    state.cargo_protect_count += 1;
+    reason = '重新绑扎货箱并恢复封条完整度。';
+  } else if (actionId === 'answer_incident') {
+    delta = 2;
+    state.incident_handled_count += 1;
+    reason = '途中事件已处理，避免转化为额外货损。';
+  } else {
+    delta = Math.max(0, Math.floor(Number(progressDelta) || 0));
+    reason = sanitizeText(actionOption?.summary, 120) || '护送行动已记录。';
+  }
+  state.cargo_integrity_value = clampNumber(state.cargo_integrity_value + delta, 0, state.cargo_integrity_max);
+  state.cargo_integrity_label = getEscortConvoyCargoIntegrityLabel(state.cargo_integrity_value, state.cargo_integrity_max);
+  state.last_integrity_delta = delta;
+  state.last_integrity_reason = reason;
+  state.last_action_id = actionId;
+  state.last_actor_username = sanitizeText(actor?.username, 40);
+  state.last_actor_display_name = sanitizeText(actor?.displayName, 40) || state.last_actor_username;
+  state.updated_at = nowSeconds();
+  state.cargo_integrity_summary = buildEscortConvoyCargoIntegritySummary(state);
+  return state;
+}
+
+function createEscortConvoyActionSummary(room, actor, actionOption, escortState) {
+  const state = normalizeEscortConvoyState(escortState);
+  const deltaText = state.last_integrity_delta ? `完整度${formatSignedDelta(state.last_integrity_delta)}` : '完整度持平';
+  return [
+    `${actor.displayName || actor.username} 执行了「${actionOption.label}」`,
+    buildGameplayProgressText(getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id), room.gameplay_state),
+    `${deltaText}，当前 ${state.cargo_integrity_value}/${state.cargo_integrity_max}（${state.cargo_integrity_label}）`,
+    state.last_integrity_reason,
+  ].join('；');
 }
 
 function summarizeExpeditionCavernResourceDelta(resourceDelta) {
@@ -3458,6 +3592,9 @@ function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
   if (template.id === 'expedition_cavern') {
     state.cavern_state = createInitialExpeditionCavernState();
   }
+  if (template.id === 'expedition_escort') {
+    state.escort_state = createInitialEscortConvoyState();
+  }
   return state;
 }
 
@@ -3487,6 +3624,9 @@ function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '', 
   }
   if (template.id === 'expedition_cavern') {
     state.cavern_state = normalizeExpeditionCavernState(entry?.cavern_state);
+  }
+  if (template.id === 'expedition_escort') {
+    state.escort_state = normalizeEscortConvoyState(entry?.escort_state);
   }
   return state;
 }
@@ -3640,6 +3780,7 @@ function ensureRoomGameplayState(room) {
     syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
   }
   if (gameplayTemplate.id === 'expedition_escort') {
+    room.gameplay_state.escort_state = normalizeEscortConvoyState(room.gameplay_state.escort_state);
     syncEscortConvoyVisualState(room);
   }
   return room.gameplay_state;
@@ -4309,10 +4450,12 @@ function buildEscortConvoyRouteReplay(room) {
       });
     })
     .filter(Boolean);
+  const escortState = normalizeEscortConvoyState(gameplayState.escort_state);
+  const cargoIntegrity = buildEscortConvoyCargoIntegritySnapshot(escortState);
 
   const incidentWeight = gameplayState.last_action_id === 'answer_incident' ? 2 : gameplayState.last_action_id === 'stabilize_cargo' ? 0 : 1;
   const escortRisk = clampNumber(
-    2 + Math.max(0, gameplayState.progress_value - Math.floor(gameplayState.score_value / 2)) + incidentWeight,
+    2 + Math.max(0, gameplayState.progress_value - Math.floor(cargoIntegrity.value / 25)) + incidentWeight + cargoIntegrity.damage_count,
     0,
     10
   );
@@ -4332,7 +4475,7 @@ function buildEscortConvoyRouteReplay(room) {
 
   const trackLength = Math.max(1, Math.floor(Number(track.length) || routeNodes.length || 1));
   const reachedFinish = routeNodes.some(node => node.kind === 'finish' && positionIndex + 1 >= node.order);
-  const summary = `护送路线 ${routeNodes.map(node => node.label).join(' -> ')}；车队推进 ${Math.min(positionIndex + 1, trackLength)}/${trackLength} 格，${reachedFinish ? '已抵达交付点' : '仍在护送途中'}；货物完整度 ${gameplayState.score_value}，途中风险 ${riskPeak.value}/10。`;
+  const summary = `护送路线 ${routeNodes.map(node => node.label).join(' -> ')}；车队推进 ${Math.min(positionIndex + 1, trackLength)}/${trackLength} 格，${reachedFinish ? '已抵达交付点' : '仍在护送途中'}；${cargoIntegrity.summary || `货物完整度 ${cargoIntegrity.value}/${cargoIntegrity.max}`}；途中风险 ${riskPeak.value}/10。`;
   return normalizeReceiptRouteReplay({
     kind: 'escort_convoy',
     title: '商队护送记录',
@@ -4341,6 +4484,7 @@ function buildEscortConvoyRouteReplay(room) {
     highlight_nodes: highlightNodes,
     risk_peak: riskPeak,
     member_contributions: memberContributions,
+    cargo_integrity: cargoIntegrity,
   });
 }
 
@@ -5046,6 +5190,14 @@ function applyGameplayAction(room, actionId, actor) {
   } else {
     gameplayState.last_action_summary = `${gameplayState.last_actor_display_name} 执行了「${actionOption.label}」；${buildGameplayProgressText(template, gameplayState)}，${template.score_label}${gameplayState.score_value}`;
     if (template.id === 'expedition_escort') {
+      gameplayState.escort_state = applyEscortConvoyCargoIntegrityAction(gameplayState.escort_state, {
+        username: gameplayState.last_actor_username,
+        displayName: gameplayState.last_actor_display_name,
+      }, actionOption, progressDelta);
+      gameplayState.last_action_summary = createEscortConvoyActionSummary(room, {
+        username: gameplayState.last_actor_username,
+        displayName: gameplayState.last_actor_display_name,
+      }, actionOption, gameplayState.escort_state);
       syncEscortConvoyVisualState(room, {
         incrementRevision: true,
         appendHighlight: true,

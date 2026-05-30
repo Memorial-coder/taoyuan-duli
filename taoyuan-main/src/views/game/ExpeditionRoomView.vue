@@ -441,6 +441,9 @@
               <p v-if="receipt.route_replay.withdrawal_state === 'confirmed'" data-testid="expedition-cavern-receipt-withdrawal" class="mt-2 text-[10px] text-muted leading-4">
                 提前收尾：{{ receipt.route_replay.withdrawal_summary || '撤离点已确认。' }} · {{ routeReplayWithdrawalLockedComboLabel(receipt.route_replay) }} · {{ routeReplayWithdrawalActorLabel(receipt.route_replay) }}
               </p>
+              <p v-if="routeReplayCargoIntegrityText(receipt.route_replay)" data-testid="expedition-escort-receipt-cargo-integrity" class="mt-2 text-[10px] text-muted leading-4">
+                货物完整度：{{ routeReplayCargoIntegrityText(receipt.route_replay) }}
+              </p>
             </div>
           </div>
         </div>
@@ -810,6 +813,16 @@
     })
   })
 
+  const routeReplayCargoIntegrityText = (routeReplay: NonNullable<typeof expeditionRoomStore.myRoom>["settlement_receipts"][number]["route_replay"]) => {
+    if (!routeReplay?.kind || routeReplay.kind !== 'escort_convoy') return ''
+    const cargo = routeReplay.cargo_integrity
+    if (!cargo?.max) return ''
+    const delta = cargo.last_delta > 0 ? `+${cargo.last_delta}` : String(cargo.last_delta)
+    const deltaText = cargo.last_delta ? `最近 ${delta}` : '最近持平'
+    const detailText = `稳固 ${cargo.protect_count} · 事件 ${cargo.incident_handled_count} · 货损 ${cargo.damage_count}`
+    return [`${cargo.value}/${cargo.max}`, cargo.label, detailText, deltaText, cargo.last_reason].filter(Boolean).join(' · ')
+  }
+
   const formatExpeditionRoomShellReplay = (routeReplay: NonNullable<typeof expeditionRoomStore.myRoom>['settlement_receipts'][number]['route_replay']) => {
     if (!routeReplay?.kind) return ''
     if (routeReplay.kind === 'expedition_cavern') {
@@ -820,6 +833,14 @@
         routeReplay.risk_peak?.summary ? `风险峰值：${routeReplay.risk_peak.summary}` : '',
       ].filter(Boolean)
       return parts.join('；')
+    }
+    if (routeReplay.kind === 'escort_convoy') {
+      const cargoText = routeReplayCargoIntegrityText(routeReplay)
+      return [
+        routeReplay.summary || routeReplay.title,
+        cargoText ? `货物完整度：${cargoText}` : '',
+        routeReplay.risk_peak?.summary ? `风险峰值：${routeReplay.risk_peak.summary}` : '',
+      ].filter(Boolean).join('；')
     }
     return routeReplay.summary || routeReplay.title || ''
   }

@@ -308,6 +308,18 @@ export interface ExpeditionRoomRouteReplayRaceRanking {
   summary: string
 }
 
+export interface ExpeditionRoomRouteReplayCargoIntegrity {
+  value: number
+  max: number
+  label: string
+  damage_count: number
+  protect_count: number
+  incident_handled_count: number
+  last_delta: number
+  last_reason: string
+  summary: string
+}
+
 export interface ExpeditionRoomRouteReplay {
   kind: string
   title: string
@@ -331,6 +343,7 @@ export interface ExpeditionRoomRouteReplay {
   withdrawal_locked_combo_count: number
   withdrawal_actor_username: string
   withdrawal_actor_display_name: string
+  cargo_integrity: ExpeditionRoomRouteReplayCargoIntegrity
   withdrawal_at: number
 }
 

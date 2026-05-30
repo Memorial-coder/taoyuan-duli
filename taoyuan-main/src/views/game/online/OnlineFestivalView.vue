@@ -567,6 +567,7 @@
                         <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
+                        <p v-if="routeReplayCargoIntegrityText(receipt.route_replay)" data-testid="online-festival-escort-cargo-integrity">货物完整度：{{ routeReplayCargoIntegrityText(receipt.route_replay) }}</p>
                       </div>
                     </div>
                   </div>
@@ -876,6 +877,7 @@
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayCargoIntegrityText(receipt.route_replay)" data-testid="online-festival-escort-cargo-integrity">货物完整度：{{ routeReplayCargoIntegrityText(receipt.route_replay) }}</p>
               </div>
             </div>
           </div>
@@ -1472,6 +1474,7 @@
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayCargoIntegrityText(receipt.route_replay)" data-testid="online-festival-escort-cargo-integrity">货物完整度：{{ routeReplayCargoIntegrityText(receipt.route_replay) }}</p>
               </div>
             </div>
           </div>
@@ -1597,6 +1600,7 @@
                 <p v-if="routeReplayPeakText(receipt.routeReplay)">{{ routeReplayPeakLabel(receipt.routeReplay) }}：{{ routeReplayPeakText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayComboText(receipt.routeReplay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayWithdrawalText(receipt.routeReplay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.routeReplay) }}</p>
+                <p v-if="routeReplayCargoIntegrityText(receipt.routeReplay)" data-testid="online-festival-escort-cargo-integrity">货物完整度：{{ routeReplayCargoIntegrityText(receipt.routeReplay) }}</p>
               </div>
             </div>
           </div>
@@ -1854,6 +1858,15 @@
       .map(combo => `${combo.label} 采集值 +${combo.score_delta} / 风险 ${formatSignedCavernDelta(combo.risk_delta)}${combo.resource_delta_text ? ` / ${combo.resource_delta_text}` : ''}`)
       .join('；')
   }
+  const routeReplayCargoIntegrityText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'escort_convoy' || !('cargo_integrity' in replay)) return ''
+    const cargo = replay.cargo_integrity
+    if (!cargo?.max) return ''
+    const delta = cargo.last_delta > 0 ? `+${cargo.last_delta}` : String(cargo.last_delta)
+    const deltaText = cargo.last_delta ? `最近 ${delta}` : '最近持平'
+    const detailText = `稳固 ${cargo.protect_count} · 事件 ${cargo.incident_handled_count} · 货损 ${cargo.damage_count}`
+    return [`${cargo.value}/${cargo.max}`, cargo.label, detailText, deltaText, cargo.last_reason].filter(Boolean).join(' · ')
+  }
   const routeReplayWithdrawalText = (replay?: ActivityRouteReplay | null) => {
     if (!hasRouteReplay(replay) || replay?.kind !== 'expedition_cavern' || !('withdrawal_state' in replay) || replay.withdrawal_state !== 'confirmed') return ''
     const actor = replay.withdrawal_actor_display_name || replay.withdrawal_actor_username || '撤离确认人未记录'
@@ -2084,6 +2097,15 @@
         raceText ? `龙舟成绩：${raceText}` : '',
         rankingText ? `赛道名次：${rankingText}` : '',
         peakText ? `压力峰值：${peakText}` : '',
+      ].filter(Boolean).join('；')
+    }
+    if (replay?.kind === 'escort_convoy') {
+      const cargoText = routeReplayCargoIntegrityText(replay)
+      const peakText = routeReplayPeakText(replay)
+      return [
+        replay.summary || replay.title,
+        cargoText ? `货物完整度：${cargoText}` : '',
+        peakText ? `风险峰值：${peakText}` : '',
       ].filter(Boolean).join('；')
     }
     return replay?.summary || replay?.title || ''

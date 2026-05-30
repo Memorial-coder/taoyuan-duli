@@ -2,6 +2,7 @@
 
 最后整理：2026-05-30
 
+- 行旅护送货物完整度细分：`expedition_escort` 新增服务端权威 `escort_state`，护送推进、稳固货物和途中事件会记录完整度、货损、稳固与事件处理次数；结算 `escort_convoy` 回看新增 `cargo_integrity`，远征页、在线节会页和统一房间壳只读展示，不改奖励 payload、幂等键或个人落账。
 - Cohabitation shared warehouse frozen occupancy: active high-value withdrawal drafts now reduce available stock across shared farm, animal, pet, workshop, normal withdraw, sell, and family building material consumption; the warehouse UI shows frozen / available counts and disables actions when only frozen stock remains.
 - 腊八共灶公共仓联动：村社公共仓 `laba_cookpot_base` 消耗会固化奖励池、现场物件、房间预载和公共食材来源；在线村社消耗后可跳转创建 `laba_cookpot / assembly` 房间，服务端把来源反馈写入腊八共灶可视化高光，仍只扣公共仓、不发个人收益。
 - 同居离线队列 revision 冲突读回：离线队列合并结果和审计新增客户端基线、服务端合并前后 revision、stale 标记和服务端权威策略；共同庄园离线页会显示队列 revision 状态，便于确认离线操作按最新共同资产合并。
