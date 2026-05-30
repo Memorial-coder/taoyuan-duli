@@ -771,6 +771,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['霜菊清茶', '霜菊定心丹', '清寒药饮', '药师寒香赠礼', '重阳霜菊供茶', '寒香药茶订单'],
     summary: '霜雪蒜与菊花杂交的寒香二代花材，适合清茶料理、定心炼丹、清寒药饮、药师赠礼、重阳供茶和寒香药茶订单。'
+  },
+  {
+    cropId: 'phoenix_sesame',
+    tags: ['food', 'alchemy', 'pet_feed', 'oil', 'pickle', 'gift', 'festival', 'order'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['凤仁麻辣酱', '凤仁行气丹', '凤仁香油', '腌凤仁辣籽', '灵宠辛香豆', '武师香辣赠礼', '赛舟辛香供品', '麻辣调料订单'],
+    summary: '凤凰椒与芝麻杂交的麻辣二代油料，适合麻辣酱料理、行气炼丹、榨油、腌制、灵宠辛香喂食、武师赠礼、赛舟供品和麻辣调料订单。'
+  },
+  {
+    cropId: 'moonlight_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'flour', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['月莲清羹', '月莲清心丹', '月莲粉', '灵宠月莲餐', '安神药膳', '月夜赠礼', '中秋月莲供品', '公共仓月莲包', '清心订单'],
+    summary: '月光稻与莲子杂交的清心二代灵材，适合清羹料理、清心炼丹、制粉、灵宠月莲喂食、安神药膳、月夜赠礼、中秋供品、公共仓月莲备料和清心订单。'
+  },
+  {
+    cropId: 'jade_snow',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['翠雪芽茶', '翠雪护神丹', '灵宠雪芽茶', '冰清药饮', '隐士清礼', '冬春茶会供品', '雪芽药茶订单'],
+    summary: '翡翠茶与雪莲杂交的冰清二代芽叶，适合药茶料理、护神炼丹、灵宠雪芽喂食、冰清药饮、隐士赠礼、冬春茶会供品和雪芽药茶订单。'
+  },
+  {
+    cropId: 'golden_pumpkin',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['金瓜王羹', '金瓜聚火丹', '金瓜粉', '灵宠丰收餐', '家畜秋储料', '丰收祭主供', '公共仓金瓜包', '巨瓜宴席订单'],
+    summary: '金蜜瓜与南瓜杂交的巨型二代瓜作，适合浓羹料理、聚火炼丹、制粉、灵宠丰收喂食、家畜秋储料、丰收祭主供、公共仓金瓜包和巨瓜宴席订单。'
+  },
+  {
+    cropId: 'phoenix_corn',
+    tags: ['food', 'alchemy', 'animal_feed', 'flour', 'wine', 'pickle', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '甜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['火穗甜辣饭', '火穗行军丹', '火穗面粉', '火谷酒', '家畜暖谷料', '腌火穗粒', '夏祭火谷供品', '公共仓火穗包', '辣谷订单'],
+    summary: '凤凰椒与玉米杂交的甜辣二代谷物，适合甜辣饭料理、行军炼丹、制粉、酿酒、家畜暖谷料、腌制、夏祭供品、公共仓火穗备料和辣谷订单。'
   }
 ]
 
