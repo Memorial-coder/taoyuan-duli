@@ -242,6 +242,7 @@ export interface ExpeditionRoomEventSnapshot {
 
 export interface ExpeditionRoomReceiptPreview {
   id: string
+  idempotency_key: string
   activity_domain?: string
   target_username: string
   target_display_name: string

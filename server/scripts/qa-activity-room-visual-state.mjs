@@ -783,6 +783,13 @@ assert.equal(
 const dragonSettlementStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 const dragonStoredReceipt = dragonSettlementStore.receipts.find(receipt => receipt.room_id === dragonBoat.room.id && receipt.target_username === 'visual_host_dragon')
 assert.ok(dragonStoredReceipt?.idempotency_key, 'dragon boat stored receipt should keep idempotency key')
+assert.equal(dragonStoredReceipt.idempotency_key, `room_reward::visual_host_dragon:v`, 'dragon boat reward idempotency key should use room, member, and settlement version only')
+assert.equal(dragonStoredReceipt.idempotency_key.includes('slot'), false, 'dragon boat reward idempotency key should not depend on save slot')
+assert.equal(
+  dragonSettledSnapshotReceipt?.idempotency_key,
+  dragonStoredReceipt.idempotency_key,
+  'room snapshot receipt should expose the same reward idempotency key'
+)
 const dragonRewardMoney = Math.max(0, Math.floor(Number(dragonStoredReceipt.reward_payload?.money) || 0))
 const dragonRewardTickets = Math.max(0, Math.floor(Number(dragonStoredReceipt.reward_breakdown?.memorial_ticket_quantity) || 0))
 const dragonRewardDecoration = dragonStoredReceipt.reward_breakdown?.decoration_reward || {}
@@ -943,6 +950,13 @@ assert.equal(settledSnapshotReceipt?.route_replay?.kind, 'expedition_cavern', 'r
 const cavernSettlementStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 const cavernStoredReceipt = cavernSettlementStore.receipts.find(receipt => receipt.room_id === actionExpedition.room.id && receipt.target_username === 'visual_action_host')
 assert.ok(cavernStoredReceipt?.idempotency_key, 'cavern stored receipt should keep idempotency key')
+assert.equal(cavernStoredReceipt.idempotency_key, `room_reward::visual_action_host:v`, 'cavern reward idempotency key should use room, member, and settlement version only')
+assert.equal(cavernStoredReceipt.idempotency_key.includes('slot'), false, 'cavern reward idempotency key should not depend on save slot')
+assert.equal(
+  settledSnapshotReceipt?.idempotency_key,
+  cavernStoredReceipt.idempotency_key,
+  'cavern room snapshot receipt should expose the same reward idempotency key'
+)
 const cavernRewardMoney = Math.max(0, Math.floor(Number(cavernStoredReceipt.reward_payload?.money) || 0))
 const cavernRewardItems = new Map()
 for (const item of cavernStoredReceipt.reward_payload?.items || []) {

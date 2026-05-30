@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 Activity Room Reward Idempotency
+- Festival / expedition settlement receipts now use `room_reward:<roomId>:<memberId>:v<settlementVersion>` as the reward idempotency key; the save slot remains only as the persistence target.
+- `qa:activity-room-visual-state` covers festival and expedition receipt keys plus admin replay so money, tickets, items, and decorations are not awarded twice.
+
 ### 0530 村社仓廪周结算效果凭证
 - 公共仓 `weekly_settlement` 新增 `effect_receipts` 和 `effect_summary`，三类效果都能读回点数、阈值、效果值、来源类别、公共集体作用域和个人资产不变声明。
 - `qa:society-warehouse` 扩到稻米 / 草药 / 木材 / 布料 / 鱼获五类入仓，守住灾害应对、节会降本、公共任务加成和公共消耗只扣公共仓；本轮不新增个人收益，不改公共仓扣料金额。

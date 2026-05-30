@@ -1414,6 +1414,14 @@ function normalizeActivityDomain(value) {
   return ACTIVITY_DOMAINS.includes(normalized) ? normalized : DEFAULT_ACTIVITY_DOMAIN;
 }
 
+function buildRoomRewardIdempotencyKey(roomId, memberId, settlementVersion) {
+  const normalizedRoomId = sanitizeText(roomId, 60);
+  const normalizedMemberId = sanitizeText(memberId, 40);
+  const normalizedVersion = Math.max(1, Math.floor(Number(settlementVersion) || 1));
+  if (!normalizedRoomId || !normalizedMemberId) return '';
+  return `room_reward:::v`;
+}
+
 function getTemplateDomain(template) {
   return normalizeActivityDomain(template?.domain || DEFAULT_ACTIVITY_DOMAIN);
 }
@@ -5813,6 +5821,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
     recent_events: (room.events || []).map(normalizeRoomEvent).slice(0, 8),
     settlement_receipts: settlementReceipts.map(receipt => ({
       id: receipt.id,
+      idempotency_key: receipt.idempotency_key,
       target_username: receipt.target_username,
       target_display_name: receipt.target_display_name,
       target_slot: receipt.target_slot,

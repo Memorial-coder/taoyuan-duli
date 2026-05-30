@@ -317,6 +317,7 @@ export interface FestivalRoomRouteReplay {
 
 export interface FestivalRoomReceiptPreview {
   id: string
+  idempotency_key: string
   target_username: string
   target_display_name: string
   target_slot: number
