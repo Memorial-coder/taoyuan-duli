@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-30
+- 同居离线冲突预检：新增 `/offline-conflicts/preflight`，按服务端当前共同地图 / 动物 / 宠物 / 仓库 revision 判断客户端离线队列是否过期，返回支持 / 不支持动作、服务端权威策略和下一步建议，写 `offline_conflict_preflighted` 审计且不改个人存档、共同仓库或共同基金；前端离线页新增预检按钮和 revision 摘要。
 - 同居分居未知来源共同产物拆分：分居预览新增 `warehouse_unidentified_items`、贡献比例拆分 manifest / hash 和双方确认暂缓项；真实共同仓库返还会校验 hash 与双方确认，按 `unidentified_contribution_ratio` 扣共同仓库、写目标成员个人背包 receipt，并在执行 ledger / 审计中统计未知来源返还数量。
 - Cohabitation child arrangement permission: separation child-arrangement record-only writes now require server-side `family.child_daily_care`; denied actors receive 403, successful responses and audits expose `required_permission_keys`, and personal child/family saves remain untouched until the receipt step.
 - 同居同时在线订单 / 装修证据前端读回：共同基金流水会显示订单确认效率加成、接单者、确认者和凭证；建筑流水会显示装修合照 / 家庭氛围协作加成、真实落账者、建材操作者和 moment / 事件 ID，继续保持奖励金额、共同基金 / 仓库扣减与个人资产边界不变。

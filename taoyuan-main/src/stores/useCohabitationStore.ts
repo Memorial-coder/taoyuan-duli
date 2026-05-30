@@ -45,6 +45,7 @@ import {
   fertilizeCohabitationSharedPlot,
   guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
   mergeCohabitationOfflineQueue,
+  preflightCohabitationOfflineConflicts,
   harvestCohabitationSharedPlot,
   petCohabitationSharedAnimal,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
@@ -107,6 +108,8 @@ import {
   type CohabitationFundHighRiskReceiptPayload,
   type CohabitationOfflineStatus,
   type CohabitationOfflineAutoIncomeCollectPayload,
+  type CohabitationOfflineConflictPreflightPayload,
+  type CohabitationOfflineConflictPreflightSummary,
   type CohabitationOfflineQueueMergePayload,
   type CohabitationOfflineQueueMergeSummary,
   type CohabitationOverviewResponse,
@@ -173,6 +176,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const familyReputationPanel = ref<CohabitationFamilyReputationPanel | null>(null)
   const familyVisibilityPanel = ref<CohabitationFamilyVisibilityPanel | null>(null)
   const offlineQueueMerge = ref<CohabitationOfflineQueueMergeSummary | null>(null)
+  const offlineConflictPreflight = ref<CohabitationOfflineConflictPreflightSummary | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
   const dailySettlement = ref<Record<string, unknown> | null>(null)
 
@@ -202,6 +206,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyReputationPanel.value = null
     familyVisibilityPanel.value = null
     offlineQueueMerge.value = null
+    offlineConflictPreflight.value = null
     offlineStatus.value = null
     dailySettlement.value = null
     warehouseCompensationAuditBundle.value = null
@@ -1814,6 +1819,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const preflightOfflineConflicts = async (payload: CohabitationOfflineConflictPreflightPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await preflightCohabitationOfflineConflicts(activeContractId.value, payload)
+      offlineConflictPreflight.value = result?.offline_conflict_preflight ?? null
+      if (result?.offline_status) offlineStatus.value = result.offline_status
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '预检离线经营冲突失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const collectOfflineAutoIncome = async (payload: CohabitationOfflineAutoIncomeCollectPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value) return null
     actionLoading.value = true
@@ -1931,6 +1955,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyBuildingsPanel,
     familyFestivalSeatsPanel,
     offlineQueueMerge,
+    offlineConflictPreflight,
     familyOrdersPanel,
     familyRelationsPanel,
     familyReputationPanel,
@@ -1986,6 +2011,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     executeFamilyBuildingRealDemolitionMainStateExactTargets,
     resolveFamilyBuildingRealDemolitionMainStateExactTargets,
     mergeOfflineQueue,
+    preflightOfflineConflicts,
     collectOfflineAutoIncome,
     settleDailyBonus,
     executeFamilyBuildingRealDemolitionMainStateExactMutation,

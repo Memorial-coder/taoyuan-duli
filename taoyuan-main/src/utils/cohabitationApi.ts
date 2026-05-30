@@ -1848,6 +1848,7 @@ export interface CohabitationOfflineStatus {
     shared_workshop_offline_writes_enabled?: boolean
     offline_queue_merge_enabled?: boolean
     offline_queue_supported_actions?: string[]
+    offline_conflict_preflight_enabled?: boolean
   }
   members: Array<CohabitationMember & {
     online_state: string
@@ -1857,6 +1858,7 @@ export interface CohabitationOfflineStatus {
   actor_capabilities: Record<string, boolean>
   simultaneous_online_bonus?: Record<string, unknown>
   offline_auto_income?: Record<string, unknown>
+  offline_conflict_preflight?: Record<string, unknown>
   recent_shared_log: CohabitationAuditEntry[]
   deferred_operations: string[]
 }
@@ -1946,6 +1948,40 @@ export interface CohabitationOfflineQueueMergeSummary {
 export interface CohabitationOfflineQueueMergeResponse extends CohabitationDetailResponse {
   offline_status?: CohabitationOfflineStatus
   offline_queue_merge?: CohabitationOfflineQueueMergeSummary
+}
+
+export interface CohabitationOfflineConflictPreflightPayload {
+  idempotency_key: string
+  client_queue_revision?: number
+  actions?: string[]
+  memo?: string
+}
+
+export interface CohabitationOfflineConflictPreflightSummary {
+  idempotency_key: string
+  client_queue_revision: number
+  server_queue_revision: number
+  client_queue_stale: boolean
+  conflict_policy: string
+  revision_conflict_policy: string
+  supported_actions: string[]
+  requested_actions: string[]
+  supported_requested_actions: string[]
+  unsupported_actions: string[]
+  rejected_count: number
+  next_step: string
+  personal_save_changed: boolean
+  shared_warehouse_changed: boolean
+  shared_fund_changed: boolean
+  server_authoritative: boolean
+  idempotent?: boolean
+  server_revision_snapshot?: CohabitationOfflineQueueRevisionSnapshot
+  [key: string]: unknown
+}
+
+export interface CohabitationOfflineConflictPreflightResponse extends CohabitationDetailResponse {
+  offline_status?: CohabitationOfflineStatus
+  offline_conflict_preflight?: CohabitationOfflineConflictPreflightSummary
 }
 
 export interface CohabitationOfflineAutoIncomeCollectPayload {
@@ -3639,6 +3675,14 @@ export const mergeCohabitationOfflineQueue = async (contractId: string, payload:
     contractPath(contractId, '/offline-queue/merge'),
     payload as unknown as Record<string, unknown>,
     '合并离线经营队列失败'
+  )
+}
+
+export const preflightCohabitationOfflineConflicts = async (contractId: string, payload: CohabitationOfflineConflictPreflightPayload) => {
+  return postCohabitationJson<CohabitationOfflineConflictPreflightResponse>(
+    contractPath(contractId, '/offline-conflicts/preflight'),
+    payload as unknown as Record<string, unknown>,
+    '预检离线经营冲突失败'
   )
 }
 

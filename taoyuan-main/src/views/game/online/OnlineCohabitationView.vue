@@ -2760,6 +2760,23 @@
               <button
                 class="online-action-btn online-action-btn--compact w-full justify-center"
                 type="button"
+                :disabled="!canPreflightOfflineConflicts || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-offline-conflict-preflight"
+                @click="submitOfflineConflictPreflight"
+              >
+                <ShieldCheck :size="12" />
+                预检服务端冲突
+              </button>
+              <p
+                v-if="offlineConflictPreflightLabel"
+                class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
+                data-testid="online-cohabitation-offline-conflict-preflight-result"
+              >
+                {{ offlineConflictPreflightLabel }}
+              </p>
+              <button
+                class="online-action-btn online-action-btn--compact w-full justify-center"
+                type="button"
                 :disabled="!cohabitationStore.canOpenSelectedContract || cohabitationStore.actionLoading"
                 data-testid="online-cohabitation-daily-settle"
                 @click="submitCohabitationDailySettle"
@@ -4504,6 +4521,9 @@
     offlineQueueActionOptions.value.find(option => option.id === selectedOfflineQueueActionId.value) ?? offlineQueueActionOptions.value[0] ?? null
   )
   const canSubmitOfflineQueueMerge = computed(() => selectedOfflineQueueActionOption.value?.enabled === true)
+  const canPreflightOfflineConflicts = computed(() =>
+    cohabitationStore.canOpenSelectedContract && cohabitationStore.offlineStatus?.summary.offline_conflict_preflight_enabled === true
+  )
   const offlineQueueMergeRows = computed<OfflineQueueResultRow[]>(() => {
     const merge = cohabitationStore.offlineQueueMerge
     if (!merge) return []
@@ -4524,6 +4544,15 @@
     const afterRevision = Math.max(0, Math.floor(Number(merge.server_queue_revision_after) || beforeRevision))
     const stale = merge.client_queue_stale === true ? '客户端基线已过期，服务端按最新共同资产合并' : '客户端基线未过期'
     return `队列 revision：客户端 ${clientRevision} / 服务端 ${beforeRevision} -> ${afterRevision} · ${stale}`
+  })
+  const offlineConflictPreflightLabel = computed(() => {
+    const preflight = cohabitationStore.offlineConflictPreflight
+    if (!preflight) return ''
+    const clientRevision = Math.max(0, Math.floor(Number(preflight.client_queue_revision) || 0))
+    const serverRevision = Math.max(0, Math.floor(Number(preflight.server_queue_revision) || 0))
+    const unsupportedCount = Array.isArray(preflight.unsupported_actions) ? preflight.unsupported_actions.length : 0
+    const stale = preflight.client_queue_stale === true ? '客户端基线已过期，请按服务端最新状态刷新后合并' : '客户端基线与服务端预检一致'
+    return `冲突预检：客户端 ${clientRevision} / 服务端 ${serverRevision} · ${stale} · 不支持动作 ${unsupportedCount} 项`
   })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
@@ -4891,6 +4920,7 @@
       care_shared_pet: '共同宠物照料',
       process_shared_workshop_recipe: '共同工坊处理',
       collect_offline_auto_income: '离线自动收益领取',
+      offline_conflict_preflighted: '离线冲突预检',
     }
     return labels[action] || action
   }
@@ -4996,6 +5026,32 @@
       payload: basePayload,
     }
   }
+  const submitOfflineConflictPreflight = async () => {
+    offlineQueueActionMessage.value = ''
+    offlineQueueActionOk.value = false
+    if (!canPreflightOfflineConflicts.value) {
+      offlineQueueActionMessage.value = '当前契约暂未开放离线冲突预检'
+      return
+    }
+    try {
+      const option = selectedOfflineQueueActionOption.value
+      const result = await cohabitationStore.preflightOfflineConflicts({
+        idempotency_key: `ui-offline-conflict-preflight-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        client_queue_revision: offlineQueueClientRevision(),
+        actions: option?.queueAction ? [option.queueAction] : [],
+        memo: '前端预检离线经营冲突',
+      })
+      const preflight = result?.offline_conflict_preflight
+      const stale = preflight?.client_queue_stale === true
+      offlineQueueActionOk.value = !stale
+      offlineQueueActionMessage.value = stale
+        ? '服务端检测到客户端基线过期，请刷新后再合并离线操作'
+        : '离线冲突预检通过，可按服务端当前状态继续合并'
+    } catch (error) {
+      offlineQueueActionMessage.value = error instanceof Error ? error.message : '预检离线经营冲突失败'
+    }
+  }
+
   const submitSelectedOfflineQueueMerge = async () => {
     const option = selectedOfflineQueueActionOption.value
     const operation = buildSelectedOfflineQueueOperation()
@@ -7341,6 +7397,12 @@
       const directionLabel = direction === 'inbound' ? '入仓' : direction === 'outbound' ? '出仓' : '入仓 / 出仓'
       return expiresAt > 0 ? `${target || '成员'} ${directionLabel}恢复至 ${formatTime(expiresAt)}` : `${target || '成员'} ${directionLabel}恢复已记录`
     }
+    if (entry.action === 'offline_conflict_preflighted') {
+      const clientRevision = Math.max(0, Math.floor(Number(detail.client_queue_revision) || 0))
+      const serverRevision = Math.max(0, Math.floor(Number(detail.server_queue_revision) || 0))
+      const unsupportedCount = Array.isArray(detail.unsupported_actions) ? detail.unsupported_actions.length : 0
+      return `客户端 revision ${clientRevision} / 服务端 ${serverRevision}，${detail.client_queue_stale === true ? '需刷新后合并' : '可继续合并'}，不支持动作 ${unsupportedCount} 项`
+    }
     if (entry.action === 'shared_workshop_processed') {
       const recipeId = typeof detail.recipe_id === 'string' ? detail.recipe_id : ''
       const recipe = sharedWorkshopRecipeOptions.find(option => option.id === recipeId)
@@ -7648,6 +7710,7 @@
       collect_shared_animal_product: '收取动物产物',
       care_shared_pet: '照料共同宠物',
       collect_offline_auto_income: '领取离线自动收益',
+      preflight_offline_conflicts: '预检离线冲突',
       read_fund: '读取共同基金',
       contribute_fund: '注资共同基金',
       read_permissions: '读取权限',

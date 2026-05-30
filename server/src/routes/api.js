@@ -264,6 +264,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_offline_queue_merge',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-conflicts\/preflight$/i,
+    action: 'cohabitation_offline_conflict_preflight',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-auto-income\/collect$/i,
     action: 'cohabitation_offline_auto_income_collect',
   },
@@ -3406,6 +3410,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-queue/me
   return withTaoyuanExchangeLock(async () => {
     try {
       const result = await taoyuanCohabitationRuntime.mergeCohabitationOfflineQueue(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      return sendJson(res, result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflicts/preflight', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.preflightCohabitationOfflineConflicts(req.params.contractId, req.body || {}, {
         username: req.session.username,
         displayName: req.session.display_name || req.session.username,
       });

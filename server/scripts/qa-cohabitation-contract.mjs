@@ -1096,6 +1096,33 @@ assert.ok(offlineQueueMerge.offline_status.summary.offline_queue_supported_actio
 assert.ok(!offlineQueueMerge.offline_status.deferred_operations.includes('offline_worker_queue'), 'offline worker queue should no longer be marked deferred after minimum merge path')
 assert.ok(!offlineQueueMerge.offline_status.deferred_operations.includes('conflict_merge_tool'), 'conflict merge tool should no longer be marked deferred after minimum merge path')
 assert.ok(offlineQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-merge-pet-care' && entry.detail?.client_queue_stale === true), 'offline queue merge should write revision conflict audit evidence')
+const offlineConflictPreflightOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const offlineConflictPreflightPartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlineConflictPreflight = await runtime.preflightCohabitationOfflineConflicts(created.contract.id, {
+  idempotency_key: 'qa-offline-conflict-preflight-stale',
+  client_queue_revision: 1,
+  actions: ['care_shared_pet', 'unsupported_future_action'],
+  memo: 'qa offline conflict preflight',
+}, actor(owner))
+assert.equal(offlineConflictPreflight.offline_status.summary.offline_conflict_preflight_enabled, true, 'offline status should expose conflict preflight readiness')
+assert.equal(offlineConflictPreflight.offline_status.actor_capabilities.preflight_offline_conflicts, true, 'offline status should expose conflict preflight actor capability')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.client_queue_revision, 1, 'conflict preflight should echo client queue revision')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.client_queue_stale, true, 'conflict preflight should detect stale client queue revision')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.revision_conflict_policy, 'server_authoritative_latest_state', 'conflict preflight should declare server authoritative conflict policy')
+assert.ok(offlineConflictPreflight.offline_conflict_preflight.supported_requested_actions.includes('care_shared_pet'), 'conflict preflight should keep supported requested actions')
+assert.ok(offlineConflictPreflight.offline_conflict_preflight.unsupported_actions.includes('unsupported_future_action'), 'conflict preflight should list unsupported requested actions')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.personal_save_changed, false, 'conflict preflight should not mutate personal saves')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.shared_warehouse_changed, false, 'conflict preflight should not mutate shared warehouse')
+assert.ok(offlineConflictPreflight.contract.audit_log.find(entry => entry.action === 'offline_conflict_preflighted' && entry.idempotency_key === 'qa-offline-conflict-preflight-stale' && entry.detail?.client_queue_stale === true), 'conflict preflight should write audit evidence')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineConflictPreflightOwnerRawBefore, 'conflict preflight should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineConflictPreflightPartnerRawBefore, 'conflict preflight should not rewrite partner save')
+const duplicateOfflineConflictPreflight = await runtime.preflightCohabitationOfflineConflicts(created.contract.id, {
+  idempotency_key: 'qa-offline-conflict-preflight-stale',
+  client_queue_revision: 1,
+  actions: ['care_shared_pet'],
+}, actor(owner))
+assert.equal(duplicateOfflineConflictPreflight.offline_conflict_preflight.idempotent, true, 'duplicate conflict preflight should replay by idempotency key')
+assert.equal(duplicateOfflineConflictPreflight.offline_conflict_preflight.conflict_policy, 'server_authoritative_idempotent_replay', 'duplicate conflict preflight should declare idempotent replay policy')
 assert.deepEqual(pickPersonalStoryBoundaryState(owner), offlineQueueOwnerBoundaryBefore, 'offline queue merge should not change owner personal save state')
 assert.deepEqual(pickPersonalStoryBoundaryState(partner), offlineQueuePartnerBoundaryBefore, 'offline queue merge should not change partner personal save state')
 const duplicateOfflineQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {

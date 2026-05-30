@@ -7325,6 +7325,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_workshop_offline_writes_enabled: true,
       offline_queue_merge_enabled: true,
       offline_queue_supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
+      offline_conflict_preflight_enabled: true,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
@@ -7368,6 +7369,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       manage_permissions: canManageCohabitationPermissions(actorMember),
       create_separation_preview: true,
       merge_offline_queue: true,
+      preflight_offline_conflicts: true,
     },
     simultaneous_online_bonus: simultaneousOnlineBonus,
     offline_auto_income: offlineAutoIncome,
@@ -8220,6 +8222,25 @@ function normalizeSharedPetCarePayload(payload = {}) {
     confirmation_text: sanitizeText(payload.confirmation_text || payload.confirmationText, 120),
     rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true,
     compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true,
+  };
+}
+
+function normalizeOfflineConflictPreflightPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.request_id || payload.operation_id, 120);
+  if (!idempotencyKey) throw createError('offline conflict preflight requires idempotency_key');
+  const rawActions = Array.isArray(payload.actions)
+    ? payload.actions
+    : Array.isArray(payload.operation_actions)
+      ? payload.operation_actions
+      : [];
+  const actions = [...new Set(rawActions
+    .map(action => sanitizeText(action, 80))
+    .filter(Boolean))].slice(0, 24);
+  return {
+    idempotency_key: idempotencyKey,
+    client_queue_revision: Math.max(0, Math.floor(Number(payload.client_queue_revision || payload.base_revision) || 0)),
+    actions,
+    memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
 
@@ -14335,6 +14356,73 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
     offline_auto_income_claim: claim,
   };
 }
+async function preflightCohabitationOfflineConflicts(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeOfflineConflictPreflightPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '预检离线经营冲突');
+  const revisionSnapshot = buildOfflineQueueRevisionSnapshot(contract);
+  const revisionEvidence = buildOfflineQueueMergeRevisionEvidence({
+    client_queue_revision: request.client_queue_revision,
+  }, revisionSnapshot, revisionSnapshot);
+  const unsupportedActions = request.actions.filter(action => !OFFLINE_QUEUE_SUPPORTED_ACTIONS.includes(action));
+  const supportedRequestedActions = request.actions.filter(action => OFFLINE_QUEUE_SUPPORTED_ACTIONS.includes(action));
+  const preflight = {
+    idempotency_key: request.idempotency_key,
+    client_queue_revision: revisionEvidence.client_queue_revision,
+    server_queue_revision: revisionEvidence.server_queue_revision_before,
+    client_queue_stale: revisionEvidence.client_queue_stale,
+    revision_conflict_policy: 'server_authoritative_latest_state',
+    conflict_policy: revisionEvidence.client_queue_stale
+      ? 'server_authoritative_refresh_required'
+      : 'server_authoritative_current',
+    supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
+    requested_actions: request.actions,
+    supported_requested_actions: supportedRequestedActions,
+    unsupported_actions: unsupportedActions,
+    rejected_count: unsupportedActions.length,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    next_step: revisionEvidence.client_queue_stale
+      ? 'refresh_offline_status_then_merge_against_latest_server_state'
+      : 'client_queue_revision_matches_server_preflight_state',
+    server_revision_snapshot: revisionSnapshot,
+  };
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'offline_conflict_preflighted' && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+      offline_conflict_preflight: {
+        ...preflight,
+        ...(previousAudit.detail || {}),
+        idempotency_key: request.idempotency_key,
+        idempotent: true,
+        conflict_policy: 'server_authoritative_idempotent_replay',
+      },
+    };
+  }
+  appendAudit(contract, 'offline_conflict_preflighted', actor, {
+    ...preflight,
+    memo: request.memo,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+    offline_conflict_preflight: {
+      ...preflight,
+      idempotent: false,
+    },
+  };
+}
+
 async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -24500,6 +24588,7 @@ module.exports = {
   getCohabitationFamilyVisibility,
   getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
+  preflightCohabitationOfflineConflicts,
   mergeCohabitationOfflineQueue,
   collectCohabitationOfflineAutoIncome,
   settleCohabitationDailyBonus,
