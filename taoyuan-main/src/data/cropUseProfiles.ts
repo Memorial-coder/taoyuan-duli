@@ -621,6 +621,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['霜雪蒜泥', '寒蒜护脉丹', '腌霜蒜', '雪夜暖菜', '药师赠礼', '冬祭辛香供品', '驱寒订单'],
     summary: '雪莲与大蒜杂交的寒辛灵材，适合辛香调味、护脉炼丹、腌制、雪夜暖菜、药师赠礼、冬祭供品和驱寒订单。'
+  },
+  {
+    cropId: 'emerald_radish',
+    tags: ['food', 'alchemy', 'animal_feed', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['翡翠萝卜汤', '翡翠护脉丹', '腌翡翠萝卜', '家畜清脆补料', '春社冷盘', '公共仓青根备料', '根菜订单'],
+    summary: '青菜与萝卜杂交的一代根菜，适合清甜汤羹、护脉炼丹、腌制加工、家畜补料、春社冷盘、公共仓备料和根菜订单。'
+  },
+  {
+    cropId: 'jade_shoot',
+    tags: ['food', 'alchemy', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['玉竹芽清汤', '玉芽凝神丹', '清香药膳', '雅士鲜笋赠礼', '春宴供笋', '公共仓春鲜包', '茶笋订单'],
+    summary: '春笋与茶叶杂交的清香芽菜，适合鲜汤料理、凝神炼丹、清香药膳、雅士赠礼、春宴供笋、公共仓春鲜备料和茶笋订单。'
+  },
+  {
+    cropId: 'golden_tuber',
+    tags: ['food', 'alchemy', 'animal_feed', 'oil', 'flour', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['金油薯饼', '金薯暖胃丹', '金薯粉', '金薯油料', '家畜饱腹料', '丰收节薯盘', '公共仓薯粉包', '油薯订单'],
+    summary: '土豆与油菜杂交的饱腹油料，适合薯饼料理、暖胃炼丹、制粉、榨油、家畜饲料、丰收节供盘、公共仓薯粉包和油薯订单。'
+  },
+  {
+    cropId: 'peach_blossom_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['桃花茶饮', '桃花醒神丹', '桃香花酿', '灵宠花果茶', '清心药茶', '春游赠礼', '花朝供茶', '雅集茶单'],
+    summary: '桃子与茶叶杂交的花茶灵材，适合花茶料理、醒神炼丹、花酿加工、灵宠花果喂食、清心药茶、春游赠礼、花朝供茶和雅集茶单。'
+  },
+  {
+    cropId: 'ruby_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'flour', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['红宝豆饭', '红宝养气丹', '桃香豆粉', '灵宠甜豆餐', '红豆糕赠礼', '七夕甜豆供品', '公共仓甜豆包', '豆点订单'],
+    summary: '蚕豆与桃子杂交的甜豆作物，适合豆饭料理、养气炼丹、制粉加工、灵宠甜豆喂食、糕点赠礼、七夕供品、公共仓甜豆包和豆点订单。'
   }
 ]
 
