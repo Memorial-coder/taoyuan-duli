@@ -1021,6 +1021,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['珠桃蜜羹', '珠桃养气丹', '珠桃果酒', '灵宠珠桃餐', '养气药膳', '贵客珠桃礼', '花朝珠桃供', '公共仓珠桃包', '珠桃订单'],
     summary: '珍珠谷与蜜桃杂交的圆润灵果，适合蜜羹料理、养气炼丹、酿果酒、灵宠珠桃喂食、养气药膳、贵客赠礼、花朝供品、公共仓珠桃备料和珠桃订单。'
+  },
+  {
+    cropId: 'golden_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'flour', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '甜'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['金莲清羹', '金莲清心丹', '金莲粉', '灵宠金莲餐', '安神药膳', '贵客金莲礼', '夏祭金莲供', '公共仓金莲包', '清心莲材订单'],
+    summary: '金蜜瓜与莲子杂交的金辉莲材，适合清羹料理、清心炼丹、制粉、灵宠金莲喂食、安神药膳、贵客赠礼、夏祭供品、公共仓金莲备料和清心莲材订单。'
+  },
+  {
+    cropId: 'phoenix_broad_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['凤豆辣酱', '凤豆行气丹', '腌凤豆瓣', '灵宠凤豆餐', '家畜蛋白料', '暖胃药膳', '武师凤豆礼', '赛舟凤豆供', '公共仓凤豆包', '辣豆订单'],
+    summary: '凤凰椒与蚕豆杂交的火香豆作，适合辣酱料理、行气炼丹、腌制、灵宠凤豆喂食、家畜蛋白料、暖胃药膳、武师赠礼、赛舟供品、公共仓凤豆备料和辣豆订单。'
+  },
+  {
+    cropId: 'moonlight_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '苦'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['月芽清茶', '月芽凝神丹', '灵宠月芽茶餐', '清心药饮', '夜读茶礼', '中秋月芽供', '公共仓月芽茶包', '月芽茶单'],
+    summary: '月光稻与茶叶杂交的月芽茶作，适合清茶料理、凝神炼丹、灵宠月芽喂食、清心药饮、夜读赠礼、中秋供品、公共仓月芽茶包和月芽茶单。'
+  },
+  {
+    cropId: 'jade_rapeseed',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['翠金菜油卷', '翠金润脉丹', '翠金菜油', '灵宠翠金点心', '家畜油籽料', '润脉药膳', '农家翠金礼', '春祭翠金供', '公共仓翠金包', '菜油订单'],
+    summary: '翡翠茶与油菜杂交的翠金油料，适合油卷料理、润脉炼丹、榨菜油、灵宠翠金点心、家畜油籽料、润脉药膳、农家赠礼、春祭供品、公共仓翠金备料和菜油订单。'
+  },
+  {
+    cropId: 'frost_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['霜山药泥', '霜药护脉丹', '霜山药粉', '灵宠霜药糕', '家畜冬根料', '清润药膳', '寒夜山药礼', '冬祭霜药供', '公共仓霜药包', '山药粉订单'],
+    summary: '霜雪蒜与山药杂交的冰润根茎，适合山药泥料理、护脉炼丹、制粉、灵宠霜药点心、家畜冬根料、清润药膳、寒夜赠礼、冬祭供品、公共仓霜药备料和山药粉订单。'
   }
 ]
 
