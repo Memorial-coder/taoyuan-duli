@@ -1923,6 +1923,55 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '金瓜与金秋果汇聚雷气后的三代暖桃，适合甜盏料理、行气炼丹、酿雷翠桃酒、灵宠雷桃喂食、家畜雷桃料、行气药膳、贺礼赠送、惊雷供品、公共仓雷桃备料和雷翠桃订单。'
   },
   {
+    cropId: 'rainbow_jade3_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虹翠瓜蜜盏', '虹瓜润脉丹', '虹翠瓜酿', '灵宠虹瓜餐', '家畜虹瓜料', '润脉药膳', '虹翠瓜礼', '彩桥虹瓜供', '公共仓虹瓜包', '虹翠瓜订单'],
+    summary: '金瓜与花生薯经风雨淬炼出的三代彩瓜，适合蜜盏料理、润脉炼丹、酿虹翠瓜酒、灵宠虹瓜喂食、家畜虹瓜料、润脉药膳、彩桥赠礼、虹桥供品、公共仓虹瓜备料和虹翠瓜订单。'
+  },
+  {
+    cropId: 'dew_jade3_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['露翠豆羹', '露豆养气丹', '露翠豆粉', '腌露翠豆', '灵宠露豆餐', '家畜露豆料', '养气药膳', '露翠豆礼', '朝露豆供', '公共仓露豆包', '露翠豆订单'],
+    summary: '金瓜与秋枣豆在清风中交融出的三代豆蔬，适合豆羹料理、养气炼丹、制露翠豆粉、腌露翠豆、灵宠露豆喂食、家畜露豆料、养气药膳、朝露赠礼、豆供节品、公共仓露豆备料和露翠豆订单。'
+  },
+  {
+    cropId: 'dawn_jade3_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['晨翠稻饭', '晨稻续行丹', '晨翠米粉', '晨翠清酒', '灵宠晨稻饭团', '家畜晨稻料', '续行药膳', '晨稻礼', '晨祭稻供', '公共仓晨稻包', '晨翠稻订单'],
+    summary: '金瓜与枣花桃沐露后的三代晨光灵稻，适合米饭料理、续行炼丹、制晨翠米粉、酿晨翠清酒、灵宠饭团、家畜精粮、续行药膳、晨祭赠礼、晨光供品、公共仓稻米备料和晨翠稻订单。'
+  },
+  {
+    cropId: 'dusk_jade3_tuber',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['暮翠薯羹', '暮薯驱寒丹', '暮翠薯粉', '腌暮翠薯', '灵宠暮薯餐', '家畜暮薯料', '驱寒药膳', '暮翠薯礼', '暮火薯供', '公共仓暮薯包', '暮翠薯订单'],
+    summary: '金瓜与姜花菜星夜蜕变出的三代暖薯，适合羹汤料理、驱寒炼丹、制暮翠薯粉、腌暮翠薯片、灵宠暮薯喂食、家畜暮薯料、驱寒药膳、暮色赠礼、暮火供品、公共仓暮薯备料和暮翠薯订单。'
+  },
+  {
+    cropId: 'star_jade3_green',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['星翠菜羹', '星菜清目丹', '腌星翠菜', '灵宠星菜餐', '家畜星菜料', '清目药膳', '星翠菜礼', '星灯菜供', '公共仓星菜包', '星翠菜订单'],
+    summary: '金瓜与仙菊菜汇聚星辉后的三代菜蔬，适合清羹料理、清目炼丹、腌星翠菜、灵宠星菜喂食、家畜星菜料、清目药膳、星灯赠礼、星灯供品、公共仓星菜备料和星翠菜订单。'
+  },  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
