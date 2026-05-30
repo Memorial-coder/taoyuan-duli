@@ -973,6 +973,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '西瓜与茄子杂交的紫晶瓜果，适合瓜盏料理、清暑炼丹、酿紫晶瓜酒、灵宠紫瓜喂食、清暑药饮、夏宴赠礼、消暑供品、公共仓紫瓜备料和紫瓜订单。'
   },
   {
+    cropId: 'golden_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '甜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['金芝稻饭', '金芝续行丹', '金芝米粉', '金芝香油', '金芝米酒', '灵宠金芝餐', '家畜金谷料', '行旅药膳', '粮坊金芝礼', '丰收金芝供', '公共仓金芝包', '金芝订单'],
+    summary: '稻谷与芝麻杂交的香甜谷作，适合米饭料理、续行炼丹、制金芝米粉、榨金芝香油、酿金芝米酒、灵宠金芝喂食、家畜金谷料、行旅药膳、粮坊赠礼、丰收供品、公共仓金芝备料和金芝订单。'
+  },
+  {
+    cropId: 'double_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['双莲羹', '双莲清心丹', '双莲粉', '灵宠双莲餐', '家畜莲根料', '清心药膳', '并蒂双莲礼', '七夕双莲供', '公共仓双莲包', '双莲粉单'],
+    summary: '莲藕与莲子杂交的并蒂水生作物，适合甜羹料理、清心炼丹、制双莲粉、灵宠双莲喂食、家畜莲根料、清心药膳、并蒂赠礼、七夕供品、公共仓双莲备料和双莲粉单。'
+  },
+  {
+    cropId: 'fire_sesame',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['火麻仁辣酱', '火麻行气丹', '火麻仁油', '腌火麻椒仁', '灵宠火麻餐', '家畜火麻料', '驱寒药膳', '武馆火麻礼', '火神火麻供', '公共仓火麻包', '火麻订单'],
+    summary: '辣椒与芝麻杂交的辛香油料，适合辣酱料理、行气炼丹、榨火麻仁油、腌火麻椒仁、灵宠火麻喂食、家畜火麻料、驱寒药膳、武馆赠礼、火神供品、公共仓火麻备料和火麻订单。'
+  },
+  {
+    cropId: 'silk_corn',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['丝穗粥', '丝穗清络丹', '丝穗粉', '丝穗清酒', '灵宠丝穗餐', '家畜丝谷料', '清络药膳', '织坊丝穗礼', '秋社丝穗供', '公共仓丝穗包', '丝穗订单'],
+    summary: '丝瓜与玉米杂交的柔滑谷穗，适合粥饭料理、清络炼丹、制丝穗粉、酿丝穗清酒、灵宠丝穗喂食、家畜丝谷料、清络药膳、织坊赠礼、秋社供品、公共仓丝穗备料和丝穗订单。'
+  },
+  {
+    cropId: 'purple_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '苦'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['紫莲茄煲', '紫莲清心丹', '紫莲藕粉', '腌紫莲茄', '灵宠紫莲餐', '家畜紫莲料', '清心药膳', '水榭紫莲礼', '荷灯紫莲供', '公共仓紫莲包', '紫莲订单'],
+    summary: '茄子与莲藕杂交的清润紫蔬，适合煲菜料理、清心炼丹、制紫莲藕粉、腌紫莲茄、灵宠紫莲喂食、家畜紫莲料、清心药膳、水榭赠礼、荷灯供品、公共仓紫莲备料和紫莲订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
