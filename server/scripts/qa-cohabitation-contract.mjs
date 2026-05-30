@@ -5195,6 +5195,129 @@ assert.equal(duplicateSharedFundRefund.fund.balance, sharedFundRefund.fund.balan
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite partner save again')
 
+const warehouseFreezeOwner = 'wh_freeze_owner30'
+const warehouseFreezePartner = 'wh_freeze_part30'
+assert.equal((await db.registerUser(warehouseFreezeOwner, 'SmokePass_0530', 'warehouse freeze owner')).ok, true, 'warehouse freeze owner should register')
+assert.equal((await db.registerUser(warehouseFreezePartner, 'SmokePass_0530', 'warehouse freeze partner')).ok, true, 'warehouse freeze partner should register')
+seedSave(warehouseFreezeOwner)
+seedSave(warehouseFreezePartner)
+const warehouseFreezeFriendRequest = await socialRuntime.requestFriendship(warehouseFreezeOwner, { target_username: warehouseFreezePartner })
+await socialRuntime.acceptFriendRequest(warehouseFreezePartner, warehouseFreezeFriendRequest.id)
+const warehouseFreezeContract = await runtime.createCohabitationContract({
+  type: 'lover_cohabitation',
+  target_username: warehouseFreezePartner,
+  idempotency_key: 'qa-separation-wh-freeze-contract',
+}, actor(warehouseFreezeOwner))
+await runtime.acceptCohabitationContract(warehouseFreezeContract.contract.id, actor(warehouseFreezePartner))
+await runtime.updateCohabitationPermissions(warehouseFreezeContract.contract.id, {
+  target_username: warehouseFreezeOwner,
+  permissions: {
+    storage: { withdraw_high_quality: true },
+  },
+  idempotency_key: 'qa-separation-wh-freeze-permission',
+}, actor(warehouseFreezeOwner))
+await injectSharedWarehouseDepositLedger(warehouseFreezeContract.contract.id, {
+  itemId: 'lotus',
+  quantity: 1,
+  quality: 'fine',
+  sourceUsername: warehouseFreezeOwner,
+  ledgerId: 'qa_separation_wh_freeze_lotus_deposit',
+  idempotencyKey: 'qa-separation-wh-freeze-lotus-deposit',
+  sourceSaveId: 123456791,
+})
+const warehouseFreezeDraft = await runtime.createCohabitationWarehouseHighValueWithdrawalDraft(warehouseFreezeContract.contract.id, {
+  item_id: 'lotus',
+  quantity: 1,
+  quality: 'fine',
+  reason: 'QA separation should block while high-value draft freezes stock',
+  idempotency_key: 'qa-separation-wh-freeze-draft',
+}, actor(warehouseFreezeOwner))
+assert.equal(warehouseFreezeDraft.draft.state, 'pending_confirmation', 'separation warehouse freeze draft should stay active')
+assert.equal(warehouseFreezeDraft.warehouse.summary.frozen_quantity, 1, 'separation warehouse freeze draft should reserve shared stock')
+const warehouseFreezePreview = await runtime.createSeparationPreview(warehouseFreezeContract.contract.id, {
+  reason: 'qa separation with active high-value warehouse draft',
+  idempotency_key: 'qa-separation-wh-freeze-preview',
+}, actor(warehouseFreezeOwner))
+assert.equal(warehouseFreezePreview.preview.asset_return.warehouse_high_value_withdrawal_freeze_summary.freeze_required, true, 'separation preview should flag active high-value warehouse drafts')
+assert.equal(warehouseFreezePreview.preview.asset_return.warehouse_high_value_withdrawal_freeze_summary.pending_count, 1, 'separation preview should count active high-value warehouse drafts')
+assert.ok(warehouseFreezePreview.preview.asset_return.warehouse_high_value_withdrawal_freeze_summary.draft_ids.includes(warehouseFreezeDraft.draft.id), 'separation preview should list active high-value warehouse draft ids')
+assert.ok(warehouseFreezePreview.preview.asset_return.warehouse_high_value_withdrawal_disputes.some(entry => entry.draft_id === warehouseFreezeDraft.draft.id && entry.frozen_quantity === 1), 'separation preview should expose high-value warehouse frozen quantity')
+assert.ok(warehouseFreezePreview.preview.asset_return.warehouse_high_value_withdrawal_disputes.some(entry => entry.draft_id === warehouseFreezeDraft.draft.id && entry.source_ledger_ids?.includes('qa_separation_wh_freeze_lotus_deposit')), 'separation preview should expose high-value warehouse source ledger ids')
+assert.ok(warehouseFreezePreview.preview.safety_checks.some(check => check.id === 'warehouse_high_value_withdrawal_freeze_traceable' && check.passed === true), 'separation preview should mark high-value warehouse draft freeze traceable')
+assert.ok(warehouseFreezePreview.preview.compensation_plan.some(item => item.id === 'warehouse_high_value_withdrawal_dispute_freeze'), 'separation preview should include warehouse draft freeze compensation plan')
+assert.ok(warehouseFreezePreview.preview.deferred_operations.includes('settle_high_value_warehouse_withdrawal_drafts'), 'separation preview should defer high-value warehouse draft settlement')
+await runtime.confirmSeparationPreview(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, {
+  memo: 'warehouse freeze owner confirms preview',
+  idempotency_key: 'qa-separation-wh-freeze-confirm-owner',
+}, actor(warehouseFreezeOwner))
+await runtime.confirmSeparationPreview(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, {
+  memo: 'warehouse freeze partner confirms preview',
+  idempotency_key: 'qa-separation-wh-freeze-confirm-partner',
+}, actor(warehouseFreezePartner))
+await mutateStoredSeparationPreview(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, preview => {
+  const now = Math.floor(Date.now() / 1000)
+  preview.confirm_after_at = now - 60
+  preview.expires_at = now + 3600
+  preview.confirmation_state = {
+    ...(preview.confirmation_state || {}),
+    confirm_after_at: now - 60,
+    expires_at: now + 3600,
+    can_execute_now: false,
+    execution_enabled: false,
+  }
+})
+const warehouseFreezeExecutionRequest = await runtime.requestSeparationExecution(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, {
+  memo: 'warehouse freeze separation execution request',
+  idempotency_key: 'qa-separation-wh-freeze-execution-request',
+}, actor(warehouseFreezeOwner))
+const warehouseFreezeAssetReturn = await runtime.executeSeparationAssetReturn(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, {
+  memo: 'record warehouse freeze separation return',
+  plot_return_manifest_hash: warehouseFreezePreview.preview.asset_return.plot_return_manifest_hash,
+  execution_request_id: warehouseFreezeExecutionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-wh-freeze-asset-return',
+}, actor(warehouseFreezeOwner))
+await runtime.writeSeparationPersonalFarmReturns(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, {
+  memo: 'write warehouse freeze source plots before warehouse return',
+  plot_return_manifest_hash: warehouseFreezePreview.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: warehouseFreezeAssetReturn.execution_ledger.id,
+  idempotency_key: 'qa-separation-wh-freeze-personal-farm-write',
+}, actor(warehouseFreezeOwner))
+await runtime.refundSeparationSharedFund(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, {
+  memo: 'refund warehouse freeze fund before warehouse return',
+  plot_return_manifest_hash: warehouseFreezePreview.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: warehouseFreezeAssetReturn.execution_ledger.id,
+  idempotency_key: 'qa-separation-wh-freeze-fund-refund',
+}, actor(warehouseFreezeOwner))
+const warehouseBeforeBlockedSeparationReturn = await runtime.getCohabitationWarehouse(warehouseFreezeContract.contract.id, actor(warehouseFreezeOwner))
+const ownerLotusBeforeBlockedSeparationReturn = getInventoryItemQuantity(warehouseFreezeOwner, 'lotus', 'fine')
+const partnerLotusBeforeBlockedSeparationReturn = getInventoryItemQuantity(warehouseFreezePartner, 'lotus', 'fine')
+const ownerMoneyBeforeBlockedSeparationReturn = readGameplayData(warehouseFreezeOwner)?.player?.money
+const partnerMoneyBeforeBlockedSeparationReturn = readGameplayData(warehouseFreezePartner)?.player?.money
+await assert.rejects(
+  () => runtime.returnSeparationSharedWarehouse(warehouseFreezeContract.contract.id, warehouseFreezePreview.preview.id, {
+    memo: 'blocked by active high-value warehouse draft',
+    plot_return_manifest_hash: warehouseFreezePreview.preview.asset_return.plot_return_manifest_hash,
+    execution_ledger_id: warehouseFreezeAssetReturn.execution_ledger.id,
+    idempotency_key: 'qa-separation-wh-freeze-blocked-return',
+  }, actor(warehouseFreezeOwner)),
+  error => error?.status === 409 && String(error.message || '').includes('high-value shared warehouse withdrawal drafts'),
+  'separation shared warehouse return should block while high-value drafts are active'
+)
+const warehouseAfterBlockedSeparationReturn = await runtime.getCohabitationWarehouse(warehouseFreezeContract.contract.id, actor(warehouseFreezeOwner))
+assert.equal(warehouseAfterBlockedSeparationReturn.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, warehouseBeforeBlockedSeparationReturn.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 'blocked separation warehouse return should not consume shared stock')
+assert.equal(warehouseAfterBlockedSeparationReturn.warehouse.summary.frozen_quantity, 1, 'blocked separation warehouse return should keep draft stock frozen')
+assert.equal(warehouseAfterBlockedSeparationReturn.warehouse.ledger.length, warehouseBeforeBlockedSeparationReturn.warehouse.ledger.length, 'blocked separation warehouse return should not write warehouse ledger')
+assert.equal(getInventoryItemQuantity(warehouseFreezeOwner, 'lotus', 'fine'), ownerLotusBeforeBlockedSeparationReturn, 'blocked separation warehouse return should not add owner personal lotus')
+assert.equal(getInventoryItemQuantity(warehouseFreezePartner, 'lotus', 'fine'), partnerLotusBeforeBlockedSeparationReturn, 'blocked separation warehouse return should not add partner personal lotus')
+assert.equal(readGameplayData(warehouseFreezeOwner)?.player?.money, ownerMoneyBeforeBlockedSeparationReturn, 'blocked separation warehouse return should not change owner personal money')
+assert.equal(readGameplayData(warehouseFreezePartner)?.player?.money, partnerMoneyBeforeBlockedSeparationReturn, 'blocked separation warehouse return should not change partner personal money')
+assert.ok(warehouseAfterBlockedSeparationReturn.contract.audit_log.find(entry => entry.action === 'separation_shared_warehouse_return_blocked_by_high_value_withdrawal' && entry.detail?.draft_ids?.includes(warehouseFreezeDraft.draft.id) && entry.detail?.shared_warehouse_changed === false && entry.detail?.personal_inventory_merged === false && entry.detail?.personal_money_merged === false), 'blocked separation warehouse return should write no-mutation audit evidence')
+const warehouseFreezeRollback = await runtime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(warehouseFreezeContract.contract.id, warehouseFreezeDraft.draft.id, {
+  reason: 'QA cleanup after separation warehouse freeze guard',
+  idempotency_key: 'qa-separation-wh-freeze-rollback',
+}, actor(warehouseFreezeOwner))
+assert.equal(warehouseFreezeRollback.warehouse.summary.frozen_quantity, 0, 'QA cleanup should release warehouse freeze draft')
+
 await assert.rejects(
   () => runtime.returnSeparationSharedWarehouse(created.contract.id, previewResult.preview.id, {
     memo: 'wrong shared warehouse return hash',

@@ -10097,9 +10097,47 @@ function buildSharedDecorationRemovalDisputeFreezePreview(contract) {
   };
 }
 
-function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance, sharedDecorationRemovalDisputeFreeze }) {
+function buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract = {}) {
+  const disputes = getActiveWarehouseWithdrawalDrafts(contract)
+    .map(draft => ({
+      draft_id: draft.id,
+      item_id: draft.item_id,
+      quality: draft.quality,
+      quantity: draft.quantity,
+      frozen_quantity: draft.frozen_quantity,
+      risk_level: draft.risk_level,
+      state: draft.state,
+      requester_username: draft.requester_username,
+      target_save_slot: draft.target_save_slot,
+      source_ledger_ids: draft.source_ledger_ids,
+      pending_member_usernames: draft.pending_member_usernames,
+      freeze_reason: 'Active high-value shared warehouse withdrawal draft still reserves stock.',
+      deferred_operations: ['execute_high_value_withdrawal_draft', 'rollback_high_value_withdrawal_draft'],
+    }))
+    .slice(0, WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT);
+  return {
+    disputes,
+    summary: {
+      pending_count: disputes.length,
+      frozen_quantity: disputes.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.frozen_quantity) || 0)), 0),
+      draft_ids: disputes.map(entry => entry.draft_id).filter(Boolean).slice(0, 20),
+      item_refs: [...new Set(disputes.map(entry => `${entry.item_id}:${entry.quality}`).filter(Boolean))].slice(0, 20),
+      source_ledger_ids: [...new Set(disputes.flatMap(entry => entry.source_ledger_ids || []))].slice(0, 40),
+      freeze_required: disputes.length > 0,
+    },
+    policy: {
+      status: disputes.length > 0 ? 'settle_high_value_withdrawal_before_shared_warehouse_return' : 'clear',
+      release_condition: 'Execute or roll back every active high-value withdrawal draft before returning shared warehouse items during separation.',
+      no_personal_inventory_mutation: true,
+      no_shared_warehouse_mutation: true,
+    },
+  };
+}
+
+function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const removalDisputeSummary = sharedDecorationRemovalDisputeFreeze?.summary || {};
+  const highValueWithdrawalFreezeSummary = warehouseHighValueWithdrawalDisputeFreeze?.summary || {};
   return [
     {
       id: 'preview_only',
@@ -10143,10 +10181,20 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fund
         ? '共同装修拆除待回执草案已进入分居争议冻结预览，需先拆除完成或退款收口。'
         : '当前没有待回执的共同装修拆除争议。',
     },
+    {
+      id: 'warehouse_high_value_withdrawal_freeze_traceable',
+      passed: !highValueWithdrawalFreezeSummary.freeze_required
+        || (warehouseHighValueWithdrawalDisputeFreeze.disputes || []).every(entry =>
+          entry.draft_id && entry.item_id && entry.frozen_quantity > 0
+        ),
+      detail: highValueWithdrawalFreezeSummary.freeze_required
+        ? 'Active high-value shared warehouse withdrawal drafts must be executed or rolled back before shared warehouse return.'
+        : 'No active high-value shared warehouse withdrawal draft freezes shared warehouse stock.',
+    },
   ];
 }
 
-function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, fundReturns, contract, sharedDecorationRemovalDisputeFreeze }) {
+function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, fundReturns, contract, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
   const plan = [];
   if (plotReturnPreview.plot_return_summary.total_plots > 0) {
     plan.push({
@@ -10182,6 +10230,15 @@ function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, 
       action: 'freeze_until_receipt_or_refund',
       status: 'manual_execution_required',
       detail: '共同装修拆除扣款未提交拆除 / 退款回执时，分居返还先冻结该争议项；收口前不改个人小屋、装修主状态或个人铜币。',
+    });
+  }
+  if (warehouseHighValueWithdrawalDisputeFreeze?.summary?.freeze_required) {
+    plan.push({
+      id: 'warehouse_high_value_withdrawal_dispute_freeze',
+      target: 'shared_warehouse',
+      action: 'settle_high_value_withdrawal_drafts_before_return',
+      status: 'manual_execution_required',
+      detail: 'Active high-value withdrawal drafts reserve shared warehouse stock; execute or roll them back before separation shared warehouse return.',
     });
   }
   if (contract.separation_policy?.keep_memorial !== false) {
@@ -19411,6 +19468,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const decorationSplitManifest = buildDecorationSplitManifest(contract);
   const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
   const sharedDecorationRemovalDisputeFreeze = buildSharedDecorationRemovalDisputeFreezePreview(contract);
+  const warehouseHighValueWithdrawalDisputeFreeze = buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract);
   const totalFundContributions = fundReturns.reduce((sum, entry) => sum + entry.amount, 0);
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const requiredMemberUsernames = (contract.members || [])
@@ -19444,6 +19502,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       shared_decoration_removal_disputes: sharedDecorationRemovalDisputeFreeze.disputes,
       shared_decoration_removal_freeze_summary: sharedDecorationRemovalDisputeFreeze.summary,
       shared_decoration_removal_freeze_policy: sharedDecorationRemovalDisputeFreeze.policy,
+      warehouse_high_value_withdrawal_disputes: warehouseHighValueWithdrawalDisputeFreeze.disputes,
+      warehouse_high_value_withdrawal_freeze_summary: warehouseHighValueWithdrawalDisputeFreeze.summary,
+      warehouse_high_value_withdrawal_freeze_policy: warehouseHighValueWithdrawalDisputeFreeze.policy,
       fund_balance: contract.shared_fund.balance,
       fund_total_contributed: totalFundContributions,
       fund_suggested_refund_total: totalSuggestedFundRefund,
@@ -19456,6 +19517,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       fundReturns,
       contract,
       sharedDecorationRemovalDisputeFreeze,
+      warehouseHighValueWithdrawalDisputeFreeze,
     }),
     narrative_hooks: [
       contract.type === 'marriage_home'
@@ -19483,6 +19545,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       fundReturns,
       fundBalance: contract.shared_fund.balance,
       sharedDecorationRemovalDisputeFreeze,
+      warehouseHighValueWithdrawalDisputeFreeze,
     }),
     deferred_operations: [
       'execute_asset_return',
@@ -19491,6 +19554,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       'resolve_family_story',
       'freeze_high_value_disputes',
       ...(sharedDecorationRemovalDisputeFreeze.summary.freeze_required ? ['freeze_shared_decoration_removal_disputes'] : []),
+      ...(warehouseHighValueWithdrawalDisputeFreeze.summary.freeze_required ? ['settle_high_value_warehouse_withdrawal_drafts'] : []),
     ],
     manual_execution_required: true,
     requires_both_confirm: true,
@@ -19512,6 +19576,11 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     shared_decoration_removal_fund_ledger_ids: sharedDecorationRemovalDisputeFreeze.summary.original_fund_ledger_ids,
     shared_decoration_removal_target_refs: sharedDecorationRemovalDisputeFreeze.summary.target_refs,
     shared_decoration_removal_freeze_status: sharedDecorationRemovalDisputeFreeze.policy.status,
+    warehouse_high_value_withdrawal_dispute_count: warehouseHighValueWithdrawalDisputeFreeze.summary.pending_count,
+    warehouse_high_value_withdrawal_frozen_quantity: warehouseHighValueWithdrawalDisputeFreeze.summary.frozen_quantity,
+    warehouse_high_value_withdrawal_freeze_required: warehouseHighValueWithdrawalDisputeFreeze.summary.freeze_required,
+    warehouse_high_value_withdrawal_draft_ids: warehouseHighValueWithdrawalDisputeFreeze.summary.draft_ids,
+    warehouse_high_value_withdrawal_freeze_status: warehouseHighValueWithdrawalDisputeFreeze.policy.status,
     confirm_after_at: preview.confirm_after_at,
     requires_both_confirm: true,
   }, idempotencyKey);
@@ -20362,6 +20431,27 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
     throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
   }
   if (ledger.shared_fund_refunded !== true) throw createError('共同基金尚未返还，不能返还共同仓库', 409);
+
+  const warehouseHighValueWithdrawalDisputeFreeze = buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract);
+  if (warehouseHighValueWithdrawalDisputeFreeze.summary.freeze_required) {
+    appendAudit(contract, 'separation_shared_warehouse_return_blocked_by_high_value_withdrawal', actor, {
+      preview_id: normalizedPreviewId,
+      execution_ledger_id: ledger.id,
+      draft_ids: warehouseHighValueWithdrawalDisputeFreeze.summary.draft_ids,
+      frozen_quantity: warehouseHighValueWithdrawalDisputeFreeze.summary.frozen_quantity,
+      item_refs: warehouseHighValueWithdrawalDisputeFreeze.summary.item_refs,
+      source_ledger_ids: warehouseHighValueWithdrawalDisputeFreeze.summary.source_ledger_ids,
+      shared_warehouse_changed: false,
+      personal_inventory_merged: false,
+      personal_money_merged: false,
+      required_operation: 'execute_or_rollback_high_value_withdrawal_drafts',
+      release_condition: warehouseHighValueWithdrawalDisputeFreeze.policy.release_condition,
+      no_shared_warehouse_mutation: true,
+      no_personal_inventory_mutation: true,
+    }, returnPayload.idempotency_key);
+    saveContractStore(store);
+    throw createError('active high-value shared warehouse withdrawal drafts must be executed or rolled back before separation shared warehouse return', 409);
+  }
 
   const returnRows = (ledger.warehouse_returns_by_origin_owner || []).filter(entry => entry.quantity > 0);
   let workingWarehouse = normalizeSharedWarehouse(contract.shared_warehouse);

@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 Cohabitation Separation Warehouse Draft Guard
+- Separation preview now lists active high-value shared warehouse withdrawal drafts, frozen quantity, source ledgers, and the required execute / rollback follow-up.
+- Separation shared warehouse return now returns 409 before return ledger or personal inventory writes while active high-value withdrawal drafts exist, with audit evidence that shared warehouse, personal inventory, and personal money stayed unchanged.
+
 ### 0530 Activity Room Reward Idempotency
 - Festival / expedition settlement receipts now use `room_reward:<roomId>:<memberId>:v<settlementVersion>` as the reward idempotency key; the save slot remains only as the persistence target.
 - `qa:activity-room-visual-state` covers festival and expedition receipt keys plus admin replay so money, tickets, items, and decorations are not awarded twice.

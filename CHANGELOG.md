@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-30
+- Cohabitation separation shared warehouse high-value draft guard: separation preview lists active high-value withdrawal drafts, frozen quantity, and source ledgers; shared warehouse return blocks before return ledger / personal inventory writes until drafts are executed or rolled back, leaving shared warehouse, personal inventory, and personal money unchanged.
 - 活动房间奖励凭证幂等键收口：节会 / 远征结算凭证 now use `room_reward:<roomId>:<memberId>:v<settlementVersion>`，存档槽位只保留为写回目标字段；管理员重放仍通过 `appliedReceipts` 防重复发钱、发券、发道具或发装饰。
 - 村社仓廪周结算效果凭证：公共仓 `weekly_settlement` 读回 `effect_receipts`、`effect_summary`、点数 / 阈值 / 来源类别、公共集体作用域和不发个人资产声明；`qa:society-warehouse` 扩到五类入仓及三类效果凭证，不改入仓成本、消耗金额或个人收益。
 - 活动房间行动日志补齐：节会 / 远征房间新增结构化 `action_log`，创建、加入、玩法行动、结算和关闭等会记录操作者、房间状态、玩法阶段、行动 ID、目标引用、凭证 ID 和补偿提示；旧 `recent_events` 继续兼容。
