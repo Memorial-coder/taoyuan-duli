@@ -671,6 +671,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'stable',
     recommendedUses: ['红宝豆饭', '红宝养气丹', '桃香豆粉', '灵宠甜豆餐', '红豆糕赠礼', '七夕甜豆供品', '公共仓甜豆包', '豆点订单'],
     summary: '蚕豆与桃子杂交的甜豆作物，适合豆饭料理、养气炼丹、制粉加工、灵宠甜豆喂食、糕点赠礼、七夕供品、公共仓甜豆包和豆点订单。'
+  },
+  {
+    cropId: 'emerald_jade_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['翠玉清茗', '翠玉凝神丹', '灵宠翠叶茶', '清心药茶', '文士茶礼', '春夏茶会供品', '珍茗订单'],
+    summary: '翡翠萝卜与茶叶杂交的二代清茗，适合茶饮料理、凝神炼丹、灵宠草本喂食、清心药茶、文士赠礼、茶会供品和珍茗订单。'
+  },
+  {
+    cropId: 'pearl_osmanthus',
+    tags: ['food', 'alchemy', 'flour', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['桂珠甜粥', '桂珠安神丹', '桂香谷粉', '桂珠花酿', '秋日香谷赠礼', '中秋供粥', '公共仓香谷包', '桂谷订单'],
+    summary: '珍珠谷与桂花杂交的秋香粮谷，适合甜粥料理、安神炼丹、制粉、花酿加工、秋日赠礼、中秋供粥、公共仓香谷备料和桂谷订单。'
+  },
+  {
+    cropId: 'ruby_fire',
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'pet_feed', 'festival', 'order'],
+    flavor: ['辛', '甜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['红宝辣豆酱', '红火行气丹', '腌红宝椒', '灵宠暖身豆', '驱寒药膳', '火神节热菜', '辛香酱订单'],
+    summary: '红宝豆与辣椒杂交的辛甜二代作物，适合辣豆酱料理、行气炼丹、腌制、灵宠暖身喂食、驱寒药膳、火热节会菜和辛香酱订单。'
+  },
+  {
+    cropId: 'golden_corn_king',
+    tags: ['food', 'alchemy', 'animal_feed', 'flour', 'wine', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['金穗王饭', '谷王续行丹', '金穗面粉', '金谷酒', '家畜精谷料', '丰收祭主粮', '公共仓五谷包', '粮商大单'],
+    summary: '金穗玉米与稻谷杂交的二代主粮，适合主粮料理、续行炼丹、制粉、酿酒、家畜精谷饲料、丰收祭主粮、公共仓五谷备料和粮商大单。'
+  },
+  {
+    cropId: 'jade_melon_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['碧茗瓜凉饮', '碧瓜清暑丹', '灵宠消暑瓜茶', '清凉药饮', '夏日鲜果赠礼', '消暑节供品', '公共仓凉瓜包', '暑茶订单'],
+    summary: '碧玉瓜与茶叶杂交的消暑二代作物，适合凉饮料理、清暑炼丹、灵宠消暑喂食、清凉药饮、夏日赠礼、消暑节供品、公共仓凉瓜备料和暑茶订单。'
   }
 ]
 
