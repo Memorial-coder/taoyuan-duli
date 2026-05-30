@@ -823,6 +823,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '春笋与红薯杂交的山野甜根，适合竹薯饭料理、续行炼丹、制粉、灵宠山竹喂食、家畜山薯料、行旅药膳、山路赠礼、春秋供品、公共仓山竹备料和山薯粉单。'
   },
   {
+    cropId: 'golden_fruit',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['金秋果羹', '金秋润喉丹', '金秋果酒', '灵宠金秋餐', '润喉药饮', '秋宴金果礼', '丰收金果供', '公共仓金果包', '金果订单'],
+    summary: '蜜桃与柿子杂交的金色秋果，适合甜羹料理、润喉炼丹、酿果酒、灵宠金秋喂食、润喉药饮、秋宴赠礼、丰收供品、公共仓金果备料和金果订单。'
+  },
+  {
+    cropId: 'nut_potato',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['花生薯饼', '花薯固元丹', '花生薯油', '花薯粉', '灵宠花薯糕', '家畜坚根料', '固元药膳', '山乡花薯礼', '秋社花薯供', '公共仓花薯包', '花薯粉单'],
+    summary: '土豆与花生杂交的香糯根作，适合薯饼料理、固元炼丹、榨花生薯油、制花薯粉、灵宠花薯糕、家畜坚根料、固元药膳、山乡赠礼、秋社供品、公共仓花薯备料和花薯粉单。'
+  },
+  {
+    cropId: 'autumn_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['秋枣豆饭', '秋豆养气丹', '秋枣豆粉', '灵宠秋豆餐', '家畜枣豆料', '养气药膳', '秋市枣豆礼', '重阳枣豆供', '公共仓枣豆包', '枣豆订单'],
+    summary: '蚕豆与红枣杂交的枣香豆作，适合豆饭料理、养气炼丹、制秋枣豆粉、灵宠秋豆喂食、家畜枣豆料、养气药膳、秋市赠礼、重阳供品、公共仓枣豆备料和枣豆订单。'
+  },
+  {
+    cropId: 'jujube_blossom',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['枣花桃羹', '枣桃养气丹', '枣花桃酒', '灵宠枣桃餐', '养气药饮', '花朝枣桃礼', '七夕枣桃供', '公共仓枣桃包', '枣桃订单'],
+    summary: '桃花与枣花杂交的甜香花果，适合果羹料理、养气炼丹、酿枣花桃酒、灵宠枣桃喂食、养气药饮、花朝赠礼、七夕供品、公共仓枣桃备料和枣桃订单。'
+  },
+  {
+    cropId: 'ginger_blossom',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['姜花菜炒', '姜花驱寒丹', '姜花菜油', '腌姜花菜', '灵宠姜花餐', '家畜辛花料', '驱寒药膳', '冬春姜花礼', '春祭姜花供', '公共仓姜花包', '辛花订单'],
+    summary: '油菜与生姜杂交的辛香花菜，适合热炒料理、驱寒炼丹、榨姜花菜油、腌姜花菜、灵宠姜花喂食、家畜辛花料、驱寒药膳、冬春赠礼、春祭供品、公共仓姜花备料和辛花订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
