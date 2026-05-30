@@ -721,6 +721,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'seasonal',
     recommendedUses: ['碧茗瓜凉饮', '碧瓜清暑丹', '灵宠消暑瓜茶', '清凉药饮', '夏日鲜果赠礼', '消暑节供品', '公共仓凉瓜包', '暑茶订单'],
     summary: '碧玉瓜与茶叶杂交的消暑二代作物，适合凉饮料理、清暑炼丹、灵宠消暑喂食、清凉药饮、夏日赠礼、消暑节供品、公共仓凉瓜备料和暑茶订单。'
+  },
+  {
+    cropId: 'twin_golden_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['金双豆饭', '双豆养元丹', '金双豆粉', '双豆花生油', '灵宠坚果豆餐', '家畜蛋白补料', '成双赠礼', '春社豆供', '公共仓豆粮包', '豆坊订单'],
+    summary: '双子豆与花生杂交的饱满二代豆作，适合豆饭料理、养元炼丹、制粉、榨油、灵宠坚果喂食、家畜蛋白补料、成双赠礼、春社供品、公共仓豆粮包和豆坊订单。'
+  },
+  {
+    cropId: 'peach_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'flour', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['桃花香饭', '桃华续行丹', '桃米粉', '桃花米酒', '灵宠花饭团', '春游饭盒赠礼', '花朝供饭', '公共仓桃米包', '雅宴饭单'],
+    summary: '桃花茶与稻谷杂交的花香米作，适合花饭料理、续行炼丹、制粉、酿酒、灵宠花饭团、春游赠礼、花朝供饭、公共仓桃米备料和雅宴饭单。'
+  },
+  {
+    cropId: 'jade_shoot_ginger',
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'gift', 'festival', 'order'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['玉笋姜汤', '玉姜驱寒丹', '腌玉笋姜', '暖身药膳', '寒夜赠礼', '立春节暖菜', '驱寒调料订单'],
+    summary: '玉竹芽与生姜杂交的鲜辛二代作物，适合姜汤料理、驱寒炼丹、腌制加工、暖身药膳、寒夜赠礼、立春节暖菜和驱寒调料订单。'
+  },
+  {
+    cropId: 'golden_tuber_lotus',
+    tags: ['food', 'alchemy', 'animal_feed', 'flour', 'medicine', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['金莲薯羹', '金莲润脉丹', '金莲薯粉', '清润药膳', '家畜饱腹料', '秋社甜薯供', '公共仓薯藕包', '薯粉药膳订单'],
+    summary: '金油薯与莲藕杂交的清甜二代根茎，适合薯羹料理、润脉炼丹、制粉、清润药膳、家畜饱腹料、秋社供品、公共仓薯藕备料和薯粉药膳订单。'
+  },
+  {
+    cropId: 'frost_chrysanthemum',
+    tags: ['food', 'alchemy', 'medicine', 'gift', 'festival', 'order'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['霜菊清茶', '霜菊定心丹', '清寒药饮', '药师寒香赠礼', '重阳霜菊供茶', '寒香药茶订单'],
+    summary: '霜雪蒜与菊花杂交的寒香二代花材，适合清茶料理、定心炼丹、清寒药饮、药师赠礼、重阳供茶和寒香药茶订单。'
   }
 ]
 
