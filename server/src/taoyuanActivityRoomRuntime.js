@@ -6470,6 +6470,16 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
     syncLanternFairVisualState(room, room.gameplay_state.festival_state);
     syncLabaCookpotVisualState(room, room.gameplay_state.festival_state);
     syncDragonBoatVisualState(room, room.gameplay_state.festival_state);
+    const sourceFeedback = sanitizeText(payload.source_feedback || payload.source_context_summary, 180);
+    if (sourceFeedback && room.template_id === 'lantern_fair') {
+      room.gameplay_state.festival_state = normalizeFestivalState(room.gameplay_state.festival_state, room.template_id);
+      room.gameplay_state.festival_state.recent_feedback = sourceFeedback;
+      syncLanternFairVisualState(room, room.gameplay_state.festival_state, {
+        recentFeedback: sourceFeedback,
+        appendHighlight: true,
+        highlightLabel: sanitizeText(payload.source_label, 40) || '\u5e7f\u573a\u8054\u52a8',
+      });
+    }
   }
   if (gameplayTemplate.id === 'expedition_cavern') {
     syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
@@ -6478,6 +6488,10 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
     syncEscortConvoyVisualState(room);
   }
   recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
+  const sourceFeedback = sanitizeText(payload.source_feedback || payload.source_context_summary, 180);
+  if (sourceFeedback) {
+    recordRoomEvent(room, 'room.source_context', actor, sourceFeedback);
+  }
   replaceRoom(store, room);
   saveStore(store);
   return {

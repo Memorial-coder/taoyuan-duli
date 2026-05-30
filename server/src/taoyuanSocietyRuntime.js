@@ -620,6 +620,51 @@ const SOCIETY_FESTIVAL_PROJECT_PACKAGE_OPTIONS = Object.freeze([
   },
 ]);
 
+const SOCIETY_FESTIVAL_REWARD_POOL_DEFS = Object.freeze([
+  {
+    id: 'main_lantern_opening',
+    label: '\u4e3b\u706f\u5f00\u5e55\u9884\u70ed',
+    summary: '\u706f\u7b3c\u5e03\u7f6e\u4f1a\u5e26\u5165\u4e3b\u706f\u3001\u706f\u95e8\u548c\u591c\u95f4\u52a8\u7ebf\u63d0\u793a\uff0c\u8fdb\u5165\u706f\u4f1a\u623f\u95f4\u540e\u4f5c\u4e3a\u516c\u5171\u5f00\u5e55\u6c1b\u56f4\u8bfb\u56de\u3002',
+    source_package_ids: ['festival_lanterns'],
+    object_ids: ['festival_lantern_gate_lit', 'festival_crowd'],
+  },
+  {
+    id: 'festival_snack_route',
+    label: '\u8282\u4ee4\u5c0f\u98df\u8865\u7ed9',
+    summary: '\u98df\u6750\u5907\u529e\u4f1a\u5e26\u5165\u9999\u6c64\u3001\u5c0f\u98df\u644a\u548c\u4eba\u6c14\u8865\u7ed9\u63d0\u793a\uff0c\u53ea\u5f71\u54cd\u516c\u5171\u56de\u770b\u4e0e\u534f\u4f5c\u63d0\u793a\uff0c\u4e0d\u53d1\u4e2a\u4eba\u8d44\u4ea7\u3002',
+    source_package_ids: ['festival_food'],
+    object_ids: ['festival_snack_stalls', 'festival_food_table'],
+  },
+  {
+    id: 'opening_stage_scenery',
+    label: '\u5f00\u5e55\u620f\u53f0\u5e03\u666f',
+    summary: '\u5e03\u666f\u642d\u8bbe\u4f1a\u5e26\u5165\u620f\u53f0\u3001\u706f\u95e8\u548c\u5f00\u5e55\u89c2\u6f14\u533a\uff0c\u623f\u95f4\u5165\u53e3\u53ef\u8bfb\u56de\u5e7f\u573a\u5b8c\u5de5\u5e03\u7f6e\u3002',
+    source_package_ids: ['festival_scenery'],
+    object_ids: ['festival_stage', 'festival_lantern_gate'],
+  },
+  {
+    id: 'riddle_tag_pool',
+    label: '\u706f\u8c1c\u9898\u7b7e\u6c60',
+    summary: '\u9898\u7b7e\u6574\u7406\u4f1a\u5e26\u5165\u706f\u8c1c\u3001\u795d\u8bcd\u548c\u9898\u7b7e\u7ebf\u7d22\uff0c\u8fdb\u5165\u706f\u4f1a\u540e\u4f5c\u4e3a\u89e3\u8c1c\u4e0e\u79e9\u5e8f\u63d0\u793a\u8bfb\u56de\u3002',
+    source_package_ids: ['festival_riddles'],
+    object_ids: ['festival_riddle_tags', 'festival_riddle_board'],
+  },
+  {
+    id: 'program_crowd_order',
+    label: '\u8282\u76ee\u4e0e\u79e9\u5e8f\u4eba\u6c14',
+    summary: '\u8282\u76ee\u5f69\u6392\u4f1a\u5e26\u5165\u9f13\u70b9\u3001\u961f\u5217\u548c\u5f00\u5e55\u8282\u76ee\u63d0\u793a\uff0c\u5e2e\u52a9\u706f\u4f1a\u623f\u95f4\u8bfb\u56de\u7ef4\u6301\u79e9\u5e8f\u4e0e\u4eba\u6c14\u6765\u6e90\u3002',
+    source_package_ids: ['festival_program'],
+    object_ids: ['festival_opening_show', 'festival_program_board'],
+  },
+  {
+    id: 'opening_photo_memorial',
+    label: '\u5f00\u5e55\u7559\u5f71\u7eaa\u5ff5',
+    summary: '\u5e7f\u573a\u5b8c\u5de5\u540e\u56fa\u5b9a\u5f00\u653e\u7559\u5f71\u70b9\u548c\u5f00\u5e55\u7eaa\u5ff5\u8bfb\u56de\uff1b\u8be5\u7eaa\u5ff5\u53ea\u5199\u516c\u5171\u8bb0\u5f55\uff0c\u4e0d\u76f4\u63a5\u843d\u4e2a\u4eba\u5956\u52b1\u3002',
+    source_package_ids: ['festival_lanterns', 'festival_food', 'festival_scenery', 'festival_riddles', 'festival_program'],
+    object_ids: ['festival_photo_spot'],
+  },
+]);
+
 const SOCIETY_LANTERN_WALL_PROJECT_PACKAGE_OPTIONS = Object.freeze([
   {
     id: 'lantern_wall_wish',
@@ -897,6 +942,142 @@ function normalizeSocietyPublicProjectContribution(entry) {
   };
 }
 
+function normalizeSocietyStringList(value, maxItems = 12, maxLength = 80) {
+  return Array.isArray(value)
+    ? value.map(item => sanitizeText(item, maxLength)).filter(Boolean).slice(0, maxItems)
+    : [];
+}
+
+function normalizeSocietyFestivalRewardPoolEntry(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  const def = SOCIETY_FESTIVAL_REWARD_POOL_DEFS.find(item => item.id === id) || {};
+  return {
+    id,
+    kind: 'festival_reward_pool',
+    label: sanitizeText(entry?.label || def.label, 40) || id,
+    summary: sanitizeText(entry?.summary || def.summary, 180),
+    active: entry?.active === true,
+    source_package_ids: normalizeSocietyStringList(entry?.source_package_ids || def.source_package_ids, 8, 40),
+    contribution_count: Math.max(0, Math.floor(Number(entry?.contribution_count) || 0)),
+    progress_value: Math.max(0, Math.floor(Number(entry?.progress_value) || 0)),
+    object_ids: normalizeSocietyStringList(entry?.object_ids || def.object_ids, 10, 80),
+  };
+}
+
+function normalizeSocietyFestivalSquareLinkage(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const sourceProjectId = sanitizeText(entry?.source_project_id, 80);
+  if (!sourceProjectId) return null;
+  return {
+    source_project_id: sourceProjectId,
+    source_event_id: sanitizeText(entry?.source_event_id, 80),
+    template_id: sanitizeText(entry?.template_id, 40),
+    gameplay_template_id: sanitizeText(entry?.gameplay_template_id, 40),
+    status: sanitizeText(entry?.status, 40) || 'ready_to_create',
+    room_id: sanitizeText(entry?.room_id, 80),
+    reward_pool_ids: normalizeSocietyStringList(entry?.reward_pool_ids, 12, 80),
+    reward_pool_labels: normalizeSocietyStringList(entry?.reward_pool_labels, 12, 40),
+    contribution_summary: sanitizeText(entry?.contribution_summary, 160),
+    public_context_summary: sanitizeText(entry?.public_context_summary, 220),
+    room_preload_hint: sanitizeText(entry?.room_preload_hint, 180),
+    object_ids: normalizeSocietyStringList(entry?.object_ids, 16, 80),
+    asset_boundary: sanitizeText(entry?.asset_boundary, 160),
+    updated_at: Math.max(0, Math.floor(Number(entry?.updated_at) || 0)),
+  };
+}
+
+function buildSocietyFestivalPackageContributionSummary(project) {
+  if (String(project?.id || '').trim() !== 'festival_square') return [];
+  const contributions = Array.isArray(project?.contributions)
+    ? project.contributions.map(normalizeSocietyPublicProjectContribution).filter(entry => entry.id)
+    : [];
+  return SOCIETY_FESTIVAL_PROJECT_PACKAGE_OPTIONS.map(option => {
+    const entries = contributions.filter(entry => entry.package_id === option.id);
+    if (entries.length <= 0) return null;
+    return {
+      package_id: option.id,
+      package_label: option.label,
+      contribution_count: entries.length,
+      progress_value: entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.progress_gain) || 0)), 0),
+    };
+  }).filter(Boolean).slice(0, 8);
+}
+
+function buildSocietyFestivalRewardPool(project) {
+  if (String(project?.id || '').trim() !== 'festival_square') return [];
+  const stored = Array.isArray(project?.festival_reward_pool)
+    ? project.festival_reward_pool.map(normalizeSocietyFestivalRewardPoolEntry).filter(Boolean).slice(0, 8)
+    : [];
+  if (stored.length > 0 && project?.status === 'completed') return stored;
+  const completed = project?.status === 'completed';
+  const contributions = Array.isArray(project?.contributions)
+    ? project.contributions.map(normalizeSocietyPublicProjectContribution).filter(entry => entry.id)
+    : [];
+  return SOCIETY_FESTIVAL_REWARD_POOL_DEFS.map(def => {
+    const sourceIds = normalizeSocietyStringList(def.source_package_ids, 8, 40);
+    const entries = contributions.filter(entry => sourceIds.includes(entry.package_id));
+    const active = completed && (def.id === 'opening_photo_memorial' || entries.length > 0);
+    return normalizeSocietyFestivalRewardPoolEntry({
+      ...def,
+      active,
+      contribution_count: entries.length,
+      progress_value: entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.progress_gain) || 0)), 0),
+    });
+  }).filter(Boolean).slice(0, 8);
+}
+
+function buildSocietyFestivalCompletionContext(project) {
+  if (String(project?.id || '').trim() !== 'festival_square') return null;
+  const rewardPool = buildSocietyFestivalRewardPool(project);
+  const activeRewards = rewardPool.filter(entry => entry.active);
+  const activeLabels = activeRewards.map(entry => entry.label).filter(Boolean);
+  const contributionPackages = buildSocietyFestivalPackageContributionSummary(project);
+  const contributionSummary = contributionPackages.length > 0
+    ? contributionPackages.map(entry => `${entry.package_label}x${entry.contribution_count}`).join('\u3001')
+    : '\u5e38\u89c4\u8282\u5e86\u7b79\u5907';
+  const objectIds = activeRewards
+    .flatMap(entry => entry.object_ids || [])
+    .filter((item, index, source) => item && source.indexOf(item) === index)
+    .slice(0, 16);
+  const rewardText = activeLabels.length > 0 ? activeLabels.join('\u3001') : '\u5e7f\u573a\u5b8c\u5de5\u72b6\u6001';
+  return {
+    reward_pool: rewardPool,
+    active_reward_pool_ids: activeRewards.map(entry => entry.id).filter(Boolean),
+    active_reward_pool_labels: activeLabels,
+    contribution_packages: contributionPackages,
+    contribution_summary: contributionSummary,
+    object_ids: objectIds.length > 0 ? objectIds : ['festival_crowd', 'festival_photo_spot'],
+    public_context_summary: `\u5e7f\u573a\u5b8c\u5de5\u5df2\u5e26\u5165${rewardText}\uff0c\u4f9b\u4e0a\u5143\u706f\u4f1a\u623f\u95f4\u8bfb\u56de\u9884\u70ed\u3001\u5e03\u666f\u3001\u706f\u8c1c\u548c\u7559\u5f71\u6765\u6e90\u3002`,
+    room_preload_hint: `\u4e0a\u5143\u706f\u4f1a\u5c06\u4ece\u8282\u5e86\u7b79\u5907\u8bfb\u5165${rewardText}\uff0c\u4f5c\u4e3a\u623f\u95f4\u516c\u5171\u63d0\u793a\u548c\u7eaa\u5ff5\u56de\u770b\u3002`,
+    asset_boundary: '\u53ea\u5199\u516c\u5171\u5de5\u7a0b\u3001\u623f\u95f4\u5165\u53e3\u548c\u7eaa\u5ff5\u56de\u770b\uff0c\u4e0d\u76f4\u63a5\u53d1\u4e2a\u4eba\u8d44\u4ea7\u3002',
+  };
+}
+
+function buildSocietyFestivalSquareLinkage(project) {
+  if (String(project?.id || '').trim() !== 'festival_square' || project?.status !== 'completed') return null;
+  const context = buildSocietyFestivalCompletionContext(project);
+  const storedLinkage = normalizeSocietyFestivalSquareLinkage(project?.festival_square_linkage);
+  const launch = project?.completion_room_launch && typeof project.completion_room_launch === 'object' ? project.completion_room_launch : {};
+  const roomId = sanitizeText(launch.room_id || storedLinkage?.room_id, 80);
+  return normalizeSocietyFestivalSquareLinkage({
+    source_project_id: 'festival_square',
+    source_event_id: 'society_project_complete:festival_square',
+    template_id: 'lantern_fair',
+    gameplay_template_id: 'assembly',
+    status: roomId ? 'created' : sanitizeText(launch.status || storedLinkage?.status, 40) || 'ready_to_create',
+    room_id: roomId,
+    reward_pool_ids: context?.active_reward_pool_ids || [],
+    reward_pool_labels: context?.active_reward_pool_labels || [],
+    contribution_summary: context?.contribution_summary || '',
+    public_context_summary: context?.public_context_summary || '',
+    room_preload_hint: context?.room_preload_hint || '',
+    object_ids: context?.object_ids || [],
+    asset_boundary: context?.asset_boundary || '',
+    updated_at: Math.max(0, Math.floor(Number(storedLinkage?.updated_at || project?.completed_at) || 0)),
+  });
+}
+
 function normalizeSocietyProjectCompletionReward(entry, active = false) {
   const id = sanitizeText(entry?.id, 80);
   if (!id) return null;
@@ -913,12 +1094,22 @@ function buildSocietyProjectCompletionRewards(project) {
   const normalized = normalizeSocietyPublicProject(project);
   const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[normalized.id] || {};
   const active = normalized.status === 'completed';
-  return Array.isArray(def.completion_rewards)
+  const baseRewards = Array.isArray(def.completion_rewards)
     ? def.completion_rewards
         .map(entry => normalizeSocietyProjectCompletionReward(entry, active))
         .filter(Boolean)
         .slice(0, 6)
     : [];
+  if (normalized.id !== 'festival_square') return baseRewards;
+  const festivalPool = buildSocietyFestivalRewardPool(normalized)
+    .map(entry => normalizeSocietyProjectCompletionReward({
+      id: entry.id,
+      kind: entry.kind,
+      label: entry.label,
+      summary: entry.summary,
+    }, entry.active))
+    .filter(Boolean);
+  return [...baseRewards, ...festivalPool].slice(0, 12);
 }
 
 function buildSocietyProjectCompletionRewardText(project) {
@@ -949,11 +1140,14 @@ function buildSocietyProjectCompletionRoomLaunch(project) {
       ? 'created'
       : sanitizeText(storedLaunch.status, 40) || 'ready_to_create';
     const failureReason = sanitizeText(storedLaunch.failure_reason, 120);
+    const linkage = buildSocietyFestivalSquareLinkage(normalized);
+    const contextSummary = linkage?.public_context_summary || '';
+    const assetBoundary = linkage?.asset_boundary || '\u8be5\u8054\u52a8\u53ea\u63d0\u4f9b\u5165\u53e3\uff0c\u4e0d\u76f4\u63a5\u53d1\u4e2a\u4eba\u8d44\u4ea7\u3002';
     const summary = roomId
-      ? `${completedBy}完成节庆广场筹备后，系统已自动创建上元灯会共建房间；该联动只提供房间入口，不直接发个人资产。`
+      ? `${completedBy}完成节庆广场筹备后，系统已自动创建上元灯会共建房间；${contextSummary || assetBoundary}`
       : failureReason
-        ? `${completedBy}完成节庆广场筹备后，自动创建上元灯会房间未成功：${failureReason}。仍可从入口手动创建，且不直接发个人资产。`
-        : `${completedBy}完成节庆广场筹备后，村社可从完工现场创建上元灯会共建房间；该联动只提供入口，不直接发个人资产。`;
+        ? `${completedBy}完成节庆广场筹备后，自动创建上元灯会房间未成功：${failureReason}。仍可从入口手动创建；${contextSummary || assetBoundary}`
+        : `${completedBy}完成节庆广场筹备后，村社可从完工现场创建上元灯会共建房间；${contextSummary || assetBoundary}`;
     const launch = {
       id: `society_project_complete:${normalized.id}:lantern_fair`,
       source_project_id: normalized.id,
@@ -964,6 +1158,11 @@ function buildSocietyProjectCompletionRoomLaunch(project) {
       label: '上元灯会房间',
       summary,
       status: launchStatus,
+      reward_pool_ids: linkage?.reward_pool_ids || [],
+      reward_pool_labels: linkage?.reward_pool_labels || [],
+      contribution_summary: linkage?.contribution_summary || '',
+      room_preload_hint: linkage?.room_preload_hint || '',
+      asset_boundary: linkage?.asset_boundary || '',
     };
     if (roomId) launch.room_id = roomId;
     if (failureReason && !roomId) launch.failure_reason = failureReason;
@@ -993,6 +1192,12 @@ function normalizeSocietyPublicProject(entry) {
       : [],
     completion_room_launch: entry?.completion_room_launch && typeof entry.completion_room_launch === 'object'
       ? { ...entry.completion_room_launch }
+      : null,
+    festival_reward_pool: Array.isArray(entry?.festival_reward_pool)
+      ? entry.festival_reward_pool.map(normalizeSocietyFestivalRewardPoolEntry).filter(Boolean).slice(0, 8)
+      : [],
+    festival_square_linkage: entry?.festival_square_linkage && typeof entry.festival_square_linkage === 'object'
+      ? normalizeSocietyFestivalSquareLinkage(entry.festival_square_linkage)
       : null,
   };
 }
@@ -2560,6 +2765,17 @@ function buildSocietyVisualAsyncHistory(project) {
       created_at: entry.created_at,
     }));
   if (project.status !== 'completed') return contributions;
+  const festivalLinkage = buildSocietyFestivalSquareLinkage(project);
+  const festivalLinkageHistory = festivalLinkage ? [{
+    id: `${project.id}_festival_linkage_${project.completed_at || nowSeconds()}`,
+    type: 'stage_complete',
+    actor_username: project.completed_by,
+    actor_display_name: project.completed_by_display_name || project.completed_by,
+    summary: [festivalLinkage.public_context_summary, festivalLinkage.room_preload_hint, festivalLinkage.asset_boundary]
+      .filter(Boolean)
+      .join(' '),
+    created_at: project.completed_at || nowSeconds(),
+  }] : [];
   return [
     {
       id: `${project.id}_complete_${project.completed_at || nowSeconds()}`,
@@ -2569,6 +2785,7 @@ function buildSocietyVisualAsyncHistory(project) {
       summary: [project.completion_feedback, completionRewardText ? `落成效果：${completionRewardText}` : ''].filter(Boolean).join(' '),
       created_at: project.completed_at || nowSeconds(),
     },
+    ...festivalLinkageHistory,
     ...contributions,
   ].slice(0, 12);
 }
@@ -2606,6 +2823,8 @@ function buildSocietyVisualAsyncProject(project) {
     completion_room_template_id: getSocietyProjectCompletionRoomTemplateId(normalized),
     completion_room_launch: buildSocietyProjectCompletionRoomLaunch(normalized),
     completion_event_id: normalized.status === 'completed' ? `society_project_complete:${normalized.id}` : '',
+    festival_reward_pool: buildSocietyFestivalRewardPool(normalized),
+    festival_square_linkage: buildSocietyFestivalSquareLinkage(normalized),
   };
 }
 
@@ -2695,6 +2914,8 @@ async function buildPublicProjectSnapshot(project, viewerUsername, viewerCanCont
     world_feedback: normalized.world_feedback || def.world_feedback,
     completion_rewards: buildSocietyProjectCompletionRewards(normalized),
     completion_room_launch: buildSocietyProjectCompletionRoomLaunch(normalized),
+    festival_reward_pool: buildSocietyFestivalRewardPool(normalized),
+    festival_square_linkage: buildSocietyFestivalSquareLinkage(normalized),
     can_contribute: viewerCanContribute && normalized.status !== 'completed',
     my_contribution_count: myContributionCount,
     contribution_packages: getSocietyProjectPackageOptions(normalized.id).map(buildPublicProjectPackageSnapshot),
@@ -3376,6 +3597,8 @@ async function createSocietyProjectCompletionRoom(project, society, actor = {}) 
       gameplay_template_id: 'assembly',
       title: baseLaunch.title || '节庆广场开幕灯会',
       countdown_seconds: 5,
+      source_feedback: baseLaunch.room_preload_hint || baseLaunch.summary,
+      source_label: '节庆广场',
     }, {
       username: actorUsername,
       displayName: actorDisplayName,
@@ -3467,6 +3690,10 @@ async function contributeSocietyPublicProject(projectId, payload = {}, actor = {
     project.completed_by = actorUsername;
     project.completed_by_display_name = actorDisplayName;
     const completionRewardText = buildSocietyProjectCompletionRewardText(project);
+    if (project.id === 'festival_square') {
+      project.festival_reward_pool = buildSocietyFestivalRewardPool(project);
+      project.festival_square_linkage = buildSocietyFestivalSquareLinkage(project);
+    }
     project.progress_note = [project.completion_feedback, completionRewardText ? `完工效果：${completionRewardText}` : ''].filter(Boolean).join(' ');
     appendSocietyActivity(society, `${actorDisplayName}带队完成了公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」`, 'public_project_complete');
     const completionRoomLaunch = await createSocietyProjectCompletionRoom(project, society, {
@@ -3474,6 +3701,9 @@ async function contributeSocietyPublicProject(projectId, payload = {}, actor = {
       displayName: actorDisplayName,
     });
     if (completionRoomLaunch) project.completion_room_launch = completionRoomLaunch;
+    if (project.id === 'festival_square') {
+      project.festival_square_linkage = buildSocietyFestivalSquareLinkage(project);
+    }
   } else {
     appendSocietyActivity(society, `${actorDisplayName}为公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」捐献了${contributionPackage.label}`, 'public_project');
   }
