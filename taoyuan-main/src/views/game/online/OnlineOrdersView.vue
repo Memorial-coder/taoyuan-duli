@@ -416,6 +416,16 @@
                   <p class="mt-1 text-[10px] leading-4 text-muted">
                     凭证 {{ receipt.receipt_id }} · {{ getCoopReceiptStatusLabel(receipt.status) }}
                   </p>
+                  <p
+                    v-if="receipt.relay_story_summary"
+                    data-testid="online-orders-society-board-receipt-story"
+                    class="mt-1 text-[10px] leading-4 text-muted"
+                  >
+                    {{ receipt.relay_story_chapter_title || '\u63a5\u529b\u6545\u4e8b' }}: {{ receipt.relay_story_summary }}
+                  </p>
+                  <p v-if="receipt.relay_story_settlement_summary" class="mt-1 text-[10px] leading-4 text-muted">
+                    {{ receipt.relay_story_settlement_summary }}
+                  </p>
                 </div>
               </div>
               <p v-else class="text-[10px] leading-5 text-muted">暂无公开订单结算凭证。</p>

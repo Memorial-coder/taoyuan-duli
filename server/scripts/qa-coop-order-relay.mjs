@@ -126,6 +126,9 @@ assert.equal(deliveredOne.receipt.relay_split_mode, 'stage_pool_weighted', 'stag
 assert.equal(deliveredOne.receipt.relay_pool_reward_value, 5, 'stage receipt should expose full reward pool')
 assert.equal(deliveredOne.receipt.relay_participant_count, 3, 'stage receipt should expose all assigned relay participants')
 assert.equal(deliveredOne.receipt.relay_share_percent, 40, 'first stage should receive 40 percent of pool')
+assert.equal(deliveredOne.receipt.relay_story_chapter_id, `story:${stageOne.id}`, 'submitted stage receipt should snapshot story chapter id')
+assert.ok(deliveredOne.receipt.relay_story_summary.length > 0, 'submitted stage receipt should snapshot waiting confirmation story')
+assert.ok(deliveredOne.receipt.relay_story_settlement_summary.includes(deliveredOne.receipt.id), 'submitted stage receipt should snapshot pending settlement story')
 
 const duplicateDeliveryOne = await orderRuntime.submitCoopOrderStageDelivery(order.id, stageOne.id, {
   delivered_items: [{ item_id: 'wood', quantity: 2 }],
@@ -138,6 +141,8 @@ const confirmedOne = await orderRuntime.confirmCoopOrderStageDelivery(order.id, 
 assert.equal(confirmedOne.receipt.status, 'confirmed', 'stage one receipt should confirm')
 assert.equal(confirmedOne.receipt.reward_value, 2, 'stage one reward should be 2')
 assert.equal(confirmedOne.receipt.relay_pending_reward_value, 5, 'stage one receipt should preserve pre-confirm pending pool')
+assert.notEqual(confirmedOne.receipt.relay_story_summary, deliveredOne.receipt.relay_story_summary, 'confirmed stage receipt should refresh confirmed story summary')
+assert.notEqual(confirmedOne.receipt.relay_story_settlement_summary, deliveredOne.receipt.relay_story_settlement_summary, 'confirmed stage receipt should refresh settlement story summary')
 assert.equal(getMoney(helperA), 12, 'stage one helper should receive exactly 2 money')
 
 await assert.rejects(
@@ -195,5 +200,7 @@ assert.equal(overview.society_order_board.confirmed_reward_value, 5, 'society or
 assert.equal(overview.society_order_board.pending_reward_value, 0, 'society order board should not leave pending pool')
 assert.equal(overview.society_order_board.settlement_status_counts.settled, 1, 'society order board should count settled relay')
 assert.equal(overview.society_order_board.recent_receipts.length, 3, 'society order board should expose all recent relay receipts')
+assert.ok(overview.society_order_board.recent_receipts.every(receipt => receipt.relay_story_summary), 'society order board recent receipts should expose relay story summary')
+assert.ok(overview.society_order_board.recent_receipts.every(receipt => receipt.relay_story_settlement_summary), 'society order board recent receipts should expose relay story settlement summary')
 
 console.log('[qa-coop-order-relay] OK')

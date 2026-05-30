@@ -1115,6 +1115,11 @@ export interface OnlineCoopSocietyOrderBoardReceipt {
   reward_label: string
   reward_route: OnlineCoopRewardRoute
   status: 'pending_owner_confirm' | 'confirmed' | 'compensation_pending'
+  relay_story_chapter_id?: string
+  relay_story_chapter_title?: string
+  relay_story_summary?: string
+  relay_story_detail?: string
+  relay_story_settlement_summary?: string
   confirmed_at: number
   updated_at: number
 }
@@ -1197,6 +1202,11 @@ export interface OnlineCoopReceiptEntry {
   result_note: string
   idempotency_key: string
   status: 'pending_owner_confirm' | 'confirmed' | 'compensation_pending'
+  relay_story_chapter_id?: string
+  relay_story_chapter_title?: string
+  relay_story_summary?: string
+  relay_story_detail?: string
+  relay_story_settlement_summary?: string
   reward_result: string
   reward_route: OnlineCoopRewardRoute
   cohabitation_contract_id: string

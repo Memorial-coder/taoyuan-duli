@@ -363,6 +363,11 @@ function normalizeSettlementReceipt(entry) {
     relay_allocated_reward_value: Math.max(0, Math.floor(Number(entry?.relay_allocated_reward_value) || 0)),
     relay_pending_reward_value: Math.max(0, Math.floor(Number(entry?.relay_pending_reward_value) || 0)),
     relay_share_summary: sanitizeText(entry?.relay_share_summary, 160),
+    relay_story_chapter_id: sanitizeText(entry?.relay_story_chapter_id, 80),
+    relay_story_chapter_title: sanitizeText(entry?.relay_story_chapter_title, 60),
+    relay_story_summary: sanitizeText(entry?.relay_story_summary, 180),
+    relay_story_detail: sanitizeText(entry?.relay_story_detail, 220),
+    relay_story_settlement_summary: sanitizeText(entry?.relay_story_settlement_summary, 180),
     cohabitation_contract_id: sanitizeText(entry?.cohabitation_contract_id, 80),
     shared_fund_ledger_id: sanitizeText(entry?.shared_fund_ledger_id, 100),
     delivered_items: deliveredItems,
@@ -624,6 +629,20 @@ function buildOrderRelayStorySettlementSummary(stage, receipt) {
   if (receipt?.status === 'compensation_pending' || stage.delivery_status === 'compensation_pending') return `凭证 ${receipt?.id || stage.active_receipt_id || '待补偿'} 补偿处理中。`;
   if (receipt?.id || stage.active_receipt_id) return `凭证 ${receipt?.id || stage.active_receipt_id} 等待发布人确认。`;
   return '尚未生成结算凭证。';
+}
+
+function buildOrderRelayReceiptStorySnapshot(order, stage, receipt) {
+  const normalizedOrder = normalizeOrder(order);
+  if (normalizedOrder.collaboration_mode !== 'multi_stage' || !stage?.id) return {};
+  const normalizedStage = normalizeOrderStage(stage);
+  const state = getOrderRelayStoryChapterState(normalizedStage);
+  return {
+    relay_story_chapter_id: `story:${normalizedStage.id}`,
+    relay_story_chapter_title: normalizedStage.title || `第 ${normalizedStage.sequence} 段`,
+    relay_story_summary: buildOrderRelayStorySummary(normalizedOrder, normalizedStage, state),
+    relay_story_detail: buildOrderRelayStoryDetail(normalizedStage, state),
+    relay_story_settlement_summary: buildOrderRelayStorySettlementSummary(normalizedStage, receipt),
+  };
 }
 
 function buildOrderRelayStoryNextHint(stage, state) {
@@ -971,6 +990,11 @@ function buildSocietyOrderBoard(orders = [], receipts = [], compensations = []) 
         reward_label: receipt.reward_label,
         reward_route: receipt.reward_route,
         status: receipt.status,
+        relay_story_chapter_id: receipt.relay_story_chapter_id,
+        relay_story_chapter_title: receipt.relay_story_chapter_title,
+        relay_story_summary: receipt.relay_story_summary,
+        relay_story_detail: receipt.relay_story_detail,
+        relay_story_settlement_summary: receipt.relay_story_settlement_summary,
         confirmed_at: receipt.confirmed_at,
         updated_at: receipt.updated_at,
       };
@@ -1701,8 +1725,17 @@ async function submitCoopOrderStageDelivery(orderId, stageId, payload = {}, acto
 
   const now = Math.floor(Date.now() / 1000);
   const deliveredTotalQuantity = deliveredItems.reduce((sum, item) => sum + item.quantity, 0);
+  const receiptId = makeId('coop_receipt');
+  const receiptStoryStage = normalizeOrderStage({
+    ...stage,
+    active_receipt_id: receiptId,
+    delivery_status: 'submitted',
+    delivery_note: resultNote,
+    delivered_items: deliveredItems,
+    updated_at: now,
+  });
   const receipt = normalizeSettlementReceipt({
-    id: makeId('coop_receipt'),
+    id: receiptId,
     order_id: order.id,
     stage_id: stage.id,
     stage_title: stage.title,
@@ -1722,6 +1755,10 @@ async function submitCoopOrderStageDelivery(orderId, stageId, payload = {}, acto
     relay_allocated_reward_value: order.stages.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.reward_value) || 0)), 0),
     relay_pending_reward_value: Math.max(0, order.reward_value - order.stages.filter(entry => entry.delivery_status === 'confirmed').reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.reward_value) || 0)), 0)),
     relay_share_summary: `接力分账 ${stage.sequence}/${order.stages.length}：本段 ${stage.reward_value}/${order.reward_value} ${stage.reward_label || order.reward_label}，按阶段池加权结算。`,
+    ...buildOrderRelayReceiptStorySnapshot(order, receiptStoryStage, {
+      id: receiptId,
+      status: 'pending_owner_confirm',
+    }),
     delivered_items: deliveredItems,
     result_note: resultNote,
     idempotency_key: idempotencyKey,
@@ -1741,14 +1778,7 @@ async function submitCoopOrderStageDelivery(orderId, stageId, payload = {}, acto
 
   const stages = order.stages.map(item =>
     item.id === stage.id
-      ? normalizeOrderStage({
-          ...item,
-          active_receipt_id: receipt.id,
-          delivery_status: 'submitted',
-          delivery_note: resultNote,
-          delivered_items: deliveredItems,
-          updated_at: now,
-        })
+      ? receiptStoryStage
       : item
   );
   const nextOrder = syncMultiStageOrder({
@@ -1932,6 +1962,12 @@ async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}, settl
     updated_at: now,
   });
 
+  const receiptStoryStage = findStageById(nextOrder, stage.id) || nextStage;
+  nextReceipt = normalizeSettlementReceipt({
+    ...nextReceipt,
+    ...buildOrderRelayReceiptStorySnapshot(nextOrder, receiptStoryStage, nextReceipt),
+  });
+
   store.receipts = store.receipts.map(entry => {
     const normalized = normalizeSettlementReceipt(entry);
     return normalized.id === nextReceipt.id ? nextReceipt : normalized;
@@ -1987,7 +2023,7 @@ async function replayCoopOrderCompensation(compensationId, actor = {}, settlemen
       resolved_at: now,
       last_error: '',
     });
-    const nextReceipt = normalizeSettlementReceipt({
+    let nextReceipt = normalizeSettlementReceipt({
       ...receipt,
       status: 'confirmed',
       reward_result: rewardOutcome.reward_result,
@@ -2025,6 +2061,11 @@ async function replayCoopOrderCompensation(compensationId, actor = {}, settlemen
         updated_at: now,
       });
     }
+
+    nextReceipt = normalizeSettlementReceipt({
+      ...nextReceipt,
+      ...buildOrderRelayReceiptStorySnapshot(nextOrder, nextStage, nextReceipt),
+    });
 
     store.compensations = store.compensations.map(entry => {
       const normalized = normalizeCompensationRecord(entry);
