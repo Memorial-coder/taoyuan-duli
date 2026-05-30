@@ -1345,20 +1345,60 @@ function buildManorVisitorActivityEntries(visitEntries = [], careEntries = [], s
     audit_note: `凭证 ${entry.settlement_receipt_id || entry.id} · 访客 ${entry.visitor_daily_count || 0}/${entry.visitor_daily_limit || entry.reward_daily_cap || MANOR_STEAL_DAILY_VISITOR_LIMIT} · 庄园 ${entry.manor_daily_count || 0}/${entry.manor_daily_limit || MANOR_STEAL_DAILY_MANOR_LIMIT} · 反刷 ${entry.recent_window_count || 0}/${entry.recent_window_seconds || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS}s`,
     created_at: entry.created_at,
   }));
-  const roomRecords = careRoomRecords.map(room => ({
-    id: `care_room:${room.id}`,
-    source_id: room.id,
-    kind: 'care_room',
-    kind_label: '协作护理',
-    visitor_username: room.settled_by || room.creator_username,
-    visitor_display_name: room.participants.map(participant => participant.display_name).slice(0, 4).join('、') || room.creator_display_name,
-    title: `协作护理 · ${room.health_score || 0}`,
-    summary: room.summary || '协作护理已完成',
-    object_label: '庄园整体',
-    action_label: '协作护理',
-    audit_note: `凭证 ${room.settlement_receipt_id || room.id} · 健康度 ${room.health_score || 0} · 顺序风险 ${room.risk_score || 0}`,
-    created_at: room.settled_at || room.updated_at || room.created_at,
-  }));
+  const roomRecords = careRoomRecords.map(room => {
+    const actions = Array.isArray(room.actions) ? room.actions : [];
+    const participants = Array.isArray(room.participants) ? room.participants : [];
+    const windowSeconds = Math.max(0, Math.floor((room.window_ends_at || 0) - (room.window_started_at || 0)));
+    const orderRiskCount = actions.filter(action => action.order_risk).length;
+    const roleMismatchCount = actions.filter(action => action.role_matched === false).length;
+    return {
+      id: `care_room:${room.id}`,
+      source_id: room.id,
+      kind: 'care_room',
+      kind_label: '协作护理',
+      visitor_username: room.settled_by || room.creator_username,
+      visitor_display_name: participants.map(participant => participant.display_name).slice(0, 4).join('、') || room.creator_display_name,
+      title: `协作护理 · ${room.health_score || 0}`,
+      summary: room.summary || '协作护理已完成',
+      object_label: '庄园整体',
+      action_label: '协作护理',
+      settlement_receipt_id: room.settlement_receipt_id || room.id,
+      health_score: room.health_score || 0,
+      health_delta: room.health_delta || 0,
+      risk_score: room.risk_score || 0,
+      order_risk_count: orderRiskCount,
+      role_mismatch_count: roleMismatchCount,
+      participant_count: participants.length,
+      member_limit: room.member_limit || MANOR_CARE_ROOM_MAX_MEMBERS,
+      participant_usernames: participants.map(participant => participant.username).filter(Boolean),
+      participant_roles: participants.map(participant => ({
+        username: participant.username,
+        role_id: participant.role_id,
+        role_label: participant.role_label,
+      })),
+      action_count: actions.length,
+      action_progress: `${actions.length}/${MANOR_CARE_ROOM_ACTION_DEFS.length}`,
+      completed_action_ids: actions.map(action => action.action_id).filter(Boolean),
+      action_details: actions.map(action => ({
+        action_id: action.action_id,
+        action_label: action.action_label,
+        actor_username: action.actor_username,
+        expected_order: action.expected_order,
+        actual_order: action.actual_order,
+        order_risk: Boolean(action.order_risk),
+        role_matched: Boolean(action.role_matched),
+        risk_delta: action.risk_delta || 0,
+        health_delta: action.health_delta || 0,
+      })),
+      window_started_at: room.window_started_at || 0,
+      window_ends_at: room.window_ends_at || 0,
+      window_seconds: windowSeconds,
+      settled_by: room.settled_by || '',
+      settled_at: room.settled_at || 0,
+      audit_note: `凭证 ${room.settlement_receipt_id || room.id} · 健康度 ${room.health_score || 0} · 顺序风险 ${room.risk_score || 0}`,
+      created_at: room.settled_at || room.updated_at || room.created_at,
+    };
+  });
   return [...visitRecords, ...careRecords, ...stealRecords, ...roomRecords]
     .sort((left, right) => right.created_at - left.created_at)
     .slice(0, 40);
