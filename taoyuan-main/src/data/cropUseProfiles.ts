@@ -1423,6 +1423,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '大蒜与白菜杂交的冬储辛鲜菜，适合炖菜料理、行气炼丹、腌蒜白菜、灵宠蒜白喂食、家畜蒜白料、行气药膳、冬储赠礼、腊祭供品、公共仓蒜白备料和蒜白菜订单。'
   },
   {
+    cropId: 'evergreen_herb',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '苦'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['长青菜羹', '长青清络丹', '腌长青菜', '灵宠长青餐', '家畜长青料', '清络药膳', '冬青菜礼', '冬社长青供', '公共仓长青包', '长青菜订单'],
+    summary: '菠菜与芥菜杂交的耐寒青叶，适合羹汤料理、清络炼丹、腌长青菜、灵宠长青喂食、家畜长青料、清络药膳、冬青赠礼、冬社供品、公共仓长青备料和长青菜订单。'
+  },
+  {
+    cropId: 'wheat_mustard',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['麦芥汤饼', '麦芥行气丹', '麦芥粉', '腌麦芥菜', '灵宠麦芥餐', '家畜麦芥料', '行气药膳', '冬粮麦芥礼', '冬社麦芥供', '公共仓麦芥包', '麦芥粉单'],
+    summary: '冬小麦与芥菜杂交的辛香主粮菜，适合汤饼料理、行气炼丹、制麦芥粉、腌麦芥菜、灵宠麦芥喂食、家畜麦芥料、行气药膳、冬粮赠礼、冬社供品、公共仓麦芥备料和麦芥粉单。'
+  },
+  {
+    cropId: 'allium_king',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['百蒜王炒菜', '百蒜行气丹', '腌百蒜王', '灵宠百蒜餐', '家畜百蒜料', '行气药膳', '辛香百蒜礼', '腊祭百蒜供', '公共仓百蒜包', '百蒜王订单'],
+    summary: '大蒜与韭菜杂交的再生辛香葱属，适合炒菜料理、行气炼丹、腌百蒜王、灵宠百蒜喂食、家畜百蒜料、行气药膳、辛香赠礼、腊祭供品、公共仓百蒜备料和百蒜王订单。'
+  },
+  {
+    cropId: 'green_wheat',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['翠麦饭', '翠麦续行丹', '翠麦粉', '翠麦清酒', '灵宠翠麦餐', '家畜翠麦料', '续行药膳', '青穗翠麦礼', '冬社翠麦供', '公共仓翠麦包', '翠麦粉单'],
+    summary: '菠菜与冬小麦杂交的青穗麦作，适合米饭料理、续行炼丹、制翠麦粉、酿翠麦清酒、灵宠翠麦喂食、家畜翠麦料、续行药膳、青穗赠礼、冬社供品、公共仓翠麦备料和翠麦粉单。'
+  },
+  {
+    cropId: 'chive_mustard',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '苦'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['韭芥拌菜', '韭芥行气丹', '腌韭芥', '灵宠韭芥餐', '家畜韭芥料', '开胃药膳', '春辛韭芥礼', '腊祭韭芥供', '公共仓韭芥包', '韭芥订单'],
+    summary: '韭菜与芥菜杂交的再生辛苦叶菜，适合拌菜料理、行气炼丹、腌韭芥、灵宠韭芥喂食、家畜韭芥料、开胃药膳、春辛赠礼、腊祭供品、公共仓韭芥备料和韭芥订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
