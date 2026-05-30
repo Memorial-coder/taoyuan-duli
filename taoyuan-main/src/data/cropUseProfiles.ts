@@ -1873,6 +1873,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '金瓜与莲花薯汇聚星辉的三代草本，适合药粥料理、安神炼丹、制星华草粉、酿星草清酿、灵宠星草喂食、家畜星草料、安神药膳、香草赠礼、星灯供品、公共仓星草备料和星华草订单。'
   },
   {
+    cropId: 'wind_jade3_chestnut',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['风翠栗糕', '风栗固元丹', '风翠栗粉', '风栗甜酿', '灵宠风栗餐', '家畜风栗料', '固元药膳', '风翠栗礼', '秋风栗供', '公共仓风栗包', '风翠栗订单'],
+    summary: '金瓜与翡翠南瓜淬炼出的三代翠栗，适合栗糕料理、固元炼丹、制风翠栗粉、酿风栗甜酒、灵宠风栗喂食、家畜风栗料、固元药膳、秋风赠礼、栗供节品、公共仓风栗备料和风翠栗订单。'
+  },
+  {
+    cropId: 'cloud_jade3_apricot',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['云翠杏羹', '云杏润脉丹', '云翠杏酒', '灵宠云杏餐', '家畜云杏料', '润脉药膳', '云杏香礼', '杏花云供', '公共仓云杏包', '云翠杏订单'],
+    summary: '金瓜与水晶山药清风交融出的三代香杏，适合甜羹料理、润脉炼丹、酿云翠杏酒、灵宠云杏喂食、家畜云杏料、润脉药膳、杏香赠礼、杏花供品、公共仓云杏备料和云翠杏订单。'
+  },
+  {
+    cropId: 'rain_jade3_pear',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雨翠梨汤', '雨梨清心丹', '雨翠梨酿', '灵宠雨梨餐', '家畜雨梨料', '清心药膳', '雨梨清礼', '雨祭梨供', '公共仓雨梨包', '雨翠梨订单'],
+    summary: '金瓜与桂花茶沐露后的三代清润梨果，适合梨汤料理、清心炼丹、酿雨翠梨酒、灵宠雨梨喂食、家畜雨梨料、清心药膳、清润赠礼、雨祭供品、公共仓雨梨备料和雨翠梨订单。'
+  },
+  {
+    cropId: 'hoar_jade3_berry',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '苦'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['霜翠莓酥', '霜莓安神丹', '霜翠莓粉', '霜莓寒酿', '灵宠霜莓餐', '家畜霜莓料', '安神药膳', '霜莓寒礼', '冬灯莓供', '公共仓霜莓包', '霜翠莓订单'],
+    summary: '金瓜与山竹薯星夜蜕变出的三代寒莓，适合莓酥料理、安神炼丹、制霜翠莓粉、酿霜莓寒酿、灵宠霜莓喂食、家畜霜莓料、安神药膳、寒莓赠礼、冬灯供品、公共仓霜莓备料和霜翠莓订单。'
+  },
+  {
+    cropId: 'thunder_jade3_peach_t',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雷翠桃盏', '雷桃行气丹', '雷翠桃酒', '灵宠雷桃餐', '家畜雷桃料', '行气药膳', '雷桃贺礼', '惊雷桃供', '公共仓雷桃包', '雷翠桃订单'],
+    summary: '金瓜与金秋果汇聚雷气后的三代暖桃，适合甜盏料理、行气炼丹、酿雷翠桃酒、灵宠雷桃喂食、家畜雷桃料、行气药膳、贺礼赠送、惊雷供品、公共仓雷桃备料和雷翠桃订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
