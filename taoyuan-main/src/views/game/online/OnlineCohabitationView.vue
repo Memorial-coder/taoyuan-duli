@@ -3816,8 +3816,10 @@
     herbal_paste: '草药膏',
     lotus_seed: '莲子',
     lotus_root: '莲藕',
+    food_congee: '白粥',
     food_rice_ball: '饭团',
     food_vegetable_soup: '田园蔬菜汤',
+    food_roasted_sweet_potato: '烤红薯',
     food_rice_flour_roll: '米粉卷',
     food_sesame_tangyuan: '芝麻汤圆',
     food_lotus_sesame_calming_cake: '莲心芝麻安神糕',
@@ -3911,6 +3913,7 @@
   ]
   const sharedWorkshopRecipeOptions: SharedWorkshopRecipeOption[] = [
     { id: 'shared_dried_cabbage', label: '共同晒制干菜', station: 'drying_rack', process_kind: 'processing', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }], output_item_id: 'dried_cabbage', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_dried_radish', label: '共同酱缸萝卜干', station: 'sauce_jar', process_kind: 'processing', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }], output_item_id: 'dried_radish', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_flour', label: '共同石磨米粉', station: 'stone_mill', process_kind: 'cooking_material', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'rice_flour', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_sesame_paste', label: '共同石磨芝麻酱', station: 'stone_mill', process_kind: 'cooking_material', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }], output_item_id: 'sesame_paste', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_sesame_powder', label: '共同石磨芝麻粉', station: 'stone_mill', process_kind: 'cooking_material', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }], output_item_id: 'sesame_powder', output_quantity: 1, output_quality: 'normal' },
@@ -3920,6 +3923,8 @@
     { id: 'shared_lotus_heart_powder', label: '共同药碾莲心粉', station: 'herb_grinder', process_kind: 'cooking_material', input_items: [{ item_id: 'dried_lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'lotus_heart_powder', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_ball', label: '共同灶台饭团', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_ball', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_vegetable_soup', label: '共同灶台田园蔬菜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }, { item_id: 'radish', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_vegetable_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_congee', label: '共同灶台白粥', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'food_congee', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_roasted_sweet_potato', label: '共同灶台烤红薯', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }], output_item_id: 'food_roasted_sweet_potato', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_flour_roll', label: '共同灶台米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'dried_radish', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_flour_roll', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_sesame_tangyuan', label: '共同灶台芝麻汤圆', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_sesame_tangyuan', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_lotus_sesame_calming_cake', label: '共同灶台莲心芝麻安神糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_lotus_sesame_calming_cake', output_quantity: 1, output_quality: 'normal' },
