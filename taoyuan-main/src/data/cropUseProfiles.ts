@@ -1223,6 +1223,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '耐寒玉米培育出的三季主粮，适合粥饭料理、续行炼丹、制冬玉米粉、酿冬玉米清酒、灵宠冬玉米喂食、家畜冬谷料、续行药膳、冬储赠礼、腊祭供品、公共仓冬玉米备料和冬玉米订单。'
   },
   {
+    cropId: 'amber_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['琥珀薯糕', '琥珀固元丹', '琥珀薯粉', '琥珀甜酒', '灵宠琥珀薯餐', '家畜琥珀料', '固元药膳', '秋收琥珀礼', '秋社琥珀供', '公共仓琥珀薯包', '琥珀薯订单'],
+    summary: '山药与红薯杂交的琥珀色甜薯，适合糕点料理、固元炼丹、制琥珀薯粉、酿琥珀甜酒、灵宠琥珀薯喂食、家畜琥珀料、固元药膳、秋收赠礼、秋社供品、公共仓琥珀薯备料和琥珀薯订单。'
+  },
+  {
+    cropId: 'twin_blossom',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '甜'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['双花蜜饮', '双花清目丹', '双花花酿', '灵宠双花茶', '家畜花草料', '清目药茶', '雅集双花礼', '重阳双花供', '公共仓双花包', '双花订单'],
+    summary: '菊花与桂花杂交的双香花作，适合蜜饮料理、清目炼丹、酿双花花酒、灵宠双花茶、家畜花草料、清目药茶、雅集赠礼、重阳供品、公共仓双花备料和双花订单。'
+  },
+  {
+    cropId: 'mountain_nut',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['山花生糕', '山仁固元丹', '山花生油', '山仁粉', '灵宠山仁餐', '家畜山仁料', '固元药膳', '山居山仁礼', '秋社山仁供', '公共仓山仁包', '山花生订单'],
+    summary: '山药与花生杂交的山中坚仁，适合糕点料理、固元炼丹、榨山花生油、制山仁粉、灵宠山仁喂食、家畜山仁料、固元药膳、山居赠礼、秋社供品、公共仓山仁备料和山花生订单。'
+  },
+  {
+    cropId: 'autumn_gem',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['秋桂南瓜羹', '秋桂养胃丹', '秋桂南瓜粉', '秋桂花酿', '灵宠秋桂瓜餐', '家畜秋瓜料', '养胃药膳', '金秋南瓜礼', '秋祭南瓜供', '公共仓秋桂瓜包', '秋桂南瓜订单'],
+    summary: '南瓜与桂花杂交的金秋巨果，适合羹汤料理、养胃炼丹、制秋桂南瓜粉、酿秋桂花酒、灵宠秋桂瓜喂食、家畜秋瓜料、养胃药膳、金秋赠礼、秋祭供品、公共仓秋桂瓜备料和秋桂南瓜订单。'
+  },
+  {
+    cropId: 'ginger_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '土'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['姜山药羹', '姜山固元丹', '姜山药粉', '腌姜山药', '灵宠姜山药餐', '家畜姜山料', '暖补药膳', '冬补姜山礼', '腊祭姜山供', '公共仓姜山包', '姜山药订单'],
+    summary: '生姜与山药杂交的辛暖补根，适合羹汤料理、固元炼丹、制姜山药粉、腌姜山药、灵宠姜山药喂食、家畜姜山料、暖补药膳、冬补赠礼、腊祭供品、公共仓姜山备料和姜山药订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
