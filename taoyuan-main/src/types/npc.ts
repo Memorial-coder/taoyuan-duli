@@ -278,6 +278,47 @@ export interface RandomNpcRelationLineState {
   history: RandomNpcRelationLineEvent[]
 }
 
+export type RandomNpcRelationshipMilestoneAuditAction =
+  | 'acquaintance_added'
+  | 'long_stay_promoted'
+  | 'long_stay_story_progressed'
+  | 'family_tie_met'
+  | 'family_special_event_progressed'
+  | 'family_commission_fulfilled'
+  | 'relation_line_started'
+  | 'relation_line_severed'
+  | 'relation_line_engaged'
+  | 'relation_line_married'
+  | 'married_life_recorded'
+  | 'family_business_progressed'
+  | 'child_family_influence_applied'
+  | 'child_family_event_progressed'
+
+export interface RandomNpcRelationshipMilestoneAuditEntry {
+  id: string
+  action: RandomNpcRelationshipMilestoneAuditAction
+  dayTag: string
+  createdAt: string
+  actorName: string
+  source: 'local_npc_save'
+  targetRef: string
+  templateId: string
+  visitorId: string
+  residentId?: string
+  npcName: string
+  relationshipTag: RandomNpcRelationshipTag
+  relationLineKind?: RandomNpcRelationLineKind
+  relationLineStage?: 0 | 1 | 2 | 3
+  familyTieId?: string
+  familyTieKind?: RandomNpcFamilyTieKind
+  stage?: number
+  childId?: number
+  idempotencyKey: string
+  summary: string
+  compensationHint: string
+  privacyScope: 'local_save_only'
+}
+
 export interface RandomNpcDialogueMemoryEntry {
   id: string
   dayTag: string
@@ -551,6 +592,7 @@ export interface RandomNpcBoardState {
   acquaintances: RandomNpcAcquaintanceEntry[]
   longStayResidents: RandomNpcLongStayEntry[]
   recentSummaries: RandomNpcArchiveSummary[]
+  relationshipMilestoneAudit: RandomNpcRelationshipMilestoneAuditEntry[]
 }
 
 /** NPC 定义 */

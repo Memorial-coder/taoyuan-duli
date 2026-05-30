@@ -241,6 +241,44 @@ assertIncludes(familyRelationGraph, 'snapshot ? formatRandomNpcFamilySpecialHist
 assert(!/randomNpcBoard|RandomNpc|randomNpc|longStayResidents|recentSummaries|dialogueMemories|shortRomance|longStaySnapshot/.test(onlineProfileApi), 'onlineProfileApi 不能包含随机 NPC 私密字段')
 assertIncludes(useNpcStore, 'randomNpcBoard: randomNpcBoard.value', '随机 NPC 数据应只序列化进本地 NPC 存档')
 
+assertIncludes(npcTypes, 'export interface RandomNpcRelationshipMilestoneAuditEntry', 'random NPC relationship milestones must expose structured audit entries')
+for (const field of [
+  'action: RandomNpcRelationshipMilestoneAuditAction',
+  "source: 'local_npc_save'",
+  'targetRef: string',
+  'idempotencyKey: string',
+  "privacyScope: 'local_save_only'",
+  'relationshipMilestoneAudit: RandomNpcRelationshipMilestoneAuditEntry[]'
+]) {
+  assertIncludes(npcTypes, field, `random NPC relationship audit missing ${field}`)
+}
+assertIncludes(useNpcStore, 'const RANDOM_NPC_RELATIONSHIP_MILESTONE_AUDIT_LIMIT = 24', 'random NPC relationship audit must have a fixed 24-entry cap')
+assertIncludes(useNpcStore, '.slice(-RANDOM_NPC_RELATIONSHIP_MILESTONE_AUDIT_LIMIT)', 'random NPC relationship audit must be capped on sanitize / append')
+assertBlockIncludes(useNpcStore, 'const appendRandomNpcRelationshipMilestoneAudit', 'item.idempotencyKey === entry.idempotencyKey', 'random NPC relationship audit must dedupe by idempotency key')
+assertBlockIncludes(useNpcStore, 'const recordRandomNpcRelationshipMilestoneAudit', "privacyScope: 'local_save_only'", 'random NPC relationship audit must stay local-save only')
+assertIncludes(useNpcStore, 'relationshipMilestoneAudit: sanitizeRandomNpcRelationshipMilestoneAudit(raw.relationshipMilestoneAudit)', 'random NPC relationship audit must be sanitized on load')
+for (const action of [
+  'acquaintance_added',
+  'long_stay_promoted',
+  'long_stay_story_progressed',
+  'family_tie_met',
+  'family_special_event_progressed',
+  'family_commission_fulfilled',
+  'relation_line_started',
+  'relation_line_severed',
+  'relation_line_engaged',
+  'relation_line_married',
+  'married_life_recorded',
+  'family_business_progressed',
+  'child_family_influence_applied',
+  'child_family_event_progressed'
+]) {
+  assertIncludes(useNpcStore, `action: '${action}'`, `random NPC relationship audit missing action ${action}`)
+}
+assertIncludes(npcView, 'random-npc-relationship-audit', 'NPC page must read back random NPC relationship audit panel')
+assertIncludes(npcView, 'randomNpcBoard.relationshipMilestoneAudit.slice(-6).reverse()', 'NPC page must only show recent relationship audit rows')
+assertIncludes(npcView, 'entry.idempotencyKey', 'NPC page relationship audit must read back idempotency key')
+
 const collectFiles = async (root, extensions) => {
   const entries = await readdir(root, { withFileTypes: true })
   const files = []

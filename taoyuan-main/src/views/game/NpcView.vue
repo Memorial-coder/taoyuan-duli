@@ -87,6 +87,25 @@
             </span>
           </div>
         </div>
+        <div v-if="randomNpcBoard.relationshipMilestoneAudit.length > 0" class="border border-warning/20 rounded-xs p-2 mt-2 bg-warning/5" data-testid="random-npc-relationship-audit">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <p class="text-[10px] text-warning">随机 NPC 关系审计</p>
+            <span class="text-[10px] text-muted">最近 {{ randomNpcBoard.relationshipMilestoneAudit.length }}/24 条 · 本地存档</span>
+          </div>
+          <div
+            v-for="entry in randomNpcBoard.relationshipMilestoneAudit.slice(-6).reverse()"
+            :key="entry.id"
+            class="text-[10px] border-t border-warning/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
+            :data-testid="`random-npc-relationship-audit-${entry.action}`"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <p class="text-warning min-w-0">{{ entry.dayTag }} · {{ entry.npcName }} · {{ entry.action }}</p>
+              <span class="text-muted shrink-0">{{ entry.privacyScope }}</span>
+            </div>
+            <p class="text-muted leading-4">{{ entry.summary }}</p>
+            <p class="text-muted/80 leading-4 mt-0.5">{{ entry.targetRef }} · {{ entry.idempotencyKey }}</p>
+          </div>
+        </div>
       </div>
 
       <div v-if="npcCookingTopicRecords.length > 0" class="border border-water/20 rounded-xs p-2 mb-3 bg-water/5">

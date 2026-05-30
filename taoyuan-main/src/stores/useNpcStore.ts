@@ -40,6 +40,8 @@ import type {
   RandomNpcFamilySpecialEventEntry,
   RandomNpcFamilyTieDef,
   RandomNpcFamilyTieKind,
+  RandomNpcRelationshipMilestoneAuditAction,
+  RandomNpcRelationshipMilestoneAuditEntry,
   RandomNpcCommitmentStatus,
   RandomNpcRelationLineKind,
   RandomNpcRelationLineState,
@@ -119,6 +121,7 @@ const RANDOM_NPC_FAMILY_TIE_LIMIT = 4
 const RANDOM_NPC_FAMILY_REVIEW_LIMIT = 4
 const RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT = 4
 const RANDOM_NPC_SHORT_ROMANCE_HISTORY_LIMIT = 4
+const RANDOM_NPC_RELATIONSHIP_MILESTONE_AUDIT_LIMIT = 24
 const CHILD_TRAINING_FAMILY_INFLUENCE_LIMIT = 4
 const CHILD_TRAINING_FAMILY_EVENT_LIMIT = 4
 const CHILD_TRAINING_FAMILY_EVENT_CHAIN_STAGE_LIMIT = 3
@@ -431,7 +434,8 @@ export const useNpcStore = defineStore('npc', () => {
     acquaintanceIds: [],
     acquaintances: [],
     longStayResidents: [],
-    recentSummaries: []
+    recentSummaries: [],
+    relationshipMilestoneAudit: []
   })
 
   const hashText = (text: string): number => {
@@ -479,6 +483,137 @@ export const useNpcStore = defineStore('npc', () => {
       misunderstanding: Math.max(0, Math.min(99, Number(source.misunderstanding) || 0)),
       family_impression: Math.max(0, Math.min(99, Number(source.family_impression) || 0))
     }
+  }
+
+  const isRandomNpcRelationshipMilestoneAuditAction = (action: unknown): action is RandomNpcRelationshipMilestoneAuditAction =>
+    action === 'acquaintance_added' ||
+    action === 'long_stay_promoted' ||
+    action === 'long_stay_story_progressed' ||
+    action === 'family_tie_met' ||
+    action === 'family_special_event_progressed' ||
+    action === 'family_commission_fulfilled' ||
+    action === 'relation_line_started' ||
+    action === 'relation_line_severed' ||
+    action === 'relation_line_engaged' ||
+    action === 'relation_line_married' ||
+    action === 'married_life_recorded' ||
+    action === 'family_business_progressed' ||
+    action === 'child_family_influence_applied' ||
+    action === 'child_family_event_progressed'
+
+  const isRandomNpcRelationLineKind = (kind: unknown): kind is RandomNpcRelationLineKind =>
+    kind === 'friend' || kind === 'family' || kind === 'romance' || kind === 'zhiji' || kind === 'sworn' || kind === 'rivalry' || kind === 'severed'
+
+  const sanitizeRandomNpcRelationshipMilestoneAudit = (raw: unknown): RandomNpcRelationshipMilestoneAuditEntry[] =>
+    (Array.isArray(raw) ? raw : [])
+      .filter((entry: unknown): entry is Partial<RandomNpcRelationshipMilestoneAuditEntry> => !!entry && typeof entry === 'object')
+      .map((entry, index): RandomNpcRelationshipMilestoneAuditEntry => {
+        const relationshipTag: RandomNpcRelationshipTag =
+          entry.relationshipTag === 'acquaintance' ||
+          entry.relationshipTag === 'friend' ||
+          entry.relationshipTag === 'ambiguous' ||
+          entry.relationshipTag === 'old_contact' ||
+          entry.relationshipTag === 'rival'
+            ? entry.relationshipTag
+            : 'passing'
+        const relationLineStage = Number(entry.relationLineStage)
+        const familyTieKind = entry.familyTieKind === 'parent' ||
+          entry.familyTieKind === 'sibling' ||
+          entry.familyTieKind === 'distant_relative' ||
+          entry.familyTieKind === 'mentor' ||
+          entry.familyTieKind === 'caravan' ||
+          entry.familyTieKind === 'old_debt' ||
+          entry.familyTieKind === 'family_business' ||
+          entry.familyTieKind === 'sworn_kin' ||
+          entry.familyTieKind === 'old_flame' ||
+          entry.familyTieKind === 'child'
+            ? entry.familyTieKind
+            : undefined
+        const action = isRandomNpcRelationshipMilestoneAuditAction(entry.action) ? entry.action : 'long_stay_story_progressed'
+        const dayTag = typeof entry.dayTag === 'string' ? entry.dayTag : ''
+        const targetRef = typeof entry.targetRef === 'string' ? entry.targetRef : `random_npc:${entry.visitorId ?? index}`
+        return {
+          id: typeof entry.id === 'string' ? entry.id : `${dayTag || 'old-day'}:${action}:${index}`,
+          action,
+          dayTag,
+          createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : dayTag,
+          actorName: typeof entry.actorName === 'string' ? entry.actorName : '未命名',
+          source: 'local_npc_save',
+          targetRef,
+          templateId: typeof entry.templateId === 'string' ? entry.templateId : '',
+          visitorId: typeof entry.visitorId === 'string' ? entry.visitorId : targetRef.replace(/^random_npc:/, ''),
+          residentId: typeof entry.residentId === 'string' ? entry.residentId : undefined,
+          npcName: typeof entry.npcName === 'string' ? entry.npcName : '随机 NPC',
+          relationshipTag,
+          relationLineKind: isRandomNpcRelationLineKind(entry.relationLineKind) ? entry.relationLineKind : undefined,
+          relationLineStage: relationLineStage === 1 || relationLineStage === 2 || relationLineStage === 3 ? relationLineStage : relationLineStage === 0 ? 0 : undefined,
+          familyTieId: typeof entry.familyTieId === 'string' ? entry.familyTieId : undefined,
+          familyTieKind,
+          stage: Number.isFinite(Number(entry.stage)) ? Math.max(0, Number(entry.stage)) : undefined,
+          childId: Number.isFinite(Number(entry.childId)) ? Number(entry.childId) : undefined,
+          idempotencyKey: typeof entry.idempotencyKey === 'string' ? entry.idempotencyKey : `${targetRef}:${action}:${dayTag}`,
+          summary: typeof entry.summary === 'string' ? entry.summary : '随机 NPC 关系关键节点已记录。',
+          compensationHint: typeof entry.compensationHint === 'string' ? entry.compensationHint : '本地随机 NPC 存档审计仅供回看；如读档异常，可按 idempotencyKey 和 keyEvents 手动核对。',
+          privacyScope: 'local_save_only'
+        }
+      })
+      .slice(-RANDOM_NPC_RELATIONSHIP_MILESTONE_AUDIT_LIMIT)
+
+  const appendRandomNpcRelationshipMilestoneAudit = (entry: RandomNpcRelationshipMilestoneAuditEntry) => {
+    const existing = sanitizeRandomNpcRelationshipMilestoneAudit(randomNpcBoard.value.relationshipMilestoneAudit)
+    if (existing.some(item => item.idempotencyKey === entry.idempotencyKey)) {
+      randomNpcBoard.value.relationshipMilestoneAudit = existing
+      return
+    }
+    randomNpcBoard.value.relationshipMilestoneAudit = [...existing, entry].slice(-RANDOM_NPC_RELATIONSHIP_MILESTONE_AUDIT_LIMIT)
+  }
+
+  const recordRandomNpcRelationshipMilestoneAudit = (params: {
+    action: RandomNpcRelationshipMilestoneAuditAction
+    visitorId: string
+    templateId: string
+    npcName: string
+    relationshipTag: RandomNpcRelationshipTag
+    summary: string
+    residentId?: string
+    relationLineKind?: RandomNpcRelationLineKind
+    relationLineStage?: 0 | 1 | 2 | 3
+    familyTieId?: string
+    familyTieKind?: RandomNpcFamilyTieKind
+    stage?: number
+    childId?: number
+    idempotencyKey?: string
+  }) => {
+    const dayTag = getCurrentNpcDayTag()
+    const actorName = usePlayerStore().playerName || '未命名'
+    const targetRef = params.residentId
+      ? `random_npc_resident:${params.residentId}`
+      : `random_npc_visitor:${params.visitorId}`
+    const idempotencyKey = params.idempotencyKey ?? `${targetRef}:${params.action}:${dayTag}:${params.familyTieId ?? ''}:${params.stage ?? ''}:${params.childId ?? ''}`
+    appendRandomNpcRelationshipMilestoneAudit({
+      id: `${idempotencyKey}:audit`,
+      action: params.action,
+      dayTag,
+      createdAt: new Date().toISOString(),
+      actorName,
+      source: 'local_npc_save',
+      targetRef,
+      templateId: params.templateId,
+      visitorId: params.visitorId,
+      residentId: params.residentId,
+      npcName: params.npcName,
+      relationshipTag: params.relationshipTag,
+      relationLineKind: params.relationLineKind,
+      relationLineStage: params.relationLineStage,
+      familyTieId: params.familyTieId,
+      familyTieKind: params.familyTieKind,
+      stage: params.stage,
+      childId: params.childId,
+      idempotencyKey,
+      summary: params.summary,
+      compensationHint: '本地随机 NPC 关系节点审计仅用于读档回看；如存档冲突，可按 idempotencyKey、targetRef 与 keyEvents 进行人工核对，不写入联机公开资料。',
+      privacyScope: 'local_save_only'
+    })
   }
 
   const inferRandomNpcRelationshipDirection = (
@@ -2947,6 +3082,15 @@ export const useNpcStore = defineStore('npc', () => {
       summarizeRandomVisitor(visitor, '已记入熟人册'),
       ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitor.id)
     ])
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'acquaintance_added',
+      visitorId: visitor.id,
+      templateId: visitor.templateId,
+      npcName: visitor.name,
+      relationshipTag: visitor.relationshipTag,
+      summary: `${visitor.name} joined the acquaintance book for local relationship recall.`,
+      idempotencyKey: `random_npc:${visitor.id}:acquaintance_added`
+    })
     return { success: true, message: `${visitor.name}已记入熟人册。` }
   }
 
@@ -2982,6 +3126,16 @@ export const useNpcStore = defineStore('npc', () => {
     )
     const activeVisitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
     if (activeVisitor) activeVisitor.tier = 'long_stay'
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'long_stay_promoted',
+      visitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: resident.relationshipTag,
+      summary: `${resident.name} was promoted from acquaintance to long-stay random NPC.`,
+      idempotencyKey: `random_npc:${resident.residentId}:long_stay_promoted`
+    })
     return { success: true, message: `${acquaintance.name}已成为长住 NPC。` }
   }
 
@@ -3074,6 +3228,20 @@ export const useNpcStore = defineStore('npc', () => {
             }
           : entry
       )
+    }
+    const storyAuditResident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId) ?? null
+    if (storyAuditResident) {
+      recordRandomNpcRelationshipMilestoneAudit({
+        action: 'long_stay_story_progressed',
+        visitorId: storyAuditResident.sourceVisitorId,
+        residentId: storyAuditResident.residentId,
+        templateId: storyAuditResident.templateId,
+        npcName: storyAuditResident.name,
+        relationshipTag: storyAuditResident.relationshipTag,
+        stage: event.stage,
+        summary: `${storyAuditResident.name} progressed long-stay story ${event.id} at stage ${event.stage}.`,
+        idempotencyKey: `random_npc:${storyAuditResident.residentId}:long_stay_story:${event.id}:${choice.id}`
+      })
     }
     return { success: true, message: response, resident: nextResident ?? resident }
   }
@@ -3272,6 +3440,24 @@ export const useNpcStore = defineStore('npc', () => {
           : entry
       )
     }
+    const familyTieAuditResident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId) ?? null
+    if (familyTieAuditResident) {
+      recordRandomNpcRelationshipMilestoneAudit({
+        action: 'family_tie_met',
+        visitorId: familyTieAuditResident.sourceVisitorId,
+        residentId: familyTieAuditResident.residentId,
+        templateId: familyTieAuditResident.templateId,
+        npcName: familyTieAuditResident.name,
+        relationshipTag: familyTieAuditResident.relationshipTag,
+        relationLineKind: familyTieAuditResident.relationshipLine.kind,
+        relationLineStage: familyTieAuditResident.relationshipLine.stage,
+        familyTieId: tie.id,
+        familyTieKind: tie.kind,
+        stage: nextMeetingStage,
+        summary: `${familyTieAuditResident.name} met family tie ${tie.id} at stage ${nextMeetingStage}.`,
+        idempotencyKey: `random_npc:${familyTieAuditResident.residentId}:family_tie:${tie.id}:${nextMeetingStage}`
+      })
+    }
     return {
       success: true,
       message: `${summary} 见家人 ${nextMeetingStage}/3，家族评价+${reputationDelta}。`,
@@ -3380,6 +3566,24 @@ export const useNpcStore = defineStore('npc', () => {
             }
           : entry
       )
+    }
+    const specialAuditResident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId) ?? null
+    if (specialAuditResident) {
+      recordRandomNpcRelationshipMilestoneAudit({
+        action: 'family_special_event_progressed',
+        visitorId: specialAuditResident.sourceVisitorId,
+        residentId: specialAuditResident.residentId,
+        templateId: specialAuditResident.templateId,
+        npcName: specialAuditResident.name,
+        relationshipTag: specialAuditResident.relationshipTag,
+        relationLineKind: specialAuditResident.relationshipLine.kind,
+        relationLineStage: specialAuditResident.relationshipLine.stage,
+        familyTieId: tie.id,
+        familyTieKind: tie.kind,
+        stage,
+        summary: `${specialAuditResident.name} progressed family special event ${event.id}.`,
+        idempotencyKey: `random_npc:${specialAuditResident.residentId}:family_special:${tie.id}:${stage}`
+      })
     }
 
     return {
@@ -3503,6 +3707,23 @@ export const useNpcStore = defineStore('npc', () => {
             }
           : entry
       )
+    }
+    const commissionAuditResident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId) ?? null
+    if (commissionAuditResident) {
+      recordRandomNpcRelationshipMilestoneAudit({
+        action: 'family_commission_fulfilled',
+        visitorId: commissionAuditResident.sourceVisitorId,
+        residentId: commissionAuditResident.residentId,
+        templateId: commissionAuditResident.templateId,
+        npcName: commissionAuditResident.name,
+        relationshipTag: commissionAuditResident.relationshipTag,
+        relationLineKind: commissionAuditResident.relationshipLine.kind,
+        relationLineStage: commissionAuditResident.relationshipLine.stage,
+        familyTieId: commission.tieId,
+        familyTieKind: tie?.kind,
+        summary: `${commissionAuditResident.name} fulfilled family commission ${commission.id}.`,
+        idempotencyKey: `random_npc:${commissionAuditResident.residentId}:family_commission:${commission.id}`
+      })
     }
     return {
       success: true,
@@ -3631,6 +3852,21 @@ export const useNpcStore = defineStore('npc', () => {
           : entry
       )
     }
+    const relationStartAuditResident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId) ?? null
+    if (relationStartAuditResident) {
+      recordRandomNpcRelationshipMilestoneAudit({
+        action: 'relation_line_started',
+        visitorId: relationStartAuditResident.sourceVisitorId,
+        residentId: relationStartAuditResident.residentId,
+        templateId: relationStartAuditResident.templateId,
+        npcName: relationStartAuditResident.name,
+        relationshipTag: relationStartAuditResident.relationshipTag,
+        relationLineKind: kind,
+        relationLineStage: 1,
+        summary: `${relationStartAuditResident.name} started random NPC relation line ${kind}.`,
+        idempotencyKey: `random_npc:${relationStartAuditResident.residentId}:relation_line_started:${kind}`
+      })
+    }
 
     return {
       success: true,
@@ -3658,6 +3894,18 @@ export const useNpcStore = defineStore('npc', () => {
       action: 'sever' as const,
       summary: note
     }
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'relation_line_severed',
+      visitorId: resident.sourceVisitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: 'old_contact',
+      relationLineKind: 'severed',
+      relationLineStage: 0,
+      summary: `${resident.name} severed previous random NPC relation line ${currentLine.kind}.`,
+      idempotencyKey: `random_npc:${resident.residentId}:relation_line_severed:${dayTag}`
+    })
     let nextResident: RandomNpcLongStayEntry | null = null
     randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
       if (entry.residentId !== residentId) return entry
@@ -3758,6 +4006,19 @@ export const useNpcStore = defineStore('npc', () => {
       }
       return nextResident
     })
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'relation_line_engaged',
+      visitorId: resident.sourceVisitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: resident.relationshipTag,
+      relationLineKind: 'romance',
+      relationLineStage: 2,
+      stage: 2,
+      summary: note,
+      idempotencyKey: `random_npc:${resident.residentId}:relation_line_engaged:${dayTag}`
+    })
     return { success: true, message: `${resident.name}已与你订婚。`, resident: nextResident ?? resident }
   }
 
@@ -3815,6 +4076,19 @@ export const useNpcStore = defineStore('npc', () => {
       }
       return nextResident
     })
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'relation_line_married',
+      visitorId: resident.sourceVisitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: 'friend',
+      relationLineKind: 'romance',
+      relationLineStage: 3,
+      stage: 3,
+      summary: note,
+      idempotencyKey: `random_npc:${resident.residentId}:relation_line_married:${dayTag}`
+    })
     return { success: true, message: `${resident.name}已与你成婚。`, resident: nextResident ?? resident }
   }
 
@@ -3866,6 +4140,19 @@ export const useNpcStore = defineStore('npc', () => {
         keyEvents: [...entry.keyEvents, `${dayTag} 婚后日常：${summary}`].slice(-8)
       }
       return nextResident
+    })
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'married_life_recorded',
+      visitorId: resident.sourceVisitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: resident.relationshipTag,
+      relationLineKind: 'romance',
+      relationLineStage: 3,
+      stage: currentLine.history.length + 1,
+      summary,
+      idempotencyKey: `random_npc:${resident.residentId}:married_life:${event.id}`
     })
     return { success: true, message: summary, resident: nextResident ?? resident }
   }
@@ -3957,6 +4244,21 @@ export const useNpcStore = defineStore('npc', () => {
       }
       return nextResident
     })
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'family_business_progressed',
+      visitorId: resident.sourceVisitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: resident.relationshipTag,
+      relationLineKind: 'romance',
+      relationLineStage: 3,
+      familyTieId: businessTie?.id ?? template.familyCommission.tieId,
+      familyTieKind: businessTie?.kind,
+      stage: nextStage,
+      summary: `${summary}${yieldReward.summary}。`,
+      idempotencyKey: `random_npc:${resident.residentId}:family_business:${nextStage}`
+    })
     return { success: true, message: `${summary}${yieldReward.summary}。`, resident: nextResident ?? resident }
   }
 
@@ -4024,6 +4326,20 @@ export const useNpcStore = defineStore('npc', () => {
       milestoneIds: [...new Set([...child.trainingState.milestoneIds, milestoneId])].slice(-8)
     }
     child.friendship = Math.min(300, child.friendship + 1)
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'child_family_influence_applied',
+      visitorId: resident.sourceVisitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: resident.relationshipTag,
+      relationLineKind: 'romance',
+      relationLineStage: 3,
+      stage: 1,
+      childId,
+      summary,
+      idempotencyKey: `random_npc:${resident.residentId}:child_family_influence:${childId}:${focus}`
+    })
     return { success: true, message: summary, child }
   }
 
@@ -4109,6 +4425,20 @@ export const useNpcStore = defineStore('npc', () => {
       milestoneIds: [...new Set([...child.trainingState.milestoneIds, `family-event:${residentId}:${guard.focus}:${guard.stage}`])].slice(-8)
     }
     child.friendship = Math.min(300, child.friendship + (guard.stage === 3 ? 2 : 1))
+    recordRandomNpcRelationshipMilestoneAudit({
+      action: 'child_family_event_progressed',
+      visitorId: resident.sourceVisitorId,
+      residentId: resident.residentId,
+      templateId: resident.templateId,
+      npcName: resident.name,
+      relationshipTag: resident.relationshipTag,
+      relationLineKind: 'romance',
+      relationLineStage: 3,
+      stage: guard.stage,
+      childId,
+      summary: `${title}：${summary}`,
+      idempotencyKey: `random_npc:${resident.residentId}:child_family_event:${childId}:${guard.focus}:${guard.stage}`
+    })
     return { success: true, message: `${title}：${summary}`, child, event }
   }
 
@@ -6543,7 +6873,8 @@ export const useNpcStore = defineStore('npc', () => {
           acquaintanceIds: [],
           acquaintances: [],
           longStayResidents: [],
-          recentSummaries: []
+          recentSummaries: [],
+          relationshipMilestoneAudit: []
         }
       }
       const validTemplateIds = new Set(RANDOM_NPC_TEMPLATES.map(template => template.id))
@@ -6773,7 +7104,8 @@ export const useNpcStore = defineStore('npc', () => {
                 : undefined
               }
             })
-        )
+        ),
+        relationshipMilestoneAudit: sanitizeRandomNpcRelationshipMilestoneAudit(raw.relationshipMilestoneAudit)
       }
     })()
     ensureRandomVisitorsForCurrentWeek()
