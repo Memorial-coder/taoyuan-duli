@@ -1523,6 +1523,55 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '花生与红薯杂交的香甜块根，适合甜饼料理、固元炼丹、制花薯粉、榨花薯仁油、灵宠花薯喂食、家畜花薯料、固元药膳、香甜赠礼、秋社供品、公共仓花薯备料和花薯订单。'
   },
   {
+    cropId: 'spice_jujube',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '甜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['辛枣暖饮', '辛枣养气丹', '辛枣果酒', '腌辛枣', '灵宠辛枣餐', '家畜辛枣料', '暖补药膳', '冬夜辛枣礼', '腊祭辛枣供', '公共仓辛枣包', '辛枣订单'],
+    summary: '红枣与大蒜杂交的辛甜冬果，适合暖饮料理、养气炼丹、酿辛枣果酒、腌辛枣、灵宠辛枣喂食、家畜辛枣料、暖补药膳、冬夜赠礼、腊祭供品、公共仓辛枣备料和辛枣订单。'
+  },
+  {
+    cropId: 'bean_eggplant',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['豆茄煲', '豆茄护脉丹', '豆茄粉', '腌豆茄', '灵宠豆茄餐', '家畜豆茄料', '护脉药膳', '田园豆茄礼', '秋社豆茄供', '公共仓豆茄包', '豆茄订单'],
+    summary: '豆角与茄子杂交的鲜软田蔬，适合煲菜料理、护脉炼丹、制豆茄粉、腌豆茄、灵宠豆茄喂食、家畜豆茄料、护脉药膳、田园赠礼、秋社供品、公共仓豆茄备料和豆茄订单。'
+  },
+  {
+    cropId: 'chrysanthemum_persimmon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['菊柿甜汤', '菊柿清目丹', '菊柿果酒', '灵宠菊柿餐', '家畜菊柿料', '清目药膳', '秋香菊柿礼', '重阳菊柿供', '公共仓菊柿包', '菊柿订单'],
+    summary: '菊花与柿子杂交的秋香甜果，适合甜汤料理、清目炼丹、酿菊柿果酒、灵宠菊柿喂食、家畜菊柿料、清目药膳、秋香赠礼、重阳供品、公共仓菊柿备料和菊柿订单。'
+  },
+  {
+    cropId: 'purple_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['紫玉薯羹', '紫玉固元丹', '紫玉薯粉', '腌紫玉薯', '灵宠紫玉餐', '家畜紫玉料', '固元药膳', '紫玉薯礼', '冬社紫玉供', '公共仓紫玉包', '紫玉薯订单'],
+    summary: '山药与茄子杂交的紫韵块根，适合羹汤料理、固元炼丹、制紫玉薯粉、腌紫玉薯、灵宠紫玉喂食、家畜紫玉料、固元药膳、紫玉赠礼、冬社供品、公共仓紫玉备料和紫玉薯订单。'
+  },
+  {
+    cropId: 'snow_lotus_pearl',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '甜'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雪莲子羹', '雪莲清心丹', '雪莲子粉', '雪莲子酒', '灵宠雪莲子餐', '家畜雪莲料', '清心药膳', '寒珠雪莲礼', '冰灯雪莲供', '公共仓雪莲包', '雪莲子订单'],
+    summary: '莲子与雪莲杂交的寒冬明珠，适合羹汤料理、清心炼丹、制雪莲子粉、酿雪莲子酒、灵宠雪莲子喂食、家畜雪莲料、清心药膳、寒珠赠礼、冰灯供品、公共仓雪莲备料和雪莲子订单。'
+  },  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
