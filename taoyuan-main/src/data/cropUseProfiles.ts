@@ -1373,6 +1373,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '红枣与大蒜杂交的辛甜果作，适合暖饮料理、养气炼丹、酿蒜枣果酒、腌蒜枣、灵宠蒜枣喂食、家畜蒜枣料、暖补药膳、冬夜赠礼、腊祭供品、公共仓蒜枣备料和蒜枣订单。'
   },
   {
+    cropId: 'chive_persimmon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '甜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['韭柿炒菜', '韭柿温中丹', '韭柿果酒', '腌韭柿', '灵宠韭柿餐', '家畜韭柿料', '温中药膳', '秋熟韭柿礼', '腊祭韭柿供', '公共仓韭柿包', '韭柿订单'],
+    summary: '柿子与韭菜杂交的再生辛甜果蔬，适合炒菜料理、温中炼丹、酿韭柿果酒、腌韭柿、灵宠韭柿喂食、家畜韭柿料、温中药膳、秋熟赠礼、腊祭供品、公共仓韭柿备料和韭柿订单。'
+  },
+  {
+    cropId: 'mustard_ginger',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '苦'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['芥姜暖汤', '芥姜驱寒丹', '腌芥姜片', '灵宠芥姜餐', '家畜芥姜料', '驱寒药膳', '冬灶芥姜礼', '腊祭芥姜供', '公共仓芥姜包', '芥姜调料单'],
+    summary: '生姜与芥菜杂交的辛苦根叶，适合暖汤料理、驱寒炼丹、腌芥姜片、灵宠芥姜喂食、家畜芥姜料、驱寒药膳、冬灶赠礼、腊祭供品、公共仓芥姜备料和调料订单。'
+  },
+  {
+    cropId: 'snow_pumpkin',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雪南瓜羹', '雪瓜养胃丹', '雪南瓜粉', '雪瓜甜酒', '灵宠雪瓜餐', '家畜雪瓜料', '养胃药膳', '白玉巨瓜礼', '冰灯雪瓜供', '公共仓雪瓜包', '雪南瓜订单'],
+    summary: '南瓜与雪莲杂交的白玉巨瓜，适合羹汤料理、养胃炼丹、制雪南瓜粉、酿雪瓜甜酒、灵宠雪瓜喂食、家畜雪瓜料、养胃药膳、白玉巨瓜赠礼、冰灯供品、公共仓雪瓜备料和雪南瓜订单。'
+  },
+  {
+    cropId: 'jade_white',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['碧白菜羹', '碧白清络丹', '腌碧白菜', '灵宠碧白菜餐', '家畜碧白料', '清络药膳', '冬储碧白礼', '冬社碧白供', '公共仓碧白包', '碧白菜订单'],
+    summary: '白菜与菠菜杂交的冬季翠叶，适合羹汤料理、清络炼丹、腌碧白菜、灵宠碧白菜喂食、家畜碧白料、清络药膳、冬储赠礼、冬社供品、公共仓碧白备料和碧白菜订单。'
+  },
+  {
+    cropId: 'garlic_cabbage',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['蒜白菜炖菜', '蒜白行气丹', '腌蒜白菜', '灵宠蒜白餐', '家畜蒜白料', '行气药膳', '冬储蒜白礼', '腊祭蒜白供', '公共仓蒜白包', '蒜白菜订单'],
+    summary: '大蒜与白菜杂交的冬储辛鲜菜，适合炖菜料理、行气炼丹、腌蒜白菜、灵宠蒜白喂食、家畜蒜白料、行气药膳、冬储赠礼、腊祭供品、公共仓蒜白备料和蒜白菜订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
