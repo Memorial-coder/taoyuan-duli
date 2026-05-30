@@ -871,6 +871,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'stable',
     recommendedUses: ['火焰茄煲', '火茄行气丹', '腌火焰茄', '暖胃药膳', '厨师辛香赠礼', '夏秋热菜供品', '辣茄订单'],
     summary: '凤凰椒与茄子杂交的辛鲜二代茄果，适合茄煲料理、行气炼丹、腌制、暖胃药膳、厨师赠礼、夏秋热菜供品和辣茄订单。'
+  },
+  {
+    cropId: 'moonlight_spinach',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['银叶菜羹', '银叶护目丹', '灵宠银叶餐', '家畜青叶料', '清目药膳', '夜读赠礼', '冬春青叶供', '公共仓银叶包', '青叶订单'],
+    summary: '月光稻与菠菜杂交的银脉叶菜，适合菜羹料理、护目炼丹、灵宠银叶喂食、家畜青叶料、清目药膳、夜读赠礼、冬春供品、公共仓银叶备料和青叶订单。'
+  },
+  {
+    cropId: 'jade_loofah',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '甜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['翠丝瓜汤', '翠瓜清络丹', '腌翠丝瓜', '灵宠清瓜餐', '家畜青瓜料', '清络药膳', '消暑赠礼', '夏日瓜供', '公共仓翠瓜包', '清瓜订单'],
+    summary: '翡翠茶与丝瓜杂交的清润瓜蔬，适合丝瓜汤料理、清络炼丹、腌制、灵宠清瓜喂食、家畜青瓜料、清络药膳、消暑赠礼、夏日供品、公共仓翠瓜备料和清瓜订单。'
+  },
+  {
+    cropId: 'frost_winter_wheat',
+    tags: ['food', 'alchemy', 'animal_feed', 'flour', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['霜麦面', '霜麦护脉丹', '霜麦粉', '霜麦冻酒', '家畜冬麦料', '寒夜麦礼', '冬祭霜麦供', '公共仓霜麦包', '冬麦订单'],
+    summary: '霜雪蒜与冬小麦杂交的寒香麦作，适合面食料理、护脉炼丹、制粉、冻酒酿造、家畜冬麦料、寒夜赠礼、冬祭供品、公共仓霜麦备料和冬麦订单。'
+  },
+  {
+    cropId: 'golden_sesame',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '甜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['金芝酥', '金芝聚火丹', '金芝香油', '灵宠金芝饼', '家畜油籽料', '富贵香油赠礼', '丰收祭金芝供', '公共仓金芝包', '芝油订单'],
+    summary: '金蜜瓜与芝麻杂交的金色油籽，适合酥点料理、聚火炼丹、榨金芝香油、灵宠金芝点心、家畜油籽料、富贵赠礼、丰收祭供品、公共仓金芝备料和芝油订单。'
+  },
+  {
+    cropId: 'phoenix_garlic',
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['火蒜爆菜', '火蒜驱寒丹', '腌火蒜瓣', '暖身药膳', '厨师辛蒜赠礼', '冬春辛蒜供', '公共仓火蒜包', '辛蒜订单'],
+    summary: '凤凰椒与大蒜杂交的烈辛蒜作，适合爆炒料理、驱寒炼丹、腌制、暖身药膳、厨师赠礼、冬春供品、公共仓火蒜备料和辛蒜订单。'
   }
 ]
 
