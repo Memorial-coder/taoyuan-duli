@@ -723,6 +723,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '莲藕与茶叶杂交的清润茶材，适合清茶料理、清神炼丹、灵宠莲心喂食、清润药饮、书院赠礼、夏夜供品、公共仓莲心茶包和莲心茶单。'
   },
   {
+    cropId: 'purple_bamboo',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['紫竹茄煲', '紫竹护脉丹', '腌紫竹茄', '灵宠紫竹餐', '家畜竹茄料', '清络药膳', '竹林紫茄礼', '春夏紫竹供', '公共仓紫竹包', '竹茄订单'],
+    summary: '春笋与茄子杂交的紫节果蔬，适合茄煲料理、护脉炼丹、腌制、灵宠紫竹喂食、家畜竹茄料、清络药膳、竹林赠礼、春夏供品、公共仓紫竹备料和竹茄订单。'
+  },
+  {
+    cropId: 'honey_peach_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['蜜桃瓜盏', '蜜瓜润喉丹', '蜜桃瓜酒', '灵宠蜜瓜餐', '润喉药饮', '夏客蜜瓜礼', '七夕蜜瓜供', '公共仓蜜瓜包', '蜜瓜订单'],
+    summary: '蜜桃与西瓜杂交的清甜灵瓜，适合瓜盏料理、润喉炼丹、酿果酒、灵宠蜜瓜喂食、润喉药饮、夏客赠礼、七夕供品、公共仓蜜瓜备料和蜜瓜订单。'
+  },
+  {
+    cropId: 'fire_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['火豆辣酱', '火豆行气丹', '腌火豆瓣', '灵宠火豆餐', '家畜辛豆料', '暖胃药膳', '武馆火豆礼', '龙舟火豆供', '公共仓火豆包', '辣豆订单'],
+    summary: '蚕豆与辣椒杂交的辛香豆作，适合辣酱料理、行气炼丹、腌制、灵宠火豆喂食、家畜辛豆料、暖胃药膳、武馆赠礼、龙舟供品、公共仓火豆备料和辣豆订单。'
+  },
+  {
+    cropId: 'silk_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '香'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['丝豆清炒', '丝豆清络丹', '腌丝豆段', '灵宠丝豆餐', '家畜青豆料', '清络药膳', '厨娘丝豆礼', '夏社丝豆供', '公共仓丝豆包', '青豆订单'],
+    summary: '豆角与丝瓜杂交的柔滑豆蔬，适合清炒料理、清络炼丹、腌制、灵宠丝豆喂食、家畜青豆料、清络药膳、厨娘赠礼、夏社供品、公共仓丝豆备料和青豆订单。'
+  },
+  {
+    cropId: 'double_oil_seed',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['双油籽糕', '双油润脉丹', '双油籽油', '灵宠油籽点心', '家畜油籽料', '润脉药膳', '油坊双籽礼', '春祭油籽供', '公共仓双油包', '油籽订单'],
+    summary: '油菜与芝麻杂交的高香油料，适合糕点料理、润脉炼丹、榨双籽油、灵宠油籽点心、家畜油籽料、润脉药膳、油坊赠礼、春祭供品、公共仓双油备料和油籽订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
