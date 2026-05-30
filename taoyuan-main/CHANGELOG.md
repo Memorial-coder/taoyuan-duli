@@ -4,9 +4,21 @@
 
 ## [未发布]
 
-### 0530 Cohabitation Separation Warehouse Draft Guard
-- Separation preview now lists active high-value shared warehouse withdrawal drafts, frozen quantity, source ledgers, and the required execute / rollback follow-up.
-- Separation shared warehouse return now returns 409 before return ledger or personal inventory writes while active high-value withdrawal drafts exist, with audit evidence that shared warehouse, personal inventory, and personal money stayed unchanged.
+### 0530 同居离线自动收益领取
+- `offline-status` 新增离线自动收益待领摘要、领取能力和 `collect_offline_auto_income` 队列动作；服务端领取按最新共同农田 / 动物状态入共同仓库，写入仓库、农田 / 动物 ledger 和 `offline_auto_income_collected` 审计，重复幂等键不重复发放。
+- 共同庄园离线页新增自动收益待领摘要与领取按钮，成功后刷新离线状态、契约摘要和详情；无待领队列会按服务端当前状态返回无待领证据，不改个人存档。
+
+### 0530 同居共同庄园日结与拼接地图
+- 共同庄园离线页新增“共同庄园日结”按钮，调用 `/daily-settle` 后展示农田成长、健康 / 品质加成消耗、动物心情加成消耗和成熟数量摘要；重复幂等键按服务端审计回放。
+- 共同农田地图改为按服务端 `layout.columns / rows / regions` 渲染整张拼接地图，空格补位、选中区域描边，并在地块 / 动物详情展示同时在线加成；肥料选择补充高级肥料选项。
+
+### 0530 同居共同基金购入共同仓库
+- 前端共同基金面板读取服务端白名单购买目录，可用共同基金小额预算直接购买种子 / 饲料进入共同仓库，成功后刷新共同基金、共同仓库和契约详情。
+- 购买链路改走 `/fund/shop-purchase`，服务端返回成对的基金扣款 ledger 与共同仓库入仓 ledger，个人铜钱和个人背包不变。
+
+### 0530 同居共同仓库 11.4 配方扩展
+- 共同仓库页的共同工坊下拉同步新增米醋、腌萝卜、菜籽油、绿茶、豆腐、精制石英、蜜桃脯、桂花蜜、辛火赛舟饭团、菜油春笋米粉卷、丰收南瓜大锅羹、腌萝卜护院汤、蜜桃灵果糕和多条共同丹炉成功丹方。
+- 共同农田面板把种子 / 肥料选择标签恢复为可读中文；前端仍只提交白名单配方，产物入仓、流水和高价值保护由服务端校验。
 
 ### 0530 Activity Room Reward Idempotency
 - Festival / expedition settlement receipts now use `room_reward:<roomId>:<memberId>:v<settlementVersion>` as the reward idempotency key; the save slot remains only as the persistence target.
@@ -24,12 +36,24 @@
 - 服务端访客活动流补齐护理房结算凭证、健康度 / 健康变化、顺序风险、成员角色、分工进度、动作明细、护理窗口和结算人，便于来访页审计卡直接核对。
 - `qa-manor-care-room` 增加字段一致性断言；本轮不新增收益、不改健康度公式、不写主人庄园主存档。
 
+### 0530 同居分居田区写回回执
+- 服务端个人农田返还写回回执补齐契约持久共同地图证据，包含 manifest 来源 / hash、共同地块 ID、来源存档槽位 / 修订、当前管护者、拆回规则、权限限制，以及个人 / 共同资产不变声明。
+
 ### 0530 有限制偷菜争议回看字段
 - 服务端访客活动流补齐轻采目标、物品、用途、收益上限、主人补偿、剩余次数、反刷窗口和反刷摘要，在线庄园已有回看入口可读同一权威字段。
 - `qa:manor-steal` 增加字段一致性断言；本轮不新增收益、不扣主人库存、不改轻采幂等键。
+
+### 0530 同居分居田区预览来源
+- 分居田区返还预览改以持久 `contract.shared_map.plots` 为来源，返还 manifest 会带出来源存档槽位 / 修订、当前管护者、拆回规则、权限限制和共同地图最新地块状态。
+
 ### 0530 公共订单接力故事凭证
 - 多段订单交付、确认和补偿重放现在会把接力故事章节 ID、摘要、详情和结算摘要写入服务端结算凭证。
 - 村社公共订单板最近公开凭证与 `OnlineOrdersView` 可读回这些故事字段；奖励金额、分账逻辑、幂等键和个人 / 共同基金落账路径不变。
+
+### 0530 同居分居共同仓库返还保护
+- 服务端共同仓库返还会按来源流水写回个人背包；同一成员多行返还先聚合到同一份个人存档再落盘，避免稻米、离线茶叶、动物牛奶等返还行互相覆盖。
+- 分居预览会列出活跃高价值共同仓库取出草案、冻结数量、来源 ledger 和需执行 / 回滚的后续动作；真实仓库返还会在写返还 ledger 或个人背包前阻断并返回 409，不改共同仓库、个人背包或个人铜币。
+
 ### 0530 行旅护送货物完整度回看
 - `expedition_escort` 房间动作现在从服务端 `escort_state` 记录货物完整度、货损、稳固次数、途中事件处理和最近完整度变化，结算 `route_replay.cargo_integrity` 可读回同一摘要。
 - 远征独立页、在线节会页和统一房间壳会展示护送完整度、状态、货损 / 稳固 / 事件计数与最近变化；该读回不进入奖励 payload、不改变结算幂等键或个人落账。
@@ -302,6 +326,7 @@
 ### 0530 作物用途标签第三十三批一代杂交尾段
 - `CropUseProfile` 新增辛枣、豆茄、菊柿、紫玉薯、雪莲子人工档案，明确辛枣果酒 / 腌辛枣、豆茄粉 / 腌豆茄、菊柿果酒、紫玉薯粉 / 腌紫玉薯、雪莲子粉 / 酒、灵宠点心、动物饲料、公共仓备料、订单、赠礼与节会出口。
 - 一代杂交段已补至二代杂交分隔线前；背包用途筛选、作物详情、库存用途建议和百科搜索继续读同一用途档案。本轮按要求不跑 QA，不做料理 / 丹炉同类材料自动替换。
+
 ### 0530 作物用途标签第四十批三代杂交第五组
 - `CropUseProfile` 新增风翠栗、云翠杏、雨翠梨、霜翠莓、雷翠桃人工档案，明确风翠栗粉 / 甜酿、云翠杏酒、雨翠梨酿、霜翠莓粉 / 寒酿、雷翠桃酒、灵宠点心、动物饲料、公共仓备料、订单、赠礼与节会出口。
 - 三代杂交已推进到雷翠桃；背包用途筛选、作物详情、库存用途建议和百科搜索继续读同一用途档案。本轮按要求不跑 QA，不做料理 / 丹炉同类材料自动替换。

@@ -1,12 +1,16 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-30
-- Cohabitation separation shared warehouse high-value draft guard: separation preview lists active high-value withdrawal drafts, frozen quantity, and source ledgers; shared warehouse return blocks before return ledger / personal inventory writes until drafts are executed or rolled back, leaving shared warehouse, personal inventory, and personal money unchanged.
 - 活动房间奖励凭证幂等键收口：节会 / 远征结算凭证 now use `room_reward:<roomId>:<memberId>:v<settlementVersion>`，存档槽位只保留为写回目标字段；管理员重放仍通过 `appliedReceipts` 防重复发钱、发券、发道具或发装饰。
+- 同居离线自动收益领取：`offline-status` 读回待领摘要和 `collect_offline_auto_income` 能力，领取时按服务端共同农田 / 动物当前状态把作物与产物写入共同仓库，补齐仓库、农田 / 动物 ledger 和共同审计；前端共同庄园离线页新增待领摘要与领取入口。
+- 同居共同庄园日结与协作加成收口：新增 `/daily-settle` 写链，按契约共同地图 / 共同动物状态推进成长、消耗共同农田健康 / 品质加成与动物心情加成，并读回日结摘要；前端离线页新增共同庄园日结按钮，地图页读回拼接大地图、同时在线加成和高级肥料选项。
+- 同居共同基金购入共同仓库：新增 `/fund/shop-purchase`，可用共同基金小额白名单直接购买种子 / 饲料入共同仓库，写成对基金扣款 ledger 与共同仓库 deposit ledger，个人铜钱 / 背包保持不变；前端基金面板读回可购目录并刷新基金与仓库。
+- 同居共同仓库 11.4 配方与策略扩展：共同工坊新增米醋、腌萝卜、菜籽油、绿茶、豆腐、精制石英、蜜桃脯、桂花蜜及多条料理 / 丹炉成功丹方白名单；普通仓库流改为显式 `shared_warehouse_common` 策略，任务 / 未分类物品默认拒绝，高价值草案也会拦截任务物；分居共同仓库多物品返还按来源玩家合并写入个人存档，`qa:cohabitation-contract` 覆盖新配方、来源流水和资产边界。
 - 村社仓廪周结算效果凭证：公共仓 `weekly_settlement` 读回 `effect_receipts`、`effect_summary`、点数 / 阈值 / 来源类别、公共集体作用域和不发个人资产声明；`qa:society-warehouse` 扩到五类入仓及三类效果凭证，不改入仓成本、消耗金额或个人收益。
 - 活动房间行动日志补齐：节会 / 远征房间新增结构化 `action_log`，创建、加入、玩法行动、结算和关闭等会记录操作者、房间状态、玩法阶段、行动 ID、目标引用、凭证 ID 和补偿提示；旧 `recent_events` 继续兼容。
 - 协作护理房争议回看字段补强：访客活动审计会读回护理房结算凭证、健康度、顺序风险、成员角色、分工进度、动作明细和护理窗口；专项 QA 固定与权威护理房记录一致，不新增收益、不改健康度公式。
 - 有限制偷菜争议回看字段补强：访客活动审计现在读回轻采凭证、目标 / 物品、用途标签、访客收益、主人补偿、剩余次数和反刷摘要；专项 QA 固定字段一致性，不新增收益、不扣主人库存、不改幂等键。
+- 同居分居田区写回回执补强：个人农田返还写回会保留契约持久共同地图证据、manifest hash、共同地块 ID、来源存档槽位 / 修订、当前管护者、拆回规则、权限限制，以及个人铜币 / 背包、共同基金、共同仓库不变声明。
 - 作物用途标签第四十一批三代杂交第六组：虹翠瓜、露翠豆、晨翠稻、暮翠薯、星翠菜改为人工用途档案，三代杂交已推进到星翠菜；背包和百科可读回虹瓜润脉丹、露豆养气丹、晨稻续行丹、暮薯驱寒丹、星菜清目丹、虹翠瓜酿、露翠豆粉、晨翠米粉、暮翠薯粉、腌星翠菜等出口。
 - 作物用途标签第四十批三代杂交第五组：风翠栗、云翠杏、雨翠梨、霜翠莓、雷翠桃改为人工用途档案，三代杂交已推进到雷翠桃；背包和百科可读回风栗固元丹、云杏润脉丹、雨梨清心丹、霜莓安神丹、雷桃行气丹、风翠栗粉、云翠杏酒、雨翠梨酿、霜翠莓粉、雷翠桃酒等出口。
 - 作物用途标签第三十九批三代杂交第四组：虹华藤、露华蕾、晨华兰、暮华葫、星华草改为人工用途档案，三代杂交已推进到星华草；背包和百科可读回虹藤润脉丹、露蕾行气丹、晨兰清心丹、暮葫固元丹、星草安神丹、虹华藤酿、腌露华蕾、晨华兰露酿、暮华葫油、星华草粉等出口。
@@ -16,7 +20,10 @@
 - 作物用途标签第三十五批二代高阶旧段：金龙果、月霜稻、翡翠金瓜、仙人花、龙珠改为人工用途档案，二代高阶旧段已补至新增二代分隔线前；背包和百科可读回金龙聚火丹、月霜清心丹、金瓜凝神丹、仙花清心丹、龙珠续行丹、金龙果酒、月霜米粉、翡翠金瓜粉、仙人花露酿、龙珠粉等出口。
 - 作物用途标签第三十四批二代高阶旧段：蜜茶果、龙火椒、天香稻、冰莲、翠桃茶改为人工用途档案，二代高阶旧段已补至翠桃茶；背包和百科可读回蜜茶凝神丹、龙火聚火丹、天香续行丹、冰莲清心丹、翠桃凝神丹、蜜茶果酒、腌龙火椒、天香米粉、冰莲粉、翠桃果茶酿等出口。
 
+- 同居分居田区预览来源收口：来源田区返还预览优先读取持久 `contract.shared_map.plots`，把来源槽位 / 修订、当前管护者、拆回规则、权限限制和共同地图最新地块状态带入返还 manifest，不再从个人农田旧快照重建。
 - 行旅护送货物完整度细分：`expedition_escort` 新增服务端权威 `escort_state`，护送推进、稳固货物和途中事件会记录完整度、货损、稳固与事件处理次数；结算 `escort_convoy` 回看新增 `cargo_integrity`，远征页、在线节会页和统一房间壳只读展示，不改奖励 payload、幂等键或个人落账。
+- 同居分居共同仓库返还与高价值草案保护：共同仓库返还按来源流水写回个人背包，同一成员多行返还先聚合再落盘，避免稻米 / 动物牛奶等多行互相覆盖；分居预览会列出活跃高价值取出草案、冻结数量和来源 ledger，真实仓库返还会在写 ledger / 个人背包前阻断，要求先执行或回滚草案，并保持共同仓库、个人背包和个人铜币不变。
+
 - Cohabitation shared warehouse frozen occupancy: active high-value withdrawal drafts now reduce available stock across shared farm, animal, pet, workshop, normal withdraw, sell, and family building material consumption; the warehouse UI shows frozen / available counts and disables actions when only frozen stock remains.
 - 腊八共灶公共仓联动：村社公共仓 `laba_cookpot_base` 消耗会固化奖励池、现场物件、房间预载和公共食材来源；在线村社消耗后可跳转创建 `laba_cookpot / assembly` 房间，服务端把来源反馈写入腊八共灶可视化高光，仍只扣公共仓、不发个人收益。
 - 同居离线队列 revision 冲突读回：离线队列合并结果和审计新增客户端基线、服务端合并前后 revision、stale 标记和服务端权威策略；共同庄园离线页会显示队列 revision 状态，便于确认离线操作按最新共同资产合并。

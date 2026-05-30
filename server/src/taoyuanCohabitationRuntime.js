@@ -47,6 +47,7 @@ const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS = 1;
 const SHARED_DECORATION_COOP_ATMOSPHERE_BONUS = 1;
 const SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS = 1;
 const SHARED_ALCHEMY_COOP_SUCCESS_RATE_BONUS_PERCENT = 15;
+const OFFLINE_AUTO_INCOME_MAX_ITEMS = 40;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT = 40;
@@ -61,6 +62,53 @@ const WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT = 12;
 const WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT = 60;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
+const WAREHOUSE_ITEM_POLICY_VERSION = 1;
+const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
+  'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
+  'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
+  'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'bamboo_shoot', 'winter_bamboo_shoot', 'egg', 'duck_egg', 'milk',
+  'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
+  'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
+  'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
+  'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
+  'hay', 'fish_feed', 'basic_fertilizer', 'seed_cabbage', 'seed_radish', 'seed_rice', 'premium_feed', 'nourishing_feed', 'vitality_feed',
+  'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
+  'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
+  'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
+  'food_candied_peach_spirit_cake', 'qingxin_lotus_elixir', 'warming_sweet_potato_pill', 'grain_breath_elixir',
+  'sesame_courtesy_elixir', 'pumpkin_warmth_elixir', 'spicy_vitality_pill', 'osmanthus_focus_elixir', 'tea_focus_elixir',
+  'stone_root_guard_pill', 'partial_elixir_slurry', 'failed_elixir_ash',
+]);
+const WAREHOUSE_RARE_ITEM_IDS = Object.freeze(['rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir']);
+const WAREHOUSE_TASK_PROTECTED_ITEM_IDS = Object.freeze([
+  'family_contract', 'cohabitation_contract', 'marriage_certificate', 'quest_scroll', 'story_token', 'jade_ring', 'silk_ribbon',
+  'zhiji_jade', 'lineage_certificate_tag', 'preservation_seal',
+]);
+const WAREHOUSE_ITEM_POLICY_CATALOG = Object.freeze({
+  ...Object.fromEntries(WAREHOUSE_COMMON_ITEM_IDS.map(itemId => [itemId, {
+    policy_id: 'shared_warehouse_common',
+    classification: 'common',
+    risk_level: 'common',
+    ordinary_flow_blocked: false,
+    high_value_withdrawal_allowed: false,
+  }])),
+  ...Object.fromEntries(WAREHOUSE_RARE_ITEM_IDS.map(itemId => [itemId, {
+    policy_id: 'shared_warehouse_rare',
+    classification: 'rare',
+    risk_level: 'rare',
+    ordinary_flow_blocked: true,
+    high_value_withdrawal_allowed: true,
+    block_reason: 'rare_item_policy',
+  }])),
+  ...Object.fromEntries(WAREHOUSE_TASK_PROTECTED_ITEM_IDS.map(itemId => [itemId, {
+    policy_id: 'shared_warehouse_task_protected',
+    classification: 'task_protected',
+    risk_level: 'rare',
+    ordinary_flow_blocked: true,
+    high_value_withdrawal_allowed: false,
+    block_reason: 'task_or_relationship_item_policy',
+  }])),
+});
 const WAREHOUSE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute', 'executed', 'rolled_back', 'expired']);
 const WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute']);
 const WAREHOUSE_WITHDRAWAL_COMPENSATION_REVIEW_STATUSES = new Set(['none', 'requested', 'approved', 'rejected']);
@@ -284,12 +332,52 @@ const SHARED_PET_CARE_ITEM_CATALOG = Object.freeze({
     compensation_hint: '稀有灵果点心已从共同仓库扣减；若照料或审计异常，按共同宠物 ledger 与仓库 consume ledger 返还或重放。',
   },
 });
+const SHARED_FARM_FERTILIZER_CATALOG = Object.freeze({
+  basic_fertilizer: {
+    item_id: 'basic_fertilizer',
+    label: 'basic fertilizer',
+    permission_key: 'plant',
+    premium: false,
+    effect: 'quality_bonus_basic',
+  },
+  quality_fertilizer: {
+    item_id: 'quality_fertilizer',
+    label: 'quality fertilizer',
+    permission_key: 'use_premium_fertilizer',
+    premium: true,
+    effect: 'quality_bonus_premium',
+  },
+  speed_gro: {
+    item_id: 'speed_gro',
+    label: 'speed gro',
+    permission_key: 'use_premium_fertilizer',
+    premium: true,
+    effect: 'growth_speed_premium',
+  },
+  deluxe_speed_gro: {
+    item_id: 'deluxe_speed_gro',
+    label: 'deluxe speed gro',
+    permission_key: 'use_premium_fertilizer',
+    premium: true,
+    effect: 'growth_speed_premium',
+  },
+  quality_retaining_soil: {
+    item_id: 'quality_retaining_soil',
+    label: 'quality retaining soil',
+    permission_key: 'use_premium_fertilizer',
+    premium: true,
+    effect: 'retain_water_premium',
+  },
+});
+
+const SHARED_FARM_FERTILIZER_ITEM_IDS = Object.freeze(Object.keys(SHARED_FARM_FERTILIZER_CATALOG));
 const SHARED_PET_CARE_ITEM_IDS = Object.freeze(Object.keys(SHARED_PET_CARE_ITEM_CATALOG));
 const OFFLINE_QUEUE_SHARED_FARM_ACTIONS = Object.freeze([
   'water_shared_farm',
   'care_shared_farm',
   'plant_shared_farm',
   'fertilize_shared_farm_basic',
+  'fertilize_shared_farm_premium',
   'harvest_shared_farm',
 ]);
 const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
@@ -299,6 +387,7 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'collect_shared_animal_product',
   'care_shared_pet',
   'process_shared_workshop_recipe',
+  'collect_offline_auto_income',
 ]);
 const SHARED_FARM_SEED_CATALOG = Object.freeze(Object.fromEntries(
   Object.values(SHARED_FUND_AUTO_PURCHASE_CATALOG)
@@ -309,6 +398,11 @@ const SHARED_FARM_SEED_CATALOG = Object.freeze(Object.fromEntries(
       label: item.label,
     }])
 ));
+const SHARED_FARM_CROP_GROWTH_DAYS = Object.freeze({
+  cabbage: 3,
+  radish: 4,
+  rice: 7,
+});
 const SHARED_ANIMAL_PRODUCT_CATALOG = Object.freeze({
   chicken: { product_id: 'egg', produce_days: 1 },
   duck: { product_id: 'duck_egg', produce_days: 2 },
@@ -421,6 +515,95 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_rice_vinegar: {
+    id: 'shared_rice_vinegar',
+    label: '共同酒坊米醋',
+    station: 'wine_workshop',
+    process_kind: 'cooking_material',
+    input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }],
+    output_item_id: 'rice_vinegar',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_pickled_radish: {
+    id: 'shared_pickled_radish',
+    label: '共同酱缸腌萝卜',
+    station: 'sauce_jar',
+    process_kind: 'cooking_material',
+    input_items: [
+      { item_id: 'radish', quantity: 2, quality: 'normal' },
+      { item_id: 'rice_vinegar', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'pickled_radish',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_rapeseed_oil: {
+    id: 'shared_rapeseed_oil',
+    label: '共同油坊菜籽油',
+    station: 'oil_press',
+    process_kind: 'cooking_material',
+    input_items: [{ item_id: 'rapeseed', quantity: 3, quality: 'normal' }],
+    output_item_id: 'rapeseed_oil',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_green_tea_drink: {
+    id: 'shared_green_tea_drink',
+    label: '共同茶炉绿茶',
+    station: 'tea_maker',
+    process_kind: 'cooking_material',
+    input_items: [{ item_id: 'tea', quantity: 2, quality: 'normal' }],
+    output_item_id: 'green_tea_drink',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_tofu: {
+    id: 'shared_tofu',
+    label: '共同豆腐坊豆腐',
+    station: 'tofu_press',
+    process_kind: 'cooking_material',
+    input_items: [{ item_id: 'broad_bean', quantity: 3, quality: 'normal' }],
+    output_item_id: 'tofu',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_refined_quartz: {
+    id: 'shared_refined_quartz',
+    label: '共同熔炉精制石英',
+    station: 'furnace',
+    process_kind: 'alchemy_material',
+    input_items: [
+      { item_id: 'quartz', quantity: 2, quality: 'normal' },
+      { item_id: 'charcoal', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'refined_quartz',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_candied_peach: {
+    id: 'shared_candied_peach',
+    label: '共同糖渍罐蜜桃脯',
+    station: 'sugar_jar',
+    process_kind: 'cooking_material',
+    input_items: [
+      { item_id: 'peach', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'candied_peach',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_osmanthus_honey: {
+    id: 'shared_osmanthus_honey',
+    label: '共同蜂箱桂花蜜',
+    station: 'beehive',
+    process_kind: 'alchemy_material',
+    input_items: [{ item_id: 'osmanthus', quantity: 1, quality: 'normal' }],
+    output_item_id: 'osmanthus_honey',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_rice_ball: {
     id: 'shared_rice_ball',
     label: '共同灶台饭团',
@@ -521,6 +704,77 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_spicy_boat_rice_ball: {
+    id: 'shared_spicy_boat_rice_ball',
+    label: '共同灶台辛火赛舟饭团',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'pickled_chili', quantity: 1, quality: 'fine' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'sesame_oil', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_spicy_boat_rice_ball',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_rapeseed_bamboo_rice_roll: {
+    id: 'shared_rapeseed_bamboo_rice_roll',
+    label: '共同灶台菜油春笋米粉卷',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice_flour', quantity: 1, quality: 'fine' },
+      { item_id: 'bamboo_shoot', quantity: 1, quality: 'normal' },
+      { item_id: 'rapeseed_oil', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_rapeseed_bamboo_rice_roll',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_pumpkin_harvest_cauldron: {
+    id: 'shared_pumpkin_harvest_cauldron',
+    label: '共同灶台丰收南瓜大锅羹',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' },
+      { item_id: 'sweet_potato', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_pumpkin_harvest_cauldron',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_pickled_radish_guard_soup: {
+    id: 'shared_pickled_radish_guard_soup',
+    label: '共同灶台腌萝卜护院汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'pickled_radish', quantity: 1, quality: 'fine' },
+      { item_id: 'tofu', quantity: 1, quality: 'fine' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_pickled_radish_guard_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_candied_peach_spirit_cake: {
+    id: 'shared_candied_peach_spirit_cake',
+    label: '共同灶台蜜桃灵果糕',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'candied_peach', quantity: 1, quality: 'fine' },
+      { item_id: 'rice_flour', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_candied_peach_spirit_cake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_herb_paste: {
     id: 'shared_herb_paste',
     label: '共同药碾草药膏',
@@ -590,6 +844,126 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
     alchemy_result_kind: 'rare',
+  },
+  shared_warming_sweet_potato_pill: {
+    id: 'shared_warming_sweet_potato_pill',
+    label: '共同丹炉温阳薯丸',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sweet_potato', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'warming_sweet_potato_pill',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_grain_breath_elixir: {
+    id: 'shared_grain_breath_elixir',
+    label: '共同丹炉谷气续行丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'herb', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'grain_breath_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_sesame_courtesy_elixir: {
+    id: 'shared_sesame_courtesy_elixir',
+    label: '共同丹炉芝香护礼丸',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sesame', quantity: 2, quality: 'normal' },
+      { item_id: 'tea', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'sesame_courtesy_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_pumpkin_warmth_elixir: {
+    id: 'shared_pumpkin_warmth_elixir',
+    label: '共同丹炉南瓜聚火丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pumpkin', quantity: 2, quality: 'normal' },
+      { item_id: 'sesame_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'pumpkin_warmth_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_spicy_vitality_pill: {
+    id: 'shared_spicy_vitality_pill',
+    label: '共同丹炉辛火行气丸',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pickled_chili', quantity: 1, quality: 'fine' },
+      { item_id: 'sesame_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'spicy_vitality_pill',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_osmanthus_focus_elixir: {
+    id: 'shared_osmanthus_focus_elixir',
+    label: '共同丹炉桂露凝神丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_seed', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'osmanthus_focus_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_tea_focus_elixir: {
+    id: 'shared_tea_focus_elixir',
+    label: '共同丹炉茶心凝神丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'tea_focus_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_stone_root_guard_pill: {
+    id: 'shared_stone_root_guard_pill',
+    label: '共同丹炉石根护脉丸',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'radish', quantity: 2, quality: 'normal' },
+      { item_id: 'potato', quantity: 1, quality: 'normal' },
+      { item_id: 'refined_quartz', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'stone_root_guard_pill',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
   },
 });
 
@@ -967,6 +1341,49 @@ function sanitizeText(value, maxLength = 120) {
   return String(value || '').normalize('NFKC').trim().slice(0, maxLength);
 }
 
+
+function normalizeWarehouseOperationCredential(payload = {}) {
+  const operationId = sanitizeText(
+    payload.operation_id ?? payload.operationId ?? payload.operation_key ?? payload.operationKey,
+    120
+  );
+  const fallbackKey = sanitizeText(
+    payload.idempotency_key ?? payload.idempotencyKey ?? payload.request_id ?? payload.requestId,
+    120
+  );
+  const idempotencyKey = operationId || fallbackKey;
+  return {
+    operation_id: operationId || idempotencyKey,
+    idempotency_key: idempotencyKey,
+  };
+}
+
+function normalizeFundConsumptionCredential(payload = {}) {
+  const consumptionId = sanitizeText(
+    payload.consumption_id ?? payload.consumptionId ?? payload.spend_id ?? payload.spendId ?? payload.consume_id ?? payload.consumeId,
+    120
+  );
+  const fallbackKey = sanitizeText(
+    payload.idempotency_key ?? payload.idempotencyKey ?? payload.operation_id ?? payload.operationId ?? payload.request_id ?? payload.requestId,
+    120
+  );
+  const idempotencyKey = consumptionId || fallbackKey;
+  return {
+    consumption_id: consumptionId || idempotencyKey,
+    idempotency_key: idempotencyKey,
+  };
+}
+
+function buildSeparationVersionIdempotencyKey(contractId, previewOrVersion, phase, memberKey = '') {
+  const version = typeof previewOrVersion === 'object' ? previewOrVersion?.version : previewOrVersion;
+  return [
+    sanitizeText(contractId, 80),
+    Math.max(1, Math.floor(Number(version) || SEPARATION_PREVIEW_VERSION)),
+    sanitizeText(phase, 60),
+    normalizeUsernameKey(memberKey),
+  ].filter(value => value !== '').join(':');
+}
+
 function normalizeUsername(value) {
   return sanitizeText(value, 40);
 }
@@ -1093,9 +1510,251 @@ function normalizeFamilyManorRole(value, type, memberRole = 'partner') {
 
 function normalizeContractFamilyState(value = {}) {
   const childCount = Math.max(0, Math.min(20, Math.floor(Number(value.child_count) || 0)));
+  const majorEventLedger = Array.isArray(value.major_event_ledger)
+    ? value.major_event_ledger.map(normalizeFamilyMajorEventLedgerEntry).filter(Boolean).slice(0, 80)
+    : [];
   return {
     has_children: value.has_children === true || childCount > 0,
     child_count: childCount,
+    major_event_ledger: majorEventLedger,
+    last_major_event_ref: sanitizeText(value.last_major_event_ref || majorEventLedger[0]?.target_ref, 120),
+    last_major_event_status: sanitizeText(value.last_major_event_status || majorEventLedger[0]?.status, 40),
+    last_major_event_receipt_id: sanitizeText(value.last_major_event_receipt_id || majorEventLedger[0]?.receipt_id, 100),
+  };
+}
+
+function normalizeFamilyMajorEventLedgerEntry(entry = {}) {
+  const targetRef = sanitizeText(entry.target_ref || entry.event_ref || entry.target, 120);
+  if (!targetRef) return null;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_major_event'),
+    target_ref: targetRef,
+    status: sanitizeText(entry.status, 40) || 'delivered',
+    draft_id: sanitizeText(entry.draft_id, 100),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id || entry.original_fund_ledger_id, 100),
+    receipt_id: sanitizeText(entry.receipt_id, 100),
+    receipt_ref: sanitizeText(entry.receipt_ref, 120),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    recorded_by_username: normalizeUsername(entry.recorded_by_username || entry.actor_username),
+    recorded_by_display_name: sanitizeText(entry.recorded_by_display_name || entry.actor_display_name || entry.recorded_by_username || entry.actor_username, 60),
+    recorded_at: Math.max(0, Math.floor(Number(entry.recorded_at || entry.at) || 0)),
+    memo: sanitizeText(entry.memo || entry.note, 180),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    contract_family_state_changed: entry.contract_family_state_changed !== false,
+    personal_family_state_mutated: entry.personal_family_state_mutated === true,
+    shared_fund_changed: entry.shared_fund_changed === true,
+  };
+}
+
+function normalizeSharedFundDeliveryEntry(entry = {}) {
+  const targetRef = sanitizeText(entry.target_ref || entry.target, 120);
+  const receiptId = sanitizeText(entry.receipt_id, 100);
+  if (!targetRef && !receiptId) return null;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('shared_fund_delivery'),
+    delivery_kind: sanitizeText(entry.delivery_kind || entry.purpose, 80),
+    purpose: sanitizeText(entry.purpose || entry.delivery_kind, 80),
+    target_ref: targetRef,
+    item_id: normalizeWarehouseItemId(entry.item_id),
+    decoration_id: sanitizeText(entry.decoration_id, 80),
+    draft_id: sanitizeText(entry.draft_id, 100),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id || entry.original_fund_ledger_id, 100),
+    receipt_id: receiptId,
+    receipt_ref: sanitizeText(entry.receipt_ref, 120),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    status: sanitizeText(entry.status, 40) || 'delivered',
+    delivered_to: sanitizeText(entry.delivered_to, 80) || 'contract_record',
+    recorded_by_username: normalizeUsername(entry.recorded_by_username || entry.actor_username),
+    recorded_by_display_name: sanitizeText(entry.recorded_by_display_name || entry.actor_display_name || entry.recorded_by_username || entry.actor_username, 60),
+    recorded_at: Math.max(0, Math.floor(Number(entry.recorded_at || entry.at) || 0)),
+    memo: sanitizeText(entry.memo || entry.note, 180),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    contract_delivery_recorded: entry.contract_delivery_recorded !== false,
+    personal_inventory_mutated: entry.personal_inventory_mutated === true,
+    personal_home_mutated: entry.personal_home_mutated === true,
+    personal_family_state_mutated: entry.personal_family_state_mutated === true,
+    shared_fund_changed: entry.shared_fund_changed === true,
+  };
+}
+
+function normalizeSharedFundDeliveries(value = []) {
+  return Array.isArray(value)
+    ? value.map(normalizeSharedFundDeliveryEntry).filter(Boolean).slice(0, 80)
+    : [];
+}
+
+function normalizeSharedDecorationStateEntry(entry = {}) {
+  const targetRef = sanitizeText(entry.target_ref || entry.target, 120);
+  const decorationId = sanitizeText(entry.decoration_id || entry.item_id, 80);
+  if (!targetRef && !decorationId) return null;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('shared_decoration_state'),
+    decoration_id: decorationId,
+    target_ref: targetRef,
+    action: sanitizeText(entry.action, 80) || 'shared_decoration_receipt',
+    state: sanitizeText(entry.state, 40) || 'delivered',
+    status: sanitizeText(entry.status, 40) || sanitizeText(entry.state, 40) || 'delivered',
+    draft_id: sanitizeText(entry.draft_id, 100),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id || entry.original_fund_ledger_id, 100),
+    receipt_id: sanitizeText(entry.receipt_id, 100),
+    receipt_ref: sanitizeText(entry.receipt_ref, 120),
+    delivery_receipt_ref: sanitizeText(entry.delivery_receipt_ref, 120),
+    removal_receipt_ref: sanitizeText(entry.removal_receipt_ref, 120),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    recorded_by_username: normalizeUsername(entry.recorded_by_username || entry.actor_username),
+    recorded_by_display_name: sanitizeText(entry.recorded_by_display_name || entry.actor_display_name || entry.recorded_by_username || entry.actor_username, 60),
+    recorded_at: Math.max(0, Math.floor(Number(entry.recorded_at || entry.at) || 0)),
+    memo: sanitizeText(entry.memo || entry.note, 180),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    shared_decoration_state_changed: entry.shared_decoration_state_changed !== false,
+    personal_home_mutated: entry.personal_home_mutated === true,
+    shared_fund_changed: entry.shared_fund_changed === true,
+  };
+}
+
+function normalizeSharedDecorationState(value = []) {
+  return Array.isArray(value)
+    ? value.map(normalizeSharedDecorationStateEntry).filter(Boolean).slice(0, 80)
+    : [];
+}
+
+function parseSharedFundTargetSubject(targetRef = '') {
+  const parts = sanitizeText(targetRef, 120).split(':').map(part => sanitizeText(part, 80)).filter(Boolean);
+  return {
+    namespace: parts[0] || '',
+    subject_id: parts[1] || parts[0] || '',
+    action: parts[2] || '',
+  };
+}
+
+function prependSharedFundDeliveryEntry(entries = [], nextEntry = {}) {
+  const normalizedNext = normalizeSharedFundDeliveryEntry(nextEntry);
+  const normalizedEntries = normalizeSharedFundDeliveries(entries);
+  if (!normalizedNext) return { entries: normalizedEntries, entry: null, changed: false };
+  const filtered = normalizedEntries.filter(entry => {
+    if (normalizedNext.receipt_id && entry.receipt_id === normalizedNext.receipt_id) return false;
+    if (normalizedNext.idempotency_key && entry.idempotency_key === normalizedNext.idempotency_key) return false;
+    if (normalizedNext.fund_ledger_id && entry.fund_ledger_id === normalizedNext.fund_ledger_id && entry.purpose === normalizedNext.purpose) return false;
+    return true;
+  });
+  return {
+    entries: [normalizedNext, ...filtered].slice(0, 80),
+    entry: normalizedNext,
+    changed: true,
+  };
+}
+
+function upsertSharedDecorationStateEntry(entries = [], nextEntry = {}) {
+  const normalizedNext = normalizeSharedDecorationStateEntry(nextEntry);
+  const normalizedEntries = normalizeSharedDecorationState(entries);
+  if (!normalizedNext) return { entries: normalizedEntries, entry: null, changed: false };
+  let replaced = false;
+  const nextEntries = normalizedEntries.map(entry => {
+    const sameFundLedger = normalizedNext.fund_ledger_id && entry.fund_ledger_id === normalizedNext.fund_ledger_id;
+    const sameDecoration = normalizedNext.decoration_id && entry.decoration_id === normalizedNext.decoration_id;
+    if (sameFundLedger || sameDecoration) {
+      replaced = true;
+      return normalizeSharedDecorationStateEntry({ ...entry, ...normalizedNext });
+    }
+    return entry;
+  }).filter(Boolean);
+  return {
+    entries: (replaced ? nextEntries : [normalizedNext, ...nextEntries]).slice(0, 80),
+    entry: normalizedNext,
+    changed: true,
+  };
+}
+
+function prependFamilyMajorEventLedgerEntry(familyState = {}, nextEntry = {}) {
+  const normalizedFamilyState = normalizeContractFamilyState(familyState);
+  const normalizedNext = normalizeFamilyMajorEventLedgerEntry(nextEntry);
+  if (!normalizedNext) return { family_state: normalizedFamilyState, entry: null, changed: false };
+  const filtered = (normalizedFamilyState.major_event_ledger || []).filter(entry => {
+    if (normalizedNext.receipt_id && entry.receipt_id === normalizedNext.receipt_id) return false;
+    if (normalizedNext.idempotency_key && entry.idempotency_key === normalizedNext.idempotency_key) return false;
+    if (normalizedNext.fund_ledger_id && entry.fund_ledger_id === normalizedNext.fund_ledger_id) return false;
+    return true;
+  });
+  const nextFamilyState = normalizeContractFamilyState({
+    ...normalizedFamilyState,
+    major_event_ledger: [normalizedNext, ...filtered].slice(0, 80),
+    last_major_event_ref: normalizedNext.target_ref,
+    last_major_event_status: normalizedNext.status,
+    last_major_event_receipt_id: normalizedNext.receipt_id,
+  });
+  return { family_state: nextFamilyState, entry: normalizedNext, changed: true };
+}
+
+function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {}, receiptRequest = {}, receiptMeta = {}) {
+  if (receiptRequest.outcome !== 'delivered') {
+    return { delivery_entry: null, shared_decoration_state_entry: null, family_major_event_entry: null };
+  }
+  const targetSubject = parseSharedFundTargetSubject(draft.target_ref);
+  const base = {
+    target_ref: draft.target_ref,
+    draft_id: draft.id,
+    fund_ledger_id: originalFundLedger.id,
+    receipt_id: receiptMeta.receipt_id,
+    receipt_ref: receiptRequest.receipt_ref,
+    amount: draft.amount,
+    recorded_by_username: receiptMeta.recorded_by_username,
+    recorded_by_display_name: receiptMeta.recorded_by_display_name,
+    recorded_at: receiptMeta.recorded_at,
+    memo: receiptRequest.memo,
+    idempotency_key: receiptRequest.idempotency_key,
+    shared_fund_changed: false,
+  };
+  const decorationId = targetSubject.subject_id || sanitizeText(draft.target_ref, 80);
+  const deliveryEntry = ['rare_item_purchase', 'limited_decoration'].includes(draft.purpose)
+    ? normalizeSharedFundDeliveryEntry({
+      ...base,
+      delivery_kind: draft.purpose,
+      purpose: draft.purpose,
+      item_id: draft.purpose === 'rare_item_purchase' ? targetSubject.subject_id : '',
+      decoration_id: draft.purpose === 'limited_decoration' ? decorationId : '',
+      status: 'delivered',
+      delivered_to: draft.purpose === 'limited_decoration' ? 'shared_decoration_state' : 'contract_record',
+      contract_delivery_recorded: true,
+      personal_inventory_mutated: false,
+      personal_home_mutated: false,
+      personal_family_state_mutated: false,
+    })
+    : null;
+  const sharedDecorationStateEntry = draft.purpose === 'limited_decoration'
+    ? normalizeSharedDecorationStateEntry({
+      ...base,
+      decoration_id: decorationId,
+      action: 'limited_decoration_delivery',
+      state: 'delivered',
+      status: 'delivered',
+      delivery_receipt_ref: receiptRequest.receipt_ref,
+      shared_decoration_state_changed: true,
+      personal_home_mutated: false,
+    })
+    : draft.purpose === 'shared_decoration_removal'
+      ? normalizeSharedDecorationStateEntry({
+        ...base,
+        decoration_id: decorationId,
+        action: 'shared_decoration_removal',
+        state: 'removed',
+        status: 'removed',
+        removal_receipt_ref: receiptRequest.receipt_ref,
+        shared_decoration_state_changed: true,
+        personal_home_mutated: false,
+      })
+      : null;
+  const familyMajorEventEntry = draft.purpose === 'family_major_event'
+    ? normalizeFamilyMajorEventLedgerEntry({
+      ...base,
+      status: 'delivered',
+      contract_family_state_changed: true,
+      personal_family_state_mutated: false,
+    })
+    : null;
+  return {
+    delivery_entry: deliveryEntry,
+    shared_decoration_state_entry: sharedDecorationStateEntry,
+    family_major_event_entry: familyMajorEventEntry,
   };
 }
 
@@ -1396,6 +2055,7 @@ function normalizeFundLedgerEntry(entry = {}) {
           policy: '',
         },
     idempotency_key: sanitizeText(entry?.idempotency_key, 120),
+    consumption_id: sanitizeText(entry?.consumption_id || entry?.consumptionId, 120),
     reversible: entry?.reversible !== false,
     compensation_hint: sanitizeText(entry?.compensation_hint, 180),
     status: ['committed', 'compensated', 'reverted'].includes(entry?.status) ? entry.status : 'committed',
@@ -1434,7 +2094,7 @@ function normalizeWarehouseItemId(value) {
   return /^[a-z0-9_:-]{1,80}$/i.test(itemId) ? itemId : '';
 }
 
-function isProtectedWarehouseItemId(itemId) {
+function matchesProtectedWarehouseItemIdPattern(itemId) {
   const normalized = String(itemId || '').toLowerCase();
   if (!normalized) return true;
   return [
@@ -1460,6 +2120,56 @@ function isProtectedWarehouseItemId(itemId) {
     || normalized.startsWith('key_')
     || normalized.endsWith('_key')
     || normalized.endsWith('_core');
+}
+
+function getWarehouseItemPolicy(itemId) {
+  const normalized = normalizeWarehouseItemId(itemId).toLowerCase();
+  const explicitPolicy = WAREHOUSE_ITEM_POLICY_CATALOG[normalized];
+  if (explicitPolicy) {
+    return {
+      item_id: normalized,
+      policy_version: WAREHOUSE_ITEM_POLICY_VERSION,
+      explicit: true,
+      ...explicitPolicy,
+    };
+  }
+  const protectedByPattern = matchesProtectedWarehouseItemIdPattern(normalized);
+  return {
+    item_id: normalized,
+    policy_version: WAREHOUSE_ITEM_POLICY_VERSION,
+    explicit: false,
+    policy_id: protectedByPattern ? 'shared_warehouse_pattern_protected' : 'shared_warehouse_unclassified_default_protected',
+    classification: protectedByPattern ? 'task_protected' : 'unclassified',
+    risk_level: 'rare',
+    ordinary_flow_blocked: true,
+    high_value_withdrawal_allowed: false,
+    block_reason: protectedByPattern ? 'protected_item_id_pattern' : 'missing_shared_warehouse_item_policy',
+  };
+}
+
+function isProtectedWarehouseItemId(itemId) {
+  return getWarehouseItemPolicy(itemId).ordinary_flow_blocked === true;
+}
+
+function assertWarehouseOrdinaryItemAllowed(itemId, action = 'use') {
+  const policy = getWarehouseItemPolicy(itemId);
+  if (policy.classification === 'common' && policy.ordinary_flow_blocked !== true) return policy;
+  const actionLabel = action === 'deposit'
+    ? 'deposit'
+    : action === 'withdraw'
+      ? 'withdraw'
+      : action === 'sell'
+        ? 'sell'
+        : 'use';
+  throw createError(`shared warehouse ${actionLabel} requires an explicit common-item policy; ${policy.item_id || 'item'} is ${policy.block_reason || policy.classification}; \u6682\u4e0d\u5141\u8bb8`, 403);
+}
+
+function assertWarehouseHighValueDraftAllowed(itemId, quality = 'normal') {
+  const policy = getWarehouseItemPolicy(itemId);
+  const riskLevel = getWarehouseWithdrawalRiskLevel(itemId, quality);
+  if (riskLevel === 'high_quality' && policy.classification === 'common') return policy;
+  if (riskLevel === 'rare' && policy.high_value_withdrawal_allowed === true) return policy;
+  throw createError(`shared warehouse high-value withdrawal is not allowed for ${policy.item_id || 'item'} by ${policy.policy_id}`, 403);
 }
 
 function normalizeWarehouseItem(entry = {}) {
@@ -1554,8 +2264,12 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     unit_price: Math.max(0, Math.floor(Number(entry.unit_price ?? entry.unitPrice) || 0)),
     total_amount: Math.max(0, Math.floor(Number(entry.total_amount ?? entry.totalAmount) || 0)),
     fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    fertilizer_permission_key: sanitizeText(entry.fertilizer_permission_key || entry.permission_key, 60),
+    premium_fertilizer: entry.premium_fertilizer === true,
+    fertilizer_effect: sanitizeText(entry.fertilizer_effect || entry.effect, 80),
     at: Number(entry.at) || nowSeconds(),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    operation_id: sanitizeText(entry.operation_id || entry.operationId || entry.idempotency_key, 120),
     reversible: entry.reversible !== false,
     compensation_hint: sanitizeText(entry.compensation_hint, 180),
     status: ['committed', 'compensated', 'reverted'].includes(entry.status) ? entry.status : 'committed',
@@ -1571,6 +2285,7 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           material_actor_username: normalizeUsername(entry.simultaneous_online_bonus.material_actor_username),
           processor_username: normalizeUsername(entry.simultaneous_online_bonus.processor_username),
           recipe_id: sanitizeText(entry.simultaneous_online_bonus.recipe_id, 100),
+          plant_actor_username: normalizeUsername(entry.simultaneous_online_bonus.plant_actor_username),
           process_kind: sanitizeText(entry.simultaneous_online_bonus.process_kind, 60),
           source_ledger_ids: Array.isArray(entry.simultaneous_online_bonus.source_ledger_ids)
             ? entry.simultaneous_online_bonus.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
@@ -1590,6 +2305,7 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           material_actor_username: '',
           processor_username: '',
           recipe_id: '',
+          plant_actor_username: '',
           process_kind: '',
           source_ledger_ids: [],
           output_quality_before: 'normal',
@@ -1884,7 +2600,8 @@ function normalizeSharedWarehouse(value = {}) {
 }
 
 function getWarehouseWithdrawalRiskLevel(itemId, quality = 'normal') {
-  if (isProtectedWarehouseItemId(itemId)) return 'rare';
+  const policy = getWarehouseItemPolicy(itemId);
+  if (policy.risk_level === 'rare') return 'rare';
   return normalizeQuality(quality) === 'normal' ? 'common' : 'high_quality';
 }
 
@@ -2349,6 +3066,9 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
     actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
     seed_item_id: normalizeWarehouseItemId(entry.seed_item_id),
     fertilizer_item_id: normalizeWarehouseItemId(entry.fertilizer_item_id || entry.fertilizerItemId),
+    fertilizer_permission_key: sanitizeText(entry.fertilizer_permission_key || entry.permission_key, 60),
+    premium_fertilizer: entry.premium_fertilizer === true,
+    fertilizer_effect: sanitizeText(entry.fertilizer_effect || entry.effect, 80),
     crop_id: sanitizeText(entry.crop_id, 80),
     output_item_id: outputItemId,
     output_quantity: normalizePositiveInt(entry.output_quantity ?? entry.harvest_quantity ?? entry.quantity, 0),
@@ -2377,6 +3097,8 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
             : [],
           plant_actor_username: normalizeUsername(entry.simultaneous_online_bonus.plant_actor_username),
           plant_ledger_id: sanitizeText(entry.simultaneous_online_bonus.plant_ledger_id, 100),
+          output_quality_before: normalizeQuality(entry.simultaneous_online_bonus.output_quality_before),
+          output_quality_after: normalizeQuality(entry.simultaneous_online_bonus.output_quality_after),
           policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
         }
       : {
@@ -2387,6 +3109,8 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
           recent_member_usernames: [],
           plant_actor_username: '',
           plant_ledger_id: '',
+          output_quality_before: 'normal',
+          output_quality_after: 'normal',
           policy: '',
         },
     permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
@@ -2447,8 +3171,13 @@ function normalizePersistentSharedMap(value) {
       personal_money_merged: false,
       origin_trace_enabled: summary.origin_trace_enabled !== false,
       farm_plant_write_enabled: true,
+      farm_care_write_enabled: true,
+      farm_remove_crop_write_enabled: true,
       farm_water_write_enabled: true,
       farm_harvest_write_enabled: true,
+      farm_fertilize_write_enabled: true,
+      farm_premium_fertilizer_write_enabled: true,
+      supported_fertilizer_item_ids: SHARED_FARM_FERTILIZER_ITEM_IDS,
     },
   };
 }
@@ -2491,6 +3220,11 @@ function summarizeFarmPlot(plot = {}) {
       ? (plot.lastCooperationBonusMembers ?? plot.last_cooperation_bonus_members).map(normalizeUsername).filter(Boolean).slice(0, 8)
       : [],
     last_cooperation_plant_actor_username: normalizeUsername(plot.lastCooperationPlantActorUsername ?? plot.last_cooperation_plant_actor_username),
+    last_cooperation_health_bonus_consumed_at: Math.max(0, Math.floor(Number(plot.lastCooperationHealthBonusConsumedAt ?? plot.last_cooperation_health_bonus_consumed_at) || 0)),
+    last_cooperation_health_bonus_consumed_value: Math.max(0, Math.floor(Number(plot.lastCooperationHealthBonusConsumedValue ?? plot.last_cooperation_health_bonus_consumed_value) || 0)),
+    last_cooperation_quality_bonus_consumed_at: Math.max(0, Math.floor(Number(plot.lastCooperationQualityBonusConsumedAt ?? plot.last_cooperation_quality_bonus_consumed_at) || 0)),
+    last_cooperation_quality_bonus_consumed_value: Math.max(0, Math.floor(Number(plot.lastCooperationQualityBonusConsumedValue ?? plot.last_cooperation_quality_bonus_consumed_value) || 0)),
+    last_daily_settled_at: Math.max(0, Math.floor(Number(plot.lastDailySettledAt ?? plot.last_daily_settled_at) || 0)),
     harvest_count: Math.max(0, Math.floor(Number(plot.harvestCount ?? plot.harvest_count) || 0)),
     giant_crop_group: giantCropGroup === null || giantCropGroup === undefined || giantCropGroup === ''
       ? null
@@ -2523,6 +3257,10 @@ function summarizeAnimal(animal = {}) {
       ? (animal.lastCooperationBonusMembers ?? animal.last_cooperation_bonus_members).map(normalizeUsername).filter(Boolean).slice(0, 8)
       : [],
     last_cooperation_feed_actor_username: normalizeUsername(animal.lastCooperationFeedActorUsername ?? animal.last_cooperation_feed_actor_username),
+    last_cooperation_mood_bonus_consumed_at: Math.max(0, Math.floor(Number(animal.lastCooperationMoodBonusConsumedAt ?? animal.last_cooperation_mood_bonus_consumed_at) || 0)),
+    last_cooperation_mood_bonus_consumed_value: Math.max(0, Math.floor(Number(animal.lastCooperationMoodBonusConsumedValue ?? animal.last_cooperation_mood_bonus_consumed_value) || 0)),
+    last_cooperation_mood_product_progress_bonus_days: Math.max(0, Math.floor(Number(animal.lastCooperationMoodProductProgressBonusDays ?? animal.last_cooperation_mood_product_progress_bonus_days) || 0)),
+    last_daily_settled_at: Math.max(0, Math.floor(Number(animal.lastDailySettledAt ?? animal.last_daily_settled_at) || 0)),
     hunger: Math.max(0, Math.floor(Number(animal.hunger) || 0)),
     sick: animal.sick === true,
     sick_days: Math.max(0, Math.floor(Number(animal.sickDays ?? animal.sick_days) || 0)),
@@ -2729,9 +3467,20 @@ function getPlotPermissionMode(contract = {}, ownerKey = '') {
   const sharedOperators = acceptedMembers.filter(member => {
     if (member.username_key === ownerKey) return true;
     const farmPermissions = contract.permissions?.[member.username_key]?.farm || {};
-    return farmPermissions.water === true || farmPermissions.plant === true || farmPermissions.harvest === true;
+    return farmPermissions.water === true
+      || farmPermissions.cure_pests === true
+      || farmPermissions.plant === true
+      || farmPermissions.harvest === true
+      || farmPermissions.remove_crop === true
+      || farmPermissions.use_premium_fertilizer === true;
   });
   return sharedOperators.length > 1 ? 'shared' : 'owner_only';
+}
+
+function getPlotPermissionRestriction(permissionMode = '') {
+  return permissionMode === 'shared'
+    ? 'accepted_members_with_farm_permission_can_care'
+    : 'origin_owner_only_until_permission_changed';
 }
 
 function buildSharedFarmPlots(contract, farmSnapshots) {
@@ -2760,6 +3509,8 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
       manor_role_label: roleDef?.label || '',
       origin_owner_id: originOwnerId,
       origin_save_id: farmSnapshot.save_id,
+      source_save_slot: farmSnapshot.save_slot,
+      source_save_revision: farmSnapshot.save_revision,
       x: columnOffset,
       y: 0,
       width,
@@ -2769,6 +3520,8 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
       source_area: 'field',
       field_plot_count: Array.isArray(farmSnapshot.plots) ? farmSnapshot.plots.length : 0,
       permission_mode: permissionMode,
+      split_rule: 'return_to_origin_owner_on_separation',
+      permission_restriction: getPlotPermissionRestriction(permissionMode),
     };
     regions.push(region);
     if (farmSnapshot.available) {
@@ -2788,11 +3541,15 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
           origin_owner_manor_role: manorRole,
           origin_owner_manor_role_label: roleDef?.label || '',
           current_steward_username: member.username,
+          source_save_slot: farmSnapshot.save_slot,
+          source_save_revision: farmSnapshot.save_revision,
           current_steward_display_name: member.display_name,
           current_steward_manor_role: manorRole,
           current_steward_manor_role_label: roleDef?.label || '',
           permission_mode: permissionMode,
           x: columnOffset + localColumn,
+          split_rule: 'return_to_origin_owner_on_separation',
+          permission_restriction: getPlotPermissionRestriction(permissionMode),
           y: localRow,
           row: localRow,
           col: columnOffset + localColumn,
@@ -2852,12 +3609,16 @@ function buildSharedMapLayoutSummary(contract = {}, farmSnapshots = [], layout =
       origin_owner_id: region.origin_owner_id,
       origin_save_id: region.origin_save_id,
       x: region.x,
+      source_save_slot: region.source_save_slot,
+      source_save_revision: region.source_save_revision,
       y: region.y,
       width: region.width,
       height: region.height,
       available: region.available,
       field_plot_count: region.field_plot_count,
       permission_mode: region.permission_mode,
+      split_rule: region.split_rule || 'return_to_origin_owner_on_separation',
+      permission_restriction: region.permission_restriction || getPlotPermissionRestriction(region.permission_mode),
     })),
     deferred_writes: [
       'persistent_shared_manor_map',
@@ -2893,6 +3654,40 @@ function countSharedAnimalStates(animals = []) {
   });
 }
 
+function buildOfflineAutoIncomePendingSummary(contract = {}) {
+  const sharedMap = refreshSharedMapContractFields(contract, contract.shared_map);
+  const sharedAnimals = refreshSharedAnimalsContractFields(contract, contract.shared_animals);
+  const harvestablePlots = Array.isArray(sharedMap?.plots)
+    ? sharedMap.plots.filter(plot => plot?.plot_state?.state === 'harvestable' && normalizeWarehouseItemId(plot?.plot_state?.crop_id))
+    : [];
+  const readyAnimals = Array.isArray(sharedAnimals?.animals)
+    ? sharedAnimals.animals.filter(animal => {
+        const productDef = getSharedAnimalProductDef(animal);
+        const state = animal?.animal_state || {};
+        return productDef
+          && state.sick !== true
+          && state.was_fed === true
+          && Math.max(0, Math.floor(Number(state.days_since_product) || 0)) >= productDef.produce_days;
+      })
+    : [];
+  const cropItems = [...new Set(harvestablePlots.map(plot => normalizeWarehouseItemId(plot?.plot_state?.crop_id)).filter(Boolean))];
+  const animalItems = [...new Set(readyAnimals.map(animal => getSharedAnimalProductDef(animal)?.product_id).filter(Boolean))];
+  return {
+    enabled: true,
+    pending_count: harvestablePlots.length + readyAnimals.length,
+    harvestable_plot_count: harvestablePlots.length,
+    ready_animal_product_count: readyAnimals.length,
+    max_items_per_claim: OFFLINE_AUTO_INCOME_MAX_ITEMS,
+    claim_supported_actions: ['collect_offline_auto_income'],
+    output_item_ids: [...new Set([...cropItems, ...animalItems])].slice(0, 40),
+    source_scopes: ['contract.shared_map.plots', 'contract.shared_animals.animals'],
+    settlement_target: 'shared_warehouse.items',
+    server_authoritative: true,
+    personal_save_changed: false,
+    shared_fund_changed: false,
+  };
+}
+
 function getSharedAnimalProductDef(animal = {}) {
   const state = animal?.animal_state && typeof animal.animal_state === 'object' ? animal.animal_state : {};
   const type = sanitizeText(animal.type || state.type, 80);
@@ -2919,6 +3714,45 @@ function isSharedAnimalProductReady(animal = {}) {
   const state = animal?.animal_state && typeof animal.animal_state === 'object' ? animal.animal_state : {};
   if (state.sick === true || state.was_fed !== true) return false;
   return Math.max(0, Math.floor(Number(state.days_since_product) || 0)) >= def.produce_days;
+}
+
+function getSharedFarmCropGrowthDays(cropId = '') {
+  const normalizedCropId = normalizeWarehouseItemId(cropId);
+  return Math.max(1, Math.floor(Number(SHARED_FARM_CROP_GROWTH_DAYS[normalizedCropId]) || 4));
+}
+
+function normalizeCohabitationDailySettlePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('cohabitation daily settlement requires idempotency_key', 400);
+  return {
+    idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function buildSharedFarmHarvestQualityBonusSnapshot(plotState = {}, outputQualityBefore = 'normal', outputQualityAfter = 'normal') {
+  const bonusValue = Math.max(0, Math.floor(Number(plotState.cooperation_quality_bonus) || 0));
+  const recentMemberUsernames = Array.isArray(plotState.last_cooperation_bonus_members)
+    ? plotState.last_cooperation_bonus_members.map(normalizeUsername).filter(Boolean).slice(0, 8)
+    : [];
+  const beforeQuality = normalizeQuality(outputQualityBefore);
+  const afterQuality = normalizeQuality(outputQualityAfter);
+  const applied = bonusValue > 0 && beforeQuality !== afterQuality;
+  return {
+    action: 'shared_farm_harvest',
+    applied,
+    type: 'shared_farm_plant_fertilize_quality_harvest',
+    bonus_value: applied ? bonusValue : 0,
+    recent_member_count: recentMemberUsernames.length,
+    recent_member_usernames: recentMemberUsernames,
+    plant_actor_username: normalizeUsername(plotState.last_cooperation_plant_actor_username),
+    output_quality_before: beforeQuality,
+    output_quality_after: afterQuality,
+    policy: 'consume_contract_plot_cooperation_quality_bonus_on_shared_harvest',
+    personal_save_changed: false,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+  };
 }
 
 function buildSharedMapFromFarmSnapshots(contract, farmSnapshots, options = {}) {
@@ -2984,8 +3818,13 @@ function buildSharedMapFromFarmSnapshots(contract, farmSnapshots, options = {}) 
       origin_trace_enabled: true,
       persisted_shared_manor_map: options.persisted === true,
       farm_plant_write_enabled: true,
+      farm_care_write_enabled: true,
+      farm_remove_crop_write_enabled: true,
       farm_water_write_enabled: true,
       farm_harvest_write_enabled: true,
+      farm_fertilize_write_enabled: true,
+      farm_premium_fertilizer_write_enabled: true,
+      supported_fertilizer_item_ids: SHARED_FARM_FERTILIZER_ITEM_IDS,
       farm_action_ledger_count: Array.isArray(contract.shared_farm_ledger) ? contract.shared_farm_ledger.length : 0,
       shared_warehouse_harvest_deposit_enabled: true,
       shared_fund_balance: contract.shared_fund.balance,
@@ -3248,6 +4087,242 @@ function buildPetOriginAssetFromSharedPet(pet = {}) {
   };
 }
 
+function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, actor = {}, request = {}, operatedAt = nowSeconds(), index = 0) {
+  const actorUsername = normalizeUsername(actor.username || member.username);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const plotState = plot.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
+  const outputItemId = normalizeWarehouseItemId(plotState.crop_id);
+  if (!outputItemId) return null;
+  const beforeState = { ...plotState };
+  const afterState = {
+    ...plotState,
+    state: 'tilled',
+    crop_id: null,
+    growth_days: 0,
+    watered: false,
+    unwatered_days: 0,
+    fertilizer: null,
+    harvest_count: 0,
+    giant_crop_group: null,
+    infested: false,
+    infested_days: 0,
+    weedy: false,
+    weedy_days: 0,
+  };
+  const nextPlot = {
+    ...plot,
+    plot_state: afterState,
+    current_steward_username: member.username,
+    current_steward_display_name: member.display_name || member.username,
+    current_steward_manor_role: actorManorRole,
+    current_steward_manor_role_label: actorManorRoleDef?.label || '',
+    readonly: false,
+  };
+  const targetRef = `offline_auto_income:shared_farm:${plot.id}`;
+  const itemIdempotencyKey = `${request.idempotency_key}:farm:${plot.id}:${index}`;
+  const warehouseLedgerEntry = normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'deposit',
+    item_id: outputItemId,
+    quantity: 1,
+    quality: normalizeQuality(plotState.output_quality || plotState.quality || 'normal'),
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    source_owner_id: plot.origin_owner_id || `shared_map:${contract.id}`,
+    source_owner_username: plot.origin_owner_username || member.username,
+    source_owner_display_name: plot.origin_owner_display_name || member.display_name || member.username,
+    source_owner_key: plot.origin_owner_key || member.username_key,
+    source_owner_manor_role: plot.origin_owner_manor_role,
+    source_owner_manor_role_label: plot.origin_owner_manor_role_label,
+    source_save_id: plot.origin_save_id,
+    source_save_slot: plot.source_save_slot,
+    source_save_revision: plot.source_save_revision,
+    source_inventory: 'contract.shared_map.plots',
+    source_slots: [{ index: normalizePlotId(plot.source_plot_id, 0), quantity: 1 }],
+    target_owner_id: `shared_warehouse:${contract.id}`,
+    target_owner_username: 'shared_warehouse',
+    target_owner_display_name: 'shared warehouse',
+    target_owner_key: 'shared_warehouse',
+    target_inventory: 'shared_warehouse.items',
+    target_ref: targetRef,
+    at: operatedAt,
+    idempotency_key: itemIdempotencyKey,
+    reversible: true,
+    compensation_hint: 'offline auto income farm output was deposited into shared warehouse from contract shared_map; personal saves are unchanged.',
+    status: 'committed',
+  });
+  const farmLedgerEntry = normalizeFarmActionLedgerEntry({
+    id: makeId('shared_farm_ledger'),
+    action: 'harvest',
+    plot_id: plot.id,
+    source_plot_id: plot.source_plot_id,
+    source_area: plot.source_area,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_key: member.username_key,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    crop_id: outputItemId,
+    output_item_id: outputItemId,
+    output_quantity: 1,
+    output_quality: warehouseLedgerEntry.quality,
+    warehouse_ledger_ids: [warehouseLedgerEntry.id],
+    shared_warehouse_changed: true,
+    origin_owner_id: plot.origin_owner_id,
+    origin_owner_username: plot.origin_owner_username,
+    origin_owner_display_name: plot.origin_owner_display_name,
+    origin_owner_key: plot.origin_owner_key,
+    origin_save_id: plot.origin_save_id,
+    source_save_slot: plot.source_save_slot,
+    source_save_revision: plot.source_save_revision,
+    before_plot_state: beforeState,
+    after_plot_state: afterState,
+    permission_mode: plot.permission_mode,
+    idempotency_key: itemIdempotencyKey,
+    at: operatedAt,
+    reversible: true,
+    compensation_hint: 'offline auto income harvest deposits contract-map crop output into shared warehouse; personal saves are unchanged.',
+    status: 'committed',
+  });
+  return {
+    kind: 'farm_harvest',
+    source_id: plot.id,
+    item_id: outputItemId,
+    quantity: 1,
+    quality: warehouseLedgerEntry.quality,
+    target_ref: targetRef,
+    warehouse_ledger_id: warehouseLedgerEntry.id,
+    domain_ledger_id: farmLedgerEntry.id,
+    next_plot: nextPlot,
+    farm_ledger_entry: farmLedgerEntry,
+    warehouse_ledger_entry: warehouseLedgerEntry,
+    personal_save_changed: false,
+    shared_warehouse_changed: true,
+    shared_fund_changed: false,
+  };
+}
+
+function buildOfflineAutoIncomeAnimalRow(contract = {}, animal = {}, member = {}, actor = {}, request = {}, operatedAt = nowSeconds(), index = 0) {
+  const productDef = getSharedAnimalProductDef(animal);
+  const animalState = animal.animal_state && typeof animal.animal_state === 'object' ? animal.animal_state : summarizeAnimal({});
+  if (!productDef || animalState.sick === true || animalState.was_fed !== true) return null;
+  const daysSinceProduct = Math.max(0, Math.floor(Number(animalState.days_since_product) || 0));
+  if (daysSinceProduct < productDef.produce_days) return null;
+  const actorUsername = normalizeUsername(actor.username || member.username);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const beforeState = { ...animalState };
+  const afterState = {
+    ...animalState,
+    days_since_product: 0,
+  };
+  const nextAnimal = {
+    ...animal,
+    animal_state: afterState,
+    current_keeper_username: member.username,
+    current_keeper_display_name: member.display_name || member.username,
+    current_keeper_manor_role: actorManorRole,
+    current_keeper_manor_role_label: actorManorRoleDef?.label || '',
+    readonly: false,
+  };
+  const productQuality = getSharedAnimalProductQuality(animal);
+  const targetRef = `offline_auto_income:shared_animal:${animal.id}`;
+  const itemIdempotencyKey = `${request.idempotency_key}:animal:${animal.id}:${index}`;
+  const warehouseLedgerEntry = normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'deposit',
+    item_id: productDef.product_id,
+    quantity: 1,
+    quality: productQuality,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    source_owner_id: animal.origin_owner_id || `shared_animals:${contract.id}`,
+    source_owner_username: animal.origin_owner_username || member.username,
+    source_owner_display_name: animal.origin_owner_display_name || member.display_name || member.username,
+    source_owner_key: animal.origin_owner_key || member.username_key,
+    source_owner_manor_role: animal.origin_owner_manor_role,
+    source_owner_manor_role_label: animal.origin_owner_manor_role_label,
+    source_save_id: animal.origin_save_id,
+    source_save_slot: animal.source_save_slot,
+    source_save_revision: animal.source_save_revision,
+    source_inventory: 'contract.shared_animals.animals',
+    target_owner_id: `shared_warehouse:${contract.id}`,
+    target_owner_username: 'shared_warehouse',
+    target_owner_display_name: 'shared warehouse',
+    target_owner_key: 'shared_warehouse',
+    target_inventory: 'shared_warehouse.items',
+    target_ref: targetRef,
+    at: operatedAt,
+    idempotency_key: itemIdempotencyKey,
+    reversible: true,
+    compensation_hint: 'offline auto income animal product was deposited into shared warehouse from contract shared_animals; personal saves are unchanged.',
+    status: 'committed',
+  });
+  const animalLedgerEntry = normalizeAnimalActionLedgerEntry({
+    id: makeId('shared_animal_ledger'),
+    action: 'collect_product',
+    animal_id: animal.id,
+    source_animal_id: animal.source_animal_id,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_key: member.username_key,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    product_item_id: productDef.product_id,
+    product_quantity: 1,
+    product_quality: productQuality,
+    warehouse_ledger_ids: [warehouseLedgerEntry.id],
+    shared_warehouse_changed: true,
+    origin_owner_id: animal.origin_owner_id,
+    origin_owner_username: animal.origin_owner_username,
+    origin_owner_display_name: animal.origin_owner_display_name,
+    origin_owner_key: animal.origin_owner_key,
+    origin_save_id: animal.origin_save_id,
+    source_save_slot: animal.source_save_slot,
+    source_save_revision: animal.source_save_revision,
+    before_animal_state: beforeState,
+    after_animal_state: afterState,
+    permission_mode: animal.permission_mode,
+    idempotency_key: itemIdempotencyKey,
+    at: operatedAt,
+    reversible: true,
+    compensation_hint: 'offline auto income product collect deposits contract-animal output into shared warehouse; personal saves are unchanged.',
+    status: 'committed',
+  });
+  return {
+    kind: 'animal_product',
+    source_id: animal.id,
+    item_id: productDef.product_id,
+    quantity: 1,
+    quality: productQuality,
+    target_ref: targetRef,
+    warehouse_ledger_id: warehouseLedgerEntry.id,
+    domain_ledger_id: animalLedgerEntry.id,
+    next_animal: nextAnimal,
+    animal_ledger_entry: animalLedgerEntry,
+    warehouse_ledger_entry: warehouseLedgerEntry,
+    personal_save_changed: false,
+    shared_warehouse_changed: true,
+    shared_fund_changed: false,
+  };
+}
+
+function normalizeOfflineAutoIncomePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('offline auto income claim requires idempotency_key');
+  return {
+    idempotency_key: idempotencyKey,
+    client_queue_revision: Math.max(0, Math.floor(Number(payload.client_queue_revision || payload.base_revision) || 0)),
+    client_base_revision: Math.max(0, Math.floor(Number(payload.client_base_revision || payload.base_revision) || 0)),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function refreshSharedMapContractFields(contract, sharedMap) {
   const normalizedMap = normalizePersistentSharedMap(sharedMap);
   if (!normalizedMap) return null;
@@ -3263,16 +4338,20 @@ function refreshSharedMapContractFields(contract, sharedMap) {
     const member = memberByKey.get(region.member_username_key) || null;
     const manorRole = normalizeFamilyManorRole(member?.manor_role || region.manor_role, contract.type, member?.role || region.member_role);
     const roleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(manorRole) : null;
+    const permissionMode = getPlotPermissionMode(contract, region.member_username_key);
     return {
       ...region,
       member_role: member?.role || region.member_role,
       manor_role: manorRole,
       manor_role_label: roleDef?.label || '',
-      permission_mode: getPlotPermissionMode(contract, region.member_username_key),
+      permission_mode: permissionMode,
+      split_rule: region.split_rule || 'return_to_origin_owner_on_separation',
+      permission_restriction: region.permission_restriction || getPlotPermissionRestriction(permissionMode),
     };
   });
   const plots = (normalizedMap.plots || []).map(plot => {
     const ownerKey = normalizeUsernameKey(plot.origin_owner_key || plot.origin_owner_username);
+    const permissionMode = getPlotPermissionMode(contract, ownerKey);
     const member = memberByKey.get(ownerKey) || null;
     const manorRole = normalizeFamilyManorRole(member?.manor_role || plot.origin_owner_manor_role, contract.type, member?.role || 'member');
     const roleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(manorRole) : null;
@@ -3280,7 +4359,10 @@ function refreshSharedMapContractFields(contract, sharedMap) {
       ...plot,
       origin_owner_manor_role: manorRole,
       origin_owner_manor_role_label: roleDef?.label || '',
-      permission_mode: getPlotPermissionMode(contract, ownerKey),
+      current_steward_username: normalizeUsername(plot.current_steward_username || plot.origin_owner_username),
+      permission_mode: permissionMode,
+      split_rule: plot.split_rule || 'return_to_origin_owner_on_separation',
+      permission_restriction: plot.permission_restriction || getPlotPermissionRestriction(permissionMode),
       readonly: false,
     };
   });
@@ -3328,8 +4410,13 @@ function refreshSharedMapContractFields(contract, sharedMap) {
       origin_trace_enabled: true,
       persisted_shared_manor_map: true,
       farm_plant_write_enabled: true,
+      farm_care_write_enabled: true,
+      farm_remove_crop_write_enabled: true,
       farm_water_write_enabled: true,
       farm_harvest_write_enabled: true,
+      farm_fertilize_write_enabled: true,
+      farm_premium_fertilizer_write_enabled: true,
+      supported_fertilizer_item_ids: SHARED_FARM_FERTILIZER_ITEM_IDS,
       farm_action_ledger_count: Array.isArray(contract.shared_farm_ledger) ? contract.shared_farm_ledger.length : 0,
       shared_warehouse_harvest_deposit_enabled: true,
       shared_fund_balance: contract.shared_fund.balance,
@@ -3590,6 +4677,8 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
     project_id: sanitizeText(entry.project_id || entry.building_id || inferredTargetId, 80),
     draft_id: sanitizeText(entry.draft_id, 100),
     fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    medium_fund_budget_ledger_id: sanitizeText(entry.medium_fund_budget_ledger_id || entry.medium_fund_ledger_id || entry.budget_fund_ledger_id, 100),
+    medium_fund_budget_linked: entry.medium_fund_budget_linked === true || Boolean(entry.medium_fund_budget_ledger_id || entry.medium_fund_ledger_id || entry.budget_fund_ledger_id),
     actor_username: normalizeUsername(entry.actor_username),
     actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
     actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
@@ -3958,6 +5047,8 @@ function normalizeContract(entry = {}) {
     shared_warehouse: normalizeSharedWarehouse(entry.shared_warehouse),
     shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(entry.shared_warehouse_withdrawal_drafts),
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(entry.shared_warehouse_governance_recoveries),
+    shared_fund_deliveries: normalizeSharedFundDeliveries(entry.shared_fund_deliveries),
+    shared_decoration_state: normalizeSharedDecorationState(entry.shared_decoration_state),
     origin_assets: normalizeOriginAssets(entry.origin_assets),
     permissions,
     family_state: normalizeContractFamilyState(entry.family_state),
@@ -4035,6 +5126,9 @@ function toPublicContract(contract) {
     shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
     shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts),
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries),
+    shared_fund_deliveries: normalizeSharedFundDeliveries(contract.shared_fund_deliveries),
+    shared_decoration_state: normalizeSharedDecorationState(contract.shared_decoration_state),
+    family_state: normalizeContractFamilyState(contract.family_state),
     shared_animals: normalizeSharedAnimals(contract.shared_animals),
     shared_animal_ledger: normalizeAnimalActionLedger(contract.shared_animal_ledger),
     shared_pets: normalizeSharedPets(contract.shared_pets),
@@ -6111,6 +7205,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorMember?.username_key], contract.type);
   const simultaneousOnlineBonus = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'offline_status');
+  const offlineAutoIncome = buildOfflineAutoIncomePendingSummary(contract);
   const now = nowSeconds();
   const members = (contract.members || []).map(member => {
     const lastActiveAt = resolveMemberLastActive(contract, member);
@@ -6152,8 +7247,10 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       simultaneous_online_order_bonus_enabled: simultaneousOnlineBonus.order_confirm_efficiency_bonus_enabled,
       simultaneous_online_decoration_bonus_enabled: simultaneousOnlineBonus.family_building_decoration_atmosphere_enabled,
       simultaneous_online_bonus_policy: simultaneousOnlineBonus.policy,
-      auto_offline_income_enabled: false,
-      conflict_policy: '共同庄园第一版以服务端契约、仓库、基金和审计日志为准；离线自动收益与客户端本地合并暂不开放。',
+      auto_offline_income_enabled: true,
+      offline_auto_income_pending_count: offlineAutoIncome.pending_count,
+      offline_auto_income_claim_supported: true,
+      conflict_policy: '共同庄园离线经营以服务端契约、共同地图、共同动物、共同仓库、幂等键和审计日志为准；客户端本地收益只作为请求意图，提交时按服务端最新状态领取或拒绝。',
     },
     members,
     actor_capabilities: {
@@ -6162,7 +7259,9 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       plant_shared_farm: actorPermissions.farm.plant === true,
       harvest_shared_farm: actorPermissions.farm.harvest === true,
       care_shared_farm: actorPermissions.farm.cure_pests === true,
+      remove_crop_shared_farm: actorPermissions.farm.remove_crop === true,
       fertilize_shared_farm_basic: actorPermissions.farm.plant === true,
+      fertilize_shared_farm_premium: actorPermissions.farm.use_premium_fertilizer === true,
       read_shared_animals: true,
       feed_shared_animal: actorPermissions.animal.feed === true,
       pet_shared_animal: actorPermissions.animal.pet === true,
@@ -6171,6 +7270,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       process_shared_workshop_recipe: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.buy_furniture === true
         || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
+      collect_offline_auto_income: actorPermissions.farm.harvest === true || actorPermissions.animal.collect_product === true,
       read_warehouse: true,
       deposit_warehouse: actorPermissions.storage.deposit === true,
       withdraw_warehouse_common: actorPermissions.storage.withdraw_common === true,
@@ -6185,11 +7285,9 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       merge_offline_queue: true,
     },
     simultaneous_online_bonus: simultaneousOnlineBonus,
+    offline_auto_income: offlineAutoIncome,
     recent_shared_log: (contract.audit_log || []).slice(0, 30),
-    deferred_operations: [
-      'offline_auto_income',
-      'simultaneous_online_bonus',
-    ],
+    deferred_operations: ['simultaneous_online_bonus'],
   };
 }
 
@@ -6575,6 +7673,46 @@ function buildWarehouseSourceOwnerSummary(warehouse = {}) {
     .slice(0, 80);
 }
 
+function normalizeSharedFundAutoPurchaseCatalog() {
+  return Object.entries(SHARED_FUND_AUTO_PURCHASE_CATALOG).map(([targetRef, item]) => {
+    const defaultQuantity = item.category === 'seed' ? 2 : 1;
+    const unitPrice = Math.max(0, Math.floor(Number(item.unit_price) || 0));
+    return {
+      target_ref: targetRef,
+      item_id: item.item_id,
+      label: item.label,
+      unit_price: unitPrice,
+      category: item.category,
+      allowed_purposes: Array.isArray(item.allowed_purposes) ? item.allowed_purposes.slice(0, 6) : [],
+      default_quantity: defaultQuantity,
+      default_amount: unitPrice * defaultQuantity,
+      auto_pay: true,
+    };
+  });
+}
+
+function findSharedFundBudgetLedger(contract = {}, ledgerId = '', expectedPurpose = '') {
+  const normalizedLedgerId = sanitizeText(ledgerId, 100);
+  if (!normalizedLedgerId) return null;
+  const expected = sanitizeText(expectedPurpose, 80);
+  const ledger = normalizeSharedFund(contract.shared_fund).ledger;
+  const entry = ledger.find(item => item.id === normalizedLedgerId) || null;
+  if (!entry) throw createError('shared fund budget ledger does not exist', 404);
+  if (entry.action !== 'spend' || entry.spend_tier !== 'medium' || entry.status !== 'committed') throw createError('shared fund budget ledger must be a committed medium spend', 409);
+  if (expected && entry.purpose !== expected) throw createError(`shared fund budget ledger purpose must be ${expected}`, 409);
+  return entry;
+}
+
+function assertSharedFundBudgetLedgerTarget(entry = {}, targetRef = '') {
+  const normalizedTargetRef = sanitizeText(targetRef, 120);
+  if (!entry || !normalizedTargetRef || !entry.target_ref) return true;
+  if (entry.target_ref === normalizedTargetRef) return true;
+  if (entry.purpose === 'processing_materials' && normalizedTargetRef.startsWith('shared_workshop:')) return true;
+  if (entry.purpose === 'building_materials' && normalizedTargetRef.startsWith('family_building:')) return true;
+  throw createError('shared fund budget ledger target does not match this real operation', 409);
+}
+
+
 function buildSharedFundSnapshot(contract, actorUsername = '') {
   const fund = normalizeSharedFund(contract.shared_fund);
   const actorKey = normalizeUsernameKey(actorUsername);
@@ -6619,6 +7757,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       balance: fund.balance,
       ledger_count: fund.ledger.length,
       personal_money_merged: false,
+      shop_purchase_to_shared_warehouse_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true && actorPermissions.fund.auto_buy_seeds_feed === true,
       contribution_enabled: contract.status === 'active',
       spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true,
       small_spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true,
@@ -6630,6 +7769,9 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       large_spend_requires_both: actorPermissions.confirmations.large_fund_spend_requires_both === true,
       small_spend_max_amount: FUND_MAX_SMALL_SPEND_AMOUNT,
       medium_spend_max_amount: FUND_MAX_MEDIUM_SPEND_AMOUNT,
+      allowed_shop_purchase_items: normalizeSharedFundAutoPurchaseCatalog(),
+      auto_purchase_catalog: normalizeSharedFundAutoPurchaseCatalog(),
+      auto_purchase_catalog_count: normalizeSharedFundAutoPurchaseCatalog().length,
       large_spend_max_amount: FUND_MAX_LARGE_SPEND_AMOUNT,
       allowed_small_spend_purposes: allowedSmallSpendPurposes,
       allowed_medium_spend_purposes: allowedMediumSpendPurposes,
@@ -6642,6 +7784,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算、大额确认草案和已确认草案扣款；大额执行会写建筑流水，真实建造、自动返还和补偿重放待后续接入。',
     },
     permissions: {
+      can_shop_purchase_to_shared_warehouse: actorPermissions.fund.spend_small === true && actorPermissions.fund.auto_buy_seeds_feed === true,
       can_spend_small: actorPermissions.fund.spend_small === true,
       can_spend_medium: actorPermissions.fund.spend_medium === true,
       can_spend_large: actorPermissions.fund.spend_large === true,
@@ -6793,14 +7936,16 @@ function normalizeWarehouseDepositPayload(payload = {}) {
   if (rawQuantity > WAREHOUSE_MAX_DEPOSIT_QUANTITY) throw createError(`单次入仓数量不能超过 ${WAREHOUSE_MAX_DEPOSIT_QUANTITY}`);
   if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('入仓物品品质参数无效');
   if (requestedQuality !== 'normal') throw createError('共同仓库第一版只允许放入普通品质物品', 403);
-  if (isProtectedWarehouseItemId(itemId)) throw createError('该物品疑似关键、稀有或绑定物品，暂不允许放入共同仓库', 403);
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  assertWarehouseOrdinaryItemAllowed(itemId, 'deposit');
+  const credential = normalizeWarehouseOperationCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('共同仓库放入需要 idempotency_key，以防断线或重试时重复扣物');
   return {
     item_id: itemId,
     quantity: rawQuantity,
     quality: requestedQuality,
     idempotency_key: idempotencyKey,
+    operation_id: credential.operation_id,
     save_slot: normalizeSaveSlot(payload.save_slot),
   };
 }
@@ -6933,16 +8078,27 @@ function normalizeSharedFarmPlantPayload(payload = {}) {
   };
 }
 
+function getSharedFarmFertilizerProfile(fertilizerItemId = '') {
+  const normalized = normalizeWarehouseItemId(fertilizerItemId);
+  return SHARED_FARM_FERTILIZER_CATALOG[normalized] || null;
+}
+
 function normalizeSharedFarmFertilizePayload(payload = {}) {
   const request = normalizeSharedFarmActionPayload(payload);
   const fertilizerItemId = normalizeWarehouseItemId(payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId);
-  if (fertilizerItemId !== 'basic_fertilizer') {
-    throw createError('shared farm fertilize only supports basic_fertilizer in this pass', 403);
+  const fertilizerProfile = getSharedFarmFertilizerProfile(fertilizerItemId);
+  if (!fertilizerProfile) {
+    throw createError('shared farm fertilize only supports whitelisted shared-warehouse fertilizer', 403);
   }
   return {
     ...request,
-    fertilizer_item_id: fertilizerItemId,
+    fertilizer_item_id: fertilizerProfile.item_id,
+    fertilizer_profile: fertilizerProfile,
   };
+}
+
+function getOfflineQueueDefaultFertilizerItemId(action = '') {
+  return action === 'fertilize_shared_farm_premium' ? 'quality_fertilizer' : 'basic_fertilizer';
 }
 
 function normalizeSharedAnimalActionPayload(payload = {}) {
@@ -7092,6 +8248,7 @@ function normalizeSharedWorkshopProcessPayload(payload = {}) {
   return {
     recipe_id: recipe.id,
     idempotency_key: idempotencyKey,
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id || payload.budget_ledger_id || payload.medium_fund_ledger_id, 100),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -7145,16 +8302,18 @@ function assertSharedFarmWaterAllowed(contract = {}, member = {}, plot = {}, act
   return assertSharedFarmActionAllowed(contract, member, plot, actorPermissions, 'water');
 }
 
-function assertSharedFarmCareAllowed(contract = {}, member = {}, plot = {}, actorPermissions = {}) {
-  return assertSharedFarmActionAllowed(contract, member, plot, actorPermissions, 'cure_pests');
+function assertSharedFarmCareAllowed(contract = {}, member = {}, plot = {}, actorPermissions = {}, action = 'cure_pests') {
+  const permissionKey = action === 'remove_crop' ? 'remove_crop' : 'cure_pests';
+  return assertSharedFarmActionAllowed(contract, member, plot, actorPermissions, permissionKey);
 }
 
 function assertSharedFarmPlantAllowed(contract = {}, member = {}, plot = {}, actorPermissions = {}) {
   return assertSharedFarmActionAllowed(contract, member, plot, actorPermissions, 'plant');
 }
 
-function assertSharedFarmFertilizeAllowed(contract = {}, member = {}, plot = {}, actorPermissions = {}) {
-  return assertSharedFarmActionAllowed(contract, member, plot, actorPermissions, 'plant');
+function assertSharedFarmFertilizeAllowed(contract = {}, member = {}, plot = {}, actorPermissions = {}, fertilizerProfile = null) {
+  const permissionKey = fertilizerProfile?.permission_key || 'plant';
+  return assertSharedFarmActionAllowed(contract, member, plot, actorPermissions, permissionKey);
 }
 
 function assertSharedFarmHarvestAllowed(contract = {}, member = {}, plot = {}, actorPermissions = {}) {
@@ -7206,14 +8365,16 @@ function normalizeWarehouseWithdrawPayload(payload = {}) {
   if (rawQuantity > WAREHOUSE_MAX_WITHDRAW_QUANTITY) throw createError(`单次取出数量不能超过 ${WAREHOUSE_MAX_WITHDRAW_QUANTITY}`);
   if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('取出物品品质参数无效');
   if (requestedQuality !== 'normal') throw createError('共同仓库第一版只允许取出普通品质物品', 403);
-  if (isProtectedWarehouseItemId(itemId)) throw createError('该物品疑似关键、稀有或绑定物品，暂不允许从共同仓库取出', 403);
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  assertWarehouseOrdinaryItemAllowed(itemId, 'withdraw');
+  const credential = normalizeWarehouseOperationCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('共同仓库取出需要 idempotency_key，以防断线或重试时重复取物');
   return {
     item_id: itemId,
     quantity: rawQuantity,
     quality: requestedQuality,
     idempotency_key: idempotencyKey,
+    operation_id: credential.operation_id,
     save_slot: normalizeSaveSlot(payload.save_slot),
   };
 }
@@ -7228,7 +8389,9 @@ function normalizeWarehouseHighValueWithdrawalDraftPayload(payload = {}) {
   if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('高价值取出物品品质参数无效');
   const riskLevel = getWarehouseWithdrawalRiskLevel(itemId, requestedQuality);
   if (riskLevel === 'common') throw createError('普通物品请使用普通取出流程', 400);
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  assertWarehouseHighValueDraftAllowed(itemId, requestedQuality);
+  const credential = normalizeWarehouseOperationCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('高价值取出草案需要 idempotency_key，以防断线或重试时重复冻结');
   return {
     item_id: itemId,
@@ -7236,16 +8399,19 @@ function normalizeWarehouseHighValueWithdrawalDraftPayload(payload = {}) {
     quality: requestedQuality,
     risk_level: riskLevel,
     idempotency_key: idempotencyKey,
+    operation_id: credential.operation_id,
     save_slot: normalizeSaveSlot(payload.save_slot),
     reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
   };
 }
 
 function normalizeWarehouseHighValueWithdrawalConfirmPayload(payload = {}) {
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const credential = normalizeWarehouseOperationCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('高价值取出确认需要 idempotency_key，以防断线或重试时重复确认');
   return {
     idempotency_key: idempotencyKey,
+    operation_id: credential.operation_id,
     confirmation_text: sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation || '', 120),
     freeze_acknowledged: payload.freeze_acknowledged === true || payload.ack_freeze === true,
     rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true || payload.ack_rollback === true,
@@ -7254,10 +8420,12 @@ function normalizeWarehouseHighValueWithdrawalConfirmPayload(payload = {}) {
 }
 
 function normalizeWarehouseHighValueWithdrawalExecutePayload(payload = {}) {
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const credential = normalizeWarehouseOperationCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('高价值取出执行需要 idempotency_key，以防断线或重试时重复取出');
   return {
     idempotency_key: idempotencyKey,
+    operation_id: credential.operation_id,
     save_slot: normalizeSaveSlot(payload.save_slot),
     expected_state: sanitizeText(payload.expected_state || payload.state, 60),
     reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
@@ -7265,10 +8433,12 @@ function normalizeWarehouseHighValueWithdrawalExecutePayload(payload = {}) {
 }
 
 function normalizeWarehouseHighValueWithdrawalRollbackPayload(payload = {}) {
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const credential = normalizeWarehouseOperationCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('高价值取出回滚需要 idempotency_key，以防断线或重试时重复回滚');
   return {
     idempotency_key: idempotencyKey,
+    operation_id: credential.operation_id,
     reason: sanitizeText(payload.reason || payload.memo || payload.note || '撤销高价值取出草案并释放冻结库存', 160),
   };
 }
@@ -7438,10 +8608,11 @@ function normalizeWarehouseSellPayload(payload = {}) {
   if (rawQuantity > WAREHOUSE_MAX_SELL_QUANTITY) throw createError(`单次卖出数量不能超过 ${WAREHOUSE_MAX_SELL_QUANTITY}`);
   if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('卖出物品品质参数无效');
   if (requestedQuality !== 'normal') throw createError('共同仓库第一版只允许卖出普通品质物品', 403);
-  if (isProtectedWarehouseItemId(itemId)) throw createError('该物品疑似关键、稀有或绑定物品，暂不允许从共同仓库卖出', 403);
+  assertWarehouseOrdinaryItemAllowed(itemId, 'sell');
   const unitPrice = getWarehouseSellUnitPrice(itemId);
   if (unitPrice <= 0) throw createError('该物品暂未配置共同仓库卖出价格，不能卖出入共同基金', 403);
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const credential = normalizeWarehouseOperationCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('共同仓库卖出需要 idempotency_key，以防断线或重试时重复扣仓和入账');
   return {
     item_id: itemId,
@@ -7450,6 +8621,7 @@ function normalizeWarehouseSellPayload(payload = {}) {
     unit_price: unitPrice,
     total_amount: rawQuantity * unitPrice,
     idempotency_key: idempotencyKey,
+    operation_id: credential.operation_id,
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -7506,6 +8678,36 @@ function isFamilyBuildingLargeFundPurpose(purpose) {
 function isHighRiskNonBuildingLargeFundPurpose(purpose) {
   const normalizedPurpose = sanitizeText(purpose, 80);
   return Boolean(resolveLargeFundSpendPurpose(normalizedPurpose)) && !isFamilyBuildingLargeFundPurpose(normalizedPurpose);
+}
+
+function getLargeFundSpendPurposePermissionChecks(purpose) {
+  const normalizedPurpose = sanitizeText(purpose, 80);
+  if (normalizedPurpose === 'manor_expansion') {
+    return [{ group: 'construction', key: 'expand_manor', label: 'construction.expand_manor' }];
+  }
+  if (normalizedPurpose === 'limited_decoration') {
+    return [{ group: 'construction', key: 'buy_furniture', label: 'construction.buy_furniture' }];
+  }
+  if (normalizedPurpose === 'shared_decoration_removal') {
+    return [{ group: 'construction', key: 'demolish_building', label: 'construction.demolish_building' }];
+  }
+  if (normalizedPurpose === 'family_major_event') {
+    return [{ group: 'family', key: 'major_family_choice', label: 'family.major_family_choice' }];
+  }
+  if (normalizedPurpose === 'rare_item_purchase') {
+    return [{ group: 'storage', key: 'withdraw_rare', label: 'storage.withdraw_rare' }];
+  }
+  return [];
+}
+
+function assertLargeFundSpendPurposePermissions(actorPermissions = {}, purpose = '') {
+  const requiredChecks = getLargeFundSpendPurposePermissionChecks(purpose);
+  const missingChecks = requiredChecks.filter(check => actorPermissions?.[check.group]?.[check.key] !== true);
+  if (missingChecks.length > 0) {
+    const labels = missingChecks.map(check => check.label).join(', ');
+    throw createError(`large fund purpose requires permission: ${labels}`, 403);
+  }
+  return requiredChecks;
 }
 
 function getLargeFundSpendDeferredOperations(purpose, executed = false) {
@@ -7569,13 +8771,15 @@ function normalizeFundSpendPayload(payload = {}) {
     const tierLabel = purposeDef.tier === 'medium' ? '中额' : '小额';
     throw createError(`该共同基金${tierLabel}用途单次支出不能超过 ${maxAmount}`);
   }
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const credential = normalizeFundConsumptionCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('共同基金支出需要 idempotency_key，以防断线或重试时重复扣款');
   const autoPay = payload.auto_pay === true || payload.auto === true;
   if (autoPay && purposeDef.auto_pay_eligible !== true) throw createError('该共同基金用途暂不支持自动支付', 403);
   return {
     amount,
     idempotency_key: idempotencyKey,
+    consumption_id: credential.consumption_id,
     purpose,
     purpose_label: purposeDef.label,
     spend_category: purposeDef.category,
@@ -7588,6 +8792,45 @@ function normalizeFundSpendPayload(payload = {}) {
   };
 }
 
+
+function normalizeSharedFundShopPurchasePayload(payload = {}) {
+  const targetRef = sanitizeText(payload.target_ref || payload.target_id || payload.shop_item_id || payload.item_id, 120);
+  const catalogItem = SHARED_FUND_AUTO_PURCHASE_CATALOG[targetRef];
+  if (!catalogItem) throw createError('shared fund shop purchase only supports whitelisted seed/feed targets', 403);
+  const purpose = sanitizeText(payload.purpose || payload.spend_purpose || payload.budget_type, 80) || catalogItem.allowed_purposes[0] || 'seed_budget';
+  const purposeDef = resolveFundSpendPurpose(purpose);
+  if (!purposeDef || purposeDef.tier !== 'small') throw createError('shared fund shop purchase only supports small seed/feed budget purposes', 403);
+  if (!catalogItem.allowed_purposes.includes(purpose)) throw createError('shared fund shop target does not match purchase purpose', 403);
+  const quantity = normalizePositiveInt(payload.quantity ?? payload.count ?? payload.target_quantity, 0);
+  if (quantity <= 0) throw createError('shared fund shop purchase quantity must be greater than 0', 400);
+  const unitPrice = Math.max(0, Math.floor(Number(catalogItem.unit_price) || 0));
+  const totalAmount = unitPrice * quantity;
+  if (totalAmount <= 0) throw createError('shared fund shop purchase amount must be greater than 0', 400);
+  if (payload.amount !== undefined && Math.floor(Number(payload.amount) || 0) !== totalAmount) {
+    throw createError('shared fund shop purchase amount must equal server unit price times quantity', 400);
+  }
+  if (totalAmount > Math.min(FUND_MAX_SMALL_SPEND_AMOUNT, purposeDef.max_amount)) throw createError('shared fund shop purchase exceeds small spend limit', 400);
+  const credential = normalizeFundConsumptionCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
+  if (!idempotencyKey) throw createError('shared fund shop purchase requires idempotency_key', 400);
+  return {
+    target_ref: targetRef,
+    item_id: catalogItem.item_id,
+    label: catalogItem.label,
+    category: catalogItem.category,
+    quantity,
+    quality: 'normal',
+    unit_price: unitPrice,
+    total_amount: totalAmount,
+    purpose,
+    purpose_label: purposeDef.label,
+    spend_category: purposeDef.category,
+    spend_tier: purposeDef.tier,
+    idempotency_key: idempotencyKey,
+    consumption_id: credential.consumption_id,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
 function normalizeLargeFundSpendDraftPayload(payload = {}) {
   const amount = Math.floor(Number(payload.amount) || 0);
   const purpose = sanitizeText(payload.purpose || payload.spend_purpose || payload.budget_type, 80) || 'family_building';
@@ -7747,10 +8990,12 @@ function normalizeSeparationDecorationBuildingSplitPayload(payload = {}) {
 }
 
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const credential = normalizeFundConsumptionCredential(payload);
+  const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
   return {
     idempotency_key: idempotencyKey,
+    consumption_id: credential.consumption_id,
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -7796,6 +9041,7 @@ function normalizeFamilyBuildingMaterialsConsumePayload(payload = {}) {
     building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    medium_fund_ledger_id: sanitizeText(payload.medium_fund_ledger_id || payload.budget_fund_ledger_id || payload.budget_ledger_id || payload.materials_fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
@@ -8147,6 +9393,10 @@ function buildWarehouseOriginAsset(entry) {
           applied: true,
           type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
           bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
+          recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
+            ? entry.simultaneous_online_bonus.recent_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+            : [],
+          plant_actor_username: normalizeUsername(entry.simultaneous_online_bonus.plant_actor_username),
           material_actor_username: normalizeUsername(entry.simultaneous_online_bonus.material_actor_username),
           processor_username: normalizeUsername(entry.simultaneous_online_bonus.processor_username),
           recipe_id: sanitizeText(entry.simultaneous_online_bonus.recipe_id, 100),
@@ -8346,8 +9596,13 @@ function buildFundReturnPreview(contract = {}) {
 }
 
 function buildPlotReturnPreview(contract = {}) {
-  const farmSnapshots = (contract.members || []).map(readMemberFarmSnapshot);
-  const layout = buildSharedFarmPlots(contract, farmSnapshots);
+  const persistedSharedMap = refreshSharedMapContractFields(contract, contract.shared_map);
+  const farmSnapshots = persistedSharedMap ? [] : (contract.members || []).map(readMemberFarmSnapshot);
+  const layout = persistedSharedMap ? {
+    plots: Array.isArray(persistedSharedMap.plots) ? persistedSharedMap.plots : [],
+    regions: Array.isArray(persistedSharedMap.layout?.regions) ? persistedSharedMap.layout.regions : [],
+    arrangement: persistedSharedMap.layout?.arrangement || 'side_by_side',
+  } : buildSharedFarmPlots(contract, farmSnapshots);
   const groups = new Map();
   for (const plot of layout.plots) {
     const key = plot.origin_owner_id || plot.origin_owner_key || plot.origin_owner_username;
@@ -8362,6 +9617,10 @@ function buildPlotReturnPreview(contract = {}) {
       waterable_plot_count: 0,
       source_plot_ids: [],
       crop_ids: [],
+      source_save_slot: plot.source_save_slot,
+      source_save_revision: plot.source_save_revision,
+      split_rule: plot.split_rule || 'return_to_origin_owner_on_separation',
+      permission_restriction: plot.permission_restriction || getPlotPermissionRestriction(plot.permission_mode),
       return_policy: '按 origin_owner_id 归还原田区；第一版只生成预览，不写回双方个人农田。',
       manual_return_required: true,
     };
@@ -8377,7 +9636,12 @@ function buildPlotReturnPreview(contract = {}) {
     groups.set(key, current);
   }
   const stateCounts = countPlotStates(layout.plots);
-  const plotReturnManifest = buildPlotReturnManifest(layout.plots);
+  const manifestSource = persistedSharedMap ? 'contract.shared_map.plots' : 'farm.plots';
+  const plotReturnManifest = buildPlotReturnManifest(layout.plots).map(entry => ({
+    ...entry,
+    return_source: persistedSharedMap ? 'contract_shared_map' : 'member_farm_snapshots',
+    manifest_source: manifestSource,
+  }));
   return {
     plots_by_origin_owner: [...groups.values()].slice(0, 80),
     plot_return_manifest: plotReturnManifest,
@@ -8393,8 +9657,10 @@ function buildPlotReturnPreview(contract = {}) {
       arrangement: 'side_by_side',
       readonly: true,
       writes_enabled: false,
-      included_sources: ['farm.plots'],
+      included_sources: [persistedSharedMap ? 'contract.shared_map.plots' : 'farm.plots'],
       deferred_sources: ['farm.greenhousePlots', 'farm.fruitTrees', 'animal', 'warehouse', 'decoration'],
+      persisted_shared_manor_map: persistedSharedMap?.persisted === true,
+      return_source: persistedSharedMap ? 'contract_shared_map' : 'member_farm_snapshots',
     },
     unavailable_plot_sources: farmSnapshots
       .filter(snapshot => snapshot.available !== true)
@@ -8415,11 +9681,18 @@ function buildPlotReturnManifest(plots = []) {
       source_plot_id: normalizePlotId(plot.source_plot_id, 0),
       origin_owner_id: sanitizeText(plot.origin_owner_id, 80),
       origin_save_id: normalizeSaveId(plot.origin_save_id),
+      permission_mode: sanitizeText(plot.permission_mode, 40) || 'owner_only',
       origin_owner_username: normalizeUsername(plot.origin_owner_username),
       origin_owner_key: normalizeUsernameKey(plot.origin_owner_key || plot.origin_owner_username),
       return_target_username: normalizeUsername(plot.origin_owner_username),
       return_target_save_id: normalizeSaveId(plot.origin_save_id),
       shared_map_plot_id: sanitizeText(plot.id, 120),
+      source_save_slot: normalizeSaveSlot(plot.source_save_slot),
+      source_save_revision: Math.max(0, Math.floor(Number(plot.source_save_revision) || 0)),
+      current_steward_username: normalizeUsername(plot.current_steward_username || plot.origin_owner_username),
+      current_steward_display_name: sanitizeText(plot.current_steward_display_name || plot.current_steward_username || plot.origin_owner_username, 60),
+      split_rule: plot.split_rule || 'return_to_origin_owner_on_separation',
+      permission_restriction: plot.permission_restriction || getPlotPermissionRestriction(plot.permission_mode),
       shared_map_row: Math.max(0, Math.floor(Number(plot.row) || 0)),
       shared_map_col: Math.max(0, Math.floor(Number(plot.col) || 0)),
       local_row: Math.max(0, Math.floor(Number(plot.local_row) || 0)),
@@ -8653,6 +9926,31 @@ function groupPlotManifestByReturnTarget(manifest = []) {
   return [...groups.values()];
 }
 
+function uniqueSanitizedValues(values = [], maxLength = 120) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(value => sanitizeText(value, maxLength))
+    .filter(Boolean))];
+}
+
+function uniqueNormalizedUsernames(values = []) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(normalizeUsername)
+    .filter(Boolean))];
+}
+
+function uniqueNormalizedSaveSlots(values = []) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(normalizeSaveSlot)
+    .filter(value => value !== null))];
+}
+
+function uniqueNonNegativeIntegers(values = []) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .filter(value => value !== null && value !== undefined && value !== '')
+    .map(value => Math.max(0, Math.floor(Number(value))))
+    .filter(value => value >= 0))];
+}
+
 function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
   const context = getActiveSaveContext(group.username, group.member?.save_slot ?? null, '分居返还目标账号没有可写入的桃源乡存档');
   context.username = group.username;
@@ -8663,6 +9961,7 @@ function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
   if (!context.data.farm || typeof context.data.farm !== 'object') context.data.farm = {};
   if (!Array.isArray(context.data.farm.plots)) context.data.farm.plots = [];
   const beforeRevision = Number(context.saves.slots[context.slot]?.revision) || 0;
+  const beforeMoney = getPlayerMoney(context.data);
   const restoredPlotIds = [];
   for (const row of group.rows) {
     const sourcePlotId = normalizePlotId(row.source_plot_id, -1);
@@ -8671,6 +9970,18 @@ function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
     restoredPlotIds.push(sourcePlotId);
   }
   const afterRevision = persistGameplayData(context);
+  const afterMoney = getPlayerMoney(context.data);
+  if (afterMoney !== beforeMoney) throw createError(`separation personal farm return changed personal money for ${group.username}`, 500);
+  const rows = Array.isArray(group.rows) ? group.rows : [];
+  const manifestSources = uniqueSanitizedValues(rows.map(row => row.manifest_source || (row.return_source === 'contract_shared_map' ? 'contract.shared_map.plots' : 'farm.plots')), 80);
+  const returnSources = uniqueSanitizedValues(rows.map(row => row.return_source), 80);
+  const sourceSaveSlots = uniqueNormalizedSaveSlots(rows.map(row => row.source_save_slot));
+  const sourceSaveRevisions = uniqueNonNegativeIntegers(rows.map(row => row.source_save_revision));
+  const currentStewardUsernames = uniqueNormalizedUsernames(rows.map(row => row.current_steward_username));
+  const splitRules = uniqueSanitizedValues(rows.map(row => row.split_rule), 80);
+  const permissionRestrictions = uniqueSanitizedValues(rows.map(row => row.permission_restriction), 120);
+  const permissionModes = uniqueSanitizedValues(rows.map(row => row.permission_mode), 40);
+  const sharedMapPlotIds = uniqueSanitizedValues(rows.map(row => row.shared_map_plot_id), 120).slice(0, 160);
   return {
     username: group.username,
     username_key: group.username_key,
@@ -8680,6 +9991,23 @@ function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
     after_revision: afterRevision,
     restored_plot_count: restoredPlotIds.length,
     source_plot_ids: restoredPlotIds.sort((left, right) => left - right),
+    shared_map_plot_ids: sharedMapPlotIds,
+    source_save_slots: sourceSaveSlots,
+    source_save_revisions: sourceSaveRevisions,
+    current_steward_usernames: currentStewardUsernames,
+    split_rules: splitRules,
+    permission_restrictions: permissionRestrictions,
+    permission_modes: permissionModes,
+    return_source: returnSources.includes('contract_shared_map') ? 'contract_shared_map' : (returnSources[0] || ''),
+    manifest_sources: manifestSources,
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash, 100),
+    before_money: beforeMoney,
+    after_money: afterMoney,
+    personal_money_changed: false,
+    personal_inventory_changed: false,
+    personal_farm_plots_changed: restoredPlotIds.length > 0,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
     idempotency_key: payload.idempotency_key,
     written_at: nowSeconds(),
   };
@@ -8742,6 +10070,7 @@ function writePersonalMoneyRefundsFromLedger(refunds = [], contract = {}, payloa
 }
 
 function writePersonalInventoryReturnsFromLedger(rows = [], contract = {}, payload = {}, warehouseLedgerEntries = []) {
+  const contextsByUsername = new Map();
   const prepared = [];
   for (const row of Array.isArray(rows) ? rows : []) {
     const username = normalizeUsername(row.origin_owner_username);
@@ -8750,59 +10079,76 @@ function writePersonalInventoryReturnsFromLedger(rows = [], contract = {}, paylo
     const quantity = Math.max(0, Math.floor(Number(row.quantity) || 0));
     if (!username || !itemId || quantity <= 0) continue;
     const usernameKey = normalizeUsernameKey(username);
-    const member = (contract.members || []).find(entry =>
-      entry.username_key === usernameKey || normalizeUsernameKey(entry.username) === usernameKey
-    ) || null;
-    const context = getActiveSaveContext(username, member?.save_slot ?? null, '分居共同仓库返还目标账号没有可写入的桃源乡存档');
-    context.username = username;
-    const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
-    const projectedData = JSON.parse(JSON.stringify(context.data || {}));
-    const beforeMoney = getPlayerMoney(projectedData);
-    const addResult = addWithdrawnWarehouseItemToInventory(projectedData, itemId, quantity, quality);
-    if (!addResult.ok) throw createError(`分居共同仓库返还目标背包空间不足：${username}`, 409);
-    const afterMoney = getPlayerMoney(projectedData);
-    if (afterMoney !== beforeMoney) throw createError(`分居共同仓库返还不会处理个人铜币：${username}`, 500);
+    let contextEntry = contextsByUsername.get(usernameKey);
+    if (!contextEntry) {
+      const member = (contract.members || []).find(entry =>
+        entry.username_key === usernameKey || normalizeUsernameKey(entry.username) === usernameKey
+      ) || null;
+      const context = getActiveSaveContext(username, member?.save_slot ?? null, `separation shared warehouse return target ${username} has no writable save slot`);
+      context.username = username;
+      const projectedData = JSON.parse(JSON.stringify(context.data || {}));
+      contextEntry = {
+        username,
+        username_key: usernameKey,
+        context,
+        projectedData,
+        save_id: normalizeSaveId(context.identity?.save_id || context.identity?.saveId),
+        save_slot: normalizeSaveSlot(context.slot),
+        before_revision: Number(context.saves.slots[context.slot]?.revision) || 0,
+        before_money: getPlayerMoney(projectedData),
+        receipts: [],
+      };
+      contextsByUsername.set(usernameKey, contextEntry);
+    }
+
+    const addResult = addWithdrawnWarehouseItemToInventory(contextEntry.projectedData, itemId, quantity, quality);
+    if (!addResult.ok) throw createError(`separation shared warehouse return target inventory is full: ${username}`, 409);
+    const afterMoney = getPlayerMoney(contextEntry.projectedData);
+    if (afterMoney !== contextEntry.before_money) throw createError(`separation shared warehouse return must not change personal money: ${username}`, 500);
     const warehouseLedgerEntry = warehouseLedgerEntries.find(entry =>
       normalizeUsernameKey(entry.target_owner_username) === usernameKey
       && entry.item_id === itemId
       && entry.quality === quality
     ) || null;
-    prepared.push({
+    const receipt = {
       username,
       username_key: usernameKey,
-      context,
-      projectedData,
-      save_id: identitySaveId,
-      save_slot: normalizeSaveSlot(context.slot),
-      before_revision: Number(context.saves.slots[context.slot]?.revision) || 0,
+      context_entry: contextEntry,
+      save_slot: contextEntry.save_slot,
+      save_id: contextEntry.save_id,
+      before_revision: contextEntry.before_revision,
       item_id: itemId,
       quality,
       returned_quantity: quantity,
       target_slots: addResult.target_slots,
       warehouse_ledger_id: warehouseLedgerEntry?.id || '',
-    });
-  }
-  return prepared.map(entry => {
-    assignGameplayDataToContext(entry.context, entry.projectedData);
-    const afterRevision = persistGameplayData(entry.context);
-    return {
-      username: entry.username,
-      username_key: entry.username_key,
-      save_slot: entry.save_slot,
-      save_id: entry.save_id,
-      before_revision: entry.before_revision,
-      after_revision: afterRevision,
-      item_id: entry.item_id,
-      quality: entry.quality,
-      returned_quantity: entry.returned_quantity,
-      target_slots: entry.target_slots,
-      warehouse_ledger_id: entry.warehouse_ledger_id,
-      idempotency_key: payload.idempotency_key,
-      written_at: nowSeconds(),
     };
-  });
-}
+    contextEntry.receipts.push(receipt);
+    prepared.push(receipt);
+  }
 
+  const afterRevisionByUsername = new Map();
+  for (const entry of contextsByUsername.values()) {
+    assignGameplayDataToContext(entry.context, entry.projectedData);
+    afterRevisionByUsername.set(entry.username_key, persistGameplayData(entry.context));
+  }
+  const writtenAt = nowSeconds();
+  return prepared.map(entry => ({
+    username: entry.username,
+    username_key: entry.username_key,
+    save_slot: entry.save_slot,
+    save_id: entry.save_id,
+    before_revision: entry.before_revision,
+    after_revision: afterRevisionByUsername.get(entry.username_key) || entry.before_revision,
+    item_id: entry.item_id,
+    quality: entry.quality,
+    returned_quantity: entry.returned_quantity,
+    target_slots: entry.target_slots,
+    warehouse_ledger_id: entry.warehouse_ledger_id,
+    idempotency_key: payload.idempotency_key,
+    written_at: writtenAt,
+  }));
+}
 function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, payload = {}) {
   const storyResolution = ledger.family_story_resolution || {};
   const acceptedMembers = (contract.members || [])
@@ -9835,6 +11181,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     executed_by: normalizeUsername(entry.executed_by),
     executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    version_idempotency_key: sanitizeText(entry.version_idempotency_key || entry.versionIdempotencyKey, 160),
     memo: sanitizeText(entry.memo, 160),
     status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned', 'decorations_buildings_split', 'family_story_resolved', 'personal_story_receipts_written', 'child_arrangement_resolved', 'personal_family_receipts_written', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
@@ -9923,6 +11270,29 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           after_revision: Math.max(0, Math.floor(Number(item.after_revision) || 0)),
           restored_plot_count: Math.max(0, Math.floor(Number(item.restored_plot_count) || 0)),
           source_plot_ids: Array.isArray(item.source_plot_ids) ? item.source_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 120) : [],
+          shared_map_plot_ids: Array.isArray(item.shared_map_plot_ids) ? item.shared_map_plot_ids.map(id => sanitizeText(id, 120)).filter(Boolean).slice(0, 160) : [],
+          source_save_slots: Array.isArray(item.source_save_slots) ? item.source_save_slots.map(normalizeSaveSlot).filter(value => value !== null).slice(0, 8) : [],
+          source_save_revisions: Array.isArray(item.source_save_revisions)
+            ? item.source_save_revisions.map(value => Math.max(0, Math.floor(Number(value) || 0))).filter(value => value >= 0).slice(0, 40)
+            : [],
+          current_steward_usernames: Array.isArray(item.current_steward_usernames)
+            ? item.current_steward_usernames.map(normalizeUsername).filter(Boolean).slice(0, 40)
+            : [],
+          split_rules: Array.isArray(item.split_rules) ? item.split_rules.map(value => sanitizeText(value, 80)).filter(Boolean).slice(0, 12) : [],
+          permission_restrictions: Array.isArray(item.permission_restrictions)
+            ? item.permission_restrictions.map(value => sanitizeText(value, 120)).filter(Boolean).slice(0, 12)
+            : [],
+          permission_modes: Array.isArray(item.permission_modes) ? item.permission_modes.map(value => sanitizeText(value, 40)).filter(Boolean).slice(0, 12) : [],
+          return_source: sanitizeText(item.return_source, 80),
+          manifest_sources: Array.isArray(item.manifest_sources) ? item.manifest_sources.map(value => sanitizeText(value, 80)).filter(Boolean).slice(0, 12) : [],
+          plot_return_manifest_hash: sanitizeText(item.plot_return_manifest_hash, 100),
+          before_money: Math.max(0, Math.floor(Number(item.before_money) || 0)),
+          after_money: Math.max(0, Math.floor(Number(item.after_money) || 0)),
+          personal_money_changed: item.personal_money_changed === true,
+          personal_inventory_changed: item.personal_inventory_changed === true,
+          personal_farm_plots_changed: item.personal_farm_plots_changed === true,
+          shared_fund_changed: item.shared_fund_changed === true,
+          shared_warehouse_changed: item.shared_warehouse_changed === true,
           idempotency_key: sanitizeText(item.idempotency_key, 120),
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.restored_plot_count > 0).slice(0, 20)
@@ -10583,7 +11953,7 @@ async function careCohabitationSharedFarmPlot(contractId, payload = {}, actor = 
   if (!sharedMap) throw createError('shared farm map is not persisted', 409);
   const plot = findSharedMapPlot(sharedMap, request.plot_id);
   if (!plot) throw createError('shared farm plot not found', 404);
-  assertSharedFarmCareAllowed(contract, member, plot, actorPermissions);
+  assertSharedFarmCareAllowed(contract, member, plot, actorPermissions, request.action);
   const plotState = plot.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
   if (request.action === 'cure_pests' && plotState.infested !== true) throw createError('shared farm plot has no pests to cure', 409);
   if (request.action === 'clear_weeds' && plotState.weedy !== true) throw createError('shared farm plot has no weeds to clear', 409);
@@ -10988,7 +12358,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   if (!sharedMap) throw createError('shared farm map is not persisted', 409);
   const plot = findSharedMapPlot(sharedMap, request.plot_id);
   if (!plot) throw createError('shared farm plot not found', 404);
-  assertSharedFarmFertilizeAllowed(contract, member, plot, actorPermissions);
+  assertSharedFarmFertilizeAllowed(contract, member, plot, actorPermissions, request.fertilizer_profile);
   const plotState = plot.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
   if (plotState.state === 'wasteland') throw createError('shared farm wasteland plot cannot be fertilized', 409);
   if (plotState.fertilizer) throw createError('shared farm plot already has fertilizer', 409);
@@ -11058,6 +12428,9 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     at: operatedAt,
     idempotency_key: request.idempotency_key,
     reversible: true,
+    fertilizer_permission_key: request.fertilizer_profile?.permission_key || 'plant',
+    premium_fertilizer: request.fertilizer_profile?.premium === true,
+    fertilizer_effect: request.fertilizer_profile?.effect || '',
     compensation_hint: '共同农田普通施肥已扣减共同仓库基础肥料并写入契约地图；若误用，需要按本 consume ledger 和农田 ledger 走后续回滚或补偿。',
     status: 'committed',
   })).filter(Boolean);
@@ -11077,6 +12450,8 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
       harvestable_plots: nextStateCounts.harvestable,
       waterable_plots: nextStateCounts.waterable,
       farm_fertilize_write_enabled: true,
+      farm_premium_fertilizer_write_enabled: true,
+      supported_fertilizer_item_ids: SHARED_FARM_FERTILIZER_ITEM_IDS,
       farm_plant_write_enabled: true,
       farm_action_ledger_count: contract.shared_farm_ledger.length + 1,
       shared_warehouse_fertilizer_consume_enabled: true,
@@ -11107,6 +12482,9 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     source_save_revision: plot.source_save_revision,
     before_plot_state: beforeState,
     after_plot_state: afterState,
+    fertilizer_permission_key: request.fertilizer_profile?.permission_key || 'plant',
+    premium_fertilizer: request.fertilizer_profile?.premium === true,
+    fertilizer_effect: request.fertilizer_profile?.effect || '',
     simultaneous_online_bonus: {
       applied: simultaneousOnlineBonus.applied,
       type: simultaneousOnlineBonus.type,
@@ -11146,6 +12524,9 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     origin_owner_username: plot.origin_owner_username,
     actor_username: actorUsername,
     fertilizer_item_id: request.fertilizer_item_id,
+    fertilizer_permission_key: request.fertilizer_profile?.permission_key || 'plant',
+    premium_fertilizer: request.fertilizer_profile?.premium === true,
+    fertilizer_effect: request.fertilizer_profile?.effect || '',
     quantity: 1,
     target_ref: warehouseTargetRef,
     permission_mode: plot.permission_mode,
@@ -11169,6 +12550,9 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
       action: 'fertilize',
       plot_id: plot.id,
       fertilizer_item_id: request.fertilizer_item_id,
+      fertilizer_permission_key: request.fertilizer_profile?.permission_key || 'plant',
+      premium_fertilizer: request.fertilizer_profile?.premium === true,
+      fertilizer_effect: request.fertilizer_profile?.effect || '',
       crop_id: plotState.crop_id,
       warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
       before_plot_state: beforeState,
@@ -11228,6 +12612,11 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     throw createError('shared farm giant crop harvest requires a dedicated grouped harvest flow', 409);
   }
 
+  const qualityBonusValue = Math.max(0, Math.floor(Number(plotState.cooperation_quality_bonus) || 0));
+  const outputQualityBefore = 'normal';
+  const outputQuality = upgradeWarehouseQuality(outputQualityBefore, qualityBonusValue);
+  const simultaneousOnlineBonus = buildSharedFarmHarvestQualityBonusSnapshot(plotState, outputQualityBefore, outputQuality);
+
   const operatedAt = nowSeconds();
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
@@ -11246,6 +12635,10 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     infested_days: 0,
     weedy: false,
     weedy_days: 0,
+    cooperation_health_bonus: 0,
+    cooperation_quality_bonus: 0,
+    last_cooperation_quality_bonus_consumed_at: qualityBonusValue > 0 ? operatedAt : Math.max(0, Math.floor(Number(plotState.last_cooperation_quality_bonus_consumed_at) || 0)),
+    last_cooperation_quality_bonus_consumed_value: qualityBonusValue,
   };
   const nextPlot = {
     ...plot,
@@ -11264,7 +12657,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     action: 'deposit',
     item_id: outputItemId,
     quantity: 1,
-    quality: 'normal',
+    quality: outputQuality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
     actor_manor_role: actorManorRole,
@@ -11291,6 +12684,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     target_ref: warehouseSourceRef,
     at: operatedAt,
     idempotency_key: request.idempotency_key,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     reversible: true,
     compensation_hint: '共同农田收获产出已进入共同仓库；如误收，需要按本 deposit ledger 和农田 ledger 走后续回滚或补偿。',
     status: 'committed',
@@ -11333,7 +12727,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     crop_id: outputItemId,
     output_item_id: outputItemId,
     output_quantity: 1,
-    output_quality: 'normal',
+    output_quality: outputQuality,
     warehouse_ledger_ids: [warehouseLedgerEntry.id],
     shared_warehouse_changed: true,
     origin_owner_id: plot.origin_owner_id,
@@ -11345,6 +12739,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     source_save_revision: plot.source_save_revision,
     before_plot_state: beforeState,
     after_plot_state: afterState,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     permission_mode: plot.permission_mode,
     idempotency_key: request.idempotency_key,
     at: operatedAt,
@@ -11376,8 +12771,9 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     crop_id: outputItemId,
     output_item_id: outputItemId,
     output_quantity: 1,
-    output_quality: 'normal',
+    output_quality: outputQuality,
     target_ref: warehouseSourceRef,
+    simultaneous_online_bonus: simultaneousOnlineBonus,
     permission_mode: plot.permission_mode,
     personal_save_changed: false,
     shared_warehouse_changed: true,
@@ -11400,14 +12796,292 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
       crop_id: outputItemId,
       output_item_id: outputItemId,
       output_quantity: 1,
-      output_quality: 'normal',
+      output_quality: outputQuality,
       warehouse_ledger_ids: [warehouseLedgerEntry.id],
+      simultaneous_online_bonus: simultaneousOnlineBonus,
       before_plot_state: beforeState,
       after_plot_state: afterState,
       personal_save_changed: false,
       shared_warehouse_changed: true,
       shared_fund_changed: false,
     },
+  };
+}
+
+async function settleCohabitationDailyBonus(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const request = normalizeCohabitationDailySettlePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, 'settle cohabitation daily bonus');
+  contract.shared_farm_ledger = normalizeFarmActionLedger(contract.shared_farm_ledger);
+  contract.shared_animal_ledger = normalizeAnimalActionLedger(contract.shared_animal_ledger);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'cohabitation_daily_settled' && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      shared_map: refreshSharedMapContractFields(contract, contract.shared_map),
+      shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+      offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+      daily_settlement: {
+        ...(previousAudit.detail || {}),
+        idempotency_key: request.idempotency_key,
+        idempotent: true,
+      },
+      idempotent: true,
+      already_settled: true,
+    };
+  }
+
+  const settledAt = nowSeconds();
+  let sharedMap = refreshSharedMapContractFields(contract, contract.shared_map);
+  const changedPlots = [];
+  let farmGrowthCount = 0;
+  let farmHarvestableCount = 0;
+  let farmHealthBonusConsumedCount = 0;
+  let farmHealthBonusConsumedValue = 0;
+  let farmUnwateredCount = 0;
+
+  if (sharedMap && Array.isArray(sharedMap.plots)) {
+    const nextPlots = sharedMap.plots.map(plot => {
+      const plotState = plot?.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
+      if (!['planted', 'growing'].includes(plotState.state)) return plot;
+      const beforeState = { ...plotState };
+      const cropDays = getSharedFarmCropGrowthDays(plotState.crop_id);
+      let afterState = { ...plotState };
+      let changed = false;
+      let healthBonusConsumed = 0;
+      let becameHarvestable = false;
+      let grewToday = false;
+      if (plotState.watered === true) {
+        const nextGrowthDays = Math.max(0, Math.floor(Number(plotState.growth_days) || 0)) + 1;
+        becameHarvestable = nextGrowthDays >= cropDays;
+        grewToday = true;
+        afterState = {
+          ...afterState,
+          state: becameHarvestable ? 'harvestable' : 'growing',
+          growth_days: nextGrowthDays,
+          watered: false,
+          unwatered_days: 0,
+        };
+        changed = true;
+        farmGrowthCount += 1;
+        if (becameHarvestable) farmHarvestableCount += 1;
+      } else {
+        const healthBonus = Math.max(0, Math.floor(Number(plotState.cooperation_health_bonus) || 0));
+        if (healthBonus > 0) {
+          healthBonusConsumed = 1;
+          afterState = {
+            ...afterState,
+            cooperation_health_bonus: Math.max(0, healthBonus - 1),
+            unwatered_days: 0,
+            last_cooperation_health_bonus_consumed_at: settledAt,
+            last_cooperation_health_bonus_consumed_value: 1,
+          };
+          changed = true;
+          farmHealthBonusConsumedCount += 1;
+          farmHealthBonusConsumedValue += 1;
+        } else {
+          afterState = {
+            ...afterState,
+            unwatered_days: Math.max(0, Math.floor(Number(plotState.unwatered_days) || 0)) + 1,
+          };
+          changed = true;
+          farmUnwateredCount += 1;
+        }
+      }
+      if (!changed) return plot;
+      afterState.last_daily_settled_at = settledAt;
+      const nextPlot = {
+        ...plot,
+        plot_state: afterState,
+        readonly: false,
+      };
+      changedPlots.push({
+        plot_id: sanitizeText(plot.id, 140),
+        crop_id: sanitizeText(plotState.crop_id, 80),
+        state_before: sanitizeText(beforeState.state, 40),
+        state_after: sanitizeText(afterState.state, 40),
+        growth_days_before: Math.max(0, Math.floor(Number(beforeState.growth_days) || 0)),
+        growth_days_after: Math.max(0, Math.floor(Number(afterState.growth_days) || 0)),
+        watered_before: beforeState.watered === true,
+        health_bonus_consumed: healthBonusConsumed,
+        grew_today: grewToday,
+        became_harvestable: becameHarvestable,
+      });
+      return nextPlot;
+    });
+    if (changedPlots.length > 0) {
+      const nextStateCounts = countPlotStates(nextPlots);
+      contract.shared_map = {
+        ...sharedMap,
+        readonly: false,
+        writes_enabled: true,
+        revision: Math.max(sharedMap.revision || 0, settledAt),
+        plots: nextPlots,
+        summary: {
+          ...sharedMap.summary,
+          total_plots: nextStateCounts.total,
+          active_plots: nextStateCounts.active,
+          harvestable_plots: nextStateCounts.harvestable,
+          waterable_plots: nextStateCounts.waterable,
+          farm_action_ledger_count: contract.shared_farm_ledger.length,
+          shared_warehouse_harvest_deposit_enabled: true,
+        },
+      };
+      contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+      const changedPlotIds = new Set(changedPlots.map(entry => entry.plot_id));
+      for (const nextPlot of nextPlots.filter(plot => changedPlotIds.has(sanitizeText(plot.id, 140)))) {
+        const plotAsset = buildPlotOriginAssetFromSharedPlot(nextPlot);
+        contract.origin_assets.plots = [
+          plotAsset,
+          ...contract.origin_assets.plots.filter(entry => sanitizeText(entry?.id, 120) !== plotAsset.id),
+        ].slice(0, 400);
+      }
+      sharedMap = contract.shared_map;
+    }
+  }
+
+  let sharedAnimals = refreshSharedAnimalsContractFields(contract, contract.shared_animals);
+  const changedAnimals = [];
+  let animalFedProgressCount = 0;
+  let animalMoodBonusConsumedCount = 0;
+  let animalMoodBonusConsumedValue = 0;
+  let animalHungerIncreasedCount = 0;
+
+  if (sharedAnimals && Array.isArray(sharedAnimals.animals) && sharedAnimals.animals.length > 0) {
+    const nextAnimals = sharedAnimals.animals.map(animal => {
+      const animalState = animal?.animal_state && typeof animal.animal_state === 'object' ? animal.animal_state : summarizeAnimal({});
+      const beforeState = { ...animalState };
+      const wasFed = animalState.was_fed === true;
+      const wasSick = animalState.sick === true;
+      const moodBonus = Math.max(0, Math.floor(Number(animalState.cooperation_mood_bonus) || 0));
+      let daysSinceProduct = Math.max(0, Math.floor(Number(animalState.days_since_product) || 0));
+      let hunger = Math.max(0, Math.floor(Number(animalState.hunger) || 0));
+      let moodBonusConsumed = 0;
+      let moodProgressBonusDays = 0;
+      if (wasFed && !wasSick) {
+        daysSinceProduct += 1;
+        animalFedProgressCount += 1;
+      }
+      if (!wasSick && moodBonus > 0) {
+        daysSinceProduct += 1;
+        moodBonusConsumed = moodBonus;
+        moodProgressBonusDays = 1;
+        animalMoodBonusConsumedCount += 1;
+        animalMoodBonusConsumedValue += moodBonus;
+      }
+      if (!wasFed) {
+        hunger += 1;
+        animalHungerIncreasedCount += 1;
+      }
+      const afterState = {
+        ...animalState,
+        days_since_product: daysSinceProduct,
+        hunger,
+        was_fed: false,
+        fed_with: '',
+        was_petted: false,
+        cooperation_mood_bonus: moodBonusConsumed > 0 ? 0 : moodBonus,
+        last_daily_settled_at: settledAt,
+        last_cooperation_mood_bonus_consumed_at: moodBonusConsumed > 0 ? settledAt : Math.max(0, Math.floor(Number(animalState.last_cooperation_mood_bonus_consumed_at) || 0)),
+        last_cooperation_mood_bonus_consumed_value: moodBonusConsumed,
+        last_cooperation_mood_product_progress_bonus_days: moodProgressBonusDays,
+      };
+      const nextAnimal = {
+        ...animal,
+        animal_state: afterState,
+        readonly: false,
+      };
+      changedAnimals.push({
+        animal_id: sanitizeText(animal.id, 140),
+        source_animal_id: sanitizeText(animal.source_animal_id, 100),
+        type: sanitizeText(animal.type, 80),
+        was_fed: wasFed,
+        was_sick: wasSick,
+        days_since_product_before: Math.max(0, Math.floor(Number(beforeState.days_since_product) || 0)),
+        days_since_product_after: daysSinceProduct,
+        mood_bonus_consumed: moodBonusConsumed,
+        mood_product_progress_bonus_days: moodProgressBonusDays,
+        hunger_before: Math.max(0, Math.floor(Number(beforeState.hunger) || 0)),
+        hunger_after: hunger,
+      });
+      return nextAnimal;
+    });
+    const stateCounts = countSharedAnimalStates(nextAnimals);
+    contract.shared_animals = {
+      ...sharedAnimals,
+      revision: Math.max(sharedAnimals.revision || 0, settledAt),
+      animals: nextAnimals,
+      summary: {
+        ...sharedAnimals.summary,
+        animal_count: stateCounts.total,
+        fed_count: stateCounts.fed,
+        petted_count: stateCounts.petted,
+        sick_count: stateCounts.sick,
+        feedable_count: Math.max(0, stateCounts.total - stateCounts.fed),
+        pettable_count: Math.max(0, stateCounts.total - stateCounts.petted),
+        product_ready_count: stateCounts.product_ready,
+        animal_action_ledger_count: contract.shared_animal_ledger.length,
+        animal_feed_write_enabled: true,
+        animal_pet_write_enabled: true,
+        animal_product_collect_write_enabled: true,
+        shared_warehouse_feed_consume_enabled: true,
+        shared_warehouse_product_deposit_enabled: true,
+      },
+    };
+    contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+    for (const nextAnimal of nextAnimals) {
+      const animalAsset = buildAnimalOriginAssetFromSharedAnimal(nextAnimal);
+      contract.origin_assets.animals = [
+        animalAsset,
+        ...contract.origin_assets.animals.filter(entry => sanitizeText(entry?.id, 140) !== animalAsset.id),
+      ].slice(0, SHARED_ANIMAL_LIMIT);
+    }
+    sharedAnimals = contract.shared_animals;
+  }
+
+  const settlement = {
+    idempotency_key: request.idempotency_key,
+    settled_at: settledAt,
+    memo: request.memo,
+    plot_count: changedPlots.length,
+    farm_growth_count: farmGrowthCount,
+    farm_harvestable_count: farmHarvestableCount,
+    farm_health_bonus_consumed_count: farmHealthBonusConsumedCount,
+    farm_health_bonus_consumed_value: farmHealthBonusConsumedValue,
+    farm_unwatered_count: farmUnwateredCount,
+    animal_count: changedAnimals.length,
+    animal_fed_product_progress_count: animalFedProgressCount,
+    animal_mood_bonus_consumed_count: animalMoodBonusConsumedCount,
+    animal_mood_bonus_consumed_value: animalMoodBonusConsumedValue,
+    animal_hunger_increased_count: animalHungerIncreasedCount,
+    changed_plots: changedPlots.slice(0, 40),
+    changed_animals: changedAnimals.slice(0, 40),
+    shared_map_changed: changedPlots.length > 0,
+    shared_animals_changed: changedAnimals.length > 0,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_contract_daily_settlement',
+  };
+  appendAudit(contract, 'cohabitation_daily_settled', actor, settlement, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    shared_map: refreshSharedMapContractFields(contract, contract.shared_map),
+    shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+    offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+    daily_settlement: settlement,
+    idempotent: false,
+    already_settled: false,
   };
 }
 
@@ -11582,11 +13256,12 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm plant merge', 160),
     }, actor);
   }
-  if (operation.action === 'fertilize_shared_farm_basic') {
+  if (operation.action === 'fertilize_shared_farm_basic' || operation.action === 'fertilize_shared_farm_premium') {
+    const defaultFertilizerItemId = getOfflineQueueDefaultFertilizerItemId(operation.action);
     return fertilizeCohabitationSharedFarmPlot(contractId, {
       ...payload,
       plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
-      fertilizer_item_id: payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId || 'basic_fertilizer',
+      fertilizer_item_id: payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId || defaultFertilizerItemId,
       idempotency_key: operation.idempotency_key,
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm fertilize merge', 160),
     }, actor);
@@ -11630,6 +13305,15 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       recipe_id: payload.recipe_id || payload.recipeId || payload.id,
       idempotency_key: operation.idempotency_key,
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared workshop process merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'collect_offline_auto_income') {
+    return collectCohabitationOfflineAutoIncome(contractId, {
+      ...payload,
+      idempotency_key: operation.idempotency_key,
+      client_queue_revision: operation.client_base_revision || payload.client_queue_revision || payload.base_revision,
+      client_base_revision: operation.client_base_revision,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue auto income claim', 160),
     }, actor);
   }
   const careItemId = normalizeWarehouseItemId(payload.care_item_id || payload.item_id || 'vitality_feed');
@@ -11687,7 +13371,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       farm_action: actionResult.action || ledgerEntry.action || action,
       care_action: actionResult.action || ledgerEntry.action || '',
       seed_item_id: actionResult.seed_item_id || ledgerEntry.seed_item_id || normalizeWarehouseItemId(operation.payload?.seed_item_id || operation.payload?.seedItemId || operation.payload?.item_id || operation.payload?.itemId),
-      fertilizer_item_id: actionResult.fertilizer_item_id || ledgerEntry.fertilizer_item_id || (action === 'fertilize_shared_farm_basic' ? 'basic_fertilizer' : ''),
+      fertilizer_item_id: actionResult.fertilizer_item_id || ledgerEntry.fertilizer_item_id || (action.startsWith('fertilize_shared_farm') ? getOfflineQueueDefaultFertilizerItemId(action) : ''),
       crop_id: actionResult.crop_id || ledgerEntry.crop_id || '',
       output_item_id: actionResult.output_item_id || ledgerEntry.output_item_id || outputEntry.item_id || '',
       output_quantity: Math.max(0, Math.floor(Number(actionResult.output_quantity || ledgerEntry.output_quantity || outputEntry.quantity) || 0)),
@@ -11733,6 +13417,27 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       success_rate_bonus_percent: Math.max(0, Math.floor(Number(actionResult.success_rate_bonus_percent || outputEntry.simultaneous_online_bonus?.success_rate_bonus_percent) || 0)),
       already_processed: result.already_processed === true,
       simultaneous_online_bonus: actionResult.simultaneous_online_bonus || outputEntry.simultaneous_online_bonus || null,
+    };
+  }
+  if (action === 'collect_offline_auto_income') {
+    const claim = result.offline_auto_income_claim || {};
+    return {
+      ...entry,
+      status: result.idempotent ? 'idempotent' : 'committed',
+      ledger_id: Array.isArray(claim.farm_ledger_ids) && claim.farm_ledger_ids[0]
+        ? claim.farm_ledger_ids[0]
+        : (Array.isArray(claim.animal_ledger_ids) ? claim.animal_ledger_ids[0] || '' : ''),
+      warehouse_ledger_ids: Array.isArray(claim.warehouse_ledger_ids) ? claim.warehouse_ledger_ids : entry.warehouse_ledger_ids,
+      target_ref: 'offline_auto_income:shared_warehouse',
+      collected_count: Math.max(0, Math.floor(Number(claim.collected_count) || 0)),
+      farm_harvest_count: Math.max(0, Math.floor(Number(claim.farm_harvest_count) || 0)),
+      animal_product_count: Math.max(0, Math.floor(Number(claim.animal_product_count) || 0)),
+      output_items: Array.isArray(claim.output_items) ? claim.output_items : [],
+      shared_warehouse_changed: claim.shared_warehouse_changed === true,
+      shared_fund_changed: false,
+      personal_save_changed: false,
+      conflict_policy: claim.conflict_policy || 'server_authoritative_latest_state',
+      server_authoritative: true,
     };
   }
   return {
@@ -11814,13 +13519,252 @@ function buildCohabitationOfflineFarmRejection(operation = {}, error = {}) {
     plot_id: sanitizeText(payload.plot_id || payload.shared_plot_id || payload.id, 140),
     farm_action: sanitizeText(payload.action || payload.care_action || payload.action_type || operation.action, 60),
     seed_item_id: normalizeWarehouseItemId(payload.seed_item_id || payload.seedItemId || payload.item_id || payload.itemId),
-    fertilizer_item_id: normalizeWarehouseItemId(payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId || (operation.action === 'fertilize_shared_farm_basic' ? 'basic_fertilizer' : '')),
+    fertilizer_item_id: normalizeWarehouseItemId(payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId || (String(operation.action || '').startsWith('fertilize_shared_farm') ? getOfflineQueueDefaultFertilizerItemId(operation.action) : '')),
     shared_warehouse_changed: false,
     shared_fund_changed: false,
     personal_save_changed: false,
     server_authoritative: true,
     conflict_policy: 'server_authoritative_reject_and_continue',
     compensation_hint: 'offline shared farm operation was rejected before any shared map, warehouse, fund, or personal save mutation.',
+  };
+}
+
+function buildCohabitationOfflineAutoIncomeRejection(operation = {}, error = {}) {
+  if (operation.action !== 'collect_offline_auto_income') return null;
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason: status === 403 ? 'offline_auto_income_permission_denied' : 'offline_auto_income_server_state_rejected',
+    error_status: status,
+    error_message: sanitizeText(error?.message || '', 180),
+    idempotency_key: operation.idempotency_key,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline auto income claim was rejected before any shared warehouse or personal save mutation.',
+  };
+}
+
+async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const request = normalizeOfflineAutoIncomePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'collect offline auto income');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.farm.harvest !== true && actorPermissions.animal.collect_product !== true) {
+    throw createError('offline auto income requires shared farm harvest or shared animal product permission', 403);
+  }
+
+  contract.shared_farm_ledger = normalizeFarmActionLedger(contract.shared_farm_ledger);
+  contract.shared_animal_ledger = normalizeAnimalActionLedger(contract.shared_animal_ledger);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_animals = normalizeSharedAnimals(contract.shared_animals);
+  if (!contract.shared_animals.persisted && actorPermissions.animal.collect_product === true) {
+    contract.shared_animals = buildSharedAnimalsFromSnapshots(contract, contract.members.map(readMemberAnimalSnapshot), {
+      persisted: true,
+    });
+  }
+
+  const initialRevisionSnapshot = buildOfflineQueueRevisionSnapshot(contract);
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'offline_auto_income_collected' && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousAudit) {
+    const detail = previousAudit.detail || {};
+    const warehouseLedgerIds = Array.isArray(detail.warehouse_ledger_ids) ? detail.warehouse_ledger_ids : [];
+    const farmLedgerIds = Array.isArray(detail.farm_ledger_ids) ? detail.farm_ledger_ids : [];
+    const animalLedgerIds = Array.isArray(detail.animal_ledger_ids) ? detail.animal_ledger_ids : [];
+    return {
+      contract: toPublicContract(contract),
+      offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+      shared_map: refreshSharedMapContractFields(contract, contract.shared_map),
+      shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      warehouse_ledger_entries: contract.shared_warehouse.ledger.filter(entry => warehouseLedgerIds.includes(entry.id)),
+      farm_ledger_entries: contract.shared_farm_ledger.filter(entry => farmLedgerIds.includes(entry.id)),
+      animal_ledger_entries: contract.shared_animal_ledger.filter(entry => animalLedgerIds.includes(entry.id)),
+      idempotent: true,
+      offline_auto_income_claim: {
+        ...detail,
+        idempotency_key: request.idempotency_key,
+        idempotent: true,
+        conflict_policy: 'server_authoritative_idempotent_replay',
+      },
+    };
+  }
+
+  const operatedAt = nowSeconds();
+  const rows = [];
+  let sharedMap = refreshSharedMapContractFields(contract, contract.shared_map);
+  if (actorPermissions.farm.harvest === true && sharedMap) {
+    for (const plot of sharedMap.plots || []) {
+      if (rows.length >= OFFLINE_AUTO_INCOME_MAX_ITEMS) break;
+      if (plot?.plot_state?.state !== 'harvestable') continue;
+      if (plot.plot_state?.giant_crop_group !== null && plot.plot_state?.giant_crop_group !== undefined) continue;
+      try {
+        assertSharedFarmHarvestAllowed(contract, member, plot, actorPermissions);
+      } catch (error) {
+        if (error?.status === 403) continue;
+        throw error;
+      }
+      const row = buildOfflineAutoIncomeFarmRow(contract, plot, member, actor, request, operatedAt, rows.length);
+      if (row) rows.push(row);
+    }
+  }
+
+  let sharedAnimals = refreshSharedAnimalsContractFields(contract, contract.shared_animals);
+  if (actorPermissions.animal.collect_product === true && sharedAnimals) {
+    for (const animal of sharedAnimals.animals || []) {
+      if (rows.length >= OFFLINE_AUTO_INCOME_MAX_ITEMS) break;
+      try {
+        assertSharedAnimalProductCollectAllowed(contract, member, animal, actorPermissions);
+      } catch (error) {
+        if (error?.status === 403) continue;
+        throw error;
+      }
+      const row = buildOfflineAutoIncomeAnimalRow(contract, animal, member, actor, request, operatedAt, rows.length);
+      if (row) rows.push(row);
+    }
+  }
+
+  const farmRows = rows.filter(row => row.kind === 'farm_harvest');
+  const animalRows = rows.filter(row => row.kind === 'animal_product');
+  const warehouseLedgerEntries = rows.map(row => row.warehouse_ledger_entry).filter(Boolean);
+  const farmLedgerEntries = farmRows.map(row => row.farm_ledger_entry).filter(Boolean);
+  const animalLedgerEntries = animalRows.map(row => row.animal_ledger_entry).filter(Boolean);
+
+  if (warehouseLedgerEntries.length > 0) {
+    contract.shared_warehouse.ledger = [...warehouseLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+    contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+    contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+    contract.origin_assets.warehouse_items = [
+      ...warehouseLedgerEntries.map(buildWarehouseOriginAsset),
+      ...contract.origin_assets.warehouse_items,
+    ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  }
+
+  if (sharedMap && farmRows.length > 0) {
+    const farmRowByPlotId = new Map(farmRows.map(row => [row.source_id, row]));
+    const nextPlots = (sharedMap.plots || []).map(plot => farmRowByPlotId.get(plot.id)?.next_plot || plot);
+    const nextStateCounts = countPlotStates(nextPlots);
+    contract.shared_farm_ledger = [...farmLedgerEntries, ...contract.shared_farm_ledger].slice(0, FARM_ACTION_LEDGER_LIMIT);
+    contract.shared_map = {
+      ...sharedMap,
+      readonly: false,
+      writes_enabled: true,
+      revision: Math.max(sharedMap.revision || 0, operatedAt),
+      plots: nextPlots,
+      summary: {
+        ...sharedMap.summary,
+        total_plots: nextStateCounts.total,
+        active_plots: nextStateCounts.active,
+        harvestable_plots: nextStateCounts.harvestable,
+        waterable_plots: nextStateCounts.waterable,
+        farm_action_ledger_count: contract.shared_farm_ledger.length,
+        shared_warehouse_harvest_deposit_enabled: true,
+      },
+    };
+    contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+    for (const row of farmRows) {
+      const plotAsset = buildPlotOriginAssetFromSharedPlot(row.next_plot);
+      contract.origin_assets.plots = [
+        plotAsset,
+        ...contract.origin_assets.plots.filter(entry => sanitizeText(entry?.id, 120) !== row.source_id),
+      ].slice(0, 400);
+    }
+  }
+
+  if (sharedAnimals && animalRows.length > 0) {
+    const animalRowById = new Map(animalRows.map(row => [row.source_id, row]));
+    const nextAnimals = (sharedAnimals.animals || []).map(animal => animalRowById.get(animal.id)?.next_animal || animal);
+    const stateCounts = countSharedAnimalStates(nextAnimals);
+    contract.shared_animal_ledger = [...animalLedgerEntries, ...contract.shared_animal_ledger].slice(0, SHARED_ANIMAL_LEDGER_LIMIT);
+    contract.shared_animals = {
+      ...sharedAnimals,
+      revision: Math.max(sharedAnimals.revision || 0, operatedAt),
+      animals: nextAnimals,
+      summary: {
+        ...sharedAnimals.summary,
+        animal_count: stateCounts.total,
+        fed_count: stateCounts.fed,
+        petted_count: stateCounts.petted,
+        sick_count: stateCounts.sick,
+        feedable_count: Math.max(0, stateCounts.total - stateCounts.fed),
+        pettable_count: Math.max(0, stateCounts.total - stateCounts.petted),
+        product_ready_count: stateCounts.product_ready,
+        animal_action_ledger_count: contract.shared_animal_ledger.length,
+        shared_warehouse_product_deposit_enabled: true,
+      },
+    };
+    contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+    for (const row of animalRows) {
+      const animalAsset = buildAnimalOriginAssetFromSharedAnimal(row.next_animal);
+      contract.origin_assets.animals = [
+        animalAsset,
+        ...contract.origin_assets.animals.filter(entry => sanitizeText(entry?.id, 140) !== row.source_id),
+      ].slice(0, SHARED_ANIMAL_LIMIT);
+    }
+  }
+
+  const outputItems = rows.map(row => ({
+    kind: row.kind,
+    source_id: row.source_id,
+    item_id: row.item_id,
+    quantity: row.quantity,
+    quality: row.quality,
+    target_ref: row.target_ref,
+    warehouse_ledger_id: row.warehouse_ledger_id,
+    domain_ledger_id: row.domain_ledger_id,
+  }));
+  const finalRevisionSnapshot = buildOfflineQueueRevisionSnapshot(contract);
+  const revisionEvidence = buildOfflineQueueMergeRevisionEvidence({
+    client_queue_revision: request.client_queue_revision,
+  }, initialRevisionSnapshot, finalRevisionSnapshot);
+  const operationRevisionEvidence = buildOfflineQueueOperationRevisionEvidence({
+    client_base_revision: request.client_base_revision,
+  }, initialRevisionSnapshot, finalRevisionSnapshot);
+  const claim = {
+    idempotency_key: request.idempotency_key,
+    collected_count: rows.length,
+    item_count: rows.length,
+    farm_harvest_count: farmRows.length,
+    animal_product_count: animalRows.length,
+    output_items: outputItems,
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+    farm_ledger_ids: farmLedgerEntries.map(entry => entry.id),
+    animal_ledger_ids: animalLedgerEntries.map(entry => entry.id),
+    shared_warehouse_changed: warehouseLedgerEntries.length > 0,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    conflict_policy: rows.length > 0 ? 'server_authoritative_latest_state' : 'server_authoritative_no_pending_income',
+    source_scopes: ['contract.shared_map.plots', 'contract.shared_animals.animals'],
+    settlement_target: 'shared_warehouse.items',
+    ...operationRevisionEvidence,
+    ...revisionEvidence,
+  };
+  appendAudit(contract, 'offline_auto_income_collected', actor, claim, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+    shared_map: refreshSharedMapContractFields(contract, contract.shared_map),
+    shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    warehouse_ledger_entries: warehouseLedgerEntries,
+    farm_ledger_entries: farmLedgerEntries,
+    animal_ledger_entries: animalLedgerEntries,
+    idempotent: false,
+    offline_auto_income_claim: claim,
   };
 }
 async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {}) {
@@ -11897,6 +13841,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const farmRejection = buildCohabitationOfflineFarmRejection(operation, error);
       if (farmRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(farmRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const autoIncomeRejection = buildCohabitationOfflineAutoIncomeRejection(operation, error);
+      if (autoIncomeRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(autoIncomeRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const careItemProfile = getSharedPetCareItemProfile(careItemId);
@@ -12962,6 +14911,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
   const member = assertActiveContractForActor(contract, actorUsername, 'process shared workshop recipe');
   const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
   assertSharedWorkshopProcessAllowed(contract, member, actorPermissions);
+  const mediumBudgetLedger = findSharedFundBudgetLedger(contract, request.fund_ledger_id, 'processing_materials');
+  assertSharedFundBudgetLedgerTarget(mediumBudgetLedger, `shared_workshop:${recipe.id}`);
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
 
   const previousOutputEntry = contract.shared_warehouse.ledger.find(entry =>
@@ -12999,6 +14950,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
         simultaneous_online_bonus: previousOutputEntry.simultaneous_online_bonus,
         personal_save_changed: false,
         shared_warehouse_changed: true,
+        fund_ledger_id: previousOutputEntry.fund_ledger_id,
+        medium_fund_budget_linked: Boolean(previousOutputEntry.fund_ledger_id),
         shared_fund_changed: false,
       },
     };
@@ -13061,6 +15014,7 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       idempotency_key: request.idempotency_key,
       reversible: true,
       compensation_hint: 'shared workshop processing consumed shared warehouse inputs; rollback should replay the paired consume and output deposit ledgers.',
+      fund_ledger_id: mediumBudgetLedger?.id || '',
       status: 'committed',
     }))
   ).filter(Boolean);
@@ -13092,6 +15046,7 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     idempotency_key: request.idempotency_key,
     reversible: true,
     compensation_hint: 'shared workshop output was deposited into shared warehouse; personal saves and shared fund are unchanged.',
+    fund_ledger_id: mediumBudgetLedger?.id || '',
     status: 'committed',
     simultaneous_online_bonus: simultaneousOnlineBonus,
   });
@@ -13123,6 +15078,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     personal_save_changed: false,
     shared_warehouse_changed: true,
     shared_fund_changed: false,
+    medium_fund_budget_ledger_id: mediumBudgetLedger?.id || '',
+    medium_fund_budget_linked: Boolean(mediumBudgetLedger),
   }, request.idempotency_key);
   saveContractStore(store);
 
@@ -13151,6 +15108,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       personal_save_changed: false,
       shared_warehouse_changed: true,
       shared_fund_changed: false,
+      fund_ledger_id: mediumBudgetLedger?.id || '',
+      medium_fund_budget_linked: Boolean(mediumBudgetLedger),
     },
   };
 }
@@ -13167,7 +15126,11 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
 
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const previousEntry = contract.shared_warehouse.ledger.find(entry =>
-    entry.idempotency_key && entry.idempotency_key === deposit.idempotency_key && entry.action === 'deposit'
+    entry.action === 'deposit'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === deposit.idempotency_key)
+      || (deposit.operation_id && entry.operation_id && entry.operation_id === deposit.operation_id)
+    )
   );
   if (previousEntry) {
     return {
@@ -13226,6 +15189,7 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
     source_slots: deduction.source_slots,
     at: nowSeconds(),
     idempotency_key: deposit.idempotency_key,
+    operation_id: deposit.operation_id,
     reversible: true,
     compensation_hint: '第一版仅支持放入与追溯；若误放入，需要后续取出 / 返还流程或人工按 ledger 补偿。',
     status: 'committed',
@@ -13247,6 +15211,7 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
     source_save_slot: ledgerEntry.source_save_slot,
     source_inventory: ledgerEntry.source_inventory,
     save_revision: saveRevision,
+    operation_id: ledgerEntry.operation_id,
     reversible: ledgerEntry.reversible,
     withdraw_enabled: false,
     sell_enabled: actorPermissions.storage.sell_items === true,
@@ -13279,7 +15244,11 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
 
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const previousEntries = contract.shared_warehouse.ledger.filter(entry =>
-    entry.idempotency_key && entry.idempotency_key === withdraw.idempotency_key && entry.action === 'withdraw'
+    entry.action === 'withdraw'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === withdraw.idempotency_key)
+      || (withdraw.operation_id && entry.operation_id && entry.operation_id === withdraw.operation_id)
+    )
   );
   if (previousEntries.length > 0) {
     return {
@@ -13360,6 +15329,7 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
     target_slots: addResult.target_slots,
     at: operatedAt,
     idempotency_key: withdraw.idempotency_key,
+    operation_id: withdraw.operation_id,
     reversible: true,
     compensation_hint: '普通物品取出已写个人背包落点；若误取，需要按本流水从取出者背包补回或走后续冻结 / 回滚流程。',
     status: 'committed',
@@ -13380,6 +15350,7 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
     target_save_id: targetSaveId,
     target_save_slot: targetSaveSlot,
     save_revision: saveRevision,
+    operation_id: withdraw.operation_id,
     source_owner_count: new Set(ledgerEntries.map(entry => entry.source_owner_id || entry.source_owner_key)).size,
     high_quality_withdraw_enabled: false,
     rare_withdraw_enabled: false,
@@ -14924,10 +16895,18 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
   const previousEntries = contract.shared_warehouse.ledger.filter(entry =>
-    entry.idempotency_key && entry.idempotency_key === sale.idempotency_key && entry.action === 'sell'
+    entry.action === 'sell'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === sale.idempotency_key)
+      || (sale.operation_id && entry.operation_id && entry.operation_id === sale.operation_id)
+    )
   );
   const previousFundEntry = contract.shared_fund.ledger.find(entry =>
-    entry.idempotency_key && entry.idempotency_key === sale.idempotency_key && entry.action === 'warehouse_sale_income'
+    entry.action === 'warehouse_sale_income'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === sale.idempotency_key)
+      || (sale.operation_id && entry.consumption_id && entry.consumption_id === sale.operation_id)
+    )
   ) || null;
   if (previousEntries.length > 0 || previousFundEntry) {
     return {
@@ -14994,6 +16973,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     fund_ledger_id: fundLedgerId,
     at: operatedAt,
     idempotency_key: sale.idempotency_key,
+    consumption_id: sale.operation_id,
+    operation_id: sale.operation_id,
     reversible: true,
     compensation_hint: '普通物品卖出已扣减共同仓库并入共同基金；若误卖，需要按仓库流水和共同基金流水补偿或后续冻结 / 回滚流程处理。',
     status: 'committed',
@@ -15044,6 +17025,7 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     balance_after: afterBalance,
     source_owner_count: new Set(ledgerEntries.map(entry => entry.source_owner_id || entry.source_owner_key)).size,
     target_ref: saleTargetRef,
+    operation_id: sale.operation_id,
     personal_money_merged: false,
     reversible: true,
   }, sale.idempotency_key);
@@ -15310,7 +17292,11 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
 
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
   const previousEntry = contract.shared_fund.ledger.find(entry =>
-    entry.idempotency_key && entry.idempotency_key === spend.idempotency_key && entry.action === 'spend'
+    entry.action === 'spend'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === spend.idempotency_key)
+      || (spend.consumption_id && entry.consumption_id && entry.consumption_id === spend.consumption_id)
+    )
   );
   if (previousEntry) {
     const previousPurchaseResult = previousEntry.target_item_id ? {
@@ -15420,6 +17406,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     confirmation_required: false,
     confirmation_status: 'not_required',
     idempotency_key: spend.idempotency_key,
+    consumption_id: spend.consumption_id,
     reversible: true,
     compensation_hint: purchase
       ? '共同基金购买已扣减余额并写入成员个人背包；若误操作，需要按基金 ledger 与目标背包落点人工补偿或后续回滚。'
@@ -15450,6 +17437,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     target_save_slot: targetSaveSlot,
     target_slots: purchaseResult?.target_slots || [],
     reversible: ledgerEntry.reversible,
+    consumption_id: ledgerEntry.consumption_id,
   }, spend.idempotency_key);
   saveContractStore(store);
 
@@ -15466,6 +17454,206 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
       confirmation_required: false,
     },
     purchase: purchaseResult,
+  };
+}
+
+async function purchaseCohabitationSharedFundShopItem(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const purchase = normalizeSharedFundShopPurchasePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'purchase shared fund shop item');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.fund.spend_small !== true) throw createError('shared fund small spend permission denied', 403);
+  if (actorPermissions.fund.auto_buy_seeds_feed !== true) throw createError('shared fund seed/feed auto purchase permission denied', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const previousFundEntry = contract.shared_fund.ledger.find(entry =>
+    entry.action === 'shop_purchase'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === purchase.idempotency_key)
+      || (purchase.consumption_id && entry.consumption_id && entry.consumption_id === purchase.consumption_id)
+    )
+  ) || null;
+  const previousWarehouseEntry = contract.shared_warehouse.ledger.find(entry =>
+    entry.action === 'deposit'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === purchase.idempotency_key)
+      || (purchase.consumption_id && entry.operation_id && entry.operation_id === purchase.consumption_id)
+    )
+  ) || null;
+  if (previousFundEntry || previousWarehouseEntry) {
+    if (!previousFundEntry || !previousWarehouseEntry || previousWarehouseEntry.fund_ledger_id !== previousFundEntry.id) {
+      throw createError('shared fund shop purchase ledger pair is incomplete and requires manual review', 409);
+    }
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      ledger_entry: previousFundEntry,
+      fund_ledger_entry: previousFundEntry,
+      warehouse_ledger_entry: previousWarehouseEntry,
+      warehouse_ledger_entries: [previousWarehouseEntry],
+      idempotent: true,
+      shared_fund: {
+        deducted_amount: previousFundEntry.amount,
+        balance_after: previousFundEntry.balance_after,
+        personal_money_merged: false,
+      },
+      purchase: {
+        item_id: previousWarehouseEntry.item_id,
+        label: purchase.label,
+        quantity: previousWarehouseEntry.quantity,
+        quality: previousWarehouseEntry.quality,
+        unit_price: previousWarehouseEntry.unit_price,
+        total_amount: previousWarehouseEntry.total_amount,
+        target_inventory: previousWarehouseEntry.target_inventory,
+        warehouse_ledger_id: previousWarehouseEntry.id,
+        fund_ledger_id: previousFundEntry.id,
+        personal_inventory_changed: false,
+        personal_money_merged: false,
+      },
+    };
+  }
+
+  const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  if (beforeBalance < purchase.total_amount) throw createError('shared fund balance is not enough for shop purchase', 409);
+  const operatedAt = nowSeconds();
+  const afterBalance = beforeBalance - purchase.total_amount;
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const fundLedgerId = makeId('shared_fund_ledger');
+  const warehouseLedgerId = makeId('shared_warehouse_ledger');
+  const targetRef = `shared_fund_shop:${purchase.target_ref}`;
+  const fundLedgerEntry = normalizeFundLedgerEntry({
+    id: fundLedgerId,
+    action: 'shop_purchase',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    amount: purchase.total_amount,
+    at: operatedAt,
+    memo: purchase.memo,
+    purpose: purchase.purpose,
+    spend_purpose_label: purchase.purpose_label,
+    spend_category: purchase.spend_category,
+    spend_tier: purchase.spend_tier,
+    target_ref: purchase.target_ref,
+    target_item_id: purchase.item_id,
+    target_quantity: purchase.quantity,
+    target_unit_price: purchase.unit_price,
+    target_owner_id: `shared_warehouse:${contract.id}`,
+    target_owner_username: 'shared_warehouse',
+    target_owner_display_name: 'shared warehouse',
+    target_owner_key: 'shared_warehouse',
+    target_inventory: 'shared_warehouse.items',
+    source_owner_id: `shared_fund:${contract.id}`,
+    source_owner_username: 'shared_fund',
+    source_owner_display_name: 'shared fund',
+    source_owner_key: 'shared_fund',
+    balance_after: afterBalance,
+    auto_pay: true,
+    confirmation_required: false,
+    confirmation_status: 'not_required',
+    idempotency_key: purchase.idempotency_key,
+    consumption_id: purchase.consumption_id,
+    reversible: true,
+    compensation_hint: 'shared fund shop purchase deducted shared fund and deposited item into shared warehouse; personal inventory and money are unchanged.',
+    status: 'committed',
+  });
+  const warehouseLedgerEntry = normalizeWarehouseLedgerEntry({
+    id: warehouseLedgerId,
+    action: 'deposit',
+    item_id: purchase.item_id,
+    quality: purchase.quality,
+    quantity: purchase.quantity,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    source_owner_id: `shared_fund:${contract.id}`,
+    source_owner_username: 'shared_fund',
+    source_owner_display_name: 'shared fund shop',
+    source_owner_key: 'shared_fund',
+    source_inventory: 'shared_fund.shop_purchase',
+    source_ledger_ids: [fundLedgerEntry.id],
+    target_owner_id: `shared_warehouse:${contract.id}`,
+    target_owner_username: 'shared_warehouse',
+    target_owner_display_name: 'shared warehouse',
+    target_owner_key: 'shared_warehouse',
+    target_inventory: 'shared_warehouse.items',
+    target_ref: targetRef,
+    unit_price: purchase.unit_price,
+    total_amount: purchase.total_amount,
+    fund_ledger_id: fundLedgerEntry.id,
+    at: operatedAt,
+    idempotency_key: purchase.idempotency_key,
+    operation_id: purchase.consumption_id,
+    reversible: true,
+    compensation_hint: 'shared fund shop purchase item entered shared warehouse; refund or rollback must follow the paired fund and warehouse ledgers.',
+    status: 'committed',
+  });
+  contract.shared_fund.balance = afterBalance;
+  contract.shared_fund.ledger = [fundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse.ledger = [warehouseLedgerEntry, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.warehouse_items = [
+    buildWarehouseOriginAsset(warehouseLedgerEntry),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  appendAudit(contract, 'fund_shop_purchase_deposited', actor, {
+    fund_ledger_id: fundLedgerEntry.id,
+    warehouse_ledger_id: warehouseLedgerEntry.id,
+    item_id: purchase.item_id,
+    quantity: purchase.quantity,
+    quality: purchase.quality,
+    unit_price: purchase.unit_price,
+    total_amount: purchase.total_amount,
+    purpose: purchase.purpose,
+    target_ref: purchase.target_ref,
+    balance_before: beforeBalance,
+    balance_after: afterBalance,
+    target_inventory: 'shared_warehouse.items',
+    shared_warehouse_changed: true,
+    shared_fund_changed: true,
+    personal_inventory_changed: false,
+    personal_money_merged: false,
+    reversible: true,
+    consumption_id: purchase.consumption_id,
+  }, purchase.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    ledger_entry: fundLedgerEntry,
+    fund_ledger_entry: fundLedgerEntry,
+    warehouse_ledger_entry: warehouseLedgerEntry,
+    warehouse_ledger_entries: [warehouseLedgerEntry],
+    idempotent: false,
+    shared_fund: {
+      balance_before: beforeBalance,
+      balance_after: afterBalance,
+      deducted_amount: purchase.total_amount,
+      personal_money_merged: false,
+    },
+    purchase: {
+      item_id: purchase.item_id,
+      label: purchase.label,
+      quantity: purchase.quantity,
+      quality: purchase.quality,
+      unit_price: purchase.unit_price,
+      total_amount: purchase.total_amount,
+      target_inventory: 'shared_warehouse.items',
+      warehouse_ledger_id: warehouseLedgerEntry.id,
+      fund_ledger_id: fundLedgerEntry.id,
+      personal_inventory_changed: false,
+      personal_money_merged: false,
+    },
   };
 }
 
@@ -15560,6 +17748,7 @@ async function createCohabitationFundLargeSpendDraft(contractId, payload = {}, a
   const member = assertActiveContractForActor(contract, actorUsername, '发起共同基金大额确认草案');
   const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
   if (actorPermissions.fund.spend_large !== true) throw createError('你没有发起共同基金大额确认草案的权限', 403);
+  const purposePermissionChecks = assertLargeFundSpendPurposePermissions(actorPermissions, draftRequest.purpose);
   if (actorPermissions.confirmations.large_fund_spend_requires_both !== true) {
     throw createError('共同基金大额支出必须保持双方确认安全阀', 409);
   }
@@ -15616,6 +17805,7 @@ async function createCohabitationFundLargeSpendDraft(contractId, payload = {}, a
     confirmation_required: true,
     confirmation_status: 'pending',
     execution_enabled: false,
+    required_permission_keys: purposePermissionChecks.map(check => check.label),
     compensation_policy: getLargeFundSpendCompensationPolicy(draftRequest.purpose, false),
     deferred_operations: getLargeFundSpendDeferredOperations(draftRequest.purpose, false),
   });
@@ -15636,6 +17826,7 @@ async function createCohabitationFundLargeSpendDraft(contractId, payload = {}, a
     confirmation_required: true,
     execution_enabled: false,
     personal_money_merged: false,
+    required_permission_keys: purposePermissionChecks.map(check => check.label),
     fund_ledger_written: false,
   }, draftRequest.idempotency_key);
   saveContractStore(store);
@@ -15864,11 +18055,15 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   const draftIndex = contract.fund_large_spend_drafts.findIndex(entry => entry.id === normalizedDraftId);
   if (draftIndex < 0) throw createError('共同基金大额确认草案不存在', 404);
   const draft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
+  const purposePermissionChecks = assertLargeFundSpendPurposePermissions(actorPermissions, draft.purpose);
 
   const previousKeyEntry = (contract.shared_fund.ledger || []).find(entry =>
     entry.action === 'spend'
     && entry.spend_tier === 'large'
-    && entry.idempotency_key === executeRequest.idempotency_key
+    && (
+      entry.idempotency_key === executeRequest.idempotency_key
+      || (executeRequest.consumption_id && entry.consumption_id === executeRequest.consumption_id)
+    )
   );
   if (
     previousKeyEntry
@@ -16016,6 +18211,7 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     confirmation_required: true,
     confirmation_status: 'confirmed',
     idempotency_key: executeRequest.idempotency_key,
+    consumption_id: executeRequest.consumption_id,
     reversible: true,
     compensation_hint: compensationPolicy,
     status: 'committed',
@@ -16073,6 +18269,7 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     ledger_id: ledgerEntry.id,
     amount: ledgerEntry.amount,
     purpose: ledgerEntry.purpose,
+    required_permission_keys: purposePermissionChecks.map(check => check.label),
     purpose_label: ledgerEntry.spend_purpose_label,
     spend_category: ledgerEntry.spend_category,
     spend_tier: ledgerEntry.spend_tier,
@@ -16088,6 +18285,7 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     building_ledger_id: buildingLedgerEntry?.id || '',
     compensation_required: true,
     reversible: ledgerEntry.reversible,
+    consumption_id: ledgerEntry.consumption_id,
   }, executeRequest.idempotency_key);
   saveContractStore(store);
 
@@ -16153,6 +18351,12 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   if (previousRefundLedger && previousRefundLedger.target_ref !== `high_risk_refund:${draft.id}`) {
     throw createError('共同基金高风险回执幂等键已用于其他退款目标，请更换 idempotency_key', 409);
   }
+  const existingDeliveryEntry = normalizeSharedFundDeliveries(contract.shared_fund_deliveries)
+    .find(entry => entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key) || null;
+  const existingDecorationStateEntry = normalizeSharedDecorationState(contract.shared_decoration_state)
+    .find(entry => entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key) || null;
+  const existingFamilyEventEntry = normalizeContractFamilyState(contract.family_state).major_event_ledger
+    .find(entry => entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key) || null;
   if (draft.high_risk_receipt_idempotency_key === receiptRequest.idempotency_key && draft.high_risk_receipt_status !== 'pending') {
     return {
       contract: toPublicContract(contract),
@@ -16172,6 +18376,9 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
         : null,
       idempotent: true,
       already_recorded: true,
+      delivery_entry: existingDeliveryEntry,
+      shared_decoration_state_entry: existingDecorationStateEntry,
+      family_major_event_entry: existingFamilyEventEntry,
       shared_fund: {
         refund_amount: 0,
         balance_after: contract.shared_fund.balance,
@@ -16226,6 +18433,37 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
       : '高风险采购已记录交付回执；本步骤不改个人背包或小屋，后续争议走采购治理复核。';
   }
 
+  const receiptArtifacts = buildHighRiskReceiptStateArtifacts(draft, originalFundLedger, receiptRequest, {
+    receipt_id: receiptId,
+    recorded_by_username: member.username,
+    recorded_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    recorded_at: operatedAt,
+  });
+  let deliveryEntry = null;
+  let sharedDecorationStateEntry = null;
+  let familyMajorEventEntry = null;
+  let contractDeliveryRecorded = false;
+  let sharedDecorationStateChanged = false;
+  let contractFamilyStateChanged = false;
+  if (receiptArtifacts.delivery_entry) {
+    const deliveryResult = prependSharedFundDeliveryEntry(contract.shared_fund_deliveries, receiptArtifacts.delivery_entry);
+    contract.shared_fund_deliveries = deliveryResult.entries;
+    deliveryEntry = deliveryResult.entry;
+    contractDeliveryRecorded = deliveryResult.changed;
+  }
+  if (receiptArtifacts.shared_decoration_state_entry) {
+    const decorationResult = upsertSharedDecorationStateEntry(contract.shared_decoration_state, receiptArtifacts.shared_decoration_state_entry);
+    contract.shared_decoration_state = decorationResult.entries;
+    sharedDecorationStateEntry = decorationResult.entry;
+    sharedDecorationStateChanged = decorationResult.changed;
+  }
+  if (receiptArtifacts.family_major_event_entry) {
+    const familyResult = prependFamilyMajorEventLedgerEntry(contract.family_state, receiptArtifacts.family_major_event_entry);
+    contract.family_state = familyResult.family_state;
+    familyMajorEventEntry = familyResult.entry;
+    contractFamilyStateChanged = familyResult.changed;
+  }
+
   const nextDraft = normalizeFundLargeSpendDraft({
     ...draft,
     high_risk_receipt_id: receiptId,
@@ -16256,9 +18494,14 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     refund_amount: refundAmount,
     shared_fund_balance_before: balanceBefore,
     shared_fund_balance_after: balanceAfter,
+    shared_fund_changed: refundAmount > 0,
+    contract_delivery_recorded: contractDeliveryRecorded,
+    shared_decoration_state_changed: sharedDecorationStateChanged,
+    contract_family_state_changed: contractFamilyStateChanged,
     personal_money_merged: false,
     personal_inventory_merged: false,
     home_or_family_state_mutated: false,
+    personal_home_or_family_state_mutated: false,
     compensation_plan_acknowledged: receiptRequest.compensation_plan_acknowledged,
   }, receiptRequest.idempotency_key);
   contract.updated_at = operatedAt;
@@ -16278,6 +18521,9 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     },
     original_fund_ledger_entry: originalFundLedger,
     refund_ledger_entry: refundLedgerEntry,
+    delivery_entry: deliveryEntry,
+    shared_decoration_state_entry: sharedDecorationStateEntry,
+    family_major_event_entry: familyMajorEventEntry,
     idempotent: false,
     already_recorded: false,
     shared_fund: {
@@ -16494,6 +18740,9 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
       shared_fund: {
         deducted_amount: 0,
         balance_after: contract.shared_fund.balance,
+        medium_fund_budget_ledger_id: previousMaterialEntry.medium_fund_budget_ledger_id || '',
+        medium_fund_budget_linked: previousMaterialEntry.medium_fund_budget_linked === true,
+        shared_fund_changed: false,
         personal_money_merged: false,
       },
     };
@@ -16530,6 +18779,9 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
       shared_fund: {
         deducted_amount: 0,
         balance_after: contract.shared_fund.balance,
+        medium_fund_budget_ledger_id: targetEntry.medium_fund_budget_ledger_id || '',
+        medium_fund_budget_linked: targetEntry.medium_fund_budget_linked === true,
+        shared_fund_changed: false,
         personal_money_merged: false,
       },
     };
@@ -16537,6 +18789,9 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
 
   const projectDefinition = resolveFamilyBuildingProjectDefinition(targetEntry);
   if (!projectDefinition) throw createError('该建筑流水缺少可识别的家族建筑材料计划', 409);
+  const targetRef = `family_building:${projectDefinition.id}:materials`;
+  const mediumBudgetLedger = findSharedFundBudgetLedger(contract, consumeRequest.medium_fund_ledger_id, 'building_materials');
+  assertSharedFundBudgetLedgerTarget(mediumBudgetLedger, targetRef);
   const materialAllocations = projectDefinition.material_plan.map(plan => {
     const allocationResult = buildWarehouseWithdrawalAllocations(contract.shared_warehouse, plan.item_id, plan.quantity, 'normal', { freeze_contract: contract });
     if (!allocationResult.ok) {
@@ -16550,7 +18805,6 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
 
   const operatedAt = nowSeconds();
   const roleDef = getFamilyManorRoleDef(actorManorRole);
-  const targetRef = `family_building:${projectDefinition.id}:materials`;
   const simultaneousOnlineBonus = buildFamilyBuildingDecorationCoopBonusSnapshot(contract, actorUsername, targetEntry);
   const materialLedgerEntries = materialAllocations.flatMap(({ plan, allocations }) =>
     allocations.map(allocation => normalizeWarehouseLedgerEntry({
@@ -16583,6 +18837,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
       idempotency_key: consumeRequest.idempotency_key,
       reversible: true,
       compensation_hint: '家族建筑材料已从共同仓库扣减并写入建筑流水；若后续拆除、扩建或补偿失败，需按材料 ledger 与建筑流水回滚或重放。',
+      fund_ledger_id: mediumBudgetLedger?.id || '',
       status: 'committed',
     }))
   ).filter(Boolean);
@@ -16596,6 +18851,8 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
     materials_consumed_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
     material_ledger_ids: materialLedgerEntries.map(entry => entry.id),
     material_consumptions: buildMaterialConsumptionSummary(projectDefinition, materialLedgerEntries),
+    medium_fund_budget_ledger_id: mediumBudgetLedger?.id || '',
+    medium_fund_budget_linked: Boolean(mediumBudgetLedger),
     simultaneous_online_bonus: simultaneousOnlineBonus,
     compensation_hint: '家族建筑已完成真实落账并扣减共同仓库建材；若后续拆除、扩建或补偿失败，需按基金 ledger、材料 ledger 与建筑流水回滚或重放。',
     deferred_operations: [...new Set([
@@ -16636,9 +18893,12 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
     material_count: nextEntry.material_consumptions.length,
     consumed_quantity: nextEntry.material_consumptions.reduce((sum, item) => sum + item.quantity, 0),
     simultaneous_online_bonus: simultaneousOnlineBonus,
+    medium_fund_budget_ledger_id: nextEntry.medium_fund_budget_ledger_id,
+    medium_fund_budget_linked: nextEntry.medium_fund_budget_linked === true,
     shared_fund_deducted_again: false,
     personal_money_merged: false,
     personal_inventory_merged: false,
+    shared_fund_changed: false,
     compensation_required: true,
   }, consumeRequest.idempotency_key);
   contract.updated_at = operatedAt;
@@ -16662,6 +18922,9 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
       deducted_amount: 0,
       balance_after: contract.shared_fund.balance,
       personal_money_merged: false,
+      medium_fund_budget_ledger_id: nextEntry.medium_fund_budget_ledger_id || '',
+      medium_fund_budget_linked: nextEntry.medium_fund_budget_linked === true,
+      shared_fund_changed: false,
     },
   };
 }
@@ -20152,6 +22415,16 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
     receipt_count: receipts.length,
     restored_plot_count: receipts.reduce((sum, receipt) => sum + receipt.restored_plot_count, 0),
     personal_save_written: true,
+    personal_money_changed: receipts.some(receipt => receipt.personal_money_changed === true),
+    personal_inventory_changed: receipts.some(receipt => receipt.personal_inventory_changed === true),
+    shared_fund_changed: receipts.some(receipt => receipt.shared_fund_changed === true),
+    shared_warehouse_changed: receipts.some(receipt => receipt.shared_warehouse_changed === true),
+    return_sources: uniqueSanitizedValues(receipts.map(receipt => receipt.return_source), 80),
+    manifest_sources: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.manifest_sources || []), 80),
+    source_save_slots: uniqueNormalizedSaveSlots(receipts.flatMap(receipt => receipt.source_save_slots || [])),
+    steward_usernames: uniqueNormalizedUsernames(receipts.flatMap(receipt => receipt.current_steward_usernames || [])),
+    split_rules: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.split_rules || []), 80),
+    permission_restrictions: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.permission_restrictions || []), 120),
     shared_fund_refunded: false,
     shared_warehouse_returned: false,
     next_required_operations: nextLedger.next_required_operations,
@@ -21361,6 +23634,8 @@ module.exports = {
   getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
   mergeCohabitationOfflineQueue,
+  collectCohabitationOfflineAutoIncome,
+  settleCohabitationDailyBonus,
   waterCohabitationSharedFarmPlot,
   careCohabitationSharedFarmPlot,
   plantCohabitationSharedFarmPlot,
@@ -21389,6 +23664,7 @@ module.exports = {
   creditCohabitationOrderIncome,
   contributeCohabitationFund,
   spendCohabitationFund,
+  purchaseCohabitationSharedFundShopItem,
   createCohabitationFundLargeSpendDraft,
   confirmCohabitationFundLargeSpendDraft,
   executeCohabitationFundLargeSpendDraft,
