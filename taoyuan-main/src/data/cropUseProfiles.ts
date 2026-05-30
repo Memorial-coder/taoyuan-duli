@@ -1673,6 +1673,55 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '凤凰椒烈焰与月光稻银辉凝成的圆润至宝，适合灵饭料理、续行炼丹、制龙珠粉、酿龙珠灵酿、灵宠龙珠喂食、家畜龙珠料、续行药膳、至宝赠礼、龙舟供品、公共仓龙珠备料和龙珠订单。'
   },
   {
+    cropId: 'wind_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['风瓜清盏', '风瓜凝神丹', '风瓜果酿', '灵宠风瓜餐', '家畜风瓜料', '清润药膳', '风行瓜礼', '春风风瓜供', '公共仓风瓜包', '风瓜订单'],
+    summary: '金瓜与翡翠茶经风雨淬炼的三代瓜果，适合清甜料理、凝神炼丹、酿风瓜果酒、灵宠风瓜喂食、家畜风瓜料、清润药膳、行旅赠礼、春风供品、公共仓风瓜备料和风瓜订单。'
+  },
+  {
+    cropId: 'cloud_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '辛'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['云豆辣酱', '云豆行气丹', '云豆粉', '腌云豆椒', '灵宠云豆餐', '家畜云豆料', '行气药膳', '云游豆礼', '云集云豆供', '公共仓云豆包', '云豆订单'],
+    summary: '金瓜与凤凰椒交融出的三代辛甜豆蔬，适合辣酱料理、行气炼丹、制云豆粉、腌云豆椒、灵宠云豆喂食、家畜云豆料、行气药膳、云游赠礼、云集供品、公共仓云豆备料和云豆订单。'
+  },
+  {
+    cropId: 'rain_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雨稻润饭', '雨稻续行丹', '雨稻米粉', '雨稻清酒', '灵宠雨稻饭团', '家畜雨稻料', '润泽药膳', '雨祭稻礼', '雨祈雨稻供', '公共仓雨稻米包', '雨稻订单'],
+    summary: '金瓜与月光稻沐露而成的三代灵谷，适合润饭料理、续行炼丹、制雨稻米粉、酿雨稻清酒、灵宠饭团、家畜精粮、润泽药膳、雨祭赠礼、祈雨供品、公共仓米包和雨稻订单。'
+  },
+  {
+    cropId: 'hoar_tuber',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '苦'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['霜薯羹', '霜薯固元丹', '霜薯粉', '腌霜薯片', '灵宠霜薯餐', '家畜霜薯料', '固元药膳', '霜夜薯礼', '冬祭霜薯供', '公共仓霜薯包', '霜薯订单'],
+    summary: '金瓜与霜雪蒜凝霜后的三代根茎，适合羹汤料理、固元炼丹、制霜薯粉、腌霜薯片、灵宠霜薯喂食、家畜霜薯料、固元药膳、霜夜赠礼、冬祭供品、公共仓霜薯备料和霜薯订单。'
+  },
+  {
+    cropId: 'thunder_green',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '辛'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雷菜脆炒', '雷菜行气丹', '腌雷菜梗', '灵宠雷菜餐', '家畜雷菜料', '行气药膳', '雷雨菜礼', '惊蛰雷菜供', '公共仓雷菜包', '雷菜订单'],
+    summary: '金瓜与翡翠萝卜汇聚雷雨气息的三代菜蔬，适合脆炒料理、行气炼丹、腌雷菜梗、灵宠雷菜喂食、家畜雷菜料、行气药膳、雷雨赠礼、惊蛰供品、公共仓雷菜备料和雷菜订单。'
+  },  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
