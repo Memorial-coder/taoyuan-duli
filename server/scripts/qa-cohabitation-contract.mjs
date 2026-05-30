@@ -8687,6 +8687,23 @@ await assert.rejects(
 )
 const blockedGovernanceFund = await runtime.getCohabitationFund(highRiskContractId, actor(highRiskOwner))
 assert.ok(blockedGovernanceFund.fund.governance.recent_audits.find(entry => entry.action === 'fund_high_risk_execution_blocked'), 'blocked high-risk execution should be audited in fund governance')
+await runtime.updateCohabitationPermissions(highRiskContractId, {
+  target_username: highRiskPartner,
+  permissions: {
+    construction: { buy_furniture: false },
+    fund: { spend_large: true },
+  },
+  idempotency_key: 'qa-high-risk-limited-decoration-partner-receipt-without-purpose-permission',
+}, actor(highRiskOwner))
+await assert.rejects(
+  () => runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
+    outcome: 'delivered',
+    receipt_ref: 'limited_decoration_receipt:moon_gate:partner-denied',
+    idempotency_key: 'qa-high-risk-limited-decoration-receipt-partner-denied',
+  }, actor(highRiskPartner)),
+  error => error?.status === 403 && String(error.message || '').includes('construction.buy_furniture'),
+  'limited decoration delivered receipt should require construction.buy_furniture permission even when actor can spend large fund'
+)
 const highRiskReceipt = await runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
   outcome: 'delivered',
   receipt_ref: 'limited_decoration_receipt:moon_gate:delivered',
@@ -8702,6 +8719,8 @@ assert.equal(highRiskReceipt.shared_fund.refund_amount, 0, 'limited decoration d
 assert.equal(highRiskReceipt.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration delivered receipt should keep shared fund balance')
 assert.equal(highRiskReceipt.fund.summary.governance_blocked, false, 'delivered high-risk receipt should unblock high-risk governance')
 assert.ok(highRiskReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.outcome === 'delivered'), 'limited decoration receipt should be audited')
+assert.deepEqual(highRiskReceipt.required_permission_keys, ['construction.buy_furniture'], 'limited decoration delivered receipt should require buy furniture permission')
+assert.ok(highRiskReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.required_permission_keys?.includes('construction.buy_furniture')), 'limited decoration receipt audit should record required construction permission')
 assert.equal(readGameplayData(highRiskOwner)?.player?.money, highRiskOwnerMoneyBeforeDraft, 'limited decoration receipt should not touch owner personal money')
 const duplicateHighRiskReceipt = await runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
   outcome: 'delivered',

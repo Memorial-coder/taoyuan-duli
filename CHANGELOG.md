@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-30
+- Cohabitation high-risk fund receipt permission: server-side `delivered` receipts now re-check `construction.buy_furniture` / `construction.demolish_building` / `family.major_family_choice`; actors with only `fund.spend_large` are rejected, successful responses and audits expose `required_permission_keys`, and refund receipts do not require delivery-purpose permission.
 - 随机 NPC 关系关键节点审计：本地随机 NPC 存档新增 `relationshipMilestoneAudit`，记录熟人、长住、文游、家族会面 / 深线 / 委托、正式关系线、订婚、成婚、婚后日常、婚后家业和孩子家族兴趣节点；NPC 页可读回最近 6 条，审计含操作者、来源、目标引用、幂等键、补偿提示和 `local_save_only` 隐私范围，不写入联机公开资料。
 - 活动房间奖励凭证幂等键收口：节会 / 远征结算凭证 now use `room_reward:<roomId>:<memberId>:v<settlementVersion>`，存档槽位只保留为写回目标字段；管理员重放仍通过 `appliedReceipts` 防重复发钱、发券、发道具或发装饰。
 - 同居离线自动收益领取：`offline-status` 读回待领摘要和 `collect_offline_auto_income` 能力，领取时按服务端共同农田 / 动物当前状态把作物与产物写入共同仓库，补齐仓库、农田 / 动物 ledger 和共同审计；前端共同庄园离线页新增待领摘要与领取入口。

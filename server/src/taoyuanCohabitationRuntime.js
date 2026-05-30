@@ -8709,6 +8709,23 @@ function assertLargeFundSpendPurposePermissions(actorPermissions = {}, purpose =
   }
   return requiredChecks;
 }
+function getLargeFundReceiptPermissionChecks(purpose, outcome = '') {
+  if (sanitizeText(outcome, 40) !== 'delivered') return [];
+  return getLargeFundSpendPurposePermissionChecks(purpose).filter(check =>
+    ['construction.buy_furniture', 'construction.demolish_building', 'family.major_family_choice'].includes(check.label)
+  );
+}
+
+function assertLargeFundReceiptPermissions(actorPermissions = {}, purpose = '', outcome = '') {
+  const requiredChecks = getLargeFundReceiptPermissionChecks(purpose, outcome);
+  const missingChecks = requiredChecks.filter(check => actorPermissions?.[check.group]?.[check.key] !== true);
+  if (missingChecks.length > 0) {
+    const labels = missingChecks.map(check => check.label).join(', ');
+    throw createError(`high risk receipt requires permission: ${labels}`, 403);
+  }
+  return requiredChecks;
+}
+
 
 function getLargeFundSpendDeferredOperations(purpose, executed = false) {
   const normalizedPurpose = sanitizeText(purpose, 80) || 'family_building';
@@ -18339,6 +18356,7 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   if (draft.state !== 'executed' || !draft.final_spend_ledger_id) {
     throw createError('共同基金高风险回执必须在草案执行扣款后记录', 409);
   }
+  const receiptPermissionChecks = assertLargeFundReceiptPermissions(actorPermissions, draft.purpose, receiptRequest.outcome);
   const originalFundLedger = contract.shared_fund.ledger.find(entry => entry.id === draft.final_spend_ledger_id);
   if (!originalFundLedger || originalFundLedger.action !== 'spend' || originalFundLedger.spend_tier !== 'large') {
     throw createError('共同基金高风险回执缺少匹配的大额扣款流水，已中止避免误补偿', 409);
@@ -18488,6 +18506,7 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     outcome: nextDraft.high_risk_receipt_outcome,
     receipt_ref: nextDraft.high_risk_receipt_ref,
     purpose: nextDraft.purpose,
+    required_permission_keys: receiptPermissionChecks.map(check => check.label),
     purpose_label: nextDraft.purpose_label,
     spend_category: nextDraft.spend_category,
     amount: nextDraft.amount,
@@ -18524,6 +18543,7 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     delivery_entry: deliveryEntry,
     shared_decoration_state_entry: sharedDecorationStateEntry,
     family_major_event_entry: familyMajorEventEntry,
+    required_permission_keys: receiptPermissionChecks.map(check => check.label),
     idempotent: false,
     already_recorded: false,
     shared_fund: {

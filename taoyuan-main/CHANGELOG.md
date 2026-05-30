@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 Cohabitation High-Risk Receipt Permissions
+- Shared fund high-risk `delivered` receipts now re-check purpose permissions on the server: `construction.buy_furniture`, `construction.demolish_building`, or `family.major_family_choice`.
+- Actors with only `fund.spend_large` are rejected; successful responses and shared audits expose `required_permission_keys`, while refund receipts do not require delivery-purpose permission.
+
 ### 0530 随机 NPC 关系关键节点审计
 - 随机 NPC 本地存档新增 `relationshipMilestoneAudit`，熟人入册、晋升长住、长住文游、见家人、家族深线、家族委托、关系线开启 / 断缘 / 订婚 / 成婚、婚后日常、婚后家业和孩子家族兴趣节点都会记录结构化审计。
 - NPC 页新增“随机 NPC 关系审计”只读回看，最近 6 条展示日期、NPC、动作、摘要、目标引用和幂等键；审计固定 `local_npc_save` 来源、`local_save_only` 隐私范围和补偿提示，不写入联机公开资料。
