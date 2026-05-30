@@ -577,6 +577,9 @@ export const createFestivalRoom = async (payload: {
   title?: string
   member_limit?: number
   countdown_seconds?: number
+  source_label?: string
+  source_feedback?: string
+  source_context_summary?: string
 }): Promise<FestivalRoomActionResponse> => {
   const data = await request<FestivalRoomActionResponse>('/api/taoyuan/online/festival/rooms', () => buildSignedJsonInit('POST', payload))
   return data as FestivalRoomActionResponse

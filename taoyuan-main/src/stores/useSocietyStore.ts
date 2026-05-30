@@ -7,6 +7,7 @@ import {
   contributeSocietyPublicProject,
   createSociety,
   createSocietyProposal,
+  consumeSocietyWarehouse,
   depositSocietyWarehouse,
   fetchSocietyOverview,
   inviteToSociety,
@@ -245,6 +246,15 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     })
   }
 
+  const consumeWarehouse = async (consumeId: string) => {
+    return runAction(async () => {
+      const idempotencyKey = `society-warehouse-consume:${consumeId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
+      const result = await consumeSocietyWarehouse(consumeId, idempotencyKey)
+      await resolveOverview(result?.overview ?? null)
+      return result
+    })
+  }
+
   return {
     overview,
     loading,
@@ -290,5 +300,6 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     archiveProposal,
     contributeProject,
     depositWarehouse,
+    consumeWarehouse,
   }
 })

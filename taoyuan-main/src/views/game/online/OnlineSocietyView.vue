@@ -447,6 +447,33 @@
                 </button>
               </div>
               <div
+                v-if="currentSociety.public_warehouse.consume_options.length > 0"
+                class="mt-3 border border-warning/15 bg-warning/5 p-2"
+                data-testid="online-society-warehouse-consume-panel"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-warning">公共消耗</p>
+                  <span class="text-[10px] text-muted">只扣公共仓</span>
+                </div>
+                <div class="mt-2 grid gap-2 md:grid-cols-2">
+                  <button
+                    v-for="entry in currentSociety.public_warehouse.consume_options"
+                    :key="entry.id"
+                    type="button"
+                    class="border border-warning/20 bg-black/10 px-2 py-2 text-left transition-colors hover:border-warning/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    :data-testid="`online-society-warehouse-consume-${entry.id}`"
+                    :disabled="societyStore.actionRunning"
+                    @click="consumeWarehouse(entry)"
+                  >
+                    <p class="text-[10px] text-warning">{{ entry.label }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                    <p class="mt-1 text-[10px] text-muted">消耗：{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                    <p v-if="entry.room_preload_hint" class="mt-1 text-[10px] leading-4 text-warning">{{ entry.room_preload_hint }}</p>
+                    <p v-if="entry.asset_boundary" class="mt-1 text-[10px] leading-4 text-muted">{{ entry.asset_boundary }}</p>
+                  </button>
+                </div>
+              </div>
+              <div
                 v-if="currentSociety.public_warehouse.weekly_settlement"
                 class="mt-3 border border-accent/10 bg-black/10 p-2"
                 data-testid="online-society-warehouse-weekly-settlement"
@@ -861,7 +888,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
-  import { RouterLink, useRoute } from 'vue-router'
+  import { RouterLink, useRoute, useRouter } from 'vue-router'
   import { ShieldCheck } from 'lucide-vue-next'
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
@@ -871,6 +898,7 @@
     SocietyProjectCompletionRewardSnapshot,
     SocietyProjectPackageSnapshot,
     SocietyProposalChoice,
+    SocietyWarehouseConsumeOptionSnapshot,
     SocietyProposalSnapshot,
     SocietyRole,
     SocietyWarehouseLogSnapshot,
@@ -879,6 +907,7 @@
 
   type SocietyTabKey = 'overview' | 'members' | 'storage' | 'projects' | 'proposals' | 'chronicles'
   type SocietyTabMeta = { key: SocietyTabKey; label: string; summary: string }
+  const router = useRouter()
 
   const route = useRoute()
   const societyStore = useSocietyStore()
@@ -1045,7 +1074,7 @@
 
   const warehouseLogText = (entry: SocietyWarehouseLogSnapshot) => {
     const detail = entry.entries.map(cost => cost.label).filter(Boolean).join(' + ') || '无材料明细'
-    if (entry.action === 'consume') return `${entry.display_name} 消耗了 ${entry.deposit_label} · ${detail}`
+    if (entry.action === 'consume') return `${entry.display_name} 消耗了 ${entry.deposit_label} · ${detail} · 只扣公共仓`
     return `${entry.display_name} 补入了 ${entry.deposit_label} · ${entry.category_label || '公共仓'} · ${detail}`
   }
 
@@ -1111,6 +1140,24 @@
 
   const depositWarehouse = async (depositId: string) => {
     await societyStore.depositWarehouse(depositId).catch(() => {})
+  }
+
+  const consumeWarehouse = async (entry: SocietyWarehouseConsumeOptionSnapshot) => {
+    const result = await societyStore.consumeWarehouse(entry.id).catch(() => null)
+    const preload = result?.log_entry?.room_preload || result?.consume?.room_preload || entry.room_preload
+    if (!preload?.room_template_id) return
+    await router.push({
+      name: 'online-festival',
+      query: {
+        tab: 'festival-room',
+        template: preload.room_template_id,
+        gameplay: preload.gameplay_template_id || 'assembly',
+        title: preload.title || entry.label,
+        source_label: preload.source_label || entry.source_label || '公共仓联动',
+        source_feedback: preload.source_feedback || preload.room_preload_hint || entry.room_preload_hint || entry.summary,
+        source_context_summary: preload.source_context_summary || entry.public_context_summary || entry.summary,
+      },
+    }).catch(() => {})
   }
 
   watchEffect(() => {

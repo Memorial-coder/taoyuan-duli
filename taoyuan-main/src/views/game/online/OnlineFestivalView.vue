@@ -2255,14 +2255,20 @@
     const templateId = getRouteQueryText(route.query.template) || getRouteQueryText(route.query.template_id)
     const gameplayId = getRouteQueryText(route.query.gameplay) || getRouteQueryText(route.query.gameplay_template_id)
     const title = getRouteQueryText(route.query.title)
-    if (!templateId && !gameplayId && !title) return
+    const sourceLabel = getRouteQueryText(route.query.source_label)
+    const sourceFeedback = getRouteQueryText(route.query.source_feedback)
+    const sourceContextSummary = getRouteQueryText(route.query.source_context_summary)
+    if (!templateId && !gameplayId && !title && !sourceLabel && !sourceFeedback && !sourceContextSummary) return
     if (templateId) festivalRoomStore.selectedTemplateId = templateId
     if (gameplayId) {
       festivalRoomStore.selectedGameplayTemplateId = gameplayId
-    } else if (templateId === 'lantern_fair') {
+    } else if (templateId === 'lantern_fair' || templateId === 'laba_cookpot') {
       festivalRoomStore.selectedGameplayTemplateId = 'assembly'
     }
     if (title && !festivalRoomStore.draftTitle.trim()) festivalRoomStore.draftTitle = title
+    if (sourceLabel) festivalRoomStore.draftSourceLabel = sourceLabel
+    if (sourceFeedback) festivalRoomStore.draftSourceFeedback = sourceFeedback
+    if (sourceContextSummary) festivalRoomStore.draftSourceContextSummary = sourceContextSummary
   }
   const refreshFestivalModule = async () => {
     await Promise.all([
@@ -2433,7 +2439,16 @@
     }
   )
   watch(
-    () => [route.query.template, route.query.template_id, route.query.gameplay, route.query.gameplay_template_id, route.query.title],
+    () => [
+      route.query.template,
+      route.query.template_id,
+      route.query.gameplay,
+      route.query.gameplay_template_id,
+      route.query.title,
+      route.query.source_label,
+      route.query.source_feedback,
+      route.query.source_context_summary,
+    ],
     () => {
       applyFestivalRoomRouteDraft()
     }

@@ -32,6 +32,9 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const selectedGameplayTemplateId = ref('squad_coop')
   const draftMemberLimit = ref(4)
   const draftTitle = ref('')
+  const draftSourceLabel = ref('')
+  const draftSourceFeedback = ref('')
+  const draftSourceContextSummary = ref('')
   const draftInviteUsername = ref('')
   const draftInviteSaveId = ref('')
   const draftFriendMemorialUsername = ref('')
@@ -133,8 +136,14 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
         gameplay_template_id: selectedGameplayTemplateId.value,
         title: draftTitle.value.trim() || undefined,
         member_limit: normalizedDraftMemberLimit.value,
+        source_label: draftSourceLabel.value.trim() || undefined,
+        source_feedback: draftSourceFeedback.value.trim() || undefined,
+        source_context_summary: draftSourceContextSummary.value.trim() || undefined,
       })
       draftTitle.value = ''
+      draftSourceLabel.value = ''
+      draftSourceFeedback.value = ''
+      draftSourceContextSummary.value = ''
       return applyActionResult(result)
     })
 
@@ -224,6 +233,9 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     memberLimitOptions,
     normalizedDraftMemberLimit,
     draftTitle,
+    draftSourceLabel,
+    draftSourceFeedback,
+    draftSourceContextSummary,
     draftInviteUsername,
     draftInviteSaveId,
     draftFriendMemorialUsername,

@@ -170,6 +170,20 @@ export interface SocietyWarehouseItemSnapshot {
   label: string
 }
 
+export interface SocietyWarehouseRoomPreloadSnapshot {
+  room_template_id: string
+  gameplay_template_id: string
+  title: string
+  source_label: string
+  source_context_summary: string
+  source_feedback: string
+  room_preload_hint: string
+  asset_boundary: string
+  object_ids: string[]
+  reward_pool_ids: string[]
+  reward_pool_labels: string[]
+}
+
 export interface SocietyWarehouseLogSnapshot {
   id: string
   username: string
@@ -182,6 +196,20 @@ export interface SocietyWarehouseLogSnapshot {
   weekly_points: number
   context_id: string
   idempotency_key: string
+  settlement_scope?: string
+  authority_summary?: string
+  personal_asset_effect?: string
+  reward_pool_ids?: string[]
+  reward_pool_labels?: string[]
+  object_ids?: string[]
+  public_context_summary?: string
+  room_preload_hint?: string
+  asset_boundary?: string
+  room_template_id?: string
+  gameplay_template_id?: string
+  source_label?: string
+  stock_summary?: string
+  room_preload?: SocietyWarehouseRoomPreloadSnapshot | null
   entries: SocietyCostEntry[]
   created_at: number
 }
@@ -202,6 +230,17 @@ export interface SocietyWarehouseConsumeOptionSnapshot {
   summary: string
   context_id: string
   costs: SocietyCostEntry[]
+  reward_pool_ids?: string[]
+  reward_pool_labels?: string[]
+  object_ids?: string[]
+  public_context_summary?: string
+  room_preload_hint?: string
+  asset_boundary?: string
+  room_template_id?: string
+  gameplay_template_id?: string
+  source_label?: string
+  stock_summary?: string
+  room_preload?: SocietyWarehouseRoomPreloadSnapshot | null
 }
 
 export interface SocietyWarehouseWeeklyCategorySnapshot {
@@ -625,5 +664,23 @@ export const depositSocietyWarehouse = async (depositId: string) => {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ deposit_id: depositId }),
+  })
+}
+
+export const consumeSocietyWarehouse = async (consumeId: string, idempotencyKey: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    warehouse?: SocietySnapshot['public_warehouse']
+    society?: SocietySnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+    consume?: SocietyWarehouseConsumeOptionSnapshot
+    log_entry?: SocietyWarehouseLogSnapshot
+  }>('/api/taoyuan/online/societies/public-warehouse/consume', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      consume_id: consumeId,
+      idempotency_key: idempotencyKey,
+    }),
   })
 }

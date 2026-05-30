@@ -282,6 +282,26 @@ const SOCIETY_PUBLIC_WAREHOUSE_CONSUME_OPTIONS = Object.freeze([
     label: '腊八共灶粥底',
     summary: '从公共仓消耗稻米和草药，备成腊八共灶的大锅粥底；只扣公共仓，不扣个人背包。',
     context_id: 'laba_cookpot',
+    room_template_id: 'laba_cookpot',
+    gameplay_template_id: 'assembly',
+    room_title: '腊八共灶粥底',
+    source_label: '公共仓联动',
+    reward_pool_ids: [
+      'laba_public_grain_base',
+      'laba_herb_aroma_base',
+      'laba_serving_memory',
+    ],
+    reward_pool_labels: ['公共米粮粥底', '草药暖香', '分粥纪念'],
+    object_ids: [
+      'laba_cookpot_rice_tub',
+      'laba_cookpot_ingredient_basket',
+      'laba_cookpot_big_pot',
+      'laba_cookpot_stove',
+      'laba_cookpot_serving_queue',
+    ],
+    public_context_summary: '公共仓已扣稻米和草药备成腊八粥底，腊八共灶房间可读回公共食材来源、粥底预热和分粥纪念。',
+    room_preload_hint: '创建腊八共灶房间时可带入公共仓粥底来源，用作现场反馈和结算回看高光。',
+    asset_boundary: '只扣公共仓并写入公共上下文，不直接发个人资产或绕过房间结算。',
     costs: [
       { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
       { type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' },
@@ -1238,6 +1258,72 @@ function normalizeSocietyWarehouseStockSnapshot(entries) {
     .slice(0, 12);
 }
 
+function buildSocietyWarehouseStockSummary(stockAfter) {
+  const stock = normalizeSocietyWarehouseStockSnapshot(stockAfter);
+  if (stock.length <= 0) return '公共仓扣后暂无可用食材';
+  return stock.slice(0, 5).map(entry => entry.label).join('、');
+}
+
+function buildSocietyPublicWarehouseRoomPreload(consume) {
+  const roomTemplateId = sanitizeText(consume?.room_template_id, 40);
+  const gameplayTemplateId = sanitizeText(consume?.gameplay_template_id, 40);
+  if (!roomTemplateId) return null;
+  const sourceSummary = sanitizeText(consume?.public_context_summary || consume?.summary, 220);
+  const sourceFeedback = sanitizeText(consume?.room_preload_hint || sourceSummary, 180);
+  return {
+    room_template_id: roomTemplateId,
+    gameplay_template_id: gameplayTemplateId,
+    title: sanitizeText(consume?.room_title || consume?.label, 60),
+    source_label: sanitizeText(consume?.source_label, 40) || '公共仓联动',
+    source_context_summary: sourceSummary,
+    source_feedback: sourceFeedback,
+    room_preload_hint: sanitizeText(consume?.room_preload_hint, 180),
+    asset_boundary: sanitizeText(consume?.asset_boundary, 160),
+    object_ids: normalizeSocietyStringList(consume?.object_ids, 16, 80),
+    reward_pool_ids: normalizeSocietyStringList(consume?.reward_pool_ids, 12, 80),
+    reward_pool_labels: normalizeSocietyStringList(consume?.reward_pool_labels, 12, 40),
+  };
+}
+
+function normalizeSocietyPublicWarehouseRoomPreload(entry) {
+  const roomTemplateId = sanitizeText(entry?.room_template_id, 40);
+  if (!roomTemplateId) return null;
+  return {
+    room_template_id: roomTemplateId,
+    gameplay_template_id: sanitizeText(entry?.gameplay_template_id, 40),
+    title: sanitizeText(entry?.title, 60),
+    source_label: sanitizeText(entry?.source_label, 40),
+    source_context_summary: sanitizeText(entry?.source_context_summary, 220),
+    source_feedback: sanitizeText(entry?.source_feedback, 180),
+    room_preload_hint: sanitizeText(entry?.room_preload_hint, 180),
+    asset_boundary: sanitizeText(entry?.asset_boundary, 160),
+    object_ids: normalizeSocietyStringList(entry?.object_ids, 16, 80),
+    reward_pool_ids: normalizeSocietyStringList(entry?.reward_pool_ids, 12, 80),
+    reward_pool_labels: normalizeSocietyStringList(entry?.reward_pool_labels, 12, 40),
+  };
+}
+
+function buildSocietyPublicWarehouseConsumeLinkage(consume, stockAfter = []) {
+  const roomPreload = buildSocietyPublicWarehouseRoomPreload(consume);
+  const rewardPoolIds = normalizeSocietyStringList(consume?.reward_pool_ids, 12, 80);
+  const rewardPoolLabels = normalizeSocietyStringList(consume?.reward_pool_labels, 12, 40);
+  const objectIds = normalizeSocietyStringList(consume?.object_ids, 16, 80);
+  const stockSummary = buildSocietyWarehouseStockSummary(stockAfter);
+  return {
+    reward_pool_ids: rewardPoolIds,
+    reward_pool_labels: rewardPoolLabels,
+    object_ids: objectIds,
+    public_context_summary: sanitizeText(consume?.public_context_summary, 220),
+    room_preload_hint: sanitizeText(consume?.room_preload_hint, 180),
+    asset_boundary: sanitizeText(consume?.asset_boundary, 160),
+    room_template_id: sanitizeText(consume?.room_template_id, 40),
+    gameplay_template_id: sanitizeText(consume?.gameplay_template_id, 40),
+    source_label: sanitizeText(consume?.source_label, 40),
+    stock_summary: sanitizeText(stockSummary, 160),
+    room_preload: roomPreload,
+  };
+}
+
 function normalizeSocietyWarehouseLogEntry(entry) {
   return {
     id: sanitizeText(entry?.id || makeId('society_warehouse_log'), 80),
@@ -1252,6 +1338,17 @@ function normalizeSocietyWarehouseLogEntry(entry) {
     context_id: sanitizeText(entry?.context_id, 40),
     idempotency_key: sanitizeText(entry?.idempotency_key, 80),
     settlement_scope: sanitizeText(entry?.settlement_scope, 40),
+    reward_pool_ids: normalizeSocietyStringList(entry?.reward_pool_ids, 12, 80),
+    reward_pool_labels: normalizeSocietyStringList(entry?.reward_pool_labels, 12, 40),
+    object_ids: normalizeSocietyStringList(entry?.object_ids, 16, 80),
+    public_context_summary: sanitizeText(entry?.public_context_summary, 220),
+    room_preload_hint: sanitizeText(entry?.room_preload_hint, 180),
+    asset_boundary: sanitizeText(entry?.asset_boundary, 160),
+    room_template_id: sanitizeText(entry?.room_template_id, 40),
+    gameplay_template_id: sanitizeText(entry?.gameplay_template_id, 40),
+    source_label: sanitizeText(entry?.source_label, 40),
+    stock_summary: sanitizeText(entry?.stock_summary, 160),
+    room_preload: normalizeSocietyPublicWarehouseRoomPreload(entry?.room_preload),
     authority_summary: sanitizeText(entry?.authority_summary, 160),
     personal_asset_effect: sanitizeText(entry?.personal_asset_effect, 80),
     warehouse_stock_after: normalizeSocietyWarehouseStockSnapshot(entry?.warehouse_stock_after),
@@ -1608,6 +1705,17 @@ function buildWarehouseLogSnapshot(entry) {
     settlement_scope: normalized.settlement_scope,
     authority_summary: normalized.authority_summary,
     personal_asset_effect: normalized.personal_asset_effect,
+    reward_pool_ids: normalized.reward_pool_ids,
+    reward_pool_labels: normalized.reward_pool_labels,
+    object_ids: normalized.object_ids,
+    public_context_summary: normalized.public_context_summary,
+    room_preload_hint: normalized.room_preload_hint,
+    asset_boundary: normalized.asset_boundary,
+    room_template_id: normalized.room_template_id,
+    gameplay_template_id: normalized.gameplay_template_id,
+    source_label: normalized.source_label,
+    stock_summary: normalized.stock_summary,
+    room_preload: normalized.room_preload,
     warehouse_stock_after: normalized.warehouse_stock_after,
     entries: normalized.entries.map(cost => ({
       ...cost,
@@ -1869,10 +1977,25 @@ function consumeFromPublicWarehouse(society, actorUsername, actorDisplayName, co
     quantity: Number(quantity) || 0,
     label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
   }));
+  const consumeLinkage = buildSocietyPublicWarehouseConsumeLinkage(consume, stockAfter);
   logEntry.settlement_scope = 'public_warehouse_only';
-  logEntry.authority_summary = `服务端已为${consume.label}只扣公共仓，目标上下文 ${consume.context_id}。`;
+  logEntry.authority_summary = [
+    `服务端已为${consume.label}只扣公共仓，目标上下文 ${consume.context_id}。`,
+    consumeLinkage.room_preload_hint ? `房间预载：${consumeLinkage.room_preload_hint}` : '',
+  ].filter(Boolean).join(' ');
   logEntry.personal_asset_effect = 'none_after_deposit';
   logEntry.warehouse_stock_after = stockAfter;
+  logEntry.reward_pool_ids = consumeLinkage.reward_pool_ids;
+  logEntry.reward_pool_labels = consumeLinkage.reward_pool_labels;
+  logEntry.object_ids = consumeLinkage.object_ids;
+  logEntry.public_context_summary = consumeLinkage.public_context_summary;
+  logEntry.room_preload_hint = consumeLinkage.room_preload_hint;
+  logEntry.asset_boundary = consumeLinkage.asset_boundary;
+  logEntry.room_template_id = consumeLinkage.room_template_id;
+  logEntry.gameplay_template_id = consumeLinkage.gameplay_template_id;
+  logEntry.source_label = consumeLinkage.source_label;
+  logEntry.stock_summary = consumeLinkage.stock_summary;
+  logEntry.room_preload = consumeLinkage.room_preload;
   return { consume, warehouse, logEntry, idempotentReplay: false };
 }
 
@@ -3045,6 +3168,17 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
         summary: entry.summary,
         context_id: entry.context_id,
         costs: entry.costs.map(normalizeSocietyWarehouseEntry).filter(Boolean),
+        reward_pool_ids: normalizeSocietyStringList(entry.reward_pool_ids, 12, 80),
+        reward_pool_labels: normalizeSocietyStringList(entry.reward_pool_labels, 12, 40),
+        object_ids: normalizeSocietyStringList(entry.object_ids, 16, 80),
+        public_context_summary: sanitizeText(entry.public_context_summary, 220),
+        room_preload_hint: sanitizeText(entry.room_preload_hint, 180),
+        asset_boundary: sanitizeText(entry.asset_boundary, 160),
+        room_template_id: sanitizeText(entry.room_template_id, 40),
+        gameplay_template_id: sanitizeText(entry.gameplay_template_id, 40),
+        source_label: sanitizeText(entry.source_label, 40),
+        stock_summary: '',
+        room_preload: buildSocietyPublicWarehouseRoomPreload(entry),
       })),
     },
   };
@@ -3780,6 +3914,17 @@ async function consumeSocietyWarehouse(payload = {}, actor = {}) {
       summary: consume.summary,
       context_id: consume.context_id,
       costs: consume.costs.map(normalizeSocietyWarehouseEntry).filter(Boolean),
+      reward_pool_ids: normalizeSocietyStringList(consume.reward_pool_ids, 12, 80),
+      reward_pool_labels: normalizeSocietyStringList(consume.reward_pool_labels, 12, 40),
+      object_ids: normalizeSocietyStringList(consume.object_ids, 16, 80),
+      public_context_summary: sanitizeText(consume.public_context_summary, 220),
+      room_preload_hint: sanitizeText(consume.room_preload_hint, 180),
+      asset_boundary: sanitizeText(consume.asset_boundary, 160),
+      room_template_id: sanitizeText(consume.room_template_id, 40),
+      gameplay_template_id: sanitizeText(consume.gameplay_template_id, 40),
+      source_label: sanitizeText(consume.source_label, 40),
+      stock_summary: logEntry.stock_summary,
+      room_preload: logEntry.room_preload || buildSocietyPublicWarehouseRoomPreload(consume),
     },
     warehouse: {
       funds: warehouse.funds,

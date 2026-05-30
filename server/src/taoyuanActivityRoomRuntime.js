@@ -6471,13 +6471,15 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
     syncLabaCookpotVisualState(room, room.gameplay_state.festival_state);
     syncDragonBoatVisualState(room, room.gameplay_state.festival_state);
     const sourceFeedback = sanitizeText(payload.source_feedback || payload.source_context_summary, 180);
-    if (sourceFeedback && room.template_id === 'lantern_fair') {
+    if (sourceFeedback && ['lantern_fair', 'laba_cookpot'].includes(room.template_id)) {
       room.gameplay_state.festival_state = normalizeFestivalState(room.gameplay_state.festival_state, room.template_id);
       room.gameplay_state.festival_state.recent_feedback = sourceFeedback;
-      syncLanternFairVisualState(room, room.gameplay_state.festival_state, {
+      const syncVisualState = room.template_id === 'laba_cookpot' ? syncLabaCookpotVisualState : syncLanternFairVisualState;
+      const fallbackSourceLabel = room.template_id === 'laba_cookpot' ? '\u516c\u5171\u4ed3\u8054\u52a8' : '\u5e7f\u573a\u8054\u52a8';
+      syncVisualState(room, room.gameplay_state.festival_state, {
         recentFeedback: sourceFeedback,
         appendHighlight: true,
-        highlightLabel: sanitizeText(payload.source_label, 40) || '\u5e7f\u573a\u8054\u52a8',
+        highlightLabel: sanitizeText(payload.source_label, 40) || fallbackSourceLabel,
       });
     }
   }

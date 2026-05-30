@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 腊八共灶公共仓联动
+- 在线村社公共仓 `laba_cookpot_base` 消耗响应和仓库日志新增 `room_preload`、奖励池、现场物件、扣后库存摘要和公共食材来源说明；公共消耗仍只扣公共仓，不发个人收益。
+- 在线村社消耗后会带 `template=laba_cookpot`、`gameplay=assembly` 和 `source_*` 参数跳转节会房间创建；创建成功时服务端把公共仓来源反馈写入腊八共灶 `VisualSceneBoard` 高光。
+
 ### 0530 同居离线队列 revision 冲突读回
 - `/offline-queue/merge` 响应、单操作结果和 `offline_queue_merged` 审计新增客户端基线 revision、服务端合并前后 revision、stale 标记与 `server_authoritative_latest_state` 策略。
 - 共同庄园离线队列面板新增队列 revision 状态读回，能看到客户端基线是否过期以及服务端按最新共同资产合并的结果；契约 QA 覆盖成功与不支持动作拒绝路径。
