@@ -1023,6 +1023,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '茄子与莲藕杂交的清润紫蔬，适合煲菜料理、清心炼丹、制紫莲藕粉、腌紫莲茄、灵宠紫莲喂食、家畜紫莲料、清心药膳、水榭赠礼、荷灯供品、公共仓紫莲备料和紫莲订单。'
   },
   {
+    cropId: 'chrysanthemum_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['菊瓜清饮', '菊瓜清暑丹', '菊瓜花酿', '灵宠菊瓜餐', '清暑药饮', '重阳菊瓜礼', '消暑菊瓜供', '公共仓菊瓜包', '菊瓜订单'],
+    summary: '西瓜与菊花杂交的清雅瓜果，适合清饮料理、清暑炼丹、酿菊瓜花酒、灵宠菊瓜喂食、清暑药饮、重阳赠礼、消暑供品、公共仓菊瓜备料和菊瓜订单。'
+  },
+  {
+    cropId: 'pumpkin_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['南瓜稻饭', '南稻聚火丹', '南瓜米粉', '南瓜米酒', '灵宠南稻餐', '家畜南谷料', '温补药膳', '丰收南稻礼', '秋祭南稻供', '公共仓南稻包', '南稻订单'],
+    summary: '稻谷与南瓜杂交的甜香主粮，适合米饭料理、聚火炼丹、制南瓜米粉、酿南瓜米酒、灵宠南稻喂食、家畜南谷料、温补药膳、丰收赠礼、秋祭供品、公共仓南稻备料和南稻订单。'
+  },
+  {
+    cropId: 'mountain_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['山莲羹', '山莲固元丹', '山莲粉', '灵宠山莲糕', '家畜山莲料', '固元药膳', '山居山莲礼', '秋社山莲供', '公共仓山莲包', '山莲粉单'],
+    summary: '莲藕与山药杂交的滋补水根，适合羹汤料理、固元炼丹、制山莲粉、灵宠山莲糕、家畜山莲料、固元药膳、山居赠礼、秋社供品、公共仓山莲备料和山莲粉单。'
+  },
+  {
+    cropId: 'double_nut',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '甜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['双果仁糕', '双仁润脉丹', '双果仁油', '双仁粉', '灵宠双仁餐', '家畜坚仁料', '润脉药膳', '点心双仁礼', '秋社双仁供', '公共仓双仁包', '双仁订单'],
+    summary: '花生与芝麻杂交的浓香仁作，适合糕点料理、润脉炼丹、榨双果仁油、制双仁粉、灵宠双仁喂食、家畜坚仁料、润脉药膳、点心赠礼、秋社供品、公共仓双仁备料和双仁订单。'
+  },
+  {
+    cropId: 'sweet_gourd',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['甜丝瓜羹', '甜瓜护脉丹', '甜瓜粉', '腌甜丝瓜', '灵宠甜瓜餐', '家畜甜瓜料', '护脉药膳', '夏日甜瓜礼', '夏社甜瓜供', '公共仓甜瓜包', '甜瓜订单'],
+    summary: '丝瓜与红薯杂交的甘甜瓜蔬，适合羹汤料理、护脉炼丹、制甜瓜粉、腌甜丝瓜、灵宠甜瓜喂食、家畜甜瓜料、护脉药膳、夏日赠礼、夏社供品、公共仓甜瓜备料和甜瓜订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
