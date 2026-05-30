@@ -1173,6 +1173,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '莲藕与白菜杂交的清润冬蔬，适合清汤料理、清心炼丹、腌莲白菜、灵宠莲白菜喂食、家畜莲白料、清心药膳、冬补赠礼、腊祭供品、公共仓莲白备料和莲白菜订单。'
   },
   {
+    cropId: 'garlic_sesame',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['蒜芝拌菜', '蒜芝行气丹', '蒜芝香油', '腌蒜芝', '灵宠蒜芝餐', '家畜蒜芝料', '暖胃药膳', '厨娘蒜芝礼', '暖灶蒜芝供', '公共仓蒜芝包', '蒜芝调料单'],
+    summary: '芝麻与大蒜杂交的辛香调味作物，适合拌菜料理、行气炼丹、榨蒜芝香油、腌蒜芝、灵宠蒜芝喂食、家畜蒜芝料、暖胃药膳、厨娘赠礼、暖灶供品、公共仓蒜芝备料和调料订单。'
+  },
+  {
+    cropId: 'chive_gourd',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '辛'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['韭丝瓜炒蛋', '韭瓜行气丹', '腌韭丝瓜', '灵宠韭瓜餐', '家畜韭瓜料', '行气药膳', '春社韭瓜礼', '三季韭瓜供', '公共仓韭瓜包', '韭丝瓜订单'],
+    summary: '丝瓜与韭菜杂交的三季鲜蔬，适合热炒料理、行气炼丹、腌韭丝瓜、灵宠韭瓜喂食、家畜韭瓜料、行气药膳、春社赠礼、三季供品、公共仓韭瓜备料和韭丝瓜订单。'
+  },
+  {
+    cropId: 'mustard_eggplant',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['芥茄煲', '芥茄护脉丹', '腌芥茄', '灵宠芥茄餐', '家畜芥茄料', '护脉药膳', '家常芥茄礼', '冬夏芥茄供', '公共仓芥茄包', '芥茄订单'],
+    summary: '茄子与芥菜杂交的微辛紫蔬，适合煲菜料理、护脉炼丹、腌芥茄、灵宠芥茄喂食、家畜芥茄料、护脉药膳、家常赠礼、冬夏供品、公共仓芥茄备料和芥茄订单。'
+  },
+  {
+    cropId: 'snow_fire_pepper',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '苦'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['冰火椒酱', '冰火调息丹', '腌冰火椒', '灵宠冰火餐', '家畜冰火暖料', '调息药膳', '武师冰火礼', '火神冰灯供', '公共仓冰火椒包', '冰火椒订单'],
+    summary: '辣椒与雪莲杂交的高阶辛寒椒，适合椒酱料理、调息炼丹、腌冰火椒、灵宠冰火喂食、家畜冰火暖料、调息药膳、武师赠礼、火神冰灯供品、公共仓冰火椒备料和冰火椒订单。'
+  },
+  {
+    cropId: 'winter_corn',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '甜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['冬玉米粥', '冬玉米续行丹', '冬玉米粉', '冬玉米清酒', '灵宠冬玉米餐', '家畜冬谷料', '续行药膳', '冬储玉米礼', '腊祭玉米供', '公共仓冬玉米包', '冬玉米订单'],
+    summary: '耐寒玉米培育出的三季主粮，适合粥饭料理、续行炼丹、制冬玉米粉、酿冬玉米清酒、灵宠冬玉米喂食、家畜冬谷料、续行药膳、冬储赠礼、腊祭供品、公共仓冬玉米备料和冬玉米订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
