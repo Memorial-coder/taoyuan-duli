@@ -1273,6 +1273,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '生姜与山药杂交的辛暖补根，适合羹汤料理、固元炼丹、制姜山药粉、腌姜山药、灵宠姜山药喂食、家畜姜山料、暖补药膳、冬补赠礼、腊祭供品、公共仓姜山备料和姜山药订单。'
   },
   {
+    cropId: 'golden_persimmon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['金柿甜盏', '金柿养胃丹', '金柿果酒', '灵宠金柿餐', '家畜金柿料', '养胃药饮', '秋收金柿礼', '柿灯金柿供', '公共仓金柿包', '金柿订单'],
+    summary: '柿子与南瓜杂交的金甜果蔬，适合甜盏料理、养胃炼丹、酿金柿果酒、灵宠金柿喂食、家畜金柿料、养胃药饮、秋收赠礼、柿灯供品、公共仓金柿备料和金柿订单。'
+  },
+  {
+    cropId: 'chrysanthemum_jujube',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['菊枣茶羹', '菊枣养气丹', '菊枣花酿', '灵宠菊枣餐', '家畜菊枣料', '养气药茶', '重阳菊枣礼', '秋灯菊枣供', '公共仓菊枣包', '菊枣订单'],
+    summary: '菊花与红枣杂交的清甜花果，适合茶羹料理、养气炼丹、酿菊枣花酒、灵宠菊枣喂食、家畜菊枣料、养气药茶、重阳赠礼、秋灯供品、公共仓菊枣备料和菊枣订单。'
+  },
+  {
+    cropId: 'osmanthus_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['桂薯糕', '桂薯固元丹', '桂薯粉', '桂薯花酿', '灵宠桂薯餐', '家畜桂薯料', '固元药膳', '桂香薯礼', '秋社桂薯供', '公共仓桂薯包', '桂薯粉单'],
+    summary: '桂花与红薯杂交的香甜薯作，适合糕点料理、固元炼丹、制桂薯粉、酿桂薯花酒、灵宠桂薯喂食、家畜桂薯料、固元药膳、桂香赠礼、秋社供品、公共仓桂薯备料和桂薯粉单。'
+  },
+  {
+    cropId: 'winter_pumpkin',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'valuable',
+    recommendedUses: ['冬南瓜羹', '冬瓜养胃丹', '冬南瓜粉', '冬南瓜甜酒', '灵宠冬瓜餐', '家畜冬瓜料', '养胃药膳', '冬储南瓜礼', '腊祭南瓜供', '公共仓冬南瓜包', '冬南瓜订单'],
+    summary: '南瓜与白菜杂交的耐寒巨果，适合羹汤料理、养胃炼丹、制冬南瓜粉、酿冬南瓜甜酒、灵宠冬瓜喂食、家畜冬瓜料、养胃药膳、冬储赠礼、腊祭供品、公共仓冬南瓜备料和冬南瓜订单。'
+  },
+  {
+    cropId: 'emerald_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['翡翠山药羹', '翠山固元丹', '翡翠山药粉', '灵宠翠山药餐', '家畜翠山料', '固元药膳', '冬补翠山礼', '冬社翠山供', '公共仓翠山包', '翡翠山药订单'],
+    summary: '山药与菠菜杂交的翠绿补根，适合羹汤料理、固元炼丹、制翡翠山药粉、灵宠翠山药喂食、家畜翠山料、固元药膳、冬补赠礼、冬社供品、公共仓翠山备料和翡翠山药订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
