@@ -1823,6 +1823,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '金瓜与紫竹茄汇聚雷气后的三代鲜芽，适合清炒料理、行气炼丹、腌雷华芽、灵宠雷芽喂食、家畜雷芽料、行气药膳、惊雷赠礼、惊蛰供品、公共仓雷华芽备料和雷华芽订单。'
   },
   {
+    cropId: 'rainbow_splendor_vine',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虹华藤果盏', '虹藤润脉丹', '虹华藤酿', '灵宠虹藤餐', '家畜虹藤料', '润脉药膳', '虹藤彩礼', '虹桥藤供', '公共仓虹藤包', '虹华藤订单'],
+    summary: '金瓜与蜜桃瓜淬炼出的三代彩藤灵果，适合果盏料理、润脉炼丹、酿虹华藤酒、灵宠虹藤喂食、家畜虹藤料、润脉药膳、彩藤赠礼、虹桥供品、公共仓虹藤备料和虹华藤订单。'
+  },
+  {
+    cropId: 'dew_splendor_bud',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['露华蕾炒豆', '露蕾行气丹', '腌露华蕾', '灵宠露蕾餐', '家畜露蕾料', '行气药膳', '朝露蕾礼', '花朝露蕾供', '公共仓露蕾包', '露华蕾订单'],
+    summary: '金瓜与火豆在清风中交融出的三代辛香花蕾，适合炒豆料理、行气炼丹、腌露华蕾、灵宠露蕾喂食、家畜露蕾料、行气药膳、朝露赠礼、花朝供品、公共仓露蕾备料和露华蕾订单。'
+  },
+  {
+    cropId: 'dawn_splendor_orchid',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['晨华兰羹', '晨兰清心丹', '晨华兰露酿', '灵宠晨兰餐', '家畜晨兰料', '清心药膳', '晨兰雅礼', '兰会晨华供', '公共仓晨兰包', '晨华兰订单'],
+    summary: '金瓜与丝豆沐露后的三代清香兰作，适合清羹料理、清心炼丹、酿晨华兰露、灵宠晨兰喂食、家畜晨兰料、清心药膳、雅士赠礼、兰会供品、公共仓晨兰备料和晨华兰订单。'
+  },
+  {
+    cropId: 'dusk_splendor_gourd',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['暮华葫蒸盅', '暮葫固元丹', '暮华葫油', '暮华葫粉', '灵宠暮葫餐', '家畜暮葫料', '固元药膳', '暮华葫礼', '秋夕暮葫供', '公共仓暮葫包', '暮华葫订单'],
+    summary: '金瓜与双油籽星夜蜕变出的三代葫芦，适合蒸盅料理、固元炼丹、榨暮华葫油、制暮华葫粉、灵宠暮葫喂食、家畜暮葫料、固元药膳、秋夕赠礼、暮葫供品、公共仓暮葫备料和暮华葫订单。'
+  },
+  {
+    cropId: 'star_splendor_herb',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['星华草药粥', '星草安神丹', '星华草粉', '星草清酿', '灵宠星草餐', '家畜星草料', '安神药膳', '星草香礼', '星灯草供', '公共仓星草包', '星华草订单'],
+    summary: '金瓜与莲花薯汇聚星辉的三代草本，适合药粥料理、安神炼丹、制星华草粉、酿星草清酿、灵宠星草喂食、家畜星草料、安神药膳、香草赠礼、星灯供品、公共仓星草备料和星华草订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
