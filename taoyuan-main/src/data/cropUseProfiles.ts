@@ -773,6 +773,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '油菜与芝麻杂交的高香油料，适合糕点料理、润脉炼丹、榨双籽油、灵宠油籽点心、家畜油籽料、润脉药膳、油坊赠礼、春祭供品、公共仓双油备料和油籽订单。'
   },
   {
+    cropId: 'lotus_potato',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['莲薯粉羹', '莲薯清心丹', '莲薯粉', '灵宠莲薯糕', '家畜莲薯料', '清心药膳', '水乡莲薯礼', '夏社莲薯供', '公共仓莲薯包', '莲薯粉单'],
+    summary: '土豆与莲子杂交的清甜根茎，适合粉羹料理、清心炼丹、制粉、灵宠莲薯糕、家畜莲薯料、清心药膳、水乡赠礼、夏社供品、公共仓莲薯备料和莲薯粉单。'
+  },
+  {
+    cropId: 'jade_pumpkin',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['翡翠南瓜羹', '翠瓜聚火丹', '翡翠瓜粉', '灵宠翠瓜餐', '家畜翠瓜料', '温补药膳', '丰收翠瓜礼', '秋祭翠瓜供', '公共仓翠瓜包', '翠瓜订单'],
+    summary: '土豆与南瓜杂交的翠皮金瓤瓜作，适合浓羹料理、聚火炼丹、制粉、灵宠翠瓜喂食、家畜翠瓜料、温补药膳、丰收赠礼、秋祭供品、公共仓翠瓜备料和翠瓜订单。'
+  },
+  {
+    cropId: 'crystal_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['水晶山药羹', '晶药固元丹', '水晶山药粉', '灵宠晶药糕', '家畜晶根料', '固元药膳', '山居晶药礼', '秋社晶药供', '公共仓晶药包', '晶药粉单'],
+    summary: '春笋与山药杂交的晶莹根作，适合山药羹料理、固元炼丹、制粉、灵宠晶药糕、家畜晶根料、固元药膳、山居赠礼、秋社供品、公共仓晶药备料和晶药粉单。'
+  },
+  {
+    cropId: 'osmanthus_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '苦'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['桂花清茶', '桂茶凝神丹', '桂花茶酿', '灵宠桂茶餐', '芳香药饮', '雅士桂茶礼', '中秋桂茶供', '公共仓桂茶包', '桂茶订单'],
+    summary: '茶叶与桂花杂交的芳香茶材，适合清茶料理、凝神炼丹、酿茶酒、灵宠桂茶喂食、芳香药饮、雅士赠礼、中秋供品、公共仓桂茶包和桂茶订单。'
+  },
+  {
+    cropId: 'mountain_bamboo',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['山竹薯饭', '山竹续行丹', '山竹薯粉', '灵宠山竹餐', '家畜山薯料', '行旅药膳', '山路竹薯礼', '春秋竹薯供', '公共仓山竹包', '山薯粉单'],
+    summary: '春笋与红薯杂交的山野甜根，适合竹薯饭料理、续行炼丹、制粉、灵宠山竹喂食、家畜山薯料、行旅药膳、山路赠礼、春秋供品、公共仓山竹备料和山薯粉单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
