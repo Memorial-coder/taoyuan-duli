@@ -873,6 +873,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '油菜与生姜杂交的辛香花菜，适合热炒料理、驱寒炼丹、榨姜花菜油、腌姜花菜、灵宠姜花喂食、家畜辛花料、驱寒药膳、冬春赠礼、春祭供品、公共仓姜花备料和辛花订单。'
   },
   {
+    cropId: 'fairy_chrysanthemum',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '苦'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['仙菊菜汤', '仙菊清目丹', '灵宠仙菊餐', '家畜清叶料', '清目药膳', '高士仙菊礼', '重阳仙菊供', '公共仓仙菊包', '仙菊菜订单'],
+    summary: '青菜与菊花杂交的清雅叶菜，适合清汤料理、清目炼丹、灵宠仙菊喂食、家畜清叶料、清目药膳、高士赠礼、重阳供品、公共仓仙菊备料和仙菊菜订单。'
+  },
+  {
+    cropId: 'imperial_cabbage',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '甜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['御品白菜卷', '御白养胃丹', '腌御白菜', '灵宠御白餐', '家畜御叶料', '养胃药膳', '庄宴御菜礼', '冬祭御白供', '公共仓御白菜包', '御菜订单'],
+    summary: '青菜与白菜杂交的厚叶菜作，适合白菜卷料理、养胃炼丹、腌御白菜、灵宠御白喂食、家畜御叶料、养胃药膳、庄宴赠礼、冬祭供品、公共仓御白菜备料和御菜订单。'
+  },
+  {
+    cropId: 'spicy_radish',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '甜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['蒜香萝卜汤', '蒜萝护脉丹', '腌蒜香萝卜', '灵宠蒜萝餐', '家畜辛根料', '护脉药膳', '武馆蒜萝礼', '腊八蒜萝供', '公共仓蒜萝包', '蒜萝订单'],
+    summary: '萝卜与大蒜杂交的辛甜根菜，适合暖汤料理、护脉炼丹、腌蒜香萝卜、灵宠蒜萝喂食、家畜辛根料、护脉药膳、武馆赠礼、腊八供品、公共仓蒜萝备料和蒜萝订单。'
+  },
+  {
+    cropId: 'snow_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雪茶清饮', '雪茶凝神丹', '雪茶酿', '灵宠雪茶餐', '雪露药饮', '文士雪茶礼', '冬祭雪茶供', '公共仓雪茶包', '雪茶订单'],
+    summary: '茶叶与雪莲杂交的纯白茶材，适合清饮料理、凝神炼丹、酿雪茶酒、灵宠雪茶喂食、雪露药饮、文士赠礼、冬祭供品、公共仓雪茶备料和雪茶订单。'
+  },
+  {
+    cropId: 'spring_chive',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['春韭炒蛋', '春韭行气丹', '腌春韭段', '灵宠春韭餐', '家畜辛叶料', '行气药膳', '春社韭菜礼', '春祭韭菜供', '公共仓春韭包', '韭菜订单'],
+    summary: '青菜与韭菜杂交的辛鲜叶菜，适合热炒料理、行气炼丹、腌春韭段、灵宠春韭喂食、家畜辛叶料、行气药膳、春社赠礼、春祭供品、公共仓春韭备料和韭菜订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
