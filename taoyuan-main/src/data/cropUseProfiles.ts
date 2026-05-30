@@ -1723,6 +1723,55 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '金瓜与翡翠萝卜汇聚雷雨气息的三代菜蔬，适合脆炒料理、行气炼丹、腌雷菜梗、灵宠雷菜喂食、家畜雷菜料、行气药膳、雷雨赠礼、惊蛰供品、公共仓雷菜备料和雷菜订单。'
   },
   {
+    cropId: 'rainbow_fruit',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['虹果蜜盏', '虹果润脉丹', '虹果虹酿', '灵宠虹果餐', '家畜虹果料', '润脉药膳', '彩虹果礼', '虹桥虹果供', '公共仓虹果包', '虹果订单'],
+    summary: '金瓜与碧玉笋淬炼出的三代彩色灵果，适合蜜盏料理、润脉炼丹、酿虹果虹酿、灵宠虹果喂食、家畜虹果料、润脉药膳、彩虹赠礼、虹桥供品、公共仓虹果备料和虹果订单。'
+  },
+  {
+    cropId: 'dew_bloom',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['露花甜羹', '露花凝神丹', '露花香油', '露花露酿', '灵宠露花餐', '家畜露花料', '凝神药膳', '朝露花礼', '花朝露花供', '公共仓露花包', '露花订单'],
+    summary: '金瓜与金油薯交融出的三代露香花实，适合甜羹料理、凝神炼丹、榨露花香油、酿露花露酿、灵宠露花喂食、家畜露花料、凝神药膳、朝露赠礼、花朝供品、公共仓露花备料和露花订单。'
+  },
+  {
+    cropId: 'dawn_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['晨茶清茗', '晨茶凝神丹', '晨茶花酿', '灵宠晨茶餐', '家畜晨茶料', '清心药茶', '晨露茶礼', '春晨茶供', '公共仓晨茶包', '晨茶订单'],
+    summary: '金瓜与桃花茶沐露后的三代清香茶作，适合清茗料理、凝神炼丹、酿晨茶花酿、灵宠晨茶喂食、家畜晨茶料、清心药茶、晨露赠礼、春晨供品、公共仓晨茶备料和晨茶订单。'
+  },
+  {
+    cropId: 'dusk_shoot',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '甜'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['暮笋豆羹', '暮笋护脉丹', '暮笋粉', '腌暮笋豆', '灵宠暮笋餐', '家畜暮笋料', '护脉药膳', '暮色笋礼', '星夜暮笋供', '公共仓暮笋包', '暮笋订单'],
+    summary: '金瓜与红宝豆在星光下蜕变的三代鲜甜笋豆，适合豆羹料理、护脉炼丹、制暮笋粉、腌暮笋豆、灵宠暮笋喂食、家畜暮笋料、护脉药膳、暮色赠礼、星夜供品、公共仓暮笋备料和暮笋订单。'
+  },
+  {
+    cropId: 'star_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '苦'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['星莲甜汤', '星莲安神丹', '星莲粉', '星莲清酿', '灵宠星莲餐', '家畜星莲料', '安神药膳', '星灯莲礼', '七夕星莲供', '公共仓星莲包', '星莲订单'],
+    summary: '金瓜与双子豆汇聚星辉的三代莲形灵植，适合甜汤料理、安神炼丹、制星莲粉、酿星莲清酿、灵宠星莲喂食、家畜星莲料、安神药膳、星灯赠礼、七夕供品、公共仓星莲备料和星莲订单。'
+  },  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
