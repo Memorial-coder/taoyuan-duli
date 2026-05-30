@@ -3213,6 +3213,47 @@ assert.equal(recipePolicyWarmingPill.recipe.output_item_id, 'warming_sweet_potat
 assert.equal(recipePolicyWarmingPill.workshop_action.process_kind, 'alchemy_elixir', 'new warming pill recipe should be alchemy elixir')
 assert.equal(recipePolicyWarmingPill.workshop_action.success_rate_bonus_percent, 15, 'new warming pill recipe should expose alchemy cooperation bonus')
 assert.equal(recipePolicyWarmingPill.ledger_entry.quality, 'fine', 'new warming pill recipe should apply cooperation quality bonus')
+const recipePolicyWarmingResultCases = [
+  {
+    recipeId: 'shared_warming_sweet_potato_partial',
+    resultKind: 'partial',
+    outputItemId: 'partial_elixir_slurry',
+    riskLevel: 'high_quality',
+  },
+  {
+    recipeId: 'shared_warming_sweet_potato_failed',
+    resultKind: 'failed',
+    outputItemId: 'failed_elixir_ash',
+    riskLevel: 'high_quality',
+  },
+  {
+    recipeId: 'shared_warming_sweet_potato_rare',
+    resultKind: 'rare',
+    outputItemId: 'rare_elixir_crystal',
+    riskLevel: 'rare',
+  },
+]
+for (const resultCase of recipePolicyWarmingResultCases) {
+  await injectRecipePolicyStock('sweet_potato', 2)
+  await injectRecipePolicyStock('ginger', 1)
+  await injectRecipePolicyStock('honey', 1)
+  const warmingResultRecipe = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: resultCase.recipeId,
+    memo: `qa process ${resultCase.recipeId}`,
+    idempotency_key: `qa-recipe-policy-${resultCase.recipeId}`,
+  }, actor(recipePolicyOwner))
+  assert.equal(warmingResultRecipe.recipe.output_item_id, resultCase.outputItemId, `new warming ${resultCase.resultKind} recipe should output expected elixir result`)
+  assert.equal(warmingResultRecipe.workshop_action.process_kind, 'alchemy_elixir', `new warming ${resultCase.resultKind} recipe should be alchemy elixir`)
+  assert.equal(warmingResultRecipe.workshop_action.alchemy_result_kind, resultCase.resultKind, `new warming ${resultCase.resultKind} recipe should expose result kind`)
+  assert.equal(warmingResultRecipe.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `new warming ${resultCase.resultKind} ledger should keep result kind`)
+  assert.equal(warmingResultRecipe.warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity, 1, `new warming ${resultCase.resultKind} output should enter shared warehouse`)
+  assert.ok(warmingResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'sweet_potato'), `new warming ${resultCase.resultKind} should consume sweet potato`)
+  assert.ok(warmingResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'ginger'), `new warming ${resultCase.resultKind} should consume ginger`)
+  assert.ok(warmingResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'honey'), `new warming ${resultCase.resultKind} should consume honey`)
+  const warmingResultOriginAsset = warmingResultRecipe.contract.origin_assets.warehouse_items.find(item => item.ledger_id === warmingResultRecipe.ledger_entry.id && item.action === 'deposit')
+  assert.equal(warmingResultOriginAsset?.withdrawal_risk_level, resultCase.riskLevel, `new warming ${resultCase.resultKind} origin should keep withdrawal risk`)
+  assert.equal(warmingResultOriginAsset?.high_value_withdrawal_required, true, `new warming ${resultCase.resultKind} origin should require high-value withdrawal`)
+}
 
 await injectRecipePolicyStock('tea', 2)
 const recipePolicyGreenTea = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
