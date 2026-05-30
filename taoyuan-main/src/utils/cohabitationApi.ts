@@ -2075,7 +2075,7 @@ export interface CohabitationSharedFarmWaterPayload {
 
 export interface CohabitationSharedFarmCarePayload {
   plot_id: string
-  action: 'cure_pests' | 'clear_weeds'
+  action: 'cure_pests' | 'clear_weeds' | 'remove_crop'
   memo?: string
   idempotency_key: string
 }

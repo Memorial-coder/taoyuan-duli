@@ -677,6 +677,16 @@
                 <button
                   class="online-action-btn online-action-btn--compact justify-center"
                   type="button"
+                  :disabled="!canRemoveCropSelectedSharedFarmPlot || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-farm-remove-crop"
+                  @click="removeCropSelectedSharedFarmPlot"
+                >
+                  <Scissors :size="12" />
+                  铲除作物
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
                   :disabled="!canPlantSelectedSharedFarmPlot || cohabitationStore.actionLoading"
                   data-testid="online-cohabitation-shared-farm-plant"
                   @click="plantSelectedSharedFarmPlot"
@@ -3979,6 +3989,11 @@
     if (!plot || !cohabitationStore.canOpenSelectedContract) return false
     return plot.plot_state.weedy === true
   })
+  const canRemoveCropSelectedSharedFarmPlot = computed(() => {
+    const plot = selectedSharedFarmPlot.value
+    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    return ['planted', 'growing', 'harvestable'].includes(plot.plot_state.state)
+  })
   const canPlantSelectedSharedFarmPlot = computed(() => {
     const plot = selectedSharedFarmPlot.value
     if (!plot || !cohabitationStore.canOpenSelectedContract) return false
@@ -4343,23 +4358,30 @@
     }
   }
 
-  const careSelectedSharedFarmPlot = async (action: 'cure_pests' | 'clear_weeds') => {
+  const sharedFarmCareActionLabel = (action: 'cure_pests' | 'clear_weeds' | 'remove_crop') => {
+    if (action === 'cure_pests') return '除虫'
+    if (action === 'clear_weeds') return '清草'
+    return '铲除作物'
+  }
+
+  const careSelectedSharedFarmPlot = async (action: 'cure_pests' | 'clear_weeds' | 'remove_crop') => {
     const plot = selectedSharedFarmPlot.value
     if (!plot) return
+    const actionLabel = sharedFarmCareActionLabel(action)
     sharedFarmActionMessage.value = ''
     sharedFarmActionOk.value = false
     try {
       const result = await cohabitationStore.careSharedFarmPlot({
         plot_id: plot.id,
         action,
-        memo: `前端共同农田${action === 'cure_pests' ? '除虫' : '清草'}：${plot.id}`,
+        memo: `前端共同农田${actionLabel}：${plot.id}`,
         idempotency_key: `ui-shared-farm-${action}-${plot.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
       selectedSharedFarmPlotId.value = result?.plot?.id || plot.id
       sharedFarmActionOk.value = true
       sharedFarmActionMessage.value = result?.idempotent || result?.already_applied
-        ? `已读回共同农田${action === 'cure_pests' ? '除虫' : '清草'}记录`
-        : `共同农田已${action === 'cure_pests' ? '除虫' : '清草'}，契约地图和农田流水已刷新`
+        ? `已读回共同农田${actionLabel}记录`
+        : `共同农田已${actionLabel}，契约地图和农田流水已刷新`
     } catch (error) {
       sharedFarmActionMessage.value = error instanceof Error ? error.message : '管护共同农田失败'
     }
@@ -4371,6 +4393,10 @@
 
   const clearWeedsSelectedSharedFarmPlot = async () => {
     await careSelectedSharedFarmPlot('clear_weeds')
+  }
+
+  const removeCropSelectedSharedFarmPlot = async () => {
+    await careSelectedSharedFarmPlot('remove_crop')
   }
 
   const plantSelectedSharedFarmPlot = async () => {
@@ -6533,6 +6559,7 @@
       warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
       shared_workshop_processed: '共同工坊处理',
+      shared_farm_crop_removed: '共同农田铲除',
       fund_contributed: '共同基金注资',
       fund_spent: '共同基金支出',
       fund_large_spend_draft_created: '大额草案创建',
@@ -6576,6 +6603,7 @@
   const sharedLogKindLabel = (action: string) => {
     if (action.includes('warehouse')) return '仓库'
     if (action.includes('workshop')) return '工坊'
+    if (action.includes('shared_farm')) return '共同农田'
     if (action.includes('fund')) return '基金'
     if (action.includes('permission') || action.includes('role')) return '治理'
     if (action.includes('separation')) return '分居'
@@ -6899,7 +6927,7 @@
       water_shared_farm: '浇水共同农田',
       plant_shared_farm: '种植共同农田',
       harvest_shared_farm: '收获共同农田',
-      care_shared_farm: '照料共同农田',
+      care_shared_farm: '管护共同农田',
       feed_shared_animal: '喂食共同动物',
       pet_shared_animal: '抚摸共同动物',
       collect_shared_animal_product: '收取动物产物',

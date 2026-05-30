@@ -2292,7 +2292,7 @@ function normalizePetActionLedger(value = []) {
 
 function normalizeFarmActionLedgerEntry(entry = {}) {
   const action = sanitizeText(entry.action, 40) || 'water';
-  if (!['water', 'plant', 'fertilize', 'harvest', 'cure_pests', 'clear_weeds'].includes(action)) return null;
+  if (!['water', 'plant', 'fertilize', 'harvest', 'cure_pests', 'clear_weeds', 'remove_crop'].includes(action)) return null;
   const plotId = sanitizeText(entry.plot_id || entry.shared_plot_id, 140);
   if (!plotId) return null;
   const outputItemId = normalizeWarehouseItemId(entry.output_item_id || entry.harvest_item_id || entry.item_id);
@@ -6863,8 +6863,8 @@ function normalizeSharedFarmActionPayload(payload = {}) {
 function normalizeSharedFarmCarePayload(payload = {}) {
   const request = normalizeSharedFarmActionPayload(payload);
   const action = sanitizeText(payload.action || payload.care_action || payload.action_type, 40);
-  if (!['cure_pests', 'clear_weeds'].includes(action)) {
-    throw createError('shared farm care action must be cure_pests or clear_weeds', 400);
+  if (!['cure_pests', 'clear_weeds', 'remove_crop'].includes(action)) {
+    throw createError('shared farm care action must be cure_pests, clear_weeds, or remove_crop', 400);
   }
   return {
     ...request,
@@ -10395,6 +10395,9 @@ async function careCohabitationSharedFarmPlot(contractId, payload = {}, actor = 
   const plotState = plot.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
   if (request.action === 'cure_pests' && plotState.infested !== true) throw createError('shared farm plot has no pests to cure', 409);
   if (request.action === 'clear_weeds' && plotState.weedy !== true) throw createError('shared farm plot has no weeds to clear', 409);
+  if (request.action === 'remove_crop' && !['planted', 'growing', 'harvestable'].includes(plotState.state)) {
+    throw createError('shared farm plot has no crop to remove', 409);
+  }
 
   const operatedAt = nowSeconds();
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
@@ -10404,7 +10407,28 @@ async function careCohabitationSharedFarmPlot(contractId, payload = {}, actor = 
     ...plotState,
     ...(request.action === 'cure_pests'
       ? { infested: false, infested_days: 0 }
-      : { weedy: false, weedy_days: 0 }),
+      : request.action === 'clear_weeds'
+        ? { weedy: false, weedy_days: 0 }
+        : {
+            state: 'tilled',
+            crop_id: null,
+            growth_days: 0,
+            watered: false,
+            unwatered_days: 0,
+            fertilizer: null,
+            cooperation_health_bonus: 0,
+            cooperation_quality_bonus: 0,
+            last_cooperation_bonus_at: 0,
+            last_cooperation_bonus_action: '',
+            last_cooperation_bonus_members: [],
+            last_cooperation_plant_actor_username: '',
+            harvest_count: 0,
+            giant_crop_group: null,
+            infested: false,
+            infested_days: 0,
+            weedy: false,
+            weedy_days: 0,
+          }),
   };
   const nextPlot = {
     ...plot,
@@ -10433,7 +10457,7 @@ async function careCohabitationSharedFarmPlot(contractId, payload = {}, actor = 
       farm_cure_pests_write_enabled: true,
       farm_action_ledger_count: contract.shared_farm_ledger.length + 1,
       deferred_writes: (sharedMap.summary?.deferred_writes || [])
-        .filter(item => item !== 'cure_pests' && item !== 'clear_weeds' && item !== 'farm_care'),
+        .filter(item => item !== 'cure_pests' && item !== 'clear_weeds' && item !== 'remove_crop' && item !== 'farm_care'),
     },
   };
   const ledgerEntry = normalizeFarmActionLedgerEntry({
@@ -10472,9 +10496,15 @@ async function careCohabitationSharedFarmPlot(contractId, payload = {}, actor = 
   contract.origin_assets.plots = replacedPlotAssets.some(entry => sanitizeText(entry?.id, 120) === plot.id)
     ? replacedPlotAssets
     : [plotAsset, ...replacedPlotAssets].slice(0, 400);
-  appendAudit(contract, request.action === 'cure_pests' ? 'shared_farm_pests_cured' : 'shared_farm_weeds_cleared', actor, {
+  const auditAction = request.action === 'cure_pests'
+    ? 'shared_farm_pests_cured'
+    : request.action === 'clear_weeds'
+      ? 'shared_farm_weeds_cleared'
+      : 'shared_farm_crop_removed';
+  appendAudit(contract, auditAction, actor, {
     ledger_id: ledgerEntry.id,
     plot_id: plot.id,
+    action: request.action,
     source_plot_id: plot.source_plot_id,
     origin_owner_id: plot.origin_owner_id,
     origin_owner_username: plot.origin_owner_username,
