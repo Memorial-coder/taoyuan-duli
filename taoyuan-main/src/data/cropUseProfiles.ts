@@ -1623,6 +1623,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '翡翠茶与蜜桃融合的清甜茶果，适合茶饮料理、凝神炼丹、酿翠桃果茶、灵宠翠桃喂食、家畜翠桃料、清润药膳、春会赠礼、茶会供品、公共仓翠桃茶备料和翠桃茶订单。'
   },
   {
+    cropId: 'golden_dragon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '辛'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['金龙果宴', '金龙聚火丹', '金龙果酒', '灵宠金龙餐', '家畜金龙料', '聚火药膳', '龙年金果礼', '火龙祭金果供', '公共仓金龙果包', '金龙果订单'],
+    summary: '金蜜瓜与凤凰椒碰撞出的尊贵灵果，适合宴席料理、聚火炼丹、酿金龙果酒、灵宠金龙喂食、家畜金龙料、聚火药膳、龙年赠礼、火龙祭供品、公共仓金龙果备料和金龙果订单。'
+  },
+  {
+    cropId: 'moonlight_frost',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['月霜饭', '月霜清心丹', '月霜米粉', '月霜寒酒', '灵宠月霜饭团', '家畜月霜料', '清心药膳', '月下霜稻礼', '冬祭月霜供', '公共仓月霜米包', '月霜稻订单'],
+    summary: '月光稻与霜雪蒜交织的寒香稻谷，适合米饭料理、清心炼丹、制月霜米粉、酿月霜寒酒、灵宠饭团、家畜精粮、清心药膳、月下赠礼、冬祭供品、公共仓米包和月霜稻订单。'
+  },
+  {
+    cropId: 'jade_golden_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['翡翠金瓜盏', '金瓜凝神丹', '翡翠金瓜粉', '金瓜翠酿', '灵宠金瓜餐', '家畜金瓜料', '清润药膳', '翡翠金瓜礼', '丰收金瓜供', '公共仓金瓜包', '翡翠金瓜订单'],
+    summary: '翡翠茶与金蜜瓜融合的高阶瓜果，适合甜盏料理、凝神炼丹、制翡翠金瓜粉、酿金瓜翠酿、灵宠金瓜喂食、家畜金瓜料、清润药膳、翡翠赠礼、丰收供品、公共仓金瓜备料和翡翠金瓜订单。'
+  },
+  {
+    cropId: 'immortal_flower',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['仙人花茶', '仙花清心丹', '仙人花露酿', '灵宠仙花餐', '家畜仙花料', '清心药膳', '仙人花礼', '寒山仙花供', '公共仓仙花包', '仙人花订单'],
+    summary: '霜雪蒜与翡翠茶交融的寒香灵花，适合花茶料理、清心炼丹、酿仙人花露、灵宠仙花喂食、家畜仙花料、清心药膳、仙花赠礼、寒山供品、公共仓仙花备料和仙人花订单。'
+  },
+  {
+    cropId: 'dragon_pearl',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['龙珠灵饭', '龙珠续行丹', '龙珠粉', '龙珠灵酿', '灵宠龙珠餐', '家畜龙珠料', '续行药膳', '龙珠至宝礼', '龙舟龙珠供', '公共仓龙珠包', '龙珠订单'],
+    summary: '凤凰椒烈焰与月光稻银辉凝成的圆润至宝，适合灵饭料理、续行炼丹、制龙珠粉、酿龙珠灵酿、灵宠龙珠喂食、家畜龙珠料、续行药膳、至宝赠礼、龙舟供品、公共仓龙珠备料和龙珠订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
