@@ -921,6 +921,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'stable',
     recommendedUses: ['火蒜爆菜', '火蒜驱寒丹', '腌火蒜瓣', '暖身药膳', '厨师辛蒜赠礼', '冬春辛蒜供', '公共仓火蒜包', '辛蒜订单'],
     summary: '凤凰椒与大蒜杂交的烈辛蒜作，适合爆炒料理、驱寒炼丹、腌制、暖身药膳、厨师赠礼、冬春供品、公共仓火蒜备料和辛蒜订单。'
+  },
+  {
+    cropId: 'moonlight_cabbage',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['月白菜卷', '月白清心丹', '腌月白菜', '灵宠月白菜餐', '家畜冬菜料', '清甜药膳', '月夜菜礼', '冬祭月白供', '公共仓月菜包', '冬菜订单'],
+    summary: '月光稻与白菜杂交的月白叶菜，适合菜卷料理、清心炼丹、腌制、灵宠月白菜喂食、家畜冬菜料、清甜药膳、月夜赠礼、冬祭供品、公共仓月菜备料和冬菜订单。'
+  },
+  {
+    cropId: 'jade_persimmon',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['翠柿甜羹', '翠柿润喉丹', '翠柿果酒', '灵宠翠柿餐', '润喉药膳', '秋日果礼', '重阳翠柿供', '公共仓翠柿包', '果羹订单'],
+    summary: '翡翠茶与柿子杂交的翠色秋果，适合甜羹料理、润喉炼丹、酿果酒、灵宠翠柿喂食、润喉药膳、秋日赠礼、重阳供品、公共仓翠柿备料和果羹订单。'
+  },
+  {
+    cropId: 'frost_bamboo',
+    tags: ['food', 'alchemy', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '苦'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['冰笋清汤', '冰笋护脉丹', '腌冰笋片', '清寒药膳', '家畜鲜笋料', '隐士冰笋礼', '寒食冰笋供', '公共仓冰笋包', '鲜笋订单'],
+    summary: '霜雪蒜与春笋杂交的冰镇笋材，适合清汤料理、护脉炼丹、腌制、清寒药膳、家畜鲜笋料、隐士赠礼、寒食供品、公共仓冰笋备料和鲜笋订单。'
+  },
+  {
+    cropId: 'golden_watermelon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['帝瓜冰盏', '帝瓜清暑丹', '帝瓜甜酒', '灵宠帝瓜餐', '家畜消暑瓜料', '清暑药膳', '贵客帝瓜礼', '夏至帝瓜供', '公共仓帝瓜包', '巨瓜订单'],
+    summary: '金蜜瓜与西瓜杂交的巨型甜瓜，适合冰盏料理、清暑炼丹、酿甜酒、灵宠帝瓜喂食、家畜消暑瓜料、清暑药膳、贵客赠礼、夏至供品、公共仓帝瓜备料和巨瓜订单。'
+  },
+  {
+    cropId: 'phoenix_peach',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '辛'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['火桃蜜盏', '火桃行气丹', '火桃果酒', '灵宠火桃餐', '暖身药膳', '侠客火桃礼', '上巳火桃供', '公共仓火桃包', '辛甜果订单'],
+    summary: '凤凰椒与蜜桃杂交的辛甜火果，适合蜜盏料理、行气炼丹、酿果酒、灵宠火桃喂食、暖身药膳、侠客赠礼、上巳供品、公共仓火桃备料和辛甜果订单。'
   }
 ]
 
