@@ -69,6 +69,7 @@ export interface CohabitationFundLedgerEntry {
   idempotency_key: string
   status: string
   created_at: number
+  simultaneous_online_bonus?: Record<string, unknown>
 }
 
 export interface CohabitationFundLargeSpendDraftConfirmationEvent {
@@ -158,6 +159,7 @@ export interface CohabitationWarehouseLedgerEntry {
   idempotency_key: string
   status: string
   created_at: number
+  simultaneous_online_bonus?: Record<string, unknown>
 }
 
 export interface CohabitationSharedFarmLedgerEntry {
@@ -172,6 +174,9 @@ export interface CohabitationSharedFarmLedgerEntry {
   actor_key?: string
   seed_item_id?: string
   fertilizer_item_id?: string
+  fertilizer_permission_key?: string
+  premium_fertilizer?: boolean
+  fertilizer_effect?: string
   crop_id?: string
   output_item_id?: string
   output_quantity?: number
@@ -190,6 +195,7 @@ export interface CohabitationSharedFarmLedgerEntry {
   idempotency_key: string
   status: string
   at: number
+  simultaneous_online_bonus?: Record<string, unknown>
 }
 
 export interface CohabitationContract {
@@ -207,6 +213,14 @@ export interface CohabitationContract {
   shared_warehouse: {
     items: CohabitationWarehouseItem[]
     ledger: CohabitationWarehouseLedgerEntry[]
+  }
+  shared_fund_deliveries?: Array<Record<string, unknown>>
+  shared_decoration_state?: Array<Record<string, unknown>>
+  family_state?: {
+    has_children?: boolean
+    child_count?: number
+    major_event_ledger?: Array<Record<string, unknown>>
+    [key: string]: unknown
   }
   shared_farm_ledger?: CohabitationSharedFarmLedgerEntry[]
   shared_animals?: CohabitationSharedAnimals | null
@@ -271,6 +285,17 @@ export interface CohabitationSharedPlot {
     infested_days: number
     weedy: boolean
     weedy_days: number
+    cooperation_health_bonus?: number
+    cooperation_quality_bonus?: number
+    last_cooperation_bonus_at?: number
+    last_cooperation_bonus_action?: string
+    last_cooperation_bonus_members?: string[]
+    last_cooperation_plant_actor_username?: string
+    last_cooperation_health_bonus_consumed_at?: number
+    last_cooperation_health_bonus_consumed_value?: number
+    last_cooperation_quality_bonus_consumed_at?: number
+    last_cooperation_quality_bonus_consumed_value?: number
+    last_daily_settled_at?: number
   }
 }
 
@@ -340,6 +365,8 @@ export interface CohabitationSharedMap {
     farm_water_write_enabled?: boolean
     farm_plant_write_enabled?: boolean
     farm_fertilize_write_enabled?: boolean
+    farm_premium_fertilizer_write_enabled?: boolean
+    supported_fertilizer_item_ids?: string[]
     farm_harvest_write_enabled?: boolean
     farm_action_ledger_count?: number
     shared_warehouse_harvest_deposit_enabled?: boolean
@@ -381,6 +408,15 @@ export interface CohabitationSharedAnimal {
     hunger: number
     sick: boolean
     sick_days: number
+    cooperation_mood_bonus?: number
+    last_cooperation_bonus_at?: number
+    last_cooperation_bonus_action?: string
+    last_cooperation_bonus_members?: string[]
+    last_cooperation_feed_actor_username?: string
+    last_cooperation_mood_bonus_consumed_at?: number
+    last_cooperation_mood_bonus_consumed_value?: number
+    last_cooperation_mood_product_progress_bonus_days?: number
+    last_daily_settled_at?: number
   }
 }
 
@@ -442,6 +478,7 @@ export interface CohabitationSharedAnimalLedgerEntry {
   idempotency_key: string
   status: string
   at: number
+  simultaneous_online_bonus?: Record<string, unknown>
 }
 
 export interface CohabitationSharedPet {
@@ -879,12 +916,25 @@ export interface CohabitationWarehouseSnapshot {
     governance_blocked?: boolean
     high_frequency_outbound_count?: number
     high_frequency_inbound_count?: number
+
     sell_enabled: boolean
     idempotency_required: boolean
     compensation_policy: string
   }
   permissions: Record<string, boolean>
   family_warehouse?: Record<string, unknown>
+}
+
+export interface CohabitationFundShopPurchaseCatalogItem {
+  target_ref: string
+  item_id: string
+  label: string
+  unit_price: number
+  category: string
+  allowed_purposes: string[]
+  default_quantity: number
+  default_amount: number
+  auto_pay: boolean
 }
 
 export interface CohabitationFundSnapshot {
@@ -905,6 +955,10 @@ export interface CohabitationFundSnapshot {
     large_spend_enabled?: boolean
     large_spend_draft_enabled?: boolean
     large_spend_execution_enabled?: boolean
+    shop_purchase_to_shared_warehouse_enabled?: boolean
+    allowed_shop_purchase_items?: CohabitationFundShopPurchaseCatalogItem[]
+    auto_purchase_catalog?: CohabitationFundShopPurchaseCatalogItem[]
+    auto_purchase_catalog_count?: number
     small_spend_max_amount?: number
     medium_spend_max_amount?: number
     large_spend_max_amount?: number
@@ -1313,6 +1367,7 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   idempotency_key: string
   reversible: boolean
   status: string
+  simultaneous_online_bonus?: Record<string, unknown>
 }
 
 export interface CohabitationFamilyBuildingMainStateManifestEntry {
@@ -1784,6 +1839,8 @@ export interface CohabitationOfflineStatus {
     personal_money_merged: boolean
     shared_log_available: boolean
     auto_offline_income_enabled: boolean
+    offline_auto_income_pending_count?: number
+    offline_auto_income_claim_supported?: boolean
     conflict_policy: string
     shared_farm_offline_writes_enabled?: boolean
     shared_animal_offline_writes_enabled?: boolean
@@ -1799,6 +1856,7 @@ export interface CohabitationOfflineStatus {
   }>
   actor_capabilities: Record<string, boolean>
   simultaneous_online_bonus?: Record<string, unknown>
+  offline_auto_income?: Record<string, unknown>
   recent_shared_log: CohabitationAuditEntry[]
   deferred_operations: string[]
 }
@@ -1808,12 +1866,14 @@ export type CohabitationOfflineQueueAction =
   | 'care_shared_farm'
   | 'plant_shared_farm'
   | 'fertilize_shared_farm_basic'
+  | 'fertilize_shared_farm_premium'
   | 'harvest_shared_farm'
   | 'feed_shared_animal'
   | 'pet_shared_animal'
   | 'collect_shared_animal_product'
   | 'care_shared_pet'
   | 'process_shared_workshop_recipe'
+  | 'collect_offline_auto_income'
   | string
 
 export interface CohabitationOfflineQueueOperation {
@@ -1887,6 +1947,40 @@ export interface CohabitationOfflineQueueMergeResponse extends CohabitationDetai
   offline_status?: CohabitationOfflineStatus
   offline_queue_merge?: CohabitationOfflineQueueMergeSummary
 }
+
+export interface CohabitationOfflineAutoIncomeCollectPayload {
+  idempotency_key: string
+  memo?: string
+  client_queue_revision?: number
+  client_base_revision?: number
+}
+
+export interface CohabitationOfflineAutoIncomeCollectResponse extends CohabitationDetailResponse {
+  offline_status?: CohabitationOfflineStatus
+  shared_map?: CohabitationSharedMap
+  shared_animals?: CohabitationSharedAnimals
+  warehouse?: CohabitationWarehouseSnapshot
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  farm_ledger_entries?: CohabitationSharedFarmLedgerEntry[]
+  animal_ledger_entries?: CohabitationSharedAnimalLedgerEntry[]
+  idempotent?: boolean
+  offline_auto_income_claim?: Record<string, unknown>
+}
+
+export interface CohabitationDailySettlePayload {
+  idempotency_key: string
+  memo?: string
+}
+
+export interface CohabitationDailySettleResponse extends CohabitationDetailResponse {
+  shared_map?: CohabitationSharedMap
+  shared_animals?: CohabitationSharedAnimals
+  offline_status?: CohabitationOfflineStatus
+  daily_settlement?: Record<string, unknown>
+  idempotent?: boolean
+  already_settled?: boolean
+}
+
 export interface CohabitationSeparationPreview {
   id: string
   version: number
@@ -1961,6 +2055,15 @@ export interface CohabitationFundSpendPayload {
   purpose: string
   target_ref?: string
   auto_pay?: boolean
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFundShopPurchasePayload {
+  target_ref: string
+  quantity: number
+  amount?: number
+  purpose: string
   memo?: string
   idempotency_key: string
 }
@@ -2183,7 +2286,7 @@ export interface CohabitationSharedFarmPlantPayload {
 
 export interface CohabitationSharedFarmFertilizePayload {
   plot_id: string
-  fertilizer_item_id: 'basic_fertilizer'
+  fertilizer_item_id: 'basic_fertilizer' | 'quality_fertilizer' | 'speed_gro' | 'deluxe_speed_gro' | 'quality_retaining_soil' | string
   memo?: string
   idempotency_key: string
 }
@@ -2388,6 +2491,9 @@ export interface CohabitationSharedFarmActionResponse extends CohabitationDetail
   already_harvested?: boolean
   farm_action?: {
     action: string
+    fertilizer_permission_key?: string
+    premium_fertilizer?: boolean
+    fertilizer_effect?: string
     plot_id: string
     seed_item_id?: string
     fertilizer_item_id?: string
@@ -2396,6 +2502,7 @@ export interface CohabitationSharedFarmActionResponse extends CohabitationDetail
     output_quantity?: number
     output_quality?: string
     warehouse_ledger_ids?: string[]
+    simultaneous_online_bonus?: Record<string, unknown>
     before_plot_state?: Record<string, unknown>
     after_plot_state?: Record<string, unknown>
     personal_save_changed?: boolean
@@ -2441,6 +2548,7 @@ export interface CohabitationSharedAnimalActionResponse extends CohabitationDeta
     product_quantity?: number
     product_quality?: string
     warehouse_ledger_ids?: string[]
+    simultaneous_online_bonus?: Record<string, unknown>
     before_animal_state?: Record<string, unknown>
     after_animal_state?: Record<string, unknown>
     personal_save_changed?: boolean
@@ -2588,6 +2696,35 @@ export interface CohabitationFundSpendResponse extends CohabitationDetailRespons
   } | null
 }
 
+export interface CohabitationFundShopPurchaseResponse extends CohabitationDetailResponse {
+  fund?: CohabitationFundSnapshot
+  warehouse?: CohabitationWarehouseSnapshot
+  ledger_entry?: CohabitationFundLedgerEntry
+  fund_ledger_entry?: CohabitationFundLedgerEntry
+  warehouse_ledger_entry?: CohabitationWarehouseLedgerEntry
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  idempotent?: boolean
+  shared_fund?: {
+    balance_before?: number
+    balance_after?: number
+    deducted_amount?: number
+    personal_money_merged: boolean
+  }
+  purchase?: {
+    item_id: string
+    label?: string
+    quantity: number
+    quality: string
+    unit_price: number
+    total_amount: number
+    target_inventory?: string
+    warehouse_ledger_id?: string
+    fund_ledger_id?: string
+    personal_inventory_changed?: boolean
+    personal_money_merged?: boolean
+  } | null
+}
+
 export interface CohabitationFundLargeSpendDraftResponse extends CohabitationDetailResponse {
   fund?: CohabitationFundSnapshot
   draft: CohabitationFundLargeSpendDraft
@@ -2619,6 +2756,9 @@ export interface CohabitationFundHighRiskReceiptResponse extends CohabitationFun
   }
   refund_ledger_entry?: CohabitationFundLedgerEntry | null
   already_recorded?: boolean
+  delivery_entry?: Record<string, unknown> | null
+  shared_decoration_state_entry?: Record<string, unknown> | null
+  family_major_event_entry?: Record<string, unknown> | null
   shared_fund?: CohabitationFundLargeSpendDraftResponse['shared_fund'] & {
     refund_amount?: number
   }
@@ -3093,6 +3233,14 @@ export const harvestCohabitationSharedPlot = async (contractId: string, payload:
   )
 }
 
+export const settleCohabitationDailyBonus = async (contractId: string, payload: CohabitationDailySettlePayload) => {
+  return postCohabitationJson<CohabitationDailySettleResponse>(
+    contractPath(contractId, '/daily-settle'),
+    payload as unknown as Record<string, unknown>,
+    '共同庄园日结失败'
+  )
+}
+
 export const fetchCohabitationWarehouse = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     warehouse?: CohabitationWarehouseSnapshot
@@ -3221,6 +3369,14 @@ export const spendCohabitationFund = async (contractId: string, payload: Cohabit
     contractPath(contractId, '/fund/spend'),
     payload as unknown as Record<string, unknown>,
     '共同基金支出失败'
+  )
+}
+
+export const purchaseCohabitationSharedFundShopItem = async (contractId: string, payload: CohabitationFundShopPurchasePayload) => {
+  return postCohabitationJson<CohabitationFundShopPurchaseResponse>(
+    contractPath(contractId, '/fund/shop-purchase'),
+    payload as unknown as Record<string, unknown>,
+    'shared fund shop purchase failed'
   )
 }
 
@@ -3483,5 +3639,13 @@ export const mergeCohabitationOfflineQueue = async (contractId: string, payload:
     contractPath(contractId, '/offline-queue/merge'),
     payload as unknown as Record<string, unknown>,
     '合并离线经营队列失败'
+  )
+}
+
+export const collectCohabitationOfflineAutoIncome = async (contractId: string, payload: CohabitationOfflineAutoIncomeCollectPayload) => {
+  return postCohabitationJson<CohabitationOfflineAutoIncomeCollectResponse>(
+    contractPath(contractId, '/offline-auto-income/collect'),
+    payload as unknown as Record<string, unknown>,
+    '领取离线自动收益失败'
   )
 }

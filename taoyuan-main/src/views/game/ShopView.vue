@@ -1632,7 +1632,17 @@
               购买 ×{{ buyQuantity }}
             </Button>
             <Button
-              v-else
+              v-if="buyModalSharedFundOption"
+              class="w-full justify-center"
+              :class="{ '!bg-accent !text-bg': canUseBuyModalSharedFund }"
+              :disabled="!canUseBuyModalSharedFund"
+              :icon="Wallet"
+              @click="handleBuyModalWithSharedFund"
+            >
+              共同基金 x{{ buyModalSharedFundOption.quantity }} ({{ buyModalSharedFundOption.amount }}文)
+            </Button>
+            <Button
+              v-if="!buyModalData.batchBuy"
               class="w-full justify-center"
               :class="{ '!bg-accent !text-bg': buyModalData.canBuy() }"
               :disabled="!buyModalData.canBuy()"
@@ -1781,7 +1791,8 @@
     Footprints,
     Filter,
     Droplets,
-    UtensilsCrossed
+    UtensilsCrossed,
+    Wallet
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { useFarmStore } from '@/stores/useFarmStore'
@@ -1805,6 +1816,8 @@
   import { CRAFTABLE_RINGS } from '@/data/rings'
   import { SHOP_HATS, CRAFTABLE_HATS } from '@/data/hats'
   import { SHOP_SHOES, CRAFTABLE_SHOES } from '@/data/shoes'
+  import { useCohabitationStore } from '@/stores/useCohabitationStore'
+  import type { CohabitationFundShopPurchaseCatalogItem } from '@/utils/cohabitationApi'
   import { HAY_PRICE } from '@/data/animals'
   import { addLog } from '@/composables/useGameLog'
   import { sfxBuy } from '@/composables/useAudio'
@@ -1831,6 +1844,7 @@
   import ExchangeLedgerPanel from '@/components/game/ExchangeLedgerPanel.vue'
   import MarketGovernancePanel from '@/components/game/MarketGovernancePanel.vue'
 
+  const cohabitationStore = useCohabitationStore()
   const RAIN_TOTEM_PRICE = 300
   const WOOD_PRICE = 50
 
@@ -2055,6 +2069,7 @@
     void neighborConsignmentStore.refreshOverview().catch(() => {})
     void marketGovernanceStore.refreshGovernance().catch(() => {})
     void exchangeLedgerStore.refreshLedger().catch(() => {})
+    void cohabitationStore.refreshOverview({ silent: true }).catch(() => {})
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
     }
@@ -2566,6 +2581,16 @@
       addLog(error instanceof Error ? error.message : '提交交换争议失败')
     }
   }
+  type BuyModalSharedFundOption = {
+    targetRef: string
+    itemId: string
+    label: string
+    unitPrice: number
+    quantity: number
+    amount: number
+    purpose: string
+  }
+
 
   const handleBuyCatalogOffer = (offerId: string) => {
     const result = shopStore.purchaseCatalogOffer(offerId)
@@ -2647,6 +2672,57 @@
     return Math.max(1, buyModalData.value.batchBuy.maxCount())
   })
 
+  const mapSharedFundShopCatalogItem = (item: CohabitationFundShopPurchaseCatalogItem): BuyModalSharedFundOption | null => {
+    const unitPrice = Math.max(0, Math.floor(Number(item.unit_price) || 0))
+    const purpose = item.allowed_purposes?.[0] || (item.category === 'feed' ? 'feed_budget' : 'seed_budget')
+    if (!item.target_ref || !item.item_id || unitPrice <= 0 || !purpose) return null
+    return {
+      targetRef: item.target_ref,
+      itemId: item.item_id,
+      label: item.label || item.item_id,
+      unitPrice,
+      quantity: 1,
+      amount: unitPrice,
+      purpose,
+    }
+  }
+
+  const sharedFundShopCatalogByItemId = computed(() => {
+    const summary = cohabitationStore.fund?.summary
+    const catalog = summary?.auto_purchase_catalog?.length
+      ? summary.auto_purchase_catalog
+      : summary?.allowed_shop_purchase_items ?? []
+    const mapped = new Map<string, BuyModalSharedFundOption>()
+    for (const item of catalog) {
+      const option = mapSharedFundShopCatalogItem(item)
+      if (option) mapped.set(option.itemId, option)
+    }
+    return mapped
+  })
+
+  const buyModalSharedFundOption = computed<BuyModalSharedFundOption | null>(() => {
+    const itemId = buyModalData.value?.itemId
+    const option = itemId ? sharedFundShopCatalogByItemId.value.get(itemId) : null
+    if (!option) return null
+    const quantity = buyModalData.value?.batchBuy ? buyQuantity.value : 1
+    const normalizedQuantity = Math.max(1, Math.floor(Number(quantity) || 1))
+    return {
+      ...option,
+      quantity: normalizedQuantity,
+      amount: option.unitPrice * normalizedQuantity,
+    }
+  })
+
+  const canUseBuyModalSharedFund = computed(() => {
+    const option = buyModalSharedFundOption.value
+    const summary = cohabitationStore.fund?.summary
+    const permissions = cohabitationStore.fund?.permissions
+    const enabled = summary?.shop_purchase_to_shared_warehouse_enabled === true
+      ? permissions?.can_shop_purchase_to_shared_warehouse === true
+      : summary?.spend_enabled === true && permissions?.can_auto_buy_seeds_feed === true
+    return Boolean(option && cohabitationStore.canOpenSelectedContract && enabled && (cohabitationStore.fund?.balance ?? 0) >= option.amount && !cohabitationStore.actionLoading)
+  })
+
   const setBuyQuantity = (val: number) => {
     buyQuantity.value = Math.max(1, Math.min(val, maxBuyQuantity.value))
   }
@@ -2719,6 +2795,28 @@
       canBuy: () => canBuy() && getResolvedMaxCount() > 0,
       batchBuy: { onBuy: count => batchOnBuy(Math.min(count, Math.max(1, getResolvedMaxCount()))), maxCount: getResolvedMaxCount },
       itemId
+    }
+  }
+
+  const handleBuyModalWithSharedFund = async () => {
+    const option = buyModalSharedFundOption.value
+    if (!option || !canUseBuyModalSharedFund.value) return
+    try {
+      const result = await cohabitationStore.purchaseSharedFundShopItem({
+        target_ref: option.targetRef,
+        quantity: option.quantity,
+        amount: option.amount,
+        purpose: option.purpose,
+        memo: `shop shared fund purchase: ${option.itemId} x${option.quantity}`,
+        idempotency_key: `ui-shop-shared-fund-buy-${option.itemId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const quantity = result?.purchase?.quantity ?? option.quantity
+      sfxBuy()
+      showFloat(`-${option.amount}\u6587`, 'danger')
+      addLog(`\u5171\u540c\u57fa\u91d1\u8d2d\u4e70${option.label} x${quantity}\uff0c\u5df2\u5165\u5171\u540c\u4ed3\u5e93\u3002(-${option.amount}\u6587)`)
+      shopModal.value = null
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '\u5171\u540c\u57fa\u91d1\u8d2d\u4e70\u5931\u8d25')
     }
   }
 

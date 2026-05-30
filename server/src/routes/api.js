@@ -184,6 +184,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_separation_execution_request',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/record-execution-failure$/i,
+    action: 'cohabitation_separation_execution_failure_record',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/execute-asset-return$/i,
     action: 'cohabitation_separation_asset_return_execute',
   },
@@ -236,6 +240,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_shared_farm_harvest',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/daily-settle$/i,
+    action: 'cohabitation_daily_settle',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-animals\/feed$/i,
     action: 'cohabitation_shared_animal_feed',
   },
@@ -254,6 +262,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-queue\/merge$/i,
     action: 'cohabitation_offline_queue_merge',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-auto-income\/collect$/i,
+    action: 'cohabitation_offline_auto_income_collect',
   },
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-workshop\/process$/i,
@@ -322,6 +334,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/spend$/i,
     action: 'cohabitation_fund_spend',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/shop-purchase$/i,
+    action: 'cohabitation_fund_shop_purchase',
   },
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/large-spend-draft$/i,
@@ -3134,6 +3150,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/harve
   });
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/daily-settle', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.settleCohabitationDailyBonus(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '共同庄园日结失败' });
+    }
+  });
+});
+
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
     const result = await taoyuanCohabitationRuntime.getCohabitationSharedAnimals(req.params.contractId, {
@@ -3386,6 +3416,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-queue/me
   });
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-auto-income/collect', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.collectCohabitationOfflineAutoIncome(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      return sendJson(res, result);
+    } catch (error) {
+      return sendError(res, error);
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/deposit', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -3507,7 +3551,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
       });
       res.json({ ok: true, ...result });
     } catch (error) {
-      res.status(error.status || 500).json({ ok: false, msg: error.message || '???????????????????' });
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '\u8bb0\u5f55\u5171\u540c\u4ed3\u5e93\u9ad8\u4ef7\u503c\u53d6\u51fa\u8865\u507f\u6267\u884c\u5931\u8d25' });
     }
   });
 });
@@ -3622,6 +3666,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/spend', cre
   });
 });
 
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/shop-purchase', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.purchaseCohabitationSharedFundShopItem(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'shared fund shop purchase failed' });
+    }
+  });
+});
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend-draft', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -4034,6 +4092,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '请求分居执行失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/record-execution-failure', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recordSeparationExecutionFailure(req.params.contractId, req.params.previewId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'record separation execution failure failed' });
     }
   });
 });

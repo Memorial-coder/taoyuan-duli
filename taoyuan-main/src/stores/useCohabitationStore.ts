@@ -12,6 +12,7 @@ import {
   contributeCohabitationFund,
   careCohabitationSharedPlot,
   careCohabitationSharedPet,
+  collectCohabitationOfflineAutoIncome,
   collectCohabitationSharedAnimalProduct,
   createCohabitationContract,
   createCohabitationFundLargeSpendDraft,
@@ -70,8 +71,10 @@ import {
   rollbackCohabitationWarehouseHighValueWithdrawalDraft,
   returnCohabitationSeparationSharedWarehouse,
   sellCohabitationWarehouseItem,
+  settleCohabitationDailyBonus,
   splitCohabitationSeparationDecorationsBuildings,
   spendCohabitationFund,
+  purchaseCohabitationSharedFundShopItem,
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping,
@@ -83,6 +86,7 @@ import {
   withdrawCohabitationWarehouseItem,
   type CohabitationContract,
   type CohabitationContractCreatePayload,
+  type CohabitationDailySettlePayload,
   type CohabitationSharedFarmCarePayload,
   type CohabitationFamilyBuildingsPanel,
   type CohabitationFamilyBuildingMainStateExecutePayload,
@@ -98,9 +102,11 @@ import {
   type CohabitationFamilyReputationPanel,
   type CohabitationFamilyRolePanel,
   type CohabitationFamilyVisibilityPanel,
+  type CohabitationFundShopPurchasePayload,
   type CohabitationFundSnapshot,
   type CohabitationFundHighRiskReceiptPayload,
   type CohabitationOfflineStatus,
+  type CohabitationOfflineAutoIncomeCollectPayload,
   type CohabitationOfflineQueueMergePayload,
   type CohabitationOfflineQueueMergeSummary,
   type CohabitationOverviewResponse,
@@ -168,6 +174,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const familyVisibilityPanel = ref<CohabitationFamilyVisibilityPanel | null>(null)
   const offlineQueueMerge = ref<CohabitationOfflineQueueMergeSummary | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
+  const dailySettlement = ref<Record<string, unknown> | null>(null)
 
   const contracts = computed(() => overview.value?.contracts ?? [])
   const summary = computed(() => overview.value?.summary ?? {
@@ -196,6 +203,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyVisibilityPanel.value = null
     offlineQueueMerge.value = null
     offlineStatus.value = null
+    dailySettlement.value = null
     warehouseCompensationAuditBundle.value = null
   }
 
@@ -658,6 +666,30 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '共同基金支出失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const purchaseSharedFundShopItem = async (payload: CohabitationFundShopPurchasePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await purchaseCohabitationSharedFundShopItem(activeContractId.value, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : 'shared fund shop purchase failed'
       throw error
     } finally {
       actionLoading.value = false
@@ -1782,6 +1814,48 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const collectOfflineAutoIncome = async (payload: CohabitationOfflineAutoIncomeCollectPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await collectCohabitationOfflineAutoIncome(activeContractId.value, payload)
+      if (result?.offline_status) offlineStatus.value = result.offline_status
+      if (result?.shared_map) sharedMap.value = result.shared_map
+      if (result?.shared_animals) sharedAnimals.value = result.shared_animals
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '领取离线自动收益失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const settleDailyBonus = async (payload: CohabitationDailySettlePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await settleCohabitationDailyBonus(activeContractId.value, payload)
+      dailySettlement.value = result?.daily_settlement ?? null
+      if (result?.offline_status) offlineStatus.value = result.offline_status
+      if (result?.shared_map) sharedMap.value = result.shared_map
+      if (result?.shared_animals) sharedAnimals.value = result.shared_animals
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '共同庄园日结失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberPermissions = async (payload: {
     target_username: string
     permissions: Record<string, Record<string, boolean>>
@@ -1862,6 +1936,8 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyReputationPanel,
     familyVisibilityPanel,
     offlineStatus,
+    purchaseSharedFundShopItem,
+    dailySettlement,
     contracts,
     summary,
     activeContracts,
@@ -1910,6 +1986,8 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     executeFamilyBuildingRealDemolitionMainStateExactTargets,
     resolveFamilyBuildingRealDemolitionMainStateExactTargets,
     mergeOfflineQueue,
+    collectOfflineAutoIncome,
+    settleDailyBonus,
     executeFamilyBuildingRealDemolitionMainStateExactMutation,
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,

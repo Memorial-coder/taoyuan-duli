@@ -71,7 +71,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
   'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
   'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
-  'hay', 'fish_feed', 'basic_fertilizer', 'seed_cabbage', 'seed_radish', 'seed_rice', 'premium_feed', 'nourishing_feed', 'vitality_feed',
+  'hay', 'fish_feed', 'basic_fertilizer', 'quality_fertilizer', 'speed_gro', 'deluxe_speed_gro', 'quality_retaining_soil', 'seed_cabbage', 'seed_radish', 'seed_rice', 'premium_feed', 'nourishing_feed', 'vitality_feed',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -1347,11 +1347,11 @@ function normalizeWarehouseOperationCredential(payload = {}) {
     payload.operation_id ?? payload.operationId ?? payload.operation_key ?? payload.operationKey,
     120
   );
-  const fallbackKey = sanitizeText(
+  const requestKey = sanitizeText(
     payload.idempotency_key ?? payload.idempotencyKey ?? payload.request_id ?? payload.requestId,
     120
   );
-  const idempotencyKey = operationId || fallbackKey;
+  const idempotencyKey = requestKey || operationId;
   return {
     operation_id: operationId || idempotencyKey,
     idempotency_key: idempotencyKey,
@@ -1363,11 +1363,11 @@ function normalizeFundConsumptionCredential(payload = {}) {
     payload.consumption_id ?? payload.consumptionId ?? payload.spend_id ?? payload.spendId ?? payload.consume_id ?? payload.consumeId,
     120
   );
-  const fallbackKey = sanitizeText(
+  const requestKey = sanitizeText(
     payload.idempotency_key ?? payload.idempotencyKey ?? payload.operation_id ?? payload.operationId ?? payload.request_id ?? payload.requestId,
     120
   );
-  const idempotencyKey = consumptionId || fallbackKey;
+  const idempotencyKey = requestKey || consumptionId;
   return {
     consumption_id: consumptionId || idempotencyKey,
     idempotency_key: idempotencyKey,
@@ -2329,6 +2329,7 @@ function normalizeWarehouseWithdrawalDraftEvent(entry = {}) {
     confirmation_text: sanitizeText(entry.confirmation_text, 120),
     confirmed_at: Math.max(0, Math.floor(Number(entry.confirmed_at || entry.at) || 0)) || nowSeconds(),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    operation_id: sanitizeText(entry.operation_id || entry.operationId || entry.idempotency_key, 120),
   };
 }
 
@@ -2414,7 +2415,9 @@ function normalizeWarehouseWithdrawalDraft(entry = {}) {
     execution_compensation_required: state === 'executed' && !['approved', 'rejected'].includes(compensationReviewStatus),
     created_at: Math.max(0, Math.floor(Number(entry.created_at) || 0)) || nowSeconds(),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    operation_id: sanitizeText(entry.operation_id || entry.operationId || entry.idempotency_key, 120),
     execute_idempotency_key: sanitizeText(entry.execute_idempotency_key, 120),
+    execute_operation_id: sanitizeText(entry.execute_operation_id || entry.executeOperationId || entry.execute_idempotency_key, 120),
     executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
     executed_by_username: normalizeUsername(entry.executed_by_username),
     warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids)
@@ -2437,6 +2440,7 @@ function normalizeWarehouseWithdrawalDraft(entry = {}) {
     compensation_review_resolve_idempotency_key: sanitizeText(entry.compensation_review_resolve_idempotency_key, 120),
     compensation_review_record_only: entry.compensation_review_record_only !== false,
     rollback_idempotency_key: sanitizeText(entry.rollback_idempotency_key, 120),
+    rollback_operation_id: sanitizeText(entry.rollback_operation_id || entry.rollbackOperationId || entry.rollback_idempotency_key, 120),
     compensation_execution_status: ['none', 'recorded'].includes(entry.compensation_execution_status) ? entry.compensation_execution_status : 'none',
     compensation_execution_action: WAREHOUSE_WITHDRAWAL_COMPENSATION_EXECUTION_ACTIONS.has(entry.compensation_execution_action) ? entry.compensation_execution_action : '',
     compensation_execution_receipt: sanitizeText(entry.compensation_execution_receipt, 160),
@@ -3114,6 +3118,7 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
           policy: '',
         },
     permission_mode: sanitizeText(entry.permission_mode, 40) || 'owner_only',
+    operation_id: sanitizeText(entry.operation_id || entry.operationId || entry.idempotency_key, 120),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     at: Math.max(0, Math.floor(Number(entry.at) || Number(entry.created_at) || nowSeconds())),
     reversible: entry.reversible !== false,
@@ -3236,6 +3241,17 @@ function summarizeFarmPlot(plot = {}) {
   };
 }
 
+function summarizeFruitTree(tree = {}) {
+  return {
+    id: normalizePlotId(tree.id ?? tree.tree_id ?? tree.source_tree_id, 0),
+    type: sanitizeText(tree.type || tree.tree_type, 80),
+    growth_days: Math.max(0, Math.floor(Number(tree.growthDays ?? tree.growth_days) || 0)),
+    mature: tree.mature === true,
+    year_age: Math.max(0, Math.floor(Number(tree.yearAge ?? tree.year_age ?? tree.seasonAge ?? tree.season_age) || 0)),
+    today_fruit: tree.todayFruit === true || tree.today_fruit === true,
+  };
+}
+
 function summarizeAnimal(animal = {}) {
   const id = sanitizeText(animal.id ?? animal.animal_id, 100);
   const type = sanitizeText(animal.type ?? animal.animal_type, 80);
@@ -3321,13 +3337,15 @@ function readMemberFarmSnapshot(member = {}) {
     if (slot === null) {
       return {
         available: false,
-        unavailable_reason: '成员没有可读取的服务端存档',
+        unavailable_reason: 'member has no readable save slot',
         member,
         save_slot: null,
         save_revision: 0,
         save_id: normalizeSaveId(member.save_id || identity?.save_id),
         farm_size: 0,
         plots: [],
+        greenhouse_plots: [],
+        fruit_trees: [],
       };
     }
     const entry = saves.slots[slot];
@@ -3338,17 +3356,21 @@ function readMemberFarmSnapshot(member = {}) {
     if (!farm) {
       return {
         available: false,
-        unavailable_reason: '成员存档缺少农田数据',
+        unavailable_reason: 'member save has no farm data',
         member,
         save_slot: slot,
         save_revision: Number(entry.revision) || 0,
         save_id: normalizeSaveId(member.save_id || identity?.save_id),
         farm_size: 0,
         plots: [],
+        greenhouse_plots: [],
+        fruit_trees: [],
       };
     }
     const onlineIdentity = getContainerIdentity(saveContainer);
     const plots = Array.isArray(farm.plots) ? farm.plots : [];
+    const greenhousePlots = Array.isArray(farm.greenhousePlots) ? farm.greenhousePlots : [];
+    const fruitTrees = Array.isArray(farm.fruitTrees) ? farm.fruitTrees : [];
     const saveId = normalizeSaveId(member.save_id || identity?.save_id || onlineIdentity?.save_id || onlineIdentity?.saveId);
     return {
       available: true,
@@ -3359,19 +3381,23 @@ function readMemberFarmSnapshot(member = {}) {
       save_id: saveId,
       farm_size: normalizeFarmSize(farm.farmSize ?? farm.farm_size, plots.length),
       plots,
-      greenhouse_plot_count: Array.isArray(farm.greenhousePlots) ? farm.greenhousePlots.length : 0,
-      fruit_tree_count: Array.isArray(farm.fruitTrees) ? farm.fruitTrees.length : 0,
+      greenhouse_plots: greenhousePlots,
+      fruit_trees: fruitTrees,
+      greenhouse_plot_count: greenhousePlots.length,
+      fruit_tree_count: fruitTrees.length,
     };
   } catch {
     return {
       available: false,
-      unavailable_reason: '成员存档读取失败',
+      unavailable_reason: 'failed to read member farm save',
       member,
       save_slot: null,
       save_revision: 0,
       save_id: normalizeSaveId(member.save_id || identity?.save_id),
       farm_size: 0,
       plots: [],
+      greenhouse_plots: [],
+      fruit_trees: [],
     };
   }
 }
@@ -3573,6 +3599,62 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
     strategy: 'member_region_x_axis',
     stitch_axis: 'x',
   };
+}
+
+function buildSupplementalFarmOriginAssets(contract = {}, farmSnapshots = []) {
+  const assets = [];
+  for (const farmSnapshot of Array.isArray(farmSnapshots) ? farmSnapshots : []) {
+    if (farmSnapshot?.available !== true) continue;
+    const member = farmSnapshot.member || {};
+    const ownerKey = normalizeUsernameKey(member.username_key || member.username);
+    if (!ownerKey) continue;
+    const originOwnerId = farmSnapshot.save_id ? 'save:' + farmSnapshot.save_id : 'account:' + ownerKey;
+    const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    const roleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(manorRole) : null;
+    const permissionMode = getPlotPermissionMode(contract, ownerKey);
+    const baseAsset = (sourceArea, sourceId) => {
+      const localColumn = sourceArea === 'greenhouse' ? sourceId % 4 : 0;
+      const localRow = sourceArea === 'greenhouse' ? Math.floor(sourceId / 4) : 0;
+      return {
+        id: ownerKey + ':' + sourceArea + ':' + sourceId,
+        source_area: sourceArea,
+        source_plot_id: sourceId,
+        origin_owner_id: originOwnerId,
+        origin_save_id: farmSnapshot.save_id,
+        origin_owner_username: member.username,
+        origin_owner_display_name: member.display_name,
+        origin_owner_key: ownerKey,
+        origin_owner_manor_role: manorRole,
+        origin_owner_manor_role_label: roleDef?.label || '',
+        current_steward_username: member.username,
+        current_steward_display_name: member.display_name,
+        current_steward_manor_role: manorRole,
+        current_steward_manor_role_label: roleDef?.label || '',
+        source_save_slot: farmSnapshot.save_slot,
+        source_save_revision: farmSnapshot.save_revision,
+        permission_mode: permissionMode,
+        split_rule: 'return_to_origin_owner_on_separation',
+        permission_restriction: getPlotPermissionRestriction(permissionMode),
+        x: localColumn,
+        y: localRow,
+        row: localRow,
+        col: localColumn,
+        local_row: localRow,
+        local_col: localColumn,
+        readonly: false,
+      };
+    };
+    for (const [index, rawPlot] of (Array.isArray(farmSnapshot.greenhouse_plots) ? farmSnapshot.greenhouse_plots : []).entries()) {
+      const sourcePlotId = normalizePlotId(rawPlot?.id ?? rawPlot?.plotId ?? rawPlot?.plot_id, index);
+      assets.push({ ...baseAsset('greenhouse', sourcePlotId), plot_state: summarizeFarmPlot(rawPlot) });
+    }
+    for (const [index, rawTree] of (Array.isArray(farmSnapshot.fruit_trees) ? farmSnapshot.fruit_trees : []).entries()) {
+      const treeState = summarizeFruitTree(rawTree);
+      const sourceTreeId = normalizePlotId(rawTree?.id ?? rawTree?.tree_id ?? treeState.id, index);
+      assets.push({ ...baseAsset('fruit_tree', sourceTreeId), fruit_tree_state: { ...treeState, id: sourceTreeId } });
+    }
+  }
+  return assets.filter(asset => asset.id).slice(0, 240);
 }
 
 function buildSharedMapLayoutSummary(contract = {}, farmSnapshots = [], layout = {}) {
@@ -4631,6 +4713,9 @@ function normalizeFundLargeSpendDraft(entry = {}) {
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     confirmation_required: true,
     confirmation_status: sanitizeText(entry.confirmation_status, 40) || 'pending',
+    required_permission_keys: Array.isArray(entry.required_permission_keys)
+      ? entry.required_permission_keys.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 8)
+      : getLargeFundSpendPurposePermissionChecks(normalizedPurpose).map(check => check.label),
     execution_enabled: false,
     final_spend_ledger_id: sanitizeText(entry.final_spend_ledger_id, 80),
     final_building_ledger_id: sanitizeText(entry.final_building_ledger_id, 100),
@@ -8045,9 +8130,12 @@ function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
 function normalizeSharedFarmActionPayload(payload = {}) {
   const plotId = sanitizeText(payload.plot_id || payload.shared_plot_id || payload.id, 140);
   if (!plotId) throw createError('shared farm plot_id is required');
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const operationId = sanitizeText(payload.operation_id ?? payload.operationId ?? payload.operation_key ?? payload.operationKey, 120);
+  const requestKey = sanitizeText(payload.idempotency_key ?? payload.idempotencyKey ?? payload.request_id ?? payload.requestId, 120);
+  const idempotencyKey = requestKey || operationId;
   if (!idempotencyKey) throw createError('shared farm action requires idempotency_key');
   return {
+    operation_id: operationId || idempotencyKey,
     plot_id: plotId,
     idempotency_key: idempotencyKey,
     memo: sanitizeText(payload.memo || payload.note, 160),
@@ -8354,6 +8442,14 @@ function assertSharedAnimalProductCollectAllowed(contract = {}, member = {}, ani
   if (actorKey && originOwnerKey && actorKey === originOwnerKey) return true;
   if (animal.permission_mode === 'shared') return true;
   throw createError('shared animal is owner-only', 403);
+}
+
+function assertSeparationChildArrangementAllowed(actorPermissions = {}) {
+  const requiredChecks = [{ group: 'family', key: 'child_daily_care', label: 'family.child_daily_care' }];
+  if (actorPermissions?.family?.child_daily_care !== true) {
+    throw createError('separation child arrangement requires permission: family.child_daily_care', 403);
+  }
+  return requiredChecks;
 }
 
 function normalizeWarehouseWithdrawPayload(payload = {}) {
@@ -8709,6 +8805,7 @@ function assertLargeFundSpendPurposePermissions(actorPermissions = {}, purpose =
   }
   return requiredChecks;
 }
+
 function getLargeFundReceiptPermissionChecks(purpose, outcome = '') {
   if (sanitizeText(outcome, 40) !== 'delivered') return [];
   return getLargeFundSpendPurposePermissionChecks(purpose).filter(check =>
@@ -8725,7 +8822,6 @@ function assertLargeFundReceiptPermissions(actorPermissions = {}, purpose = '', 
   }
   return requiredChecks;
 }
-
 
 function getLargeFundSpendDeferredOperations(purpose, executed = false) {
   const normalizedPurpose = sanitizeText(purpose, 80) || 'family_building';
@@ -8895,6 +8991,34 @@ function normalizeSeparationExecutionRequestPayload(payload = {}) {
   if (!idempotencyKey) throw createError('分居执行请求需要 idempotency_key，以防断线或重试时重复创建执行请求');
   return {
     idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeSeparationExecutionFailurePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('separation execution failure recovery requires idempotency_key to avoid duplicate pending recovery', 400);
+  const allowedStages = new Set([
+    'request_execution',
+    'execute_asset_return',
+    'write_personal_farm_returns',
+    'refund_shared_fund',
+    'return_shared_warehouse',
+    'split_decorations',
+    'resolve_family_story',
+    'write_personal_story_receipts',
+    'resolve_child_arrangement',
+    'write_personal_family_receipts',
+    'manual_execution',
+  ]);
+  const stage = sanitizeText(payload.failure_stage || payload.stage || 'manual_execution', 80);
+  return {
+    idempotency_key: idempotencyKey,
+    execution_request_id: sanitizeText(payload.execution_request_id, 100),
+    failure_stage: allowedStages.has(stage) ? stage : 'manual_execution',
+    failure_reason: sanitizeText(payload.failure_reason || payload.reason || payload.error_message || payload.memo || payload.note, 240),
+    error_code: sanitizeText(payload.error_code || payload.code, 80),
+    failed_operation_id: sanitizeText(payload.failed_operation_id || payload.failedOperationId || payload.operation_id || payload.request_id, 120),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -9507,7 +9631,8 @@ function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, q
     reserveFromLots(true);
     reserveFromLots(false);
   }
-  const result = consumeWarehouseLots(lots, quantity);
+  const preferredOwnerKey = normalizeUsernameKey(options.preferred_owner_key || options.preferredOwnerKey);
+  const result = consumeWarehouseLots(lots, quantity, preferredOwnerKey);
   if (!result.ok) return result;
   const grouped = new Map();
   for (const allocation of result.allocations) {
@@ -9530,6 +9655,169 @@ function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, q
   };
 }
 
+function getAcceptedSeparationMembers(contract = {}) {
+  return (Array.isArray(contract.members) ? contract.members : [])
+    .filter(member => member?.status === 'accepted')
+    .map(member => {
+      const username = normalizeUsername(member.username);
+      if (!username) return null;
+      const usernameKey = normalizeUsernameKey(member.username_key || username);
+      const saveId = normalizeSaveId(member.save_id);
+      return {
+        ...member,
+        username,
+        username_key: usernameKey,
+        save_id: saveId,
+        save_slot: normalizeSaveSlot(member.save_slot),
+        source_owner_ids: [
+          saveId ? `save:${saveId}` : '',
+          `account:${usernameKey}`,
+        ].filter(Boolean),
+      };
+    })
+    .filter(Boolean);
+}
+
+function getMemberReturnTargetId(member = {}) {
+  const usernameKey = normalizeUsernameKey(member.username_key || member.username);
+  const saveId = normalizeSaveId(member.save_id);
+  return saveId ? `save:${saveId}` : `account:${usernameKey}`;
+}
+
+function findWarehouseSourceMember(entry = {}, acceptedMembers = []) {
+  const sourceOwnerId = sanitizeText(entry.source_owner_id, 100);
+  const sourceOwnerKey = normalizeUsernameKey(entry.source_owner_key || entry.source_owner_username);
+  const sourceOwnerUsernameKey = normalizeUsernameKey(entry.source_owner_username);
+  return acceptedMembers.find(member =>
+    (sourceOwnerKey && sourceOwnerKey === member.username_key)
+    || (sourceOwnerUsernameKey && sourceOwnerUsernameKey === member.username_key)
+    || (sourceOwnerId && member.source_owner_ids.includes(sourceOwnerId))
+  ) || null;
+}
+
+function buildWarehouseReturnLots(warehouse = {}) {
+  const lots = [];
+  const ledger = Array.isArray(warehouse.ledger) ? warehouse.ledger.slice().reverse() : [];
+  for (const rawEntry of ledger) {
+    const entry = normalizeWarehouseLedgerEntry(rawEntry);
+    if (!entry || entry.status !== 'committed') continue;
+    if (entry.action === 'deposit' || entry.action === 'compensate') {
+      lots.push({
+        source_ledger_id: entry.id,
+        source_owner_id: entry.source_owner_id,
+        source_owner_username: entry.source_owner_username,
+        source_owner_display_name: entry.source_owner_display_name,
+        source_owner_key: entry.source_owner_key,
+        source_owner_manor_role: entry.source_owner_manor_role,
+        source_owner_manor_role_label: entry.source_owner_manor_role_label,
+        source_save_id: entry.source_save_id,
+        source_save_slot: entry.source_save_slot,
+        source_save_revision: entry.source_save_revision,
+        source_inventory: entry.source_inventory,
+        item_id: entry.item_id,
+        quality: entry.quality,
+        remaining: entry.quantity,
+      });
+    } else if (['withdraw', 'sell', 'consume', 'revert', 'separation_return'].includes(entry.action)) {
+      const matchingLots = lots.filter(lot => lot.item_id === entry.item_id && lot.quality === entry.quality);
+      consumeWarehouseLots(matchingLots, entry.quantity, entry.source_owner_key);
+    }
+  }
+  return lots.filter(lot => lot.remaining > 0);
+}
+
+function buildWarehouseContributionRatioBasis(contract = {}, lots = [], acceptedMembers = []) {
+  const weights = new Map(acceptedMembers.map(member => [member.username_key, 0]));
+  for (const lot of lots) {
+    const member = findWarehouseSourceMember(lot, acceptedMembers);
+    if (!member) continue;
+    weights.set(member.username_key, (weights.get(member.username_key) || 0) + Math.max(0, Math.floor(Number(lot.remaining) || 0)));
+  }
+  let totalWeight = [...weights.values()].reduce((sum, value) => sum + value, 0);
+  let basis = 'warehouse_traceable_remaining_quantity';
+  if (totalWeight <= 0) {
+    const fund = normalizeSharedFund(contract.shared_fund);
+    for (const entry of fund.ledger) {
+      if (entry.status !== 'committed' || entry.action !== 'contribution' || entry.amount <= 0) continue;
+      const member = findWarehouseSourceMember(entry, acceptedMembers);
+      if (!member) continue;
+      weights.set(member.username_key, (weights.get(member.username_key) || 0) + entry.amount);
+    }
+    totalWeight = [...weights.values()].reduce((sum, value) => sum + value, 0);
+    basis = totalWeight > 0 ? 'shared_fund_contribution_amount' : 'equal_split_no_traceable_contribution';
+  }
+  if (totalWeight <= 0 && acceptedMembers.length > 0) {
+    for (const member of acceptedMembers) weights.set(member.username_key, 1);
+    totalWeight = acceptedMembers.length;
+  }
+  return {
+    basis,
+    total_weight: totalWeight,
+    member_weights: acceptedMembers.map(member => ({
+      username: member.username,
+      username_key: member.username_key,
+      weight: weights.get(member.username_key) || 0,
+      share_basis_points: totalWeight > 0 ? Math.round(((weights.get(member.username_key) || 0) * 10000) / totalWeight) : 0,
+    })),
+    requires_both_confirm: true,
+    policy: 'Unidentified shared warehouse products split by traceable contribution ratio; equal split is used only when no contribution evidence exists.',
+  };
+}
+
+function allocateWarehouseQuantityByContribution(quantity, acceptedMembers = [], contributionBasis = {}) {
+  const safeQuantity = Math.max(0, Math.floor(Number(quantity) || 0));
+  if (safeQuantity <= 0 || acceptedMembers.length === 0) return [];
+  const weightsByKey = new Map((contributionBasis.member_weights || []).map(entry => [entry.username_key, Math.max(0, Number(entry.weight) || 0)]));
+  const totalWeight = Math.max(0, Number(contributionBasis.total_weight) || 0);
+  const provisional = acceptedMembers.map((member, index) => {
+    const weight = weightsByKey.get(member.username_key) || 0;
+    const raw = totalWeight > 0 ? (safeQuantity * weight) / totalWeight : safeQuantity / acceptedMembers.length;
+    const baseQuantity = Math.floor(raw);
+    return {
+      member,
+      index,
+      weight,
+      raw,
+      remainder: raw - baseQuantity,
+      quantity: baseQuantity,
+    };
+  });
+  let remaining = safeQuantity - provisional.reduce((sum, entry) => sum + entry.quantity, 0);
+  for (const entry of provisional.slice().sort((left, right) =>
+    right.remainder - left.remainder
+    || right.weight - left.weight
+    || left.index - right.index
+  )) {
+    if (remaining <= 0) break;
+    entry.quantity += 1;
+    remaining -= 1;
+  }
+  return provisional
+    .filter(entry => entry.quantity > 0)
+    .map(entry => ({
+      member: entry.member,
+      quantity: entry.quantity,
+      contribution_weight: entry.weight,
+      contribution_share_basis_points: totalWeight > 0 ? Math.round((entry.weight * 10000) / totalWeight) : Math.round(10000 / acceptedMembers.length),
+    }));
+}
+
+function hashWarehouseUnidentifiedSplitManifest(manifest = []) {
+  const stableRows = (Array.isArray(manifest) ? manifest : []).map(entry => ({
+    split_id: entry.split_id,
+    origin_owner_id: entry.origin_owner_id,
+    origin_owner_key: entry.origin_owner_key,
+    return_target_username: entry.return_target_username,
+    return_target_key: entry.return_target_key,
+    item_id: entry.item_id,
+    quality: entry.quality,
+    quantity: entry.quantity,
+    source_ledger_ids: Array.isArray(entry.source_ledger_ids) ? entry.source_ledger_ids : [],
+    contribution_basis_type: entry.contribution_basis_type,
+    contribution_share_basis_points: entry.contribution_share_basis_points,
+  }));
+  return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
+}
 function buildFundOriginAsset(entry) {
   return {
     ledger_id: entry.id,
@@ -9547,29 +9835,114 @@ function buildFundOriginAsset(entry) {
 
 function buildWarehouseReturnPreview(contract = {}) {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
-  const groups = new Map();
-  for (const entry of warehouse.ledger.slice().reverse()) {
-    if (entry.status !== 'committed' || !['deposit', 'compensate', 'withdraw', 'sell', 'consume', 'revert', 'separation_return'].includes(entry.action)) continue;
-    const key = `${entry.source_owner_id || entry.source_owner_key}:${entry.item_id}:${entry.quality}`;
-    const current = groups.get(key) || {
-      origin_owner_id: entry.source_owner_id,
-      origin_owner_username: entry.source_owner_username,
-      origin_owner_key: entry.source_owner_key,
-      item_id: entry.item_id,
-      quality: entry.quality,
+  const acceptedMembers = getAcceptedSeparationMembers(contract);
+  const lots = buildWarehouseReturnLots(warehouse);
+  const contributionBasis = buildWarehouseContributionRatioBasis(contract, lots, acceptedMembers);
+  const traceableGroups = new Map();
+  const unidentifiedGroups = new Map();
+
+  for (const lot of lots) {
+    const member = findWarehouseSourceMember(lot, acceptedMembers);
+    if (member) {
+      const key = `${member.username_key}:${lot.item_id}:${lot.quality}`;
+      const current = traceableGroups.get(key) || {
+        origin_owner_id: getMemberReturnTargetId(member),
+        origin_owner_username: member.username,
+        origin_owner_key: member.username_key,
+        return_target_id: getMemberReturnTargetId(member),
+        return_target_username: member.username,
+        return_target_key: member.username_key,
+        item_id: lot.item_id,
+        quality: lot.quality,
+        quantity: 0,
+        ledger_ids: [],
+        source_ledger_count: 0,
+        split_source: 'traceable_origin_owner',
+        return_policy: '按共同仓库放入流水归还给来源玩家；双方确认并走执行链后写回个人背包。',
+        manual_return_required: true,
+      };
+      current.quantity += lot.remaining;
+      if (lot.source_ledger_id && !current.ledger_ids.includes(lot.source_ledger_id)) current.ledger_ids.push(lot.source_ledger_id);
+      current.source_ledger_count += 1;
+      traceableGroups.set(key, current);
+      continue;
+    }
+
+    const key = `${lot.item_id}:${lot.quality}`;
+    const current = unidentifiedGroups.get(key) || {
+      item_id: lot.item_id,
+      quality: lot.quality,
       quantity: 0,
       ledger_ids: [],
+      source_owner_ids: [],
+      source_owner_keys: [],
+      source_owner_usernames: [],
       source_ledger_count: 0,
-      return_policy: '按共同仓库放入流水归还给来源玩家；第一版只生成预览，不自动改写个人背包。',
-      manual_return_required: true,
     };
-    const delta = ['deposit', 'compensate'].includes(entry.action) ? entry.quantity : -entry.quantity;
-    current.quantity = Math.max(0, current.quantity + delta);
-    current.ledger_ids.push(entry.id);
+    current.quantity += lot.remaining;
+    if (lot.source_ledger_id && !current.ledger_ids.includes(lot.source_ledger_id)) current.ledger_ids.push(lot.source_ledger_id);
+    if (lot.source_owner_id && !current.source_owner_ids.includes(lot.source_owner_id)) current.source_owner_ids.push(lot.source_owner_id);
+    if (lot.source_owner_key && !current.source_owner_keys.includes(lot.source_owner_key)) current.source_owner_keys.push(lot.source_owner_key);
+    if (lot.source_owner_username && !current.source_owner_usernames.includes(lot.source_owner_username)) current.source_owner_usernames.push(lot.source_owner_username);
     current.source_ledger_count += 1;
-    groups.set(key, current);
+    unidentifiedGroups.set(key, current);
   }
-  return [...groups.values()].filter(entry => entry.quantity > 0).slice(0, 80);
+
+  const unidentifiedItems = [...unidentifiedGroups.values()]
+    .filter(entry => entry.quantity > 0)
+    .map(entry => ({
+      ...entry,
+      split_policy: 'contribution_ratio_or_equal_if_no_evidence',
+      contribution_ratio_basis: contributionBasis,
+      requires_both_confirm: true,
+      manual_return_required: true,
+      return_policy: '来源无法归属到契约成员，按可追溯贡献比例生成拆分清单；无贡献证据时平分，执行前必须完成双方分居确认。',
+    }))
+    .slice(0, 80);
+
+  const unidentifiedSplitManifest = [];
+  for (const item of unidentifiedItems) {
+    const allocations = allocateWarehouseQuantityByContribution(item.quantity, acceptedMembers, contributionBasis);
+    for (const allocation of allocations) {
+      unidentifiedSplitManifest.push({
+        split_id: `${item.item_id}:${item.quality}:${allocation.member.username_key}`,
+        origin_owner_id: `unidentified:${contract.id || 'shared_warehouse'}`,
+        origin_owner_username: 'unidentified_shared_product',
+        origin_owner_key: 'unidentified',
+        return_target_id: getMemberReturnTargetId(allocation.member),
+        return_target_username: allocation.member.username,
+        return_target_key: allocation.member.username_key,
+        item_id: item.item_id,
+        quality: item.quality,
+        quantity: allocation.quantity,
+        source_ledger_ids: item.ledger_ids,
+        source_owner_ids: item.source_owner_ids,
+        source_owner_keys: item.source_owner_keys,
+        source_owner_usernames: item.source_owner_usernames,
+        split_source: 'unidentified_contribution_ratio',
+        split_policy: 'contribution_ratio_or_equal_if_no_evidence',
+        contribution_basis_type: contributionBasis.basis,
+        contribution_weight: allocation.contribution_weight,
+        contribution_share_basis_points: allocation.contribution_share_basis_points,
+        requires_both_confirm: true,
+        return_status: 'manual_personal_inventory_write_required',
+      });
+    }
+  }
+
+  return {
+    items_by_origin_owner: [...traceableGroups.values()].filter(entry => entry.quantity > 0).slice(0, 80),
+    unidentified_items: unidentifiedItems,
+    unidentified_split_manifest: unidentifiedSplitManifest.slice(0, 120),
+    unidentified_split_manifest_hash: hashWarehouseUnidentifiedSplitManifest(unidentifiedSplitManifest),
+    unidentified_split_policy: {
+      basis: contributionBasis.basis,
+      requires_both_confirm: true,
+      member_weights: contributionBasis.member_weights,
+      total_unidentified_quantity: unidentifiedItems.reduce((sum, entry) => sum + entry.quantity, 0),
+      policy: contributionBasis.policy,
+    },
+  };
 }
 
 function buildFundReturnPreview(contract = {}) {
@@ -9614,57 +9987,80 @@ function buildFundReturnPreview(contract = {}) {
 
 function buildPlotReturnPreview(contract = {}) {
   const persistedSharedMap = refreshSharedMapContractFields(contract, contract.shared_map);
-  const farmSnapshots = persistedSharedMap ? [] : (contract.members || []).map(readMemberFarmSnapshot);
+  const farmSnapshots = contract.members || [];
+  const memberFarmSnapshots = farmSnapshots.map(readMemberFarmSnapshot);
   const layout = persistedSharedMap ? {
     plots: Array.isArray(persistedSharedMap.plots) ? persistedSharedMap.plots : [],
     regions: Array.isArray(persistedSharedMap.layout?.regions) ? persistedSharedMap.layout.regions : [],
     arrangement: persistedSharedMap.layout?.arrangement || 'side_by_side',
-  } : buildSharedFarmPlots(contract, farmSnapshots);
+  } : buildSharedFarmPlots(contract, memberFarmSnapshots);
+  const fieldReturnSource = persistedSharedMap ? 'contract_shared_map' : 'member_farm_snapshots';
+  const fieldManifestSource = persistedSharedMap ? 'contract.shared_map.plots' : 'farm.plots';
+  const fieldPlots = (Array.isArray(layout.plots) ? layout.plots : []).map(plot => ({ ...plot, return_source: fieldReturnSource, manifest_source: fieldManifestSource }));
+  const originAssets = normalizeOriginAssets(contract.origin_assets);
+  const persistedSupplementalAssets = originAssets.plots
+    .filter(asset => ['greenhouse', 'fruit_tree'].includes(sanitizeText(asset?.source_area, 40)))
+    .map(asset => ({ ...asset, return_source: 'contract_origin_assets', manifest_source: 'contract.origin_assets.plots' }));
+  const fallbackSupplementalAssets = persistedSupplementalAssets.length > 0
+    ? []
+    : buildSupplementalFarmOriginAssets(contract, memberFarmSnapshots).map(asset => ({
+        ...asset,
+        return_source: 'member_farm_snapshots',
+        manifest_source: asset.source_area === 'fruit_tree' ? 'farm.fruitTrees' : 'farm.greenhousePlots',
+      }));
+  const returnPlots = [...fieldPlots, ...persistedSupplementalAssets, ...fallbackSupplementalAssets];
   const groups = new Map();
-  for (const plot of layout.plots) {
+  for (const plot of returnPlots) {
     const key = plot.origin_owner_id || plot.origin_owner_key || plot.origin_owner_username;
     if (!key) continue;
+    const sourceArea = sanitizeText(plot.source_area, 40) || 'field';
     const current = groups.get(key) || {
       origin_owner_id: plot.origin_owner_id,
       origin_owner_username: plot.origin_owner_username,
       origin_owner_key: plot.origin_owner_key,
       plot_count: 0,
+      source_area_counts: {},
+      source_areas: [],
       active_plot_count: 0,
       harvestable_plot_count: 0,
       waterable_plot_count: 0,
       source_plot_ids: [],
+      greenhouse_plot_ids: [],
+      fruit_tree_ids: [],
       crop_ids: [],
       source_save_slot: plot.source_save_slot,
       source_save_revision: plot.source_save_revision,
       split_rule: plot.split_rule || 'return_to_origin_owner_on_separation',
       permission_restriction: plot.permission_restriction || getPlotPermissionRestriction(plot.permission_mode),
-      return_policy: '按 origin_owner_id 归还原田区；第一版只生成预览，不写回双方个人农田。',
+      return_policy: 'Return field, greenhouse, and fruit-tree farm sources to their origin owners; personal save writes require the locked manifest hash.',
       manual_return_required: true,
     };
     current.plot_count += 1;
+    current.source_area_counts[sourceArea] = Math.max(0, Math.floor(Number(current.source_area_counts[sourceArea]) || 0)) + 1;
+    if (!current.source_areas.includes(sourceArea)) current.source_areas.push(sourceArea);
     const state = plot.plot_state?.state || 'wasteland';
     if (state !== 'wasteland') current.active_plot_count += 1;
     if (state === 'harvestable') current.harvestable_plot_count += 1;
     if (['planted', 'growing'].includes(state) && plot.plot_state?.watered !== true) current.waterable_plot_count += 1;
-    if (current.source_plot_ids.length < 24) current.source_plot_ids.push(plot.source_plot_id);
-    if (plot.plot_state?.crop_id && !current.crop_ids.includes(plot.plot_state.crop_id)) {
-      current.crop_ids.push(plot.plot_state.crop_id);
-    }
+    if (sourceArea === 'greenhouse' && current.greenhouse_plot_ids.length < 24) current.greenhouse_plot_ids.push(plot.source_plot_id);
+    else if (sourceArea === 'fruit_tree' && current.fruit_tree_ids.length < 24) current.fruit_tree_ids.push(plot.source_plot_id);
+    else if (current.source_plot_ids.length < 24) current.source_plot_ids.push(plot.source_plot_id);
+    if (plot.plot_state?.crop_id && !current.crop_ids.includes(plot.plot_state.crop_id)) current.crop_ids.push(plot.plot_state.crop_id);
     groups.set(key, current);
   }
-  const stateCounts = countPlotStates(layout.plots);
-  const manifestSource = persistedSharedMap ? 'contract.shared_map.plots' : 'farm.plots';
-  const plotReturnManifest = buildPlotReturnManifest(layout.plots).map(entry => ({
-    ...entry,
-    return_source: persistedSharedMap ? 'contract_shared_map' : 'member_farm_snapshots',
-    manifest_source: manifestSource,
-  }));
+  const stateCounts = countPlotStates(returnPlots);
+  const plotReturnManifest = buildPlotReturnManifest(returnPlots);
+  const includedSources = uniqueSanitizedValues(plotReturnManifest.map(entry => entry.manifest_source), 100);
+  const returnSources = uniqueSanitizedValues(plotReturnManifest.map(entry => entry.return_source), 100);
   return {
     plots_by_origin_owner: [...groups.values()].slice(0, 80),
     plot_return_manifest: plotReturnManifest,
     plot_return_manifest_hash: hashPlotReturnManifest(plotReturnManifest),
     plot_return_summary: {
       total_plots: stateCounts.total,
+      field_plot_count: plotReturnManifest.filter(entry => entry.source_area === 'field').length,
+      greenhouse_plot_count: plotReturnManifest.filter(entry => entry.source_area === 'greenhouse').length,
+      fruit_tree_count: plotReturnManifest.filter(entry => entry.source_area === 'fruit_tree').length,
       active_plots: stateCounts.active,
       harvestable_plots: stateCounts.harvestable,
       waterable_plots: stateCounts.waterable,
@@ -9674,54 +10070,63 @@ function buildPlotReturnPreview(contract = {}) {
       arrangement: 'side_by_side',
       readonly: true,
       writes_enabled: false,
-      included_sources: [persistedSharedMap ? 'contract.shared_map.plots' : 'farm.plots'],
-      deferred_sources: ['farm.greenhousePlots', 'farm.fruitTrees', 'animal', 'warehouse', 'decoration'],
+      included_sources: includedSources,
+      deferred_sources: ['animal', 'warehouse', 'decoration'],
       persisted_shared_manor_map: persistedSharedMap?.persisted === true,
-      return_source: persistedSharedMap ? 'contract_shared_map' : 'member_farm_snapshots',
+      return_source: returnSources.includes('contract_origin_assets') ? 'contract_persisted_farm_sources' : (returnSources[0] || fieldReturnSource),
     },
-    unavailable_plot_sources: farmSnapshots
-      .filter(snapshot => snapshot.available !== true)
-      .map(snapshot => ({
-        username: snapshot.member.username,
-        username_key: snapshot.member.username_key,
-        display_name: snapshot.member.display_name,
-        reason: snapshot.unavailable_reason || '成员农田暂不可读',
-      })),
+    unavailable_plot_sources: memberFarmSnapshots.filter(snapshot => snapshot.available !== true).map(snapshot => ({
+      username: snapshot.member.username,
+      username_key: snapshot.member.username_key,
+      display_name: snapshot.member.display_name,
+      reason: snapshot.unavailable_reason || 'member farm not readable',
+    })),
   };
 }
 
 function buildPlotReturnManifest(plots = []) {
   return (Array.isArray(plots) ? plots : [])
-    .map(plot => ({
-      manifest_id: `${plot.origin_owner_key || plot.origin_owner_username}:field:${plot.source_plot_id}`,
-      source_area: plot.source_area || 'field',
-      source_plot_id: normalizePlotId(plot.source_plot_id, 0),
-      origin_owner_id: sanitizeText(plot.origin_owner_id, 80),
-      origin_save_id: normalizeSaveId(plot.origin_save_id),
-      permission_mode: sanitizeText(plot.permission_mode, 40) || 'owner_only',
-      origin_owner_username: normalizeUsername(plot.origin_owner_username),
-      origin_owner_key: normalizeUsernameKey(plot.origin_owner_key || plot.origin_owner_username),
-      return_target_username: normalizeUsername(plot.origin_owner_username),
-      return_target_save_id: normalizeSaveId(plot.origin_save_id),
-      shared_map_plot_id: sanitizeText(plot.id, 120),
-      source_save_slot: normalizeSaveSlot(plot.source_save_slot),
-      source_save_revision: Math.max(0, Math.floor(Number(plot.source_save_revision) || 0)),
-      current_steward_username: normalizeUsername(plot.current_steward_username || plot.origin_owner_username),
-      current_steward_display_name: sanitizeText(plot.current_steward_display_name || plot.current_steward_username || plot.origin_owner_username, 60),
-      split_rule: plot.split_rule || 'return_to_origin_owner_on_separation',
-      permission_restriction: plot.permission_restriction || getPlotPermissionRestriction(plot.permission_mode),
-      shared_map_row: Math.max(0, Math.floor(Number(plot.row) || 0)),
-      shared_map_col: Math.max(0, Math.floor(Number(plot.col) || 0)),
-      local_row: Math.max(0, Math.floor(Number(plot.local_row) || 0)),
-      local_col: Math.max(0, Math.floor(Number(plot.local_col) || 0)),
-      plot_state_snapshot: summarizeFarmPlot(plot.plot_state || {}),
-      return_policy: 'restore_to_origin_owner_source_plot',
-      execution_status: 'preview_only',
-    }))
-    .filter(entry => entry.origin_owner_username && entry.origin_owner_id && Number.isInteger(entry.source_plot_id))
+    .map(plot => {
+      const sourceArea = sanitizeText(plot.source_area, 40) || 'field';
+      const sourcePlotId = normalizePlotId(plot.source_plot_id ?? plot.source_tree_id, 0);
+      const isFruitTree = sourceArea === 'fruit_tree';
+      return {
+        manifest_id: (plot.origin_owner_key || plot.origin_owner_username) + ':' + sourceArea + ':' + sourcePlotId,
+        source_area: sourceArea,
+        source_plot_id: sourcePlotId,
+        origin_owner_id: sanitizeText(plot.origin_owner_id, 80),
+        origin_save_id: normalizeSaveId(plot.origin_save_id),
+        permission_mode: sanitizeText(plot.permission_mode, 40) || 'owner_only',
+        origin_owner_username: normalizeUsername(plot.origin_owner_username),
+        origin_owner_key: normalizeUsernameKey(plot.origin_owner_key || plot.origin_owner_username),
+        return_target_username: normalizeUsername(plot.origin_owner_username),
+        return_target_save_id: normalizeSaveId(plot.origin_save_id),
+        shared_map_plot_id: sanitizeText(plot.id, 120),
+        origin_asset_id: sanitizeText(plot.id, 120),
+        source_save_slot: normalizeSaveSlot(plot.source_save_slot),
+        source_save_revision: Math.max(0, Math.floor(Number(plot.source_save_revision) || 0)),
+        current_steward_username: normalizeUsername(plot.current_steward_username || plot.origin_owner_username),
+        current_steward_display_name: sanitizeText(plot.current_steward_display_name || plot.current_steward_username || plot.origin_owner_username, 60),
+        split_rule: plot.split_rule || 'return_to_origin_owner_on_separation',
+        permission_restriction: plot.permission_restriction || getPlotPermissionRestriction(plot.permission_mode),
+        shared_map_row: Math.max(0, Math.floor(Number(plot.row) || 0)),
+        shared_map_col: Math.max(0, Math.floor(Number(plot.col) || 0)),
+        local_row: Math.max(0, Math.floor(Number(plot.local_row) || 0)),
+        local_col: Math.max(0, Math.floor(Number(plot.local_col) || 0)),
+        plot_state_snapshot: isFruitTree ? null : summarizeFarmPlot(plot.plot_state || {}),
+        fruit_tree_state_snapshot: isFruitTree ? summarizeFruitTree(plot.fruit_tree_state || plot.tree_state || plot) : null,
+        return_policy: isFruitTree ? 'restore_to_origin_owner_fruit_tree' : (sourceArea === 'greenhouse' ? 'restore_to_origin_owner_greenhouse_plot' : 'restore_to_origin_owner_source_plot'),
+        return_source: sanitizeText(plot.return_source, 80),
+        manifest_source: sanitizeText(plot.manifest_source, 100),
+        execution_status: 'preview_only',
+      };
+    })
+    .filter(entry => entry.origin_owner_username && entry.origin_owner_id && Number.isInteger(entry.source_plot_id) && ['field', 'greenhouse', 'fruit_tree'].includes(entry.source_area))
     .sort((left, right) => {
       const ownerCompare = left.origin_owner_key.localeCompare(right.origin_owner_key);
-      return ownerCompare !== 0 ? ownerCompare : left.source_plot_id - right.source_plot_id;
+      if (ownerCompare !== 0) return ownerCompare;
+      const areaCompare = left.source_area.localeCompare(right.source_area);
+      return areaCompare !== 0 ? areaCompare : left.source_plot_id - right.source_plot_id;
     })
     .slice(0, 320);
 }
@@ -9735,6 +10140,7 @@ function hashPlotReturnManifest(manifest = []) {
     return_target_username: entry.return_target_username,
     return_target_save_id: entry.return_target_save_id,
     plot_state_snapshot: entry.plot_state_snapshot,
+    fruit_tree_state_snapshot: entry.fruit_tree_state_snapshot,
   }));
   return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
 }
@@ -9850,10 +10256,12 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
   const buildingManifest = Array.isArray(assetReturn.family_building_split_manifest) ? assetReturn.family_building_split_manifest : [];
   const plotsByOwner = Array.isArray(assetReturn.plots_by_origin_owner) ? assetReturn.plots_by_origin_owner : [];
   const warehouseReturns = Array.isArray(assetReturn.warehouse_items_by_origin_owner) ? assetReturn.warehouse_items_by_origin_owner : [];
+  const warehouseUnidentifiedSplitManifest = Array.isArray(assetReturn.warehouse_unidentified_split_manifest) ? assetReturn.warehouse_unidentified_split_manifest : [];
   const fundReturns = Array.isArray(assetReturn.fund_contributions_by_origin_owner) ? assetReturn.fund_contributions_by_origin_owner : [];
   const plotReturnManifestHash = sanitizeText(assetReturn.plot_return_manifest_hash, 100) || hashPlotReturnManifest(plotManifest);
   const decorationSplitManifestHash = sanitizeText(assetReturn.decoration_split_manifest_hash, 100) || hashDecorationSplitManifest(decorationManifest);
   const buildingSplitManifestHash = sanitizeText(assetReturn.family_building_split_manifest_hash, 100) || hashFamilyBuildingSplitManifest(buildingManifest);
+  const warehouseUnidentifiedSplitManifestHash = sanitizeText(assetReturn.warehouse_unidentified_split_manifest_hash, 100) || hashWarehouseUnidentifiedSplitManifest(warehouseUnidentifiedSplitManifest);
   return {
     id: makeId('separation_asset_return'),
     preview_id: preview.id,
@@ -9862,6 +10270,7 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
     executed_by: actorMember.username,
     executed_at: nowSeconds(),
     idempotency_key: payload.idempotency_key,
+    version_idempotency_key: payload.version_idempotency_key,
     memo: payload.memo,
     status: 'asset_return_recorded',
     plot_return_manifest_hash: plotReturnManifestHash,
@@ -9874,17 +10283,33 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
       origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
       plot_count: Math.max(0, Math.floor(Number(entry.plot_count) || 0)),
       source_plot_ids: Array.isArray(entry.source_plot_ids) ? entry.source_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+      greenhouse_plot_ids: Array.isArray(entry.greenhouse_plot_ids) ? entry.greenhouse_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+      fruit_tree_ids: Array.isArray(entry.fruit_tree_ids) ? entry.fruit_tree_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+      source_areas: Array.isArray(entry.source_areas) ? entry.source_areas.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 8) : [],
+      source_area_counts: entry.source_area_counts && typeof entry.source_area_counts === 'object' ? entry.source_area_counts : {},
       return_status: 'recorded_waiting_personal_save_write',
     })),
-    warehouse_returns_by_origin_owner: warehouseReturns.map(entry => ({
-      origin_owner_id: sanitizeText(entry.origin_owner_id, 80),
+    warehouse_unidentified_split_manifest_hash: warehouseUnidentifiedSplitManifestHash,
+    warehouse_returns_by_origin_owner: [...warehouseReturns, ...warehouseUnidentifiedSplitManifest].map(entry => ({
+      origin_owner_id: sanitizeText(entry.origin_owner_id, 100),
       origin_owner_username: normalizeUsername(entry.origin_owner_username),
       origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
-      item_id: sanitizeText(entry.item_id, 80),
+      return_target_id: sanitizeText(entry.return_target_id || entry.origin_owner_id, 100),
+      return_target_username: normalizeUsername(entry.return_target_username || entry.origin_owner_username),
+      return_target_key: normalizeUsernameKey(entry.return_target_key || entry.return_target_username || entry.origin_owner_key || entry.origin_owner_username),
+      item_id: normalizeWarehouseItemId(entry.item_id),
       quality: normalizeQuality(entry.quality),
       quantity: Math.max(0, Math.floor(Number(entry.quantity) || 0)),
+      ledger_ids: Array.isArray(entry.ledger_ids) ? entry.ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20) : [],
+      source_ledger_ids: Array.isArray(entry.source_ledger_ids) ? entry.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20) : [],
+      split_source: sanitizeText(entry.split_source, 80) || 'traceable_origin_owner',
+      split_policy: sanitizeText(entry.split_policy, 120),
+      contribution_basis_type: sanitizeText(entry.contribution_basis_type, 80),
+      contribution_weight: Math.max(0, Math.floor(Number(entry.contribution_weight) || 0)),
+      contribution_share_basis_points: Math.max(0, Math.floor(Number(entry.contribution_share_basis_points) || 0)),
+      requires_both_confirm: entry.requires_both_confirm === true,
       return_status: 'manual_personal_inventory_write_required',
-    })).filter(entry => entry.origin_owner_username && entry.item_id && entry.quantity > 0),
+    })).filter(entry => entry.return_target_username && entry.item_id && entry.quantity > 0),
     fund_refunds_by_origin_owner: fundReturns.map(entry => ({
       origin_owner_id: sanitizeText(entry.origin_owner_id, 80),
       origin_owner_username: normalizeUsername(entry.origin_owner_username),
@@ -9925,12 +10350,23 @@ function restoreFarmPlotFromManifestSnapshot(snapshot = {}) {
   };
 }
 
+function restoreFruitTreeFromManifestSnapshot(snapshot = {}) {
+  return {
+    id: normalizePlotId(snapshot.id ?? snapshot.tree_id ?? snapshot.source_tree_id, 0),
+    type: sanitizeText(snapshot.type || snapshot.tree_type, 80),
+    growthDays: Math.max(0, Math.floor(Number(snapshot.growth_days ?? snapshot.growthDays) || 0)),
+    mature: snapshot.mature === true,
+    yearAge: Math.max(0, Math.floor(Number(snapshot.year_age ?? snapshot.yearAge ?? snapshot.season_age ?? snapshot.seasonAge) || 0)),
+    todayFruit: snapshot.today_fruit === true || snapshot.todayFruit === true,
+  };
+}
+
 function groupPlotManifestByReturnTarget(manifest = []) {
   const groups = new Map();
   for (const entry of Array.isArray(manifest) ? manifest : []) {
     const username = normalizeUsername(entry.return_target_username || entry.origin_owner_username);
     const key = normalizeUsernameKey(username);
-    if (!username || !key || entry.source_area !== 'field') continue;
+    if (!username || !key || !['field', 'greenhouse', 'fruit_tree'].includes(sanitizeText(entry.source_area, 40))) continue;
     const current = groups.get(key) || {
       username,
       username_key: key,
@@ -9969,29 +10405,53 @@ function uniqueNonNegativeIntegers(values = []) {
 }
 
 function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
-  const context = getActiveSaveContext(group.username, group.member?.save_slot ?? null, '分居返还目标账号没有可写入的桃源乡存档');
+  const context = getActiveSaveContext(group.username, group.member?.save_slot ?? null, 'separation farm return target has no writable save');
   context.username = group.username;
   const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
-  if (group.return_target_save_id && identitySaveId && group.return_target_save_id !== identitySaveId) {
-    throw createError(`分居返还目标存档不匹配：${group.username}`, 409);
-  }
+  if (group.return_target_save_id && identitySaveId && group.return_target_save_id !== identitySaveId) throw createError('separation farm return target save mismatch: ' + group.username, 409);
   if (!context.data.farm || typeof context.data.farm !== 'object') context.data.farm = {};
   if (!Array.isArray(context.data.farm.plots)) context.data.farm.plots = [];
   const beforeRevision = Number(context.saves.slots[context.slot]?.revision) || 0;
   const beforeMoney = getPlayerMoney(context.data);
   const restoredPlotIds = [];
+  const restoredGreenhousePlotIds = [];
+  const restoredFruitTreeIds = [];
   for (const row of group.rows) {
+    const sourceArea = sanitizeText(row.source_area, 40) || 'field';
     const sourcePlotId = normalizePlotId(row.source_plot_id, -1);
-    if (sourcePlotId < 0) throw createError('分居返还清单包含无效田区 ID', 409);
-    context.data.farm.plots[sourcePlotId] = restoreFarmPlotFromManifestSnapshot(row.plot_state_snapshot || {});
-    restoredPlotIds.push(sourcePlotId);
+    if (sourcePlotId < 0) throw createError('separation farm return manifest contains invalid source id', 409);
+    if (sourceArea === 'field') {
+      const restoredPlot = restoreFarmPlotFromManifestSnapshot(row.plot_state_snapshot || {});
+      restoredPlot.id = sourcePlotId;
+      context.data.farm.plots[sourcePlotId] = restoredPlot;
+      restoredPlotIds.push(sourcePlotId);
+    } else if (sourceArea === 'greenhouse') {
+      if (!Array.isArray(context.data.farm.greenhousePlots)) context.data.farm.greenhousePlots = [];
+      const restoredPlot = restoreFarmPlotFromManifestSnapshot(row.plot_state_snapshot || {});
+      restoredPlot.id = sourcePlotId;
+      context.data.farm.greenhousePlots[sourcePlotId] = restoredPlot;
+      restoredGreenhousePlotIds.push(sourcePlotId);
+    } else if (sourceArea === 'fruit_tree') {
+      if (!Array.isArray(context.data.farm.fruitTrees)) context.data.farm.fruitTrees = [];
+      const restoredTree = restoreFruitTreeFromManifestSnapshot(row.fruit_tree_state_snapshot || {});
+      if (!restoredTree.type) throw createError('separation farm return manifest contains invalid fruit tree type', 409);
+      restoredTree.id = normalizePlotId(restoredTree.id, sourcePlotId);
+      const treeIndex = context.data.farm.fruitTrees.findIndex(tree => normalizePlotId(tree?.id, -1) === restoredTree.id);
+      if (treeIndex >= 0) context.data.farm.fruitTrees[treeIndex] = restoredTree;
+      else context.data.farm.fruitTrees.push(restoredTree);
+      context.data.farm.nextFruitTreeId = Math.max(Number(context.data.farm.nextFruitTreeId) || 0, restoredTree.id + 1);
+      restoredFruitTreeIds.push(restoredTree.id);
+    } else {
+      throw createError('separation farm return manifest contains unsupported farm source area', 409);
+    }
   }
   const afterRevision = persistGameplayData(context);
   const afterMoney = getPlayerMoney(context.data);
-  if (afterMoney !== beforeMoney) throw createError(`separation personal farm return changed personal money for ${group.username}`, 500);
+  if (afterMoney !== beforeMoney) throw createError('separation personal farm return changed personal money for ' + group.username, 500);
   const rows = Array.isArray(group.rows) ? group.rows : [];
   const manifestSources = uniqueSanitizedValues(rows.map(row => row.manifest_source || (row.return_source === 'contract_shared_map' ? 'contract.shared_map.plots' : 'farm.plots')), 80);
   const returnSources = uniqueSanitizedValues(rows.map(row => row.return_source), 80);
+  const sourceAreas = uniqueSanitizedValues(rows.map(row => row.source_area || 'field'), 40);
   const sourceSaveSlots = uniqueNormalizedSaveSlots(rows.map(row => row.source_save_slot));
   const sourceSaveRevisions = uniqueNonNegativeIntegers(rows.map(row => row.source_save_revision));
   const currentStewardUsernames = uniqueNormalizedUsernames(rows.map(row => row.current_steward_username));
@@ -9999,6 +10459,8 @@ function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
   const permissionRestrictions = uniqueSanitizedValues(rows.map(row => row.permission_restriction), 120);
   const permissionModes = uniqueSanitizedValues(rows.map(row => row.permission_mode), 40);
   const sharedMapPlotIds = uniqueSanitizedValues(rows.map(row => row.shared_map_plot_id), 120).slice(0, 160);
+  const originAssetIds = uniqueSanitizedValues(rows.map(row => row.origin_asset_id || row.shared_map_plot_id), 120).slice(0, 160);
+  const restoredSourceCount = restoredPlotIds.length + restoredGreenhousePlotIds.length + restoredFruitTreeIds.length;
   return {
     username: group.username,
     username_key: group.username_key,
@@ -10006,9 +10468,16 @@ function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
     save_id: identitySaveId || group.return_target_save_id || 0,
     before_revision: beforeRevision,
     after_revision: afterRevision,
-    restored_plot_count: restoredPlotIds.length,
+    restored_plot_count: restoredSourceCount,
+    restored_field_plot_count: restoredPlotIds.length,
+    restored_greenhouse_plot_count: restoredGreenhousePlotIds.length,
+    restored_fruit_tree_count: restoredFruitTreeIds.length,
     source_plot_ids: restoredPlotIds.sort((left, right) => left - right),
+    greenhouse_plot_ids: restoredGreenhousePlotIds.sort((left, right) => left - right),
+    fruit_tree_ids: restoredFruitTreeIds.sort((left, right) => left - right),
     shared_map_plot_ids: sharedMapPlotIds,
+    origin_asset_ids: originAssetIds,
+    source_areas: sourceAreas,
     source_save_slots: sourceSaveSlots,
     source_save_revisions: sourceSaveRevisions,
     current_steward_usernames: currentStewardUsernames,
@@ -10016,13 +10485,14 @@ function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
     permission_restrictions: permissionRestrictions,
     permission_modes: permissionModes,
     return_source: returnSources.includes('contract_shared_map') ? 'contract_shared_map' : (returnSources[0] || ''),
+    return_sources: returnSources,
     manifest_sources: manifestSources,
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash, 100),
     before_money: beforeMoney,
     after_money: afterMoney,
     personal_money_changed: false,
     personal_inventory_changed: false,
-    personal_farm_plots_changed: restoredPlotIds.length > 0,
+    personal_farm_plots_changed: restoredSourceCount > 0,
     shared_fund_changed: false,
     shared_warehouse_changed: false,
     idempotency_key: payload.idempotency_key,
@@ -10089,8 +10559,9 @@ function writePersonalMoneyRefundsFromLedger(refunds = [], contract = {}, payloa
 function writePersonalInventoryReturnsFromLedger(rows = [], contract = {}, payload = {}, warehouseLedgerEntries = []) {
   const contextsByUsername = new Map();
   const prepared = [];
+  const usedWarehouseLedgerIds = new Set();
   for (const row of Array.isArray(rows) ? rows : []) {
-    const username = normalizeUsername(row.origin_owner_username);
+    const username = normalizeUsername(row.return_target_username || row.origin_owner_username);
     const itemId = normalizeWarehouseItemId(row.item_id);
     const quality = normalizeQuality(row.quality);
     const quantity = Math.max(0, Math.floor(Number(row.quantity) || 0));
@@ -10123,10 +10594,12 @@ function writePersonalInventoryReturnsFromLedger(rows = [], contract = {}, paylo
     const afterMoney = getPlayerMoney(contextEntry.projectedData);
     if (afterMoney !== contextEntry.before_money) throw createError(`separation shared warehouse return must not change personal money: ${username}`, 500);
     const warehouseLedgerEntry = warehouseLedgerEntries.find(entry =>
-      normalizeUsernameKey(entry.target_owner_username) === usernameKey
+      !usedWarehouseLedgerIds.has(entry.id)
+      && normalizeUsernameKey(entry.target_owner_username) === usernameKey
       && entry.item_id === itemId
       && entry.quality === quality
     ) || null;
+    if (warehouseLedgerEntry?.id) usedWarehouseLedgerIds.add(warehouseLedgerEntry.id);
     const receipt = {
       username,
       username_key: usernameKey,
@@ -11212,19 +11685,36 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
           plot_count: Math.max(0, Math.floor(Number(item.plot_count) || 0)),
           source_plot_ids: Array.isArray(item.source_plot_ids) ? item.source_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+          greenhouse_plot_ids: Array.isArray(item.greenhouse_plot_ids) ? item.greenhouse_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+          fruit_tree_ids: Array.isArray(item.fruit_tree_ids) ? item.fruit_tree_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+          source_areas: Array.isArray(item.source_areas) ? item.source_areas.map(value => sanitizeText(value, 40)).filter(Boolean).slice(0, 8) : [],
+          source_area_counts: item.source_area_counts && typeof item.source_area_counts === 'object' ? item.source_area_counts : {},
           return_status: sanitizeText(item.return_status, 80) || 'recorded_waiting_personal_save_write',
         })).filter(item => item.origin_owner_username && item.plot_count > 0).slice(0, 80)
       : [],
+    warehouse_unidentified_split_manifest_hash: sanitizeText(entry.warehouse_unidentified_split_manifest_hash, 100),
     warehouse_returns_by_origin_owner: Array.isArray(entry.warehouse_returns_by_origin_owner)
       ? entry.warehouse_returns_by_origin_owner.map(item => ({
-          origin_owner_id: sanitizeText(item.origin_owner_id, 80),
+          origin_owner_id: sanitizeText(item.origin_owner_id, 100),
           origin_owner_username: normalizeUsername(item.origin_owner_username),
           origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
+          return_target_id: sanitizeText(item.return_target_id || item.origin_owner_id, 100),
+          return_target_username: normalizeUsername(item.return_target_username || item.origin_owner_username),
+          return_target_key: normalizeUsernameKey(item.return_target_key || item.return_target_username || item.origin_owner_key || item.origin_owner_username),
           item_id: normalizeWarehouseItemId(item.item_id),
           quality: normalizeQuality(item.quality),
           quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)),
+          ledger_ids: Array.isArray(item.ledger_ids) ? item.ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20) : [],
+          source_ledger_ids: Array.isArray(item.source_ledger_ids) ? item.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20) : [],
+          split_source: sanitizeText(item.split_source, 80) || 'traceable_origin_owner',
+          split_policy: sanitizeText(item.split_policy, 120),
+          contribution_basis_type: sanitizeText(item.contribution_basis_type, 80),
+          contribution_weight: Math.max(0, Math.floor(Number(item.contribution_weight) || 0)),
+          contribution_share_basis_points: Math.max(0, Math.floor(Number(item.contribution_share_basis_points) || 0)),
+          requires_both_confirm: item.requires_both_confirm === true,
           return_status: sanitizeText(item.return_status, 80) || 'manual_personal_inventory_write_required',
-        })).filter(item => item.origin_owner_username && item.item_id && item.quantity > 0).slice(0, 120)
+          return_idempotency_key: sanitizeText(item.return_idempotency_key, 120),
+        })).filter(item => item.return_target_username && item.item_id && item.quantity > 0).slice(0, 120)
       : [],
     fund_refunds_by_origin_owner: Array.isArray(entry.fund_refunds_by_origin_owner)
       ? entry.fund_refunds_by_origin_owner.map(item => ({
@@ -11286,8 +11776,15 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           before_revision: Math.max(0, Math.floor(Number(item.before_revision) || 0)),
           after_revision: Math.max(0, Math.floor(Number(item.after_revision) || 0)),
           restored_plot_count: Math.max(0, Math.floor(Number(item.restored_plot_count) || 0)),
+          restored_field_plot_count: Math.max(0, Math.floor(Number(item.restored_field_plot_count) || 0)),
+          restored_greenhouse_plot_count: Math.max(0, Math.floor(Number(item.restored_greenhouse_plot_count) || 0)),
+          restored_fruit_tree_count: Math.max(0, Math.floor(Number(item.restored_fruit_tree_count) || 0)),
           source_plot_ids: Array.isArray(item.source_plot_ids) ? item.source_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 120) : [],
+          greenhouse_plot_ids: Array.isArray(item.greenhouse_plot_ids) ? item.greenhouse_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 120) : [],
+          fruit_tree_ids: Array.isArray(item.fruit_tree_ids) ? item.fruit_tree_ids.map(id => normalizePlotId(id, 0)).slice(0, 120) : [],
           shared_map_plot_ids: Array.isArray(item.shared_map_plot_ids) ? item.shared_map_plot_ids.map(id => sanitizeText(id, 120)).filter(Boolean).slice(0, 160) : [],
+          origin_asset_ids: Array.isArray(item.origin_asset_ids) ? item.origin_asset_ids.map(id => sanitizeText(id, 120)).filter(Boolean).slice(0, 160) : [],
+          source_areas: Array.isArray(item.source_areas) ? item.source_areas.map(value => sanitizeText(value, 40)).filter(Boolean).slice(0, 8) : [],
           source_save_slots: Array.isArray(item.source_save_slots) ? item.source_save_slots.map(normalizeSaveSlot).filter(value => value !== null).slice(0, 8) : [],
           source_save_revisions: Array.isArray(item.source_save_revisions)
             ? item.source_save_revisions.map(value => Math.max(0, Math.floor(Number(value) || 0))).filter(value => value >= 0).slice(0, 40)
@@ -11302,6 +11799,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           permission_modes: Array.isArray(item.permission_modes) ? item.permission_modes.map(value => sanitizeText(value, 40)).filter(Boolean).slice(0, 12) : [],
           return_source: sanitizeText(item.return_source, 80),
           manifest_sources: Array.isArray(item.manifest_sources) ? item.manifest_sources.map(value => sanitizeText(value, 80)).filter(Boolean).slice(0, 12) : [],
+          return_sources: Array.isArray(item.return_sources) ? item.return_sources.map(value => sanitizeText(value, 80)).filter(Boolean).slice(0, 12) : [],
           plot_return_manifest_hash: sanitizeText(item.plot_return_manifest_hash, 100),
           before_money: Math.max(0, Math.floor(Number(item.before_money) || 0)),
           after_money: Math.max(0, Math.floor(Number(item.after_money) || 0)),
@@ -11342,6 +11840,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     shared_warehouse_returned_at: Math.max(0, Math.floor(Number(entry.shared_warehouse_returned_at) || 0)),
     shared_warehouse_returned_by: normalizeUsername(entry.shared_warehouse_returned_by),
     shared_warehouse_return_total_quantity: Math.max(0, Math.floor(Number(entry.shared_warehouse_return_total_quantity) || 0)),
+    shared_warehouse_unidentified_returned_quantity: Math.max(0, Math.floor(Number(entry.shared_warehouse_unidentified_returned_quantity) || 0)),
     shared_warehouse_return_receipts: Array.isArray(entry.shared_warehouse_return_receipts)
       ? entry.shared_warehouse_return_receipts.map(item => ({
           username: normalizeUsername(item.username),
@@ -11521,7 +12020,7 @@ function buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract = {}) {
   };
 }
 
-function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
+function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, fundBalance, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const removalDisputeSummary = sharedDecorationRemovalDisputeFreeze?.summary || {};
   const highValueWithdrawalFreezeSummary = warehouseHighValueWithdrawalDisputeFreeze?.summary || {};
@@ -11557,6 +12056,14 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fund
       id: 'fund_preview_balanced',
       passed: totalSuggestedFundRefund === fundBalance,
       detail: '共同基金余额按注资比例生成建议返还额。',
+    },    {
+      id: 'warehouse_unidentified_split_confirmed',
+      passed: (warehouseReturnPreview.unidentified_items || []).length === 0
+        || ((warehouseReturnPreview.unidentified_split_manifest || []).length > 0
+          && /^[a-f0-9]{64}$/i.test(warehouseReturnPreview.unidentified_split_manifest_hash || '')),
+      detail: (warehouseReturnPreview.unidentified_items || []).length > 0
+        ? '无法识别来源的共同仓库产物已按贡献比例生成双方确认后可执行的拆分清单。'
+        : '当前没有无法识别来源的共同仓库产物。',
     },
     {
       id: 'shared_decoration_removal_disputes_traceable',
@@ -11581,7 +12088,7 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fund
   ];
 }
 
-function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, fundReturns, contract, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
+function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, contract, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
   const plan = [];
   if (plotReturnPreview.plot_return_summary.total_plots > 0) {
     plan.push({
@@ -11601,7 +12108,15 @@ function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, 
       detail: '共同仓库物品按放入 ledger 返还，真实背包写回待双方确认后执行。',
     });
   }
-  if (fundReturns.length > 0) {
+  if ((warehouseReturnPreview.unidentified_items || []).length > 0) {
+    plan.push({
+      id: 'warehouse_unidentified_split',
+      target: 'shared_warehouse',
+      action: 'split_unidentified_items_by_contribution_ratio',
+      status: 'manual_execution_required',
+      detail: '无法识别来源的共同仓库产物会按可追溯贡献比例拆分；无贡献证据时平分，必须完成双方分居确认后才写回个人背包。',
+    });
+  }  if (fundReturns.length > 0) {
     plan.push({
       id: 'fund_proportional_refund',
       target: 'shared_fund',
@@ -12126,7 +12641,11 @@ async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor =
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
 
   const previousEntry = contract.shared_farm_ledger.find(entry =>
-    entry.action === 'plant' && entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+    entry.action === 'plant'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === request.idempotency_key)
+      || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
+    )
   );
   if (previousEntry) {
     if (previousEntry.plot_id !== request.plot_id || previousEntry.seed_item_id !== request.seed_item_id) {
@@ -12134,7 +12653,10 @@ async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor =
     }
     const previousWarehouseEntries = contract.shared_warehouse.ledger.filter(entry =>
       previousEntry.warehouse_ledger_ids.includes(entry.id)
-      || (entry.action === 'consume' && entry.idempotency_key === request.idempotency_key)
+      || (entry.action === 'consume' && (
+        entry.idempotency_key === request.idempotency_key
+        || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
+      ))
     );
     return {
       contract: toPublicContract(contract),
@@ -12224,6 +12746,7 @@ async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor =
     target_ref: warehouseTargetRef,
     at: operatedAt,
     idempotency_key: request.idempotency_key,
+    operation_id: request.operation_id,
     reversible: true,
     compensation_hint: '共同农田种植已扣减共同仓库种子并写入契约地图；若误种，需要按本 consume ledger 和农田 ledger 走后续回滚或补偿。',
     status: 'committed',
@@ -12276,6 +12799,7 @@ async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor =
     after_plot_state: afterState,
     permission_mode: plot.permission_mode,
     idempotency_key: request.idempotency_key,
+    operation_id: request.operation_id,
     at: operatedAt,
     reversible: true,
     compensation_hint: 'contract-map shared farm planting consumes one shared-warehouse seed; personal saves are unchanged after seed入仓。',
@@ -12296,6 +12820,7 @@ async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor =
   ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
   appendAudit(contract, 'shared_farm_planted', actor, {
     ledger_id: ledgerEntry.id,
+    operation_id: request.operation_id,
     warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     plot_id: plot.id,
     source_plot_id: plot.source_plot_id,
@@ -12349,7 +12874,11 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
 
   const previousEntry = contract.shared_farm_ledger.find(entry =>
-    entry.action === 'fertilize' && entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+    entry.action === 'fertilize'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === request.idempotency_key)
+      || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
+    )
   );
   if (previousEntry) {
     if (previousEntry.plot_id !== request.plot_id || previousEntry.fertilizer_item_id !== request.fertilizer_item_id) {
@@ -12357,7 +12886,10 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     }
     const previousWarehouseEntries = contract.shared_warehouse.ledger.filter(entry =>
       previousEntry.warehouse_ledger_ids.includes(entry.id)
-      || (entry.action === 'consume' && entry.idempotency_key === request.idempotency_key)
+      || (entry.action === 'consume' && (
+        entry.idempotency_key === request.idempotency_key
+        || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
+      ))
     );
     return {
       contract: toPublicContract(contract),
@@ -12434,6 +12966,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     source_save_id: allocation.source_save_id,
     source_save_slot: allocation.source_save_slot,
     source_save_revision: allocation.source_save_revision,
+    operation_id: request.operation_id,
     source_inventory: allocation.source_inventory || 'shared_warehouse.items',
     source_ledger_ids: allocation.source_ledger_ids,
     target_owner_id: `shared_map:${contract.id}`,
@@ -12514,6 +13047,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     },
     permission_mode: plot.permission_mode,
     idempotency_key: request.idempotency_key,
+    operation_id: request.operation_id,
     at: operatedAt,
     reversible: true,
     compensation_hint: 'contract-map shared farm fertilize consumes one shared-warehouse basic fertilizer; personal saves are unchanged after fertilizer入仓。',
@@ -12534,6 +13068,7 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
   ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
   appendAudit(contract, 'shared_farm_fertilized', actor, {
     ledger_id: ledgerEntry.id,
+    operation_id: request.operation_id,
     warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     plot_id: plot.id,
     source_plot_id: plot.source_plot_id,
@@ -12594,7 +13129,11 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
 
   const previousEntry = contract.shared_farm_ledger.find(entry =>
-    entry.action === 'harvest' && entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+    entry.action === 'harvest'
+    && (
+      (entry.idempotency_key && entry.idempotency_key === request.idempotency_key)
+      || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
+    )
   );
   if (previousEntry) {
     if (previousEntry.plot_id !== request.plot_id) {
@@ -12602,7 +13141,10 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     }
     const previousWarehouseEntries = contract.shared_warehouse.ledger.filter(entry =>
       previousEntry.warehouse_ledger_ids.includes(entry.id)
-      || (entry.action === 'deposit' && entry.idempotency_key === request.idempotency_key)
+      || (entry.action === 'deposit' && (
+        entry.idempotency_key === request.idempotency_key
+        || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
+      ))
     );
     return {
       contract: toPublicContract(contract),
@@ -12678,6 +13220,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
     actor_manor_role: actorManorRole,
+    operation_id: request.operation_id,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: plot.origin_owner_id || `shared_map:${contract.id}`,
     source_owner_username: plot.origin_owner_username || member.username,
@@ -12736,6 +13279,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     plot_id: plot.id,
     source_plot_id: plot.source_plot_id,
     source_area: plot.source_area,
+    operation_id: request.operation_id,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
     actor_key: member.username_key,
@@ -12780,6 +13324,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
   appendAudit(contract, 'shared_farm_harvested', actor, {
     ledger_id: ledgerEntry.id,
     warehouse_ledger_ids: [warehouseLedgerEntry.id],
+    operation_id: request.operation_id,
     plot_id: plot.id,
     source_plot_id: plot.source_plot_id,
     origin_owner_id: plot.origin_owner_id,
@@ -13268,6 +13813,7 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
     return plantCohabitationSharedFarmPlot(contractId, {
       ...payload,
       plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
+      operation_id: operation.operation_id,
       seed_item_id: payload.seed_item_id || payload.seedItemId || payload.item_id || payload.itemId,
       idempotency_key: operation.idempotency_key,
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm plant merge', 160),
@@ -13278,6 +13824,7 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
     return fertilizeCohabitationSharedFarmPlot(contractId, {
       ...payload,
       plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
+      operation_id: operation.operation_id,
       fertilizer_item_id: payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId || defaultFertilizerItemId,
       idempotency_key: operation.idempotency_key,
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm fertilize merge', 160),
@@ -13286,6 +13833,7 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
   if (operation.action === 'harvest_shared_farm') {
     return harvestCohabitationSharedFarmPlot(contractId, {
       ...payload,
+      operation_id: operation.operation_id,
       plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
       idempotency_key: operation.idempotency_key,
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm harvest merge', 160),
@@ -13389,6 +13937,9 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       care_action: actionResult.action || ledgerEntry.action || '',
       seed_item_id: actionResult.seed_item_id || ledgerEntry.seed_item_id || normalizeWarehouseItemId(operation.payload?.seed_item_id || operation.payload?.seedItemId || operation.payload?.item_id || operation.payload?.itemId),
       fertilizer_item_id: actionResult.fertilizer_item_id || ledgerEntry.fertilizer_item_id || (action.startsWith('fertilize_shared_farm') ? getOfflineQueueDefaultFertilizerItemId(action) : ''),
+      fertilizer_permission_key: actionResult.fertilizer_permission_key || ledgerEntry.fertilizer_permission_key || '',
+      premium_fertilizer: actionResult.premium_fertilizer === true || ledgerEntry.premium_fertilizer === true,
+      fertilizer_effect: actionResult.fertilizer_effect || ledgerEntry.fertilizer_effect || '',
       crop_id: actionResult.crop_id || ledgerEntry.crop_id || '',
       output_item_id: actionResult.output_item_id || ledgerEntry.output_item_id || outputEntry.item_id || '',
       output_quantity: Math.max(0, Math.floor(Number(actionResult.output_quantity || ledgerEntry.output_quantity || outputEntry.quantity) || 0)),
@@ -15405,7 +15956,8 @@ async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, p
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   contract.shared_warehouse_withdrawal_drafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
   const previousDraft = contract.shared_warehouse_withdrawal_drafts.find(entry =>
-    entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+    (entry.idempotency_key && entry.idempotency_key === request.idempotency_key)
+    || (request.operation_id && entry.operation_id && entry.operation_id === request.operation_id)
   );
   if (previousDraft) {
     return {
@@ -15457,12 +16009,14 @@ async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, p
       confirmation_text: request.reason || '发起人自动确认高价值取出冻结草案',
       confirmed_at: now,
       idempotency_key: request.idempotency_key,
+      operation_id: request.operation_id,
     }],
     source_allocations: allocationResult.allocations,
     frozen_quantity: request.quantity,
     frozen_at: now,
     created_at: now,
     idempotency_key: request.idempotency_key,
+    operation_id: request.operation_id,
   });
   if (draft.confirmation_state.all_members_confirmed) draft = normalizeWarehouseWithdrawalDraft({ ...draft, state: 'ready_to_execute' });
   contract.shared_warehouse_withdrawal_drafts = [draft, ...contract.shared_warehouse_withdrawal_drafts].slice(0, WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT);
@@ -15477,6 +16031,7 @@ async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, p
     source_ledger_ids: [...new Set(draft.source_allocations.flatMap(allocation => allocation.source_ledger_ids || []))],
     shared_warehouse_changed: false,
     personal_save_changed: false,
+    operation_id: request.operation_id,
   }, request.idempotency_key);
   saveContractStore(store);
 
@@ -15508,7 +16063,10 @@ async function confirmCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
   if (!draft.required_member_usernames.map(normalizeUsernameKey).includes(member.username_key)) {
     throw createError('只有草案要求的契约成员可以确认本次取出', 403);
   }
-  if (draft.confirmation_events.some(event => event.idempotency_key === request.idempotency_key)) {
+  if (draft.confirmation_events.some(event =>
+    event.idempotency_key === request.idempotency_key
+    || (request.operation_id && event.operation_id && event.operation_id === request.operation_id)
+  )) {
     return {
       contract: toPublicContract(contract),
       warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
@@ -15540,6 +16098,7 @@ async function confirmCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
         confirmation_text: request.confirmation_text || '确认高价值取出冻结与回滚方案',
         confirmed_at: nowSeconds(),
         idempotency_key: request.idempotency_key,
+        operation_id: request.operation_id,
       },
     ],
   });
@@ -15555,6 +16114,7 @@ async function confirmCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
     confirmed_member_usernames: draft.confirmation_state.confirmed_member_usernames,
     pending_member_usernames: draft.confirmation_state.pending_member_usernames,
     shared_warehouse_changed: false,
+    operation_id: request.operation_id,
   }, request.idempotency_key);
   saveContractStore(store);
 
@@ -15579,7 +16139,10 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
   const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
   if (draftIndex < 0) throw createError('共同仓库高价值取出草案不存在', 404);
   let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
-  if (draft.state === 'executed' && draft.execute_idempotency_key === request.idempotency_key) {
+  if (draft.state === 'executed' && (
+    draft.execute_idempotency_key === request.idempotency_key
+    || (request.operation_id && draft.execute_operation_id && draft.execute_operation_id === request.operation_id)
+  )) {
     return {
       contract: toPublicContract(contract),
       warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
@@ -15658,6 +16221,7 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
     target_ref: draft.id,
     at: operatedAt,
     idempotency_key: request.idempotency_key,
+    operation_id: request.operation_id,
     reversible: true,
     compensation_hint: '高价值取出已完成双方确认并写个人背包落点；若需回滚，必须按本流水、草案和目标背包落点走补偿复核。',
     status: 'committed',
@@ -15673,6 +16237,7 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
     ...draft,
     state: 'executed',
     execute_idempotency_key: request.idempotency_key,
+    execute_operation_id: request.operation_id,
     executed_at: operatedAt,
     executed_by_username: actorUsername,
     target_save_id: targetSaveId,
@@ -15695,6 +16260,7 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
     shared_warehouse_changed: true,
     personal_save_changed: true,
     compensation_required: true,
+    operation_id: request.operation_id,
   }, request.idempotency_key);
   saveContractStore(store);
 
@@ -16753,7 +17319,10 @@ async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId,
   const draftIndex = contract.shared_warehouse_withdrawal_drafts.findIndex(entry => entry.id === normalizedDraftId);
   if (draftIndex < 0) throw createError('共同仓库高价值取出草案不存在', 404);
   let draft = contract.shared_warehouse_withdrawal_drafts[draftIndex];
-  if (draft.state === 'rolled_back' && draft.rollback_idempotency_key === request.idempotency_key) {
+  if (draft.state === 'rolled_back' && (
+    draft.rollback_idempotency_key === request.idempotency_key
+    || (request.operation_id && draft.rollback_operation_id && draft.rollback_operation_id === request.operation_id)
+  )) {
     return {
       contract: toPublicContract(contract),
       warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
@@ -16772,6 +17341,7 @@ async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId,
     ...draft,
     state: 'rolled_back',
     rollback_idempotency_key: request.idempotency_key,
+    rollback_operation_id: request.operation_id,
     rolled_back_at: nowSeconds(),
     rolled_back_by_username: actorUsername,
     rollback_reason: request.reason,
@@ -16787,6 +17357,7 @@ async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId,
     reason: request.reason,
     shared_warehouse_changed: false,
     personal_save_changed: false,
+    operation_id: request.operation_id,
   }, request.idempotency_key);
   saveContractStore(store);
 
@@ -16990,7 +17561,6 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     fund_ledger_id: fundLedgerId,
     at: operatedAt,
     idempotency_key: sale.idempotency_key,
-    consumption_id: sale.operation_id,
     operation_id: sale.operation_id,
     reversible: true,
     compensation_hint: '普通物品卖出已扣减共同仓库并入共同基金；若误卖，需要按仓库流水和共同基金流水补偿或后续冻结 / 回滚流程处理。',
@@ -17015,6 +17585,7 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     spend_purpose_label: '共同仓库普通物品卖出收入',
     balance_after: afterBalance,
     idempotency_key: sale.idempotency_key,
+    consumption_id: sale.operation_id,
     reversible: true,
     compensation_hint: '共同仓库普通物品卖出收入已入共同基金；若误卖，需要按仓库 sell ledger 和本基金 ledger 进行补偿或回滚。',
     status: 'committed',
@@ -18397,6 +18968,7 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
       delivery_entry: existingDeliveryEntry,
       shared_decoration_state_entry: existingDecorationStateEntry,
       family_major_event_entry: existingFamilyEventEntry,
+      required_permission_keys: receiptPermissionChecks.map(check => check.label),
       shared_fund: {
         refund_amount: 0,
         balance_after: contract.shared_fund.balance,
@@ -21668,8 +22240,10 @@ async function acceptCohabitationContract(contractId, actor = {}) {
         persisted: true,
       });
       contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+      const supplementalFarmAssets = buildSupplementalFarmOriginAssets(contract, farmSnapshots);
       contract.origin_assets.plots = contract.shared_map.plots
         .map(buildPlotOriginAssetFromSharedPlot)
+        .concat(supplementalFarmAssets)
         .filter(entry => entry.id)
         .slice(0, 400);
     }
@@ -21746,7 +22320,8 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const confirmAfterAt = createdAt + cooldownHours * 60 * 60;
   const expiresAt = createdAt + (cooldownHours + 72) * 60 * 60;
   const plotReturnPreview = buildPlotReturnPreview(contract);
-  const warehouseReturns = buildWarehouseReturnPreview(contract);
+  const warehouseReturnPreview = buildWarehouseReturnPreview(contract);
+  const warehouseReturns = warehouseReturnPreview.items_by_origin_owner;
   const fundReturns = buildFundReturnPreview(contract);
   const decorationSplitManifest = buildDecorationSplitManifest(contract);
   const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
@@ -21774,6 +22349,10 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       plot_return_summary: plotReturnPreview.plot_return_summary,
       unavailable_plot_sources: plotReturnPreview.unavailable_plot_sources,
       warehouse_items_by_origin_owner: warehouseReturns,
+      warehouse_unidentified_items: warehouseReturnPreview.unidentified_items,
+      warehouse_unidentified_split_manifest: warehouseReturnPreview.unidentified_split_manifest,
+      warehouse_unidentified_split_manifest_hash: warehouseReturnPreview.unidentified_split_manifest_hash,
+      warehouse_unidentified_split_policy: warehouseReturnPreview.unidentified_split_policy,
       fund_contributions_by_origin_owner: fundReturns,
       decorations_by_origin_owner: summarizeDecorationSplitsByOwner(decorationSplitManifest),
       decoration_split_manifest: decorationSplitManifest,
@@ -21797,6 +22376,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     compensation_plan: buildSeparationCompensationPlan({
       plotReturnPreview,
       warehouseReturns,
+      warehouseReturnPreview,
       fundReturns,
       contract,
       sharedDecorationRemovalDisputeFreeze,
@@ -21825,6 +22405,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     safety_checks: buildSeparationSafetyChecks({
       plotReturnPreview,
       warehouseReturns,
+      warehouseReturnPreview,
       fundReturns,
       fundBalance: contract.shared_fund.balance,
       sharedDecorationRemovalDisputeFreeze,
@@ -21836,6 +22417,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       'split_decorations',
       'resolve_family_story',
       'freeze_high_value_disputes',
+      ...((warehouseReturnPreview.unidentified_items || []).length > 0 ? ['confirm_unidentified_warehouse_split'] : []),
       ...(sharedDecorationRemovalDisputeFreeze.summary.freeze_required ? ['freeze_shared_decoration_removal_disputes'] : []),
       ...(warehouseHighValueWithdrawalDisputeFreeze.summary.freeze_required ? ['settle_high_value_warehouse_withdrawal_drafts'] : []),
     ],
@@ -21850,6 +22432,8 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     idempotency_key: idempotencyKey,
     plot_groups: preview.asset_return.plots_by_origin_owner.length,
     warehouse_groups: preview.asset_return.warehouse_items_by_origin_owner.length,
+    warehouse_unidentified_groups: preview.asset_return.warehouse_unidentified_items.length,
+    warehouse_unidentified_quantity: preview.asset_return.warehouse_unidentified_items.reduce((sum, item) => sum + item.quantity, 0),
     fund_groups: preview.asset_return.fund_contributions_by_origin_owner.length,
     decoration_groups: preview.asset_return.decorations_by_origin_owner.length,
     family_building_groups: preview.asset_return.family_buildings_by_origin_owner.length,
@@ -21902,21 +22486,38 @@ async function confirmSeparationPreview(contractId, previewId, payload = {}, act
   const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
   if (previewIndex < 0) throw createError('分居预览不存在', 404);
 
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const versionIdempotencyKey = buildSeparationVersionIdempotencyKey(contract.id, preview, 'confirm', memberKey);
   const previousAudit = (contract.audit_log || []).find(entry =>
     entry.action === 'separation_preview_confirmed'
-    && entry.idempotency_key === confirmRequest.idempotency_key
     && entry.detail?.preview_id === normalizedPreviewId
+    && (
+      entry.idempotency_key === confirmRequest.idempotency_key
+      || (versionIdempotencyKey && entry.detail?.version_idempotency_key === versionIdempotencyKey)
+    )
   );
   if (previousAudit) {
+    const confirmedBy = Array.isArray(preview.confirmation_state?.confirmed_by)
+      ? preview.confirmation_state.confirmed_by.map(normalizeUsername).filter(Boolean)
+      : [];
+    const confirmedKeys = new Set(confirmedBy.map(normalizeUsernameKey).filter(Boolean));
+    const requiredMemberUsernames = Array.isArray(preview.confirmation_state?.required_member_usernames)
+      && preview.confirmation_state.required_member_usernames.length > 0
+      ? preview.confirmation_state.required_member_usernames.map(normalizeUsername).filter(Boolean)
+      : (contract.members || []).filter(entry => entry.status === 'accepted').map(entry => normalizeUsername(entry.username)).filter(Boolean);
     return {
       contract: toPublicContract(contract),
-      preview: normalizeSeparationPreview(contract.separation_previews[previewIndex]),
+      preview,
       idempotent: true,
+      already_confirmed: confirmedKeys.has(memberKey),
       audit_entry: previousAudit,
+      confirmation: {
+        confirmed_by: member.username,
+        all_members_confirmed: requiredMemberUsernames.length > 0 && requiredMemberUsernames.every(username => confirmedKeys.has(normalizeUsernameKey(username))),
+        execution_enabled: false,
+      },
     };
   }
-
-  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
   const now = nowSeconds();
   if (preview.expires_at > 0 && preview.expires_at <= now && preview.state === 'draft') {
     const expiredPreview = normalizeSeparationPreview({
@@ -21976,6 +22577,7 @@ async function confirmSeparationPreview(contractId, previewId, payload = {}, act
     actor_display_name: member.display_name || member.username,
     confirmed_at: now,
     idempotency_key: confirmRequest.idempotency_key,
+    version_idempotency_key: versionIdempotencyKey,
     memo: confirmRequest.memo,
   };
   const confirmationEvents = Array.isArray(preview.confirmation_state.confirmation_events)
@@ -22015,6 +22617,7 @@ async function confirmSeparationPreview(contractId, previewId, payload = {}, act
     execution_enabled: false,
     personal_money_merged: false,
     asset_return_executed: false,
+    version_idempotency_key: versionIdempotencyKey,
   }, confirmRequest.idempotency_key);
   saveContractStore(store);
 
@@ -22064,21 +22667,26 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
   const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
   if (previewIndex < 0) throw createError('分居预览不存在', 404);
 
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const versionIdempotencyKey = buildSeparationVersionIdempotencyKey(contract.id, preview, 'request-execution');
   const previousAudit = (contract.audit_log || []).find(entry =>
     entry.action === 'separation_execution_requested'
-    && entry.idempotency_key === requestPayload.idempotency_key
     && entry.detail?.preview_id === normalizedPreviewId
+    && (
+      entry.idempotency_key === requestPayload.idempotency_key
+      || (versionIdempotencyKey && entry.detail?.version_idempotency_key === versionIdempotencyKey)
+    )
   );
   if (previousAudit) {
     return {
       contract: toPublicContract(contract),
-      preview: normalizeSeparationPreview(contract.separation_previews[previewIndex]),
+      preview,
       idempotent: true,
+      already_requested: Boolean(preview.confirmation_state?.execution_request),
+      execution_request: preview.confirmation_state?.execution_request || null,
       audit_entry: previousAudit,
     };
   }
-
-  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
   const now = nowSeconds();
   if (preview.expires_at > 0 && preview.expires_at <= now) throw createError('分居预览已过期，请重新生成预览', 409);
   if (preview.state !== 'confirmed' || preview.confirmation_state.all_members_confirmed !== true) {
@@ -22101,6 +22709,7 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
     requested_by: member.username,
     requested_at: now,
     idempotency_key: requestPayload.idempotency_key,
+    version_idempotency_key: versionIdempotencyKey,
     memo: requestPayload.memo,
     asset_return_executed: false,
     personal_save_written: false,
@@ -22140,6 +22749,7 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
     asset_return_executed: false,
     personal_save_written: false,
     next_required_operations: executionRequest.next_required_operations,
+    version_idempotency_key: versionIdempotencyKey,
   }, requestPayload.idempotency_key);
   saveContractStore(store);
 
@@ -22149,6 +22759,176 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
     idempotent: false,
     already_requested: false,
     execution_request: executionRequest,
+  };
+}
+
+async function recordSeparationExecutionFailure(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('please sign in first', 401);
+  const failurePayload = normalizeSeparationExecutionFailurePayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('please specify the separation preview to restore to pending', 400);
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('cohabitation contract not found', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('you are not a member of this contract', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('only active or separation-pending contracts can restore separation execution to pending', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('only accepted contract members can restore separation execution to pending', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('separation preview not found', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'separation_execution_failed_pending_restored'
+    && entry.idempotency_key === failurePayload.idempotency_key
+    && entry.detail?.preview_id === normalizedPreviewId
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_restored: true,
+      audit_entry: previousAudit,
+      execution_request: preview.confirmation_state.execution_request || null,
+    };
+  }
+
+  const now = nowSeconds();
+  if (preview.expires_at > 0 && preview.expires_at <= now) throw createError('separation preview expired; regenerate preview before restoring execution to pending', 409);
+  if (preview.state !== 'confirmed' || preview.confirmation_state.all_members_confirmed !== true) {
+    throw createError('separation preview must be confirmed before execution failure can be restored to pending', 409);
+  }
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  if (!executionRequest.id) throw createError('please request separation execution before recording a pending recovery failure', 409);
+  if (failurePayload.execution_request_id && failurePayload.execution_request_id !== executionRequest.id) {
+    throw createError('separation execution request mismatch; refresh and retry', 409);
+  }
+  const existingExecutionLedger = contract.separation_execution_ledger.find(entry =>
+    entry.preview_id === normalizedPreviewId
+    || (executionRequest.id && entry.execution_request_id === executionRequest.id)
+  );
+  if (existingExecutionLedger) {
+    throw createError('separation execution already has an asset return ledger; use compensation rollback instead of restoring pending', 409);
+  }
+  const currentStatus = String(executionRequest.status || '');
+  if (!['pending_manual_execution', 'execution_failed'].includes(currentStatus)) {
+    throw createError('only pending separation execution requests without ledgers can be restored to pending', 409);
+  }
+
+  const previousFailureEvents = Array.isArray(executionRequest.failure_events)
+    ? executionRequest.failure_events
+    : [];
+  const failureEvent = {
+    id: makeId('separation_execution_failure'),
+    failed_at: now,
+    failed_by: member.username,
+    failure_stage: failurePayload.failure_stage,
+    failure_reason: failurePayload.failure_reason,
+    error_code: failurePayload.error_code,
+    failed_operation_id: failurePayload.failed_operation_id,
+    idempotency_key: failurePayload.idempotency_key,
+    memo: failurePayload.memo,
+    restored_status: 'pending_manual_execution',
+    asset_return_ledger_written: false,
+    personal_save_written: false,
+    shared_assets_mutated: false,
+  };
+  const nextRequiredOperations = Array.isArray(executionRequest.next_required_operations) && executionRequest.next_required_operations.length > 0
+    ? executionRequest.next_required_operations
+    : ['execute_asset_return', 'write_personal_save_refunds', 'split_decorations', 'resolve_family_story'];
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: 'pending_manual_execution',
+    failure_count: previousFailureEvents.length + 1,
+    failure_events: [...previousFailureEvents, failureEvent].slice(-20),
+    last_failure_event: failureEvent,
+    last_failure_at: now,
+    last_failure_stage: failurePayload.failure_stage,
+    last_failure_reason: failurePayload.failure_reason,
+    can_retry: true,
+    asset_return_executed: false,
+    personal_save_written: false,
+    execution_enabled: false,
+    next_required_operations: nextRequiredOperations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    confirmation_state: {
+      ...preview.confirmation_state,
+      can_execute_now: true,
+      ready_for_execution_request: true,
+      execution_request: nextExecutionRequest,
+      execution_failed_at: now,
+      execution_last_failure: failureEvent,
+      execution_failure_count: nextExecutionRequest.failure_count,
+      execution_pending_restored_at: now,
+      execution_enabled: false,
+      execution_policy: 'execution failure recorded before asset-return ledger; request restored to pending_manual_execution without mutating personal saves or shared assets.',
+    },
+    manual_execution_required: true,
+    requires_both_confirm: true,
+  });
+
+  contract.separation_state = 'pending_manual_execution';
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_execution_failed_pending_restored', actor, {
+    preview_id: nextPreview.id,
+    preview_version: nextPreview.version,
+    execution_request_id: nextExecutionRequest.id,
+    failure_event_id: failureEvent.id,
+    failure_stage: failurePayload.failure_stage,
+    failure_reason: failurePayload.failure_reason,
+    error_code: failurePayload.error_code,
+    restored_status: 'pending_manual_execution',
+    can_execute_now: true,
+    execution_enabled: false,
+    execution_ledger_written: false,
+    asset_return_ledger_written: false,
+    personal_save_written: false,
+    shared_assets_mutated: false,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+    personal_inventory_changed: false,
+    personal_money_changed: false,
+    no_personal_save_mutation: true,
+    no_shared_asset_mutation: true,
+    next_required_operations: nextRequiredOperations,
+  }, failurePayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_restored: false,
+    execution_request: nextExecutionRequest,
+    failure_event: failureEvent,
+    recovery: {
+      status: 'pending_manual_execution',
+      can_retry_asset_return: true,
+      execution_ledger_written: false,
+      personal_save_written: false,
+      shared_assets_mutated: false,
+    },
   };
 }
 
@@ -22185,21 +22965,24 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
   const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
   if (previewIndex < 0) throw createError('分居预览不存在', 404);
 
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const versionIdempotencyKey = buildSeparationVersionIdempotencyKey(contract.id, preview, 'execute-asset-return');
   const previousLedger = contract.separation_execution_ledger.find(entry =>
-    entry.idempotency_key === executePayload.idempotency_key
-    && entry.preview_id === normalizedPreviewId
+    entry.preview_id === normalizedPreviewId
+    && (
+      entry.idempotency_key === executePayload.idempotency_key
+      || (versionIdempotencyKey && entry.version_idempotency_key === versionIdempotencyKey)
+    )
   );
   if (previousLedger) {
     return {
       contract: toPublicContract(contract),
-      preview: normalizeSeparationPreview(contract.separation_previews[previewIndex]),
+      preview,
       idempotent: true,
       already_executed: true,
       execution_ledger: previousLedger,
     };
   }
-
-  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
   const now = nowSeconds();
   if (preview.expires_at > 0 && preview.expires_at <= now) throw createError('分居预览已过期，请重新生成预览', 409);
   if (preview.state !== 'confirmed' || preview.confirmation_state.all_members_confirmed !== true) {
@@ -22217,6 +23000,19 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
   if (executePayload.plot_return_manifest_hash && executePayload.plot_return_manifest_hash !== expectedManifestHash) {
     throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免返还错田区', 409);
   }
+  const existingPreviewLedger = contract.separation_execution_ledger.find(entry =>
+    entry.preview_id === normalizedPreviewId
+    && ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned'].includes(entry.status)
+  );
+  if (existingPreviewLedger) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_executed: true,
+      execution_ledger: existingPreviewLedger,
+    };
+  }
   if (executionRequest.status === 'asset_return_recorded') {
     const existingLedger = contract.separation_execution_ledger.find(entry => entry.id === executionRequest.execution_ledger_id)
       || contract.separation_execution_ledger.find(entry => entry.preview_id === normalizedPreviewId && entry.status === 'asset_return_recorded');
@@ -22233,6 +23029,7 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
   const executionLedger = buildSeparationAssetReturnLedger(preview, member, {
     ...executePayload,
     plot_return_manifest_hash: expectedManifestHash,
+    version_idempotency_key: versionIdempotencyKey,
   });
   const recordedManifest = manifest.map(entry => ({
     ...entry,
@@ -22246,6 +23043,7 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
     asset_return_recorded_at: now,
     asset_return_recorded_by: member.username,
     execution_ledger_id: executionLedger.id,
+    version_idempotency_key: versionIdempotencyKey,
     personal_save_written: false,
     execution_enabled: false,
     next_required_operations: executionLedger.next_required_operations,
@@ -22296,6 +23094,7 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
     contract_status: contract.status,
     separation_state: contract.separation_state,
     next_required_operations: executionLedger.next_required_operations,
+    version_idempotency_key: versionIdempotencyKey,
   }, executePayload.idempotency_key);
   saveContractStore(store);
 
@@ -22421,7 +23220,7 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
       personal_save_written_at: writtenAt,
       can_execute_now: false,
       execution_enabled: false,
-      execution_policy: '来源田区已按预览 hash 写回双方个人 farm.plots；共同基金、共同仓库、装饰和剧情拆分仍需后续独立接口。'
+      execution_policy: 'Farm source returns are written by locked manifest hash for farm.plots, farm.greenhousePlots, and farm.fruitTrees; fund, warehouse, decoration, story, child, and family receipts continue through dedicated steps.',
     },
     deferred_operations: ['verify_personal_save_receipts', 'split_decorations', 'resolve_family_story'],
   });
@@ -22434,12 +23233,16 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
     plot_return_manifest_hash: expectedManifestHash,
     receipt_count: receipts.length,
     restored_plot_count: receipts.reduce((sum, receipt) => sum + receipt.restored_plot_count, 0),
+    restored_field_plot_count: receipts.reduce((sum, receipt) => sum + receipt.restored_field_plot_count, 0),
+    restored_greenhouse_plot_count: receipts.reduce((sum, receipt) => sum + receipt.restored_greenhouse_plot_count, 0),
+    restored_fruit_tree_count: receipts.reduce((sum, receipt) => sum + receipt.restored_fruit_tree_count, 0),
     personal_save_written: true,
     personal_money_changed: receipts.some(receipt => receipt.personal_money_changed === true),
     personal_inventory_changed: receipts.some(receipt => receipt.personal_inventory_changed === true),
     shared_fund_changed: receipts.some(receipt => receipt.shared_fund_changed === true),
     shared_warehouse_changed: receipts.some(receipt => receipt.shared_warehouse_changed === true),
-    return_sources: uniqueSanitizedValues(receipts.map(receipt => receipt.return_source), 80),
+    source_areas: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.source_areas || []), 40),
+    return_sources: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.return_sources || [receipt.return_source]), 80),
     manifest_sources: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.manifest_sources || []), 80),
     source_save_slots: uniqueNormalizedSaveSlots(receipts.flatMap(receipt => receipt.source_save_slots || [])),
     steward_usernames: uniqueNormalizedUsernames(receipts.flatMap(receipt => receipt.current_steward_usernames || [])),
@@ -22747,22 +23550,52 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
   }
 
   const returnRows = (ledger.warehouse_returns_by_origin_owner || []).filter(entry => entry.quantity > 0);
+  const unidentifiedReturnRows = returnRows.filter(row => row.split_source === 'unidentified_contribution_ratio');
+  if (unidentifiedReturnRows.length > 0) {
+    const previewUnidentifiedManifest = Array.isArray(preview.asset_return?.warehouse_unidentified_split_manifest)
+      ? preview.asset_return.warehouse_unidentified_split_manifest
+      : [];
+    const expectedUnidentifiedHash = sanitizeText(preview.asset_return?.warehouse_unidentified_split_manifest_hash, 100)
+      || sanitizeText(ledger.warehouse_unidentified_split_manifest_hash, 100)
+      || hashWarehouseUnidentifiedSplitManifest(previewUnidentifiedManifest);
+    if (!expectedUnidentifiedHash || !/^[a-f0-9]{64}$/i.test(expectedUnidentifiedHash)) {
+      throw createError('分居共同仓库未知来源拆分清单缺少可校验 hash，请重新生成预览', 409);
+    }
+    if (ledger.warehouse_unidentified_split_manifest_hash && ledger.warehouse_unidentified_split_manifest_hash !== expectedUnidentifiedHash) {
+      throw createError('分居共同仓库未知来源拆分清单 hash 与执行记录不一致，请人工复核', 409);
+    }
+    if (preview.confirmation_state?.all_members_confirmed !== true) {
+      throw createError('无法识别来源的共同产物必须双方确认后才能按贡献比例拆分返还', 409);
+    }
+  }
   let workingWarehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const returnedAt = nowSeconds();
   const warehouseLedgerEntries = [];
   for (const row of returnRows) {
-    const allocationResult = buildWarehouseWithdrawalAllocations(workingWarehouse, row.item_id, row.quantity, row.quality);
+    const preferredOwnerKey = row.split_source === 'unidentified_contribution_ratio' ? 'unidentified' : row.origin_owner_key;
+    const allocationResult = buildWarehouseWithdrawalAllocations(workingWarehouse, row.item_id, row.quantity, row.quality, {
+      preferred_owner_key: preferredOwnerKey,
+    });
     if (!allocationResult.ok) throw createError(`共同仓库中 ${row.item_id} 可返还数量不足，请重新生成分居预览或人工补偿`, 409);
-    const mismatched = allocationResult.allocations.find(allocation =>
-      normalizeUsernameKey(allocation.source_owner_key || allocation.source_owner_username) !== row.origin_owner_key
-    );
+    const mismatched = row.split_source === 'unidentified_contribution_ratio'
+      ? null
+      : allocationResult.allocations.find(allocation =>
+          normalizeUsernameKey(allocation.source_owner_key || allocation.source_owner_username) !== row.origin_owner_key
+        );
     if (mismatched) throw createError(`共同仓库来源玩家与分居清单不一致：${row.item_id}`, 409);
+    const targetKey = normalizeUsernameKey(row.return_target_key || row.return_target_username || row.origin_owner_key || row.origin_owner_username);
+    const targetUsername = normalizeUsername(row.return_target_username || row.origin_owner_username);
     const targetMember = (contract.members || []).find(entry =>
-      entry.username_key === row.origin_owner_key || normalizeUsernameKey(entry.username) === row.origin_owner_key
+      entry.username_key === targetKey || normalizeUsernameKey(entry.username) === targetKey
     ) || null;
     const targetSaveId = normalizeSaveId(targetMember?.save_id);
     const targetSaveSlot = normalizeSaveSlot(targetMember?.save_slot);
-    const targetOwnerId = targetSaveId ? `save:${targetSaveId}` : `account:${row.origin_owner_key}`;
+    const targetOwnerId = sanitizeText(row.return_target_id, 100) || (targetSaveId ? `save:${targetSaveId}` : `account:${targetKey}`);
+    const sourceLedgerIds = row.source_ledger_ids?.length > 0
+      ? row.source_ledger_ids
+      : row.ledger_ids?.length > 0
+        ? row.ledger_ids
+        : allocationResult.allocations.flatMap(allocation => allocation.source_ledger_ids || [allocation.source_ledger_id]).filter(Boolean);
     const ledgerEntry = normalizeWarehouseLedgerEntry({
       id: makeId('shared_warehouse_ledger'),
       action: 'separation_return',
@@ -22775,19 +23608,21 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
       source_owner_username: row.origin_owner_username,
       source_owner_display_name: row.origin_owner_username,
       source_owner_key: row.origin_owner_key,
-      source_ledger_ids: allocationResult.allocations.flatMap(allocation => allocation.source_ledger_ids || [allocation.source_ledger_id]).filter(Boolean),
+      source_ledger_ids: sourceLedgerIds,
       target_owner_id: targetOwnerId,
-      target_owner_username: row.origin_owner_username,
-      target_owner_display_name: row.origin_owner_username,
-      target_owner_key: row.origin_owner_key,
+      target_owner_username: targetUsername,
+      target_owner_display_name: targetUsername,
+      target_owner_key: targetKey,
       target_save_id: targetSaveId,
       target_save_slot: targetSaveSlot,
       target_inventory: 'inventory.items',
       target_ref: `separation:${normalizedPreviewId}:${ledger.id}`,
       at: returnedAt,
-      idempotency_key: `${returnPayload.idempotency_key}:${row.origin_owner_key}:${row.item_id}:${row.quality}`,
+      idempotency_key: `${returnPayload.idempotency_key}:${targetKey}:${row.item_id}:${row.quality}:${row.split_source || 'traceable'}`,
       reversible: true,
-      compensation_hint: '分居共同仓库物已扣共同仓库并写回来源成员个人背包；失败时按本 ledger 与个人 receipt 补偿重放。',
+      compensation_hint: row.split_source === 'unidentified_contribution_ratio'
+        ? '分居共同仓库未知来源产物已按双方确认的贡献比例扣共同仓库并写回目标成员个人背包；失败时按 manifest、ledger 与个人 receipt 补偿重放。'
+        : '分居共同仓库物已扣共同仓库并写回来源成员个人背包；失败时按本 ledger 与个人 receipt 补偿重放。',
       status: 'committed',
     });
     if (ledgerEntry) {
@@ -22820,6 +23655,7 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
     return_idempotency_key: returnPayload.idempotency_key,
   }));
   const totalReturnedQuantity = returnRows.reduce((sum, entry) => sum + entry.quantity, 0);
+  const totalUnidentifiedReturnedQuantity = unidentifiedReturnRows.reduce((sum, entry) => sum + entry.quantity, 0);
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
     status: 'shared_warehouse_returned',
@@ -22829,6 +23665,7 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
     shared_warehouse_returned_at: returnedAt,
     shared_warehouse_returned_by: member.username,
     shared_warehouse_return_total_quantity: totalReturnedQuantity,
+    shared_warehouse_unidentified_returned_quantity: totalUnidentifiedReturnedQuantity,
     shared_warehouse_return_receipts: receipts,
     shared_assets_mutated: true,
     next_required_operations: ['split_decorations', 'resolve_family_story'],
@@ -22840,6 +23677,7 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
     shared_warehouse_returned_at: returnedAt,
     shared_warehouse_returned_by: member.username,
     shared_warehouse_return_total_quantity: totalReturnedQuantity,
+    shared_warehouse_unidentified_returned_quantity: totalUnidentifiedReturnedQuantity,
     shared_warehouse_return_receipts: receipts,
     next_required_operations: nextLedger.next_required_operations,
   };
@@ -22851,6 +23689,7 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
       shared_warehouse_returned: true,
       shared_warehouse_returned_at: returnedAt,
       shared_warehouse_return_total_quantity: totalReturnedQuantity,
+      shared_warehouse_unidentified_returned_quantity: totalUnidentifiedReturnedQuantity,
       shared_warehouse_return_receipts: receipts,
     },
     confirmation_state: {
@@ -22872,6 +23711,7 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
     execution_ledger_id: nextLedger.id,
     plot_return_manifest_hash: expectedManifestHash,
     returned_quantity: totalReturnedQuantity,
+    unidentified_returned_quantity: totalUnidentifiedReturnedQuantity,
     receipt_count: receipts.length,
     warehouse_ledger_ids: finalizedWarehouseLedgerEntries.map(entry => entry.id),
     personal_money_merged: false,
@@ -22890,6 +23730,7 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
     warehouse_ledger_entries: finalizedWarehouseLedgerEntries,
     shared_warehouse: {
       returned_quantity: totalReturnedQuantity,
+      unidentified_returned_quantity: totalUnidentifiedReturnedQuantity,
       personal_inventory_merged: false,
     },
   };
@@ -23370,6 +24211,9 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
   );
   if (!member) throw createError('只有已接受契约成员可以记录孩子安排', 403);
 
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const arrangementPermissionChecks = assertSeparationChildArrangementAllowed(actorPermissions);
+
   contract.separation_previews = Array.isArray(contract.separation_previews)
     ? contract.separation_previews.map(normalizeSeparationPreview)
     : [];
@@ -23399,6 +24243,7 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
       already_resolved: ledger.child_arrangement_resolved === true,
       execution_ledger: ledger,
       child_arrangement: ledger.child_arrangement_resolution,
+      required_permission_keys: arrangementPermissionChecks.map(check => check.label),
     };
   }
 
@@ -23483,6 +24328,7 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
     children_private: true,
     personal_family_save_write_required: true,
     npc_family_child_mutation: false,
+    required_permission_keys: arrangementPermissionChecks.map(check => check.label),
     next_required_operations: nextLedger.next_required_operations,
   }, childPayload.idempotency_key);
   saveContractStore(store);
@@ -23494,6 +24340,7 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
     already_resolved: false,
     execution_ledger: nextLedger,
     child_arrangement: childArrangement,
+    required_permission_keys: arrangementPermissionChecks.map(check => check.label),
   };
 }
 
@@ -23715,6 +24562,7 @@ module.exports = {
   createSeparationPreview,
   confirmSeparationPreview,
   requestSeparationExecution,
+  recordSeparationExecutionFailure,
   executeSeparationAssetReturn,
   writeSeparationPersonalFarmReturns,
   refundSeparationSharedFund,

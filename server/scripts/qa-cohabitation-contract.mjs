@@ -35,6 +35,8 @@ const harvestOwner = 'cohabit_hv_owner26'
 const harvestPartner = 'cohabit_hv_part26'
 const recipePolicyOwner = 'recipe_o30'
 const recipePolicyPartner = 'recipe_p30'
+const fundShopOwner = 'cohabit_shop_owner30'
+const fundShopPartner = 'cohabit_shop_part30'
 
 const actor = username => ({
   username,
@@ -146,6 +148,7 @@ const buildSaveData = username => ({
         ? [
             { itemId: 'rice', quantity: 6, quality: 'normal', locked: false },
             { itemId: 'basic_fertilizer', quantity: 2, quality: 'normal', locked: false },
+            { itemId: 'quality_fertilizer', quantity: 1, quality: 'normal', locked: false },
             { itemId: 'hay', quantity: 2, quality: 'normal', locked: false },
             { itemId: 'vitality_feed', quantity: 2, quality: 'normal', locked: false },
             { itemId: 'ancient_waybill', quantity: 1, quality: 'normal', locked: false },
@@ -378,6 +381,69 @@ const injectSharedWarehouseDepositLedger = async (contractId, {
   ]
 })
 
+const injectUnidentifiedSharedWarehouseDepositLedger = async (contractId, {
+  itemId,
+  quantity,
+  quality = 'normal',
+  actorUsername,
+  ledgerId,
+  idempotencyKey,
+  at = 1771951800,
+}) => mutateStoredContract(contractId, contract => {
+  contract.shared_warehouse = contract.shared_warehouse || {}
+  const ledger = Array.isArray(contract.shared_warehouse.ledger)
+    ? contract.shared_warehouse.ledger.filter(entry => entry?.id !== ledgerId)
+    : []
+  const sourceOwnerUsername = 'unidentified_shared_product'
+  const sourceOwnerKey = 'unidentified'
+  const sourceOwnerId = 'shared:unidentified'
+  contract.shared_warehouse.ledger = [
+    {
+      id: ledgerId,
+      action: 'deposit',
+      item_id: itemId,
+      quantity,
+      quality,
+      actor_username: actorUsername,
+      actor_display_name: actorUsername,
+      source_owner_id: sourceOwnerId,
+      source_owner_username: sourceOwnerUsername,
+      source_owner_display_name: sourceOwnerUsername,
+      source_owner_key: sourceOwnerKey,
+      source_save_id: 0,
+      source_save_slot: null,
+      source_save_revision: 0,
+      source_inventory: 'shared_workshop.output',
+      source_slots: [{ index: 0, quantity }],
+      target_inventory: 'shared_warehouse.items',
+      at,
+      idempotency_key: idempotencyKey,
+      reversible: true,
+      compensation_hint: 'QA injected unidentified shared warehouse product',
+      status: 'committed',
+    },
+    ...ledger,
+  ]
+  contract.origin_assets = contract.origin_assets || {}
+  contract.origin_assets.warehouse_items = [
+    {
+      ledger_id: ledgerId,
+      action: 'deposit',
+      item_id: itemId,
+      quantity,
+      quality,
+      origin_owner_id: sourceOwnerId,
+      origin_owner_username: sourceOwnerUsername,
+      origin_owner_key: sourceOwnerKey,
+      source_inventory: 'shared_workshop.output',
+      deposited_at: at,
+      idempotency_key: idempotencyKey,
+    },
+    ...(Array.isArray(contract.origin_assets.warehouse_items)
+      ? contract.origin_assets.warehouse_items.filter(entry => entry?.ledger_id !== ledgerId)
+      : []),
+  ]
+})
 const pickPersonalStoryBoundaryState = username => {
   const data = readGameplayData(username) || {}
   return JSON.parse(JSON.stringify({
@@ -400,6 +466,8 @@ await db.registerUser(extra, 'SmokePass_0524', '同居额外成员')
 await db.registerUser(fourth, 'SmokePass_0524', '同居第四成员')
 await db.registerUser(harvestOwner, 'SmokePass_0524', '同居收获主人')
 await db.registerUser(harvestPartner, 'SmokePass_0524', '同居收获伙伴')
+await db.registerUser(fundShopOwner, 'SmokePass_0524', 'shared fund shop owner')
+await db.registerUser(fundShopPartner, 'SmokePass_0524', 'shared fund shop partner')
 seedSave(owner)
 seedSave(partner)
 assert.equal((await db.registerUser(recipePolicyOwner, 'SmokePass_0524', 'shared recipe policy owner')).ok, true, 'recipe policy owner should register')
@@ -408,6 +476,8 @@ seedSave(extra)
 seedSave(fourth)
 seedSave(harvestOwner)
 seedSave(harvestPartner)
+seedSave(fundShopOwner)
+seedSave(fundShopPartner)
 
 const partnerRequest = await socialRuntime.requestFriendship(owner, { target_username: partner })
 seedSave(recipePolicyOwner)
@@ -419,6 +489,8 @@ const fourthRequest = await socialRuntime.requestFriendship(owner, { target_user
 await socialRuntime.acceptFriendRequest(fourth, fourthRequest.id)
 const harvestPartnerRequest = await socialRuntime.requestFriendship(harvestOwner, { target_username: harvestPartner })
 await socialRuntime.acceptFriendRequest(harvestPartner, harvestPartnerRequest.id)
+const fundShopPartnerRequest = await socialRuntime.requestFriendship(fundShopOwner, { target_username: fundShopPartner })
+await socialRuntime.acceptFriendRequest(fundShopPartner, fundShopPartnerRequest.id)
 
 const overview = await runtime.listCohabitationContracts(owner)
 assert.ok(overview.relation_options.find(option => option.id === 'lover_cohabitation'), 'relation options should expose lover contract type')
@@ -473,6 +545,99 @@ assert.equal(accepted.contract.shared_pets?.persisted, true, 'activation should 
 assert.equal(accepted.contract.shared_pets?.summary?.pet_count, 2, 'activation should persist owner pets into shared pets')
 assert.equal(accepted.contract.origin_assets.pets.length, 2, 'activation should persist pet origin assets for separation return')
 assert.ok(accepted.contract.audit_log.find(entry => entry.action === 'contract_activated'), 'activation should be audited')
+const fundShopContractCreated = await runtime.createCohabitationContract({
+  type: 'lover_cohabitation',
+  target_username: fundShopPartner,
+  idempotency_key: 'qa-fund-shop-contract',
+}, actor(fundShopOwner))
+await runtime.acceptCohabitationContract(fundShopContractCreated.contract.id, actor(fundShopPartner))
+const fundShopOwnerSeedBefore = getInventoryItemQuantity(fundShopOwner, 'seed_radish')
+const fundShopOwnerMoneyBefore = readGameplayData(fundShopOwner)?.player?.money
+const fundShopTopUp = await runtime.contributeCohabitationFund(fundShopContractCreated.contract.id, {
+  amount: 60,
+  purpose: 'seed_budget',
+  memo: 'qa fund shop purchase top up',
+  idempotency_key: 'qa-fund-shop-contribution-owner',
+}, actor(fundShopOwner))
+assert.equal(fundShopTopUp.fund.balance, 60, 'fund shop QA top up should prepare shared fund balance')
+const fundShopOwnerMoneyAfterTopUp = readGameplayData(fundShopOwner)?.player?.money
+assert.equal(fundShopOwnerMoneyAfterTopUp, fundShopOwnerMoneyBefore - 60, 'fund shop QA top up should deduct owner money once')
+const fundShopSnapshot = await runtime.getCohabitationFund(fundShopContractCreated.contract.id, actor(fundShopOwner))
+assert.equal(fundShopSnapshot.fund.summary.shop_purchase_to_shared_warehouse_enabled, true, 'fund snapshot should expose shared-warehouse shop purchase capability')
+assert.equal(fundShopSnapshot.fund.permissions.can_shop_purchase_to_shared_warehouse, true, 'fund permissions should allow shop purchase to shared warehouse')
+assert.ok(fundShopSnapshot.fund.summary.allowed_shop_purchase_items.some(item => item.target_ref === 'shop:seed_radish' && item.default_quantity === 2), 'fund snapshot should expose shop purchase whitelist')
+const fundShopWarehouseBefore = await runtime.getCohabitationWarehouse(fundShopContractCreated.contract.id, actor(fundShopOwner))
+const fundShopRadishBefore = fundShopWarehouseBefore.warehouse.items.find(item => item.item_id === 'seed_radish' && item.quality === 'normal')?.quantity ?? 0
+const fundShopPurchase = await runtime.purchaseCohabitationSharedFundShopItem(fundShopContractCreated.contract.id, {
+  target_ref: 'shop:seed_radish',
+  quantity: 2,
+  amount: 30,
+  purpose: 'seed_budget',
+  memo: 'qa shared fund shop purchase seed radish to warehouse',
+  idempotency_key: 'qa-shared-fund-shop-purchase-seed-radish',
+  consumption_id: 'qa-shared-fund-shop-purchase-seed-radish-consume',
+}, actor(fundShopOwner))
+assert.equal(fundShopPurchase.idempotent, false, 'first shared fund shop purchase should not be idempotent')
+assert.equal(fundShopPurchase.fund.balance, 30, 'shared fund shop purchase should reduce shared fund balance')
+assert.equal(fundShopPurchase.fund_ledger_entry.action, 'shop_purchase', 'fund shop purchase should write a shop_purchase fund ledger')
+assert.equal(fundShopPurchase.warehouse_ledger_entry.action, 'deposit', 'fund shop purchase should write a warehouse deposit ledger')
+assert.equal(fundShopPurchase.warehouse_ledger_entry.item_id, 'seed_radish', 'fund shop purchase warehouse ledger should keep item id')
+assert.equal(fundShopPurchase.warehouse_ledger_entry.quantity, 2, 'fund shop purchase warehouse ledger should keep quantity')
+assert.equal(fundShopPurchase.warehouse_ledger_entry.fund_ledger_id, fundShopPurchase.fund_ledger_entry.id, 'warehouse ledger should reference paired fund ledger')
+assert.equal(fundShopPurchase.fund_ledger_entry.target_inventory, 'shared_warehouse.items', 'fund ledger should target shared warehouse inventory')
+assert.equal(fundShopPurchase.fund_ledger_entry.consumption_id, 'qa-shared-fund-shop-purchase-seed-radish-consume', 'fund shop purchase should keep consumption id')
+assert.equal(fundShopPurchase.warehouse_ledger_entry.operation_id, 'qa-shared-fund-shop-purchase-seed-radish-consume', 'fund shop purchase warehouse ledger should mirror consumption id as operation id')
+assert.equal(fundShopPurchase.purchase.target_inventory, 'shared_warehouse.items', 'fund shop purchase response should target shared warehouse inventory')
+assert.equal(fundShopPurchase.purchase.personal_inventory_changed, false, 'fund shop purchase should not change personal inventory')
+assert.equal(fundShopPurchase.purchase.personal_money_merged, false, 'fund shop purchase should not merge personal money')
+assert.equal(fundShopPurchase.warehouse.items.find(item => item.item_id === 'seed_radish' && item.quality === 'normal')?.quantity, fundShopRadishBefore + 2, 'fund shop purchase should deposit purchased seeds into shared warehouse')
+assert.equal(getInventoryItemQuantity(fundShopOwner, 'seed_radish'), fundShopOwnerSeedBefore, 'fund shop purchase should not add seeds to owner inventory')
+assert.equal(readGameplayData(fundShopOwner)?.player?.money, fundShopOwnerMoneyAfterTopUp, 'fund shop purchase should not touch owner money')
+assert.ok(fundShopPurchase.contract.audit_log.find(entry => entry.action === 'fund_shop_purchase_deposited'), 'fund shop purchase should be audited')
+assert.ok(fundShopPurchase.contract.origin_assets.warehouse_items.some(item => item.ledger_id === fundShopPurchase.warehouse_ledger_entry.id), 'fund shop purchase should create warehouse origin asset')
+const replayFundShopPurchaseByConsumption = await runtime.purchaseCohabitationSharedFundShopItem(fundShopContractCreated.contract.id, {
+  target_ref: 'shop:seed_radish',
+  quantity: 2,
+  amount: 30,
+  purpose: 'seed_budget',
+  idempotency_key: 'qa-shared-fund-shop-purchase-seed-radish-retry',
+  consumption_id: 'qa-shared-fund-shop-purchase-seed-radish-consume',
+}, actor(fundShopOwner))
+assert.equal(replayFundShopPurchaseByConsumption.idempotent, true, 'same shared fund shop purchase consumption id should be idempotent across request keys')
+assert.equal(replayFundShopPurchaseByConsumption.fund_ledger_entry.id, fundShopPurchase.fund_ledger_entry.id, 'consumption-id replay should return the original fund shop ledger')
+assert.equal(replayFundShopPurchaseByConsumption.warehouse_ledger_entry.id, fundShopPurchase.warehouse_ledger_entry.id, 'consumption-id replay should return the original warehouse deposit ledger')
+assert.equal(replayFundShopPurchaseByConsumption.fund.balance, 30, 'consumption-id replay should not deduct shared balance twice')
+assert.equal(replayFundShopPurchaseByConsumption.warehouse.items.find(item => item.item_id === 'seed_radish' && item.quality === 'normal')?.quantity, fundShopRadishBefore + 2, 'consumption-id replay should not duplicate warehouse stock')
+assert.equal(getInventoryItemQuantity(fundShopOwner, 'seed_radish'), fundShopOwnerSeedBefore, 'consumption-id replay should not add personal seeds')
+assert.equal(readGameplayData(fundShopOwner)?.player?.money, fundShopOwnerMoneyAfterTopUp, 'consumption-id replay should not touch owner money')
+const duplicateFundShopPurchase = await runtime.purchaseCohabitationSharedFundShopItem(fundShopContractCreated.contract.id, {
+  target_ref: 'shop:seed_radish',
+  quantity: 2,
+  amount: 30,
+  purpose: 'seed_budget',
+  idempotency_key: 'qa-shared-fund-shop-purchase-seed-radish',
+}, actor(fundShopOwner))
+assert.equal(duplicateFundShopPurchase.idempotent, true, 'same shared fund shop purchase idempotency key should be idempotent')
+assert.equal(duplicateFundShopPurchase.fund.balance, 30, 'idempotent shared fund shop purchase should not deduct balance twice')
+assert.equal(duplicateFundShopPurchase.warehouse.items.find(item => item.item_id === 'seed_radish' && item.quality === 'normal')?.quantity, fundShopRadishBefore + 2, 'idempotent shared fund shop purchase should not duplicate warehouse stock')
+assert.equal(getInventoryItemQuantity(fundShopOwner, 'seed_radish'), fundShopOwnerSeedBefore, 'idempotent shared fund shop purchase should not add personal seeds')
+assert.equal(readGameplayData(fundShopOwner)?.player?.money, fundShopOwnerMoneyAfterTopUp, 'idempotent shared fund shop purchase should not touch owner money')
+await assert.rejects(
+  () => runtime.purchaseCohabitationSharedFundShopItem(fundShopContractCreated.contract.id, {
+    target_ref: 'shop:seed_radish',
+    quantity: 2,
+    amount: 29,
+    purpose: 'seed_budget',
+    idempotency_key: 'qa-shared-fund-shop-purchase-bad-amount',
+  }, actor(fundShopOwner)),
+  error => error?.status === 400,
+  'shared fund shop purchase should reject mismatched client amount'
+)
+assert.equal((await runtime.getCohabitationFund(fundShopContractCreated.contract.id, actor(fundShopOwner))).fund.balance, 30, 'rejected shared fund shop purchase should not change shared balance')
+assert.equal((await runtime.getCohabitationWarehouse(fundShopContractCreated.contract.id, actor(fundShopOwner))).warehouse.items.find(item => item.item_id === 'seed_radish' && item.quality === 'normal')?.quantity, fundShopRadishBefore + 2, 'rejected shared fund shop purchase should not change warehouse stock')
+assert.equal(getInventoryItemQuantity(fundShopOwner, 'seed_radish'), fundShopOwnerSeedBefore, 'rejected shared fund shop purchase should not add personal seeds')
+assert.equal(readGameplayData(fundShopOwner)?.player?.money, fundShopOwnerMoneyAfterTopUp, 'rejected shared fund shop purchase should not touch owner money')
+
 
 const activeOverview = await runtime.listCohabitationContracts(partner)
 assert.equal(activeOverview.summary.active, 1, 'partner should see the active contract')
@@ -1480,6 +1645,106 @@ assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineAutoIncomeOwnerRawBefore, 'offline queue auto income should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineAutoIncomePartnerRawBefore, 'offline queue auto income should not rewrite partner save')
 
+let dailySettleHealthPlotId = ''
+await mutateStoredContract(created.contract.id, contract => {
+  const healthPlot = contract.shared_map?.plots?.find(plot => plot.origin_owner_username === partner && Number(plot.source_plot_id) === 6)
+  assert.ok(healthPlot, 'daily settle cooperation QA should find partner source plot 6')
+  dailySettleHealthPlotId = healthPlot.id
+  healthPlot.plot_state = {
+    ...(healthPlot.plot_state || {}),
+    state: 'growing',
+    crop_id: 'lotus',
+    growth_days: 3,
+    watered: false,
+    unwatered_days: 2,
+    cooperation_health_bonus: 1,
+    last_cooperation_bonus_action: 'shared_farm_water',
+    last_cooperation_bonus_members: [owner, partner],
+  }
+  const animal = contract.shared_animals?.animals?.find(entry => entry.id === qaSharedAnimal.id)
+  assert.ok(animal, 'daily settle cooperation QA should find shared animal')
+  animal.animal_state = {
+    ...(animal.animal_state || {}),
+    was_fed: true,
+    fed_with: 'hay',
+    was_petted: true,
+    hunger: 0,
+    days_since_product: 0,
+    sick: false,
+    cooperation_mood_bonus: 3,
+    last_cooperation_bonus_action: 'shared_animal_feed_pet',
+    last_cooperation_feed_actor_username: owner,
+    last_cooperation_bonus_members: [owner, partner],
+  }
+  contract.shared_map.revision = Math.max(Number(contract.shared_map.revision) || 0, 1771951600)
+  contract.shared_animals.revision = Math.max(Number(contract.shared_animals.revision) || 0, 1771951600)
+})
+const dailySettleWarehouseBefore = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+const dailySettleFundBefore = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+const dailySettleOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const dailySettlePartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const dailySettle = await runtime.settleCohabitationDailyBonus(created.contract.id, {
+  idempotency_key: 'qa-cohabitation-daily-settle-cooperation-bonuses',
+  memo: 'qa daily settle consumes cooperation bonuses',
+}, actor(owner))
+assert.equal(dailySettle.idempotent, false, 'first cohabitation daily settle should not be idempotent')
+assert.equal(dailySettle.already_settled, false, 'first cohabitation daily settle should not be marked already settled')
+assert.equal(dailySettle.daily_settlement.farm_health_bonus_consumed_count, 1, 'daily settle should consume one shared farm health bonus')
+assert.equal(dailySettle.daily_settlement.farm_health_bonus_consumed_value, 1, 'daily settle should report consumed shared farm health bonus value')
+assert.equal(dailySettle.daily_settlement.animal_mood_bonus_consumed_count, 1, 'daily settle should consume one shared animal mood bonus')
+assert.equal(dailySettle.daily_settlement.animal_mood_bonus_consumed_value, 3, 'daily settle should report consumed shared animal mood bonus value')
+assert.equal(dailySettle.daily_settlement.shared_warehouse_changed, false, 'daily settle cooperation bonuses should not mutate shared warehouse')
+assert.equal(dailySettle.daily_settlement.shared_fund_changed, false, 'daily settle cooperation bonuses should not mutate shared fund')
+assert.equal(dailySettle.daily_settlement.personal_save_changed, false, 'daily settle cooperation bonuses should not mutate personal saves')
+assert.ok(dailySettle.daily_settlement.changed_plots.some(entry => entry.plot_id === dailySettleHealthPlotId && entry.health_bonus_consumed === 1), 'daily settle changed plots should record consumed farm health bonus evidence')
+assert.ok(dailySettle.daily_settlement.changed_animals.some(entry => entry.animal_id === qaSharedAnimal.id && entry.mood_bonus_consumed === 3 && entry.mood_product_progress_bonus_days === 1), 'daily settle changed animals should record consumed mood bonus evidence')
+const dailySettledHealthPlot = dailySettle.shared_map.plots.find(plot => plot.id === dailySettleHealthPlotId)
+assert.equal(dailySettledHealthPlot?.plot_state?.cooperation_health_bonus, 0, 'daily settle should clear consumed shared farm health bonus')
+assert.equal(dailySettledHealthPlot?.plot_state?.unwatered_days, 0, 'daily settle health bonus should absorb the unwatered day')
+assert.equal(dailySettledHealthPlot?.plot_state?.last_cooperation_health_bonus_consumed_value, 1, 'daily settle should persist consumed farm health bonus value on plot')
+assert.ok((dailySettledHealthPlot?.plot_state?.last_daily_settled_at || 0) >= dailySettle.daily_settlement.settled_at, 'daily settle should persist plot settlement timestamp')
+const dailySettledAnimal = dailySettle.shared_animals.animals.find(animal => animal.id === qaSharedAnimal.id)
+assert.equal(dailySettledAnimal?.animal_state?.was_fed, false, 'daily settle should clear shared animal fed flag')
+assert.equal(dailySettledAnimal?.animal_state?.fed_with, '', 'daily settle should clear shared animal feed item')
+assert.equal(dailySettledAnimal?.animal_state?.was_petted, false, 'daily settle should clear shared animal petted flag')
+assert.equal(dailySettledAnimal?.animal_state?.hunger, 0, 'daily settle should not increase hunger for a fed animal')
+assert.equal(dailySettledAnimal?.animal_state?.days_since_product, 2, 'daily settle should apply fed progress and one cooperation mood progress day')
+assert.equal(dailySettledAnimal?.animal_state?.cooperation_mood_bonus, 0, 'daily settle should clear consumed shared animal mood bonus')
+assert.equal(dailySettledAnimal?.animal_state?.last_cooperation_mood_bonus_consumed_value, 3, 'daily settle should persist consumed mood bonus value on animal')
+assert.equal(dailySettledAnimal?.animal_state?.last_cooperation_mood_product_progress_bonus_days, 1, 'daily settle should persist mood bonus product progress days')
+assert.ok(dailySettle.contract.audit_log.find(entry => entry.action === 'cohabitation_daily_settled' && entry.idempotency_key === 'qa-cohabitation-daily-settle-cooperation-bonuses' && entry.detail?.farm_health_bonus_consumed_count === 1), 'daily settle should write audit evidence for consumed cooperation bonuses')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, dailySettleWarehouseBefore.warehouse.summary.total_quantity, 'daily settle should not change shared warehouse total quantity')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, dailySettleFundBefore.fund.balance, 'daily settle should not change shared fund balance')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, dailySettleOwnerRawBefore, 'daily settle should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, dailySettlePartnerRawBefore, 'daily settle should not rewrite partner save')
+
+const duplicateDailySettle = await runtime.settleCohabitationDailyBonus(created.contract.id, {
+  idempotency_key: 'qa-cohabitation-daily-settle-cooperation-bonuses',
+}, actor(owner))
+assert.equal(duplicateDailySettle.idempotent, true, 'same cohabitation daily settle idempotency key should be idempotent')
+assert.equal(duplicateDailySettle.already_settled, true, 'duplicate cohabitation daily settle should be marked already settled')
+assert.equal(duplicateDailySettle.daily_settlement.idempotent, true, 'duplicate daily settlement detail should expose idempotent replay')
+assert.equal(duplicateDailySettle.daily_settlement.farm_health_bonus_consumed_count, 1, 'duplicate daily settle should replay farm health bonus evidence')
+assert.equal(duplicateDailySettle.daily_settlement.animal_mood_bonus_consumed_value, 3, 'duplicate daily settle should replay animal mood bonus evidence')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, dailySettleWarehouseBefore.warehouse.summary.total_quantity, 'duplicate daily settle should not change shared warehouse total quantity')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, dailySettleFundBefore.fund.balance, 'duplicate daily settle should not change shared fund balance')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, dailySettleOwnerRawBefore, 'duplicate daily settle should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, dailySettlePartnerRawBefore, 'duplicate daily settle should not rewrite partner save')
+
+await mutateStoredContract(created.contract.id, contract => {
+  const ownerWateredPlot = contract.shared_map?.plots?.find(plot => plot.origin_owner_username === owner && Number(plot.source_plot_id) === 0)
+  assert.ok(ownerWateredPlot, 'daily settle QA should restore original owner watered plot for separation preview coverage')
+  ownerWateredPlot.plot_state = {
+    ...(ownerWateredPlot.plot_state || {}),
+    crop_id: 'rice',
+    watered: true,
+    unwatered_days: 0,
+  }
+  ownerWateredPlot.current_steward_username = partner
+  ownerWateredPlot.current_steward_display_name = partner
+  contract.shared_map.revision = Math.max(Number(contract.shared_map.revision) || 0, 1771951650)
+})
+
 await injectSharedWarehouseDepositLedger(created.contract.id, {
   itemId: 'lotus',
   quantity: 2,
@@ -1999,17 +2264,124 @@ assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSh
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedFarmFertilize, 'idempotent shared farm fertilize should not rewrite partner save')
 
 const premiumFertilizerDeniedMap = (await runtime.getCohabitationSharedMap(created.contract.id, actor(owner))).shared_map
+assert.equal(premiumFertilizerDeniedMap.summary.farm_premium_fertilizer_write_enabled, true, 'shared farm map should expose premium fertilizer write capability')
+assert.ok(premiumFertilizerDeniedMap.summary.supported_fertilizer_item_ids.includes('quality_fertilizer'), 'shared farm map should expose quality fertilizer as supported')
+assert.ok(premiumFertilizerDeniedMap.summary.supported_fertilizer_item_ids.includes('quality_retaining_soil'), 'shared farm map should expose retaining soil as supported premium fertilizer')
 const premiumFertilizerDeniedPlot = premiumFertilizerDeniedMap.plots.find(plot => plot.origin_owner_username === owner && plot.id !== plantedOwnerPlotForFertilize.id && plot.plot_state?.state !== 'wasteland' && !plot.plot_state?.fertilizer)
 assert.ok(premiumFertilizerDeniedPlot, 'premium fertilizer denial should target an unfertilized non-wasteland plot')
+const ownerPremiumFertilizerBeforeSharedFarmDeposit = getInventoryItemQuantity(owner, 'quality_fertilizer')
+const premiumFertilizerDepositResult = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'quality_fertilizer',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-quality-fertilizer-for-shared-farm',
+}, actor(owner))
+assert.equal(premiumFertilizerDepositResult.idempotent, false, 'first premium shared farm fertilizer warehouse deposit should not be idempotent')
+assert.equal(getInventoryItemQuantity(owner, 'quality_fertilizer'), ownerPremiumFertilizerBeforeSharedFarmDeposit - 1, 'premium fertilizer deposit should deduct owner fertilizer once')
+assert.equal(premiumFertilizerDepositResult.warehouse.items.find(item => item.item_id === 'quality_fertilizer')?.quantity, 1, 'warehouse should expose premium fertilizer before premium fertilize')
+const ownerRawBeforePremiumFertilizerDenied = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforePremiumFertilizerDenied = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 await assert.rejects(
   () => runtime.fertilizeCohabitationSharedFarmPlot(created.contract.id, {
     plot_id: premiumFertilizerDeniedPlot.id,
-    fertilizer_item_id: 'deluxe_speed_gro',
+    fertilizer_item_id: 'quality_fertilizer',
     idempotency_key: 'qa-shared-farm-fertilize-premium-denied',
   }, actor(partner)),
   error => error?.status === 403,
-  'shared farm fertilize should reject premium fertilizer without permission'
+  'shared farm fertilize should reject premium fertilizer without farm.use_premium_fertilizer permission'
 )
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'quality_fertilizer')?.quantity, 1, 'permission-denied premium fertilize should not consume premium fertilizer')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforePremiumFertilizerDenied, 'permission-denied premium fertilize should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforePremiumFertilizerDenied, 'permission-denied premium fertilize should not rewrite partner save')
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    farm: { use_premium_fertilizer: true },
+  },
+  idempotency_key: 'qa-enable-partner-shared-farm-premium-fertilizer',
+}, actor(owner))
+const ownerRawBeforePremiumSharedFarmFertilize = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforePremiumSharedFarmFertilize = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const premiumFertilizeResult = await runtime.fertilizeCohabitationSharedFarmPlot(created.contract.id, {
+  plot_id: premiumFertilizerDeniedPlot.id,
+  fertilizer_item_id: 'quality_fertilizer',
+  memo: 'qa shared farm premium fertilizer',
+  idempotency_key: 'qa-shared-farm-fertilize-premium-quality',
+}, actor(partner))
+assert.equal(premiumFertilizeResult.idempotent, false, 'first shared farm premium fertilize action should not be idempotent')
+assert.equal(premiumFertilizeResult.plot.plot_state.fertilizer, 'quality_fertilizer', 'shared farm premium fertilize should mark the contract-map plot fertilizer')
+assert.equal(premiumFertilizeResult.plot.current_steward_username, partner, 'shared farm premium fertilize should record current steward')
+assert.equal(premiumFertilizeResult.ledger_entry.action, 'fertilize', 'shared farm premium ledger should record fertilize action')
+assert.equal(premiumFertilizeResult.ledger_entry.fertilizer_item_id, 'quality_fertilizer', 'shared farm premium ledger should keep fertilizer item id')
+assert.equal(premiumFertilizeResult.ledger_entry.fertilizer_permission_key, 'use_premium_fertilizer', 'shared farm premium ledger should keep dedicated permission key')
+assert.equal(premiumFertilizeResult.ledger_entry.premium_fertilizer, true, 'shared farm premium ledger should mark premium fertilizer')
+assert.equal(premiumFertilizeResult.ledger_entry.fertilizer_effect, 'quality_bonus_premium', 'shared farm premium ledger should keep fertilizer effect')
+assert.equal(premiumFertilizeResult.farm_action.fertilizer_permission_key, 'use_premium_fertilizer', 'shared farm premium response should expose dedicated permission key')
+assert.equal(premiumFertilizeResult.farm_action.premium_fertilizer, true, 'shared farm premium response should mark premium fertilizer')
+assert.equal(premiumFertilizeResult.farm_action.fertilizer_effect, 'quality_bonus_premium', 'shared farm premium response should expose fertilizer effect')
+assert.equal(premiumFertilizeResult.farm_action.personal_save_changed, false, 'shared farm premium fertilize should not mutate personal saves after premium fertilizer deposit')
+assert.equal(premiumFertilizeResult.farm_action.shared_warehouse_changed, true, 'shared farm premium fertilize action should declare fertilizer warehouse consumption')
+assert.equal(premiumFertilizeResult.warehouse.items.find(item => item.item_id === 'quality_fertilizer')?.quantity || 0, 0, 'shared farm premium fertilize should consume one premium fertilizer from shared warehouse')
+assert.equal(premiumFertilizeResult.warehouse_ledger_entries.length, 1, 'shared farm premium fertilize should create one warehouse consume ledger')
+assert.equal(premiumFertilizeResult.warehouse_ledger_entries[0].action, 'consume', 'shared farm premium fertilize should consume fertilizer through warehouse ledger')
+assert.ok(premiumFertilizeResult.warehouse_ledger_entries[0].source_ledger_ids.includes(premiumFertilizerDepositResult.ledger_entry.id), 'premium fertilizer consume ledger should reference source premium fertilizer deposit ledger')
+assert.ok(premiumFertilizeResult.ledger_entry.warehouse_ledger_ids.includes(premiumFertilizeResult.warehouse_ledger_entries[0].id), 'farm premium fertilize ledger should reference warehouse consume ledger')
+assert.ok(premiumFertilizeResult.contract.origin_assets.warehouse_items.some(item => item.ledger_id === premiumFertilizeResult.warehouse_ledger_entries[0].id && item.action === 'consume'), 'origin assets should reference premium fertilizer consume ledger')
+assert.ok(premiumFertilizeResult.contract.origin_assets.plots.some(item => item.id === premiumFertilizeResult.plot.id && item.plot_state?.fertilizer === 'quality_fertilizer' && item.current_steward_username === partner), 'origin assets should refresh premium fertilized plot state and steward')
+assert.ok(premiumFertilizeResult.contract.audit_log.find(entry => entry.action === 'shared_farm_fertilized' && entry.detail?.fertilizer_item_id === 'quality_fertilizer' && entry.detail?.premium_fertilizer === true), 'shared farm premium fertilize should be audited with premium marker')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforePremiumSharedFarmFertilize, 'shared farm premium fertilize should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforePremiumSharedFarmFertilize, 'shared farm premium fertilize should not rewrite partner save')
+
+const offlinePremiumFertilizerMap = (await runtime.getCohabitationSharedMap(created.contract.id, actor(partner))).shared_map
+const offlinePremiumFertilizerPlot = offlinePremiumFertilizerMap.plots.find(plot => plot.origin_owner_username === partner && plot.source_plot_id === 6 && plot.plot_state?.state !== 'wasteland' && !plot.plot_state?.fertilizer)
+assert.ok(offlinePremiumFertilizerPlot, 'offline premium fertilizer queue should target an unfertilized partner plot')
+await injectSharedWarehouseDepositLedger(created.contract.id, {
+  itemId: 'quality_fertilizer',
+  quantity: 1,
+  quality: 'normal',
+  sourceUsername: owner,
+  ledgerId: 'qa-warehouse-quality-fertilizer-for-offline-shared-farm-premium-ledger',
+  idempotencyKey: 'qa-warehouse-quality-fertilizer-for-offline-shared-farm-premium',
+  sourceSaveId: premiumFertilizeResult.plot.origin_save_id,
+})
+const ownerRawBeforeOfflinePremiumSharedFarmFertilize = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeOfflinePremiumSharedFarmFertilize = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlinePremiumFertilizeQueue = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-farm-premium-fertilize',
+  client_queue_revision: 1,
+  operations: [
+    {
+      action: 'fertilize_shared_farm_premium',
+      operation_id: 'qa-offline-shared-farm-premium-fertilize-op',
+      idempotency_key: 'qa-offline-shared-farm-premium-fertilize-op-idem',
+      client_base_revision: 1,
+      plot_id: offlinePremiumFertilizerPlot.id,
+      fertilizer_item_id: 'quality_fertilizer',
+      memo: 'qa offline shared farm premium fertilizer',
+    },
+  ],
+}, actor(partner))
+const offlinePremiumFertilizeResult = offlinePremiumFertilizeQueue.offline_queue_merge.results[0]
+assert.equal(offlinePremiumFertilizeQueue.offline_queue_merge.accepted_count, 1, 'offline premium shared farm fertilize queue should accept one operation')
+assert.equal(offlinePremiumFertilizeResult?.status, 'committed', 'offline premium shared farm fertilize should commit through server authoritative merge')
+assert.equal(offlinePremiumFertilizeResult?.action, 'fertilize_shared_farm_premium', 'offline premium shared farm fertilize result should keep queue action')
+assert.equal(offlinePremiumFertilizeResult?.farm_action, 'fertilize', 'offline premium shared farm fertilize result should keep farm action')
+assert.equal(offlinePremiumFertilizeResult?.plot_id, offlinePremiumFertilizerPlot.id, 'offline premium shared farm fertilize result should keep plot id')
+assert.equal(offlinePremiumFertilizeResult?.fertilizer_item_id, 'quality_fertilizer', 'offline premium shared farm fertilize result should keep fertilizer item id')
+assert.equal(offlinePremiumFertilizeResult?.fertilizer_permission_key, 'use_premium_fertilizer', 'offline premium shared farm fertilize result should keep dedicated permission key')
+assert.equal(offlinePremiumFertilizeResult?.premium_fertilizer, true, 'offline premium shared farm fertilize result should mark premium fertilizer')
+assert.equal(offlinePremiumFertilizeResult?.fertilizer_effect, 'quality_bonus_premium', 'offline premium shared farm fertilize result should keep fertilizer effect')
+assert.equal(offlinePremiumFertilizeResult?.shared_warehouse_changed, true, 'offline premium shared farm fertilize result should consume shared warehouse stock')
+assert.equal(offlinePremiumFertilizeResult?.personal_save_changed, false, 'offline premium shared farm fertilize result should not mutate personal saves')
+assert.equal(offlinePremiumFertilizeResult?.after_plot_state?.fertilizer, 'quality_fertilizer', 'offline premium shared farm fertilize result should expose fertilized plot state')
+const offlinePremiumFertilizedMap = (await runtime.getCohabitationSharedMap(created.contract.id, actor(partner))).shared_map
+const offlinePremiumFertilizedPlot = offlinePremiumFertilizedMap.plots.find(plot => plot.id === offlinePremiumFertilizerPlot.id)
+assert.equal(offlinePremiumFertilizedPlot?.plot_state?.fertilizer, 'quality_fertilizer', 'offline premium shared farm fertilize should update contract-map plot fertilizer')
+assert.equal(offlinePremiumFertilizedPlot?.current_steward_username, partner, 'offline premium shared farm fertilize should record current steward')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'quality_fertilizer')?.quantity || 0, 0, 'offline premium shared farm fertilize should consume injected premium fertilizer stock')
+assert.ok(offlinePremiumFertilizeQueue.contract.origin_assets.plots.some(item => item.id === offlinePremiumFertilizerPlot.id && item.plot_state?.fertilizer === 'quality_fertilizer' && item.current_steward_username === partner), 'offline premium shared farm fertilize should refresh origin assets plot steward')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeOfflinePremiumSharedFarmFertilize, 'offline premium shared farm fertilize should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeOfflinePremiumSharedFarmFertilize, 'offline premium shared farm fertilize should not rewrite partner save')
 
 await runtime.updateCohabitationPermissions(created.contract.id, {
   target_username: partner,
@@ -2019,6 +2391,8 @@ await runtime.updateCohabitationPermissions(created.contract.id, {
   idempotency_key: 'qa-disable-partner-shared-farm-plant',
 }, actor(owner))
 const sharedMapBeforeDeniedPlant = (await runtime.getCohabitationSharedMap(created.contract.id, actor(owner))).shared_map
+const ownerRawBeforeDeniedSharedFarmActions = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeDeniedSharedFarmActions = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const ownerWastelandPlantDeniedPlot = sharedMapBeforeDeniedPlant.plots.find(plot => plot.origin_owner_username === owner && plot.source_plot_id === 2)
 await assert.rejects(
   () => runtime.plantCohabitationSharedFarmPlot(created.contract.id, {
@@ -2029,8 +2403,8 @@ await assert.rejects(
   error => error?.status === 403,
   'shared farm plant should reject members without farm plant permission'
 )
-assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedFarmFertilize, 'permission-denied shared farm plant should not rewrite owner save')
-assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedFarmFertilize, 'permission-denied shared farm plant should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeDeniedSharedFarmActions, 'permission-denied shared farm plant should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeDeniedSharedFarmActions, 'permission-denied shared farm plant should not rewrite partner save')
 await assert.rejects(
   () => runtime.fertilizeCohabitationSharedFarmPlot(created.contract.id, {
     plot_id: ownerWastelandPlantDeniedPlot.id,
@@ -2040,8 +2414,8 @@ await assert.rejects(
   error => error?.status === 403,
   'shared farm fertilize should reject members without farm plant permission while the dedicated fertilizer permission is deferred'
 )
-assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedFarmFertilize, 'permission-denied shared farm fertilize should not rewrite owner save')
-assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedFarmFertilize, 'permission-denied shared farm fertilize should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeDeniedSharedFarmActions, 'permission-denied shared farm fertilize should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeDeniedSharedFarmActions, 'permission-denied shared farm fertilize should not rewrite partner save')
 
 const harvestContractCreated = await runtime.createCohabitationContract({
   type: 'lover_cohabitation',
@@ -3936,6 +4310,67 @@ assert.equal((await runtime.getCohabitationWarehouse(harvestContractCreated.cont
 assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, harvestDeniedOwnerRawBefore, 'permission-denied shared farm harvest should not rewrite harvest owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, harvestDeniedPartnerRawBefore, 'permission-denied shared farm harvest should not rewrite harvest partner save')
 
+const qualityHarvestWarehouseBefore = await runtime.getCohabitationWarehouse(harvestContractCreated.contract.id, actor(harvestOwner))
+const qualityHarvestRiceBefore = qualityHarvestWarehouseBefore.warehouse.items.find(item => item.item_id === 'rice' && item.quality === 'fine')?.quantity ?? 0
+await mutateStoredContract(harvestContractCreated.contract.id, contract => {
+  const qualityPlot = contract.shared_map?.plots?.find(plot => plot.id === deniedRiceHarvestPlot.id)
+  assert.ok(qualityPlot, 'shared farm quality harvest QA should find denied rice plot')
+  qualityPlot.plot_state = {
+    ...(qualityPlot.plot_state || {}),
+    state: 'harvestable',
+    crop_id: 'rice',
+    growth_days: 7,
+    watered: true,
+    harvest_count: 0,
+    giant_crop_group: null,
+    infested: false,
+    infested_days: 0,
+    weedy: false,
+    weedy_days: 0,
+    cooperation_quality_bonus: 1,
+    last_cooperation_bonus_action: 'shared_farm_plant_fertilize',
+    last_cooperation_plant_actor_username: harvestOwner,
+    last_cooperation_bonus_members: [harvestOwner, harvestPartner],
+  }
+  contract.shared_map.revision = Math.max(Number(contract.shared_map.revision) || 0, 1771951700)
+})
+const qualityHarvestOwnerRawBefore = saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw
+const qualityHarvestPartnerRawBefore = saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw
+const sharedFarmQualityHarvest = await runtime.harvestCohabitationSharedFarmPlot(harvestContractCreated.contract.id, {
+  plot_id: deniedRiceHarvestPlot.id,
+  idempotency_key: 'qa-shared-farm-harvest-quality-bonus-rice',
+}, actor(harvestOwner))
+assert.equal(sharedFarmQualityHarvest.idempotent, false, 'first shared farm quality harvest should not be idempotent')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.output_item_id, 'rice', 'shared farm quality harvest ledger should keep rice output')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.output_quality, 'fine', 'shared farm harvest should upgrade output quality from consumed cooperation bonus')
+assert.equal(sharedFarmQualityHarvest.warehouse_ledger_entries[0].quality, 'fine', 'shared farm harvest warehouse ledger should deposit upgraded quality')
+assert.equal(sharedFarmQualityHarvest.warehouse.items.find(item => item.item_id === 'rice' && item.quality === 'fine')?.quantity ?? 0, qualityHarvestRiceBefore + 1, 'shared farm quality harvest should deposit one fine rice into shared warehouse')
+assert.equal(sharedFarmQualityHarvest.plot.plot_state.cooperation_quality_bonus, 0, 'shared farm quality harvest should clear consumed cooperation quality bonus')
+assert.equal(sharedFarmQualityHarvest.plot.plot_state.last_cooperation_quality_bonus_consumed_value, 1, 'shared farm quality harvest should persist consumed quality bonus value')
+assert.ok(sharedFarmQualityHarvest.plot.plot_state.last_cooperation_quality_bonus_consumed_at > 0, 'shared farm quality harvest should persist consumed quality bonus timestamp')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.simultaneous_online_bonus.applied, true, 'shared farm quality harvest ledger should record applied simultaneous online bonus')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.simultaneous_online_bonus.type, 'shared_farm_plant_fertilize_quality_harvest', 'shared farm quality harvest ledger should record harvest quality bonus type')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.simultaneous_online_bonus.bonus_value, 1, 'shared farm quality harvest ledger should record consumed quality bonus value')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.simultaneous_online_bonus.plant_actor_username, harvestOwner, 'shared farm quality harvest ledger should keep plant actor evidence')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.simultaneous_online_bonus.output_quality_before, 'normal', 'shared farm quality harvest ledger should record original output quality')
+assert.equal(sharedFarmQualityHarvest.ledger_entry.simultaneous_online_bonus.output_quality_after, 'fine', 'shared farm quality harvest ledger should record upgraded output quality')
+assert.equal(sharedFarmQualityHarvest.farm_action.output_quality, 'fine', 'shared farm quality harvest response should expose upgraded output quality')
+assert.equal(sharedFarmQualityHarvest.farm_action.simultaneous_online_bonus.applied, true, 'shared farm quality harvest response should expose consumed cooperation bonus')
+assert.equal(sharedFarmQualityHarvest.contract.audit_log.find(entry => entry.action === 'shared_farm_harvested' && entry.idempotency_key === 'qa-shared-farm-harvest-quality-bonus-rice')?.detail?.simultaneous_online_bonus?.applied, true, 'shared farm quality harvest audit should record cooperation bonus evidence')
+assert.ok(sharedFarmQualityHarvest.contract.origin_assets.warehouse_items.some(item => item.ledger_id === sharedFarmQualityHarvest.warehouse_ledger_entries[0].id && item.simultaneous_online_bonus?.applied === true), 'shared farm quality harvest origin asset should keep cooperation bonus evidence')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, qualityHarvestOwnerRawBefore, 'shared farm quality harvest should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, qualityHarvestPartnerRawBefore, 'shared farm quality harvest should not rewrite harvest partner save')
+
+const duplicateSharedFarmQualityHarvest = await runtime.harvestCohabitationSharedFarmPlot(harvestContractCreated.contract.id, {
+  plot_id: deniedRiceHarvestPlot.id,
+  idempotency_key: 'qa-shared-farm-harvest-quality-bonus-rice',
+}, actor(harvestOwner))
+assert.equal(duplicateSharedFarmQualityHarvest.idempotent, true, 'same shared farm quality harvest idempotency key should be idempotent')
+assert.equal(duplicateSharedFarmQualityHarvest.warehouse.items.find(item => item.item_id === 'rice' && item.quality === 'fine')?.quantity ?? 0, qualityHarvestRiceBefore + 1, 'idempotent shared farm quality harvest should not duplicate upgraded output')
+assert.equal(duplicateSharedFarmQualityHarvest.ledger_entry.simultaneous_online_bonus.applied, true, 'idempotent shared farm quality harvest should replay bonus evidence')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestOwner).slots[0].raw, qualityHarvestOwnerRawBefore, 'idempotent shared farm quality harvest should not rewrite harvest owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(harvestPartner).slots[0].raw, qualityHarvestPartnerRawBefore, 'idempotent shared farm quality harvest should not rewrite harvest partner save')
+
 const ownerFishFeedBeforeFundPurchase = getInventoryItemQuantity(owner, 'fish_feed')
 const ownerMoneyBeforeFeedPurchase = readGameplayData(owner)?.player?.money
 const fundFeedPurchaseResult = await runtime.spendCohabitationFund(created.contract.id, {
@@ -4379,6 +4814,8 @@ assert.equal(offlineStatus.offline_status.actor_capabilities.plant_shared_farm, 
 assert.equal(offlineStatus.offline_status.actor_capabilities.harvest_shared_farm, true, 'owner should be able to harvest shared farm while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.care_shared_farm, true, 'owner should be able to care shared farm while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.fertilize_shared_farm_basic, true, 'owner should be able to apply basic shared farm fertilizer while partner is not required online')
+assert.equal(offlineStatus.offline_status.actor_capabilities.fertilize_shared_farm_premium, false, 'owner premium fertilizer capability should remain disabled until dedicated permission is granted')
+assert.ok(offlineStatus.offline_status.summary.offline_queue_supported_actions.includes('fertilize_shared_farm_premium'), 'offline status should expose premium shared farm fertilize queue action')
 assert.equal(offlineStatus.offline_status.actor_capabilities.feed_shared_animal, true, 'owner should be able to feed shared animals while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.pet_shared_animal, true, 'owner should be able to pet shared animals while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.care_shared_pet, true, 'owner should be able to care shared pets while partner is not required online')
@@ -4399,6 +4836,7 @@ assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.plant_shared
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.harvest_shared_farm, true, 'partner should retain shared farm harvest capability offline when permission remains enabled')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.care_shared_farm, false, 'offline status should reflect updated partner shared farm care permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.fertilize_shared_farm_basic, false, 'offline status should reflect updated partner basic fertilizer permission')
+assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.fertilize_shared_farm_premium, true, 'partner should retain premium fertilizer capability when dedicated permission remains enabled')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.feed_shared_animal, false, 'offline status should reflect updated partner shared animal feed permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.pet_shared_animal, false, 'offline status should reflect updated partner shared animal pet permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.care_shared_pet, false, 'offline status should reflect updated partner shared pet care permission')
@@ -5450,6 +5888,50 @@ assert.equal(executionRequest.execution_request.asset_return_executed, false, 's
 assert.equal(executionRequest.execution_request.personal_save_written, false, 'separation execution request should not write personal saves')
 assert.ok(executionRequest.execution_request.next_required_operations.includes('execute_asset_return'), 'separation execution request should list remaining asset return operation')
 assert.equal(executionRequest.preview.asset_return.plot_return_manifest_hash, previewResult.preview.asset_return.plot_return_manifest_hash, 'separation execution request should preserve manifest hash')
+const ownerRawBeforeExecutionFailure = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeExecutionFailure = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const fundBeforeExecutionFailure = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+const warehouseBeforeExecutionFailure = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+const executionFailureRecovery = await runtime.recordSeparationExecutionFailure(created.contract.id, previewResult.preview.id, {
+  memo: 'record transient failure and restore pending before ledger write',
+  failure_stage: 'execute_asset_return',
+  failure_reason: 'qa simulated transient worker failure before asset return ledger',
+  error_code: 'QA_ASSET_RETURN_WORKER_FAILED',
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-execution-failure-pending-restore',
+}, actor(owner))
+assert.equal(executionFailureRecovery.idempotent, false, 'first separation execution failure recovery should not be idempotent')
+assert.equal(executionFailureRecovery.execution_request.id, executionRequest.execution_request.id, 'failure recovery should keep the original execution request id')
+assert.equal(executionFailureRecovery.execution_request.status, 'pending_manual_execution', 'failure recovery should restore the execution request to pending')
+assert.equal(executionFailureRecovery.execution_request.failure_count, 1, 'failure recovery should increment failure count')
+assert.equal(executionFailureRecovery.execution_request.failure_events.length, 1, 'failure recovery should append one failure event')
+assert.equal(executionFailureRecovery.execution_request.failure_events[0].failure_stage, 'execute_asset_return', 'failure event should record the failed stage')
+assert.equal(executionFailureRecovery.execution_request.can_retry, true, 'failure recovery should mark the request retryable')
+assert.equal(executionFailureRecovery.preview.confirmation_state.can_execute_now, true, 'failure recovery should keep the pending execution retryable')
+assert.equal(executionFailureRecovery.preview.confirmation_state.execution_request.status, 'pending_manual_execution', 'preview should expose restored pending status')
+assert.equal(executionFailureRecovery.recovery.execution_ledger_written, false, 'failure recovery should not create an execution ledger')
+assert.equal(executionFailureRecovery.recovery.personal_save_written, false, 'failure recovery should not write personal saves')
+assert.equal(executionFailureRecovery.recovery.shared_assets_mutated, false, 'failure recovery should not mutate shared assets')
+assert.equal((executionFailureRecovery.contract.separation_execution_ledger || []).some(entry => entry.preview_id === previewResult.preview.id), false, 'failure recovery should leave separation execution ledger empty for this preview')
+const executionFailureAudit = executionFailureRecovery.contract.audit_log.find(entry => entry.action === 'separation_execution_failed_pending_restored' && entry.idempotency_key === 'qa-separation-execution-failure-pending-restore')
+assert.ok(executionFailureAudit, 'separation execution failure recovery should be audited')
+assert.equal(executionFailureAudit.detail.restored_status, 'pending_manual_execution', 'failure recovery audit should record restored pending status')
+assert.equal(executionFailureAudit.detail.no_personal_save_mutation, true, 'failure recovery audit should record personal-save non-mutation')
+assert.equal(executionFailureAudit.detail.no_shared_asset_mutation, true, 'failure recovery audit should record shared-asset non-mutation')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeExecutionFailure, 'failure recovery should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeExecutionFailure, 'failure recovery should not rewrite partner save')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, fundBeforeExecutionFailure.fund.balance, 'failure recovery should not change shared fund balance')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, warehouseBeforeExecutionFailure.warehouse.summary.total_quantity, 'failure recovery should not change shared warehouse quantity')
+
+const duplicateExecutionFailureRecovery = await runtime.recordSeparationExecutionFailure(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate transient failure and pending restore',
+  failure_stage: 'execute_asset_return',
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-execution-failure-pending-restore',
+}, actor(owner))
+assert.equal(duplicateExecutionFailureRecovery.idempotent, true, 'same separation execution failure recovery key should return existing recovery')
+assert.equal(duplicateExecutionFailureRecovery.preview.confirmation_state.execution_request.failure_events.length, 1, 'idempotent failure recovery should not append duplicate failure events')
+
 assert.ok(executionRequest.contract.audit_log.find(entry => entry.action === 'separation_execution_requested' && entry.idempotency_key === 'qa-separation-execution-request'), 'separation execution request should be audited')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeExecutionRequest, 'separation execution request should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeExecutionRequest, 'separation execution request should not rewrite partner save')
@@ -5626,6 +6108,171 @@ assert.equal(duplicateSharedFundRefund.fund.balance, sharedFundRefund.fund.balan
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite partner save again')
 
+const unidentifiedOwner = 'coh_unk_owner30'
+const unidentifiedPartner = 'coh_unk_part30'
+assert.equal((await db.registerUser(unidentifiedOwner, 'SmokePass_0530', 'unidentified split owner')).ok, true, 'unidentified split owner should register')
+assert.equal((await db.registerUser(unidentifiedPartner, 'SmokePass_0530', 'unidentified split partner')).ok, true, 'unidentified split partner should register')
+seedSave(unidentifiedOwner)
+seedSave(unidentifiedPartner)
+const unidentifiedFriendRequest = await socialRuntime.requestFriendship(unidentifiedOwner, { target_username: unidentifiedPartner })
+await socialRuntime.acceptFriendRequest(unidentifiedPartner, unidentifiedFriendRequest.id)
+const unidentifiedContract = await runtime.createCohabitationContract({
+  type: 'lover_cohabitation',
+  target_username: unidentifiedPartner,
+  idempotency_key: 'qa-separation-unidentified-contract',
+}, actor(unidentifiedOwner))
+await runtime.acceptCohabitationContract(unidentifiedContract.contract.id, actor(unidentifiedPartner))
+await injectSharedWarehouseDepositLedger(unidentifiedContract.contract.id, {
+  itemId: 'wheat',
+  quantity: 6,
+  quality: 'normal',
+  sourceUsername: unidentifiedOwner,
+  ledgerId: 'qa_separation_unidentified_owner_wheat',
+  idempotencyKey: 'qa-separation-unidentified-owner-wheat',
+  sourceSaveId: 123456801,
+  at: 1771951800,
+})
+await injectSharedWarehouseDepositLedger(unidentifiedContract.contract.id, {
+  itemId: 'wheat',
+  quantity: 4,
+  quality: 'normal',
+  sourceUsername: unidentifiedPartner,
+  ledgerId: 'qa_separation_unidentified_partner_wheat',
+  idempotencyKey: 'qa-separation-unidentified-partner-wheat',
+  sourceSaveId: 123456802,
+  at: 1771951810,
+})
+await injectUnidentifiedSharedWarehouseDepositLedger(unidentifiedContract.contract.id, {
+  itemId: 'herbal_paste',
+  quantity: 5,
+  quality: 'normal',
+  actorUsername: unidentifiedOwner,
+  ledgerId: 'qa_separation_unidentified_herbal_paste',
+  idempotencyKey: 'qa-separation-unidentified-herbal-paste',
+  at: 1771951820,
+})
+const unidentifiedPreview = await runtime.createSeparationPreview(unidentifiedContract.contract.id, {
+  reason: 'qa unidentified shared warehouse product split',
+  idempotency_key: 'qa-separation-unidentified-preview',
+}, actor(unidentifiedOwner))
+const unidentifiedAssetReturn = unidentifiedPreview.preview.asset_return
+const unidentifiedPastePreview = unidentifiedAssetReturn.warehouse_unidentified_items.find(item => item.item_id === 'herbal_paste' && item.quality === 'normal')
+assert.equal(unidentifiedPastePreview?.quantity, 5, 'separation preview should identify unknown-source herbal paste quantity')
+assert.deepEqual(unidentifiedPastePreview?.ledger_ids, ['qa_separation_unidentified_herbal_paste'], 'unknown-source preview should keep source ledger evidence')
+assert.match(unidentifiedAssetReturn.warehouse_unidentified_split_manifest_hash, /^[a-f0-9]{64}$/, 'unknown-source split manifest should expose stable hash')
+assert.equal(unidentifiedAssetReturn.warehouse_unidentified_split_policy.basis, 'warehouse_traceable_remaining_quantity', 'unknown-source split should use traceable warehouse contribution weights')
+assert.equal(unidentifiedAssetReturn.warehouse_unidentified_split_policy.requires_both_confirm, true, 'unknown-source split should require both confirmations')
+const unidentifiedWeights = new Map(unidentifiedAssetReturn.warehouse_unidentified_split_policy.member_weights.map(entry => [entry.username, entry.weight]))
+assert.equal(unidentifiedWeights.get(unidentifiedOwner), 6, 'unknown-source split should count owner traceable warehouse contribution weight')
+assert.equal(unidentifiedWeights.get(unidentifiedPartner), 4, 'unknown-source split should count partner traceable warehouse contribution weight')
+assert.ok(unidentifiedAssetReturn.warehouse_items_by_origin_owner.some(item => item.item_id === 'wheat' && item.origin_owner_username === unidentifiedOwner && item.quantity === 6), 'traceable owner wheat should stay returnable by origin owner')
+assert.ok(unidentifiedAssetReturn.warehouse_items_by_origin_owner.some(item => item.item_id === 'wheat' && item.origin_owner_username === unidentifiedPartner && item.quantity === 4), 'traceable partner wheat should stay returnable by origin owner')
+const unidentifiedSplitManifest = unidentifiedAssetReturn.warehouse_unidentified_split_manifest
+assert.equal(unidentifiedSplitManifest.length, 2, 'unknown-source split manifest should produce one return row per member')
+const ownerUnidentifiedSplit = unidentifiedSplitManifest.find(entry => entry.return_target_username === unidentifiedOwner)
+const partnerUnidentifiedSplit = unidentifiedSplitManifest.find(entry => entry.return_target_username === unidentifiedPartner)
+assert.equal(ownerUnidentifiedSplit?.quantity, 3, 'unknown-source split should allocate owner 3 of 5 by 6:4 contribution ratio')
+assert.equal(partnerUnidentifiedSplit?.quantity, 2, 'unknown-source split should allocate partner 2 of 5 by 6:4 contribution ratio')
+assert.equal(ownerUnidentifiedSplit?.origin_owner_key, 'unidentified', 'unknown-source split should keep unidentified origin key')
+assert.equal(ownerUnidentifiedSplit?.split_source, 'unidentified_contribution_ratio', 'unknown-source owner split should mark contribution-ratio source')
+assert.equal(partnerUnidentifiedSplit?.split_source, 'unidentified_contribution_ratio', 'unknown-source partner split should mark contribution-ratio source')
+assert.equal(ownerUnidentifiedSplit?.contribution_share_basis_points, 6000, 'owner split should record contribution share basis points')
+assert.equal(partnerUnidentifiedSplit?.contribution_share_basis_points, 4000, 'partner split should record contribution share basis points')
+assert.ok(ownerUnidentifiedSplit?.source_ledger_ids.includes('qa_separation_unidentified_herbal_paste'), 'owner unknown split should keep unidentified source ledger id')
+assert.ok(partnerUnidentifiedSplit?.source_ledger_ids.includes('qa_separation_unidentified_herbal_paste'), 'partner unknown split should keep unidentified source ledger id')
+assert.ok(unidentifiedPreview.preview.compensation_plan.some(item => item.id === 'warehouse_unidentified_split'), 'unknown-source preview should include compensation split plan')
+assert.ok(unidentifiedPreview.preview.safety_checks.some(check => check.id === 'warehouse_unidentified_split_confirmed' && check.passed === true), 'unknown-source preview should pass split hash safety check')
+assert.ok(unidentifiedPreview.preview.deferred_operations.includes('confirm_unidentified_warehouse_split'), 'unknown-source preview should defer confirmed split execution')
+await runtime.confirmSeparationPreview(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'unidentified split owner confirms preview',
+  idempotency_key: 'qa-separation-unidentified-confirm-owner',
+}, actor(unidentifiedOwner))
+await runtime.confirmSeparationPreview(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'unidentified split partner confirms preview',
+  idempotency_key: 'qa-separation-unidentified-confirm-partner',
+}, actor(unidentifiedPartner))
+await mutateStoredSeparationPreview(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, preview => {
+  const now = Math.floor(Date.now() / 1000)
+  preview.confirm_after_at = now - 60
+  preview.expires_at = now + 3600
+  preview.confirmation_state = {
+    ...(preview.confirmation_state || {}),
+    confirm_after_at: now - 60,
+    expires_at: now + 3600,
+    can_execute_now: false,
+    execution_enabled: false,
+  }
+})
+const unidentifiedExecutionRequest = await runtime.requestSeparationExecution(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'request unidentified split separation execution',
+  idempotency_key: 'qa-separation-unidentified-execution-request',
+}, actor(unidentifiedOwner))
+const unidentifiedAssetReturnRecord = await runtime.executeSeparationAssetReturn(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'record unidentified split asset return',
+  plot_return_manifest_hash: unidentifiedAssetReturn.plot_return_manifest_hash,
+  execution_request_id: unidentifiedExecutionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-unidentified-asset-return',
+}, actor(unidentifiedOwner))
+assert.equal(unidentifiedAssetReturnRecord.execution_ledger.warehouse_unidentified_split_manifest_hash, unidentifiedAssetReturn.warehouse_unidentified_split_manifest_hash, 'asset return ledger should lock unknown-source split hash')
+const unidentifiedLedgerRows = unidentifiedAssetReturnRecord.execution_ledger.warehouse_returns_by_origin_owner.filter(entry => entry.split_source === 'unidentified_contribution_ratio')
+assert.equal(unidentifiedLedgerRows.length, 2, 'asset return ledger should keep both unknown-source split rows')
+assert.equal(unidentifiedLedgerRows.reduce((sum, entry) => sum + entry.quantity, 0), 5, 'asset return ledger should balance unknown-source quantity')
+await runtime.writeSeparationPersonalFarmReturns(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'write unidentified split source plots before warehouse return',
+  plot_return_manifest_hash: unidentifiedAssetReturn.plot_return_manifest_hash,
+  execution_ledger_id: unidentifiedAssetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-unidentified-personal-farm-write',
+}, actor(unidentifiedOwner))
+const unidentifiedFundRefund = await runtime.refundSeparationSharedFund(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'advance unidentified split zero-fund refund step',
+  plot_return_manifest_hash: unidentifiedAssetReturn.plot_return_manifest_hash,
+  execution_ledger_id: unidentifiedAssetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-unidentified-fund-refund',
+}, actor(unidentifiedOwner))
+assert.equal(unidentifiedFundRefund.receipts.length, 0, 'unknown-source split contract without fund contributions should advance fund step with no receipts')
+const unidentifiedWarehouseBeforeReturn = await runtime.getCohabitationWarehouse(unidentifiedContract.contract.id, actor(unidentifiedOwner))
+assert.equal(unidentifiedWarehouseBeforeReturn.warehouse.items.find(item => item.item_id === 'herbal_paste')?.quantity, 5, 'unknown-source warehouse should contain herbal paste before return')
+assert.equal(unidentifiedWarehouseBeforeReturn.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 10, 'unknown-source warehouse should contain traceable wheat before return')
+const ownerHerbalPasteBeforeUnknownReturn = getInventoryItemQuantity(unidentifiedOwner, 'herbal_paste')
+const partnerHerbalPasteBeforeUnknownReturn = getInventoryItemQuantity(unidentifiedPartner, 'herbal_paste')
+const ownerWheatBeforeUnknownReturn = getInventoryItemQuantity(unidentifiedOwner, 'wheat')
+const partnerWheatBeforeUnknownReturn = getInventoryItemQuantity(unidentifiedPartner, 'wheat')
+const unidentifiedSharedWarehouseReturn = await runtime.returnSeparationSharedWarehouse(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'return unknown-source shared warehouse stock by contribution ratio',
+  plot_return_manifest_hash: unidentifiedAssetReturn.plot_return_manifest_hash,
+  execution_ledger_id: unidentifiedAssetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-unidentified-warehouse-return',
+}, actor(unidentifiedOwner))
+assert.equal(unidentifiedSharedWarehouseReturn.idempotent, false, 'first unknown-source shared warehouse return should not be idempotent')
+assert.equal(unidentifiedSharedWarehouseReturn.shared_warehouse.returned_quantity, 15, 'unknown-source return should report traceable plus unknown returned quantity')
+assert.equal(unidentifiedSharedWarehouseReturn.shared_warehouse.unidentified_returned_quantity, 5, 'unknown-source return should report unknown returned quantity')
+assert.equal(unidentifiedSharedWarehouseReturn.execution_ledger.shared_warehouse_unidentified_returned_quantity, 5, 'execution ledger should record unknown-source returned quantity')
+assert.equal(unidentifiedSharedWarehouseReturn.receipts.length, 4, 'unknown-source return should create traceable and split receipts')
+assert.equal(getInventoryItemQuantity(unidentifiedOwner, 'herbal_paste'), ownerHerbalPasteBeforeUnknownReturn + 3, 'unknown-source return should add owner herbal paste share once')
+assert.equal(getInventoryItemQuantity(unidentifiedPartner, 'herbal_paste'), partnerHerbalPasteBeforeUnknownReturn + 2, 'unknown-source return should add partner herbal paste share once')
+assert.equal(getInventoryItemQuantity(unidentifiedOwner, 'wheat'), ownerWheatBeforeUnknownReturn + 6, 'unknown-source return should still return traceable owner wheat')
+assert.equal(getInventoryItemQuantity(unidentifiedPartner, 'wheat'), partnerWheatBeforeUnknownReturn + 4, 'unknown-source return should still return traceable partner wheat')
+assert.equal(unidentifiedSharedWarehouseReturn.warehouse.items.find(item => item.item_id === 'herbal_paste')?.quantity ?? 0, 0, 'unknown-source herbal paste should be removed from shared warehouse')
+assert.equal(unidentifiedSharedWarehouseReturn.warehouse.items.find(item => item.item_id === 'wheat')?.quantity ?? 0, 0, 'traceable wheat should be removed from shared warehouse')
+const unidentifiedReturnLedgers = unidentifiedSharedWarehouseReturn.warehouse_ledger_entries.filter(entry => entry.item_id === 'herbal_paste')
+assert.equal(unidentifiedReturnLedgers.length, 2, 'unknown-source return should write one warehouse ledger per split target')
+assert.ok(unidentifiedReturnLedgers.every(entry => entry.action === 'separation_return' && entry.source_owner_key === 'unidentified'), 'unknown-source return ledgers should retain unidentified origin')
+assert.ok(unidentifiedReturnLedgers.some(entry => entry.target_owner_username === unidentifiedOwner && entry.quantity === 3), 'unknown-source return ledger should target owner share')
+assert.ok(unidentifiedReturnLedgers.some(entry => entry.target_owner_username === unidentifiedPartner && entry.quantity === 2), 'unknown-source return ledger should target partner share')
+assert.ok(unidentifiedReturnLedgers.every(entry => entry.source_ledger_ids.includes('qa_separation_unidentified_herbal_paste')), 'unknown-source return ledgers should keep source ledger evidence')
+assert.ok(unidentifiedSharedWarehouseReturn.contract.audit_log.find(entry => entry.action === 'separation_shared_warehouse_returned' && entry.detail?.unidentified_returned_quantity === 5), 'unknown-source warehouse return should audit unidentified quantity')
+const unidentifiedOwnerRawAfterWarehouseReturn = saveRuntime.loadUserSaveSlots(unidentifiedOwner).slots[0].raw
+const unidentifiedPartnerRawAfterWarehouseReturn = saveRuntime.loadUserSaveSlots(unidentifiedPartner).slots[0].raw
+const duplicateUnidentifiedWarehouseReturn = await runtime.returnSeparationSharedWarehouse(unidentifiedContract.contract.id, unidentifiedPreview.preview.id, {
+  memo: 'duplicate unknown-source shared warehouse return',
+  plot_return_manifest_hash: unidentifiedAssetReturn.plot_return_manifest_hash,
+  execution_ledger_id: unidentifiedAssetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-unidentified-warehouse-return',
+}, actor(unidentifiedOwner))
+assert.equal(duplicateUnidentifiedWarehouseReturn.idempotent, true, 'same unknown-source warehouse return key should be idempotent')
+assert.equal(duplicateUnidentifiedWarehouseReturn.execution_ledger.id, unidentifiedSharedWarehouseReturn.execution_ledger.id, 'idempotent unknown-source return should keep ledger id')
+assert.equal(saveRuntime.loadUserSaveSlots(unidentifiedOwner).slots[0].raw, unidentifiedOwnerRawAfterWarehouseReturn, 'idempotent unknown-source return should not rewrite owner save again')
+assert.equal(saveRuntime.loadUserSaveSlots(unidentifiedPartner).slots[0].raw, unidentifiedPartnerRawAfterWarehouseReturn, 'idempotent unknown-source return should not rewrite partner save again')
 const warehouseFreezeOwner = 'wh_freeze_owner30'
 const warehouseFreezePartner = 'wh_freeze_part30'
 assert.equal((await db.registerUser(warehouseFreezeOwner, 'SmokePass_0530', 'warehouse freeze owner')).ok, true, 'warehouse freeze owner should register')
@@ -6001,6 +6648,27 @@ await assert.rejects(
   error => error?.status === 409,
   'child arrangement should reject mismatched manifest hash'
 )
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: { family: { child_daily_care: false } },
+  idempotency_key: 'qa-separation-child-arrangement-disable-owner-family-care',
+}, actor(owner))
+await assert.rejects(
+  () => runtime.resolveSeparationChildArrangement(created.contract.id, previewResult.preview.id, {
+    memo: 'child arrangement without family child care permission',
+    plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+    execution_ledger_id: personalStoryReceipts.execution_ledger.id,
+    arrangement_choice: 'shared_care_pending_personal_saves',
+    idempotency_key: 'qa-separation-child-arrangement-permission-denied',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('family.child_daily_care'),
+  'child arrangement should require family.child_daily_care permission'
+)
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: { family: { child_daily_care: true } },
+  idempotency_key: 'qa-separation-child-arrangement-enable-owner-family-care',
+}, actor(owner))
 
 const ownerBoundaryBeforeChildArrangement = pickPersonalStoryBoundaryState(owner)
 const partnerBoundaryBeforeChildArrangement = pickPersonalStoryBoundaryState(partner)
@@ -6018,9 +6686,11 @@ assert.equal(childArrangement.preview.confirmation_state.execution_request.statu
 assert.equal(childArrangement.child_arrangement.child_count, 1, 'child arrangement should record child count')
 assert.equal(childArrangement.child_arrangement.personal_family_save_write_required, true, 'child arrangement should leave personal family save receipt pending')
 assert.equal(childArrangement.child_arrangement.children_private, true, 'child arrangement should keep children private')
+assert.deepEqual(childArrangement.required_permission_keys, ['family.child_daily_care'], 'child arrangement should expose required family permission')
 assert.ok(!childArrangement.execution_ledger.next_required_operations.includes('resolve_child_arrangement'), 'child arrangement should close child arrangement follow-up')
 assert.ok(!childArrangement.execution_ledger.next_required_operations.includes('split_decorations'), 'child arrangement should keep decoration split closed')
 assert.ok(childArrangement.contract.audit_log.find(entry => entry.action === 'separation_child_arrangement_resolved' && entry.idempotency_key === 'qa-separation-child-arrangement'), 'child arrangement should be audited')
+assert.ok(childArrangement.contract.audit_log.find(entry => entry.action === 'separation_child_arrangement_resolved' && entry.detail?.required_permission_keys?.includes('family.child_daily_care')), 'child arrangement audit should record required family permission')
 assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeChildArrangement, 'child arrangement should not change owner money inventory farm npc home family or children state')
 assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeChildArrangement, 'child arrangement should not change partner money inventory farm npc home family or children state')
 
@@ -8588,6 +9258,63 @@ const setupDualLargeFundContract = async ({ ownerUsername, partnerUsername, cont
   return contractResult.contract.id
 }
 
+const setupLargeFundOnlyContract = async ({ ownerUsername, partnerUsername, contractKey }) => {
+  const ownerRegister = await db.registerUser(ownerUsername, 'SmokePass_0526', `${contractKey} owner`)
+  const partnerRegister = await db.registerUser(partnerUsername, 'SmokePass_0526', `${contractKey} partner`)
+  assert.equal(ownerRegister.ok, true, `${contractKey} owner should register`)
+  assert.equal(partnerRegister.ok, true, `${contractKey} partner should register`)
+  seedSave(ownerUsername)
+  seedSave(partnerUsername)
+  const friendRequest = await socialRuntime.requestFriendship(ownerUsername, { target_username: partnerUsername })
+  await socialRuntime.acceptFriendRequest(partnerUsername, friendRequest.id)
+  const contractResult = await runtime.createCohabitationContract({
+    type: 'seasonal_cofarm',
+    target_username: partnerUsername,
+    idempotency_key: `qa-${contractKey}-contract`,
+  }, actor(ownerUsername))
+  await runtime.acceptCohabitationContract(contractResult.contract.id, actor(partnerUsername))
+  await runtime.updateCohabitationPermissions(contractResult.contract.id, {
+    target_username: ownerUsername,
+    permissions: {
+      fund: {
+        spend_large: true,
+      },
+    },
+    idempotency_key: `qa-${contractKey}-owner-large-only-permission`,
+  }, actor(ownerUsername))
+  await runtime.contributeCohabitationFund(contractResult.contract.id, {
+    amount: 700,
+    purpose: `${contractKey} purpose permission top up`,
+    idempotency_key: `qa-${contractKey}-owner-top-up`,
+  }, actor(ownerUsername))
+  await runtime.contributeCohabitationFund(contractResult.contract.id, {
+    amount: 700,
+    purpose: `${contractKey} purpose permission top up`,
+    idempotency_key: `qa-${contractKey}-partner-top-up`,
+  }, actor(partnerUsername))
+  return contractResult.contract.id
+}
+
+const purposePermissionOwner = 'cohabit_pp_owner30'
+const purposePermissionPartner = 'cohabit_pp_part30'
+const purposePermissionContractId = await setupLargeFundOnlyContract({
+  ownerUsername: purposePermissionOwner,
+  partnerUsername: purposePermissionPartner,
+  contractKey: 'large-purpose-permission',
+})
+for (const purpose of ['limited_decoration', 'shared_decoration_removal', 'family_major_event', 'rare_item_purchase', 'manor_expansion']) {
+  await assert.rejects(
+    () => runtime.createCohabitationFundLargeSpendDraft(purposePermissionContractId, {
+      amount: 1300,
+      purpose,
+      target_ref: `${purpose}:qa-target`,
+      idempotency_key: `qa-large-purpose-${purpose}-denied`,
+    }, actor(purposePermissionOwner)),
+    error => error?.status === 403,
+    `${purpose} large fund draft should require its purpose-specific permission in addition to fund.spend_large`
+  )
+}
+
 const highRiskOwner = 'cohabit_hr_owner26'
 const highRiskPartner = 'cohabit_hr_part26'
 const highRiskContractId = await setupDualLargeFundContract({
@@ -8616,6 +9343,7 @@ assert.equal(highRiskDraft.draft.purpose, 'limited_decoration', 'limited decorat
 assert.equal(highRiskDraft.draft.spend_category, 'limited_decoration', 'limited decoration draft should keep category')
 assert.equal(highRiskDraft.draft.target_ref, 'limited_decoration:moon_gate:purchase', 'limited decoration draft should keep target ref')
 assert.ok(highRiskDraft.draft.deferred_operations.includes('high_risk_purchase_receipt'), 'limited decoration draft should require purchase receipt')
+assert.deepEqual(highRiskDraft.draft.required_permission_keys, ['construction.buy_furniture'], 'limited decoration draft should record required construction permission')
 assert.equal(highRiskDraft.shared_fund.deducted_amount, 0, 'limited decoration draft should not deduct shared fund')
 assert.equal(highRiskDraft.fund.balance, highRiskBalanceBeforeDraft, 'limited decoration draft should leave shared fund balance unchanged')
 assert.equal(readGameplayData(highRiskOwner)?.player?.money, highRiskOwnerMoneyBeforeDraft, 'limited decoration draft should not touch owner money')
@@ -8664,6 +9392,7 @@ assert.equal(highRiskExecute.shared_fund.building_ledger_id, '', 'limited decora
 assert.equal(highRiskExecute.building_ledger_entry, null, 'limited decoration execution should return no building ledger entry')
 assert.equal(highRiskExecute.draft.final_building_ledger_id, '', 'limited decoration executed draft should not point at building ledger')
 assert.ok(highRiskExecute.draft.deferred_operations.includes('delivery_or_refund'), 'limited decoration executed draft should wait for delivery or refund')
+assert.ok(highRiskExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed' && entry.detail?.required_permission_keys?.includes('construction.buy_furniture')), 'limited decoration execution should audit required construction permission')
 assert.equal(highRiskExecute.contract.family_building_ledger.length, 0, 'limited decoration execution should not create family building ledger')
 assert.ok(highRiskExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed' && entry.detail?.building_ledger_written === false), 'limited decoration execution should audit non-building high-risk spend')
 assert.equal(readGameplayData(highRiskOwner)?.player?.money, highRiskOwnerMoneyBeforeDraft, 'limited decoration execution should not touch owner personal money')
@@ -8760,6 +9489,7 @@ const familyEventDraft = await runtime.createCohabitationFundLargeSpendDraft(fam
   idempotency_key: 'qa-family-major-event-draft',
 }, actor(familyEventOwner))
 assert.equal(familyEventDraft.draft.purpose, 'family_major_event', 'family event draft should keep purpose')
+assert.deepEqual(familyEventDraft.draft.required_permission_keys, ['family.major_family_choice'], 'family event draft should record major family choice permission')
 assert.equal(familyEventDraft.shared_fund.deducted_amount, 0, 'family event draft should not deduct shared fund')
 assert.equal(familyEventDraft.fund.balance, familyEventBalanceBeforeDraft, 'family event draft should leave shared fund balance unchanged')
 await runtime.confirmCohabitationFundLargeSpendDraft(familyEventContractId, familyEventDraft.draft.id, {
@@ -8773,6 +9503,7 @@ const familyEventExecute = await runtime.executeCohabitationFundLargeSpendDraft(
 assert.equal(familyEventExecute.draft.state, 'executed', 'family event draft should execute')
 assert.equal(familyEventExecute.ledger_entry.purpose, 'family_major_event', 'family event ledger should keep purpose')
 assert.equal(familyEventExecute.shared_fund.balance_after, familyEventBalanceBeforeDraft - 1300, 'family event execution should deduct shared fund once')
+assert.ok(familyEventExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed' && entry.detail?.required_permission_keys?.includes('family.major_family_choice')), 'family event execution should audit major family choice permission')
 assert.equal(familyEventExecute.shared_fund.building_ledger_written, false, 'family event execution should not write building ledger')
 assert.equal(familyEventExecute.building_ledger_entry, null, 'family event execution should return no building ledger')
 assert.equal(familyEventExecute.draft.final_building_ledger_id, '', 'family event executed draft should not point at building ledger')
@@ -8807,6 +9538,7 @@ assert.equal(familyEventRefund.shared_fund.balance_after, familyEventBalanceBefo
 assert.equal(familyEventRefund.fund.balance, familyEventBalanceBeforeDraft, 'family event refund should restore fund snapshot balance')
 assert.equal(familyEventRefund.contract.family_building_ledger.length, 0, 'family event refund should not create building ledger')
 assert.ok(familyEventRefund.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.outcome === 'refunded'), 'family event refund should be audited')
+assert.deepEqual(familyEventRefund.required_permission_keys, [], 'family event refund receipt should not require delivered-state family permission')
 assert.equal(readGameplayData(familyEventOwner)?.player?.money, familyEventOwnerMoneyBeforeDraft, 'family event refund should not touch owner personal money')
 assert.equal(readGameplayData(familyEventPartner)?.player?.money, familyEventPartnerMoneyBeforeConfirm, 'family event refund should not touch partner personal money')
 const duplicateFamilyEventRefund = await runtime.recordCohabitationFundHighRiskReceipt(familyEventContractId, familyEventDraft.draft.id, {
@@ -8842,6 +9574,7 @@ assert.equal(decorationRemovalDraft.draft.spend_category, 'shared_decoration_rem
 assert.equal(decorationRemovalDraft.draft.target_ref, 'shared_decoration:tea_room_wall:remove', 'shared decoration removal draft should keep target ref')
 assert.ok(decorationRemovalDraft.draft.deferred_operations.includes('shared_decoration_removal_receipt'), 'shared decoration removal draft should require removal receipt')
 assert.equal(decorationRemovalDraft.shared_fund.deducted_amount, 0, 'shared decoration removal draft should not deduct shared fund')
+assert.deepEqual(decorationRemovalDraft.draft.required_permission_keys, ['construction.demolish_building'], 'shared decoration removal draft should record demolish building permission')
 assert.equal(decorationRemovalDraft.fund.balance, decorationRemovalBalanceBeforeDraft, 'shared decoration removal draft should leave balance unchanged')
 await runtime.confirmCohabitationFundLargeSpendDraft(decorationRemovalContractId, decorationRemovalDraft.draft.id, {
   memo: 'qa partner confirms shared decoration removal',
@@ -8855,6 +9588,7 @@ assert.equal(decorationRemovalExecute.draft.state, 'executed', 'shared decoratio
 assert.equal(decorationRemovalExecute.ledger_entry.purpose, 'shared_decoration_removal', 'shared decoration removal ledger should keep purpose')
 assert.equal(decorationRemovalExecute.shared_fund.balance_after, decorationRemovalBalanceBeforeDraft - 1300, 'shared decoration removal execution should deduct shared fund once')
 assert.equal(decorationRemovalExecute.shared_fund.building_ledger_written, false, 'shared decoration removal should not write building ledger')
+assert.ok(decorationRemovalExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed' && entry.detail?.required_permission_keys?.includes('construction.demolish_building')), 'shared decoration removal execution should audit demolish permission')
 assert.equal(decorationRemovalExecute.building_ledger_entry, null, 'shared decoration removal should return no building ledger')
 assert.ok(decorationRemovalExecute.draft.deferred_operations.includes('shared_decoration_removal_receipt'), 'executed shared decoration removal should wait for receipt')
 assert.equal(decorationRemovalExecute.contract.family_building_ledger.length, 0, 'shared decoration removal should not create family building ledger')
@@ -8898,6 +9632,7 @@ const decorationRemovalRefund = await runtime.recordCohabitationFundHighRiskRece
 }, actor(decorationRemovalOwner))
 assert.equal(decorationRemovalRefund.receipt.outcome, 'refunded', 'shared decoration removal receipt should record refund outcome')
 assert.equal(decorationRemovalRefund.refund_ledger_entry.action, 'high_risk_fund_refund', 'shared decoration removal refund should write fund refund ledger')
+assert.deepEqual(decorationRemovalRefund.required_permission_keys, [], 'shared decoration removal refund should not require delivered-state demolish permission')
 assert.equal(decorationRemovalRefund.shared_fund.balance_after, decorationRemovalBalanceBeforeDraft, 'shared decoration removal refund should restore shared fund')
 assert.equal(decorationRemovalRefund.contract.family_building_ledger.length, 0, 'shared decoration removal refund should not create building ledger')
 assert.ok(decorationRemovalRefund.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.purpose === 'shared_decoration_removal'), 'shared decoration removal refund should be audited')
@@ -8941,19 +9676,75 @@ const decorationRemovalDeliveredDraft = await runtime.createCohabitationFundLarg
   memo: 'qa shared decoration removal delivered draft',
   idempotency_key: 'qa-shared-decoration-removal-delivered-draft',
 }, actor(decorationRemovalDeliveredOwner))
+assert.deepEqual(decorationRemovalDeliveredDraft.draft.required_permission_keys, ['construction.demolish_building'], 'delivered-path shared decoration removal draft should record demolish permission')
+await runtime.updateCohabitationPermissions(decorationRemovalDeliveredContractId, {
+  target_username: decorationRemovalDeliveredOwner,
+  permissions: {
+    construction: {
+      demolish_building: false,
+    },
+  },
+  idempotency_key: 'qa-shared-decoration-removal-delivered-revoke-demolish-before-execute',
+}, actor(decorationRemovalDeliveredOwner))
 await runtime.confirmCohabitationFundLargeSpendDraft(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
   memo: 'qa partner confirms delivered shared decoration removal',
   idempotency_key: 'qa-shared-decoration-removal-delivered-confirm',
 }, actor(decorationRemovalDeliveredPartner))
+await assert.rejects(
+  () => runtime.executeCohabitationFundLargeSpendDraft(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
+    memo: 'qa execute delivered shared decoration removal without demolish permission',
+    idempotency_key: 'qa-shared-decoration-removal-delivered-execute-denied',
+  }, actor(decorationRemovalDeliveredOwner)),
+  error => error?.status === 403,
+  'delivered-path shared decoration removal execution should recheck demolish permission'
+)
+await runtime.updateCohabitationPermissions(decorationRemovalDeliveredContractId, {
+  target_username: decorationRemovalDeliveredOwner,
+  permissions: {
+    construction: {
+      demolish_building: true,
+    },
+  },
+  idempotency_key: 'qa-shared-decoration-removal-delivered-restore-demolish-before-execute',
+}, actor(decorationRemovalDeliveredOwner))
 const decorationRemovalDeliveredExecute = await runtime.executeCohabitationFundLargeSpendDraft(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
   memo: 'qa execute delivered shared decoration removal',
   idempotency_key: 'qa-shared-decoration-removal-delivered-execute',
 }, actor(decorationRemovalDeliveredOwner))
+assert.ok(decorationRemovalDeliveredExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed' && entry.detail?.required_permission_keys?.includes('construction.demolish_building')), 'delivered-path shared decoration removal execution should audit demolish permission')
 const decorationRemovalDeliveredPendingPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
   reason: 'qa shared decoration removal delivered pending dispute freeze',
   idempotency_key: 'qa-shared-decoration-removal-delivered-pending-preview',
 }, actor(decorationRemovalDeliveredOwner))
 assert.equal(decorationRemovalDeliveredPendingPreview.preview.asset_return.shared_decoration_removal_disputes.length, 1, 'delivered-path shared decoration removal should enter pending dispute freeze before receipt')
+await runtime.updateCohabitationPermissions(decorationRemovalDeliveredContractId, {
+  target_username: decorationRemovalDeliveredOwner,
+  permissions: {
+    construction: {
+      demolish_building: false,
+    },
+  },
+  idempotency_key: 'qa-shared-decoration-removal-delivered-revoke-demolish-before-receipt',
+}, actor(decorationRemovalDeliveredOwner))
+await assert.rejects(
+  () => runtime.recordCohabitationFundHighRiskReceipt(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
+    outcome: 'delivered',
+    receipt_ref: 'shared_decoration_removal_receipt:stone_lantern:done-denied',
+    memo: 'qa shared decoration removal completed receipt without demolish permission',
+    idempotency_key: 'qa-shared-decoration-removal-delivered-receipt-denied',
+  }, actor(decorationRemovalDeliveredOwner)),
+  error => error?.status === 403,
+  'delivered-path shared decoration removal receipt should recheck demolish permission'
+)
+await runtime.updateCohabitationPermissions(decorationRemovalDeliveredContractId, {
+  target_username: decorationRemovalDeliveredOwner,
+  permissions: {
+    construction: {
+      demolish_building: true,
+    },
+  },
+  idempotency_key: 'qa-shared-decoration-removal-delivered-restore-demolish-before-receipt',
+}, actor(decorationRemovalDeliveredOwner))
 const decorationRemovalDeliveredReceipt = await runtime.recordCohabitationFundHighRiskReceipt(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
   outcome: 'delivered',
   receipt_ref: 'shared_decoration_removal_receipt:stone_lantern:done',
@@ -8965,6 +9756,14 @@ assert.equal(decorationRemovalDeliveredReceipt.refund_ledger_entry, null, 'share
 assert.equal(decorationRemovalDeliveredReceipt.fund.balance, decorationRemovalDeliveredBalanceBeforeDraft - 1300, 'shared decoration removal delivered receipt should keep fund deduction')
 assert.equal(decorationRemovalDeliveredReceipt.contract.family_building_ledger.length, 0, 'shared decoration removal delivered receipt should not create building ledger')
 assert.ok(decorationRemovalDeliveredReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.outcome === 'delivered'), 'shared decoration removal delivered receipt should be audited')
+assert.deepEqual(decorationRemovalDeliveredReceipt.required_permission_keys, ['construction.demolish_building'], 'shared decoration removal delivered receipt should require demolish permission')
+assert.ok(
+  decorationRemovalDeliveredReceipt.contract.audit_log.find(entry =>
+    entry.action === 'fund_high_risk_receipt_recorded'
+    && entry.detail?.required_permission_keys?.includes('construction.demolish_building')
+  ),
+  'shared decoration removal delivered receipt audit should record required demolish permission'
+)
 const decorationRemovalDeliveredClearedPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
   reason: 'qa shared decoration removal delivered receipt clears dispute freeze',
   idempotency_key: 'qa-shared-decoration-removal-delivered-cleared-preview',

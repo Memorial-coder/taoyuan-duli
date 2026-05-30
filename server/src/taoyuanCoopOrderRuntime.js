@@ -37,6 +37,7 @@ const RECEIPT_STATUSES = Object.freeze(['pending_owner_confirm', 'confirmed', 'c
 const COMPENSATION_STATUSES = Object.freeze(['pending', 'resolved']);
 const COLLABORATION_MODES = Object.freeze(['single', 'multi_stage']);
 const RELAY_TEMPLATE_IDS = Object.freeze(['crop_processing_delivery']);
+const SHARED_ORDER_CONFIRM_EFFICIENCY_REDUCTION_SECONDS = 15 * 60;
 const ORDER_TYPE_TO_PROFILE_TAGS = Object.freeze({
   material_help: ['farming', 'mutual_aid'],
   festival_supply: ['festival', 'farming', 'collection'],
@@ -382,9 +383,37 @@ function normalizeSettlementReceipt(entry) {
     target_quantity: targetQuantity,
     delivered_total_quantity: Math.max(0, Math.floor(Number(entry?.delivered_total_quantity) || deliveredTotalQuantity)),
     overfulfilled_quantity: Math.max(0, Math.floor(Number(entry?.overfulfilled_quantity) || Math.max(0, deliveredTotalQuantity - targetQuantity))),
+    shared_order_efficiency_bonus_applied: entry?.shared_order_efficiency_bonus_applied === true,
+    order_efficiency_bonus_seconds: Math.max(0, Math.floor(Number(entry?.order_efficiency_bonus_seconds) || 0)),
+    order_original_duration_seconds: Math.max(0, Math.floor(Number(entry?.order_original_duration_seconds) || 0)),
+    order_effective_duration_seconds: Math.max(0, Math.floor(Number(entry?.order_effective_duration_seconds) || 0)),
+    order_efficiency_bonus_type: sanitizeText(entry?.order_efficiency_bonus_type, 80),
     created_at: normalizeTimestamp(entry?.created_at),
     confirmed_at: Math.max(0, Math.floor(Number(entry?.confirmed_at) || 0)),
     updated_at: normalizeTimestamp(entry?.updated_at),
+  };
+}
+
+function buildOrderConfirmationTimingSeed(order = {}, stage = null, receipt = {}, confirmedAt = 0) {
+  const acceptedAt = Math.max(0, Math.floor(Number(stage?.accepted_at || order?.accepted_at || receipt?.created_at) || 0));
+  const safeConfirmedAt = Math.max(0, Math.floor(Number(confirmedAt || receipt?.confirmed_at) || 0));
+  return {
+    order_original_duration_seconds: acceptedAt > 0 && safeConfirmedAt > 0 ? Math.max(0, safeConfirmedAt - acceptedAt) : 0,
+  };
+}
+
+function buildSharedOrderEfficiencyTiming(order = {}, stage = null, receipt = {}, sharedFundCredit = null, confirmedAt = 0) {
+  const bonus = sharedFundCredit?.fund_ledger_entry?.simultaneous_online_bonus || sharedFundCredit?.shared_fund?.simultaneous_online_bonus || null;
+  const applied = bonus?.applied === true && bonus?.type === 'shared_order_confirm_efficiency';
+  const seed = buildOrderConfirmationTimingSeed(order, stage, receipt, confirmedAt);
+  const originalDuration = Math.max(0, Math.floor(Number(bonus?.order_original_duration_seconds) || Number(receipt?.order_original_duration_seconds) || seed.order_original_duration_seconds || 0));
+  const bonusSeconds = applied ? Math.max(0, Math.floor(Number(bonus?.order_efficiency_bonus_seconds) || Math.min(originalDuration, SHARED_ORDER_CONFIRM_EFFICIENCY_REDUCTION_SECONDS))) : 0;
+  return {
+    shared_order_efficiency_bonus_applied: applied,
+    order_efficiency_bonus_seconds: bonusSeconds,
+    order_original_duration_seconds: originalDuration,
+    order_effective_duration_seconds: Math.max(0, Math.floor(Number(bonus?.order_effective_duration_seconds) || Math.max(0, originalDuration - bonusSeconds))),
+    order_efficiency_bonus_type: applied ? 'shared_order_confirm_efficiency' : '',
   };
 }
 
@@ -1846,6 +1875,7 @@ async function confirmCoopOrderDelivery(orderId, actor = {}, settlementOptions =
       cohabitation_contract_id: rewardOutcome.cohabitation_contract_id || nextReceipt.cohabitation_contract_id,
       shared_fund_ledger_id: rewardOutcome.shared_fund_ledger_id || nextReceipt.shared_fund_ledger_id,
       compensation_id: '',
+      ...buildSharedOrderEfficiencyTiming(order, null, nextReceipt, sharedFundCredit, now),
     });
     nextOrder = normalizeOrder({
       ...nextOrder,
@@ -1933,6 +1963,7 @@ async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}, settl
       cohabitation_contract_id: rewardOutcome.cohabitation_contract_id || nextReceipt.cohabitation_contract_id,
       shared_fund_ledger_id: rewardOutcome.shared_fund_ledger_id || nextReceipt.shared_fund_ledger_id,
       compensation_id: '',
+      ...buildSharedOrderEfficiencyTiming(order, stage, nextReceipt, sharedFundCredit, now),
     });
     nextStage = normalizeOrderStage({
       ...nextStage,
@@ -2061,6 +2092,11 @@ async function replayCoopOrderCompensation(compensationId, actor = {}, settlemen
         updated_at: now,
       });
     }
+
+    nextReceipt = normalizeSettlementReceipt({
+      ...nextReceipt,
+      ...buildSharedOrderEfficiencyTiming(order, nextStage, nextReceipt, sharedFundCredit, now),
+    });
 
     nextReceipt = normalizeSettlementReceipt({
       ...nextReceipt,

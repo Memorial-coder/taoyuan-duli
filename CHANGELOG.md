@@ -1,12 +1,25 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-30
-- Cohabitation high-risk fund receipt permission: server-side `delivered` receipts now re-check `construction.buy_furniture` / `construction.demolish_building` / `family.major_family_choice`; actors with only `fund.spend_large` are rejected, successful responses and audits expose `required_permission_keys`, and refund receipts do not require delivery-purpose permission.
+- 同居分居未知来源共同产物拆分：分居预览新增 `warehouse_unidentified_items`、贡献比例拆分 manifest / hash 和双方确认暂缓项；真实共同仓库返还会校验 hash 与双方确认，按 `unidentified_contribution_ratio` 扣共同仓库、写目标成员个人背包 receipt，并在执行 ledger / 审计中统计未知来源返还数量。
+- Cohabitation child arrangement permission: separation child-arrangement record-only writes now require server-side `family.child_daily_care`; denied actors receive 403, successful responses and audits expose `required_permission_keys`, and personal child/family saves remain untouched until the receipt step.
+- 同居同时在线订单 / 装修证据前端读回：共同基金流水会显示订单确认效率加成、接单者、确认者和凭证；建筑流水会显示装修合照 / 家庭氛围协作加成、真实落账者、建材操作者和 moment / 事件 ID，继续保持奖励金额、共同基金 / 仓库扣减与个人资产边界不变。
+- 同居高风险基金回执权限审计：限定装饰、共享装修拆除和家庭重大事件的 `delivered` 回执会重检 `construction.buy_furniture` / `construction.demolish_building` / `family.major_family_choice`，不再只看 `fund.spend_large`；成功响应和审计会记录 `required_permission_keys`，退款回执不要求交付用途权限。
+- 同居 12.3 审计收尾：共同仓库流水、共同基金流水、权限变更和分居 / 拆分执行审计已完成验收同步；`qa:cohabitation-contract` 覆盖加工流水、基金消费 / 收入、权限写回 / 业务权限键和分居执行链路。
+- 同居分居执行失败 pending 恢复：新增 record-only 失败记录链路，执行请求后、资产返还流水写入前可记录 `failure_events` 和 `separation_execution_failed_pending_restored` 审计，并保持 `pending_manual_execution` 可重试；QA 覆盖幂等、无个人存档 / 共同资产变更和后续继续返还。
+- 同居权限面板 11.8 收口：共同庄园权限页开放农田、动物、仓库、建设装修、资金和家庭完整业务权限矩阵；服务端补齐农田铲除 / 高级肥料独立权限消费，并让庄园扩建、限定装饰、共享装修拆除、家庭重大事件和稀有物购买的大额草案 / 执行 / 已交付回执记录 `required_permission_keys` 且按业务权限重检。
 - 随机 NPC 关系关键节点审计：本地随机 NPC 存档新增 `relationshipMilestoneAudit`，记录熟人、长住、文游、家族会面 / 深线 / 委托、正式关系线、订婚、成婚、婚后日常、婚后家业和孩子家族兴趣节点；NPC 页可读回最近 6 条，审计含操作者、来源、目标引用、幂等键、补偿提示和 `local_save_only` 隐私范围，不写入联机公开资料。
 - 活动房间奖励凭证幂等键收口：节会 / 远征结算凭证 now use `room_reward:<roomId>:<memberId>:v<settlementVersion>`，存档槽位只保留为写回目标字段；管理员重放仍通过 `appliedReceipts` 防重复发钱、发券、发道具或发装饰。
 - 同居离线自动收益领取：`offline-status` 读回待领摘要和 `collect_offline_auto_income` 能力，领取时按服务端共同农田 / 动物当前状态把作物与产物写入共同仓库，补齐仓库、农田 / 动物 ledger 和共同审计；前端共同庄园离线页新增待领摘要与领取入口。
 - 同居共同庄园日结与协作加成收口：新增 `/daily-settle` 写链，按契约共同地图 / 共同动物状态推进成长、消耗共同农田健康 / 品质加成与动物心情加成，并读回日结摘要；前端离线页新增共同庄园日结按钮，地图页读回拼接大地图、同时在线加成和高级肥料选项。
-- 同居共同基金购入共同仓库：新增 `/fund/shop-purchase`，可用共同基金小额白名单直接购买种子 / 饲料入共同仓库，写成对基金扣款 ledger 与共同仓库 deposit ledger，个人铜钱 / 背包保持不变；前端基金面板读回可购目录并刷新基金与仓库。
+- 同居共同农田高级肥料权限闭环：`shared-map/fertilize` 与离线队列 `fertilize_shared_farm_premium` 新增高级肥料白名单回执，按 `farm.use_premium_fertilizer` 和地块权限裁决；在线 / 离线成功都会写当前管护者、共同农田 ledger、共同仓库扣料和来源资产，响应带 `fertilizer_permission_key` / `premium_fertilizer` / `fertilizer_effect`，个人存档保持不变。
+- 同居共同基金购入共同仓库：新增 `/fund/shop-purchase`，可用共同基金小额白名单直接购买种子 / 饲料入共同仓库，要求已激活成员、`fund.spend_small`、`fund.auto_buy_seeds_feed` 与幂等键，写成对基金 `shop_purchase` ledger 与共同仓库 `deposit` ledger、来源资产和审计，个人铜钱 / 背包保持不变；前端基金面板读回可购目录并刷新基金与仓库，契约 QA 覆盖扣基金、入仓、幂等、金额校验和个人资产边界。
+- 同居主商店共同基金支付选择：主商店购买弹窗会读取当前同居契约的共同基金白名单，白菜种子、萝卜种子、水稻种子和白名单饲料可在个人铜钱购买之外选择共同基金支付；共同基金路径调用 `/fund/shop-purchase` 并入共同仓库，继续保留权限、余额、幂等和个人资产边界。
+- 同居共同卖货 11.3 状态收口：`warehouse/sell` 普通品质白名单卖货已对齐 TODO，按 `storage.sell_items`、幂等键、冻结可用量、保护物和服务端卖价裁决，成功后写共同仓库 `sell` ledger 与共同基金 `warehouse_sale_income` ledger、来源资产和审计，个人铜钱 / 背包不变；前端仓库页已有卖出入口，契约 QA 覆盖权限、幂等、入基金、来源追溯和拒绝边界。
+- 同居共同订单 / 任务 11.3 状态收口：`/family-orders` 只读预备面板已对齐 TODO，读回阶段路线、成员订单权限、公共订单收入候选、共同基金入账草案和暂缓项；公共订单确认可选择 `reward_route=shared_fund` 写入共同基金 `order_income` ledger，补偿重放与管理员重试保持共同基金路由且不发个人铜钱。
+- 同居共同仓库 11.3 状态收口：把 11.4 已验证的共同仓库能力回填到共同经营范围总清单；当前已覆盖普通放入 / 取出 / 卖出、共同经营 consume / deposit 流水、高价值取出保护、补偿审计、短窗治理、分居返还和前端入口，剩余聚焦高品质 / 稀有卖出、完整物品分级和真实自动补偿。
+- 同居共同房屋装修 11.3 状态收口：家族建筑预备面板、真实建筑落账、共同仓库建材消耗、回滚 / 退款 / 恢复 / 补偿重放、真实拆除复核 / 执行和 `shared_decoration_removal` 高风险基金用途已对齐 TODO；前端建筑页已有蓝图、流水、落账、耗材、回滚 / 补偿和真实拆除安全阀入口，通用家具摆放 / 移动与完整装修主状态仍留后续。
+- 同居共同孩子 / 家庭系统 11.3 状态收口：`family_major_event` 家庭重大事件、分居 `resolve-child-arrangement` 和 `write-personal-family-receipts` 已对齐 TODO；服务端按 `family.major_family_choice` / `family.child_daily_care`、全员确认、manifest hash、隐私边界和幂等审计裁决，前端分居面板已有孩子安排 / 家庭回执入口，孩子日常照料与真实个人家庭主状态迁移仍留后续。
 - 同居共同仓库 11.4 配方与策略扩展：共同工坊新增米醋、腌萝卜、菜籽油、绿茶、豆腐、精制石英、蜜桃脯、桂花蜜及多条料理 / 丹炉成功丹方白名单；普通仓库流改为显式 `shared_warehouse_common` 策略，任务 / 未分类物品默认拒绝，高价值草案也会拦截任务物；分居共同仓库多物品返还按来源玩家合并写入个人存档，`qa:cohabitation-contract` 覆盖新配方、来源流水和资产边界。
 - 村社仓廪周结算效果凭证：公共仓 `weekly_settlement` 读回 `effect_receipts`、`effect_summary`、点数 / 阈值 / 来源类别、公共集体作用域和不发个人资产声明；`qa:society-warehouse` 扩到五类入仓及三类效果凭证，不改入仓成本、消耗金额或个人收益。
 - 活动房间行动日志补齐：节会 / 远征房间新增结构化 `action_log`，创建、加入、玩法行动、结算和关闭等会记录操作者、房间状态、玩法阶段、行动 ID、目标引用、凭证 ID 和补偿提示；旧 `recent_events` 继续兼容。

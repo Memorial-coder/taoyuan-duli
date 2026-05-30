@@ -571,22 +571,24 @@
             <div class="mt-3 overflow-x-auto pb-1">
               <div
                 class="grid min-w-max gap-1"
-                :style="pagedMapGridStyle"
+                :style="stitchedMapGridStyle"
                 data-testid="online-cohabitation-shared-map-page-grid"
               >
-                <button
-                  v-for="plot in pagedSharedFarmPlots"
-                  :key="plot.id"
-                  class="flex h-9 w-9 flex-col items-center justify-center border text-[9px] leading-3 transition-colors"
-                  :class="[plotClass(plot), selectedSharedFarmPlot?.id === plot.id ? 'ring-1 ring-accent/70' : '']"
-                  :title="plotTitle(plot)"
-                  type="button"
-                  :data-testid="`online-cohabitation-shared-farm-plot-${plot.id}`"
-                  @click="selectSharedFarmPlot(plot)"
-                >
-                  <span>{{ plotGlyph(plot) }}</span>
-                  <span class="max-w-full truncate px-0.5">{{ plot.plot_state.crop_id || plotStateLabel(plot.plot_state.state) }}</span>
-                </button>
+                <template v-for="cell in stitchedSharedFarmCells" :key="cell.key">
+                  <button
+                    v-if="cell.plot"
+                    class="flex h-9 w-9 flex-col items-center justify-center border text-[9px] leading-3 transition-colors"
+                    :class="[plotClass(cell.plot), selectedSharedFarmPlot?.id === cell.plot.id ? 'ring-1 ring-accent/70' : '', cell.regionIndex === activeSharedMapRegion?.region_index ? 'outline outline-1 outline-accent/40' : '']"
+                    :title="plotTitle(cell.plot)"
+                    type="button"
+                    :data-testid="`online-cohabitation-shared-farm-plot-${cell.plot.id}`"
+                    @click="selectSharedFarmPlot(cell.plot)"
+                  >
+                    <span>{{ plotGlyph(cell.plot) }}</span>
+                    <span class="max-w-full truncate px-0.5">{{ cell.plot.plot_state.crop_id || plotStateLabel(cell.plot.plot_state.state) }}</span>
+                  </button>
+                  <span v-else class="h-9 w-9 border border-dashed border-accent/10 bg-black/5" aria-hidden="true" />
+                </template>
               </div>
             </div>
           </template>
@@ -630,15 +632,28 @@
                 <p class="mt-1">状态：{{ plotStateLabel(selectedSharedFarmPlot.plot_state.state) }} · {{ selectedSharedFarmPlot.plot_state.crop_id || '无作物' }}</p>
                 <p class="mt-1">肥料：{{ selectedSharedFarmPlot.plot_state.fertilizer || '无' }}</p>
                 <p class="mt-1">管护：{{ selectedSharedFarmPlot.current_steward_display_name || selectedSharedFarmPlot.current_steward_username || '未记录' }}</p>
+                <p class="mt-1" data-testid="online-cohabitation-shared-farm-coop-bonus">{{ sharedFarmCoopBonusLabel(selectedSharedFarmPlot) }}</p>
               </div>
               <label class="block">
-                <span class="text-[10px] text-muted">种子</span>
+                <span class="text-[10px] text-muted">&#31181;&#23376;</span>
                 <select
                   v-model="sharedFarmSeedItemId"
                   class="online-select mt-1 text-xs"
                   data-testid="online-cohabitation-shared-farm-seed"
                 >
                   <option v-for="option in sharedFarmSeedOptions" :key="option.itemId" :value="option.itemId">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-[10px] text-muted">&#32933;&#26009;</span>
+                <select
+                  v-model="selectedSharedFarmFertilizerItemId"
+                  class="online-select mt-1 text-xs"
+                  data-testid="online-cohabitation-shared-farm-fertilizer"
+                >
+                  <option v-for="option in sharedFarmFertilizerOptions" :key="option.itemId" :value="option.itemId">
                     {{ option.label }}
                   </option>
                 </select>
@@ -702,7 +717,7 @@
                   @click="fertilizeSelectedSharedFarmPlot"
                 >
                   <Sprout :size="12" />
-                  基础施肥
+                  {{ selectedSharedFarmFertilizer?.label || '施肥' }}
                 </button>
                 <button
                   class="online-action-btn online-action-btn--compact justify-center"
@@ -751,6 +766,7 @@
                 <p class="mt-1">饲料：{{ selectedSharedAnimal.animal_state.fed_with || '无' }} · 饥饿 {{ selectedSharedAnimal.animal_state.hunger }}</p>
                 <p class="mt-1">抚摸：{{ selectedSharedAnimal.animal_state.was_petted ? '已完成' : '待照料' }} · 心情 {{ selectedSharedAnimal.animal_state.mood }}</p>
                 <p class="mt-1">产物：{{ sharedAnimalProductStatus(selectedSharedAnimal) }}</p>
+                <p class="mt-1" data-testid="online-cohabitation-shared-animal-coop-bonus">{{ sharedAnimalCoopBonusLabel(selectedSharedAnimal) }}</p>
               </div>
               <div class="grid gap-2 sm:grid-cols-3">
                 <button
@@ -1615,6 +1631,13 @@
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ entry.action }}</p>
                   <p class="mt-1 text-[10px] text-muted">{{ fundLedgerPurposeLabel(entry) }} · {{ formatTime(entry.created_at) }}</p>
+                  <p
+                    v-if="hasSimultaneousOnlineBonus(entry.simultaneous_online_bonus)"
+                    class="mt-1 text-[10px] leading-4 text-emerald-100"
+                    :data-testid="`online-cohabitation-fund-ledger-bonus-${entry.id}`"
+                  >
+                    同时在线加成：{{ simultaneousOnlineBonusLabel(entry.simultaneous_online_bonus) }} · {{ simultaneousOnlineBonusEvidenceLabel(entry.simultaneous_online_bonus) }}
+                  </p>
                 </div>
                 <span class="text-xs text-accent">{{ entry.amount }}</span>
               </div>
@@ -2020,6 +2043,13 @@
                     材料：{{ entry.shared_warehouse_materials_consumed ? '已消耗' : '未消耗' }} ·
                     真实建造：{{ entry.real_build_applied ? '已落账' : '未落账' }} ·
                     个人铜币：{{ entry.personal_money_merged ? '合并' : '独立' }}
+                  </p>
+                  <p
+                    v-if="hasSimultaneousOnlineBonus(entry.simultaneous_online_bonus)"
+                    class="text-emerald-100"
+                    :data-testid="`online-cohabitation-building-ledger-bonus-${entry.id}`"
+                  >
+                    同时在线加成：{{ simultaneousOnlineBonusLabel(entry.simultaneous_online_bonus) }} · {{ simultaneousOnlineBonusEvidenceLabel(entry.simultaneous_online_bonus) }}
                   </p>
                   <p v-if="entry.reverted_at || entry.status === 'reverted'">
                     回滚：{{ entry.reverted_by_display_name || entry.reverted_by_username || '已记录' }} · {{ formatTime(entry.reverted_at) }} · {{ entry.rollback_policy || entry.rollback_reason || '不自动退款或恢复建材' }}
@@ -2677,6 +2707,22 @@
               <p class="text-sm text-accent">离线队列合并</p>
               <span class="text-[10px] text-muted">{{ offlineQueueSupportedActionCount }} 项</span>
             </div>
+            <div class="mt-3 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-offline-auto-income-summary">
+              <div class="flex items-center justify-between gap-2">
+                <span>自动收益待领：{{ offlineAutoIncomePendingCount }} 项</span>
+                <button
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  :disabled="!canCollectOfflineAutoIncome || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-offline-auto-income-collect"
+                  @click="collectOfflineAutoIncome"
+                >
+                  <Package :size="12" />
+                  领取
+                </button>
+              </div>
+              <p class="mt-1">{{ offlineAutoIncomePolicyText }}</p>
+            </div>
             <div class="mt-3 space-y-3">
               <label class="block text-[10px] leading-4 text-muted">
                 <span>待合并操作</span>
@@ -2711,6 +2757,24 @@
                 <Clock3 :size="12" />
                 合并选中离线操作
               </button>
+              <button
+                class="online-action-btn online-action-btn--compact w-full justify-center"
+                type="button"
+                :disabled="!cohabitationStore.canOpenSelectedContract || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-daily-settle"
+                @click="submitCohabitationDailySettle"
+              >
+                <Clock3 :size="12" />
+                共同庄园日结
+              </button>
+              <p
+                v-if="dailySettleActionMessage"
+                class="text-[10px] leading-4"
+                :class="dailySettleActionOk ? 'text-emerald-200' : 'text-red-100'"
+                data-testid="online-cohabitation-daily-settle-message"
+              >
+                {{ dailySettleActionMessage }}
+              </p>
               <p
                 v-if="offlineQueueActionMessage"
                 class="text-[10px] leading-4"
@@ -2803,6 +2867,7 @@
     CohabitationContract,
     CohabitationFamilyBuildingLedgerEntry,
     CohabitationFamilyRoleOption,
+    CohabitationFundShopPurchaseCatalogItem,
     CohabitationFundLargeSpendDraft,
     CohabitationFundLedgerEntry,
     CohabitationMember,
@@ -2829,6 +2894,14 @@
     amount: number
     maxAmount: number
   }
+  type FundPurchaseOption = {
+    label: string
+    itemId: string
+    targetRef: string
+    quantity: number
+    amount: number
+    purpose: string
+  }
   type FundLargeSpendPurpose = 'family_building' | 'manor_expansion' | 'rare_item_purchase' | 'limited_decoration' | 'shared_decoration_removal' | 'family_major_event'
   type FundLargeSpendOption = {
     label: string
@@ -2853,18 +2926,25 @@
   }
   type SharedWorkshopRecipeOption = CohabitationSharedWorkshopRecipe
   type SharedWorkshopResultRow = { id: string; label: string; value: string }
+  type StitchedSharedFarmCell = {
+    key: string
+    plot: CohabitationSharedPlot | null
+    regionIndex: number | null
+  }
   type OfflineQueueUiActionId =
     | 'water_shared_farm'
     | 'care_shared_farm_cure_pests'
     | 'care_shared_farm_clear_weeds'
     | 'plant_shared_farm'
     | 'fertilize_shared_farm_basic'
+    | 'fertilize_shared_farm_premium'
     | 'harvest_shared_farm'
     | 'feed_shared_animal'
     | 'pet_shared_animal'
     | 'collect_shared_animal_product'
     | 'care_shared_pet'
     | 'process_shared_workshop_recipe'
+    | 'collect_offline_auto_income'
   type OfflineQueueActionOption = {
     id: OfflineQueueUiActionId
     queueAction: CohabitationOfflineQueueAction
@@ -3022,6 +3102,8 @@
   const fundActionMessage = ref('')
   const offlineQueueActionMessage = ref('')
   const offlineQueueActionOk = ref(false)
+  const dailySettleActionMessage = ref('')
+  const dailySettleActionOk = ref(false)
   const selectedOfflineQueueActionId = ref<OfflineQueueUiActionId>('water_shared_farm')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
@@ -3054,7 +3136,7 @@
     { key: 'map', label: '地图', summary: '只读展示成员农田横向拼接、来源归属和暂缓写操作。' },
     { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限取出或卖入共同基金。' },
     { key: 'fund', label: '基金', summary: '查看共同基金余额、注资和权限支出流水，个人铜币保持独立。' },
-    { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
+    { key: 'permissions', label: '权限', summary: '查看和调整成员业务权限分组，确认安全阀仍由服务端强制开启。' },
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
     { key: 'buildings', label: '建筑', summary: '查看家族建筑蓝图、建筑流水，并按服务端规则提交真实落账、材料消耗和回滚补偿收口。' },
@@ -3358,9 +3440,37 @@
     if (!region) return plots
     return plots.filter(plot => plotMatchesSharedMapRegion(plot, region))
   })
-  const pagedMapGridStyle = computed(() => ({
-    gridTemplateColumns: `repeat(${Math.max(1, activeSharedMapRegion.value?.width || pagedSharedFarmPlots.value.length || cohabitationStore.sharedMap?.layout.columns || 1)}, minmax(2.25rem, 1fr))`,
+  const stitchedMapGridStyle = computed(() => ({
+    gridTemplateColumns: `repeat(${Math.max(1, cohabitationStore.sharedMap?.layout.columns || activeSharedMapRegion.value?.width || pagedSharedFarmPlots.value.length || 1)}, minmax(2.25rem, 1fr))`,
   }))
+  const stitchedSharedFarmCells = computed<StitchedSharedFarmCell[]>(() => {
+    const sharedMap = cohabitationStore.sharedMap
+    const plots = sharedMap?.plots ?? []
+    if (!sharedMap) return []
+    const columns = Math.max(1, Number(sharedMap.layout?.columns) || activeSharedMapRegion.value?.width || plots.length || 1)
+    const rows = Math.max(1, Number(sharedMap.layout?.rows) || Math.ceil(Math.max(plots.length, 1) / columns))
+    const plotByPosition = new globalThis.Map<string, CohabitationSharedPlot>()
+    plots.forEach(plot => {
+      const x = Number(plot.x)
+      const y = Number(plot.y)
+      if (Number.isFinite(x) && Number.isFinite(y)) plotByPosition.set(`${x}:${y}`, plot)
+    })
+    const cells: StitchedSharedFarmCell[] = []
+    for (let y = 0; y < rows; y += 1) {
+      for (let x = 0; x < columns; x += 1) {
+        const plot = plotByPosition.get(`${x}:${y}`) ?? null
+        const region = plot
+          ? mapRegions.value.find(item => plotMatchesSharedMapRegion(plot, item)) ?? null
+          : mapRegions.value.find(item => x >= item.x && x < item.x + item.width && y >= item.y && y < item.y + item.height) ?? null
+        cells.push({
+          key: `${x}:${y}`,
+          plot,
+          regionIndex: region?.region_index ?? null,
+        })
+      }
+    }
+    return cells
+  })
   const mapRevisionLabel = computed(() => {
     if (!cohabitationStore.sharedMap) return '暂无地图'
     return `版本 ${cohabitationStore.sharedMap.revision}`
@@ -3443,6 +3553,33 @@
     return isSharedAnimalProductReady(animal)
       ? `${info.productId} 可收`
       : `${info.productId} ${days}/${info.produceDays}天`
+  }
+  const sharedFarmCoopBonusLabel = (plot: CohabitationSharedPlot | null | undefined) => {
+    const state = plot?.plot_state
+    if (!state) return '同时在线加成：未触发'
+    const health = Math.max(0, Math.floor(Number(state.cooperation_health_bonus) || 0))
+    const quality = Math.max(0, Math.floor(Number(state.cooperation_quality_bonus) || 0))
+    const consumedHealth = Math.max(0, Math.floor(Number(state.last_cooperation_health_bonus_consumed_value) || 0))
+    const consumedQuality = Math.max(0, Math.floor(Number(state.last_cooperation_quality_bonus_consumed_value) || 0))
+    const members = Array.isArray(state.last_cooperation_bonus_members) ? state.last_cooperation_bonus_members.filter(Boolean) : []
+    const active = [health > 0 ? `健康 +${health}` : '', quality > 0 ? `品质 +${quality}` : ''].filter(Boolean).join(' / ')
+    const consumed = [consumedHealth > 0 ? `已消耗健康 ${consumedHealth}` : '', consumedQuality > 0 ? `已消耗品质 ${consumedQuality}` : ''].filter(Boolean).join(' / ')
+    const suffix = members.length ? ` · ${members.join(' / ')}` : ''
+    if (active) return `同时在线加成：${active}${suffix}`
+    if (consumed) return `同时在线加成：${consumed}`
+    return '同时在线加成：未触发'
+  }
+  const sharedAnimalCoopBonusLabel = (animal: CohabitationSharedAnimal | null | undefined) => {
+    const state = animal?.animal_state
+    if (!state) return '同时在线加成：未触发'
+    const mood = Math.max(0, Math.floor(Number(state.cooperation_mood_bonus) || 0))
+    const consumedMood = Math.max(0, Math.floor(Number(state.last_cooperation_mood_bonus_consumed_value) || 0))
+    const progress = Math.max(0, Math.floor(Number(state.last_cooperation_mood_product_progress_bonus_days) || 0))
+    const members = Array.isArray(state.last_cooperation_bonus_members) ? state.last_cooperation_bonus_members.filter(Boolean) : []
+    const suffix = members.length ? ` · ${members.join(' / ')}` : ''
+    if (mood > 0) return `同时在线加成：心情 +${mood}${suffix}`
+    if (consumedMood > 0) return `同时在线加成：已消耗心情 ${consumedMood}${progress > 0 ? `，产物进度 +${progress}` : ''}`
+    return '同时在线加成：未触发'
   }
   const warehouseItems = computed(() => cohabitationStore.warehouse?.items ?? [])
   const warehouseFrozenQuantity = (item: CohabitationWarehouseItem) => Math.max(0, Math.floor(Number(item.frozen_quantity) || 0))
@@ -3884,18 +4021,56 @@
     return [
       { label: '经营模式', value: summary?.independent_operations_enabled ? '成员可独立经营' : '暂不可经营' },
       { label: '离线阻塞', value: summary?.offline_member_blocks_operations ? '离线会阻塞' : '离线不阻塞' },
-      { label: '自动收益', value: summary?.auto_offline_income_enabled ? '已开启' : '暂未开放' },
+      { label: '自动收益', value: summary?.auto_offline_income_enabled ? `可领取 ${summary?.offline_auto_income_pending_count ?? 0} 项` : '暂未开放' },
     ]
   })
+  const offlineAutoIncomePendingCount = computed(() => Math.max(
+    0,
+    Math.floor(Number(cohabitationStore.offlineStatus?.summary.offline_auto_income_pending_count) || Number(cohabitationStore.offlineStatus?.offline_auto_income?.pending_count) || 0),
+  ))
+  const offlineAutoIncomePolicyText = computed(() => {
+    const autoIncome = cohabitationStore.offlineStatus?.offline_auto_income
+    const farmCount = Number(autoIncome?.harvestable_plot_count) || 0
+    const animalCount = Number(autoIncome?.ready_animal_product_count) || 0
+    return `服务端按当前契约状态领取：农田 ${farmCount}、动物产物 ${animalCount}，只写共同仓库流水。`
+  })
+  const canCollectOfflineAutoIncome = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.summary.auto_offline_income_enabled === true &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.collect_offline_auto_income === true &&
+    offlineAutoIncomePendingCount.value > 0
+  )
   const canManagePermissionPanel = computed(() => cohabitationStore.permissionsPanel?.editable_by_actor === true)
   const canManageRolePanel = computed(() => cohabitationStore.rolePanel?.editable_by_actor === true)
   const permissionToggleOptions = [
+    { group: 'farm', key: 'water', label: '浇水' },
+    { group: 'farm', key: 'cure_pests', label: '除虫清草' },
+    { group: 'farm', key: 'plant', label: '种植施肥' },
+    { group: 'farm', key: 'harvest', label: '收获' },
+    { group: 'farm', key: 'remove_crop', label: '铲除作物' },
+    { group: 'farm', key: 'use_premium_fertilizer', label: '高级肥料' },
+    { group: 'animal', key: 'feed', label: '喂食' },
+    { group: 'animal', key: 'pet', label: '抚摸' },
+    { group: 'animal', key: 'collect_product', label: '收产物' },
+    { group: 'animal', key: 'buy_animal', label: '买动物' },
+    { group: 'animal', key: 'sell_animal', label: '卖动物' },
     { group: 'storage', key: 'deposit', label: '仓库放入' },
     { group: 'storage', key: 'withdraw_common', label: '取普通物' },
-    { group: 'storage', key: 'sell_items', label: '卖出普通物' },
+    { group: 'storage', key: 'withdraw_high_quality', label: '取高品质物' },
+    { group: 'storage', key: 'withdraw_rare', label: '取稀有物' },
+    { group: 'storage', key: 'sell_items', label: '卖出' },
+    { group: 'construction', key: 'move_common_furniture', label: '移动家具' },
+    { group: 'construction', key: 'move_memorial_furniture', label: '移动纪念家具' },
+    { group: 'construction', key: 'buy_furniture', label: '买家具' },
+    { group: 'construction', key: 'demolish_building', label: '拆建筑' },
+    { group: 'construction', key: 'expand_manor', label: '扩建' },
     { group: 'fund', key: 'spend_small', label: '小额基金' },
     { group: 'fund', key: 'spend_medium', label: '中额基金' },
+    { group: 'fund', key: 'spend_large', label: '大额基金' },
     { group: 'fund', key: 'auto_buy_seeds_feed', label: '自动买种子饲料' },
+    { group: 'family', key: 'child_daily_care', label: '孩子照料' },
+    { group: 'family', key: 'family_wish_submit', label: '家庭心愿' },
+    { group: 'family', key: 'major_family_choice', label: '重大选择' },
   ]
   const warehouseItemLabels: Record<string, string> = {
     rice: '稻米',
@@ -3946,6 +4121,35 @@
     partial_elixir_slurry: '偏丹膏',
     failed_elixir_ash: '废丹灰',
     rare_elixir_crystal: '奇丹晶',
+    rice_vinegar: '米醋',
+    pickled_radish: '腌萝卜',
+    rapeseed: '油菜籽',
+    rapeseed_oil: '菜籽油',
+    green_tea_drink: '绿茶',
+    broad_bean: '蚕豆',
+    tofu: '豆腐',
+    quartz: '石英',
+    charcoal: '木炭',
+    refined_quartz: '精制石英',
+    osmanthus: '桂花',
+    osmanthus_honey: '桂花蜜',
+    bamboo_shoot: '春笋',
+    potato: '土豆',
+    ginger: '生姜',
+    candied_peach: '蜜桃脯',
+    food_spicy_boat_rice_ball: '辛火赛舟饭团',
+    food_rapeseed_bamboo_rice_roll: '菜油春笋米粉卷',
+    food_pumpkin_harvest_cauldron: '丰收南瓜大锅羹',
+    food_pickled_radish_guard_soup: '腌萝卜护院汤',
+    food_candied_peach_spirit_cake: '蜜桃灵果糕',
+    warming_sweet_potato_pill: '温阳薯丸',
+    grain_breath_elixir: '谷气续行丹',
+    sesame_courtesy_elixir: '芝香护礼丸',
+    pumpkin_warmth_elixir: '南瓜聚火丹',
+    spicy_vitality_pill: '辛火行气丸',
+    osmanthus_focus_elixir: '桂露凝神丹',
+    tea_focus_elixir: '茶心凝神丹',
+    stone_root_guard_pill: '石根护脉丸',
   }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
@@ -3989,6 +4193,12 @@
       herb_grinder: '药碾',
       stove: '灶台',
       alchemy_furnace: '丹炉',
+      wine_workshop: '酒坊',
+      tea_maker: '茶炉',
+      tofu_press: '豆腐坊',
+      furnace: '熔炉',
+      sugar_jar: '糖渍罐',
+      beehive: '蜂箱',
     }
     return labels[value] || value || '工坊'
   }
@@ -4011,6 +4221,45 @@
     }
     return labels[value] || value || '未记录'
   }
+  const dailySettlementSummaryLabel = (settlement: Record<string, unknown> | null | undefined) => {
+    if (!settlement) return '共同庄园日结已提交'
+    const farmGrowth = Math.max(0, Math.floor(Number(settlement.farm_growth_count) || 0))
+    const healthCount = Math.max(0, Math.floor(Number(settlement.farm_health_bonus_consumed_count) || 0))
+    const moodCount = Math.max(0, Math.floor(Number(settlement.animal_mood_bonus_consumed_count) || 0))
+    const harvestable = Math.max(0, Math.floor(Number(settlement.farm_harvestable_count) || 0))
+    const parts = [`农田成长 ${farmGrowth}`, `健康消耗 ${healthCount}`, `心情消耗 ${moodCount}`]
+    if (harvestable > 0) parts.push(`成熟 ${harvestable}`)
+    return `共同庄园日结：${parts.join(' / ')}`
+  }
+  const hasSimultaneousOnlineBonus = (bonus: Record<string, unknown> | undefined) => bonus?.applied === true
+  const simultaneousOnlineBonusEvidenceLabel = (bonus: Record<string, unknown> | undefined) => {
+    if (!hasSimultaneousOnlineBonus(bonus)) return '无协作证据'
+    const typeValue = bonus?.type
+    const type = typeof typeValue === 'string' ? typeValue : ''
+    if (type === 'shared_order_confirm_efficiency') {
+      const assigneeValue = bonus?.assignee_username
+      const confirmerValue = bonus?.confirmer_username
+      const receiptValue = bonus?.receipt_id
+      const assignee = typeof assigneeValue === 'string' ? assigneeValue : ''
+      const confirmer = typeof confirmerValue === 'string' ? confirmerValue : ''
+      const receipt = typeof receiptValue === 'string' ? receiptValue : ''
+      return [assignee ? `接单 ${assignee}` : '', confirmer ? `确认 ${confirmer}` : '', receipt ? `凭证 ${receipt}` : ''].filter(Boolean).join(' · ') || '订单协作已记录'
+    }
+    if (type === 'family_building_decoration_atmosphere') {
+      const appliedByValue = bonus?.applied_by_username
+      const materialsActorValue = bonus?.materials_actor_username
+      const photoMomentValue = bonus?.photo_moment_id
+      const atmosphereEventValue = bonus?.family_atmosphere_event_id
+      const appliedBy = typeof appliedByValue === 'string' ? appliedByValue : ''
+      const materialsActor = typeof materialsActorValue === 'string' ? materialsActorValue : ''
+      const photoMoment = typeof photoMomentValue === 'string' ? photoMomentValue : ''
+      const atmosphereEvent = typeof atmosphereEventValue === 'string' ? atmosphereEventValue : ''
+      return [appliedBy ? `落账 ${appliedBy}` : '', materialsActor ? `建材 ${materialsActor}` : '', photoMoment || atmosphereEvent].filter(Boolean).join(' · ') || '装修协作已记录'
+    }
+    const recentMembersValue = bonus?.recent_member_usernames
+    const members = Array.isArray(recentMembersValue) ? recentMembersValue.filter(Boolean).join(' / ') : ''
+    return members ? `成员 ${members}` : '协作证据已记录'
+  }
   const simultaneousOnlineBonusLabel = (bonus: Record<string, unknown> | undefined) => {
     if (!bonus || bonus.applied !== true) return '未触发'
     const type = typeof bonus.type === 'string' ? bonus.type : ''
@@ -4021,6 +4270,12 @@
       const percent = Number(bonus.success_rate_bonus_percent) || value
       return `炼丹成功率 +${percent}%`
     }
+    if (type === 'shared_farm_water_health') return value > 0 ? `农田健康 +${value}` : '农田健康加成'
+    if (type === 'shared_farm_plant_fertilize_quality') return value > 0 ? `农田品质 +${value}` : '农田品质加成'
+    if (type === 'shared_farm_plant_fertilize_quality_harvest') return before && after && before !== after ? `收获品质 ${before} -> ${after}` : '收获品质加成'
+    if (type === 'shared_animal_feed_pet_mood') return value > 0 ? `动物心情 +${value}` : '动物心情加成'
+    if (type === 'shared_order_confirm_efficiency') return '订单确认效率加成'
+    if (type === 'family_building_decoration_atmosphere') return '装修合照 / 家庭氛围'
     if (before && after && before !== after) return `${before} -> ${after}`
     return value > 0 ? `品质加成 +${value}` : '已触发'
   }
@@ -4039,6 +4294,14 @@
     { id: 'shared_pickled_chili', label: '共同酱缸泡椒', station: 'sauce_jar', process_kind: 'cooking_material', input_items: [{ item_id: 'chili', quantity: 2, quality: 'normal' }], output_item_id: 'pickled_chili', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_sesame_oil', label: '共同油坊芝麻油', station: 'oil_press', process_kind: 'cooking_material', input_items: [{ item_id: 'sesame', quantity: 3, quality: 'normal' }], output_item_id: 'sesame_oil', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_lotus_heart_powder', label: '共同药碾莲心粉', station: 'herb_grinder', process_kind: 'cooking_material', input_items: [{ item_id: 'dried_lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'lotus_heart_powder', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_rice_vinegar', label: '共同酒坊米醋', station: 'wine_workshop', process_kind: 'cooking_material', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'rice_vinegar', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_pickled_radish', label: '共同酱缸腌萝卜', station: 'sauce_jar', process_kind: 'cooking_material', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }, { item_id: 'rice_vinegar', quantity: 1, quality: 'fine' }], output_item_id: 'pickled_radish', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_rapeseed_oil', label: '共同油坊菜籽油', station: 'oil_press', process_kind: 'cooking_material', input_items: [{ item_id: 'rapeseed', quantity: 3, quality: 'normal' }], output_item_id: 'rapeseed_oil', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_green_tea_drink', label: '共同茶炉绿茶', station: 'tea_maker', process_kind: 'cooking_material', input_items: [{ item_id: 'tea', quantity: 2, quality: 'normal' }], output_item_id: 'green_tea_drink', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_tofu', label: '共同豆腐坊豆腐', station: 'tofu_press', process_kind: 'cooking_material', input_items: [{ item_id: 'broad_bean', quantity: 3, quality: 'normal' }], output_item_id: 'tofu', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_refined_quartz', label: '共同熔炉精制石英', station: 'furnace', process_kind: 'alchemy_material', input_items: [{ item_id: 'quartz', quantity: 2, quality: 'normal' }, { item_id: 'charcoal', quantity: 1, quality: 'normal' }], output_item_id: 'refined_quartz', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_candied_peach', label: '共同糖渍罐蜜桃脯', station: 'sugar_jar', process_kind: 'cooking_material', input_items: [{ item_id: 'peach', quantity: 2, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'candied_peach', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_osmanthus_honey', label: '共同蜂箱桂花蜜', station: 'beehive', process_kind: 'alchemy_material', input_items: [{ item_id: 'osmanthus', quantity: 1, quality: 'normal' }], output_item_id: 'osmanthus_honey', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_ball', label: '共同灶台饭团', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_ball', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_vegetable_soup', label: '共同灶台田园蔬菜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }, { item_id: 'radish', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_vegetable_soup', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_congee', label: '共同灶台白粥', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'food_congee', output_quantity: 1, output_quality: 'normal' },
@@ -4047,11 +4310,24 @@
     { id: 'shared_sesame_tangyuan', label: '共同灶台芝麻汤圆', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_sesame_tangyuan', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_lotus_sesame_calming_cake', label: '共同灶台莲心芝麻安神糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_lotus_sesame_calming_cake', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_spicy_pumpkin_rice', label: '共同灶台赛舟辣南瓜饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' }, { item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_spicy_pumpkin_rice', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_spicy_boat_rice_ball', label: '共同灶台辛火赛舟饭团', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'rice', quantity: 2, quality: 'normal' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_spicy_boat_rice_ball', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_rapeseed_bamboo_rice_roll', label: '共同灶台菜油春笋米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'bamboo_shoot', quantity: 1, quality: 'normal' }, { item_id: 'rapeseed_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_rapeseed_bamboo_rice_roll', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_pumpkin_harvest_cauldron', label: '共同灶台丰收南瓜大锅羹', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' }, { item_id: 'sweet_potato', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_pumpkin_harvest_cauldron', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_pickled_radish_guard_soup', label: '共同灶台腌萝卜护院汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pickled_radish', quantity: 1, quality: 'fine' }, { item_id: 'tofu', quantity: 1, quality: 'fine' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_pickled_radish_guard_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_candied_peach_spirit_cake', label: '共同灶台蜜桃灵果糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_candied_peach_spirit_cake', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_herb_paste', label: '共同药碾草药膏', station: 'herb_grinder', process_kind: 'alchemy_material', input_items: [{ item_id: 'herb', quantity: 2, quality: 'normal' }], output_item_id: 'herbal_paste', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_qingxin_lotus_elixir', label: '共同丹炉清心莲丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'qingxin_lotus_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
     { id: 'shared_qingxin_lotus_partial', label: '共同丹炉清心偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
     { id: 'shared_qingxin_lotus_failed', label: '共同丹炉清心废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
     { id: 'shared_qingxin_lotus_rare', label: '共同丹炉清心奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_warming_sweet_potato_pill', label: '共同丹炉温阳薯丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'warming_sweet_potato_pill', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_grain_breath_elixir', label: '共同丹炉谷气续行丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'grain_breath_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_sesame_courtesy_elixir', label: '共同丹炉芝香护礼丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'sesame_courtesy_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_pumpkin_warmth_elixir', label: '共同丹炉南瓜聚火丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pumpkin', quantity: 2, quality: 'normal' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'pumpkin_warmth_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_spicy_vitality_pill', label: '共同丹炉辛火行气丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }], output_item_id: 'spicy_vitality_pill', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_osmanthus_focus_elixir', label: '共同丹炉桂露凝神丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }, { item_id: 'lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'osmanthus_focus_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_tea_focus_elixir', label: '共同丹炉茶心凝神丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'tea_focus_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_stone_root_guard_pill', label: '共同丹炉石根护脉丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }, { item_id: 'potato', quantity: 1, quality: 'normal' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }], output_item_id: 'stone_root_guard_pill', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
   ]
   const selectedSharedWorkshopRecipe = computed(() =>
     sharedWorkshopRecipeOptions.find(recipe => recipe.id === selectedSharedWorkshopRecipeId.value) ?? sharedWorkshopRecipeOptions[0] ?? null
@@ -4080,7 +4356,30 @@
     sharedWorkshopInputRows.value.length > 0 &&
     sharedWorkshopInputRows.value.every(row => row.enough)
   )
-  const sharedFarmFertilizerItemId = 'basic_fertilizer' as const
+  const sharedFarmFertilizerCatalog = [
+    { itemId: 'basic_fertilizer', label: '基础肥料', queueAction: 'fertilize_shared_farm_basic' as CohabitationOfflineQueueAction, premium: false },
+    { itemId: 'quality_fertilizer', label: '优质肥料', queueAction: 'fertilize_shared_farm_premium' as CohabitationOfflineQueueAction, premium: true },
+    { itemId: 'speed_gro', label: '速长肥', queueAction: 'fertilize_shared_farm_premium' as CohabitationOfflineQueueAction, premium: true },
+    { itemId: 'deluxe_speed_gro', label: '高级速长肥', queueAction: 'fertilize_shared_farm_premium' as CohabitationOfflineQueueAction, premium: true },
+    { itemId: 'quality_retaining_soil', label: '保水壤土', queueAction: 'fertilize_shared_farm_premium' as CohabitationOfflineQueueAction, premium: true },
+  ]
+  const sharedFarmFertilizerOptions = computed(() => {
+    const supported = cohabitationStore.sharedMap?.summary.supported_fertilizer_item_ids ?? []
+    const supportedSet = new Set(supported)
+    const options = supported.length > 0
+      ? sharedFarmFertilizerCatalog.filter(option => supportedSet.has(option.itemId))
+      : sharedFarmFertilizerCatalog
+    return options.map(option => ({
+      ...option,
+      label: option.premium ? `${option.label}（高级）` : option.label,
+    }))
+  })
+  const selectedSharedFarmFertilizerItemId = ref('basic_fertilizer')
+  const selectedSharedFarmFertilizer = computed(() =>
+    sharedFarmFertilizerOptions.value.find(option => option.itemId === selectedSharedFarmFertilizerItemId.value) ??
+    sharedFarmFertilizerOptions.value[0] ??
+    null
+  )
   const canWaterSelectedSharedFarmPlot = computed(() => {
     const plot = selectedSharedFarmPlot.value
     if (!plot || !cohabitationStore.canOpenSelectedContract) return false
@@ -4110,9 +4409,11 @@
   })
   const canFertilizeSelectedSharedFarmPlot = computed(() => {
     const plot = selectedSharedFarmPlot.value
-    if (!plot || !cohabitationStore.canOpenSelectedContract) return false
+    const fertilizer = selectedSharedFarmFertilizer.value
+    if (!plot || !fertilizer || !cohabitationStore.canOpenSelectedContract) return false
     const summary = cohabitationStore.sharedMap?.summary
     if ((summary?.farm_fertilize_write_enabled ?? summary?.farm_plant_write_enabled) !== true) return false
+    if (fertilizer.premium && summary?.farm_premium_fertilizer_write_enabled !== true) return false
     return plot.plot_state.state !== 'wasteland' && !plot.plot_state.fertilizer
   })
   const canHarvestSelectedSharedFarmPlot = computed(() => {
@@ -4151,10 +4452,11 @@
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'pet' | 'workshop') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'pet' | 'workshop' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
     if (kind === 'pet') return selectedSharedPet.value?.name || selectedSharedPet.value?.type || selectedSharedPet.value?.id || '未选宠物'
+    if (kind === 'auto_income') return `${offlineAutoIncomePendingCount.value} 项待领`
     return selectedSharedWorkshopRecipe.value?.label || '未选配方'
   }
   const offlineQueueActionOptions = computed<OfflineQueueActionOption[]>(() => {
@@ -4163,7 +4465,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'pet' | 'workshop',
+      targetKind: 'plot' | 'animal' | 'pet' | 'workshop' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -4187,13 +4489,15 @@
       makeOption('care_shared_farm_cure_pests', 'care_shared_farm', '共同农田除虫', 'plot', canCureSelectedSharedFarmPlot.value, '请选择有虫害地块'),
       makeOption('care_shared_farm_clear_weeds', 'care_shared_farm', '共同农田清草', 'plot', canClearWeedsSelectedSharedFarmPlot.value, '请选择有杂草地块'),
       makeOption('plant_shared_farm', 'plant_shared_farm', '共同农田种植', 'plot', canPlantSelectedSharedFarmPlot.value, '请选择可种植地块和种子'),
-      makeOption('fertilize_shared_farm_basic', 'fertilize_shared_farm_basic', '共同农田基础施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value, '请选择可施肥地块并确认共同仓库肥料'),
+      makeOption('fertilize_shared_farm_basic', 'fertilize_shared_farm_basic', '共同农田基础施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium !== true, '请选择基础肥料并确认共同仓库库存'),
+      makeOption('fertilize_shared_farm_premium', 'fertilize_shared_farm_premium', '共同农田高级施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium === true, '请选择高级肥料并确认共同仓库库存与权限'),
       makeOption('harvest_shared_farm', 'harvest_shared_farm', '共同农田收获入仓', 'plot', canHarvestSelectedSharedFarmPlot.value, '请选择可收获地块'),
       makeOption('feed_shared_animal', 'feed_shared_animal', '共同动物干草喂食', 'animal', canFeedSelectedSharedAnimal.value, '请选择可喂食动物并确认共同仓库干草'),
       makeOption('pet_shared_animal', 'pet_shared_animal', '共同动物抚摸', 'animal', canPetSelectedSharedAnimal.value, '请选择可抚摸动物'),
       makeOption('collect_shared_animal_product', 'collect_shared_animal_product', '共同动物产物入仓', 'animal', canCollectSelectedSharedAnimalProduct.value, '请选择可收取产物的动物'),
       makeOption('care_shared_pet', 'care_shared_pet', '共同宠物用品照料', 'pet', canCareSelectedSharedPet.value, '请选择宠物、用品并完成高阶确认'),
       makeOption('process_shared_workshop_recipe', 'process_shared_workshop_recipe', '共同工坊处理', 'workshop', canProcessSelectedSharedWorkshopRecipe.value, '请选择材料充足且有权限的工坊配方'),
+      makeOption('collect_offline_auto_income', 'collect_offline_auto_income', '离线自动收益领取', 'auto_income', canCollectOfflineAutoIncome.value, '当前没有可领取自动收益或缺少权限'),
     ]
   })
   const selectedOfflineQueueActionOption = computed(() =>
@@ -4241,11 +4545,12 @@
     cohabitationStore.fund?.summary.contribution_enabled === true &&
     normalizedFundContributionAmount.value > 0
   )
-  const fundPurchaseOptions = [
+  const fallbackFundPurchaseOptions: FundPurchaseOption[] = [
     {
       label: '白菜种子 x2',
       itemId: 'seed_cabbage',
       targetRef: 'shop:seed_cabbage',
+      quantity: 2,
       amount: 20,
       purpose: 'seed_budget',
     },
@@ -4253,6 +4558,7 @@
       label: '萝卜种子 x2',
       itemId: 'seed_radish',
       targetRef: 'shop:seed_radish',
+      quantity: 2,
       amount: 30,
       purpose: 'seed_budget',
     },
@@ -4260,6 +4566,7 @@
       label: '水稻种子 x2',
       itemId: 'seed_rice',
       targetRef: 'shop:seed_rice',
+      quantity: 2,
       amount: 40,
       purpose: 'seed_budget',
     },
@@ -4267,6 +4574,7 @@
       label: '鱼饲料 x1',
       itemId: 'fish_feed',
       targetRef: 'shop:fish_feed',
+      quantity: 1,
       amount: 30,
       purpose: 'feed_budget',
     },
@@ -4274,6 +4582,7 @@
       label: '精饲料 x1',
       itemId: 'premium_feed',
       targetRef: 'shop:premium_feed',
+      quantity: 1,
       amount: 200,
       purpose: 'feed_budget',
     },
@@ -4281,6 +4590,7 @@
       label: '滋补饲料 x1',
       itemId: 'nourishing_feed',
       targetRef: 'shop:nourishing_feed',
+      quantity: 1,
       amount: 250,
       purpose: 'feed_budget',
     },
@@ -4288,10 +4598,33 @@
       label: '活力饲料 x1',
       itemId: 'vitality_feed',
       targetRef: 'shop:vitality_feed',
+      quantity: 1,
       amount: 300,
       purpose: 'feed_budget',
     },
   ]
+  const mapFundPurchaseCatalogItem = (item: CohabitationFundShopPurchaseCatalogItem): FundPurchaseOption | null => {
+    const quantity = Math.max(1, Math.floor(Number(item.default_quantity) || (item.category === 'seed' ? 2 : 1)))
+    const amount = Math.max(0, Math.floor(Number(item.default_amount) || Number(item.unit_price) * quantity))
+    const purpose = item.allowed_purposes?.[0] || (item.category === 'feed' ? 'feed_budget' : 'seed_budget')
+    if (!item.target_ref || !item.item_id || amount <= 0) return null
+    return {
+      label: `${item.label || item.item_id} x${quantity}`,
+      itemId: item.item_id,
+      targetRef: item.target_ref,
+      quantity,
+      amount,
+      purpose,
+    }
+  }
+  const fundPurchaseOptions = computed<FundPurchaseOption[]>(() => {
+    const summary = cohabitationStore.fund?.summary
+    const catalog = summary?.auto_purchase_catalog?.length
+      ? summary.auto_purchase_catalog
+      : summary?.allowed_shop_purchase_items ?? []
+    const mapped = catalog.map(mapFundPurchaseCatalogItem).filter((item): item is FundPurchaseOption => Boolean(item))
+    return mapped.length > 0 ? mapped : fallbackFundPurchaseOptions
+  })
   const mediumFundSpendAmounts: Record<FundMediumSpendPurpose, number> = {
     processing_materials: 300,
     building_materials: 400,
@@ -4550,12 +4883,14 @@
       care_shared_farm: '共同农田管护',
       plant_shared_farm: '共同农田种植',
       fertilize_shared_farm_basic: '共同农田基础施肥',
+      fertilize_shared_farm_premium: '共同农田高级施肥',
       harvest_shared_farm: '共同农田收获入仓',
       feed_shared_animal: '共同动物喂食',
       pet_shared_animal: '共同动物抚摸',
       collect_shared_animal_product: '共同动物产物入仓',
       care_shared_pet: '共同宠物照料',
       process_shared_workshop_recipe: '共同工坊处理',
+      collect_offline_auto_income: '离线自动收益领取',
     }
     return labels[action] || action
   }
@@ -4567,6 +4902,20 @@
   }
   const offlineQueueResultDetail = (entry: CohabitationOfflineQueueMergeEntry) => {
     if (entry.status === 'rejected') return entry.reason || '服务端权威拒绝，未改个人存档或共同资产'
+    if (entry.action === 'collect_offline_auto_income') {
+      const collected = Math.max(0, Math.floor(Number(entry.collected_count) || 0))
+      const farmCount = Math.max(0, Math.floor(Number(entry.farm_harvest_count) || 0))
+      const animalCount = Math.max(0, Math.floor(Number(entry.animal_product_count) || 0))
+      const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
+      return [
+        `领取 ${collected} 项`,
+        `农田 ${farmCount}`,
+        `动物产物 ${animalCount}`,
+        ledgerIds.length ? `流水 ${ledgerIds.length} 笔` : '',
+        '个人存档未改',
+        entry.client_base_stale === true ? '客户端基线过期' : '',
+      ].filter(Boolean).join(' · ')
+    }
     const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
     const outputItemId = typeof entry.output_item_id === 'string' ? entry.output_item_id : ''
     const outputQuantity = Math.max(1, Math.floor(Number(entry.output_quantity) || 1))
@@ -4609,7 +4958,11 @@
       if (option.id === 'care_shared_farm_cure_pests') basePayload.action = 'cure_pests'
       if (option.id === 'care_shared_farm_clear_weeds') basePayload.action = 'clear_weeds'
       if (option.id === 'plant_shared_farm') basePayload.seed_item_id = sharedFarmSeedItemId.value
-      if (option.id === 'fertilize_shared_farm_basic') basePayload.fertilizer_item_id = sharedFarmFertilizerItemId
+      if (option.id === 'fertilize_shared_farm_basic' || option.id === 'fertilize_shared_farm_premium') {
+        const fertilizer = selectedSharedFarmFertilizer.value
+        if (!fertilizer) return null
+        basePayload.fertilizer_item_id = fertilizer.itemId
+      }
     } else if (option.id.includes('shared_animal')) {
       const animal = selectedSharedAnimal.value
       if (!animal) return null
@@ -4632,6 +4985,8 @@
       const recipe = selectedSharedWorkshopRecipe.value
       if (!recipe) return null
       basePayload.recipe_id = recipe.id
+    } else if (option.id === 'collect_offline_auto_income') {
+      basePayload.client_queue_revision = offlineQueueClientRevision()
     }
     return {
       action: option.queueAction,
@@ -4666,6 +5021,46 @@
         : `离线队列已合并，${accepted} 项提交并刷新共同日志`
     } catch (error) {
       offlineQueueActionMessage.value = error instanceof Error ? error.message : '合并离线经营队列失败'
+    }
+  }
+
+  const collectOfflineAutoIncome = async () => {
+    offlineQueueActionMessage.value = ''
+    offlineQueueActionOk.value = false
+    if (!canCollectOfflineAutoIncome.value) {
+      offlineQueueActionMessage.value = '当前没有可领取的离线自动收益'
+      return
+    }
+    try {
+      const result = await cohabitationStore.collectOfflineAutoIncome({
+        idempotency_key: `ui-offline-auto-income-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        client_queue_revision: offlineQueueClientRevision(),
+        client_base_revision: offlineQueueClientRevision(),
+        memo: '前端领取离线自动收益',
+      })
+      const claim = result?.offline_auto_income_claim as Record<string, unknown> | undefined
+      const collected = Math.max(0, Math.floor(Number(claim?.collected_count) || 0))
+      offlineQueueActionOk.value = true
+      offlineQueueActionMessage.value = collected > 0
+        ? `离线自动收益已领取 ${collected} 项，已写共同仓库流水`
+        : '服务端最新状态没有可领取收益'
+    } catch (error) {
+      offlineQueueActionMessage.value = error instanceof Error ? error.message : '领取离线自动收益失败'
+    }
+  }
+
+  const submitCohabitationDailySettle = async () => {
+    dailySettleActionMessage.value = ''
+    dailySettleActionOk.value = false
+    try {
+      const result = await cohabitationStore.settleDailyBonus({
+        idempotency_key: `ui-cohabitation-daily-settle-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        memo: '前端共同庄园日结',
+      })
+      dailySettleActionOk.value = true
+      dailySettleActionMessage.value = dailySettlementSummaryLabel(result?.daily_settlement ?? cohabitationStore.dailySettlement)
+    } catch (error) {
+      dailySettleActionMessage.value = error instanceof Error ? error.message : '共同庄园日结失败'
     }
   }
 
@@ -4728,21 +5123,22 @@
 
   const fertilizeSelectedSharedFarmPlot = async () => {
     const plot = selectedSharedFarmPlot.value
-    if (!plot) return
+    const fertilizer = selectedSharedFarmFertilizer.value
+    if (!plot || !fertilizer) return
     sharedFarmActionMessage.value = ''
     sharedFarmActionOk.value = false
     try {
       const result = await cohabitationStore.fertilizeSharedFarmPlot({
         plot_id: plot.id,
-        fertilizer_item_id: sharedFarmFertilizerItemId,
-        memo: `前端共同农田施肥：${plot.id}`,
-        idempotency_key: `ui-shared-farm-fertilize-${plot.id}-${sharedFarmFertilizerItemId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        fertilizer_item_id: fertilizer.itemId,
+        memo: `前端共同农田${fertilizer.premium ? '高级' : '基础'}施肥：${plot.id}`,
+        idempotency_key: `ui-shared-farm-fertilize-${plot.id}-${fertilizer.itemId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
       selectedSharedFarmPlotId.value = result?.plot?.id || plot.id
       sharedFarmActionOk.value = true
       sharedFarmActionMessage.value = result?.idempotent || result?.already_fertilized
         ? '已读回共同农田施肥记录'
-        : '共同农田已施基础肥料，共同仓库扣肥流水已刷新'
+        : `共同农田已使用${fertilizer.label}，共同仓库扣肥流水已刷新`
     } catch (error) {
       sharedFarmActionMessage.value = error instanceof Error ? error.message : '共同农田施肥失败'
     }
@@ -5845,11 +6241,14 @@
     }
   }
 
-  const canUseFundPurchase = (option: { amount: number }) =>
-    cohabitationStore.canOpenSelectedContract &&
-    cohabitationStore.fund?.summary.spend_enabled === true &&
-    cohabitationStore.fund?.permissions.can_auto_buy_seeds_feed === true &&
-    (cohabitationStore.fund?.balance ?? 0) >= option.amount
+  const canUseFundPurchase = (option: { amount: number }) => {
+    const fundSummary = cohabitationStore.fund?.summary
+    const fundPermissions = cohabitationStore.fund?.permissions
+    const shopPurchaseEnabled = fundSummary?.shop_purchase_to_shared_warehouse_enabled === true
+      ? fundPermissions?.can_shop_purchase_to_shared_warehouse === true
+      : fundSummary?.spend_enabled === true && fundPermissions?.can_auto_buy_seeds_feed === true
+    return cohabitationStore.canOpenSelectedContract && shopPurchaseEnabled && (cohabitationStore.fund?.balance ?? 0) >= option.amount
+  }
   const canUseMediumFundSpend = (option: FundMediumSpendOption) =>
     cohabitationStore.canOpenSelectedContract &&
     cohabitationStore.fund?.summary.medium_spend_enabled === true &&
@@ -5881,15 +6280,15 @@
     }
   }
 
-  const buyWithSharedFund = async (option: typeof fundPurchaseOptions[number]) => {
+  const buyWithSharedFund = async (option: FundPurchaseOption) => {
     fundActionMessage.value = ''
     fundActionOk.value = false
     try {
-      const result = await cohabitationStore.spendSharedFund({
+      const result = await cohabitationStore.purchaseSharedFundShopItem({
+        target_ref: option.targetRef,
+        quantity: option.quantity,
         amount: option.amount,
         purpose: option.purpose,
-        target_ref: option.targetRef,
-        auto_pay: true,
         memo: `共同庄园前端自动购买：${option.label}`,
         idempotency_key: `ui-fund-buy-${option.itemId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
@@ -6616,6 +7015,7 @@
       shared_warehouse_auto_deposit: '产出自动入仓',
       persistent_shared_manor_map: '持久共同地图',
       offline_auto_income: '离线自动收益',
+      collect_offline_auto_income: '离线自动收益领取',
       offline_worker_queue: '离线队列',
       simultaneous_online_bonus: '同时在线加成',
       conflict_merge_tool: '冲突合并工具',
@@ -6858,12 +7258,15 @@
       warehouse_high_value_withdrawal_executed: '高价值取出执行',
       warehouse_high_value_withdrawal_compensation_review_requested: '补偿复核申请',
       warehouse_high_value_withdrawal_compensation_review_resolved: '补偿复核处理',
+      fund_shop_purchase_deposited: '共同基金购买入仓',
       warehouse_high_value_withdrawal_compensation_preflight_recorded: '补偿预检记录',
       warehouse_high_value_withdrawal_compensation_execution_recorded: '人工补偿回执',
       warehouse_high_value_withdrawal_manual_appeal_resolution_recorded: '人工申诉恢复',
       warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
       shared_workshop_processed: '共同工坊处理',
+      offline_auto_income_collected: '离线自动收益领取',
+      cohabitation_daily_settled: '共同庄园日结',
       shared_farm_crop_removed: '共同农田铲除',
       fund_contributed: '共同基金注资',
       fund_spent: '共同基金支出',
@@ -6947,6 +7350,13 @@
       const ledgerCount = Array.isArray(detail.warehouse_ledger_ids) ? detail.warehouse_ledger_ids.length : 0
       const output = outputItemId ? `${warehouseItemLabels[outputItemId] || outputItemId} x${outputQuantity} · ${qualityLabel(outputQuality)}` : '产出已入仓'
       return `${recipe?.label || recipeId || '共同工坊'}：${output}，流水 ${ledgerCount} 笔，个人存档与共同基金不变`
+    }
+    if (entry.action === 'offline_auto_income_collected') {
+      const collected = Number(detail.collected_count) || 0
+      const farmCount = Number(detail.farm_harvest_count) || 0
+      const animalCount = Number(detail.animal_product_count) || 0
+      const warehouseLedgerCount = Array.isArray(detail.warehouse_ledger_ids) ? detail.warehouse_ledger_ids.length : 0
+      return `领取 ${collected} 项：农田 ${farmCount}、动物产物 ${animalCount}，共同仓库流水 ${warehouseLedgerCount} 笔，个人存档与共同基金不变`
     }
     if (entry.action === 'fund_high_risk_receipt_recorded') {
       const purpose = typeof detail.purpose === 'string' ? detail.purpose : ''
@@ -7237,6 +7647,7 @@
       pet_shared_animal: '抚摸共同动物',
       collect_shared_animal_product: '收取动物产物',
       care_shared_pet: '照料共同宠物',
+      collect_offline_auto_income: '领取离线自动收益',
       read_fund: '读取共同基金',
       contribute_fund: '注资共同基金',
       read_permissions: '读取权限',
