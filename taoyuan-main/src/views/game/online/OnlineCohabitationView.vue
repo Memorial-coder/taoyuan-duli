@@ -2721,6 +2721,9 @@
                 class="space-y-1 text-[10px] text-muted"
                 data-testid="online-cohabitation-offline-queue-results"
               >
+                <p class="border border-accent/10 bg-black/10 p-2 leading-4" data-testid="online-cohabitation-offline-queue-revision-state">
+                  {{ offlineQueueRevisionStateLabel }}
+                </p>
                 <div v-for="row in offlineQueueMergeRows" :key="row.id" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-center justify-between gap-2">
                     <span class="text-text">{{ row.label }}</span>
@@ -4199,6 +4202,15 @@
       ok: entry.status === 'committed' || entry.status === 'idempotent',
     }))
   })
+  const offlineQueueRevisionStateLabel = computed(() => {
+    const merge = cohabitationStore.offlineQueueMerge
+    if (!merge) return '尚未合并离线队列'
+    const clientRevision = Math.max(0, Math.floor(Number(merge.client_queue_revision) || 0))
+    const beforeRevision = Math.max(0, Math.floor(Number(merge.server_queue_revision_before) || 0))
+    const afterRevision = Math.max(0, Math.floor(Number(merge.server_queue_revision_after) || beforeRevision))
+    const stale = merge.client_queue_stale === true ? '客户端基线已过期，服务端按最新共同资产合并' : '客户端基线未过期'
+    return `队列 revision：客户端 ${clientRevision} / 服务端 ${beforeRevision} -> ${afterRevision} · ${stale}`
+  })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -4558,8 +4570,12 @@
       entry.personal_save_changed === false ? '个人存档未改' : '',
       entry.shared_fund_changed === false ? '共同基金未改' : '',
       entry.shared_warehouse_changed === true ? '共同仓库已写流水' : '',
+      entry.client_base_stale === true ? '客户端基线过期' : '',
     ].filter(Boolean)
-    return [target ? `目标 ${target}` : '', output, ledgerIds.length ? `流水 ${ledgerIds.length} 笔` : '', ...boundaries]
+    const revisionText = typeof entry.server_base_revision === 'number' || typeof entry.server_committed_revision === 'number'
+      ? `revision ${Number(entry.client_base_revision) || 0}/${Number(entry.server_base_revision) || 0}->${Number(entry.server_committed_revision) || 0}`
+      : ''
+    return [target ? `目标 ${target}` : '', output, ledgerIds.length ? `流水 ${ledgerIds.length} 笔` : '', revisionText, ...boundaries]
       .filter(Boolean)
       .join(' · ') || '服务端已按当前契约状态合并'
   }

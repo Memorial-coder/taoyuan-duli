@@ -1842,6 +1842,23 @@ export interface CohabitationOfflineQueueMergeEntry {
   shared_warehouse_changed?: boolean
   shared_fund_changed?: boolean
   server_authoritative?: boolean
+  client_base_revision?: number
+  server_base_revision?: number
+  server_committed_revision?: number
+  client_base_stale?: boolean
+  revision_conflict_policy?: string
+  [key: string]: unknown
+}
+
+export interface CohabitationOfflineQueueRevisionSnapshot {
+  server_queue_revision: number
+  shared_map_revision: number
+  shared_animals_revision: number
+  shared_pets_revision: number
+  shared_warehouse_ledger_count: number
+  shared_farm_ledger_count: number
+  shared_animal_ledger_count: number
+  shared_pet_ledger_count: number
   [key: string]: unknown
 }
 
@@ -1852,6 +1869,13 @@ export interface CohabitationOfflineQueueMergeSummary {
   conflict_policy: string
   supported_actions: string[]
   idempotent?: boolean
+  client_queue_revision?: number
+  server_queue_revision_before?: number
+  server_queue_revision_after?: number
+  client_queue_stale?: boolean
+  revision_conflict_policy?: string
+  server_revision_before_snapshot?: CohabitationOfflineQueueRevisionSnapshot
+  server_revision_after_snapshot?: CohabitationOfflineQueueRevisionSnapshot
   results: CohabitationOfflineQueueMergeEntry[]
   rejected: CohabitationOfflineQueueMergeEntry[]
 }

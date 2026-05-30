@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 同居离线队列 revision 冲突读回
+- `/offline-queue/merge` 响应、单操作结果和 `offline_queue_merged` 审计新增客户端基线 revision、服务端合并前后 revision、stale 标记与 `server_authoritative_latest_state` 策略。
+- 共同庄园离线队列面板新增队列 revision 状态读回，能看到客户端基线是否过期以及服务端按最新共同资产合并的结果；契约 QA 覆盖成功与不支持动作拒绝路径。
+
 ### 0530 同居离线队列前端入口
 - 共同庄园离线页新增离线队列合并面板，按服务端 `offline-status` 支持动作和当前选中目标启用共同农田、共同动物、共同宠物和共同工坊离线操作。
 - 提交时复用 `/offline-queue/merge`，为单条操作生成幂等键、客户端 revision 和当前目标 payload；结果读回 accepted / rejected、目标、流水数量和个人存档 / 共同基金 / 共同仓库边界。本轮仍不实现批量本地离线缓存 UI。

@@ -6968,6 +6968,68 @@ function normalizeOfflineQueueMergePayload(payload = {}) {
   };
 }
 
+function buildOfflineQueueRevisionSnapshot(contract = {}) {
+  const sharedWarehouseLedger = Array.isArray(contract.shared_warehouse?.ledger) ? contract.shared_warehouse.ledger : [];
+  const sharedFarmLedger = Array.isArray(contract.shared_farm_ledger) ? contract.shared_farm_ledger : [];
+  const sharedAnimalLedger = Array.isArray(contract.shared_animal_ledger) ? contract.shared_animal_ledger : [];
+  const sharedPetLedger = Array.isArray(contract.shared_pet_ledger) ? contract.shared_pet_ledger : [];
+  const sharedMapRevision = Math.max(0, Math.floor(Number(contract.shared_map?.revision) || 0));
+  const sharedAnimalsRevision = Math.max(0, Math.floor(Number(contract.shared_animals?.revision) || 0));
+  const sharedPetsRevision = Math.max(0, Math.floor(Number(contract.shared_pets?.revision) || 0));
+  const sharedWarehouseLedgerCount = sharedWarehouseLedger.length;
+  const serverQueueRevision = Math.max(
+    sharedMapRevision,
+    sharedAnimalsRevision,
+    sharedPetsRevision,
+    sharedWarehouseLedgerCount
+  );
+  return {
+    server_queue_revision: serverQueueRevision,
+    shared_map_revision: sharedMapRevision,
+    shared_animals_revision: sharedAnimalsRevision,
+    shared_pets_revision: sharedPetsRevision,
+    shared_warehouse_ledger_count: sharedWarehouseLedgerCount,
+    shared_farm_ledger_count: sharedFarmLedger.length,
+    shared_animal_ledger_count: sharedAnimalLedger.length,
+    shared_pet_ledger_count: sharedPetLedger.length,
+  };
+}
+
+function buildOfflineQueueOperationRevisionEvidence(operation = {}, beforeSnapshot = {}, afterSnapshot = beforeSnapshot) {
+  const clientBaseRevision = Math.max(0, Math.floor(Number(operation.client_base_revision) || 0));
+  const serverBaseRevision = Math.max(0, Math.floor(Number(beforeSnapshot.server_queue_revision) || 0));
+  const serverCommittedRevision = Math.max(0, Math.floor(Number(afterSnapshot.server_queue_revision) || serverBaseRevision));
+  return {
+    client_base_revision: clientBaseRevision,
+    server_base_revision: serverBaseRevision,
+    server_committed_revision: serverCommittedRevision,
+    client_base_stale: clientBaseRevision > 0 && clientBaseRevision < serverBaseRevision,
+    revision_conflict_policy: 'server_authoritative_latest_state',
+  };
+}
+
+function withOfflineQueueOperationRevisionEvidence(entry = {}, operation = {}, beforeSnapshot = {}, afterSnapshot = beforeSnapshot) {
+  return {
+    ...entry,
+    ...buildOfflineQueueOperationRevisionEvidence(operation, beforeSnapshot, afterSnapshot),
+  };
+}
+
+function buildOfflineQueueMergeRevisionEvidence(request = {}, beforeSnapshot = {}, afterSnapshot = beforeSnapshot) {
+  const clientQueueRevision = Math.max(0, Math.floor(Number(request.client_queue_revision) || 0));
+  const serverQueueRevisionBefore = Math.max(0, Math.floor(Number(beforeSnapshot.server_queue_revision) || 0));
+  const serverQueueRevisionAfter = Math.max(0, Math.floor(Number(afterSnapshot.server_queue_revision) || serverQueueRevisionBefore));
+  return {
+    client_queue_revision: clientQueueRevision,
+    server_queue_revision_before: serverQueueRevisionBefore,
+    server_queue_revision_after: serverQueueRevisionAfter,
+    client_queue_stale: clientQueueRevision > 0 && clientQueueRevision < serverQueueRevisionBefore,
+    revision_conflict_policy: 'server_authoritative_latest_state',
+    server_revision_before_snapshot: beforeSnapshot,
+    server_revision_after_snapshot: afterSnapshot,
+  };
+}
+
 function normalizeSharedAnimalFeedPayload(payload = {}) {
   const request = normalizeSharedAnimalActionPayload(payload);
   const feedItemId = normalizeWarehouseItemId(payload.feed_item_id || payload.feedItemId || payload.item_id || payload.itemId || 'hay');
@@ -11644,6 +11706,7 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   assertActiveContractForActor(contract, actorUsername, '合并离线经营队列');
+  const initialRevisionSnapshot = buildOfflineQueueRevisionSnapshot(contract);
 
   const previousMergeAudit = (contract.audit_log || []).find(entry =>
     entry.action === 'offline_queue_merged' && entry.idempotency_key === request.idempotency_key
@@ -11664,6 +11727,7 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
         idempotent: true,
         results: [],
         rejected: previousRejected,
+        ...buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, initialRevisionSnapshot),
       },
     };
   }
@@ -11673,13 +11737,19 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
     throw Object.assign(createError('offline queue merge contains unsupported operations', 422), {
       offline_queue_merge: {
         accepted_count: 0,
-        rejected: unsupportedOperations.map(operation => ({
+        rejected_count: unsupportedOperations.length,
+        revision_conflict_policy: 'server_authoritative_latest_state',
+        ...buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, initialRevisionSnapshot),
+        rejected: unsupportedOperations.map(operation => withOfflineQueueOperationRevisionEvidence({
           index: operation.index,
           operation_id: operation.operation_id,
           action: operation.action,
           status: 'rejected',
           reason: 'unsupported_offline_queue_action',
-        })),
+          idempotency_key: operation.idempotency_key,
+          personal_save_changed: false,
+          server_authoritative: true,
+        }, operation, initialRevisionSnapshot)),
       },
     });
   }
@@ -11689,17 +11759,20 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
   for (const operation of request.operations) {
     const careItemId = normalizeWarehouseItemId(operation.payload.care_item_id || operation.payload.item_id || 'vitality_feed');
     let result;
+    const beforeOperationRevisionSnapshot = buildOfflineQueueRevisionSnapshot(
+      loadContractStore().contracts.find(entry => entry.id === sanitizeText(contractId, 80)) || contract
+    );
     try {
       result = await executeCohabitationOfflineQueueOperation(contractId, operation, actor);
     } catch (error) {
       const workshopRejection = buildCohabitationOfflineWorkshopRejection(operation, error);
       if (workshopRejection) {
-        rejected.push(workshopRejection);
+        rejected.push(withOfflineQueueOperationRevisionEvidence(workshopRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const farmRejection = buildCohabitationOfflineFarmRejection(operation, error);
       if (farmRejection) {
-        rejected.push(farmRejection);
+        rejected.push(withOfflineQueueOperationRevisionEvidence(farmRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const careItemProfile = getSharedPetCareItemProfile(careItemId);
@@ -11708,7 +11781,7 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
         && careItemProfile?.requires_confirmation === true
         && String(error?.message || '').includes('需要确认文本');
       if (!isMissingHighRiskConfirmation) throw error;
-      rejected.push({
+      rejected.push(withOfflineQueueOperationRevisionEvidence({
         index: operation.index,
         operation_id: operation.operation_id,
         action: operation.action,
@@ -11726,13 +11799,23 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
         shared_warehouse_changed: false,
         personal_save_changed: false,
         server_authoritative: true,
-      });
+      }, operation, beforeOperationRevisionSnapshot));
       continue;
     }
-    results.push(buildCohabitationOfflineQueueResult(operation, result));
+    const afterOperationRevisionSnapshot = buildOfflineQueueRevisionSnapshot(
+      loadContractStore().contracts.find(entry => entry.id === sanitizeText(contractId, 80)) || contract
+    );
+    results.push(withOfflineQueueOperationRevisionEvidence(
+      buildCohabitationOfflineQueueResult(operation, result),
+      operation,
+      beforeOperationRevisionSnapshot,
+      afterOperationRevisionSnapshot
+    ));
   }
   const latestStore = loadContractStore();
   const latestContract = latestStore.contracts.find(entry => entry.id === sanitizeText(contractId, 80)) || contract;
+  const finalRevisionSnapshot = buildOfflineQueueRevisionSnapshot(latestContract);
+  const revisionEvidence = buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, finalRevisionSnapshot);
   appendAudit(latestContract, 'offline_queue_merged', actor, {
     queue_id: request.idempotency_key,
     operation_count: results.length,
@@ -11742,6 +11825,10 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
     supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
     result_ledger_ids: results.map(entry => entry.ledger_id).filter(Boolean),
     client_queue_revision: request.client_queue_revision,
+    server_queue_revision_before: revisionEvidence.server_queue_revision_before,
+    server_queue_revision_after: revisionEvidence.server_queue_revision_after,
+    client_queue_stale: revisionEvidence.client_queue_stale,
+    revision_conflict_policy: revisionEvidence.revision_conflict_policy,
     server_authoritative: true,
     personal_save_changed: false,
   }, request.idempotency_key);
@@ -11757,6 +11844,7 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
       results,
       rejected,
+      ...revisionEvidence,
     },
   };
 }

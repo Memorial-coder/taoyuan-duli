@@ -887,11 +887,13 @@ const offlineQueueOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0]
 const offlineQueuePartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const offlineQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
   idempotency_key: 'qa-offline-queue-merge-pet-care',
+  client_queue_revision: 1,
   operations: [
     {
       action: 'care_shared_pet',
       operation_id: 'qa-offline-pet-care-op-1',
       idempotency_key: 'qa-offline-pet-care-op-1-idem',
+      client_base_revision: 1,
       pet_id: qaOfflineSharedPet.id,
       care_item_id: 'vitality_feed',
     },
@@ -902,11 +904,18 @@ assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.status, 'committe
 assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.personal_save_changed, false, 'offline queue pet care should not mutate personal saves')
 assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.shared_warehouse_changed, true, 'offline queue first pet care should consume shared warehouse feed')
 assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.care_day_key, crossDaySharedPetCare.ledger_entry.care_day_key, 'offline queue pet care should carry current server game-day key')
+assert.equal(offlineQueueMerge.offline_queue_merge.client_queue_revision, 1, 'offline queue merge should echo client queue revision')
+assert.equal(offlineQueueMerge.offline_queue_merge.client_queue_stale, true, 'offline queue merge should mark stale client queue revision')
+assert.equal(offlineQueueMerge.offline_queue_merge.revision_conflict_policy, 'server_authoritative_latest_state', 'offline queue merge should expose server-authoritative revision policy')
+assert.ok(offlineQueueMerge.offline_queue_merge.server_queue_revision_after >= offlineQueueMerge.offline_queue_merge.server_queue_revision_before, 'offline queue merge should expose monotonic server revisions')
+assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.client_base_revision, 1, 'offline queue result should echo operation base revision')
+assert.equal(offlineQueueMerge.offline_queue_merge.results[0]?.client_base_stale, true, 'offline queue result should mark stale operation revision')
+assert.ok(offlineQueueMerge.offline_queue_merge.results[0]?.server_committed_revision >= offlineQueueMerge.offline_queue_merge.results[0]?.server_base_revision, 'offline queue result should expose committed server revision')
 assert.equal(offlineQueueMerge.offline_status.summary.offline_queue_merge_enabled, true, 'offline status should expose offline queue merge readiness')
 assert.ok(offlineQueueMerge.offline_status.summary.offline_queue_supported_actions.includes('care_shared_pet'), 'offline queue should expose shared pet care as supported action')
 assert.ok(!offlineQueueMerge.offline_status.deferred_operations.includes('offline_worker_queue'), 'offline worker queue should no longer be marked deferred after minimum merge path')
 assert.ok(!offlineQueueMerge.offline_status.deferred_operations.includes('conflict_merge_tool'), 'conflict merge tool should no longer be marked deferred after minimum merge path')
-assert.ok(offlineQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-merge-pet-care'), 'offline queue merge should write audit log')
+assert.ok(offlineQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-merge-pet-care' && entry.detail?.client_queue_stale === true), 'offline queue merge should write revision conflict audit evidence')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineQueueOwnerRawBefore, 'offline queue merge should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineQueuePartnerRawBefore, 'offline queue merge should not rewrite partner save')
 const duplicateOfflineQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
@@ -1088,9 +1097,13 @@ assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBefo
 await assert.rejects(
   () => runtime.mergeCohabitationOfflineQueue(created.contract.id, {
     idempotency_key: 'qa-offline-queue-merge-unsupported',
-    operations: [{ action: 'rewrite_personal_save', operation_id: 'qa-unsupported-offline-op' }],
+    client_queue_revision: 1,
+    operations: [{ action: 'rewrite_personal_save', operation_id: 'qa-unsupported-offline-op', client_base_revision: 1 }],
   }, actor(owner)),
-  error => error?.status === 422 && error?.offline_queue_merge?.rejected?.[0]?.reason === 'unsupported_offline_queue_action',
+  error => error?.status === 422
+    && error?.offline_queue_merge?.rejected?.[0]?.reason === 'unsupported_offline_queue_action'
+    && error?.offline_queue_merge?.rejected?.[0]?.client_base_stale === true
+    && error?.offline_queue_merge?.client_queue_stale === true,
   'offline queue merge should reject unsupported actions before mutating shared state'
 )
 
