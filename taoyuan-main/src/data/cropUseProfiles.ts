@@ -1123,6 +1123,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '西瓜与红枣杂交的红润瓜果，适合清甜瓜饮、养气炼丹、酿红宝瓜酒、灵宠红宝瓜喂食、家畜红瓜料、养气药饮、盛夏赠礼、瓜灯供品、公共仓红宝瓜备料和红宝瓜订单。'
   },
   {
+    cropId: 'chrysanthemum_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '甜'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['菊稻香饭', '菊稻凝神丹', '菊稻米粉', '菊稻清酒', '灵宠菊稻餐', '家畜菊谷料', '凝神药膳', '重阳菊稻礼', '秋祭菊稻供', '公共仓菊稻包', '菊稻订单'],
+    summary: '稻谷与菊花杂交的淡香谷物，适合香饭料理、凝神炼丹、制菊稻米粉、酿菊稻清酒、灵宠菊稻喂食、家畜菊谷料、凝神药膳、重阳赠礼、秋祭供品、公共仓菊稻备料和菊稻订单。'
+  },
+  {
+    cropId: 'nut_corn',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['花生玉米饼', '坚谷固元丹', '花玉米油', '花玉米粉', '灵宠坚谷餐', '家畜坚谷料', '固元药膳', '粗粮坚谷礼', '秋社坚谷供', '公共仓坚谷包', '坚谷订单'],
+    summary: '玉米与花生杂交的浓香粗粮，适合烙饼料理、固元炼丹、榨花玉米油、制花玉米粉、灵宠坚谷喂食、家畜坚谷料、固元药膳、粗粮赠礼、秋社供品、公共仓坚谷备料和坚谷订单。'
+  },
+  {
+    cropId: 'frost_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['霜甜瓜盏', '霜瓜清暑丹', '霜甜瓜酒', '灵宠霜瓜餐', '家畜霜瓜料', '清暑药饮', '冬夏霜瓜礼', '冰灯霜瓜供', '公共仓霜瓜包', '霜瓜订单'],
+    summary: '西瓜与白菜杂交的耐寒甜瓜，适合瓜盏料理、清暑炼丹、酿霜甜瓜酒、灵宠霜瓜喂食、家畜霜瓜料、清暑药饮、冬夏赠礼、冰灯供品、公共仓霜瓜备料和霜瓜订单。'
+  },
+  {
+    cropId: 'twin_grain',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '香'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['双谷饭', '双谷续行丹', '双谷粉', '双谷清酒', '灵宠双谷餐', '家畜双谷料', '续行药膳', '南北双谷礼', '冬社双谷供', '公共仓双谷包', '双谷订单'],
+    summary: '稻谷与冬小麦杂交的南北主粮，适合米麦饭料理、续行炼丹、制双谷粉、酿双谷清酒、灵宠双谷喂食、家畜双谷料、续行药膳、南北赠礼、冬社供品、公共仓双谷备料和双谷订单。'
+  },
+  {
+    cropId: 'lotus_cabbage',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['莲白清汤', '莲白清心丹', '腌莲白菜', '灵宠莲白菜餐', '家畜莲白料', '清心药膳', '冬补莲白礼', '腊祭莲白供', '公共仓莲白包', '莲白菜订单'],
+    summary: '莲藕与白菜杂交的清润冬蔬，适合清汤料理、清心炼丹、腌莲白菜、灵宠莲白菜喂食、家畜莲白料、清心药膳、冬补赠礼、腊祭供品、公共仓莲白备料和莲白菜订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
