@@ -1771,7 +1771,8 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['星莲甜汤', '星莲安神丹', '星莲粉', '星莲清酿', '灵宠星莲餐', '家畜星莲料', '安神药膳', '星灯莲礼', '七夕星莲供', '公共仓星莲包', '星莲订单'],
     summary: '金瓜与双子豆汇聚星辉的三代莲形灵植，适合甜汤料理、安神炼丹、制星莲粉、酿星莲清酿、灵宠星莲喂食、家畜星莲料、安神药膳、星灯赠礼、七夕供品、公共仓星莲备料和星莲订单。'
-  },  {
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
