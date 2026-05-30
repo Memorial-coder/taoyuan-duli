@@ -971,6 +971,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['火桃蜜盏', '火桃行气丹', '火桃果酒', '灵宠火桃餐', '暖身药膳', '侠客火桃礼', '上巳火桃供', '公共仓火桃包', '辛甜果订单'],
     summary: '凤凰椒与蜜桃杂交的辛甜火果，适合蜜盏料理、行气炼丹、酿果酒、灵宠火桃喂食、暖身药膳、侠客赠礼、上巳供品、公共仓火桃备料和辛甜果订单。'
+  },
+  {
+    cropId: 'moonlight_corn',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['月穗甜饭', '月穗续行丹', '月穗粉', '月穗清酒', '灵宠月穗餐', '家畜银穗料', '月下谷礼', '中秋月穗供', '公共仓月穗包', '银穗订单'],
+    summary: '月光稻与玉米杂交的银色谷穗，适合甜饭料理、续行炼丹、制粉、酿清酒、灵宠月穗喂食、家畜银穗料、月下赠礼、中秋供品、公共仓月穗备料和银穗订单。'
+  },
+  {
+    cropId: 'jade_chive',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['翠韭炒蛋', '翠韭行气丹', '腌翠韭段', '灵宠翠韭餐', '家畜辛叶料', '暖胃药膳', '厨师翠韭礼', '春祭翠韭供', '公共仓翠韭包', '辛叶订单'],
+    summary: '翡翠茶与韭菜杂交的翠色辛叶，适合炒蛋料理、行气炼丹、腌制、灵宠翠韭喂食、家畜辛叶料、暖胃药膳、厨师赠礼、春祭供品、公共仓翠韭备料和辛叶订单。'
+  },
+  {
+    cropId: 'frost_pumpkin',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['霜南瓜羹', '霜瓜护脉丹', '霜瓜粉', '灵宠霜瓜餐', '家畜冬瓜料', '清寒药膳', '寒夜瓜礼', '冬祭霜瓜供', '公共仓霜瓜包', '霜瓜订单'],
+    summary: '霜雪蒜与南瓜杂交的冰甜瓜作，适合浓羹料理、护脉炼丹、制粉、灵宠霜瓜喂食、家畜冬瓜料、清寒药膳、寒夜赠礼、冬祭供品、公共仓霜瓜备料和霜瓜订单。'
+  },
+  {
+    cropId: 'emerald_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '香'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['翠粒香饭', '翠粒凝神丹', '翠粒米粉', '翠粒米酒', '灵宠翠粒饭', '家畜翠谷料', '清香米礼', '春夏翠粒供', '公共仓翠粒包', '翠米订单'],
+    summary: '翡翠萝卜与稻谷杂交的翠色米粒，适合香饭料理、凝神炼丹、制米粉、酿米酒、灵宠翠粒喂食、家畜翠谷料、清香赠礼、春夏供品、公共仓翠粒备料和翠米订单。'
+  },
+  {
+    cropId: 'pearl_peach',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['珠桃蜜羹', '珠桃养气丹', '珠桃果酒', '灵宠珠桃餐', '养气药膳', '贵客珠桃礼', '花朝珠桃供', '公共仓珠桃包', '珠桃订单'],
+    summary: '珍珠谷与蜜桃杂交的圆润灵果，适合蜜羹料理、养气炼丹、酿果酒、灵宠珠桃喂食、养气药膳、贵客赠礼、花朝供品、公共仓珠桃备料和珠桃订单。'
   }
 ]
 
