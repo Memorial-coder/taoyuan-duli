@@ -565,6 +565,9 @@ export interface CohabitationWarehouseItem {
   quantity: number
   quality: string
   label?: string
+  frozen_quantity?: number
+  available_quantity?: number
+  active_withdrawal_draft_ids?: string[]
   source_owner_username?: string
   source_owner_display_name?: string
 }

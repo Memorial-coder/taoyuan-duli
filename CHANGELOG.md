@@ -2,6 +2,7 @@
 
 最后整理：2026-05-30
 
+- Cohabitation shared warehouse frozen occupancy: active high-value withdrawal drafts now reduce available stock across shared farm, animal, pet, workshop, normal withdraw, sell, and family building material consumption; the warehouse UI shows frozen / available counts and disables actions when only frozen stock remains.
 - 腊八共灶公共仓联动：村社公共仓 `laba_cookpot_base` 消耗会固化奖励池、现场物件、房间预载和公共食材来源；在线村社消耗后可跳转创建 `laba_cookpot / assembly` 房间，服务端把来源反馈写入腊八共灶可视化高光，仍只扣公共仓、不发个人收益。
 - 同居离线队列 revision 冲突读回：离线队列合并结果和审计新增客户端基线、服务端合并前后 revision、stale 标记和服务端权威策略；共同庄园离线页会显示队列 revision 状态，便于确认离线操作按最新共同资产合并。
 - 同居离线队列前端入口：共同庄园离线页新增队列合并面板，可从当前选中的共同农田、动物、宠物或工坊配方提交单条服务端权威离线操作，并读回提交 / 拒绝结果、流水数量和个人存档 / 共同资产边界。

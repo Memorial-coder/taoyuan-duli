@@ -1467,6 +1467,13 @@ function normalizeWarehouseItem(entry = {}) {
   const quantity = normalizePositiveInt(entry.quantity, 0);
   if (!itemId || quantity <= 0) return null;
   const quality = normalizeQuality(entry.quality);
+  const rawFrozenQuantity = Math.max(0, Math.floor(Number(entry.frozen_quantity ?? entry.frozenQuantity) || 0));
+  const frozenQuantity = Math.min(quantity, rawFrozenQuantity);
+  const hasAvailableQuantity = entry.available_quantity !== undefined || entry.availableQuantity !== undefined;
+  const rawAvailableQuantity = hasAvailableQuantity
+    ? Math.max(0, Math.floor(Number(entry.available_quantity ?? entry.availableQuantity) || 0))
+    : Math.max(0, quantity - frozenQuantity);
+  const availableQuantity = Math.min(quantity, rawAvailableQuantity);
   const sourceOwnerKeys = Array.isArray(entry.source_owner_keys)
     ? [...new Set(entry.source_owner_keys.map(normalizeUsernameKey).filter(Boolean))]
     : [];
@@ -1475,6 +1482,13 @@ function normalizeWarehouseItem(entry = {}) {
     item_id: itemId,
     quality,
     quantity,
+    frozen_quantity: frozenQuantity,
+    available_quantity: availableQuantity,
+    active_withdrawal_draft_ids: Array.isArray(entry.active_withdrawal_draft_ids)
+      ? entry.active_withdrawal_draft_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : Array.isArray(entry.activeWithdrawalDraftIds)
+        ? entry.activeWithdrawalDraftIds.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+        : [],
     first_deposit_at: Number(entry.first_deposit_at) || Number(entry.last_deposit_at) || nowSeconds(),
     last_deposit_at: Number(entry.last_deposit_at) || Number(entry.first_deposit_at) || nowSeconds(),
     source_owner_keys: sourceOwnerKeys,
@@ -1886,6 +1900,23 @@ function getActiveWarehouseWithdrawalDrafts(contract = {}, excludeDraftId = '') 
   return normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts)
     .filter(draft => WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES.has(draft.state))
     .filter(draft => !excludeDraftId || draft.id !== excludeDraftId);
+}
+
+function buildWarehouseFreezeSummary(contract = {}, itemId = '', quality = 'normal', excludeDraftId = '') {
+  const normalizedItemId = normalizeWarehouseItemId(itemId);
+  const normalizedQuality = normalizeQuality(quality);
+  const activeDrafts = getActiveWarehouseWithdrawalDrafts(contract, excludeDraftId)
+    .filter(draft => draft.item_id === normalizedItemId && draft.quality === normalizedQuality);
+  const frozenQuantity = activeDrafts.reduce((sum, draft) => sum + normalizePositiveInt(draft.frozen_quantity || draft.quantity, 0), 0);
+  const stockQuantity = getWarehouseStockQuantity(normalizeSharedWarehouse(contract.shared_warehouse), normalizedItemId, normalizedQuality);
+  return {
+    item_id: normalizedItemId,
+    quality: normalizedQuality,
+    stock_quantity: stockQuantity,
+    frozen_quantity: frozenQuantity,
+    available_quantity: Math.max(0, stockQuantity - frozenQuantity),
+    active_withdrawal_draft_ids: activeDrafts.map(draft => draft.id).filter(Boolean).slice(0, 12),
+  };
 }
 
 function getWarehouseFrozenQuantity(contract = {}, itemId = '', quality = 'normal', excludeDraftId = '') {
@@ -6171,6 +6202,16 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorKey], contract.type);
   const familyWarehouse = buildFamilyWarehouseSummary(contract, warehouse, actorMember);
   const governance = buildSharedWarehouseGovernanceSnapshot(contract, actorUsername);
+  const visibleItems = warehouse.items.map(item => {
+    const freezeSummary = buildWarehouseFreezeSummary(contract, item.item_id, item.quality);
+    return normalizeWarehouseItem({
+      ...item,
+      frozen_quantity: freezeSummary.frozen_quantity,
+      available_quantity: freezeSummary.available_quantity,
+      active_withdrawal_draft_ids: freezeSummary.active_withdrawal_draft_ids,
+    });
+  }).filter(Boolean);
+
   const totalQuantity = warehouse.items.reduce((sum, item) => sum + item.quantity, 0);
   const frozenQuantity = activeWithdrawalDrafts.reduce((sum, draft) => sum + normalizePositiveInt(draft.frozen_quantity || draft.quantity, 0), 0);
   const sellEnabled = contract.status === 'active' && actorPermissions.storage.sell_items === true;
@@ -6178,7 +6219,7 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
     status: contract.status,
-    items: warehouse.items,
+    items: visibleItems,
     ledger: warehouse.ledger.slice(0, 50),
     high_value_withdrawal_drafts: withdrawalDrafts.slice(0, 20),
     governance,
@@ -8148,7 +8189,7 @@ function consumeWarehouseLots(lots, quantity, preferredOwnerKey = '') {
   };
 }
 
-function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, quality) {
+function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, quality, options = {}) {
   const normalizedQuality = normalizeQuality(quality);
   const lots = [];
   const ledger = Array.isArray(warehouse.ledger) ? warehouse.ledger.slice().reverse() : [];
@@ -8174,6 +8215,30 @@ function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, q
     } else if (['withdraw', 'sell', 'consume', 'revert', 'separation_return'].includes(entry.action)) {
       consumeWarehouseLots(lots, entry.quantity, entry.source_owner_key);
     }
+  }
+  const freezeContract = options.freeze_contract || options.freezeContract || null;
+  if (freezeContract) {
+    const freezeSummary = buildWarehouseFreezeSummary(freezeContract, itemId, normalizedQuality, options.exclude_draft_id || options.excludeDraftId || '');
+    let frozenToReserve = Math.max(0, normalizePositiveInt(freezeSummary.frozen_quantity, 0));
+    const matchingFrozenDrafts = getActiveWarehouseWithdrawalDrafts(freezeContract, options.exclude_draft_id || options.excludeDraftId || '')
+      .filter(draft => draft.item_id === normalizeWarehouseItemId(itemId) && draft.quality === normalizedQuality);
+    const reservedSourceLedgerIds = new Set(
+      matchingFrozenDrafts
+        .flatMap(draft => draft.source_ledger_ids || draft.source_allocations?.flatMap(allocation => allocation.source_ledger_ids || []) || [])
+        .map(id => sanitizeText(id, 100))
+        .filter(Boolean)
+    );
+    const reserveFromLots = sourceLockedOnly => {
+      for (const lot of lots.slice().reverse()) {
+        if (frozenToReserve <= 0) break;
+        if (sourceLockedOnly && !reservedSourceLedgerIds.has(lot.source_ledger_id)) continue;
+        const reserve = Math.min(lot.remaining, frozenToReserve);
+        lot.remaining -= reserve;
+        frozenToReserve -= reserve;
+      }
+    };
+    reserveFromLots(true);
+    reserveFromLots(false);
   }
   const result = consumeWarehouseLots(lots, quantity);
   if (!result.ok) return result;
@@ -10651,7 +10716,8 @@ async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor =
     contract.shared_warehouse,
     request.seed_item_id,
     1,
-    'normal'
+    'normal',
+    { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError('共同仓库中可用于共同种植的普通种子数量不足', 409);
 
@@ -10874,7 +10940,8 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
     contract.shared_warehouse,
     request.fertilizer_item_id,
     1,
-    'normal'
+    'normal',
+    { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError('共同仓库中可用于共同施肥的普通基础肥料数量不足', 409);
 
@@ -11900,7 +11967,8 @@ async function feedCohabitationSharedAnimal(contractId, payload = {}, actor = {}
     contract.shared_warehouse,
     request.feed_item_id,
     1,
-    'normal'
+    'normal',
+    { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError('共同仓库中可用于共同动物喂食的干草不足', 409);
 
@@ -12607,7 +12675,8 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
     contract.shared_warehouse,
     request.care_item_id,
     1,
-    'normal'
+    'normal',
+    { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError(`共同仓库中可用于共同宠物照料的${careItemProfile?.label || request.care_item_id}不足`, 409);
 
@@ -12880,7 +12949,7 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
 
   const allocationResults = recipe.input_items.map(input => ({
     input,
-    result: buildWarehouseWithdrawalAllocations(contract.shared_warehouse, input.item_id, input.quantity, input.quality),
+    result: buildWarehouseWithdrawalAllocations(contract.shared_warehouse, input.item_id, input.quantity, input.quality, { freeze_contract: contract }),
   }));
   const missingInput = allocationResults.find(entry => !entry.result.ok);
   if (missingInput) throw createError('shared warehouse does not have enough normal materials for this workshop recipe', 409);
@@ -13174,7 +13243,8 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
     contract.shared_warehouse,
     withdraw.item_id,
     withdraw.quantity,
-    withdraw.quality
+    withdraw.quality,
+    { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError('共同仓库中可取出的普通物品数量不足');
 
@@ -13310,7 +13380,8 @@ async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, p
     contract.shared_warehouse,
     request.item_id,
     request.quantity,
-    request.quality
+    request.quality,
+    { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError('共同仓库高价值物品来源流水不足，不能冻结取出草案', 409);
 
@@ -13507,7 +13578,8 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
     contract.shared_warehouse,
     draft.item_id,
     draft.quantity,
-    draft.quality
+    draft.quality,
+    { freeze_contract: contract, exclude_draft_id: draft.id }
   ).allocations;
   const ledgerEntries = allocations.map(allocation => normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
@@ -14826,7 +14898,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     contract.shared_warehouse,
     sale.item_id,
     sale.quantity,
-    sale.quality
+    sale.quality,
+    { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError('共同仓库中可卖出的普通物品数量不足');
 
@@ -16408,7 +16481,7 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
   const projectDefinition = resolveFamilyBuildingProjectDefinition(targetEntry);
   if (!projectDefinition) throw createError('该建筑流水缺少可识别的家族建筑材料计划', 409);
   const materialAllocations = projectDefinition.material_plan.map(plan => {
-    const allocationResult = buildWarehouseWithdrawalAllocations(contract.shared_warehouse, plan.item_id, plan.quantity, 'normal');
+    const allocationResult = buildWarehouseWithdrawalAllocations(contract.shared_warehouse, plan.item_id, plan.quantity, 'normal', { freeze_contract: contract });
     if (!allocationResult.ok) {
       throw createError(`共同仓库中${plan.label}数量不足，暂时无法消耗家族建筑材料`);
     }

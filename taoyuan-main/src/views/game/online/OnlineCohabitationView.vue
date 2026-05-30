@@ -821,6 +821,9 @@
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ item.label || item.item_id }}</p>
                   <p class="mt-1 text-[10px] text-muted">{{ item.item_id }} · {{ item.quality || 'normal' }}</p>
+                  <p v-if="warehouseFrozenQuantity(item) > 0" class="mt-1 text-[10px] text-amber-100">
+                    &#20923;&#32467; {{ warehouseFrozenQuantity(item) }} / &#21487;&#29992; {{ warehouseAvailableQuantity(item) }}
+                  </p>
                 </div>
                 <span class="text-xs text-accent">x{{ item.quantity }}</span>
               </div>
@@ -3442,6 +3445,13 @@
       : `${info.productId} ${days}/${info.produceDays}天`
   }
   const warehouseItems = computed(() => cohabitationStore.warehouse?.items ?? [])
+  const warehouseFrozenQuantity = (item: CohabitationWarehouseItem) => Math.max(0, Math.floor(Number(item.frozen_quantity) || 0))
+  const warehouseAvailableQuantity = (item: CohabitationWarehouseItem) => {
+    const total = Math.max(0, Math.floor(Number(item.quantity) || 0))
+    if (typeof item.available_quantity === 'number') return Math.max(0, Math.min(total, Math.floor(item.available_quantity)))
+    return Math.max(0, total - warehouseFrozenQuantity(item))
+  }
+
   const warehouseLedger = computed(() => cohabitationStore.warehouse?.ledger ?? [])
   const warehouseHighValueWithdrawalDrafts = computed(() => cohabitationStore.warehouse?.high_value_withdrawal_drafts ?? [])
   const warehouseCompensationAuditBundle = computed<CohabitationWarehouseCompensationAuditBundle | null>(() => cohabitationStore.warehouseCompensationAuditBundle)
@@ -4048,7 +4058,7 @@
   )
   const sharedWarehouseItemQuantity = (itemId: string, quality = 'normal') => (cohabitationStore.warehouse?.items ?? [])
     .filter(item => item.item_id === itemId && (item.quality || 'normal') === quality)
-    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)), 0)
+    .reduce((sum, item) => sum + warehouseAvailableQuantity(item), 0)
   const sharedWorkshopInputRows = computed(() => (selectedSharedWorkshopRecipe.value?.input_items ?? []).map(input => {
     const available = sharedWarehouseItemQuantity(input.item_id, input.quality)
     return {
@@ -5533,7 +5543,7 @@
     cohabitationStore.canOpenSelectedContract &&
     cohabitationStore.warehouse?.summary.sell_enabled === true &&
     cohabitationStore.warehouse?.permissions.can_sell_items === true &&
-    (item.quantity ?? 0) > 0 &&
+    warehouseAvailableQuantity(item) > 0 &&
     (item.quality || 'normal') === 'normal' &&
     warehouseSellUnitPrice(item.item_id) > 0
 
@@ -5541,7 +5551,7 @@
     cohabitationStore.canOpenSelectedContract &&
     cohabitationStore.warehouse?.summary.withdraw_enabled === true &&
     cohabitationStore.warehouse?.permissions.can_withdraw_common === true &&
-    (item.quantity ?? 0) > 0 &&
+    warehouseAvailableQuantity(item) > 0 &&
     (item.quality || 'normal') === 'normal'
 
   const isRareWarehouseItemId = (itemId = '') => {
@@ -5563,7 +5573,7 @@
     (cohabitationStore.warehouse?.permissions.can_create_high_value_withdrawal_draft === true ||
       cohabitationStore.warehouse?.permissions.can_withdraw_high_quality === true ||
       cohabitationStore.warehouse?.permissions.can_withdraw_rare === true) &&
-    (item.quantity ?? 0) > 0 &&
+    warehouseAvailableQuantity(item) > 0 &&
     isHighValueWarehouseItem(item)
   const canConfirmHighValueWarehouseDraft = (draft: CohabitationWarehouseHighValueWithdrawalDraft) =>
     cohabitationStore.canOpenSelectedContract &&

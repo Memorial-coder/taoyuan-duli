@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 Cohabitation Warehouse Freeze Availability
+- Shared warehouse snapshots now expose frozen, available, and active high-value withdrawal draft IDs, so pending high-value withdrawal drafts reserve stock instead of remaining consumable.
+- Shared workshop material checks and warehouse withdraw / sell / high-value draft buttons now use available stock; frozen-only lots are shown but cannot be consumed from the UI.
+
 ### 0530 腊八共灶公共仓联动
 - 在线村社公共仓 `laba_cookpot_base` 消耗响应和仓库日志新增 `room_preload`、奖励池、现场物件、扣后库存摘要和公共食材来源说明；公共消耗仍只扣公共仓，不发个人收益。
 - 在线村社消耗后会带 `template=laba_cookpot`、`gameplay=assembly` 和 `source_*` 参数跳转节会房间创建；创建成功时服务端把公共仓来源反馈写入腊八共灶 `VisualSceneBoard` 高光。
