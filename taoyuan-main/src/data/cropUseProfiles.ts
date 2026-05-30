@@ -1721,7 +1721,8 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['雷菜脆炒', '雷菜行气丹', '腌雷菜梗', '灵宠雷菜餐', '家畜雷菜料', '行气药膳', '雷雨菜礼', '惊蛰雷菜供', '公共仓雷菜包', '雷菜订单'],
     summary: '金瓜与翡翠萝卜汇聚雷雨气息的三代菜蔬，适合脆炒料理、行气炼丹、腌雷菜梗、灵宠雷菜喂食、家畜雷菜料、行气药膳、雷雨赠礼、惊蛰供品、公共仓雷菜备料和雷菜订单。'
-  },  {
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
