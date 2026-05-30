@@ -821,6 +821,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'stable',
     recommendedUses: ['火穗甜辣饭', '火穗行军丹', '火穗面粉', '火谷酒', '家畜暖谷料', '腌火穗粒', '夏祭火谷供品', '公共仓火穗包', '辣谷订单'],
     summary: '凤凰椒与玉米杂交的甜辣二代谷物，适合甜辣饭料理、行军炼丹、制粉、酿酒、家畜暖谷料、腌制、夏祭供品、公共仓火穗备料和辣谷订单。'
+  },
+  {
+    cropId: 'moonlight_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['月光薯泥', '月薯续行丹', '月光薯粉', '灵宠月薯糕', '家畜越冬料', '安神药膳', '冬夜赠礼', '冬祭薯供', '公共仓月薯包', '薯粮订单'],
+    summary: '月光稻与红薯杂交的柔光二代根茎，适合薯泥料理、续行炼丹、制粉、灵宠月薯点心、家畜越冬料、安神药膳、冬夜赠礼、冬祭供品、公共仓月薯包和薯粮订单。'
+  },
+  {
+    cropId: 'jade_peanut',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '苦'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['翠仁茶点', '翠仁醒神丹', '翠仁油', '灵宠坚果茶餐', '家畜蛋白料', '茶席坚果赠礼', '夏日茶会供品', '公共仓翠仁包', '坚果订单'],
+    summary: '翡翠茶与花生杂交的翠色坚果，适合茶点料理、醒神炼丹、榨油、灵宠坚果茶餐、家畜蛋白料、茶席赠礼、夏日茶会供品、公共仓翠仁备料和坚果订单。'
+  },
+  {
+    cropId: 'frost_radish',
+    tags: ['food', 'alchemy', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['霜玉萝卜汤', '霜玉护脉丹', '腌霜玉萝卜', '清寒药膳', '家畜冬根料', '寒香赠礼', '冬祭冰根供', '公共仓霜根包', '冬根订单'],
+    summary: '霜雪蒜与萝卜杂交的冰玉根菜，适合萝卜汤料理、护脉炼丹、腌制、清寒药膳、家畜冬根料、寒香赠礼、冬祭供品、公共仓霜根备料和冬根订单。'
+  },
+  {
+    cropId: 'golden_jujube',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['金蜜枣糕', '金枣养气丹', '金蜜枣酒', '灵宠蜜枣餐', '补气药膳', '亲友蜜枣赠礼', '腊八甜枣供', '公共仓蜜枣包', '蜜枣订单'],
+    summary: '金蜜瓜与红枣杂交的蜜甜二代果作，适合枣糕料理、养气炼丹、酿酒、灵宠蜜枣喂食、补气药膳、亲友赠礼、腊八供品、公共仓蜜枣备料和蜜枣订单。'
+  },
+  {
+    cropId: 'phoenix_eggplant',
+    tags: ['food', 'alchemy', 'medicine', 'pickle', 'gift', 'festival', 'order'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['火焰茄煲', '火茄行气丹', '腌火焰茄', '暖胃药膳', '厨师辛香赠礼', '夏秋热菜供品', '辣茄订单'],
+    summary: '凤凰椒与茄子杂交的辛鲜二代茄果，适合茄煲料理、行气炼丹、腌制、暖胃药膳、厨师赠礼、夏秋热菜供品和辣茄订单。'
   }
 ]
 
