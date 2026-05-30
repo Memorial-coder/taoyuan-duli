@@ -2669,6 +2669,68 @@
               </div>
             </div>
           </div>
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-offline-queue-panel">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">离线队列合并</p>
+              <span class="text-[10px] text-muted">{{ offlineQueueSupportedActionCount }} 项</span>
+            </div>
+            <div class="mt-3 space-y-3">
+              <label class="block text-[10px] leading-4 text-muted">
+                <span>待合并操作</span>
+                <select
+                  v-model="selectedOfflineQueueActionId"
+                  class="online-select mt-1 w-full"
+                  data-testid="online-cohabitation-offline-queue-action-select"
+                >
+                  <option v-for="option in offlineQueueActionOptions" :key="option.id" :value="option.id">
+                    {{ option.label }} · {{ option.targetLabel }}
+                  </option>
+                </select>
+              </label>
+              <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+                <p class="truncate text-xs text-text" data-testid="online-cohabitation-offline-queue-selected-label">
+                  {{ selectedOfflineQueueActionOption?.label || '未选择操作' }}
+                </p>
+                <p class="mt-1" data-testid="online-cohabitation-offline-queue-selected-target">
+                  目标：{{ selectedOfflineQueueActionOption?.targetLabel || '未选择目标' }}
+                </p>
+                <p class="mt-1" data-testid="online-cohabitation-offline-queue-selected-state">
+                  {{ selectedOfflineQueueActionOption?.enabled ? '服务端队列可提交' : selectedOfflineQueueActionOption?.disabledReason || '当前不可提交' }}
+                </p>
+              </div>
+              <button
+                class="online-action-btn online-action-btn--compact w-full justify-center"
+                type="button"
+                :disabled="!canSubmitOfflineQueueMerge || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-offline-queue-submit"
+                @click="submitSelectedOfflineQueueMerge"
+              >
+                <Clock3 :size="12" />
+                合并选中离线操作
+              </button>
+              <p
+                v-if="offlineQueueActionMessage"
+                class="text-[10px] leading-4"
+                :class="offlineQueueActionOk ? 'text-emerald-200' : 'text-red-100'"
+                data-testid="online-cohabitation-offline-queue-message"
+              >
+                {{ offlineQueueActionMessage }}
+              </p>
+              <div
+                v-if="offlineQueueMergeRows.length"
+                class="space-y-1 text-[10px] text-muted"
+                data-testid="online-cohabitation-offline-queue-results"
+              >
+                <div v-for="row in offlineQueueMergeRows" :key="row.id" class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-text">{{ row.label }}</span>
+                    <span :class="row.ok ? 'text-emerald-200' : 'text-red-100'">{{ row.status }}</span>
+                  </div>
+                  <p class="mt-1 leading-4">{{ row.detail }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-shared-audit-log">
             <p class="text-sm text-accent">共同日志</p>
             <div v-if="sharedLog.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有共同日志。</div>
@@ -2738,6 +2800,9 @@
     CohabitationFundLargeSpendDraft,
     CohabitationFundLedgerEntry,
     CohabitationMember,
+    CohabitationOfflineQueueAction,
+    CohabitationOfflineQueueMergeEntry,
+    CohabitationOfflineQueueOperation,
     CohabitationSharedAnimal,
     CohabitationSharedPet,
     CohabitationSharedPlot,
@@ -2782,6 +2847,33 @@
   }
   type SharedWorkshopRecipeOption = CohabitationSharedWorkshopRecipe
   type SharedWorkshopResultRow = { id: string; label: string; value: string }
+  type OfflineQueueUiActionId =
+    | 'water_shared_farm'
+    | 'care_shared_farm_cure_pests'
+    | 'care_shared_farm_clear_weeds'
+    | 'plant_shared_farm'
+    | 'fertilize_shared_farm_basic'
+    | 'harvest_shared_farm'
+    | 'feed_shared_animal'
+    | 'pet_shared_animal'
+    | 'collect_shared_animal_product'
+    | 'care_shared_pet'
+    | 'process_shared_workshop_recipe'
+  type OfflineQueueActionOption = {
+    id: OfflineQueueUiActionId
+    queueAction: CohabitationOfflineQueueAction
+    label: string
+    targetLabel: string
+    enabled: boolean
+    disabledReason: string
+  }
+  type OfflineQueueResultRow = {
+    id: string
+    label: string
+    status: string
+    detail: string
+    ok: boolean
+  }
   type SeparationSharedDecorationRemovalDispute = {
     draft_id: string
     target_ref: string
@@ -2922,6 +3014,9 @@
   const sharedPetCareRiskAcknowledged = ref(false)
   const sharedPetCareConfirmationText = ref('')
   const fundActionMessage = ref('')
+  const offlineQueueActionMessage = ref('')
+  const offlineQueueActionOk = ref(false)
+  const selectedOfflineQueueActionId = ref<OfflineQueueUiActionId>('water_shared_farm')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
   const fundLargeDraftPurpose = ref<FundLargeSpendPurpose>('family_building')
@@ -4040,6 +4135,70 @@
     if (!sharedPetCareRiskConfirmed.value) return false
     return (selectedSharedPetCareItem.value?.quantity ?? 0) > 0
   })
+  const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
+  const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
+  const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'pet' | 'workshop') => {
+    if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
+    if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
+    if (kind === 'pet') return selectedSharedPet.value?.name || selectedSharedPet.value?.type || selectedSharedPet.value?.id || '未选宠物'
+    return selectedSharedWorkshopRecipe.value?.label || '未选配方'
+  }
+  const offlineQueueActionOptions = computed<OfflineQueueActionOption[]>(() => {
+    const queueEnabled = cohabitationStore.canOpenSelectedContract && cohabitationStore.offlineStatus?.summary.offline_queue_merge_enabled === true
+    const makeOption = (
+      id: OfflineQueueUiActionId,
+      queueAction: CohabitationOfflineQueueAction,
+      label: string,
+      targetKind: 'plot' | 'animal' | 'pet' | 'workshop',
+      actionEnabled: boolean,
+      disabledReason: string
+    ): OfflineQueueActionOption => {
+      const supported = isOfflineQueueActionSupported(queueAction)
+      const enabled = queueEnabled && supported && actionEnabled
+      return {
+        id,
+        queueAction,
+        label,
+        targetLabel: offlineQueueTargetLabel(targetKind),
+        enabled,
+        disabledReason: !queueEnabled
+          ? '离线队列合并未开放'
+          : !supported
+            ? '服务端暂不支持该队列动作'
+            : disabledReason,
+      }
+    }
+    return [
+      makeOption('water_shared_farm', 'water_shared_farm', '共同农田浇水', 'plot', canWaterSelectedSharedFarmPlot.value, '请选择可浇水地块'),
+      makeOption('care_shared_farm_cure_pests', 'care_shared_farm', '共同农田除虫', 'plot', canCureSelectedSharedFarmPlot.value, '请选择有虫害地块'),
+      makeOption('care_shared_farm_clear_weeds', 'care_shared_farm', '共同农田清草', 'plot', canClearWeedsSelectedSharedFarmPlot.value, '请选择有杂草地块'),
+      makeOption('plant_shared_farm', 'plant_shared_farm', '共同农田种植', 'plot', canPlantSelectedSharedFarmPlot.value, '请选择可种植地块和种子'),
+      makeOption('fertilize_shared_farm_basic', 'fertilize_shared_farm_basic', '共同农田基础施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value, '请选择可施肥地块并确认共同仓库肥料'),
+      makeOption('harvest_shared_farm', 'harvest_shared_farm', '共同农田收获入仓', 'plot', canHarvestSelectedSharedFarmPlot.value, '请选择可收获地块'),
+      makeOption('feed_shared_animal', 'feed_shared_animal', '共同动物干草喂食', 'animal', canFeedSelectedSharedAnimal.value, '请选择可喂食动物并确认共同仓库干草'),
+      makeOption('pet_shared_animal', 'pet_shared_animal', '共同动物抚摸', 'animal', canPetSelectedSharedAnimal.value, '请选择可抚摸动物'),
+      makeOption('collect_shared_animal_product', 'collect_shared_animal_product', '共同动物产物入仓', 'animal', canCollectSelectedSharedAnimalProduct.value, '请选择可收取产物的动物'),
+      makeOption('care_shared_pet', 'care_shared_pet', '共同宠物用品照料', 'pet', canCareSelectedSharedPet.value, '请选择宠物、用品并完成高阶确认'),
+      makeOption('process_shared_workshop_recipe', 'process_shared_workshop_recipe', '共同工坊处理', 'workshop', canProcessSelectedSharedWorkshopRecipe.value, '请选择材料充足且有权限的工坊配方'),
+    ]
+  })
+  const selectedOfflineQueueActionOption = computed(() =>
+    offlineQueueActionOptions.value.find(option => option.id === selectedOfflineQueueActionId.value) ?? offlineQueueActionOptions.value[0] ?? null
+  )
+  const canSubmitOfflineQueueMerge = computed(() => selectedOfflineQueueActionOption.value?.enabled === true)
+  const offlineQueueMergeRows = computed<OfflineQueueResultRow[]>(() => {
+    const merge = cohabitationStore.offlineQueueMerge
+    if (!merge) return []
+    const results = [...(merge.results ?? []), ...(merge.rejected ?? [])]
+    return results.map((entry, index) => ({
+      id: entry.operation_id || `${entry.action}-${index}`,
+      label: offlineQueueActionLabel(entry.action),
+      status: offlineQueueResultStatusLabel(entry.status),
+      detail: offlineQueueResultDetail(entry),
+      ok: entry.status === 'committed' || entry.status === 'idempotent',
+    }))
+  })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -4362,6 +4521,126 @@
     if (action === 'cure_pests') return '除虫'
     if (action === 'clear_weeds') return '清草'
     return '铲除作物'
+  }
+  const offlineQueueActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      water_shared_farm: '共同农田浇水',
+      care_shared_farm: '共同农田管护',
+      plant_shared_farm: '共同农田种植',
+      fertilize_shared_farm_basic: '共同农田基础施肥',
+      harvest_shared_farm: '共同农田收获入仓',
+      feed_shared_animal: '共同动物喂食',
+      pet_shared_animal: '共同动物抚摸',
+      collect_shared_animal_product: '共同动物产物入仓',
+      care_shared_pet: '共同宠物照料',
+      process_shared_workshop_recipe: '共同工坊处理',
+    }
+    return labels[action] || action
+  }
+  const offlineQueueResultStatusLabel = (status: string) => {
+    if (status === 'committed') return '已提交'
+    if (status === 'idempotent') return '幂等读回'
+    if (status === 'rejected') return '已拒绝'
+    return status || '未记录'
+  }
+  const offlineQueueResultDetail = (entry: CohabitationOfflineQueueMergeEntry) => {
+    if (entry.status === 'rejected') return entry.reason || '服务端权威拒绝，未改个人存档或共同资产'
+    const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
+    const outputItemId = typeof entry.output_item_id === 'string' ? entry.output_item_id : ''
+    const outputQuantity = Math.max(1, Math.floor(Number(entry.output_quantity) || 1))
+    const target = ['target_ref', 'plot_id', 'animal_id', 'pet_id', 'recipe_id']
+      .map(key => entry[key])
+      .find(value => typeof value === 'string' && value.length > 0)
+    const output = outputItemId
+      ? `${warehouseItemLabels[outputItemId] || outputItemId} x${outputQuantity}`
+      : ''
+    const boundaries = [
+      entry.personal_save_changed === false ? '个人存档未改' : '',
+      entry.shared_fund_changed === false ? '共同基金未改' : '',
+      entry.shared_warehouse_changed === true ? '共同仓库已写流水' : '',
+    ].filter(Boolean)
+    return [target ? `目标 ${target}` : '', output, ledgerIds.length ? `流水 ${ledgerIds.length} 笔` : '', ...boundaries]
+      .filter(Boolean)
+      .join(' · ') || '服务端已按当前契约状态合并'
+  }
+  const offlineQueueClientRevision = () => Math.max(
+    0,
+    Number(cohabitationStore.sharedMap?.revision) || 0,
+    Number(cohabitationStore.sharedAnimals?.revision) || 0,
+    Number(cohabitationStore.sharedPets?.revision) || 0,
+    Number(cohabitationStore.warehouse?.summary.ledger_count) || 0,
+  )
+  const buildSelectedOfflineQueueOperation = (): CohabitationOfflineQueueOperation | null => {
+    const option = selectedOfflineQueueActionOption.value
+    if (!option) return null
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const operationId = `ui-offline-${option.id}-${suffix}`
+    const basePayload: Record<string, unknown> = { memo: `前端离线队列合并：${option.label}` }
+    if (option.id.includes('shared_farm')) {
+      const plot = selectedSharedFarmPlot.value
+      if (!plot) return null
+      basePayload.plot_id = plot.id
+      if (option.id === 'care_shared_farm_cure_pests') basePayload.action = 'cure_pests'
+      if (option.id === 'care_shared_farm_clear_weeds') basePayload.action = 'clear_weeds'
+      if (option.id === 'plant_shared_farm') basePayload.seed_item_id = sharedFarmSeedItemId.value
+      if (option.id === 'fertilize_shared_farm_basic') basePayload.fertilizer_item_id = sharedFarmFertilizerItemId
+    } else if (option.id.includes('shared_animal')) {
+      const animal = selectedSharedAnimal.value
+      if (!animal) return null
+      basePayload.animal_id = animal.id
+      if (option.id === 'feed_shared_animal') basePayload.feed_item_id = 'hay'
+    } else if (option.id === 'care_shared_pet') {
+      const pet = selectedSharedPet.value
+      const careItem = selectedSharedPetCareItem.value
+      if (!pet || !careItem) return null
+      basePayload.pet_id = pet.id
+      basePayload.care_item_id = careItem.itemId
+      if (careItem.requiresConfirmation) {
+        basePayload.confirmed_high_value_care = true
+        basePayload.risk_acknowledged = sharedPetCareRiskAcknowledged.value
+        basePayload.confirmation_text = sharedPetCareConfirmationText.value.trim()
+        basePayload.rollback_plan_acknowledged = sharedPetCareRiskAcknowledged.value
+        basePayload.compensation_plan_acknowledged = sharedPetCareRiskAcknowledged.value
+      }
+    } else if (option.id === 'process_shared_workshop_recipe') {
+      const recipe = selectedSharedWorkshopRecipe.value
+      if (!recipe) return null
+      basePayload.recipe_id = recipe.id
+    }
+    return {
+      action: option.queueAction,
+      operation_id: operationId,
+      idempotency_key: operationId,
+      client_base_revision: offlineQueueClientRevision(),
+      payload: basePayload,
+    }
+  }
+  const submitSelectedOfflineQueueMerge = async () => {
+    const option = selectedOfflineQueueActionOption.value
+    const operation = buildSelectedOfflineQueueOperation()
+    offlineQueueActionMessage.value = ''
+    offlineQueueActionOk.value = false
+    if (!option || !operation || !canSubmitOfflineQueueMerge.value) {
+      offlineQueueActionMessage.value = option?.disabledReason || '请选择可合并的离线操作'
+      return
+    }
+    const queueId = `ui-offline-queue-${option.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    try {
+      const result = await cohabitationStore.mergeOfflineQueue({
+        idempotency_key: queueId,
+        client_queue_revision: offlineQueueClientRevision(),
+        operations: [operation],
+      })
+      const merge = result?.offline_queue_merge
+      const accepted = merge?.accepted_count ?? 0
+      const rejected = merge?.rejected_count ?? 0
+      offlineQueueActionOk.value = accepted > 0 && rejected === 0
+      offlineQueueActionMessage.value = rejected > 0
+        ? `离线队列已合并，${accepted} 项提交、${rejected} 项拒绝`
+        : `离线队列已合并，${accepted} 项提交并刷新共同日志`
+    } catch (error) {
+      offlineQueueActionMessage.value = error instanceof Error ? error.message : '合并离线经营队列失败'
+    }
   }
 
   const careSelectedSharedFarmPlot = async (action: 'cure_pests' | 'clear_weeds' | 'remove_crop') => {
