@@ -42,6 +42,8 @@ const buildSaveData = username => ({
       { itemId: 'herb', quantity: 2, quality: 'normal', locked: false },
       { itemId: 'cabbage', quantity: 2, quality: 'normal', locked: false },
       { itemId: 'wood', quantity: 1, quality: 'normal', locked: false },
+      { itemId: 'cloth', quantity: 1, quality: 'normal', locked: false },
+      { itemId: 'crucian', quantity: 1, quality: 'normal', locked: false },
     ],
     tempItems: [],
     capacity: 24,
@@ -82,6 +84,8 @@ const getPlayerWarehouseInputSnapshot = () => {
     herb: getInventoryQuantity(data, 'herb'),
     cabbage: getInventoryQuantity(data, 'cabbage'),
     wood: getInventoryQuantity(data, 'wood'),
+    cloth: getInventoryQuantity(data, 'cloth'),
+    crucian: getInventoryQuantity(data, 'crucian'),
   })
 }
 
@@ -105,6 +109,8 @@ const initialPersonalSnapshot = getPlayerWarehouseInputSnapshot()
 assert.match(initialPersonalSnapshot, /"money":100/, 'initial personal money should be seeded')
 assert.match(initialPersonalSnapshot, /"rice":4/, 'initial rice should be seeded')
 assert.match(initialPersonalSnapshot, /"herb":2/, 'initial herb should be seeded')
+assert.match(initialPersonalSnapshot, /"cloth":1/, 'initial cloth should be seeded')
+assert.match(initialPersonalSnapshot, /"crucian":1/, 'initial fish should be seeded')
 
 const riceDeposit = await runtime.depositSocietyWarehouse({
   deposit_id: 'rice_crate',
@@ -126,10 +132,65 @@ assert.equal(getWarehouseQuantity(herbDeposit.warehouse, 'herb'), 1, 'herb depos
 assert.equal(herbDeposit.warehouse.weekly_settlement.covered_category_count, 2, 'weekly settlement should read two covered categories')
 assert.equal(herbDeposit.warehouse.weekly_settlement.total_points, 4, 'weekly settlement should sum rice and herb points')
 
+const woodDeposit = await runtime.depositSocietyWarehouse({
+  deposit_id: 'wood_crate',
+}, actor(owner))
+assert.equal(getWarehouseQuantity(woodDeposit.warehouse, 'wood'), 1, 'wood deposit should add wood to public warehouse')
+assert.equal(woodDeposit.warehouse.weekly_settlement.effects.disaster_response.active, true, 'grain herb wood should activate disaster response')
+assert.equal(woodDeposit.warehouse.weekly_settlement.effects.disaster_response.points, 6, 'disaster response should expose grain herb wood points')
+assert.equal(woodDeposit.warehouse.weekly_settlement.effects.disaster_response.threshold, 5, 'disaster response should expose activation threshold')
+
+const clothDeposit = await runtime.depositSocietyWarehouse({
+  deposit_id: 'cloth_bundle',
+}, actor(owner))
+assert.equal(getWarehouseQuantity(clothDeposit.warehouse, 'cloth'), 1, 'cloth deposit should add cloth to public warehouse')
+assert.equal(clothDeposit.warehouse.weekly_settlement.effects.festival_cost_discount.percent, 5, 'grain cloth points should unlock 5 percent festival discount')
+assert.equal(clothDeposit.warehouse.weekly_settlement.effects.festival_cost_discount.points, 4, 'festival discount should expose grain cloth fish points')
+
+const fishDeposit = await runtime.depositSocietyWarehouse({
+  deposit_id: 'fish_basket',
+}, actor(owner))
+assert.equal(getWarehouseQuantity(fishDeposit.warehouse, 'crucian'), 1, 'fish deposit should add fish to public warehouse')
+assert.equal(fishDeposit.warehouse.weekly_settlement.status, 'ready', 'five covered categories should mark weekly settlement ready')
+assert.equal(fishDeposit.warehouse.weekly_settlement.covered_category_count, 5, 'weekly settlement should read five covered categories')
+assert.deepEqual(fishDeposit.warehouse.weekly_settlement.covered_category_ids.sort(), ['cloth', 'fish', 'grain', 'herb', 'wood'], 'weekly settlement should expose covered category ids')
+assert.equal(fishDeposit.warehouse.weekly_settlement.total_points, 10, 'weekly settlement should sum all five category points')
+assert.equal(fishDeposit.warehouse.weekly_settlement.effects.disaster_response.level, 1, 'five-category deposits should keep disaster response level readable')
+assert.equal(fishDeposit.warehouse.weekly_settlement.effects.festival_cost_discount.percent, 10, 'grain cloth fish should unlock 10 percent festival discount')
+assert.equal(fishDeposit.warehouse.weekly_settlement.effects.public_task_bonus.percent, 8, 'total points plus contributor count should unlock public task bonus')
+assert.equal(fishDeposit.warehouse.weekly_settlement.settlement_scope, 'public_warehouse_weekly_collective', 'weekly settlement should expose collective public scope')
+assert.equal(fishDeposit.warehouse.weekly_settlement.personal_asset_effect, 'none', 'weekly settlement should not grant personal assets')
+assert.equal(fishDeposit.warehouse.weekly_settlement.no_personal_reward, true, 'weekly settlement should explicitly reject personal rewards')
+assert.equal(fishDeposit.warehouse.weekly_settlement.effect_receipts.length, 3, 'weekly settlement should expose three effect receipts')
+const receiptById = Object.fromEntries(fishDeposit.warehouse.weekly_settlement.effect_receipts.map(receipt => [receipt.id, receipt]))
+assert.equal(receiptById.disaster_response.status, 'active', 'disaster receipt should be active')
+assert.equal(receiptById.disaster_response.points, 6, 'disaster receipt should expose points')
+assert.equal(receiptById.disaster_response.threshold, 5, 'disaster receipt should expose threshold')
+assert.equal(receiptById.disaster_response.value, 1, 'disaster receipt should expose response level')
+assert.equal(receiptById.disaster_response.value_type, 'level', 'disaster receipt should expose value type')
+assert.deepEqual(receiptById.disaster_response.category_ids, ['grain', 'herb', 'wood'], 'disaster receipt should expose source categories')
+assert.equal(receiptById.festival_cost_discount.status, 'active', 'festival receipt should be active')
+assert.equal(receiptById.festival_cost_discount.value, 10, 'festival receipt should expose discount percent')
+assert.equal(receiptById.festival_cost_discount.value_type, 'percent', 'festival receipt should expose value type')
+assert.equal(receiptById.public_task_bonus.status, 'active', 'task receipt should be active')
+assert.equal(receiptById.public_task_bonus.points, 11, 'task receipt should include total points plus contributor count')
+assert.equal(receiptById.public_task_bonus.value, 8, 'task receipt should expose bonus percent')
+for (const receipt of fishDeposit.warehouse.weekly_settlement.effect_receipts) {
+  assert.equal(receipt.settlement_scope, 'public_warehouse_weekly_collective', 'effect receipt should keep public warehouse weekly scope')
+  assert.equal(receipt.public_effect_scope, 'society_collective', 'effect receipt should be society collective only')
+  assert.equal(receipt.personal_asset_effect, 'none', 'effect receipt should not mutate personal assets')
+  assert.equal(receipt.no_personal_reward, true, 'effect receipt should explicitly deny personal reward')
+}
+assert.ok(fishDeposit.warehouse.weekly_settlement.effect_summary.includes('disaster_response:active:6/5'), 'effect summary should include disaster evidence')
+assert.ok(fishDeposit.warehouse.weekly_settlement.effect_summary.includes('festival_cost_discount:active:6/3'), 'effect summary should include festival evidence')
+assert.ok(fishDeposit.warehouse.weekly_settlement.effect_summary.includes('public_task_bonus:active:11/4'), 'effect summary should include task evidence')
+
 const personalSnapshotAfterDeposits = getPlayerWarehouseInputSnapshot()
-assert.match(personalSnapshotAfterDeposits, /"money":91/, 'two deposits should deduct only configured personal money')
-assert.match(personalSnapshotAfterDeposits, /"rice":2/, 'two deposits should keep remaining personal rice')
-assert.match(personalSnapshotAfterDeposits, /"herb":1/, 'two deposits should keep remaining personal herb')
+assert.match(personalSnapshotAfterDeposits, /"money":76/, 'five deposits should deduct only configured personal money')
+assert.match(personalSnapshotAfterDeposits, /"rice":2/, 'five deposits should keep remaining personal rice')
+assert.match(personalSnapshotAfterDeposits, /"herb":1/, 'five deposits should keep remaining personal herb')
+assert.match(personalSnapshotAfterDeposits, /"cloth":0/, 'five deposits should deduct personal cloth')
+assert.match(personalSnapshotAfterDeposits, /"crucian":0/, 'five deposits should deduct personal fish')
 
 const consumed = await runtime.consumeSocietyWarehouse({
   consume_id: 'laba_cookpot_base',
@@ -142,7 +203,11 @@ assert.equal(consumed.log_entry.action, 'consume', 'consume should write consume
 assert.equal(consumed.log_entry.settlement_scope, 'public_warehouse_only', 'consume log should expose public-only settlement scope')
 assert.equal(consumed.log_entry.personal_asset_effect, 'none_after_deposit', 'consume log should declare no personal asset effect')
 assert.match(consumed.log_entry.authority_summary, /只扣公共仓/, 'consume log should expose server authority summary')
-assert.deepEqual(consumed.log_entry.warehouse_stock_after, [], 'consume log should include empty public warehouse stock snapshot')
+assert.deepEqual(
+  consumed.log_entry.warehouse_stock_after.map(entry => [entry.item_id, entry.quantity]).sort(),
+  [['cloth', 1], ['crucian', 1], ['wood', 1]],
+  'consume log should include remaining public warehouse stock snapshot'
+)
 assert.equal(getPlayerWarehouseInputSnapshot(), personalSnapshotAfterDeposits, 'public consume should not mutate personal save after deposits')
 
 const duplicateConsume = await runtime.consumeSocietyWarehouse({

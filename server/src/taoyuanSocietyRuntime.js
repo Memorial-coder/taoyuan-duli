@@ -1762,20 +1762,63 @@ function buildPublicWarehouseWeeklySettlement(warehouse) {
   const taskLevel = totalPoints + contributorCount;
   const festivalDiscount = Math.min(15, Math.max(0, festivalLevel >= 8 ? 15 : festivalLevel >= 5 ? 10 : festivalLevel >= 3 ? 5 : 0));
   const publicTaskBonus = Math.min(12, Math.max(0, taskLevel >= 12 ? 12 : taskLevel >= 8 ? 8 : taskLevel >= 4 ? 4 : 0));
+  const coveredCategoryIds = categories.filter(entry => entry.points > 0).map(entry => entry.id);
+  const disasterResponseLevel = disasterLevel >= 8 ? 2 : (disasterLevel >= 5 ? 1 : 0);
+  const effectLabels = {
+    disaster_response: '\u707e\u5bb3\u5e94\u5bf9',
+    festival_cost_discount: '\u8282\u4f1a\u516c\u5171\u6210\u672c',
+    public_task_bonus: '\u516c\u5171\u4efb\u52a1\u52a0\u6210',
+  };
+  const effectSummaries = {
+    disaster_response: '\u6309\u7cae\u98df\u3001\u836f\u8349\u548c\u6728\u6750\u5165\u4ed3\u70b9\u6570\u6d3e\u751f\u6751\u793e\u707e\u5bb3\u6551\u6d4e\u7f13\u51b2\u3002',
+    festival_cost_discount: '\u6309\u7cae\u98df\u3001\u5e03\u6599\u548c\u9c7c\u83b7\u5165\u4ed3\u70b9\u6570\u6d3e\u751f\u516c\u5171\u8282\u4f1a\u7b79\u5907\u964d\u672c\u3002',
+    public_task_bonus: '\u6309\u672c\u5468\u5165\u4ed3\u603b\u79ef\u5206\u548c\u8d21\u732e\u4eba\u6570\u6d3e\u751f\u516c\u5171\u4efb\u52a1\u63a8\u8fdb\u52a0\u6210\u3002',
+  };
+  const buildEffectReceipt = (id, active, points, threshold, value, valueType, categoryIds) => ({
+    id,
+    label: effectLabels[id] || id,
+    active: Boolean(active),
+    status: active ? 'active' : 'collecting',
+    status_label: active ? '\u5df2\u751f\u6548' : '\u5f85\u8865\u8db3',
+    points: Math.max(0, Math.floor(Number(points) || 0)),
+    threshold: Math.max(0, Math.floor(Number(threshold) || 0)),
+    value,
+    value_type: valueType,
+    category_ids: normalizeSocietyStringList(categoryIds, 8, 40),
+    category_labels: normalizeSocietyStringList(categoryIds, 8, 40)
+      .map(categoryId => categoryMap.get(categoryId)?.label || categoryId),
+    settlement_scope: 'public_warehouse_weekly_collective',
+    source_log_action: 'deposit',
+    public_effect_scope: 'society_collective',
+    personal_asset_effect: 'none',
+    no_personal_reward: true,
+    asset_boundary: 'public_warehouse_weekly_collective_only',
+    summary: effectSummaries[id] || '',
+  });
+  const effectReceipts = [
+    buildEffectReceipt('disaster_response', disasterLevel >= 5, disasterLevel, 5, disasterResponseLevel, 'level', ['grain', 'herb', 'wood']),
+    buildEffectReceipt('festival_cost_discount', festivalDiscount > 0, festivalLevel, 3, festivalDiscount, 'percent', ['grain', 'cloth', 'fish']),
+    buildEffectReceipt('public_task_bonus', publicTaskBonus > 0, taskLevel, 4, publicTaskBonus, 'percent', coveredCategoryIds),
+  ];
 
   return {
     window_started_at: windowStart,
     window_ends_at: windowStart + SOCIETY_PUBLIC_WAREHOUSE_WEEK_SECONDS,
+    window_seconds: SOCIETY_PUBLIC_WAREHOUSE_WEEK_SECONDS,
     status: coveredCategoryCount >= 5 ? 'ready' : (totalPoints > 0 ? 'collecting' : 'empty'),
     status_label: coveredCategoryCount >= 5 ? '五类齐备' : (totalPoints > 0 ? '本周备货中' : '等待本周入仓'),
     total_points: totalPoints,
     contributor_count: contributorCount,
     covered_category_count: coveredCategoryCount,
+    covered_category_ids: coveredCategoryIds,
     categories,
     effects: {
       disaster_response: {
         active: disasterLevel >= 5,
-        level: disasterLevel >= 8 ? 2 : (disasterLevel >= 5 ? 1 : 0),
+        level: disasterResponseLevel,
+        points: disasterLevel,
+        threshold: 5,
+        category_ids: ['grain', 'herb', 'wood'],
         label: disasterLevel >= 5 ? '灾害应对已就绪' : '灾害应对待补粮药木',
         summary: disasterLevel >= 5
           ? '粮食、药草与木材储备可支撑村社灾害救济。'
@@ -1784,6 +1827,9 @@ function buildPublicWarehouseWeeklySettlement(warehouse) {
       festival_cost_discount: {
         active: festivalDiscount > 0,
         percent: festivalDiscount,
+        points: festivalLevel,
+        threshold: 3,
+        category_ids: ['grain', 'cloth', 'fish'],
         label: festivalDiscount > 0 ? `节会公共成本 -${festivalDiscount}%` : '节会成本暂无下降',
         summary: festivalDiscount > 0
           ? '粮食、布料与鱼获储备会降低后续公共节会筹备成本。'
@@ -1792,12 +1838,22 @@ function buildPublicWarehouseWeeklySettlement(warehouse) {
       public_task_bonus: {
         active: publicTaskBonus > 0,
         percent: publicTaskBonus,
+        points: taskLevel,
+        threshold: 4,
+        category_ids: coveredCategoryIds,
         label: publicTaskBonus > 0 ? `公共任务加成 +${publicTaskBonus}%` : '公共任务暂无加成',
         summary: publicTaskBonus > 0
           ? '本周入仓积分和贡献人数会提升公共任务推进效率。'
           : '继续入仓并扩大参与人数后可获得公共任务加成。',
       },
     },
+    effect_receipts: effectReceipts,
+    effect_summary: effectReceipts.map(receipt => `${receipt.id}:${receipt.status}:${receipt.points}/${receipt.threshold}`).join(';'),
+    settlement_scope: 'public_warehouse_weekly_collective',
+    public_effect_scope: 'society_collective',
+    personal_asset_effect: 'none',
+    no_personal_reward: true,
+    authority_summary: 'server_authoritative_public_warehouse_weekly_collective_only',
   };
 }
 
