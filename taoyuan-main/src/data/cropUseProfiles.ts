@@ -673,6 +673,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '蚕豆与桃子杂交的甜豆作物，适合豆饭料理、养气炼丹、制粉加工、灵宠甜豆喂食、糕点赠礼、七夕供品、公共仓甜豆包和豆点订单。'
   },
   {
+    cropId: 'twin_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '香'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['双子豆饭', '双豆调息丹', '双子豆油', '灵宠双豆餐', '家畜双豆蛋白料', '调息药膳', '春社双豆礼', '春祭双豆供', '公共仓双豆包', '双荚订单'],
+    summary: '蚕豆与油菜杂交的双荚豆作，适合豆饭料理、调息炼丹、榨豆油、灵宠双豆喂食、家畜蛋白料、调息药膳、春社赠礼、春祭供品、公共仓双豆备料和双荚订单。'
+  },
+  {
+    cropId: 'jade_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['碧玉瓜羹', '碧瓜清暑丹', '碧玉瓜粉', '灵宠碧瓜餐', '家畜清暑瓜料', '清暑药膳', '夏客碧瓜礼', '夏祭碧瓜供', '公共仓碧瓜包', '消暑瓜订单'],
+    summary: '西瓜与土豆杂交的翠色瓜作，适合瓜羹料理、清暑炼丹、制粉、灵宠碧瓜喂食、家畜清暑瓜料、清暑药膳、夏客赠礼、夏祭供品、公共仓碧瓜备料和消暑瓜订单。'
+  },
+  {
+    cropId: 'pearl_grain',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '鲜'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['珍珠谷饭', '珠谷凝神丹', '珍珠米粉', '珍珠谷酒', '灵宠珠谷饭', '家畜珠谷料', '茶客珠谷礼', '夏社珠谷供', '公共仓珠谷包', '珠谷米单'],
+    summary: '稻谷与茶叶杂交的晶莹谷物，适合香饭料理、凝神炼丹、制米粉、酿谷酒、灵宠珠谷喂食、家畜珠谷料、茶客赠礼、夏社供品、公共仓珠谷备料和珠谷米单。'
+  },
+  {
+    cropId: 'golden_corn',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['金穗玉米饼', '金穗续行丹', '金穗玉米油', '金穗面粉', '灵宠金穗餐', '家畜金穗料', '丰收金穗礼', '丰年金穗供', '公共仓金穗包', '金穗粮单'],
+    summary: '玉米与油菜杂交的金黄粮作，适合玉米饼料理、续行炼丹、榨玉米油、制粉、灵宠金穗喂食、家畜金穗料、丰收赠礼、丰年供品、公共仓金穗备料和金穗粮单。'
+  },
+  {
+    cropId: 'lotus_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['莲心清茶', '莲心清神丹', '灵宠莲心茶餐', '清润药饮', '书院莲心礼', '夏夜莲心供', '公共仓莲心茶包', '莲心茶单'],
+    summary: '莲藕与茶叶杂交的清润茶材，适合清茶料理、清神炼丹、灵宠莲心喂食、清润药饮、书院赠礼、夏夜供品、公共仓莲心茶包和莲心茶单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
