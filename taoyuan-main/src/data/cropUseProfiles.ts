@@ -1473,6 +1473,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '韭菜与芥菜杂交的再生辛苦叶菜，适合拌菜料理、行气炼丹、腌韭芥、灵宠韭芥喂食、家畜韭芥料、开胃药膳、春辛赠礼、腊祭供品、公共仓韭芥备料和韭芥订单。'
   },
   {
+    cropId: 'jade_bamboo_corn',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '甜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['玉笋棒清汤', '玉笋固元丹', '玉笋棒粉', '灵宠玉笋餐', '家畜玉笋料', '固元药膳', '春笋玉棒礼', '春社玉棒供', '公共仓玉棒包', '玉笋棒订单'],
+    summary: '春笋与玉米杂交的鲜甜穗棒，适合清汤料理、固元炼丹、制玉笋棒粉、灵宠玉笋喂食、家畜玉笋料、固元药膳、春笋赠礼、春社供品、公共仓玉棒备料和玉笋棒订单。'
+  },
+  {
+    cropId: 'ginger_jade_green',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['姜翠暖汤', '姜翠驱寒丹', '腌姜翠菜', '灵宠姜翠餐', '家畜姜翠料', '暖胃药膳', '春姜翠菜礼', '春社姜翠供', '公共仓姜翠包', '姜翠菜订单'],
+    summary: '青菜与生姜杂交的暖辣青叶，适合暖汤料理、驱寒炼丹、腌姜翠菜、灵宠姜翠喂食、家畜姜翠料、暖胃药膳、春姜赠礼、春社供品、公共仓姜翠备料和姜翠菜订单。'
+  },
+  {
+    cropId: 'spicy_sesame',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['麻辣仁酱', '麻仁聚火丹', '麻辣仁油', '腌麻辣仁', '灵宠麻仁餐', '家畜麻仁料', '聚火药膳', '辛香麻仁礼', '秋祭麻仁供', '公共仓麻仁包', '麻辣仁订单'],
+    summary: '辣椒与芝麻杂交的辛香油仁，适合酱料料理、聚火炼丹、榨麻辣仁油、腌麻辣仁、灵宠麻仁喂食、家畜麻仁料、聚火药膳、辛香赠礼、秋祭供品、公共仓麻仁备料和麻辣仁订单。'
+  },
+  {
+    cropId: 'honey_gourd',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['蜜丝瓜羹', '蜜瓜润脉丹', '蜜丝瓜粉', '蜜仁香油', '灵宠蜜瓜餐', '家畜蜜瓜料', '润脉药膳', '夏日蜜瓜礼', '夏祭蜜瓜供', '公共仓蜜瓜包', '蜜丝瓜订单'],
+    summary: '丝瓜与花生杂交的柔甜夏瓜，适合羹汤料理、润脉炼丹、制蜜丝瓜粉、榨蜜仁香油、灵宠蜜瓜喂食、家畜蜜瓜料、润脉药膳、夏日赠礼、夏祭供品、公共仓蜜瓜备料和蜜丝瓜订单。'
+  },
+  {
+    cropId: 'golden_peanut_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['花薯甜饼', '花薯固元丹', '花薯粉', '花薯仁油', '灵宠花薯餐', '家畜花薯料', '固元药膳', '香甜花薯礼', '秋社花薯供', '公共仓花薯包', '花薯订单'],
+    summary: '花生与红薯杂交的香甜块根，适合甜饼料理、固元炼丹、制花薯粉、榨花薯仁油、灵宠花薯喂食、家畜花薯料、固元药膳、香甜赠礼、秋社供品、公共仓花薯备料和花薯订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
