@@ -1773,6 +1773,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '金瓜与双子豆汇聚星辉的三代莲形灵植，适合甜汤料理、安神炼丹、制星莲粉、酿星莲清酿、灵宠星莲喂食、家畜星莲料、安神药膳、星灯赠礼、七夕供品、公共仓星莲备料和星莲订单。'
   },
   {
+    cropId: 'wind_splendor_wheat',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['风华麦饼', '风华续行丹', '风华麦粉', '风华清酒', '灵宠风华麦团', '家畜风华麦料', '续行药膳', '风华麦礼', '麦风祭供', '公共仓风华麦包', '风华麦订单'],
+    summary: '金瓜与碧玉瓜淬炼出的三代华麦，适合麦饼料理、续行炼丹、制风华麦粉、酿风华清酒、灵宠麦团、家畜精粮、续行药膳、风华赠礼、麦风祭供品、公共仓麦包和风华麦订单。'
+  },
+  {
+    cropId: 'cloud_splendor_sesame',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['云华芝糊', '云华润脉丹', '云华芝油', '云华芝粉', '灵宠云华芝点', '家畜云华芝料', '润脉药膳', '云纹芝礼', '云灯芝供', '公共仓云华芝包', '云华芝订单'],
+    summary: '金瓜与珍珠谷交融出的三代云纹芝麻，适合芝麻糊料理、润脉炼丹、榨云华芝油、制云华芝粉、灵宠芝点、家畜芝料、润脉药膳、云纹赠礼、云灯供品、公共仓芝包和云华芝订单。'
+  },
+  {
+    cropId: 'rain_splendor_pepper',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '鲜'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雨华辣羹', '雨华行气丹', '腌雨华椒', '灵宠暖雨椒', '家畜雨华椒料', '行气药膳', '雨市椒礼', '雨神椒供', '公共仓雨华椒包', '雨华椒订单'],
+    summary: '金瓜与金穗玉米沐露后的三代辛鲜椒作，适合辣羹料理、行气炼丹、腌雨华椒、灵宠暖身喂食、家畜椒料、行气药膳、雨市赠礼、雨神供品、公共仓椒包和雨华椒订单。'
+  },
+  {
+    cropId: 'hoar_splendor_root',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '土'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['霜华参汤', '霜参固元丹', '霜华参粉', '霜参寒酿', '灵宠霜参餐', '家畜霜参料', '固元药膳', '霜华参礼', '寒山霜参供', '公共仓霜参包', '霜华参订单'],
+    summary: '金瓜与莲心茶星夜蜕变出的三代寒参，适合参汤料理、固元炼丹、制霜华参粉、酿霜参寒酿、灵宠霜参喂食、家畜霜参料、固元药膳、寒参赠礼、寒山供品、公共仓霜参备料和霜华参订单。'
+  },
+  {
+    cropId: 'thunder_splendor_sprout',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['鲜', '辛'],
+    nature: 'warm',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雷华芽炒', '雷芽行气丹', '腌雷华芽', '灵宠雷芽餐', '家畜雷芽料', '行气药膳', '惊雷芽礼', '惊蛰雷芽供', '公共仓雷华芽包', '雷华芽订单'],
+    summary: '金瓜与紫竹茄汇聚雷气后的三代鲜芽，适合清炒料理、行气炼丹、腌雷华芽、灵宠雷芽喂食、家畜雷芽料、行气药膳、惊雷赠礼、惊蛰供品、公共仓雷华芽备料和雷华芽订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
