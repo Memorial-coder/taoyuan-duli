@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 同居离线队列前端入口
+- 共同庄园离线页新增离线队列合并面板，按服务端 `offline-status` 支持动作和当前选中目标启用共同农田、共同动物、共同宠物和共同工坊离线操作。
+- 提交时复用 `/offline-queue/merge`，为单条操作生成幂等键、客户端 revision 和当前目标 payload；结果读回 accepted / rejected、目标、流水数量和个人存档 / 共同基金 / 共同仓库边界。本轮仍不实现批量本地离线缓存 UI。
+
 ### 0530 同居离线队列前端调用
 - `cohabitationApi` 新增 `/offline-queue/merge` 类型与调用，覆盖共同农田、共同动物、共同宠物和共同工坊离线操作的队列合并摘要读回。
 - `useCohabitationStore` 新增 `mergeOfflineQueue` 与 `offlineQueueMerge`，合并成功后同步离线状态、契约摘要并静默刷新详情；本轮暂不新增共同庄园视图按钮。
