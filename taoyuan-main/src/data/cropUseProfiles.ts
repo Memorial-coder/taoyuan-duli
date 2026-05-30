@@ -1073,6 +1073,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '丝瓜与红薯杂交的甘甜瓜蔬，适合羹汤料理、护脉炼丹、制甜瓜粉、腌甜丝瓜、灵宠甜瓜喂食、家畜甜瓜料、护脉药膳、夏日赠礼、夏社供品、公共仓甜瓜备料和甜瓜订单。'
   },
   {
+    cropId: 'purple_persimmon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['紫柿果盏', '紫柿养颜丹', '紫柿果酒', '腌紫柿', '灵宠紫柿餐', '家畜紫柿料', '润燥药膳', '秋日紫柿礼', '柿灯紫柿供', '公共仓紫柿包', '紫柿订单'],
+    summary: '茄子与柿子杂交的紫润甜果，适合果盏料理、养颜炼丹、酿紫柿果酒、腌紫柿、灵宠紫柿喂食、家畜紫柿料、润燥药膳、秋日赠礼、柿灯供品、公共仓紫柿备料和紫柿订单。'
+  },
+  {
+    cropId: 'fire_ginger',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['火姜驱寒汤', '火姜聚火丹', '腌火姜片', '灵宠火姜餐', '家畜火姜暖料', '驱寒药膳', '冬日火姜礼', '暖灶火姜供', '公共仓火姜包', '火姜订单'],
+    summary: '辣椒与生姜杂交的辛暖根菜，适合驱寒汤料理、聚火炼丹、腌火姜片、灵宠火姜喂食、家畜火姜暖料、驱寒药膳、冬日赠礼、暖灶供品、公共仓火姜备料和火姜订单。'
+  },
+  {
+    cropId: 'osmanthus_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '甜'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['桂莲羹', '桂莲清心丹', '桂莲粉', '桂莲花酿', '灵宠桂莲糕', '家畜桂莲料', '清心药膳', '秋香桂莲礼', '荷灯桂莲供', '公共仓桂莲包', '桂莲粉单'],
+    summary: '莲子与桂花杂交的清香莲实，适合羹汤料理、清心炼丹、制桂莲粉、酿桂莲花酒、灵宠桂莲糕、家畜桂莲料、清心药膳、秋香赠礼、荷灯供品、公共仓桂莲备料和桂莲粉单。'
+  },
+  {
+    cropId: 'golden_sweet',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['金薯饭', '金薯固元丹', '金薯粉', '金薯甜酒', '灵宠金薯餐', '家畜金薯料', '固元药膳', '丰收金薯礼', '秋社金薯供', '公共仓金薯包', '金薯订单'],
+    summary: '玉米与红薯杂交的金黄甜粮，适合主食料理、固元炼丹、制金薯粉、酿金薯甜酒、灵宠金薯喂食、家畜金薯料、固元药膳、丰收赠礼、秋社供品、公共仓金薯备料和金薯订单。'
+  },
+  {
+    cropId: 'ruby_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['红宝瓜饮', '红宝养气丹', '红宝瓜酒', '灵宠红宝瓜餐', '家畜红瓜料', '养气药饮', '盛夏红宝礼', '瓜灯红宝供', '公共仓红宝瓜包', '红宝瓜订单'],
+    summary: '西瓜与红枣杂交的红润瓜果，适合清甜瓜饮、养气炼丹、酿红宝瓜酒、灵宠红宝瓜喂食、家畜红瓜料、养气药饮、盛夏赠礼、瓜灯供品、公共仓红宝瓜备料和红宝瓜订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
