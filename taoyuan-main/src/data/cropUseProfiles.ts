@@ -923,6 +923,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '青菜与韭菜杂交的辛鲜叶菜，适合热炒料理、行气炼丹、腌春韭段、灵宠春韭喂食、家畜辛叶料、行气药膳、春社赠礼、春祭供品、公共仓春韭备料和韭菜订单。'
   },
   {
+    cropId: 'wheat_potato',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '香'],
+    nature: 'neutral',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['麦香薯饼', '麦薯续行丹', '麦香薯粉', '灵宠麦薯糕', '家畜麦薯料', '行旅药膳', '旅人麦薯礼', '冬社麦薯供', '公共仓麦薯包', '麦薯粉单'],
+    summary: '土豆与冬小麦杂交的麦香根作，适合薯饼料理、续行炼丹、制麦香薯粉、灵宠麦薯糕、家畜麦薯料、行旅药膳、旅人赠礼、冬社供品、公共仓麦薯备料和麦薯粉单。'
+  },
+  {
+    cropId: 'spring_green_peach',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['绿桃鲜羹', '绿桃清络丹', '绿桃酒', '灵宠绿桃餐', '清络药饮', '春游绿桃礼', '花朝绿桃供', '公共仓绿桃包', '绿桃订单'],
+    summary: '水蜜桃与菠菜杂交的翠皮甜果，适合鲜羹料理、清络炼丹、酿绿桃酒、灵宠绿桃喂食、清络药饮、春游赠礼、花朝供品、公共仓绿桃备料和绿桃订单。'
+  },
+  {
+    cropId: 'mustard_bean',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['芥香豆饭', '芥豆行气丹', '芥香豆粉', '腌芥香豆', '灵宠芥豆餐', '家畜芥豆料', '行气药膳', '冬春芥豆礼', '春社芥豆供', '公共仓芥豆包', '芥豆订单'],
+    summary: '蚕豆与芥菜杂交的微辛豆作，适合豆饭料理、行气炼丹、制芥香豆粉、腌芥香豆、灵宠芥豆喂食、家畜芥豆料、行气药膳、冬春赠礼、春社供品、公共仓芥豆备料和芥豆订单。'
+  },
+  {
+    cropId: 'frost_rapeseed',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '鲜'],
+    nature: 'cool',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['霜油菜炒', '霜油护脉丹', '霜油菜油', '灵宠霜油餐', '家畜霜油料', '护脉药膳', '油坊霜菜礼', '冬祭霜油供', '公共仓霜油包', '霜油订单'],
+    summary: '油菜与雪里蕻杂交的耐寒油菜，适合热炒料理、护脉炼丹、榨霜油菜油、灵宠霜油喂食、家畜霜油料、护脉药膳、油坊赠礼、冬祭供品、公共仓霜油备料和霜油订单。'
+  },
+  {
+    cropId: 'purple_melon',
+    tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'wine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '鲜'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'seasonal',
+    recommendedUses: ['紫晶瓜盏', '紫瓜清暑丹', '紫晶瓜酒', '灵宠紫瓜餐', '清暑药饮', '夏宴紫晶礼', '消暑紫瓜供', '公共仓紫瓜包', '紫瓜订单'],
+    summary: '西瓜与茄子杂交的紫晶瓜果，适合瓜盏料理、清暑炼丹、酿紫晶瓜酒、灵宠紫瓜喂食、清暑药饮、夏宴赠礼、消暑供品、公共仓紫瓜备料和紫瓜订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
