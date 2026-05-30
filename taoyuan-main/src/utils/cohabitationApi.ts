@@ -1782,6 +1782,12 @@ export interface CohabitationOfflineStatus {
     shared_log_available: boolean
     auto_offline_income_enabled: boolean
     conflict_policy: string
+    shared_farm_offline_writes_enabled?: boolean
+    shared_animal_offline_writes_enabled?: boolean
+    shared_pet_offline_writes_enabled?: boolean
+    shared_workshop_offline_writes_enabled?: boolean
+    offline_queue_merge_enabled?: boolean
+    offline_queue_supported_actions?: string[]
   }
   members: Array<CohabitationMember & {
     online_state: string
@@ -1789,10 +1795,71 @@ export interface CohabitationOfflineStatus {
     can_operate_independently: boolean
   }>
   actor_capabilities: Record<string, boolean>
+  simultaneous_online_bonus?: Record<string, unknown>
   recent_shared_log: CohabitationAuditEntry[]
   deferred_operations: string[]
 }
 
+export type CohabitationOfflineQueueAction =
+  | 'water_shared_farm'
+  | 'care_shared_farm'
+  | 'plant_shared_farm'
+  | 'fertilize_shared_farm_basic'
+  | 'harvest_shared_farm'
+  | 'feed_shared_animal'
+  | 'pet_shared_animal'
+  | 'collect_shared_animal_product'
+  | 'care_shared_pet'
+  | 'process_shared_workshop_recipe'
+  | string
+
+export interface CohabitationOfflineQueueOperation {
+  action: CohabitationOfflineQueueAction
+  operation_id?: string
+  idempotency_key?: string
+  client_base_revision?: number
+  payload?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface CohabitationOfflineQueueMergePayload {
+  idempotency_key: string
+  client_queue_revision?: number
+  operations: CohabitationOfflineQueueOperation[]
+}
+
+export interface CohabitationOfflineQueueMergeEntry {
+  index?: number
+  operation_id?: string
+  action: string
+  status: 'committed' | 'idempotent' | 'rejected' | string
+  reason?: string
+  idempotency_key?: string
+  ledger_id?: string
+  warehouse_ledger_ids?: string[]
+  target_ref?: string
+  personal_save_changed?: boolean
+  shared_warehouse_changed?: boolean
+  shared_fund_changed?: boolean
+  server_authoritative?: boolean
+  [key: string]: unknown
+}
+
+export interface CohabitationOfflineQueueMergeSummary {
+  idempotency_key: string
+  accepted_count: number
+  rejected_count: number
+  conflict_policy: string
+  supported_actions: string[]
+  idempotent?: boolean
+  results: CohabitationOfflineQueueMergeEntry[]
+  rejected: CohabitationOfflineQueueMergeEntry[]
+}
+
+export interface CohabitationOfflineQueueMergeResponse extends CohabitationDetailResponse {
+  offline_status?: CohabitationOfflineStatus
+  offline_queue_merge?: CohabitationOfflineQueueMergeSummary
+}
 export interface CohabitationSeparationPreview {
   id: string
   version: number
@@ -3382,4 +3449,12 @@ export const fetchCohabitationOfflineStatus = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     offline_status?: CohabitationOfflineStatus
   }>(contractPath(contractId, '/offline-status'), '获取离线经营状态失败')
+}
+
+export const mergeCohabitationOfflineQueue = async (contractId: string, payload: CohabitationOfflineQueueMergePayload) => {
+  return postCohabitationJson<CohabitationOfflineQueueMergeResponse>(
+    contractPath(contractId, '/offline-queue/merge'),
+    payload as unknown as Record<string, unknown>,
+    '合并离线经营队列失败'
+  )
 }

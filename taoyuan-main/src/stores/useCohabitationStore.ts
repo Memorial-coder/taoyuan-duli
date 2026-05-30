@@ -43,6 +43,7 @@ import {
   feedCohabitationSharedAnimal,
   fertilizeCohabitationSharedPlot,
   guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
+  mergeCohabitationOfflineQueue,
   harvestCohabitationSharedPlot,
   petCohabitationSharedAnimal,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
@@ -100,6 +101,8 @@ import {
   type CohabitationFundSnapshot,
   type CohabitationFundHighRiskReceiptPayload,
   type CohabitationOfflineStatus,
+  type CohabitationOfflineQueueMergePayload,
+  type CohabitationOfflineQueueMergeSummary,
   type CohabitationOverviewResponse,
   type CohabitationPermissionsPanel,
   type CohabitationSeparationAssetReturnExecutePayload,
@@ -163,6 +166,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const familyRelationsPanel = ref<CohabitationFamilyRelationsPanel | null>(null)
   const familyReputationPanel = ref<CohabitationFamilyReputationPanel | null>(null)
   const familyVisibilityPanel = ref<CohabitationFamilyVisibilityPanel | null>(null)
+  const offlineQueueMerge = ref<CohabitationOfflineQueueMergeSummary | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
 
   const contracts = computed(() => overview.value?.contracts ?? [])
@@ -190,6 +194,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyRelationsPanel.value = null
     familyReputationPanel.value = null
     familyVisibilityPanel.value = null
+    offlineQueueMerge.value = null
     offlineStatus.value = null
     warehouseCompensationAuditBundle.value = null
   }
@@ -1758,6 +1763,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const mergeOfflineQueue = async (payload: CohabitationOfflineQueueMergePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.operations.length) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await mergeCohabitationOfflineQueue(activeContractId.value, payload)
+      offlineQueueMerge.value = result?.offline_queue_merge ?? null
+      if (result?.offline_status) offlineStatus.value = result.offline_status
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '合并离线经营队列失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberPermissions = async (payload: {
     target_username: string
     permissions: Record<string, Record<string, boolean>>
@@ -1832,6 +1856,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     rolePanel,
     familyBuildingsPanel,
     familyFestivalSeatsPanel,
+    offlineQueueMerge,
     familyOrdersPanel,
     familyRelationsPanel,
     familyReputationPanel,
@@ -1884,6 +1909,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     bindFamilyBuildingRealDemolitionMainStateExactTargets,
     executeFamilyBuildingRealDemolitionMainStateExactTargets,
     resolveFamilyBuildingRealDemolitionMainStateExactTargets,
+    mergeOfflineQueue,
     executeFamilyBuildingRealDemolitionMainStateExactMutation,
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
