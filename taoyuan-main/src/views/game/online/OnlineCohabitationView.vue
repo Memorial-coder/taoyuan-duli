@@ -937,6 +937,80 @@
                 </div>
               </div>
             </div>
+            <div
+              class="mt-3 border border-accent/10 bg-black/10 p-2"
+              data-testid="online-cohabitation-shared-workshop-panel"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">共同工坊</p>
+                <span class="text-[10px] text-muted">共享仓库进出</span>
+              </div>
+              <div class="mt-2 grid gap-2">
+                <select
+                  v-model="selectedSharedWorkshopRecipeId"
+                  class="online-select text-xs"
+                  data-testid="online-cohabitation-shared-workshop-recipe"
+                >
+                  <option v-for="recipe in sharedWorkshopRecipeOptions" :key="recipe.id" :value="recipe.id">
+                    {{ recipe.label }}
+                  </option>
+                </select>
+                <div v-if="selectedSharedWorkshopRecipe" class="grid gap-2 text-[10px] text-muted">
+                  <div class="grid gap-2 sm:grid-cols-2">
+                    <p class="border border-accent/10 bg-bg/30 px-2 py-1">
+                      {{ sharedWorkshopStationLabel(selectedSharedWorkshopRecipe.station) }} · {{ sharedWorkshopProcessKindLabel(selectedSharedWorkshopRecipe.process_kind) }}
+                    </p>
+                    <p class="border border-accent/10 bg-bg/30 px-2 py-1" data-testid="online-cohabitation-shared-workshop-output">
+                      产出 {{ sharedWorkshopOutputLabel }}
+                    </p>
+                  </div>
+                  <div class="grid gap-1" data-testid="online-cohabitation-shared-workshop-inputs">
+                    <p
+                      v-for="row in sharedWorkshopInputRows"
+                      :key="`${row.item_id}-${row.quality}`"
+                      class="flex items-center justify-between gap-2 border px-2 py-1"
+                      :class="row.enough ? 'border-accent/10 bg-bg/30 text-muted' : 'border-red-300/20 bg-red-500/10 text-red-100'"
+                    >
+                      <span>{{ row.label }} · {{ qualityLabel(row.quality) }} x{{ row.quantity }}</span>
+                      <span>库存 {{ row.available }}</span>
+                    </p>
+                  </div>
+                  <p v-if="selectedSharedWorkshopRecipe.alchemy_result_kind" class="text-[10px] leading-4 text-muted">
+                    炼丹结果：{{ sharedWorkshopAlchemyResultLabel(selectedSharedWorkshopRecipe.alchemy_result_kind) }}
+                  </p>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canProcessSelectedSharedWorkshopRecipe || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-shared-workshop-process"
+                    @click="processSelectedSharedWorkshopRecipe"
+                  >
+                    <Package :size="12" />
+                    执行共同工坊
+                  </button>
+                  <p
+                    v-if="sharedWorkshopActionMessage"
+                    class="text-[10px] leading-4"
+                    :class="sharedWorkshopActionOk ? 'text-emerald-200' : 'text-red-100'"
+                  >
+                    {{ sharedWorkshopActionMessage }}
+                  </p>
+                  <div
+                    v-if="sharedWorkshopLastResultRows.length"
+                    class="grid gap-1 text-[10px] text-muted"
+                    data-testid="online-cohabitation-shared-workshop-readback"
+                  >
+                    <p
+                      v-for="row in sharedWorkshopLastResultRows"
+                      :key="row.id"
+                      class="border border-accent/10 bg-bg/30 px-2 py-1"
+                    >
+                      {{ row.label }}：{{ row.value }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="game-panel-muted p-3">
             <p class="text-sm text-accent">高价值取出确认</p>
@@ -2658,6 +2732,7 @@
     CohabitationSharedPet,
     CohabitationSharedPlot,
     CohabitationSharedRegion,
+    CohabitationSharedWorkshopRecipe,
     CohabitationWarehouseCompensationAuditBundle,
     CohabitationWarehouseHighValueWithdrawalDraft,
     CohabitationWarehouseItem,
@@ -2695,6 +2770,8 @@
     rollbackPlan?: string
     compensationHint?: string
   }
+  type SharedWorkshopRecipeOption = CohabitationSharedWorkshopRecipe
+  type SharedWorkshopResultRow = { id: string; label: string; value: string }
   type SeparationSharedDecorationRemovalDispute = {
     draft_id: string
     target_ref: string
@@ -2816,6 +2893,10 @@
   const warehouseOperatorReceiptAuditReceipt = ref('')
   const warehouseOperatorReceiptAuditNote = ref('')
   const warehouseOperatorReceiptAuditConfirmed = ref(false)
+  const sharedWorkshopActionMessage = ref('')
+  const sharedWorkshopActionOk = ref(false)
+  const selectedSharedWorkshopRecipeId = ref('shared_dried_cabbage')
+  const sharedWorkshopLastResultRows = ref<SharedWorkshopResultRow[]>([])
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
   const activeSharedMapRegionIndex = ref(0)
@@ -3718,6 +3799,33 @@
     coal: '煤炭',
     copper_ore: '铜矿石',
     iron_ore: '铁矿石',
+    cabbage: '白菜',
+    firewood: '木柴',
+    honey: '蜂蜜',
+    dried_cabbage: '干菜',
+    dried_radish: '萝卜干',
+    rice_flour: '米粉',
+    sesame_paste: '芝麻酱',
+    sesame_powder: '芝麻粉',
+    pumpkin_preserve: '南瓜酱',
+    pickled_chili: '泡椒',
+    sesame_oil: '芝麻油',
+    dried_lotus_seed: '干莲子',
+    lotus_heart_powder: '莲心粉',
+    herb: '草药',
+    herbal_paste: '草药膏',
+    lotus_seed: '莲子',
+    lotus_root: '莲藕',
+    food_rice_ball: '饭团',
+    food_vegetable_soup: '田园蔬菜汤',
+    food_rice_flour_roll: '米粉卷',
+    food_sesame_tangyuan: '芝麻汤圆',
+    food_lotus_sesame_calming_cake: '莲心芝麻安神糕',
+    food_spicy_pumpkin_rice: '赛舟辣南瓜饭',
+    qingxin_lotus_elixir: '清心莲丹',
+    partial_elixir_slurry: '偏丹膏',
+    failed_elixir_ash: '废丹灰',
+    rare_elixir_crystal: '奇丹晶',
   }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
@@ -3744,11 +3852,111 @@
     itemId,
     label: warehouseItemLabels[itemId] ? `${warehouseItemLabels[itemId]}（${itemId}）` : itemId,
   }))
+  const qualityLabel = (value = 'normal') => {
+    const labels: Record<string, string> = {
+      normal: '普通',
+      fine: '优质',
+      rare: '稀有',
+    }
+    return labels[value] || value || '普通'
+  }
+  const sharedWorkshopStationLabel = (value = '') => {
+    const labels: Record<string, string> = {
+      drying_rack: '晒架',
+      stone_mill: '石磨',
+      sauce_jar: '酱缸',
+      oil_press: '油坊',
+      herb_grinder: '药碾',
+      stove: '灶台',
+      alchemy_furnace: '丹炉',
+    }
+    return labels[value] || value || '工坊'
+  }
+  const sharedWorkshopProcessKindLabel = (value = '') => {
+    const labels: Record<string, string> = {
+      processing: '加工',
+      cooking_material: '料理材料',
+      cooking_dish: '料理成品',
+      alchemy_material: '炼丹材料',
+      alchemy_elixir: '炼丹',
+    }
+    return labels[value] || value || '加工'
+  }
+  const sharedWorkshopAlchemyResultLabel = (value = '') => {
+    const labels: Record<string, string> = {
+      success: '成丹',
+      partial: '偏丹',
+      failed: '废丹',
+      rare: '奇丹',
+    }
+    return labels[value] || value || '未记录'
+  }
+  const simultaneousOnlineBonusLabel = (bonus: Record<string, unknown> | undefined) => {
+    if (!bonus || bonus.applied !== true) return '未触发'
+    const type = typeof bonus.type === 'string' ? bonus.type : ''
+    const value = Number(bonus.bonus_value) || 0
+    const before = typeof bonus.output_quality_before === 'string' ? qualityLabel(bonus.output_quality_before) : ''
+    const after = typeof bonus.output_quality_after === 'string' ? qualityLabel(bonus.output_quality_after) : ''
+    if (type === 'shared_alchemy_success_rate') {
+      const percent = Number(bonus.success_rate_bonus_percent) || value
+      return `炼丹成功率 +${percent}%`
+    }
+    if (before && after && before !== after) return `${before} -> ${after}`
+    return value > 0 ? `品质加成 +${value}` : '已触发'
+  }
   const sharedFarmSeedOptions = [
     { itemId: 'seed_cabbage', label: '白菜种子' },
     { itemId: 'seed_radish', label: '萝卜种子' },
     { itemId: 'seed_rice', label: '水稻种子' },
   ]
+  const sharedWorkshopRecipeOptions: SharedWorkshopRecipeOption[] = [
+    { id: 'shared_dried_cabbage', label: '共同晒制干菜', station: 'drying_rack', process_kind: 'processing', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }], output_item_id: 'dried_cabbage', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_rice_flour', label: '共同石磨米粉', station: 'stone_mill', process_kind: 'cooking_material', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'rice_flour', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_sesame_paste', label: '共同石磨芝麻酱', station: 'stone_mill', process_kind: 'cooking_material', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }], output_item_id: 'sesame_paste', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_sesame_powder', label: '共同石磨芝麻粉', station: 'stone_mill', process_kind: 'cooking_material', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }], output_item_id: 'sesame_powder', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_pumpkin_preserve', label: '共同酱缸南瓜酱', station: 'sauce_jar', process_kind: 'cooking_material', input_items: [{ item_id: 'pumpkin', quantity: 1, quality: 'normal' }], output_item_id: 'pumpkin_preserve', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_pickled_chili', label: '共同酱缸泡椒', station: 'sauce_jar', process_kind: 'cooking_material', input_items: [{ item_id: 'chili', quantity: 2, quality: 'normal' }], output_item_id: 'pickled_chili', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_sesame_oil', label: '共同油坊芝麻油', station: 'oil_press', process_kind: 'cooking_material', input_items: [{ item_id: 'sesame', quantity: 3, quality: 'normal' }], output_item_id: 'sesame_oil', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_lotus_heart_powder', label: '共同药碾莲心粉', station: 'herb_grinder', process_kind: 'cooking_material', input_items: [{ item_id: 'dried_lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'lotus_heart_powder', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_rice_ball', label: '共同灶台饭团', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_ball', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_vegetable_soup', label: '共同灶台田园蔬菜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }, { item_id: 'radish', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_vegetable_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_rice_flour_roll', label: '共同灶台米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'dried_radish', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_flour_roll', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_sesame_tangyuan', label: '共同灶台芝麻汤圆', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_sesame_tangyuan', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_lotus_sesame_calming_cake', label: '共同灶台莲心芝麻安神糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_lotus_sesame_calming_cake', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_spicy_pumpkin_rice', label: '共同灶台赛舟辣南瓜饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' }, { item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_spicy_pumpkin_rice', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_herb_paste', label: '共同药碾草药膏', station: 'herb_grinder', process_kind: 'alchemy_material', input_items: [{ item_id: 'herb', quantity: 2, quality: 'normal' }], output_item_id: 'herbal_paste', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_qingxin_lotus_elixir', label: '共同丹炉清心莲丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'qingxin_lotus_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_qingxin_lotus_partial', label: '共同丹炉清心偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_qingxin_lotus_failed', label: '共同丹炉清心废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_qingxin_lotus_rare', label: '共同丹炉清心奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+  ]
+  const selectedSharedWorkshopRecipe = computed(() =>
+    sharedWorkshopRecipeOptions.find(recipe => recipe.id === selectedSharedWorkshopRecipeId.value) ?? sharedWorkshopRecipeOptions[0] ?? null
+  )
+  const sharedWarehouseItemQuantity = (itemId: string, quality = 'normal') => (cohabitationStore.warehouse?.items ?? [])
+    .filter(item => item.item_id === itemId && (item.quality || 'normal') === quality)
+    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)), 0)
+  const sharedWorkshopInputRows = computed(() => (selectedSharedWorkshopRecipe.value?.input_items ?? []).map(input => {
+    const available = sharedWarehouseItemQuantity(input.item_id, input.quality)
+    return {
+      ...input,
+      label: warehouseItemLabels[input.item_id] || input.item_id,
+      available,
+      enough: available >= input.quantity,
+    }
+  }))
+  const sharedWorkshopOutputLabel = computed(() => {
+    const recipe = selectedSharedWorkshopRecipe.value
+    if (!recipe) return '未选择配方'
+    return `${warehouseItemLabels[recipe.output_item_id] || recipe.output_item_id} x${recipe.output_quantity} · ${qualityLabel(recipe.output_quality)}`
+  })
+  const canProcessSelectedSharedWorkshopRecipe = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.process_shared_workshop_recipe === true &&
+    Boolean(selectedSharedWorkshopRecipe.value) &&
+    sharedWorkshopInputRows.value.length > 0 &&
+    sharedWorkshopInputRows.value.every(row => row.enough)
+  )
   const sharedFarmFertilizerItemId = 'basic_fertilizer' as const
   const canWaterSelectedSharedFarmPlot = computed(() => {
     const plot = selectedSharedFarmPlot.value
@@ -4013,6 +4221,8 @@
     sharedFarmActionMessage.value = ''
     sharedAnimalActionMessage.value = ''
     sharedPetActionMessage.value = ''
+    sharedWorkshopActionMessage.value = ''
+    sharedWorkshopLastResultRows.value = []
     activeSharedMapRegionIndex.value = 0
     selectedSharedFarmPlotId.value = ''
     selectedSharedAnimalId.value = ''
@@ -4920,6 +5130,48 @@
         : `已放入 ${label} x${quantity}`
     } catch (error) {
       warehouseActionMessage.value = error instanceof Error ? error.message : '放入共同仓库物品失败'
+    }
+  }
+
+  const processSelectedSharedWorkshopRecipe = async () => {
+    sharedWorkshopActionMessage.value = ''
+    sharedWorkshopActionOk.value = false
+    sharedWorkshopLastResultRows.value = []
+    const recipe = selectedSharedWorkshopRecipe.value
+    if (!recipe) {
+      sharedWorkshopActionMessage.value = '请选择共同工坊配方'
+      return
+    }
+    if (!canProcessSelectedSharedWorkshopRecipe.value) {
+      sharedWorkshopActionMessage.value = '共同仓库材料不足或当前成员没有工坊处理权限'
+      return
+    }
+    try {
+      const result = await cohabitationStore.processSharedWorkshopRecipe({
+        recipe_id: recipe.id,
+        memo: `前端执行共同工坊配方：${recipe.label}`,
+        idempotency_key: `ui-shared-workshop-${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const action = result?.workshop_action
+      const outputItemId = action?.output_item_id || result?.recipe?.output_item_id || recipe.output_item_id
+      const outputQuantity = action?.output_quantity ?? result?.recipe?.output_quantity ?? recipe.output_quantity
+      const outputQuality = action?.output_quality || result?.recipe?.output_quality || recipe.output_quality
+      const outputLabel = `${warehouseItemLabels[outputItemId] || outputItemId} x${outputQuantity} · ${qualityLabel(outputQuality)}`
+      const ledgerIds = action?.warehouse_ledger_ids ?? result?.warehouse_ledger_entries?.map(entry => entry.id).filter(Boolean) ?? []
+      sharedWorkshopLastResultRows.value = [
+        { id: 'output', label: '产出入仓', value: outputLabel },
+        { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '服务端已处理，未返回流水 ID' },
+        { id: 'bonus', label: '同时在线加成', value: simultaneousOnlineBonusLabel(action?.simultaneous_online_bonus) },
+        { id: 'personal', label: '个人存档', value: action?.personal_save_changed === false ? '未改个人存档' : '以服务端回执为准' },
+        { id: 'warehouse', label: '共同仓库', value: action?.shared_warehouse_changed === true ? '已消耗材料并写入产出' : '以刷新后仓库为准' },
+        { id: 'fund', label: '共同基金', value: action?.shared_fund_changed === false ? '未改共同基金' : '以服务端回执为准' },
+      ]
+      sharedWorkshopActionOk.value = true
+      sharedWorkshopActionMessage.value = result?.already_processed
+        ? `该工坊配方已处理，已读回 ${outputLabel}`
+        : `已完成 ${recipe.label}，${outputLabel} 已进入共同仓库`
+    } catch (error) {
+      sharedWorkshopActionMessage.value = error instanceof Error ? error.message : '处理共同工坊配方失败'
     }
   }
 
@@ -6275,6 +6527,7 @@
       warehouse_high_value_withdrawal_manual_appeal_resolution_recorded: '人工申诉恢复',
       warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
+      shared_workshop_processed: '共同工坊处理',
       fund_contributed: '共同基金注资',
       fund_spent: '共同基金支出',
       fund_large_spend_draft_created: '大额草案创建',
@@ -6317,6 +6570,7 @@
 
   const sharedLogKindLabel = (action: string) => {
     if (action.includes('warehouse')) return '仓库'
+    if (action.includes('workshop')) return '工坊'
     if (action.includes('fund')) return '基金'
     if (action.includes('permission') || action.includes('role')) return '治理'
     if (action.includes('separation')) return '分居'
@@ -6345,6 +6599,16 @@
       const expiresAt = Number(detail.expires_at) || 0
       const directionLabel = direction === 'inbound' ? '入仓' : direction === 'outbound' ? '出仓' : '入仓 / 出仓'
       return expiresAt > 0 ? `${target || '成员'} ${directionLabel}恢复至 ${formatTime(expiresAt)}` : `${target || '成员'} ${directionLabel}恢复已记录`
+    }
+    if (entry.action === 'shared_workshop_processed') {
+      const recipeId = typeof detail.recipe_id === 'string' ? detail.recipe_id : ''
+      const recipe = sharedWorkshopRecipeOptions.find(option => option.id === recipeId)
+      const outputItemId = typeof detail.output_item_id === 'string' ? detail.output_item_id : recipe?.output_item_id || ''
+      const outputQuantity = Number(detail.output_quantity) || recipe?.output_quantity || 0
+      const outputQuality = typeof detail.output_quality === 'string' ? detail.output_quality : recipe?.output_quality || 'normal'
+      const ledgerCount = Array.isArray(detail.warehouse_ledger_ids) ? detail.warehouse_ledger_ids.length : 0
+      const output = outputItemId ? `${warehouseItemLabels[outputItemId] || outputItemId} x${outputQuantity} · ${qualityLabel(outputQuality)}` : '产出已入仓'
+      return `${recipe?.label || recipeId || '共同工坊'}：${output}，流水 ${ledgerCount} 笔，个人存档与共同基金不变`
     }
     if (entry.action === 'fund_high_risk_receipt_recorded') {
       const purpose = typeof detail.purpose === 'string' ? detail.purpose : ''
@@ -6622,6 +6886,19 @@
       read_shared_map: '读取共同地图',
       read_warehouse: '读取共同仓库',
       deposit_warehouse: '放入共同仓库',
+      withdraw_warehouse_common: '取出普通物品',
+      spend_fund_small: '小额基金支出',
+      spend_fund_medium: '中额基金支出',
+      auto_pay_seeds_feed: '自动购买种子饲料',
+      process_shared_workshop_recipe: '处理共同工坊配方',
+      water_shared_farm: '浇水共同农田',
+      plant_shared_farm: '种植共同农田',
+      harvest_shared_farm: '收获共同农田',
+      care_shared_farm: '照料共同农田',
+      feed_shared_animal: '喂食共同动物',
+      pet_shared_animal: '抚摸共同动物',
+      collect_shared_animal_product: '收取动物产物',
+      care_shared_pet: '照料共同宠物',
       read_fund: '读取共同基金',
       contribute_fund: '注资共同基金',
       read_permissions: '读取权限',
@@ -6644,5 +6921,11 @@
     resetSharedPetCareConfirmation()
     sharedPetActionMessage.value = ''
     sharedPetActionOk.value = false
+  })
+
+  watch(selectedSharedWorkshopRecipeId, () => {
+    sharedWorkshopActionMessage.value = ''
+    sharedWorkshopActionOk.value = false
+    sharedWorkshopLastResultRows.value = []
   })
 </script>

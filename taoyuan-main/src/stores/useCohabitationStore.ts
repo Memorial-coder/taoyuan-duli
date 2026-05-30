@@ -47,6 +47,7 @@ import {
   petCohabitationSharedAnimal,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   plantCohabitationSharedPlot,
+  processCohabitationSharedWorkshopRecipe,
   recordCohabitationFundHighRiskReceipt,
   recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
   recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight,
@@ -133,6 +134,7 @@ import {
   type CohabitationSharedFarmFertilizePayload,
   type CohabitationSharedFarmPlantPayload,
   type CohabitationSharedFarmWaterPayload,
+  type CohabitationSharedWorkshopProcessPayload,
   type CohabitationSharedMap,
   type CohabitationWarehouseSnapshot,
 } from '@/utils/cohabitationApi'
@@ -1738,6 +1740,24 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const processSharedWorkshopRecipe = async (payload: CohabitationSharedWorkshopProcessPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.recipe_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await processCohabitationSharedWorkshopRecipe(activeContractId.value, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '处理共同工坊配方失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberPermissions = async (payload: {
     target_username: string
     permissions: Record<string, Record<string, boolean>>
@@ -1887,6 +1907,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     petSharedAnimal,
     collectSharedAnimalProduct,
     careSharedPet,
+    processSharedWorkshopRecipe,
     updateMemberPermissions,
     updateMemberRole,
   }

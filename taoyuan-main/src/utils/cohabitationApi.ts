@@ -2100,6 +2100,28 @@ export interface CohabitationSharedFarmHarvestPayload {
   idempotency_key: string
 }
 
+export interface CohabitationSharedWorkshopProcessPayload {
+  recipe_id: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSharedWorkshopRecipe {
+  id: string
+  label: string
+  station: string
+  process_kind: string
+  input_items: Array<{
+    item_id: string
+    quantity: number
+    quality: string
+  }>
+  output_item_id: string
+  output_quantity: number
+  output_quality: string
+  alchemy_result_kind?: string
+}
+
 export interface CohabitationContractCreatePayload {
   type: string
   title?: string
@@ -2375,6 +2397,33 @@ export interface CohabitationSharedPetActionResponse extends CohabitationDetailR
     warehouse_ledger_ids?: string[]
     before_pet_state?: Record<string, unknown>
     after_pet_state?: Record<string, unknown>
+    simultaneous_online_bonus?: Record<string, unknown>
+    personal_save_changed?: boolean
+    shared_warehouse_changed?: boolean
+    shared_fund_changed?: boolean
+  }
+}
+
+export interface CohabitationSharedWorkshopProcessResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  recipe?: CohabitationSharedWorkshopRecipe
+  ledger_entry?: CohabitationWarehouseLedgerEntry | null
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  idempotent?: boolean
+  already_processed?: boolean
+  workshop_action?: {
+    action: string
+    recipe_id: string
+    station: string
+    process_kind: string
+    input_items?: CohabitationSharedWorkshopRecipe['input_items']
+    output_item_id?: string
+    output_quantity?: number
+    output_quality?: string
+    output_quality_before_bonus?: string
+    alchemy_result_kind?: string
+    success_rate_bonus_percent?: number
+    warehouse_ledger_ids?: string[]
     simultaneous_online_bonus?: Record<string, unknown>
     personal_save_changed?: boolean
     shared_warehouse_changed?: boolean
@@ -2899,6 +2948,14 @@ export const careCohabitationSharedPet = async (contractId: string, payload: Coh
     contractPath(contractId, '/shared-pets/care'),
     payload as unknown as Record<string, unknown>,
     '照料共同宠物失败'
+  )
+}
+
+export const processCohabitationSharedWorkshopRecipe = async (contractId: string, payload: CohabitationSharedWorkshopProcessPayload) => {
+  return postCohabitationJson<CohabitationSharedWorkshopProcessResponse>(
+    contractPath(contractId, '/shared-workshop/process'),
+    payload as unknown as Record<string, unknown>,
+    '处理共同工坊配方失败'
   )
 }
 
