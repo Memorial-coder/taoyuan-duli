@@ -3255,6 +3255,60 @@ for (const resultCase of recipePolicyWarmingResultCases) {
   assert.equal(warmingResultOriginAsset?.high_value_withdrawal_required, true, `new warming ${resultCase.resultKind} origin should require high-value withdrawal`)
 }
 
+await injectRecipePolicyStock('rice', 3)
+await injectRecipePolicyStock('herb', 1)
+await injectRecipePolicyStock('honey', 1)
+const recipePolicyGrainBreathElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_grain_breath_elixir',
+  memo: 'qa process shared grain breath elixir',
+  idempotency_key: 'qa-recipe-policy-grain-breath-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyGrainBreathElixir.recipe.output_item_id, 'grain_breath_elixir', 'new grain breath recipe should output elixir item')
+assert.equal(recipePolicyGrainBreathElixir.workshop_action.process_kind, 'alchemy_elixir', 'new grain breath recipe should be alchemy elixir')
+assert.equal(recipePolicyGrainBreathElixir.workshop_action.alchemy_result_kind, 'success', 'new grain breath recipe should expose success result')
+assert.equal(recipePolicyGrainBreathElixir.ledger_entry.quality, 'fine', 'new grain breath recipe should apply cooperation quality bonus')
+const recipePolicyGrainResultCases = [
+  {
+    recipeId: 'shared_grain_breath_partial',
+    resultKind: 'partial',
+    outputItemId: 'partial_elixir_slurry',
+    riskLevel: 'high_quality',
+  },
+  {
+    recipeId: 'shared_grain_breath_failed',
+    resultKind: 'failed',
+    outputItemId: 'failed_elixir_ash',
+    riskLevel: 'high_quality',
+  },
+  {
+    recipeId: 'shared_grain_breath_rare',
+    resultKind: 'rare',
+    outputItemId: 'rare_elixir_crystal',
+    riskLevel: 'rare',
+  },
+]
+for (const resultCase of recipePolicyGrainResultCases) {
+  const outputQuantityBefore = (await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))).warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity ?? 0
+  await injectRecipePolicyStock('rice', 3)
+  await injectRecipePolicyStock('herb', 1)
+  await injectRecipePolicyStock('honey', 1)
+  const grainResultRecipe = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: resultCase.recipeId,
+    memo: `qa process ${resultCase.recipeId}`,
+    idempotency_key: `qa-recipe-policy-${resultCase.recipeId}`,
+  }, actor(recipePolicyOwner))
+  assert.equal(grainResultRecipe.recipe.output_item_id, resultCase.outputItemId, `new grain ${resultCase.resultKind} recipe should output expected elixir result`)
+  assert.equal(grainResultRecipe.workshop_action.alchemy_result_kind, resultCase.resultKind, `new grain ${resultCase.resultKind} recipe should expose result kind`)
+  assert.equal(grainResultRecipe.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `new grain ${resultCase.resultKind} ledger should keep result kind`)
+  assert.equal(grainResultRecipe.warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity, outputQuantityBefore + 1, `new grain ${resultCase.resultKind} output should enter shared warehouse once`)
+  assert.ok(grainResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'rice'), `new grain ${resultCase.resultKind} should consume rice`)
+  assert.ok(grainResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'herb'), `new grain ${resultCase.resultKind} should consume herb`)
+  assert.ok(grainResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'honey'), `new grain ${resultCase.resultKind} should consume honey`)
+  const grainResultOriginAsset = grainResultRecipe.contract.origin_assets.warehouse_items.find(item => item.ledger_id === grainResultRecipe.ledger_entry.id && item.action === 'deposit')
+  assert.equal(grainResultOriginAsset?.withdrawal_risk_level, resultCase.riskLevel, `new grain ${resultCase.resultKind} origin should keep withdrawal risk`)
+  assert.equal(grainResultOriginAsset?.high_value_withdrawal_required, true, `new grain ${resultCase.resultKind} origin should require high-value withdrawal`)
+}
+
 await injectRecipePolicyStock('tea', 2)
 const recipePolicyGreenTea = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_green_tea_drink',

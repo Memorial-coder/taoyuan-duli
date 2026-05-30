@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-30
+- 同居共同仓库 11.4 谷气续行丹结果分支：共同丹炉新增谷气偏丹膏 / 谷气废丹灰 / 谷气奇丹晶白名单，服务端从共同仓库扣稻米 / 草药 / 蜂蜜并把偏丹膏 / 废丹灰 / 奇丹晶 `deposit` 回共同仓库；前端共同工坊下拉同步，契约 QA 固定结果类型、consume / deposit 流水和高价值 / 稀有保护。
 - 同居共同仓库 11.4 温阳薯丸结果分支：共同丹炉新增温阳偏丹膏 / 温阳废丹灰 / 温阳奇丹晶白名单，服务端从共同仓库扣红薯 / 姜 / 蜂蜜并把偏丹膏 / 废丹灰 / 奇丹晶 `deposit` 回共同仓库；前端共同工坊下拉同步，契约 QA 固定结果类型、consume / deposit 流水和高价值 / 稀有保护。
 - 同居分居未知来源共同产物拆分：分居预览新增 `warehouse_unidentified_items`、贡献比例拆分 manifest / hash 和双方确认暂缓项；真实共同仓库返还会校验 hash 与双方确认，按 `unidentified_contribution_ratio` 扣共同仓库、写目标成员个人背包 receipt，并在执行 ledger / 审计中统计未知来源返还数量。
 - Cohabitation child arrangement permission: separation child-arrangement record-only writes now require server-side `family.child_daily_care`; denied actors receive 403, successful responses and audits expose `required_permission_keys`, and personal child/family saves remain untouched until the receipt step.
