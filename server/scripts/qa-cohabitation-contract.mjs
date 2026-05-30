@@ -1088,7 +1088,7 @@ assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBefo
 await assert.rejects(
   () => runtime.mergeCohabitationOfflineQueue(created.contract.id, {
     idempotency_key: 'qa-offline-queue-merge-unsupported',
-    operations: [{ action: 'harvest_shared_farm', operation_id: 'qa-unsupported-offline-op' }],
+    operations: [{ action: 'rewrite_personal_save', operation_id: 'qa-unsupported-offline-op' }],
   }, actor(owner)),
   error => error?.status === 422 && error?.offline_queue_merge?.rejected?.[0]?.reason === 'unsupported_offline_queue_action',
   'offline queue merge should reject unsupported actions before mutating shared state'

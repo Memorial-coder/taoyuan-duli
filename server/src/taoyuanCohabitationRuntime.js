@@ -285,7 +285,15 @@ const SHARED_PET_CARE_ITEM_CATALOG = Object.freeze({
   },
 });
 const SHARED_PET_CARE_ITEM_IDS = Object.freeze(Object.keys(SHARED_PET_CARE_ITEM_CATALOG));
+const OFFLINE_QUEUE_SHARED_FARM_ACTIONS = Object.freeze([
+  'water_shared_farm',
+  'care_shared_farm',
+  'plant_shared_farm',
+  'fertilize_shared_farm_basic',
+  'harvest_shared_farm',
+]);
 const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
+  ...OFFLINE_QUEUE_SHARED_FARM_ACTIONS,
   'feed_shared_animal',
   'pet_shared_animal',
   'collect_shared_animal_product',
@@ -11360,6 +11368,51 @@ async function getCohabitationOfflineStatus(contractId, actor = {}) {
 
 async function executeCohabitationOfflineQueueOperation(contractId, operation = {}, actor = {}) {
   const payload = operation.payload || {};
+  if (operation.action === 'water_shared_farm') {
+    return waterCohabitationSharedFarmPlot(contractId, {
+      ...payload,
+      plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm water merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'care_shared_farm') {
+    const careAction = sanitizeText(payload.action || payload.care_action || payload.action_type, 40);
+    return careCohabitationSharedFarmPlot(contractId, {
+      ...payload,
+      plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
+      action: careAction,
+      care_action: careAction,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm care merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'plant_shared_farm') {
+    return plantCohabitationSharedFarmPlot(contractId, {
+      ...payload,
+      plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
+      seed_item_id: payload.seed_item_id || payload.seedItemId || payload.item_id || payload.itemId,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm plant merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'fertilize_shared_farm_basic') {
+    return fertilizeCohabitationSharedFarmPlot(contractId, {
+      ...payload,
+      plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
+      fertilizer_item_id: payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId || 'basic_fertilizer',
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm fertilize merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'harvest_shared_farm') {
+    return harvestCohabitationSharedFarmPlot(contractId, {
+      ...payload,
+      plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm harvest merge', 160),
+    }, actor);
+  }
   if (operation.action === 'feed_shared_animal') {
     return feedCohabitationSharedAnimal(contractId, {
       ...payload,
@@ -11405,7 +11458,7 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
 
 function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
   const action = sanitizeText(operation.action, 60);
-  const actionResult = result.animal_action || result.pet_action || result.workshop_action || {};
+  const actionResult = result.farm_action || result.animal_action || result.pet_action || result.workshop_action || {};
   const ledgerEntry = result.ledger_entry || {};
   const warehouseLedgerEntries = Array.isArray(result.warehouse_ledger_entries)
     ? result.warehouse_ledger_entries
@@ -11437,6 +11490,30 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       compensation_plan_acknowledged: actionResult.compensation_plan_acknowledged === true || ledgerEntry.compensation_plan_acknowledged === true,
       already_cared: result.already_cared === true,
       care_day_key: actionResult.care_day_key || ledgerEntry.care_day_key || '',
+    };
+  }
+  if (OFFLINE_QUEUE_SHARED_FARM_ACTIONS.includes(action)) {
+    const outputEntry = warehouseLedgerEntries.find(item => item.action === 'deposit') || {};
+    return {
+      ...entry,
+      target_ref: entry.target_ref || `shared_farm:${actionResult.action || ledgerEntry.action || action}:${result.plot?.id || ledgerEntry.plot_id || ''}`,
+      plot_id: actionResult.plot_id || ledgerEntry.plot_id || sanitizeText(operation.payload?.plot_id || operation.payload?.shared_plot_id || operation.payload?.id, 140),
+      farm_action: actionResult.action || ledgerEntry.action || action,
+      care_action: actionResult.action || ledgerEntry.action || '',
+      seed_item_id: actionResult.seed_item_id || ledgerEntry.seed_item_id || normalizeWarehouseItemId(operation.payload?.seed_item_id || operation.payload?.seedItemId || operation.payload?.item_id || operation.payload?.itemId),
+      fertilizer_item_id: actionResult.fertilizer_item_id || ledgerEntry.fertilizer_item_id || (action === 'fertilize_shared_farm_basic' ? 'basic_fertilizer' : ''),
+      crop_id: actionResult.crop_id || ledgerEntry.crop_id || '',
+      output_item_id: actionResult.output_item_id || ledgerEntry.output_item_id || outputEntry.item_id || '',
+      output_quantity: Math.max(0, Math.floor(Number(actionResult.output_quantity || ledgerEntry.output_quantity || outputEntry.quantity) || 0)),
+      output_quality: sanitizeText(actionResult.output_quality || ledgerEntry.output_quality || outputEntry.quality, 40),
+      before_plot_state: actionResult.before_plot_state || ledgerEntry.before_plot_state || {},
+      after_plot_state: actionResult.after_plot_state || ledgerEntry.after_plot_state || result.plot?.plot_state || {},
+      already_watered: result.already_watered === true,
+      already_applied: result.already_applied === true,
+      already_planted: result.already_planted === true,
+      already_fertilized: result.already_fertilized === true,
+      already_harvested: result.already_harvested === true,
+      simultaneous_online_bonus: actionResult.simultaneous_online_bonus || ledgerEntry.simultaneous_online_bonus || null,
     };
   }
   if (action === 'process_shared_workshop_recipe') {
@@ -11525,6 +11602,41 @@ function buildCohabitationOfflineWorkshopRejection(operation = {}, error = {}) {
   };
 }
 
+function buildCohabitationOfflineFarmRejection(operation = {}, error = {}) {
+  if (!OFFLINE_QUEUE_SHARED_FARM_ACTIONS.includes(operation.action)) return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = status === 403
+    ? 'shared_farm_permission_denied'
+    : status === 404
+      ? 'shared_farm_target_not_found'
+      : status === 400
+        ? 'invalid_shared_farm_offline_operation'
+        : 'shared_farm_state_conflict';
+  if (status === 409 && message.includes('warehouse')) reason = 'insufficient_shared_farm_materials';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    plot_id: sanitizeText(payload.plot_id || payload.shared_plot_id || payload.id, 140),
+    farm_action: sanitizeText(payload.action || payload.care_action || payload.action_type || operation.action, 60),
+    seed_item_id: normalizeWarehouseItemId(payload.seed_item_id || payload.seedItemId || payload.item_id || payload.itemId),
+    fertilizer_item_id: normalizeWarehouseItemId(payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId || (operation.action === 'fertilize_shared_farm_basic' ? 'basic_fertilizer' : '')),
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline shared farm operation was rejected before any shared map, warehouse, fund, or personal save mutation.',
+  };
+}
 async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -11583,6 +11695,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const workshopRejection = buildCohabitationOfflineWorkshopRejection(operation, error);
       if (workshopRejection) {
         rejected.push(workshopRejection);
+        continue;
+      }
+      const farmRejection = buildCohabitationOfflineFarmRejection(operation, error);
+      if (farmRejection) {
+        rejected.push(farmRejection);
         continue;
       }
       const careItemProfile = getSharedPetCareItemProfile(careItemId);
