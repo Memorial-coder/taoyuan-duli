@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-30
+- 作物用途标签第三十四批二代高阶旧段：蜜茶果、龙火椒、天香稻、冰莲、翠桃茶改为人工用途档案，二代高阶旧段已补至翠桃茶；背包和百科可读回蜜茶凝神丹、龙火聚火丹、天香续行丹、冰莲清心丹、翠桃凝神丹、蜜茶果酒、腌龙火椒、天香米粉、冰莲粉、翠桃果茶酿等出口。
 
 - 行旅护送货物完整度细分：`expedition_escort` 新增服务端权威 `escort_state`，护送推进、稳固货物和途中事件会记录完整度、货损、稳固与事件处理次数；结算 `escort_convoy` 回看新增 `cargo_integrity`，远征页、在线节会页和统一房间壳只读展示，不改奖励 payload、幂等键或个人落账。
 - Cohabitation shared warehouse frozen occupancy: active high-value withdrawal drafts now reduce available stock across shared farm, animal, pet, workshop, normal withdraw, sell, and family building material consumption; the warehouse UI shows frozen / available counts and disables actions when only frozen stock remains.

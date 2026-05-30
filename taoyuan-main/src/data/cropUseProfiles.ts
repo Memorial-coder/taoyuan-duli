@@ -1571,7 +1571,58 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     rarityUse: 'valuable',
     recommendedUses: ['雪莲子羹', '雪莲清心丹', '雪莲子粉', '雪莲子酒', '灵宠雪莲子餐', '家畜雪莲料', '清心药膳', '寒珠雪莲礼', '冰灯雪莲供', '公共仓雪莲包', '雪莲子订单'],
     summary: '莲子与雪莲杂交的寒冬明珠，适合羹汤料理、清心炼丹、制雪莲子粉、酿雪莲子酒、灵宠雪莲子喂食、家畜雪莲料、清心药膳、寒珠赠礼、冰灯供品、公共仓雪莲备料和雪莲子订单。'
-  },  {
+  },
+  {
+    cropId: 'melon_tea_fruit',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['蜜茶果饮', '蜜茶凝神丹', '蜜茶果酒', '灵宠蜜茶餐', '家畜蜜茶料', '清润药膳', '仙果蜜茶礼', '夏至蜜茶供', '公共仓蜜茶包', '蜜茶果订单'],
+    summary: '金蜜瓜与茶叶融合的高阶仙果，适合清甜茶饮料理、凝神炼丹、酿蜜茶果酒、灵宠蜜茶喂食、家畜蜜茶料、清润药膳、仙果赠礼、夏至供品、公共仓蜜茶备料和蜜茶果订单。'
+  },
+  {
+    cropId: 'dragon_fire',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'pickle', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['龙火椒酱', '龙火聚火丹', '腌龙火椒', '灵宠龙火餐', '家畜龙火料', '驱寒药膳', '辛烈龙火礼', '火神节龙火供', '公共仓龙火包', '龙火椒订单'],
+    summary: '凤凰椒与生姜碰撞出的辛烈椒果，适合辣酱料理、聚火炼丹、腌龙火椒、灵宠龙火喂食、家畜龙火料、驱寒药膳、辛烈赠礼、火神节供品、公共仓龙火备料和龙火椒订单。'
+  },
+  {
+    cropId: 'celestial_rice',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'neutral',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['天香饭', '天香续行丹', '天香米粉', '天香清酒', '灵宠天香饭团', '家畜天香料', '续行药膳', '桂香仙稻礼', '丰年天香供', '公共仓天香米包', '天香稻订单'],
+    summary: '月光稻与桂花交融的仙香粮谷，适合主粮料理、续行炼丹、制天香米粉、酿天香清酒、灵宠饭团、家畜精粮、续行药膳、桂香赠礼、丰年供品、公共仓米包和天香稻订单。'
+  },
+  {
+    cropId: 'ice_lotus',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '甜'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['冰莲清汤', '冰莲清心丹', '冰莲粉', '冰莲寒酿', '灵宠冰莲餐', '家畜冰莲料', '清心药膳', '寒灯冰莲礼', '冰灯冰莲供', '公共仓冰莲包', '冰莲订单'],
+    summary: '霜雪蒜与莲子合成的寒性灵植，适合清汤料理、清心炼丹、制冰莲粉、酿冰莲寒酿、灵宠冰莲喂食、家畜冰莲料、清心药膳、寒灯赠礼、冰灯供品、公共仓冰莲备料和冰莲订单。'
+  },
+  {
+    cropId: 'jade_peach_tea',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['甜', '香'],
+    nature: 'cool',
+    spirituality: 'spirit',
+    rarityUse: 'valuable',
+    recommendedUses: ['翠桃清茗', '翠桃凝神丹', '翠桃果茶酿', '灵宠翠桃餐', '家畜翠桃料', '清润药膳', '春会翠桃礼', '茶会翠桃供', '公共仓翠桃茶包', '翠桃茶订单'],
+    summary: '翡翠茶与蜜桃融合的清甜茶果，适合茶饮料理、凝神炼丹、酿翠桃果茶、灵宠翠桃喂食、家畜翠桃料、清润药膳、春会赠礼、茶会供品、公共仓翠桃茶备料和翠桃茶订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
