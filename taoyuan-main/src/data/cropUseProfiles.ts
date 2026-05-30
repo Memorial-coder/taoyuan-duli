@@ -1323,6 +1323,56 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     summary: '山药与菠菜杂交的翠绿补根，适合羹汤料理、固元炼丹、制翡翠山药粉、灵宠翠山药喂食、家畜翠山料、固元药膳、冬补赠礼、冬社供品、公共仓翠山备料和翡翠山药订单。'
   },
   {
+    cropId: 'snow_chrysanthemum',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['苦', '香'],
+    nature: 'cool',
+    spirituality: 'mystic',
+    rarityUse: 'valuable',
+    recommendedUses: ['雪菊清茶', '雪菊清心丹', '雪菊花酿', '灵宠雪菊茶', '家畜雪菊料', '清心药茶', '雅士雪菊礼', '冰灯雪菊供', '公共仓雪菊包', '雪菊订单'],
+    summary: '菊花与雪莲杂交的高阶寒香花作，适合清茶料理、清心炼丹、酿雪菊花酒、灵宠雪菊茶、家畜雪菊料、清心药茶、雅士赠礼、冰灯供品、公共仓雪菊备料和雪菊订单。'
+  },
+  {
+    cropId: 'osmanthus_garlic',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '香'],
+    nature: 'warm',
+    spirituality: 'spirit',
+    rarityUse: 'stable',
+    recommendedUses: ['桂蒜拌菜', '桂蒜行气丹', '桂蒜花酿', '腌桂蒜瓣', '灵宠桂蒜餐', '家畜桂蒜料', '行气药膳', '厨娘桂蒜礼', '暖灶桂蒜供', '公共仓桂蒜包', '桂蒜调料单'],
+    summary: '桂花与大蒜杂交的芳辛调味作物，适合拌菜料理、行气炼丹、酿桂蒜花酒、腌桂蒜瓣、灵宠桂蒜喂食、家畜桂蒜料、行气药膳、厨娘赠礼、暖灶供品、公共仓桂蒜备料和调料订单。'
+  },
+  {
+    cropId: 'wheat_yam',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'flour', 'wine', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['土', '甜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['麦山药饼', '麦山固元丹', '麦山药粉', '麦山清酒', '灵宠麦山餐', '家畜麦山料', '固元药膳', '冬粮麦山礼', '冬社麦山供', '公共仓麦山包', '麦山粉单'],
+    summary: '山药与冬小麦杂交的跨季主粮，适合烙饼料理、固元炼丹、制麦山药粉、酿麦山清酒、灵宠麦山喂食、家畜麦山料、固元药膳、冬粮赠礼、冬社供品、公共仓麦山备料和麦山粉单。'
+  },
+  {
+    cropId: 'cream_peanut',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'oil', 'flour', 'medicine', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['香', '土'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'stable',
+    recommendedUses: ['白花生糕', '白仁润脉丹', '白花生油', '白仁粉', '灵宠白仁餐', '家畜白仁料', '润脉药膳', '雪壳白仁礼', '冬社白仁供', '公共仓白仁包', '白花生订单'],
+    summary: '花生与白菜杂交的雪壳坚仁，适合糕点料理、润脉炼丹、榨白花生油、制白仁粉、灵宠白仁喂食、家畜白仁料、润脉药膳、雪壳赠礼、冬社供品、公共仓白仁备料和白花生订单。'
+  },
+  {
+    cropId: 'garlic_jujube',
+    tags: ['food', 'alchemy', 'pet_feed', 'animal_feed', 'wine', 'medicine', 'pickle', 'gift', 'festival', 'order', 'online_cost'],
+    flavor: ['辛', '甜'],
+    nature: 'warm',
+    spirituality: 'earth',
+    rarityUse: 'seasonal',
+    recommendedUses: ['蒜枣暖饮', '蒜枣养气丹', '蒜枣果酒', '腌蒜枣', '灵宠蒜枣餐', '家畜蒜枣料', '暖补药膳', '冬夜蒜枣礼', '腊祭蒜枣供', '公共仓蒜枣包', '蒜枣订单'],
+    summary: '红枣与大蒜杂交的辛甜果作，适合暖饮料理、养气炼丹、酿蒜枣果酒、腌蒜枣、灵宠蒜枣喂食、家畜蒜枣料、暖补药膳、冬夜赠礼、腊祭供品、公共仓蒜枣备料和蒜枣订单。'
+  },
+  {
     cropId: 'emerald_jade_tea',
     tags: ['food', 'alchemy', 'pet_feed', 'medicine', 'gift', 'festival', 'order'],
     flavor: ['苦', '香'],
