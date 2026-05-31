@@ -2739,6 +2739,15 @@ export interface CohabitationSeparationSharedFundRefundPayload {
 export interface CohabitationSeparationSharedFundDeltaConfirmPayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
+  unidentified_operating_contribution_hash?: string
+  unidentified_operating_allocation_hash?: string
+  unidentified_operating_allocation?: Array<{
+    target_username?: string
+    target_username_key?: string
+    username?: string
+    username_key?: string
+    amount: number
+  }>
   memo?: string
   idempotency_key: string
 }

@@ -4241,7 +4241,6 @@ await processRecipePolicyBasicDish({
   outputItemId: 'food_new_year_dumpling',
   inputs: [{ itemId: 'winter_wheat', quantity: 3 }, { itemId: 'napa_cabbage', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
 })
-
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',
@@ -8215,6 +8214,21 @@ await assert.rejects(
   error => error?.status === 409,
   'shared fund delta confirmation should reject mismatched manifest hash'
 )
+await assert.rejects(
+  () => runtime.confirmSeparationSharedFundDelta(created.contract.id, previewResult.preview.id, {
+    memo: 'unbalanced unidentified operating allocation',
+    plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    unidentified_operating_contribution_hash: previewResult.preview.asset_return.fund_unidentified_operating_contribution_hash,
+    unidentified_operating_allocation: [
+      { target_username: owner, amount: 9 },
+      { target_username: partner, amount: 19 },
+    ],
+    idempotency_key: 'qa-separation-shared-fund-delta-confirm-unbalanced-allocation',
+  }, actor(owner)),
+  error => error?.status === 409,
+  'shared fund delta confirmation should reject manual unidentified operating allocation totals that do not match the dispute amount'
+)
 const fundBeforeSharedFundDeltaConfirm = await runtime.getCohabitationFund(created.contract.id, actor(owner))
 const ownerMoneyBeforeSharedFundDeltaConfirm = readGameplayData(owner)?.player?.money
 const partnerMoneyBeforeSharedFundDeltaConfirm = readGameplayData(partner)?.player?.money
@@ -8224,6 +8238,11 @@ const ownerSharedFundDeltaConfirm = await runtime.confirmSeparationSharedFundDel
   memo: 'owner confirms shared fund consumption delta before refund',
   plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
   execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  unidentified_operating_contribution_hash: previewResult.preview.asset_return.fund_unidentified_operating_contribution_hash,
+  unidentified_operating_allocation: [
+    { target_username: owner, amount: 9 },
+    { target_username: partner, amount: 20 },
+  ],
   idempotency_key: 'qa-separation-shared-fund-delta-confirm-owner',
 }, actor(owner))
 assert.equal(ownerSharedFundDeltaConfirm.idempotent, false, 'first owner shared fund delta confirmation should not be idempotent')
@@ -8237,6 +8256,29 @@ assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.all_memb
 assert.ok(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.confirmed_member_usernames.includes(owner), 'owner confirmation summary should include owner')
 assert.ok(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.pending_member_usernames.includes(partner), 'owner confirmation summary should keep partner pending')
 assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.refund_total, fundBeforeSharedFundDeltaConfirm.fund.balance, 'owner confirmation should keep refund total evidence')
+assert.equal(ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_applied, true, 'owner confirmation should apply manual unidentified operating allocation before confirmation')
+assert.equal(ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_total, 29, 'owner confirmation should lock the unidentified operating allocation total')
+assert.match(ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, /^[a-f0-9]{64}$/, 'owner confirmation should lock a stable unidentified operating allocation hash')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_total, 29, 'owner confirmation summary should expose manual unidentified operating allocation total')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_hash, ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, 'owner confirmation summary should expose the locked manual allocation hash')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_applied, true, 'owner confirmation summary should mark manual unidentified operating allocation applied')
+const ownerManualAllocationSummaryRow = ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_rows.find(item => item.origin_owner_username === owner)
+const partnerManualAllocationSummaryRow = ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_rows.find(item => item.origin_owner_username === partner)
+assert.equal(ownerManualAllocationSummaryRow?.amount, 9, 'owner confirmation summary should keep owner manual unidentified operating amount')
+assert.equal(partnerManualAllocationSummaryRow?.amount, 20, 'owner confirmation summary should keep partner manual unidentified operating amount')
+const ownerConfirmedFundRow = ownerSharedFundDeltaConfirm.execution_ledger.fund_refunds_by_origin_owner.find(item => item.origin_owner_username === owner)
+const partnerConfirmedFundRow = ownerSharedFundDeltaConfirm.execution_ledger.fund_refunds_by_origin_owner.find(item => item.origin_owner_username === partner)
+assert.equal(ownerConfirmedFundRow?.fund_split_basis, 'capital_traceable_and_confirmed_unidentified_operating_income', 'owner confirmation should switch owner split basis to confirmed unidentified operating income')
+assert.equal(partnerConfirmedFundRow?.fund_split_basis, 'capital_traceable_and_confirmed_unidentified_operating_income', 'owner confirmation should switch partner split basis to confirmed unidentified operating income')
+assert.equal(ownerConfirmedFundRow?.manual_unidentified_operating_contribution_amount, 9, 'owner confirmation should attach owner manual unidentified operating amount to fund row')
+assert.equal(partnerConfirmedFundRow?.manual_unidentified_operating_contribution_amount, 20, 'owner confirmation should attach partner manual unidentified operating amount to fund row')
+assert.equal(ownerConfirmedFundRow?.operating_contribution_amount, 44, 'owner confirmation should include owner manual unidentified operating amount in operating contribution')
+assert.equal(partnerConfirmedFundRow?.operating_contribution_amount, 72, 'owner confirmation should include partner manual unidentified operating amount in operating contribution')
+assert.equal(ownerConfirmedFundRow?.split_basis_amount, 914, 'owner confirmation should include owner manual unidentified operating amount in split basis')
+assert.equal(partnerConfirmedFundRow?.split_basis_amount, 152, 'owner confirmation should include partner manual unidentified operating amount in split basis')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.fund_total_operating_contributed, 116, 'owner confirmation summary should include traceable and manually allocated unidentified operating income')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.fund_total_split_basis, 1066, 'owner confirmation summary should include manual allocation in split basis total')
+assert.equal(ownerSharedFundDeltaConfirm.execution_ledger.fund_refunds_by_origin_owner.reduce((sum, item) => sum + item.suggested_refund_amount, 0), fundBeforeSharedFundDeltaConfirm.fund.balance, 'owner confirmation should keep suggested fund refunds balanced after manual allocation')
 assert.equal(ownerSharedFundDeltaConfirm.fund.balance, fundBeforeSharedFundDeltaConfirm.fund.balance, 'owner confirmation should not change shared fund balance')
 assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeSharedFundDeltaConfirm, 'owner confirmation should not change owner personal money')
 assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSharedFundDeltaConfirm, 'owner confirmation should not change partner personal money')
@@ -8251,6 +8293,21 @@ const duplicateOwnerSharedFundDeltaConfirm = await runtime.confirmSeparationShar
 assert.equal(duplicateOwnerSharedFundDeltaConfirm.idempotent, true, 'same owner shared fund delta confirmation key should be idempotent')
 assert.equal(duplicateOwnerSharedFundDeltaConfirm.execution_ledger.id, ownerSharedFundDeltaConfirm.execution_ledger.id, 'idempotent owner delta confirmation should keep ledger id')
 assert.equal(duplicateOwnerSharedFundDeltaConfirm.confirmation.idempotency_key, 'qa-separation-shared-fund-delta-confirm-owner', 'idempotent owner delta confirmation should return original confirmation')
+await assert.rejects(
+  () => runtime.confirmSeparationSharedFundDelta(created.contract.id, previewResult.preview.id, {
+    memo: 'partner tries conflicting unidentified operating allocation',
+    plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    unidentified_operating_contribution_hash: previewResult.preview.asset_return.fund_unidentified_operating_contribution_hash,
+    unidentified_operating_allocation: [
+      { target_username: owner, amount: 20 },
+      { target_username: partner, amount: 9 },
+    ],
+    idempotency_key: 'qa-separation-shared-fund-delta-confirm-partner-conflict',
+  }, actor(partner)),
+  error => error?.status === 409,
+  'shared fund delta confirmation should reject a conflicting manual unidentified operating allocation after the first member locks it'
+)
 const partnerSharedFundDeltaConfirm = await runtime.confirmSeparationSharedFundDelta(created.contract.id, previewResult.preview.id, {
   memo: 'partner confirms shared fund consumption delta before refund',
   plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
@@ -8262,6 +8319,11 @@ assert.equal(partnerSharedFundDeltaConfirm.execution_ledger.status, 'shared_fund
 assert.equal(partnerSharedFundDeltaConfirm.execution_ledger.shared_fund_delta_confirmed, true, 'partner delta confirmation should mark all members confirmed')
 assert.equal(partnerSharedFundDeltaConfirm.preview.confirmation_state.execution_request.status, 'shared_fund_delta_confirmed', 'execution request should advance after all delta confirmations')
 assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.requires_unidentified_operating_confirmation, true, 'partner confirmation should retain unidentified operating contribution confirmation requirement')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_total, 29, 'partner confirmation should keep the locked manual unidentified operating allocation total')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_hash, ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, 'partner confirmation should reuse the owner-locked manual allocation hash')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.manual_unidentified_operating_allocation_applied, true, 'partner confirmation should keep manual unidentified operating allocation applied')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.fund_total_operating_contributed, 116, 'partner confirmation summary should keep combined operating contribution total')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.fund_total_split_basis, 1066, 'partner confirmation summary should keep manually reweighted split basis total')
 assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.all_members_confirmed, true, 'partner confirmation should complete all-member confirmation')
 assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.pending_member_usernames.length, 0, 'partner confirmation summary should clear pending members')
 assert.ok(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.confirmed_member_usernames.includes(owner), 'partner confirmation summary should keep owner confirmed')
@@ -8280,6 +8342,9 @@ assert.equal(sharedFundDeltaConfirmAudit.detail?.shared_fund_changed, false, 'sh
 assert.equal(sharedFundDeltaConfirmAudit.detail?.personal_money_changed, false, 'shared fund delta audit should prove personal money is unchanged')
 assert.equal(sharedFundDeltaConfirmAudit.detail?.unidentified_operating_contribution_total, 29, 'shared fund delta audit should keep unidentified operating contribution total')
 assert.ok(sharedFundDeltaConfirmAudit.detail?.unidentified_operating_ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger'), 'shared fund delta audit should keep unidentified operating ledger evidence')
+assert.equal(sharedFundDeltaConfirmAudit.detail?.manual_unidentified_operating_allocation_total, 29, 'shared fund delta audit should keep manual unidentified operating allocation total')
+assert.equal(sharedFundDeltaConfirmAudit.detail?.manual_unidentified_operating_allocation_hash, ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, 'shared fund delta audit should keep manual allocation hash evidence')
+assert.equal(sharedFundDeltaConfirmAudit.detail?.manual_unidentified_operating_allocation_applied, true, 'shared fund delta audit should mark manual unidentified operating allocation applied')
 await assert.rejects(
   () => runtime.refundSeparationSharedFund(created.contract.id, previewResult.preview.id, {
     memo: 'wrong shared fund refund hash',
@@ -8315,31 +8380,41 @@ assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeSeparationF
 assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSeparationFundRefund + (sharedFundRefund.receipts.find(receipt => receipt.username === partner)?.refund_amount || 0), 'partner should receive personal money refund once')
 const ownerRefundedFundRow = sharedFundRefund.execution_ledger.fund_refunds_by_origin_owner.find(item => item.origin_owner_username === owner)
 const partnerRefundedFundRow = sharedFundRefund.execution_ledger.fund_refunds_by_origin_owner.find(item => item.origin_owner_username === partner)
-assert.equal(sharedFundRefund.shared_fund.fund_split_basis, 'capital_and_traceable_operating_income', 'shared fund refund response should keep split basis')
-assert.equal(sharedFundRefund.shared_fund.fund_total_operating_contributed, 87, 'shared fund refund response should keep operating contribution total')
-assert.equal(sharedFundRefund.shared_fund.fund_total_split_basis, 1037, 'shared fund refund response should keep split basis total')
+assert.equal(sharedFundRefund.shared_fund.fund_split_basis, 'capital_traceable_and_confirmed_unidentified_operating_income', 'shared fund refund response should keep confirmed unidentified operating split basis')
+assert.equal(sharedFundRefund.shared_fund.fund_total_operating_contributed, 116, 'shared fund refund response should keep operating contribution total with manual unidentified allocation')
+assert.equal(sharedFundRefund.shared_fund.fund_total_split_basis, 1066, 'shared fund refund response should keep split basis total with manual unidentified allocation')
 assert.equal(sharedFundRefund.shared_fund.unidentified_operating_contribution_total, 29, 'shared fund refund response should keep unidentified operating dispute amount')
 assert.ok(sharedFundRefund.shared_fund.unidentified_operating_ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger'), 'shared fund refund response should keep unidentified operating ledger evidence')
 assert.equal(sharedFundRefund.shared_fund.dispute_confirmation.requires_unidentified_operating_confirmation, true, 'shared fund refund should retain unidentified operating confirmation evidence')
+assert.equal(sharedFundRefund.shared_fund.manual_unidentified_operating_allocation_total, 29, 'shared fund refund response should keep manual unidentified operating allocation total')
+assert.equal(sharedFundRefund.shared_fund.manual_unidentified_operating_allocation_hash, ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, 'shared fund refund response should keep manual allocation hash evidence')
+assert.equal(sharedFundRefund.shared_fund.manual_unidentified_operating_allocation_applied, true, 'shared fund refund response should mark manual unidentified operating allocation applied')
 assert.equal(ownerRefundedFundRow?.return_status, 'personal_money_written', 'owner fund refund row should be marked written after refund')
 assert.equal(partnerRefundedFundRow?.return_status, 'personal_money_written', 'partner fund refund row should be marked written after refund')
-assert.equal(ownerRefundedFundRow?.fund_split_basis, 'capital_and_traceable_operating_income', 'refunded owner row should keep fund split basis')
-assert.equal(partnerRefundedFundRow?.fund_split_basis, 'capital_and_traceable_operating_income', 'refunded partner row should keep fund split basis')
-assert.equal(ownerRefundedFundRow?.operating_contribution_amount, 35, 'refunded owner row should keep operating contribution amount')
-assert.equal(partnerRefundedFundRow?.operating_contribution_amount, 52, 'refunded partner row should keep operating contribution amount')
-assert.equal(ownerRefundedFundRow?.split_basis_amount, 905, 'refunded owner row should keep split basis amount')
-assert.equal(partnerRefundedFundRow?.split_basis_amount, 132, 'refunded partner row should keep split basis amount')
+assert.equal(ownerRefundedFundRow?.fund_split_basis, 'capital_traceable_and_confirmed_unidentified_operating_income', 'refunded owner row should keep confirmed unidentified operating split basis')
+assert.equal(partnerRefundedFundRow?.fund_split_basis, 'capital_traceable_and_confirmed_unidentified_operating_income', 'refunded partner row should keep confirmed unidentified operating split basis')
+assert.equal(ownerRefundedFundRow?.manual_unidentified_operating_contribution_amount, 9, 'refunded owner row should keep manual unidentified operating contribution amount')
+assert.equal(partnerRefundedFundRow?.manual_unidentified_operating_contribution_amount, 20, 'refunded partner row should keep manual unidentified operating contribution amount')
+assert.equal(ownerRefundedFundRow?.manual_unidentified_operating_allocation_hash, ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, 'refunded owner row should keep manual allocation hash evidence')
+assert.equal(partnerRefundedFundRow?.manual_unidentified_operating_allocation_hash, ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, 'refunded partner row should keep manual allocation hash evidence')
+assert.equal(ownerRefundedFundRow?.operating_contribution_amount, 44, 'refunded owner row should keep operating contribution amount with manual allocation')
+assert.equal(partnerRefundedFundRow?.operating_contribution_amount, 72, 'refunded partner row should keep operating contribution amount with manual allocation')
+assert.equal(ownerRefundedFundRow?.split_basis_amount, 914, 'refunded owner row should keep split basis amount with manual allocation')
+assert.equal(partnerRefundedFundRow?.split_basis_amount, 152, 'refunded partner row should keep split basis amount with manual allocation')
 assert.ok(ownerRefundedFundRow?.operating_ledger_ids.includes(warehouseSaleResult.fund_ledger_entry.id), 'refunded owner row should keep operating fund ledger evidence')
 assert.ok(partnerRefundedFundRow?.operating_ledger_ids.includes(fineRiceSale.fund_ledger_entry.id), 'refunded partner row should keep operating fund ledger evidence')
 assert.ok(ownerRefundedFundRow?.warehouse_sale_ledger_ids.includes(warehouseSaleResult.ledger_entry.id), 'refunded owner row should keep warehouse sale ledger evidence')
 assert.ok(partnerRefundedFundRow?.warehouse_sale_ledger_ids.includes(fineRiceSale.ledger_entry.id), 'refunded partner row should keep warehouse sale ledger evidence')
 const sharedFundRefundAudit = sharedFundRefund.contract.audit_log.find(entry => entry.action === 'separation_shared_fund_refunded' && entry.idempotency_key === 'qa-separation-shared-fund-refund')
 assert.ok(sharedFundRefundAudit, 'shared fund refund should be audited')
-assert.equal(sharedFundRefundAudit.detail?.fund_split_basis, 'capital_and_traceable_operating_income', 'shared fund refund audit should keep split basis')
-assert.equal(sharedFundRefundAudit.detail?.fund_total_operating_contributed, 87, 'shared fund refund audit should keep operating contribution total')
-assert.equal(sharedFundRefundAudit.detail?.fund_total_split_basis, 1037, 'shared fund refund audit should keep split basis total')
+assert.equal(sharedFundRefundAudit.detail?.fund_split_basis, 'capital_traceable_and_confirmed_unidentified_operating_income', 'shared fund refund audit should keep confirmed unidentified operating split basis')
+assert.equal(sharedFundRefundAudit.detail?.fund_total_operating_contributed, 116, 'shared fund refund audit should keep operating contribution total with manual unidentified allocation')
+assert.equal(sharedFundRefundAudit.detail?.fund_total_split_basis, 1066, 'shared fund refund audit should keep split basis total with manual unidentified allocation')
 assert.equal(sharedFundRefundAudit.detail?.unidentified_operating_contribution_total, 29, 'shared fund refund audit should keep unidentified operating dispute amount')
 assert.ok(sharedFundRefundAudit.detail?.unidentified_operating_ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger'), 'shared fund refund audit should keep unidentified operating ledger evidence')
+assert.equal(sharedFundRefundAudit.detail?.manual_unidentified_operating_allocation_total, 29, 'shared fund refund audit should keep manual unidentified operating allocation total')
+assert.equal(sharedFundRefundAudit.detail?.manual_unidentified_operating_allocation_hash, ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_unidentified_operating_allocation_hash, 'shared fund refund audit should keep manual allocation hash evidence')
+assert.equal(sharedFundRefundAudit.detail?.manual_unidentified_operating_allocation_applied, true, 'shared fund refund audit should mark manual unidentified operating allocation applied')
 
 const ownerRawAfterSharedFundRefund = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawAfterSharedFundRefund = saveRuntime.loadUserSaveSlots(partner).slots[0].raw

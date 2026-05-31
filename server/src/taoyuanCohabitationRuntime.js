@@ -11992,6 +11992,11 @@ function normalizeSeparationSharedFundDeltaConfirmPayload(payload = {}) {
     idempotency_key: idempotencyKey,
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    unidentified_operating_contribution_hash: sanitizeText(payload.unidentified_operating_contribution_hash || payload.shared_fund_unidentified_operating_contribution_hash, 100),
+    unidentified_operating_allocation_hash: sanitizeText(payload.unidentified_operating_allocation_hash || payload.unidentified_operating_allocation_manifest_hash, 100),
+    unidentified_operating_allocation: Array.isArray(payload.unidentified_operating_allocation)
+      ? payload.unidentified_operating_allocation
+      : (Array.isArray(payload.unidentified_operating_allocation_manifest) ? payload.unidentified_operating_allocation_manifest : []),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -13302,6 +13307,207 @@ function hashFundUnidentifiedOperatingContributionManifest(manifest = []) {
     }))
     .sort((a, b) => `${a.action}:${a.source_owner_key}:${a.dispute_reason}:${a.ledger_ids.join(',')}`.localeCompare(`${b.action}:${b.source_owner_key}:${b.dispute_reason}:${b.ledger_ids.join(',')}`));
   return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
+}
+
+function normalizeFundUnidentifiedOperatingAllocationRow(entry = {}) {
+  return {
+    origin_owner_id: sanitizeText(entry.origin_owner_id || entry.return_target_id, 100),
+    origin_owner_username: normalizeUsername(entry.origin_owner_username || entry.return_target_username || entry.username || entry.target_username),
+    origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.return_target_key || entry.username_key || entry.target_username_key || entry.username || entry.target_username),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    allocation_source: sanitizeText(entry.allocation_source, 80) || 'manual_confirmed_unidentified_operating_contribution',
+    confirmation_status: sanitizeText(entry.confirmation_status, 80) || 'requires_all_member_confirmation',
+  };
+}
+
+function hashFundUnidentifiedOperatingAllocationManifest(manifest = [], contributionHash = '') {
+  const stableRows = (Array.isArray(manifest) ? manifest : [])
+    .map(normalizeFundUnidentifiedOperatingAllocationRow)
+    .filter(entry => entry.amount > 0)
+    .map(entry => ({
+      origin_owner_id: entry.origin_owner_id,
+      origin_owner_key: entry.origin_owner_key,
+      origin_owner_username: entry.origin_owner_username,
+      amount: entry.amount,
+      allocation_source: entry.allocation_source,
+    }))
+    .sort((a, b) => `${a.origin_owner_key}:${a.origin_owner_id}`.localeCompare(`${b.origin_owner_key}:${b.origin_owner_id}`));
+  return crypto.createHash('sha256').update(JSON.stringify({
+    contribution_hash: sanitizeText(contributionHash, 100),
+    rows: stableRows,
+  })).digest('hex');
+}
+
+function buildSeparationSharedFundUnidentifiedOperatingAllocation(payload = {}, ledger = {}, contract = {}) {
+  const rawRows = Array.isArray(payload.unidentified_operating_allocation)
+    ? payload.unidentified_operating_allocation
+    : (Array.isArray(payload.unidentified_operating_allocation_manifest)
+        ? payload.unidentified_operating_allocation_manifest
+        : []);
+  if (rawRows.length === 0) return null;
+  const contributions = Array.isArray(ledger.shared_fund_unidentified_operating_contributions)
+    ? ledger.shared_fund_unidentified_operating_contributions.map(normalizeFundUnidentifiedOperatingContributionRow).filter(entry => entry.amount > 0)
+    : [];
+  const contributionTotal = Math.max(0, Math.floor(Number(ledger.shared_fund_unidentified_operating_total) || 0))
+    || contributions.reduce((sum, entry) => sum + entry.amount, 0);
+  if (contributionTotal <= 0) throw createError('没有可人工分配的未知经营贡献争议', 409);
+  const contributionHash = sanitizeText(ledger.shared_fund_unidentified_operating_contribution_hash, 100)
+    || hashFundUnidentifiedOperatingContributionManifest(contributions);
+  const payloadContributionHash = sanitizeText(payload.unidentified_operating_contribution_hash || payload.shared_fund_unidentified_operating_contribution_hash, 100);
+  if (payloadContributionHash && payloadContributionHash !== contributionHash) {
+    throw createError('未知经营贡献来源 hash 不匹配，请刷新分居预览后再确认', 409);
+  }
+
+  const acceptedMembers = getAcceptedSeparationMembers(contract);
+  const acceptedByKey = new Map();
+  for (const member of acceptedMembers) {
+    acceptedByKey.set(normalizeUsernameKey(member.username_key || member.username), member);
+    acceptedByKey.set(normalizeUsernameKey(member.username), member);
+  }
+  const allocationByMember = new Map();
+  for (const row of rawRows) {
+    const username = normalizeUsername(row?.target_username || row?.username || row?.origin_owner_username || row?.return_target_username);
+    const usernameKey = normalizeUsernameKey(row?.target_username_key || row?.username_key || row?.origin_owner_key || row?.return_target_key || username);
+    const member = acceptedByKey.get(usernameKey) || acceptedByKey.get(normalizeUsernameKey(username));
+    if (!member) throw createError('未知经营贡献人工分配只能指向已接受契约成员', 400);
+    const amount = Math.max(0, Math.floor(Number(row?.amount) || 0));
+    const memberKey = normalizeUsernameKey(member.username_key || member.username);
+    allocationByMember.set(memberKey, (allocationByMember.get(memberKey) || 0) + amount);
+  }
+  const manifest = acceptedMembers
+    .map(member => {
+      const memberKey = normalizeUsernameKey(member.username_key || member.username);
+      return normalizeFundUnidentifiedOperatingAllocationRow({
+        origin_owner_id: getMemberReturnTargetId(member),
+        origin_owner_username: member.username,
+        origin_owner_key: memberKey,
+        amount: allocationByMember.get(memberKey) || 0,
+        allocation_source: 'manual_confirmed_unidentified_operating_contribution',
+      });
+    })
+    .filter(entry => entry.amount > 0);
+  const allocationTotal = manifest.reduce((sum, entry) => sum + entry.amount, 0);
+  if (allocationTotal !== contributionTotal) {
+    throw createError(`未知经营贡献人工分配金额必须等于争议总额 ${contributionTotal}`, 409);
+  }
+  const manifestHash = hashFundUnidentifiedOperatingAllocationManifest(manifest, contributionHash);
+  const payloadAllocationHash = sanitizeText(payload.unidentified_operating_allocation_hash || payload.unidentified_operating_allocation_manifest_hash, 100);
+  if (payloadAllocationHash && payloadAllocationHash !== manifestHash) {
+    throw createError('未知经营贡献人工分配 hash 不匹配，请检查分配方案', 409);
+  }
+  return {
+    manifest,
+    manifest_hash: manifestHash,
+    total_amount: allocationTotal,
+    contribution_hash: contributionHash,
+    ledger_ids: [...new Set(contributions.flatMap(entry => entry.ledger_ids))].slice(0, 40),
+    target_refs: [...new Set(contributions.flatMap(entry => entry.target_refs))].slice(0, 40),
+  };
+}
+
+function applySeparationSharedFundUnidentifiedOperatingAllocation(ledger = {}, allocation = null, contract = {}) {
+  if (!allocation || !Array.isArray(allocation.manifest) || allocation.manifest.length === 0) return ledger;
+  const existingAllocationHash = sanitizeText(ledger.shared_fund_unidentified_operating_allocation_hash, 100);
+  if (existingAllocationHash) {
+    if (existingAllocationHash !== allocation.manifest_hash) {
+      throw createError('未知经营贡献人工分配方案与已锁定方案不一致', 409);
+    }
+    return ledger;
+  }
+  const acceptedMembers = getAcceptedSeparationMembers(contract);
+  const memberByKey = new Map(acceptedMembers.map(member => [normalizeUsernameKey(member.username_key || member.username), member]));
+  const refundRows = Array.isArray(ledger.fund_refunds_by_origin_owner)
+    ? ledger.fund_refunds_by_origin_owner.map(entry => ({ ...entry }))
+    : [];
+  const rowsByKey = new Map(refundRows.map(entry => [normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username), entry]));
+  const unknownLedgerIds = Array.isArray(allocation.ledger_ids) ? allocation.ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [];
+  const unknownTargetRefs = Array.isArray(allocation.target_refs) ? allocation.target_refs.map(ref => sanitizeText(ref, 120)).filter(Boolean).slice(0, 40) : [];
+  for (const allocationRow of allocation.manifest.map(normalizeFundUnidentifiedOperatingAllocationRow)) {
+    if (allocationRow.amount <= 0) continue;
+    const memberKey = normalizeUsernameKey(allocationRow.origin_owner_key || allocationRow.origin_owner_username);
+    const member = memberByKey.get(memberKey);
+    if (!member) throw createError('未知经营贡献人工分配目标成员已不在契约中，请重新生成预览', 409);
+    const row = rowsByKey.get(memberKey) || {
+      origin_owner_id: getMemberReturnTargetId(member),
+      origin_owner_username: member.username,
+      origin_owner_key: memberKey,
+      amount: 0,
+      capital_contribution_amount: 0,
+      operating_contribution_amount: 0,
+      split_basis_amount: 0,
+      contribution_share_basis_points: 0,
+      capital_share_basis_points: 0,
+      operating_share_basis_points: 0,
+      ledger_ids: [],
+      capital_ledger_ids: [],
+      operating_ledger_ids: [],
+      warehouse_sale_ledger_ids: [],
+      operating_source_refs: [],
+      operating_contribution_sources: [],
+      source_ledger_count: 0,
+      capital_ledger_count: 0,
+      operating_ledger_count: 0,
+      fund_split_basis: 'capital_and_traceable_operating_income',
+      requires_consumption_delta_confirmation: true,
+      suggested_refund_amount: 0,
+      return_status: 'manual_personal_money_write_required',
+    };
+    const manualBefore = Math.max(0, Math.floor(Number(row.manual_unidentified_operating_contribution_amount) || 0));
+    row.traceable_operating_contribution_amount = Math.max(0, Math.floor(Number(row.traceable_operating_contribution_amount ?? row.operating_contribution_amount) || 0));
+    row.manual_unidentified_operating_contribution_amount = manualBefore + allocationRow.amount;
+    row.manual_unidentified_operating_allocation_hash = allocation.manifest_hash;
+    row.operating_contribution_amount = Math.max(0, Math.floor(Number(row.operating_contribution_amount) || 0)) + allocationRow.amount;
+    row.split_basis_amount = Math.max(0, Math.floor(Number(row.split_basis_amount ?? row.amount) || 0)) + allocationRow.amount;
+    row.fund_split_basis = 'capital_traceable_and_confirmed_unidentified_operating_income';
+    row.requires_consumption_delta_confirmation = true;
+    row.return_policy = 'Shared fund refund is split by capital contribution, traceable operating income, and both-member confirmed unidentified operating contribution allocation.';
+    for (const ledgerId of unknownLedgerIds) {
+      pushUniqueFundEvidence(row.ledger_ids, ledgerId, 80, value => sanitizeText(value, 100));
+      pushUniqueFundEvidence(row.operating_ledger_ids, ledgerId, 40, value => sanitizeText(value, 100));
+    }
+    for (const targetRef of unknownTargetRefs) {
+      pushUniqueFundEvidence(row.operating_source_refs, targetRef, 40, value => sanitizeText(value, 120));
+    }
+    pushUniqueFundEvidence(row.operating_contribution_sources, 'manual_unidentified_operating_allocation', 12, value => sanitizeText(value, 80));
+    rowsByKey.set(memberKey, row);
+  }
+
+  const nextRows = [...rowsByKey.values()]
+    .filter(entry => Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)) > 0)
+    .sort((left, right) => normalizeUsernameKey(left.origin_owner_key || left.origin_owner_username).localeCompare(normalizeUsernameKey(right.origin_owner_key || right.origin_owner_username)));
+  const totalRefundAmount = refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)), 0)
+    || Math.max(0, Math.floor(Number(contract.shared_fund?.balance) || 0));
+  const totalCapitalContributed = nextRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0);
+  const totalOperatingContributed = nextRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0);
+  const totalSplitBasis = nextRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0);
+  let allocatedRefund = 0;
+  const recalculatedRows = nextRows.map((entry, index) => {
+    const splitBasisAmount = Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0));
+    const suggestedRefundAmount = totalSplitBasis > 0
+      ? (index === nextRows.length - 1
+          ? Math.max(0, totalRefundAmount - allocatedRefund)
+          : Math.floor((totalRefundAmount * splitBasisAmount) / totalSplitBasis))
+      : 0;
+    allocatedRefund += suggestedRefundAmount;
+    return {
+      ...entry,
+      source_ledger_count: Array.isArray(entry.ledger_ids) ? entry.ledger_ids.length : 0,
+      capital_ledger_count: Array.isArray(entry.capital_ledger_ids) ? entry.capital_ledger_ids.length : 0,
+      operating_ledger_count: Array.isArray(entry.operating_ledger_ids) ? entry.operating_ledger_ids.length : 0,
+      contribution_share_basis_points: totalSplitBasis > 0 ? Math.round((splitBasisAmount * 10000) / totalSplitBasis) : 0,
+      capital_share_basis_points: totalCapitalContributed > 0 ? Math.round((Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)) * 10000) / totalCapitalContributed) : 0,
+      operating_share_basis_points: totalOperatingContributed > 0 ? Math.round((Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)) * 10000) / totalOperatingContributed) : 0,
+      suggested_refund_amount: suggestedRefundAmount,
+    };
+  });
+  return {
+    ...ledger,
+    fund_refunds_by_origin_owner: recalculatedRows,
+    shared_fund_unidentified_operating_allocation_manifest: allocation.manifest,
+    shared_fund_unidentified_operating_allocation_hash: allocation.manifest_hash,
+    shared_fund_unidentified_operating_allocation_total: allocation.total_amount,
+    shared_fund_unidentified_operating_allocation_applied: true,
+  };
 }
 
 function addFundUnidentifiedOperatingContribution(groups, fundEntry = {}, amount, detail = {}) {
@@ -15476,6 +15682,15 @@ function normalizeSeparationSharedFundDeltaConfirmationSummary(entry = {}) {
     unidentified_operating_ledger_ids: Array.isArray(summary.unidentified_operating_ledger_ids)
       ? summary.unidentified_operating_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40)
       : [],
+    manual_unidentified_operating_allocation_total: Math.max(0, Math.floor(Number(summary.manual_unidentified_operating_allocation_total) || 0)),
+    manual_unidentified_operating_allocation_hash: sanitizeText(summary.manual_unidentified_operating_allocation_hash, 100),
+    manual_unidentified_operating_allocation_applied: summary.manual_unidentified_operating_allocation_applied === true,
+    manual_unidentified_operating_allocation_rows: Array.isArray(summary.manual_unidentified_operating_allocation_rows)
+      ? summary.manual_unidentified_operating_allocation_rows
+          .map(normalizeFundUnidentifiedOperatingAllocationRow)
+          .filter(item => item.amount > 0)
+          .slice(0, 12)
+      : [],
     personal_money_mutated: summary.personal_money_mutated === true,
     shared_fund_mutated: summary.shared_fund_mutated === true,
     shared_warehouse_mutated: summary.shared_warehouse_mutated === true,
@@ -15508,6 +15723,11 @@ function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract
   const unidentifiedOperatingTotal = unidentifiedOperatingContributions.reduce((sum, entry) => sum + entry.amount, 0);
   const requiresUnidentifiedOperatingConfirmation = ledger.shared_fund_unidentified_operating_confirmation_required === true
     || unidentifiedOperatingTotal > 0;
+  const manualAllocationRows = Array.isArray(ledger.shared_fund_unidentified_operating_allocation_manifest)
+    ? ledger.shared_fund_unidentified_operating_allocation_manifest.map(normalizeFundUnidentifiedOperatingAllocationRow).filter(entry => entry.amount > 0)
+    : [];
+  const manualAllocationTotal = Math.max(0, Math.floor(Number(ledger.shared_fund_unidentified_operating_allocation_total) || 0))
+    || manualAllocationRows.reduce((sum, entry) => sum + entry.amount, 0);
   const requiresConfirmation = rowsRequiringConfirmation.length > 0 || requiresUnidentifiedOperatingConfirmation;
   return normalizeSeparationSharedFundDeltaConfirmationSummary({
     requires_consumption_delta_confirmation: requiresConfirmation,
@@ -15528,6 +15748,13 @@ function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract
     unidentified_operating_contribution_hash: sanitizeText(ledger.shared_fund_unidentified_operating_contribution_hash, 100)
       || hashFundUnidentifiedOperatingContributionManifest(unidentifiedOperatingContributions),
     unidentified_operating_ledger_ids: [...new Set(unidentifiedOperatingContributions.flatMap(entry => entry.ledger_ids))].slice(0, 40),
+    manual_unidentified_operating_allocation_total: manualAllocationTotal,
+    manual_unidentified_operating_allocation_hash: sanitizeText(ledger.shared_fund_unidentified_operating_allocation_hash, 100)
+      || (manualAllocationRows.length > 0
+        ? hashFundUnidentifiedOperatingAllocationManifest(manualAllocationRows, sanitizeText(ledger.shared_fund_unidentified_operating_contribution_hash, 100))
+        : ''),
+    manual_unidentified_operating_allocation_applied: ledger.shared_fund_unidentified_operating_allocation_applied === true,
+    manual_unidentified_operating_allocation_rows: manualAllocationRows,
     personal_money_mutated: false,
     shared_fund_mutated: false,
     shared_warehouse_mutated: false,
@@ -15599,6 +15826,8 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
           capital_contribution_amount: Math.max(0, Math.floor(Number(item.capital_contribution_amount ?? item.amount) || 0)),
           operating_contribution_amount: Math.max(0, Math.floor(Number(item.operating_contribution_amount) || 0)),
+          traceable_operating_contribution_amount: Math.max(0, Math.floor(Number(item.traceable_operating_contribution_amount ?? item.operating_contribution_amount) || 0)),
+          manual_unidentified_operating_contribution_amount: Math.max(0, Math.floor(Number(item.manual_unidentified_operating_contribution_amount) || 0)),
           split_basis_amount: Math.max(0, Math.floor(Number(item.split_basis_amount ?? item.amount) || 0)),
           contribution_share_basis_points: Math.max(0, Math.floor(Number(item.contribution_share_basis_points) || 0)),
           capital_share_basis_points: Math.max(0, Math.floor(Number(item.capital_share_basis_points) || 0)),
@@ -15614,6 +15843,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           operating_ledger_count: Math.max(0, Math.floor(Number(item.operating_ledger_count) || 0)),
           fund_split_basis: sanitizeText(item.fund_split_basis, 80) || 'capital_and_traceable_operating_income',
           requires_consumption_delta_confirmation: item.requires_consumption_delta_confirmation === true,
+          manual_unidentified_operating_allocation_hash: sanitizeText(item.manual_unidentified_operating_allocation_hash, 100),
           suggested_refund_amount: Math.max(0, Math.floor(Number(item.suggested_refund_amount) || 0)),
           return_status: sanitizeText(item.return_status, 80) || 'manual_personal_money_write_required',
           refund_idempotency_key: sanitizeText(item.refund_idempotency_key, 120),
@@ -15628,6 +15858,15 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     shared_fund_unidentified_operating_contribution_hash: sanitizeText(entry.shared_fund_unidentified_operating_contribution_hash, 100),
     shared_fund_unidentified_operating_total: Math.max(0, Math.floor(Number(entry.shared_fund_unidentified_operating_total) || 0)),
     shared_fund_unidentified_operating_confirmation_required: entry.shared_fund_unidentified_operating_confirmation_required === true,
+    shared_fund_unidentified_operating_allocation_manifest: Array.isArray(entry.shared_fund_unidentified_operating_allocation_manifest)
+      ? entry.shared_fund_unidentified_operating_allocation_manifest
+          .map(normalizeFundUnidentifiedOperatingAllocationRow)
+          .filter(item => item.amount > 0)
+          .slice(0, 12)
+      : [],
+    shared_fund_unidentified_operating_allocation_hash: sanitizeText(entry.shared_fund_unidentified_operating_allocation_hash, 100),
+    shared_fund_unidentified_operating_allocation_total: Math.max(0, Math.floor(Number(entry.shared_fund_unidentified_operating_allocation_total) || 0)),
+    shared_fund_unidentified_operating_allocation_applied: entry.shared_fund_unidentified_operating_allocation_applied === true,
     decoration_split_manifest_hash: sanitizeText(entry.decoration_split_manifest_hash, 100),
     building_split_manifest_hash: sanitizeText(entry.building_split_manifest_hash, 100),
     decoration_splits_by_origin_owner: Array.isArray(entry.decoration_splits_by_origin_owner)
@@ -30602,6 +30841,10 @@ async function confirmSeparationSharedFundDelta(contractId, previewId, payload =
   }
   if (ledger.personal_save_written !== true) throw createError('personal farm returns must be written before shared fund delta confirmation', 409);
 
+  const allocationProposal = buildSeparationSharedFundUnidentifiedOperatingAllocation(confirmPayload, ledger, contract);
+  const ledgerWithAllocation = allocationProposal
+    ? normalizeSeparationExecutionLedgerEntry(applySeparationSharedFundUnidentifiedOperatingAllocation(ledger, allocationProposal, contract))
+    : ledger;
   const confirmedAt = nowSeconds();
   const nextConfirmation = normalizeSeparationSharedFundDeltaConfirmationEvent({
     username: member.username,
@@ -30610,9 +30853,9 @@ async function confirmSeparationSharedFundDelta(contractId, previewId, payload =
     idempotency_key: confirmPayload.idempotency_key,
     memo: confirmPayload.memo,
   });
-  const nextConfirmations = [...(ledger.shared_fund_delta_confirmations || []), nextConfirmation];
+  const nextConfirmations = [...(ledgerWithAllocation.shared_fund_delta_confirmations || []), nextConfirmation];
   const pendingLedger = normalizeSeparationExecutionLedgerEntry({
-    ...ledger,
+    ...ledgerWithAllocation,
     shared_fund_delta_confirmations: nextConfirmations,
   });
   const nextSummary = buildSeparationSharedFundDeltaConfirmationSummary(pendingLedger, contract);
@@ -30622,7 +30865,7 @@ async function confirmSeparationSharedFundDelta(contractId, previewId, payload =
     ? ['refund_shared_fund', 'return_shared_warehouse_items', 'split_decorations', 'resolve_family_story']
     : ['confirm_shared_fund_delta', 'refund_shared_fund', 'return_shared_warehouse_items', 'split_decorations', 'resolve_family_story'];
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
-    ...ledger,
+    ...ledgerWithAllocation,
     status: nextStatus,
     shared_fund_delta_confirmation_required: nextSummary.requires_consumption_delta_confirmation,
     shared_fund_delta_confirmations: nextConfirmations,
@@ -30649,10 +30892,15 @@ async function confirmSeparationSharedFundDelta(contractId, previewId, payload =
     ...preview,
     asset_return: {
       ...preview.asset_return,
+      fund_contributions_by_origin_owner: nextLedger.fund_refunds_by_origin_owner,
       shared_fund_delta_confirmation_required: nextSummary.requires_consumption_delta_confirmation,
       shared_fund_delta_confirmation_summary: nextSummary,
       shared_fund_delta_confirmed: allConfirmed,
       shared_fund_delta_confirmed_at: nextLedger.shared_fund_delta_confirmed_at,
+      shared_fund_unidentified_operating_allocation_manifest: nextLedger.shared_fund_unidentified_operating_allocation_manifest,
+      shared_fund_unidentified_operating_allocation_hash: nextLedger.shared_fund_unidentified_operating_allocation_hash,
+      shared_fund_unidentified_operating_allocation_total: nextLedger.shared_fund_unidentified_operating_allocation_total,
+      shared_fund_unidentified_operating_allocation_applied: nextLedger.shared_fund_unidentified_operating_allocation_applied,
     },
     confirmation_state: {
       ...preview.confirmation_state,
@@ -30688,6 +30936,9 @@ async function confirmSeparationSharedFundDelta(contractId, previewId, payload =
     unidentified_operating_contribution_total: nextSummary.unidentified_operating_contribution_total,
     unidentified_operating_contribution_hash: nextSummary.unidentified_operating_contribution_hash,
     unidentified_operating_ledger_ids: nextSummary.unidentified_operating_ledger_ids,
+    manual_unidentified_operating_allocation_total: nextSummary.manual_unidentified_operating_allocation_total,
+    manual_unidentified_operating_allocation_hash: nextSummary.manual_unidentified_operating_allocation_hash,
+    manual_unidentified_operating_allocation_applied: nextSummary.manual_unidentified_operating_allocation_applied,
     personal_money_changed: false,
     shared_fund_changed: false,
     shared_warehouse_changed: false,
@@ -30792,7 +31043,9 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
   const totalRefundOperatingContributions = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0);
   const totalRefundSplitBasis = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0);
   const fundDisputeSummary = buildSeparationSharedFundDeltaConfirmationSummary(ledger, contract);
-  const fundSplitBasis = sanitizeText(preview.asset_return?.fund_split_basis, 80) || 'capital_and_traceable_operating_income';
+  const fundSplitBasis = sanitizeText(refundEvidenceRows[0]?.fund_split_basis, 80)
+    || sanitizeText(preview.asset_return?.fund_split_basis, 80)
+    || 'capital_and_traceable_operating_income';
   const totalRefundAmount = refundRows.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const balanceBefore = contract.shared_fund.balance;
   if (totalRefundAmount > balanceBefore) throw createError('共同基金余额不足以按预览返还，请重新生成分居预览或人工补偿', 409);
@@ -30896,6 +31149,9 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
     unidentified_operating_contribution_total: fundDisputeSummary.unidentified_operating_contribution_total,
     unidentified_operating_contribution_hash: fundDisputeSummary.unidentified_operating_contribution_hash,
     unidentified_operating_ledger_ids: fundDisputeSummary.unidentified_operating_ledger_ids,
+    manual_unidentified_operating_allocation_total: fundDisputeSummary.manual_unidentified_operating_allocation_total,
+    manual_unidentified_operating_allocation_hash: fundDisputeSummary.manual_unidentified_operating_allocation_hash,
+    manual_unidentified_operating_allocation_applied: fundDisputeSummary.manual_unidentified_operating_allocation_applied,
     shared_fund_balance_before: balanceBefore,
     shared_fund_balance_after: contract.shared_fund.balance,
     personal_money_merged: false,
@@ -30924,6 +31180,9 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
       unidentified_operating_contribution_total: fundDisputeSummary.unidentified_operating_contribution_total,
       unidentified_operating_contribution_hash: fundDisputeSummary.unidentified_operating_contribution_hash,
       unidentified_operating_ledger_ids: fundDisputeSummary.unidentified_operating_ledger_ids,
+      manual_unidentified_operating_allocation_total: fundDisputeSummary.manual_unidentified_operating_allocation_total,
+      manual_unidentified_operating_allocation_hash: fundDisputeSummary.manual_unidentified_operating_allocation_hash,
+      manual_unidentified_operating_allocation_applied: fundDisputeSummary.manual_unidentified_operating_allocation_applied,
       dispute_confirmation: fundDisputeSummary,
       personal_money_merged: false,
     },

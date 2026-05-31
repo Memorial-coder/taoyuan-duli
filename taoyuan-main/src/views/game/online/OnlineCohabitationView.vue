@@ -367,11 +367,45 @@
                       依据：{{ separationSharedFundReadbackSummary.fund_split_basis }}；注资 {{ separationSharedFundReadbackSummary.capital_total }}，可追溯经营 {{ separationSharedFundReadbackSummary.operating_total }}，拆分基数 {{ separationSharedFundReadbackSummary.split_basis_total }}。无法识别经营贡献或消费差额先走双方确认，确认阶段只写审计，不改个人铜币或共同基金。
                     </p>
                     <p
-                      v-if="separationSharedFundReadbackSummary.rows_requiring_confirmation"
+                      v-if="separationSharedFundReadbackSummary.rows_requiring_confirmation || separationSharedFundReadbackSummary.requires_unidentified_operating_confirmation"
                       class="leading-4"
                     >
-                      需要差额确认 {{ separationSharedFundReadbackSummary.rows_requiring_confirmation }} 行；已确认 {{ separationSharedFundReadbackSummary.confirmed_member_usernames.join('、') || '暂无' }}；待确认 {{ separationSharedFundReadbackSummary.pending_member_usernames.join('、') || '暂无' }}。
+                      需要差额确认 {{ separationSharedFundReadbackSummary.rows_requiring_confirmation }} 行；未知经营贡献 {{ separationSharedFundReadbackSummary.unidentified_operating_contribution_total }} 铜币 / {{ separationSharedFundReadbackSummary.unidentified_operating_contribution_rows }} 组；已确认 {{ separationSharedFundReadbackSummary.confirmed_member_usernames.join('、') || '暂无' }}；待确认 {{ separationSharedFundReadbackSummary.pending_member_usernames.join('、') || '暂无' }}。
                     </p>
+                    <p
+                      v-if="separationSharedFundReadbackSummary.requires_unidentified_operating_confirmation"
+                      class="break-all leading-4"
+                      data-testid="online-cohabitation-separation-shared-fund-unidentified-operating"
+                    >
+                      未知经营贡献争议 hash：{{ separationSharedFundReadbackSummary.unidentified_operating_contribution_hash || '待锁定' }}；来源流水 {{ separationSharedFundReadbackSummary.unidentified_operating_ledger_ids.join('、') || '待补充' }}。
+                    </p>
+                    <div
+                      v-if="separationSharedFundReadbackSummary.requires_unidentified_operating_confirmation"
+                      class="grid gap-2 md:grid-cols-2"
+                      data-testid="online-cohabitation-separation-shared-fund-manual-allocation"
+                    >
+                      <label
+                        v-for="member in separationSharedFundManualAllocationMembers"
+                        :key="member.username_key"
+                        class="space-y-1 border border-accent/10 bg-bg/30 p-2"
+                      >
+                        <span class="block text-accent">{{ member.username }}</span>
+                        <input
+                          v-model.number="separationSharedFundManualAllocation[member.username_key]"
+                          class="online-input w-full"
+                          type="number"
+                          min="0"
+                          step="1"
+                          :data-testid="`online-cohabitation-separation-shared-fund-manual-allocation-${member.username_key}`"
+                        />
+                      </label>
+                      <p
+                        class="md:col-span-2"
+                        :class="separationSharedFundManualAllocationBalanced ? 'text-emerald-200' : 'text-amber-100'"
+                      >
+                        人工分配合计 {{ separationSharedFundManualAllocationTotal }} / {{ separationSharedFundReadbackSummary.unidentified_operating_contribution_total }} 铜币；确认后会锁定分配 hash 并重算返还权重。
+                      </p>
+                    </div>
                     <div class="grid gap-2 md:grid-cols-2">
                       <div
                         v-for="row in separationSharedFundReadbackRows"
@@ -482,12 +516,12 @@
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
                         type="button"
-                        :disabled="!canConfirmSeparationSharedFundDelta || cohabitationStore.actionLoading"
+                        :disabled="!canConfirmSeparationSharedFundDelta || !separationSharedFundManualAllocationBalanced || cohabitationStore.actionLoading"
                         data-testid="online-cohabitation-separation-shared-fund-delta-confirm"
                         @click="confirmSeparationSharedFundDelta"
                       >
                         <CheckCircle2 :size="12" />
-                        确认差额
+                        确认争议
                       </button>
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
@@ -3434,11 +3468,25 @@
     split_basis_total: number
     refund_total: number
     rows_requiring_confirmation: number
+    requires_consumption_delta_confirmation: boolean
+    requires_unidentified_operating_confirmation: boolean
+    unidentified_operating_contribution_total: number
+    unidentified_operating_contribution_rows: number
+    unidentified_operating_contribution_hash: string
+    unidentified_operating_ledger_ids: string[]
+    manual_unidentified_operating_allocation_total: number
+    manual_unidentified_operating_allocation_hash: string
+    manual_unidentified_operating_allocation_applied: boolean
     required_member_usernames: string[]
     confirmed_member_usernames: string[]
     pending_member_usernames: string[]
     all_members_confirmed: boolean
     fund_split_basis: string
+  }
+  type SeparationSharedFundManualAllocationMember = {
+    username: string
+    username_key: string
+    split_basis_amount: number
   }
   type SeparationStoryCinematicReadbackRow = {
     key: string
@@ -3654,6 +3702,7 @@
   const separationActionMessage = ref('')
   const separationActionOk = ref(false)
   const separationPreviewReason = ref('')
+  const separationSharedFundManualAllocation = ref<Record<string, number>>({})
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -3796,18 +3845,58 @@
   const separationSharedFundReadbackSummary = computed<SeparationSharedFundReadbackSummary>(() => {
     const rows = separationSharedFundReadbackRows.value
     const summary = separationSharedFundDeltaConfirmationSummary.value
+    const assetReturn = latestSeparationPreview.value?.asset_return as Record<string, unknown> | undefined
+    const unidentifiedSummary = assetReturn?.fund_unidentified_operating_summary
+    const unidentifiedOperatingSummary = unidentifiedSummary && typeof unidentifiedSummary === 'object' && !Array.isArray(unidentifiedSummary)
+      ? unidentifiedSummary as Record<string, unknown>
+      : {}
     const toUsernameList = (value: unknown) => Array.isArray(value)
+      ? value.map(item => String(item || '').trim()).filter(Boolean)
+      : []
+    const toStringList = (value: unknown) => Array.isArray(value)
       ? value.map(item => String(item || '').trim()).filter(Boolean)
       : []
     const requiredMemberUsernames = toUsernameList(summary.required_member_usernames)
     const confirmedMemberUsernames = toUsernameList(summary.confirmed_member_usernames)
     const pendingMemberUsernames = toUsernameList(summary.pending_member_usernames)
+    const rowsRequiringConfirmation = Math.max(0, Math.floor(Number(summary.rows_requiring_confirmation) || rows.filter(row => row.requires_confirmation).length))
+    const unidentifiedOperatingTotal = Math.max(0, Math.floor(
+      Number(summary.unidentified_operating_contribution_total)
+      || Number(unidentifiedOperatingSummary.total_amount)
+      || 0
+    ))
+    const unidentifiedOperatingRows = Math.max(0, Math.floor(
+      Number(summary.unidentified_operating_contribution_rows)
+      || Number(unidentifiedOperatingSummary.row_count)
+      || Number(unidentifiedOperatingSummary.contribution_count)
+      || 0
+    ))
+    const unidentifiedOperatingLedgerIds = toStringList(summary.unidentified_operating_ledger_ids).length
+      ? toStringList(summary.unidentified_operating_ledger_ids)
+      : toStringList(unidentifiedOperatingSummary.ledger_ids)
+    const requiresUnidentifiedOperatingConfirmation =
+      summary.requires_unidentified_operating_confirmation === true
+      || unidentifiedOperatingSummary.requires_both_confirm === true
+      || unidentifiedOperatingTotal > 0
     return {
       capital_total: Math.max(0, Math.floor(Number(latestSeparationPreview.value?.asset_return?.fund_total_contributed) || rows.reduce((sum, row) => sum + row.capital_contribution_amount, 0))),
       operating_total: Math.max(0, Math.floor(Number(latestSeparationPreview.value?.asset_return?.fund_total_operating_contributed) || rows.reduce((sum, row) => sum + row.operating_contribution_amount, 0))),
       split_basis_total: Math.max(0, Math.floor(Number(latestSeparationPreview.value?.asset_return?.fund_total_split_basis) || rows.reduce((sum, row) => sum + row.split_basis_amount, 0))),
       refund_total: Math.max(0, Math.floor(Number(summary.refund_total) || rows.reduce((sum, row) => sum + row.suggested_refund_amount, 0))),
-      rows_requiring_confirmation: Math.max(0, Math.floor(Number(summary.rows_requiring_confirmation) || rows.filter(row => row.requires_confirmation).length)),
+      rows_requiring_confirmation: rowsRequiringConfirmation,
+      requires_consumption_delta_confirmation: summary.requires_consumption_delta_confirmation === true || rowsRequiringConfirmation > 0,
+      requires_unidentified_operating_confirmation: requiresUnidentifiedOperatingConfirmation,
+      unidentified_operating_contribution_total: unidentifiedOperatingTotal,
+      unidentified_operating_contribution_rows: unidentifiedOperatingRows,
+      unidentified_operating_contribution_hash: String(
+        summary.unidentified_operating_contribution_hash
+        ?? assetReturn?.fund_unidentified_operating_contribution_hash
+        ?? ''
+      ),
+      unidentified_operating_ledger_ids: unidentifiedOperatingLedgerIds,
+      manual_unidentified_operating_allocation_total: Math.max(0, Math.floor(Number(summary.manual_unidentified_operating_allocation_total) || 0)),
+      manual_unidentified_operating_allocation_hash: String(summary.manual_unidentified_operating_allocation_hash ?? ''),
+      manual_unidentified_operating_allocation_applied: summary.manual_unidentified_operating_allocation_applied === true,
       required_member_usernames: requiredMemberUsernames,
       confirmed_member_usernames: confirmedMemberUsernames,
       pending_member_usernames: pendingMemberUsernames,
@@ -3815,11 +3904,69 @@
       fund_split_basis: String(summary.fund_split_basis ?? rows[0]?.fund_split_basis ?? 'capital_and_traceable_operating_income'),
     }
   })
+  const separationSharedFundManualAllocationMembers = computed<SeparationSharedFundManualAllocationMember[]>(() => {
+    const rows = separationSharedFundReadbackRows.value
+    const rowByUsername = new globalThis.Map(rows.map(row => [normalizeActorKey(row.origin_owner_username), row]))
+    const members = selectedContract.value?.members ?? []
+    const acceptedMemberRows = members
+      .filter(member => member.status === 'accepted')
+      .map(member => {
+        const username = String(member.username || '').trim()
+        const usernameKey = normalizeActorKey(member.username_key || username)
+        const fundRow = rowByUsername.get(normalizeActorKey(username))
+        return {
+          username,
+          username_key: usernameKey,
+          split_basis_amount: Math.max(1, fundRow?.split_basis_amount ?? 1),
+        }
+      })
+      .filter(member => member.username)
+    if (acceptedMemberRows.length > 0) return acceptedMemberRows
+    return rows.map(row => ({
+      username: row.origin_owner_username,
+      username_key: normalizeActorKey(row.origin_owner_username),
+      split_basis_amount: Math.max(1, row.split_basis_amount),
+    }))
+  })
+  const separationSharedFundManualAllocationTotal = computed(() =>
+    separationSharedFundManualAllocationMembers.value.reduce((sum, member) => {
+      const amount = Math.max(0, Math.floor(Number(separationSharedFundManualAllocation.value[member.username_key]) || 0))
+      return sum + amount
+    }, 0)
+  )
+  const separationSharedFundManualAllocationBalanced = computed(() => {
+    const expected = separationSharedFundReadbackSummary.value.unidentified_operating_contribution_total
+    return expected <= 0 || separationSharedFundManualAllocationTotal.value === expected
+  })
+  const seedSeparationSharedFundManualAllocation = () => {
+    const expected = separationSharedFundReadbackSummary.value.unidentified_operating_contribution_total
+    const members = separationSharedFundManualAllocationMembers.value
+    if (expected <= 0 || members.length === 0) return
+    if (members.some(member => Number(separationSharedFundManualAllocation.value[member.username_key]) > 0)) return
+    const totalBasis = members.reduce((sum, member) => sum + member.split_basis_amount, 0)
+    let allocated = 0
+    const next: Record<string, number> = {}
+    members.forEach((member, index) => {
+      const amount = index === members.length - 1
+        ? Math.max(0, expected - allocated)
+        : Math.floor((expected * member.split_basis_amount) / Math.max(1, totalBasis))
+      allocated += amount
+      next[member.username_key] = amount
+    })
+    separationSharedFundManualAllocation.value = next
+  }
+  watch(
+    () => [
+      latestSeparationPreview.value?.id || '',
+      separationSharedFundReadbackSummary.value.unidentified_operating_contribution_total,
+      separationSharedFundManualAllocationMembers.value.map(member => member.username_key).join('|'),
+    ],
+    () => seedSeparationSharedFundManualAllocation(),
+    { immediate: true }
+  )
   const separationSharedFundDeltaRequiresConfirmation = computed(() =>
-    separationSharedFundRows.value.some(row =>
-      row.requires_consumption_delta_confirmation === true
-      && Math.max(0, Math.floor(Number(row.suggested_refund_amount) || 0)) > 0
-    )
+    separationSharedFundReadbackSummary.value.requires_consumption_delta_confirmation
+    || separationSharedFundReadbackSummary.value.requires_unidentified_operating_confirmation
   )
   const separationSharedFundDeltaConfirmed = computed(() => {
     if (!separationSharedFundDeltaRequiresConfirmation.value) return true
@@ -4880,7 +5027,6 @@
     goat_milk: '羊奶',
     truffle: '松露',
     camel_milk: '驼奶',
-    candied_peach: '蜜桃脯',
     crucian: '鲫鱼',
     carp: '鲤鱼',
     bass: '鲈鱼',
@@ -4888,6 +5034,7 @@
     eel: '鳗鱼',
     river_crab: '河蟹',
     creek_shrimp: '溪虾',
+    candied_peach: '蜜桃脯',
     food_scrambled_egg_rice: '蛋炒饭',
     food_boiled_egg: '水煮蛋',
     food_silkie_egg_soup: '乌鸡蛋羹',
@@ -4902,8 +5049,6 @@
     food_grilled_eel: '烤鳗鱼',
     food_crab_soup: '蟹黄汤',
     food_anglers_platter: '渔夫拼盘',
-    food_rapeseed_bamboo_rice_roll: '菜油春笋米粉卷',
-    food_pumpkin_harvest_cauldron: '丰收南瓜大锅羹',
     food_lotus_fish_roll: '莲藕鱼卷',
     food_sesame_eel_rice: '芝麻鳗鱼饭',
     food_crab_osmanthus_congee: '桂香蟹粥',
@@ -4916,6 +5061,8 @@
     food_lotus_lantern_cake: '荷灯糕',
     food_harvest_feast: '丰收盛宴',
     food_new_year_dumpling: '年夜饺',
+    food_rapeseed_bamboo_rice_roll: '菜油春笋米粉卷',
+    food_pumpkin_harvest_cauldron: '丰收南瓜大锅羹',
     food_pickled_radish_guard_soup: '腌萝卜护院汤',
     food_candied_peach_spirit_cake: '蜜桃灵果糕',
     warming_sweet_potato_pill: '温阳薯丸',
@@ -5178,8 +5325,6 @@
     { id: 'shared_grilled_eel', label: '共同灶台烤鳗鱼', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'eel', quantity: 1, quality: 'normal' }, { item_id: 'sesame', quantity: 1, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }], output_item_id: 'food_grilled_eel', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_crab_soup', label: '共同灶台蟹黄汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'river_crab', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }], output_item_id: 'food_crab_soup', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_anglers_platter', label: '共同灶台渔夫拼盘', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'bass', quantity: 1, quality: 'normal' }, { item_id: 'creek_shrimp', quantity: 1, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }], output_item_id: 'food_anglers_platter', output_quantity: 1, output_quality: 'normal' },
-    { id: 'shared_roasted_sweet_potato', label: '共同灶台烤红薯', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }], output_item_id: 'food_roasted_sweet_potato', output_quantity: 1, output_quality: 'normal' },
-    { id: 'shared_rice_flour_roll', label: '共同灶台米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'dried_radish', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_flour_roll', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_lotus_fish_roll', label: '共同灶台莲藕鱼卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'bass', quantity: 1, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'rice_flour', quantity: 1, quality: 'fine' }], output_item_id: 'food_lotus_fish_roll', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_sesame_eel_rice', label: '共同灶台芝麻鳗鱼饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'eel', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_sesame_eel_rice', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_crab_osmanthus_congee', label: '共同灶台桂香蟹粥', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'river_crab', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }, { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }], output_item_id: 'food_crab_osmanthus_congee', output_quantity: 1, output_quality: 'normal' },
@@ -5192,6 +5337,8 @@
     { id: 'shared_lotus_lantern_cake', label: '共同灶台荷灯糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'rice', quantity: 2, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_lotus_lantern_cake', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_harvest_feast', label: '共同灶台丰收盛宴', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin', quantity: 1, quality: 'normal' }, { item_id: 'sweet_potato', quantity: 1, quality: 'normal' }, { item_id: 'corn', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_harvest_feast', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_new_year_dumpling', label: '共同灶台年夜饺', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'winter_wheat', quantity: 3, quality: 'normal' }, { item_id: 'napa_cabbage', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }], output_item_id: 'food_new_year_dumpling', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_roasted_sweet_potato', label: '共同灶台烤红薯', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }], output_item_id: 'food_roasted_sweet_potato', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_rice_flour_roll', label: '共同灶台米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'dried_radish', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_flour_roll', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_sesame_tangyuan', label: '共同灶台芝麻汤圆', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_sesame_tangyuan', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_lotus_sesame_calming_cake', label: '共同灶台莲心芝麻安神糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_lotus_sesame_calming_cake', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_spicy_pumpkin_rice', label: '共同灶台赛舟辣南瓜饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' }, { item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_spicy_pumpkin_rice', output_quantity: 1, output_quality: 'normal' },
@@ -7038,25 +7185,44 @@
     }
   }
 
+  const buildSeparationSharedFundManualAllocationPayload = () => {
+    if (!separationSharedFundReadbackSummary.value.requires_unidentified_operating_confirmation) return {}
+    const expected = separationSharedFundReadbackSummary.value.unidentified_operating_contribution_total
+    if (expected <= 0) return {}
+    if (!separationSharedFundManualAllocationBalanced.value) {
+      throw new Error(`未知经营贡献人工分配合计需等于 ${expected} 铜币`)
+    }
+    return {
+      unidentified_operating_contribution_hash: separationSharedFundReadbackSummary.value.unidentified_operating_contribution_hash,
+      unidentified_operating_allocation: separationSharedFundManualAllocationMembers.value.map(member => ({
+        target_username: member.username,
+        target_username_key: member.username_key,
+        amount: Math.max(0, Math.floor(Number(separationSharedFundManualAllocation.value[member.username_key]) || 0)),
+      })),
+    }
+  }
+
   const confirmSeparationSharedFundDelta = async () => {
     if (!latestSeparationPreview.value || !canConfirmSeparationSharedFundDelta.value) return
     separationActionMessage.value = ''
     separationActionOk.value = false
     try {
+      const manualAllocationPayload = buildSeparationSharedFundManualAllocationPayload()
       const result = await cohabitationStore.confirmSeparationSharedFundDelta(latestSeparationPreview.value.id, {
         execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
         plot_return_manifest_hash: separationPlotReturnManifestHash.value,
-        memo: '前端确认分居共同基金消费差额；不改共同基金、个人铜币或共同仓库',
+        ...manualAllocationPayload,
+        memo: '前端确认分居共同基金消费差额 / 未知经营贡献争议；不改共同基金、个人铜币或共同仓库',
         idempotency_key: `ui-separation-shared-fund-delta-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
       separationActionOk.value = true
       const summary = result?.shared_fund_delta_confirmation as Record<string, unknown> | undefined
       const pending = Array.isArray(summary?.pending_member_usernames) ? summary.pending_member_usernames.length : 0
       separationActionMessage.value = result?.already_confirmed || pending === 0
-        ? '共同基金消费差额已双方确认'
-        : `已确认共同基金消费差额，仍待 ${pending} 位成员确认`
+        ? '共同基金消费差额 / 未知经营贡献争议已双方确认'
+        : `已确认共同基金消费差额 / 未知经营贡献争议，仍待 ${pending} 位成员确认`
     } catch (error) {
-      separationActionMessage.value = error instanceof Error ? error.message : '确认分居共同基金消费差额失败'
+      separationActionMessage.value = error instanceof Error ? error.message : '确认分居共同基金争议失败'
     }
   }
 
