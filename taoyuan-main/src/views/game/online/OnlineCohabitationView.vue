@@ -466,6 +466,30 @@
                         <span class="mt-1 block break-all">{{ row.value }}</span>
                       </p>
                     </div>
+                    <div
+                      v-if="separationStoryCinematicPlaybackSteps.length"
+                      class="space-y-2 border border-fuchsia-300/20 bg-bg/40 p-2"
+                      data-testid="online-cohabitation-separation-story-cinematic-player"
+                    >
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-accent">演出时间线</p>
+                        <span>{{ separationStoryCinematicPlaybackStepLabel }}</span>
+                      </div>
+                      <div class="border border-accent/10 bg-fuchsia-500/10 p-2">
+                        <p class="text-accent">{{ separationStoryCinematicPlaybackActiveStep.label }}</p>
+                        <p class="mt-1 leading-4">{{ separationStoryCinematicPlaybackActiveStep.detail }}</p>
+                      </div>
+                      <div class="grid gap-1 md:grid-cols-3">
+                        <span
+                          v-for="(step, index) in separationStoryCinematicPlaybackSteps"
+                          :key="step.key"
+                          class="border px-2 py-1"
+                          :class="index === separationStoryCinematicPlaybackIndex ? 'border-fuchsia-200 bg-fuchsia-500/20 text-fuchsia-100' : 'border-accent/10 text-muted'"
+                        >
+                          {{ step.short_label }}
+                        </span>
+                      </div>
+                    </div>
                     <p class="leading-4">
                       只读契约记录：剧情 receipt 可写入成员存档，NPC、家庭和孩子主状态仍由后续剧情规则处理。
                     </p>
@@ -566,9 +590,9 @@
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
                         type="button"
-                        :disabled="!canRecordSeparationStoryCinematicPlayback || cohabitationStore.actionLoading"
+                        :disabled="!canRecordSeparationStoryCinematicPlayback || separationStoryCinematicPlaybackActive || cohabitationStore.actionLoading"
                         data-testid="online-cohabitation-separation-story-cinematic-playback"
-                        @click="recordSeparationStoryCinematicPlayback"
+                        @click="playSeparationStoryCinematicPlayback"
                       >
                         <Play :size="12" />
                         播放演出
@@ -3268,7 +3292,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref, watch } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import {
     Bug,
@@ -3494,6 +3518,14 @@
     label: string
     value: string
   }
+  type SeparationStoryCinematicPlaybackStep = {
+    key: string
+    kind: 'stage' | 'dialogue' | 'animation'
+    label: string
+    short_label: string
+    detail: string
+    duration_ms: number
+  }
 
   const separationStoryValueLabel = (value: unknown, fallback = '待记录') => {
     if (typeof value === 'string') return value.trim() || fallback
@@ -3704,6 +3736,9 @@
   const separationActionOk = ref(false)
   const separationPreviewReason = ref('')
   const separationSharedFundManualAllocation = ref<Record<string, number>>({})
+  const separationStoryCinematicPlaybackActive = ref(false)
+  const separationStoryCinematicPlaybackIndex = ref(0)
+  const separationStoryCinematicPlaybackTimer = ref<ReturnType<typeof window.setTimeout> | null>(null)
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -3986,6 +4021,80 @@
     const personalState = resolution.personal_state_mutated === true ? '个人主状态已变更' : '个人主状态未变更'
     const contractOnly = resolution.contract_record_only !== false ? '契约只读记录' : '允许后续写主态'
     return `${cinematic} · ${personalState} · ${contractOnly}`
+  })
+  const toSeparationStoryObjects = (value: unknown) =>
+    Array.isArray(value)
+      ? value
+          .map(item => item && typeof item === 'object' && !Array.isArray(item) ? item as Record<string, unknown> : null)
+          .filter((item): item is Record<string, unknown> => item !== null)
+      : []
+  const compactSeparationStoryText = (value: unknown) => String(value ?? '').trim()
+  const separationStoryCinematicPlaybackSteps = computed<SeparationStoryCinematicPlaybackStep[]>(() => {
+    const resolution = separationStoryCinematicResolution.value
+    if (!resolution) return []
+    const steps: SeparationStoryCinematicPlaybackStep[] = []
+    const stageDirection = compactSeparationStoryText(resolution.cinematic_stage_direction)
+    if (stageDirection) {
+      steps.push({
+        key: 'stage_direction',
+        kind: 'stage',
+        label: '场景调度',
+        short_label: '场景',
+        detail: stageDirection,
+        duration_ms: 1200,
+      })
+    }
+    toSeparationStoryObjects(resolution.dialogue_lines).forEach((line, index) => {
+      const text = compactSeparationStoryText(line.text)
+      if (!text) return
+      const speaker = compactSeparationStoryText(line.speaker_label || line.speaker_role) || `角色${index + 1}`
+      const beat = compactSeparationStoryText(line.beat)
+      steps.push({
+        key: `dialogue_${compactSeparationStoryText(line.line_id) || index}`,
+        kind: 'dialogue',
+        label: `${speaker}${beat ? ` · ${beat}` : ''}`,
+        short_label: `台词${index + 1}`,
+        detail: text,
+        duration_ms: 1500,
+      })
+    })
+    toSeparationStoryObjects(resolution.animation_cues).forEach((cue, index) => {
+      const action = compactSeparationStoryText(cue.action)
+      if (!action) return
+      const stage = compactSeparationStoryText(cue.stage) || '场景'
+      const timing = compactSeparationStoryText(cue.timing)
+      steps.push({
+        key: `cue_${compactSeparationStoryText(cue.cue_id) || index}`,
+        kind: 'animation',
+        label: `${stage}${timing ? ` · ${timing}` : ''}`,
+        short_label: `Cue${index + 1}`,
+        detail: action,
+        duration_ms: Math.min(2400, Math.max(700, Math.floor(Number(cue.duration_ms) || 1200))),
+      })
+    })
+    return steps.slice(0, 18)
+  })
+  const separationStoryCinematicPlaybackActiveStep = computed<SeparationStoryCinematicPlaybackStep>(() =>
+    separationStoryCinematicPlaybackSteps.value[separationStoryCinematicPlaybackIndex.value]
+    || separationStoryCinematicPlaybackSteps.value[0]
+    || {
+      key: 'pending',
+      kind: 'stage',
+      label: '待播放',
+      short_label: '待播放',
+      detail: '等待剧情记录生成演出时间线。',
+      duration_ms: 900,
+    }
+  )
+  const separationStoryCinematicPlaybackStepLabel = computed(() => {
+    const total = separationStoryCinematicPlaybackSteps.value.length
+    if (total <= 0) return '0 / 0'
+    return `${Math.min(separationStoryCinematicPlaybackIndex.value + 1, total)} / ${total}`
+  })
+  onBeforeUnmount(() => {
+    if (separationStoryCinematicPlaybackTimer.value !== null) {
+      window.clearTimeout(separationStoryCinematicPlaybackTimer.value)
+    }
   })
   const separationStoryCinematicReadbackRows = computed<SeparationStoryCinematicReadbackRow[]>(() => {
     const resolution = separationStoryCinematicResolution.value
@@ -7344,6 +7453,41 @@
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '记录分居剧情拆分失败'
     }
+  }
+
+  const waitForSeparationStoryCinematicStep = (durationMs: number) => new Promise<void>(resolve => {
+    const duration = Math.min(2400, Math.max(600, Math.floor(Number(durationMs) || 1000)))
+    separationStoryCinematicPlaybackTimer.value = window.setTimeout(() => {
+      separationStoryCinematicPlaybackTimer.value = null
+      resolve()
+    }, duration)
+  })
+
+  const playSeparationStoryCinematicPlayback = async () => {
+    if (!latestSeparationPreview.value || !canRecordSeparationStoryCinematicPlayback.value || separationStoryCinematicPlaybackActive.value) return
+    const steps = separationStoryCinematicPlaybackSteps.value
+    if (steps.length === 0) {
+      await recordSeparationStoryCinematicPlayback()
+      return
+    }
+    separationActionMessage.value = '正在播放分居关系剧情演出'
+    separationActionOk.value = false
+    separationStoryCinematicPlaybackActive.value = true
+    try {
+      for (let index = 0; index < steps.length; index += 1) {
+        const step = steps[index]
+        if (!step) continue
+        separationStoryCinematicPlaybackIndex.value = index
+        await waitForSeparationStoryCinematicStep(step.duration_ms)
+      }
+    } finally {
+      separationStoryCinematicPlaybackActive.value = false
+      if (separationStoryCinematicPlaybackTimer.value !== null) {
+        window.clearTimeout(separationStoryCinematicPlaybackTimer.value)
+        separationStoryCinematicPlaybackTimer.value = null
+      }
+    }
+    await recordSeparationStoryCinematicPlayback()
   }
 
   const recordSeparationStoryCinematicPlayback = async () => {
