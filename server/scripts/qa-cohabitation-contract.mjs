@@ -116,6 +116,69 @@ const createFarmPlots = username => {
   return plots
 }
 
+const createGreenhousePlots = username => {
+  if (username === owner) {
+    return [
+      {
+        id: 0,
+        state: 'growing',
+        cropId: 'lotus',
+        growthDays: 2,
+        watered: true,
+        unwateredDays: 0,
+        fertilizer: 'quality_fertilizer',
+        harvestCount: 0,
+        giantCropGroup: null,
+        seedGenetics: null,
+        infested: false,
+        infestedDays: 0,
+        weedy: false,
+        weedyDays: 0,
+      },
+    ]
+  }
+  if (username === partner) {
+    return [
+      {
+        id: 1,
+        state: 'harvestable',
+        cropId: 'cabbage',
+        growthDays: 4,
+        watered: true,
+        unwateredDays: 0,
+        fertilizer: null,
+        harvestCount: 1,
+        giantCropGroup: null,
+        seedGenetics: null,
+        infested: false,
+        infestedDays: 0,
+        weedy: false,
+        weedyDays: 0,
+      },
+    ]
+  }
+  return []
+}
+
+const createFruitTrees = username => {
+  if (username === owner) {
+    return [
+      { id: 0, type: 'peach_tree', growthDays: 30, mature: true, yearAge: 1, todayFruit: true },
+    ]
+  }
+  if (username === partner) {
+    return [
+      { id: 2, type: 'lychee_tree', growthDays: 12, mature: false, yearAge: 0, todayFruit: false },
+    ]
+  }
+  return []
+}
+
+const createNextFruitTreeId = username => {
+  const trees = createFruitTrees(username)
+  return trees.length > 0 ? Math.max(...trees.map(tree => Number(tree.id) || 0)) + 1 : 0
+}
+
 const buildSaveData = username => ({
   meta: {
     saveVersion: 1,
@@ -135,8 +198,9 @@ const buildSaveData = username => ({
     farm: {
       farmSize: 4,
       plots: createFarmPlots(username),
-      fruitTrees: [],
-      greenhousePlots: [],
+      fruitTrees: createFruitTrees(username),
+      greenhousePlots: createGreenhousePlots(username),
+      nextFruitTreeId: createNextFruitTreeId(username),
     },
     inventory: {
       items: username.includes('_lg_')
@@ -537,7 +601,10 @@ assert.ok(accepted.contract.shared_manor_id.startsWith('shared_manor_'), 'activa
 assert.equal(accepted.contract.shared_fund.ledger[0].action, 'contract_activated', 'activation should create shared fund ledger marker')
 assert.equal(accepted.contract.shared_map?.persisted, true, 'activation should persist a shared manor farm map')
 assert.equal(accepted.contract.shared_map?.summary?.total_plots, 32, 'persisted shared manor map should include both member farms')
-assert.equal(accepted.contract.origin_assets.plots.length, 32, 'activation should persist plot origin assets for separation return')
+assert.equal(accepted.contract.origin_assets.plots.length, 36, 'activation should persist field, greenhouse, and fruit-tree origin assets for separation return')
+assert.equal(accepted.contract.origin_assets.plots.filter(plot => plot.source_area === 'field').length, 32, 'activation should persist field plot origin assets')
+assert.equal(accepted.contract.origin_assets.plots.filter(plot => plot.source_area === 'greenhouse').length, 2, 'activation should persist greenhouse plot origin assets')
+assert.equal(accepted.contract.origin_assets.plots.filter(plot => plot.source_area === 'fruit_tree').length, 2, 'activation should persist fruit-tree origin assets')
 assert.equal(accepted.contract.shared_animals?.persisted, true, 'activation should persist shared animal state')
 assert.equal(accepted.contract.shared_animals?.summary?.animal_count, 1, 'activation should persist owner animal into shared animals')
 assert.equal(accepted.contract.origin_assets.animals.length, 1, 'activation should persist animal origin assets for separation return')
@@ -5934,20 +6001,31 @@ assert.equal(previewResult.preview.confirmation_state.can_execute_now, false, 's
 assert.equal(previewResult.preview.confirmation_state.execution_enabled, false, 'separation execution should stay disabled in first pass')
 assert.deepEqual(previewResult.preview.confirmation_state.required_member_usernames.sort(), [owner, partner].sort(), 'separation preview should require accepted member confirmation')
 assert.match(previewResult.preview.asset_return.personal_money_policy, /个人铜币/, 'preview should preserve personal money boundary')
-assert.equal(previewResult.preview.asset_return.plot_return_summary.total_plots, 32, 'separation preview should include shared farm plot summary')
+assert.equal(previewResult.preview.asset_return.plot_return_summary.total_plots, 36, 'separation preview should include field, greenhouse, and fruit-tree farm source summary')
+assert.equal(previewResult.preview.asset_return.plot_return_summary.field_plot_count, 32, 'separation preview should count persisted shared field plots')
+assert.equal(previewResult.preview.asset_return.plot_return_summary.greenhouse_plot_count, 2, 'separation preview should count greenhouse source plots')
+assert.equal(previewResult.preview.asset_return.plot_return_summary.fruit_tree_count, 2, 'separation preview should count fruit-tree sources')
 assert.equal(previewResult.preview.asset_return.plot_return_summary.persisted_shared_manor_map, true, 'separation preview should use the persisted shared manor map')
-assert.equal(previewResult.preview.asset_return.plot_return_summary.return_source, 'contract_shared_map', 'separation preview should not rebuild plot returns from personal farm snapshots')
-assert.deepEqual(previewResult.preview.asset_return.plot_return_summary.included_sources, ['contract.shared_map.plots'], 'separation preview should declare contract shared map as plot source')
-assert.equal(previewResult.preview.asset_return.plot_return_summary.manifest_plot_count, 32, 'separation preview should include every plot in the return manifest')
+assert.equal(previewResult.preview.asset_return.plot_return_summary.return_source, 'contract_persisted_farm_sources', 'separation preview should use persisted contract farm sources for field, greenhouse, and fruit-tree returns')
+assert.deepEqual(previewResult.preview.asset_return.plot_return_summary.included_sources.sort(), ['contract.origin_assets.plots', 'contract.shared_map.plots'].sort(), 'separation preview should declare shared map and origin asset plot sources')
+assert.ok(!previewResult.preview.asset_return.plot_return_summary.deferred_sources.includes('farm.greenhousePlots'), 'greenhouse plots should not remain deferred for source return')
+assert.ok(!previewResult.preview.asset_return.plot_return_summary.deferred_sources.includes('farm.fruitTrees'), 'fruit trees should not remain deferred for source return')
+assert.equal(previewResult.preview.asset_return.plot_return_summary.manifest_plot_count, 36, 'separation preview should include every field, greenhouse, and fruit-tree source in the return manifest')
 assert.equal(previewResult.preview.asset_return.plot_return_summary.manifest_complete, true, 'separation preview should mark the plot return manifest complete')
 assert.match(previewResult.preview.asset_return.plot_return_manifest_hash, /^[a-f0-9]{64}$/, 'separation preview should expose a stable plot return manifest hash')
-assert.equal(previewResult.preview.asset_return.plot_return_manifest.length, 32, 'separation preview should expose one manifest row per source plot')
+assert.equal(previewResult.preview.asset_return.plot_return_manifest.length, 36, 'separation preview should expose one manifest row per farm source')
 const ownerReturnManifest = previewResult.preview.asset_return.plot_return_manifest.filter(item => item.origin_owner_username === owner)
 const partnerReturnManifest = previewResult.preview.asset_return.plot_return_manifest.filter(item => item.origin_owner_username === partner)
-assert.deepEqual(ownerReturnManifest.map(item => item.source_plot_id), Array.from({ length: 16 }, (_, index) => index), 'owner return manifest should preserve all owner source plot ids')
-assert.deepEqual(partnerReturnManifest.map(item => item.source_plot_id), Array.from({ length: 16 }, (_, index) => index), 'partner return manifest should preserve all partner source plot ids')
-assert.equal(ownerReturnManifest.find(item => item.source_plot_id === 0)?.plot_state_snapshot.crop_id, 'rice', 'owner return manifest should preserve plot state snapshot')
-const ownerSourceZeroReturnManifest = ownerReturnManifest.find(item => item.source_plot_id === 0)
+assert.deepEqual(ownerReturnManifest.filter(item => item.source_area === 'field').map(item => item.source_plot_id), Array.from({ length: 16 }, (_, index) => index), 'owner return manifest should preserve all owner field source plot ids')
+assert.deepEqual(partnerReturnManifest.filter(item => item.source_area === 'field').map(item => item.source_plot_id), Array.from({ length: 16 }, (_, index) => index), 'partner return manifest should preserve all partner field source plot ids')
+assert.equal(ownerReturnManifest.find(item => item.source_area === 'field' && item.source_plot_id === 0)?.plot_state_snapshot.crop_id, 'rice', 'owner return manifest should preserve field plot state snapshot')
+assert.equal(ownerReturnManifest.find(item => item.source_area === 'greenhouse' && item.source_plot_id === 0)?.plot_state_snapshot.crop_id, 'lotus', 'owner return manifest should preserve greenhouse state snapshot')
+assert.equal(ownerReturnManifest.find(item => item.source_area === 'fruit_tree' && item.source_plot_id === 0)?.fruit_tree_state_snapshot.type, 'peach_tree', 'owner return manifest should preserve fruit-tree state snapshot')
+assert.equal(partnerReturnManifest.find(item => item.source_area === 'greenhouse' && item.source_plot_id === 1)?.plot_state_snapshot.crop_id, 'cabbage', 'partner return manifest should preserve greenhouse state snapshot')
+assert.equal(partnerReturnManifest.find(item => item.source_area === 'fruit_tree' && item.source_plot_id === 2)?.fruit_tree_state_snapshot.type, 'lychee_tree', 'partner return manifest should preserve fruit-tree state snapshot')
+assert.ok(ownerReturnManifest.some(item => item.source_area === 'greenhouse' && item.manifest_source === 'contract.origin_assets.plots'), 'owner greenhouse manifest should come from persisted origin assets')
+assert.ok(ownerReturnManifest.some(item => item.source_area === 'fruit_tree' && item.manifest_source === 'contract.origin_assets.plots'), 'owner fruit-tree manifest should come from persisted origin assets')
+const ownerSourceZeroReturnManifest = ownerReturnManifest.find(item => item.source_area === 'field' && item.source_plot_id === 0)
 assert.equal(ownerSourceZeroReturnManifest?.plot_state_snapshot.watered, true, 'owner return manifest should read updated contract-map watered state')
 assert.equal(ownerSourceZeroReturnManifest?.current_steward_username, partner, 'owner return manifest should read updated contract-map steward')
 assert.equal(ownerSourceZeroReturnManifest?.source_save_slot, 0, 'owner return manifest should keep source save slot')
@@ -5956,13 +6034,13 @@ assert.equal(ownerSourceZeroReturnManifest?.split_rule, 'return_to_origin_owner_
 assert.equal(ownerSourceZeroReturnManifest?.permission_mode, 'shared', 'owner return manifest should keep current plot permission mode')
 assert.equal(ownerSourceZeroReturnManifest?.permission_restriction, 'accepted_members_with_farm_permission_can_care', 'owner return manifest should keep permission restriction')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.source_save_slot === 0 && item.split_rule === 'return_to_origin_owner_on_separation'), 'plot return group should keep source save and split policy')
-const partnerSourceFiveReturnManifest = partnerReturnManifest.find(item => item.source_plot_id === 5)
+const partnerSourceFiveReturnManifest = partnerReturnManifest.find(item => item.source_area === 'field' && item.source_plot_id === 5)
 assert.equal(partnerSourceFiveReturnManifest?.plot_state_snapshot.state, 'tilled', 'partner return manifest should read offline-auto-income updated plot state')
 assert.equal(partnerSourceFiveReturnManifest?.plot_state_snapshot.crop_id, null, 'partner return manifest should keep harvested crop cleared after offline auto income')
 assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'tea' && item.origin_owner_username === partner && item.quantity === 1), 'separation preview should return offline income tea through shared warehouse ledger by origin owner')
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'plot_return_manifest_complete')?.passed, 'separation preview should pass complete plot manifest safety check')
-assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.plot_count === 16), 'separation preview should include owner plot return group')
-assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 16), 'separation preview should include partner plot return group')
+assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.plot_count === 18 && item.source_areas.includes('greenhouse') && item.source_areas.includes('fruit_tree')), 'separation preview should include owner field, greenhouse, and fruit-tree return group')
+assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 18 && item.source_areas.includes('greenhouse') && item.source_areas.includes('fruit_tree')), 'separation preview should include partner field, greenhouse, and fruit-tree return group')
 assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.origin_owner_username === owner && item.quantity === 1), 'separation preview should return remaining unsold warehouse rice by origin owner')
 assert.equal(previewResult.preview.asset_return.fund_balance, 155, 'separation preview should include current fund balance after warehouse sale income')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 870), 'separation preview should include owner fund contribution source summary')
@@ -6166,7 +6244,8 @@ const assetReturnRecord = await runtime.executeSeparationAssetReturn(created.con
 }, actor(owner))
 assert.equal(assetReturnRecord.idempotent, false, 'first separation asset return record should not be idempotent')
 assert.equal(assetReturnRecord.execution_ledger.status, 'asset_return_recorded', 'asset return should be recorded in execution ledger')
-assert.equal(assetReturnRecord.execution_ledger.plot_return_count, 32, 'asset return ledger should keep every source plot')
+assert.equal(assetReturnRecord.execution_ledger.plot_return_count, 36, 'asset return ledger should keep every farm source')
+assert.ok(assetReturnRecord.execution_ledger.plot_returns_by_origin_owner.every(item => item.source_areas.includes('greenhouse') && item.source_areas.includes('fruit_tree')), 'asset return ledger should keep supplemental farm source areas by owner')
 assert.equal(assetReturnRecord.execution_ledger.plot_return_manifest_hash, previewResult.preview.asset_return.plot_return_manifest_hash, 'asset return ledger should lock preview manifest hash')
 assert.equal(assetReturnRecord.execution_ledger.personal_save_written, false, 'asset return record should not write personal saves yet')
 assert.equal(assetReturnRecord.execution_ledger.shared_assets_mutated, false, 'asset return record should not mutate shared assets yet')
@@ -6206,6 +6285,17 @@ await assert.rejects(
   'personal farm return write should reject mismatched manifest hash'
 )
 
+mutateGameplaySave(owner, data => {
+  data.farm.greenhousePlots = [{ id: 0, state: 'wasteland', cropId: null, growthDays: 0, watered: false }]
+  data.farm.fruitTrees = [{ id: 0, type: 'lychee_tree', growthDays: 1, mature: false, yearAge: 0, todayFruit: false }]
+  data.farm.nextFruitTreeId = 1
+})
+mutateGameplaySave(partner, data => {
+  data.farm.greenhousePlots = [{ id: 1, state: 'tilled', cropId: null, growthDays: 0, watered: false }]
+  data.farm.fruitTrees = []
+  data.farm.nextFruitTreeId = 0
+})
+
 const personalFarmWrite = await runtime.writeSeparationPersonalFarmReturns(created.contract.id, previewResult.preview.id, {
   memo: 'write source plots back to personal farm saves',
   plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
@@ -6216,11 +6306,16 @@ assert.equal(personalFarmWrite.idempotent, false, 'first personal farm return wr
 assert.equal(personalFarmWrite.execution_ledger.status, 'personal_save_written', 'personal farm write should advance ledger status')
 assert.equal(personalFarmWrite.execution_ledger.personal_save_written, true, 'personal farm write should mark ledger as written')
 assert.equal(personalFarmWrite.receipts.length, 2, 'personal farm write should create one receipt per member save')
-assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_plot_count, 0), 32, 'personal farm write should restore all source plots')
-assert.ok(personalFarmWrite.receipts.every(receipt => receipt.return_source === 'contract_shared_map'), 'personal farm write receipts should declare persisted contract map source')
-assert.ok(personalFarmWrite.receipts.every(receipt => receipt.manifest_sources.includes('contract.shared_map.plots')), 'personal farm write receipts should keep manifest source evidence')
+assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_plot_count, 0), 36, 'personal farm write should restore all farm sources')
+assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_field_plot_count, 0), 32, 'personal farm write should restore field plots')
+assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_greenhouse_plot_count, 0), 2, 'personal farm write should restore greenhouse plots')
+assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_fruit_tree_count, 0), 2, 'personal farm write should restore fruit trees')
+assert.ok(personalFarmWrite.receipts.every(receipt => receipt.return_sources.includes('contract_shared_map') && receipt.return_sources.includes('contract_origin_assets')), 'personal farm write receipts should declare persisted contract map and origin asset sources')
+assert.ok(personalFarmWrite.receipts.every(receipt => receipt.source_areas.includes('field') && receipt.source_areas.includes('greenhouse') && receipt.source_areas.includes('fruit_tree')), 'personal farm write receipts should keep farm source areas')
+assert.ok(personalFarmWrite.receipts.every(receipt => receipt.manifest_sources.includes('contract.shared_map.plots') && receipt.manifest_sources.includes('contract.origin_assets.plots')), 'personal farm write receipts should keep manifest source evidence')
 assert.ok(personalFarmWrite.receipts.every(receipt => receipt.plot_return_manifest_hash === previewResult.preview.asset_return.plot_return_manifest_hash), 'personal farm write receipts should keep manifest hash evidence')
-assert.ok(personalFarmWrite.receipts.every(receipt => receipt.shared_map_plot_ids.length === receipt.restored_plot_count), 'personal farm write receipts should list shared map plot ids')
+assert.ok(personalFarmWrite.receipts.every(receipt => receipt.shared_map_plot_ids.length === receipt.restored_plot_count), 'personal farm write receipts should list field map and origin asset ids')
+assert.ok(personalFarmWrite.receipts.every(receipt => receipt.origin_asset_ids.length === receipt.restored_plot_count), 'personal farm write receipts should list origin asset ids')
 assert.ok(personalFarmWrite.receipts.every(receipt => receipt.source_save_slots.includes(0)), 'personal farm write receipts should keep source save slots')
 assert.ok(personalFarmWrite.receipts.every(receipt => receipt.source_save_revisions.length > 0), 'personal farm write receipts should keep source save revisions')
 assert.ok(personalFarmWrite.receipts.some(receipt => receipt.current_steward_usernames.includes(partner)), 'personal farm write receipts should keep updated steward evidence from shared map')
@@ -6238,8 +6333,15 @@ assert.ok(personalFarmWrite.receipts.every(receipt => receipt.after_revision >= 
 assert.equal(readGameplayData(owner)?.farm?.plots?.[0]?.cropId, 'rice', 'owner farm plot should keep returned rice state')
 assert.equal(readGameplayData(owner)?.farm?.plots?.[0]?.watered, true, 'owner farm plot should keep shared-map watered state')
 assert.equal(readGameplayData(owner)?.farm?.plots?.[0]?.unwateredDays, 0, 'owner farm plot should keep shared-map unwatered reset')
+assert.equal(readGameplayData(owner)?.farm?.greenhousePlots?.[0]?.cropId, 'lotus', 'owner greenhouse plot should be restored from locked manifest')
+assert.equal(readGameplayData(owner)?.farm?.greenhousePlots?.[0]?.fertilizer, 'quality_fertilizer', 'owner greenhouse fertilizer should be restored from locked manifest')
+assert.equal(readGameplayData(owner)?.farm?.fruitTrees?.find(tree => tree.id === 0)?.type, 'peach_tree', 'owner fruit tree should be restored from locked manifest')
+assert.equal(readGameplayData(owner)?.farm?.fruitTrees?.find(tree => tree.id === 0)?.todayFruit, true, 'owner fruit tree fruit state should be restored from locked manifest')
 assert.equal(readGameplayData(partner)?.farm?.plots?.[5]?.cropId, null, 'partner farm plot should keep offline-auto-income harvested state')
 assert.equal(readGameplayData(partner)?.farm?.plots?.[5]?.state, 'tilled', 'partner farm plot should keep returned tilled state after offline auto income')
+assert.equal(readGameplayData(partner)?.farm?.greenhousePlots?.[1]?.cropId, 'cabbage', 'partner greenhouse plot should be restored from locked manifest')
+assert.equal(readGameplayData(partner)?.farm?.fruitTrees?.find(tree => tree.id === 2)?.type, 'lychee_tree', 'partner fruit tree should be restored from locked manifest')
+assert.ok((readGameplayData(partner)?.farm?.nextFruitTreeId || 0) >= 3, 'partner next fruit tree id should advance after restoring source fruit tree')
 assert.ok(personalFarmWrite.contract.audit_log.find(entry => entry.action === 'separation_personal_farm_written' && entry.idempotency_key === 'qa-separation-personal-farm-write'), 'personal farm write should be audited')
 
 const ownerRawAfterPersonalFarmWrite = saveRuntime.loadUserSaveSlots(owner).slots[0].raw

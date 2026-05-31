@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 同居分居农田按来源拆回
+- 分居田区 manifest 现在会同时读回普通农田、温室地块和果树来源资产；个人农田写回按锁定 hash 恢复 `farm.plots`、`farm.greenhousePlots`、`farm.fruitTrees` 与 `nextFruitTreeId`。
+- 分居执行回执会显示普通地块 / 温室地块 / 果树恢复数量、来源区域、来源资产、来源存档和当前管护者证据，方便拆伙后核对田区返还边界。
+
 ### 0530 同居共同动物买卖服务端权威
 - 服务端新增 `/shared-animals/purchase` 兼容入口，并收口 `/shared-animals/buy` / `/shared-animals/sell`；买入按 `animal.buy_animal`、`fund.spend_medium`、共同基金余额和服务端动物白名单裁决，卖出只允许共同基金购入动物并要求 `animal.sell_animal`。
 - 成功买卖会写共同动物 `buy_animal` / `sell_animal` ledger、共同基金 `shared_animal_purchase` / `shared_animal_sale_income` ledger、来源资产和审计；个人动物存档、个人背包和个人铜币保持不变，QA 覆盖权限拒绝、幂等、基金扣入和个人资产边界。

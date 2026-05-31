@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-31
+- 同居分居农田按来源拆回收口：分居田区 manifest 现在同时覆盖契约持久 `shared_map.plots`、`origin_assets.plots` 中的温室地块与果树来源资产；个人农田写回按锁定 hash 恢复 `farm.plots`、`farm.greenhousePlots`、`farm.fruitTrees` 与 `nextFruitTreeId`，回执会统计普通地块 / 温室地块 / 果树数量、来源区域、来源资产和管护者证据。
 - 同居共同动物买卖服务端权威：新增 `/shared-animals/purchase` 兼容入口并收口 `/shared-animals/buy` / `/shared-animals/sell`，共同动物买入按 `animal.buy_animal` + `fund.spend_medium`、共同基金余额和服务端白名单裁决，卖出只允许共同基金购入动物并消费 `animal.sell_animal`；成功写共同动物 `buy_animal` / `sell_animal` ledger、共同基金 `shared_animal_purchase` / `shared_animal_sale_income` ledger、来源资产和审计，个人动物存档 / 背包 / 铜币保持不变。
 - 同居离线冲突预检：新增 `/offline-conflicts/preflight`，按服务端当前共同地图 / 动物 / 宠物 / 仓库 revision 判断客户端离线队列是否过期，返回支持 / 不支持动作、服务端权威策略和下一步建议，写 `offline_conflict_preflighted` 审计且不改个人存档、共同仓库或共同基金；前端离线页新增预检按钮和 revision 摘要。
 - 同居分居未知来源共同产物拆分：分居预览新增 `warehouse_unidentified_items`、贡献比例拆分 manifest / hash 和双方确认暂缓项；真实共同仓库返还会校验 hash 与双方确认，按 `unidentified_contribution_ratio` 扣共同仓库、写目标成员个人背包 receipt，并在执行 ledger / 审计中统计未知来源返还数量。
