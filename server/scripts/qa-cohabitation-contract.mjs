@@ -4040,11 +4040,13 @@ await assert.rejects(
 
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 4, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 5, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_camel_milk_tea'), 'warehouse item policy should list animal-product dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('carp'), 'warehouse item policy should list common fish as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_anglers_platter'), 'warehouse item policy should list fish dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
@@ -4140,6 +4142,41 @@ await processRecipePolicyBasicDish({
   outputItemId: 'food_camel_milk_tea',
   station: 'tea_maker',
   inputs: [{ itemId: 'camel_milk', quantity: 1 }, { itemId: 'tea', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_first_catch_soup',
+  outputItemId: 'food_first_catch_soup',
+  inputs: [{ itemId: 'crucian', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_braised_carp',
+  outputItemId: 'food_braised_carp',
+  inputs: [{ itemId: 'carp', quantity: 1 }, { itemId: 'sesame', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_steamed_bass',
+  outputItemId: 'food_steamed_bass',
+  inputs: [{ itemId: 'bass', quantity: 1 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_maple_grilled_fish',
+  outputItemId: 'food_maple_grilled_fish',
+  inputs: [{ itemId: 'mandarin_fish', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_grilled_eel',
+  outputItemId: 'food_grilled_eel',
+  inputs: [{ itemId: 'eel', quantity: 1 }, { itemId: 'sesame', quantity: 1 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_crab_soup',
+  outputItemId: 'food_crab_soup',
+  inputs: [{ itemId: 'river_crab', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_anglers_platter',
+  outputItemId: 'food_anglers_platter',
+  inputs: [{ itemId: 'bass', quantity: 1 }, { itemId: 'creek_shrimp', quantity: 1 }, { itemId: 'ginger', quantity: 1 }],
 })
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',

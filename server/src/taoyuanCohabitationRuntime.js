@@ -128,12 +128,13 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 4;
+const WAREHOUSE_ITEM_POLICY_VERSION = 5;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
   'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'bamboo_shoot', 'winter_bamboo_shoot', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
+  'crucian', 'carp', 'bass', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
   'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
   'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
@@ -142,6 +143,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'premium_feed', 'nourishing_feed', 'vitality_feed',
   'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
+  'food_first_catch_soup', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -982,6 +984,99 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quality: 'normal',
   },
   shared_congee: {
+  shared_first_catch_soup: {
+    id: 'shared_first_catch_soup',
+    label: '共同灶台初钓鱼汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'crucian', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_first_catch_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_braised_carp: {
+    id: 'shared_braised_carp',
+    label: '共同灶台红烧鲤鱼',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'carp', quantity: 1, quality: 'normal' },
+      { item_id: 'sesame', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_braised_carp',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_steamed_bass: {
+    id: 'shared_steamed_bass',
+    label: '共同灶台清蒸鲈鱼',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'bass', quantity: 1, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_steamed_bass',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_maple_grilled_fish: {
+    id: 'shared_maple_grilled_fish',
+    label: '共同灶台枫叶烤鱼',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'mandarin_fish', quantity: 1, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_maple_grilled_fish',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_grilled_eel: {
+    id: 'shared_grilled_eel',
+    label: '共同灶台烤鳗鱼',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'eel', quantity: 1, quality: 'normal' },
+      { item_id: 'sesame', quantity: 1, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_grilled_eel',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_crab_soup: {
+    id: 'shared_crab_soup',
+    label: '共同灶台蟹黄汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'river_crab', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_crab_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_anglers_platter: {
+    id: 'shared_anglers_platter',
+    label: '共同灶台渔夫拼盘',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'bass', quantity: 1, quality: 'normal' },
+      { item_id: 'creek_shrimp', quantity: 1, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_anglers_platter',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
     id: 'shared_congee',
     label: '共同灶台白粥',
     station: 'stove',
