@@ -706,6 +706,198 @@ assert.equal(getInventoryItemQuantity(fundShopOwner, 'seed_radish'), fundShopOwn
 assert.equal(readGameplayData(fundShopOwner)?.player?.money, fundShopOwnerMoneyAfterTopUp, 'rejected shared fund shop purchase should not touch owner money')
 
 
+const fundShopLargePermission = await runtime.updateCohabitationPermissions(fundShopContractCreated.contract.id, {
+  target_username: fundShopOwner,
+  permissions: {
+    fund: {
+      spend_large: true,
+    },
+  },
+  memo: 'qa allow shared fund freeze to verify large draft blocking',
+  idempotency_key: 'qa-shared-fund-freeze-large-permission',
+}, actor(fundShopOwner))
+assert.equal(fundShopLargePermission.permissions_panel.members.find(member => member.username === fundShopOwner)?.permissions.fund.spend_large, true, 'fund freeze QA owner should receive large draft permission')
+const fundShopOwnerRawBeforeFreeze = saveRuntime.loadUserSaveSlots(fundShopOwner).slots[0].raw
+const fundShopCabbageBeforeFreeze = (await runtime.getCohabitationWarehouse(fundShopContractCreated.contract.id, actor(fundShopOwner))).warehouse.items.find(item => item.item_id === 'seed_cabbage' && item.quality === 'normal')?.quantity ?? 0
+const fundFreeze = await runtime.freezeCohabitationFundAbnormality(fundShopContractCreated.contract.id, {
+  reason: 'qa shared fund abnormal shop purchase pair should freeze new writes',
+  error_code: 'QA_SHARED_FUND_PAIR_REVIEW',
+  suspected_operation: 'shop_purchase',
+  source_ledger_id: fundShopPurchase.fund_ledger_entry.id,
+  source_idempotency_key: fundShopPurchase.fund_ledger_entry.idempotency_key,
+  idempotency_key: 'qa-shared-fund-abnormal-freeze',
+}, actor(fundShopOwner))
+assert.equal(fundFreeze.idempotent, false, 'first shared fund abnormal freeze should not be idempotent')
+assert.equal(fundFreeze.freeze_state.active, true, 'shared fund abnormal freeze should activate freeze state')
+assert.equal(fundFreeze.freeze_state.status, 'frozen', 'shared fund abnormal freeze should expose frozen status')
+assert.equal(fundFreeze.freeze_event.source_ledger_id, fundShopPurchase.fund_ledger_entry.id, 'shared fund abnormal freeze should keep source ledger id')
+assert.equal(fundFreeze.fund.balance, 30, 'shared fund abnormal freeze should not change balance')
+assert.equal(fundFreeze.fund.summary.fund_frozen, true, 'fund snapshot should expose frozen flag')
+assert.equal(fundFreeze.fund.summary.contribution_enabled, false, 'frozen fund snapshot should disable contributions')
+assert.equal(fundFreeze.fund.summary.spend_enabled, false, 'frozen fund snapshot should disable spend')
+assert.equal(fundFreeze.fund.summary.shop_purchase_to_shared_warehouse_enabled, false, 'frozen fund snapshot should disable shared-warehouse shop purchase')
+assert.equal(fundFreeze.fund.summary.large_spend_draft_enabled, false, 'frozen fund snapshot should disable large spend drafts')
+assert.equal(fundFreeze.fund.permissions.can_spend_small, false, 'frozen fund permissions should deny small spend')
+assert.equal(fundFreeze.fund.permissions.can_freeze_abnormal, true, 'frozen fund permissions should still expose abnormal freeze authority')
+assert.equal(fundFreeze.fund.governance.blocking.block_new_fund_writes, true, 'frozen fund governance should block new writes')
+assert.equal(fundFreeze.fund.governance.blocking.required_operation, 'manual_fund_review', 'frozen fund governance should require manual fund review')
+assert.ok(fundFreeze.contract.audit_log.find(entry => entry.action === 'fund_abnormal_frozen'), 'shared fund abnormal freeze should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(fundShopOwner).slots[0].raw, fundShopOwnerRawBeforeFreeze, 'shared fund abnormal freeze should not rewrite owner save')
+const duplicateFundFreeze = await runtime.freezeCohabitationFundAbnormality(fundShopContractCreated.contract.id, {
+  reason: 'duplicate qa shared fund abnormal freeze',
+  error_code: 'QA_SHARED_FUND_PAIR_REVIEW',
+  suspected_operation: 'shop_purchase',
+  source_ledger_id: fundShopPurchase.fund_ledger_entry.id,
+  idempotency_key: 'qa-shared-fund-abnormal-freeze',
+}, actor(fundShopOwner))
+assert.equal(duplicateFundFreeze.idempotent, true, 'same shared fund freeze idempotency key should replay')
+assert.equal(duplicateFundFreeze.freeze_event.id, fundFreeze.freeze_event.id, 'idempotent shared fund freeze should keep freeze event id')
+assert.equal(duplicateFundFreeze.freeze_state.freeze_events.length, 1, 'idempotent shared fund freeze should not duplicate freeze events')
+const fundShopOwnerMoneyBeforeFrozenContribution = readGameplayData(fundShopOwner)?.player?.money
+await assert.rejects(
+  () => runtime.contributeCohabitationFund(fundShopContractCreated.contract.id, {
+    amount: 1,
+    purpose: 'seed_budget',
+    memo: 'qa frozen shared fund contribution should fail before personal money',
+    idempotency_key: 'qa-frozen-shared-fund-contribution',
+  }, actor(fundShopOwner)),
+  error => error?.status === 409 && error?.code === 'SHARED_FUND_FROZEN',
+  'frozen shared fund should reject new contributions with SHARED_FUND_FROZEN'
+)
+assert.equal(readGameplayData(fundShopOwner)?.player?.money, fundShopOwnerMoneyBeforeFrozenContribution, 'frozen contribution should not deduct owner money')
+await assert.rejects(
+  () => runtime.spendCohabitationFund(fundShopContractCreated.contract.id, {
+    amount: 1,
+    purpose: 'seed_budget',
+    target_ref: 'qa:frozen-small-spend',
+    memo: 'qa frozen shared fund spend should fail',
+    idempotency_key: 'qa-frozen-shared-fund-spend',
+  }, actor(fundShopOwner)),
+  error => error?.status === 409 && error?.code === 'SHARED_FUND_FROZEN',
+  'frozen shared fund should reject new spends with SHARED_FUND_FROZEN'
+)
+await assert.rejects(
+  () => runtime.purchaseCohabitationSharedFundShopItem(fundShopContractCreated.contract.id, {
+    target_ref: 'shop:seed_cabbage',
+    quantity: 2,
+    amount: 20,
+    purpose: 'seed_budget',
+    memo: 'qa frozen shared fund shop purchase should fail',
+    idempotency_key: 'qa-frozen-shared-fund-shop-purchase',
+  }, actor(fundShopOwner)),
+  error => error?.status === 409 && error?.code === 'SHARED_FUND_FROZEN',
+  'frozen shared fund should reject new shop purchases with SHARED_FUND_FROZEN'
+)
+assert.equal((await runtime.getCohabitationWarehouse(fundShopContractCreated.contract.id, actor(fundShopOwner))).warehouse.items.find(item => item.item_id === 'seed_cabbage' && item.quality === 'normal')?.quantity ?? 0, fundShopCabbageBeforeFreeze, 'frozen shared fund shop purchase should not change warehouse stock')
+await assert.rejects(
+  () => runtime.createCohabitationFundLargeSpendDraft(fundShopContractCreated.contract.id, {
+    amount: 1300,
+    purpose: 'family_building',
+    target_ref: 'qa:frozen-large-draft',
+    memo: 'qa frozen shared fund large draft should fail',
+    idempotency_key: 'qa-frozen-shared-fund-large-draft',
+  }, actor(fundShopOwner)),
+  error => error?.status === 409 && error?.code === 'SHARED_FUND_FROZEN',
+  'frozen shared fund should reject new large spend drafts with SHARED_FUND_FROZEN'
+)
+assert.equal((await runtime.getCohabitationFund(fundShopContractCreated.contract.id, actor(fundShopOwner))).fund.balance, 30, 'frozen shared fund rejected operations should not change balance')
+assert.equal(saveRuntime.loadUserSaveSlots(fundShopOwner).slots[0].raw, fundShopOwnerRawBeforeFreeze, 'frozen shared fund rejected operations should not rewrite owner save')
+
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: { family: { child_daily_care: false } },
+  idempotency_key: 'qa-family-child-care-disable-owner',
+}, actor(owner))
+await assert.rejects(
+  () => runtime.recordCohabitationFamilyChildCare(created.contract.id, {
+    care_ref: 'family_child_care:morning_story',
+    child_ref: 'contract_child:private',
+    idempotency_key: 'qa-family-child-care-denied',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('family.child_daily_care'),
+  'family child care should require family.child_daily_care permission'
+)
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: { family: { child_daily_care: true } },
+  idempotency_key: 'qa-family-child-care-enable-owner',
+}, actor(owner))
+const ownerRawBeforeFamilyChildCare = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyChildCare = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const childCareRecord = await runtime.recordCohabitationFamilyChildCare(created.contract.id, {
+  care_ref: 'family_child_care:morning_story',
+  child_ref: 'contract_child:private',
+  care_type: 'daily_story',
+  memo: 'qa daily child care',
+  idempotency_key: 'qa-family-child-care-record',
+}, actor(owner))
+assert.equal(childCareRecord.idempotent, false, 'first family child care record should not be idempotent')
+assert.equal(childCareRecord.child_care.care_ref, 'family_child_care:morning_story', 'family child care should keep care ref')
+assert.equal(childCareRecord.child_care.status, 'recorded', 'family child care should be recorded into contract state')
+assert.deepEqual(childCareRecord.required_permission_keys, ['family.child_daily_care'], 'family child care should expose required permission')
+assert.equal(childCareRecord.children_private, true, 'family child care should keep children private')
+assert.equal(childCareRecord.personal_family_state_mutated, false, 'family child care should not mutate personal family saves')
+assert.equal(childCareRecord.contract.family_state.child_care_ledger.length, 1, 'family child care should write contract child care ledger')
+assert.equal(childCareRecord.contract.family_state.last_child_care_ref, 'family_child_care:morning_story', 'family child care should update family state summary')
+assert.ok(childCareRecord.contract.audit_log.find(entry => entry.action === 'family_child_care_recorded' && entry.detail?.required_permission_keys?.includes('family.child_daily_care')), 'family child care should be audited with required permission')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyChildCare, 'family child care should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyChildCare, 'family child care should not rewrite partner save')
+const duplicateChildCareRecord = await runtime.recordCohabitationFamilyChildCare(created.contract.id, {
+  care_ref: 'family_child_care:morning_story',
+  child_ref: 'contract_child:private',
+  idempotency_key: 'qa-family-child-care-record',
+}, actor(owner))
+assert.equal(duplicateChildCareRecord.idempotent, true, 'duplicate family child care should be idempotent')
+assert.equal(duplicateChildCareRecord.child_care.id, childCareRecord.child_care.id, 'duplicate child care should return original ledger row')
+assert.equal(duplicateChildCareRecord.contract.family_state.child_care_ledger.length, 1, 'duplicate child care should not append another ledger row')
+
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: { family: { family_wish_submit: false } },
+  idempotency_key: 'qa-family-wish-disable-owner',
+}, actor(owner))
+await assert.rejects(
+  () => runtime.submitCohabitationFamilyWish(created.contract.id, {
+    wish_ref: 'family_wish:shared_lantern_evening',
+    title: 'shared lantern evening',
+    idempotency_key: 'qa-family-wish-denied',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('family.family_wish_submit'),
+  'family wish submit should require family.family_wish_submit permission'
+)
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: { family: { family_wish_submit: true } },
+  idempotency_key: 'qa-family-wish-enable-owner',
+}, actor(owner))
+const ownerRawBeforeFamilyWish = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyWish = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const familyWishSubmit = await runtime.submitCohabitationFamilyWish(created.contract.id, {
+  wish_ref: 'family_wish:shared_lantern_evening',
+  wish_type: 'seasonal_family_wish',
+  title: 'shared lantern evening',
+  memo: 'qa shared family wish',
+  idempotency_key: 'qa-family-wish-submit',
+}, actor(owner))
+assert.equal(familyWishSubmit.idempotent, false, 'first family wish submit should not be idempotent')
+assert.equal(familyWishSubmit.family_wish.wish_ref, 'family_wish:shared_lantern_evening', 'family wish should keep wish ref')
+assert.equal(familyWishSubmit.family_wish.status, 'submitted', 'family wish should be submitted into contract state')
+assert.deepEqual(familyWishSubmit.required_permission_keys, ['family.family_wish_submit'], 'family wish should expose required family permission')
+assert.equal(familyWishSubmit.personal_family_state_mutated, false, 'family wish should not mutate personal family saves')
+assert.equal(familyWishSubmit.contract.family_state.family_wish_ledger.length, 1, 'family wish should write contract family wish ledger')
+assert.equal(familyWishSubmit.contract.family_state.last_family_wish_ref, 'family_wish:shared_lantern_evening', 'family wish should update family state summary')
+assert.ok(familyWishSubmit.contract.audit_log.find(entry => entry.action === 'family_wish_submitted' && entry.detail?.required_permission_keys?.includes('family.family_wish_submit')), 'family wish submit should be audited with required permission')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyWish, 'family wish should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyWish, 'family wish should not rewrite partner save')
+const duplicateFamilyWishSubmit = await runtime.submitCohabitationFamilyWish(created.contract.id, {
+  wish_ref: 'family_wish:shared_lantern_evening',
+  title: 'shared lantern evening duplicate',
+  idempotency_key: 'qa-family-wish-submit',
+}, actor(owner))
+assert.equal(duplicateFamilyWishSubmit.idempotent, true, 'duplicate family wish should be idempotent')
+assert.equal(duplicateFamilyWishSubmit.family_wish.id, familyWishSubmit.family_wish.id, 'duplicate family wish should return original ledger row')
+assert.equal(duplicateFamilyWishSubmit.contract.family_state.family_wish_ledger.length, 1, 'duplicate family wish should not append another ledger row')
+
 const activeOverview = await runtime.listCohabitationContracts(partner)
 assert.equal(activeOverview.summary.active, 1, 'partner should see the active contract')
 

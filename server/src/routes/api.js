@@ -356,6 +356,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_fund_shop_purchase',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/freeze-abnormality$/i,
+    action: 'cohabitation_fund_abnormal_frozen',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/large-spend-draft$/i,
     action: 'cohabitation_fund_large_spend_draft',
   },
@@ -3754,6 +3758,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/shop-purcha
     }
   });
 });
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/freeze-abnormality', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.freezeCohabitationFundAbnormality(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'shared fund abnormal freeze failed', code: error.code || '' });
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend-draft', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {

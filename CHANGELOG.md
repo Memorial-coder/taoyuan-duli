@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-31
+- 同居共同基金异常冻结后端闭环：新增 record-only `/fund/freeze-abnormality`，冻结事件记录原因、错误码、疑似操作、来源 ledger / 幂等键、余额和流水数量快照；基金快照 / 治理摘要读回 `freeze_state` 并让后续注资、支出、共同基金购入共同仓库、大额草案 / 执行、回执退款和基金返还先返回 `SHARED_FUND_FROZEN`，既有幂等重放继续可查，个人存档与共同仓库不被拒绝路径改写。
 - 同居 11.7 共同工坊 / 订单 / 装修加成收口：共同工坊前端标签和结构 QA 明确读回 `shared_workshop_process_quality` 料理升品、`shared_alchemy_success_rate` 15% 炼丹成功率和回执字段；在线委托凭证 / 共同基金流水读回订单 15 分钟有效时长减免，建筑流水读回合照 moment 与家庭氛围事件，11.7 同时在线加成清单全部改为完成。
 - 同居分居农田按来源拆回收口：分居田区 manifest 现在同时覆盖契约持久 `shared_map.plots`、`origin_assets.plots` 中的温室地块与果树来源资产；个人农田写回按锁定 hash 恢复 `farm.plots`、`farm.greenhousePlots`、`farm.fruitTrees` 与 `nextFruitTreeId`，回执会统计普通地块 / 温室地块 / 果树数量、来源区域、来源资产和管护者证据。
 - 同居共同动物买卖服务端权威：新增 `/shared-animals/purchase` 兼容入口并收口 `/shared-animals/buy` / `/shared-animals/sell`，共同动物买入按 `animal.buy_animal` + `fund.spend_medium`、共同基金余额和服务端白名单裁决，卖出只允许共同基金购入动物并消费 `animal.sell_animal`；成功写共同动物 `buy_animal` / `sell_animal` ledger、共同基金 `shared_animal_purchase` / `shared_animal_sale_income` ledger、来源资产和审计，个人动物存档 / 背包 / 铜币保持不变。
