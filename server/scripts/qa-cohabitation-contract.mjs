@@ -4147,7 +4147,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 14, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 15, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4163,11 +4163,15 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.incl
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('marsh_luminous_cleansing_elixir'), 'warehouse item policy should list marsh rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moon_pearl_calm_elixir'), 'warehouse item policy should list moon pearl rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_orchid_focus_elixir'), 'warehouse item policy should list jade orchid rare-material elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_lotus_guard_elixir'), 'warehouse item policy should list rare lotus seed elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_peach_spirit_elixir'), 'warehouse item policy should list jade peach rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_etched_core'), 'warehouse item policy should list room rare materials as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moon_pearl'), 'warehouse item policy should list rare purchase targets as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_orchid'), 'warehouse item policy should list jade orchid purchase targets as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('lotus_seed_rare'), 'warehouse item policy should list rare lotus seed purchase targets as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_peach'), 'warehouse item policy should list jade peach purchase targets as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4779,6 +4783,24 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
   'jade orchid rare material alchemy should require storage.withdraw_rare before consuming jade orchid'
 )
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_rare_lotus_guard_elixir',
+    memo: 'qa rare lotus seed alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-rare-lotus-guard-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'rare lotus seed alchemy should require storage.withdraw_rare before consuming rare lotus seed'
+)
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_jade_peach_spirit_elixir',
+    memo: 'qa jade peach alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-jade-peach-spirit-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'jade peach rare material alchemy should require storage.withdraw_rare before consuming jade peach'
+)
 await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   target_username: recipePolicyOwner,
   permissions: {
@@ -5026,6 +5048,86 @@ await assertRecipePolicyAlchemyAutoResult({
   expectedWeightProfile: 'jade_orchid_rare_material',
   expectedBaseWeights: { success: 62, partial: 18, failed: 8, rare: 12 },
   expectedWeights: { success: 77, partial: 7, failed: 4, rare: 12 },
+})
+await injectRecipePolicyStock('herbal_paste', 1, 'fine')
+await injectRecipePolicyStock('lotus_heart_powder', 1, 'fine')
+await injectRecipePolicyStock('lotus_seed_rare', 1)
+const recipePolicyRareLotusGuardElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_rare_lotus_guard_elixir',
+  memo: 'qa process shared rare lotus guard elixir',
+  idempotency_key: 'qa-recipe-policy-rare-lotus-guard-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyRareLotusGuardElixir.recipe.output_item_id, 'rare_lotus_guard_elixir', 'new rare lotus guard elixir should output rare elixir item')
+assert.equal(recipePolicyRareLotusGuardElixir.workshop_action.process_kind, 'alchemy_elixir', 'new rare lotus guard elixir should be alchemy elixir')
+assert.equal(recipePolicyRareLotusGuardElixir.workshop_action.alchemy_result_kind, 'success', 'new rare lotus guard elixir should expose success result')
+assert.equal(recipePolicyRareLotusGuardElixir.ledger_entry.quality, 'fine', 'new rare lotus guard elixir should apply cooperation quality bonus')
+assert.ok(recipePolicyRareLotusGuardElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'herbal_paste' && entry.quality === 'fine'), 'new rare lotus guard elixir should consume fine herbal paste')
+assert.ok(recipePolicyRareLotusGuardElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'lotus_heart_powder' && entry.quality === 'fine'), 'new rare lotus guard elixir should consume fine lotus heart powder')
+assert.ok(recipePolicyRareLotusGuardElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'lotus_seed_rare'), 'new rare lotus guard elixir should consume rare lotus seed')
+const recipePolicyRareLotusOriginAsset = recipePolicyRareLotusGuardElixir.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyRareLotusGuardElixir.ledger_entry.id && item.action === 'deposit')
+assert.equal(recipePolicyRareLotusOriginAsset?.withdrawal_risk_level, 'rare', 'new rare lotus guard elixir origin should be rare protected')
+assert.equal(recipePolicyRareLotusOriginAsset?.high_value_withdrawal_required, true, 'new rare lotus guard elixir origin should require high-value withdrawal')
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'rare lotus guard',
+  cases: [
+    { recipeId: 'shared_rare_lotus_guard_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_rare_lotus_guard_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_rare_lotus_guard_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { itemId: 'lotus_seed_rare', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'rare lotus seed profile',
+  recipeId: 'shared_rare_lotus_guard_elixir',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 96,
+  idempotencyKey: 'qa-recipe-policy-auto-rare-lotus-guard-profile-rare-3',
+  inputs: [{ itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { itemId: 'lotus_seed_rare', quantity: 1 }],
+  expectedWeightProfile: 'rare_lotus_seed_material',
+  expectedBaseWeights: { success: 61, partial: 18, failed: 8, rare: 13 },
+  expectedWeights: { success: 76, partial: 7, failed: 4, rare: 13 },
+})
+await injectRecipePolicyStock('candied_peach', 1, 'fine')
+await injectRecipePolicyStock('osmanthus_honey', 1, 'fine')
+await injectRecipePolicyStock('jade_peach', 1)
+const recipePolicyJadePeachSpiritElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_jade_peach_spirit_elixir',
+  memo: 'qa process shared jade peach spirit elixir',
+  idempotency_key: 'qa-recipe-policy-jade-peach-spirit-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyJadePeachSpiritElixir.recipe.output_item_id, 'jade_peach_spirit_elixir', 'new jade peach spirit elixir should output rare elixir item')
+assert.equal(recipePolicyJadePeachSpiritElixir.workshop_action.process_kind, 'alchemy_elixir', 'new jade peach spirit elixir should be alchemy elixir')
+assert.equal(recipePolicyJadePeachSpiritElixir.workshop_action.alchemy_result_kind, 'success', 'new jade peach spirit elixir should expose success result')
+assert.equal(recipePolicyJadePeachSpiritElixir.ledger_entry.quality, 'fine', 'new jade peach spirit elixir should apply cooperation quality bonus')
+assert.ok(recipePolicyJadePeachSpiritElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'candied_peach' && entry.quality === 'fine'), 'new jade peach spirit elixir should consume fine candied peach')
+assert.ok(recipePolicyJadePeachSpiritElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'osmanthus_honey' && entry.quality === 'fine'), 'new jade peach spirit elixir should consume fine osmanthus honey')
+assert.ok(recipePolicyJadePeachSpiritElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'jade_peach'), 'new jade peach spirit elixir should consume rare jade peach')
+const recipePolicyJadePeachOriginAsset = recipePolicyJadePeachSpiritElixir.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyJadePeachSpiritElixir.ledger_entry.id && item.action === 'deposit')
+assert.equal(recipePolicyJadePeachOriginAsset?.withdrawal_risk_level, 'rare', 'new jade peach spirit elixir origin should be rare protected')
+assert.equal(recipePolicyJadePeachOriginAsset?.high_value_withdrawal_required, true, 'new jade peach spirit elixir origin should require high-value withdrawal')
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'jade peach spirit',
+  cases: [
+    { recipeId: 'shared_jade_peach_spirit_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_jade_peach_spirit_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_jade_peach_spirit_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'candied_peach', quantity: 1, quality: 'fine' }, { itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'jade_peach', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'jade peach rare profile',
+  recipeId: 'shared_jade_peach_spirit_elixir',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 90,
+  idempotencyKey: 'qa-recipe-policy-auto-jade-peach-spirit-profile-rare-13',
+  inputs: [{ itemId: 'candied_peach', quantity: 1, quality: 'fine' }, { itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'jade_peach', quantity: 1 }],
+  expectedWeightProfile: 'jade_peach_rare_material',
+  expectedBaseWeights: { success: 60, partial: 19, failed: 8, rare: 13 },
+  expectedWeights: { success: 75, partial: 7, failed: 5, rare: 13 },
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')

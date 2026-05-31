@@ -5197,6 +5197,10 @@
     moon_pearl_calm_elixir: '月珠安神丹',
     jade_orchid: '玉兰',
     jade_orchid_focus_elixir: '玉兰凝心丹',
+    lotus_seed_rare: '稀有莲子',
+    rare_lotus_guard_elixir: '稀莲护心丹',
+    jade_peach: '翠桃',
+    jade_peach_spirit_elixir: '翠桃醒神丹',
   }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
@@ -5283,6 +5287,8 @@
     shared_marsh_luminous_cleansing_elixir: { profile: 'marsh_luminous_rare_material', label: '泽光稀材', weights: { success: 64, partial: 18, failed: 8, rare: 10 } },
     shared_moon_pearl_calm_elixir: { profile: 'moon_pearl_rare_material', label: '月珠稀材', weights: { success: 63, partial: 18, failed: 8, rare: 11 } },
     shared_jade_orchid_focus_elixir: { profile: 'jade_orchid_rare_material', label: '玉兰稀材', weights: { success: 62, partial: 18, failed: 8, rare: 12 } },
+    shared_rare_lotus_guard_elixir: { profile: 'rare_lotus_seed_material', label: '稀莲稀材', weights: { success: 61, partial: 18, failed: 8, rare: 13 } },
+    shared_jade_peach_spirit_elixir: { profile: 'jade_peach_rare_material', label: '翠桃稀材', weights: { success: 60, partial: 19, failed: 8, rare: 13 } },
   }
   const sharedWorkshopAlchemyHeatProfiles: Record<SharedAlchemyHeatLevel, { label: string; profile: string; deltas: SharedAlchemyWeights }> = {
     gentle: { label: '文火', profile: 'gentle_fire', deltas: { success: 3, partial: 1, failed: -3, rare: -1 } },
@@ -5535,6 +5541,14 @@
     { id: 'shared_jade_orchid_focus_partial', label: '共同丹炉玉兰偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'jade_orchid', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
     { id: 'shared_jade_orchid_focus_failed', label: '共同丹炉玉兰废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'jade_orchid', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
     { id: 'shared_jade_orchid_focus_rare', label: '共同丹炉玉兰奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'jade_orchid', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_rare_lotus_guard_elixir', label: '共同丹炉稀莲护心丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'herbal_paste', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'lotus_seed_rare', quantity: 1, quality: 'normal' }], output_item_id: 'rare_lotus_guard_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_rare_lotus_guard_partial', label: '共同丹炉稀莲偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'herbal_paste', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'lotus_seed_rare', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_rare_lotus_guard_failed', label: '共同丹炉稀莲废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'herbal_paste', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'lotus_seed_rare', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_rare_lotus_guard_rare', label: '共同丹炉稀莲奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'herbal_paste', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'lotus_seed_rare', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_jade_peach_spirit_elixir', label: '共同丹炉翠桃醒神丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'jade_peach', quantity: 1, quality: 'normal' }], output_item_id: 'jade_peach_spirit_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_jade_peach_spirit_partial', label: '共同丹炉翠桃偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'jade_peach', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_jade_peach_spirit_failed', label: '共同丹炉翠桃废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'jade_peach', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_jade_peach_spirit_rare', label: '共同丹炉翠桃奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'jade_peach', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
   ]
   const selectedSharedWorkshopRecipe = computed(() =>
     sharedWorkshopRecipeOptions.find(recipe => recipe.id === selectedSharedWorkshopRecipeId.value) ?? sharedWorkshopRecipeOptions[0] ?? null

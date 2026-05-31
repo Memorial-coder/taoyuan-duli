@@ -1339,6 +1339,22 @@ const ELIXIR_ITEMS: ItemDef[] = [
     description: '桂花蜜、莲心粉与玉兰炼成的稀材凝心丹。定位为家族议事、节会筹备和高压协作前的凝心丹药。',
     sellPrice: 820,
     edible: false
+  },
+  {
+    id: 'rare_lotus_guard_elixir',
+    name: '稀莲护心丹',
+    category: 'elixir',
+    description: '草药膏、莲心粉与稀有莲子炼成的稀材护心丹。定位为长线守护、夜间巡田和高阶照料前的护心丹药。',
+    sellPrice: 840,
+    edible: false
+  },
+  {
+    id: 'jade_peach_spirit_elixir',
+    name: '翠桃醒神丹',
+    category: 'elixir',
+    description: '蜜桃脯、桂花蜜与翠桃炼成的稀材醒神丹。定位为节会访客、远行备战和高压经营前的醒神丹药。',
+    sellPrice: 860,
+    edible: false
   }
 ]
 
