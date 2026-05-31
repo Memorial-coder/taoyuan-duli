@@ -66,6 +66,9 @@ export interface CohabitationFundLedgerEntry {
   confirmation_status?: string
   reversible?: boolean
   compensation_hint?: string
+  consumed_by_operation_ids?: string[]
+  budget_remaining_amount?: number
+  budget_consumed_amount?: number
   idempotency_key: string
   status: string
   created_at: number
@@ -177,6 +180,7 @@ export interface CohabitationSharedFarmLedgerEntry {
   fertilizer_permission_key?: string
   premium_fertilizer?: boolean
   fertilizer_effect?: string
+  fertilizer_quality_bonus?: number
   crop_id?: string
   output_item_id?: string
   output_quantity?: number
@@ -295,6 +299,12 @@ export interface CohabitationSharedPlot {
     last_cooperation_health_bonus_consumed_value?: number
     last_cooperation_quality_bonus_consumed_at?: number
     last_cooperation_quality_bonus_consumed_value?: number
+    last_fertilizer_quality_bonus_consumed_at?: number
+    last_fertilizer_quality_bonus_consumed_value?: number
+    last_fertilizer_growth_bonus_consumed_at?: number
+    last_fertilizer_growth_bonus_consumed_value?: number
+    last_fertilizer_water_retention_at?: number
+    last_fertilizer_water_retention_value?: number
     last_daily_settled_at?: number
   }
 }
@@ -444,9 +454,14 @@ export interface CohabitationSharedAnimals {
     animal_feed_write_enabled?: boolean
     animal_pet_write_enabled?: boolean
     animal_product_collect_write_enabled?: boolean
+    animal_buy_write_enabled?: boolean
+    animal_sell_write_enabled?: boolean
     animal_action_ledger_count?: number
     shared_warehouse_feed_consume_enabled?: boolean
     shared_warehouse_product_deposit_enabled?: boolean
+    shared_fund_animal_purchase_enabled?: boolean
+    shared_fund_animal_sale_income_enabled?: boolean
+    supported_purchase_animal_types?: string[]
     personal_save_changed?: boolean
     deferred_writes?: string[]
   }
@@ -464,8 +479,14 @@ export interface CohabitationSharedAnimalLedgerEntry {
   product_item_id?: string
   product_quantity?: number
   product_quality?: string
+  animal_type?: string
+  animal_name?: string
+  fund_ledger_id?: string
+  unit_price?: number
+  total_amount?: number
   warehouse_ledger_ids?: string[]
   shared_warehouse_changed?: boolean
+  shared_fund_changed?: boolean
   origin_owner_id: string
   origin_owner_username: string
   origin_owner_display_name: string
@@ -1059,6 +1080,7 @@ export interface CohabitationFamilyOrdersPanel {
   max_members: number
   summary: {
     preview_order_count: number
+    order_count: number
     open_order_count: number
     pending_settlement_count: number
     personal_money_merged: boolean
@@ -1136,6 +1158,8 @@ export interface CohabitationFamilyOrdersPanel {
     latest_receipt_at?: number
     candidates?: Array<Record<string, unknown>>
   }
+  orders: Array<Record<string, unknown>>
+  ledger: Array<Record<string, unknown>>
   settlement: Record<string, unknown>
   governance: Record<string, unknown>
   recommended_flow: string[]
@@ -1154,8 +1178,14 @@ export interface CohabitationFamilyReputationPanel {
   reputation_enabled: boolean
   generated_at: number
   revision: number
+  preview_points: number
+  earned_points: number
+  spent_points: number
   summary: {
     current_points: number
+    preview_points: number
+    earned_points: number
+    spent_points: number
     level: {
       id: string
       label: string
@@ -1169,6 +1199,7 @@ export interface CohabitationFamilyReputationPanel {
     reputation_award_enabled: boolean
     leaderboard_enabled: boolean
     personal_reward_enabled: boolean
+    shared_fund_reward_enabled: boolean
     personal_money_merged: boolean
     personal_inventory_merged: boolean
     disabled_reason: string
@@ -1200,6 +1231,10 @@ export interface CohabitationFamilyReputationPanel {
     deferred_operation?: string
     evidence: Record<string, unknown>
   }>
+  ledger: Array<Record<string, unknown>>
+  rewards: Array<Record<string, unknown>>
+  leaderboard: Array<Record<string, unknown>>
+  reward_catalog: Array<Record<string, unknown>>
   governance: Record<string, unknown>
   deferred_operations: string[]
 }
@@ -1216,6 +1251,8 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   project_id: string | null
   draft_id: string | null
   fund_ledger_id: string | null
+  medium_fund_budget_ledger_id?: string | null
+  medium_fund_budget_linked?: boolean
   actor_username: string
   actor_display_name: string
   actor_manor_role: string
@@ -1718,6 +1755,9 @@ export interface CohabitationFamilyVisibilityPanel {
   }
   actor: CohabitationFamilyVisibilityMember | null
   members: CohabitationFamilyVisibilityMember[]
+  settings: Record<string, unknown>
+  audit: Array<Record<string, unknown>>
+  relation_events: Array<Record<string, unknown>>
   visibility_scopes: CohabitationFamilyVisibilityScope[]
   data_categories: CohabitationFamilyVisibilityDataCategory[]
   default_policy: Record<string, unknown>
@@ -1801,6 +1841,11 @@ export interface CohabitationFamilyFestivalSeatsPanel {
   actor: CohabitationFamilyFestivalSeatMember | null
   members: CohabitationFamilyFestivalSeatMember[]
   candidate_templates: CohabitationFamilyFestivalSeatTemplate[]
+  reservations: Record<string, unknown>
+  ledger: Array<Record<string, unknown>>
+  active_template_id: string
+  active_room_id: string
+  last_settlement_id: string
   visual_state_preview: {
     board_type: string
     board_id: string
@@ -1848,7 +1893,7 @@ export interface CohabitationOfflineStatus {
     shared_workshop_offline_writes_enabled?: boolean
     offline_queue_merge_enabled?: boolean
     offline_queue_supported_actions?: string[]
-    offline_conflict_preflight_enabled?: boolean
+    offline_conflict_resolution_enabled?: boolean
   }
   members: Array<CohabitationMember & {
     online_state: string
@@ -1858,7 +1903,6 @@ export interface CohabitationOfflineStatus {
   actor_capabilities: Record<string, boolean>
   simultaneous_online_bonus?: Record<string, unknown>
   offline_auto_income?: Record<string, unknown>
-  offline_conflict_preflight?: Record<string, unknown>
   recent_shared_log: CohabitationAuditEntry[]
   deferred_operations: string[]
 }
@@ -1927,6 +1971,37 @@ export interface CohabitationOfflineQueueRevisionSnapshot {
   [key: string]: unknown
 }
 
+export interface CohabitationOfflineConflictResolutionEvidence {
+  idempotency_key?: string
+  status: 'committed' | 'partially_committed' | 'all_rejected' | 'idempotent_replay' | string
+  committed_count: number
+  idempotent_count: number
+  rejected_count: number
+  operation_count: number
+  supported_action_count?: number
+  committed_actions?: string[]
+  rejected_actions?: string[]
+  rejected_operation_ids?: string[]
+  rejected_reasons?: string[]
+  ledger_ids?: string[]
+  ledger_count?: number
+  warehouse_ledger_count?: number
+  personal_save_changed?: boolean
+  shared_warehouse_changed?: boolean
+  shared_fund_changed?: boolean
+  server_authoritative?: boolean
+  conflict_policy?: string
+  next_step?: string
+  client_queue_revision?: number
+  server_queue_revision_before?: number
+  server_queue_revision_after?: number
+  client_queue_stale?: boolean
+  revision_conflict_policy?: string
+  server_revision_before_snapshot?: CohabitationOfflineQueueRevisionSnapshot
+  server_revision_after_snapshot?: CohabitationOfflineQueueRevisionSnapshot
+  [key: string]: unknown
+}
+
 export interface CohabitationOfflineQueueMergeSummary {
   idempotency_key: string
   accepted_count: number
@@ -1941,6 +2016,7 @@ export interface CohabitationOfflineQueueMergeSummary {
   revision_conflict_policy?: string
   server_revision_before_snapshot?: CohabitationOfflineQueueRevisionSnapshot
   server_revision_after_snapshot?: CohabitationOfflineQueueRevisionSnapshot
+  offline_conflict_resolution?: CohabitationOfflineConflictResolutionEvidence
   results: CohabitationOfflineQueueMergeEntry[]
   rejected: CohabitationOfflineQueueMergeEntry[]
 }
@@ -1948,40 +2024,7 @@ export interface CohabitationOfflineQueueMergeSummary {
 export interface CohabitationOfflineQueueMergeResponse extends CohabitationDetailResponse {
   offline_status?: CohabitationOfflineStatus
   offline_queue_merge?: CohabitationOfflineQueueMergeSummary
-}
-
-export interface CohabitationOfflineConflictPreflightPayload {
-  idempotency_key: string
-  client_queue_revision?: number
-  actions?: string[]
-  memo?: string
-}
-
-export interface CohabitationOfflineConflictPreflightSummary {
-  idempotency_key: string
-  client_queue_revision: number
-  server_queue_revision: number
-  client_queue_stale: boolean
-  conflict_policy: string
-  revision_conflict_policy: string
-  supported_actions: string[]
-  requested_actions: string[]
-  supported_requested_actions: string[]
-  unsupported_actions: string[]
-  rejected_count: number
-  next_step: string
-  personal_save_changed: boolean
-  shared_warehouse_changed: boolean
-  shared_fund_changed: boolean
-  server_authoritative: boolean
-  idempotent?: boolean
-  server_revision_snapshot?: CohabitationOfflineQueueRevisionSnapshot
-  [key: string]: unknown
-}
-
-export interface CohabitationOfflineConflictPreflightResponse extends CohabitationDetailResponse {
-  offline_status?: CohabitationOfflineStatus
-  offline_conflict_preflight?: CohabitationOfflineConflictPreflightSummary
+  offline_conflict_resolution?: CohabitationOfflineConflictResolutionEvidence
 }
 
 export interface CohabitationOfflineAutoIncomeCollectPayload {
@@ -2086,6 +2129,43 @@ export interface CohabitationDetailResponse {
   [key: string]: unknown
 }
 
+export interface CohabitationFamilyWishSubmitPayload {
+  wish_ref: string
+  target_ref?: string
+  wish_type?: string
+  title?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyChildCarePayload {
+  care_ref: string
+  target_ref?: string
+  child_ref?: string
+  care_type?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyWishSubmitResponse extends CohabitationDetailResponse {
+  family_state?: Record<string, unknown>
+  family_wish?: Record<string, unknown> | null
+  required_permission_keys?: string[]
+  idempotent?: boolean
+  already_submitted?: boolean
+  personal_family_state_mutated?: boolean
+}
+
+export interface CohabitationFamilyChildCareResponse extends CohabitationDetailResponse {
+  family_state?: Record<string, unknown>
+  child_care?: Record<string, unknown> | null
+  required_permission_keys?: string[]
+  idempotent?: boolean
+  already_recorded?: boolean
+  children_private?: boolean
+  personal_family_state_mutated?: boolean
+}
+
 export interface CohabitationFundSpendPayload {
   amount: number
   purpose: string
@@ -2133,6 +2213,119 @@ export interface CohabitationFundHighRiskReceiptPayload {
 export interface CohabitationFamilyBuildingLedgerPayload {
   building_ledger_id: string
   memo?: string
+  idempotency_key: string
+  medium_fund_ledger_id?: string
+  budget_fund_ledger_id?: string
+  budget_ledger_id?: string
+  materials_fund_ledger_id?: string
+}
+
+export interface CohabitationFamilyOrderCreatePayload {
+  title?: string
+  name?: string
+  order_type?: string
+  stage_id?: string
+  reward_route?: 'shared_fund' | 'shared_warehouse' | string
+  reward_amount?: number
+  amount?: number
+  reward_item_id?: string
+  item_id?: string
+  reward_item_label?: string
+  item_label?: string
+  reward_quantity?: number
+  quantity?: number
+  reward_quality?: string
+  quality?: string
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyOrderActionPayload {
+  stage_id?: string
+  note?: string
+  memo?: string
+  delivery_note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyReputationAwardPayload {
+  source_type?: string
+  source?: string
+  source_ref?: string
+  target_ref?: string
+  ref?: string
+  source_ledger_id?: string
+  ledger_id?: string
+  target_username?: string
+  member_username?: string
+  username?: string
+  points?: number
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyReputationRewardClaimPayload {
+  reward_type?: string
+  reward_label?: string
+  label?: string
+  cost_points?: number
+  amount?: number
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyVisibilityUpdatePayload {
+  default_scope?: string
+  enabled_scope_ids?: string[]
+  public_category_ids?: string[]
+  member_consent?: Record<string, boolean>
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyVisibilityRollbackPayload {
+  audit_id?: string
+  rollback_audit_id?: string
+  id?: string
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyFestivalSeatReservePayload {
+  template_id?: string
+  seat_usernames?: string[]
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyFestivalRoomPayload {
+  template_id?: string
+  title?: string
+  room_title?: string
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyFestivalSuppliesPayload {
+  template_id?: string
+  memo?: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyFestivalSettlePayload {
+  template_id?: string
+  amount?: number
+  points?: number
+  memo?: string
+  note?: string
   idempotency_key: string
 }
 
@@ -2337,6 +2530,10 @@ export interface CohabitationSharedWorkshopProcessPayload {
   recipe_id: string
   memo?: string
   idempotency_key: string
+  fund_ledger_id?: string
+  budget_ledger_id?: string
+  medium_fund_ledger_id?: string
+  alchemy_result_mode?: 'fixed' | 'auto'
 }
 
 export interface CohabitationSharedWorkshopRecipe {
@@ -2353,6 +2550,8 @@ export interface CohabitationSharedWorkshopRecipe {
   output_quantity: number
   output_quality: string
   alchemy_result_kind?: string
+  alchemy_result_mode?: 'fixed' | 'auto'
+  alchemy_auto_result?: boolean
 }
 
 export interface CohabitationContractCreatePayload {
@@ -2456,6 +2655,8 @@ export interface CohabitationWarehouseItemResponse extends CohabitationDetailRes
     quality: string
     quantity: number
     unit_price: number
+    base_unit_price?: number
+    quality_price_multiplier?: number
     total_amount: number
     balance_before?: number
     balance_after?: number
@@ -2530,6 +2731,7 @@ export interface CohabitationSharedFarmActionResponse extends CohabitationDetail
     fertilizer_permission_key?: string
     premium_fertilizer?: boolean
     fertilizer_effect?: string
+    fertilizer_quality_bonus?: number
     plot_id: string
     seed_item_id?: string
     fertilizer_item_id?: string
@@ -2554,6 +2756,19 @@ export interface CohabitationSharedAnimalFeedPayload {
   idempotency_key: string
 }
 
+export interface CohabitationSharedAnimalBuyPayload {
+  animal_type: string
+  name?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSharedAnimalSellPayload {
+  animal_id: string
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationSharedAnimalPetPayload {
   animal_id: string
   memo?: string
@@ -2569,20 +2784,32 @@ export interface CohabitationSharedAnimalProductPayload {
 export interface CohabitationSharedAnimalActionResponse extends CohabitationDetailResponse {
   shared_animals?: CohabitationSharedAnimals
   warehouse?: CohabitationWarehouseSnapshot
+  fund?: CohabitationFundSnapshot
   animal?: CohabitationSharedAnimal | null
   ledger_entry?: CohabitationSharedAnimalLedgerEntry | null
+  fund_ledger_entry?: CohabitationFundLedgerEntry | null
   warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
   idempotent?: boolean
   already_fed?: boolean
+  already_bought?: boolean
+  already_purchased?: boolean
+  already_sold?: boolean
   already_petted?: boolean
   already_collected?: boolean
   animal_action?: {
     action: string
     animal_id: string
+    animal_type?: string
+    animal_name?: string
     feed_item_id?: string
     product_item_id?: string
     product_quantity?: number
     product_quality?: string
+    fund_ledger_id?: string
+    unit_price?: number
+    total_amount?: number
+    balance_before?: number
+    balance_after?: number
     warehouse_ledger_ids?: string[]
     simultaneous_online_bonus?: Record<string, unknown>
     before_animal_state?: Record<string, unknown>
@@ -2660,12 +2887,20 @@ export interface CohabitationSharedWorkshopProcessResponse extends CohabitationD
     output_quality?: string
     output_quality_before_bonus?: string
     alchemy_result_kind?: string
+    alchemy_result_mode?: 'fixed' | 'auto'
+    alchemy_auto_result?: boolean
+    alchemy_result_roll?: number
+    alchemy_result_roll_mod?: number
+    alchemy_result_weights?: Record<string, number> | null
+    alchemy_result_seed_hash?: string
     success_rate_bonus_percent?: number
     warehouse_ledger_ids?: string[]
     simultaneous_online_bonus?: Record<string, unknown>
     personal_save_changed?: boolean
     shared_warehouse_changed?: boolean
     shared_fund_changed?: boolean
+    fund_ledger_id?: string
+    medium_fund_budget_linked?: boolean
   }
 }
 
@@ -2800,6 +3035,48 @@ export interface CohabitationFundHighRiskReceiptResponse extends CohabitationFun
   }
 }
 
+export interface CohabitationFamilyOrderActionResponse extends CohabitationDetailResponse {
+  family_orders_panel?: CohabitationFamilyOrdersPanel
+  family_reputation_panel?: CohabitationFamilyReputationPanel
+  fund?: CohabitationFundSnapshot
+  warehouse?: CohabitationWarehouseSnapshot
+  order?: Record<string, unknown>
+  fund_ledger_entry?: CohabitationFundLedgerEntry | null
+  warehouse_ledger_entry?: CohabitationWarehouseLedgerEntry | null
+  reputation_ledger_entry?: Record<string, unknown>
+  idempotent?: boolean
+}
+
+export interface CohabitationFamilyReputationActionResponse extends CohabitationDetailResponse {
+  family_reputation_panel?: CohabitationFamilyReputationPanel
+  fund?: CohabitationFundSnapshot
+  reputation_ledger_entry?: Record<string, unknown>
+  reward?: Record<string, unknown>
+  fund_ledger_entry?: CohabitationFundLedgerEntry
+  idempotent?: boolean
+}
+
+export interface CohabitationFamilyVisibilityActionResponse extends CohabitationDetailResponse {
+  family_visibility_panel?: CohabitationFamilyVisibilityPanel
+  audit_entry?: Record<string, unknown>
+  relation_event?: Record<string, unknown>
+  idempotent?: boolean
+}
+
+export interface CohabitationFamilyFestivalSeatActionResponse extends CohabitationDetailResponse {
+  family_festival_seats_panel?: CohabitationFamilyFestivalSeatsPanel
+  family_reputation_panel?: CohabitationFamilyReputationPanel
+  warehouse?: CohabitationWarehouseSnapshot
+  fund?: CohabitationFundSnapshot
+  ledger_entry?: Record<string, unknown>
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  fund_ledger_entry?: CohabitationFundLedgerEntry
+  reputation_ledger_entry?: Record<string, unknown>
+  room?: Record<string, unknown>
+  room_id?: string
+  idempotent?: boolean
+}
+
 export interface CohabitationFamilyBuildingLedgerActionResponse extends CohabitationDetailResponse {
   family_buildings_panel?: CohabitationFamilyBuildingsPanel
   warehouse?: CohabitationWarehouseSnapshot
@@ -2921,6 +3198,8 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     balance_before?: number
     balance_after?: number
     personal_money_merged?: boolean
+    medium_fund_budget_ledger_id?: string
+    medium_fund_budget_linked?: boolean
   }
   compensation_replay?: {
     shared_fund_refunded?: boolean
@@ -3194,6 +3473,22 @@ export const feedCohabitationSharedAnimal = async (contractId: string, payload: 
     contractPath(contractId, '/shared-animals/feed'),
     payload as unknown as Record<string, unknown>,
     '喂食共同动物失败'
+  )
+}
+
+export const buyCohabitationSharedAnimal = async (contractId: string, payload: CohabitationSharedAnimalBuyPayload) => {
+  return postCohabitationJson<CohabitationSharedAnimalActionResponse>(
+    contractPath(contractId, '/shared-animals/buy'),
+    payload as unknown as Record<string, unknown>,
+    '购买共同动物失败'
+  )
+}
+
+export const sellCohabitationSharedAnimal = async (contractId: string, payload: CohabitationSharedAnimalSellPayload) => {
+  return postCohabitationJson<CohabitationSharedAnimalActionResponse>(
+    contractPath(contractId, '/shared-animals/sell'),
+    payload as unknown as Record<string, unknown>,
+    '出售共同动物失败'
   )
 }
 
@@ -3474,10 +3769,58 @@ export const fetchCohabitationFamilyOrders = async (contractId: string) => {
   }>(contractPath(contractId, '/family-orders'), '获取家族订单预备面板失败')
 }
 
+export const createCohabitationFamilyOrder = async (contractId: string, payload: CohabitationFamilyOrderCreatePayload) => {
+  return postCohabitationJson<CohabitationFamilyOrderActionResponse>(
+    contractPath(contractId, '/family-orders'),
+    payload as unknown as Record<string, unknown>,
+    '创建家族订单失败'
+  )
+}
+
+export const acceptCohabitationFamilyOrder = async (contractId: string, orderId: string, payload: CohabitationFamilyOrderActionPayload) => {
+  return postCohabitationJson<CohabitationFamilyOrderActionResponse>(
+    contractPath(contractId, `/family-orders/${encodeURIComponent(orderId)}/accept`),
+    payload as unknown as Record<string, unknown>,
+    '接取家族订单失败'
+  )
+}
+
+export const deliverCohabitationFamilyOrder = async (contractId: string, orderId: string, payload: CohabitationFamilyOrderActionPayload) => {
+  return postCohabitationJson<CohabitationFamilyOrderActionResponse>(
+    contractPath(contractId, `/family-orders/${encodeURIComponent(orderId)}/deliver`),
+    payload as unknown as Record<string, unknown>,
+    '交付家族订单失败'
+  )
+}
+
+export const settleCohabitationFamilyOrder = async (contractId: string, orderId: string, payload: CohabitationFamilyOrderActionPayload) => {
+  return postCohabitationJson<CohabitationFamilyOrderActionResponse>(
+    contractPath(contractId, `/family-orders/${encodeURIComponent(orderId)}/settle`),
+    payload as unknown as Record<string, unknown>,
+    '结算家族订单失败'
+  )
+}
+
 export const fetchCohabitationFamilyReputation = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     family_reputation_panel?: CohabitationFamilyReputationPanel
   }>(contractPath(contractId, '/family-reputation'), '获取家族声望预备面板失败')
+}
+
+export const awardCohabitationFamilyReputation = async (contractId: string, payload: CohabitationFamilyReputationAwardPayload) => {
+  return postCohabitationJson<CohabitationFamilyReputationActionResponse>(
+    contractPath(contractId, '/family-reputation/award'),
+    payload as unknown as Record<string, unknown>,
+    '发放家族声望失败'
+  )
+}
+
+export const claimCohabitationFamilyReputationReward = async (contractId: string, payload: CohabitationFamilyReputationRewardClaimPayload) => {
+  return postCohabitationJson<CohabitationFamilyReputationActionResponse>(
+    contractPath(contractId, '/family-reputation/rewards/claim'),
+    payload as unknown as Record<string, unknown>,
+    '领取家族声望奖励失败'
+  )
 }
 
 export const fetchCohabitationFamilyBuildings = async (contractId: string) => {
@@ -3656,11 +3999,75 @@ export const fetchCohabitationFamilyFestivalSeats = async (contractId: string) =
   }>(contractPath(contractId, '/family-festival-seats'), '获取家族节会席位预备面板失败')
 }
 
+export const updateCohabitationFamilyVisibility = async (contractId: string, payload: CohabitationFamilyVisibilityUpdatePayload) => {
+  return postCohabitationJson<CohabitationFamilyVisibilityActionResponse>(
+    contractPath(contractId, '/family-visibility/settings'),
+    payload as unknown as Record<string, unknown>,
+    '更新家族公开设置失败'
+  )
+}
+
+export const rollbackCohabitationFamilyVisibility = async (contractId: string, payload: CohabitationFamilyVisibilityRollbackPayload) => {
+  return postCohabitationJson<CohabitationFamilyVisibilityActionResponse>(
+    contractPath(contractId, '/family-visibility/rollback'),
+    payload as unknown as Record<string, unknown>,
+    '回滚家族公开设置失败'
+  )
+}
+
+export const reserveCohabitationFamilyFestivalSeats = async (contractId: string, payload: CohabitationFamilyFestivalSeatReservePayload) => {
+  return postCohabitationJson<CohabitationFamilyFestivalSeatActionResponse>(
+    contractPath(contractId, '/family-festival-seats/reserve'),
+    payload as unknown as Record<string, unknown>,
+    '锁定家族节会席位失败'
+  )
+}
+
+export const createCohabitationFamilyFestivalRoom = async (contractId: string, payload: CohabitationFamilyFestivalRoomPayload) => {
+  return postCohabitationJson<CohabitationFamilyFestivalSeatActionResponse>(
+    contractPath(contractId, '/family-festival-seats/create-room'),
+    payload as unknown as Record<string, unknown>,
+    '创建家族节会房间失败'
+  )
+}
+
+export const consumeCohabitationFamilyFestivalSupplies = async (contractId: string, payload: CohabitationFamilyFestivalSuppliesPayload) => {
+  return postCohabitationJson<CohabitationFamilyFestivalSeatActionResponse>(
+    contractPath(contractId, '/family-festival-seats/consume-supplies'),
+    payload as unknown as Record<string, unknown>,
+    '消耗家族节会供品失败'
+  )
+}
+
+export const settleCohabitationFamilyFestivalRewards = async (contractId: string, payload: CohabitationFamilyFestivalSettlePayload) => {
+  return postCohabitationJson<CohabitationFamilyFestivalSeatActionResponse>(
+    contractPath(contractId, '/family-festival-seats/settle'),
+    payload as unknown as Record<string, unknown>,
+    '结算家族节会奖励失败'
+  )
+}
+
 export const updateCohabitationFamilyRole = async (contractId: string, payload: CohabitationFamilyRoleUpdatePayload) => {
   return postCohabitationJson<CohabitationFamilyRoleUpdateResponse>(
     contractPath(contractId, '/roles'),
     payload as unknown as Record<string, unknown>,
     '调整家族庄园职位失败'
+  )
+}
+
+export const submitCohabitationFamilyWish = async (contractId: string, payload: CohabitationFamilyWishSubmitPayload) => {
+  return postCohabitationJson<CohabitationFamilyWishSubmitResponse>(
+    contractPath(contractId, '/family-wishes'),
+    payload as unknown as Record<string, unknown>,
+    '提交共同家庭心愿失败'
+  )
+}
+
+export const recordCohabitationFamilyChildCare = async (contractId: string, payload: CohabitationFamilyChildCarePayload) => {
+  return postCohabitationJson<CohabitationFamilyChildCareResponse>(
+    contractPath(contractId, '/family-child-care'),
+    payload as unknown as Record<string, unknown>,
+    '记录共同孩子照料失败'
   )
 }
 
@@ -3675,14 +4082,6 @@ export const mergeCohabitationOfflineQueue = async (contractId: string, payload:
     contractPath(contractId, '/offline-queue/merge'),
     payload as unknown as Record<string, unknown>,
     '合并离线经营队列失败'
-  )
-}
-
-export const preflightCohabitationOfflineConflicts = async (contractId: string, payload: CohabitationOfflineConflictPreflightPayload) => {
-  return postCohabitationJson<CohabitationOfflineConflictPreflightResponse>(
-    contractPath(contractId, '/offline-conflicts/preflight'),
-    payload as unknown as Record<string, unknown>,
-    '预检离线经营冲突失败'
   )
 }
 

@@ -845,6 +845,13 @@
               <p v-if="receipt.reward_route === 'shared_fund'" class="mt-1 text-[10px] text-success">
                 结算去向：共同基金 · 契约 {{ receipt.cohabitation_contract_id }}{{ receipt.shared_fund_ledger_id ? ` · 流水 ${receipt.shared_fund_ledger_id}` : '' }}
               </p>
+              <p
+                v-if="receipt.shared_order_efficiency_bonus_applied"
+                class="mt-1 text-[10px] text-success"
+                data-testid="online-orders-receipt-efficiency-bonus"
+              >
+                同接效率：原始 {{ formatCoopDuration(receipt.order_original_duration_seconds) }} · 减免 {{ formatCoopDuration(receipt.order_efficiency_bonus_seconds) }} · 有效 {{ formatCoopDuration(receipt.order_effective_duration_seconds) }}
+              </p>
               <p v-if="receipt.compensation_id" class="mt-1 text-[10px] text-warning">
                 关联补偿：{{ receipt.compensation_id }}
               </p>
@@ -1122,6 +1129,16 @@
   const formatCoopTime = (timestamp: number) => {
     if (!timestamp) return '未设置'
     return new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false })
+  }
+  const formatCoopDuration = (seconds: number | null | undefined) => {
+    const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0))
+    if (safeSeconds < 60) return `${safeSeconds} 秒`
+    const minutes = Math.floor(safeSeconds / 60)
+    const remainingSeconds = safeSeconds % 60
+    if (minutes < 60) return remainingSeconds > 0 ? `${minutes} 分 ${remainingSeconds} 秒` : `${minutes} 分钟`
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    return remainingMinutes > 0 ? `${hours} 小时 ${remainingMinutes} 分` : `${hours} 小时`
   }
   const canShowSettlementControls = (rewardType: OnlineCoopRewardType) => rewardType === 'money'
   const isSharedFundSettlementSelected = (orderId: string, stageId = '') =>

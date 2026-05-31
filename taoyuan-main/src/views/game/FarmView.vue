@@ -22,6 +22,32 @@
 
     <!-- 田庄标签 -->
     <div v-if="farmTab === 'field'" class="space-y-3 xl:space-y-4">
+      <section
+        class="border border-accent/20 rounded-xs p-3 bg-panel/60"
+        data-testid="farm-cohabitation-switch"
+        aria-label="共同庄园切换"
+      >
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0">
+            <p class="text-sm text-accent">
+              <Warehouse :size="14" class="inline" />
+              共同庄园切换
+            </p>
+            <p class="text-[10px] text-muted leading-4 mt-1">
+              从个人田庄切到共同庄园，只读查看共同农田、协作护理和共同仓库；个人田庄批量操作继续保留在本页。
+            </p>
+          </div>
+          <Button class="w-full justify-center sm:w-auto" :icon="Sprout" :icon-size="12" @click="goToSharedManorMap">
+            查看共同农田
+          </Button>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-1 text-[10px] text-muted">
+          <span class="border border-accent/10 rounded-xs px-2 py-1">共同农田地图</span>
+          <span class="border border-accent/10 rounded-xs px-2 py-1">仓库 / 基金边界</span>
+          <span class="border border-accent/10 rounded-xs px-2 py-1">服务端审计</span>
+        </div>
+      </section>
+
       <div class="mb-1 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
         <div class="flex items-center space-x-1.5 text-sm text-accent">
           <Sprout :size="14" />
@@ -1059,6 +1085,7 @@
 
 <script setup lang="ts">
   import { ref, computed, type Component } from 'vue'
+  import { useRouter } from 'vue-router'
   import {
     Droplets,
     Droplet,
@@ -1130,9 +1157,14 @@
   import type { SprinklerType, FertilizerType, FruitTreeType, WildTreeType, Quality } from '@/types'
   import { sfxHarvest, sfxPlant } from '@/composables/useAudio'
 
+  const router = useRouter()
   const { selectedSeed } = useFarmActions()
 
   const farmTab = ref<'field' | 'tree'>('field')
+
+  const goToSharedManorMap = () => {
+    router.push({ name: 'online-cohabitation', query: { tab: 'map' } })
+  }
 
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()

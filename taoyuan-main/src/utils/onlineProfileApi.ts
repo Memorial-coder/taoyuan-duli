@@ -1215,6 +1215,11 @@ export interface OnlineCoopReceiptEntry {
   help_reputation_delta: number
   specialty_reputation_delta: number
   trust_level_label: string
+  shared_order_efficiency_bonus_applied?: boolean
+  order_efficiency_bonus_seconds?: number
+  order_original_duration_seconds?: number
+  order_effective_duration_seconds?: number
+  order_efficiency_bonus_type?: string
   created_at: number
   confirmed_at: number
   updated_at: number

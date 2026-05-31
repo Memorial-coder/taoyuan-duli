@@ -293,6 +293,25 @@ expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-le
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-ledger-bonus-', 'cohabitation building ledger should expose decoration cooperation bonus readback')
 expectContains('online/OnlineCohabitationView.vue', 'simultaneousOnlineBonusEvidenceLabel', 'cohabitation ledger bonus readback should show actor and receipt evidence')
 expectContains('utils/cohabitationApi.ts', 'simultaneous_online_bonus?: Record<string, unknown>', 'cohabitation ledger types should allow simultaneous-online bonus evidence')
+expectContains('online/OnlineCohabitationView.vue', 'order_original_duration_seconds', 'cohabitation fund ledger should read back original order duration')
+expectContains('online/OnlineCohabitationView.vue', 'order_efficiency_bonus_seconds', 'cohabitation fund ledger should read back order duration reduction')
+expectContains('online/OnlineCohabitationView.vue', 'order_effective_duration_seconds', 'cohabitation fund ledger should read back effective order duration')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-receipt-efficiency-bonus', 'online order receipts should show shared fund efficiency duration evidence')
+expectContains('online/OnlineOrdersView.vue', 'formatCoopDuration', 'online order receipts should format shared efficiency duration evidence')
+expectContains('utils/onlineProfileApi.ts', 'shared_order_efficiency_bonus_applied?: boolean', 'online order receipt types should read back shared efficiency bonus evidence')
+expectContains('utils/onlineProfileApi.ts', 'order_effective_duration_seconds?: number', 'online order receipt types should read back effective settlement duration')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-coop-bonus', 'cohabitation shared farm detail should show same-time water health bonus evidence')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-animal-coop-bonus', 'cohabitation shared animal detail should show feed/pet mood bonus evidence')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-daily-settle', 'cohabitation offline panel should expose daily settlement for cooperation bonus consumption')
+expectContains('online/OnlineCohabitationView.vue', 'last_cooperation_health_bonus_consumed_value', 'cohabitation shared farm detail should read consumed health bonus value')
+expectContains('online/OnlineCohabitationView.vue', 'last_cooperation_quality_bonus_consumed_value', 'cohabitation shared farm detail should read consumed plant/fertilize quality bonus value')
+expectContains('online/OnlineCohabitationView.vue', 'last_fertilizer_quality_bonus_consumed_value', 'cohabitation shared farm detail should read consumed premium fertilizer quality bonus value')
+expectContains('online/OnlineCohabitationView.vue', 'last_fertilizer_growth_bonus_consumed_value', 'cohabitation shared farm detail should read consumed speed fertilizer growth bonus value')
+expectContains('online/OnlineCohabitationView.vue', 'last_fertilizer_water_retention_value', 'cohabitation shared farm detail should read retained-water fertilizer bonus value')
+expectContains('utils/cohabitationApi.ts', 'last_fertilizer_quality_bonus_consumed_value?: number', 'cohabitation shared plot type should expose consumed premium fertilizer quality bonus value')
+expectContains('utils/cohabitationApi.ts', 'last_fertilizer_growth_bonus_consumed_value?: number', 'cohabitation shared plot type should expose consumed speed fertilizer growth bonus value')
+expectContains('utils/cohabitationApi.ts', 'last_fertilizer_water_retention_value?: number', 'cohabitation shared plot type should expose retained-water fertilizer bonus value')
+expectContains('online/OnlineCohabitationView.vue', 'last_cooperation_mood_bonus_consumed_value', 'cohabitation shared animal detail should read consumed mood bonus value')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-water', '共同农田地图应提供浇水入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-cure-pests', '共同农田地图应提供除虫入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-clear-weeds', '共同农田地图应提供清草入口')
@@ -457,11 +476,54 @@ expectContains('utils/cohabitationApi.ts', 'construction_ledger', '共同庄园�
 expectContains('utils/cohabitationApi.ts', 'CohabitationFamilyBuildingLedgerEntry', '共同庄园建筑 API 类型应声明建筑流水条目')
 expectContains('utils/cohabitationApi.ts', '/fund/large-spend-draft', '共同基金 API 应接入大额草案创建接口')
 expectContains('utils/cohabitationApi.ts', 'executeCohabitationFundLargeSpendDraft', '共同基金 API 应接入大额草案执行接口')
+expectContains('utils/cohabitationApi.ts', '/family-wishes', '共同家庭心愿 API 应接入 family_wish_submit 写链')
+expectContains('utils/cohabitationApi.ts', 'submitCohabitationFamilyWish', '共同家庭心愿 API 应导出提交方法')
+expectContains('stores/useCohabitationStore.ts', 'submitFamilyWish', '共同庄园 store 应导出家庭心愿提交动作')
+expectContains('utils/cohabitationApi.ts', '/family-child-care', '共同孩子照料 API 应接入 child_daily_care 写链')
+expectContains('utils/cohabitationApi.ts', 'recordCohabitationFamilyChildCare', '共同孩子照料 API 应导出记录方法')
+expectContains('stores/useCohabitationStore.ts', 'recordFamilyChildCare', '共同庄园 store 应导出孩子照料记录动作')
 expectContains('online/OnlineCohabitationView.vue', 'spend_medium', '共同庄园权限面板应提供中额基金开关')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-permission-grouped-toggles', '共同庄园权限面板应按权限组展示开关')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-permission-toggle-group-', '共同庄园权限面板应给每个权限组稳定测试钩子')
 expectContains('online/OnlineCohabitationView.vue', 'permissionToggleGroups', '共同庄园权限面板不应把全部权限开关堆成长表')
 expectContains('online/OnlineCohabitationView.vue', 'sm:grid-cols-2', '共同庄园权限组内开关在移动端应保持可读网格')
+const expectedCohabitationPermissionOptions = [
+  ['farm', 'water'],
+  ['farm', 'cure_pests'],
+  ['farm', 'plant'],
+  ['farm', 'harvest'],
+  ['farm', 'remove_crop'],
+  ['farm', 'use_premium_fertilizer'],
+  ['animal', 'feed'],
+  ['animal', 'pet'],
+  ['animal', 'collect_product'],
+  ['animal', 'buy_animal'],
+  ['animal', 'sell_animal'],
+  ['storage', 'deposit'],
+  ['storage', 'withdraw_common'],
+  ['storage', 'withdraw_high_quality'],
+  ['storage', 'withdraw_rare'],
+  ['storage', 'sell_items'],
+  ['construction', 'move_common_furniture'],
+  ['construction', 'move_memorial_furniture'],
+  ['construction', 'buy_furniture'],
+  ['construction', 'demolish_building'],
+  ['construction', 'expand_manor'],
+  ['fund', 'spend_small'],
+  ['fund', 'spend_medium'],
+  ['fund', 'spend_large'],
+  ['fund', 'auto_buy_seeds_feed'],
+  ['family', 'child_daily_care'],
+  ['family', 'family_wish_submit'],
+  ['family', 'major_family_choice'],
+]
+for (const [group, key] of expectedCohabitationPermissionOptions) {
+  expectContains(
+    'online/OnlineCohabitationView.vue',
+    `group: '${group}', key: '${key}'`,
+    `共同庄园权限面板应提供 ${group}.${key} 开关`
+  )
+}
 expectContains('online/OnlineCohabitationView.vue', '个人铜币不合并', '共同庄园入口应显示个人铜币不合并边界')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineCohabitationView.vue', /overflow-y-auto/g, 8, '共同庄园长列表应保留滚动边界')
 

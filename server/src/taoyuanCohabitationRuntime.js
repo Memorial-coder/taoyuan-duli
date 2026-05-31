@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const db = require('./db');
 const taoyuanCoopOrderRuntime = require('./taoyuanCoopOrderRuntime');
+const taoyuanActivityRoomRuntime = require('./taoyuanActivityRoomRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 const {
   createError,
@@ -32,7 +33,13 @@ const FUND_MAX_SMALL_SPEND_AMOUNT = 300;
 const FUND_MAX_MEDIUM_SPEND_AMOUNT = 1200;
 const FUND_MAX_LARGE_SPEND_AMOUNT = 999999;
 const FUND_LARGE_SPEND_DRAFT_LIMIT = 30;
+const FUND_OPERATING_CONTRIBUTION_ACTIONS = new Set(['order_income', 'warehouse_sale_income', 'shared_animal_sale_income']);
 const FAMILY_BUILDING_LEDGER_LIMIT = 80;
+const FAMILY_ORDER_LEDGER_LIMIT = 80;
+const FAMILY_REPUTATION_LEDGER_LIMIT = 160;
+const FAMILY_VISIBILITY_AUDIT_LIMIT = 80;
+const FAMILY_RELATION_EVENT_LIMIT = 80;
+const FAMILY_FESTIVAL_LEDGER_LIMIT = 80;
 const FARM_ACTION_LEDGER_LIMIT = 160;
 const SHARED_ANIMAL_LEDGER_LIMIT = 120;
 const SHARED_ANIMAL_LIMIT = 80;
@@ -44,9 +51,11 @@ const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
 const SHARED_ANIMAL_CARE_COOP_MOOD_BONUS = 3;
 const SHARED_PET_CARE_COOP_MOOD_BONUS = 2;
 const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_BONUS = 1;
+const SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_REDUCTION_SECONDS = 15 * 60;
 const SHARED_DECORATION_COOP_ATMOSPHERE_BONUS = 1;
 const SHARED_WORKSHOP_PROCESS_COOP_QUALITY_BONUS = 1;
 const SHARED_ALCHEMY_COOP_SUCCESS_RATE_BONUS_PERCENT = 15;
+const SHARED_ALCHEMY_AUTO_RESULT_MAX_SUCCESS_PERCENT = 95;
 const OFFLINE_AUTO_INCOME_MAX_ITEMS = 40;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
@@ -60,6 +69,12 @@ const WAREHOUSE_GOVERNANCE_WINDOW_SECONDS = 10 * 60;
 const WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT = 6;
 const WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT = 12;
 const WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT = 60;
+const SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS = Object.freeze({
+  success: 80,
+  partial: 14,
+  failed: 4,
+  rare: 2,
+});
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_ITEM_POLICY_VERSION = 1;
@@ -71,7 +86,9 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
   'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
   'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
-  'hay', 'fish_feed', 'basic_fertilizer', 'quality_fertilizer', 'speed_gro', 'deluxe_speed_gro', 'quality_retaining_soil', 'seed_cabbage', 'seed_radish', 'seed_rice', 'premium_feed', 'nourishing_feed', 'vitality_feed',
+  'hay', 'fish_feed', 'basic_fertilizer', 'quality_fertilizer', 'speed_gro', 'deluxe_speed_gro', 'quality_retaining_soil',
+  'seed_cabbage', 'seed_radish', 'seed_rice', 'seed_wheat', 'seed_corn', 'seed_tea', 'seed_lotus', 'seed_turnip', 'seed_carrot', 'seed_sweet_potato', 'seed_pumpkin', 'seed_sesame', 'seed_peach', 'seed_chili',
+  'premium_feed', 'nourishing_feed', 'vitality_feed',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -163,6 +180,7 @@ const SHARED_ANIMAL_PURCHASE_CATALOG = Object.freeze({
 });
 const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
 const SEPARATION_PREVIEW_VERSION = 1;
+const SEPARATION_OFFLINE_CONFIRM_TIMEOUT_SECONDS = 7 * 24 * 60 * 60;
 const FAMILY_MANOR_TYPES = new Set(['oath_manor', 'business_partner']);
 const SMALL_FUND_SPEND_PURPOSES = Object.freeze({
   seed_budget: {
@@ -226,7 +244,7 @@ const LARGE_FUND_SPEND_PURPOSES = Object.freeze({
     max_amount: 40000,
   },
   shared_decoration_removal: {
-    label: 'Shared decoration removal',
+    label: '共同装修拆除',
     category: 'shared_decoration_removal',
     max_amount: 35000,
   },
@@ -255,6 +273,83 @@ const SHARED_FUND_AUTO_PURCHASE_CATALOG = Object.freeze({
     item_id: 'seed_rice',
     label: '稻米种子',
     unit_price: 20,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_wheat': {
+    item_id: 'seed_wheat',
+    label: 'wheat seed',
+    unit_price: 18,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_corn': {
+    item_id: 'seed_corn',
+    label: 'corn seed',
+    unit_price: 30,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_tea': {
+    item_id: 'seed_tea',
+    label: 'tea seed',
+    unit_price: 45,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_lotus': {
+    item_id: 'seed_lotus',
+    label: 'lotus seedling',
+    unit_price: 35,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_turnip': {
+    item_id: 'seed_turnip',
+    label: 'turnip seed',
+    unit_price: 16,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_carrot': {
+    item_id: 'seed_carrot',
+    label: 'carrot seed',
+    unit_price: 12,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_sweet_potato': {
+    item_id: 'seed_sweet_potato',
+    label: 'sweet potato seed',
+    unit_price: 18,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_pumpkin': {
+    item_id: 'seed_pumpkin',
+    label: 'pumpkin seed',
+    unit_price: 28,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_sesame': {
+    item_id: 'seed_sesame',
+    label: 'sesame seed',
+    unit_price: 22,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_peach': {
+    item_id: 'seed_peach',
+    label: 'peach sapling',
+    unit_price: 55,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_chili': {
+    item_id: 'seed_chili',
+    label: 'chili seed',
+    unit_price: 24,
     allowed_purposes: ['seed_budget'],
     category: 'seed',
   },
@@ -418,11 +513,25 @@ const SHARED_FARM_SEED_CATALOG = Object.freeze(Object.fromEntries(
       label: item.label,
     }])
 ));
-const SHARED_FARM_CROP_GROWTH_DAYS = Object.freeze({
-  cabbage: 3,
-  radish: 4,
-  rice: 7,
+const SHARED_FARM_CROP_PROFILE_CATALOG = Object.freeze({
+  cabbage: { crop_id: 'cabbage', output_item_id: 'cabbage', growth_days: 3, base_quantity: 1 },
+  radish: { crop_id: 'radish', output_item_id: 'radish', growth_days: 4, base_quantity: 1 },
+  rice: { crop_id: 'rice', output_item_id: 'rice', growth_days: 7, base_quantity: 1, regrow_days: 3, max_harvests: 2 },
+  wheat: { crop_id: 'wheat', output_item_id: 'wheat', growth_days: 4, base_quantity: 1 },
+  corn: { crop_id: 'corn', output_item_id: 'corn', growth_days: 8, base_quantity: 2, regrow_days: 4, max_harvests: 3 },
+  tea: { crop_id: 'tea', output_item_id: 'tea', growth_days: 6, base_quantity: 1, regrow_days: 3, max_harvests: 4 },
+  lotus: { crop_id: 'lotus', output_item_id: 'lotus_root', growth_days: 7, base_quantity: 1, secondary_outputs: [{ item_id: 'lotus_seed', quantity: 1 }] },
+  turnip: { crop_id: 'turnip', output_item_id: 'turnip', growth_days: 4, base_quantity: 1 },
+  carrot: { crop_id: 'carrot', output_item_id: 'carrot', growth_days: 3, base_quantity: 1 },
+  sweet_potato: { crop_id: 'sweet_potato', output_item_id: 'sweet_potato', growth_days: 5, base_quantity: 2 },
+  pumpkin: { crop_id: 'pumpkin', output_item_id: 'pumpkin', growth_days: 6, base_quantity: 1, giant_bonus_quantity: 4 },
+  sesame: { crop_id: 'sesame', output_item_id: 'sesame', growth_days: 5, base_quantity: 2 },
+  peach: { crop_id: 'peach', output_item_id: 'peach', growth_days: 7, base_quantity: 1, regrow_days: 4, max_harvests: 3 },
+  chili: { crop_id: 'chili', output_item_id: 'chili', growth_days: 5, base_quantity: 2, regrow_days: 3, max_harvests: 3 },
 });
+const SHARED_FARM_CROP_GROWTH_DAYS = Object.freeze(Object.fromEntries(
+  Object.entries(SHARED_FARM_CROP_PROFILE_CATALOG).map(([cropId, profile]) => [cropId, profile.growth_days])
+));
 const SHARED_ANIMAL_PRODUCT_CATALOG = Object.freeze({
   chicken: { product_id: 'egg', produce_days: 1 },
   duck: { product_id: 'duck_egg', produce_days: 2 },
@@ -880,6 +989,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quality: 'normal',
     alchemy_result_kind: 'success',
   },
+  shared_warming_sweet_potato_partial: {
+    id: 'shared_warming_sweet_potato_partial',
+    label: '共同丹炉温阳偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sweet_potato', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_warming_sweet_potato_failed: {
+    id: 'shared_warming_sweet_potato_failed',
+    label: '共同丹炉温阳废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sweet_potato', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_warming_sweet_potato_rare: {
+    id: 'shared_warming_sweet_potato_rare',
+    label: '共同丹炉温阳奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sweet_potato', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
   shared_grain_breath_elixir: {
     id: 'shared_grain_breath_elixir',
     label: '共同丹炉谷气续行丹',
@@ -894,6 +1048,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
     alchemy_result_kind: 'success',
+  },
+  shared_grain_breath_partial: {
+    id: 'shared_grain_breath_partial',
+    label: '共同丹炉谷气偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'herb', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_grain_breath_failed: {
+    id: 'shared_grain_breath_failed',
+    label: '共同丹炉谷气废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'herb', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_grain_breath_rare: {
+    id: 'shared_grain_breath_rare',
+    label: '共同丹炉谷气奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'herb', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
   },
   shared_sesame_courtesy_elixir: {
     id: 'shared_sesame_courtesy_elixir',
@@ -910,6 +1109,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quality: 'normal',
     alchemy_result_kind: 'success',
   },
+  shared_sesame_courtesy_partial: {
+    id: 'shared_sesame_courtesy_partial',
+    label: '共同丹炉芝香偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sesame', quantity: 2, quality: 'normal' },
+      { item_id: 'tea', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_sesame_courtesy_failed: {
+    id: 'shared_sesame_courtesy_failed',
+    label: '共同丹炉芝香废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sesame', quantity: 2, quality: 'normal' },
+      { item_id: 'tea', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_sesame_courtesy_rare: {
+    id: 'shared_sesame_courtesy_rare',
+    label: '共同丹炉芝香奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'sesame', quantity: 2, quality: 'normal' },
+      { item_id: 'tea', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
   shared_pumpkin_warmth_elixir: {
     id: 'shared_pumpkin_warmth_elixir',
     label: '共同丹炉南瓜聚火丹',
@@ -924,6 +1168,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
     alchemy_result_kind: 'success',
+  },
+  shared_pumpkin_warmth_partial: {
+    id: 'shared_pumpkin_warmth_partial',
+    label: '共同丹炉南瓜偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pumpkin', quantity: 2, quality: 'normal' },
+      { item_id: 'sesame_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_pumpkin_warmth_failed: {
+    id: 'shared_pumpkin_warmth_failed',
+    label: '共同丹炉南瓜废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pumpkin', quantity: 2, quality: 'normal' },
+      { item_id: 'sesame_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_pumpkin_warmth_rare: {
+    id: 'shared_pumpkin_warmth_rare',
+    label: '共同丹炉南瓜奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pumpkin', quantity: 2, quality: 'normal' },
+      { item_id: 'sesame_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
   },
   shared_spicy_vitality_pill: {
     id: 'shared_spicy_vitality_pill',
@@ -940,6 +1229,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quality: 'normal',
     alchemy_result_kind: 'success',
   },
+  shared_spicy_vitality_partial: {
+    id: 'shared_spicy_vitality_partial',
+    label: '共同丹炉辛火偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pickled_chili', quantity: 1, quality: 'fine' },
+      { item_id: 'sesame_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_spicy_vitality_failed: {
+    id: 'shared_spicy_vitality_failed',
+    label: '共同丹炉辛火废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pickled_chili', quantity: 1, quality: 'fine' },
+      { item_id: 'sesame_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_spicy_vitality_rare: {
+    id: 'shared_spicy_vitality_rare',
+    label: '共同丹炉辛火奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'pickled_chili', quantity: 1, quality: 'fine' },
+      { item_id: 'sesame_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
   shared_osmanthus_focus_elixir: {
     id: 'shared_osmanthus_focus_elixir',
     label: '共同丹炉桂露凝神丹',
@@ -954,6 +1288,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
     alchemy_result_kind: 'success',
+  },
+  shared_osmanthus_focus_partial: {
+    id: 'shared_osmanthus_focus_partial',
+    label: '共同丹炉桂露偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_seed', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_osmanthus_focus_failed: {
+    id: 'shared_osmanthus_focus_failed',
+    label: '共同丹炉桂露废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_seed', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_osmanthus_focus_rare: {
+    id: 'shared_osmanthus_focus_rare',
+    label: '共同丹炉桂露奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+      { item_id: 'lotus_seed', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
   },
   shared_tea_focus_elixir: {
     id: 'shared_tea_focus_elixir',
@@ -970,6 +1349,51 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quality: 'normal',
     alchemy_result_kind: 'success',
   },
+  shared_tea_focus_partial: {
+    id: 'shared_tea_focus_partial',
+    label: '共同丹炉茶心偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_tea_focus_failed: {
+    id: 'shared_tea_focus_failed',
+    label: '共同丹炉茶心废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_tea_focus_rare: {
+    id: 'shared_tea_focus_rare',
+    label: '共同丹炉茶心奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
   shared_stone_root_guard_pill: {
     id: 'shared_stone_root_guard_pill',
     label: '共同丹炉石根护脉丸',
@@ -984,6 +1408,111 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
     alchemy_result_kind: 'success',
+  },
+  shared_stone_root_guard_partial: {
+    id: 'shared_stone_root_guard_partial',
+    label: '共同丹炉石根偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'radish', quantity: 2, quality: 'normal' },
+      { item_id: 'potato', quantity: 1, quality: 'normal' },
+      { item_id: 'refined_quartz', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_stone_root_guard_failed: {
+    id: 'shared_stone_root_guard_failed',
+    label: '共同丹炉石根废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'radish', quantity: 2, quality: 'normal' },
+      { item_id: 'potato', quantity: 1, quality: 'normal' },
+      { item_id: 'refined_quartz', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_stone_root_guard_rare: {
+    id: 'shared_stone_root_guard_rare',
+    label: '共同丹炉石根奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'radish', quantity: 2, quality: 'normal' },
+      { item_id: 'potato', quantity: 1, quality: 'normal' },
+      { item_id: 'refined_quartz', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
+  shared_spirit_peach_elixir: {
+    id: 'shared_spirit_peach_elixir',
+    label: '共同丹炉灵桃醒神丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'peach', quantity: 2, quality: 'fine' },
+      { item_id: 'candied_peach', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_herb', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'spirit_peach_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_spirit_peach_partial: {
+    id: 'shared_spirit_peach_partial',
+    label: '共同丹炉灵桃偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'peach', quantity: 2, quality: 'fine' },
+      { item_id: 'candied_peach', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_herb', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_spirit_peach_failed: {
+    id: 'shared_spirit_peach_failed',
+    label: '共同丹炉灵桃废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'peach', quantity: 2, quality: 'fine' },
+      { item_id: 'candied_peach', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_herb', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_spirit_peach_rare: {
+    id: 'shared_spirit_peach_rare',
+    label: '共同丹炉灵桃奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'peach', quantity: 2, quality: 'fine' },
+      { item_id: 'candied_peach', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_herb', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
   },
 });
 
@@ -1121,6 +1650,49 @@ const FAMILY_REPUTATION_LEVELS = Object.freeze([
   { id: 'known', label: '一方名望', min_points: 60, next_points: 120 },
   { id: 'renowned', label: '桃源名门', min_points: 120, next_points: null },
 ]);
+const FAMILY_ORDER_STATUSES = new Set(['open', 'accepted', 'delivered', 'settled', 'cancelled']);
+const FAMILY_ORDER_DELIVERY_STATUSES = new Set(['none', 'submitted', 'confirmed']);
+const FAMILY_ORDER_TYPES = new Set(['material_help', 'festival_supply', 'village_build', 'expedition_supply', 'museum_support', 'emergency_response', 'npc_request']);
+const FAMILY_ORDER_REWARD_ROUTES = new Set(['shared_fund', 'shared_warehouse']);
+const FAMILY_REPUTATION_WEEKLY_CAP = 120;
+const FAMILY_REPUTATION_REWARD_COST = 20;
+const FAMILY_REPUTATION_REWARD_AMOUNT = 88;
+const FAMILY_ORDER_REWARD_MAX_AMOUNT = 50000;
+const FAMILY_ORDER_REWARD_MAX_QUANTITY = 999;
+const FAMILY_FESTIVAL_SHARED_FUND_REWARD_AMOUNT = 120;
+const FAMILY_REPUTATION_SOURCE_POINTS = Object.freeze({
+  family_order: 12,
+  family_festival: 10,
+  family_building: 8,
+  family_visibility: 3,
+  family_governance: 2,
+});
+const FAMILY_REPUTATION_REWARD_TYPES = new Set(['shared_fund_grant']);
+const FAMILY_VISIBILITY_SCOPES = new Set(['contract_members', 'mutual_friends', 'society_members', 'public_profile', 'festival_room']);
+const FAMILY_VISIBILITY_PRIVATE_CATEGORY_IDS = new Set(['fixed_npcs', 'random_npcs', 'children', 'pets', 'hidden_spirits', 'romance_state']);
+const FAMILY_FESTIVAL_SEAT_STATES = new Set(['preview_ready', 'reserved', 'room_bound', 'settled', 'disabled']);
+const FAMILY_FESTIVAL_SUPPLY_COSTS = Object.freeze({
+  lantern_fair: [
+    { item_id: 'wood', label: '木材', quantity: 4 },
+    { item_id: 'firewood', label: '柴火', quantity: 1 },
+  ],
+  dragon_boat: [
+    { item_id: 'wood', label: '木材', quantity: 6 },
+    { item_id: 'rice', label: '稻米', quantity: 2 },
+  ],
+  laba_cookpot: [
+    { item_id: 'rice', label: '稻米', quantity: 4 },
+    { item_id: 'broad_bean', label: '蚕豆', quantity: 2 },
+  ],
+  mid_autumn_moonwatch: [
+    { item_id: 'peach', label: '桃子', quantity: 2 },
+    { item_id: 'osmanthus', label: '桂花', quantity: 2 },
+  ],
+  yuanri_vigil: [
+    { item_id: 'firewood', label: '柴火', quantity: 4 },
+    { item_id: 'food_rice_ball', label: '饭团', quantity: 2 },
+  ],
+});
 
 const FAMILY_BUILDING_PROJECT_DEFS = Object.freeze([
   {
@@ -1404,6 +1976,55 @@ function buildSeparationVersionIdempotencyKey(contractId, previewOrVersion, phas
   ].filter(value => value !== '').join(':');
 }
 
+function buildSeparationOfflineConfirmationOverride(contract = {}, preview = {}, now = nowSeconds()) {
+  const confirmationState = preview.confirmation_state && typeof preview.confirmation_state === 'object'
+    ? preview.confirmation_state
+    : {};
+  const requiredMemberUsernames = Array.isArray(confirmationState.required_member_usernames) && confirmationState.required_member_usernames.length > 0
+    ? confirmationState.required_member_usernames.map(normalizeUsername).filter(Boolean)
+    : (Array.isArray(contract.members) ? contract.members : [])
+      .filter(member => member?.status === 'accepted')
+      .map(member => normalizeUsername(member.username))
+      .filter(Boolean);
+  const confirmedBy = Array.isArray(confirmationState.confirmed_by)
+    ? confirmationState.confirmed_by.map(normalizeUsername).filter(Boolean)
+    : [];
+  const confirmedKeys = new Set(confirmedBy.map(normalizeUsernameKey).filter(Boolean));
+  const pendingMemberUsernames = requiredMemberUsernames.filter(username => !confirmedKeys.has(normalizeUsernameKey(username)));
+  const pendingKeys = new Set(pendingMemberUsernames.map(normalizeUsernameKey).filter(Boolean));
+  const acceptedMembers = Array.isArray(contract.members) ? contract.members.filter(member => member?.status === 'accepted') : [];
+  const pendingMembers = acceptedMembers.filter(member => pendingKeys.has(normalizeUsernameKey(member.username_key || member.username)));
+  const thresholdSeconds = Math.max(24 * 60 * 60, Math.floor(Number(contract.separation_policy?.offline_confirm_timeout_seconds) || SEPARATION_OFFLINE_CONFIRM_TIMEOUT_SECONDS));
+  const offlineMembers = pendingMembers.map(member => {
+    const lastActiveAt = resolveMemberLastActive(contract, member);
+    const offlineSeconds = lastActiveAt > 0 ? Math.max(0, now - lastActiveAt) : null;
+    return {
+      username: normalizeUsername(member.username),
+      username_key: normalizeUsernameKey(member.username_key || member.username),
+      display_name: sanitizeText(member.display_name || member.username, 60),
+      last_active_at: lastActiveAt,
+      offline_seconds: offlineSeconds,
+      offline_timeout_seconds: thresholdSeconds,
+      offline_timeout_met: offlineSeconds !== null && offlineSeconds >= thresholdSeconds,
+    };
+  });
+  const canApply = requiredMemberUsernames.length > 1
+    && confirmedBy.length > 0
+    && pendingMemberUsernames.length > 0
+    && pendingMembers.length === pendingMemberUsernames.length
+    && offlineMembers.every(entry => entry.offline_timeout_met === true);
+  return {
+    can_apply: canApply,
+    policy: 'long_offline_member_confirmation_timeout',
+    threshold_seconds: thresholdSeconds,
+    required_member_usernames: requiredMemberUsernames,
+    confirmed_member_usernames: requiredMemberUsernames.filter(username => confirmedKeys.has(normalizeUsernameKey(username))),
+    pending_member_usernames: pendingMemberUsernames,
+    offline_member_usernames: offlineMembers.map(entry => entry.username).filter(Boolean),
+    offline_member_keys: offlineMembers.map(entry => entry.username_key).filter(Boolean),
+    offline_members: offlineMembers,
+  };
+}
 function normalizeUsername(value) {
   return sanitizeText(value, 40);
 }
@@ -1533,13 +2154,72 @@ function normalizeContractFamilyState(value = {}) {
   const majorEventLedger = Array.isArray(value.major_event_ledger)
     ? value.major_event_ledger.map(normalizeFamilyMajorEventLedgerEntry).filter(Boolean).slice(0, 80)
     : [];
+  const childCareLedger = Array.isArray(value.child_care_ledger)
+    ? value.child_care_ledger.map(normalizeFamilyChildCareLedgerEntry).filter(Boolean).slice(0, 80)
+    : [];
+  const familyWishLedger = Array.isArray(value.family_wish_ledger || value.wish_ledger)
+    ? (value.family_wish_ledger || value.wish_ledger).map(normalizeFamilyWishLedgerEntry).filter(Boolean).slice(0, 80)
+    : [];
   return {
     has_children: value.has_children === true || childCount > 0,
     child_count: childCount,
     major_event_ledger: majorEventLedger,
+    child_care_ledger: childCareLedger,
+    family_wish_ledger: familyWishLedger,
     last_major_event_ref: sanitizeText(value.last_major_event_ref || majorEventLedger[0]?.target_ref, 120),
     last_major_event_status: sanitizeText(value.last_major_event_status || majorEventLedger[0]?.status, 40),
     last_major_event_receipt_id: sanitizeText(value.last_major_event_receipt_id || majorEventLedger[0]?.receipt_id, 100),
+    last_child_care_ref: sanitizeText(value.last_child_care_ref || childCareLedger[0]?.care_ref, 120),
+    last_child_care_status: sanitizeText(value.last_child_care_status || childCareLedger[0]?.status, 40),
+    last_family_wish_ref: sanitizeText(value.last_family_wish_ref || familyWishLedger[0]?.wish_ref, 120),
+    last_family_wish_status: sanitizeText(value.last_family_wish_status || familyWishLedger[0]?.status, 40),
+  };
+}
+
+function normalizeFamilyChildCareLedgerEntry(entry = {}) {
+  const careRef = sanitizeText(entry.care_ref || entry.target_ref || entry.child_care_ref || entry.ref, 120);
+  if (!careRef) return null;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_child_care'),
+    care_ref: careRef,
+    target_ref: sanitizeText(entry.target_ref || careRef, 120),
+    child_ref: sanitizeText(entry.child_ref || entry.child_id || 'contract_child_private', 120),
+    care_type: sanitizeText(entry.care_type || entry.type || 'daily_care', 60),
+    status: sanitizeText(entry.status, 40) || 'recorded',
+    recorded_by_username: normalizeUsername(entry.recorded_by_username || entry.actor_username),
+    recorded_by_display_name: sanitizeText(entry.recorded_by_display_name || entry.actor_display_name || entry.recorded_by_username || entry.actor_username, 60),
+    recorded_at: Math.max(0, Math.floor(Number(entry.recorded_at || entry.at) || 0)),
+    memo: sanitizeText(entry.memo || entry.note, 180),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    required_permission_keys: Array.isArray(entry.required_permission_keys)
+      ? entry.required_permission_keys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 8)
+      : ['family.child_daily_care'],
+    children_private: entry.children_private !== false,
+    contract_family_state_changed: entry.contract_family_state_changed !== false,
+    personal_family_state_mutated: entry.personal_family_state_mutated === true,
+  };
+}
+
+function normalizeFamilyWishLedgerEntry(entry = {}) {
+  const wishRef = sanitizeText(entry.wish_ref || entry.target_ref || entry.family_wish_ref || entry.ref, 120);
+  if (!wishRef) return null;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_wish'),
+    wish_ref: wishRef,
+    target_ref: sanitizeText(entry.target_ref || wishRef, 120),
+    wish_type: sanitizeText(entry.wish_type || entry.type || 'shared_family_wish', 60),
+    title: sanitizeText(entry.title || entry.name || wishRef, 80),
+    status: sanitizeText(entry.status, 40) || 'submitted',
+    submitted_by_username: normalizeUsername(entry.submitted_by_username || entry.actor_username),
+    submitted_by_display_name: sanitizeText(entry.submitted_by_display_name || entry.actor_display_name || entry.submitted_by_username || entry.actor_username, 60),
+    submitted_at: Math.max(0, Math.floor(Number(entry.submitted_at || entry.at) || 0)),
+    memo: sanitizeText(entry.memo || entry.note, 180),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    required_permission_keys: Array.isArray(entry.required_permission_keys)
+      ? entry.required_permission_keys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 8)
+      : ['family.family_wish_submit'],
+    contract_family_state_changed: entry.contract_family_state_changed !== false,
+    personal_family_state_mutated: entry.personal_family_state_mutated === true,
   };
 }
 
@@ -1563,6 +2243,279 @@ function normalizeFamilyMajorEventLedgerEntry(entry = {}) {
     contract_family_state_changed: entry.contract_family_state_changed !== false,
     personal_family_state_mutated: entry.personal_family_state_mutated === true,
     shared_fund_changed: entry.shared_fund_changed === true,
+  };
+}
+
+function normalizeFamilyOrderLedgerEntry(entry = {}) {
+  const orderId = sanitizeText(entry.id || entry.order_id, 100) || makeId('family_order');
+  const orderType = FAMILY_ORDER_TYPES.has(entry.order_type) ? entry.order_type : 'material_help';
+  const stageId = sanitizeText(entry.stage_id, 80) || FAMILY_ORDER_STAGE_DEFS[0]?.id || 'gather_materials';
+  const rewardRoute = FAMILY_ORDER_REWARD_ROUTES.has(entry.reward_route) ? entry.reward_route : 'shared_fund';
+  const rewardItemId = normalizeWarehouseItemId(entry.reward_item_id || entry.item_id) || 'rice';
+  const status = FAMILY_ORDER_STATUSES.has(entry.status) ? entry.status : 'open';
+  const deliveryStatus = FAMILY_ORDER_DELIVERY_STATUSES.has(entry.delivery_status) ? entry.delivery_status : 'none';
+  return {
+    id: orderId,
+    order_id: orderId,
+    title: sanitizeText(entry.title, 80) || '家族订单',
+    order_type: orderType,
+    status,
+    stage_id: stageId,
+    accepted_stage_ids: Array.isArray(entry.accepted_stage_ids)
+      ? [...new Set(entry.accepted_stage_ids.map(value => sanitizeText(value, 80)).filter(Boolean))].slice(0, 12)
+      : [],
+    assignee_username: normalizeUsername(entry.assignee_username),
+    assignee_username_key: normalizeUsernameKey(entry.assignee_username_key || entry.assignee_username),
+    assignee_display_name: sanitizeText(entry.assignee_display_name || entry.assignee_username, 60),
+    assignee_manor_role: sanitizeText(entry.assignee_manor_role, 40),
+    assignee_manor_role_label: sanitizeText(entry.assignee_manor_role_label, 40),
+    delivery_status: deliveryStatus,
+    delivery_note: sanitizeText(entry.delivery_note, 180),
+    delivery_submitted_at: Math.max(0, Math.floor(Number(entry.delivery_submitted_at) || 0)),
+    delivery_submitted_by_username: normalizeUsername(entry.delivery_submitted_by_username),
+    delivery_confirmed_at: Math.max(0, Math.floor(Number(entry.delivery_confirmed_at) || 0)),
+    delivery_confirmed_by_username: normalizeUsername(entry.delivery_confirmed_by_username),
+    reward_route: rewardRoute,
+    reward_amount: Math.max(0, Math.floor(Number(entry.reward_amount) || 0)),
+    reward_item_id: rewardItemId,
+    reward_item_label: sanitizeText(entry.reward_item_label || rewardItemId, 80),
+    reward_quantity: Math.max(0, Math.floor(Number(entry.reward_quantity) || 0)),
+    reward_quality: normalizeQuality(entry.reward_quality),
+    reward_settled: entry.reward_settled === true,
+    shared_fund_ledger_id: sanitizeText(entry.shared_fund_ledger_id || entry.fund_ledger_id, 100),
+    shared_warehouse_ledger_ids: Array.isArray(entry.shared_warehouse_ledger_ids)
+      ? entry.shared_warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    reputation_ledger_id: sanitizeText(entry.reputation_ledger_id, 100),
+    receipt_id: sanitizeText(entry.receipt_id, 100),
+    receipt_status: sanitizeText(entry.receipt_status, 40) || 'none',
+    created_by_username: normalizeUsername(entry.created_by_username || entry.actor_username),
+    created_by_display_name: sanitizeText(entry.created_by_display_name || entry.actor_display_name || entry.created_by_username || entry.actor_username, 60),
+    created_at: Math.max(0, Math.floor(Number(entry.created_at || entry.at) || 0)) || nowSeconds(),
+    updated_at: Math.max(0, Math.floor(Number(entry.updated_at || entry.created_at || entry.at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    accept_idempotency_key: sanitizeText(entry.accept_idempotency_key, 120),
+    deliver_idempotency_key: sanitizeText(entry.deliver_idempotency_key, 120),
+    settle_idempotency_key: sanitizeText(entry.settle_idempotency_key, 120),
+    compensation_hint: sanitizeText(entry.compensation_hint, 220) || '家族订单结算已保留共同资产和声望流水引用，可按订单 id 与幂等键重放或人工补偿。',
+  };
+}
+
+function normalizeFamilyOrdersState(value = {}) {
+  const ledger = Array.isArray(value.ledger)
+    ? value.ledger.map(normalizeFamilyOrderLedgerEntry).filter(Boolean).slice(0, FAMILY_ORDER_LEDGER_LIMIT)
+    : [];
+  return {
+    ledger,
+    latest_order_id: sanitizeText(value.latest_order_id || ledger[0]?.id, 100),
+    latest_status: sanitizeText(value.latest_status || ledger[0]?.status, 40),
+  };
+}
+
+function normalizeFamilyReputationLedgerEntry(entry = {}) {
+  const sourceType = sanitizeText(entry.source_type || entry.source, 60) || 'manual';
+  const points = Math.max(0, Math.floor(Number(entry.points) || 0));
+  if (points <= 0) return null;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_reputation'),
+    source_type: sourceType,
+    source_ref: sanitizeText(entry.source_ref || entry.target_ref, 140),
+    source_ledger_id: sanitizeText(entry.source_ledger_id, 100),
+    points,
+    actor_username: normalizeUsername(entry.actor_username),
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
+    actor_username_key: normalizeUsernameKey(entry.actor_username_key || entry.actor_username),
+    actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
+    actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
+    week_key: sanitizeText(entry.week_key, 40),
+    at: Math.max(0, Math.floor(Number(entry.at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    status: ['committed', 'compensated', 'reverted'].includes(entry.status) ? entry.status : 'committed',
+    compensation_hint: sanitizeText(entry.compensation_hint, 220) || '家族声望落账可按 source_ref 与 idempotency_key 重放或人工冲正。',
+  };
+}
+
+function normalizeFamilyReputationRewardEntry(entry = {}) {
+  const rewardId = sanitizeText(entry.id || entry.reward_id, 100) || makeId('family_reputation_reward');
+  const actorUsername = normalizeUsername(entry.actor_username || entry.claimed_by_username);
+  if (!actorUsername) return null;
+  return {
+    id: rewardId,
+    reward_id: rewardId,
+    actor_username: actorUsername,
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.claimed_by_display_name || actorUsername, 60),
+    actor_username_key: normalizeUsernameKey(entry.actor_username_key || actorUsername),
+    reward_type: sanitizeText(entry.reward_type, 60) || 'shared_fund_grant',
+    reward_label: sanitizeText(entry.reward_label, 80) || '家族声望奖励',
+    cost_points: Math.max(0, Math.floor(Number(entry.cost_points) || FAMILY_REPUTATION_REWARD_COST)),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    claimed_at: Math.max(0, Math.floor(Number(entry.claimed_at || entry.at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    status: sanitizeText(entry.status, 40) || 'claimed',
+  };
+}
+
+function normalizeFamilyReputationState(value = {}) {
+  const ledger = Array.isArray(value.ledger)
+    ? value.ledger.map(normalizeFamilyReputationLedgerEntry).filter(Boolean).slice(0, FAMILY_REPUTATION_LEDGER_LIMIT)
+    : [];
+  const rewards = Array.isArray(value.rewards)
+    ? value.rewards.map(normalizeFamilyReputationRewardEntry).filter(Boolean).slice(0, 80)
+    : [];
+  const spentPoints = rewards.reduce((sum, reward) => sum + Math.max(0, Math.floor(Number(reward.cost_points) || 0)), 0);
+  const earnedPoints = ledger
+    .filter(entry => entry.status === 'committed')
+    .reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.points) || 0)), 0);
+  return {
+    ledger,
+    rewards,
+    total_points: Math.max(0, earnedPoints - spentPoints),
+    earned_points: earnedPoints,
+    spent_points: spentPoints,
+    weekly_cap: Math.max(1, Math.floor(Number(value.weekly_cap) || FAMILY_REPUTATION_WEEKLY_CAP)),
+  };
+}
+
+function normalizeFamilyVisibilityAuditEntry(entry = {}) {
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_visibility_audit'),
+    action: sanitizeText(entry.action, 80) || 'visibility_updated',
+    actor_username: normalizeUsername(entry.actor_username),
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
+    scope_before: sanitizeText(entry.scope_before, 40),
+    scope_after: sanitizeText(entry.scope_after, 40),
+    enabled_scope_ids: Array.isArray(entry.enabled_scope_ids)
+      ? entry.enabled_scope_ids.map(id => sanitizeText(id, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    previous_enabled_scope_ids: Array.isArray(entry.previous_enabled_scope_ids)
+      ? entry.previous_enabled_scope_ids.map(id => sanitizeText(id, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    public_category_ids: Array.isArray(entry.public_category_ids)
+      ? entry.public_category_ids.map(id => sanitizeText(id, 60)).filter(Boolean).slice(0, 20)
+      : [],
+    previous_public_category_ids: Array.isArray(entry.previous_public_category_ids)
+      ? entry.previous_public_category_ids.map(id => sanitizeText(id, 60)).filter(Boolean).slice(0, 20)
+      : [],
+    member_consent: entry.member_consent && typeof entry.member_consent === 'object' && !Array.isArray(entry.member_consent)
+      ? Object.fromEntries(Object.entries(entry.member_consent).map(([key, value]) => [normalizeUsernameKey(key), value === true]))
+      : {},
+    previous_member_consent: entry.previous_member_consent && typeof entry.previous_member_consent === 'object' && !Array.isArray(entry.previous_member_consent)
+      ? Object.fromEntries(Object.entries(entry.previous_member_consent).map(([key, value]) => [normalizeUsernameKey(key), value === true]))
+      : {},
+    festival_room_binding_enabled: entry.festival_room_binding_enabled === true,
+    previous_festival_room_binding_enabled: entry.previous_festival_room_binding_enabled === true,
+    at: Math.max(0, Math.floor(Number(entry.at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    rollback_of_audit_id: sanitizeText(entry.rollback_of_audit_id, 100),
+    rollback_available: entry.rollback_available !== false,
+  };
+}
+
+function normalizeFamilyRelationEventEntry(entry = {}) {
+  const eventType = sanitizeText(entry.event_type || entry.type, 80) || 'contract_graph_updated';
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_relation_event'),
+    event_type: eventType,
+    actor_username: normalizeUsername(entry.actor_username),
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
+    target_ref: sanitizeText(entry.target_ref, 140),
+    summary: sanitizeText(entry.summary || eventType, 180),
+    visibility_scope: sanitizeText(entry.visibility_scope, 40) || 'contract_members',
+    personal_save_changed: entry.personal_save_changed === true,
+    at: Math.max(0, Math.floor(Number(entry.at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+  };
+}
+
+function normalizeFamilyVisibilityState(value = {}) {
+  const defaultScope = FAMILY_VISIBILITY_SCOPES.has(value.default_scope) ? value.default_scope : 'contract_members';
+  const enabledScopeIds = Array.isArray(value.enabled_scope_ids)
+    ? [...new Set(value.enabled_scope_ids.map(id => sanitizeText(id, 40)).filter(id => FAMILY_VISIBILITY_SCOPES.has(id)))].slice(0, 8)
+    : ['contract_members'];
+  if (!enabledScopeIds.includes(defaultScope)) enabledScopeIds.unshift(defaultScope);
+  const publicCategoryIds = Array.isArray(value.public_category_ids)
+    ? [...new Set(value.public_category_ids.map(id => sanitizeText(id, 60)).filter(Boolean))]
+        .filter(id => !FAMILY_VISIBILITY_PRIVATE_CATEGORY_IDS.has(id))
+        .slice(0, 20)
+    : ['contract_members', 'family_roles', 'shared_capabilities'];
+  const memberConsent = value.member_consent && typeof value.member_consent === 'object' && !Array.isArray(value.member_consent)
+    ? Object.fromEntries(Object.entries(value.member_consent).map(([key, consent]) => [normalizeUsernameKey(key), consent === true]))
+    : {};
+  const audit = Array.isArray(value.audit)
+    ? value.audit.map(normalizeFamilyVisibilityAuditEntry).filter(Boolean).slice(0, FAMILY_VISIBILITY_AUDIT_LIMIT)
+    : [];
+  const relationEvents = Array.isArray(value.relation_events)
+    ? value.relation_events.map(normalizeFamilyRelationEventEntry).filter(Boolean).slice(0, FAMILY_RELATION_EVENT_LIMIT)
+    : [];
+  return {
+    default_scope: defaultScope,
+    enabled_scope_ids: [...new Set(enabledScopeIds)].slice(0, 8),
+    public_category_ids: publicCategoryIds,
+    member_consent: memberConsent,
+    audit,
+    relation_events: relationEvents,
+    festival_room_binding_enabled: value.festival_room_binding_enabled === true || enabledScopeIds.includes('festival_room'),
+  };
+}
+
+function normalizeFamilyFestivalSeatLedgerEntry(entry = {}) {
+  const templateId = sanitizeText(entry.template_id, 60) || 'lantern_fair';
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_festival'),
+    action: sanitizeText(entry.action, 80) || 'seat_reserved',
+    template_id: templateId,
+    template_label: sanitizeText(entry.template_label, 80) || templateId,
+    room_id: sanitizeText(entry.room_id, 100),
+    room_title: sanitizeText(entry.room_title, 100),
+    actor_username: normalizeUsername(entry.actor_username),
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
+    actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
+    actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
+    seat_count: Math.max(0, Math.floor(Number(entry.seat_count) || 0)),
+    seat_usernames: Array.isArray(entry.seat_usernames)
+      ? entry.seat_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+      : [],
+    warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids)
+      ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    reputation_ledger_id: sanitizeText(entry.reputation_ledger_id, 100),
+    reward_receipt_id: sanitizeText(entry.reward_receipt_id, 120),
+    at: Math.max(0, Math.floor(Number(entry.at) || 0)) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    status: sanitizeText(entry.status, 40) || 'committed',
+    compensation_hint: sanitizeText(entry.compensation_hint, 220) || '家族节会席位写入保留锁席、房间、供品、奖励与声望引用，可按幂等键重放或人工补偿。',
+  };
+}
+
+function normalizeFamilyFestivalSeatsState(value = {}) {
+  const reservations = value.reservations && typeof value.reservations === 'object' && !Array.isArray(value.reservations)
+    ? Object.fromEntries(Object.entries(value.reservations).map(([key, raw]) => {
+      const usernameKey = normalizeUsernameKey(key);
+      const state = FAMILY_FESTIVAL_SEAT_STATES.has(raw?.state) ? raw.state : 'reserved';
+      return [usernameKey, {
+        username: normalizeUsername(raw?.username || key),
+        username_key: usernameKey,
+        seat_id: sanitizeText(raw?.seat_id, 100),
+        template_id: sanitizeText(raw?.template_id, 60),
+        room_id: sanitizeText(raw?.room_id, 100),
+        state,
+        reserved_at: Math.max(0, Math.floor(Number(raw?.reserved_at) || 0)),
+        settled_at: Math.max(0, Math.floor(Number(raw?.settled_at) || 0)),
+        idempotency_key: sanitizeText(raw?.idempotency_key, 120),
+      }];
+    }))
+    : {};
+  const ledger = Array.isArray(value.ledger)
+    ? value.ledger.map(normalizeFamilyFestivalSeatLedgerEntry).filter(Boolean).slice(0, FAMILY_FESTIVAL_LEDGER_LIMIT)
+    : [];
+  return {
+    reservations,
+    ledger,
+    active_template_id: sanitizeText(value.active_template_id || ledger[0]?.template_id, 60),
+    active_room_id: sanitizeText(value.active_room_id || ledger.find(entry => entry.room_id)?.room_id, 100),
+    last_settlement_id: sanitizeText(value.last_settlement_id || ledger.find(entry => entry.action === 'rewards_settled')?.id, 100),
   };
 }
 
@@ -1705,6 +2658,42 @@ function prependFamilyMajorEventLedgerEntry(familyState = {}, nextEntry = {}) {
   return { family_state: nextFamilyState, entry: normalizedNext, changed: true };
 }
 
+function prependFamilyWishLedgerEntry(familyState = {}, nextEntry = {}) {
+  const normalizedFamilyState = normalizeContractFamilyState(familyState);
+  const normalizedNext = normalizeFamilyWishLedgerEntry(nextEntry);
+  if (!normalizedNext) return { family_state: normalizedFamilyState, entry: null, changed: false };
+  const filtered = (normalizedFamilyState.family_wish_ledger || []).filter(entry => {
+    if (normalizedNext.idempotency_key && entry.idempotency_key === normalizedNext.idempotency_key) return false;
+    if (normalizedNext.wish_ref && entry.wish_ref === normalizedNext.wish_ref && entry.status === normalizedNext.status) return false;
+    return true;
+  });
+  const nextFamilyState = normalizeContractFamilyState({
+    ...normalizedFamilyState,
+    family_wish_ledger: [normalizedNext, ...filtered].slice(0, 80),
+    last_family_wish_ref: normalizedNext.wish_ref,
+    last_family_wish_status: normalizedNext.status,
+  });
+  return { family_state: nextFamilyState, entry: normalizedNext, changed: true };
+}
+
+function prependFamilyChildCareLedgerEntry(familyState = {}, nextEntry = {}) {
+  const normalizedFamilyState = normalizeContractFamilyState(familyState);
+  const normalizedNext = normalizeFamilyChildCareLedgerEntry(nextEntry);
+  if (!normalizedNext) return { family_state: normalizedFamilyState, entry: null, changed: false };
+  const filtered = (normalizedFamilyState.child_care_ledger || []).filter(entry => {
+    if (normalizedNext.idempotency_key && entry.idempotency_key === normalizedNext.idempotency_key) return false;
+    if (normalizedNext.care_ref && entry.care_ref === normalizedNext.care_ref && entry.status === normalizedNext.status) return false;
+    return true;
+  });
+  const nextFamilyState = normalizeContractFamilyState({
+    ...normalizedFamilyState,
+    child_care_ledger: [normalizedNext, ...filtered].slice(0, 80),
+    last_child_care_ref: normalizedNext.care_ref,
+    last_child_care_status: normalizedNext.status,
+  });
+  return { family_state: nextFamilyState, entry: normalizedNext, changed: true };
+}
+
 function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {}, receiptRequest = {}, receiptMeta = {}) {
   if (receiptRequest.outcome !== 'delivered') {
     return { delivery_entry: null, shared_decoration_state_entry: null, family_major_event_entry: null };
@@ -1722,6 +2711,7 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
     recorded_at: receiptMeta.recorded_at,
     memo: receiptRequest.memo,
     idempotency_key: receiptRequest.idempotency_key,
+    amount: Math.max(0, Math.floor(Number(draft.amount || originalFundLedger.amount) || 0)),
     shared_fund_changed: false,
   };
   const decorationId = targetSubject.subject_id || sanitizeText(draft.target_ref, 80);
@@ -2060,6 +3050,10 @@ function normalizeFundLedgerEntry(entry = {}) {
           confirmer_username: normalizeUsername(entry.simultaneous_online_bonus.confirmer_username),
           receipt_id: sanitizeText(entry.simultaneous_online_bonus.receipt_id, 100),
           order_id: sanitizeText(entry.simultaneous_online_bonus.order_id, 100),
+          order_original_duration_seconds: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.order_original_duration_seconds) || 0)),
+          order_efficiency_bonus_seconds: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.order_efficiency_bonus_seconds) || 0)),
+          order_effective_duration_seconds: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.order_effective_duration_seconds) || 0)),
+          order_efficiency_policy: sanitizeText(entry.simultaneous_online_bonus.order_efficiency_policy, 160),
           policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
         }
       : {
@@ -2072,6 +3066,10 @@ function normalizeFundLedgerEntry(entry = {}) {
           confirmer_username: '',
           receipt_id: '',
           order_id: '',
+          order_original_duration_seconds: 0,
+          order_efficiency_bonus_seconds: 0,
+          order_effective_duration_seconds: 0,
+          order_efficiency_policy: '',
           policy: '',
         },
     idempotency_key: sanitizeText(entry?.idempotency_key, 120),
@@ -2358,6 +3356,8 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     target_slots: targetSlots,
     target_ref: sanitizeText(entry.target_ref || entry.target, 120),
     unit_price: Math.max(0, Math.floor(Number(entry.unit_price ?? entry.unitPrice) || 0)),
+    base_unit_price: Math.max(0, Math.floor(Number(entry.base_unit_price ?? entry.baseUnitPrice) || 0)),
+    quality_price_multiplier: Math.max(0, Number(entry.quality_price_multiplier ?? entry.qualityPriceMultiplier) || 0),
     total_amount: Math.max(0, Math.floor(Number(entry.total_amount ?? entry.totalAmount) || 0)),
     fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
     fertilizer_permission_key: sanitizeText(entry.fertilizer_permission_key || entry.permission_key, 60),
@@ -2389,6 +3389,19 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           output_quality_before: normalizeQuality(entry.simultaneous_online_bonus.output_quality_before),
           output_quality_after: normalizeQuality(entry.simultaneous_online_bonus.output_quality_after),
           alchemy_result_kind: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_kind, 40),
+          alchemy_result_mode: normalizeAlchemyResultMode(entry.simultaneous_online_bonus.alchemy_result_mode),
+          alchemy_auto_result: entry.simultaneous_online_bonus.alchemy_auto_result === true,
+          alchemy_result_roll: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_roll) || 0)),
+          alchemy_result_roll_mod: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_roll_mod) || 0)),
+          alchemy_result_seed_hash: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_seed_hash, 40),
+          alchemy_result_weights: entry.simultaneous_online_bonus.alchemy_result_weights && typeof entry.simultaneous_online_bonus.alchemy_result_weights === 'object'
+            ? {
+                success: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.success) || 0)),
+                partial: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.partial) || 0)),
+                failed: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.failed) || 0)),
+                rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.rare) || 0)),
+              }
+            : null,
           success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
           policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
         }
@@ -2407,6 +3420,12 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           output_quality_before: 'normal',
           output_quality_after: 'normal',
           alchemy_result_kind: '',
+          alchemy_result_mode: 'fixed',
+          alchemy_auto_result: false,
+          alchemy_result_roll: 0,
+          alchemy_result_roll_mod: 0,
+          alchemy_result_seed_hash: '',
+          alchemy_result_weights: null,
           success_rate_bonus_percent: 0,
           policy: '',
         },
@@ -2821,19 +3840,19 @@ function normalizeSharedAnimals(value = {}) {
         pettable_count: 0,
         product_ready_count: 0,
         origin_owner_count: 0,
-        animal_feed_write_enabled: true,
-        animal_pet_write_enabled: true,
-        animal_product_collect_write_enabled: true,
-        animal_buy_write_enabled: true,
-        animal_sell_write_enabled: true,
-        shared_warehouse_feed_consume_enabled: true,
-        shared_warehouse_product_deposit_enabled: true,
-        shared_fund_animal_purchase_enabled: true,
-        shared_fund_animal_sale_income_enabled: true,
-        supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
-          .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
-        personal_save_changed: false,
-        deferred_writes: [],
+      animal_feed_write_enabled: true,
+      animal_pet_write_enabled: true,
+      animal_product_collect_write_enabled: true,
+      animal_buy_write_enabled: true,
+      animal_sell_write_enabled: true,
+      shared_warehouse_feed_consume_enabled: true,
+      shared_warehouse_product_deposit_enabled: true,
+      shared_fund_animal_purchase_enabled: true,
+      shared_fund_animal_sale_income_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
+      personal_save_changed: false,
+      deferred_writes: [],
       },
     };
   }
@@ -2875,12 +3894,12 @@ function normalizeSharedAnimals(value = {}) {
       animal_product_collect_write_enabled: true,
       animal_buy_write_enabled: true,
       animal_sell_write_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
       shared_warehouse_feed_consume_enabled: true,
       shared_warehouse_product_deposit_enabled: true,
       shared_fund_animal_purchase_enabled: true,
       shared_fund_animal_sale_income_enabled: true,
-      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
-        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
       personal_save_changed: false,
       deferred_writes: activeDeferredWrites,
     },
@@ -3187,6 +4206,7 @@ function normalizeFarmActionLedgerEntry(entry = {}) {
     fertilizer_permission_key: sanitizeText(entry.fertilizer_permission_key || entry.permission_key, 60),
     premium_fertilizer: entry.premium_fertilizer === true,
     fertilizer_effect: sanitizeText(entry.fertilizer_effect || entry.effect, 80),
+    fertilizer_quality_bonus: Math.max(0, Math.floor(Number(entry.fertilizer_quality_bonus) || 0)),
     crop_id: sanitizeText(entry.crop_id, 80),
     output_item_id: outputItemId,
     output_quantity: normalizePositiveInt(entry.output_quantity ?? entry.harvest_quantity ?? entry.quantity, 0),
@@ -3343,6 +4363,12 @@ function summarizeFarmPlot(plot = {}) {
     last_cooperation_health_bonus_consumed_value: Math.max(0, Math.floor(Number(plot.lastCooperationHealthBonusConsumedValue ?? plot.last_cooperation_health_bonus_consumed_value) || 0)),
     last_cooperation_quality_bonus_consumed_at: Math.max(0, Math.floor(Number(plot.lastCooperationQualityBonusConsumedAt ?? plot.last_cooperation_quality_bonus_consumed_at) || 0)),
     last_cooperation_quality_bonus_consumed_value: Math.max(0, Math.floor(Number(plot.lastCooperationQualityBonusConsumedValue ?? plot.last_cooperation_quality_bonus_consumed_value) || 0)),
+    last_fertilizer_quality_bonus_consumed_at: Math.max(0, Math.floor(Number(plot.lastFertilizerQualityBonusConsumedAt ?? plot.last_fertilizer_quality_bonus_consumed_at) || 0)),
+    last_fertilizer_quality_bonus_consumed_value: Math.max(0, Math.floor(Number(plot.lastFertilizerQualityBonusConsumedValue ?? plot.last_fertilizer_quality_bonus_consumed_value) || 0)),
+    last_fertilizer_growth_bonus_consumed_at: Math.max(0, Math.floor(Number(plot.lastFertilizerGrowthBonusConsumedAt ?? plot.last_fertilizer_growth_bonus_consumed_at) || 0)),
+    last_fertilizer_growth_bonus_consumed_value: Math.max(0, Math.floor(Number(plot.lastFertilizerGrowthBonusConsumedValue ?? plot.last_fertilizer_growth_bonus_consumed_value) || 0)),
+    last_fertilizer_water_retention_at: Math.max(0, Math.floor(Number(plot.lastFertilizerWaterRetentionAt ?? plot.last_fertilizer_water_retention_at) || 0)),
+    last_fertilizer_water_retention_value: Math.max(0, Math.floor(Number(plot.lastFertilizerWaterRetentionValue ?? plot.last_fertilizer_water_retention_value) || 0)),
     last_daily_settled_at: Math.max(0, Math.floor(Number(plot.lastDailySettledAt ?? plot.last_daily_settled_at) || 0)),
     harvest_count: Math.max(0, Math.floor(Number(plot.harvestCount ?? plot.harvest_count) || 0)),
     giant_crop_group: giantCropGroup === null || giantCropGroup === undefined || giantCropGroup === ''
@@ -3826,6 +4852,7 @@ function getAnimalPermissionMode(contract = {}, ownerKey = '') {
   const acceptedMembers = (contract.members || []).filter(member => member.status === 'accepted');
   const sharedOperators = acceptedMembers.filter(member => {
     if (member.username_key === ownerKey) return true;
+    if (ownerKey === 'shared_fund') return true;
     const animalPermissions = contract.permissions?.[member.username_key]?.animal || {};
     return animalPermissions.feed === true || animalPermissions.pet === true || animalPermissions.collect_product === true;
   });
@@ -3851,7 +4878,6 @@ function getSharedAnimalSalePrice(contract = {}, animal = {}) {
   const resaleRate = Math.max(0, Math.min(1, Number(profile?.resale_rate) || 0.5));
   return Math.max(1, Math.floor(purchaseAmount * resaleRate));
 }
-
 
 function countSharedAnimalStates(animals = []) {
   return animals.reduce((summary, animal) => {
@@ -3934,8 +4960,148 @@ function isSharedAnimalProductReady(animal = {}) {
 }
 
 function getSharedFarmCropGrowthDays(cropId = '') {
+  return getSharedFarmCropProfile(cropId).growth_days;
+}
+
+function getSharedFarmCropProfile(cropId = '') {
   const normalizedCropId = normalizeWarehouseItemId(cropId);
-  return Math.max(1, Math.floor(Number(SHARED_FARM_CROP_GROWTH_DAYS[normalizedCropId]) || 4));
+  const profile = SHARED_FARM_CROP_PROFILE_CATALOG[normalizedCropId];
+  if (profile) {
+    return {
+      crop_id: normalizedCropId,
+      output_item_id: normalizeWarehouseItemId(profile.output_item_id || normalizedCropId) || normalizedCropId,
+      growth_days: Math.max(1, Math.floor(Number(profile.growth_days) || 4)),
+      base_quantity: Math.max(1, Math.floor(Number(profile.base_quantity) || 1)),
+      regrow_days: Math.max(0, Math.floor(Number(profile.regrow_days) || 0)),
+      max_harvests: Math.max(0, Math.floor(Number(profile.max_harvests) || 0)),
+      giant_bonus_quantity: Math.max(0, Math.floor(Number(profile.giant_bonus_quantity) || 0)),
+      secondary_outputs: Array.isArray(profile.secondary_outputs)
+        ? profile.secondary_outputs.map(output => ({
+            item_id: normalizeWarehouseItemId(output?.item_id),
+            quantity: Math.max(1, Math.floor(Number(output?.quantity) || 1)),
+          })).filter(output => output.item_id)
+        : [],
+    };
+  }
+  return {
+    crop_id: normalizedCropId,
+    output_item_id: normalizedCropId,
+    growth_days: Math.max(1, Math.floor(Number(SHARED_FARM_CROP_GROWTH_DAYS[normalizedCropId]) || 4)),
+    base_quantity: 1,
+    regrow_days: 0,
+    max_harvests: 0,
+    giant_bonus_quantity: 0,
+    secondary_outputs: [],
+  };
+}
+
+function getSharedFarmFertilizerQualityBonus(fertilizer = '') {
+  const profile = getSharedFarmFertilizerProfile(fertilizer);
+  if (!profile) return 0;
+  if (profile.effect === 'quality_bonus_premium') return 1;
+  if (profile.effect === 'quality_bonus_basic') return 0;
+  return 0;
+}
+
+function getSharedFarmFertilizerGrowthBonus(fertilizer = '') {
+  const profile = getSharedFarmFertilizerProfile(fertilizer);
+  if (!profile) return 0;
+  if (profile.item_id === 'deluxe_speed_gro') return 2;
+  if (profile.effect === 'growth_speed_premium') return 1;
+  return 0;
+}
+
+function getSharedFarmFertilizerWaterRetentionBonus(fertilizer = '') {
+  const profile = getSharedFarmFertilizerProfile(fertilizer);
+  return profile?.effect === 'retain_water_premium' ? 1 : 0;
+}
+
+function buildSharedFarmHarvestSettlement(plotState = {}, options = {}) {
+  const cropId = normalizeWarehouseItemId(plotState.crop_id);
+  const profile = getSharedFarmCropProfile(cropId);
+  const cooperationQualityBonus = Math.max(0, Math.floor(Number(plotState.cooperation_quality_bonus) || 0));
+  const fertilizerQualityBonus = getSharedFarmFertilizerQualityBonus(plotState.fertilizer);
+  const qualityBonusValue = cooperationQualityBonus + fertilizerQualityBonus;
+  const outputQualityBefore = normalizeQuality(plotState.output_quality || plotState.quality || 'normal');
+  const outputQuality = upgradeWarehouseQuality(outputQualityBefore, qualityBonusValue);
+  const giantCropGroup = plotState.giant_crop_group ?? null;
+  const hasGiantCrop = giantCropGroup !== null && giantCropGroup !== undefined && giantCropGroup !== '';
+  const giantBonusQuantity = hasGiantCrop ? Math.max(0, profile.giant_bonus_quantity || 3) : 0;
+  const primaryQuantity = Math.max(1, profile.base_quantity + giantBonusQuantity);
+  const currentHarvestCount = Math.max(0, Math.floor(Number(plotState.harvest_count) || 0));
+  const nextHarvestCount = currentHarvestCount + 1;
+  const canRegrow = profile.regrow_days > 0 && (profile.max_harvests <= 0 || nextHarvestCount < profile.max_harvests);
+  return {
+    crop_id: cropId,
+    profile,
+    outputs: [
+      { item_id: profile.output_item_id, quantity: primaryQuantity, quality: outputQuality, kind: 'primary' },
+      ...profile.secondary_outputs.map(output => ({
+        item_id: output.item_id,
+        quantity: output.quantity,
+        quality: outputQuality,
+        kind: 'secondary',
+      })),
+    ].filter(output => output.item_id && output.quantity > 0),
+    output_item_id: profile.output_item_id,
+    output_quantity: primaryQuantity,
+    output_quality_before: outputQualityBefore,
+    output_quality: outputQuality,
+    cooperation_quality_bonus: cooperationQualityBonus,
+    fertilizer_quality_bonus: fertilizerQualityBonus,
+    quality_bonus_value: qualityBonusValue,
+    has_giant_crop: hasGiantCrop,
+    giant_bonus_quantity: giantBonusQuantity,
+    regrow: canRegrow,
+    regrow_days: canRegrow ? profile.regrow_days : 0,
+    harvest_count_before: currentHarvestCount,
+    harvest_count_after: nextHarvestCount,
+    operated_at: Math.max(0, Math.floor(Number(options.operated_at) || nowSeconds())),
+  };
+}
+
+function buildSharedFarmPostHarvestState(plotState = {}, settlement = {}) {
+  const consumedAt = Math.max(0, Math.floor(Number(settlement.operated_at) || nowSeconds()));
+  const baseState = {
+    ...plotState,
+    watered: false,
+    unwatered_days: 0,
+    giant_crop_group: null,
+    infested: false,
+    infested_days: 0,
+    weedy: false,
+    weedy_days: 0,
+    cooperation_health_bonus: 0,
+    cooperation_quality_bonus: 0,
+    last_cooperation_quality_bonus_consumed_at: settlement.cooperation_quality_bonus > 0
+      ? consumedAt
+      : Math.max(0, Math.floor(Number(plotState.last_cooperation_quality_bonus_consumed_at) || 0)),
+    last_cooperation_quality_bonus_consumed_value: Math.max(0, Math.floor(Number(settlement.cooperation_quality_bonus) || 0)),
+    last_fertilizer_quality_bonus_consumed_at: settlement.fertilizer_quality_bonus > 0
+      ? consumedAt
+      : Math.max(0, Math.floor(Number(plotState.last_fertilizer_quality_bonus_consumed_at) || 0)),
+    last_fertilizer_quality_bonus_consumed_value: Math.max(0, Math.floor(Number(settlement.fertilizer_quality_bonus) || 0)),
+    last_harvest_output_item_id: settlement.output_item_id,
+    last_harvest_output_quantity: Math.max(1, Math.floor(Number(settlement.output_quantity) || 1)),
+    last_harvest_output_quality: normalizeQuality(settlement.output_quality),
+  };
+  if (settlement.regrow === true) {
+    return {
+      ...baseState,
+      state: 'growing',
+      crop_id: settlement.crop_id,
+      growth_days: Math.max(0, Math.floor(Number(settlement.profile?.growth_days) || 1) - Math.max(1, Math.floor(Number(settlement.regrow_days) || 1))),
+      harvest_count: Math.max(1, Math.floor(Number(settlement.harvest_count_after) || 1)),
+    };
+  }
+  return {
+    ...baseState,
+    state: 'tilled',
+    crop_id: null,
+    growth_days: 0,
+    fertilizer: null,
+    harvest_count: 0,
+  };
 }
 
 function normalizeCohabitationDailySettlePayload(payload = {}) {
@@ -4129,13 +5295,13 @@ function buildSharedAnimalsFromSnapshots(contract, animalSnapshots, options = {}
       animal_product_collect_write_enabled: true,
       animal_buy_write_enabled: true,
       animal_sell_write_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
       animal_action_ledger_count: Array.isArray(contract.shared_animal_ledger) ? contract.shared_animal_ledger.length : 0,
       shared_warehouse_feed_consume_enabled: true,
       shared_warehouse_product_deposit_enabled: true,
       shared_fund_animal_purchase_enabled: true,
       shared_fund_animal_sale_income_enabled: true,
-      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
-        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
       included_sources: ['animal.animals'],
       deferred_sources: ['animal.pets', 'animal.buildings', 'animal.products'],
       deferred_writes: [],
@@ -4246,7 +5412,7 @@ function buildPlotOriginAssetFromSharedPlot(plot = {}) {
     col: Math.max(0, Math.floor(Number(plot.col) || 0)),
     local_row: Math.max(0, Math.floor(Number(plot.local_row) || 0)),
     local_col: Math.max(0, Math.floor(Number(plot.local_col) || 0)),
-    split_rule: 'return_to_origin_owner_on_separation',
+    split_rule: sanitizeText(plot.split_rule, 120) || 'return_to_origin_owner_on_separation',
     permission_restriction: plot.permission_mode === 'shared'
       ? 'accepted_members_with_farm_permission_can_care'
       : 'origin_owner_only_until_permission_changed',
@@ -4315,24 +5481,11 @@ function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, ac
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
   const plotState = plot.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
-  const outputItemId = normalizeWarehouseItemId(plotState.crop_id);
+  const settlement = buildSharedFarmHarvestSettlement(plotState, { operated_at: operatedAt });
+  const outputItemId = settlement.output_item_id;
   if (!outputItemId) return null;
   const beforeState = { ...plotState };
-  const afterState = {
-    ...plotState,
-    state: 'tilled',
-    crop_id: null,
-    growth_days: 0,
-    watered: false,
-    unwatered_days: 0,
-    fertilizer: null,
-    harvest_count: 0,
-    giant_crop_group: null,
-    infested: false,
-    infested_days: 0,
-    weedy: false,
-    weedy_days: 0,
-  };
+  const afterState = buildSharedFarmPostHarvestState(plotState, settlement);
   const nextPlot = {
     ...plot,
     plot_state: afterState,
@@ -4344,12 +5497,12 @@ function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, ac
   };
   const targetRef = `offline_auto_income:shared_farm:${plot.id}`;
   const itemIdempotencyKey = `${request.idempotency_key}:farm:${plot.id}:${index}`;
-  const warehouseLedgerEntry = normalizeWarehouseLedgerEntry({
+  const warehouseLedgerEntries = settlement.outputs.map((output, outputIndex) => normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
     action: 'deposit',
-    item_id: outputItemId,
-    quantity: 1,
-    quality: normalizeQuality(plotState.output_quality || plotState.quality || 'normal'),
+    item_id: output.item_id,
+    quantity: output.quantity,
+    quality: output.quality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
     actor_manor_role: actorManorRole,
@@ -4364,7 +5517,7 @@ function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, ac
     source_save_slot: plot.source_save_slot,
     source_save_revision: plot.source_save_revision,
     source_inventory: 'contract.shared_map.plots',
-    source_slots: [{ index: normalizePlotId(plot.source_plot_id, 0), quantity: 1 }],
+    source_slots: [{ index: normalizePlotId(plot.source_plot_id, 0), quantity: output.quantity }],
     target_owner_id: `shared_warehouse:${contract.id}`,
     target_owner_username: 'shared_warehouse',
     target_owner_display_name: 'shared warehouse',
@@ -4372,11 +5525,13 @@ function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, ac
     target_inventory: 'shared_warehouse.items',
     target_ref: targetRef,
     at: operatedAt,
-    idempotency_key: itemIdempotencyKey,
+    idempotency_key: settlement.outputs.length > 1 ? `${itemIdempotencyKey}:output:${outputIndex}` : itemIdempotencyKey,
     reversible: true,
     compensation_hint: 'offline auto income farm output was deposited into shared warehouse from contract shared_map; personal saves are unchanged.',
     status: 'committed',
-  });
+  })).filter(Boolean);
+  const primaryWarehouseLedgerEntry = warehouseLedgerEntries[0] || null;
+  if (!primaryWarehouseLedgerEntry) return null;
   const farmLedgerEntry = normalizeFarmActionLedgerEntry({
     id: makeId('shared_farm_ledger'),
     action: 'harvest',
@@ -4388,11 +5543,12 @@ function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, ac
     actor_key: member.username_key,
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
-    crop_id: outputItemId,
+    crop_id: settlement.crop_id,
     output_item_id: outputItemId,
-    output_quantity: 1,
-    output_quality: warehouseLedgerEntry.quality,
-    warehouse_ledger_ids: [warehouseLedgerEntry.id],
+    output_quantity: settlement.output_quantity,
+    output_quality: settlement.output_quality,
+    fertilizer_quality_bonus: settlement.fertilizer_quality_bonus,
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     shared_warehouse_changed: true,
     origin_owner_id: plot.origin_owner_id,
     origin_owner_username: plot.origin_owner_username,
@@ -4414,14 +5570,20 @@ function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, ac
     kind: 'farm_harvest',
     source_id: plot.id,
     item_id: outputItemId,
-    quantity: 1,
-    quality: warehouseLedgerEntry.quality,
+    quantity: settlement.output_quantity,
+    quality: settlement.output_quality,
     target_ref: targetRef,
-    warehouse_ledger_id: warehouseLedgerEntry.id,
+    warehouse_ledger_id: primaryWarehouseLedgerEntry.id,
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     domain_ledger_id: farmLedgerEntry.id,
     next_plot: nextPlot,
     farm_ledger_entry: farmLedgerEntry,
-    warehouse_ledger_entry: warehouseLedgerEntry,
+    warehouse_ledger_entry: primaryWarehouseLedgerEntry,
+    warehouse_ledger_entries: warehouseLedgerEntries,
+    harvest_outputs: settlement.outputs,
+    regrow: settlement.regrow,
+    giant_bonus_quantity: settlement.giant_bonus_quantity,
+    fertilizer_quality_bonus: settlement.fertilizer_quality_bonus,
     personal_save_changed: false,
     shared_warehouse_changed: true,
     shared_fund_changed: false,
@@ -5281,11 +6443,23 @@ function normalizeContract(entry = {}) {
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(entry.shared_warehouse_governance_recoveries),
     shared_fund_deliveries: normalizeSharedFundDeliveries(entry.shared_fund_deliveries),
     shared_decoration_state: normalizeSharedDecorationState(entry.shared_decoration_state),
+    family_orders_state: normalizeFamilyOrdersState(entry.family_orders_state),
+    family_reputation_state: normalizeFamilyReputationState(entry.family_reputation_state),
+    family_visibility_state: normalizeFamilyVisibilityState(entry.family_visibility_state),
+    family_festival_seats_state: normalizeFamilyFestivalSeatsState(entry.family_festival_seats_state),
     origin_assets: normalizeOriginAssets(entry.origin_assets),
     permissions,
     family_state: normalizeContractFamilyState(entry.family_state),
     separation_policy: {
       cooldown_hours: Math.max(24, Number(entry.separation_policy?.cooldown_hours) || 72),
+      offline_confirm_timeout_seconds: Math.max(
+        24 * 60 * 60,
+        Math.floor(
+          Number(entry.separation_policy?.offline_confirm_timeout_seconds)
+          || (Number(entry.separation_policy?.offline_confirm_timeout_hours) || 0) * 60 * 60
+          || SEPARATION_OFFLINE_CONFIRM_TIMEOUT_SECONDS
+        )
+      ),
       requires_preview: entry.separation_policy?.requires_preview !== false,
       requires_both_confirm_for_high_value: entry.separation_policy?.requires_both_confirm_for_high_value !== false,
       keep_memorial: entry.separation_policy?.keep_memorial !== false,
@@ -5360,6 +6534,10 @@ function toPublicContract(contract) {
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries),
     shared_fund_deliveries: normalizeSharedFundDeliveries(contract.shared_fund_deliveries),
     shared_decoration_state: normalizeSharedDecorationState(contract.shared_decoration_state),
+    family_orders_state: normalizeFamilyOrdersState(contract.family_orders_state),
+    family_reputation_state: normalizeFamilyReputationState(contract.family_reputation_state),
+    family_visibility_state: normalizeFamilyVisibilityState(contract.family_visibility_state),
+    family_festival_seats_state: normalizeFamilyFestivalSeatsState(contract.family_festival_seats_state),
     family_state: normalizeContractFamilyState(contract.family_state),
     shared_animals: normalizeSharedAnimals(contract.shared_animals),
     shared_animal_ledger: normalizeAnimalActionLedger(contract.shared_animal_ledger),
@@ -5396,6 +6574,274 @@ function canManageCohabitationPermissions(member = {}) {
 
 function isContractOwner(contract = {}, username = '') {
   return getContractMember(contract, username)?.role === 'owner';
+}
+
+function getActorDisplayName(actor = {}, member = {}, actorUsername = '') {
+  return sanitizeText(
+    actor.displayName || actor.display_name || member.display_name || actorUsername,
+    60
+  );
+}
+
+function getActorManorRoleSnapshot(contract = {}, member = {}) {
+  const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const roleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(manorRole) : null;
+  return { manorRole, manorRoleLabel: roleDef?.label || '' };
+}
+
+function requireCohabitationIdempotencyKey(payload = {}, actionLabel = 'operation') {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.idempotencyKey || payload.operation_id || payload.operationId || payload.request_id || payload.requestId, 120);
+  if (!idempotencyKey) throw createError(`${actionLabel} requires idempotency_key`, 400);
+  return idempotencyKey;
+}
+
+function getFamilyOrderStageDef(stageId = '') {
+  const normalizedStageId = sanitizeText(stageId, 80);
+  return FAMILY_ORDER_STAGE_DEFS.find(stage => stage.id === normalizedStageId) || FAMILY_ORDER_STAGE_DEFS[0];
+}
+
+function normalizeFamilyOrderCreatePayload(payload = {}) {
+  const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family order create');
+  const rewardRoute = FAMILY_ORDER_REWARD_ROUTES.has(payload.reward_route) ? payload.reward_route : 'shared_fund';
+  const orderType = FAMILY_ORDER_TYPES.has(payload.order_type) ? payload.order_type : 'material_help';
+  const stageDef = getFamilyOrderStageDef(payload.stage_id);
+  const rewardAmount = Math.min(FAMILY_ORDER_REWARD_MAX_AMOUNT, Math.max(0, Math.floor(Number(payload.reward_amount ?? payload.amount) || 0)));
+  const rewardQuantity = Math.min(FAMILY_ORDER_REWARD_MAX_QUANTITY, Math.max(0, Math.floor(Number(payload.reward_quantity ?? payload.quantity) || 0)));
+  const rewardItemId = normalizeWarehouseItemId(payload.reward_item_id || payload.item_id) || 'rice';
+  if (rewardRoute === 'shared_fund' && rewardAmount <= 0) throw createError('family order shared_fund reward requires reward_amount', 400);
+  if (rewardRoute === 'shared_warehouse' && rewardQuantity <= 0) throw createError('family order shared_warehouse reward requires reward_quantity', 400);
+  if (rewardRoute === 'shared_warehouse') assertWarehouseOrdinaryItemAllowed(rewardItemId, 'deposit');
+  return {
+    idempotency_key: idempotencyKey,
+    title: sanitizeText(payload.title || payload.name, 80) || 'family order',
+    order_type: orderType,
+    stage_id: stageDef?.id || 'gather_materials',
+    reward_route: rewardRoute,
+    reward_amount: rewardAmount,
+    reward_item_id: rewardItemId,
+    reward_item_label: sanitizeText(payload.reward_item_label || payload.item_label || rewardItemId, 80),
+    reward_quantity: rewardQuantity,
+    reward_quality: normalizeQuality(payload.reward_quality || payload.quality || 'normal'),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyOrderActionPayload(payload = {}, actionLabel = 'family order action') {
+  return {
+    idempotency_key: requireCohabitationIdempotencyKey(payload, actionLabel),
+    stage_id: sanitizeText(payload.stage_id, 80),
+    note: sanitizeText(payload.note || payload.memo || payload.delivery_note, 180),
+  };
+}
+
+function normalizeFamilyReputationAwardPayload(payload = {}) {
+  const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family reputation award');
+  const sourceType = sanitizeText(payload.source_type || payload.source, 60) || 'family_governance';
+  const defaultPoints = FAMILY_REPUTATION_SOURCE_POINTS[sourceType] || FAMILY_REPUTATION_SOURCE_POINTS.family_governance || 1;
+  const points = Math.max(1, Math.min(FAMILY_REPUTATION_WEEKLY_CAP, Math.floor(Number(payload.points) || defaultPoints)));
+  return {
+    idempotency_key: idempotencyKey,
+    source_type: sourceType,
+    source_ref: sanitizeText(payload.source_ref || payload.target_ref || payload.ref, 140) || `${sourceType}:${idempotencyKey}`,
+    source_ledger_id: sanitizeText(payload.source_ledger_id || payload.ledger_id, 100),
+    target_username: normalizeUsername(payload.target_username || payload.member_username || payload.username),
+    points,
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyReputationRewardClaimPayload(payload = {}) {
+  const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family reputation reward claim');
+  const rewardType = FAMILY_REPUTATION_REWARD_TYPES.has(payload.reward_type) ? payload.reward_type : 'shared_fund_grant';
+  return {
+    idempotency_key: idempotencyKey,
+    reward_type: rewardType,
+    reward_label: sanitizeText(payload.reward_label || payload.label, 80) || 'family reputation reward',
+    cost_points: Math.max(1, Math.floor(Number(payload.cost_points) || FAMILY_REPUTATION_REWARD_COST)),
+    amount: Math.max(1, Math.floor(Number(payload.amount) || FAMILY_REPUTATION_REWARD_AMOUNT)),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyVisibilityUpdatePayload(payload = {}) {
+  const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family visibility update');
+  const defaultScope = FAMILY_VISIBILITY_SCOPES.has(payload.default_scope) ? payload.default_scope : 'contract_members';
+  const enabledScopeIds = Array.isArray(payload.enabled_scope_ids)
+    ? [...new Set(payload.enabled_scope_ids.map(id => sanitizeText(id, 40)).filter(id => FAMILY_VISIBILITY_SCOPES.has(id)))]
+    : [defaultScope];
+  if (!enabledScopeIds.includes(defaultScope)) enabledScopeIds.unshift(defaultScope);
+  const requestedCategories = Array.isArray(payload.public_category_ids)
+    ? [...new Set(payload.public_category_ids.map(id => sanitizeText(id, 60)).filter(Boolean))]
+    : ['contract_members', 'family_roles', 'shared_capabilities'];
+  const privateCategoryIds = requestedCategories.filter(id => FAMILY_VISIBILITY_PRIVATE_CATEGORY_IDS.has(id));
+  if (privateCategoryIds.length > 0) {
+    throw createError(`family visibility cannot publish private categories: ${privateCategoryIds.join(',')}`, 403);
+  }
+  const memberConsent = payload.member_consent && typeof payload.member_consent === 'object' && !Array.isArray(payload.member_consent)
+    ? Object.fromEntries(Object.entries(payload.member_consent).map(([key, value]) => [normalizeUsernameKey(key), value === true]))
+    : {};
+  return {
+    idempotency_key: idempotencyKey,
+    default_scope: defaultScope,
+    enabled_scope_ids: [...new Set(enabledScopeIds)].slice(0, 8),
+    public_category_ids: requestedCategories.slice(0, 20),
+    member_consent: memberConsent,
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyVisibilityRollbackPayload(payload = {}) {
+  return {
+    idempotency_key: requireCohabitationIdempotencyKey(payload, 'family visibility rollback'),
+    audit_id: sanitizeText(payload.audit_id || payload.rollback_audit_id || payload.id, 100),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyFestivalReservePayload(payload = {}) {
+  return {
+    idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival seat reserve'),
+    template_id: sanitizeText(payload.template_id, 60) || 'lantern_fair',
+    seat_usernames: Array.isArray(payload.seat_usernames)
+      ? payload.seat_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
+      : [],
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyFestivalRoomPayload(payload = {}) {
+  return {
+    idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival room create'),
+    template_id: sanitizeText(payload.template_id, 60) || 'lantern_fair',
+    title: sanitizeText(payload.title || payload.room_title, 80),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyFestivalSuppliesPayload(payload = {}) {
+  return {
+    idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival supplies consume'),
+    template_id: sanitizeText(payload.template_id, 60),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function normalizeFamilyFestivalSettlePayload(payload = {}) {
+  return {
+    idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival settle'),
+    template_id: sanitizeText(payload.template_id, 60),
+    amount: Math.max(1, Math.floor(Number(payload.amount) || FAMILY_FESTIVAL_SHARED_FUND_REWARD_AMOUNT)),
+    points: Math.max(1, Math.floor(Number(payload.points) || FAMILY_REPUTATION_SOURCE_POINTS.family_festival || 10)),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+  };
+}
+
+function assertFamilyContractWritable(contract, member, actionLabel = 'family manor write') {
+  if (!isFamilyRoleContractType(contract.type)) throw createError(`${actionLabel} is only available for oath/business family manors`, 403);
+  if (!contract.permissions || typeof contract.permissions !== 'object') contract.permissions = {};
+  for (const entry of contract.members || []) {
+    entry.manor_role = normalizeFamilyManorRole(entry.manor_role, contract.type, entry.role);
+    contract.permissions[entry.username_key] = enforcePermissionSafetyRails(contract.permissions?.[entry.username_key], contract.type);
+  }
+  contract.family_orders_state = normalizeFamilyOrdersState(contract.family_orders_state);
+  contract.family_reputation_state = normalizeFamilyReputationState(contract.family_reputation_state);
+  contract.family_visibility_state = normalizeFamilyVisibilityState(contract.family_visibility_state);
+  contract.family_festival_seats_state = normalizeFamilyFestivalSeatsState(contract.family_festival_seats_state);
+  return member;
+}
+
+function assertFamilyHeadWritable(contract, member, actionLabel = 'family manor write') {
+  assertFamilyContractWritable(contract, member, actionLabel);
+  if (!canManageFamilyRoles(member, contract)) throw createError(`${actionLabel} requires family_head`, 403);
+  return member;
+}
+
+function buildFamilyWeekKey(timestamp = nowSeconds()) {
+  const date = new Date(Math.max(0, Math.floor(Number(timestamp) || nowSeconds())) * 1000);
+  const year = date.getUTCFullYear();
+  const start = Date.UTC(year, 0, 1) / 1000;
+  const dayOffset = Math.floor((Math.max(0, Math.floor(Number(timestamp) || nowSeconds())) - start) / 86400);
+  const week = Math.floor((dayOffset + 6) / 7) + 1;
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+function buildFamilyReputationLeaderboard(contract = {}) {
+  const state = normalizeFamilyReputationState(contract.family_reputation_state);
+  const rows = new Map();
+  for (const member of contract.members || []) {
+    const key = member.username_key || normalizeUsernameKey(member.username);
+    const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    rows.set(key, {
+      username: member.username,
+      username_key: key,
+      display_name: member.display_name,
+      manor_role: manorRole,
+      manor_role_label: getFamilyManorRoleDef(manorRole).label,
+      earned_points: 0,
+      spent_points: 0,
+      total_points: 0,
+      contribution_count: 0,
+    });
+  }
+  for (const entry of state.ledger.filter(item => item.status === 'committed')) {
+    const key = entry.actor_username_key || normalizeUsernameKey(entry.actor_username);
+    if (!rows.has(key)) rows.set(key, {
+      username: entry.actor_username,
+      username_key: key,
+      display_name: entry.actor_display_name || entry.actor_username,
+      manor_role: entry.actor_manor_role,
+      manor_role_label: entry.actor_manor_role_label,
+      earned_points: 0,
+      spent_points: 0,
+      total_points: 0,
+      contribution_count: 0,
+    });
+    const row = rows.get(key);
+    row.earned_points += Math.max(0, Math.floor(Number(entry.points) || 0));
+    row.contribution_count += 1;
+  }
+  for (const reward of state.rewards.filter(item => item.status === 'claimed')) {
+    const key = reward.actor_username_key || normalizeUsernameKey(reward.actor_username);
+    if (!rows.has(key)) continue;
+    rows.get(key).spent_points += Math.max(0, Math.floor(Number(reward.cost_points) || 0));
+  }
+  for (const row of rows.values()) row.total_points = Math.max(0, row.earned_points - row.spent_points);
+  return [...rows.values()].sort((left, right) => right.earned_points - left.earned_points || left.username.localeCompare(right.username));
+}
+
+function appendFamilyReputationLedger(contract, entry = {}, actor = {}, options = {}) {
+  contract.family_reputation_state = normalizeFamilyReputationState(contract.family_reputation_state);
+  const idempotencyKey = sanitizeText(entry.idempotency_key, 120);
+  const previous = idempotencyKey
+    ? contract.family_reputation_state.ledger.find(item => item.idempotency_key === idempotencyKey)
+    : null;
+  if (previous) return { entry: previous, idempotent: true };
+  const at = Math.max(0, Math.floor(Number(entry.at) || nowSeconds()));
+  const weekKey = buildFamilyWeekKey(at);
+  const weeklyCap = Math.max(1, Math.floor(Number(contract.family_reputation_state.weekly_cap) || FAMILY_REPUTATION_WEEKLY_CAP));
+  const usedThisWeek = contract.family_reputation_state.ledger
+    .filter(item => item.status === 'committed' && item.week_key === weekKey)
+    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.points) || 0)), 0);
+  const points = Math.max(1, Math.floor(Number(entry.points) || 0));
+  if (options.enforce_weekly_cap !== false && usedThisWeek + points > weeklyCap) throw createError('family reputation weekly cap exceeded', 409);
+  const actorUsername = normalizeUsername(entry.actor_username || actor.username);
+  const member = getContractMember(contract, actorUsername);
+  const actorRole = normalizeFamilyManorRole(member?.manor_role || entry.actor_manor_role, contract.type, member?.role);
+  const actorRoleDef = getFamilyManorRoleDef(actorRole);
+  const nextEntry = normalizeFamilyReputationLedgerEntry({
+    ...entry,
+    actor_username: actorUsername,
+    actor_display_name: entry.actor_display_name || actor.displayName || actor.display_name || member?.display_name || actorUsername,
+    actor_username_key: entry.actor_username_key || member?.username_key || actorUsername,
+    actor_manor_role: actorRole,
+    actor_manor_role_label: actorRoleDef.label,
+    points,
+    week_key: weekKey,
+    at,
+  });
+  contract.family_reputation_state.ledger = [nextEntry, ...contract.family_reputation_state.ledger].slice(0, FAMILY_REPUTATION_LEDGER_LIMIT);
+  contract.family_reputation_state = normalizeFamilyReputationState(contract.family_reputation_state);
+  return { entry: nextEntry, idempotent: false };
 }
 
 function canManageFamilyRoles(member = {}, contract = {}) {
@@ -5487,7 +6933,7 @@ function buildFamilyOrderMemberSnapshot(contract, member, enabled = isFamilyRole
       can_view_family_orders: enabled && member.status === 'accepted',
       can_accept_stage_preview: enabled && member.status === 'accepted',
       can_prepare_materials_preview: enabled && canPrepareMaterials,
-      can_manage_order_rules_preview: enabled && manorRole === 'family_head',
+      can_manage_order_rules_preview: enabled && canManageFamilyRoles(member, contract),
       can_review_budget_preview: enabled && ['family_head', 'treasurer'].includes(manorRole),
       can_prepare_warehouse_reward_preview: enabled && ['family_head', 'storage_keeper'].includes(manorRole),
       create_family_order_enabled: false,
@@ -5646,6 +7092,16 @@ async function creditCohabitationOrderIncome(contractId, receipt = {}, actor = {
     stage_id: stageId,
     target_ref: targetRef,
   });
+  const orderOriginalDurationSeconds = Math.max(0, Math.floor(Number(receipt.order_original_duration_seconds) || 0));
+  const orderEfficiencyBonusSeconds = simultaneousOnlineBonus.applied
+    ? Math.min(orderOriginalDurationSeconds, SHARED_ORDER_CONFIRM_COOP_EFFICIENCY_REDUCTION_SECONDS)
+    : 0;
+  const orderEffectiveDurationSeconds = Math.max(0, orderOriginalDurationSeconds - orderEfficiencyBonusSeconds);
+  const orderEfficiencyPolicy = 'settlement_duration_reduced_by_15_minutes_floor_zero';
+  simultaneousOnlineBonus.order_original_duration_seconds = orderOriginalDurationSeconds;
+  simultaneousOnlineBonus.order_efficiency_bonus_seconds = orderEfficiencyBonusSeconds;
+  simultaneousOnlineBonus.order_effective_duration_seconds = orderEffectiveDurationSeconds;
+  simultaneousOnlineBonus.order_efficiency_policy = orderEfficiencyPolicy;
   const creditPlan = buildSharedFundOrderIncomeCreditPlan(contract, {
     ...receipt,
     receipt_id: receiptId,
@@ -5686,6 +7142,10 @@ async function creditCohabitationOrderIncome(contractId, receipt = {}, actor = {
       confirmer_username: simultaneousOnlineBonus.confirmer_username,
       receipt_id: simultaneousOnlineBonus.receipt_id,
       order_id: simultaneousOnlineBonus.order_id,
+      order_original_duration_seconds: simultaneousOnlineBonus.order_original_duration_seconds,
+      order_efficiency_bonus_seconds: simultaneousOnlineBonus.order_efficiency_bonus_seconds,
+      order_effective_duration_seconds: simultaneousOnlineBonus.order_effective_duration_seconds,
+      order_efficiency_policy: simultaneousOnlineBonus.order_efficiency_policy,
       policy: simultaneousOnlineBonus.policy,
     },
     idempotency_key: idempotencyKey,
@@ -5864,11 +7324,16 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   const actorOrderMember = actorMember ? buildFamilyOrderMemberSnapshot(contract, actorMember, enabled) : null;
   const incomePreview = buildFamilyOrderIncomePreview(contract, enabled);
+  const orderState = normalizeFamilyOrdersState(contract.family_orders_state);
+  const orders = enabled ? orderState.ledger : [];
+  const openOrders = orders.filter(order => ['open', 'accepted'].includes(order.status));
+  const pendingSettlementOrders = orders.filter(order => order.status === 'delivered' && order.reward_settled !== true);
   const revision = Math.max(
     Number(contract.updated_at) || 0,
     Number(contract.activated_at) || 0,
     Number(contract.created_at) || 0,
-    Number(incomePreview.latest_receipt_at) || 0
+    Number(incomePreview.latest_receipt_at) || 0,
+    ...orders.map(order => Number(order.updated_at) || Number(order.created_at) || 0)
   );
   return {
     contract_id: contract.id,
@@ -5886,9 +7351,10 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
     member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
     max_members: typeDef.max_members,
     summary: {
-      preview_order_count: enabled ? 1 : 0,
-      open_order_count: 0,
-      pending_settlement_count: 0,
+      preview_order_count: enabled ? FAMILY_ORDER_STAGE_DEFS.length : 0,
+      order_count: orders.length,
+      open_order_count: openOrders.length,
+      pending_settlement_count: pendingSettlementOrders.length,
       personal_money_merged: false,
       personal_inventory_merged: false,
       shared_fund_spend_enabled: false,
@@ -5913,9 +7379,8 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
       {
         id: 'manual_family_order',
         label: '家族订单',
-        available: false,
+        available: enabled,
         binding_enabled: false,
-        deferred_operation: 'create_family_order',
         description: '真实家族订单创建、接单、交付、确认和撤回需要独立幂等键、审计日志和资产补偿流程后再开放。',
       },
     ],
@@ -5926,7 +7391,7 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
       revision,
       selected_visual_id: 'family_order_prepare',
       recent_feedback: enabled
-        ? '家族订单第一版为只读预备面板，真实接单、共同基金入账和共同仓库入仓暂缓。'
+        ? '家族订单第一版只展示预备路线、成员分工和公共订单收入草案；发布、接单、交付和结算仍待专用写链。'
         : '当前契约不是结拜庄园或合伙庄园，家族订单未启用。',
       async_projects: enabled ? [
         {
@@ -5968,11 +7433,20 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
                 : '暂未发现可预览的公共订单铜钱凭证。',
             },
           ],
-          history: [],
+          history: orders.slice(0, 12).map(order => ({
+            id: order.id,
+            type: 'family_order',
+            title: order.title,
+            status: order.status,
+            actor_username: order.assignee_username || order.created_by_username,
+            at: order.updated_at || order.created_at,
+          })),
         },
       ] : [],
     },
     income_preview: incomePreview,
+    orders,
+    ledger: orders,
     settlement: {
       reward_to_shared_fund_enabled: false,
       reward_to_shared_warehouse_enabled: false,
@@ -6004,11 +7478,10 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
     deferred_operations: [
       'create_family_order',
       'accept_family_order_stage',
-      'submit_family_order_delivery',
-      'confirm_family_order_delivery',
+      'deliver_family_order',
       'settle_to_shared_fund',
-      'deposit_reward_to_shared_warehouse',
-      'family_reputation',
+      'settle_to_shared_warehouse',
+      'family_order_reputation',
       'family_order_rollback',
       'family_order_compensation_replay',
     ],
@@ -6101,6 +7574,12 @@ function buildFamilyReputationSourceBreakdown(contract = {}, enabled = isFamilyR
   const fundAmount = fundContributions.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.amount) || 0)), 0);
   const roleAudits = (contract.audit_log || []).filter(entry => entry.action === 'family_role_updated');
   const permissionAudits = (contract.audit_log || []).filter(entry => entry.action === 'permissions_updated');
+  const familyOrderState = normalizeFamilyOrdersState(contract.family_orders_state);
+  const settledFamilyOrders = familyOrderState.ledger.filter(entry => entry.status === 'settled' && entry.reward_settled === true);
+  const familyBuildingLedger = normalizeFamilyBuildingLedger(contract);
+  const appliedFamilyBuildings = familyBuildingLedger.filter(entry => entry.status === 'build_applied' || entry.real_build_applied === true);
+  const familyFestivalState = normalizeFamilyFestivalSeatsState(contract.family_festival_seats_state);
+  const settledFamilyFestivals = familyFestivalState.ledger.filter(entry => entry.action === 'rewards_settled' && entry.status === 'committed');
   return [
     {
       id: 'family_governance',
@@ -6149,38 +7628,38 @@ function buildFamilyReputationSourceBreakdown(contract = {}, enabled = isFamilyR
       label: '家族订单',
       enabled: false,
       preview_points: 0,
-      evidence_count: 0,
+      evidence_count: settledFamilyOrders.length,
       audit_required: true,
       write_enabled: false,
-      deferred_operation: 'family_order_reputation',
       evidence: {
-        reason: '真实家族订单发布、交付和结算尚未开放，不能产生声望。',
+        settled_order_count: settledFamilyOrders.length,
+        reputation_ledger_count: familyOrderState.ledger.filter(entry => entry.reputation_ledger_id).length,
       },
     },
     {
       id: 'family_buildings',
       label: '家族建筑',
-      enabled: false,
-      preview_points: 0,
-      evidence_count: 0,
+      enabled,
+      preview_points: enabled ? clampReputationPoints(appliedFamilyBuildings.length * FAMILY_REPUTATION_SOURCE_POINTS.family_building, 32) : 0,
+      evidence_count: appliedFamilyBuildings.length,
       audit_required: true,
       write_enabled: false,
-      deferred_operation: 'family_building_reputation',
       evidence: {
-        reason: '家族建筑尚未接入真实建造与审计，不能产生声望。',
+        applied_building_count: appliedFamilyBuildings.length,
+        ledger_count: familyBuildingLedger.length,
       },
     },
     {
       id: 'family_festival_seats',
       label: '家族节会席位',
-      enabled: false,
-      preview_points: 0,
-      evidence_count: 0,
+      enabled,
+      preview_points: enabled ? clampReputationPoints(settledFamilyFestivals.length * FAMILY_REPUTATION_SOURCE_POINTS.family_festival, 40) : 0,
+      evidence_count: settledFamilyFestivals.length,
       audit_required: true,
       write_enabled: false,
-      deferred_operation: 'family_festival_seat_reputation',
       evidence: {
-        reason: '家族节会席位尚未接入，不能产生声望。',
+        settled_festival_count: settledFamilyFestivals.length,
+        ledger_count: familyFestivalState.ledger.length,
       },
     },
   ];
@@ -6191,9 +7670,13 @@ function buildFamilyReputationSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
   const sourceBreakdown = buildFamilyReputationSourceBreakdown(contract, enabled);
-  const currentPoints = enabled
+  const reputationState = normalizeFamilyReputationState(contract.family_reputation_state);
+  const previewPoints = enabled
     ? sourceBreakdown.reduce((sum, source) => sum + Math.max(0, Math.floor(Number(source.preview_points) || 0)), 0)
     : 0;
+  const currentPoints = enabled ? Math.max(reputationState.total_points, previewPoints) : 0;
+  const leaderboard = enabled ? buildFamilyReputationLeaderboard(contract) : [];
+  const memberStats = enabled ? buildFamilyReputationMemberStats(contract) : [];
   const level = resolveFamilyReputationLevel(currentPoints);
   const actorRole = normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role);
   const actorRoleDef = enabled ? getFamilyManorRoleDef(actorRole) : null;
@@ -6208,9 +7691,20 @@ function buildFamilyReputationSnapshot(contract, actorUsername = '') {
     writes_enabled: false,
     reputation_enabled: enabled,
     generated_at: nowSeconds(),
-    revision: Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0),
+    revision: Math.max(
+      Number(contract.updated_at) || 0,
+      Number(contract.activated_at) || 0,
+      Number(contract.created_at) || 0,
+      ...reputationState.ledger.map(entry => Number(entry.at) || 0)
+    ),
+    preview_points: previewPoints,
+    earned_points: reputationState.earned_points,
+    spent_points: reputationState.spent_points,
     summary: {
       current_points: currentPoints,
+      preview_points: previewPoints,
+      earned_points: reputationState.earned_points,
+      spent_points: reputationState.spent_points,
       level,
       source_count: sourceBreakdown.filter(source => source.preview_points > 0).length,
       member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
@@ -6218,6 +7712,7 @@ function buildFamilyReputationSnapshot(contract, actorUsername = '') {
       reputation_award_enabled: false,
       leaderboard_enabled: false,
       personal_reward_enabled: false,
+      shared_fund_reward_enabled: false,
       personal_money_merged: false,
       personal_inventory_merged: false,
       disabled_reason: enabled ? '' : '家族声望第一版仅面向结拜庄园和合伙庄园。',
@@ -6233,8 +7728,29 @@ function buildFamilyReputationSnapshot(contract, actorUsername = '') {
       can_manage_reputation_rules_preview: enabled && actorRole === 'family_head',
       can_claim_reputation_reward: false,
     } : null,
-    members: enabled ? buildFamilyReputationMemberStats(contract) : [],
+    members: memberStats.map(member => {
+      const row = leaderboard.find(entry => entry.username_key === member.username_key) || null;
+      return {
+        ...member,
+        earned_points: row?.earned_points || 0,
+        spent_points: row?.spent_points || 0,
+        total_points: row?.total_points || 0,
+        contribution_count: row?.contribution_count || 0,
+      };
+    }),
     source_breakdown: sourceBreakdown,
+    ledger: enabled ? reputationState.ledger : [],
+    rewards: enabled ? reputationState.rewards : [],
+    leaderboard,
+    reward_catalog: enabled ? [{
+      id: 'shared_fund_grant',
+      reward_type: 'shared_fund_grant',
+      label: '瀹舵棌澹版湜鍏卞悓鍩洪噾濂栧姳',
+      cost_points: FAMILY_REPUTATION_REWARD_COST,
+      amount: FAMILY_REPUTATION_REWARD_AMOUNT,
+      target: 'shared_fund',
+      claim_enabled: false,
+    }] : [],
     governance: {
       server_authoritative: true,
       idempotency_required_for_future_writes: true,
@@ -6247,15 +7763,10 @@ function buildFamilyReputationSnapshot(contract, actorUsername = '') {
       current_policy: '第一版只根据已存在审计与流水生成预览分，不持久化声望，也不发放称号、建筑或奖励。',
     },
     deferred_operations: [
-      'award_family_reputation',
-      'family_reputation_ledger',
-      'family_order_reputation',
-      'family_building_reputation',
-      'family_festival_seat_reputation',
       'family_reputation_weekly_cap',
       'family_reputation_compensation_replay',
-      'family_reputation_leaderboard',
-      'family_reputation_rewards',
+      'family_reputation_reward_claim',
+      'family_reputation_rollback',
     ],
   };
 }
@@ -6370,7 +7881,7 @@ function buildFamilyBuildingScenePreview(contract, buildings, members, enabled, 
     revision,
     selected_visual_id: 'family_building_blueprint_table',
     recent_feedback: enabled
-      ? '家族建筑第一版已支持建筑流水、真实落账标记和共同仓库建材消耗落账；拆除与扩建仍暂缓。'
+      ? '家族建筑第一版已支持建筑 / 扩建流水、真实落账标记和共同仓库建材消耗落账；扩建地块细分效果与拆除主状态仍走后续安全阀。'
       : '当前契约不是结拜庄园或合伙庄园，家族建筑未启用。',
     scene: enabled ? {
       id: 'family_building_yard',
@@ -6474,7 +7985,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       max_members: typeDef.max_members,
       preview_building_count: enabled ? buildings.length : 0,
       role_ready_building_count: enabled ? buildings.filter(building => building.role_ready).length : 0,
-      material_consume_enabled: enabled && buildings.some(building => building.material_consume_enabled),
+      material_consume_enabled: false,
       shared_fund_spend_enabled: false,
       warehouse_withdraw_enabled: false,
       demolition_enabled: false,
@@ -6504,7 +8015,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       demolition_requires_both_confirmation: true,
       compensation_required_for_asset_writes: true,
       rollback_required_for_building_writes: true,
-      current_policy: '第一版支持共同基金大额执行后的建筑流水真实落账标记与共同仓库建材消耗落账；仍不拆除、不扩建。',
+      current_policy: '第一版支持共同基金大额执行后的建筑 / 扩建流水、真实落账标记与共同仓库建材消耗落账；扩建地块细分效果与拆除主状态仍走后续安全阀。',
     },
     asset_boundaries: {
       personal_money_merged: false,
@@ -6844,7 +8355,7 @@ function buildFamilyRelationSnapshot(contract, actorUsername = '') {
   };
 }
 
-function buildFamilyVisibilityMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type)) {
+function buildFamilyVisibilityMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type), visibilityState = normalizeFamilyVisibilityState(contract.family_visibility_state)) {
   const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
   return {
@@ -6861,7 +8372,7 @@ function buildFamilyVisibilityMemberSnapshot(contract, member, enabled = isFamil
       can_publish_personal_graph_preview: false,
       can_manage_visibility_preview: enabled && canManageFamilyRoles(member, contract),
       consent_required_for_publication: true,
-      consent_status: 'not_requested',
+      consent_status: visibilityState.member_consent?.[member.username_key] === true ? 'accepted' : 'not_requested',
       write_enabled: false,
     },
   };
@@ -6871,9 +8382,15 @@ function buildFamilyVisibilitySnapshot(contract, actorUsername = '') {
   const enabled = isFamilyRoleContractType(contract.type);
   const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
   const actorMember = getContractMember(contract, actorUsername);
-  const revision = Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0);
+  const visibilityState = normalizeFamilyVisibilityState(contract.family_visibility_state);
+  const revision = Math.max(
+    Number(contract.updated_at) || 0,
+    Number(contract.activated_at) || 0,
+    Number(contract.created_at) || 0,
+    ...visibilityState.audit.map(entry => Number(entry.at) || 0)
+  );
   const members = enabled
-    ? (contract.members || []).map(member => buildFamilyVisibilityMemberSnapshot(contract, member, enabled))
+    ? (contract.members || []).map(member => buildFamilyVisibilityMemberSnapshot(contract, member, enabled, visibilityState))
     : [];
   return {
     contract_id: contract.id,
@@ -6888,7 +8405,9 @@ function buildFamilyVisibilitySnapshot(contract, actorUsername = '') {
     generated_at: nowSeconds(),
     revision,
     summary: {
-      default_scope: enabled ? 'contract_members_only' : 'disabled',
+      default_scope: enabled && visibilityState.default_scope === 'contract_members'
+        ? 'contract_members_only'
+        : (enabled ? visibilityState.default_scope : 'disabled'),
       member_count: (contract.members || []).length,
       accepted_member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
       max_members: typeDef.max_members,
@@ -6901,21 +8420,24 @@ function buildFamilyVisibilitySnapshot(contract, actorUsername = '') {
       rollback_enabled: false,
       disabled_reason: enabled ? '' : '家族关系公开设置第一版仅面向结拜庄园和合伙庄园。',
     },
-    actor: actorMember ? buildFamilyVisibilityMemberSnapshot(contract, actorMember, enabled) : null,
+    actor: actorMember ? buildFamilyVisibilityMemberSnapshot(contract, actorMember, enabled, visibilityState) : null,
     members,
+    settings: enabled ? visibilityState : normalizeFamilyVisibilityState({}),
+    audit: enabled ? visibilityState.audit : [],
+    relation_events: enabled ? visibilityState.relation_events : [],
     visibility_scopes: FAMILY_VISIBILITY_SCOPE_DEFS.map(scope => ({
       ...scope,
-      enabled: enabled && scope.enabled === true,
+      enabled: enabled && visibilityState.enabled_scope_ids.includes(scope.id),
       write_enabled: false,
     })),
     data_categories: FAMILY_VISIBILITY_DATA_CATEGORY_DEFS.map(category => ({
       ...category,
-      online_visible: enabled && category.online_visible === true,
-      publication_allowed: enabled && category.publication_allowed === true,
+      online_visible: enabled && visibilityState.public_category_ids.includes(category.id),
+      publication_allowed: enabled && category.publication_allowed === true && visibilityState.public_category_ids.includes(category.id),
       write_enabled: false,
     })),
     default_policy: {
-      current_scope: enabled ? 'contract_members' : 'disabled',
+      current_scope: enabled ? visibilityState.default_scope : 'disabled',
       contract_members_can_read: enabled,
       non_members_can_read: false,
       public_profile_can_read: false,
@@ -6938,22 +8460,19 @@ function buildFamilyVisibilitySnapshot(contract, actorUsername = '') {
     governance: {
       server_authoritative: true,
       readonly_first_pass: true,
+      writes_require_idempotency: true,
       future_writes_require_idempotency: true,
-      future_writes_require_audit: true,
+      writes_require_audit: true,
+      publication_requires_all_visible_member_consent: true,
       future_publication_requires_all_visible_member_consent: true,
       future_visibility_changes_require_rollback: true,
       compensation_required_for_wrong_visibility: true,
       separation_preview_must_include_visibility_reset: true,
-      current_policy: '第一版只读展示家族关系图公开策略：仅契约成员可见，公开档案、好友、村社和节会房间均不开放；本地 NPC / 家庭 / 宠物 / 随机 NPC 关系不会自动公开。',
+      current_policy: '第一版只读展示默认范围、可公开类别和成员同意需求；可见性审计、公开发布和回滚仍走后续专用写链。',
     },
     deferred_operations: [
-      'update_family_visibility_settings',
-      'collect_family_visibility_consent',
-      'publish_contract_graph_to_profile',
-      'bind_family_relation_graph_to_festival_room',
       'visibility_audit_log',
       'visibility_rollback',
-      'visibility_compensation_replay',
     ],
   };
 }
@@ -6962,11 +8481,12 @@ function resolveFamilyFestivalSeatRole(manorRole) {
   return FAMILY_FESTIVAL_SEAT_ROLE_DEFS[manorRole] || FAMILY_FESTIVAL_SEAT_ROLE_DEFS.farm_steward;
 }
 
-function buildFamilyFestivalSeatMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type), index = 0) {
+function buildFamilyFestivalSeatMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type), index = 0, festivalState = normalizeFamilyFestivalSeatsState(contract.family_festival_seats_state)) {
   const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
   const seatRole = resolveFamilyFestivalSeatRole(manorRole);
   const permissions = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  const reservation = festivalState.reservations?.[member.username_key] || null;
   const canPrepareSupplies = permissions.storage.deposit === true
     || permissions.farm.harvest === true
     || permissions.animal.collect_product === true
@@ -6979,12 +8499,12 @@ function buildFamilyFestivalSeatMemberSnapshot(contract, member, enabled = isFam
     status: member.status,
     manor_role: manorRole,
     manor_role_label: roleDef?.label || '',
-    seat_id: enabled ? `family_seat_${index + 1}` : '',
+    seat_id: enabled ? (reservation?.seat_id || `family_seat_${index + 1}`) : '',
     seat_index: enabled ? index + 1 : 0,
     seat_label: enabled ? seatRole.label : '',
     festival_role: enabled ? seatRole.festival_role : '',
     seat_summary: enabled ? seatRole.summary : '',
-    seat_state: enabled && member.status === 'accepted' ? 'preview_ready' : 'disabled',
+    seat_state: enabled && member.status === 'accepted' ? (reservation?.state || 'preview_ready') : 'disabled',
     seat_permissions: {
       can_view_festival_seats: enabled && member.status === 'accepted',
       can_manage_seat_rules_preview: enabled && manorRole === 'family_head',
@@ -7029,7 +8549,7 @@ function buildFamilyFestivalSeatScenePreview(contract, members, enabled, revisio
     revision,
     selected_visual_id: 'family_festival_banner',
     recent_feedback: enabled
-      ? '家族节会席位第一版仅生成席位与模板预览；真实开房、报名锁位和奖励写入暂缓。'
+      ? '家族节会席位第一版只展示席位预排、模板兼容和场景预览；锁席、房间绑定、供品消耗和奖励结算仍待专用写链。'
       : '当前契约不是结拜庄园或合伙庄园，家族节会席位未启用。',
     scene: enabled ? {
       id: 'family_festival_courtyard',
@@ -7108,13 +8628,19 @@ function buildFamilyFestivalSeatSnapshot(contract, actorUsername = '') {
   const enabled = isFamilyRoleContractType(contract.type);
   const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
   const actorMember = getContractMember(contract, actorUsername);
-  const revision = Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0);
+  const festivalState = normalizeFamilyFestivalSeatsState(contract.family_festival_seats_state);
+  const revision = Math.max(
+    Number(contract.updated_at) || 0,
+    Number(contract.activated_at) || 0,
+    Number(contract.created_at) || 0,
+    ...festivalState.ledger.map(entry => Number(entry.at) || 0)
+  );
   const members = enabled
-    ? (contract.members || []).map((member, index) => buildFamilyFestivalSeatMemberSnapshot(contract, member, enabled, index))
+    ? (contract.members || []).map((member, index) => buildFamilyFestivalSeatMemberSnapshot(contract, member, enabled, index, festivalState))
     : [];
   const templates = buildFamilyFestivalSeatTemplates(enabled);
   const actorSeat = actorMember
-    ? buildFamilyFestivalSeatMemberSnapshot(contract, actorMember, enabled, Math.max(0, (contract.members || []).findIndex(member => member.username_key === actorMember.username_key)))
+    ? buildFamilyFestivalSeatMemberSnapshot(contract, actorMember, enabled, Math.max(0, (contract.members || []).findIndex(member => member.username_key === actorMember.username_key)), festivalState)
     : null;
 
   return {
@@ -7151,6 +8677,11 @@ function buildFamilyFestivalSeatSnapshot(contract, actorUsername = '') {
     actor: actorSeat,
     members,
     candidate_templates: templates,
+    reservations: enabled ? festivalState.reservations : {},
+    ledger: enabled ? festivalState.ledger : [],
+    active_template_id: enabled ? festivalState.active_template_id : '',
+    active_room_id: enabled ? festivalState.active_room_id : '',
+    last_settlement_id: enabled ? festivalState.last_settlement_id : '',
     visual_state_preview: buildFamilyFestivalSeatScenePreview(contract, members, enabled, revision),
     governance: {
       server_authoritative: true,
@@ -7161,7 +8692,7 @@ function buildFamilyFestivalSeatSnapshot(contract, actorUsername = '') {
       disconnect_recovery_required: true,
       compensation_required_for_future_rewards: true,
       public_festival_room_scope_unchanged: true,
-      current_policy: '第一版只读预排家族席位和可承接节会模板，不创建房间、不锁席、不消费共同资产、不发个人或家族奖励。',
+      current_policy: '第一版只读展示家族节会席位、模板和场景预览；锁席、房间绑定、供品消耗、奖励和声望仍走后续专用写链。',
     },
     settlement: {
       festival_receipt_required: true,
@@ -7179,14 +8710,8 @@ function buildFamilyFestivalSeatSnapshot(contract, actorUsername = '') {
       '结算必须先生成节会凭证，再决定个人奖励、家族声望或共同资产入账，任一写入失败进入补偿重放。',
     ],
     deferred_operations: [
-      'reserve_family_festival_seat',
       'bind_family_seat_to_festival_room',
-      'create_festival_room_from_family_seats',
-      'consume_shared_festival_supplies',
-      'award_family_festival_reputation',
-      'settle_family_festival_rewards',
       'family_festival_compensation_replay',
-      'family_festival_seat_rollback',
     ],
   };
 }
@@ -7435,6 +8960,95 @@ function buildSharedWorkshopProcessCoopBonusSnapshot(contract = {}, actorUsernam
   };
 }
 
+function normalizeAlchemyResultMode(value) {
+  return sanitizeText(value, 20) === 'auto' ? 'auto' : 'fixed';
+}
+
+function buildSharedAlchemyResultWeights(successRateBonusPercent = 0) {
+  const success = Math.min(
+    SHARED_ALCHEMY_AUTO_RESULT_MAX_SUCCESS_PERCENT,
+    SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.success + Math.max(0, Math.floor(Number(successRateBonusPercent) || 0))
+  );
+  const remaining = Math.max(0, 100 - success);
+  const rare = Math.min(SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.rare, remaining);
+  const failed = remaining >= 4
+    ? Math.min(SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.failed, Math.max(1, Math.floor(remaining * SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.failed / 20)))
+    : remaining >= 2 ? 1 : 0;
+  const partial = Math.max(0, remaining - rare - failed);
+  return { success, partial, failed, rare };
+}
+
+function rollSharedAlchemyResultKind(recipeId = '', idempotencyKey = '', successRateBonusPercent = 0) {
+  const weights = buildSharedAlchemyResultWeights(successRateBonusPercent);
+  const digest = crypto
+    .createHash('sha256')
+    .update(`shared_alchemy_auto_result:${sanitizeText(recipeId, 100)}:${sanitizeText(idempotencyKey, 120)}`)
+    .digest('hex');
+  const roll = Number.parseInt(digest.slice(0, 8), 16) % 100;
+  const partialThreshold = weights.success + weights.partial;
+  const failedThreshold = partialThreshold + weights.failed;
+  const kind = roll < weights.success
+    ? 'success'
+    : roll < partialThreshold
+      ? 'partial'
+      : roll < failedThreshold
+        ? 'failed'
+        : 'rare';
+  return {
+    kind,
+    roll,
+    roll_mod: 100,
+    weights,
+    seed_hash: digest.slice(0, 16),
+  };
+}
+
+function resolveSharedAlchemyOutput(recipe = {}, request = {}, simultaneousOnlineBonus = {}) {
+  const processKind = sanitizeText(recipe.process_kind, 60) || 'processing';
+  const fixedKind = sanitizeText(recipe.alchemy_result_kind, 40) || (processKind === 'alchemy_elixir' ? 'success' : '');
+  const autoRequested = request.alchemy_result_mode === 'auto';
+  if (autoRequested && (processKind !== 'alchemy_elixir' || fixedKind !== 'success')) {
+    throw createError('shared alchemy auto result mode only supports success elixir recipes', 400);
+  }
+  if (processKind !== 'alchemy_elixir' || !autoRequested) {
+    return {
+      mode: 'fixed',
+      auto: false,
+      kind: fixedKind,
+      output_item_id: recipe.output_item_id,
+      output_quantity: recipe.output_quantity,
+      roll: 0,
+      roll_mod: 0,
+      weights: null,
+      seed_hash: '',
+    };
+  }
+
+  const rollResult = rollSharedAlchemyResultKind(
+    recipe.id,
+    request.idempotency_key,
+    Math.max(0, Math.floor(Number(simultaneousOnlineBonus.success_rate_bonus_percent) || 0))
+  );
+  const outputItemId = rollResult.kind === 'success'
+    ? recipe.output_item_id
+    : rollResult.kind === 'partial'
+      ? 'partial_elixir_slurry'
+      : rollResult.kind === 'failed'
+        ? 'failed_elixir_ash'
+        : 'rare_elixir_crystal';
+  return {
+    mode: 'auto',
+    auto: true,
+    kind: rollResult.kind,
+    output_item_id: outputItemId,
+    output_quantity: recipe.output_quantity,
+    roll: rollResult.roll,
+    roll_mod: rollResult.roll_mod,
+    weights: rollResult.weights,
+    seed_hash: rollResult.seed_hash,
+  };
+}
+
 function buildOfflineOperationSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorMember?.username_key], contract.type);
@@ -7474,7 +9088,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_workshop_offline_writes_enabled: true,
       offline_queue_merge_enabled: true,
       offline_queue_supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
-      offline_conflict_preflight_enabled: true,
+      offline_conflict_resolution_enabled: true,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
@@ -7500,10 +9114,10 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       read_shared_animals: true,
       feed_shared_animal: actorPermissions.animal.feed === true,
       pet_shared_animal: actorPermissions.animal.pet === true,
-      care_shared_pet: actorPermissions.animal.pet === true,
-      collect_shared_animal_product: actorPermissions.animal.collect_product === true,
       buy_shared_animal: actorPermissions.animal.buy_animal === true && actorPermissions.fund.spend_medium === true,
       sell_shared_animal: actorPermissions.animal.sell_animal === true,
+      care_shared_pet: actorPermissions.animal.pet === true,
+      collect_shared_animal_product: actorPermissions.animal.collect_product === true,
       process_shared_workshop_recipe: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.buy_furniture === true
         || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
@@ -7520,7 +9134,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       manage_permissions: canManageCohabitationPermissions(actorMember),
       create_separation_preview: true,
       merge_offline_queue: true,
-      preflight_offline_conflicts: true,
+      resolve_offline_conflicts: true,
     },
     simultaneous_online_bonus: simultaneousOnlineBonus,
     offline_auto_income: offlineAutoIncome,
@@ -8396,25 +10010,6 @@ function normalizeSharedPetCarePayload(payload = {}) {
   };
 }
 
-function normalizeOfflineConflictPreflightPayload(payload = {}) {
-  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.request_id || payload.operation_id, 120);
-  if (!idempotencyKey) throw createError('offline conflict preflight requires idempotency_key');
-  const rawActions = Array.isArray(payload.actions)
-    ? payload.actions
-    : Array.isArray(payload.operation_actions)
-      ? payload.operation_actions
-      : [];
-  const actions = [...new Set(rawActions
-    .map(action => sanitizeText(action, 80))
-    .filter(Boolean))].slice(0, 24);
-  return {
-    idempotency_key: idempotencyKey,
-    client_queue_revision: Math.max(0, Math.floor(Number(payload.client_queue_revision || payload.base_revision) || 0)),
-    actions,
-    memo: sanitizeText(payload.memo || payload.note, 160),
-  };
-}
-
 function getSharedAnimalPurchaseProfile(type = '') {
   const normalizedType = sanitizeText(type, 80).toLowerCase();
   const profile = SHARED_ANIMAL_PURCHASE_CATALOG[normalizedType];
@@ -8509,7 +10104,6 @@ function buildPurchasedSharedAnimal(contract = {}, member = {}, profile = {}, re
     : null;
 }
 
-
 function normalizeOfflineQueueMergePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.queue_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('offline queue merge requires idempotency_key');
@@ -8602,6 +10196,55 @@ function buildOfflineQueueMergeRevisionEvidence(request = {}, beforeSnapshot = {
   };
 }
 
+function buildOfflineConflictResolutionEvidence(request = {}, results = [], rejected = [], revisionEvidence = {}, options = {}) {
+  const committed = results.filter(entry => entry?.status === 'committed');
+  const idempotent = results.filter(entry => entry?.status === 'idempotent');
+  const committedCount = Math.max(0, Math.floor(Number(options.committed_count) || committed.length));
+  const idempotentCount = Math.max(0, Math.floor(Number(options.idempotent_count) || idempotent.length));
+  const rejectedCount = Math.max(0, Math.floor(Number(options.rejected_count) || rejected.length));
+  const operationCount = Math.max(0, Math.floor(Number(options.operation_count) || committedCount + idempotentCount + rejectedCount));
+  const allEntries = [...results, ...rejected];
+  const optionLedgerIds = Array.isArray(options.ledger_ids) ? options.ledger_ids : [];
+  const ledgerIds = uniqueSanitizedValues([
+    ...optionLedgerIds,
+    ...results.flatMap(entry => [
+      entry?.ledger_id,
+      ...(Array.isArray(entry?.warehouse_ledger_ids) ? entry.warehouse_ledger_ids : []),
+    ]),
+  ], 140);
+  return {
+    idempotency_key: sanitizeText(request.idempotency_key || options.idempotency_key, 120),
+    status: options.idempotent === true
+      ? 'idempotent_replay'
+      : rejectedCount > 0 && committedCount + idempotentCount === 0
+        ? 'all_rejected'
+        : rejectedCount > 0
+          ? 'partially_committed'
+          : 'committed',
+    committed_count: committedCount,
+    idempotent_count: idempotentCount,
+    rejected_count: rejectedCount,
+    operation_count: operationCount,
+    supported_action_count: OFFLINE_QUEUE_SUPPORTED_ACTIONS.length,
+    committed_actions: uniqueSanitizedValues(results.map(entry => entry?.action), 80),
+    rejected_actions: uniqueSanitizedValues(rejected.map(entry => entry?.action), 80),
+    rejected_operation_ids: uniqueSanitizedValues(rejected.map(entry => entry?.operation_id), 140),
+    rejected_reasons: uniqueSanitizedValues(rejected.map(entry => entry?.reason), 120),
+    ledger_ids: ledgerIds,
+    ledger_count: Math.max(0, Math.floor(Number(options.ledger_count) || ledgerIds.length)),
+    warehouse_ledger_count: uniqueSanitizedValues(results.flatMap(entry => Array.isArray(entry?.warehouse_ledger_ids) ? entry.warehouse_ledger_ids : []), 140).length,
+    personal_save_changed: allEntries.some(entry => entry?.personal_save_changed === true),
+    shared_warehouse_changed: allEntries.some(entry => entry?.shared_warehouse_changed === true),
+    shared_fund_changed: allEntries.some(entry => entry?.shared_fund_changed === true),
+    server_authoritative: true,
+    conflict_policy: options.idempotent === true
+      ? 'server_authoritative_idempotent_replay'
+      : 'server_authoritative_batch_resolution',
+    next_step: rejectedCount > 0 ? 'review_rejected_operations_against_latest_server_state' : 'server_state_committed_or_replayed',
+    ...revisionEvidence,
+  };
+}
+
 function normalizeSharedAnimalFeedPayload(payload = {}) {
   const request = normalizeSharedAnimalActionPayload(payload);
   const feedItemId = normalizeWarehouseItemId(payload.feed_item_id || payload.feedItemId || payload.item_id || payload.itemId || 'hay');
@@ -8624,6 +10267,7 @@ function normalizeSharedWorkshopProcessPayload(payload = {}) {
     recipe_id: recipe.id,
     idempotency_key: idempotencyKey,
     fund_ledger_id: sanitizeText(payload.fund_ledger_id || payload.budget_ledger_id || payload.medium_fund_ledger_id, 100),
+    alchemy_result_mode: normalizeAlchemyResultMode(payload.alchemy_result_mode || payload.alchemyResultMode || payload.result_mode),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -8638,6 +10282,17 @@ function assertSharedWorkshopProcessAllowed(contract = {}, member = {}, actorPer
     return true;
   }
   throw createError('shared workshop processing permission denied', 403);
+}
+
+function assertSharedWorkshopInputRiskAllowed(recipe = {}, actorPermissions = {}) {
+  const rareInputs = Array.isArray(recipe.input_items)
+    ? recipe.input_items.filter(input => getWarehouseWithdrawalRiskLevel(input.item_id, input.quality) === 'rare')
+    : [];
+  if (rareInputs.length > 0 && actorPermissions?.storage?.withdraw_rare !== true) {
+    const itemIds = rareInputs.map(input => normalizeWarehouseItemId(input.item_id)).filter(Boolean).join(', ');
+    throw createError(`shared workshop rare material consumption requires storage.withdraw_rare permission: ${itemIds}`, 403);
+  }
+  return true;
 }
 
 function findSharedMapPlot(sharedMap = {}, plotId = '') {
@@ -8742,13 +10397,58 @@ function assertSharedAnimalSellAllowed(actorPermissions = {}) {
   return true;
 }
 
-
 function assertSeparationChildArrangementAllowed(actorPermissions = {}) {
   const requiredChecks = [{ group: 'family', key: 'child_daily_care', label: 'family.child_daily_care' }];
   if (actorPermissions?.family?.child_daily_care !== true) {
     throw createError('separation child arrangement requires permission: family.child_daily_care', 403);
   }
   return requiredChecks;
+}
+
+function assertFamilyChildCareAllowed(actorPermissions = {}) {
+  const requiredChecks = [{ group: 'family', key: 'child_daily_care', label: 'family.child_daily_care' }];
+  if (actorPermissions?.family?.child_daily_care !== true) {
+    throw createError('family child care requires permission: family.child_daily_care', 403);
+  }
+  return requiredChecks;
+}
+
+function assertFamilyWishSubmitAllowed(actorPermissions = {}) {
+  const requiredChecks = [{ group: 'family', key: 'family_wish_submit', label: 'family.family_wish_submit' }];
+  if (actorPermissions?.family?.family_wish_submit !== true) {
+    throw createError('family wish submit requires permission: family.family_wish_submit', 403);
+  }
+  return requiredChecks;
+}
+
+function normalizeFamilyChildCarePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('family child care requires idempotency_key');
+  const careRef = sanitizeText(payload.care_ref || payload.target_ref || payload.child_care_ref || payload.ref, 120);
+  if (!careRef) throw createError('family child care requires care_ref');
+  return {
+    care_ref: careRef,
+    target_ref: sanitizeText(payload.target_ref || careRef, 120),
+    child_ref: sanitizeText(payload.child_ref || payload.child_id || 'contract_child_private', 120),
+    care_type: sanitizeText(payload.care_type || payload.type || 'daily_care', 60),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+    idempotency_key: idempotencyKey,
+  };
+}
+
+function normalizeFamilyWishSubmitPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('family wish submit requires idempotency_key');
+  const wishRef = sanitizeText(payload.wish_ref || payload.target_ref || payload.family_wish_ref || payload.ref, 120);
+  if (!wishRef) throw createError('family wish submit requires wish_ref');
+  return {
+    wish_ref: wishRef,
+    target_ref: sanitizeText(payload.target_ref || wishRef, 120),
+    wish_type: sanitizeText(payload.wish_type || payload.type || 'shared_family_wish', 60),
+    title: sanitizeText(payload.title || payload.name || wishRef, 80),
+    memo: sanitizeText(payload.memo || payload.note, 180),
+    idempotency_key: idempotencyKey,
+  };
 }
 
 function normalizeWarehouseWithdrawPayload(payload = {}) {
@@ -8994,6 +10694,20 @@ function getWarehouseSellUnitPrice(itemId) {
   return Math.max(0, Math.floor(Number(WAREHOUSE_SELL_PRICE_BY_ITEM_ID[normalized]) || 0));
 }
 
+function getWarehouseQualitySellMultiplier(quality = 'normal') {
+  const normalizedQuality = normalizeQuality(quality);
+  if (normalizedQuality === 'supreme') return 3;
+  if (normalizedQuality === 'excellent') return 2;
+  if (normalizedQuality === 'fine') return 1.5;
+  return 1;
+}
+
+function getWarehouseSellUnitPriceForQuality(itemId, quality = 'normal') {
+  const baseUnitPrice = getWarehouseSellUnitPrice(itemId);
+  if (baseUnitPrice <= 0) return 0;
+  return Math.max(1, Math.floor(baseUnitPrice * getWarehouseQualitySellMultiplier(quality)));
+}
+
 function normalizeWarehouseSellPayload(payload = {}) {
   const itemId = normalizeWarehouseItemId(payload.item_id ?? payload.itemId);
   const rawQuantity = Math.floor(Number(payload.quantity) || 0);
@@ -9002,9 +10716,10 @@ function normalizeWarehouseSellPayload(payload = {}) {
   if (rawQuantity <= 0) throw createError('卖出数量必须大于 0');
   if (rawQuantity > WAREHOUSE_MAX_SELL_QUANTITY) throw createError(`单次卖出数量不能超过 ${WAREHOUSE_MAX_SELL_QUANTITY}`);
   if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('卖出物品品质参数无效');
-  if (requestedQuality !== 'normal') throw createError('共同仓库第一版只允许卖出普通品质物品', 403);
   assertWarehouseOrdinaryItemAllowed(itemId, 'sell');
-  const unitPrice = getWarehouseSellUnitPrice(itemId);
+  const baseUnitPrice = getWarehouseSellUnitPrice(itemId);
+  const qualityPriceMultiplier = getWarehouseQualitySellMultiplier(requestedQuality);
+  const unitPrice = getWarehouseSellUnitPriceForQuality(itemId, requestedQuality);
   if (unitPrice <= 0) throw createError('该物品暂未配置共同仓库卖出价格，不能卖出入共同基金', 403);
   const credential = normalizeWarehouseOperationCredential(payload);
   const idempotencyKey = credential.idempotency_key;
@@ -9014,6 +10729,8 @@ function normalizeWarehouseSellPayload(payload = {}) {
     quantity: rawQuantity,
     quality: requestedQuality,
     unit_price: unitPrice,
+    base_unit_price: baseUnitPrice,
+    quality_price_multiplier: qualityPriceMultiplier,
     total_amount: rawQuantity * unitPrice,
     idempotency_key: idempotencyKey,
     operation_id: credential.operation_id,
@@ -9108,7 +10825,7 @@ function assertLargeFundSpendPurposePermissions(actorPermissions = {}, purpose =
 function getLargeFundReceiptPermissionChecks(purpose, outcome = '') {
   if (sanitizeText(outcome, 40) !== 'delivered') return [];
   return getLargeFundSpendPurposePermissionChecks(purpose).filter(check =>
-    ['construction.buy_furniture', 'construction.demolish_building', 'family.major_family_choice'].includes(check.label)
+    ['construction.buy_furniture', 'construction.demolish_building', 'family.major_family_choice', 'storage.withdraw_rare'].includes(check.label)
   );
 }
 
@@ -9147,7 +10864,7 @@ function getLargeFundSpendDeferredOperations(purpose, executed = false) {
 function getLargeFundSpendExecutionPolicy(purpose) {
   const normalizedPurpose = sanitizeText(purpose, 80) || 'family_building';
   if (isFamilyBuildingLargeFundPurpose(normalizedPurpose)) {
-    return '大额建筑 / 扩建支出已完成成员确认、扣减共同基金并写入建筑流水；真实建造仍待后续接入。';
+    return '大额建筑 / 扩建支出已完成成员确认、扣减共同基金并写入建筑 / 扩建流水；真实建造或扩建落账需走后续专用接口。';
   }
   if (normalizedPurpose === 'family_major_event') {
     return '孩子 / 家庭重大事件支出已完成成员确认并扣减共同基金；后续必须写家庭事件决议和孩子安排回执，不直接改个人家庭主状态。';
@@ -9828,9 +11545,13 @@ function buildWarehouseOriginAsset(entry) {
     idempotency_key: entry.idempotency_key,
     withdrawal_risk_level: withdrawalRiskLevel,
     high_value_withdrawal_required: withdrawalRiskLevel !== 'common',
-    simultaneous_online_bonus: entry.simultaneous_online_bonus?.applied === true
+    simultaneous_online_bonus: entry.simultaneous_online_bonus && typeof entry.simultaneous_online_bonus === 'object' && (
+      entry.simultaneous_online_bonus.applied === true
+      || entry.simultaneous_online_bonus.alchemy_auto_result === true
+      || !!sanitizeText(entry.simultaneous_online_bonus.alchemy_result_kind, 40)
+    )
       ? {
-          applied: true,
+          applied: entry.simultaneous_online_bonus.applied === true,
           type: sanitizeText(entry.simultaneous_online_bonus.type, 80),
           bonus_value: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.bonus_value) || 0)),
           recent_member_usernames: Array.isArray(entry.simultaneous_online_bonus.recent_member_usernames)
@@ -9844,6 +11565,19 @@ function buildWarehouseOriginAsset(entry) {
           output_quality_before: normalizeQuality(entry.simultaneous_online_bonus.output_quality_before),
           output_quality_after: normalizeQuality(entry.simultaneous_online_bonus.output_quality_after),
           alchemy_result_kind: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_kind, 40),
+          alchemy_result_mode: normalizeAlchemyResultMode(entry.simultaneous_online_bonus.alchemy_result_mode),
+          alchemy_auto_result: entry.simultaneous_online_bonus.alchemy_auto_result === true,
+          alchemy_result_roll: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_roll) || 0)),
+          alchemy_result_roll_mod: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_roll_mod) || 0)),
+          alchemy_result_seed_hash: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_seed_hash, 40),
+          alchemy_result_weights: entry.simultaneous_online_bonus.alchemy_result_weights && typeof entry.simultaneous_online_bonus.alchemy_result_weights === 'object'
+            ? {
+                success: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.success) || 0)),
+                partial: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.partial) || 0)),
+                failed: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.failed) || 0)),
+                rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.rare) || 0)),
+              }
+            : null,
           success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
         }
       : { applied: false },
@@ -10244,46 +11978,165 @@ function buildWarehouseReturnPreview(contract = {}) {
   };
 }
 
+function pushUniqueFundEvidence(list, value, maxCount = 40, normalizer = value => sanitizeText(value, 120)) {
+  if (!Array.isArray(list) || list.length >= maxCount) return;
+  const normalized = normalizer(value);
+  if (normalized && !list.includes(normalized)) list.push(normalized);
+}
+
+function buildFundReturnOwnerIdentity(entry = {}, acceptedMembers = []) {
+  const member = findWarehouseSourceMember(entry, acceptedMembers);
+  if (member) {
+    return {
+      key: `member:${member.username_key}`,
+      origin_owner_id: getMemberReturnTargetId(member),
+      origin_owner_username: member.username,
+      origin_owner_key: member.username_key,
+    };
+  }
+  const originOwnerUsername = normalizeUsername(entry.source_owner_username || entry.actor_username);
+  const originOwnerKey = normalizeUsernameKey(entry.source_owner_key || originOwnerUsername);
+  const originOwnerId = sanitizeText(entry.source_owner_id, 100);
+  const key = originOwnerId || originOwnerKey || originOwnerUsername;
+  if (!key) return null;
+  return {
+    key,
+    origin_owner_id: originOwnerId,
+    origin_owner_username: originOwnerUsername,
+    origin_owner_key: originOwnerKey,
+  };
+}
+
+function getFundReturnGroup(groups, identity = {}) {
+  if (!identity?.key) return null;
+  const current = groups.get(identity.key) || {
+    origin_owner_id: identity.origin_owner_id,
+    origin_owner_username: identity.origin_owner_username,
+    origin_owner_key: identity.origin_owner_key,
+    amount: 0,
+    capital_contribution_amount: 0,
+    operating_contribution_amount: 0,
+    split_basis_amount: 0,
+    ledger_ids: [],
+    capital_ledger_ids: [],
+    operating_ledger_ids: [],
+    warehouse_sale_ledger_ids: [],
+    operating_source_refs: [],
+    operating_contribution_sources: [],
+    source_ledger_count: 0,
+    capital_ledger_count: 0,
+    operating_ledger_count: 0,
+  };
+  if (!current.origin_owner_id && identity.origin_owner_id) current.origin_owner_id = identity.origin_owner_id;
+  if (!current.origin_owner_username && identity.origin_owner_username) current.origin_owner_username = identity.origin_owner_username;
+  if (!current.origin_owner_key && identity.origin_owner_key) current.origin_owner_key = identity.origin_owner_key;
+  groups.set(identity.key, current);
+  return current;
+}
+
+function addFundReturnBasisAmount(groups, identity, amount, evidence = {}) {
+  const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
+  if (safeAmount <= 0) return;
+  const group = getFundReturnGroup(groups, identity);
+  if (!group) return;
+  const fundLedgerId = sanitizeText(evidence.fund_ledger_id || evidence.ledger_id, 100);
+  if (evidence.kind === 'capital') {
+    group.amount += safeAmount;
+    group.capital_contribution_amount += safeAmount;
+    pushUniqueFundEvidence(group.capital_ledger_ids, fundLedgerId, 40, value => sanitizeText(value, 100));
+  } else {
+    group.operating_contribution_amount += safeAmount;
+    pushUniqueFundEvidence(group.operating_ledger_ids, fundLedgerId, 40, value => sanitizeText(value, 100));
+    pushUniqueFundEvidence(group.operating_contribution_sources, evidence.action, 12, value => sanitizeText(value, 80));
+    pushUniqueFundEvidence(group.operating_source_refs, evidence.target_ref, 40, value => sanitizeText(value, 120));
+    pushUniqueFundEvidence(group.warehouse_sale_ledger_ids, evidence.warehouse_ledger_id, 40, value => sanitizeText(value, 100));
+  }
+  group.split_basis_amount += safeAmount;
+  pushUniqueFundEvidence(group.ledger_ids, fundLedgerId, 80, value => sanitizeText(value, 100));
+}
+
+function addWarehouseSaleOperatingFundBasis(groups, contract = {}, fundEntry = {}, acceptedMembers = []) {
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const matchingSales = warehouse.ledger.filter(entry =>
+    entry.status === 'committed'
+    && entry.action === 'sell'
+    && (
+      (fundEntry.id && entry.fund_ledger_id === fundEntry.id)
+      || (fundEntry.target_ref && entry.target_ref === fundEntry.target_ref)
+    )
+  );
+  for (const saleEntry of matchingSales) {
+    const identity = buildFundReturnOwnerIdentity(saleEntry, acceptedMembers);
+    if (!identity) continue;
+    addFundReturnBasisAmount(groups, identity, saleEntry.total_amount, {
+      kind: 'operating',
+      action: fundEntry.action,
+      fund_ledger_id: fundEntry.id,
+      warehouse_ledger_id: saleEntry.id,
+      target_ref: fundEntry.target_ref || saleEntry.target_ref,
+    });
+  }
+}
+
 function buildFundReturnPreview(contract = {}) {
   const fund = normalizeSharedFund(contract.shared_fund);
+  const acceptedMembers = getAcceptedSeparationMembers(contract);
   const groups = new Map();
   for (const entry of fund.ledger) {
-    if (entry.status !== 'committed' || entry.action !== 'contribution' || entry.amount <= 0) continue;
-    const key = entry.source_owner_id || entry.source_owner_key || entry.source_owner_username;
-    if (!key) continue;
-    const current = groups.get(key) || {
-      origin_owner_id: entry.source_owner_id,
-      origin_owner_username: entry.source_owner_username,
-      origin_owner_key: entry.source_owner_key,
-      amount: 0,
-      ledger_ids: [],
-      source_ledger_count: 0,
-    };
-    current.amount += entry.amount;
-    current.ledger_ids.push(entry.id);
-    current.source_ledger_count += 1;
-    groups.set(key, current);
+    if (entry.status !== 'committed' || entry.amount <= 0) continue;
+    if (entry.action === 'contribution') {
+      const identity = buildFundReturnOwnerIdentity(entry, acceptedMembers);
+      addFundReturnBasisAmount(groups, identity, entry.amount, {
+        kind: 'capital',
+        action: entry.action,
+        fund_ledger_id: entry.id,
+        target_ref: entry.target_ref,
+      });
+      continue;
+    }
+    if (!FUND_OPERATING_CONTRIBUTION_ACTIONS.has(entry.action)) continue;
+    if (entry.action === 'warehouse_sale_income') {
+      addWarehouseSaleOperatingFundBasis(groups, contract, entry, acceptedMembers);
+      continue;
+    }
+    const identity = buildFundReturnOwnerIdentity(entry, acceptedMembers);
+    const matchedAcceptedMember = acceptedMembers.some(member => identity?.key === `member:${member.username_key}`);
+    if (!matchedAcceptedMember) continue;
+    addFundReturnBasisAmount(groups, identity, entry.amount, {
+      kind: 'operating',
+      action: entry.action,
+      fund_ledger_id: entry.id,
+      target_ref: entry.target_ref,
+    });
   }
-  const entries = [...groups.values()].filter(entry => entry.amount > 0).slice(0, 80);
-  const totalContributed = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  const entries = [...groups.values()].filter(entry => entry.split_basis_amount > 0).slice(0, 80);
+  const totalCapitalContributed = entries.reduce((sum, entry) => sum + entry.capital_contribution_amount, 0);
+  const totalOperatingContributed = entries.reduce((sum, entry) => sum + entry.operating_contribution_amount, 0);
+  const totalSplitBasis = entries.reduce((sum, entry) => sum + entry.split_basis_amount, 0);
   let allocated = 0;
   return entries.map((entry, index) => {
-    const suggestedRefundAmount = totalContributed > 0
+    const suggestedRefundAmount = totalSplitBasis > 0
       ? (index === entries.length - 1
           ? Math.max(0, fund.balance - allocated)
-          : Math.floor((fund.balance * entry.amount) / totalContributed))
+          : Math.floor((fund.balance * entry.split_basis_amount) / totalSplitBasis))
       : 0;
     allocated += suggestedRefundAmount;
     return {
       ...entry,
-      contribution_share_basis_points: totalContributed > 0 ? Math.round((entry.amount * 10000) / totalContributed) : 0,
+      source_ledger_count: entry.ledger_ids.length,
+      capital_ledger_count: entry.capital_ledger_ids.length,
+      operating_ledger_count: entry.operating_ledger_ids.length,
+      contribution_share_basis_points: totalSplitBasis > 0 ? Math.round((entry.split_basis_amount * 10000) / totalSplitBasis) : 0,
+      capital_share_basis_points: totalCapitalContributed > 0 ? Math.round((entry.capital_contribution_amount * 10000) / totalCapitalContributed) : 0,
+      operating_share_basis_points: totalOperatingContributed > 0 ? Math.round((entry.operating_contribution_amount * 10000) / totalOperatingContributed) : 0,
       suggested_refund_amount: suggestedRefundAmount,
-      return_policy: '按注资 ledger 比例预览共同基金余额返还；真实返还需双方确认后由后续执行流程落账。',
+      fund_split_basis: 'capital_and_traceable_operating_income',
+      requires_consumption_delta_confirmation: true,
+      return_policy: 'Shared fund refund is split by capital contribution plus traceable operating income ledger; unresolved consumption deltas still require both-member confirmation.',
       manual_return_required: true,
     };
   });
 }
-
 function buildPlotReturnPreview(contract = {}) {
   const persistedSharedMap = refreshSharedMapContractFields(contract, contract.shared_map);
   const farmSnapshots = contract.members || [];
@@ -10451,19 +12304,28 @@ function buildDecorationSplitManifest(contract = {}) {
       const originUsername = normalizeUsername(item.origin_owner_username || item.source_owner_username || item.username);
       const originKey = normalizeUsernameKey(item.origin_owner_key || item.source_owner_key || originUsername);
       const decorationId = sanitizeText(item.decoration_id || item.item_id || item.id || `decoration_${index + 1}`, 100);
+      const quantity = Math.max(1, Math.floor(Number(item.quantity || item.count) || 1));
       return {
         manifest_id: `${originKey}:decoration:${decorationId}:${index}`,
+        origin_asset_id: sanitizeText(item.id || item.origin_asset_id, 120),
         decoration_id: decorationId,
         decoration_label: sanitizeText(item.decoration_label || item.label || item.name || decorationId, 80),
+        quantity,
         origin_owner_id: sanitizeText(item.origin_owner_id || item.source_owner_id, 80),
         origin_owner_username: originUsername,
         origin_owner_key: originKey,
+        return_target_username: originUsername,
+        return_target_key: originKey,
+        return_target_save_id: normalizeSaveId(item.origin_save_id || item.source_save_id),
+        source_save_slot: normalizeSaveSlot(item.source_save_slot),
+        source_save_revision: Math.max(0, Math.floor(Number(item.source_save_revision) || 0)),
+        source_inventory: sanitizeText(item.source_inventory || 'shared_decoration_state', 80),
         source_ledger_id: sanitizeText(item.ledger_id || item.source_ledger_id, 100),
-        return_policy: 'record_only_waiting_personal_home_receipt',
+        return_policy: 'return_to_origin_owner_personal_decoration_owned',
         execution_status: 'preview_only',
       };
     })
-    .filter(entry => entry.decoration_id && entry.origin_owner_username)
+    .filter(entry => entry.decoration_id && entry.origin_owner_username && entry.quantity > 0)
     .sort((left, right) => left.manifest_id.localeCompare(right.manifest_id))
     .slice(0, 120);
 }
@@ -10471,9 +12333,13 @@ function buildDecorationSplitManifest(contract = {}) {
 function hashDecorationSplitManifest(manifest = []) {
   const stableRows = (Array.isArray(manifest) ? manifest : []).map(entry => ({
     manifest_id: entry.manifest_id,
+    origin_asset_id: entry.origin_asset_id,
     decoration_id: entry.decoration_id,
+    quantity: entry.quantity,
     origin_owner_id: entry.origin_owner_id,
     origin_owner_username: entry.origin_owner_username,
+    return_target_username: entry.return_target_username,
+    return_target_save_id: entry.return_target_save_id,
     source_ledger_id: entry.source_ledger_id,
   }));
   return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
@@ -10528,10 +12394,11 @@ function summarizeDecorationSplitsByOwner(manifest = []) {
       origin_owner_key: key,
       decoration_count: 0,
       decoration_ids: [],
-      return_status: 'recorded_waiting_personal_home_receipt',
+      return_status: sanitizeText(entry.return_status || entry.execution_status, 80) || 'preview_waiting_personal_decoration_write',
     };
-    current.decoration_count += 1;
+    current.decoration_count += Math.max(1, Math.floor(Number(entry.quantity) || 1));
     if (current.decoration_ids.length < 40) current.decoration_ids.push(entry.decoration_id);
+    current.return_status = sanitizeText(entry.return_status || current.return_status, 80) || current.return_status;
     groups.set(key, current);
   }
   return [...groups.values()].slice(0, 80);
@@ -10613,10 +12480,27 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
       origin_owner_id: sanitizeText(entry.origin_owner_id, 80),
       origin_owner_username: normalizeUsername(entry.origin_owner_username),
       origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
+      amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+      capital_contribution_amount: Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)),
+      operating_contribution_amount: Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)),
+      split_basis_amount: Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)),
+      contribution_share_basis_points: Math.max(0, Math.floor(Number(entry.contribution_share_basis_points) || 0)),
+      capital_share_basis_points: Math.max(0, Math.floor(Number(entry.capital_share_basis_points) || 0)),
+      operating_share_basis_points: Math.max(0, Math.floor(Number(entry.operating_share_basis_points) || 0)),
+      ledger_ids: Array.isArray(entry.ledger_ids) ? entry.ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 80) : [],
+      capital_ledger_ids: Array.isArray(entry.capital_ledger_ids) ? entry.capital_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+      operating_ledger_ids: Array.isArray(entry.operating_ledger_ids) ? entry.operating_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+      warehouse_sale_ledger_ids: Array.isArray(entry.warehouse_sale_ledger_ids) ? entry.warehouse_sale_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+      operating_source_refs: Array.isArray(entry.operating_source_refs) ? entry.operating_source_refs.map(ref => sanitizeText(ref, 120)).filter(Boolean).slice(0, 40) : [],
+      operating_contribution_sources: Array.isArray(entry.operating_contribution_sources) ? entry.operating_contribution_sources.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 12) : [],
+      source_ledger_count: Math.max(0, Math.floor(Number(entry.source_ledger_count) || 0)),
+      capital_ledger_count: Math.max(0, Math.floor(Number(entry.capital_ledger_count) || 0)),
+      operating_ledger_count: Math.max(0, Math.floor(Number(entry.operating_ledger_count) || 0)),
+      fund_split_basis: sanitizeText(entry.fund_split_basis, 80) || 'capital_and_traceable_operating_income',
+      requires_consumption_delta_confirmation: entry.requires_consumption_delta_confirmation === true,
       suggested_refund_amount: Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)),
       return_status: 'manual_personal_money_write_required',
-    })).filter(entry => entry.origin_owner_username && entry.suggested_refund_amount > 0),
-    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
+    })).filter(entry => entry.origin_owner_username && entry.suggested_refund_amount > 0),    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
     building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
     personal_money_merged: false,
     personal_save_written: false,
@@ -10938,6 +12822,181 @@ function writePersonalInventoryReturnsFromLedger(rows = [], contract = {}, paylo
     written_at: writtenAt,
   }));
 }
+
+function buildPersonalDecorationReturnReceiptId(contractId = '', previewId = '', manifestId = '', usernameKey = '') {
+  const basis = `${sanitizeText(contractId, 80)}:${sanitizeText(previewId, 100)}:${sanitizeText(manifestId, 160)}:${normalizeUsernameKey(usernameKey)}`;
+  const digest = crypto.createHash('sha1').update(basis).digest('hex').slice(0, 24);
+  return `separation_decoration_${digest}`;
+}
+
+function writePersonalDecorationReturnsFromManifest(rows = [], contract = {}, payload = {}) {
+  const contextsByUsername = new Map();
+  const prepared = [];
+  const writtenAt = nowSeconds();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const username = normalizeUsername(row.return_target_username || row.origin_owner_username);
+    const usernameKey = normalizeUsernameKey(row.return_target_key || row.origin_owner_key || username);
+    const decorationId = sanitizeText(row.decoration_id, 100);
+    const quantity = Math.max(1, Math.floor(Number(row.quantity) || 1));
+    if (!username || !usernameKey || !decorationId || quantity <= 0) continue;
+    let contextEntry = contextsByUsername.get(usernameKey);
+    if (!contextEntry) {
+      const member = (contract.members || []).find(entry =>
+        entry.username_key === usernameKey || normalizeUsernameKey(entry.username) === usernameKey
+      ) || null;
+      const context = getActiveSaveContext(username, member?.save_slot ?? null, `分居装饰返还目标 ${username} 没有可写入的桃源乡存档`);
+      context.username = username;
+      const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
+      const projectedData = JSON.parse(JSON.stringify(context.data || {}));
+      contextEntry = {
+        username,
+        username_key: usernameKey,
+        context,
+        projectedData,
+        save_id: identitySaveId,
+        save_slot: normalizeSaveSlot(context.slot),
+        before_revision: Math.max(0, Math.floor(Number(context.saves.slots[context.slot]?.revision) || 0)),
+        before_money: getPlayerMoney(projectedData),
+        changed: false,
+      };
+      contextsByUsername.set(usernameKey, contextEntry);
+    }
+    const expectedSaveId = normalizeSaveId(row.return_target_save_id || row.origin_save_id);
+    if (expectedSaveId && contextEntry.save_id && expectedSaveId !== contextEntry.save_id) {
+      throw createError(`分居装饰返还目标存档已漂移：${username}`, 409);
+    }
+    if (!contextEntry.projectedData.decoration || typeof contextEntry.projectedData.decoration !== 'object' || Array.isArray(contextEntry.projectedData.decoration)) {
+      contextEntry.projectedData.decoration = {};
+    }
+    if (!contextEntry.projectedData.decoration.owned || typeof contextEntry.projectedData.decoration.owned !== 'object' || Array.isArray(contextEntry.projectedData.decoration.owned)) {
+      contextEntry.projectedData.decoration.owned = {};
+    }
+    if (!contextEntry.projectedData.decoration.placed || typeof contextEntry.projectedData.decoration.placed !== 'object' || Array.isArray(contextEntry.projectedData.decoration.placed)) {
+      contextEntry.projectedData.decoration.placed = {};
+    }
+    if (!contextEntry.projectedData.onlineCohabitation || typeof contextEntry.projectedData.onlineCohabitation !== 'object' || Array.isArray(contextEntry.projectedData.onlineCohabitation)) {
+      contextEntry.projectedData.onlineCohabitation = {};
+    }
+    if (!Array.isArray(contextEntry.projectedData.onlineCohabitation.decoration_return_receipts)) {
+      contextEntry.projectedData.onlineCohabitation.decoration_return_receipts = [];
+    }
+    const receiptId = buildPersonalDecorationReturnReceiptId(contract.id, payload.preview_id, row.manifest_id, usernameKey);
+    const existingReceipt = contextEntry.projectedData.onlineCohabitation.decoration_return_receipts.find(receipt =>
+      receipt?.receipt_id === receiptId || (
+        receipt?.contract_id === contract.id
+        && receipt?.preview_id === payload.preview_id
+        && receipt?.manifest_id === row.manifest_id
+      )
+    );
+    const beforeOwnedQuantity = Math.max(0, Math.floor(Number(contextEntry.projectedData.decoration.owned[decorationId]) || 0));
+    if (existingReceipt) {
+      prepared.push({
+        context_entry: contextEntry,
+        username,
+        username_key: usernameKey,
+        save_slot: contextEntry.save_slot,
+        save_id: contextEntry.save_id,
+        before_revision: contextEntry.before_revision,
+        receipt_id: receiptId,
+        receipt_status: 'already_written',
+        manifest_id: sanitizeText(row.manifest_id, 160),
+        origin_asset_id: sanitizeText(row.origin_asset_id, 120),
+        decoration_id: decorationId,
+        decoration_label: sanitizeText(row.decoration_label || decorationId, 80),
+        returned_quantity: quantity,
+        before_owned_quantity: beforeOwnedQuantity,
+        after_owned_quantity: beforeOwnedQuantity,
+        source_ledger_id: sanitizeText(row.source_ledger_id, 100),
+        idempotency_key: payload.idempotency_key,
+        written_at: Math.max(0, Math.floor(Number(existingReceipt.written_at) || writtenAt)),
+      });
+      continue;
+    }
+    const afterOwnedQuantity = beforeOwnedQuantity + quantity;
+    contextEntry.projectedData.decoration.owned[decorationId] = afterOwnedQuantity;
+    const personalReceipt = {
+      receipt_id: receiptId,
+      type: 'cohabitation_separation_decoration_return',
+      contract_id: contract.id,
+      preview_id: sanitizeText(payload.preview_id, 100),
+      execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+      manifest_id: sanitizeText(row.manifest_id, 160),
+      origin_asset_id: sanitizeText(row.origin_asset_id, 120),
+      decoration_id: decorationId,
+      decoration_label: sanitizeText(row.decoration_label || decorationId, 80),
+      returned_quantity: quantity,
+      before_owned_quantity: beforeOwnedQuantity,
+      after_owned_quantity: afterOwnedQuantity,
+      source_ledger_id: sanitizeText(row.source_ledger_id, 100),
+      personal_decoration_owned_changed: true,
+      personal_home_layout_changed: false,
+      personal_money_changed: false,
+      memo: payload.memo,
+      idempotency_key: payload.idempotency_key,
+      written_at: writtenAt,
+    };
+    contextEntry.projectedData.onlineCohabitation.decoration_return_receipts.unshift(personalReceipt);
+    contextEntry.projectedData.onlineCohabitation.decoration_return_receipts = contextEntry.projectedData.onlineCohabitation.decoration_return_receipts.slice(0, 60);
+    contextEntry.changed = true;
+    prepared.push({
+      context_entry: contextEntry,
+      username,
+      username_key: usernameKey,
+      save_slot: contextEntry.save_slot,
+      save_id: contextEntry.save_id,
+      before_revision: contextEntry.before_revision,
+      receipt_id: receiptId,
+      receipt_status: 'written',
+      manifest_id: personalReceipt.manifest_id,
+      origin_asset_id: personalReceipt.origin_asset_id,
+      decoration_id: decorationId,
+      decoration_label: personalReceipt.decoration_label,
+      returned_quantity: quantity,
+      before_owned_quantity: beforeOwnedQuantity,
+      after_owned_quantity: afterOwnedQuantity,
+      source_ledger_id: personalReceipt.source_ledger_id,
+      idempotency_key: payload.idempotency_key,
+      written_at: writtenAt,
+    });
+  }
+
+  const afterRevisionByUsername = new Map();
+  for (const entry of contextsByUsername.values()) {
+    const afterMoney = getPlayerMoney(entry.projectedData);
+    if (afterMoney !== entry.before_money) throw createError(`分居装饰返还不能改动个人铜币：${entry.username}`, 500);
+    if (entry.changed) {
+      assignGameplayDataToContext(entry.context, entry.projectedData);
+      afterRevisionByUsername.set(entry.username_key, persistGameplayData(entry.context));
+    } else {
+      afterRevisionByUsername.set(entry.username_key, entry.before_revision);
+    }
+  }
+
+  return prepared.map(entry => ({
+    username: entry.username,
+    username_key: entry.username_key,
+    save_slot: entry.save_slot,
+    save_id: entry.save_id,
+    before_revision: entry.before_revision,
+    after_revision: afterRevisionByUsername.get(entry.username_key) || entry.before_revision,
+    receipt_id: entry.receipt_id,
+    receipt_status: entry.receipt_status,
+    manifest_id: entry.manifest_id,
+    origin_asset_id: entry.origin_asset_id,
+    decoration_id: entry.decoration_id,
+    decoration_label: entry.decoration_label,
+    returned_quantity: entry.returned_quantity,
+    before_owned_quantity: entry.before_owned_quantity,
+    after_owned_quantity: entry.after_owned_quantity,
+    source_ledger_id: entry.source_ledger_id,
+    personal_decoration_owned_changed: entry.receipt_status === 'written',
+    personal_home_layout_changed: false,
+    personal_money_changed: false,
+    idempotency_key: entry.idempotency_key,
+    written_at: entry.written_at,
+  }));
+}
+
 function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, payload = {}) {
   const storyResolution = ledger.family_story_resolution || {};
   const acceptedMembers = (contract.members || [])
@@ -12020,8 +14079,27 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           origin_owner_id: sanitizeText(item.origin_owner_id, 80),
           origin_owner_username: normalizeUsername(item.origin_owner_username),
           origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
+          amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
+          capital_contribution_amount: Math.max(0, Math.floor(Number(item.capital_contribution_amount ?? item.amount) || 0)),
+          operating_contribution_amount: Math.max(0, Math.floor(Number(item.operating_contribution_amount) || 0)),
+          split_basis_amount: Math.max(0, Math.floor(Number(item.split_basis_amount ?? item.amount) || 0)),
+          contribution_share_basis_points: Math.max(0, Math.floor(Number(item.contribution_share_basis_points) || 0)),
+          capital_share_basis_points: Math.max(0, Math.floor(Number(item.capital_share_basis_points) || 0)),
+          operating_share_basis_points: Math.max(0, Math.floor(Number(item.operating_share_basis_points) || 0)),
+          ledger_ids: Array.isArray(item.ledger_ids) ? item.ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 80) : [],
+          capital_ledger_ids: Array.isArray(item.capital_ledger_ids) ? item.capital_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+          operating_ledger_ids: Array.isArray(item.operating_ledger_ids) ? item.operating_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+          warehouse_sale_ledger_ids: Array.isArray(item.warehouse_sale_ledger_ids) ? item.warehouse_sale_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+          operating_source_refs: Array.isArray(item.operating_source_refs) ? item.operating_source_refs.map(ref => sanitizeText(ref, 120)).filter(Boolean).slice(0, 40) : [],
+          operating_contribution_sources: Array.isArray(item.operating_contribution_sources) ? item.operating_contribution_sources.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 12) : [],
+          source_ledger_count: Math.max(0, Math.floor(Number(item.source_ledger_count) || 0)),
+          capital_ledger_count: Math.max(0, Math.floor(Number(item.capital_ledger_count) || 0)),
+          operating_ledger_count: Math.max(0, Math.floor(Number(item.operating_ledger_count) || 0)),
+          fund_split_basis: sanitizeText(item.fund_split_basis, 80) || 'capital_and_traceable_operating_income',
+          requires_consumption_delta_confirmation: item.requires_consumption_delta_confirmation === true,
           suggested_refund_amount: Math.max(0, Math.floor(Number(item.suggested_refund_amount) || 0)),
           return_status: sanitizeText(item.return_status, 80) || 'manual_personal_money_write_required',
+          refund_idempotency_key: sanitizeText(item.refund_idempotency_key, 120),
         })).filter(item => item.origin_owner_username && item.suggested_refund_amount > 0).slice(0, 80)
       : [],
     decoration_split_manifest_hash: sanitizeText(entry.decoration_split_manifest_hash, 100),
@@ -12033,7 +14111,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
           decoration_count: Math.max(0, Math.floor(Number(item.decoration_count) || 0)),
           decoration_ids: Array.isArray(item.decoration_ids) ? item.decoration_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
-          return_status: sanitizeText(item.return_status, 80) || 'recorded_waiting_personal_home_receipt',
+          return_status: sanitizeText(item.return_status, 80) || 'preview_waiting_personal_decoration_write',
         })).filter(item => item.origin_owner_username && item.decoration_count > 0).slice(0, 80)
       : [],
     building_splits_by_origin_owner: Array.isArray(entry.building_splits_by_origin_owner)
@@ -12055,8 +14133,37 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           receipt_id: sanitizeText(item.receipt_id, 120),
           receipt_type: sanitizeText(item.receipt_type, 80),
           count: Math.max(0, Math.floor(Number(item.count) || 0)),
+          returned_count: Math.max(0, Math.floor(Number(item.returned_count) || 0)),
           manifest_hash: sanitizeText(item.manifest_hash, 100),
           status: sanitizeText(item.status, 80) || 'recorded_only',
+          personal_save_changed: item.personal_save_changed === true,
+          personal_home_mutated: item.personal_home_mutated === true,
+          personal_decoration_owned_mutated: item.personal_decoration_owned_mutated === true,
+          personal_save_receipts: Array.isArray(item.personal_save_receipts)
+            ? item.personal_save_receipts.map(receipt => ({
+                username: normalizeUsername(receipt?.username),
+                username_key: normalizeUsernameKey(receipt?.username_key || receipt?.username),
+                save_slot: normalizeSaveSlot(receipt?.save_slot),
+                save_id: normalizeSaveId(receipt?.save_id),
+                before_revision: Math.max(0, Math.floor(Number(receipt?.before_revision) || 0)),
+                after_revision: Math.max(0, Math.floor(Number(receipt?.after_revision) || 0)),
+                receipt_id: sanitizeText(receipt?.receipt_id, 140),
+                receipt_status: sanitizeText(receipt?.receipt_status, 40) || 'written',
+                manifest_id: sanitizeText(receipt?.manifest_id, 160),
+                origin_asset_id: sanitizeText(receipt?.origin_asset_id, 120),
+                decoration_id: sanitizeText(receipt?.decoration_id, 100),
+                decoration_label: sanitizeText(receipt?.decoration_label, 80),
+                returned_quantity: Math.max(0, Math.floor(Number(receipt?.returned_quantity) || 0)),
+                before_owned_quantity: Math.max(0, Math.floor(Number(receipt?.before_owned_quantity) || 0)),
+                after_owned_quantity: Math.max(0, Math.floor(Number(receipt?.after_owned_quantity) || 0)),
+                source_ledger_id: sanitizeText(receipt?.source_ledger_id, 100),
+                personal_decoration_owned_changed: receipt?.personal_decoration_owned_changed === true,
+                personal_home_layout_changed: receipt?.personal_home_layout_changed === true,
+                personal_money_changed: receipt?.personal_money_changed === true,
+                idempotency_key: sanitizeText(receipt?.idempotency_key, 120),
+                written_at: Math.max(0, Math.floor(Number(receipt?.written_at) || 0)),
+              })).filter(receipt => receipt.username && receipt.receipt_id && receipt.decoration_id).slice(0, 80)
+            : [],
           idempotency_key: sanitizeText(item.idempotency_key, 120),
           recorded_at: Math.max(0, Math.floor(Number(item.recorded_at) || 0)),
         })).filter(item => item.receipt_id).slice(0, 20)
@@ -12354,7 +14461,7 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, ware
     {
       id: 'fund_preview_balanced',
       passed: totalSuggestedFundRefund === fundBalance,
-      detail: '共同基金余额按注资比例生成建议返还额。',
+      detail: '共同基金余额按注资与可追溯经营收入权重生成建议返还额。',
     },    {
       id: 'warehouse_unidentified_split_confirmed',
       passed: (warehouseReturnPreview.unidentified_items || []).length === 0
@@ -12421,7 +14528,7 @@ function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, 
       target: 'shared_fund',
       action: 'refund_by_contribution_share',
       status: 'manual_execution_required',
-      detail: '共同基金余额按注资比例预览返还；若后续出现经营收入或消费差额，需要双方确认补偿。',
+      detail: '共同基金余额按注资与可追溯经营收入预览返还；消费差额和无法识别来源仍需双方确认补偿。',
     });
   }
   if (sharedDecorationRemovalDisputeFreeze?.summary?.freeze_required) {
@@ -12555,6 +14662,99 @@ async function getCohabitationFund(contractId, actor = {}) {
   };
 }
 
+async function freezeCohabitationFundAbnormality(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const freezeRequest = normalizeSharedFundFreezePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'record shared fund abnormal freeze');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (!canFreezeSharedFundAbnormality(member, actorPermissions)) {
+    throw createError('shared fund abnormal freeze requires contract owner or large fund permission', 403);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const existingFreezeEvent = contract.shared_fund.freeze_state.freeze_events.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === freezeRequest.idempotency_key
+  ) || null;
+  if (existingFreezeEvent) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      freeze_state: contract.shared_fund.freeze_state,
+      freeze_event: existingFreezeEvent,
+      idempotent: true,
+    };
+  }
+
+  const frozenAt = nowSeconds();
+  const balanceSnapshot = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  const ledgerCountSnapshot = contract.shared_fund.ledger.length;
+  const freezeEvent = normalizeSharedFundFreezeEvent({
+    id: makeId('shared_fund_freeze'),
+    frozen_at: frozenAt,
+    frozen_by_username: member.username,
+    frozen_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    reason: freezeRequest.reason || 'shared fund abnormality recorded',
+    error_code: freezeRequest.error_code,
+    suspected_operation: freezeRequest.suspected_operation,
+    source_ledger_id: freezeRequest.source_ledger_id,
+    source_idempotency_key: freezeRequest.source_idempotency_key,
+    idempotency_key: freezeRequest.idempotency_key,
+    balance_snapshot: balanceSnapshot,
+    ledger_count_snapshot: ledgerCountSnapshot,
+    record_only: true,
+    personal_money_merged: false,
+    shared_fund_changed: false,
+    required_operation: 'manual_fund_review',
+  });
+  contract.shared_fund.freeze_state = normalizeSharedFundFreezeState({
+    active: true,
+    status: 'frozen',
+    reason: freezeEvent.reason,
+    error_code: freezeEvent.error_code,
+    suspected_operation: freezeEvent.suspected_operation,
+    frozen_at: freezeEvent.frozen_at,
+    frozen_by_username: freezeEvent.frozen_by_username,
+    frozen_by_display_name: freezeEvent.frozen_by_display_name,
+    source_ledger_id: freezeEvent.source_ledger_id,
+    source_idempotency_key: freezeEvent.source_idempotency_key,
+    idempotency_key: freezeEvent.idempotency_key,
+    balance_snapshot: freezeEvent.balance_snapshot,
+    ledger_count_snapshot: freezeEvent.ledger_count_snapshot,
+    required_operation: freezeEvent.required_operation,
+    freeze_events: [freezeEvent, ...contract.shared_fund.freeze_state.freeze_events].slice(0, 20),
+  });
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  appendAudit(contract, 'fund_abnormal_frozen', actor, {
+    freeze_event_id: freezeEvent.id,
+    frozen_at: freezeEvent.frozen_at,
+    frozen_by_username: freezeEvent.frozen_by_username,
+    reason: freezeEvent.reason,
+    error_code: freezeEvent.error_code,
+    suspected_operation: freezeEvent.suspected_operation,
+    source_ledger_id: freezeEvent.source_ledger_id,
+    source_idempotency_key: freezeEvent.source_idempotency_key,
+    balance_snapshot: freezeEvent.balance_snapshot,
+    ledger_count_snapshot: freezeEvent.ledger_count_snapshot,
+    block_new_fund_writes: true,
+    required_operation: freezeEvent.required_operation,
+    record_only: true,
+    shared_fund_changed: false,
+    personal_money_merged: false,
+  }, freezeRequest.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    freeze_state: contract.shared_fund.freeze_state,
+    freeze_event: freezeEvent,
+    idempotent: false,
+  };
+}
+
 async function getCohabitationSharedAnimals(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -12577,6 +14777,7 @@ async function getCohabitationSharedAnimals(contractId, actor = {}) {
   return {
     contract: toPublicContract(contract),
     shared_animals: contract.shared_animals,
+    fund: buildSharedFundSnapshot(contract, actorUsername),
   };
 }
 
@@ -13464,40 +15665,16 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
   assertSharedFarmHarvestAllowed(contract, member, plot, actorPermissions);
   const plotState = plot.plot_state && typeof plot.plot_state === 'object' ? plot.plot_state : {};
   if (plotState.state !== 'harvestable') throw createError('shared farm plot is not harvestable', 409);
-  const outputItemId = normalizeWarehouseItemId(plotState.crop_id);
-  if (!outputItemId) throw createError('shared farm harvest requires a traceable crop_id', 409);
-  if (plotState.giant_crop_group !== null && plotState.giant_crop_group !== undefined) {
-    throw createError('shared farm giant crop harvest requires a dedicated grouped harvest flow', 409);
-  }
-
-  const qualityBonusValue = Math.max(0, Math.floor(Number(plotState.cooperation_quality_bonus) || 0));
-  const outputQualityBefore = 'normal';
-  const outputQuality = upgradeWarehouseQuality(outputQualityBefore, qualityBonusValue);
-  const simultaneousOnlineBonus = buildSharedFarmHarvestQualityBonusSnapshot(plotState, outputQualityBefore, outputQuality);
-
   const operatedAt = nowSeconds();
+  const settlement = buildSharedFarmHarvestSettlement(plotState, { operated_at: operatedAt });
+  const outputItemId = settlement.output_item_id;
+  if (!outputItemId) throw createError('shared farm harvest requires a traceable crop_id', 409);
+  const outputQuality = settlement.output_quality;
+  const simultaneousOnlineBonus = buildSharedFarmHarvestQualityBonusSnapshot(plotState, settlement.output_quality_before, outputQuality);
   const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
   const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
   const beforeState = { ...plotState };
-  const afterState = {
-    ...plotState,
-    state: 'tilled',
-    crop_id: null,
-    growth_days: 0,
-    watered: false,
-    unwatered_days: 0,
-    fertilizer: null,
-    harvest_count: 0,
-    giant_crop_group: null,
-    infested: false,
-    infested_days: 0,
-    weedy: false,
-    weedy_days: 0,
-    cooperation_health_bonus: 0,
-    cooperation_quality_bonus: 0,
-    last_cooperation_quality_bonus_consumed_at: qualityBonusValue > 0 ? operatedAt : Math.max(0, Math.floor(Number(plotState.last_cooperation_quality_bonus_consumed_at) || 0)),
-    last_cooperation_quality_bonus_consumed_value: qualityBonusValue,
-  };
+  const afterState = buildSharedFarmPostHarvestState(plotState, settlement);
   const nextPlot = {
     ...plot,
     plot_state: afterState,
@@ -13510,16 +15687,15 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
   const nextPlots = sharedMap.plots.map(entry => entry.id === plot.id ? nextPlot : entry);
   const nextStateCounts = countPlotStates(nextPlots);
   const warehouseSourceRef = `shared_farm:harvest:${plot.id}`;
-  const warehouseLedgerEntry = normalizeWarehouseLedgerEntry({
+  const warehouseLedgerEntries = settlement.outputs.map((output, outputIndex) => normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
     action: 'deposit',
-    item_id: outputItemId,
-    quantity: 1,
-    quality: outputQuality,
+    item_id: output.item_id,
+    quantity: output.quantity,
+    quality: output.quality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
     actor_manor_role: actorManorRole,
-    operation_id: request.operation_id,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: plot.origin_owner_id || `shared_map:${contract.id}`,
     source_owner_username: plot.origin_owner_username || member.username,
@@ -13533,7 +15709,7 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     source_inventory: 'shared_map.plots',
     source_slots: [{
       index: normalizePlotId(plot.source_plot_id, 0),
-      quantity: 1,
+      quantity: output.quantity,
     }],
     target_owner_id: `shared_warehouse:${contract.id}`,
     target_owner_username: 'shared_warehouse',
@@ -13542,14 +15718,15 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     target_inventory: 'shared_warehouse.items',
     target_ref: warehouseSourceRef,
     at: operatedAt,
-    idempotency_key: request.idempotency_key,
+    idempotency_key: settlement.outputs.length > 1 ? `${request.idempotency_key}:output:${outputIndex}` : request.idempotency_key,
+    operation_id: request.operation_id,
     simultaneous_online_bonus: simultaneousOnlineBonus,
     reversible: true,
     compensation_hint: '共同农田收获产出已进入共同仓库；如误收，需要按本 deposit ledger 和农田 ledger 走后续回滚或补偿。',
     status: 'committed',
-  });
+  })).filter(Boolean);
 
-  contract.shared_warehouse.ledger = [warehouseLedgerEntry, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse.ledger = [...warehouseLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   contract.shared_map = {
     ...sharedMap,
@@ -13584,11 +15761,12 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     actor_key: member.username_key,
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
-    crop_id: outputItemId,
+    crop_id: settlement.crop_id,
     output_item_id: outputItemId,
-    output_quantity: 1,
+    output_quantity: settlement.output_quantity,
     output_quality: outputQuality,
-    warehouse_ledger_ids: [warehouseLedgerEntry.id],
+    fertilizer_quality_bonus: settlement.fertilizer_quality_bonus,
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     shared_warehouse_changed: true,
     origin_owner_id: plot.origin_owner_id,
     origin_owner_username: plot.origin_owner_username,
@@ -13617,22 +15795,27 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     ? replacedPlotAssets
     : [plotAsset, ...replacedPlotAssets].slice(0, 400);
   contract.origin_assets.warehouse_items = [
-    buildWarehouseOriginAsset(warehouseLedgerEntry),
+    ...warehouseLedgerEntries.map(buildWarehouseOriginAsset),
     ...contract.origin_assets.warehouse_items,
   ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
   appendAudit(contract, 'shared_farm_harvested', actor, {
     ledger_id: ledgerEntry.id,
-    warehouse_ledger_ids: [warehouseLedgerEntry.id],
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     operation_id: request.operation_id,
     plot_id: plot.id,
     source_plot_id: plot.source_plot_id,
     origin_owner_id: plot.origin_owner_id,
     origin_owner_username: plot.origin_owner_username,
     actor_username: actorUsername,
-    crop_id: outputItemId,
+    crop_id: settlement.crop_id,
     output_item_id: outputItemId,
-    output_quantity: 1,
+    output_quantity: settlement.output_quantity,
     output_quality: outputQuality,
+    harvest_outputs: settlement.outputs,
+    fertilizer_quality_bonus: settlement.fertilizer_quality_bonus,
+    giant_bonus_quantity: settlement.giant_bonus_quantity,
+    regrow: settlement.regrow,
+    regrow_days: settlement.regrow_days,
     target_ref: warehouseSourceRef,
     simultaneous_online_bonus: simultaneousOnlineBonus,
     permission_mode: plot.permission_mode,
@@ -13648,17 +15831,22 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
     warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
     plot: nextPlot,
     ledger_entry: ledgerEntry,
-    warehouse_ledger_entries: [warehouseLedgerEntry],
+    warehouse_ledger_entries: warehouseLedgerEntries,
     idempotent: false,
     already_harvested: false,
     farm_action: {
       action: 'harvest',
       plot_id: plot.id,
-      crop_id: outputItemId,
+      crop_id: settlement.crop_id,
       output_item_id: outputItemId,
-      output_quantity: 1,
+      output_quantity: settlement.output_quantity,
       output_quality: outputQuality,
-      warehouse_ledger_ids: [warehouseLedgerEntry.id],
+      harvest_outputs: settlement.outputs,
+      warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+      fertilizer_quality_bonus: settlement.fertilizer_quality_bonus,
+      giant_bonus_quantity: settlement.giant_bonus_quantity,
+      regrow: settlement.regrow,
+      regrow_days: settlement.regrow_days,
       simultaneous_online_bonus: simultaneousOnlineBonus,
       before_plot_state: beforeState,
       after_plot_state: afterState,
@@ -13714,28 +15902,46 @@ async function settleCohabitationDailyBonus(contractId, payload = {}, actor = {}
       if (!['planted', 'growing'].includes(plotState.state)) return plot;
       const beforeState = { ...plotState };
       const cropDays = getSharedFarmCropGrowthDays(plotState.crop_id);
+      const fertilizerGrowthBonus = getSharedFarmFertilizerGrowthBonus(plotState.fertilizer);
+      const waterRetentionBonus = getSharedFarmFertilizerWaterRetentionBonus(plotState.fertilizer);
       let afterState = { ...plotState };
       let changed = false;
       let healthBonusConsumed = 0;
+      let retentionBonusConsumed = 0;
       let becameHarvestable = false;
       let grewToday = false;
       if (plotState.watered === true) {
-        const nextGrowthDays = Math.max(0, Math.floor(Number(plotState.growth_days) || 0)) + 1;
+        const growthIncrement = 1 + fertilizerGrowthBonus;
+        const nextGrowthDays = Math.max(0, Math.floor(Number(plotState.growth_days) || 0)) + growthIncrement;
         becameHarvestable = nextGrowthDays >= cropDays;
         grewToday = true;
         afterState = {
           ...afterState,
           state: becameHarvestable ? 'harvestable' : 'growing',
           growth_days: nextGrowthDays,
-          watered: false,
+          watered: waterRetentionBonus > 0 && !becameHarvestable,
           unwatered_days: 0,
+          last_fertilizer_growth_bonus_consumed_at: fertilizerGrowthBonus > 0 ? settledAt : Math.max(0, Math.floor(Number(plotState.last_fertilizer_growth_bonus_consumed_at) || 0)),
+          last_fertilizer_growth_bonus_consumed_value: fertilizerGrowthBonus,
+          last_fertilizer_water_retention_at: waterRetentionBonus > 0 ? settledAt : Math.max(0, Math.floor(Number(plotState.last_fertilizer_water_retention_at) || 0)),
+          last_fertilizer_water_retention_value: waterRetentionBonus,
         };
         changed = true;
-        farmGrowthCount += 1;
+        farmGrowthCount += growthIncrement;
         if (becameHarvestable) farmHarvestableCount += 1;
       } else {
         const healthBonus = Math.max(0, Math.floor(Number(plotState.cooperation_health_bonus) || 0));
-        if (healthBonus > 0) {
+        if (waterRetentionBonus > 0 && Math.max(0, Math.floor(Number(plotState.last_fertilizer_water_retention_at) || 0)) !== settledAt) {
+          retentionBonusConsumed = 1;
+          afterState = {
+            ...afterState,
+            unwatered_days: 0,
+            watered: true,
+            last_fertilizer_water_retention_at: settledAt,
+            last_fertilizer_water_retention_value: 1,
+          };
+          changed = true;
+        } else if (healthBonus > 0) {
           healthBonusConsumed = 1;
           afterState = {
             ...afterState,
@@ -13772,6 +15978,8 @@ async function settleCohabitationDailyBonus(contractId, payload = {}, actor = {}
         growth_days_after: Math.max(0, Math.floor(Number(afterState.growth_days) || 0)),
         watered_before: beforeState.watered === true,
         health_bonus_consumed: healthBonusConsumed,
+        fertilizer_growth_bonus: fertilizerGrowthBonus,
+        fertilizer_water_retention_consumed: retentionBonusConsumed,
         grew_today: grewToday,
         became_harvestable: becameHarvestable,
       });
@@ -14075,6 +16283,1020 @@ async function getCohabitationFamilyFestivalSeats(contractId, actor = {}) {
   };
 }
 
+async function createCohabitationFamilyOrder(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyOrderCreatePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '发布家族订单');
+  assertFamilyHeadWritable(contract, member, 'family order create');
+  const previousOrder = contract.family_orders_state.ledger.find(order => order.idempotency_key === request.idempotency_key);
+  if (previousOrder) {
+    return {
+      contract: toPublicContract(contract),
+      family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+      order: previousOrder,
+      idempotent: true,
+    };
+  }
+
+  const operatedAt = nowSeconds();
+  const role = getActorManorRoleSnapshot(contract, member);
+  const order = normalizeFamilyOrderLedgerEntry({
+    id: makeId('family_order'),
+    title: request.title,
+    order_type: request.order_type,
+    status: 'open',
+    stage_id: request.stage_id,
+    reward_route: request.reward_route,
+    reward_amount: request.reward_amount,
+    reward_item_id: request.reward_item_id,
+    reward_item_label: request.reward_item_label,
+    reward_quantity: request.reward_quantity,
+    reward_quality: request.reward_quality,
+    receipt_status: 'created',
+    created_by_username: actorUsername,
+    created_by_display_name: getActorDisplayName(actor, member, actorUsername),
+    created_at: operatedAt,
+    updated_at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    compensation_hint: '家族订单已创建，可按订单 id、幂等键和契约审计重放接单、交付与结算。',
+  });
+  contract.family_orders_state.ledger = [order, ...contract.family_orders_state.ledger].slice(0, FAMILY_ORDER_LEDGER_LIMIT);
+  contract.family_orders_state.latest_order_id = order.id;
+  contract.family_orders_state.latest_status = order.status;
+  appendAudit(contract, 'family_order_created', actor, {
+    order_id: order.id,
+    order_type: order.order_type,
+    stage_id: order.stage_id,
+    reward_route: order.reward_route,
+    reward_amount: order.reward_amount,
+    reward_item_id: order.reward_item_id,
+    reward_quantity: order.reward_quantity,
+    actor_manor_role: role.manorRole,
+    actor_manor_role_label: role.manorRoleLabel,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+  }, request.idempotency_key);
+  contract.family_orders_state = normalizeFamilyOrdersState(contract.family_orders_state);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+    order,
+    idempotent: false,
+  };
+}
+
+async function acceptCohabitationFamilyOrder(contractId, orderId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyOrderActionPayload(payload, 'family order accept');
+  const normalizedOrderId = sanitizeText(orderId || payload.order_id || payload.id, 100);
+  if (!normalizedOrderId) throw createError('family order accept requires order_id', 400);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '接取家族订单');
+  assertFamilyContractWritable(contract, member, 'family order accept');
+  const orderIndex = contract.family_orders_state.ledger.findIndex(order => order.id === normalizedOrderId);
+  if (orderIndex < 0) throw createError('家族订单不存在', 404);
+  const order = contract.family_orders_state.ledger[orderIndex];
+  if (order.accept_idempotency_key === request.idempotency_key) {
+    return {
+      contract: toPublicContract(contract),
+      family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+      order,
+      idempotent: true,
+    };
+  }
+  if (!['open', 'accepted'].includes(order.status)) throw createError('当前家族订单不能接取', 409);
+  if (order.status === 'accepted' && order.assignee_username_key && order.assignee_username_key !== member.username_key) {
+    throw createError('该家族订单已被其他成员接取', 409);
+  }
+
+  const operatedAt = nowSeconds();
+  const role = getActorManorRoleSnapshot(contract, member);
+  const nextOrder = normalizeFamilyOrderLedgerEntry({
+    ...order,
+    status: 'accepted',
+    stage_id: request.stage_id || order.stage_id,
+    accepted_stage_ids: [...new Set([...(order.accepted_stage_ids || []), request.stage_id || order.stage_id].filter(Boolean))],
+    assignee_username: member.username,
+    assignee_display_name: member.display_name || getActorDisplayName(actor, member, actorUsername),
+    assignee_manor_role: role.manorRole,
+    assignee_manor_role_label: role.manorRoleLabel,
+    accept_idempotency_key: request.idempotency_key,
+    updated_at: operatedAt,
+  });
+  contract.family_orders_state.ledger[orderIndex] = nextOrder;
+  contract.family_orders_state.latest_order_id = nextOrder.id;
+  contract.family_orders_state.latest_status = nextOrder.status;
+  appendAudit(contract, 'family_order_accepted', actor, {
+    order_id: nextOrder.id,
+    stage_id: nextOrder.stage_id,
+    assignee_username: member.username,
+    assignee_manor_role: role.manorRole,
+    note: request.note,
+  }, request.idempotency_key);
+  contract.family_orders_state = normalizeFamilyOrdersState(contract.family_orders_state);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+    order: nextOrder,
+    idempotent: false,
+  };
+}
+
+async function deliverCohabitationFamilyOrder(contractId, orderId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyOrderActionPayload(payload, 'family order deliver');
+  const normalizedOrderId = sanitizeText(orderId || payload.order_id || payload.id, 100);
+  if (!normalizedOrderId) throw createError('family order deliver requires order_id', 400);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '交付家族订单');
+  assertFamilyContractWritable(contract, member, 'family order deliver');
+  const orderIndex = contract.family_orders_state.ledger.findIndex(order => order.id === normalizedOrderId);
+  if (orderIndex < 0) throw createError('家族订单不存在', 404);
+  const order = contract.family_orders_state.ledger[orderIndex];
+  if (order.deliver_idempotency_key === request.idempotency_key) {
+    return {
+      contract: toPublicContract(contract),
+      family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+      order,
+      idempotent: true,
+    };
+  }
+  const isAssignee = order.assignee_username_key === member.username_key;
+  if (!isAssignee && !canManageFamilyRoles(member, contract)) throw createError('只有接单成员或家主可以交付家族订单', 403);
+  if (order.status !== 'accepted') throw createError('只有已接取的家族订单可以交付', 409);
+
+  const operatedAt = nowSeconds();
+  const nextOrder = normalizeFamilyOrderLedgerEntry({
+    ...order,
+    status: 'delivered',
+    delivery_status: 'confirmed',
+    delivery_note: request.note,
+    delivery_submitted_at: operatedAt,
+    delivery_submitted_by_username: member.username,
+    delivery_confirmed_at: operatedAt,
+    delivery_confirmed_by_username: member.username,
+    deliver_idempotency_key: request.idempotency_key,
+    updated_at: operatedAt,
+  });
+  contract.family_orders_state.ledger[orderIndex] = nextOrder;
+  contract.family_orders_state.latest_order_id = nextOrder.id;
+  contract.family_orders_state.latest_status = nextOrder.status;
+  appendAudit(contract, 'family_order_delivered', actor, {
+    order_id: nextOrder.id,
+    delivery_status: nextOrder.delivery_status,
+    delivery_note: nextOrder.delivery_note,
+    personal_inventory_merged: false,
+  }, request.idempotency_key);
+  contract.family_orders_state = normalizeFamilyOrdersState(contract.family_orders_state);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+    order: nextOrder,
+    idempotent: false,
+  };
+}
+
+async function settleCohabitationFamilyOrder(contractId, orderId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyOrderActionPayload(payload, 'family order settle');
+  const normalizedOrderId = sanitizeText(orderId || payload.order_id || payload.id, 100);
+  if (!normalizedOrderId) throw createError('family order settle requires order_id', 400);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '结算家族订单');
+  assertFamilyHeadWritable(contract, member, 'family order settle');
+  const orderIndex = contract.family_orders_state.ledger.findIndex(order => order.id === normalizedOrderId);
+  if (orderIndex < 0) throw createError('家族订单不存在', 404);
+  const order = contract.family_orders_state.ledger[orderIndex];
+  if (order.settle_idempotency_key === request.idempotency_key || order.reward_settled === true) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+      family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+      order,
+      idempotent: true,
+    };
+  }
+  if (order.status !== 'delivered') throw createError('只有已交付的家族订单可以结算', 409);
+
+  const operatedAt = nowSeconds();
+  let fundLedgerEntry = null;
+  let warehouseLedgerEntry = null;
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  if (order.reward_route === 'shared_fund') {
+    assertSharedFundNotFrozen(contract, 'settle family order reward');
+    const amount = Math.max(1, Math.floor(Number(order.reward_amount) || 0));
+    const balanceAfter = contract.shared_fund.balance + amount;
+    fundLedgerEntry = normalizeFundLedgerEntry({
+      id: makeId('shared_fund_ledger'),
+      action: 'family_order_reward',
+      actor_username: actorUsername,
+      actor_display_name: getActorDisplayName(actor, member, actorUsername),
+      amount,
+      at: operatedAt,
+      memo: request.note || order.title,
+      purpose: 'family_order_reward',
+      source_owner_id: `family_order:${order.id}`,
+      source_owner_username: order.assignee_username || order.created_by_username,
+      source_owner_display_name: order.assignee_display_name || order.created_by_display_name,
+      source_owner_key: order.assignee_username_key || normalizeUsernameKey(order.assignee_username || order.created_by_username),
+      target_ref: `family_order:${order.id}:reward`,
+      spend_category: 'family_order_reward',
+      spend_purpose_label: '家族订单奖励',
+      balance_after: balanceAfter,
+      idempotency_key: request.idempotency_key,
+      reversible: true,
+      compensation_hint: '家族订单奖励已写入共同基金，可按订单 id 和幂等键重放或人工冲正。',
+      status: 'committed',
+    });
+    contract.shared_fund.balance = balanceAfter;
+    contract.shared_fund.ledger = [fundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+    contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  } else {
+    assertWarehouseOrdinaryItemAllowed(order.reward_item_id, 'deposit');
+    warehouseLedgerEntry = normalizeWarehouseLedgerEntry({
+      id: makeId('shared_warehouse_ledger'),
+      action: 'deposit',
+      item_id: order.reward_item_id,
+      quantity: Math.max(1, Math.floor(Number(order.reward_quantity) || 0)),
+      quality: order.reward_quality || 'normal',
+      actor_username: actorUsername,
+      actor_display_name: getActorDisplayName(actor, member, actorUsername),
+      actor_manor_role: member.manor_role,
+      actor_manor_role_label: getFamilyManorRoleDef(member.manor_role).label,
+      source_owner_id: `family_order:${order.id}`,
+      source_owner_username: order.assignee_username || order.created_by_username,
+      source_owner_display_name: order.assignee_display_name || order.created_by_display_name,
+      source_owner_key: order.assignee_username_key || normalizeUsernameKey(order.assignee_username || order.created_by_username),
+      source_inventory: 'family_order.reward',
+      target_owner_id: `shared_warehouse:${contract.id}`,
+      target_owner_username: 'shared_warehouse',
+      target_owner_display_name: 'shared warehouse',
+      target_owner_key: 'shared_warehouse',
+      target_inventory: 'shared_warehouse.items',
+      target_ref: `family_order:${order.id}:reward`,
+      at: operatedAt,
+      idempotency_key: request.idempotency_key,
+      reversible: true,
+      compensation_hint: '家族订单物资奖励已写入共同仓库，可按订单 id、仓库 ledger 和幂等键重放或人工冲正。',
+      status: 'committed',
+    });
+    contract.shared_warehouse.ledger = [warehouseLedgerEntry, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+    contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+    contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+    contract.origin_assets.warehouse_items = [
+      buildWarehouseOriginAsset(warehouseLedgerEntry),
+      ...contract.origin_assets.warehouse_items,
+    ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  }
+
+  const reputationResult = appendFamilyReputationLedger(contract, {
+    id: makeId('family_reputation'),
+    source_type: 'family_order',
+    source_ref: `family_order:${order.id}`,
+    source_ledger_id: fundLedgerEntry?.id || warehouseLedgerEntry?.id || '',
+    points: FAMILY_REPUTATION_SOURCE_POINTS.family_order,
+    actor_username: order.assignee_username || member.username,
+    actor_display_name: order.assignee_display_name || member.display_name || member.username,
+    idempotency_key: `family-order-reputation:${request.idempotency_key}`,
+  }, actor);
+  const nextOrder = normalizeFamilyOrderLedgerEntry({
+    ...order,
+    status: 'settled',
+    reward_settled: true,
+    shared_fund_ledger_id: fundLedgerEntry?.id || order.shared_fund_ledger_id,
+    shared_warehouse_ledger_ids: warehouseLedgerEntry ? [warehouseLedgerEntry.id] : order.shared_warehouse_ledger_ids,
+    reputation_ledger_id: reputationResult.entry.id,
+    receipt_id: `family_order_receipt:${order.id}`,
+    receipt_status: 'settled',
+    settle_idempotency_key: request.idempotency_key,
+    updated_at: operatedAt,
+  });
+  contract.family_orders_state.ledger[orderIndex] = nextOrder;
+  contract.family_orders_state.latest_order_id = nextOrder.id;
+  contract.family_orders_state.latest_status = nextOrder.status;
+  appendAudit(contract, 'family_order_settled', actor, {
+    order_id: nextOrder.id,
+    reward_route: nextOrder.reward_route,
+    fund_ledger_id: fundLedgerEntry?.id || '',
+    warehouse_ledger_ids: warehouseLedgerEntry ? [warehouseLedgerEntry.id] : [],
+    reputation_ledger_id: reputationResult.entry.id,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+  }, request.idempotency_key);
+  contract.family_orders_state = normalizeFamilyOrdersState(contract.family_orders_state);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+    family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+    order: nextOrder,
+    fund_ledger_entry: fundLedgerEntry,
+    warehouse_ledger_entry: warehouseLedgerEntry,
+    reputation_ledger_entry: reputationResult.entry,
+    idempotent: false,
+  };
+}
+
+async function awardCohabitationFamilyReputation(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyReputationAwardPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '发放家族声望');
+  assertFamilyHeadWritable(contract, member, 'family reputation award');
+  const targetMember = request.target_username ? getContractMember(contract, request.target_username) : member;
+  if (!targetMember || targetMember.status !== 'accepted') throw createError('声望目标成员不在该家族庄园中', 404);
+  const result = appendFamilyReputationLedger(contract, {
+    id: makeId('family_reputation'),
+    source_type: request.source_type,
+    source_ref: request.source_ref,
+    source_ledger_id: request.source_ledger_id,
+    points: request.points,
+    actor_username: targetMember.username,
+    actor_display_name: targetMember.display_name || targetMember.username,
+    idempotency_key: request.idempotency_key,
+  }, actor);
+  if (!result.idempotent) {
+    appendAudit(contract, 'family_reputation_awarded', actor, {
+      reputation_ledger_id: result.entry.id,
+      source_type: result.entry.source_type,
+      source_ref: result.entry.source_ref,
+      target_username: targetMember.username,
+      points: result.entry.points,
+      note: request.memo,
+    }, request.idempotency_key);
+    saveContractStore(store);
+  }
+  return {
+    contract: toPublicContract(contract),
+    family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+    reputation_ledger_entry: result.entry,
+    idempotent: result.idempotent,
+  };
+}
+
+async function claimCohabitationFamilyReputationReward(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyReputationRewardClaimPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '领取家族声望奖励');
+  assertFamilyContractWritable(contract, member, 'family reputation reward claim');
+  contract.family_reputation_state = normalizeFamilyReputationState(contract.family_reputation_state);
+  const previousReward = contract.family_reputation_state.rewards.find(reward => reward.idempotency_key === request.idempotency_key);
+  if (previousReward) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+      reward: previousReward,
+      idempotent: true,
+    };
+  }
+  if (contract.family_reputation_state.total_points < request.cost_points) throw createError('家族声望不足，暂时不能领取奖励', 409);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  assertSharedFundNotFrozen(contract, 'claim family reputation reward');
+  const operatedAt = nowSeconds();
+  const balanceAfter = contract.shared_fund.balance + request.amount;
+  const fundLedgerEntry = normalizeFundLedgerEntry({
+    id: makeId('shared_fund_ledger'),
+    action: 'family_reputation_reward',
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    amount: request.amount,
+    at: operatedAt,
+    memo: request.memo || request.reward_label,
+    purpose: 'family_reputation_reward',
+    source_owner_id: `family_reputation:${contract.id}`,
+    source_owner_username: member.username,
+    source_owner_display_name: member.display_name || member.username,
+    source_owner_key: member.username_key,
+    target_ref: `family_reputation_reward:${request.idempotency_key}`,
+    spend_category: 'family_reputation_reward',
+    spend_purpose_label: '家族声望奖励',
+    balance_after: balanceAfter,
+    idempotency_key: request.idempotency_key,
+    reversible: true,
+    compensation_hint: '家族声望奖励只进入共同基金；如奖励写入失败，可按幂等键重放或人工冲正。',
+    status: 'committed',
+  });
+  const reward = normalizeFamilyReputationRewardEntry({
+    id: makeId('family_reputation_reward'),
+    actor_username: member.username,
+    actor_display_name: member.display_name || member.username,
+    reward_type: request.reward_type,
+    reward_label: request.reward_label,
+    cost_points: request.cost_points,
+    fund_ledger_id: fundLedgerEntry.id,
+    amount: request.amount,
+    claimed_at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    status: 'claimed',
+  });
+  contract.shared_fund.balance = balanceAfter;
+  contract.shared_fund.ledger = [fundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.family_reputation_state.rewards = [reward, ...contract.family_reputation_state.rewards].slice(0, 80);
+  contract.family_reputation_state = normalizeFamilyReputationState(contract.family_reputation_state);
+  appendAudit(contract, 'family_reputation_reward_claimed', actor, {
+    reward_id: reward.id,
+    reward_type: reward.reward_type,
+    cost_points: reward.cost_points,
+    fund_ledger_id: fundLedgerEntry.id,
+    amount: fundLedgerEntry.amount,
+    personal_money_merged: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+    reward,
+    fund_ledger_entry: fundLedgerEntry,
+    idempotent: false,
+  };
+}
+
+async function updateCohabitationFamilyVisibility(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyVisibilityUpdatePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '更新家族公开设置');
+  assertFamilyHeadWritable(contract, member, 'family visibility update');
+  const currentState = normalizeFamilyVisibilityState(contract.family_visibility_state);
+  const previousAudit = currentState.audit.find(entry => entry.idempotency_key === request.idempotency_key && entry.action === 'visibility_updated');
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      family_visibility_panel: buildFamilyVisibilitySnapshot(contract, actorUsername),
+      audit_entry: previousAudit,
+      idempotent: true,
+    };
+  }
+  const acceptedKeys = (contract.members || []).filter(entry => entry.status === 'accepted').map(entry => entry.username_key);
+  const exposesBeyondContract = request.enabled_scope_ids.some(id => id !== 'contract_members');
+  if (exposesBeyondContract && acceptedKeys.some(key => request.member_consent[key] !== true)) {
+    throw createError('公开到契约外范围前需要所有已接受成员同意', 409);
+  }
+  const operatedAt = nowSeconds();
+  const auditEntry = normalizeFamilyVisibilityAuditEntry({
+    id: makeId('family_visibility_audit'),
+    action: 'visibility_updated',
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    scope_before: currentState.default_scope,
+    scope_after: request.default_scope,
+    enabled_scope_ids: request.enabled_scope_ids,
+    previous_enabled_scope_ids: currentState.enabled_scope_ids,
+    public_category_ids: request.public_category_ids,
+    previous_public_category_ids: currentState.public_category_ids,
+    member_consent: request.member_consent,
+    previous_member_consent: currentState.member_consent,
+    festival_room_binding_enabled: request.enabled_scope_ids.includes('festival_room'),
+    previous_festival_room_binding_enabled: currentState.festival_room_binding_enabled,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    rollback_available: true,
+  });
+  const relationEvent = normalizeFamilyRelationEventEntry({
+    id: makeId('family_relation_event'),
+    event_type: 'visibility_updated',
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    target_ref: `family_visibility:${contract.id}`,
+    summary: `家族公开范围更新为 ${request.default_scope}`,
+    visibility_scope: request.default_scope,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+  });
+  contract.family_visibility_state = normalizeFamilyVisibilityState({
+    default_scope: request.default_scope,
+    enabled_scope_ids: request.enabled_scope_ids,
+    public_category_ids: request.public_category_ids,
+    member_consent: request.member_consent,
+    festival_room_binding_enabled: request.enabled_scope_ids.includes('festival_room'),
+    audit: [auditEntry, ...currentState.audit],
+    relation_events: [relationEvent, ...currentState.relation_events],
+  });
+  appendAudit(contract, 'family_visibility_updated', actor, {
+    audit_id: auditEntry.id,
+    default_scope: request.default_scope,
+    enabled_scope_ids: request.enabled_scope_ids,
+    public_category_ids: request.public_category_ids,
+    note: request.memo,
+    personal_save_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    family_visibility_panel: buildFamilyVisibilitySnapshot(contract, actorUsername),
+    audit_entry: auditEntry,
+    relation_event: relationEvent,
+    idempotent: false,
+  };
+}
+
+async function rollbackCohabitationFamilyVisibility(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyVisibilityRollbackPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '回滚家族公开设置');
+  assertFamilyHeadWritable(contract, member, 'family visibility rollback');
+  const currentState = normalizeFamilyVisibilityState(contract.family_visibility_state);
+  const previousRollback = currentState.audit.find(entry => entry.idempotency_key === request.idempotency_key && entry.action === 'visibility_rolled_back');
+  if (previousRollback) {
+    return {
+      contract: toPublicContract(contract),
+      family_visibility_panel: buildFamilyVisibilitySnapshot(contract, actorUsername),
+      audit_entry: previousRollback,
+      idempotent: true,
+    };
+  }
+  const targetAudit = request.audit_id
+    ? currentState.audit.find(entry => entry.id === request.audit_id)
+    : currentState.audit.find(entry => entry.action === 'visibility_updated' && entry.rollback_available !== false);
+  if (!targetAudit) throw createError('找不到可回滚的家族公开设置审计', 404);
+  if (targetAudit.rollback_available === false) throw createError('该家族公开设置审计已经回滚过', 409);
+  const operatedAt = nowSeconds();
+  const restoredScopeIds = targetAudit.previous_enabled_scope_ids.length ? targetAudit.previous_enabled_scope_ids : ['contract_members'];
+  const restoredCategoryIds = targetAudit.previous_public_category_ids.length
+    ? targetAudit.previous_public_category_ids
+    : ['contract_members', 'family_roles', 'shared_capabilities'];
+  const rollbackAudit = normalizeFamilyVisibilityAuditEntry({
+    id: makeId('family_visibility_audit'),
+    action: 'visibility_rolled_back',
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    scope_before: currentState.default_scope,
+    scope_after: targetAudit.scope_before || 'contract_members',
+    enabled_scope_ids: restoredScopeIds,
+    previous_enabled_scope_ids: currentState.enabled_scope_ids,
+    public_category_ids: restoredCategoryIds,
+    previous_public_category_ids: currentState.public_category_ids,
+    member_consent: targetAudit.previous_member_consent,
+    previous_member_consent: currentState.member_consent,
+    festival_room_binding_enabled: targetAudit.previous_festival_room_binding_enabled,
+    previous_festival_room_binding_enabled: currentState.festival_room_binding_enabled,
+    rollback_of_audit_id: targetAudit.id,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    rollback_available: false,
+  });
+  const relationEvent = normalizeFamilyRelationEventEntry({
+    id: makeId('family_relation_event'),
+    event_type: 'visibility_rolled_back',
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    target_ref: `family_visibility:${contract.id}:${targetAudit.id}`,
+    summary: '家族公开设置已回滚到上一版',
+    visibility_scope: rollbackAudit.scope_after,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+  });
+  const nextAudit = currentState.audit.map(entry => entry.id === targetAudit.id ? { ...entry, rollback_available: false } : entry);
+  contract.family_visibility_state = normalizeFamilyVisibilityState({
+    default_scope: rollbackAudit.scope_after,
+    enabled_scope_ids: restoredScopeIds,
+    public_category_ids: restoredCategoryIds,
+    member_consent: targetAudit.previous_member_consent,
+    festival_room_binding_enabled: targetAudit.previous_festival_room_binding_enabled,
+    audit: [rollbackAudit, ...nextAudit],
+    relation_events: [relationEvent, ...currentState.relation_events],
+  });
+  appendAudit(contract, 'family_visibility_rolled_back', actor, {
+    rollback_audit_id: rollbackAudit.id,
+    rollback_of_audit_id: targetAudit.id,
+    restored_scope: rollbackAudit.scope_after,
+    note: request.memo,
+    personal_save_changed: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    family_visibility_panel: buildFamilyVisibilitySnapshot(contract, actorUsername),
+    audit_entry: rollbackAudit,
+    relation_event: relationEvent,
+    idempotent: false,
+  };
+}
+
+async function reserveCohabitationFamilyFestivalSeats(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyFestivalReservePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '锁定家族节会席位');
+  assertFamilyContractWritable(contract, member, 'family festival seat reserve');
+  const template = FAMILY_FESTIVAL_SEAT_TEMPLATE_DEFS.find(entry => entry.id === request.template_id);
+  if (!template || template.family_compatible === false || template.member_limit < 4) throw createError('该节会模板不支持家族多人席位', 403);
+  const state = contract.family_festival_seats_state;
+  const previous = state.ledger.find(entry => entry.idempotency_key === request.idempotency_key && entry.action === 'seat_reserved');
+  if (previous) {
+    return {
+      contract: toPublicContract(contract),
+      family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+      ledger_entry: previous,
+      idempotent: true,
+    };
+  }
+  const acceptedMembers = (contract.members || []).filter(entry => entry.status === 'accepted');
+  const requestedKeys = request.seat_usernames.length > 0
+    ? new Set(request.seat_usernames.map(normalizeUsernameKey))
+    : new Set(acceptedMembers.map(entry => entry.username_key));
+  const seatMembers = acceptedMembers.filter(entry => requestedKeys.has(entry.username_key)).slice(0, template.member_limit);
+  if (seatMembers.length <= 0) throw createError('没有可锁定的家族成员席位', 400);
+  const operatedAt = nowSeconds();
+  for (const [index, entry] of seatMembers.entries()) {
+    state.reservations[entry.username_key] = {
+      username: entry.username,
+      username_key: entry.username_key,
+      seat_id: `family_seat_${index + 1}`,
+      template_id: template.id,
+      room_id: state.active_room_id || '',
+      state: state.active_room_id ? 'room_bound' : 'reserved',
+      reserved_at: operatedAt,
+      idempotency_key: request.idempotency_key,
+    };
+  }
+  const ledgerEntry = normalizeFamilyFestivalSeatLedgerEntry({
+    id: makeId('family_festival'),
+    action: 'seat_reserved',
+    template_id: template.id,
+    template_label: template.label,
+    room_id: state.active_room_id,
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    actor_manor_role: member.manor_role,
+    actor_manor_role_label: getFamilyManorRoleDef(member.manor_role).label,
+    seat_count: seatMembers.length,
+    seat_usernames: seatMembers.map(entry => entry.username),
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    status: 'committed',
+  });
+  state.ledger = [ledgerEntry, ...state.ledger].slice(0, FAMILY_FESTIVAL_LEDGER_LIMIT);
+  state.active_template_id = template.id;
+  contract.family_festival_seats_state = normalizeFamilyFestivalSeatsState(state);
+  appendAudit(contract, 'family_festival_seats_reserved', actor, {
+    festival_ledger_id: ledgerEntry.id,
+    template_id: template.id,
+    seat_count: seatMembers.length,
+    seat_usernames: seatMembers.map(entry => entry.username),
+    note: request.memo,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntry,
+    idempotent: false,
+  };
+}
+
+async function createCohabitationFamilyFestivalRoom(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyFestivalRoomPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '创建家族节会房间');
+  assertFamilyHeadWritable(contract, member, 'family festival room create');
+  const template = FAMILY_FESTIVAL_SEAT_TEMPLATE_DEFS.find(entry => entry.id === request.template_id);
+  if (!template || template.family_compatible === false || template.member_limit < 4) throw createError('该节会模板不支持家族多人房间', 403);
+  const state = contract.family_festival_seats_state;
+  const previous = state.ledger.find(entry => entry.idempotency_key === request.idempotency_key && entry.action === 'room_created');
+  if (previous) {
+    return {
+      contract: toPublicContract(contract),
+      family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+      ledger_entry: previous,
+      room_id: previous.room_id,
+      idempotent: true,
+    };
+  }
+  const acceptedMembers = (contract.members || []).filter(entry => entry.status === 'accepted');
+  let room = null;
+  let roomError = '';
+  try {
+    const roomResult = await taoyuanActivityRoomRuntime.createFestivalRoom({
+      template_id: template.id,
+      title: request.title || `${contract.title || contract.type_label || '家族'} · ${template.label}`,
+      member_limit: Math.max(acceptedMembers.length, 2),
+    }, actor);
+    room = roomResult?.room || null;
+  } catch (error) {
+    roomError = sanitizeText(error?.message, 180);
+  }
+  const operatedAt = nowSeconds();
+  const roomId = sanitizeText(room?.id, 100) || sanitizeText(`family_festival_room:${contract.id}:${template.id}:${request.idempotency_key}`, 100);
+  const roomTitle = sanitizeText(room?.title || request.title || template.label, 100);
+  for (const [index, entry] of acceptedMembers.slice(0, template.member_limit).entries()) {
+    const current = state.reservations[entry.username_key] || {};
+    state.reservations[entry.username_key] = {
+      username: entry.username,
+      username_key: entry.username_key,
+      seat_id: current.seat_id || `family_seat_${index + 1}`,
+      template_id: template.id,
+      room_id: roomId,
+      state: 'room_bound',
+      reserved_at: current.reserved_at || operatedAt,
+      idempotency_key: current.idempotency_key || request.idempotency_key,
+    };
+  }
+  const ledgerEntry = normalizeFamilyFestivalSeatLedgerEntry({
+    id: makeId('family_festival'),
+    action: 'room_created',
+    template_id: template.id,
+    template_label: template.label,
+    room_id: roomId,
+    room_title: roomTitle,
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    actor_manor_role: member.manor_role,
+    actor_manor_role_label: getFamilyManorRoleDef(member.manor_role).label,
+    seat_count: acceptedMembers.length,
+    seat_usernames: acceptedMembers.map(entry => entry.username),
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    status: 'committed',
+    compensation_hint: roomError ? `节会房间运行时未创建，已写入契约本地房间绑定：${roomError}` : '',
+  });
+  state.ledger = [ledgerEntry, ...state.ledger].slice(0, FAMILY_FESTIVAL_LEDGER_LIMIT);
+  state.active_template_id = template.id;
+  state.active_room_id = roomId;
+  contract.family_festival_seats_state = normalizeFamilyFestivalSeatsState(state);
+  appendAudit(contract, 'family_festival_room_created', actor, {
+    festival_ledger_id: ledgerEntry.id,
+    room_id: roomId,
+    room_title: roomTitle,
+    template_id: template.id,
+    activity_room_created: Boolean(room),
+    room_error: roomError,
+    note: request.memo,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntry,
+    room,
+    room_id: roomId,
+    idempotent: false,
+  };
+}
+
+async function consumeCohabitationFamilyFestivalSupplies(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyFestivalSuppliesPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '消耗家族节会供品');
+  assertFamilyContractWritable(contract, member, 'family festival supplies consume');
+  const state = contract.family_festival_seats_state;
+  const templateId = request.template_id || state.active_template_id || 'lantern_fair';
+  const template = FAMILY_FESTIVAL_SEAT_TEMPLATE_DEFS.find(entry => entry.id === templateId);
+  if (!template) throw createError('家族节会模板不存在', 404);
+  const previous = state.ledger.find(entry => entry.idempotency_key === request.idempotency_key && entry.action === 'supplies_consumed');
+  if (previous) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+      ledger_entry: previous,
+      idempotent: true,
+    };
+  }
+  const costs = FAMILY_FESTIVAL_SUPPLY_COSTS[template.id] || FAMILY_FESTIVAL_SUPPLY_COSTS.lantern_fair || [];
+  if (costs.length <= 0) throw createError('该家族节会模板没有供品消耗配置', 409);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const operatedAt = nowSeconds();
+  const warehouseLedgerEntries = [];
+  for (const cost of costs) {
+    const itemId = normalizeWarehouseItemId(cost.item_id);
+    assertWarehouseOrdinaryItemAllowed(itemId, 'withdraw');
+    const allocationResult = buildWarehouseWithdrawalAllocations(contract.shared_warehouse, itemId, cost.quantity, 'normal', {
+      preferred_owner_key: member.username_key,
+      freeze_contract: contract,
+    });
+    if (!allocationResult.ok) throw createError(`共同仓库 ${cost.label || itemId} 不足，无法消耗家族节会供品`, 409);
+    for (const allocation of allocationResult.allocations) {
+      const ledgerEntry = normalizeWarehouseLedgerEntry({
+        id: makeId('shared_warehouse_ledger'),
+        action: 'consume',
+        item_id: itemId,
+        quantity: allocation.quantity,
+        quality: 'normal',
+        actor_username: actorUsername,
+        actor_display_name: getActorDisplayName(actor, member, actorUsername),
+        actor_manor_role: member.manor_role,
+        actor_manor_role_label: getFamilyManorRoleDef(member.manor_role).label,
+        source_owner_id: allocation.source_owner_id,
+        source_owner_username: allocation.source_owner_username,
+        source_owner_display_name: allocation.source_owner_display_name,
+        source_owner_key: allocation.source_owner_key,
+        source_owner_manor_role: allocation.source_owner_manor_role,
+        source_owner_manor_role_label: allocation.source_owner_manor_role_label,
+        source_save_id: allocation.source_save_id,
+        source_save_slot: allocation.source_save_slot,
+        source_save_revision: allocation.source_save_revision,
+        source_inventory: allocation.source_inventory || 'shared_warehouse.items',
+        source_ledger_ids: allocation.source_ledger_ids,
+        target_owner_id: `family_festival:${contract.id}`,
+        target_owner_username: 'family_festival',
+        target_owner_display_name: template.label,
+        target_owner_key: 'family_festival',
+        target_inventory: 'family_festival.supplies',
+        target_ref: `family_festival:${contract.id}:${template.id}:supplies`,
+        at: operatedAt,
+        idempotency_key: request.idempotency_key,
+        reversible: true,
+        compensation_hint: '家族节会供品已从共同仓库消耗，可按供品 ledger、来源 ledger 与幂等键恢复或人工补偿。',
+        status: 'committed',
+      });
+      warehouseLedgerEntries.push(ledgerEntry);
+    }
+  }
+  contract.shared_warehouse.ledger = [...warehouseLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.warehouse_items = [
+    ...warehouseLedgerEntries.map(buildWarehouseOriginAsset),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  const ledgerEntry = normalizeFamilyFestivalSeatLedgerEntry({
+    id: makeId('family_festival'),
+    action: 'supplies_consumed',
+    template_id: template.id,
+    template_label: template.label,
+    room_id: state.active_room_id,
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    actor_manor_role: member.manor_role,
+    actor_manor_role_label: getFamilyManorRoleDef(member.manor_role).label,
+    seat_count: Object.keys(state.reservations || {}).length,
+    seat_usernames: Object.values(state.reservations || {}).map(entry => entry.username).filter(Boolean),
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    status: 'committed',
+  });
+  state.ledger = [ledgerEntry, ...state.ledger].slice(0, FAMILY_FESTIVAL_LEDGER_LIMIT);
+  state.active_template_id = template.id;
+  contract.family_festival_seats_state = normalizeFamilyFestivalSeatsState(state);
+  appendAudit(contract, 'family_festival_supplies_consumed', actor, {
+    festival_ledger_id: ledgerEntry.id,
+    template_id: template.id,
+    warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
+    supply_costs: costs,
+    note: request.memo,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntry,
+    warehouse_ledger_entries: warehouseLedgerEntries,
+    idempotent: false,
+  };
+}
+
+async function settleCohabitationFamilyFestivalRewards(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyFestivalSettlePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '结算家族节会奖励');
+  assertFamilyHeadWritable(contract, member, 'family festival reward settle');
+  const state = contract.family_festival_seats_state;
+  const templateId = request.template_id || state.active_template_id || 'lantern_fair';
+  const template = FAMILY_FESTIVAL_SEAT_TEMPLATE_DEFS.find(entry => entry.id === templateId);
+  if (!template) throw createError('家族节会模板不存在', 404);
+  const previous = state.ledger.find(entry => entry.idempotency_key === request.idempotency_key && entry.action === 'rewards_settled');
+  if (previous) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+      family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+      ledger_entry: previous,
+      idempotent: true,
+    };
+  }
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  assertSharedFundNotFrozen(contract, 'settle family festival reward');
+  const operatedAt = nowSeconds();
+  const balanceAfter = contract.shared_fund.balance + request.amount;
+  const fundLedgerEntry = normalizeFundLedgerEntry({
+    id: makeId('shared_fund_ledger'),
+    action: 'family_festival_reward',
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    amount: request.amount,
+    at: operatedAt,
+    memo: request.memo || template.label,
+    purpose: 'family_festival_reward',
+    source_owner_id: `family_festival:${contract.id}`,
+    source_owner_username: member.username,
+    source_owner_display_name: member.display_name || member.username,
+    source_owner_key: member.username_key,
+    target_ref: `family_festival:${contract.id}:${template.id}:reward`,
+    spend_category: 'family_festival_reward',
+    spend_purpose_label: '家族节会奖励',
+    balance_after: balanceAfter,
+    idempotency_key: request.idempotency_key,
+    reversible: true,
+    compensation_hint: '家族节会奖励只进入共同基金；如奖励写入失败，可按幂等键重放或人工冲正。',
+    status: 'committed',
+  });
+  contract.shared_fund.balance = balanceAfter;
+  contract.shared_fund.ledger = [fundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const reputationResult = appendFamilyReputationLedger(contract, {
+    id: makeId('family_reputation'),
+    source_type: 'family_festival',
+    source_ref: `family_festival:${contract.id}:${template.id}`,
+    source_ledger_id: fundLedgerEntry.id,
+    points: request.points,
+    actor_username: member.username,
+    actor_display_name: member.display_name || member.username,
+    idempotency_key: `family-festival-reputation:${request.idempotency_key}`,
+  }, actor);
+  for (const entry of Object.values(state.reservations || {})) {
+    entry.state = 'settled';
+    entry.settled_at = operatedAt;
+  }
+  const ledgerEntry = normalizeFamilyFestivalSeatLedgerEntry({
+    id: makeId('family_festival'),
+    action: 'rewards_settled',
+    template_id: template.id,
+    template_label: template.label,
+    room_id: state.active_room_id,
+    actor_username: actorUsername,
+    actor_display_name: getActorDisplayName(actor, member, actorUsername),
+    actor_manor_role: member.manor_role,
+    actor_manor_role_label: getFamilyManorRoleDef(member.manor_role).label,
+    seat_count: Object.keys(state.reservations || {}).length,
+    seat_usernames: Object.values(state.reservations || {}).map(entry => entry.username).filter(Boolean),
+    fund_ledger_id: fundLedgerEntry.id,
+    reputation_ledger_id: reputationResult.entry.id,
+    reward_receipt_id: `family_festival_receipt:${contract.id}:${template.id}:${operatedAt}`,
+    at: operatedAt,
+    idempotency_key: request.idempotency_key,
+    status: 'committed',
+  });
+  state.ledger = [ledgerEntry, ...state.ledger].slice(0, FAMILY_FESTIVAL_LEDGER_LIMIT);
+  state.active_template_id = template.id;
+  state.last_settlement_id = ledgerEntry.id;
+  contract.family_festival_seats_state = normalizeFamilyFestivalSeatsState(state);
+  appendAudit(contract, 'family_festival_rewards_settled', actor, {
+    festival_ledger_id: ledgerEntry.id,
+    template_id: template.id,
+    fund_ledger_id: fundLedgerEntry.id,
+    reputation_ledger_id: reputationResult.entry.id,
+    amount: request.amount,
+    points: request.points,
+    personal_money_merged: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+    family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntry,
+    fund_ledger_entry: fundLedgerEntry,
+    reputation_ledger_entry: reputationResult.entry,
+    idempotent: false,
+  };
+}
+
 async function getCohabitationOfflineStatus(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -14281,6 +17503,10 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
         : '',
       output_source_ledger_ids: Array.isArray(outputEntry.source_ledger_ids) ? outputEntry.source_ledger_ids : [],
       alchemy_result_kind: actionResult.alchemy_result_kind || result.recipe?.alchemy_result_kind || '',
+      alchemy_result_mode: actionResult.alchemy_result_mode || result.recipe?.alchemy_result_mode || 'fixed',
+      alchemy_auto_result: actionResult.alchemy_auto_result === true || result.recipe?.alchemy_auto_result === true,
+      alchemy_result_roll: Math.max(0, Math.floor(Number(actionResult.alchemy_result_roll || outputEntry.simultaneous_online_bonus?.alchemy_result_roll) || 0)),
+      alchemy_result_roll_mod: Math.max(0, Math.floor(Number(actionResult.alchemy_result_roll_mod || outputEntry.simultaneous_online_bonus?.alchemy_result_roll_mod) || 0)),
       success_rate_bonus_percent: Math.max(0, Math.floor(Number(actionResult.success_rate_bonus_percent || outputEntry.simultaneous_online_bonus?.success_rate_bonus_percent) || 0)),
       already_processed: result.already_processed === true,
       simultaneous_online_bonus: actionResult.simultaneous_online_bonus || outputEntry.simultaneous_online_bonus || null,
@@ -14504,7 +17730,9 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
 
   const farmRows = rows.filter(row => row.kind === 'farm_harvest');
   const animalRows = rows.filter(row => row.kind === 'animal_product');
-  const warehouseLedgerEntries = rows.map(row => row.warehouse_ledger_entry).filter(Boolean);
+  const warehouseLedgerEntries = rows.flatMap(row => Array.isArray(row.warehouse_ledger_entries)
+    ? row.warehouse_ledger_entries
+    : [row.warehouse_ledger_entry].filter(Boolean));
   const farmLedgerEntries = farmRows.map(row => row.farm_ledger_entry).filter(Boolean);
   const animalLedgerEntries = animalRows.map(row => row.animal_ledger_entry).filter(Boolean);
 
@@ -14634,73 +17862,6 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
     offline_auto_income_claim: claim,
   };
 }
-async function preflightCohabitationOfflineConflicts(contractId, payload = {}, actor = {}) {
-  const actorUsername = normalizeUsername(actor.username);
-  if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeOfflineConflictPreflightPayload(payload);
-  const store = loadContractStore();
-  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
-  assertActiveContractForActor(contract, actorUsername, '预检离线经营冲突');
-  const revisionSnapshot = buildOfflineQueueRevisionSnapshot(contract);
-  const revisionEvidence = buildOfflineQueueMergeRevisionEvidence({
-    client_queue_revision: request.client_queue_revision,
-  }, revisionSnapshot, revisionSnapshot);
-  const unsupportedActions = request.actions.filter(action => !OFFLINE_QUEUE_SUPPORTED_ACTIONS.includes(action));
-  const supportedRequestedActions = request.actions.filter(action => OFFLINE_QUEUE_SUPPORTED_ACTIONS.includes(action));
-  const preflight = {
-    idempotency_key: request.idempotency_key,
-    client_queue_revision: revisionEvidence.client_queue_revision,
-    server_queue_revision: revisionEvidence.server_queue_revision_before,
-    client_queue_stale: revisionEvidence.client_queue_stale,
-    revision_conflict_policy: 'server_authoritative_latest_state',
-    conflict_policy: revisionEvidence.client_queue_stale
-      ? 'server_authoritative_refresh_required'
-      : 'server_authoritative_current',
-    supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
-    requested_actions: request.actions,
-    supported_requested_actions: supportedRequestedActions,
-    unsupported_actions: unsupportedActions,
-    rejected_count: unsupportedActions.length,
-    personal_save_changed: false,
-    shared_warehouse_changed: false,
-    shared_fund_changed: false,
-    server_authoritative: true,
-    next_step: revisionEvidence.client_queue_stale
-      ? 'refresh_offline_status_then_merge_against_latest_server_state'
-      : 'client_queue_revision_matches_server_preflight_state',
-    server_revision_snapshot: revisionSnapshot,
-  };
-  const previousAudit = (contract.audit_log || []).find(entry =>
-    entry.action === 'offline_conflict_preflighted' && entry.idempotency_key === request.idempotency_key
-  );
-  if (previousAudit) {
-    return {
-      contract: toPublicContract(contract),
-      offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
-      offline_conflict_preflight: {
-        ...preflight,
-        ...(previousAudit.detail || {}),
-        idempotency_key: request.idempotency_key,
-        idempotent: true,
-        conflict_policy: 'server_authoritative_idempotent_replay',
-      },
-    };
-  }
-  appendAudit(contract, 'offline_conflict_preflighted', actor, {
-    ...preflight,
-    memo: request.memo,
-  }, request.idempotency_key);
-  saveContractStore(store);
-  return {
-    contract: toPublicContract(contract),
-    offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
-    offline_conflict_preflight: {
-      ...preflight,
-      idempotent: false,
-    },
-  };
-}
-
 async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -14717,41 +17878,62 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
     const previousRejected = Array.isArray(previousMergeAudit.detail?.rejected_operations)
       ? previousMergeAudit.detail.rejected_operations
       : [];
+    const acceptedCount = Math.max(0, Math.floor(Number(previousMergeAudit.detail?.operation_count) || 0));
+    const rejectedCount = Math.max(0, Math.floor(Number(previousMergeAudit.detail?.rejected_count) || previousRejected.length || 0));
+    const replayRevisionEvidence = buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, initialRevisionSnapshot);
+    const previousLedgerIds = Array.isArray(previousMergeAudit.detail?.result_ledger_ids) ? previousMergeAudit.detail.result_ledger_ids : [];
+    const offlineConflictResolution = buildOfflineConflictResolutionEvidence(request, [], previousRejected, replayRevisionEvidence, {
+      idempotent: true,
+      operation_count: acceptedCount + rejectedCount,
+      idempotent_count: acceptedCount,
+      rejected_count: rejectedCount,
+      ledger_ids: previousLedgerIds,
+      ledger_count: previousLedgerIds.length,
+    });
     return {
       contract: toPublicContract(contract),
       offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
+      offline_conflict_resolution: offlineConflictResolution,
       offline_queue_merge: {
         idempotency_key: request.idempotency_key,
-        accepted_count: Math.max(0, Math.floor(Number(previousMergeAudit.detail?.operation_count) || 0)),
-        rejected_count: Math.max(0, Math.floor(Number(previousMergeAudit.detail?.rejected_count) || previousRejected.length || 0)),
+        accepted_count: acceptedCount,
+        rejected_count: rejectedCount,
         conflict_policy: 'server_authoritative_idempotent_replay',
         supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
         idempotent: true,
         results: [],
         rejected: previousRejected,
-        ...buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, initialRevisionSnapshot),
+        offline_conflict_resolution: offlineConflictResolution,
+        ...replayRevisionEvidence,
       },
     };
   }
 
   const unsupportedOperations = request.operations.filter(operation => !OFFLINE_QUEUE_SUPPORTED_ACTIONS.includes(operation.action));
   if (unsupportedOperations.length) {
+    const revisionEvidence = buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, initialRevisionSnapshot);
+    const rejectedUnsupported = unsupportedOperations.map(operation => withOfflineQueueOperationRevisionEvidence({
+      index: operation.index,
+      operation_id: operation.operation_id,
+      action: operation.action,
+      status: 'rejected',
+      reason: 'unsupported_offline_queue_action',
+      idempotency_key: operation.idempotency_key,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: false,
+      server_authoritative: true,
+    }, operation, initialRevisionSnapshot));
+    const offlineConflictResolution = buildOfflineConflictResolutionEvidence(request, [], rejectedUnsupported, revisionEvidence);
     throw Object.assign(createError('offline queue merge contains unsupported operations', 422), {
+      offline_conflict_resolution: offlineConflictResolution,
       offline_queue_merge: {
         accepted_count: 0,
-        rejected_count: unsupportedOperations.length,
+        rejected_count: rejectedUnsupported.length,
         revision_conflict_policy: 'server_authoritative_latest_state',
-        ...buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, initialRevisionSnapshot),
-        rejected: unsupportedOperations.map(operation => withOfflineQueueOperationRevisionEvidence({
-          index: operation.index,
-          operation_id: operation.operation_id,
-          action: operation.action,
-          status: 'rejected',
-          reason: 'unsupported_offline_queue_action',
-          idempotency_key: operation.idempotency_key,
-          personal_save_changed: false,
-          server_authoritative: true,
-        }, operation, initialRevisionSnapshot)),
+        offline_conflict_resolution: offlineConflictResolution,
+        ...revisionEvidence,
+        rejected: rejectedUnsupported,
       },
     });
   }
@@ -14823,6 +18005,7 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
   const latestContract = latestStore.contracts.find(entry => entry.id === sanitizeText(contractId, 80)) || contract;
   const finalRevisionSnapshot = buildOfflineQueueRevisionSnapshot(latestContract);
   const revisionEvidence = buildOfflineQueueMergeRevisionEvidence(request, initialRevisionSnapshot, finalRevisionSnapshot);
+  const offlineConflictResolution = buildOfflineConflictResolutionEvidence(request, results, rejected, revisionEvidence);
   appendAudit(latestContract, 'offline_queue_merged', actor, {
     queue_id: request.idempotency_key,
     operation_count: results.length,
@@ -14838,19 +18021,22 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
     revision_conflict_policy: revisionEvidence.revision_conflict_policy,
     server_authoritative: true,
     personal_save_changed: false,
+    offline_conflict_resolution: offlineConflictResolution,
   }, request.idempotency_key);
   saveContractStore(latestStore);
   return {
     contract: toPublicContract(latestContract),
     offline_status: buildOfflineOperationSnapshot(latestContract, actorUsername),
+    offline_conflict_resolution: offlineConflictResolution,
     offline_queue_merge: {
       idempotency_key: request.idempotency_key,
       accepted_count: results.length,
       rejected_count: rejected.length,
-      conflict_policy: 'server_authoritative_idempotent_replay',
+      conflict_policy: 'server_authoritative_batch_resolution',
       supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
       results,
       rejected,
+      offline_conflict_resolution: offlineConflictResolution,
       ...revisionEvidence,
     },
   };
@@ -15121,7 +18307,6 @@ async function buyCohabitationSharedAnimal(contractId, payload = {}, actor = {})
   }
 
   assertSharedFundNotFrozen(contract, 'shared_animal_purchase');
-
   if (!contract.shared_animals.persisted) {
     contract.shared_animals = buildSharedAnimalsFromSnapshots(contract, contract.members.map(readMemberAnimalSnapshot), {
       persisted: true,
@@ -15285,7 +18470,6 @@ async function buyCohabitationSharedAnimal(contractId, payload = {}, actor = {})
 }
 
 const purchaseCohabitationSharedAnimal = buyCohabitationSharedAnimal;
-
 
 async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
@@ -15723,7 +18907,6 @@ async function sellCohabitationSharedAnimal(contractId, payload = {}, actor = {}
   }
 
   assertSharedFundNotFrozen(contract, 'shared_animal_sale');
-
   if (!contract.shared_animals.persisted) {
     contract.shared_animals = buildSharedAnimalsFromSnapshots(contract, contract.members.map(readMemberAnimalSnapshot), {
       persisted: true,
@@ -15904,7 +19087,6 @@ async function sellCohabitationSharedAnimal(contractId, payload = {}, actor = {}
     },
   };
 }
-
 
 async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
@@ -16285,6 +19467,7 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
   const member = assertActiveContractForActor(contract, actorUsername, 'process shared workshop recipe');
   const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
   assertSharedWorkshopProcessAllowed(contract, member, actorPermissions);
+  assertSharedWorkshopInputRiskAllowed(recipe, actorPermissions);
   const mediumBudgetLedger = findSharedFundBudgetLedger(contract, request.fund_ledger_id, 'processing_materials');
   assertSharedFundBudgetLedgerTarget(mediumBudgetLedger, `shared_workshop:${recipe.id}`);
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
@@ -16300,10 +19483,21 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       entry.idempotency_key === request.idempotency_key
       && (entry.target_ref === `shared_workshop:${recipe.id}` || entry.source_inventory === 'shared_warehouse.items')
     );
+    const previousAlchemyKind = previousOutputEntry.simultaneous_online_bonus?.alchemy_result_kind || recipe.alchemy_result_kind || '';
+    const previousAlchemyAuto = previousOutputEntry.simultaneous_online_bonus?.alchemy_auto_result === true;
+    const previousResponseRecipe = {
+      ...recipe,
+      output_item_id: previousOutputEntry.item_id,
+      output_quantity: previousOutputEntry.quantity,
+      output_quality: previousOutputEntry.quality,
+      alchemy_result_kind: previousAlchemyKind,
+      alchemy_result_mode: previousAlchemyAuto ? 'auto' : 'fixed',
+      alchemy_auto_result: previousAlchemyAuto,
+    };
     return {
       contract: toPublicContract(contract),
       warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
-      recipe,
+      recipe: previousResponseRecipe,
       ledger_entry: previousOutputEntry,
       warehouse_ledger_entries: previousWarehouseEntries,
       idempotent: true,
@@ -16318,7 +19512,13 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
         output_quantity: previousOutputEntry.quantity,
         output_quality: previousOutputEntry.quality,
         output_quality_before_bonus: previousOutputEntry.simultaneous_online_bonus?.output_quality_before || previousOutputEntry.quality,
-        alchemy_result_kind: recipe.alchemy_result_kind || '',
+        alchemy_result_kind: previousAlchemyKind,
+        alchemy_result_mode: previousAlchemyAuto ? 'auto' : 'fixed',
+        alchemy_auto_result: previousAlchemyAuto,
+        alchemy_result_roll: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_roll || 0,
+        alchemy_result_roll_mod: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_roll_mod || 0,
+        alchemy_result_weights: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_weights || null,
+        alchemy_result_seed_hash: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_seed_hash || '',
         success_rate_bonus_percent: previousOutputEntry.simultaneous_online_bonus?.success_rate_bonus_percent || 0,
         warehouse_ledger_ids: previousWarehouseEntries.map(entry => entry.id),
         simultaneous_online_bonus: previousOutputEntry.simultaneous_online_bonus,
@@ -16348,13 +19548,29 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
   const sourceLedgerEntries = sourceLedgerIds
     .map(id => contract.shared_warehouse.ledger.find(entry => entry.id === id))
     .filter(Boolean);
-  const simultaneousOnlineBonus = buildSharedWorkshopProcessCoopBonusSnapshot(contract, actorUsername, {
+  const baseSimultaneousOnlineBonus = buildSharedWorkshopProcessCoopBonusSnapshot(contract, actorUsername, {
     recipe_id: recipe.id,
     process_kind: recipe.process_kind || 'processing',
     alchemy_result_kind: recipe.alchemy_result_kind || '',
     source_entries: sourceLedgerEntries,
     output_quality_before: recipe.output_quality,
   });
+  const alchemyOutput = resolveSharedAlchemyOutput(recipe, request, baseSimultaneousOnlineBonus);
+  const simultaneousOnlineBonus = {
+    ...baseSimultaneousOnlineBonus,
+    alchemy_result_kind: alchemyOutput.kind || baseSimultaneousOnlineBonus.alchemy_result_kind || '',
+    alchemy_result_mode: alchemyOutput.mode,
+    alchemy_auto_result: alchemyOutput.auto === true,
+    alchemy_result_roll: alchemyOutput.roll,
+    alchemy_result_roll_mod: alchemyOutput.roll_mod,
+    alchemy_result_weights: alchemyOutput.weights,
+    alchemy_result_seed_hash: alchemyOutput.seed_hash,
+    policy: alchemyOutput.auto === true
+      ? 'auto result is deterministically rolled from recipe id and idempotency key; retries replay the same output.'
+      : baseSimultaneousOnlineBonus.policy,
+  };
+  const outputItemId = alchemyOutput.output_item_id || recipe.output_item_id;
+  const outputQuantity = alchemyOutput.output_quantity || recipe.output_quantity;
   const outputQuality = simultaneousOnlineBonus.output_quality_after || recipe.output_quality;
   const consumeLedgerEntries = allocationResults.flatMap(({ input, result }) =>
     result.allocations.map(allocation => normalizeWarehouseLedgerEntry({
@@ -16395,8 +19611,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
   const outputLedgerEntry = normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
     action: 'deposit',
-    item_id: recipe.output_item_id,
-    quantity: recipe.output_quantity,
+    item_id: outputItemId,
+    quantity: outputQuantity,
     quality: outputQuality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
@@ -16439,11 +19655,17 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     recipe_id: recipe.id,
     station: recipe.station,
     process_kind: recipe.process_kind || 'processing',
-    alchemy_result_kind: recipe.alchemy_result_kind || '',
+    alchemy_result_kind: alchemyOutput.kind || recipe.alchemy_result_kind || '',
+    alchemy_result_mode: alchemyOutput.mode,
+    alchemy_auto_result: alchemyOutput.auto === true,
+    alchemy_result_roll: alchemyOutput.roll,
+    alchemy_result_roll_mod: alchemyOutput.roll_mod,
+    alchemy_result_weights: alchemyOutput.weights,
+    alchemy_result_seed_hash: alchemyOutput.seed_hash,
     success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
     input_items: recipe.input_items,
-    output_item_id: recipe.output_item_id,
-    output_quantity: recipe.output_quantity,
+    output_item_id: outputItemId,
+    output_quantity: outputQuantity,
     output_quality: outputQuality,
     output_quality_before_bonus: recipe.output_quality,
     simultaneous_online_bonus: simultaneousOnlineBonus,
@@ -16457,10 +19679,20 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
   }, request.idempotency_key);
   saveContractStore(store);
 
+  const responseRecipe = {
+    ...recipe,
+    output_item_id: outputItemId,
+    output_quantity: outputQuantity,
+    output_quality: outputQuality,
+    alchemy_result_kind: alchemyOutput.kind || recipe.alchemy_result_kind || '',
+    alchemy_result_mode: alchemyOutput.mode,
+    alchemy_auto_result: alchemyOutput.auto === true,
+  };
+
   return {
     contract: toPublicContract(contract),
     warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
-    recipe,
+    recipe: responseRecipe,
     ledger_entry: outputLedgerEntry,
     warehouse_ledger_entries: warehouseLedgerEntries,
     idempotent: false,
@@ -16470,11 +19702,17 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       recipe_id: recipe.id,
       station: recipe.station,
       process_kind: recipe.process_kind || 'processing',
-      alchemy_result_kind: recipe.alchemy_result_kind || '',
+      alchemy_result_kind: alchemyOutput.kind || recipe.alchemy_result_kind || '',
+      alchemy_result_mode: alchemyOutput.mode,
+      alchemy_auto_result: alchemyOutput.auto === true,
+      alchemy_result_roll: alchemyOutput.roll,
+      alchemy_result_roll_mod: alchemyOutput.roll_mod,
+      alchemy_result_weights: alchemyOutput.weights,
+      alchemy_result_seed_hash: alchemyOutput.seed_hash,
       success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
       input_items: recipe.input_items,
-      output_item_id: recipe.output_item_id,
-      output_quantity: recipe.output_quantity,
+      output_item_id: outputItemId,
+      output_quantity: outputQuantity,
       output_quality: outputQuality,
       output_quality_before_bonus: recipe.output_quality,
       warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
@@ -16637,7 +19875,6 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
     };
   }
 
-  assertSharedWarehouseOutboundGovernance(contract, actor, 'withdraw', withdraw.idempotency_key, store);
 
   const allocationResult = buildWarehouseWithdrawalAllocations(
     contract.shared_warehouse,
@@ -16647,6 +19884,8 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
     { freeze_contract: contract }
   );
   if (!allocationResult.ok) throw createError('共同仓库中可取出的普通物品数量不足');
+
+  assertSharedWarehouseOutboundGovernance(contract, actor, 'withdraw', withdraw.idempotency_key, store);
 
   const context = getActiveSaveContext(
     actorUsername,
@@ -18284,6 +21523,9 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '卖出共同仓库物品');
   const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (sale.quality !== 'normal' && actorPermissions.storage.withdraw_high_quality !== true) {
+    throw createError('shared warehouse high-quality sale requires storage.withdraw_high_quality permission', 403);
+  }
   if (actorPermissions.storage.sell_items !== true) throw createError('你没有卖出共同仓库普通物品的权限', 403);
 
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
@@ -18316,6 +21558,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
         quality: sale.quality,
         quantity: previousEntries.reduce((sum, entry) => sum + entry.quantity, 0) || sale.quantity,
         unit_price: sale.unit_price,
+        base_unit_price: sale.base_unit_price,
+        quality_price_multiplier: sale.quality_price_multiplier,
         total_amount: previousFundEntry?.amount || previousEntries.reduce((sum, entry) => sum + entry.total_amount, 0),
         personal_money_merged: false,
       },
@@ -18365,6 +21609,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     source_ledger_ids: allocation.source_ledger_ids,
     target_ref: saleTargetRef,
     unit_price: sale.unit_price,
+    base_unit_price: sale.base_unit_price,
+    quality_price_multiplier: sale.quality_price_multiplier,
     total_amount: allocation.quantity * sale.unit_price,
     fund_ledger_id: fundLedgerId,
     at: operatedAt,
@@ -18416,6 +21662,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     quantity: sale.quantity,
     quality: sale.quality,
     unit_price: sale.unit_price,
+    base_unit_price: sale.base_unit_price,
+    quality_price_multiplier: sale.quality_price_multiplier,
     total_amount: sale.total_amount,
     balance_before: beforeBalance,
     balance_after: afterBalance,
@@ -18440,6 +21688,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
       quality: sale.quality,
       quantity: sale.quantity,
       unit_price: sale.unit_price,
+      base_unit_price: sale.base_unit_price,
+      quality_price_multiplier: sale.quality_price_multiplier,
       total_amount: sale.total_amount,
       balance_before: beforeBalance,
       balance_after: afterBalance,
@@ -18565,99 +21815,6 @@ async function updateCohabitationFamilyRole(contractId, payload = {}, actor = {}
     changed_fields: permissionChanges,
     idempotent: false,
     audit_entry: auditEntry,
-  };
-}
-
-async function freezeCohabitationFundAbnormality(contractId, payload = {}, actor = {}) {
-  const actorUsername = normalizeUsername(actor.username);
-  if (!actorUsername) throw createError('请先登录', 401);
-  const freezeRequest = normalizeSharedFundFreezePayload(payload);
-  const store = loadContractStore();
-  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
-  const member = assertActiveContractForActor(contract, actorUsername, 'record shared fund abnormal freeze');
-  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
-  if (!canFreezeSharedFundAbnormality(member, actorPermissions)) {
-    throw createError('shared fund abnormal freeze requires contract owner or large fund permission', 403);
-  }
-
-  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
-  const existingFreezeEvent = contract.shared_fund.freeze_state.freeze_events.find(entry =>
-    entry.idempotency_key && entry.idempotency_key === freezeRequest.idempotency_key
-  ) || null;
-  if (existingFreezeEvent) {
-    return {
-      contract: toPublicContract(contract),
-      fund: buildSharedFundSnapshot(contract, actorUsername),
-      freeze_state: contract.shared_fund.freeze_state,
-      freeze_event: existingFreezeEvent,
-      idempotent: true,
-    };
-  }
-
-  const frozenAt = nowSeconds();
-  const balanceSnapshot = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
-  const ledgerCountSnapshot = contract.shared_fund.ledger.length;
-  const freezeEvent = normalizeSharedFundFreezeEvent({
-    id: makeId('shared_fund_freeze'),
-    frozen_at: frozenAt,
-    frozen_by_username: member.username,
-    frozen_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
-    reason: freezeRequest.reason || 'shared fund abnormality recorded',
-    error_code: freezeRequest.error_code,
-    suspected_operation: freezeRequest.suspected_operation,
-    source_ledger_id: freezeRequest.source_ledger_id,
-    source_idempotency_key: freezeRequest.source_idempotency_key,
-    idempotency_key: freezeRequest.idempotency_key,
-    balance_snapshot: balanceSnapshot,
-    ledger_count_snapshot: ledgerCountSnapshot,
-    record_only: true,
-    personal_money_merged: false,
-    shared_fund_changed: false,
-    required_operation: 'manual_fund_review',
-  });
-  contract.shared_fund.freeze_state = normalizeSharedFundFreezeState({
-    active: true,
-    status: 'frozen',
-    reason: freezeEvent.reason,
-    error_code: freezeEvent.error_code,
-    suspected_operation: freezeEvent.suspected_operation,
-    frozen_at: freezeEvent.frozen_at,
-    frozen_by_username: freezeEvent.frozen_by_username,
-    frozen_by_display_name: freezeEvent.frozen_by_display_name,
-    source_ledger_id: freezeEvent.source_ledger_id,
-    source_idempotency_key: freezeEvent.source_idempotency_key,
-    idempotency_key: freezeEvent.idempotency_key,
-    balance_snapshot: freezeEvent.balance_snapshot,
-    ledger_count_snapshot: freezeEvent.ledger_count_snapshot,
-    required_operation: freezeEvent.required_operation,
-    freeze_events: [freezeEvent, ...contract.shared_fund.freeze_state.freeze_events].slice(0, 20),
-  });
-  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
-  appendAudit(contract, 'fund_abnormal_frozen', actor, {
-    freeze_event_id: freezeEvent.id,
-    frozen_at: freezeEvent.frozen_at,
-    frozen_by_username: freezeEvent.frozen_by_username,
-    reason: freezeEvent.reason,
-    error_code: freezeEvent.error_code,
-    suspected_operation: freezeEvent.suspected_operation,
-    source_ledger_id: freezeEvent.source_ledger_id,
-    source_idempotency_key: freezeEvent.source_idempotency_key,
-    balance_snapshot: freezeEvent.balance_snapshot,
-    ledger_count_snapshot: freezeEvent.ledger_count_snapshot,
-    block_new_fund_writes: true,
-    required_operation: freezeEvent.required_operation,
-    record_only: true,
-    shared_fund_changed: false,
-    personal_money_merged: false,
-  }, freezeRequest.idempotency_key);
-  saveContractStore(store);
-
-  return {
-    contract: toPublicContract(contract),
-    fund: buildSharedFundSnapshot(contract, actorUsername),
-    freeze_state: contract.shared_fund.freeze_state,
-    freeze_event: freezeEvent,
-    idempotent: false,
   };
 }
 
@@ -19192,7 +22349,7 @@ function findFamilyBuildingLedgerEntry(contract, draft = {}, fundLedgerEntry = {
   return ledger.find(entry =>
     (draft.final_building_ledger_id && entry.id === draft.final_building_ledger_id)
     || (fundLedgerEntry.id && entry.fund_ledger_id === fundLedgerEntry.id)
-    || (draft.id && entry.draft_id === draft.id && entry.action === 'fund_large_spend_executed')
+    || (draft.id && entry.draft_id === draft.id && ['fund_large_spend_executed', 'manor_expansion_recorded'].includes(entry.action))
   ) || null;
 }
 
@@ -19202,7 +22359,7 @@ function buildFamilyBuildingLedgerEntry(contract, draft, fundLedgerEntry, actor 
   return normalizeFamilyBuildingLedgerEntry({
     id: makeId('family_building_ledger'),
     contract_id: contract.id,
-    action: 'fund_large_spend_executed',
+    action: draft.purpose === 'manor_expansion' ? 'manor_expansion_recorded' : 'fund_large_spend_executed',
     purpose: draft.purpose,
     purpose_label: draft.purpose_label,
     spend_category: draft.spend_category,
@@ -20036,6 +23193,146 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
       balance_after: balanceAfter,
       personal_money_merged: false,
     },
+  };
+}
+
+async function recordCohabitationFamilyChildCare(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
+  const careRequest = normalizeFamilyChildCarePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '璁板綍鍏卞悓瀛╁瓙鐓ф枡');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const requiredPermissionChecks = assertFamilyChildCareAllowed(actorPermissions);
+  contract.family_state = normalizeContractFamilyState(contract.family_state);
+  const existingCare = (contract.family_state.child_care_ledger || [])
+    .find(entry => entry.idempotency_key === careRequest.idempotency_key);
+  if (existingCare) {
+    return {
+      contract: toPublicContract(contract),
+      family_state: contract.family_state,
+      child_care: existingCare,
+      required_permission_keys: requiredPermissionChecks.map(check => check.label),
+      idempotent: true,
+      already_recorded: true,
+      children_private: true,
+      personal_family_state_mutated: false,
+    };
+  }
+
+  const recordedAt = nowSeconds();
+  const careEntry = normalizeFamilyChildCareLedgerEntry({
+    care_ref: careRequest.care_ref,
+    target_ref: careRequest.target_ref,
+    child_ref: careRequest.child_ref,
+    care_type: careRequest.care_type,
+    status: 'recorded',
+    recorded_by_username: member.username,
+    recorded_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    recorded_at: recordedAt,
+    memo: careRequest.memo,
+    idempotency_key: careRequest.idempotency_key,
+    required_permission_keys: requiredPermissionChecks.map(check => check.label),
+    children_private: true,
+    contract_family_state_changed: true,
+    personal_family_state_mutated: false,
+  });
+  const careResult = prependFamilyChildCareLedgerEntry(contract.family_state, careEntry);
+  contract.family_state = careResult.family_state;
+  appendAudit(contract, 'family_child_care_recorded', actor, {
+    child_care_id: careResult.entry?.id || '',
+    care_ref: careResult.entry?.care_ref || careRequest.care_ref,
+    target_ref: careResult.entry?.target_ref || careRequest.target_ref,
+    child_ref: careResult.entry?.child_ref || careRequest.child_ref,
+    care_type: careResult.entry?.care_type || careRequest.care_type,
+    required_permission_keys: requiredPermissionChecks.map(check => check.label),
+    children_private: true,
+    contract_family_state_changed: careResult.changed,
+    personal_family_state_mutated: false,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+  }, careRequest.idempotency_key);
+  contract.updated_at = recordedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_state: contract.family_state,
+    child_care: careResult.entry,
+    required_permission_keys: requiredPermissionChecks.map(check => check.label),
+    idempotent: false,
+    already_recorded: false,
+    children_private: true,
+    personal_family_state_mutated: false,
+  };
+}
+
+async function submitCohabitationFamilyWish(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
+  const wishRequest = normalizeFamilyWishSubmitPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '鎻愪氦鍏卞悓瀹跺涵蹇冩効');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const requiredPermissionChecks = assertFamilyWishSubmitAllowed(actorPermissions);
+  contract.family_state = normalizeContractFamilyState(contract.family_state);
+  const existingWish = (contract.family_state.family_wish_ledger || [])
+    .find(entry => entry.idempotency_key === wishRequest.idempotency_key);
+  if (existingWish) {
+    return {
+      contract: toPublicContract(contract),
+      family_state: contract.family_state,
+      family_wish: existingWish,
+      required_permission_keys: requiredPermissionChecks.map(check => check.label),
+      idempotent: true,
+      already_submitted: true,
+      personal_family_state_mutated: false,
+    };
+  }
+
+  const submittedAt = nowSeconds();
+  const wishEntry = normalizeFamilyWishLedgerEntry({
+    wish_ref: wishRequest.wish_ref,
+    target_ref: wishRequest.target_ref,
+    wish_type: wishRequest.wish_type,
+    title: wishRequest.title,
+    status: 'submitted',
+    submitted_by_username: member.username,
+    submitted_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    submitted_at: submittedAt,
+    memo: wishRequest.memo,
+    idempotency_key: wishRequest.idempotency_key,
+    required_permission_keys: requiredPermissionChecks.map(check => check.label),
+    contract_family_state_changed: true,
+    personal_family_state_mutated: false,
+  });
+  const wishResult = prependFamilyWishLedgerEntry(contract.family_state, wishEntry);
+  contract.family_state = wishResult.family_state;
+  appendAudit(contract, 'family_wish_submitted', actor, {
+    wish_id: wishResult.entry?.id || '',
+    wish_ref: wishResult.entry?.wish_ref || wishRequest.wish_ref,
+    target_ref: wishResult.entry?.target_ref || wishRequest.target_ref,
+    wish_type: wishResult.entry?.wish_type || wishRequest.wish_type,
+    title: wishResult.entry?.title || wishRequest.title,
+    required_permission_keys: requiredPermissionChecks.map(check => check.label),
+    contract_family_state_changed: wishResult.changed,
+    personal_family_state_mutated: false,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+  }, wishRequest.idempotency_key);
+  contract.updated_at = submittedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_state: contract.family_state,
+    family_wish: wishResult.entry,
+    required_permission_keys: requiredPermissionChecks.map(check => check.label),
+    idempotent: false,
+    already_submitted: false,
+    personal_family_state_mutated: false,
   };
 }
 
@@ -23232,7 +26529,11 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const createdAt = nowSeconds();
   const cooldownHours = Math.max(24, Math.floor(Number(contract.separation_policy?.cooldown_hours) || 72));
   const confirmAfterAt = createdAt + cooldownHours * 60 * 60;
-  const expiresAt = createdAt + (cooldownHours + 72) * 60 * 60;
+  const offlineConfirmTimeoutSeconds = Math.max(
+    24 * 60 * 60,
+    Math.floor(Number(contract.separation_policy?.offline_confirm_timeout_seconds) || SEPARATION_OFFLINE_CONFIRM_TIMEOUT_SECONDS)
+  );
+  const expiresAt = createdAt + (cooldownHours + 72) * 60 * 60 + offlineConfirmTimeoutSeconds;
   const plotReturnPreview = buildPlotReturnPreview(contract);
   const warehouseReturnPreview = buildWarehouseReturnPreview(contract);
   const warehouseReturns = warehouseReturnPreview.items_by_origin_owner;
@@ -23241,7 +26542,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
   const sharedDecorationRemovalDisputeFreeze = buildSharedDecorationRemovalDisputeFreezePreview(contract);
   const warehouseHighValueWithdrawalDisputeFreeze = buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract);
-  const totalFundContributions = fundReturns.reduce((sum, entry) => sum + entry.amount, 0);
+  const totalFundContributions = fundReturns.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0);
+  const totalFundOperatingContributions = fundReturns.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0);
+  const totalFundSplitBasis = fundReturns.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0);
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const requiredMemberUsernames = (contract.members || [])
     .filter(member => member.status === 'accepted')
@@ -23255,7 +26558,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     expires_at: expiresAt,
     confirm_after_at: confirmAfterAt,
     idempotency_key: idempotencyKey,
-    summary: '当前预览已归集来源田区、共同仓库放入流水、共同基金注资比例和确认 / 补偿规则；真实返还仍需后续执行流程。',
+    summary: '当前预览已归集来源田区、共同仓库放入流水、共同基金注资与可追溯经营收入权重，以及确认 / 补偿规则；真实返还仍需后续执行流程。',
     asset_return: {
       plots_by_origin_owner: plotReturnPreview.plots_by_origin_owner,
       plot_return_manifest: plotReturnPreview.plot_return_manifest,
@@ -23274,7 +26577,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       family_buildings_by_origin_owner: summarizeBuildingSplitsByProject(familyBuildingSplitManifest),
       family_building_split_manifest: familyBuildingSplitManifest,
       family_building_split_manifest_hash: hashFamilyBuildingSplitManifest(familyBuildingSplitManifest),
-      building_split_policy: '第一版只记录装饰 / 建筑拆分 ledger、hash、审计和补偿提示；不移动个人房屋、家具或真实建筑状态。',
+      building_split_policy: '拆分执行会按锁定清单把可识别来源装饰 / 家具写回原主个人 decoration.owned；家族建筑仍只记录 ledger、hash、审计和补偿提示，真实建筑状态需走回滚、拆除或人工回执。',
       shared_decoration_removal_disputes: sharedDecorationRemovalDisputeFreeze.disputes,
       shared_decoration_removal_freeze_summary: sharedDecorationRemovalDisputeFreeze.summary,
       shared_decoration_removal_freeze_policy: sharedDecorationRemovalDisputeFreeze.policy,
@@ -23283,8 +26586,11 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       warehouse_high_value_withdrawal_freeze_policy: warehouseHighValueWithdrawalDisputeFreeze.policy,
       fund_balance: contract.shared_fund.balance,
       fund_total_contributed: totalFundContributions,
+      fund_total_operating_contributed: totalFundOperatingContributions,
+      fund_total_split_basis: totalFundSplitBasis,
+      fund_split_basis: 'capital_and_traceable_operating_income',
       fund_suggested_refund_total: totalSuggestedFundRefund,
-      fund_return_policy: contract.shared_fund.balance > 0 ? '按注资与经营流水拆分，缺流水时需双方确认。' : '共同基金当前为 0，不涉及返还。',
+      fund_return_policy: contract.shared_fund.balance > 0 ? '按注资与可追溯经营收入共同拆分；消费差额和无法识别来源仍需双方确认。' : '共同基金当前为 0，不涉及返还。',
       personal_money_policy: '个人铜币从未合并，无需拆分。',
     },
     compensation_plan: buildSeparationCompensationPlan({
@@ -23311,6 +26617,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       confirm_after_at: confirmAfterAt,
       expires_at: expiresAt,
       cooldown_hours: cooldownHours,
+      offline_confirm_timeout_seconds: offlineConfirmTimeoutSeconds,
+      offline_confirm_timeout_hours: Math.floor(offlineConfirmTimeoutSeconds / 3600),
+      offline_confirm_timeout_policy: '长期离线成员超过确认超时保护期后，已确认成员可在冷静期结束后请求进入待人工执行，不再永久锁死庄园。',
       can_execute_now: false,
       requires_both_confirm: true,
       execution_enabled: false,
@@ -23349,6 +26658,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     warehouse_unidentified_groups: preview.asset_return.warehouse_unidentified_items.length,
     warehouse_unidentified_quantity: preview.asset_return.warehouse_unidentified_items.reduce((sum, item) => sum + item.quantity, 0),
     fund_groups: preview.asset_return.fund_contributions_by_origin_owner.length,
+    fund_total_contributed: totalFundContributions,
+    fund_total_operating_contributed: totalFundOperatingContributions,
+    fund_total_split_basis: totalFundSplitBasis,
     decoration_groups: preview.asset_return.decorations_by_origin_owner.length,
     family_building_groups: preview.asset_return.family_buildings_by_origin_owner.length,
     shared_decoration_removal_dispute_count: sharedDecorationRemovalDisputeFreeze.summary.pending_count,
@@ -23603,8 +26915,16 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
   }
   const now = nowSeconds();
   if (preview.expires_at > 0 && preview.expires_at <= now) throw createError('分居预览已过期，请重新生成预览', 409);
-  if (preview.state !== 'confirmed' || preview.confirmation_state.all_members_confirmed !== true) {
-    throw createError('分居预览必须双方确认后才能请求执行', 409);
+  const allMembersAlreadyConfirmed = preview.state === 'confirmed' && preview.confirmation_state.all_members_confirmed === true;
+  const offlineConfirmationOverride = buildSeparationOfflineConfirmationOverride(contract, preview, now);
+  const requesterConfirmed = offlineConfirmationOverride.confirmed_member_usernames
+    .map(normalizeUsernameKey)
+    .includes(normalizeUsernameKey(member.username_key || member.username));
+  const canApplyOfflineConfirmationOverride = !allMembersAlreadyConfirmed
+    && offlineConfirmationOverride.can_apply === true
+    && requesterConfirmed;
+  if (!allMembersAlreadyConfirmed && !canApplyOfflineConfirmationOverride) {
+    throw createError('分居预览必须双方确认后才能请求执行；长期离线成员需超过确认超时保护期', 409);
   }
   if (now < preview.confirm_after_at) throw createError('分居冷静期尚未结束，不能请求执行返还', 409);
   if (preview.confirmation_state.execution_request?.status === 'pending_manual_execution') {
@@ -23628,6 +26948,9 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
     asset_return_executed: false,
     personal_save_written: false,
     execution_enabled: false,
+    confirmation_basis: canApplyOfflineConfirmationOverride ? 'offline_timeout_override' : 'all_members_confirmed',
+    offline_timeout_override_applied: canApplyOfflineConfirmationOverride,
+    offline_timeout_override: canApplyOfflineConfirmationOverride ? offlineConfirmationOverride : null,
     next_required_operations: [
       'execute_asset_return',
       'write_personal_save_refunds',
@@ -23637,15 +26960,25 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
   };
   const nextPreview = normalizeSeparationPreview({
     ...preview,
+    state: 'confirmed',
     confirmation_state: {
       ...preview.confirmation_state,
+      state: 'confirmed',
+      all_members_confirmed: true,
+      confirmation_basis: canApplyOfflineConfirmationOverride ? 'offline_timeout_override' : 'all_members_confirmed',
+      offline_timeout_override_applied: canApplyOfflineConfirmationOverride,
+      offline_timeout_override: canApplyOfflineConfirmationOverride ? offlineConfirmationOverride : preview.confirmation_state.offline_timeout_override || null,
+      offline_timeout_member_usernames: canApplyOfflineConfirmationOverride ? offlineConfirmationOverride.offline_member_usernames : preview.confirmation_state.offline_timeout_member_usernames || [],
+      pending_member_usernames: canApplyOfflineConfirmationOverride ? [] : preview.confirmation_state.pending_member_usernames || [],
       can_execute_now: true,
       ready_for_execution_request: true,
       execution_request: executionRequest,
       execution_requested_at: now,
       execution_requested_by: member.username,
       execution_enabled: false,
-      execution_policy: '已通过双方确认和冷静期校验；本请求只进入待人工执行状态，真实返还和个人存档写回仍需后续独立接口。',
+      execution_policy: canApplyOfflineConfirmationOverride
+        ? '冷静期已结束，且未确认成员超过长期离线确认超时保护期；请求进入待人工执行状态，返还和个人存档写回仍需后续独立接口。'
+        : '已通过双方确认和冷静期校验；本请求只进入待人工执行状态，真实返还和个人存档写回仍需后续独立接口。',
     },
     manual_execution_required: true,
     requires_both_confirm: true,
@@ -23657,6 +26990,11 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
     preview_version: nextPreview.version,
     execution_request_id: executionRequest.id,
     all_members_confirmed: true,
+    confirmation_basis: executionRequest.confirmation_basis,
+    offline_timeout_override_applied: canApplyOfflineConfirmationOverride,
+    offline_timeout_seconds: canApplyOfflineConfirmationOverride ? offlineConfirmationOverride.threshold_seconds : 0,
+    offline_member_usernames: canApplyOfflineConfirmationOverride ? offlineConfirmationOverride.offline_member_usernames : [],
+    offline_members: canApplyOfflineConfirmationOverride ? offlineConfirmationOverride.offline_members : [],
     cooldown_passed: true,
     can_execute_now: true,
     execution_enabled: false,
@@ -24252,6 +27590,11 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
   assertSharedFundNotFrozen(contract, 'refund separation shared fund');
 
   const refundRows = (ledger.fund_refunds_by_origin_owner || []).filter(entry => entry.suggested_refund_amount > 0);
+  const refundEvidenceRows = ledger.fund_refunds_by_origin_owner || [];
+  const totalRefundCapitalContributions = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0);
+  const totalRefundOperatingContributions = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0);
+  const totalRefundSplitBasis = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0);
+  const fundSplitBasis = sanitizeText(preview.asset_return?.fund_split_basis, 80) || 'capital_and_traceable_operating_income';
   const totalRefundAmount = refundRows.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const balanceBefore = contract.shared_fund.balance;
   if (totalRefundAmount > balanceBefore) throw createError('共同基金余额不足以按预览返还，请重新生成分居预览或人工补偿', 409);
@@ -24347,6 +27690,10 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
     plot_return_manifest_hash: expectedManifestHash,
     refund_total: totalRefundAmount,
     receipt_count: receipts.length,
+    fund_split_basis: fundSplitBasis,
+    fund_total_contributed: totalRefundCapitalContributions,
+    fund_total_operating_contributed: totalRefundOperatingContributions,
+    fund_total_split_basis: totalRefundSplitBasis,
     shared_fund_balance_before: balanceBefore,
     shared_fund_balance_after: contract.shared_fund.balance,
     personal_money_merged: false,
@@ -24368,6 +27715,10 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
       refund_total: totalRefundAmount,
       balance_before: balanceBefore,
       balance_after: contract.shared_fund.balance,
+      fund_split_basis: fundSplitBasis,
+      fund_total_contributed: totalRefundCapitalContributions,
+      fund_total_operating_contributed: totalRefundOperatingContributions,
+      fund_total_split_basis: totalRefundSplitBasis,
       personal_money_merged: false,
     },
   };
@@ -24703,6 +28054,8 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       already_split: ledger.decorations_buildings_split === true,
       execution_ledger: ledger,
       receipts: ledger.decoration_building_split_receipts || [],
+      decoration_return_receipts: (ledger.decoration_building_split_receipts || [])
+        .flatMap(receipt => Array.isArray(receipt.personal_save_receipts) ? receipt.personal_save_receipts : []),
     };
   }
 
@@ -24728,13 +28081,24 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
   if (ledger.shared_warehouse_returned !== true) throw createError('共同仓库尚未返还，不能记录装饰 / 建筑拆分', 409);
 
   const splitAt = nowSeconds();
+  const decorationReturnReceipts = writePersonalDecorationReturnsFromManifest(decorationManifest, contract, {
+    ...splitPayload,
+    preview_id: normalizedPreviewId,
+    execution_ledger_id: ledger.id,
+  });
+  const returnedDecorationCount = decorationReturnReceipts.reduce((sum, receipt) => sum + Math.max(0, Math.floor(Number(receipt.returned_quantity) || 0)), 0);
   const receipts = [
     {
       receipt_id: makeId('decoration_split_receipt'),
       receipt_type: 'decorations',
       count: decorationManifest.length,
+      returned_count: returnedDecorationCount,
       manifest_hash: expectedDecorationHash,
-      status: 'recorded_only',
+      status: returnedDecorationCount > 0 ? 'personal_decoration_owned_written' : 'no_traceable_decoration_to_return',
+      personal_save_changed: returnedDecorationCount > 0,
+      personal_home_mutated: false,
+      personal_decoration_owned_mutated: returnedDecorationCount > 0,
+      personal_save_receipts: decorationReturnReceipts,
       idempotency_key: splitPayload.idempotency_key,
       recorded_at: splitAt,
     },
@@ -24743,7 +28107,11 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       receipt_type: 'family_buildings',
       count: buildingManifest.length,
       manifest_hash: expectedBuildingHash,
-      status: 'recorded_only',
+      status: buildingManifest.length > 0 ? 'recorded_waiting_building_rollback_or_manual_receipt' : 'no_family_building_to_split',
+      personal_save_changed: false,
+      personal_home_mutated: false,
+      personal_decoration_owned_mutated: false,
+      personal_save_receipts: [],
       idempotency_key: splitPayload.idempotency_key,
       recorded_at: splitAt,
     },
@@ -24760,11 +28128,20 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     decorations_buildings_split_by: member.username,
     decoration_split_manifest_hash: expectedDecorationHash,
     building_split_manifest_hash: expectedBuildingHash,
-    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
+    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest.map(entry => ({
+      ...entry,
+      return_status: 'personal_decoration_owned_written',
+    }))),
     building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
     decoration_building_split_receipts: receipts,
     next_required_operations: nextRequiredOperations,
   });
+  const nextDecorationManifest = decorationManifest.map(entry => ({
+    ...entry,
+    execution_status: 'personal_decoration_owned_written',
+    return_status: 'personal_decoration_owned_written',
+    return_idempotency_key: splitPayload.idempotency_key,
+  }));
   const nextExecutionRequest = {
     ...executionRequest,
     status: 'decorations_buildings_split',
@@ -24778,6 +28155,8 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     ...preview,
     asset_return: {
       ...preview.asset_return,
+      decorations_by_origin_owner: summarizeDecorationSplitsByOwner(nextDecorationManifest),
+      decoration_split_manifest: nextDecorationManifest,
       decorations_buildings_split: true,
       decorations_buildings_split_at: splitAt,
       decoration_building_split_receipts: receipts,
@@ -24789,7 +28168,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       decorations_buildings_split_at: splitAt,
       can_execute_now: false,
       execution_enabled: false,
-      execution_policy: '分居装饰 / 建筑拆分已记录 ledger、hash 和补偿提示；个人小屋、家具、真实建筑和共同资产不由本步骤自动改写。',
+      execution_policy: '分居可识别来源装饰 / 家具已按锁定 hash 写回原主个人 decoration.owned；真实家族建筑仍只记录拆分证据，等待回滚、拆除或人工回执。',
     },
     deferred_operations: nextLedger.next_required_operations,
   });
@@ -24803,9 +28182,13 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     decoration_split_manifest_hash: expectedDecorationHash,
     building_split_manifest_hash: expectedBuildingHash,
     decoration_count: decorationManifest.length,
+    returned_decoration_count: returnedDecorationCount,
     building_count: buildingManifest.length,
     shared_assets_mutated: false,
     personal_home_mutated: false,
+    personal_decoration_owned_mutated: returnedDecorationCount > 0,
+    personal_save_changed: returnedDecorationCount > 0,
+    decoration_return_receipt_count: decorationReturnReceipts.length,
     next_required_operations: nextLedger.next_required_operations,
   }, splitPayload.idempotency_key);
   saveContractStore(store);
@@ -24817,6 +28200,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     already_split: false,
     execution_ledger: nextLedger,
     receipts,
+    decoration_return_receipts: decorationReturnReceipts,
   };
 }
 
@@ -25415,8 +28799,19 @@ module.exports = {
   getCohabitationFamilyRelations,
   getCohabitationFamilyVisibility,
   getCohabitationFamilyFestivalSeats,
+  createCohabitationFamilyOrder,
+  acceptCohabitationFamilyOrder,
+  deliverCohabitationFamilyOrder,
+  settleCohabitationFamilyOrder,
+  awardCohabitationFamilyReputation,
+  claimCohabitationFamilyReputationReward,
+  updateCohabitationFamilyVisibility,
+  rollbackCohabitationFamilyVisibility,
+  reserveCohabitationFamilyFestivalSeats,
+  createCohabitationFamilyFestivalRoom,
+  consumeCohabitationFamilyFestivalSupplies,
+  settleCohabitationFamilyFestivalRewards,
   getCohabitationOfflineStatus,
-  preflightCohabitationOfflineConflicts,
   mergeCohabitationOfflineQueue,
   collectCohabitationOfflineAutoIncome,
   settleCohabitationDailyBonus,
@@ -25457,6 +28852,8 @@ module.exports = {
   confirmCohabitationFundLargeSpendDraft,
   executeCohabitationFundLargeSpendDraft,
   recordCohabitationFundHighRiskReceipt,
+  recordCohabitationFamilyChildCare,
+  submitCohabitationFamilyWish,
   applyCohabitationFamilyBuildingRealBuild,
   consumeCohabitationFamilyBuildingMaterials,
   rollbackCohabitationFamilyBuilding,

@@ -741,6 +741,30 @@
               <p class="text-sm text-accent">共同动物照料</p>
               <span class="text-[10px] text-muted">{{ cohabitationStore.sharedAnimals?.summary.animal_count ?? 0 }} 只 · {{ cohabitationStore.sharedAnimals?.summary.product_ready_count ?? 0 }} 待收</span>
             </div>
+            <div class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-testid="online-cohabitation-shared-animal-buy-panel">
+              <label class="block">
+                <span>购买动物</span>
+                <select v-model="selectedSharedAnimalBuyType" class="online-select mt-1 w-full" data-testid="online-cohabitation-shared-animal-buy-type">
+                  <option v-for="option in sharedAnimalPurchaseOptions" :key="option.type" :value="option.type">
+                    {{ option.label }} · {{ option.unitPrice }} 文
+                  </option>
+                </select>
+              </label>
+              <label class="block">
+                <span>昵称</span>
+                <input v-model.trim="sharedAnimalBuyName" class="online-input mt-1 w-full" maxlength="24" data-testid="online-cohabitation-shared-animal-buy-name" />
+              </label>
+              <button
+                class="online-action-btn online-action-btn--compact self-end justify-center"
+                type="button"
+                :disabled="!canBuySharedAnimal || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-shared-animal-buy"
+                @click="buySelectedSharedAnimal"
+              >
+                <Package :size="12" />
+                购买
+              </button>
+            </div>
             <div v-if="sharedAnimals.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有可照料的共同动物。</div>
             <div v-else class="mt-3 space-y-3">
               <div class="max-h-48 space-y-2 overflow-y-auto pr-1">
@@ -768,7 +792,7 @@
                 <p class="mt-1">产物：{{ sharedAnimalProductStatus(selectedSharedAnimal) }}</p>
                 <p class="mt-1" data-testid="online-cohabitation-shared-animal-coop-bonus">{{ sharedAnimalCoopBonusLabel(selectedSharedAnimal) }}</p>
               </div>
-              <div class="grid gap-2 sm:grid-cols-3">
+              <div class="grid gap-2 sm:grid-cols-4">
                 <button
                   class="online-action-btn online-action-btn--compact justify-center"
                   type="button"
@@ -799,11 +823,21 @@
                   <Package :size="12" />
                   收取入仓
                 </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canSellSelectedSharedAnimal || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-animal-sell"
+                  @click="sellSelectedSharedAnimal"
+                >
+                  <Package :size="12" />
+                  出售入基金
+                </button>
               </div>
-              <p v-if="sharedAnimalActionMessage" class="text-[10px] leading-4" :class="sharedAnimalActionOk ? 'text-emerald-200' : 'text-red-100'">
-                {{ sharedAnimalActionMessage }}
-              </p>
             </div>
+            <p v-if="sharedAnimalActionMessage" class="mt-2 text-[10px] leading-4" :class="sharedAnimalActionOk ? 'text-emerald-200' : 'text-red-100'">
+              {{ sharedAnimalActionMessage }}
+            </p>
           </div>
 
           <div class="game-panel-muted p-3">
@@ -844,7 +878,7 @@
                 <span class="text-xs text-accent">x{{ item.quantity }}</span>
               </div>
               <div class="mt-2 flex items-center justify-between gap-2">
-                <span class="text-[10px] text-muted">卖价 {{ warehouseSellUnitPrice(item.item_id) || '未配置' }} 文</span>
+                <span class="text-[10px] text-muted">卖价 {{ warehouseSellUnitPriceForItem(item) || '未配置' }} 文</span>
                 <div class="flex shrink-0 gap-2">
                   <button
                     type="button"
@@ -868,7 +902,7 @@
                   <button
                     type="button"
                     class="online-action-btn online-action-btn--compact"
-                    :disabled="isHighValueWarehouseItem(item) || !canSellWarehouseItem(item) || cohabitationStore.actionLoading"
+                    :disabled="!canSellWarehouseItem(item) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-warehouse-sell-${item.item_id}`"
                     @click="sellWarehouseItem(item)"
                   >
@@ -1006,6 +1040,21 @@
                   </div>
                   <p v-if="selectedSharedWorkshopRecipe.alchemy_result_kind" class="text-[10px] leading-4 text-muted">
                     炼丹结果：{{ sharedWorkshopAlchemyResultLabel(selectedSharedWorkshopRecipe.alchemy_result_kind) }}
+                  </p>
+                  <label v-if="selectedSharedWorkshopRecipe.process_kind === 'alchemy_elixir'" class="grid gap-1 text-[10px] leading-4 text-muted">
+                    <span>结果模式</span>
+                    <select
+                      v-model="sharedWorkshopAlchemyResultMode"
+                      class="online-select text-xs"
+                      :disabled="!selectedSharedWorkshopSupportsAlchemyAuto"
+                      data-testid="online-cohabitation-shared-workshop-alchemy-result-mode"
+                    >
+                      <option value="fixed">固定结果</option>
+                      <option value="auto">自动概率</option>
+                    </select>
+                  </label>
+                  <p class="text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-workshop-medium-budget">
+                    中额预算：{{ sharedWorkshopMediumBudgetLedger ? sharedWorkshopMediumBudgetLedger.id : '未绑定' }}
                   </p>
                   <button
                     type="button"
@@ -1794,6 +1843,47 @@
               {{ familyOrdersPanel.summary.disabled_reason }}
             </p>
             <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyOrdersPanel.visual_state_preview.recent_feedback }}</p>
+            <div class="mt-3 grid gap-2 sm:grid-cols-4">
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyOrdersPanel.write_enabled"
+                @click="createFamilyOrderFromPanel"
+              >
+                发布订单
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyOrdersPanel.write_enabled || !firstOpenFamilyOrder"
+                @click="acceptFirstFamilyOrder"
+              >
+                接取订单
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyOrdersPanel.write_enabled || !firstAcceptedFamilyOrder"
+                @click="deliverFirstFamilyOrder"
+              >
+                交付订单
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyOrdersPanel.settlement_enabled || !firstDeliveredFamilyOrder"
+                @click="settleFirstFamilyOrder"
+              >
+                结算订单
+              </button>
+            </div>
+            <p
+              v-if="familyOrderActionMessage"
+              class="mt-2 text-[10px] leading-4"
+              :class="familyOrderActionOk ? 'text-emerald-200' : 'text-red-100'"
+            >
+              {{ familyOrderActionMessage }}
+            </p>
             <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
               <div v-for="stage in familyOrderStages" :key="stage.id" class="border border-accent/10 bg-black/10 p-3">
                 <div class="flex items-start justify-between gap-2">
@@ -1887,6 +1977,31 @@
                 <div class="h-full bg-accent/70" :style="{ width: `${familyReputationProgressPercent}%` }"></div>
               </div>
             </div>
+            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyReputationPanel.write_enabled"
+                @click="awardFamilyReputationFromPanel"
+              >
+                发放声望
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyReputationPanel.summary.shared_fund_reward_enabled"
+                @click="claimFamilyReputationRewardFromPanel"
+              >
+                领取奖励
+              </button>
+            </div>
+            <p
+              v-if="familyReputationActionMessage"
+              class="mt-2 text-[10px] leading-4"
+              :class="familyReputationActionOk ? 'text-emerald-200' : 'text-red-100'"
+            >
+              {{ familyReputationActionMessage }}
+            </p>
             <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
               <div v-for="source in familyReputationSources" :key="source.id" class="border border-accent/10 bg-black/10 p-3">
                 <div class="flex items-start justify-between gap-2">
@@ -2038,6 +2153,7 @@
                 </div>
                 <div class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
                   <p>基金流水：{{ entry.fund_ledger_id || '无' }} · 草案：{{ entry.draft_id || '无' }}</p>
+                  <p v-if="entry.medium_fund_budget_ledger_id || entry.medium_fund_budget_linked">中额预算：{{ entry.medium_fund_budget_ledger_id || '已绑定' }}</p>
                   <p>状态：{{ familyBuildingLedgerStatusLabel(entry.status) }} · {{ formatTime(entry.at || entry.created_at) }}</p>
                   <p>
                     材料：{{ entry.shared_warehouse_materials_consumed ? '已消耗' : '未消耗' }} ·
@@ -2472,6 +2588,31 @@
               {{ familyVisibilityPanel.summary.disabled_reason }}
             </p>
             <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyVisibilityPanel.governance.current_policy || '当前没有公开策略说明。' }}</p>
+            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyVisibilityPanel.write_enabled"
+                @click="publishFamilyVisibilityFromPanel"
+              >
+                写入公开
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyVisibilityPanel.summary.rollback_enabled"
+                @click="rollbackFamilyVisibilityFromPanel"
+              >
+                回滚公开
+              </button>
+            </div>
+            <p
+              v-if="familyVisibilityActionMessage"
+              class="mt-2 text-[10px] leading-4"
+              :class="familyVisibilityActionOk ? 'text-emerald-200' : 'text-red-100'"
+            >
+              {{ familyVisibilityActionMessage }}
+            </p>
             <div class="mt-3 grid gap-2 md:grid-cols-2">
               <div v-for="scope in familyVisibilityScopes" :key="scope.id" class="border border-accent/10 bg-black/10 p-3">
                 <div class="flex items-start justify-between gap-2">
@@ -2568,6 +2709,47 @@
               {{ familyFestivalSeatsPanel.summary.disabled_reason }}
             </p>
             <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyFestivalSeatsPanel.visual_state_preview.recent_feedback }}</p>
+            <div class="mt-3 grid gap-2 sm:grid-cols-4">
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.seat_reservation_enabled"
+                @click="reserveFamilyFestivalSeatsFromPanel"
+              >
+                锁席
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.festival_room_binding_enabled"
+                @click="createFamilyFestivalRoomFromPanel"
+              >
+                开房
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.summary.shared_warehouse_consume_enabled"
+                @click="consumeFamilyFestivalSuppliesFromPanel"
+              >
+                供品
+              </button>
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.summary.settlement_enabled"
+                @click="settleFamilyFestivalRewardsFromPanel"
+              >
+                结算
+              </button>
+            </div>
+            <p
+              v-if="familyFestivalSeatActionMessage"
+              class="mt-2 text-[10px] leading-4"
+              :class="familyFestivalSeatActionOk ? 'text-emerald-200' : 'text-red-100'"
+            >
+              {{ familyFestivalSeatActionMessage }}
+            </p>
             <div class="relative mt-3 h-72 overflow-hidden border border-accent/10 bg-black/10">
               <div
                 v-for="object in familyFestivalSeatSceneObjects"
@@ -2760,23 +2942,6 @@
               <button
                 class="online-action-btn online-action-btn--compact w-full justify-center"
                 type="button"
-                :disabled="!canPreflightOfflineConflicts || cohabitationStore.actionLoading"
-                data-testid="online-cohabitation-offline-conflict-preflight"
-                @click="submitOfflineConflictPreflight"
-              >
-                <ShieldCheck :size="12" />
-                预检服务端冲突
-              </button>
-              <p
-                v-if="offlineConflictPreflightLabel"
-                class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
-                data-testid="online-cohabitation-offline-conflict-preflight-result"
-              >
-                {{ offlineConflictPreflightLabel }}
-              </p>
-              <button
-                class="online-action-btn online-action-btn--compact w-full justify-center"
-                type="button"
                 :disabled="!cohabitationStore.canOpenSelectedContract || cohabitationStore.actionLoading"
                 data-testid="online-cohabitation-daily-settle"
                 @click="submitCohabitationDailySettle"
@@ -2801,12 +2966,19 @@
                 {{ offlineQueueActionMessage }}
               </p>
               <div
-                v-if="offlineQueueMergeRows.length"
+                v-if="offlineQueueMergeRows.length || offlineConflictResolutionLabel"
                 class="space-y-1 text-[10px] text-muted"
                 data-testid="online-cohabitation-offline-queue-results"
               >
                 <p class="border border-accent/10 bg-black/10 p-2 leading-4" data-testid="online-cohabitation-offline-queue-revision-state">
                   {{ offlineQueueRevisionStateLabel }}
+                </p>
+                <p
+                  v-if="offlineConflictResolutionLabel"
+                  class="border border-accent/10 bg-black/10 p-2 leading-4"
+                  data-testid="online-cohabitation-offline-conflict-resolution"
+                >
+                  {{ offlineConflictResolutionLabel }}
                 </p>
                 <div v-for="row in offlineQueueMergeRows" :key="row.id" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-center justify-between gap-2">
@@ -2929,6 +3101,7 @@
   }
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
+  type SharedAnimalPurchaseOption = { type: string; label: string; unitPrice: number }
   type SharedPetCareItemInfo = {
     itemId: string
     label: string
@@ -3101,6 +3274,7 @@
   const sharedWorkshopActionMessage = ref('')
   const sharedWorkshopActionOk = ref(false)
   const selectedSharedWorkshopRecipeId = ref('shared_dried_cabbage')
+  const sharedWorkshopAlchemyResultMode = ref<'fixed' | 'auto'>('fixed')
   const sharedWorkshopLastResultRows = ref<SharedWorkshopResultRow[]>([])
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
@@ -3110,6 +3284,8 @@
   const sharedAnimalActionMessage = ref('')
   const sharedAnimalActionOk = ref(false)
   const selectedSharedAnimalId = ref('')
+  const selectedSharedAnimalBuyType = ref('chicken')
+  const sharedAnimalBuyName = ref('')
   const sharedPetActionMessage = ref('')
   const sharedPetActionOk = ref(false)
   const selectedSharedPetId = ref('')
@@ -3133,8 +3309,16 @@
   const fundHighRiskReceiptRef = ref('')
   const fundHighRiskReceiptMemo = ref('')
   const fundHighRiskReceiptCompensationAcknowledged = ref(false)
+  const familyOrderActionMessage = ref('')
+  const familyOrderActionOk = ref(false)
+  const familyReputationActionMessage = ref('')
+  const familyReputationActionOk = ref(false)
   const familyBuildingActionMessage = ref('')
   const familyBuildingActionOk = ref(false)
+  const familyVisibilityActionMessage = ref('')
+  const familyVisibilityActionOk = ref(false)
+  const familyFestivalSeatActionMessage = ref('')
+  const familyFestivalSeatActionOk = ref(false)
   const permissionActionMessage = ref('')
   const permissionActionOk = ref(false)
   const roleActionMessage = ref('')
@@ -3503,6 +3687,23 @@
     if (!sharedAnimals.value.length || !selectedSharedAnimalId.value) return null
     return sharedAnimals.value.find(animal => animal.id === selectedSharedAnimalId.value) ?? null
   })
+  const fallbackSharedAnimalPurchaseOptions: SharedAnimalPurchaseOption[] = [
+    { type: 'chicken', label: '鸡', unitPrice: 800 },
+    { type: 'cow', label: '牛', unitPrice: 1500 },
+    { type: 'sheep', label: '羊', unitPrice: 8000 },
+  ]
+  const sharedAnimalPurchaseOptions = computed<SharedAnimalPurchaseOption[]>(() => {
+    const supported = cohabitationStore.sharedAnimals?.summary.supported_purchase_animal_types
+    const types = Array.isArray(supported) && supported.length ? supported : fallbackSharedAnimalPurchaseOptions.map(option => option.type)
+    return types.map(type => fallbackSharedAnimalPurchaseOptions.find(option => option.type === type) ?? {
+      type,
+      label: type,
+      unitPrice: 0,
+    })
+  })
+  const selectedSharedAnimalBuyOption = computed(() =>
+    sharedAnimalPurchaseOptions.value.find(option => option.type === selectedSharedAnimalBuyType.value) ?? sharedAnimalPurchaseOptions.value[0] ?? null
+  )
   const sharedPets = computed(() => cohabitationStore.sharedPets?.pets ?? [])
   const selectedSharedPet = computed(() => {
     if (!sharedPets.value.length || !selectedSharedPetId.value) return null
@@ -3578,12 +3779,33 @@
     const quality = Math.max(0, Math.floor(Number(state.cooperation_quality_bonus) || 0))
     const consumedHealth = Math.max(0, Math.floor(Number(state.last_cooperation_health_bonus_consumed_value) || 0))
     const consumedQuality = Math.max(0, Math.floor(Number(state.last_cooperation_quality_bonus_consumed_value) || 0))
+    const fertilizerQuality = state.fertilizer === 'quality_fertilizer' ? 1 : 0
+    const fertilizerGrowth = state.fertilizer === 'deluxe_speed_gro' ? 2 : state.fertilizer === 'speed_gro' ? 1 : 0
+    const fertilizerRetention = state.fertilizer === 'quality_retaining_soil' ? 1 : 0
+    const consumedFertilizerQuality = Math.max(0, Math.floor(Number(state.last_fertilizer_quality_bonus_consumed_value) || 0))
+    const consumedFertilizerGrowth = Math.max(0, Math.floor(Number(state.last_fertilizer_growth_bonus_consumed_value) || 0))
+    const consumedFertilizerRetention = Math.max(0, Math.floor(Number(state.last_fertilizer_water_retention_value) || 0))
     const members = Array.isArray(state.last_cooperation_bonus_members) ? state.last_cooperation_bonus_members.filter(Boolean) : []
     const active = [health > 0 ? `健康 +${health}` : '', quality > 0 ? `品质 +${quality}` : ''].filter(Boolean).join(' / ')
-    const consumed = [consumedHealth > 0 ? `已消耗健康 ${consumedHealth}` : '', consumedQuality > 0 ? `已消耗品质 ${consumedQuality}` : ''].filter(Boolean).join(' / ')
+    const fertilizerActive = [
+      fertilizerQuality > 0 ? `肥料品质 +${fertilizerQuality}` : '',
+      fertilizerGrowth > 0 ? `肥料成长 +${fertilizerGrowth}` : '',
+      fertilizerRetention > 0 ? '肥料保水' : '',
+    ].filter(Boolean).join(' / ')
+    const consumedCooperation = [
+      consumedHealth > 0 ? `已消耗健康 ${consumedHealth}` : '',
+      consumedQuality > 0 ? `已消耗品质 ${consumedQuality}` : '',
+    ].filter(Boolean).join(' / ')
+    const consumedFertilizer = [
+      consumedFertilizerQuality > 0 ? `已消耗肥料品质 ${consumedFertilizerQuality}` : '',
+      consumedFertilizerGrowth > 0 ? `已消耗肥料成长 ${consumedFertilizerGrowth}` : '',
+      consumedFertilizerRetention > 0 ? `已触发肥料保水 ${consumedFertilizerRetention}` : '',
+    ].filter(Boolean).join(' / ')
+    const consumed = [consumedCooperation, consumedFertilizer].filter(Boolean).join(' / ')
     const suffix = members.length ? ` · ${members.join(' / ')}` : ''
-    if (active) return `同时在线加成：${active}${suffix}`
-    if (consumed) return `同时在线加成：${consumed}`
+    if (active) return `同时在线加成：${[active, fertilizerActive].filter(Boolean).join(' / ')}${suffix}`
+    if (fertilizerActive) return `肥料加成：${fertilizerActive}`
+    if (consumed) return `${consumedCooperation ? '同时在线加成' : '肥料加成'}：${consumed}`
     return '同时在线加成：未触发'
   }
   const sharedAnimalCoopBonusLabel = (animal: CohabitationSharedAnimal | null | undefined) => {
@@ -3875,6 +4097,22 @@
     return '正常'
   })
   const fundLedger = computed(() => cohabitationStore.fund?.ledger ?? [])
+  const findLatestMediumFundBudgetLedger = (purpose: FundMediumSpendPurpose, targetRefs: string[] = []) => {
+    const acceptedRefs = targetRefs.map(ref => ref.trim()).filter(Boolean)
+    return fundLedger.value.find(entry => {
+      if (entry.action !== 'spend' || entry.spend_tier !== 'medium' || entry.status !== 'committed') return false
+      if (entry.purpose !== purpose) return false
+      const targetRef = entry.target_ref || ''
+      if (acceptedRefs.length === 0) return true
+      return acceptedRefs.some(ref => targetRef === ref || targetRef.startsWith(ref))
+    }) ?? null
+  }
+  const sharedWorkshopMediumBudgetLedger = computed(() =>
+    findLatestMediumFundBudgetLedger('processing_materials', ['ui:processing_materials', 'shared_workshop:'])
+  )
+  const buildingMaterialsMediumBudgetLedger = computed(() =>
+    findLatestMediumFundBudgetLedger('building_materials', ['ui:building_materials', 'family_building:'])
+  )
   const permissionMembers = computed(() => cohabitationStore.permissionsPanel?.members ?? [])
   const permissionAudits = computed(() => cohabitationStore.permissionsPanel?.recent_permission_audits ?? [])
   const roleMembers = computed(() => cohabitationStore.rolePanel?.members ?? [])
@@ -3883,6 +4121,10 @@
   const familyOrderMembers = computed(() => familyOrdersPanel.value?.members ?? [])
   const familyOrderDeferredOperations = computed(() => familyOrdersPanel.value?.deferred_operations ?? [])
   const familyOrderStages = computed(() => familyOrdersPanel.value?.visual_state_preview.async_projects?.[0]?.stages ?? [])
+  const familyOrderLedger = computed(() => (familyOrdersPanel.value?.orders ?? familyOrdersPanel.value?.ledger ?? []) as Array<Record<string, unknown>>)
+  const firstOpenFamilyOrder = computed(() => familyOrderLedger.value.find(order => order.status === 'open'))
+  const firstAcceptedFamilyOrder = computed(() => familyOrderLedger.value.find(order => order.status === 'accepted'))
+  const firstDeliveredFamilyOrder = computed(() => familyOrderLedger.value.find(order => order.status === 'delivered' && order.reward_settled !== true))
   const familyOrderSummaryCards = computed(() => {
     const summary = familyOrdersPanel.value?.summary
     return [
@@ -3904,6 +4146,7 @@
   const familyReputationPanel = computed(() => cohabitationStore.familyReputationPanel)
   const familyReputationMembers = computed(() => familyReputationPanel.value?.members ?? [])
   const familyReputationSources = computed(() => familyReputationPanel.value?.source_breakdown ?? [])
+  const familyReputationRewardCatalog = computed(() => familyReputationPanel.value?.reward_catalog ?? [])
   const familyReputationDeferredOperations = computed(() => familyReputationPanel.value?.deferred_operations ?? [])
   const familyReputationProgressPercent = computed(() => Math.round(
     Math.max(0, Math.min(1, familyReputationPanel.value?.summary.level.progress_to_next ?? 0)) * 100
@@ -3978,6 +4221,7 @@
   const familyVisibilityMembers = computed(() => familyVisibilityPanel.value?.members ?? [])
   const familyVisibilityScopes = computed(() => familyVisibilityPanel.value?.visibility_scopes ?? [])
   const familyVisibilityDataCategories = computed(() => familyVisibilityPanel.value?.data_categories ?? [])
+  const latestFamilyVisibilityRollbackAudit = computed(() => (familyVisibilityPanel.value?.audit ?? []).find(entry => entry.rollback_available === true))
   const familyVisibilityDeferredOperations = computed(() => familyVisibilityPanel.value?.deferred_operations ?? [])
   const familyVisibilitySummaryCards = computed(() => {
     const summary = familyVisibilityPanel.value?.summary
@@ -4003,6 +4247,7 @@
   const familyFestivalSeatsPanel = computed(() => cohabitationStore.familyFestivalSeatsPanel)
   const familyFestivalSeatMembers = computed(() => familyFestivalSeatsPanel.value?.members ?? [])
   const familyFestivalSeatTemplates = computed(() => familyFestivalSeatsPanel.value?.candidate_templates ?? [])
+  const firstAvailableFamilyFestivalTemplate = computed(() => familyFestivalSeatTemplates.value.find(template => template.available) ?? familyFestivalSeatTemplates.value[0] ?? null)
   const familyFestivalSeatSceneObjects = computed(() => familyFestivalSeatsPanel.value?.visual_state_preview.scene_objects ?? [])
   const familyFestivalSeatDeferredOperations = computed(() => familyFestivalSeatsPanel.value?.deferred_operations ?? [])
   const familyFestivalSeatSummaryCards = computed(() => {
@@ -4039,6 +4284,7 @@
       { label: '经营模式', value: summary?.independent_operations_enabled ? '成员可独立经营' : '暂不可经营' },
       { label: '离线阻塞', value: summary?.offline_member_blocks_operations ? '离线会阻塞' : '离线不阻塞' },
       { label: '自动收益', value: summary?.auto_offline_income_enabled ? `可领取 ${summary?.offline_auto_income_pending_count ?? 0} 项` : '暂未开放' },
+      { label: '冲突解决', value: summary?.offline_conflict_resolution_enabled ? '服务端证据包' : '暂未开放' },
     ]
   })
   const offlineAutoIncomePendingCount = computed(() => Math.max(
@@ -4103,6 +4349,20 @@
     sesame: '芝麻',
     peach: '桃子',
     chili: '辣椒',
+    seed_cabbage: '白菜种子',
+    seed_radish: '萝卜种子',
+    seed_rice: '水稻种子',
+    seed_wheat: '小麦种子',
+    seed_corn: '玉米种子',
+    seed_tea: '茶树苗',
+    seed_lotus: '莲藕苗',
+    seed_turnip: '芜菁种子',
+    seed_carrot: '胡萝卜种子',
+    seed_sweet_potato: '红薯种苗',
+    seed_pumpkin: '南瓜种子',
+    seed_sesame: '芝麻种子',
+    seed_peach: '桃树苗',
+    seed_chili: '辣椒种子',
     wood: '木材',
     stone: '石料',
     clay: '黏土',
@@ -4167,6 +4427,8 @@
     osmanthus_focus_elixir: '桂露凝神丹',
     tea_focus_elixir: '茶心凝神丹',
     stone_root_guard_pill: '石根护脉丸',
+    moon_herb: '月草',
+    spirit_peach_elixir: '灵桃醒神丹',
   }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
@@ -4260,7 +4522,17 @@
       const assignee = typeof assigneeValue === 'string' ? assigneeValue : ''
       const confirmer = typeof confirmerValue === 'string' ? confirmerValue : ''
       const receipt = typeof receiptValue === 'string' ? receiptValue : ''
-      return [assignee ? `接单 ${assignee}` : '', confirmer ? `确认 ${confirmer}` : '', receipt ? `凭证 ${receipt}` : ''].filter(Boolean).join(' · ') || '订单协作已记录'
+      const originalDuration = Math.max(0, Math.floor(Number(bonus?.order_original_duration_seconds) || 0))
+      const bonusDuration = Math.max(0, Math.floor(Number(bonus?.order_efficiency_bonus_seconds) || 0))
+      const effectiveDuration = Math.max(0, Math.floor(Number(bonus?.order_effective_duration_seconds) || 0))
+      return [
+        assignee ? `接单 ${assignee}` : '',
+        confirmer ? `确认 ${confirmer}` : '',
+        receipt ? `凭证 ${receipt}` : '',
+        originalDuration > 0 ? `原始 ${formatDuration(originalDuration)}` : '',
+        bonusDuration > 0 ? `减免 ${formatDuration(bonusDuration)}` : '',
+        originalDuration > 0 ? `有效 ${formatDuration(effectiveDuration)}` : '',
+      ].filter(Boolean).join(' · ') || '订单协作已记录'
     }
     if (type === 'family_building_decoration_atmosphere') {
       const appliedByValue = bonus?.applied_by_username
@@ -4305,6 +4577,17 @@
     { itemId: 'seed_cabbage', label: '白菜种子' },
     { itemId: 'seed_radish', label: '萝卜种子' },
     { itemId: 'seed_rice', label: '水稻种子' },
+    { itemId: 'seed_wheat', label: '小麦种子' },
+    { itemId: 'seed_corn', label: '玉米种子' },
+    { itemId: 'seed_tea', label: '茶树苗' },
+    { itemId: 'seed_lotus', label: '莲藕苗' },
+    { itemId: 'seed_turnip', label: '芜菁种子' },
+    { itemId: 'seed_carrot', label: '胡萝卜种子' },
+    { itemId: 'seed_sweet_potato', label: '红薯种苗' },
+    { itemId: 'seed_pumpkin', label: '南瓜种子' },
+    { itemId: 'seed_sesame', label: '芝麻种子' },
+    { itemId: 'seed_peach', label: '桃树苗' },
+    { itemId: 'seed_chili', label: '辣椒种子' },
   ]
   const sharedWorkshopRecipeOptions: SharedWorkshopRecipeOption[] = [
     { id: 'shared_dried_cabbage', label: '共同晒制干菜', station: 'drying_rack', process_kind: 'processing', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }], output_item_id: 'dried_cabbage', output_quantity: 1, output_quality: 'normal' },
@@ -4343,16 +4626,48 @@
     { id: 'shared_qingxin_lotus_failed', label: '共同丹炉清心废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
     { id: 'shared_qingxin_lotus_rare', label: '共同丹炉清心奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'lotus_seed', quantity: 2, quality: 'normal' }, { item_id: 'lotus_root', quantity: 1, quality: 'normal' }, { item_id: 'herbal_paste', quantity: 1, quality: 'fine' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_warming_sweet_potato_pill', label: '共同丹炉温阳薯丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'warming_sweet_potato_pill', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_warming_sweet_potato_partial', label: '共同丹炉温阳偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_warming_sweet_potato_failed', label: '共同丹炉温阳废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_warming_sweet_potato_rare', label: '共同丹炉温阳奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_grain_breath_elixir', label: '共同丹炉谷气续行丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'grain_breath_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_grain_breath_partial', label: '共同丹炉谷气偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_grain_breath_failed', label: '共同丹炉谷气废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_grain_breath_rare', label: '共同丹炉谷气奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_sesame_courtesy_elixir', label: '共同丹炉芝香护礼丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'sesame_courtesy_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_sesame_courtesy_partial', label: '共同丹炉芝香偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_sesame_courtesy_failed', label: '共同丹炉芝香废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_sesame_courtesy_rare', label: '共同丹炉芝香奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sesame', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_pumpkin_warmth_elixir', label: '共同丹炉南瓜聚火丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pumpkin', quantity: 2, quality: 'normal' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'pumpkin_warmth_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_pumpkin_warmth_partial', label: '共同丹炉南瓜偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pumpkin', quantity: 2, quality: 'normal' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_pumpkin_warmth_failed', label: '共同丹炉南瓜废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pumpkin', quantity: 2, quality: 'normal' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_pumpkin_warmth_rare', label: '共同丹炉南瓜奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pumpkin', quantity: 2, quality: 'normal' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_spicy_vitality_pill', label: '共同丹炉辛火行气丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }], output_item_id: 'spicy_vitality_pill', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_spicy_vitality_partial', label: '共同丹炉辛火偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_spicy_vitality_failed', label: '共同丹炉辛火废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_spicy_vitality_rare', label: '共同丹炉辛火奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_osmanthus_focus_elixir', label: '共同丹炉桂露凝神丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }, { item_id: 'lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'osmanthus_focus_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_osmanthus_focus_partial', label: '共同丹炉桂露偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }, { item_id: 'lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_osmanthus_focus_failed', label: '共同丹炉桂露废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }, { item_id: 'lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_osmanthus_focus_rare', label: '共同丹炉桂露奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { item_id: 'tea', quantity: 2, quality: 'normal' }, { item_id: 'lotus_seed', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_tea_focus_elixir', label: '共同丹炉茶心凝神丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'tea_focus_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_tea_focus_partial', label: '共同丹炉茶心偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_tea_focus_failed', label: '共同丹炉茶心废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_tea_focus_rare', label: '共同丹炉茶心奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_stone_root_guard_pill', label: '共同丹炉石根护脉丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }, { item_id: 'potato', quantity: 1, quality: 'normal' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }], output_item_id: 'stone_root_guard_pill', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_stone_root_guard_partial', label: '共同丹炉石根偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }, { item_id: 'potato', quantity: 1, quality: 'normal' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_stone_root_guard_failed', label: '共同丹炉石根废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }, { item_id: 'potato', quantity: 1, quality: 'normal' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_stone_root_guard_rare', label: '共同丹炉石根奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }, { item_id: 'potato', quantity: 1, quality: 'normal' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_spirit_peach_elixir', label: '共同丹炉灵桃醒神丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'peach', quantity: 2, quality: 'fine' }, { item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'moon_herb', quantity: 1, quality: 'normal' }], output_item_id: 'spirit_peach_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_spirit_peach_partial', label: '共同丹炉灵桃偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'peach', quantity: 2, quality: 'fine' }, { item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'moon_herb', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_spirit_peach_failed', label: '共同丹炉灵桃废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'peach', quantity: 2, quality: 'fine' }, { item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'moon_herb', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_spirit_peach_rare', label: '共同丹炉灵桃奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'peach', quantity: 2, quality: 'fine' }, { item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'moon_herb', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
   ]
   const selectedSharedWorkshopRecipe = computed(() =>
     sharedWorkshopRecipeOptions.find(recipe => recipe.id === selectedSharedWorkshopRecipeId.value) ?? sharedWorkshopRecipeOptions[0] ?? null
+  )
+  const selectedSharedWorkshopSupportsAlchemyAuto = computed(() =>
+    selectedSharedWorkshopRecipe.value?.process_kind === 'alchemy_elixir' &&
+    selectedSharedWorkshopRecipe.value?.alchemy_result_kind === 'success'
   )
   const sharedWarehouseItemQuantity = (itemId: string, quality = 'normal') => (cohabitationStore.warehouse?.items ?? [])
     .filter(item => item.item_id === itemId && (item.quality || 'normal') === quality)
@@ -4450,6 +4765,22 @@
     if (cohabitationStore.sharedAnimals?.summary.animal_feed_write_enabled !== true) return false
     return animal.animal_state.was_fed !== true
   })
+  const canBuySharedAnimal = computed(() => {
+    const option = selectedSharedAnimalBuyOption.value
+    if (!option || !cohabitationStore.canOpenSelectedContract) return false
+    const summary = cohabitationStore.sharedAnimals?.summary
+    if (summary?.animal_buy_write_enabled !== true || summary?.shared_fund_animal_purchase_enabled !== true) return false
+    if (cohabitationStore.fund?.permissions?.can_spend_medium !== true) return false
+    const balance = Math.max(0, Math.floor(Number(cohabitationStore.fund?.balance ?? selectedContract.value?.shared_fund?.balance) || 0))
+    return option.unitPrice > 0 && balance >= option.unitPrice
+  })
+  const canSellSelectedSharedAnimal = computed(() => {
+    const animal = selectedSharedAnimal.value
+    if (!animal || !cohabitationStore.canOpenSelectedContract) return false
+    const summary = cohabitationStore.sharedAnimals?.summary
+    if (summary?.animal_sell_write_enabled !== true || summary?.shared_fund_animal_sale_income_enabled !== true) return false
+    return animal.origin_owner_username === 'shared_fund' || animal.origin_owner_key === 'shared_fund' || String(animal.origin_owner_id || '').startsWith('shared_fund:')
+  })
   const canPetSelectedSharedAnimal = computed(() => {
     const animal = selectedSharedAnimal.value
     if (!animal || !cohabitationStore.canOpenSelectedContract) return false
@@ -4526,9 +4857,6 @@
     offlineQueueActionOptions.value.find(option => option.id === selectedOfflineQueueActionId.value) ?? offlineQueueActionOptions.value[0] ?? null
   )
   const canSubmitOfflineQueueMerge = computed(() => selectedOfflineQueueActionOption.value?.enabled === true)
-  const canPreflightOfflineConflicts = computed(() =>
-    cohabitationStore.canOpenSelectedContract && cohabitationStore.offlineStatus?.summary.offline_conflict_preflight_enabled === true
-  )
   const offlineQueueMergeRows = computed<OfflineQueueResultRow[]>(() => {
     const merge = cohabitationStore.offlineQueueMerge
     if (!merge) return []
@@ -4541,6 +4869,18 @@
       ok: entry.status === 'committed' || entry.status === 'idempotent',
     }))
   })
+  const offlineConflictResolutionLabel = computed(() => {
+    const resolution = cohabitationStore.offlineQueueMerge?.offline_conflict_resolution
+    if (!resolution) return ''
+    const committed = Math.max(0, Math.floor(Number(resolution.committed_count) || 0))
+    const idempotent = Math.max(0, Math.floor(Number(resolution.idempotent_count) || 0))
+    const rejected = Math.max(0, Math.floor(Number(resolution.rejected_count) || 0))
+    const ledgerCount = Math.max(0, Math.floor(Number(resolution.ledger_count) || 0))
+    const beforeRevision = Math.max(0, Math.floor(Number(resolution.server_queue_revision_before) || 0))
+    const afterRevision = Math.max(0, Math.floor(Number(resolution.server_queue_revision_after) || beforeRevision))
+    const stale = resolution.client_queue_stale === true ? '客户端基线过期，按服务端最新状态处理' : '客户端基线一致'
+    return `冲突解决证据：提交 ${committed} / 幂等 ${idempotent} / 拒绝 ${rejected} · 流水 ${ledgerCount} 笔 · revision ${beforeRevision}->${afterRevision} · ${stale}`
+  })
   const offlineQueueRevisionStateLabel = computed(() => {
     const merge = cohabitationStore.offlineQueueMerge
     if (!merge) return '尚未合并离线队列'
@@ -4549,15 +4889,6 @@
     const afterRevision = Math.max(0, Math.floor(Number(merge.server_queue_revision_after) || beforeRevision))
     const stale = merge.client_queue_stale === true ? '客户端基线已过期，服务端按最新共同资产合并' : '客户端基线未过期'
     return `队列 revision：客户端 ${clientRevision} / 服务端 ${beforeRevision} -> ${afterRevision} · ${stale}`
-  })
-  const offlineConflictPreflightLabel = computed(() => {
-    const preflight = cohabitationStore.offlineConflictPreflight
-    if (!preflight) return ''
-    const clientRevision = Math.max(0, Math.floor(Number(preflight.client_queue_revision) || 0))
-    const serverRevision = Math.max(0, Math.floor(Number(preflight.server_queue_revision) || 0))
-    const unsupportedCount = Array.isArray(preflight.unsupported_actions) ? preflight.unsupported_actions.length : 0
-    const stale = preflight.client_queue_stale === true ? '客户端基线已过期，请按服务端最新状态刷新后合并' : '客户端基线与服务端预检一致'
-    return `冲突预检：客户端 ${clientRevision} / 服务端 ${serverRevision} · ${stale} · 不支持动作 ${unsupportedCount} 项`
   })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
@@ -4604,6 +4935,17 @@
       amount: 40,
       purpose: 'seed_budget',
     },
+    { label: '小麦种子 x2', itemId: 'seed_wheat', targetRef: 'shop:seed_wheat', quantity: 2, amount: 36, purpose: 'seed_budget' },
+    { label: '玉米种子 x2', itemId: 'seed_corn', targetRef: 'shop:seed_corn', quantity: 2, amount: 60, purpose: 'seed_budget' },
+    { label: '茶树苗 x2', itemId: 'seed_tea', targetRef: 'shop:seed_tea', quantity: 2, amount: 90, purpose: 'seed_budget' },
+    { label: '莲藕苗 x2', itemId: 'seed_lotus', targetRef: 'shop:seed_lotus', quantity: 2, amount: 70, purpose: 'seed_budget' },
+    { label: '芜菁种子 x2', itemId: 'seed_turnip', targetRef: 'shop:seed_turnip', quantity: 2, amount: 32, purpose: 'seed_budget' },
+    { label: '胡萝卜种子 x2', itemId: 'seed_carrot', targetRef: 'shop:seed_carrot', quantity: 2, amount: 24, purpose: 'seed_budget' },
+    { label: '红薯种苗 x2', itemId: 'seed_sweet_potato', targetRef: 'shop:seed_sweet_potato', quantity: 2, amount: 36, purpose: 'seed_budget' },
+    { label: '南瓜种子 x2', itemId: 'seed_pumpkin', targetRef: 'shop:seed_pumpkin', quantity: 2, amount: 56, purpose: 'seed_budget' },
+    { label: '芝麻种子 x2', itemId: 'seed_sesame', targetRef: 'shop:seed_sesame', quantity: 2, amount: 44, purpose: 'seed_budget' },
+    { label: '桃树苗 x2', itemId: 'seed_peach', targetRef: 'shop:seed_peach', quantity: 2, amount: 110, purpose: 'seed_budget' },
+    { label: '辣椒种子 x2', itemId: 'seed_chili', targetRef: 'shop:seed_chili', quantity: 2, amount: 48, purpose: 'seed_budget' },
     {
       label: '鱼饲料 x1',
       itemId: 'fish_feed',
@@ -4798,7 +5140,11 @@
     selectedSharedPetCareItemId.value = 'vitality_feed'
     resetSharedPetCareConfirmation()
     fundActionMessage.value = ''
+    familyOrderActionMessage.value = ''
+    familyReputationActionMessage.value = ''
     familyBuildingActionMessage.value = ''
+    familyVisibilityActionMessage.value = ''
+    familyFestivalSeatActionMessage.value = ''
     permissionActionMessage.value = ''
     roleActionMessage.value = ''
     contractActionMessage.value = ''
@@ -4878,6 +5224,55 @@
     sharedAnimalActionOk.value = false
   }
 
+  const buySelectedSharedAnimal = async () => {
+    const option = selectedSharedAnimalBuyOption.value
+    if (!option) return
+    sharedAnimalActionMessage.value = ''
+    sharedAnimalActionOk.value = false
+    try {
+      const result = await cohabitationStore.buySharedAnimal({
+        animal_type: option.type,
+        name: sharedAnimalBuyName.value.trim(),
+        memo: `前端共同动物购买：${option.type}`,
+        idempotency_key: `ui-shared-animal-buy-${option.type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedAnimalId.value = result?.animal?.id || selectedSharedAnimalId.value
+      sharedAnimalActionOk.value = true
+      sharedAnimalBuyName.value = ''
+      const amount = result?.animal_action?.total_amount ?? option.unitPrice
+      sharedAnimalActionMessage.value = result?.idempotent || result?.already_bought || result?.already_purchased
+        ? '已读回共同动物购买记录'
+        : `共同动物已购买，扣除共同基金 ${amount} 文`
+    } catch (error) {
+      sharedAnimalActionMessage.value = error instanceof Error ? error.message : '购买共同动物失败'
+    }
+  }
+
+  const sellSelectedSharedAnimal = async () => {
+    const animal = selectedSharedAnimal.value
+    if (!animal) return
+    sharedAnimalActionMessage.value = ''
+    sharedAnimalActionOk.value = false
+    try {
+      const result = await cohabitationStore.sellSharedAnimal({
+        animal_id: animal.id,
+        memo: `前端共同动物出售：${animal.id}`,
+        idempotency_key: `ui-shared-animal-sell-${animal.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedAnimalId.value = ''
+      sharedAnimalActionOk.value = true
+      const amount = result?.animal_action?.total_amount ?? 0
+      const balance = result?.animal_action?.balance_after
+      sharedAnimalActionMessage.value = result?.idempotent || result?.already_sold
+        ? '已读回共同动物出售记录'
+        : typeof balance === 'number'
+          ? `共同动物已出售，基金入账 ${amount} 文，余额 ${balance} 文`
+          : `共同动物已出售，基金入账 ${amount} 文`
+    } catch (error) {
+      sharedAnimalActionMessage.value = error instanceof Error ? error.message : '出售共同动物失败'
+    }
+  }
+
   const selectSharedPet = (pet: CohabitationSharedPet) => {
     selectedSharedPetId.value = pet.id
     sharedPetActionMessage.value = ''
@@ -4925,7 +5320,6 @@
       care_shared_pet: '共同宠物照料',
       process_shared_workshop_recipe: '共同工坊处理',
       collect_offline_auto_income: '离线自动收益领取',
-      offline_conflict_preflighted: '离线冲突预检',
     }
     return labels[action] || action
   }
@@ -5031,32 +5425,6 @@
       payload: basePayload,
     }
   }
-  const submitOfflineConflictPreflight = async () => {
-    offlineQueueActionMessage.value = ''
-    offlineQueueActionOk.value = false
-    if (!canPreflightOfflineConflicts.value) {
-      offlineQueueActionMessage.value = '当前契约暂未开放离线冲突预检'
-      return
-    }
-    try {
-      const option = selectedOfflineQueueActionOption.value
-      const result = await cohabitationStore.preflightOfflineConflicts({
-        idempotency_key: `ui-offline-conflict-preflight-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        client_queue_revision: offlineQueueClientRevision(),
-        actions: option?.queueAction ? [option.queueAction] : [],
-        memo: '前端预检离线经营冲突',
-      })
-      const preflight = result?.offline_conflict_preflight
-      const stale = preflight?.client_queue_stale === true
-      offlineQueueActionOk.value = !stale
-      offlineQueueActionMessage.value = stale
-        ? '服务端检测到客户端基线过期，请刷新后再合并离线操作'
-        : '离线冲突预检通过，可按服务端当前状态继续合并'
-    } catch (error) {
-      offlineQueueActionMessage.value = error instanceof Error ? error.message : '预检离线经营冲突失败'
-    }
-  }
-
   const submitSelectedOfflineQueueMerge = async () => {
     const option = selectedOfflineQueueActionOption.value
     const operation = buildSelectedOfflineQueueOperation()
@@ -5581,6 +5949,17 @@
   }
 
   const warehouseSellUnitPrice = (itemId: string) => warehouseSellPriceByItemId[itemId] ?? 0
+  const warehouseQualitySellMultiplier = (quality = 'normal') => {
+    if (quality === 'fine') return 1.5
+    if (quality === 'excellent') return 2
+    if (quality === 'supreme') return 3
+    return 1
+  }
+  const warehouseSellUnitPriceForItem = (item: CohabitationWarehouseItem) => {
+    const base = warehouseSellUnitPrice(item.item_id)
+    if (base <= 0) return 0
+    return Math.floor(base * warehouseQualitySellMultiplier(item.quality || 'normal'))
+  }
   const fundLedgerPurposeLabel = (entry: CohabitationFundLedgerEntry) => {
     const label = entry.spend_purpose_label || entry.purpose || 'shared_fund'
     if (entry.spend_tier === 'large') return `${label} · 大额`
@@ -5940,8 +6319,11 @@
       return
     }
     try {
+      const mediumBudgetLedger = sharedWorkshopMediumBudgetLedger.value
       const result = await cohabitationStore.processSharedWorkshopRecipe({
         recipe_id: recipe.id,
+        alchemy_result_mode: selectedSharedWorkshopSupportsAlchemyAuto.value ? sharedWorkshopAlchemyResultMode.value : 'fixed',
+        fund_ledger_id: mediumBudgetLedger?.id || undefined,
         memo: `前端执行共同工坊配方：${recipe.label}`,
         idempotency_key: `ui-shared-workshop-${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
@@ -5951,18 +6333,27 @@
       const outputQuality = action?.output_quality || result?.recipe?.output_quality || recipe.output_quality
       const outputLabel = `${warehouseItemLabels[outputItemId] || outputItemId} x${outputQuantity} · ${qualityLabel(outputQuality)}`
       const ledgerIds = action?.warehouse_ledger_ids ?? result?.warehouse_ledger_entries?.map(entry => entry.id).filter(Boolean) ?? []
+      const linkedFundLedgerId = action?.fund_ledger_id || mediumBudgetLedger?.id || ''
+      const alchemyAutoResultLabel = action?.alchemy_auto_result
+        ? `自动概率 · ${sharedWorkshopAlchemyResultLabel(action.alchemy_result_kind || '')} · ${action.alchemy_result_roll ?? 0}/${action.alchemy_result_roll_mod ?? 100}`
+        : action?.alchemy_result_kind
+          ? sharedWorkshopAlchemyResultLabel(action.alchemy_result_kind)
+          : ''
       sharedWorkshopLastResultRows.value = [
         { id: 'output', label: '产出入仓', value: outputLabel },
         { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '服务端已处理，未返回流水 ID' },
+        ...(alchemyAutoResultLabel ? [{ id: 'alchemy-result', label: '炼丹结果', value: alchemyAutoResultLabel }] : []),
         { id: 'bonus', label: '同时在线加成', value: simultaneousOnlineBonusLabel(action?.simultaneous_online_bonus) },
         { id: 'personal', label: '个人存档', value: action?.personal_save_changed === false ? '未改个人存档' : '以服务端回执为准' },
         { id: 'warehouse', label: '共同仓库', value: action?.shared_warehouse_changed === true ? '已消耗材料并写入产出' : '以刷新后仓库为准' },
-        { id: 'fund', label: '共同基金', value: action?.shared_fund_changed === false ? '未改共同基金' : '以服务端回执为准' },
+        { id: 'fund', label: '共同基金', value: action?.shared_fund_changed === false ? '未重复扣共同基金' : '以服务端回执为准' },
+        { id: 'medium-budget', label: '中额预算', value: action?.medium_fund_budget_linked && linkedFundLedgerId ? `已绑定 ${linkedFundLedgerId}` : '未绑定中额预算' },
       ]
       sharedWorkshopActionOk.value = true
+      const budgetSuffix = action?.medium_fund_budget_linked && linkedFundLedgerId ? `，中额预算 ${linkedFundLedgerId} 已绑定` : ''
       sharedWorkshopActionMessage.value = result?.already_processed
-        ? `该工坊配方已处理，已读回 ${outputLabel}`
-        : `已完成 ${recipe.label}，${outputLabel} 已进入共同仓库`
+        ? `该工坊配方已处理，已读回 ${outputLabel}${budgetSuffix}`
+        : `已完成 ${recipe.label}，${outputLabel} 已进入共同仓库${budgetSuffix}`
     } catch (error) {
       sharedWorkshopActionMessage.value = error instanceof Error ? error.message : '处理共同工坊配方失败'
     }
@@ -6001,8 +6392,9 @@
     cohabitationStore.warehouse?.summary.sell_enabled === true &&
     cohabitationStore.warehouse?.permissions.can_sell_items === true &&
     warehouseAvailableQuantity(item) > 0 &&
-    (item.quality || 'normal') === 'normal' &&
-    warehouseSellUnitPrice(item.item_id) > 0
+    !isRareWarehouseItemId(item.item_id) &&
+    ((item.quality || 'normal') === 'normal' || cohabitationStore.warehouse?.permissions.can_withdraw_high_quality === true) &&
+    warehouseSellUnitPriceForItem(item) > 0
 
   const canWithdrawWarehouseItem = (item: CohabitationWarehouseItem) =>
     cohabitationStore.canOpenSelectedContract &&
@@ -6510,16 +6902,20 @@
     familyBuildingActionMessage.value = ''
     familyBuildingActionOk.value = false
     try {
+      const mediumBudgetLedger = buildingMaterialsMediumBudgetLedger.value
       const result = await cohabitationStore.consumeFamilyBuildingMaterials({
         building_ledger_id: entry.id,
+        medium_fund_ledger_id: mediumBudgetLedger?.id || undefined,
         memo: `前端消耗家族建筑共同仓库材料：${entry.target_ref || entry.building_id || entry.project_id}`,
         idempotency_key: `ui-family-building-materials-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
       const consumedQuantity = result?.shared_warehouse?.consumed_quantity ?? 0
+      const linkedFundLedgerId = result?.shared_fund?.medium_fund_budget_ledger_id || mediumBudgetLedger?.id || ''
+      const budgetSuffix = result?.shared_fund?.medium_fund_budget_linked && linkedFundLedgerId ? `，中额预算 ${linkedFundLedgerId} 已绑定` : ''
       familyBuildingActionOk.value = true
       familyBuildingActionMessage.value = result?.already_consumed
-        ? '该建筑流水已经消耗过共同仓库建材，已刷新状态'
-        : `已消耗共同仓库建材 ${consumedQuantity} 份，未重复扣共同基金或个人铜币`
+        ? `该建筑流水已经消耗过共同仓库建材，已刷新状态${budgetSuffix}`
+        : `已消耗共同仓库建材 ${consumedQuantity} 份，未重复扣共同基金或个人铜币${budgetSuffix}`
     } catch (error) {
       familyBuildingActionMessage.value = error instanceof Error ? error.message : '消耗家族建筑共同仓库材料失败'
     }
@@ -6974,6 +7370,225 @@
     }
   }
 
+  const makeFamilyActionIdempotencyKey = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const recordFamilyOrderResult = (message: string) => {
+    familyOrderActionOk.value = true
+    familyOrderActionMessage.value = message
+  }
+  const createFamilyOrderFromPanel = async () => {
+    familyOrderActionMessage.value = ''
+    familyOrderActionOk.value = false
+    try {
+      const result = await cohabitationStore.createFamilyOrder({
+        title: '共同庄园备货单',
+        order_type: 'material_help',
+        stage_id: 'gather_materials',
+        reward_route: 'shared_fund',
+        reward_amount: 120,
+        memo: '前端创建家族订单',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-order-create'),
+      })
+      const orderId = String(result?.order?.id || '')
+      recordFamilyOrderResult(result?.idempotent ? '已读回家族订单发布记录' : `已发布家族订单${orderId ? `：${orderId}` : ''}`)
+    } catch (error) {
+      familyOrderActionMessage.value = error instanceof Error ? error.message : '创建家族订单失败'
+    }
+  }
+  const acceptFirstFamilyOrder = async () => {
+    const orderId = String(firstOpenFamilyOrder.value?.id || '')
+    if (!orderId) return
+    familyOrderActionMessage.value = ''
+    familyOrderActionOk.value = false
+    try {
+      const result = await cohabitationStore.acceptFamilyOrder(orderId, {
+        stage_id: String(firstOpenFamilyOrder.value?.stage_id || 'gather_materials'),
+        memo: '前端接取家族订单',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-order-accept'),
+      })
+      recordFamilyOrderResult(result?.idempotent ? '已读回家族订单接取记录' : '已接取家族订单')
+    } catch (error) {
+      familyOrderActionMessage.value = error instanceof Error ? error.message : '接取家族订单失败'
+    }
+  }
+  const deliverFirstFamilyOrder = async () => {
+    const orderId = String(firstAcceptedFamilyOrder.value?.id || '')
+    if (!orderId) return
+    familyOrderActionMessage.value = ''
+    familyOrderActionOk.value = false
+    try {
+      const result = await cohabitationStore.deliverFamilyOrder(orderId, {
+        stage_id: String(firstAcceptedFamilyOrder.value?.stage_id || 'handoff_confirm'),
+        delivery_note: '前端交付家族订单',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-order-deliver'),
+      })
+      recordFamilyOrderResult(result?.idempotent ? '已读回家族订单交付记录' : '已交付家族订单')
+    } catch (error) {
+      familyOrderActionMessage.value = error instanceof Error ? error.message : '交付家族订单失败'
+    }
+  }
+  const settleFirstFamilyOrder = async () => {
+    const orderId = String(firstDeliveredFamilyOrder.value?.id || '')
+    if (!orderId) return
+    familyOrderActionMessage.value = ''
+    familyOrderActionOk.value = false
+    try {
+      const result = await cohabitationStore.settleFamilyOrder(orderId, {
+        memo: '前端结算家族订单',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-order-settle'),
+      })
+      const fundAmount = Number(result?.fund_ledger_entry?.amount || 0)
+      recordFamilyOrderResult(fundAmount > 0 ? `已结算家族订单，基金入账 ${fundAmount} 文` : '已结算家族订单')
+    } catch (error) {
+      familyOrderActionMessage.value = error instanceof Error ? error.message : '结算家族订单失败'
+    }
+  }
+  const awardFamilyReputationFromPanel = async () => {
+    familyReputationActionMessage.value = ''
+    familyReputationActionOk.value = false
+    try {
+      const result = await cohabitationStore.awardFamilyReputation({
+        source_type: 'family_governance',
+        source_ref: `family_governance:ui:${Date.now()}`,
+        points: 4,
+        memo: '前端发放家族声望',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-reputation-award'),
+      })
+      familyReputationActionOk.value = true
+      familyReputationActionMessage.value = result?.idempotent ? '已读回家族声望发放记录' : '已发放家族声望'
+    } catch (error) {
+      familyReputationActionMessage.value = error instanceof Error ? error.message : '发放家族声望失败'
+    }
+  }
+  const claimFamilyReputationRewardFromPanel = async () => {
+    const reward = familyReputationRewardCatalog.value.find(entry => entry.claim_enabled === true) ?? familyReputationRewardCatalog.value[0]
+    familyReputationActionMessage.value = ''
+    familyReputationActionOk.value = false
+    try {
+      const result = await cohabitationStore.claimFamilyReputationReward({
+        reward_type: String(reward?.reward_type || 'shared_fund_grant'),
+        reward_label: String(reward?.label || 'family reputation reward'),
+        cost_points: Number(reward?.cost_points || 20),
+        amount: Number(reward?.amount || 88),
+        memo: '前端领取家族声望奖励',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-reputation-claim'),
+      })
+      const amount = Number(result?.fund_ledger_entry?.amount || reward?.amount || 0)
+      familyReputationActionOk.value = true
+      familyReputationActionMessage.value = result?.idempotent ? '已读回声望奖励领取记录' : `已领取声望奖励，基金入账 ${amount} 文`
+    } catch (error) {
+      familyReputationActionMessage.value = error instanceof Error ? error.message : '领取家族声望奖励失败'
+    }
+  }
+  const publishFamilyVisibilityFromPanel = async () => {
+    familyVisibilityActionMessage.value = ''
+    familyVisibilityActionOk.value = false
+    const memberConsent = Object.fromEntries(familyVisibilityMembers.value.map(member => [member.username_key, true]))
+    try {
+      const result = await cohabitationStore.updateFamilyVisibility({
+        default_scope: 'public_profile',
+        enabled_scope_ids: ['contract_members', 'public_profile', 'festival_room'],
+        public_category_ids: ['contract_members', 'family_roles', 'shared_capabilities'],
+        member_consent: memberConsent,
+        memo: '前端写入家族公开设置',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-visibility-update'),
+      })
+      familyVisibilityActionOk.value = true
+      familyVisibilityActionMessage.value = result?.idempotent ? '已读回家族公开设置记录' : '已写入家族公开设置与审计'
+    } catch (error) {
+      familyVisibilityActionMessage.value = error instanceof Error ? error.message : '更新家族公开设置失败'
+    }
+  }
+  const rollbackFamilyVisibilityFromPanel = async () => {
+    familyVisibilityActionMessage.value = ''
+    familyVisibilityActionOk.value = false
+    try {
+      const result = await cohabitationStore.rollbackFamilyVisibility({
+        audit_id: String(latestFamilyVisibilityRollbackAudit.value?.id || ''),
+        memo: '前端回滚家族公开设置',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-visibility-rollback'),
+      })
+      familyVisibilityActionOk.value = true
+      familyVisibilityActionMessage.value = result?.idempotent ? '已读回家族公开回滚记录' : '已回滚家族公开设置'
+    } catch (error) {
+      familyVisibilityActionMessage.value = error instanceof Error ? error.message : '回滚家族公开设置失败'
+    }
+  }
+  const reserveFamilyFestivalSeatsFromPanel = async () => {
+    const template = firstAvailableFamilyFestivalTemplate.value
+    if (!template) return
+    familyFestivalSeatActionMessage.value = ''
+    familyFestivalSeatActionOk.value = false
+    try {
+      const result = await cohabitationStore.reserveFamilyFestivalSeats({
+        template_id: template.id,
+        seat_usernames: familyFestivalSeatMembers.value.map(member => member.username).filter(Boolean),
+        memo: '前端锁定家族节会席位',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-festival-reserve'),
+      })
+      const seatCount = Number(result?.ledger_entry?.seat_count || familyFestivalSeatMembers.value.length || 0)
+      familyFestivalSeatActionOk.value = true
+      familyFestivalSeatActionMessage.value = result?.idempotent ? '已读回节会锁席记录' : `已锁定节会席位 ${seatCount} 个`
+    } catch (error) {
+      familyFestivalSeatActionMessage.value = error instanceof Error ? error.message : '锁定家族节会席位失败'
+    }
+  }
+  const createFamilyFestivalRoomFromPanel = async () => {
+    const template = firstAvailableFamilyFestivalTemplate.value
+    if (!template) return
+    familyFestivalSeatActionMessage.value = ''
+    familyFestivalSeatActionOk.value = false
+    try {
+      const result = await cohabitationStore.createFamilyFestivalRoom({
+        template_id: template.id,
+        title: `${template.label || '家族节会'}共同席`,
+        memo: '前端创建家族节会房间',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-festival-room'),
+      })
+      familyFestivalSeatActionOk.value = true
+      familyFestivalSeatActionMessage.value = result?.idempotent ? '已读回节会房间记录' : `已创建节会房间${result?.room_id ? `：${result.room_id}` : ''}`
+    } catch (error) {
+      familyFestivalSeatActionMessage.value = error instanceof Error ? error.message : '创建家族节会房间失败'
+    }
+  }
+  const consumeFamilyFestivalSuppliesFromPanel = async () => {
+    const template = firstAvailableFamilyFestivalTemplate.value
+    if (!template) return
+    familyFestivalSeatActionMessage.value = ''
+    familyFestivalSeatActionOk.value = false
+    try {
+      const result = await cohabitationStore.consumeFamilyFestivalSupplies({
+        template_id: template.id,
+        memo: '前端消耗家族节会供品',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-festival-supplies'),
+      })
+      const count = Array.isArray(result?.warehouse_ledger_entries) ? result.warehouse_ledger_entries.length : 0
+      familyFestivalSeatActionOk.value = true
+      familyFestivalSeatActionMessage.value = result?.idempotent ? '已读回节会供品消耗记录' : `已消耗节会供品，仓库流水 ${count} 笔`
+    } catch (error) {
+      familyFestivalSeatActionMessage.value = error instanceof Error ? error.message : '消耗家族节会供品失败'
+    }
+  }
+  const settleFamilyFestivalRewardsFromPanel = async () => {
+    const template = firstAvailableFamilyFestivalTemplate.value
+    if (!template) return
+    familyFestivalSeatActionMessage.value = ''
+    familyFestivalSeatActionOk.value = false
+    try {
+      const result = await cohabitationStore.settleFamilyFestivalRewards({
+        template_id: template.id,
+        amount: 120,
+        points: 10,
+        memo: '前端结算家族节会奖励',
+        idempotency_key: makeFamilyActionIdempotencyKey('ui-family-festival-settle'),
+      })
+      const amount = Number(result?.fund_ledger_entry?.amount || 0)
+      familyFestivalSeatActionOk.value = true
+      familyFestivalSeatActionMessage.value = result?.idempotent ? '已读回节会奖励结算记录' : `已结算节会奖励，基金入账 ${amount} 文`
+    } catch (error) {
+      familyFestivalSeatActionMessage.value = error instanceof Error ? error.message : '结算家族节会奖励失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -7326,6 +7941,7 @@
       warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
       shared_workshop_processed: '共同工坊处理',
+      offline_queue_merged: '离线队列合并',
       offline_auto_income_collected: '离线自动收益领取',
       cohabitation_daily_settled: '共同庄园日结',
       shared_farm_crop_removed: '共同农田铲除',
@@ -7375,6 +7991,7 @@
     if (action.includes('shared_farm')) return '共同农田'
     if (action.includes('fund')) return '基金'
     if (action.includes('permission') || action.includes('role')) return '治理'
+    if (action.includes('offline')) return '离线'
     if (action.includes('separation')) return '分居'
     if (action.includes('contract')) return '契约'
     return '日志'
@@ -7402,12 +8019,6 @@
       const directionLabel = direction === 'inbound' ? '入仓' : direction === 'outbound' ? '出仓' : '入仓 / 出仓'
       return expiresAt > 0 ? `${target || '成员'} ${directionLabel}恢复至 ${formatTime(expiresAt)}` : `${target || '成员'} ${directionLabel}恢复已记录`
     }
-    if (entry.action === 'offline_conflict_preflighted') {
-      const clientRevision = Math.max(0, Math.floor(Number(detail.client_queue_revision) || 0))
-      const serverRevision = Math.max(0, Math.floor(Number(detail.server_queue_revision) || 0))
-      const unsupportedCount = Array.isArray(detail.unsupported_actions) ? detail.unsupported_actions.length : 0
-      return `客户端 revision ${clientRevision} / 服务端 ${serverRevision}，${detail.client_queue_stale === true ? '需刷新后合并' : '可继续合并'}，不支持动作 ${unsupportedCount} 项`
-    }
     if (entry.action === 'shared_workshop_processed') {
       const recipeId = typeof detail.recipe_id === 'string' ? detail.recipe_id : ''
       const recipe = sharedWorkshopRecipeOptions.find(option => option.id === recipeId)
@@ -7424,6 +8035,17 @@
       const animalCount = Number(detail.animal_product_count) || 0
       const warehouseLedgerCount = Array.isArray(detail.warehouse_ledger_ids) ? detail.warehouse_ledger_ids.length : 0
       return `领取 ${collected} 项：农田 ${farmCount}、动物产物 ${animalCount}，共同仓库流水 ${warehouseLedgerCount} 笔，个人存档与共同基金不变`
+    }
+    if (entry.action === 'offline_queue_merged') {
+      const resolution = detail.offline_conflict_resolution && typeof detail.offline_conflict_resolution === 'object'
+        ? detail.offline_conflict_resolution as Record<string, unknown>
+        : {}
+      const committed = Number(resolution.committed_count) || Number(detail.operation_count) || 0
+      const idempotent = Number(resolution.idempotent_count) || 0
+      const rejected = Number(resolution.rejected_count) || Number(detail.rejected_count) || 0
+      const ledgerCount = Number(resolution.ledger_count) || (Array.isArray(detail.result_ledger_ids) ? detail.result_ledger_ids.length : 0)
+      const stale = resolution.client_queue_stale === true || detail.client_queue_stale === true ? '客户端基线过期，按服务端最新状态处理' : '客户端基线一致'
+      return `服务端权威队列合并：提交 ${committed}、幂等 ${idempotent}、拒绝 ${rejected}，流水 ${ledgerCount} 笔，${stale}`
     }
     if (entry.action === 'fund_high_risk_receipt_recorded') {
       const purpose = typeof detail.purpose === 'string' ? detail.purpose : ''
@@ -7715,7 +8337,7 @@
       collect_shared_animal_product: '收取动物产物',
       care_shared_pet: '照料共同宠物',
       collect_offline_auto_income: '领取离线自动收益',
-      preflight_offline_conflicts: '预检离线冲突',
+      resolve_offline_conflicts: '离线冲突解决',
       read_fund: '读取共同基金',
       contribute_fund: '注资共同基金',
       read_permissions: '读取权限',
@@ -7741,6 +8363,7 @@
   })
 
   watch(selectedSharedWorkshopRecipeId, () => {
+    if (!selectedSharedWorkshopSupportsAlchemyAuto.value) sharedWorkshopAlchemyResultMode.value = 'fixed'
     sharedWorkshopActionMessage.value = ''
     sharedWorkshopActionOk.value = false
     sharedWorkshopLastResultRows.value = []

@@ -39,6 +39,32 @@
       <p class="text-xs text-muted mt-1">{{ dailyBlessingPreview.summary }}</p>
     </div>
 
+    <section
+      class="border border-accent/20 rounded-xs p-3 mb-4 bg-panel/60"
+      data-testid="cottage-cohabitation-family-entry"
+      aria-label="同居家庭共同庄园入口"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-sm text-accent">
+            <Users :size="14" class="inline" />
+            同居 / 家庭 / 共同庄园
+          </p>
+          <p class="text-[10px] text-muted leading-4 mt-1">
+            从小屋直达共同庄园，查看共同农田、仓库、基金和家庭协作记录；个人铜币与个人背包仍保持独立。
+          </p>
+        </div>
+        <Button class="shrink-0 justify-center py-1" :icon="Home" :icon-size="12" @click="goToCohabitationManor">
+          进入
+        </Button>
+      </div>
+      <div class="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted">
+        <span class="border border-accent/10 rounded-xs px-2 py-1 text-center">契约成员</span>
+        <span class="border border-accent/10 rounded-xs px-2 py-1 text-center">共同农田</span>
+        <span class="border border-accent/10 rounded-xs px-2 py-1 text-center">审计日志</span>
+      </div>
+    </section>
+
     <!-- 家人 -->
     <div v-if="npcStore.getSpouse()" class="border border-accent/20 rounded-xs p-3 mb-4">
       <p class="text-sm text-accent mb-2">
@@ -677,6 +703,7 @@
 
 <script setup lang="ts">
   import { computed, ref } from 'vue'
+  import { useRouter } from 'vue-router'
   import { ArrowUp, Calendar, Gem, Gift, Hammer, Home, Heart, MessageCircle, UserPlus, Users, X } from 'lucide-vue-next'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
@@ -700,6 +727,7 @@
   import { handleEndDay } from '@/composables/useEndDay'
   import Button from '@/components/game/Button.vue'
 
+  const router = useRouter()
   const homeStore = useHomeStore()
   const inventoryStore = useInventoryStore()
   const gameStore = useGameStore()
@@ -709,6 +737,10 @@
   const skillStore = useSkillStore()
   const villageProjectStore = useVillageProjectStore()
   const dailyBlessingPreview = computed(() => skillStore.dailyBlessingPreview)
+
+  const goToCohabitationManor = () => {
+    router.push({ name: 'online-cohabitation' })
+  }
 
   const releaseConfirmChildId = ref<number | null>(null)
   const showUpgradeModal = ref(false)

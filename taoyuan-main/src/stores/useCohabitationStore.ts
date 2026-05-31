@@ -1,24 +1,33 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { isProtectedApiError } from '@/utils/protectedApi'
 import {
   acceptCohabitationContract,
+  acceptCohabitationFamilyOrder,
   applyCohabitationFamilyBuildingRealBuild,
   approveCohabitationFamilyBuildingRealDemolitionReview,
+  awardCohabitationFamilyReputation,
   bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
+  buyCohabitationSharedAnimal,
+  claimCohabitationFamilyReputationReward,
   confirmCohabitationFundLargeSpendDraft,
   confirmCohabitationWarehouseHighValueWithdrawalDraft,
   confirmCohabitationSeparationPreview,
   consumeCohabitationFamilyBuildingMaterials,
+  consumeCohabitationFamilyFestivalSupplies,
   contributeCohabitationFund,
   careCohabitationSharedPlot,
   careCohabitationSharedPet,
   collectCohabitationOfflineAutoIncome,
   collectCohabitationSharedAnimalProduct,
   createCohabitationContract,
+  createCohabitationFamilyFestivalRoom,
+  createCohabitationFamilyOrder,
   createCohabitationFundLargeSpendDraft,
   createCohabitationWarehouseHighValueWithdrawalDraft,
   createCohabitationSeparationPreview,
   depositCohabitationWarehouseItem,
+  deliverCohabitationFamilyOrder,
   executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutation,
   executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   executeCohabitationFamilyBuildingRealDemolitionMainStateMutation,
@@ -45,13 +54,13 @@ import {
   fertilizeCohabitationSharedPlot,
   guardCohabitationFamilyBuildingRealDemolitionMainStateMutation,
   mergeCohabitationOfflineQueue,
-  preflightCohabitationOfflineConflicts,
   harvestCohabitationSharedPlot,
   petCohabitationSharedAnimal,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   plantCohabitationSharedPlot,
   processCohabitationSharedWorkshopRecipe,
   recordCohabitationFundHighRiskReceipt,
+  recordCohabitationFamilyChildCare,
   recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
   recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight,
   recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution,
@@ -68,14 +77,21 @@ import {
   resolveCohabitationSeparationFamilyStory,
   resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   restoreCohabitationFamilyBuildingMaterials,
+  reserveCohabitationFamilyFestivalSeats,
   rollbackCohabitationFamilyBuilding,
+  rollbackCohabitationFamilyVisibility,
   rollbackCohabitationWarehouseHighValueWithdrawalDraft,
   returnCohabitationSeparationSharedWarehouse,
+  sellCohabitationSharedAnimal,
   sellCohabitationWarehouseItem,
   settleCohabitationDailyBonus,
+  settleCohabitationFamilyFestivalRewards,
+  settleCohabitationFamilyOrder,
   splitCohabitationSeparationDecorationsBuildings,
   spendCohabitationFund,
+  submitCohabitationFamilyWish,
   purchaseCohabitationSharedFundShopItem,
+  updateCohabitationFamilyVisibility,
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping,
@@ -97,19 +113,29 @@ import {
   type CohabitationFamilyBuildingMainStateExactTargetPayload,
   type CohabitationFamilyBuildingMainStateMutationGuardPayload,
   type CohabitationFamilyBuildingMainStateMappingPayload,
+  type CohabitationFamilyFestivalRoomPayload,
+  type CohabitationFamilyFestivalSeatReservePayload,
   type CohabitationFamilyFestivalSeatsPanel,
+  type CohabitationFamilyFestivalSettlePayload,
+  type CohabitationFamilyFestivalSuppliesPayload,
+  type CohabitationFamilyChildCarePayload,
+  type CohabitationFamilyOrderActionPayload,
+  type CohabitationFamilyOrderCreatePayload,
   type CohabitationFamilyOrdersPanel,
   type CohabitationFamilyRelationsPanel,
+  type CohabitationFamilyReputationAwardPayload,
   type CohabitationFamilyReputationPanel,
+  type CohabitationFamilyReputationRewardClaimPayload,
   type CohabitationFamilyRolePanel,
+  type CohabitationFamilyVisibilityRollbackPayload,
   type CohabitationFamilyVisibilityPanel,
+  type CohabitationFamilyVisibilityUpdatePayload,
+  type CohabitationFamilyWishSubmitPayload,
   type CohabitationFundShopPurchasePayload,
   type CohabitationFundSnapshot,
   type CohabitationFundHighRiskReceiptPayload,
   type CohabitationOfflineStatus,
   type CohabitationOfflineAutoIncomeCollectPayload,
-  type CohabitationOfflineConflictPreflightPayload,
-  type CohabitationOfflineConflictPreflightSummary,
   type CohabitationOfflineQueueMergePayload,
   type CohabitationOfflineQueueMergeSummary,
   type CohabitationOverviewResponse,
@@ -136,9 +162,11 @@ import {
   type CohabitationWarehouseManualAppealResolutionPayload,
   type CohabitationWarehouseOperatorReceiptAuditReviewPayload,
   type CohabitationWarehouseGovernanceRecoveryPayload,
+  type CohabitationSharedAnimalBuyPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
   type CohabitationSharedAnimalProductPayload,
+  type CohabitationSharedAnimalSellPayload,
   type CohabitationSharedAnimals,
   type CohabitationSharedPetCarePayload,
   type CohabitationSharedPets,
@@ -176,7 +204,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const familyReputationPanel = ref<CohabitationFamilyReputationPanel | null>(null)
   const familyVisibilityPanel = ref<CohabitationFamilyVisibilityPanel | null>(null)
   const offlineQueueMerge = ref<CohabitationOfflineQueueMergeSummary | null>(null)
-  const offlineConflictPreflight = ref<CohabitationOfflineConflictPreflightSummary | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
   const dailySettlement = ref<Record<string, unknown> | null>(null)
 
@@ -206,7 +233,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyReputationPanel.value = null
     familyVisibilityPanel.value = null
     offlineQueueMerge.value = null
-    offlineConflictPreflight.value = null
     offlineStatus.value = null
     dailySettlement.value = null
     warehouseCompensationAuditBundle.value = null
@@ -234,6 +260,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
         separation_previews: nextContracts.reduce((sum, entry) => sum + (entry.separation_previews?.length || 0), 0),
       },
     }
+  }
+
+  const syncFamilyManorWriteResult = async (result: {
+    contract?: CohabitationContract
+    family_orders_panel?: CohabitationFamilyOrdersPanel
+    family_reputation_panel?: CohabitationFamilyReputationPanel
+    family_visibility_panel?: CohabitationFamilyVisibilityPanel
+    family_festival_seats_panel?: CohabitationFamilyFestivalSeatsPanel
+    fund?: CohabitationFundSnapshot
+    warehouse?: CohabitationWarehouseSnapshot
+  } | null | undefined) => {
+    if (result?.contract) syncOverviewContract(result.contract)
+    if (result?.family_orders_panel) familyOrdersPanel.value = result.family_orders_panel
+    if (result?.family_reputation_panel) familyReputationPanel.value = result.family_reputation_panel
+    if (result?.family_visibility_panel) familyVisibilityPanel.value = result.family_visibility_panel
+    if (result?.family_festival_seats_panel) familyFestivalSeatsPanel.value = result.family_festival_seats_panel
+    if (result?.fund) fund.value = result.fund
+    if (result?.warehouse) warehouse.value = result.warehouse
+    await refreshSelectedDetails({ silent: true })
   }
 
   const refreshSelectedDetails = async (options: { silent?: boolean } = {}) => {
@@ -805,6 +850,198 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const createFamilyOrder = async (payload: CohabitationFamilyOrderCreatePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await createCohabitationFamilyOrder(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '创建家族订单失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const acceptFamilyOrder = async (orderId: string, payload: CohabitationFamilyOrderActionPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !orderId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await acceptCohabitationFamilyOrder(activeContractId.value, orderId, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '接取家族订单失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const deliverFamilyOrder = async (orderId: string, payload: CohabitationFamilyOrderActionPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !orderId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await deliverCohabitationFamilyOrder(activeContractId.value, orderId, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '交付家族订单失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const settleFamilyOrder = async (orderId: string, payload: CohabitationFamilyOrderActionPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !orderId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await settleCohabitationFamilyOrder(activeContractId.value, orderId, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '结算家族订单失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const awardFamilyReputation = async (payload: CohabitationFamilyReputationAwardPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await awardCohabitationFamilyReputation(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '发放家族声望失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const claimFamilyReputationReward = async (payload: CohabitationFamilyReputationRewardClaimPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await claimCohabitationFamilyReputationReward(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '领取家族声望奖励失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const updateFamilyVisibility = async (payload: CohabitationFamilyVisibilityUpdatePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await updateCohabitationFamilyVisibility(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '更新家族公开设置失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const rollbackFamilyVisibility = async (payload: CohabitationFamilyVisibilityRollbackPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await rollbackCohabitationFamilyVisibility(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '回滚家族公开设置失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const reserveFamilyFestivalSeats = async (payload: CohabitationFamilyFestivalSeatReservePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await reserveCohabitationFamilyFestivalSeats(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '锁定家族节会席位失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const createFamilyFestivalRoom = async (payload: CohabitationFamilyFestivalRoomPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await createCohabitationFamilyFestivalRoom(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '创建家族节会房间失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const consumeFamilyFestivalSupplies = async (payload: CohabitationFamilyFestivalSuppliesPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await consumeCohabitationFamilyFestivalSupplies(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '消耗家族节会供品失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const settleFamilyFestivalRewards = async (payload: CohabitationFamilyFestivalSettlePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await settleCohabitationFamilyFestivalRewards(activeContractId.value, payload)
+      await syncFamilyManorWriteResult(result)
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '结算家族节会奖励失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const applyFamilyBuildingRealBuild = async (payload: {
     building_ledger_id: string
     memo?: string
@@ -836,6 +1073,10 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     building_ledger_id: string
     memo?: string
     idempotency_key: string
+    medium_fund_ledger_id?: string
+    budget_fund_ledger_id?: string
+    budget_ledger_id?: string
+    materials_fund_ledger_id?: string
   }) => {
     if (!activeContractId.value || !canOpenSelectedContract.value || !payload.building_ledger_id) return null
     actionLoading.value = true
@@ -1726,6 +1967,44 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const buySharedAnimal = async (payload: CohabitationSharedAnimalBuyPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.animal_type) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await buyCohabitationSharedAnimal(activeContractId.value, payload)
+      if (result?.shared_animals) sharedAnimals.value = result.shared_animals
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '购买共同动物失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const sellSharedAnimal = async (payload: CohabitationSharedAnimalSellPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.animal_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await sellCohabitationSharedAnimal(activeContractId.value, payload)
+      if (result?.shared_animals) sharedAnimals.value = result.shared_animals
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '出售共同动物失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const petSharedAnimal = async (payload: CohabitationSharedAnimalPetPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value || !payload.animal_id) return null
     actionLoading.value = true
@@ -1812,26 +2091,17 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       await refreshSelectedDetails({ silent: true })
       return result
     } catch (error) {
+      if (isProtectedApiError(error) && error.data && typeof error.data === 'object') {
+        const data = error.data as {
+          offline_queue_merge?: CohabitationOfflineQueueMergeSummary
+          offline_status?: CohabitationOfflineStatus
+          contract?: CohabitationContract
+        }
+        offlineQueueMerge.value = data.offline_queue_merge ?? offlineQueueMerge.value
+        if (data.offline_status) offlineStatus.value = data.offline_status
+        if (data.contract) syncOverviewContract(data.contract)
+      }
       errorMessage.value = error instanceof Error ? error.message : '合并离线经营队列失败'
-      throw error
-    } finally {
-      actionLoading.value = false
-    }
-  }
-
-  const preflightOfflineConflicts = async (payload: CohabitationOfflineConflictPreflightPayload) => {
-    if (!activeContractId.value || !canOpenSelectedContract.value) return null
-    actionLoading.value = true
-    errorMessage.value = ''
-    try {
-      const result = await preflightCohabitationOfflineConflicts(activeContractId.value, payload)
-      offlineConflictPreflight.value = result?.offline_conflict_preflight ?? null
-      if (result?.offline_status) offlineStatus.value = result.offline_status
-      if (result?.contract) syncOverviewContract(result.contract)
-      await refreshSelectedDetails({ silent: true })
-      return result
-    } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '预检离线经营冲突失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -1936,6 +2206,50 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const submitFamilyWish = async (payload: CohabitationFamilyWishSubmitPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await submitCohabitationFamilyWish(activeContractId.value, payload)
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '提交共同家庭心愿失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const recordFamilyChildCare = async (payload: CohabitationFamilyChildCarePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recordCohabitationFamilyChildCare(activeContractId.value, payload)
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录共同孩子照料失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   return {
     overview,
     activeContractId,
@@ -1955,7 +2269,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyBuildingsPanel,
     familyFestivalSeatsPanel,
     offlineQueueMerge,
-    offlineConflictPreflight,
     familyOrdersPanel,
     familyRelationsPanel,
     familyReputationPanel,
@@ -1992,6 +2305,18 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     confirmSharedFundLargeSpendDraft,
     executeSharedFundLargeSpendDraft,
     recordSharedFundHighRiskReceipt,
+    createFamilyOrder,
+    acceptFamilyOrder,
+    deliverFamilyOrder,
+    settleFamilyOrder,
+    awardFamilyReputation,
+    claimFamilyReputationReward,
+    updateFamilyVisibility,
+    rollbackFamilyVisibility,
+    reserveFamilyFestivalSeats,
+    createFamilyFestivalRoom,
+    consumeFamilyFestivalSupplies,
+    settleFamilyFestivalRewards,
     applyFamilyBuildingRealBuild,
     consumeFamilyBuildingMaterials,
     rollbackFamilyBuilding,
@@ -2011,7 +2336,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     executeFamilyBuildingRealDemolitionMainStateExactTargets,
     resolveFamilyBuildingRealDemolitionMainStateExactTargets,
     mergeOfflineQueue,
-    preflightOfflineConflicts,
     collectOfflineAutoIncome,
     settleDailyBonus,
     executeFamilyBuildingRealDemolitionMainStateExactMutation,
@@ -2034,11 +2358,15 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     fertilizeSharedFarmPlot,
     harvestSharedFarmPlot,
     feedSharedAnimal,
+    buySharedAnimal,
+    sellSharedAnimal,
     petSharedAnimal,
     collectSharedAnimalProduct,
     careSharedPet,
     processSharedWorkshopRecipe,
     updateMemberPermissions,
     updateMemberRole,
+    recordFamilyChildCare,
+    submitFamilyWish,
   }
 })

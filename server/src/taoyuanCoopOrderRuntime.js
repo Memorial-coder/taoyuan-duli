@@ -1856,6 +1856,7 @@ async function confirmCoopOrderDelivery(orderId, actor = {}, settlementOptions =
     trust_level_label: reputationOutcome.trustLevel.label,
     updated_at: now,
     confirmed_at: now,
+    ...buildOrderConfirmationTimingSeed(order, null, receipt, now),
   });
   let nextOrder = normalizeOrder({
     ...order,
@@ -1944,6 +1945,7 @@ async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}, settl
     trust_level_label: reputationOutcome.trustLevel.label,
     updated_at: now,
     confirmed_at: now,
+    ...buildOrderConfirmationTimingSeed(order, stage, receipt, now),
   });
   let nextStage = normalizeOrderStage({
     ...stage,

@@ -276,10 +276,6 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_offline_queue_merge',
   },
   {
-    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-conflicts\/preflight$/i,
-    action: 'cohabitation_offline_conflict_preflight',
-  },
-  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-auto-income\/collect$/i,
     action: 'cohabitation_offline_auto_income_collect',
   },
@@ -3238,7 +3234,6 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/p
   });
 });
 
-
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/pet', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -3280,7 +3275,6 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/s
     }
   });
 });
-
 
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-pets', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
@@ -3442,6 +3436,138 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/family-festival-s
   }
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-orders', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.createCohabitationFamilyOrder(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '创建家族订单失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-orders/:orderId/accept', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.acceptCohabitationFamilyOrder(req.params.contractId, req.params.orderId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '接取家族订单失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-orders/:orderId/deliver', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.deliverCohabitationFamilyOrder(req.params.contractId, req.params.orderId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '交付家族订单失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-orders/:orderId/settle', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.settleCohabitationFamilyOrder(req.params.contractId, req.params.orderId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '结算家族订单失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-reputation/award', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.awardCohabitationFamilyReputation(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '发放家族声望失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-reputation/rewards/claim', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.claimCohabitationFamilyReputationReward(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '领取家族声望奖励失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-visibility/settings', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.updateCohabitationFamilyVisibility(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '更新家族公开设置失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-visibility/rollback', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.rollbackCohabitationFamilyVisibility(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '回滚家族公开设置失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-festival-seats/reserve', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.reserveCohabitationFamilyFestivalSeats(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '锁定家族节会席位失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-festival-seats/create-room', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.createCohabitationFamilyFestivalRoom(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '创建家族节会房间失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-festival-seats/consume-supplies', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.consumeCohabitationFamilyFestivalSupplies(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '消耗家族节会供品失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-festival-seats/settle', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.settleCohabitationFamilyFestivalRewards(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '结算家族节会奖励失败' });
+    }
+  });
+});
+
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/offline-status', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
     const result = await taoyuanCohabitationRuntime.getCohabitationOfflineStatus(req.params.contractId, {
@@ -3473,23 +3599,14 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-queue/me
         username: req.session.username,
         displayName: req.session.display_name || req.session.username,
       });
-      return sendJson(res, result);
+      res.json({ ok: true, ...result });
     } catch (error) {
-      return sendError(res, error);
-    }
-  });
-});
-
-router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflicts/preflight', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
-  return withTaoyuanExchangeLock(async () => {
-    try {
-      const result = await taoyuanCohabitationRuntime.preflightCohabitationOfflineConflicts(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
+      res.status(error.status || 500).json({
+        ok: false,
+        msg: error.message || '合并离线经营队列失败',
+        offline_queue_merge: error.offline_queue_merge,
+        offline_conflict_resolution: error.offline_conflict_resolution,
       });
-      return sendJson(res, result);
-    } catch (error) {
-      return sendError(res, error);
     }
   });
 });
@@ -3501,9 +3618,9 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-auto-inc
         username: req.session.username,
         displayName: req.session.display_name || req.session.username,
       });
-      return sendJson(res, result);
+      res.json({ ok: true, ...result });
     } catch (error) {
-      return sendError(res, error);
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '领取离线自动收益失败' });
     }
   });
 });
@@ -3758,6 +3875,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/shop-purcha
     }
   });
 });
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/freeze-abnormality', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -3824,6 +3942,34 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录共同基金高风险回执失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-wishes', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.submitCohabitationFamilyWish(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '提交共同家庭心愿失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-child-care', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recordCohabitationFamilyChildCare(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '记录共同孩子照料失败' });
     }
   });
 });
