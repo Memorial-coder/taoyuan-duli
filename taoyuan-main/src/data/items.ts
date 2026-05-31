@@ -1315,6 +1315,14 @@ const ELIXIR_ITEMS: ItemDef[] = [
     description: '腌姜、精制石英与风蚀晶核炼成的高地稀材护丹。定位为风蚀远征、护送和高压采集前的防护丹药。',
     sellPrice: 720,
     edible: false
+  },
+  {
+    id: 'marsh_luminous_cleansing_elixir',
+    name: '泽光净息丹',
+    category: 'elixir',
+    description: '草药膏、湿地孢样与夜光藻团炼成的泽地稀材主丹。定位为泽地远征、湿地采样和夜间探索前的净息丹药。',
+    sellPrice: 740,
+    edible: false
   }
 ]
 

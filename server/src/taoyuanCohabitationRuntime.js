@@ -118,6 +118,10 @@ const SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES = Object.freeze({
     profile: 'wind_core_rare_material',
     weights: { success: 66, partial: 17, failed: 8, rare: 9 },
   },
+  shared_marsh_luminous_cleansing_elixir: {
+    profile: 'marsh_luminous_rare_material',
+    weights: { success: 64, partial: 18, failed: 8, rare: 10 },
+  },
 });
 const SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL = 'balanced';
 const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
@@ -136,7 +140,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 11;
+const WAREHOUSE_ITEM_POLICY_VERSION = 12;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -163,7 +167,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'stone_root_guard_pill', 'partial_elixir_slurry', 'failed_elixir_ash',
 ]);
 const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
-  'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill',
+  'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill', 'marsh_luminous_cleansing_elixir',
   'ley_crystal_shard', 'marsh_spore_sample', 'luminous_algae', 'wind_etched_core',
   'lotus_seed_rare', 'jade_peach', 'moon_pearl', 'jade_orchid',
 ]);
@@ -2141,6 +2145,66 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'pickled_ginger', quantity: 1, quality: 'fine' },
       { item_id: 'refined_quartz', quantity: 1, quality: 'fine' },
       { item_id: 'wind_etched_core', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
+  shared_marsh_luminous_cleansing_elixir: {
+    id: 'shared_marsh_luminous_cleansing_elixir',
+    label: '共同丹炉泽光净息丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'marsh_spore_sample', quantity: 1, quality: 'normal' },
+      { item_id: 'luminous_algae', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'marsh_luminous_cleansing_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_marsh_luminous_cleansing_partial: {
+    id: 'shared_marsh_luminous_cleansing_partial',
+    label: '共同丹炉泽光偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'marsh_spore_sample', quantity: 1, quality: 'normal' },
+      { item_id: 'luminous_algae', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_marsh_luminous_cleansing_failed: {
+    id: 'shared_marsh_luminous_cleansing_failed',
+    label: '共同丹炉泽光废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'marsh_spore_sample', quantity: 1, quality: 'normal' },
+      { item_id: 'luminous_algae', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_marsh_luminous_cleansing_rare: {
+    id: 'shared_marsh_luminous_cleansing_rare',
+    label: '共同丹炉泽光奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'marsh_spore_sample', quantity: 1, quality: 'normal' },
+      { item_id: 'luminous_algae', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'rare_elixir_crystal',
     output_quantity: 1,

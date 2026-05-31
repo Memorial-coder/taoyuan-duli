@@ -4147,7 +4147,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 11, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 12, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4160,6 +4160,7 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('marsh_luminous_cleansing_elixir'), 'warehouse item policy should list marsh rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_etched_core'), 'warehouse item policy should list room rare materials as rare items')
@@ -4748,6 +4749,15 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
   'wind core rare material alchemy should require storage.withdraw_rare before consuming wind etched core'
 )
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_marsh_luminous_cleansing_elixir',
+    memo: 'qa marsh luminous alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-marsh-luminous-cleansing-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'marsh luminous rare material alchemy should require storage.withdraw_rare before consuming marsh rare materials'
+)
 await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   target_username: recipePolicyOwner,
   permissions: {
@@ -4875,6 +4885,46 @@ await assertRecipePolicyAlchemyAutoResult({
   expectedWeightProfile: 'wind_core_rare_material',
   expectedBaseWeights: { success: 66, partial: 17, failed: 8, rare: 9 },
   expectedWeights: { success: 81, partial: 6, failed: 4, rare: 9 },
+})
+await injectRecipePolicyStock('herbal_paste', 1, 'fine')
+await injectRecipePolicyStock('marsh_spore_sample', 1)
+await injectRecipePolicyStock('luminous_algae', 1)
+const recipePolicyMarshLuminousCleansingElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_marsh_luminous_cleansing_elixir',
+  memo: 'qa process shared marsh luminous cleansing elixir',
+  idempotency_key: 'qa-recipe-policy-marsh-luminous-cleansing-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyMarshLuminousCleansingElixir.recipe.output_item_id, 'marsh_luminous_cleansing_elixir', 'new marsh luminous cleansing elixir should output rare elixir item')
+assert.equal(recipePolicyMarshLuminousCleansingElixir.workshop_action.process_kind, 'alchemy_elixir', 'new marsh luminous cleansing elixir should be alchemy elixir')
+assert.equal(recipePolicyMarshLuminousCleansingElixir.workshop_action.alchemy_result_kind, 'success', 'new marsh luminous cleansing elixir should expose success result')
+assert.equal(recipePolicyMarshLuminousCleansingElixir.ledger_entry.quality, 'fine', 'new marsh luminous cleansing elixir should apply cooperation quality bonus')
+assert.ok(recipePolicyMarshLuminousCleansingElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'herbal_paste' && entry.quality === 'fine'), 'new marsh luminous cleansing elixir should consume fine herbal paste')
+assert.ok(recipePolicyMarshLuminousCleansingElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'marsh_spore_sample'), 'new marsh luminous cleansing elixir should consume rare marsh spore sample')
+assert.ok(recipePolicyMarshLuminousCleansingElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'luminous_algae'), 'new marsh luminous cleansing elixir should consume rare luminous algae')
+const recipePolicyMarshLuminousOriginAsset = recipePolicyMarshLuminousCleansingElixir.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyMarshLuminousCleansingElixir.ledger_entry.id && item.action === 'deposit')
+assert.equal(recipePolicyMarshLuminousOriginAsset?.withdrawal_risk_level, 'rare', 'new marsh luminous cleansing elixir origin should be rare protected')
+assert.equal(recipePolicyMarshLuminousOriginAsset?.high_value_withdrawal_required, true, 'new marsh luminous cleansing elixir origin should require high-value withdrawal')
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'marsh luminous cleansing',
+  cases: [
+    { recipeId: 'shared_marsh_luminous_cleansing_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_marsh_luminous_cleansing_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_marsh_luminous_cleansing_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'marsh_spore_sample', quantity: 1 }, { itemId: 'luminous_algae', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'marsh luminous rare profile',
+  recipeId: 'shared_marsh_luminous_cleansing_elixir',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 97,
+  idempotencyKey: 'qa-recipe-policy-auto-marsh-luminous-profile-rare-3',
+  inputs: [{ itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'marsh_spore_sample', quantity: 1 }, { itemId: 'luminous_algae', quantity: 1 }],
+  expectedWeightProfile: 'marsh_luminous_rare_material',
+  expectedBaseWeights: { success: 64, partial: 18, failed: 8, rare: 10 },
+  expectedWeights: { success: 79, partial: 7, failed: 4, rare: 10 },
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')

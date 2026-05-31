@@ -349,6 +349,7 @@ expectContains('online/OnlineCohabitationView.vue', 'shared_qingxin_lotus_rare',
 expectContains('online/OnlineCohabitationView.vue', 'shared_stone_root_guard_pill', 'cohabitation shared workshop should keep extended alchemy recipes in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_ley_crystal_focus_elixir', 'cohabitation shared workshop should keep rare-material ley crystal alchemy in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_wind_core_guard_pill', 'cohabitation shared workshop should keep rare-material wind core alchemy in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_marsh_luminous_cleansing_elixir', 'cohabitation shared workshop should keep rare-material marsh alchemy in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_workshop_process_quality', 'cohabitation shared workshop should label cooking quality cooperation evidence')
 expectContains('online/OnlineCohabitationView.vue', 'shared_alchemy_success_rate', 'cohabitation shared workshop should label alchemy success-rate cooperation evidence')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-workshop-alchemy-heat', 'cohabitation shared workshop should expose alchemy heat selector')
