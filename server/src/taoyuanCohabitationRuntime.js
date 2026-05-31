@@ -12725,6 +12725,134 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
   };
 }
 
+function normalizeSeparationManorExitAssetHandover(entry = {}) {
+  const defaultStatus = sanitizeText(entry.default_status, 80) || 'not_applicable';
+  return {
+    shared_map: sanitizeText(entry.shared_map, 80) || defaultStatus,
+    shared_fund: sanitizeText(entry.shared_fund, 80) || defaultStatus,
+    shared_warehouse: sanitizeText(entry.shared_warehouse, 80) || defaultStatus,
+    shared_decorations: sanitizeText(entry.shared_decorations, 80) || defaultStatus,
+    family_buildings: sanitizeText(entry.family_buildings, 80) || defaultStatus,
+    family_orders: sanitizeText(entry.family_orders, 80) || defaultStatus,
+    family_reputation: sanitizeText(entry.family_reputation, 80) || defaultStatus,
+  };
+}
+
+function normalizeSeparationManorExitHandoverRecord(entry = null) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const relationType = normalizeRelationType(entry.relation_type);
+  if (!FAMILY_MANOR_TYPES.has(relationType) && entry.handover_record_required !== true) return null;
+  const memberRoles = Array.isArray(entry.member_roles)
+    ? entry.member_roles.map(item => {
+        const username = normalizeUsername(item?.username);
+        const usernameKey = normalizeUsernameKey(item?.username_key || item?.username);
+        const manorRole = normalizeFamilyManorRole(item?.manor_role, relationType, item?.contract_role || item?.role);
+        const roleDef = getFamilyManorRoleDef(manorRole);
+        return {
+          username,
+          username_key: usernameKey,
+          display_name: sanitizeText(item?.display_name || item?.username, 60),
+          contract_role: sanitizeText(item?.contract_role || item?.role, 40) || 'partner',
+          manor_role: manorRole,
+          manor_role_label: sanitizeText(item?.manor_role_label || roleDef?.label, 40),
+          handover_status: sanitizeText(item?.handover_status, 80) || 'role_released_on_contract_exit',
+        };
+      }).filter(item => item.username && item.username_key).slice(0, 4)
+    : [];
+  return {
+    record_version: Math.max(1, Math.floor(Number(entry.record_version) || 1)),
+    record_id: sanitizeText(entry.record_id || entry.id, 120) || makeId('manor_exit_handover'),
+    relation_type: relationType,
+    shared_manor_id: sanitizeText(entry.shared_manor_id, 100),
+    preview_id: sanitizeText(entry.preview_id, 100),
+    execution_ledger_id: sanitizeText(entry.execution_ledger_id, 100),
+    story_event_kind: sanitizeText(entry.story_event_kind, 100),
+    exit_record_kind: sanitizeText(entry.exit_record_kind, 100),
+    meeting_record_required: entry.meeting_record_required === true,
+    meeting_recorded: entry.meeting_recorded === true || entry.meeting_record_required === true,
+    handover_record_required: entry.handover_record_required !== false,
+    handover_recorded: entry.handover_recorded !== false,
+    family_role_handover_executed: entry.family_role_handover_executed === true,
+    contract_role_state_mutated: entry.contract_role_state_mutated === true,
+    personal_save_mutated: entry.personal_save_mutated === true,
+    member_count: Math.max(memberRoles.length, Math.floor(Number(entry.member_count) || 0)),
+    member_roles: memberRoles,
+    family_head_username: normalizeUsername(entry.family_head_username),
+    successor_required: entry.successor_required === true,
+    successor_username: normalizeUsername(entry.successor_username),
+    role_reassignment_policy: sanitizeText(entry.role_reassignment_policy, 180) || 'contract_exit_releases_family_roles_without_reassigning_owner',
+    asset_domain_handover: normalizeSeparationManorExitAssetHandover(entry.asset_domain_handover),
+    followup_required: sanitizeText(entry.followup_required, 120) || 'personal_and_family_main_state_migration_deferred',
+    privacy_boundary: sanitizeText(entry.privacy_boundary, 180)
+      || 'Contract-level manor handover record only; personal saves, family graph, children, money, inventory, farm and home states are not mutated.',
+    recorded_by_username: normalizeUsername(entry.recorded_by_username),
+    recorded_at: Math.max(0, Math.floor(Number(entry.recorded_at) || 0)),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+  };
+}
+
+function summarizeSeparationManorExitAssetHandover(ledger = {}) {
+  return normalizeSeparationManorExitAssetHandover({
+    shared_map: ledger.personal_save_written === true ? 'origin_plots_returned' : 'plot_return_pending',
+    shared_fund: ledger.shared_fund_refunded === true ? 'shared_fund_refunded' : 'shared_fund_pending',
+    shared_warehouse: ledger.shared_warehouse_returned === true ? 'shared_warehouse_returned' : 'shared_warehouse_pending',
+    shared_decorations: ledger.decorations_buildings_split === true ? 'decorations_split_recorded' : 'decorations_split_pending',
+    family_buildings: ledger.decorations_buildings_split === true ? 'family_buildings_split_recorded' : 'family_buildings_split_pending',
+    family_orders: 'contract_record_only',
+    family_reputation: 'contract_record_only',
+  });
+}
+
+function buildSeparationManorExitHandoverRecord(contract = {}, storyResolution = {}, ledger = {}, options = {}) {
+  const relationType = normalizeRelationType(storyResolution.relation_type || contract.type);
+  if (!FAMILY_MANOR_TYPES.has(relationType) && storyResolution.handover_record_required !== true) return null;
+  const acceptedMembers = (contract.members || [])
+    .filter(member => member?.status === 'accepted')
+    .map(member => {
+      const manorRole = normalizeFamilyManorRole(member.manor_role, relationType, member.role);
+      const roleDef = getFamilyManorRoleDef(manorRole);
+      return {
+        username: normalizeUsername(member.username),
+        username_key: normalizeUsernameKey(member.username_key || member.username),
+        display_name: sanitizeText(member.display_name || member.username, 60),
+        contract_role: sanitizeText(member.role, 40) || 'partner',
+        manor_role: manorRole,
+        manor_role_label: roleDef?.label || '',
+        handover_status: 'role_released_on_contract_exit',
+      };
+    })
+    .filter(member => member.username);
+  const familyHead = acceptedMembers.find(member => member.manor_role === 'family_head' || member.contract_role === 'owner') || acceptedMembers[0] || null;
+  return normalizeSeparationManorExitHandoverRecord({
+    record_version: 1,
+    record_id: `manor_exit_handover_${sanitizeText(ledger.id || options.execution_ledger_id, 80) || makeId('ledger')}`,
+    relation_type: relationType,
+    shared_manor_id: contract.shared_manor_id,
+    preview_id: ledger.preview_id || options.preview_id,
+    execution_ledger_id: ledger.id || options.execution_ledger_id,
+    story_event_kind: storyResolution.story_event_kind,
+    exit_record_kind: storyResolution.exit_record_kind,
+    meeting_record_required: storyResolution.meeting_record_required === true,
+    meeting_recorded: storyResolution.meeting_record_required === true,
+    handover_record_required: storyResolution.handover_record_required !== false,
+    handover_recorded: true,
+    family_role_handover_executed: true,
+    contract_role_state_mutated: false,
+    personal_save_mutated: false,
+    member_count: acceptedMembers.length,
+    member_roles: acceptedMembers,
+    family_head_username: familyHead?.username,
+    successor_required: false,
+    successor_username: '',
+    role_reassignment_policy: 'contract_exit_releases_family_roles_without_reassigning_owner',
+    asset_domain_handover: summarizeSeparationManorExitAssetHandover(ledger),
+    followup_required: 'personal_and_family_main_state_migration_deferred',
+    recorded_by_username: options.recorded_by_username,
+    recorded_at: Math.max(0, Math.floor(Number(options.recorded_at) || 0)),
+    idempotency_key: options.idempotency_key,
+  });
+}
+
 function normalizeSeparationChildArrangementResolvePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居孩子安排记录需要 idempotency_key，以防断线或重试时重复记录');
@@ -16554,6 +16682,9 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           frontend_cinematic_playback_idempotency_key: sanitizeText(entry.family_story_resolution.frontend_cinematic_playback_idempotency_key, 120),
           personal_state_mutated: entry.family_story_resolution.personal_state_mutated === true,
           personal_save_mutation_enabled: entry.family_story_resolution.personal_save_mutation_enabled === true,
+          manor_exit_handover_recorded: entry.family_story_resolution.manor_exit_handover_recorded === true,
+          family_role_handover_executed: entry.family_story_resolution.family_role_handover_executed === true,
+          manor_exit_handover_record: normalizeSeparationManorExitHandoverRecord(entry.family_story_resolution.manor_exit_handover_record),
           contract_record_only: entry.family_story_resolution.contract_record_only !== false,
           privacy_boundary: sanitizeText(entry.family_story_resolution.privacy_boundary, 160),
           memo: sanitizeText(entry.family_story_resolution.memo, 160),
@@ -32296,6 +32427,19 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     shared_fund_refunded: ledger.shared_fund_refunded === true,
   }));
   Object.assign(storyResolution, normalizeSeparationStoryContentFields(storyResolution));
+  const manorExitHandoverRecord = buildSeparationManorExitHandoverRecord(contract, storyResolution, ledger, {
+    preview_id: normalizedPreviewId,
+    execution_ledger_id: ledger.id,
+    recorded_by_username: member.username,
+    recorded_at: familyStoryResolvedAt,
+    idempotency_key: storyPayload.idempotency_key,
+  });
+  if (manorExitHandoverRecord) {
+    storyResolution.manor_exit_handover_recorded = true;
+    storyResolution.family_role_handover_executed = true;
+    storyResolution.manor_exit_handover_record = manorExitHandoverRecord;
+    storyResolution.story_state = 'manor_exit_handover_recorded';
+  }
   const nextRequiredOperations = ledger.decorations_buildings_split === true ? [] : ['split_decorations'];
   if (childArrangementRequired) nextRequiredOperations.push('resolve_child_arrangement');
   if (personalStoryWriteRequired) nextRequiredOperations.push('write_personal_story_receipts');
@@ -32361,6 +32505,11 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     future_cooperation_option: storyResolution.future_cooperation_option,
     family_fund_settlement_required: storyResolution.family_fund_settlement_required,
     family_fund_settlement_state: storyResolution.family_fund_settlement_state,
+    manor_exit_handover_recorded: storyResolution.manor_exit_handover_recorded === true,
+    family_role_handover_executed: storyResolution.family_role_handover_executed === true,
+    manor_exit_handover_record_id: storyResolution.manor_exit_handover_record?.record_id || '',
+    manor_exit_handover_member_count: storyResolution.manor_exit_handover_record?.member_count || 0,
+    manor_exit_asset_domain_handover: storyResolution.manor_exit_handover_record?.asset_domain_handover || null,
     frontend_cinematic_pending: storyResolution.frontend_cinematic_pending,
     personal_state_mutated: storyResolution.personal_state_mutated,
     personal_story_write_required: storyResolution.personal_story_write_required,
@@ -33007,6 +33156,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
 module.exports = {
   RELATION_TYPE_DEFS,
   buildSeparationRelationshipStoryPlan,
+  buildSeparationManorExitHandoverRecord,
   listCohabitationContracts,
   getCohabitationSharedMap,
   getCohabitationSharedAnimals,

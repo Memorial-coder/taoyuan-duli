@@ -608,6 +608,61 @@ assert.equal(oathManorStoryPlan.handover_record_required, true, 'oath manor sepa
 assert.equal(oathManorStoryPlan.personal_story_write_required, false, 'oath manor story plan should stay contract-record-only for personal story receipts')
 assert.ok(oathManorStoryPlan.dialogue_lines.some(line => line.text.includes('只交接，不问罪')), 'oath manor story plan should include family meeting dialogue text')
 assert.ok(oathManorStoryPlan.animation_cues.some(cue => cue.action === 'stamp_family_handover_record'), 'oath manor story plan should include handover animation cue')
+const directOathManorHandoverRecord = runtime.buildSeparationManorExitHandoverRecord(
+  {
+    id: 'qa-direct-oath-manor-contract',
+    type: 'oath_manor',
+    shared_manor_id: 'shared_manor_qa_direct_oath',
+    members: [
+      { username: owner, username_key: owner.toLowerCase(), display_name: owner, status: 'accepted', role: 'owner', manor_role: 'family_head' },
+      { username: partner, username_key: partner.toLowerCase(), display_name: partner, status: 'accepted', role: 'partner', manor_role: 'storage_keeper' },
+      { username: extra, username_key: extra.toLowerCase(), display_name: extra, status: 'accepted', role: 'partner', manor_role: 'farm_steward' },
+    ],
+  },
+  oathManorStoryPlan,
+  {
+    id: 'qa-direct-oath-manor-ledger',
+    preview_id: 'qa-direct-oath-manor-preview',
+    personal_save_written: true,
+    shared_fund_refunded: true,
+    shared_warehouse_returned: true,
+    decorations_buildings_split: true,
+  },
+  { recorded_by_username: owner, recorded_at: 1800000000, idempotency_key: 'qa-direct-oath-manor-handover-record' }
+)
+assert.equal(directOathManorHandoverRecord.family_role_handover_executed, true, 'oath manor handover should execute a contract-level role handover record')
+assert.equal(directOathManorHandoverRecord.member_count, 3, 'oath manor handover should include every accepted member role')
+assert.equal(directOathManorHandoverRecord.member_roles.find(member => member.username === partner)?.manor_role, 'storage_keeper', 'oath manor handover should preserve role being handed over')
+assert.equal(directOathManorHandoverRecord.asset_domain_handover.shared_map, 'origin_plots_returned', 'oath manor handover should summarize plot return state')
+assert.equal(directOathManorHandoverRecord.asset_domain_handover.shared_fund, 'shared_fund_refunded', 'oath manor handover should summarize fund return state')
+assert.equal(directOathManorHandoverRecord.personal_save_mutated, false, 'oath manor handover should stay out of personal saves')
+assert.equal(directOathManorHandoverRecord.contract_role_state_mutated, false, 'oath manor handover should not silently rewrite contract roles')
+
+const businessPartnerStoryPlan = runtime.buildSeparationRelationshipStoryPlan({ type: 'business_partner' }, {}, {})
+const directBusinessHandoverRecord = runtime.buildSeparationManorExitHandoverRecord(
+  {
+    id: 'qa-direct-business-contract',
+    type: 'business_partner',
+    shared_manor_id: 'shared_manor_qa_direct_business',
+    members: [
+      { username: owner, username_key: owner.toLowerCase(), display_name: owner, status: 'accepted', role: 'owner', manor_role: 'family_head' },
+      { username: partner, username_key: partner.toLowerCase(), display_name: partner, status: 'accepted', role: 'partner', manor_role: 'treasurer' },
+    ],
+  },
+  businessPartnerStoryPlan,
+  {
+    id: 'qa-direct-business-ledger',
+    preview_id: 'qa-direct-business-preview',
+    personal_save_written: true,
+    shared_fund_refunded: false,
+    shared_warehouse_returned: true,
+    decorations_buildings_split: false,
+  },
+  { recorded_by_username: owner, recorded_at: 1800000001, idempotency_key: 'qa-direct-business-handover-record' }
+)
+assert.equal(directBusinessHandoverRecord.meeting_record_required, false, 'business partner handover should not require a family meeting')
+assert.equal(directBusinessHandoverRecord.handover_recorded, true, 'business partner handover should record a handover receipt')
+assert.equal(directBusinessHandoverRecord.asset_domain_handover.shared_fund, 'shared_fund_pending', 'business handover should expose pending fund settlement')
 const recipePolicyPartnerRequest = await socialRuntime.requestFriendship(recipePolicyOwner, { target_username: recipePolicyPartner })
 await socialRuntime.acceptFriendRequest(recipePolicyPartner, recipePolicyPartnerRequest.id)
 assert.equal(overview.relation_options.find(option => option.id === 'oath_manor')?.family_role_management, true, 'oath manor should expose family role management capability')
@@ -8013,6 +8068,103 @@ assert.equal(fourMemberSharedMap.layout.regions.length, 4, 'four-member map shou
 assert.equal(fourMemberSharedMap.layout.summary.max_members, 4, 'layout summary should expose four-member cap')
 assert.equal(fourMemberSharedMap.layout.summary.region_order[fourMemberSharedMap.layout.summary.region_order.length - 1]?.member_username, fourth, 'fourth member should receive the final region')
 assert.equal(saveRuntime.loadUserSaveSlots(fourth).slots[0].raw, fourRawBeforeFamilyMap, 'four-member shared map should not rewrite fourth member save')
+
+const businessManorExitPreview = await runtime.createSeparationPreview(fourMemberFamilyContract.contract.id, {
+  reason: 'qa business manor exit handover record',
+  idempotency_key: 'qa-business-manor-exit-preview',
+}, actor(owner))
+const businessManorExitLedgerId = 'qa-business-manor-exit-ledger'
+await mutateStoredContract(fourMemberFamilyContract.contract.id, contract => {
+  const preview = contract.separation_previews.find(entry => entry.id === businessManorExitPreview.preview.id)
+  assert.ok(preview, 'business manor exit preview should exist before ledger injection')
+  preview.confirmation_state = {
+    ...(preview.confirmation_state || {}),
+    execution_request: {
+      id: 'qa-business-manor-exit-execution-request',
+      status: 'shared_warehouse_returned',
+      execution_ledger_id: businessManorExitLedgerId,
+      asset_return_executed: true,
+      personal_save_written: true,
+      shared_fund_refunded: false,
+      shared_warehouse_returned: true,
+      decorations_buildings_split: false,
+      next_required_operations: ['resolve_family_story'],
+    },
+    can_execute_now: false,
+    execution_enabled: false,
+  }
+  contract.separation_execution_ledger = [
+    ...(contract.separation_execution_ledger || []),
+    {
+      id: businessManorExitLedgerId,
+      preview_id: preview.id,
+      preview_version: preview.version,
+      status: 'shared_warehouse_returned',
+      plot_return_manifest_hash: preview.asset_return?.plot_return_manifest_hash,
+      personal_save_written: true,
+      shared_assets_mutated: false,
+      shared_fund_refunded: false,
+      shared_warehouse_returned: true,
+      decorations_buildings_split: false,
+      next_required_operations: ['resolve_family_story'],
+    },
+  ]
+})
+const ownerRawBeforeBusinessManorExitStory = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeBusinessManorExitStory = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const extraRawBeforeBusinessManorExitStory = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
+const fourthRawBeforeBusinessManorExitStory = saveRuntime.loadUserSaveSlots(fourth).slots[0].raw
+const businessManorExitStory = await runtime.resolveSeparationFamilyStory(fourMemberFamilyContract.contract.id, businessManorExitPreview.preview.id, {
+  memo: 'record business manor exit handover',
+  resolution_choice: 'business_handover',
+  plot_return_manifest_hash: businessManorExitPreview.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: businessManorExitLedgerId,
+  idempotency_key: 'qa-business-manor-exit-story',
+}, actor(owner))
+assert.equal(businessManorExitStory.idempotent, false, 'first business manor exit story should not be idempotent')
+assert.equal(businessManorExitStory.execution_ledger.status, 'family_story_resolved', 'business manor exit story should advance the ledger')
+assert.equal(businessManorExitStory.story_resolution.relation_type, 'business_partner', 'business manor exit story should keep business relation type')
+assert.equal(businessManorExitStory.story_resolution.personal_story_write_required, false, 'business manor exit should stay contract-record-only for personal story receipts')
+assert.equal(businessManorExitStory.story_resolution.manor_exit_handover_recorded, true, 'business manor exit should record a handover record')
+assert.equal(businessManorExitStory.story_resolution.family_role_handover_executed, true, 'business manor exit should mark role handover executed')
+assert.equal(businessManorExitStory.story_resolution.story_state, 'manor_exit_handover_recorded', 'business manor exit should expose the manor handover story state')
+const businessManorExitRecord = businessManorExitStory.story_resolution.manor_exit_handover_record
+assert.equal(businessManorExitRecord.record_id, `manor_exit_handover_${businessManorExitLedgerId}`, 'business manor exit handover record should be tied to the execution ledger')
+assert.equal(businessManorExitRecord.relation_type, 'business_partner', 'business manor exit handover should keep relation type')
+assert.equal(businessManorExitRecord.member_count, 4, 'business manor exit handover should include all four accepted members')
+assert.deepEqual(businessManorExitRecord.member_roles.map(member => member.username), [owner, partner, extra, fourth], 'business manor exit handover should preserve member order')
+assert.equal(businessManorExitRecord.member_roles.find(member => member.username === owner)?.manor_role, 'family_head', 'business manor exit handover should preserve family head role')
+assert.equal(businessManorExitRecord.family_head_username, owner, 'business manor exit handover should expose family head username')
+assert.equal(businessManorExitRecord.asset_domain_handover.shared_map, 'origin_plots_returned', 'business manor exit handover should summarize plot handover')
+assert.equal(businessManorExitRecord.asset_domain_handover.shared_fund, 'shared_fund_pending', 'business manor exit handover should expose pending fund settlement')
+assert.equal(businessManorExitRecord.asset_domain_handover.shared_warehouse, 'shared_warehouse_returned', 'business manor exit handover should summarize warehouse return')
+assert.equal(businessManorExitRecord.asset_domain_handover.shared_decorations, 'decorations_split_pending', 'business manor exit handover should expose pending decoration split')
+assert.equal(businessManorExitRecord.personal_save_mutated, false, 'business manor exit handover should not mutate personal saves')
+assert.equal(businessManorExitRecord.contract_role_state_mutated, false, 'business manor exit handover should not silently rewrite contract roles')
+assert.ok(businessManorExitStory.execution_ledger.next_required_operations.includes('split_decorations'), 'business manor exit story should keep decoration split follow-up when not yet split')
+assert.equal(businessManorExitStory.preview.confirmation_state.execution_request.family_story_resolution.manor_exit_handover_record.record_id, businessManorExitRecord.record_id, 'preview execution request should expose the manor exit handover record')
+const businessManorExitAudit = businessManorExitStory.contract.audit_log.find(entry => entry.action === 'separation_family_story_resolved' && entry.idempotency_key === 'qa-business-manor-exit-story')
+assert.equal(businessManorExitAudit?.detail?.manor_exit_handover_recorded, true, 'business manor exit audit should mark handover recorded')
+assert.equal(businessManorExitAudit?.detail?.family_role_handover_executed, true, 'business manor exit audit should mark family role handover executed')
+assert.equal(businessManorExitAudit?.detail?.manor_exit_handover_member_count, 4, 'business manor exit audit should include member count')
+assert.equal(businessManorExitAudit?.detail?.manor_exit_asset_domain_handover?.shared_fund, 'shared_fund_pending', 'business manor exit audit should include asset domain handover summary')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeBusinessManorExitStory, 'business manor exit story should not rewrite owner personal save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeBusinessManorExitStory, 'business manor exit story should not rewrite partner personal save')
+assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeBusinessManorExitStory, 'business manor exit story should not rewrite extra personal save')
+assert.equal(saveRuntime.loadUserSaveSlots(fourth).slots[0].raw, fourthRawBeforeBusinessManorExitStory, 'business manor exit story should not rewrite fourth personal save')
+const duplicateBusinessManorExitStory = await runtime.resolveSeparationFamilyStory(fourMemberFamilyContract.contract.id, businessManorExitPreview.preview.id, {
+  memo: 'duplicate business manor exit handover',
+  resolution_choice: 'business_handover',
+  plot_return_manifest_hash: businessManorExitPreview.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: businessManorExitLedgerId,
+  idempotency_key: 'qa-business-manor-exit-story',
+}, actor(owner))
+assert.equal(duplicateBusinessManorExitStory.idempotent, true, 'same business manor exit story key should return existing handover')
+assert.equal(duplicateBusinessManorExitStory.story_resolution.manor_exit_handover_record.record_id, businessManorExitRecord.record_id, 'idempotent business manor exit story should keep handover record id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeBusinessManorExitStory, 'idempotent business manor exit story should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeBusinessManorExitStory, 'idempotent business manor exit story should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeBusinessManorExitStory, 'idempotent business manor exit story should not rewrite extra save')
+assert.equal(saveRuntime.loadUserSaveSlots(fourth).slots[0].raw, fourthRawBeforeBusinessManorExitStory, 'idempotent business manor exit story should not rewrite fourth save')
 
 const ownerRiceBeforeSeparationWarehouseDeposit = getInventoryItemQuantity(owner, 'rice')
 const separationWarehouseDeposit = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
