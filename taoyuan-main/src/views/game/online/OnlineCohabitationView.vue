@@ -4287,6 +4287,11 @@
       const percent = Number(bonus.success_rate_bonus_percent) || value
       return `炼丹成功率 +${percent}%`
     }
+    if (type === 'shared_workshop_process_quality') {
+      const processKind = typeof bonus.process_kind === 'string' ? bonus.process_kind : ''
+      const prefix = processKind === 'cooking_dish' ? '料理品质' : '工坊品质'
+      return before && after && before !== after ? `${prefix} ${before} -> ${after}` : `${prefix}加成`
+    }
     if (type === 'shared_farm_water_health') return value > 0 ? `农田健康 +${value}` : '农田健康加成'
     if (type === 'shared_farm_plant_fertilize_quality') return value > 0 ? `农田品质 +${value}` : '农田品质加成'
     if (type === 'shared_farm_plant_fertilize_quality_harvest') return before && after && before !== after ? `收获品质 ${before} -> ${after}` : '收获品质加成'

@@ -1,12 +1,15 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-31
+- 同居 11.7 共同工坊 / 订单 / 装修加成收口：共同工坊前端标签和结构 QA 明确读回 `shared_workshop_process_quality` 料理升品、`shared_alchemy_success_rate` 15% 炼丹成功率和回执字段；在线委托凭证 / 共同基金流水读回订单 15 分钟有效时长减免，建筑流水读回合照 moment 与家庭氛围事件，11.7 同时在线加成清单全部改为完成。
 - 同居分居农田按来源拆回收口：分居田区 manifest 现在同时覆盖契约持久 `shared_map.plots`、`origin_assets.plots` 中的温室地块与果树来源资产；个人农田写回按锁定 hash 恢复 `farm.plots`、`farm.greenhousePlots`、`farm.fruitTrees` 与 `nextFruitTreeId`，回执会统计普通地块 / 温室地块 / 果树数量、来源区域、来源资产和管护者证据。
 - 同居共同动物买卖服务端权威：新增 `/shared-animals/purchase` 兼容入口并收口 `/shared-animals/buy` / `/shared-animals/sell`，共同动物买入按 `animal.buy_animal` + `fund.spend_medium`、共同基金余额和服务端白名单裁决，卖出只允许共同基金购入动物并消费 `animal.sell_animal`；成功写共同动物 `buy_animal` / `sell_animal` ledger、共同基金 `shared_animal_purchase` / `shared_animal_sale_income` ledger、来源资产和审计，个人动物存档 / 背包 / 铜币保持不变。
 - 同居离线冲突预检：新增 `/offline-conflicts/preflight`，按服务端当前共同地图 / 动物 / 宠物 / 仓库 revision 判断客户端离线队列是否过期，返回支持 / 不支持动作、服务端权威策略和下一步建议，写 `offline_conflict_preflighted` 审计且不改个人存档、共同仓库或共同基金；前端离线页新增预检按钮和 revision 摘要。
 - 同居分居未知来源共同产物拆分：分居预览新增 `warehouse_unidentified_items`、贡献比例拆分 manifest / hash 和双方确认暂缓项；真实共同仓库返还会校验 hash 与双方确认，按 `unidentified_contribution_ratio` 扣共同仓库、写目标成员个人背包 receipt，并在执行 ledger / 审计中统计未知来源返还数量。
 - Cohabitation child arrangement permission: separation child-arrangement record-only writes now require server-side `family.child_daily_care`; denied actors receive 403, successful responses and audits expose `required_permission_keys`, and personal child/family saves remain untouched until the receipt step.
-- 同居同时在线订单 / 装修证据前端读回：共同基金流水会显示订单确认效率加成、接单者、确认者和凭证；建筑流水会显示装修合照 / 家庭氛围协作加成、真实落账者、建材操作者和 moment / 事件 ID，继续保持奖励金额、共同基金 / 仓库扣减与个人资产边界不变。
+- 同居同时在线订单 / 装修证据读回：共享基金订单结算凭证与 `order_income` ledger 会记录原始结算耗时、15 分钟减免、有效耗时和策略，前端在线委托凭证与共同基金流水会显示订单确认效率加成、接单者、确认者、凭证和有效时长；建筑流水会显示装修合照 / 家庭氛围协作加成、真实落账者、建材操作者和 moment / 事件 ID，继续保持奖励金额、共同基金 / 仓库扣减与个人资产边界不变。
+- 同居 11.7 双人浇水 / 动物照料加成收口：共同农田地块详情会读回浇水健康加成与日结消耗证据，共同动物详情会读回喂食 / 抚摸心情加成与日结消耗证据；契约 QA 与前端结构哨兵同步覆盖展示、日结清理和个人资产不变边界。
+- 同居 11.7 种植 / 施肥品质加成收口：共同农田地块详情读回协作品质、优质肥料品质、速长肥成长与保水壤土保水的当前 / 已消耗证据；契约 QA 覆盖收获升品、日结成长 / 保水消耗、审计 / ledger / 来源资产和个人资产不变边界。
 - 同居高风险基金回执权限审计：限定装饰、共享装修拆除和家庭重大事件的 `delivered` 回执会重检 `construction.buy_furniture` / `construction.demolish_building` / `family.major_family_choice`，不再只看 `fund.spend_large`；成功响应和审计会记录 `required_permission_keys`，退款回执不要求交付用途权限。
 - 同居 12.3 审计收尾：共同仓库流水、共同基金流水、权限变更和分居 / 拆分执行审计已完成验收同步；`qa:cohabitation-contract` 覆盖加工流水、基金消费 / 收入、权限写回 / 业务权限键和分居执行链路。
 - 同居分居执行失败 pending 恢复：新增 record-only 失败记录链路，执行请求后、资产返还流水写入前可记录 `failure_events` 和 `separation_execution_failed_pending_restored` 审计，并保持 `pending_manual_execution` 可重试；QA 覆盖幂等、无个人存档 / 共同资产变更和后续继续返还。
