@@ -3891,8 +3891,13 @@ const assertRecipePolicyAlchemySuccessRecipe = async ({ label, recipeId, outputI
   return result
 }
 
-const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKind, expectedOutputItemId, expectedRiskLevel, expectedRoll, idempotencyKey, inputs }) => {
-  const outputQuantityBefore = (await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))).warehouse.items.find(item => item.item_id === expectedOutputItemId)?.quantity ?? 0
+const assertRecipePolicyAlchemyWeights = (actual, expected, message) => {
+  for (const [key, value] of Object.entries(expected || {})) {
+    assert.equal(actual?.[key], value, `${message} ${key} weight`)
+  }
+}
+
+const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKind, expectedOutputItemId, expectedRiskLevel, expectedRoll, idempotencyKey, inputs, expectedWeightProfile, expectedWeights, expectedBaseWeights }) => {
   for (const input of inputs) await injectRecipePolicyStock(input.itemId, input.quantity, input.quality || 'normal')
   const result = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
     recipe_id: recipeId,
@@ -3913,8 +3918,23 @@ const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKi
   assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, expectedKind, `auto ${label} ledger should keep resolved kind`)
   assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_roll, expectedRoll, `auto ${label} ledger should keep deterministic roll`)
   assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_roll_mod, 100, `auto ${label} ledger should keep roll modulus`)
-  assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_weights?.success, 95, `auto ${label} should apply cooperation success weight`)
-  assert.equal(result.warehouse.items.find(item => item.item_id === expectedOutputItemId)?.quantity, outputQuantityBefore + 1, `auto ${label} output should enter shared warehouse once`)
+  if (!expectedWeights) assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_weights?.success, 95, `auto ${label} should apply cooperation success weight`)
+  if (expectedWeights) {
+    assertRecipePolicyAlchemyWeights(result.workshop_action.alchemy_result_weights, expectedWeights, `auto ${label} action should keep resolved`)
+    assertRecipePolicyAlchemyWeights(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_weights, expectedWeights, `auto ${label} ledger should keep resolved`)
+  }
+  if (expectedBaseWeights) {
+    assertRecipePolicyAlchemyWeights(result.workshop_action.alchemy_result_base_weights, expectedBaseWeights, `auto ${label} action should keep base`)
+    assertRecipePolicyAlchemyWeights(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_base_weights, expectedBaseWeights, `auto ${label} ledger should keep base`)
+  }
+  if (expectedWeightProfile) {
+    assert.equal(result.recipe.alchemy_result_weight_profile, expectedWeightProfile, `auto ${label} recipe should expose weight profile`)
+    assert.equal(result.workshop_action.alchemy_result_weight_profile, expectedWeightProfile, `auto ${label} action should expose weight profile`)
+    assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_weight_profile, expectedWeightProfile, `auto ${label} ledger should keep weight profile`)
+  }
+  const outputDepositLedger = result.warehouse_ledger_entries.find(entry => entry.action === 'deposit' && entry.item_id === expectedOutputItemId)
+  assert.ok(outputDepositLedger, `auto ${label} output should write shared warehouse deposit ledger`)
+  assert.equal(outputDepositLedger.quantity, 1, `auto ${label} output deposit ledger should write one item`)
   for (const input of inputs) assert.ok(result.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === input.itemId && entry.quality === (input.quality || 'normal')), `auto ${label} should consume ${input.itemId}`)
   const origin = result.contract.origin_assets.warehouse_items.find(item => item.ledger_id === result.ledger_entry.id && item.action === 'deposit')
   assert.equal(origin?.item_id, expectedOutputItemId, `auto ${label} origin should use resolved output`)
@@ -3922,6 +3942,8 @@ const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKi
   assert.equal(origin?.high_value_withdrawal_required, true, `auto ${label} origin should require high-value withdrawal`)
   assert.equal(origin?.simultaneous_online_bonus?.alchemy_auto_result, true, `auto ${label} origin should keep auto flag`)
   assert.equal(origin?.simultaneous_online_bonus?.alchemy_result_roll, expectedRoll, `auto ${label} origin should keep roll evidence`)
+  if (expectedWeightProfile) assert.equal(origin?.simultaneous_online_bonus?.alchemy_result_weight_profile, expectedWeightProfile, `auto ${label} origin should keep weight profile`)
+  if (expectedWeights) assertRecipePolicyAlchemyWeights(origin?.simultaneous_online_bonus?.alchemy_result_weights, expectedWeights, `auto ${label} origin should keep resolved`)
   const duplicate = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
     recipe_id: recipeId,
     alchemy_result_mode: 'auto',
@@ -3931,6 +3953,7 @@ const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKi
   assert.equal(duplicate.recipe.output_item_id, expectedOutputItemId, `duplicate auto ${label} should retain resolved output`)
   assert.equal(duplicate.workshop_action.alchemy_result_kind, expectedKind, `duplicate auto ${label} should retain result kind`)
   assert.equal(duplicate.workshop_action.alchemy_result_roll, expectedRoll, `duplicate auto ${label} should retain roll`)
+  if (expectedWeightProfile) assert.equal(duplicate.workshop_action.alchemy_result_weight_profile, expectedWeightProfile, `duplicate auto ${label} should retain weight profile`)
 }
 
 await assert.rejects(
@@ -4278,6 +4301,19 @@ await assertRecipePolicyAlchemyResultBranches({
   ],
   inputs: [{ itemId: 'pickled_chili', quantity: 1, quality: 'fine' }, { itemId: 'sesame_paste', quantity: 1, quality: 'fine' }, { itemId: 'tea', quantity: 2 }],
 })
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'spicy vitality recipe profile',
+  recipeId: 'shared_spicy_vitality_pill',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 99,
+  idempotencyKey: 'qa-recipe-policy-auto-spicy-rare-27',
+  inputs: [{ itemId: 'pickled_chili', quantity: 1, quality: 'fine' }, { itemId: 'sesame_paste', quantity: 1, quality: 'fine' }, { itemId: 'tea', quantity: 2 }],
+  expectedWeightProfile: 'spicy_high_flame',
+  expectedBaseWeights: { success: 72, partial: 16, failed: 7, rare: 5 },
+  expectedWeights: { success: 87, partial: 5, failed: 3, rare: 5 },
+})
 
 await injectRecipePolicyStock('tea', 2)
 const recipePolicyGreenTea = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
@@ -4384,6 +4420,19 @@ await assertRecipePolicyAlchemyResultBranches({
     { recipeId: 'shared_spirit_peach_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
   ],
   inputs: [{ itemId: 'peach', quantity: 2, quality: 'fine' }, { itemId: 'candied_peach', quantity: 1, quality: 'fine' }, { itemId: 'moon_herb', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'spirit peach rare profile',
+  recipeId: 'shared_spirit_peach_elixir',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 95,
+  idempotencyKey: 'qa-recipe-policy-auto-spirit-profile-rare-0',
+  inputs: [{ itemId: 'peach', quantity: 2, quality: 'fine' }, { itemId: 'candied_peach', quantity: 1, quality: 'fine' }, { itemId: 'moon_herb', quantity: 1 }],
+  expectedWeightProfile: 'spirit_peach_rare_material',
+  expectedBaseWeights: { success: 70, partial: 15, failed: 7, rare: 8 },
+  expectedWeights: { success: 85, partial: 4, failed: 3, rare: 8 },
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')
@@ -11650,6 +11699,88 @@ const duplicateCommonDecorationMove = await runtime.moveCohabitationSharedDecora
 }, actor(highRiskOwner))
 assert.equal(duplicateCommonDecorationMove.idempotent, true, 'common decoration move should be idempotent')
 assert.equal(duplicateCommonDecorationMove.shared_decoration_state_entry?.id, commonDecorationMove.shared_decoration_state_entry?.id, 'common decoration duplicate should return current shared decoration state')
+const offlineDecorationMoveOwnerStatus = await runtime.getCohabitationOfflineStatus(highRiskContractId, actor(highRiskOwner))
+assert.ok(offlineDecorationMoveOwnerStatus.offline_status.summary.offline_queue_supported_actions.includes('move_shared_decoration'), 'offline queue should expose shared decoration move as supported action')
+assert.equal(offlineDecorationMoveOwnerStatus.offline_status.summary.shared_decoration_offline_writes_enabled, true, 'offline status should expose shared decoration offline writes')
+assert.equal(offlineDecorationMoveOwnerStatus.offline_status.actor_capabilities.move_shared_decoration, true, 'owner should be able to move shared decoration offline')
+const offlineDecorationMovePartnerStatus = await runtime.getCohabitationOfflineStatus(highRiskContractId, actor(highRiskPartner))
+assert.equal(offlineDecorationMovePartnerStatus.offline_status.actor_capabilities.move_shared_decoration, false, 'partner without common decoration permission should not be able to move shared decoration offline')
+const offlineDecorationMoveDenied = await runtime.mergeCohabitationOfflineQueue(highRiskContractId, {
+  idempotency_key: 'qa-offline-decoration-move-denied-queue',
+  client_queue_revision: offlineDecorationMovePartnerStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'move_shared_decoration',
+    operation_id: 'qa-offline-decoration-move-denied-op',
+    idempotency_key: 'qa-offline-decoration-move-denied-op',
+    client_base_revision: 1,
+    payload: {
+      decoration_id: 'moon_gate',
+      decoration_kind: 'common',
+      from_location_ref: 'courtyard:west',
+      to_location_ref: 'courtyard:north',
+      placement_ref: 'courtyard:north:moon_gate',
+      memo: 'qa offline decoration move denied',
+    },
+  }],
+}, actor(highRiskPartner))
+assert.equal(offlineDecorationMoveDenied.offline_queue_merge.accepted_count, 0, 'offline decoration move denied queue should not commit')
+assert.equal(offlineDecorationMoveDenied.offline_queue_merge.rejected_count, 1, 'offline decoration move denied queue should return rejected evidence')
+assert.equal(offlineDecorationMoveDenied.offline_queue_merge.rejected[0]?.reason, 'shared_decoration_move_permission_denied', 'offline decoration move denial should preserve permission reason')
+assert.equal(offlineDecorationMoveDenied.offline_queue_merge.rejected[0]?.personal_home_mutated, false, 'rejected offline decoration move should not mutate personal home')
+assert.equal(offlineDecorationMoveDenied.offline_queue_merge.rejected[0]?.shared_decoration_state_changed, false, 'rejected offline decoration move should not mutate shared decoration state')
+assert.equal(offlineDecorationMoveDenied.offline_conflict_resolution.status, 'all_rejected', 'offline decoration move denial should still return conflict resolution evidence')
+const ownerRawBeforeOfflineDecorationMove = saveRuntime.loadUserSaveSlots(highRiskOwner).slots[0].raw
+const partnerRawBeforeOfflineDecorationMove = saveRuntime.loadUserSaveSlots(highRiskPartner).slots[0].raw
+const offlineDecorationMoveQueue = await runtime.mergeCohabitationOfflineQueue(highRiskContractId, {
+  idempotency_key: 'qa-offline-decoration-move-queue',
+  client_queue_revision: offlineDecorationMoveOwnerStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'move_shared_decoration',
+    operation_id: 'qa-offline-decoration-move-op',
+    idempotency_key: 'qa-offline-decoration-move-op',
+    client_base_revision: 1,
+    payload: {
+      decoration_id: 'moon_gate',
+      decoration_kind: 'common',
+      from_location_ref: 'courtyard:west',
+      to_location_ref: 'courtyard:north',
+      placement_ref: 'courtyard:north:moon_gate',
+      target_ref: 'shared_decoration:moon_gate:offline_move',
+      memo: 'qa offline decoration move',
+    },
+  }],
+}, actor(highRiskOwner))
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept shared decoration move')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.rejected_count, 0, 'offline shared decoration move should not be rejected')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.action, 'move_shared_decoration', 'offline decoration move result should keep action')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.decoration_id, 'moon_gate', 'offline decoration move should return decoration id')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.to_location_ref, 'courtyard:north', 'offline decoration move should return destination')
+assert.deepEqual(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.required_permission_keys, ['construction.move_common_furniture'], 'offline decoration move should return permission evidence')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, true, 'offline decoration move should mark shared decoration state changed')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.personal_home_mutated, false, 'offline decoration move should not mutate personal home')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.shared_fund_changed, false, 'offline decoration move should not mutate shared fund')
+assert.equal(offlineDecorationMoveQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline decoration move should not mutate shared warehouse')
+assert.equal(offlineDecorationMoveQueue.offline_conflict_resolution.shared_decoration_state_changed, true, 'offline conflict resolution should summarize shared decoration state change')
+assert.equal(offlineDecorationMoveQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'moon_gate')?.to_location_ref, 'courtyard:north', 'offline decoration move should persist shared decoration destination')
+assert.ok(offlineDecorationMoveQueue.contract.audit_log.find(entry => entry.action === 'shared_decoration_moved' && entry.idempotency_key === 'qa-offline-decoration-move-op'), 'offline decoration move should write shared decoration audit')
+assert.ok(offlineDecorationMoveQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-decoration-move-queue' && entry.detail?.offline_conflict_resolution?.shared_decoration_state_changed === true), 'offline decoration move queue should write merge audit evidence')
+assert.equal(saveRuntime.loadUserSaveSlots(highRiskOwner).slots[0].raw, ownerRawBeforeOfflineDecorationMove, 'offline decoration move should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(highRiskPartner).slots[0].raw, partnerRawBeforeOfflineDecorationMove, 'offline decoration move should not rewrite partner save')
+const duplicateOfflineDecorationMoveQueue = await runtime.mergeCohabitationOfflineQueue(highRiskContractId, {
+  idempotency_key: 'qa-offline-decoration-move-queue',
+  operations: [{
+    action: 'move_shared_decoration',
+    operation_id: 'qa-offline-decoration-move-op',
+    idempotency_key: 'qa-offline-decoration-move-op',
+    payload: {
+      decoration_id: 'moon_gate',
+      decoration_kind: 'common',
+      to_location_ref: 'courtyard:north',
+    },
+  }],
+}, actor(highRiskOwner))
+assert.equal(duplicateOfflineDecorationMoveQueue.offline_queue_merge.idempotent, true, 'duplicate offline decoration move queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineDecorationMoveQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline decoration move should replay conflict resolution evidence')
 await assert.rejects(
   () => runtime.moveCohabitationSharedDecoration(highRiskContractId, {
     decoration_id: 'ancestor_tablet',

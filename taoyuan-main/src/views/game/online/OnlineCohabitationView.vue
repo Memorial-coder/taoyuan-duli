@@ -353,6 +353,39 @@
                     </span>
                   </div>
                   <div
+                    v-if="separationSharedFundReadbackRows.length"
+                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-shared-fund-dispute-readback"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">共同基金拆分 / 争议确认</p>
+                      <span>
+                        返还 {{ separationSharedFundReadbackSummary.refund_total }} 铜币 · 待确认 {{ separationSharedFundReadbackSummary.pending_member_usernames.length }}
+                      </span>
+                    </div>
+                    <p class="leading-4">
+                      依据：{{ separationSharedFundReadbackSummary.fund_split_basis }}；注资 {{ separationSharedFundReadbackSummary.capital_total }}，可追溯经营 {{ separationSharedFundReadbackSummary.operating_total }}，拆分基数 {{ separationSharedFundReadbackSummary.split_basis_total }}。无法识别经营贡献或消费差额先走双方确认，确认阶段只写审计，不改个人铜币或共同基金。
+                    </p>
+                    <p
+                      v-if="separationSharedFundReadbackSummary.rows_requiring_confirmation"
+                      class="leading-4"
+                    >
+                      需要差额确认 {{ separationSharedFundReadbackSummary.rows_requiring_confirmation }} 行；已确认 {{ separationSharedFundReadbackSummary.confirmed_member_usernames.join('、') || '暂无' }}；待确认 {{ separationSharedFundReadbackSummary.pending_member_usernames.join('、') || '暂无' }}。
+                    </p>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <div
+                        v-for="row in separationSharedFundReadbackRows"
+                        :key="row.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                      >
+                        <p class="text-accent">{{ row.origin_owner_username }}</p>
+                        <p class="mt-1">注资 {{ row.capital_contribution_amount }} · 经营 {{ row.operating_contribution_amount }} · 返还 {{ row.suggested_refund_amount }}</p>
+                        <p class="mt-1">拆分基数 {{ row.split_basis_amount }} · 经营流水 {{ row.operating_ledger_count }} 笔 · 卖出流水 {{ row.warehouse_sale_ledger_count }} 笔</p>
+                        <p class="mt-1">{{ row.requires_confirmation ? '消费差额需双方确认' : '无需额外差额确认' }} · {{ row.return_status }}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div
                     v-if="separationSharedDecorationRemovalDisputes.length"
                     class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[10px] text-muted"
                     data-testid="online-cohabitation-shared-decoration-removal-disputes"
@@ -1069,6 +1102,13 @@
                       <option value="auto">自动概率</option>
                     </select>
                   </label>
+                  <p
+                    v-if="sharedWorkshopAlchemyResultMode === 'auto' && sharedWorkshopAlchemyWeightPreviewLabel"
+                    class="text-[10px] leading-4 text-muted"
+                    data-testid="online-cohabitation-shared-workshop-alchemy-weight-preview"
+                  >
+                    自动权重：{{ sharedWorkshopAlchemyWeightPreviewLabel }}
+                  </p>
                   <p class="text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-workshop-medium-budget">
                     中额预算：{{ sharedWorkshopMediumBudgetLedger ? sharedWorkshopMediumBudgetLedger.id : '未绑定' }}
                   </p>
@@ -3148,7 +3188,22 @@
     compensationHint?: string
   }
   type SharedWorkshopRecipeOption = CohabitationSharedWorkshopRecipe
+  type SharedAlchemyWeights = {
+    success: number
+    partial: number
+    failed: number
+    rare: number
+  }
   type SharedWorkshopResultRow = { id: string; label: string; value: string }
+  type SharedDecorationStateEntry = Record<string, unknown> & {
+    decoration_id?: string
+    decoration_kind?: string
+    from_location_ref?: string
+    to_location_ref?: string
+    placement_ref?: string
+    target_ref?: string
+    state?: string
+  }
   type StitchedSharedFarmCell = {
     key: string
     plot: CohabitationSharedPlot | null
@@ -3169,6 +3224,7 @@
     | 'sell_shared_animal'
     | 'care_shared_pet'
     | 'process_shared_workshop_recipe'
+    | 'move_shared_decoration'
     | 'collect_offline_auto_income'
   type OfflineQueueActionOption = {
     id: OfflineQueueUiActionId
@@ -3198,6 +3254,31 @@
   }
   type SeparationSharedDecorationRemovalFreezePolicy = {
     status: string
+  }
+  type SeparationSharedFundReadbackRow = {
+    key: string
+    origin_owner_username: string
+    capital_contribution_amount: number
+    operating_contribution_amount: number
+    split_basis_amount: number
+    suggested_refund_amount: number
+    fund_split_basis: string
+    operating_ledger_count: number
+    warehouse_sale_ledger_count: number
+    requires_confirmation: boolean
+    return_status: string
+  }
+  type SeparationSharedFundReadbackSummary = {
+    capital_total: number
+    operating_total: number
+    split_basis_total: number
+    refund_total: number
+    rows_requiring_confirmation: number
+    required_member_usernames: string[]
+    confirmed_member_usernames: string[]
+    pending_member_usernames: string[]
+    all_members_confirmed: boolean
+    fund_split_basis: string
   }
 
   const largeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
@@ -3477,6 +3558,55 @@
   const separationSharedFundRows = computed<Array<Record<string, unknown>>>(() => {
     const rows = latestSeparationPreview.value?.asset_return?.fund_contributions_by_origin_owner
     return Array.isArray(rows) ? rows as Array<Record<string, unknown>> : []
+  })
+  const separationSharedFundReadbackRows = computed<SeparationSharedFundReadbackRow[]>(() =>
+    separationSharedFundRows.value.map((row, index) => {
+      const operatingLedgerIds = Array.isArray(row.operating_ledger_ids) ? row.operating_ledger_ids : []
+      const warehouseSaleLedgerIds = Array.isArray(row.warehouse_sale_ledger_ids) ? row.warehouse_sale_ledger_ids : []
+      const owner = String(row.origin_owner_username ?? row.username ?? '')
+      return {
+        key: `${owner || 'member'}-${index}`,
+        origin_owner_username: owner || '未知成员',
+        capital_contribution_amount: Math.max(0, Math.floor(Number(row.capital_contribution_amount ?? row.amount) || 0)),
+        operating_contribution_amount: Math.max(0, Math.floor(Number(row.operating_contribution_amount) || 0)),
+        split_basis_amount: Math.max(0, Math.floor(Number(row.split_basis_amount ?? row.amount) || 0)),
+        suggested_refund_amount: Math.max(0, Math.floor(Number(row.suggested_refund_amount) || 0)),
+        fund_split_basis: String(row.fund_split_basis ?? 'capital_and_traceable_operating_income'),
+        operating_ledger_count: operatingLedgerIds.length,
+        warehouse_sale_ledger_count: warehouseSaleLedgerIds.length,
+        requires_confirmation: row.requires_consumption_delta_confirmation === true,
+        return_status: String(row.return_status ?? 'manual_personal_money_write_required'),
+      }
+    }).filter(row => row.suggested_refund_amount > 0 || row.capital_contribution_amount > 0 || row.operating_contribution_amount > 0)
+  )
+  const separationSharedFundDeltaConfirmationSummary = computed<Record<string, unknown>>(() => {
+    const requestSummary = separationExecutionRequest.value?.shared_fund_delta_confirmation_summary
+    if (requestSummary && typeof requestSummary === 'object' && !Array.isArray(requestSummary)) return requestSummary as Record<string, unknown>
+    const assetSummary = latestSeparationPreview.value?.asset_return?.shared_fund_delta_confirmation_summary
+    if (assetSummary && typeof assetSummary === 'object' && !Array.isArray(assetSummary)) return assetSummary as Record<string, unknown>
+    return {}
+  })
+  const separationSharedFundReadbackSummary = computed<SeparationSharedFundReadbackSummary>(() => {
+    const rows = separationSharedFundReadbackRows.value
+    const summary = separationSharedFundDeltaConfirmationSummary.value
+    const toUsernameList = (value: unknown) => Array.isArray(value)
+      ? value.map(item => String(item || '').trim()).filter(Boolean)
+      : []
+    const requiredMemberUsernames = toUsernameList(summary.required_member_usernames)
+    const confirmedMemberUsernames = toUsernameList(summary.confirmed_member_usernames)
+    const pendingMemberUsernames = toUsernameList(summary.pending_member_usernames)
+    return {
+      capital_total: Math.max(0, Math.floor(Number(latestSeparationPreview.value?.asset_return?.fund_total_contributed) || rows.reduce((sum, row) => sum + row.capital_contribution_amount, 0))),
+      operating_total: Math.max(0, Math.floor(Number(latestSeparationPreview.value?.asset_return?.fund_total_operating_contributed) || rows.reduce((sum, row) => sum + row.operating_contribution_amount, 0))),
+      split_basis_total: Math.max(0, Math.floor(Number(latestSeparationPreview.value?.asset_return?.fund_total_split_basis) || rows.reduce((sum, row) => sum + row.split_basis_amount, 0))),
+      refund_total: Math.max(0, Math.floor(Number(summary.refund_total) || rows.reduce((sum, row) => sum + row.suggested_refund_amount, 0))),
+      rows_requiring_confirmation: Math.max(0, Math.floor(Number(summary.rows_requiring_confirmation) || rows.filter(row => row.requires_confirmation).length)),
+      required_member_usernames: requiredMemberUsernames,
+      confirmed_member_usernames: confirmedMemberUsernames,
+      pending_member_usernames: pendingMemberUsernames,
+      all_members_confirmed: summary.all_members_confirmed === true || (requiredMemberUsernames.length > 0 && pendingMemberUsernames.length === 0),
+      fund_split_basis: String(summary.fund_split_basis ?? rows[0]?.fund_split_basis ?? 'capital_and_traceable_operating_income'),
+    }
   })
   const separationSharedFundDeltaRequiresConfirmation = computed(() =>
     separationSharedFundRows.value.some(row =>
@@ -4565,6 +4695,25 @@
     }
     return labels[value] || value || '未记录'
   }
+  const sharedAlchemyDefaultBaseWeights: SharedAlchemyWeights = { success: 80, partial: 14, failed: 4, rare: 2 }
+  const sharedWorkshopAlchemyWeightProfiles: Record<string, { profile: string; label: string; weights: SharedAlchemyWeights }> = {
+    shared_grain_breath_elixir: { profile: 'grain_steady', label: '谷气稳炉', weights: { success: 82, partial: 13, failed: 3, rare: 2 } },
+    shared_sesame_courtesy_elixir: { profile: 'sesame_careful', label: '芝香护礼', weights: { success: 78, partial: 17, failed: 3, rare: 2 } },
+    shared_pumpkin_warmth_elixir: { profile: 'pumpkin_warm_fire', label: '南瓜温火', weights: { success: 76, partial: 16, failed: 5, rare: 3 } },
+    shared_spicy_vitality_pill: { profile: 'spicy_high_flame', label: '辛火猛炉', weights: { success: 72, partial: 16, failed: 7, rare: 5 } },
+    shared_osmanthus_focus_elixir: { profile: 'osmanthus_focus', label: '桂露凝神', weights: { success: 84, partial: 10, failed: 4, rare: 2 } },
+    shared_tea_focus_elixir: { profile: 'tea_focus', label: '茶心凝神', weights: { success: 84, partial: 10, failed: 4, rare: 2 } },
+    shared_stone_root_guard_pill: { profile: 'stone_guard', label: '石根护脉', weights: { success: 80, partial: 12, failed: 6, rare: 2 } },
+    shared_spirit_peach_elixir: { profile: 'spirit_peach_rare_material', label: '灵桃稀材', weights: { success: 70, partial: 15, failed: 7, rare: 8 } },
+  }
+  const sharedWorkshopAlchemyWeightsLabel = (weights?: Record<string, number> | null) => {
+    if (!weights) return ''
+    const success = Math.max(0, Math.floor(Number(weights.success) || 0))
+    const partial = Math.max(0, Math.floor(Number(weights.partial) || 0))
+    const failed = Math.max(0, Math.floor(Number(weights.failed) || 0))
+    const rare = Math.max(0, Math.floor(Number(weights.rare) || 0))
+    return `成丹 ${success} / 偏丹 ${partial} / 废丹 ${failed} / 奇丹 ${rare}`
+  }
   const dailySettlementSummaryLabel = (settlement: Record<string, unknown> | null | undefined) => {
     if (!settlement) return '共同庄园日结已提交'
     const farmGrowth = Math.max(0, Math.floor(Number(settlement.farm_growth_count) || 0))
@@ -4734,6 +4883,20 @@
     selectedSharedWorkshopRecipe.value?.process_kind === 'alchemy_elixir' &&
     selectedSharedWorkshopRecipe.value?.alchemy_result_kind === 'success'
   )
+  const selectedSharedWorkshopAlchemyWeightProfile = computed(() => {
+    const recipe = selectedSharedWorkshopRecipe.value
+    if (!recipe || !selectedSharedWorkshopSupportsAlchemyAuto.value) return null
+    return sharedWorkshopAlchemyWeightProfiles[recipe.id] ?? {
+      profile: 'default_balanced',
+      label: '通用平衡',
+      weights: sharedAlchemyDefaultBaseWeights,
+    }
+  })
+  const sharedWorkshopAlchemyWeightPreviewLabel = computed(() => {
+    const profile = selectedSharedWorkshopAlchemyWeightProfile.value
+    if (!profile) return ''
+    return `${profile.label} · 基础 ${sharedWorkshopAlchemyWeightsLabel(profile.weights)}`
+  })
   const sharedWarehouseItemQuantity = (itemId: string, quality = 'normal') => (cohabitationStore.warehouse?.items ?? [])
     .filter(item => item.item_id === itemId && (item.quality || 'normal') === quality)
     .reduce((sum, item) => sum + warehouseAvailableQuantity(item), 0)
@@ -4757,6 +4920,45 @@
     Boolean(selectedSharedWorkshopRecipe.value) &&
     sharedWorkshopInputRows.value.length > 0 &&
     sharedWorkshopInputRows.value.every(row => row.enough)
+  )
+  const sharedDecorationStateEntries = computed<SharedDecorationStateEntry[]>(() =>
+    (selectedContract.value?.shared_decoration_state ?? [])
+      .filter((entry): entry is SharedDecorationStateEntry => Boolean(entry) && typeof entry === 'object')
+  )
+  const selectedOfflineSharedDecoration = computed(() =>
+    sharedDecorationStateEntries.value.find(entry =>
+      typeof entry.decoration_id === 'string' &&
+      entry.decoration_id.length > 0 &&
+      entry.state !== 'removed'
+    ) ?? null
+  )
+  const selectedOfflineSharedDecorationId = computed(() =>
+    typeof selectedOfflineSharedDecoration.value?.decoration_id === 'string'
+      ? selectedOfflineSharedDecoration.value.decoration_id
+      : ''
+  )
+  const selectedOfflineSharedDecorationKind = computed(() =>
+    selectedOfflineSharedDecoration.value?.decoration_kind === 'memorial' ? 'memorial' : 'common'
+  )
+  const selectedOfflineSharedDecorationLocation = computed(() => {
+    const entry = selectedOfflineSharedDecoration.value
+    return [
+      entry?.to_location_ref,
+      entry?.placement_ref,
+      entry?.from_location_ref,
+      entry?.target_ref,
+    ].find(value => typeof value === 'string' && value.length > 0) as string | undefined || ''
+  })
+  const selectedOfflineSharedDecorationTargetLabel = computed(() => {
+    const decorationId = selectedOfflineSharedDecorationId.value
+    if (!decorationId) return '未选择共同装饰'
+    const location = selectedOfflineSharedDecorationLocation.value
+    return location ? `${decorationId} -> ${location}` : decorationId
+  })
+  const canMoveSelectedSharedDecoration = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.move_shared_decoration === true &&
+    Boolean(selectedOfflineSharedDecorationId.value)
   )
   const sharedFarmFertilizerCatalog = [
     { itemId: 'basic_fertilizer', label: '基础肥料', queueAction: 'fertilize_shared_farm_basic' as CohabitationOfflineQueueAction, premium: false },
@@ -4870,11 +5072,12 @@
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'auto_income') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
     if (kind === 'animal_purchase') return selectedSharedAnimalBuyOption.value?.label || '未选动物类型'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
     if (kind === 'pet') return selectedSharedPet.value?.name || selectedSharedPet.value?.type || selectedSharedPet.value?.id || '未选宠物'
+    if (kind === 'decoration') return selectedOfflineSharedDecorationTargetLabel.value
     if (kind === 'auto_income') return `${offlineAutoIncomePendingCount.value} 项待领`
     return selectedSharedWorkshopRecipe.value?.label || '未选配方'
   }
@@ -4884,7 +5087,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'auto_income',
+      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -4918,6 +5121,7 @@
       makeOption('sell_shared_animal', 'sell_shared_animal', '共同动物出售', 'animal', canSellSelectedSharedAnimal.value, '请选择共同基金购入的动物'),
       makeOption('care_shared_pet', 'care_shared_pet', '共同宠物用品照料', 'pet', canCareSelectedSharedPet.value, '请选择宠物、用品并完成高阶确认'),
       makeOption('process_shared_workshop_recipe', 'process_shared_workshop_recipe', '共同工坊处理', 'workshop', canProcessSelectedSharedWorkshopRecipe.value, '请选择材料充足且有权限的工坊配方'),
+      makeOption('move_shared_decoration', 'move_shared_decoration', '共同装饰移动', 'decoration', canMoveSelectedSharedDecoration.value, '请选择可移动的共同装饰并确认建设权限'),
       makeOption('collect_offline_auto_income', 'collect_offline_auto_income', '离线自动收益领取', 'auto_income', canCollectOfflineAutoIncome.value, '当前没有可领取自动收益或缺少权限'),
     ]
   })
@@ -5403,6 +5607,7 @@
       sell_shared_animal: '共同动物出售',
       care_shared_pet: '共同宠物照料',
       process_shared_workshop_recipe: '共同工坊处理',
+      move_shared_decoration: '共同装饰移动',
       collect_offline_auto_income: '离线自动收益领取',
     }
     return labels[action] || action
@@ -5452,10 +5657,25 @@
         entry.client_base_stale === true ? '客户端基线过期' : '',
       ].filter(Boolean).join(' · ') || '共同动物买卖已按服务端状态合并'
     }
+    if (entry.action === 'move_shared_decoration') {
+      const decorationId = typeof entry.decoration_id === 'string' ? entry.decoration_id : ''
+      const toLocation = typeof entry.to_location_ref === 'string' ? entry.to_location_ref : ''
+      const permissions = Array.isArray(entry.required_permission_keys) ? entry.required_permission_keys.filter(Boolean).join(' / ') : ''
+      return [
+        decorationId ? `装饰 ${decorationId}` : '',
+        toLocation ? `目标 ${toLocation}` : '',
+        permissions ? `权限 ${permissions}` : '',
+        entry.shared_decoration_state_changed === true ? '共同装饰状态已写' : '',
+        entry.personal_home_mutated === false ? '个人小屋未改' : '',
+        entry.shared_fund_changed === false ? '共同基金未改' : '',
+        entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
+        entry.client_base_stale === true ? '客户端基线过期' : '',
+      ].filter(Boolean).join(' · ') || '共同装饰移动已按服务端契约状态合并'
+    }
     const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
     const outputItemId = typeof entry.output_item_id === 'string' ? entry.output_item_id : ''
     const outputQuantity = Math.max(1, Math.floor(Number(entry.output_quantity) || 1))
-    const target = ['target_ref', 'plot_id', 'animal_id', 'pet_id', 'recipe_id']
+    const target = ['target_ref', 'plot_id', 'animal_id', 'pet_id', 'recipe_id', 'decoration_id']
       .map(key => entry[key])
       .find(value => typeof value === 'string' && value.length > 0)
     const output = outputItemId
@@ -5480,6 +5700,8 @@
     Number(cohabitationStore.sharedAnimals?.revision) || 0,
     Number(cohabitationStore.sharedPets?.revision) || 0,
     Number(cohabitationStore.warehouse?.summary.ledger_count) || 0,
+    Number(selectedContract.value?.updated_at) || 0,
+    Number(selectedContract.value?.shared_decoration_state?.length) || 0,
   )
   const buildSelectedOfflineQueueOperation = (): CohabitationOfflineQueueOperation | null => {
     const option = selectedOfflineQueueActionOption.value
@@ -5531,6 +5753,17 @@
       const recipe = selectedSharedWorkshopRecipe.value
       if (!recipe) return null
       basePayload.recipe_id = recipe.id
+    } else if (option.id === 'move_shared_decoration') {
+      const decoration = selectedOfflineSharedDecoration.value
+      const decorationId = selectedOfflineSharedDecorationId.value
+      if (!decoration || !decorationId) return null
+      const toLocationRef = `shared_manor:offline_decoration:${decorationId}:${suffix}`
+      basePayload.decoration_id = decorationId
+      basePayload.decoration_kind = selectedOfflineSharedDecorationKind.value
+      basePayload.from_location_ref = selectedOfflineSharedDecorationLocation.value
+      basePayload.to_location_ref = toLocationRef
+      basePayload.placement_ref = `${toLocationRef}:placed`
+      basePayload.target_ref = `shared_decoration:${decorationId}:offline_move`
     } else if (option.id === 'collect_offline_auto_income') {
       basePayload.client_queue_revision = offlineQueueClientRevision()
     }
@@ -6508,10 +6741,13 @@
         : action?.alchemy_result_kind
           ? sharedWorkshopAlchemyResultLabel(action.alchemy_result_kind)
           : ''
+      const alchemyWeightsLabel = sharedWorkshopAlchemyWeightsLabel(action?.alchemy_result_weights ?? null)
+      const alchemyWeightProfile = typeof action?.alchemy_result_weight_profile === 'string' ? action.alchemy_result_weight_profile : ''
       sharedWorkshopLastResultRows.value = [
         { id: 'output', label: '产出入仓', value: outputLabel },
         { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '服务端已处理，未返回流水 ID' },
         ...(alchemyAutoResultLabel ? [{ id: 'alchemy-result', label: '炼丹结果', value: alchemyAutoResultLabel }] : []),
+        ...(action?.alchemy_auto_result && alchemyWeightsLabel ? [{ id: 'alchemy-weights', label: '概率权重', value: [alchemyWeightProfile ? `档位 ${alchemyWeightProfile}` : '', alchemyWeightsLabel].filter(Boolean).join(' · ') }] : []),
         { id: 'bonus', label: '同时在线加成', value: simultaneousOnlineBonusLabel(action?.simultaneous_online_bonus) },
         { id: 'personal', label: '个人存档', value: action?.personal_save_changed === false ? '未改个人存档' : '以服务端回执为准' },
         { id: 'warehouse', label: '共同仓库', value: action?.shared_warehouse_changed === true ? '已消耗材料并写入产出' : '以刷新后仓库为准' },
@@ -7938,6 +8174,9 @@
       family_festival_seat_rollback: '席位回滚',
       execute_asset_return: '执行资产返还',
       write_personal_save_refunds: '写回个人存档返还',
+      confirm_shared_fund_delta: '确认共同基金差额',
+      refund_shared_fund: '返还共同基金',
+      return_shared_warehouse_items: '返还共同仓库',
       split_decorations: '拆分装修家具',
       split_decorations_buildings: '拆分装饰建筑',
       split_family_buildings: '拆分家族建筑',
@@ -8110,6 +8349,7 @@
       warehouse_high_value_withdrawal_operator_receipt_audit_reviewed: '回执审计复核',
       warehouse_high_value_withdrawal_rolled_back: '高价值草案回滚',
       shared_workshop_processed: '共同工坊处理',
+      shared_decoration_moved: '共同装饰移动',
       offline_queue_merged: '离线队列合并',
       offline_conflict_preflighted: '离线冲突预检',
       offline_auto_income_collected: '离线自动收益领取',
@@ -8159,6 +8399,7 @@
   const sharedLogKindLabel = (action: string) => {
     if (action.includes('warehouse')) return '仓库'
     if (action.includes('workshop')) return '工坊'
+    if (action.includes('decoration')) return '装修'
     if (action.includes('shared_farm')) return '共同农田'
     if (action.includes('fund')) return '基金'
     if (action.includes('permission') || action.includes('role')) return '治理'
@@ -8212,6 +8453,20 @@
       const serverRevision = Math.max(0, Math.floor(Number(detail.server_queue_revision) || 0))
       const unsupportedCount = Array.isArray(detail.unsupported_actions) ? detail.unsupported_actions.length : 0
       return `客户端 revision ${clientRevision} / 服务端 ${serverRevision}，${detail.client_queue_stale === true ? '需刷新后合并' : '可继续合并'}，不支持动作 ${unsupportedCount} 项`
+    }
+    if (entry.action === 'shared_decoration_moved') {
+      const move = detail.decoration_move && typeof detail.decoration_move === 'object'
+        ? detail.decoration_move as Record<string, unknown>
+        : detail
+      const decorationId = typeof move.decoration_id === 'string' ? move.decoration_id : ''
+      const toLocation = typeof move.to_location_ref === 'string' ? move.to_location_ref : ''
+      const permissions = Array.isArray(detail.required_permission_keys) ? detail.required_permission_keys.filter(Boolean).join(' / ') : ''
+      return [
+        decorationId ? `装饰 ${decorationId}` : '',
+        toLocation ? `目标 ${toLocation}` : '',
+        permissions ? `权限 ${permissions}` : '',
+        '不改个人小屋',
+      ].filter(Boolean).join(' · ')
     }
     if (entry.action === 'offline_queue_merged') {
       const resolution = detail.offline_conflict_resolution && typeof detail.offline_conflict_resolution === 'object'

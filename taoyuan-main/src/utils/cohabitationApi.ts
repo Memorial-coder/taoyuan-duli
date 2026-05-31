@@ -1934,6 +1934,7 @@ export interface CohabitationOfflineStatus {
     shared_animal_offline_writes_enabled?: boolean
     shared_pet_offline_writes_enabled?: boolean
     shared_workshop_offline_writes_enabled?: boolean
+    shared_decoration_offline_writes_enabled?: boolean
     offline_queue_merge_enabled?: boolean
     offline_queue_supported_actions?: string[]
     offline_conflict_preflight_enabled?: boolean
@@ -1966,6 +1967,7 @@ export type CohabitationOfflineQueueAction =
   | 'sell_shared_animal'
   | 'care_shared_pet'
   | 'process_shared_workshop_recipe'
+  | 'move_shared_decoration'
   | 'collect_offline_auto_income'
   | string
 
@@ -2011,6 +2013,8 @@ export interface CohabitationOfflineQueueRevisionSnapshot {
   shared_map_revision: number
   shared_animals_revision: number
   shared_pets_revision: number
+  shared_decoration_revision: number
+  shared_decoration_state_count: number
   shared_warehouse_ledger_count: number
   shared_farm_ledger_count: number
   shared_animal_ledger_count: number
@@ -2636,6 +2640,8 @@ export interface CohabitationSharedWorkshopRecipe {
   alchemy_result_kind?: string
   alchemy_result_mode?: 'fixed' | 'auto'
   alchemy_auto_result?: boolean
+  alchemy_result_weight_profile?: string
+  alchemy_result_base_weights?: Record<string, number> | null
 }
 
 export interface CohabitationContractCreatePayload {
@@ -2983,6 +2989,8 @@ export interface CohabitationSharedWorkshopProcessResponse extends CohabitationD
     alchemy_result_roll?: number
     alchemy_result_roll_mod?: number
     alchemy_result_weights?: Record<string, number> | null
+    alchemy_result_weight_profile?: string
+    alchemy_result_base_weights?: Record<string, number> | null
     alchemy_result_seed_hash?: string
     success_rate_bonus_percent?: number
     warehouse_ledger_ids?: string[]

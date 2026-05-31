@@ -76,6 +76,41 @@ const SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS = Object.freeze({
   failed: 4,
   rare: 2,
 });
+const SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_WEIGHT_PROFILE = 'default_balanced';
+const SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES = Object.freeze({
+  shared_grain_breath_elixir: {
+    profile: 'grain_steady',
+    weights: { success: 82, partial: 13, failed: 3, rare: 2 },
+  },
+  shared_sesame_courtesy_elixir: {
+    profile: 'sesame_careful',
+    weights: { success: 78, partial: 17, failed: 3, rare: 2 },
+  },
+  shared_pumpkin_warmth_elixir: {
+    profile: 'pumpkin_warm_fire',
+    weights: { success: 76, partial: 16, failed: 5, rare: 3 },
+  },
+  shared_spicy_vitality_pill: {
+    profile: 'spicy_high_flame',
+    weights: { success: 72, partial: 16, failed: 7, rare: 5 },
+  },
+  shared_osmanthus_focus_elixir: {
+    profile: 'osmanthus_focus',
+    weights: { success: 84, partial: 10, failed: 4, rare: 2 },
+  },
+  shared_tea_focus_elixir: {
+    profile: 'tea_focus',
+    weights: { success: 84, partial: 10, failed: 4, rare: 2 },
+  },
+  shared_stone_root_guard_pill: {
+    profile: 'stone_guard',
+    weights: { success: 80, partial: 12, failed: 6, rare: 2 },
+  },
+  shared_spirit_peach_elixir: {
+    profile: 'spirit_peach_rare_material',
+    weights: { success: 70, partial: 15, failed: 7, rare: 8 },
+  },
+});
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_ITEM_POLICY_VERSION = 1;
@@ -505,6 +540,7 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'sell_shared_animal',
   'care_shared_pet',
   'process_shared_workshop_recipe',
+  'move_shared_decoration',
   'collect_offline_auto_income',
 ]);
 const SHARED_FARM_SEED_CATALOG = Object.freeze(Object.fromEntries(
@@ -3527,6 +3563,15 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
                 rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.rare) || 0)),
               }
             : null,
+          alchemy_result_weight_profile: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_weight_profile, 80),
+          alchemy_result_base_weights: entry.simultaneous_online_bonus.alchemy_result_base_weights && typeof entry.simultaneous_online_bonus.alchemy_result_base_weights === 'object'
+            ? {
+                success: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.success) || 0)),
+                partial: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.partial) || 0)),
+                failed: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.failed) || 0)),
+                rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.rare) || 0)),
+              }
+            : null,
           success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
           policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
         }
@@ -3551,6 +3596,8 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           alchemy_result_roll_mod: 0,
           alchemy_result_seed_hash: '',
           alchemy_result_weights: null,
+          alchemy_result_weight_profile: '',
+          alchemy_result_base_weights: null,
           success_rate_bonus_percent: 0,
           policy: '',
         },
@@ -9138,22 +9185,54 @@ function normalizeAlchemyResultMode(value) {
   return sanitizeText(value, 20) === 'auto' ? 'auto' : 'fixed';
 }
 
-function buildSharedAlchemyResultWeights(successRateBonusPercent = 0) {
+function normalizeSharedAlchemyResultWeights(weights = {}) {
+  const normalized = {
+    success: Math.max(0, Math.floor(Number(weights.success) || 0)),
+    partial: Math.max(0, Math.floor(Number(weights.partial) || 0)),
+    failed: Math.max(0, Math.floor(Number(weights.failed) || 0)),
+    rare: Math.max(0, Math.floor(Number(weights.rare) || 0)),
+  };
+  const total = normalized.success + normalized.partial + normalized.failed + normalized.rare;
+  if (total <= 0) return { ...SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS };
+  if (total === 100) return normalized;
+  const success = Math.max(0, Math.min(100, Math.floor((normalized.success * 100) / total)));
+  const partial = Math.max(0, Math.min(100 - success, Math.floor((normalized.partial * 100) / total)));
+  const failed = Math.max(0, Math.min(100 - success - partial, Math.floor((normalized.failed * 100) / total)));
+  const rare = Math.max(0, 100 - success - partial - failed);
+  return { success, partial, failed, rare };
+}
+
+function getSharedAlchemyResultWeightProfile(recipeId = '') {
+  const profile = SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES[sanitizeText(recipeId, 100)] || null;
+  return {
+    profile: sanitizeText(profile?.profile, 80) || SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_WEIGHT_PROFILE,
+    weights: normalizeSharedAlchemyResultWeights(profile?.weights || SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS),
+  };
+}
+
+function buildSharedAlchemyResultWeights(recipeId = '', successRateBonusPercent = 0) {
+  const weightProfile = getSharedAlchemyResultWeightProfile(recipeId);
+  const baseWeights = weightProfile.weights;
   const success = Math.min(
     SHARED_ALCHEMY_AUTO_RESULT_MAX_SUCCESS_PERCENT,
-    SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.success + Math.max(0, Math.floor(Number(successRateBonusPercent) || 0))
+    baseWeights.success + Math.max(0, Math.floor(Number(successRateBonusPercent) || 0))
   );
   const remaining = Math.max(0, 100 - success);
-  const rare = Math.min(SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.rare, remaining);
-  const failed = remaining >= 4
-    ? Math.min(SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.failed, Math.max(1, Math.floor(remaining * SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS.failed / 20)))
-    : remaining >= 2 ? 1 : 0;
+  const rare = Math.min(baseWeights.rare, remaining);
+  const afterRare = Math.max(0, remaining - rare);
+  const nonSuccessTotal = Math.max(1, baseWeights.partial + baseWeights.failed + baseWeights.rare);
+  const failed = afterRare <= 0
+    ? 0
+    : remaining >= 4
+      ? Math.min(baseWeights.failed, afterRare, Math.max(1, Math.floor((remaining * baseWeights.failed) / nonSuccessTotal)))
+      : Math.min(baseWeights.failed, afterRare, 1);
   const partial = Math.max(0, remaining - rare - failed);
   return { success, partial, failed, rare };
 }
 
 function rollSharedAlchemyResultKind(recipeId = '', idempotencyKey = '', successRateBonusPercent = 0) {
-  const weights = buildSharedAlchemyResultWeights(successRateBonusPercent);
+  const weightProfile = getSharedAlchemyResultWeightProfile(recipeId);
+  const weights = buildSharedAlchemyResultWeights(recipeId, successRateBonusPercent);
   const digest = crypto
     .createHash('sha256')
     .update(`shared_alchemy_auto_result:${sanitizeText(recipeId, 100)}:${sanitizeText(idempotencyKey, 120)}`)
@@ -9173,6 +9252,8 @@ function rollSharedAlchemyResultKind(recipeId = '', idempotencyKey = '', success
     roll,
     roll_mod: 100,
     weights,
+    weight_profile: weightProfile.profile,
+    base_weights: weightProfile.weights,
     seed_hash: digest.slice(0, 16),
   };
 }
@@ -9194,6 +9275,8 @@ function resolveSharedAlchemyOutput(recipe = {}, request = {}, simultaneousOnlin
       roll: 0,
       roll_mod: 0,
       weights: null,
+      weight_profile: '',
+      base_weights: null,
       seed_hash: '',
     };
   }
@@ -9219,6 +9302,8 @@ function resolveSharedAlchemyOutput(recipe = {}, request = {}, simultaneousOnlin
     roll: rollResult.roll,
     roll_mod: rollResult.roll_mod,
     weights: rollResult.weights,
+    weight_profile: rollResult.weight_profile,
+    base_weights: rollResult.base_weights,
     seed_hash: rollResult.seed_hash,
   };
 }
@@ -9260,6 +9345,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       shared_animal_offline_writes_enabled: true,
       shared_pet_offline_writes_enabled: true,
       shared_workshop_offline_writes_enabled: true,
+      shared_decoration_offline_writes_enabled: true,
       offline_queue_merge_enabled: true,
       offline_queue_supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
       offline_conflict_preflight_enabled: true,
@@ -9296,6 +9382,8 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       process_shared_workshop_recipe: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.buy_furniture === true
         || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
+      move_shared_decoration: actorPermissions.construction.move_common_furniture === true
+        || actorPermissions.construction.move_memorial_furniture === true,
       collect_offline_auto_income: actorPermissions.farm.harvest === true || actorPermissions.animal.collect_product === true,
       read_warehouse: true,
       deposit_warehouse: actorPermissions.storage.deposit === true,
@@ -10351,14 +10439,20 @@ function buildOfflineQueueRevisionSnapshot(contract = {}) {
   const sharedFarmLedger = Array.isArray(contract.shared_farm_ledger) ? contract.shared_farm_ledger : [];
   const sharedAnimalLedger = Array.isArray(contract.shared_animal_ledger) ? contract.shared_animal_ledger : [];
   const sharedPetLedger = Array.isArray(contract.shared_pet_ledger) ? contract.shared_pet_ledger : [];
+  const sharedDecorationState = Array.isArray(contract.shared_decoration_state) ? contract.shared_decoration_state : [];
   const sharedMapRevision = Math.max(0, Math.floor(Number(contract.shared_map?.revision) || 0));
   const sharedAnimalsRevision = Math.max(0, Math.floor(Number(contract.shared_animals?.revision) || 0));
   const sharedPetsRevision = Math.max(0, Math.floor(Number(contract.shared_pets?.revision) || 0));
+  const sharedDecorationRevision = sharedDecorationState.reduce((max, entry) => Math.max(
+    max,
+    Math.floor(Number(entry?.recorded_at || entry?.moved_at || entry?.at) || 0)
+  ), Math.max(0, Math.floor(Number(contract.updated_at) || 0), sharedDecorationState.length));
   const sharedWarehouseLedgerCount = sharedWarehouseLedger.length;
   const serverQueueRevision = Math.max(
     sharedMapRevision,
     sharedAnimalsRevision,
     sharedPetsRevision,
+    sharedDecorationRevision,
     sharedWarehouseLedgerCount
   );
   return {
@@ -10366,6 +10460,8 @@ function buildOfflineQueueRevisionSnapshot(contract = {}) {
     shared_map_revision: sharedMapRevision,
     shared_animals_revision: sharedAnimalsRevision,
     shared_pets_revision: sharedPetsRevision,
+    shared_decoration_revision: sharedDecorationRevision,
+    shared_decoration_state_count: sharedDecorationState.length,
     shared_warehouse_ledger_count: sharedWarehouseLedgerCount,
     shared_farm_ledger_count: sharedFarmLedger.length,
     shared_animal_ledger_count: sharedAnimalLedger.length,
@@ -10448,8 +10544,10 @@ function buildOfflineConflictResolutionEvidence(request = {}, results = [], reje
     ledger_count: Math.max(0, Math.floor(Number(options.ledger_count) || ledgerIds.length)),
     warehouse_ledger_count: uniqueSanitizedValues(results.flatMap(entry => Array.isArray(entry?.warehouse_ledger_ids) ? entry.warehouse_ledger_ids : []), 140).length,
     personal_save_changed: allEntries.some(entry => entry?.personal_save_changed === true),
+    personal_home_mutated: allEntries.some(entry => entry?.personal_home_mutated === true),
     shared_warehouse_changed: allEntries.some(entry => entry?.shared_warehouse_changed === true),
     shared_fund_changed: allEntries.some(entry => entry?.shared_fund_changed === true),
+    shared_decoration_state_changed: allEntries.some(entry => entry?.shared_decoration_state_changed === true),
     server_authoritative: true,
     conflict_policy: options.idempotent === true
       ? 'server_authoritative_idempotent_replay'
@@ -11944,6 +12042,15 @@ function buildWarehouseOriginAsset(entry) {
                 partial: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.partial) || 0)),
                 failed: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.failed) || 0)),
                 rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_weights.rare) || 0)),
+              }
+            : null,
+          alchemy_result_weight_profile: sanitizeText(entry.simultaneous_online_bonus.alchemy_result_weight_profile, 80),
+          alchemy_result_base_weights: entry.simultaneous_online_bonus.alchemy_result_base_weights && typeof entry.simultaneous_online_bonus.alchemy_result_base_weights === 'object'
+            ? {
+                success: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.success) || 0)),
+                partial: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.partial) || 0)),
+                failed: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.failed) || 0)),
+                rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.rare) || 0)),
               }
             : null,
           success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
@@ -14846,11 +14953,56 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.receipt_id).slice(0, 20)
       : [],
+    compensation_rollback_idempotency_key: sanitizeText(entry.compensation_rollback_idempotency_key, 120),
+    compensation_rollback_at: Math.max(0, Math.floor(Number(entry.compensation_rollback_at) || 0)),
+    compensation_rollback_by: normalizeUsername(entry.compensation_rollback_by),
+    compensation_rollback_reason: sanitizeText(entry.compensation_rollback_reason, 240),
+    compensation_rollback_error_code: sanitizeText(entry.compensation_rollback_error_code, 80),
+    compensation_rollback_failed_operation_id: sanitizeText(entry.compensation_rollback_failed_operation_id, 120),
+    compensation_rollback_restored_status: sanitizeText(entry.compensation_rollback_restored_status, 80),
+    compensation_rollback_restored_pending: entry.compensation_rollback_restored_pending === true,
+    compensation_rollback_events: Array.isArray(entry.compensation_rollback_events)
+      ? entry.compensation_rollback_events.map(item => ({
+          id: sanitizeText(item.id, 120),
+          failed_at: Math.max(0, Math.floor(Number(item.failed_at) || 0)),
+          failed_by: normalizeUsername(item.failed_by),
+          failure_stage: sanitizeText(item.failure_stage, 80),
+          failure_reason: sanitizeText(item.failure_reason, 240),
+          error_code: sanitizeText(item.error_code, 80),
+          failed_operation_id: sanitizeText(item.failed_operation_id, 120),
+          idempotency_key: sanitizeText(item.idempotency_key, 120),
+          restored_status: sanitizeText(item.restored_status, 80),
+          asset_return_ledger_written: item.asset_return_ledger_written === true,
+          personal_save_written: item.personal_save_written === true,
+          shared_assets_mutated: item.shared_assets_mutated === true,
+          compensation_rollback_recorded: item.compensation_rollback_recorded === true,
+          memo: sanitizeText(item.memo, 160),
+        })).filter(item => item.id && item.idempotency_key).slice(-20)
+      : [],
     shared_assets_mutated: entry.shared_assets_mutated === true,
     next_required_operations: Array.isArray(entry.next_required_operations)
       ? entry.next_required_operations.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 12)
       : ['write_personal_save_refunds', 'verify_personal_save_receipts'],
   };
+}
+
+function isSeparationExecutionLedgerRollbackTerminal(entry = {}) {
+  return ['reverted', 'compensated'].includes(String(entry.status || ''))
+    || entry.compensation_rollback_restored_pending === true;
+}
+
+function canRestoreSeparationExecutionLedgerToPending(entry = {}) {
+  const ledger = normalizeSeparationExecutionLedgerEntry(entry);
+  return ledger.status === 'asset_return_recorded'
+    && ledger.personal_save_written !== true
+    && ledger.shared_fund_refunded !== true
+    && ledger.shared_warehouse_returned !== true
+    && ledger.decorations_buildings_split !== true
+    && ledger.family_story_resolved !== true
+    && ledger.personal_story_receipts_written !== true
+    && ledger.child_arrangement_resolved !== true
+    && ledger.personal_family_receipts_written !== true
+    && ledger.shared_assets_mutated !== true;
 }
 
 function buildSharedDecorationRemovalDisputeFreezePreview(contract) {
@@ -18013,6 +18165,20 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared workshop process merge', 160),
     }, actor);
   }
+  if (operation.action === 'move_shared_decoration') {
+    return moveCohabitationSharedDecoration(contractId, {
+      ...payload,
+      decoration_id: payload.decoration_id || payload.decorationId || payload.item_id || payload.id,
+      decoration_kind: payload.decoration_kind || payload.kind || payload.furniture_kind || payload.type,
+      from_location_ref: payload.from_location_ref || payload.previous_location_ref,
+      to_location_ref: payload.to_location_ref || payload.next_location_ref || payload.location_ref || payload.room_id,
+      placement_ref: payload.placement_ref || payload.target_ref,
+      target_ref: payload.target_ref,
+      operation_id: operation.operation_id,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared decoration move merge', 160),
+    }, actor);
+  }
   if (operation.action === 'collect_offline_auto_income') {
     return collectCohabitationOfflineAutoIncome(contractId, {
       ...payload,
@@ -18188,6 +18354,33 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       server_authoritative: true,
     };
   }
+  if (action === 'move_shared_decoration') {
+    const decorationMove = result.decoration_move || {};
+    const stateEntry = result.shared_decoration_state_entry || {};
+    const decorationId = decorationMove.decoration_id || stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
+    const decorationKind = decorationMove.decoration_kind || stateEntry.decoration_kind || normalizeSharedDecorationKind(operation.payload?.decoration_kind || operation.payload?.kind, operation.payload || {});
+    const toLocationRef = decorationMove.to_location_ref || stateEntry.to_location_ref || sanitizeText(operation.payload?.to_location_ref || operation.payload?.next_location_ref || operation.payload?.location_ref || operation.payload?.room_id, 120);
+    const placementRef = decorationMove.placement_ref || stateEntry.placement_ref || sanitizeText(operation.payload?.placement_ref || operation.payload?.target_ref || toLocationRef, 120);
+    return {
+      ...entry,
+      target_ref: entry.target_ref || decorationMove.target_ref || stateEntry.target_ref || placementRef || `shared_decoration:${decorationId}:move`,
+      decoration_id: decorationId,
+      decoration_kind: decorationKind,
+      from_location_ref: decorationMove.from_location_ref || stateEntry.from_location_ref || sanitizeText(operation.payload?.from_location_ref || operation.payload?.previous_location_ref, 120),
+      to_location_ref: toLocationRef,
+      placement_ref: placementRef,
+      required_permission_keys: Array.isArray(result.required_permission_keys) ? result.required_permission_keys : (Array.isArray(stateEntry.required_permission_keys) ? stateEntry.required_permission_keys : []),
+      shared_decoration_state_entry_id: stateEntry.id || '',
+      shared_decoration_state_changed: stateEntry.shared_decoration_state_changed !== false,
+      personal_home_mutated: false,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: false,
+      already_moved: result.already_moved === true,
+      audit_action: 'shared_decoration_moved',
+      compensation_hint: 'offline shared decoration move only updates contract shared_decoration_state and audit log; personal home saves, shared warehouse, and shared fund remain unchanged.',
+    };
+  }
   return {
     ...entry,
     target_ref: entry.target_ref || `shared_animal:${action}:${result.animal?.id || ledgerEntry.animal_id || ''}`,
@@ -18243,6 +18436,49 @@ function buildCohabitationOfflineSharedAnimalTradeRejection(operation = {}, erro
     server_authoritative: true,
     conflict_policy: 'server_authoritative_reject_and_continue',
     compensation_hint: 'offline shared animal trade was rejected before any shared fund, shared animal, warehouse, or personal save mutation.',
+  };
+}
+
+function buildCohabitationOfflineSharedDecorationMoveRejection(operation = {}, error = {}) {
+  if (operation.action !== 'move_shared_decoration') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'shared_decoration_move_server_state_rejected';
+  if (status === 400) reason = 'invalid_shared_decoration_move_operation';
+  if (status === 403) reason = 'shared_decoration_move_permission_denied';
+  if (status === 404) reason = 'shared_decoration_not_found';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'shared_decoration_move_idempotency_conflict';
+  const decorationId = sanitizeText(payload.decoration_id || payload.decorationId || payload.item_id || payload.id, 80);
+  const decorationKind = normalizeSharedDecorationKind(payload.decoration_kind || payload.kind, payload);
+  const permissionCheck = getSharedDecorationMovePermissionCheck(decorationKind);
+  const toLocationRef = sanitizeText(payload.to_location_ref || payload.next_location_ref || payload.location_ref || payload.room_id, 120);
+  const placementRef = sanitizeText(payload.placement_ref || payload.target_ref || toLocationRef, 120);
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    decoration_id: decorationId,
+    decoration_kind: decorationKind,
+    from_location_ref: sanitizeText(payload.from_location_ref || payload.previous_location_ref, 120),
+    to_location_ref: toLocationRef,
+    placement_ref: placementRef,
+    target_ref: sanitizeText(payload.target_ref || placementRef, 120) || (decorationId ? `shared_decoration:${decorationId}:move` : ''),
+    required_permission_keys: [permissionCheck.label],
+    shared_decoration_state_changed: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline shared decoration move was rejected before any shared decoration state, personal home, warehouse, or fund mutation.',
   };
 }
 
@@ -18758,6 +18994,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const sharedAnimalTradeRejection = buildCohabitationOfflineSharedAnimalTradeRejection(operation, error);
       if (sharedAnimalTradeRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(sharedAnimalTradeRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const sharedDecorationMoveRejection = buildCohabitationOfflineSharedDecorationMoveRejection(operation, error);
+      if (sharedDecorationMoveRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(sharedDecorationMoveRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const careItemProfile = getSharedPetCareItemProfile(careItemId);
@@ -20285,6 +20526,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     );
     const previousAlchemyKind = previousOutputEntry.simultaneous_online_bonus?.alchemy_result_kind || recipe.alchemy_result_kind || '';
     const previousAlchemyAuto = previousOutputEntry.simultaneous_online_bonus?.alchemy_auto_result === true;
+    const previousAlchemyWeightProfile = previousOutputEntry.simultaneous_online_bonus?.alchemy_result_weight_profile || '';
+    const previousAlchemyBaseWeights = previousOutputEntry.simultaneous_online_bonus?.alchemy_result_base_weights || null;
     const previousResponseRecipe = {
       ...recipe,
       output_item_id: previousOutputEntry.item_id,
@@ -20293,6 +20536,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       alchemy_result_kind: previousAlchemyKind,
       alchemy_result_mode: previousAlchemyAuto ? 'auto' : 'fixed',
       alchemy_auto_result: previousAlchemyAuto,
+      alchemy_result_weight_profile: previousAlchemyWeightProfile,
+      alchemy_result_base_weights: previousAlchemyBaseWeights,
     };
     return {
       contract: toPublicContract(contract),
@@ -20318,6 +20563,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
         alchemy_result_roll: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_roll || 0,
         alchemy_result_roll_mod: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_roll_mod || 0,
         alchemy_result_weights: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_weights || null,
+        alchemy_result_weight_profile: previousAlchemyWeightProfile,
+        alchemy_result_base_weights: previousAlchemyBaseWeights,
         alchemy_result_seed_hash: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_seed_hash || '',
         success_rate_bonus_percent: previousOutputEntry.simultaneous_online_bonus?.success_rate_bonus_percent || 0,
         warehouse_ledger_ids: previousWarehouseEntries.map(entry => entry.id),
@@ -20364,9 +20611,11 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     alchemy_result_roll: alchemyOutput.roll,
     alchemy_result_roll_mod: alchemyOutput.roll_mod,
     alchemy_result_weights: alchemyOutput.weights,
+    alchemy_result_weight_profile: alchemyOutput.weight_profile,
+    alchemy_result_base_weights: alchemyOutput.base_weights,
     alchemy_result_seed_hash: alchemyOutput.seed_hash,
     policy: alchemyOutput.auto === true
-      ? 'auto result is deterministically rolled from recipe id and idempotency key; retries replay the same output.'
+      ? 'auto result is deterministically rolled from recipe id, recipe weight profile, and idempotency key; retries replay the same output.'
       : baseSimultaneousOnlineBonus.policy,
   };
   const outputItemId = alchemyOutput.output_item_id || recipe.output_item_id;
@@ -20461,6 +20710,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     alchemy_result_roll: alchemyOutput.roll,
     alchemy_result_roll_mod: alchemyOutput.roll_mod,
     alchemy_result_weights: alchemyOutput.weights,
+    alchemy_result_weight_profile: alchemyOutput.weight_profile,
+    alchemy_result_base_weights: alchemyOutput.base_weights,
     alchemy_result_seed_hash: alchemyOutput.seed_hash,
     success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
     input_items: recipe.input_items,
@@ -20487,6 +20738,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     alchemy_result_kind: alchemyOutput.kind || recipe.alchemy_result_kind || '',
     alchemy_result_mode: alchemyOutput.mode,
     alchemy_auto_result: alchemyOutput.auto === true,
+    alchemy_result_weight_profile: alchemyOutput.weight_profile,
+    alchemy_result_base_weights: alchemyOutput.base_weights,
   };
 
   return {
@@ -20508,6 +20761,8 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       alchemy_result_roll: alchemyOutput.roll,
       alchemy_result_roll_mod: alchemyOutput.roll_mod,
       alchemy_result_weights: alchemyOutput.weights,
+      alchemy_result_weight_profile: alchemyOutput.weight_profile,
+      alchemy_result_base_weights: alchemyOutput.base_weights,
       alchemy_result_seed_hash: alchemyOutput.seed_hash,
       success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
       input_items: recipe.input_items,
@@ -27950,11 +28205,14 @@ async function recordSeparationExecutionFailure(contractId, previewId, payload =
 
   const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
   const previousAudit = (contract.audit_log || []).find(entry =>
-    entry.action === 'separation_execution_failed_pending_restored'
+    ['separation_execution_failed_pending_restored', 'separation_execution_ledger_rollback_pending_restored'].includes(entry.action)
     && entry.idempotency_key === failurePayload.idempotency_key
     && entry.detail?.preview_id === normalizedPreviewId
   );
   if (previousAudit) {
+    const revertedExecutionLedger = previousAudit.detail?.reverted_execution_ledger_id
+      ? contract.separation_execution_ledger.find(entry => entry.id === previousAudit.detail.reverted_execution_ledger_id) || null
+      : null;
     return {
       contract: toPublicContract(contract),
       preview,
@@ -27962,6 +28220,7 @@ async function recordSeparationExecutionFailure(contractId, previewId, payload =
       already_restored: true,
       audit_entry: previousAudit,
       execution_request: preview.confirmation_state.execution_request || null,
+      reverted_execution_ledger: revertedExecutionLedger,
     };
   }
 
@@ -27975,12 +28234,166 @@ async function recordSeparationExecutionFailure(contractId, previewId, payload =
   if (failurePayload.execution_request_id && failurePayload.execution_request_id !== executionRequest.id) {
     throw createError('separation execution request mismatch; refresh and retry', 409);
   }
-  const existingExecutionLedger = contract.separation_execution_ledger.find(entry =>
-    entry.preview_id === normalizedPreviewId
-    || (executionRequest.id && entry.execution_request_id === executionRequest.id)
+  const existingExecutionLedgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    !isSeparationExecutionLedgerRollbackTerminal(entry)
+    && (
+      entry.preview_id === normalizedPreviewId
+      || (executionRequest.id && entry.execution_request_id === executionRequest.id)
+    )
   );
+  const existingExecutionLedger = existingExecutionLedgerIndex >= 0
+    ? normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[existingExecutionLedgerIndex])
+    : null;
   if (existingExecutionLedger) {
-    throw createError('separation execution already has an asset return ledger; use compensation rollback instead of restoring pending', 409);
+    if (!canRestoreSeparationExecutionLedgerToPending(existingExecutionLedger)) {
+      throw createError('separation execution already mutated personal or shared assets; use dedicated compensation receipts before restoring pending', 409);
+    }
+    const currentStatus = String(executionRequest.status || '');
+    if (!['asset_return_recorded', 'execution_failed'].includes(currentStatus)) {
+      throw createError('only asset-return recorded separation execution can be compensation-rolled back to pending', 409);
+    }
+    const previousFailureEvents = Array.isArray(executionRequest.failure_events)
+      ? executionRequest.failure_events
+      : [];
+    const failureEvent = {
+      id: makeId('separation_execution_failure'),
+      failed_at: now,
+      failed_by: member.username,
+      failure_stage: failurePayload.failure_stage,
+      failure_reason: failurePayload.failure_reason,
+      error_code: failurePayload.error_code,
+      failed_operation_id: failurePayload.failed_operation_id,
+      idempotency_key: failurePayload.idempotency_key,
+      memo: failurePayload.memo,
+      restored_status: 'pending_manual_execution',
+      asset_return_ledger_written: true,
+      reverted_execution_ledger_id: existingExecutionLedger.id,
+      personal_save_written: false,
+      shared_assets_mutated: false,
+      compensation_rollback_recorded: true,
+    };
+    const nextRequiredOperations = ['execute_asset_return', 'write_personal_save_refunds', 'split_decorations', 'resolve_family_story'];
+    const nextExecutionRequest = {
+      ...executionRequest,
+      status: 'pending_manual_execution',
+      failure_count: previousFailureEvents.length + 1,
+      failure_events: [...previousFailureEvents, failureEvent].slice(-20),
+      last_failure_event: failureEvent,
+      last_failure_at: now,
+      last_failure_stage: failurePayload.failure_stage,
+      last_failure_reason: failurePayload.failure_reason,
+      can_retry: true,
+      asset_return_executed: false,
+      asset_return_recorded: false,
+      asset_return_ledger_id: '',
+      execution_ledger_id: '',
+      personal_save_written: false,
+      execution_enabled: false,
+      next_required_operations: nextRequiredOperations,
+    };
+    const revertedLedger = normalizeSeparationExecutionLedgerEntry({
+      ...existingExecutionLedger,
+      status: 'reverted',
+      compensation_rollback_idempotency_key: failurePayload.idempotency_key,
+      compensation_rollback_at: now,
+      compensation_rollback_by: member.username,
+      compensation_rollback_reason: failurePayload.failure_reason,
+      compensation_rollback_error_code: failurePayload.error_code,
+      compensation_rollback_failed_operation_id: failurePayload.failed_operation_id,
+      compensation_rollback_restored_status: 'pending_manual_execution',
+      compensation_rollback_restored_pending: true,
+      compensation_rollback_events: [
+        ...(existingExecutionLedger.compensation_rollback_events || []),
+        failureEvent,
+      ].slice(-20),
+      shared_assets_mutated: false,
+      next_required_operations: nextRequiredOperations,
+    });
+    const restoredManifest = Array.isArray(preview.asset_return?.plot_return_manifest)
+      ? preview.asset_return.plot_return_manifest.map(entry => ({
+          ...entry,
+          execution_status: 'preview_only',
+          execution_ledger_id: '',
+        }))
+      : [];
+    const nextPreview = normalizeSeparationPreview({
+      ...preview,
+      asset_return: {
+        ...preview.asset_return,
+        plot_return_manifest: restoredManifest,
+        asset_return_recorded: false,
+        asset_return_recorded_at: 0,
+        asset_return_ledger_id: '',
+        personal_save_written: false,
+      },
+      confirmation_state: {
+        ...preview.confirmation_state,
+        can_execute_now: true,
+        ready_for_execution_request: true,
+        execution_request: nextExecutionRequest,
+        execution_failed_at: now,
+        execution_last_failure: failureEvent,
+        execution_failure_count: nextExecutionRequest.failure_count,
+        execution_pending_restored_at: now,
+        asset_return_recorded: false,
+        asset_return_recorded_at: 0,
+        personal_save_written: false,
+        execution_enabled: false,
+        execution_policy: 'asset-return ledger was reverted before personal or shared asset mutation; request restored to pending_manual_execution for a safe retry.',
+      },
+      deferred_operations: nextRequiredOperations,
+      manual_execution_required: true,
+      requires_both_confirm: true,
+    });
+
+    contract.separation_state = 'pending_manual_execution';
+    contract.separation_execution_ledger[existingExecutionLedgerIndex] = revertedLedger;
+    contract.separation_previews[previewIndex] = nextPreview;
+    appendAudit(contract, 'separation_execution_ledger_rollback_pending_restored', actor, {
+      preview_id: nextPreview.id,
+      preview_version: nextPreview.version,
+      execution_request_id: nextExecutionRequest.id,
+      reverted_execution_ledger_id: revertedLedger.id,
+      failure_event_id: failureEvent.id,
+      failure_stage: failurePayload.failure_stage,
+      failure_reason: failurePayload.failure_reason,
+      error_code: failurePayload.error_code,
+      restored_status: 'pending_manual_execution',
+      can_execute_now: true,
+      execution_enabled: false,
+      execution_ledger_written: true,
+      asset_return_ledger_written: true,
+      personal_save_written: false,
+      shared_assets_mutated: false,
+      shared_fund_changed: false,
+      shared_warehouse_changed: false,
+      personal_inventory_changed: false,
+      personal_money_changed: false,
+      no_personal_save_mutation: true,
+      no_shared_asset_mutation: true,
+      compensation_rollback_recorded: true,
+      next_required_operations: nextRequiredOperations,
+    }, failurePayload.idempotency_key);
+    saveContractStore(store);
+
+    return {
+      contract: toPublicContract(contract),
+      preview: nextPreview,
+      idempotent: false,
+      already_restored: false,
+      execution_request: nextExecutionRequest,
+      failure_event: failureEvent,
+      reverted_execution_ledger: revertedLedger,
+      recovery: {
+        status: 'pending_manual_execution',
+        can_retry_asset_return: true,
+        execution_ledger_written: true,
+        compensation_rollback_recorded: true,
+        reverted_execution_ledger_id: revertedLedger.id,
+        personal_save_written: false,
+        shared_assets_mutated: false,
+      },
+    };
   }
   const currentStatus = String(executionRequest.status || '');
   if (!['pending_manual_execution', 'execution_failed'].includes(currentStatus)) {
@@ -28124,7 +28537,9 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
     entry.preview_id === normalizedPreviewId
     && (
       entry.idempotency_key === executePayload.idempotency_key
-      || (versionIdempotencyKey && entry.version_idempotency_key === versionIdempotencyKey)
+      || (versionIdempotencyKey
+        && entry.version_idempotency_key === versionIdempotencyKey
+        && !isSeparationExecutionLedgerRollbackTerminal(entry))
     )
   );
   if (previousLedger) {
