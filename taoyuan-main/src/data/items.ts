@@ -1331,6 +1331,14 @@ const ELIXIR_ITEMS: ItemDef[] = [
     description: '绿茶、莲心粉与月珠炼成的稀材安神丹。定位为夜巡、结契仪式和长线探索前的安神丹药。',
     sellPrice: 780,
     edible: false
+  },
+  {
+    id: 'jade_orchid_focus_elixir',
+    name: '玉兰凝心丹',
+    category: 'elixir',
+    description: '桂花蜜、莲心粉与玉兰炼成的稀材凝心丹。定位为家族议事、节会筹备和高压协作前的凝心丹药。',
+    sellPrice: 820,
+    edible: false
   }
 ]
 

@@ -4147,7 +4147,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 13, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 14, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4162,10 +4162,12 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.incl
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('marsh_luminous_cleansing_elixir'), 'warehouse item policy should list marsh rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moon_pearl_calm_elixir'), 'warehouse item policy should list moon pearl rare-material elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_orchid_focus_elixir'), 'warehouse item policy should list jade orchid rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_etched_core'), 'warehouse item policy should list room rare materials as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moon_pearl'), 'warehouse item policy should list rare purchase targets as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_orchid'), 'warehouse item policy should list jade orchid purchase targets as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4768,6 +4770,15 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
   'moon pearl rare material alchemy should require storage.withdraw_rare before consuming moon pearl'
 )
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_jade_orchid_focus_elixir',
+    memo: 'qa jade orchid alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-jade-orchid-focus-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'jade orchid rare material alchemy should require storage.withdraw_rare before consuming jade orchid'
+)
 await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   target_username: recipePolicyOwner,
   permissions: {
@@ -4975,6 +4986,46 @@ await assertRecipePolicyAlchemyAutoResult({
   expectedWeightProfile: 'moon_pearl_rare_material',
   expectedBaseWeights: { success: 63, partial: 18, failed: 8, rare: 11 },
   expectedWeights: { success: 78, partial: 7, failed: 4, rare: 11 },
+})
+await injectRecipePolicyStock('osmanthus_honey', 1, 'fine')
+await injectRecipePolicyStock('lotus_heart_powder', 1, 'fine')
+await injectRecipePolicyStock('jade_orchid', 1)
+const recipePolicyJadeOrchidFocusElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_jade_orchid_focus_elixir',
+  memo: 'qa process shared jade orchid focus elixir',
+  idempotency_key: 'qa-recipe-policy-jade-orchid-focus-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyJadeOrchidFocusElixir.recipe.output_item_id, 'jade_orchid_focus_elixir', 'new jade orchid focus elixir should output rare elixir item')
+assert.equal(recipePolicyJadeOrchidFocusElixir.workshop_action.process_kind, 'alchemy_elixir', 'new jade orchid focus elixir should be alchemy elixir')
+assert.equal(recipePolicyJadeOrchidFocusElixir.workshop_action.alchemy_result_kind, 'success', 'new jade orchid focus elixir should expose success result')
+assert.equal(recipePolicyJadeOrchidFocusElixir.ledger_entry.quality, 'fine', 'new jade orchid focus elixir should apply cooperation quality bonus')
+assert.ok(recipePolicyJadeOrchidFocusElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'osmanthus_honey' && entry.quality === 'fine'), 'new jade orchid focus elixir should consume fine osmanthus honey')
+assert.ok(recipePolicyJadeOrchidFocusElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'lotus_heart_powder' && entry.quality === 'fine'), 'new jade orchid focus elixir should consume fine lotus heart powder')
+assert.ok(recipePolicyJadeOrchidFocusElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'jade_orchid'), 'new jade orchid focus elixir should consume rare jade orchid')
+const recipePolicyJadeOrchidOriginAsset = recipePolicyJadeOrchidFocusElixir.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyJadeOrchidFocusElixir.ledger_entry.id && item.action === 'deposit')
+assert.equal(recipePolicyJadeOrchidOriginAsset?.withdrawal_risk_level, 'rare', 'new jade orchid focus elixir origin should be rare protected')
+assert.equal(recipePolicyJadeOrchidOriginAsset?.high_value_withdrawal_required, true, 'new jade orchid focus elixir origin should require high-value withdrawal')
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'jade orchid focus',
+  cases: [
+    { recipeId: 'shared_jade_orchid_focus_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_jade_orchid_focus_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_jade_orchid_focus_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { itemId: 'jade_orchid', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'jade orchid rare profile',
+  recipeId: 'shared_jade_orchid_focus_elixir',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 99,
+  idempotencyKey: 'qa-recipe-policy-auto-jade-orchid-profile-rare-1',
+  inputs: [{ itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { itemId: 'jade_orchid', quantity: 1 }],
+  expectedWeightProfile: 'jade_orchid_rare_material',
+  expectedBaseWeights: { success: 62, partial: 18, failed: 8, rare: 12 },
+  expectedWeights: { success: 77, partial: 7, failed: 4, rare: 12 },
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')
