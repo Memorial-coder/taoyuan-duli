@@ -224,6 +224,8 @@ expectContains('utils/cohabitationApi.ts', 'rollback_idempotency_key', 'cohabita
 expectContains('stores/useCohabitationStore.ts', 'recordWarehouseHighValueWithdrawalCompensationExecution', 'cohabitation store should expose compensation execution record action')
 expectContains('stores/useCohabitationStore.ts', 'recordWarehouseHighValueWithdrawalManualAppealResolution', 'cohabitation store should expose manual appeal resolution record action')
 expectContains('stores/useCohabitationStore.ts', 'recordWarehouseHighValueWithdrawalOperatorReceiptAuditReview', 'cohabitation store should expose operator receipt audit review action')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-authoritative-warehouse-summary', 'cohabitation warehouse authority summary should expose current server-side warehouse boundary')
+expectContains('online/OnlineCohabitationView.vue', '高价值取出走草案确认', 'cohabitation warehouse authority summary should not say high-value or auto-deposit remain closed')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-warehouse-high-value-compensation-audit-', 'cohabitation warehouse drafts should expose compensation audit readback button')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-warehouse-compensation-audit-panel', 'cohabitation warehouse should render compensation audit panel')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-warehouse-compensation-audit-asset-boundary', 'compensation audit panel should show asset boundary')

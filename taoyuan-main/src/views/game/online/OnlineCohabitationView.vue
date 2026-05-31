@@ -510,7 +510,7 @@
             <div class="mt-3 grid gap-2 text-xs md:grid-cols-2">
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">个人铜币不合并，共同基金单独显示。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，分居执行按预览 hash 分步写回。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted">普通仓库操作按权限开放，高价值取出和自动入仓仍保持关闭。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted" data-testid="online-cohabitation-authoritative-warehouse-summary">普通仓库操作按权限开放，高价值取出走草案确认；农田 / 动物 / 宠物 / 工坊和离线自动收益入仓均由服务端落账。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还由服务端分步执行，前端只提交确认过的返还意图。</p>
             </div>
           </div>
