@@ -4040,7 +4040,7 @@ await assert.rejects(
 
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 7, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 8, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4049,6 +4049,7 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_anglers_platter'), 'warehouse item policy should list fish dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_festival_fish_feast'), 'warehouse item policy should list advanced fish feast as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_winter_bamboo_duck_congee'), 'warehouse item policy should list warm festival dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_new_year_dumpling'), 'warehouse item policy should list seasonal festival dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
@@ -4220,6 +4221,28 @@ await processRecipePolicyBasicDish({
   outputItemId: 'food_quail_egg_herb_custard',
   inputs: [{ itemId: 'quail_egg', quantity: 2 }, { itemId: 'herb', quantity: 1 }, { itemId: 'goat_milk', quantity: 1 }],
 })
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_spring_roll',
+  outputItemId: 'food_spring_roll',
+  inputs: [{ itemId: 'cabbage', quantity: 2 }, { itemId: 'bamboo_shoot', quantity: 1 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_lotus_lantern_cake',
+  outputItemId: 'food_lotus_lantern_cake',
+  inputs: [{ itemId: 'lotus_seed', quantity: 2 }, { itemId: 'rice', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_harvest_feast',
+  outputItemId: 'food_harvest_feast',
+  inputs: [{ itemId: 'pumpkin', quantity: 1 }, { itemId: 'sweet_potato', quantity: 1 }, { itemId: 'corn', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_new_year_dumpling',
+  outputItemId: 'food_new_year_dumpling',
+  inputs: [{ itemId: 'winter_wheat', quantity: 3 }, { itemId: 'napa_cabbage', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
+})
+
+await injectRecipePolicyStock('rice', 2)
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',
   memo: 'qa process shared rice vinegar',

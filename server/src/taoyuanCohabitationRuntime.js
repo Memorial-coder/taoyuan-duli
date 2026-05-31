@@ -128,11 +128,11 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 7;
+const WAREHOUSE_ITEM_POLICY_VERSION = 8;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
-  'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'bamboo_shoot', 'winter_bamboo_shoot', 'egg', 'duck_egg', 'milk',
+  'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
@@ -146,6 +146,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_first_catch_soup', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
+  'food_spring_roll', 'food_lotus_lantern_cake', 'food_harvest_feast', 'food_new_year_dumpling',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -1202,6 +1203,63 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'goat_milk', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_quail_egg_herb_custard',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_spring_roll: {
+    id: 'shared_spring_roll',
+    label: '共同灶台春卷',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'cabbage', quantity: 2, quality: 'normal' },
+      { item_id: 'bamboo_shoot', quantity: 1, quality: 'normal' },
+      { item_id: 'sesame_oil', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_spring_roll',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_lotus_lantern_cake: {
+    id: 'shared_lotus_lantern_cake',
+    label: '共同灶台荷灯糕',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'lotus_seed', quantity: 2, quality: 'normal' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_lotus_lantern_cake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_harvest_feast: {
+    id: 'shared_harvest_feast',
+    label: '共同灶台丰收盛宴',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'pumpkin', quantity: 1, quality: 'normal' },
+      { item_id: 'sweet_potato', quantity: 1, quality: 'normal' },
+      { item_id: 'corn', quantity: 1, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_harvest_feast',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_new_year_dumpling: {
+    id: 'shared_new_year_dumpling',
+    label: '共同灶台年夜饺',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'winter_wheat', quantity: 3, quality: 'normal' },
+      { item_id: 'napa_cabbage', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_new_year_dumpling',
     output_quantity: 1,
     output_quality: 'normal',
   },
