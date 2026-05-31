@@ -248,6 +248,8 @@ expectContains('online/OnlineCohabitationView.vue', 'record_limited_decoration_r
 expectContains('online/OnlineCohabitationView.vue', 'record_shared_decoration_removal_refund_receipt', '共同庄园离线队列应提供共同装修拆除退款回执入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-offline-refund-ack', '共同庄园离线退款回执应要求补偿确认')
 expectContains('online/OnlineCohabitationView.vue', 'record_shared_decoration_removal_receipt', '共同庄园离线队列应提供共同装修拆除回执入口')
+expectContains('online/OnlineCohabitationView.vue', 'settle_shared_daily', '共同庄园离线队列应提供共同庄园日结入口')
+expectContains('online/OnlineCohabitationView.vue', '共同庄园日结', '共同庄园离线队列应展示共同庄园日结标签')
 expectContains('online/OnlineCohabitationView.vue', 'fund_high_risk_receipt_recorded', '共同审计日志应展示高风险回执收口')
 expectContains('online/OnlineCohabitationView.vue', 'fund_high_risk_execution_blocked', '共同审计日志应展示高风险扣款阻断')
 expectContains('utils/cohabitationApi.ts', 'recordCohabitationFundHighRiskReceipt', '共同基金前端 API 应接入高风险回执接口')

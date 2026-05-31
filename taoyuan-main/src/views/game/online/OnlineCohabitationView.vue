@@ -3404,6 +3404,7 @@
     | 'record_limited_decoration_refund_receipt'
     | 'record_shared_decoration_removal_refund_receipt'
     | 'record_shared_decoration_removal_receipt'
+    | 'settle_shared_daily'
     | 'collect_offline_auto_income'
   type OfflineQueueActionOption = {
     id: OfflineQueueUiActionId
@@ -5724,10 +5725,14 @@
     if (!sharedPetCareRiskConfirmed.value) return false
     return (selectedSharedPetCareItem.value?.quantity ?? 0) > 0
   })
+  const canSettleSharedDailyOffline = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.settle_shared_daily === true
+  )
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'family_major_event_receipt' | 'family_major_event_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'family_major_event_receipt' | 'family_major_event_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'daily_settle' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
     if (kind === 'animal_purchase') return selectedSharedAnimalBuyOption.value?.label || '未选动物类型'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
@@ -5741,6 +5746,7 @@
     if (kind === 'limited_decoration_refund_receipt') return selectedOfflineLimitedDecorationRefundReceiptTargetLabel.value
     if (kind === 'decoration_refund_receipt') return selectedOfflineSharedDecorationRemovalRefundReceiptTargetLabel.value
     if (kind === 'decoration_receipt') return selectedOfflineSharedDecorationRemovalReceiptTargetLabel.value
+    if (kind === 'daily_settle') return '共同庄园日结'
     if (kind === 'auto_income') return `${offlineAutoIncomePendingCount.value} 项待领`
     return selectedSharedWorkshopRecipe.value?.label || '未选配方'
   }
@@ -5750,7 +5756,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'family_major_event_receipt' | 'family_major_event_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income',
+      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'family_major_event_receipt' | 'family_major_event_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'daily_settle' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -5793,6 +5799,7 @@
       makeOption('record_limited_decoration_refund_receipt', 'record_limited_decoration_refund_receipt', '限定装饰退款回执', 'limited_decoration_refund_receipt', canRecordOfflineLimitedDecorationRefundReceipt.value, '请选择已扣款且待退款回执的限定装饰草案，并确认补偿方案'),
       makeOption('record_shared_decoration_removal_refund_receipt', 'record_shared_decoration_removal_refund_receipt', '共同装修拆除退款回执', 'decoration_refund_receipt', canRecordOfflineSharedDecorationRemovalRefundReceipt.value, '请选择已扣款且待退款回执的共同装修拆除草案，并确认补偿方案'),
       makeOption('record_shared_decoration_removal_receipt', 'record_shared_decoration_removal_receipt', '共同装修拆除回执', 'decoration_receipt', canRecordOfflineSharedDecorationRemovalReceipt.value, '请选择已扣款且待回执的共同装修拆除草案'),
+      makeOption('settle_shared_daily', 'settle_shared_daily', '共同庄园日结', 'daily_settle', canSettleSharedDailyOffline.value, '当前契约暂不可离线日结'),
       makeOption('collect_offline_auto_income', 'collect_offline_auto_income', '离线自动收益领取', 'auto_income', canCollectOfflineAutoIncome.value, '当前没有可领取自动收益或缺少权限'),
     ]
   })
@@ -6296,6 +6303,7 @@
       record_limited_decoration_refund_receipt: '限定装饰退款回执',
       record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',
       record_shared_decoration_removal_receipt: '共同装修拆除回执',
+      settle_shared_daily: '共同庄园日结',
       collect_offline_auto_income: '离线自动收益领取',
     }
     return labels[action] || action
@@ -6308,6 +6316,26 @@
   }
   const offlineQueueResultDetail = (entry: CohabitationOfflineQueueMergeEntry) => {
     if (entry.status === 'rejected') return entry.reason || '服务端权威拒绝，未改个人存档或共同资产'
+    if (entry.action === 'settle_shared_daily') {
+      const farmGrowthCount = Math.max(0, Math.floor(Number(entry.farm_growth_count) || 0))
+      const healthBonusCount = Math.max(0, Math.floor(Number(entry.farm_health_bonus_consumed_count) || 0))
+      const moodBonusCount = Math.max(0, Math.floor(Number(entry.animal_mood_bonus_consumed_count) || 0))
+      const harvestableCount = Math.max(0, Math.floor(Number(entry.farm_harvestable_count) || 0))
+      const hungerCount = Math.max(0, Math.floor(Number(entry.animal_hunger_increased_count) || 0))
+      return [
+        `农田成长 ${farmGrowthCount}`,
+        `健康消耗 ${healthBonusCount}`,
+        `心情消耗 ${moodBonusCount}`,
+        harvestableCount ? `成熟 ${harvestableCount}` : '',
+        hungerCount ? `饥饿增加 ${hungerCount}` : '',
+        entry.shared_map_changed === true ? '地图已变更' : '',
+        entry.shared_animals_changed === true ? '动物已变更' : '',
+        entry.personal_save_changed === false ? '个人存档未改' : '',
+        entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
+        entry.shared_fund_changed === false ? '共同基金未改' : '',
+        entry.client_base_stale === true ? '客户端基线过期' : '',
+      ].filter(Boolean).join(' · ') || '共同庄园日结已按服务端契约状态合并'
+    }
     if (entry.action === 'collect_offline_auto_income') {
       const collected = Math.max(0, Math.floor(Number(entry.collected_count) || 0))
       const farmCount = Math.max(0, Math.floor(Number(entry.farm_harvest_count) || 0))
@@ -6675,6 +6703,8 @@
       basePayload.target_ref = draft.target_ref
       basePayload.receipt_ref = `shared_decoration_removal:${draft.target_ref || draft.id}:offline_receipt`
       basePayload.outcome = 'delivered'
+    } else if (option.id === 'settle_shared_daily') {
+      basePayload.memo = '前端离线队列共同庄园日结'
     } else if (option.id === 'collect_offline_auto_income') {
       basePayload.client_queue_revision = offlineQueueClientRevision()
     }
@@ -9870,6 +9900,7 @@
       record_limited_decoration_refund_receipt: '限定装饰退款回执',
       record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',
       record_shared_decoration_removal_receipt: '共同装修拆除回执',
+      settle_shared_daily: '共同庄园日结',
       collect_offline_auto_income: '领取离线自动收益',
       preflight_offline_conflicts: '预检离线冲突',
       resolve_offline_conflicts: '离线冲突解决',

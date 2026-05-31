@@ -591,6 +591,7 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'record_limited_decoration_refund_receipt',
   'record_shared_decoration_removal_refund_receipt',
   'record_shared_decoration_removal_receipt',
+  'settle_shared_daily',
   'collect_offline_auto_income',
 ]);
 const SHARED_FARM_SEED_CATALOG = Object.freeze(Object.fromEntries(
@@ -9925,6 +9926,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       record_shared_decoration_removal_receipt: actorPermissions.fund.spend_large === true
         && actorPermissions.confirmations.large_fund_spend_requires_both === true
         && actorPermissions.construction.demolish_building === true,
+      settle_shared_daily: true,
       collect_offline_auto_income: actorPermissions.farm.harvest === true || actorPermissions.animal.collect_product === true,
       read_warehouse: true,
       deposit_warehouse: actorPermissions.storage.deposit === true,
@@ -11109,6 +11111,8 @@ function buildOfflineConflictResolutionEvidence(request = {}, results = [], reje
     warehouse_ledger_count: uniqueSanitizedValues(results.flatMap(entry => Array.isArray(entry?.warehouse_ledger_ids) ? entry.warehouse_ledger_ids : []), 140).length,
     personal_save_changed: allEntries.some(entry => entry?.personal_save_changed === true),
     personal_home_mutated: allEntries.some(entry => entry?.personal_home_mutated === true),
+    shared_map_changed: allEntries.some(entry => entry?.shared_map_changed === true),
+    shared_animals_changed: allEntries.some(entry => entry?.shared_animals_changed === true),
     shared_warehouse_changed: allEntries.some(entry => entry?.shared_warehouse_changed === true),
     shared_fund_changed: allEntries.some(entry => entry?.shared_fund_changed === true),
     shared_decoration_state_changed: allEntries.some(entry => entry?.shared_decoration_state_changed === true),
@@ -19502,6 +19506,13 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue limited decoration refund receipt merge', 160),
     }, actor);
   }
+  if (operation.action === 'settle_shared_daily') {
+    return settleCohabitationDailyBonus(contractId, {
+      ...payload,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared daily settlement merge', 160),
+    }, actor);
+  }
   if (operation.action === 'collect_offline_auto_income') {
     return collectCohabitationOfflineAutoIncome(contractId, {
       ...payload,
@@ -19648,6 +19659,45 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       success_rate_bonus_percent: Math.max(0, Math.floor(Number(actionResult.success_rate_bonus_percent || outputEntry.simultaneous_online_bonus?.success_rate_bonus_percent) || 0)),
       already_processed: result.already_processed === true,
       simultaneous_online_bonus: actionResult.simultaneous_online_bonus || outputEntry.simultaneous_online_bonus || null,
+    };
+  }
+  if (action === 'settle_shared_daily') {
+    const settlement = result.daily_settlement || {};
+    const auditEntry = Array.isArray(result.contract?.audit_log)
+      ? result.contract.audit_log.find(item =>
+          item?.action === 'cohabitation_daily_settled'
+          && item?.idempotency_key === operation.idempotency_key
+        ) || {}
+      : {};
+    return {
+      ...entry,
+      target_ref: 'cohabitation_daily:settle',
+      audit_id: auditEntry.id || '',
+      audit_action: 'cohabitation_daily_settled',
+      plot_count: Math.max(0, Math.floor(Number(settlement.plot_count) || 0)),
+      farm_growth_count: Math.max(0, Math.floor(Number(settlement.farm_growth_count) || 0)),
+      farm_harvestable_count: Math.max(0, Math.floor(Number(settlement.farm_harvestable_count) || 0)),
+      farm_health_bonus_consumed_count: Math.max(0, Math.floor(Number(settlement.farm_health_bonus_consumed_count) || 0)),
+      farm_health_bonus_consumed_value: Math.max(0, Math.floor(Number(settlement.farm_health_bonus_consumed_value) || 0)),
+      farm_unwatered_count: Math.max(0, Math.floor(Number(settlement.farm_unwatered_count) || 0)),
+      animal_count: Math.max(0, Math.floor(Number(settlement.animal_count) || 0)),
+      animal_fed_product_progress_count: Math.max(0, Math.floor(Number(settlement.animal_fed_product_progress_count) || 0)),
+      animal_mood_bonus_consumed_count: Math.max(0, Math.floor(Number(settlement.animal_mood_bonus_consumed_count) || 0)),
+      animal_mood_bonus_consumed_value: Math.max(0, Math.floor(Number(settlement.animal_mood_bonus_consumed_value) || 0)),
+      animal_hunger_increased_count: Math.max(0, Math.floor(Number(settlement.animal_hunger_increased_count) || 0)),
+      changed_plot_count: Array.isArray(settlement.changed_plots) ? settlement.changed_plots.length : 0,
+      changed_animal_count: Array.isArray(settlement.changed_animals) ? settlement.changed_animals.length : 0,
+      changed_plots: Array.isArray(settlement.changed_plots) ? settlement.changed_plots : [],
+      changed_animals: Array.isArray(settlement.changed_animals) ? settlement.changed_animals : [],
+      shared_map_changed: settlement.shared_map_changed === true,
+      shared_animals_changed: settlement.shared_animals_changed === true,
+      shared_warehouse_changed: false,
+      shared_fund_changed: false,
+      personal_save_changed: false,
+      already_settled: result.already_settled === true,
+      conflict_policy: settlement.conflict_policy || 'server_authoritative_contract_daily_settlement',
+      compensation_hint: 'offline shared daily settlement advances contract shared map and shared animals only; shared warehouse, shared fund, and personal saves remain unchanged.',
+      server_authoritative: true,
     };
   }
   if (action === 'collect_offline_auto_income') {
@@ -20288,6 +20338,38 @@ function buildCohabitationOfflineFarmRejection(operation = {}, error = {}) {
   };
 }
 
+function buildCohabitationOfflineDailySettleRejection(operation = {}, error = {}) {
+  if (operation.action !== 'settle_shared_daily') return null;
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'shared_daily_settlement_server_state_rejected';
+  if (status === 400) reason = 'invalid_shared_daily_settlement_operation';
+  if (status === 403) reason = 'shared_daily_settlement_permission_denied';
+  if (status === 404) reason = 'shared_daily_settlement_contract_not_found';
+  if (status === 409) reason = 'shared_daily_settlement_state_conflict';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'shared_daily_settlement_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    target_ref: 'cohabitation_daily:settle',
+    shared_map_changed: false,
+    shared_animals_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline shared daily settlement was rejected before any shared map, shared animal, warehouse, fund, or personal save mutation.',
+  };
+}
+
 function buildCohabitationOfflineAutoIncomeRejection(operation = {}, error = {}) {
   if (operation.action !== 'collect_offline_auto_income') return null;
   const status = Math.max(0, Math.floor(Number(error?.status) || 0));
@@ -20841,6 +20923,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const farmRejection = buildCohabitationOfflineFarmRejection(operation, error);
       if (farmRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(farmRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const dailySettleRejection = buildCohabitationOfflineDailySettleRejection(operation, error);
+      if (dailySettleRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(dailySettleRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const autoIncomeRejection = buildCohabitationOfflineAutoIncomeRejection(operation, error);

@@ -2524,6 +2524,101 @@ assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, dailySettleOwner
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, dailySettlePartnerRawBefore, 'duplicate daily settle should not rewrite partner save')
 
 await mutateStoredContract(created.contract.id, contract => {
+  const queueGrowthPlot = contract.shared_map?.plots?.find(plot => plot.id === dailySettleGrowthPlotId)
+  assert.ok(queueGrowthPlot, 'offline queue daily settle QA should find reusable growth plot')
+  queueGrowthPlot.plot_state = {
+    ...(queueGrowthPlot.plot_state || {}),
+    state: 'growing',
+    crop_id: 'rice',
+    growth_days: 1,
+    watered: true,
+    unwatered_days: 0,
+    fertilizer: null,
+  }
+  const animal = contract.shared_animals?.animals?.find(entry => entry.id === qaSharedAnimal.id)
+  assert.ok(animal, 'offline queue daily settle QA should find shared animal')
+  animal.animal_state = {
+    ...(animal.animal_state || {}),
+    was_fed: true,
+    fed_with: 'hay',
+    was_petted: true,
+    hunger: 0,
+    days_since_product: 0,
+    sick: false,
+    cooperation_mood_bonus: 3,
+    last_cooperation_bonus_action: 'shared_animal_feed_pet',
+    last_cooperation_feed_actor_username: owner,
+    last_cooperation_bonus_members: [owner, partner],
+  }
+  contract.shared_map.revision = Math.max(Number(contract.shared_map.revision) || 0, 1771951660)
+  contract.shared_animals.revision = Math.max(Number(contract.shared_animals.revision) || 0, 1771951660)
+})
+const offlineDailySettleStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(owner))
+assert.ok(offlineDailySettleStatus.offline_status.summary.offline_queue_supported_actions.includes('settle_shared_daily'), 'offline status should expose shared daily settle as supported queue action')
+assert.equal(offlineDailySettleStatus.offline_status.actor_capabilities.settle_shared_daily, true, 'owner should be able to settle shared daily state offline')
+const offlineDailySettleBaseRevision = offlineDailySettleStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1
+const offlineDailySettleOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const offlineDailySettlePartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlineDailySettleQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-shared-daily-settle-queue',
+  client_queue_revision: offlineDailySettleBaseRevision,
+  operations: [
+    {
+      action: 'settle_shared_daily',
+      operation_id: 'qa-offline-shared-daily-settle-op',
+      idempotency_key: 'qa-offline-shared-daily-settle-op-idem',
+      client_base_revision: offlineDailySettleBaseRevision,
+      payload: {
+        memo: 'qa offline shared daily settle',
+      },
+    },
+  ],
+}, actor(owner))
+const offlineDailySettleEntry = offlineDailySettleQueueMerge.offline_queue_merge.results[0]
+assert.equal(offlineDailySettleQueueMerge.offline_queue_merge.accepted_count, 1, 'offline queue should accept shared daily settle')
+assert.equal(offlineDailySettleQueueMerge.offline_queue_merge.rejected_count, 0, 'offline queue shared daily settle should not reject')
+assert.equal(offlineDailySettleEntry?.action, 'settle_shared_daily', 'offline queue daily settle result should keep action')
+assert.equal(offlineDailySettleEntry?.status, 'committed', 'offline queue daily settle should commit through server authority')
+assert.equal(offlineDailySettleEntry?.target_ref, 'cohabitation_daily:settle', 'offline queue daily settle should expose target ref')
+assert.equal(offlineDailySettleEntry?.audit_action, 'cohabitation_daily_settled', 'offline queue daily settle should expose daily settle audit action')
+assert.ok(offlineDailySettleEntry?.audit_id, 'offline queue daily settle should expose daily settle audit id')
+assert.ok((offlineDailySettleEntry?.farm_growth_count ?? 0) >= 1, 'offline queue daily settle should advance watered shared farm growth')
+assert.equal(offlineDailySettleEntry?.animal_mood_bonus_consumed_count, 1, 'offline queue daily settle should consume animal mood bonus')
+assert.equal(offlineDailySettleEntry?.animal_mood_bonus_consumed_value, 3, 'offline queue daily settle should report consumed animal mood value')
+assert.equal(offlineDailySettleEntry?.shared_map_changed, true, 'offline queue daily settle should mutate shared map state')
+assert.equal(offlineDailySettleEntry?.shared_animals_changed, true, 'offline queue daily settle should mutate shared animal state')
+assert.equal(offlineDailySettleEntry?.shared_warehouse_changed, false, 'offline queue daily settle should not mutate shared warehouse')
+assert.equal(offlineDailySettleEntry?.shared_fund_changed, false, 'offline queue daily settle should not mutate shared fund')
+assert.equal(offlineDailySettleEntry?.personal_save_changed, false, 'offline queue daily settle should not mutate personal saves')
+assert.equal(offlineDailySettleQueueMerge.offline_queue_merge.offline_conflict_resolution.shared_map_changed, true, 'offline queue conflict evidence should aggregate shared map mutation')
+assert.equal(offlineDailySettleQueueMerge.offline_queue_merge.offline_conflict_resolution.shared_animals_changed, true, 'offline queue conflict evidence should aggregate shared animal mutation')
+assert.equal(offlineDailySettleQueueMerge.offline_queue_merge.offline_conflict_resolution.shared_warehouse_changed, false, 'offline queue conflict evidence should keep warehouse boundary')
+assert.equal(offlineDailySettleQueueMerge.offline_queue_merge.offline_conflict_resolution.shared_fund_changed, false, 'offline queue conflict evidence should keep fund boundary')
+assert.ok(offlineDailySettleQueueMerge.contract.audit_log.find(entry => entry.action === 'cohabitation_daily_settled' && entry.idempotency_key === 'qa-offline-shared-daily-settle-op-idem'), 'offline queue daily settle should write daily settle audit')
+assert.ok(offlineDailySettleQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-shared-daily-settle-queue'), 'offline queue daily settle should write queue merge audit')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineDailySettleOwnerRawBefore, 'offline queue daily settle should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineDailySettlePartnerRawBefore, 'offline queue daily settle should not rewrite partner save')
+const duplicateOfflineDailySettleQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-shared-daily-settle-queue',
+  client_queue_revision: offlineDailySettleBaseRevision,
+  operations: [
+    {
+      action: 'settle_shared_daily',
+      operation_id: 'qa-offline-shared-daily-settle-op',
+      idempotency_key: 'qa-offline-shared-daily-settle-op-idem',
+      client_base_revision: offlineDailySettleBaseRevision,
+      payload: {
+        memo: 'qa offline shared daily settle',
+      },
+    },
+  ],
+}, actor(owner))
+assert.equal(duplicateOfflineDailySettleQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline daily settle queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineDailySettleQueueMerge.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline daily settle queue should replay conflict resolution evidence')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineDailySettleOwnerRawBefore, 'duplicate offline queue daily settle should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineDailySettlePartnerRawBefore, 'duplicate offline queue daily settle should not rewrite partner save')
+
+await mutateStoredContract(created.contract.id, contract => {
   const ownerWateredPlot = contract.shared_map?.plots?.find(plot => plot.origin_owner_username === owner && Number(plot.source_plot_id) === 0)
   assert.ok(ownerWateredPlot, 'daily settle QA should restore original owner watered plot for separation preview coverage')
   ownerWateredPlot.plot_state = {

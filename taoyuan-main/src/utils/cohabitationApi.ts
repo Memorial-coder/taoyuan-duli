@@ -1977,6 +1977,7 @@ export type CohabitationOfflineQueueAction =
   | 'record_limited_decoration_refund_receipt'
   | 'record_shared_decoration_removal_refund_receipt'
   | 'record_shared_decoration_removal_receipt'
+  | 'settle_shared_daily'
   | 'collect_offline_auto_income'
   | string
 

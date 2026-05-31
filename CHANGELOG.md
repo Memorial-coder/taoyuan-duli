@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-31
+- 同居离线共同庄园日结队列：离线队列新增 `settle_shared_daily`，复用 `/daily-settle` 服务端权威写链推进共同农田和共同动物日结；结果读回农田成长 / 成熟、健康与心情加成消耗、共同地图 / 动物变更，以及个人存档、共同仓库、共同基金不变边界，前端本地离线缓存可预检和合并该日结操作。
 - 同居共同仓库 11.4 物品分级策略 v9：显式稀有目录补入房间 / 区域稀有材料 `ley_crystal_shard`、`marsh_spore_sample`、`luminous_algae`、`wind_etched_core` 以及稀有物采购目标 `lotus_seed_rare`、`jade_peach`、`moon_pearl`、`jade_orchid`；任务保护目录补入 `ancient_waybill`、`archive_rubbing`、活动房间回执和钱包成就印记。普通放入 / 取出 / 卖出继续阻断这些高风险物，稀有白名单只走高价值草案，任务凭证仍禁止高价值草案。
 - 同居共同仓库 11.4 季节节会料理：共同工坊新增春卷、荷灯糕、丰收盛宴和年夜饺白名单，`item_policy` 升到 v8 并把冬小麦、冬白菜及这些节会料理成品列入普通目录；服务端从共同仓库扣普通 / 精加工材料并把料理回写共同仓库 `deposit` ledger，协作升品来源资产继续走高品质取出保护。
 - 同居分居共同基金未知经营贡献人工分配：`confirmSeparationSharedFundDelta` 可在首次成员确认时提交未知经营贡献分配方案，后端校验总额等于争议额、锁定分配 hash 并把该部分纳入 `capital_traceable_and_confirmed_unidentified_operating_income` 权重；后续成员确认复用锁定方案，冲突方案拒绝。前端分居基金面板新增按成员输入的人工分配区，合计未平衡时禁用确认，返还响应和审计读回人工分配金额、hash、来源 ledger 与个人 / 共同资产边界。
