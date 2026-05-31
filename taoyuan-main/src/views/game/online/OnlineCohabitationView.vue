@@ -425,6 +425,16 @@
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
                         type="button"
+                        :disabled="!canConfirmSeparationSharedFundDelta || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-shared-fund-delta-confirm"
+                        @click="confirmSeparationSharedFundDelta"
+                      >
+                        <CheckCircle2 :size="12" />
+                        确认差额
+                      </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
                         :disabled="!canRefundSeparationSharedFund || cohabitationStore.actionLoading"
                         data-testid="online-cohabitation-separation-shared-fund-refund"
                         @click="refundSeparationSharedFund"
@@ -924,6 +934,12 @@
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">取出：{{ cohabitationStore.warehouse?.summary.withdraw_enabled ? '开放' : '暂缓' }}</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">高价值冻结：{{ cohabitationStore.warehouse?.summary.frozen_quantity ?? 0 }} 件 / 草案 {{ cohabitationStore.warehouse?.summary.active_high_value_withdrawal_draft_count ?? 0 }}</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">卖出：{{ cohabitationStore.warehouse?.summary.sell_enabled ? '开放' : '暂缓' }}</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted" data-testid="online-cohabitation-warehouse-item-policy-summary">
+                分级策略：v{{ cohabitationStore.warehouse?.summary.item_policy_version ?? '-' }} · 普通 {{ cohabitationStore.warehouse?.summary.common_item_policy_count ?? 0 }} / 稀有 {{ cohabitationStore.warehouse?.summary.rare_item_policy_count ?? 0 }} / 任务保护 {{ cohabitationStore.warehouse?.summary.task_protected_item_policy_count ?? 0 }}
+              </p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">
+                默认保护：{{ cohabitationStore.warehouse?.summary.unclassified_items_default_protected ? '未分类物品拒绝普通流' : '未声明' }}
+              </p>
             </div>
             <div
               v-if="warehouseGovernance"
@@ -3149,6 +3165,8 @@
     | 'feed_shared_animal'
     | 'pet_shared_animal'
     | 'collect_shared_animal_product'
+    | 'buy_shared_animal'
+    | 'sell_shared_animal'
     | 'care_shared_pet'
     | 'process_shared_workshop_recipe'
     | 'collect_offline_auto_income'
@@ -3456,6 +3474,21 @@
     const hash = latestSeparationPreview.value?.asset_return?.family_building_split_manifest_hash
     return typeof hash === 'string' ? hash : ''
   })
+  const separationSharedFundRows = computed<Array<Record<string, unknown>>>(() => {
+    const rows = latestSeparationPreview.value?.asset_return?.fund_contributions_by_origin_owner
+    return Array.isArray(rows) ? rows as Array<Record<string, unknown>> : []
+  })
+  const separationSharedFundDeltaRequiresConfirmation = computed(() =>
+    separationSharedFundRows.value.some(row =>
+      row.requires_consumption_delta_confirmation === true
+      && Math.max(0, Math.floor(Number(row.suggested_refund_amount) || 0)) > 0
+    )
+  )
+  const separationSharedFundDeltaConfirmed = computed(() => {
+    if (!separationSharedFundDeltaRequiresConfirmation.value) return true
+    const request = separationExecutionRequest.value
+    return request?.shared_fund_delta_confirmed === true || request?.status === 'shared_fund_delta_confirmed'
+  })
   const canConfirmSeparationPreview = computed(() => {
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
@@ -3474,6 +3507,8 @@
     if (separationExecutionRequest.value?.status === 'decorations_buildings_split') return '装饰 / 建筑拆分已记录，等待剧情拆分。'
     if (separationExecutionRequest.value?.status === 'shared_warehouse_returned') return '共同仓库已按来源写回个人背包，等待装饰 / 建筑拆分。'
     if (separationExecutionRequest.value?.status === 'shared_fund_refunded') return '共同基金已返还个人铜币，等待共同仓库返还。'
+    if (separationExecutionRequest.value?.status === 'shared_fund_delta_confirmed') return '共同基金消费差额双方已确认，等待共同基金返还。'
+    if (separationExecutionRequest.value?.status === 'shared_fund_delta_confirmation_pending') return '共同基金消费差额已记录部分确认，等待双方确认。'
     if (separationExecutionRequest.value?.status === 'personal_save_written') return '来源田区已写回个人农田，等待共同基金 / 仓库返还。'
     if (separationExecutionRequest.value?.status === 'asset_return_recorded') return '已记录返还执行，等待个人存档写回。'
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return '已请求执行，等待后续返还执行接口。'
@@ -3510,13 +3545,25 @@
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
+  const canConfirmSeparationSharedFundDelta = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (!separationSharedFundDeltaRequiresConfirmation.value || separationSharedFundDeltaConfirmed.value) return false
+    if (!['personal_save_written', 'shared_fund_delta_confirmation_pending'].includes(String(separationExecutionRequest.value?.status || ''))) return false
+    if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    return true
+  })
   const canRefundSeparationSharedFund = computed(() => {
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
     if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
     if (preview.state !== 'confirmed') return false
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
-    if (separationExecutionRequest.value?.status !== 'personal_save_written') return false
+    const expectedStatus = separationSharedFundDeltaRequiresConfirmation.value ? 'shared_fund_delta_confirmed' : 'personal_save_written'
+    if (separationExecutionRequest.value?.status !== expectedStatus) return false
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
@@ -4823,8 +4870,9 @@
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'pet' | 'workshop' | 'auto_income') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
+    if (kind === 'animal_purchase') return selectedSharedAnimalBuyOption.value?.label || '未选动物类型'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
     if (kind === 'pet') return selectedSharedPet.value?.name || selectedSharedPet.value?.type || selectedSharedPet.value?.id || '未选宠物'
     if (kind === 'auto_income') return `${offlineAutoIncomePendingCount.value} 项待领`
@@ -4836,7 +4884,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'pet' | 'workshop' | 'auto_income',
+      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -4866,6 +4914,8 @@
       makeOption('feed_shared_animal', 'feed_shared_animal', '共同动物干草喂食', 'animal', canFeedSelectedSharedAnimal.value, '请选择可喂食动物并确认共同仓库干草'),
       makeOption('pet_shared_animal', 'pet_shared_animal', '共同动物抚摸', 'animal', canPetSelectedSharedAnimal.value, '请选择可抚摸动物'),
       makeOption('collect_shared_animal_product', 'collect_shared_animal_product', '共同动物产物入仓', 'animal', canCollectSelectedSharedAnimalProduct.value, '请选择可收取产物的动物'),
+      makeOption('buy_shared_animal', 'buy_shared_animal', '共同动物买入', 'animal_purchase', canBuySharedAnimal.value, '请选择可购买动物并确认共同基金余额'),
+      makeOption('sell_shared_animal', 'sell_shared_animal', '共同动物出售', 'animal', canSellSelectedSharedAnimal.value, '请选择共同基金购入的动物'),
       makeOption('care_shared_pet', 'care_shared_pet', '共同宠物用品照料', 'pet', canCareSelectedSharedPet.value, '请选择宠物、用品并完成高阶确认'),
       makeOption('process_shared_workshop_recipe', 'process_shared_workshop_recipe', '共同工坊处理', 'workshop', canProcessSelectedSharedWorkshopRecipe.value, '请选择材料充足且有权限的工坊配方'),
       makeOption('collect_offline_auto_income', 'collect_offline_auto_income', '离线自动收益领取', 'auto_income', canCollectOfflineAutoIncome.value, '当前没有可领取自动收益或缺少权限'),
@@ -5349,6 +5399,8 @@
       feed_shared_animal: '共同动物喂食',
       pet_shared_animal: '共同动物抚摸',
       collect_shared_animal_product: '共同动物产物入仓',
+      buy_shared_animal: '共同动物买入',
+      sell_shared_animal: '共同动物出售',
       care_shared_pet: '共同宠物照料',
       process_shared_workshop_recipe: '共同工坊处理',
       collect_offline_auto_income: '离线自动收益领取',
@@ -5376,6 +5428,25 @@
         '个人存档未改',
         entry.client_base_stale === true ? '客户端基线过期' : '',
       ].filter(Boolean).join(' · ')
+    }
+    if (entry.action === 'buy_shared_animal' || entry.action === 'sell_shared_animal') {
+      const amount = Math.max(0, Math.floor(Number(entry.total_amount) || Number(entry.unit_price) || 0))
+      const balanceAfter = Math.max(0, Math.floor(Number(entry.balance_after) || 0))
+      const animalName = typeof entry.animal_name === 'string' && entry.animal_name ? entry.animal_name : ''
+      const animalType = typeof entry.animal_type === 'string' && entry.animal_type ? entry.animal_type : ''
+      const animalId = typeof entry.animal_id === 'string' && entry.animal_id ? entry.animal_id : ''
+      const fundLedgerIds = [
+        typeof entry.fund_ledger_id === 'string' ? entry.fund_ledger_id : '',
+        ...(Array.isArray(entry.fund_ledger_ids) ? entry.fund_ledger_ids : []),
+      ].filter(Boolean)
+      return [
+        animalName || animalType || animalId ? `动物 ${animalName || animalType || animalId}` : '',
+        amount ? `基金${entry.action === 'buy_shared_animal' ? '支出' : '入账'} ${amount}` : '',
+        balanceAfter ? `余额 ${balanceAfter}` : '',
+        fundLedgerIds.length ? `基金流水 ${fundLedgerIds.length} 笔` : '',
+        entry.personal_save_changed === false ? '个人存档未改' : '',
+        entry.client_base_stale === true ? '客户端基线过期' : '',
+      ].filter(Boolean).join(' · ') || '共同动物买卖已按服务端状态合并'
     }
     const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
     const outputItemId = typeof entry.output_item_id === 'string' ? entry.output_item_id : ''
@@ -5424,6 +5495,16 @@
         if (!fertilizer) return null
         basePayload.fertilizer_item_id = fertilizer.itemId
       }
+    } else if (option.id === 'buy_shared_animal') {
+      const purchaseOption = selectedSharedAnimalBuyOption.value
+      if (!purchaseOption) return null
+      basePayload.animal_type = purchaseOption.type
+      const name = sharedAnimalBuyName.value.trim()
+      if (name) basePayload.name = name
+    } else if (option.id === 'sell_shared_animal') {
+      const animal = selectedSharedAnimal.value
+      if (!animal) return null
+      basePayload.animal_id = animal.id
     } else if (option.id.includes('shared_animal')) {
       const animal = selectedSharedAnimal.value
       if (!animal) return null
@@ -5846,6 +5927,28 @@
         : '已写回分居来源田区'
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '写回分居来源田区失败'
+    }
+  }
+
+  const confirmSeparationSharedFundDelta = async () => {
+    if (!latestSeparationPreview.value || !canConfirmSeparationSharedFundDelta.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.confirmSeparationSharedFundDelta(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        memo: '前端确认分居共同基金消费差额；不改共同基金、个人铜币或共同仓库',
+        idempotency_key: `ui-separation-shared-fund-delta-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      const summary = result?.shared_fund_delta_confirmation as Record<string, unknown> | undefined
+      const pending = Array.isArray(summary?.pending_member_usernames) ? summary.pending_member_usernames.length : 0
+      separationActionMessage.value = result?.already_confirmed || pending === 0
+        ? '共同基金消费差额已双方确认'
+        : `已确认共同基金消费差额，仍待 ${pending} 位成员确认`
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '确认分居共同基金消费差额失败'
     }
   }
 
@@ -8037,6 +8140,7 @@
       separation_execution_requested: '分居执行请求',
       separation_asset_return_recorded: '分居返还记录',
       separation_personal_farm_written: '来源田区写回',
+      separation_shared_fund_delta_confirmation_recorded: '基金差额确认',
       separation_shared_fund_refunded: '共同基金返还',
       separation_shared_warehouse_returned: '共同仓库返还',
       separation_decorations_buildings_split: '装饰建筑拆分',
@@ -8404,6 +8508,8 @@
       feed_shared_animal: '喂食共同动物',
       pet_shared_animal: '抚摸共同动物',
       collect_shared_animal_product: '收取动物产物',
+      buy_shared_animal: '买入共同动物',
+      sell_shared_animal: '出售共同动物',
       care_shared_pet: '照料共同宠物',
       collect_offline_auto_income: '领取离线自动收益',
       preflight_offline_conflicts: '预检离线冲突',
