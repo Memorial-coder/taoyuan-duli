@@ -448,6 +448,22 @@ assert.equal(lifecycleActionResult.room.action_log[0]?.gameplay_action_id, 'lock
 assert.equal(lifecycleActionResult.room.action_log[0]?.gameplay_action_label, '拼上一块', 'activity room gameplay audit should record action label')
 assert.equal(lifecycleActionResult.room.action_log[0]?.gameplay_phase, 'active', 'activity room gameplay audit should record gameplay phase')
 
+const spoofedLifecycleAction = await runtime.submitFestivalRoomGameplayAction(lifecycleRoom.room.id, {
+  action_id: 'tighten_frame',
+  progress_value: 999,
+  score_value: 999,
+  settlement_receipt_ids: ['client-forged-receipt'],
+  gameplay_state: { progress_value: 999, score_value: 999 },
+  visual_state: { revision: 999 },
+}, actor(lifecycleHost))
+assert.equal(spoofedLifecycleAction.room.gameplay.last_action_id, 'tighten_frame', 'activity room gameplay action should be selected only by submitted action id')
+assert.notEqual(spoofedLifecycleAction.room.gameplay.progress_value, 999, 'activity room should ignore forged client progress values')
+assert.notEqual(spoofedLifecycleAction.room.gameplay.score_value, 999, 'activity room should ignore forged client score values')
+assert.ok(spoofedLifecycleAction.room.visual_state.revision > lifecycleActionResult.room.visual_state.revision, 'activity room visual revision should advance from server action effects')
+assert.notEqual(spoofedLifecycleAction.room.visual_state.revision, 999, 'activity room should ignore forged client visual revision')
+assert.equal(spoofedLifecycleAction.room.settlement_receipts.length, 0, 'activity room should ignore forged settlement receipts before server settlement')
+assert.equal(spoofedLifecycleAction.room.action_log[0]?.gameplay_action_id, 'tighten_frame', 'activity room audit should keep server accepted action id')
+
 const lifecycleSettled = await runtime.settleFestivalRoom(lifecycleRoom.room.id, actor(lifecycleHost))
 assert.equal(lifecycleSettled.room.state, 'settling', 'activity room lifecycle settlement should move room to settling')
 assert.equal(lifecycleSettled.room.settlement_receipts.length, 2, 'activity room lifecycle settlement should create one receipt per member')
