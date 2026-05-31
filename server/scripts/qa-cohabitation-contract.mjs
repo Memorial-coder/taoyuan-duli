@@ -12943,6 +12943,178 @@ const duplicateOfflineLimitedDecorationRefundQueue = await runtime.mergeCohabita
 assert.equal(duplicateOfflineLimitedDecorationRefundQueue.offline_queue_merge.idempotent, true, 'duplicate offline limited decoration refund receipt queue should replay by queue idempotency key')
 assert.equal(duplicateOfflineLimitedDecorationRefundQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline limited decoration refund receipt should replay conflict resolution evidence')
 
+const offlineRareItemDeliveryOwner = 'cohabit_orid_o31'
+const offlineRareItemDeliveryPartner = 'cohabit_orid_p31'
+const offlineRareItemDeliveryContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineRareItemDeliveryOwner,
+  partnerUsername: offlineRareItemDeliveryPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'offline-rare-item-delivery',
+})
+const offlineRareItemDeliveryOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineRareItemDeliveryOwner).slots[0].raw
+const offlineRareItemDeliveryPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineRareItemDeliveryPartner).slots[0].raw
+const offlineRareItemDeliveryDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineRareItemDeliveryContractId, {
+  amount: 1300,
+  purpose: 'rare_item_purchase',
+  target_ref: 'rare_item:moon_pearl:purchase',
+  memo: 'qa offline rare item delivery receipt draft',
+  idempotency_key: 'qa-offline-rare-item-delivery-receipt-draft',
+}, actor(offlineRareItemDeliveryOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineRareItemDeliveryContractId, offlineRareItemDeliveryDraft.draft.id, {
+  memo: 'qa partner confirms offline rare item delivery receipt',
+  idempotency_key: 'qa-offline-rare-item-delivery-receipt-confirm',
+}, actor(offlineRareItemDeliveryPartner))
+const offlineRareItemDeliveryExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineRareItemDeliveryContractId, offlineRareItemDeliveryDraft.draft.id, {
+  memo: 'qa execute offline rare item delivery receipt',
+  idempotency_key: 'qa-offline-rare-item-delivery-receipt-execute',
+}, actor(offlineRareItemDeliveryOwner))
+const offlineRareItemDeliveryStatus = await runtime.getCohabitationOfflineStatus(offlineRareItemDeliveryContractId, actor(offlineRareItemDeliveryOwner))
+assert.ok(offlineRareItemDeliveryStatus.offline_status.summary.offline_queue_supported_actions.includes('record_rare_item_delivery_receipt'), 'offline queue should expose rare item delivery receipt as supported action')
+assert.equal(offlineRareItemDeliveryStatus.offline_status.actor_capabilities.record_rare_item_delivery_receipt, true, 'owner should be able to record rare item delivery receipt offline')
+const offlineRareItemDeliveryQueue = await runtime.mergeCohabitationOfflineQueue(offlineRareItemDeliveryContractId, {
+  idempotency_key: 'qa-offline-rare-item-delivery-receipt-queue',
+  client_queue_revision: offlineRareItemDeliveryStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_rare_item_delivery_receipt',
+    operation_id: 'qa-offline-rare-item-delivery-receipt-op',
+    idempotency_key: 'qa-offline-rare-item-delivery-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineRareItemDeliveryDraft.draft.id,
+      target_ref: 'rare_item:moon_pearl:purchase',
+      receipt_ref: 'rare_item_receipt:moon_pearl:offline-done',
+      memo: 'qa offline rare item delivery receipt',
+    },
+  }],
+}, actor(offlineRareItemDeliveryOwner))
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept rare item delivery receipt')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.rejected_count, 0, 'offline rare item delivery receipt should not be rejected')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.action, 'record_rare_item_delivery_receipt', 'offline rare item delivery receipt result should keep action')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.draft_id, offlineRareItemDeliveryDraft.draft.id, 'offline rare item delivery receipt should return draft id')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.receipt_ref, 'rare_item_receipt:moon_pearl:offline-done', 'offline rare item delivery receipt should return receipt ref')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.receipt_kind, 'rare_item_delivery', 'offline rare item delivery receipt should identify receipt kind')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.item_id, 'moon_pearl', 'offline rare item delivery receipt should return item id')
+assert.deepEqual(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.required_permission_keys, ['storage.withdraw_rare'], 'offline rare item delivery receipt should require rare withdrawal permission')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, false, 'offline rare item delivery receipt should not mutate shared decoration state')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.personal_inventory_merged, false, 'offline rare item delivery receipt should not merge personal inventory')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline rare item delivery receipt should not mutate shared warehouse')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.shared_fund_changed, false, 'offline rare item delivery receipt should not mutate shared fund after executed deduction')
+assert.ok(offlineRareItemDeliveryQueue.contract.shared_fund_deliveries?.find(entry => entry.item_id === 'moon_pearl' && entry.receipt_ref === 'rare_item_receipt:moon_pearl:offline-done'), 'offline rare item delivery receipt should persist contract delivery entry')
+assert.ok(!offlineRareItemDeliveryQueue.contract.shared_decoration_state?.find(entry => entry.target_ref === 'rare_item:moon_pearl:purchase'), 'offline rare item delivery receipt should not persist decoration state')
+assert.ok(offlineRareItemDeliveryQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-rare-item-delivery-receipt-op'), 'offline rare item delivery receipt should write high-risk receipt audit')
+assert.equal(offlineRareItemDeliveryQueue.offline_queue_merge.results[0]?.original_fund_ledger_id, offlineRareItemDeliveryExecute.ledger_entry.id, 'offline rare item delivery receipt should retain original fund ledger trace')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineRareItemDeliveryOwner).slots[0].raw, offlineRareItemDeliveryOwnerRawBefore, 'offline rare item delivery receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineRareItemDeliveryPartner).slots[0].raw, offlineRareItemDeliveryPartnerRawBefore, 'offline rare item delivery receipt should not rewrite partner save')
+const duplicateOfflineRareItemDeliveryQueue = await runtime.mergeCohabitationOfflineQueue(offlineRareItemDeliveryContractId, {
+  idempotency_key: 'qa-offline-rare-item-delivery-receipt-queue',
+  operations: [{
+    action: 'record_rare_item_delivery_receipt',
+    operation_id: 'qa-offline-rare-item-delivery-receipt-op',
+    idempotency_key: 'qa-offline-rare-item-delivery-receipt-op',
+    payload: {
+      draft_id: offlineRareItemDeliveryDraft.draft.id,
+      receipt_ref: 'rare_item_receipt:moon_pearl:offline-done',
+    },
+  }],
+}, actor(offlineRareItemDeliveryOwner))
+assert.equal(duplicateOfflineRareItemDeliveryQueue.offline_queue_merge.idempotent, true, 'duplicate offline rare item delivery receipt queue should replay by queue idempotency key')
+
+const offlineRareItemRefundOwner = 'cohabit_orir_o31'
+const offlineRareItemRefundPartner = 'cohabit_orir_p31'
+const offlineRareItemRefundContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineRareItemRefundOwner,
+  partnerUsername: offlineRareItemRefundPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'offline-rare-item-refund',
+})
+const offlineRareItemRefundFundBeforeDraft = await runtime.getCohabitationFund(offlineRareItemRefundContractId, actor(offlineRareItemRefundOwner))
+const offlineRareItemRefundBalanceBeforeDraft = offlineRareItemRefundFundBeforeDraft.fund.balance
+const offlineRareItemRefundOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineRareItemRefundOwner).slots[0].raw
+const offlineRareItemRefundPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineRareItemRefundPartner).slots[0].raw
+const offlineRareItemRefundDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineRareItemRefundContractId, {
+  amount: 1350,
+  purpose: 'rare_item_purchase',
+  target_ref: 'rare_item:jade_orchid:purchase',
+  memo: 'qa offline rare item refund receipt draft',
+  idempotency_key: 'qa-offline-rare-item-refund-receipt-draft',
+}, actor(offlineRareItemRefundOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineRareItemRefundContractId, offlineRareItemRefundDraft.draft.id, {
+  memo: 'qa partner confirms offline rare item refund receipt',
+  idempotency_key: 'qa-offline-rare-item-refund-receipt-confirm',
+}, actor(offlineRareItemRefundPartner))
+const offlineRareItemRefundExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineRareItemRefundContractId, offlineRareItemRefundDraft.draft.id, {
+  memo: 'qa execute offline rare item refund receipt',
+  idempotency_key: 'qa-offline-rare-item-refund-receipt-execute',
+}, actor(offlineRareItemRefundOwner))
+const offlineRareItemRefundStatus = await runtime.getCohabitationOfflineStatus(offlineRareItemRefundContractId, actor(offlineRareItemRefundOwner))
+assert.ok(offlineRareItemRefundStatus.offline_status.summary.offline_queue_supported_actions.includes('record_rare_item_refund_receipt'), 'offline queue should expose rare item refund receipt as supported action')
+assert.equal(offlineRareItemRefundStatus.offline_status.actor_capabilities.record_rare_item_refund_receipt, true, 'owner should be able to record rare item refund receipt offline')
+const offlineRareItemRefundDeniedQueue = await runtime.mergeCohabitationOfflineQueue(offlineRareItemRefundContractId, {
+  idempotency_key: 'qa-offline-rare-item-refund-receipt-denied-queue',
+  client_queue_revision: offlineRareItemRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_rare_item_refund_receipt',
+    operation_id: 'qa-offline-rare-item-refund-receipt-denied-op',
+    idempotency_key: 'qa-offline-rare-item-refund-receipt-denied-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineRareItemRefundDraft.draft.id,
+      target_ref: 'rare_item:jade_orchid:purchase',
+      receipt_ref: 'rare_item_refund:jade_orchid:offline-denied',
+      memo: 'qa offline rare item refund receipt denied',
+    },
+  }],
+}, actor(offlineRareItemRefundOwner))
+assert.equal(offlineRareItemRefundDeniedQueue.offline_queue_merge.accepted_count, 0, 'offline rare item refund receipt without acknowledgement should not commit')
+assert.equal(offlineRareItemRefundDeniedQueue.offline_queue_merge.rejected_count, 1, 'offline rare item refund receipt without acknowledgement should return rejected evidence')
+assert.equal(offlineRareItemRefundDeniedQueue.offline_queue_merge.rejected[0]?.reason, 'rare_item_refund_acknowledgement_required', 'offline rare item refund denial should require compensation acknowledgement')
+assert.equal(offlineRareItemRefundDeniedQueue.offline_queue_merge.rejected[0]?.shared_fund_changed, false, 'rejected offline rare item refund receipt should not mutate shared fund')
+const offlineRareItemRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineRareItemRefundContractId, {
+  idempotency_key: 'qa-offline-rare-item-refund-receipt-queue',
+  client_queue_revision: offlineRareItemRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_rare_item_refund_receipt',
+    operation_id: 'qa-offline-rare-item-refund-receipt-op',
+    idempotency_key: 'qa-offline-rare-item-refund-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineRareItemRefundDraft.draft.id,
+      target_ref: 'rare_item:jade_orchid:purchase',
+      receipt_ref: 'rare_item_refund:jade_orchid:offline-done',
+      compensation_plan_acknowledged: true,
+      memo: 'qa offline rare item refund receipt',
+    },
+  }],
+}, actor(offlineRareItemRefundOwner))
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept rare item refund receipt')
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.results[0]?.action, 'record_rare_item_refund_receipt', 'offline rare item refund receipt result should keep action')
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.results[0]?.receipt_kind, 'rare_item_refund', 'offline rare item refund receipt should identify receipt kind')
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.results[0]?.refund_amount, 1350, 'offline rare item refund receipt should return refund amount')
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.results[0]?.shared_fund_changed, true, 'offline rare item refund receipt should mark shared fund changed')
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, false, 'offline rare item refund receipt should not mutate shared decoration state')
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.results[0]?.personal_inventory_merged, false, 'offline rare item refund receipt should not merge personal inventory')
+assert.equal(offlineRareItemRefundQueue.contract.shared_fund.balance, offlineRareItemRefundBalanceBeforeDraft, 'offline rare item refund receipt should return executed deduction to shared fund')
+assert.ok(offlineRareItemRefundQueue.contract.shared_fund.ledger.find(entry => entry.action === 'high_risk_fund_refund' && entry.idempotency_key === 'qa-offline-rare-item-refund-receipt-op'), 'offline rare item refund receipt should write refund fund ledger')
+assert.ok(!offlineRareItemRefundQueue.contract.shared_fund_deliveries?.find(entry => entry.item_id === 'jade_orchid'), 'offline rare item refund receipt should not persist delivery entry')
+assert.ok(offlineRareItemRefundQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-rare-item-refund-receipt-op' && entry.detail?.refund_amount === 1350), 'offline rare item refund receipt should write high-risk refund audit')
+assert.equal(offlineRareItemRefundQueue.offline_queue_merge.results[0]?.original_fund_ledger_id, offlineRareItemRefundExecute.ledger_entry.id, 'offline rare item refund receipt should retain original fund ledger trace')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineRareItemRefundOwner).slots[0].raw, offlineRareItemRefundOwnerRawBefore, 'offline rare item refund receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineRareItemRefundPartner).slots[0].raw, offlineRareItemRefundPartnerRawBefore, 'offline rare item refund receipt should not rewrite partner save')
+const duplicateOfflineRareItemRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineRareItemRefundContractId, {
+  idempotency_key: 'qa-offline-rare-item-refund-receipt-queue',
+  operations: [{
+    action: 'record_rare_item_refund_receipt',
+    operation_id: 'qa-offline-rare-item-refund-receipt-op',
+    idempotency_key: 'qa-offline-rare-item-refund-receipt-op',
+    payload: {
+      draft_id: offlineRareItemRefundDraft.draft.id,
+      receipt_ref: 'rare_item_refund:jade_orchid:offline-done',
+      compensation_plan_acknowledged: true,
+    },
+  }],
+}, actor(offlineRareItemRefundOwner))
+assert.equal(duplicateOfflineRareItemRefundQueue.offline_queue_merge.idempotent, true, 'duplicate offline rare item refund receipt queue should replay by queue idempotency key')
+
 const offlineDecorationRemovalRefundOwner = 'cohabit_odrf_o31'
 const offlineDecorationRemovalRefundPartner = 'cohabit_odrf_p31'
 const offlineDecorationRemovalRefundContractId = await setupDualLargeFundContract({

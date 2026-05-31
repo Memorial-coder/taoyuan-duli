@@ -36,6 +36,10 @@
 - 离线队列新增 `record_limited_decoration_delivery_receipt`、`record_limited_decoration_refund_receipt`、`record_shared_decoration_removal_receipt` 与 `record_shared_decoration_removal_refund_receipt` 前端入口，可把已扣款且待回执的限定装饰交付 / 退款、共同装修拆除完成或退款草案加入本地离线缓存。
 - 批量预检 / 自动合并会按服务端高风险回执写链提交 delivered / refunded 回执，结果读回草案、回执、权限、共同装饰状态或共同基金退款流水，以及个人背包 / 个人小屋 / 共同仓库不变的边界。
 
+### 0531 同居离线稀有物回执
+- 离线队列新增 `record_rare_item_delivery_receipt` 与 `record_rare_item_refund_receipt` 前端入口，可把已扣款且待回执的稀有物采购交付或退款草案加入本地离线缓存。
+- 批量预检 / 自动合并会按服务端高风险回执写链提交 delivered / refunded 回执，交付结果读回 `shared_fund_deliveries` 证据，退款结果读回共同基金退款流水，两条路径都展示个人背包 / 共同仓库 / 共同装饰状态不变边界。
+
 ### 0531 同居离线冲突自动解决入口
 - 新增 `/offline-conflicts/resolve` 前端 API 和 store 动作，按 `server_authoritative_auto_merge` 策略先预检再合并离线队列。
 - 本地离线缓存的批量合并改走自动解决入口，结果会展示 `offline_conflict_auto_resolution` 摘要，并继续保留服务端拒绝证据。

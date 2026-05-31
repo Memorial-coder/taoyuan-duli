@@ -575,6 +575,8 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'care_shared_pet',
   'process_shared_workshop_recipe',
   'move_shared_decoration',
+  'record_rare_item_delivery_receipt',
+  'record_rare_item_refund_receipt',
   'record_limited_decoration_delivery_receipt',
   'record_limited_decoration_refund_receipt',
   'record_shared_decoration_removal_refund_receipt',
@@ -9779,6 +9781,11 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
         || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
       move_shared_decoration: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.move_memorial_furniture === true,
+      record_rare_item_delivery_receipt: actorPermissions.fund.spend_large === true
+        && actorPermissions.confirmations.large_fund_spend_requires_both === true
+        && actorPermissions.storage.withdraw_rare === true,
+      record_rare_item_refund_receipt: actorPermissions.fund.spend_large === true
+        && actorPermissions.confirmations.large_fund_spend_requires_both === true,
       record_limited_decoration_delivery_receipt: actorPermissions.fund.spend_large === true
         && actorPermissions.confirmations.large_fund_spend_requires_both === true
         && actorPermissions.construction.buy_furniture === true,
@@ -19070,6 +19077,25 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared decoration removal refund receipt merge', 160),
     }, actor);
   }
+  if (operation.action === 'record_rare_item_delivery_receipt') {
+    return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
+      ...payload,
+      outcome: 'delivered',
+      receipt_ref: payload.receipt_ref || payload.delivery_receipt_ref || payload.target_ref,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue rare item delivery receipt merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'record_rare_item_refund_receipt') {
+    return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
+      ...payload,
+      outcome: 'refunded',
+      receipt_ref: payload.receipt_ref || payload.refund_receipt_ref || payload.delivery_receipt_ref || payload.target_ref,
+      compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true || payload.refund_acknowledged === true,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue rare item refund receipt merge', 160),
+    }, actor);
+  }
   if (operation.action === 'record_limited_decoration_delivery_receipt') {
     return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
       ...payload,
@@ -19293,8 +19319,10 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       compensation_hint: 'offline shared decoration move only updates contract shared_decoration_state and audit log; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
-  if (action === 'record_shared_decoration_removal_refund_receipt' || action === 'record_limited_decoration_refund_receipt') {
+  if (action === 'record_shared_decoration_removal_refund_receipt' || action === 'record_limited_decoration_refund_receipt' || action === 'record_rare_item_refund_receipt') {
     const isLimitedDecorationRefund = action === 'record_limited_decoration_refund_receipt';
+    const isRareItemRefund = action === 'record_rare_item_refund_receipt';
+    const refundTargetKind = isRareItemRefund ? 'rare_item' : (isLimitedDecorationRefund ? 'limited_decoration' : 'shared_decoration_removal');
     const draft = result.draft || {};
     const receipt = result.receipt || {};
     const originalFundLedger = result.original_fund_ledger_entry || {};
@@ -19304,12 +19332,12 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
     const originalFundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || '';
     return {
       ...entry,
-      target_ref: entry.target_ref || targetRef || (draft.id ? `${isLimitedDecorationRefund ? 'limited_decoration' : 'shared_decoration_removal'}:${draft.id}:refund_receipt` : ''),
+      target_ref: entry.target_ref || targetRef || (draft.id ? `${refundTargetKind}:${draft.id}:refund_receipt` : ''),
       draft_id: draft.id || sanitizeText(operation.payload?.draft_id || operation.payload?.draftId || operation.payload?.id, 100),
       receipt_id: receipt.id || '',
       receipt_ref: receipt.receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.refund_receipt_ref || operation.payload?.target_ref, 120),
       receipt_outcome: receipt.outcome || 'refunded',
-      receipt_kind: isLimitedDecorationRefund ? 'limited_decoration_refund' : 'shared_decoration_removal_refund',
+      receipt_kind: isRareItemRefund ? 'rare_item_refund' : (isLimitedDecorationRefund ? 'limited_decoration_refund' : 'shared_decoration_removal_refund'),
       original_fund_ledger_id: originalFundLedgerId,
       refund_fund_ledger_id: refundLedgerId,
       fund_ledger_id: refundLedgerId,
@@ -19325,12 +19353,14 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       shared_fund_changed: true,
       already_recorded: result.already_recorded === true,
       audit_action: 'fund_high_risk_receipt_recorded',
-      compensation_hint: isLimitedDecorationRefund
+      compensation_hint: isRareItemRefund
+        ? 'offline rare item refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal inventory, personal home saves, shared decoration state, and shared warehouse remain unchanged.'
+        : isLimitedDecorationRefund
         ? 'offline limited decoration refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal inventory, personal home saves, shared decoration state, and shared warehouse remain unchanged.'
         : 'offline shared decoration removal refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal home saves, personal inventory, and shared warehouse remain unchanged.',
     };
   }
-  if (action === 'record_shared_decoration_removal_receipt' || action === 'record_limited_decoration_delivery_receipt') {
+  if (action === 'record_shared_decoration_removal_receipt' || action === 'record_limited_decoration_delivery_receipt' || action === 'record_rare_item_delivery_receipt') {
     const draft = result.draft || {};
     const receipt = result.receipt || {};
     const stateEntry = result.shared_decoration_state_entry || {};
@@ -19338,21 +19368,27 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
     const originalFundLedger = result.original_fund_ledger_entry || {};
     const targetRef = draft.target_ref || stateEntry.target_ref || sanitizeText(operation.payload?.target_ref || operation.payload?.receipt_ref, 120);
     const decorationId = stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
+    const itemId = deliveryEntry.item_id || sanitizeText(operation.payload?.item_id || operation.payload?.itemId || operation.payload?.rare_item_id, 80);
     const fundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || stateEntry.fund_ledger_id || '';
     const isLimitedDecorationDelivery = action === 'record_limited_decoration_delivery_receipt';
+    const isRareItemDelivery = action === 'record_rare_item_delivery_receipt';
     return {
       ...entry,
-      target_ref: entry.target_ref || targetRef || (decorationId ? `shared_decoration:${decorationId}:${isLimitedDecorationDelivery ? 'delivery_receipt' : 'removal_receipt'}` : ''),
+      target_ref: entry.target_ref || targetRef || (isRareItemDelivery && itemId
+        ? `rare_item:${itemId}:delivery_receipt`
+        : (decorationId ? `shared_decoration:${decorationId}:${isLimitedDecorationDelivery ? 'delivery_receipt' : 'removal_receipt'}` : '')),
       draft_id: draft.id || sanitizeText(operation.payload?.draft_id || operation.payload?.draftId || operation.payload?.id, 100),
       receipt_id: receipt.id || stateEntry.receipt_id || '',
       receipt_ref: receipt.receipt_ref || stateEntry.delivery_receipt_ref || stateEntry.removal_receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.delivery_receipt_ref || operation.payload?.removal_receipt_ref || operation.payload?.target_ref, 120),
       receipt_outcome: receipt.outcome || 'delivered',
-      receipt_kind: isLimitedDecorationDelivery ? 'limited_decoration_delivery' : 'shared_decoration_removal',
+      receipt_kind: isRareItemDelivery ? 'rare_item_delivery' : (isLimitedDecorationDelivery ? 'limited_decoration_delivery' : 'shared_decoration_removal'),
+      item_id: itemId,
       decoration_id: decorationId,
       decoration_kind: stateEntry.decoration_kind || normalizeSharedDecorationKind(operation.payload?.decoration_kind || operation.payload?.kind, operation.payload || {}),
       delivery_entry_id: deliveryEntry.id || '',
       shared_decoration_state_entry_id: stateEntry.id || '',
-      shared_decoration_state_changed: stateEntry.shared_decoration_state_changed !== false,
+      shared_decoration_state_changed: isRareItemDelivery ? false : stateEntry.shared_decoration_state_changed !== false,
+      original_fund_ledger_id: fundLedgerId,
       fund_ledger_id: fundLedgerId,
       fund_ledger_ids: [fundLedgerId].filter(Boolean),
       amount: Math.max(0, Math.floor(Number(stateEntry.amount || deliveryEntry.amount || draft.amount || originalFundLedger.amount) || 0)),
@@ -19364,7 +19400,9 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       shared_fund_changed: false,
       already_recorded: result.already_recorded === true,
       audit_action: 'fund_high_risk_receipt_recorded',
-      compensation_hint: isLimitedDecorationDelivery
+      compensation_hint: isRareItemDelivery
+        ? 'offline rare item delivery receipt only closes an executed high-risk draft and records contract shared_fund_deliveries; personal inventory, personal home saves, shared decoration state, shared warehouse, and shared fund remain unchanged.'
+        : isLimitedDecorationDelivery
         ? 'offline limited decoration delivery receipt only closes an executed high-risk draft and updates contract shared_fund_deliveries plus shared_decoration_state; personal inventory, personal home saves, shared warehouse, and shared fund remain unchanged.'
         : 'offline shared decoration removal receipt only closes an executed high-risk draft and updates contract shared_decoration_state; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
@@ -19542,6 +19580,82 @@ function buildCohabitationOfflineSharedDecorationRemovalRefundReceiptRejection(o
     server_authoritative: true,
     conflict_policy: 'server_authoritative_reject_and_continue',
     compensation_hint: 'offline shared decoration removal refund receipt was rejected before any shared fund refund, shared decoration state, personal home, warehouse, or inventory mutation.',
+  };
+}
+
+function buildCohabitationOfflineRareItemDeliveryReceiptRejection(operation = {}, error = {}) {
+  if (operation.action !== 'record_rare_item_delivery_receipt') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'rare_item_delivery_receipt_server_state_rejected';
+  if (status === 400) reason = 'invalid_rare_item_delivery_receipt_operation';
+  if (status === 403) reason = 'rare_item_delivery_receipt_permission_denied';
+  if (status === 404) reason = 'rare_item_draft_not_found';
+  if (status === 409) reason = 'rare_item_delivery_receipt_state_conflict';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'rare_item_delivery_receipt_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    draft_id: sanitizeText(payload.draft_id || payload.draftId || payload.id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.delivery_receipt_ref || payload.target_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.receipt_ref || payload.delivery_receipt_ref, 120),
+    item_id: sanitizeText(payload.item_id || payload.itemId || payload.rare_item_id, 80),
+    required_permission_keys: ['fund.spend_large', 'confirmations.large_fund_spend_requires_both', 'storage.withdraw_rare'],
+    shared_decoration_state_changed: false,
+    personal_inventory_merged: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline rare item delivery receipt was rejected before any delivery record, personal inventory, personal home, warehouse, decoration state, or fund mutation.',
+  };
+}
+
+function buildCohabitationOfflineRareItemRefundReceiptRejection(operation = {}, error = {}) {
+  if (operation.action !== 'record_rare_item_refund_receipt') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'rare_item_refund_receipt_server_state_rejected';
+  if (status === 400) reason = 'invalid_rare_item_refund_receipt_operation';
+  if (status === 403) reason = 'rare_item_refund_receipt_permission_denied';
+  if (status === 404) reason = 'rare_item_draft_not_found';
+  if (status === 409) reason = 'rare_item_refund_receipt_state_conflict';
+  if (status === 409 && message.includes('补偿方案')) reason = 'rare_item_refund_acknowledgement_required';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'rare_item_refund_receipt_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    draft_id: sanitizeText(payload.draft_id || payload.draftId || payload.id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.refund_receipt_ref || payload.target_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.receipt_ref || payload.refund_receipt_ref, 120),
+    required_permission_keys: ['fund.spend_large', 'confirmations.large_fund_spend_requires_both'],
+    shared_decoration_state_changed: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    personal_inventory_merged: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline rare item refund receipt was rejected before any shared fund refund, delivery record, personal inventory, personal home, warehouse, or decoration mutation.',
   };
 }
 
@@ -20273,6 +20387,16 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const sharedDecorationRemovalRefundReceiptRejection = buildCohabitationOfflineSharedDecorationRemovalRefundReceiptRejection(operation, error);
       if (sharedDecorationRemovalRefundReceiptRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(sharedDecorationRemovalRefundReceiptRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const rareItemDeliveryReceiptRejection = buildCohabitationOfflineRareItemDeliveryReceiptRejection(operation, error);
+      if (rareItemDeliveryReceiptRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(rareItemDeliveryReceiptRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const rareItemRefundReceiptRejection = buildCohabitationOfflineRareItemRefundReceiptRejection(operation, error);
+      if (rareItemRefundReceiptRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(rareItemRefundReceiptRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const limitedDecorationRefundReceiptRejection = buildCohabitationOfflineLimitedDecorationRefundReceiptRejection(operation, error);
