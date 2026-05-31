@@ -3000,6 +3000,29 @@ const injectRecipePolicyStock = async (itemId, quantity, quality = 'normal') => 
 const recipePolicyOwnerRawBefore = saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw
 const recipePolicyPartnerRawBefore = saveRuntime.loadUserSaveSlots(recipePolicyPartner).slots[0].raw
 
+const assertRecipePolicyAlchemyResultBranches = async ({ label, cases, inputs }) => {
+  for (const resultCase of cases) {
+    const outputQuantityBefore = (await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))).warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity ?? 0
+    for (const input of inputs) await injectRecipePolicyStock(input.itemId, input.quantity, input.quality || 'normal')
+    const resultRecipe = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+      recipe_id: resultCase.recipeId,
+      memo: `qa process ${resultCase.recipeId}`,
+      idempotency_key: `qa-recipe-policy-${resultCase.recipeId}`,
+    }, actor(recipePolicyOwner))
+    assert.equal(resultRecipe.recipe.output_item_id, resultCase.outputItemId, `new ${label} ${resultCase.resultKind} recipe should output expected elixir result`)
+    assert.equal(resultRecipe.workshop_action.process_kind, 'alchemy_elixir', `new ${label} ${resultCase.resultKind} recipe should be alchemy elixir`)
+    assert.equal(resultRecipe.workshop_action.alchemy_result_kind, resultCase.resultKind, `new ${label} ${resultCase.resultKind} recipe should expose result kind`)
+    assert.equal(resultRecipe.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `new ${label} ${resultCase.resultKind} ledger should keep result kind`)
+    assert.equal(resultRecipe.warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity, outputQuantityBefore + 1, `new ${label} ${resultCase.resultKind} output should enter shared warehouse once`)
+    for (const input of inputs) assert.ok(resultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === input.itemId && entry.quality === (input.quality || 'normal')), `new ${label} ${resultCase.resultKind} should consume ${input.itemId}`)
+    const origin = resultRecipe.contract.origin_assets.warehouse_items.find(item => item.ledger_id === resultRecipe.ledger_entry.id && item.action === 'deposit')
+    assert.equal(origin?.item_id, resultCase.outputItemId, `new ${label} ${resultCase.resultKind} origin should use expected item id`)
+    assert.equal(origin?.withdrawal_risk_level, resultCase.riskLevel, `new ${label} ${resultCase.resultKind} origin should keep withdrawal risk`)
+    assert.equal(origin?.high_value_withdrawal_required, true, `new ${label} ${resultCase.resultKind} origin should require high-value withdrawal`)
+    assert.equal(origin?.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `new ${label} ${resultCase.resultKind} origin should keep result kind`)
+  }
+}
+
 await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(recipePolicyContractId, {
     item_id: 'family_contract',
@@ -3200,6 +3223,16 @@ assert.equal(recipePolicyStoneRootPill.ledger_entry.simultaneous_online_bonus?.t
 assert.ok(recipePolicyStoneRootPill.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'refined_quartz')?.source_ledger_ids.includes(recipePolicyRefinedQuartz.ledger_entry.id), 'new stone root pill should trace refined quartz source ledger')
 const recipePolicyStoneRootOriginAsset = recipePolicyStoneRootPill.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyStoneRootPill.ledger_entry.id && item.action === 'deposit')
 assert.equal(recipePolicyStoneRootOriginAsset?.withdrawal_risk_level, 'high_quality', 'new stone root pill origin should be high-quality protected after cooperation upgrade')
+const recipePolicyStoneRootResultCases = [
+  { recipeId: 'shared_stone_root_guard_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+  { recipeId: 'shared_stone_root_guard_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+  { recipeId: 'shared_stone_root_guard_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+]
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'stone root',
+  cases: recipePolicyStoneRootResultCases,
+  inputs: [{ itemId: 'radish', quantity: 2 }, { itemId: 'potato', quantity: 1 }, { itemId: 'refined_quartz', quantity: 1, quality: 'fine' }],
+})
 
 await injectRecipePolicyStock('sweet_potato', 2)
 await injectRecipePolicyStock('ginger', 1)
@@ -3213,6 +3246,50 @@ assert.equal(recipePolicyWarmingPill.recipe.output_item_id, 'warming_sweet_potat
 assert.equal(recipePolicyWarmingPill.workshop_action.process_kind, 'alchemy_elixir', 'new warming pill recipe should be alchemy elixir')
 assert.equal(recipePolicyWarmingPill.workshop_action.success_rate_bonus_percent, 15, 'new warming pill recipe should expose alchemy cooperation bonus')
 assert.equal(recipePolicyWarmingPill.ledger_entry.quality, 'fine', 'new warming pill recipe should apply cooperation quality bonus')
+
+await injectRecipePolicyStock('pumpkin', 2)
+await injectRecipePolicyStock('sesame_powder', 1, 'fine')
+await injectRecipePolicyStock('honey', 1)
+const recipePolicyPumpkinWarmthElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_pumpkin_warmth_elixir',
+  memo: 'qa process shared pumpkin warmth elixir',
+  idempotency_key: 'qa-recipe-policy-pumpkin-warmth-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyPumpkinWarmthElixir.recipe.output_item_id, 'pumpkin_warmth_elixir', 'new pumpkin warmth recipe should output elixir item')
+assert.equal(recipePolicyPumpkinWarmthElixir.workshop_action.process_kind, 'alchemy_elixir', 'new pumpkin warmth recipe should be alchemy elixir')
+assert.equal(recipePolicyPumpkinWarmthElixir.workshop_action.alchemy_result_kind, 'success', 'new pumpkin warmth recipe should expose success result')
+const recipePolicyPumpkinWarmthResultCases = [
+  { recipeId: 'shared_pumpkin_warmth_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+  { recipeId: 'shared_pumpkin_warmth_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+  { recipeId: 'shared_pumpkin_warmth_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+]
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'pumpkin warmth',
+  cases: recipePolicyPumpkinWarmthResultCases,
+  inputs: [{ itemId: 'pumpkin', quantity: 2 }, { itemId: 'sesame_powder', quantity: 1, quality: 'fine' }, { itemId: 'honey', quantity: 1 }],
+})
+
+await injectRecipePolicyStock('pickled_chili', 1, 'fine')
+await injectRecipePolicyStock('sesame_paste', 1, 'fine')
+await injectRecipePolicyStock('tea', 2)
+const recipePolicySpicyVitalityPill = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_spicy_vitality_pill',
+  memo: 'qa process shared spicy vitality pill',
+  idempotency_key: 'qa-recipe-policy-spicy-vitality-pill',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicySpicyVitalityPill.recipe.output_item_id, 'spicy_vitality_pill', 'new spicy vitality recipe should output elixir item')
+assert.equal(recipePolicySpicyVitalityPill.workshop_action.process_kind, 'alchemy_elixir', 'new spicy vitality recipe should be alchemy elixir')
+assert.equal(recipePolicySpicyVitalityPill.workshop_action.alchemy_result_kind, 'success', 'new spicy vitality recipe should expose success result')
+const recipePolicySpicyVitalityResultCases = [
+  { recipeId: 'shared_spicy_vitality_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+  { recipeId: 'shared_spicy_vitality_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+  { recipeId: 'shared_spicy_vitality_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+]
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'spicy vitality',
+  cases: recipePolicySpicyVitalityResultCases,
+  inputs: [{ itemId: 'pickled_chili', quantity: 1, quality: 'fine' }, { itemId: 'sesame_paste', quantity: 1, quality: 'fine' }, { itemId: 'tea', quantity: 2 }],
+})
 const recipePolicyWarmingResultCases = [
   {
     recipeId: 'shared_warming_sweet_potato_partial',
@@ -3234,6 +3311,7 @@ const recipePolicyWarmingResultCases = [
   },
 ]
 for (const resultCase of recipePolicyWarmingResultCases) {
+  const outputQuantityBefore = (await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))).warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity ?? 0
   await injectRecipePolicyStock('sweet_potato', 2)
   await injectRecipePolicyStock('ginger', 1)
   await injectRecipePolicyStock('honey', 1)
@@ -3246,7 +3324,7 @@ for (const resultCase of recipePolicyWarmingResultCases) {
   assert.equal(warmingResultRecipe.workshop_action.process_kind, 'alchemy_elixir', `new warming ${resultCase.resultKind} recipe should be alchemy elixir`)
   assert.equal(warmingResultRecipe.workshop_action.alchemy_result_kind, resultCase.resultKind, `new warming ${resultCase.resultKind} recipe should expose result kind`)
   assert.equal(warmingResultRecipe.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `new warming ${resultCase.resultKind} ledger should keep result kind`)
-  assert.equal(warmingResultRecipe.warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity, 1, `new warming ${resultCase.resultKind} output should enter shared warehouse`)
+  assert.equal(warmingResultRecipe.warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity, outputQuantityBefore + 1, `new warming ${resultCase.resultKind} output should enter shared warehouse once`)
   assert.ok(warmingResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'sweet_potato'), `new warming ${resultCase.resultKind} should consume sweet potato`)
   assert.ok(warmingResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'ginger'), `new warming ${resultCase.resultKind} should consume ginger`)
   assert.ok(warmingResultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'honey'), `new warming ${resultCase.resultKind} should consume honey`)
@@ -3387,6 +3465,16 @@ assert.equal(recipePolicyTeaFocusElixir.recipe.output_item_id, 'tea_focus_elixir
 assert.equal(recipePolicyTeaFocusElixir.workshop_action.process_kind, 'alchemy_elixir', 'new tea focus elixir should be alchemy elixir')
 assert.ok(recipePolicyTeaFocusElixir.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'green_tea_drink')?.source_ledger_ids.includes(recipePolicyGreenTea.ledger_entry.id), 'new tea focus elixir should trace green tea source ledger')
 assert.ok(recipePolicyTeaFocusElixir.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'lotus_heart_powder')?.source_ledger_ids.includes(recipePolicyLotusHeartPowder.ledger_entry.id), 'new tea focus elixir should trace lotus heart powder source ledger')
+const recipePolicyTeaFocusResultCases = [
+  { recipeId: 'shared_tea_focus_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+  { recipeId: 'shared_tea_focus_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+  { recipeId: 'shared_tea_focus_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+]
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'tea focus',
+  cases: recipePolicyTeaFocusResultCases,
+  inputs: [{ itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { itemId: 'honey', quantity: 1 }],
+})
 
 await injectRecipePolicyStock('osmanthus', 1)
 const recipePolicyOsmanthusHoney = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
@@ -3406,6 +3494,16 @@ const recipePolicyOsmanthusFocusElixir = await runtime.processCohabitationShared
 assert.equal(recipePolicyOsmanthusFocusElixir.recipe.output_item_id, 'osmanthus_focus_elixir', 'new osmanthus focus elixir should output elixir item')
 assert.equal(recipePolicyOsmanthusFocusElixir.workshop_action.process_kind, 'alchemy_elixir', 'new osmanthus focus elixir should be alchemy elixir')
 assert.ok(recipePolicyOsmanthusFocusElixir.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'osmanthus_honey')?.source_ledger_ids.includes(recipePolicyOsmanthusHoney.ledger_entry.id), 'new osmanthus focus elixir should trace osmanthus honey source ledger')
+const recipePolicyOsmanthusFocusResultCases = [
+  { recipeId: 'shared_osmanthus_focus_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+  { recipeId: 'shared_osmanthus_focus_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+  { recipeId: 'shared_osmanthus_focus_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+]
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'osmanthus focus',
+  cases: recipePolicyOsmanthusFocusResultCases,
+  inputs: [{ itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'tea', quantity: 2 }, { itemId: 'lotus_seed', quantity: 1 }],
+})
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyPartner).slots[0].raw, recipePolicyPartnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe partner save')
