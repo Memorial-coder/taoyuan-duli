@@ -3991,6 +3991,16 @@ await assert.rejects(
   'warehouse policy should reject unclassified item deposits by default'
 )
 await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(recipePolicyContractId, {
+    item_id: 'moonlight_lotus',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-policy-moonlight-lotus-deposit-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('rare_item_policy'),
+  'warehouse policy should reject high-value crop ordinary deposits through explicit rare policy'
+)
+await assert.rejects(
   () => runtime.withdrawCohabitationWarehouseItem(recipePolicyContractId, {
     item_id: 'family_contract',
     quantity: 1,
@@ -4024,14 +4034,20 @@ await assert.rejects(
 
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 1, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 2, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_items_high_value_withdrawal_blocked, true, 'warehouse item policy should declare task high-value withdrawal block')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.item_policy.visible_item_policies.find(item => item.item_id === 'rice')?.classification, 'common', 'visible warehouse item policy should classify rice as common')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.item_policy.visible_item_policies.find(item => item.item_id === 'rice')?.risk_level, 'common', 'visible warehouse item policy should keep normal rice common risk')
+const recipePolicyMoonlightLotusCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'moonlight_lotus')
+assert.equal(recipePolicyMoonlightLotusCatalog?.classification, 'rare', 'warehouse item policy should classify high-value hybrid crops as rare')
+assert.equal(recipePolicyMoonlightLotusCatalog?.ordinary_flow_blocked, true, 'high-value hybrid crop policy should block ordinary warehouse flows')
+assert.equal(recipePolicyMoonlightLotusCatalog?.high_value_withdrawal_allowed, true, 'high-value hybrid crop policy should allow rare high-value drafts')
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',
   memo: 'qa process shared rice vinegar',

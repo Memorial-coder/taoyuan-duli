@@ -128,7 +128,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 1;
+const WAREHOUSE_ITEM_POLICY_VERSION = 2;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -147,7 +147,21 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'sesame_courtesy_elixir', 'pumpkin_warmth_elixir', 'spicy_vitality_pill', 'osmanthus_focus_elixir', 'tea_focus_elixir',
   'stone_root_guard_pill', 'partial_elixir_slurry', 'failed_elixir_ash',
 ]);
-const WAREHOUSE_RARE_ITEM_IDS = Object.freeze(['rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir']);
+const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze(['rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir']);
+const WAREHOUSE_HIGH_VALUE_CROP_ITEM_IDS = Object.freeze([
+  'golden_melon', 'jade_tea', 'phoenix_pepper', 'moonlight_rice', 'frost_garlic',
+  'phoenix_sesame', 'moonlight_lotus', 'jade_snow', 'golden_pumpkin', 'phoenix_corn',
+  'moonlight_yam', 'jade_peanut', 'frost_radish', 'golden_jujube', 'phoenix_eggplant',
+  'moonlight_spinach', 'jade_loofah', 'frost_winter_wheat', 'golden_sesame', 'phoenix_garlic',
+  'moonlight_cabbage', 'jade_persimmon', 'frost_bamboo', 'golden_watermelon', 'phoenix_peach',
+  'golden_lotus', 'phoenix_broad_bean', 'moonlight_tea', 'jade_rapeseed', 'frost_yam',
+  'melon_tea_fruit', 'dragon_fire', 'celestial_rice', 'ice_lotus', 'jade_peach_tea',
+  'golden_dragon', 'moonlight_frost', 'jade_golden_melon', 'immortal_flower', 'dragon_pearl',
+]);
+const WAREHOUSE_RARE_ITEM_IDS = Object.freeze([
+  ...WAREHOUSE_RARE_MATERIAL_ITEM_IDS,
+  ...WAREHOUSE_HIGH_VALUE_CROP_ITEM_IDS,
+]);
 const WAREHOUSE_TASK_PROTECTED_ITEM_IDS = Object.freeze([
   'family_contract', 'cohabitation_contract', 'marriage_certificate', 'quest_scroll', 'story_token', 'jade_ring', 'silk_ribbon',
   'zhiji_jade', 'lineage_certificate_tag', 'preservation_seal',

@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0531 同居共同仓库 11.4 物品分级策略
+- 共同仓库策略快照升到 v2，将金蜜瓜、月光米、凤凰椒、月莲、龙珠等高阶杂交作物列入显式稀有目录。
+- 普通入仓 / 取出 / 卖出会按 `rare_item_policy` 阻断；高价值草案继续按稀有权限和成员确认保护。
+
 ### 0531 同居离线冲突自动解决入口
 - 新增 `/offline-conflicts/resolve` 前端 API 和 store 动作，按 `server_authoritative_auto_merge` 策略先预检再合并离线队列。
 - 本地离线缓存的批量合并改走自动解决入口，结果会展示 `offline_conflict_auto_resolution` 摘要，并继续保留服务端拒绝证据。
