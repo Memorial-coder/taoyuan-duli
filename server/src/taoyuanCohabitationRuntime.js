@@ -128,7 +128,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 5;
+const WAREHOUSE_ITEM_POLICY_VERSION = 6;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -144,6 +144,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_first_catch_soup', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
+  'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -985,6 +986,15 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quality: 'normal',
   },
   shared_congee: {
+    id: 'shared_congee',
+    label: '共同灶台白粥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }],
+    output_item_id: 'food_congee',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_first_catch_soup: {
     id: 'shared_first_catch_soup',
     label: '共同灶台初钓鱼汤',
@@ -1078,12 +1088,60 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
-    id: 'shared_congee',
-    label: '共同灶台白粥',
+  shared_lotus_fish_roll: {
+    id: 'shared_lotus_fish_roll',
+    label: '共同灶台莲藕鱼卷',
     station: 'stove',
     process_kind: 'cooking_dish',
-    input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }],
-    output_item_id: 'food_congee',
+    input_items: [
+      { item_id: 'bass', quantity: 1, quality: 'normal' },
+      { item_id: 'lotus_root', quantity: 1, quality: 'normal' },
+      { item_id: 'rice_flour', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_lotus_fish_roll',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_sesame_eel_rice: {
+    id: 'shared_sesame_eel_rice',
+    label: '共同灶台芝麻鳗鱼饭',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'eel', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+      { item_id: 'sesame_oil', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_sesame_eel_rice',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_crab_osmanthus_congee: {
+    id: 'shared_crab_osmanthus_congee',
+    label: '共同灶台桂香蟹粥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'river_crab', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_crab_osmanthus_congee',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_festival_fish_feast: {
+    id: 'shared_festival_fish_feast',
+    label: '共同灶台节庆鱼宴',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'mandarin_fish', quantity: 1, quality: 'normal' },
+      { item_id: 'creek_shrimp', quantity: 1, quality: 'normal' },
+      { item_id: 'pickled_ginger', quantity: 1, quality: 'fine' },
+      { item_id: 'sesame_oil', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_festival_fish_feast',
     output_quantity: 1,
     output_quality: 'normal',
   },

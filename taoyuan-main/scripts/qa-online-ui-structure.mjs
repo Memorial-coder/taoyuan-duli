@@ -323,6 +323,8 @@ expectContains('online/OnlineCohabitationView.vue', 'shared_braised_carp', 'coha
 expectContains('online/OnlineCohabitationView.vue', 'shared_anglers_platter', 'cohabitation shared workshop should keep fish platter recipes in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_sesame_tangyuan', 'cohabitation shared workshop should keep sesame tangyuan in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_lotus_sesame_calming_cake', 'cohabitation shared workshop should keep lotus sesame cake in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_lotus_fish_roll', 'cohabitation shared workshop should keep advanced fish roll recipes in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_festival_fish_feast', 'cohabitation shared workshop should keep festival fish feast recipes in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_spicy_pumpkin_rice', 'cohabitation shared workshop should keep spicy pumpkin rice in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_qingxin_lotus_elixir', 'cohabitation shared workshop should keep the qingxin lotus alchemy recipe in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_qingxin_lotus_rare', 'cohabitation shared workshop should keep rare alchemy output in the frontend catalog')
