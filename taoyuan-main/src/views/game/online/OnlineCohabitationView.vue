@@ -3034,6 +3034,14 @@
                   {{ selectedOfflineQueueActionOption?.enabled ? '服务端队列可提交' : selectedOfflineQueueActionOption?.disabledReason || '当前不可提交' }}
                 </p>
               </div>
+              <label
+                v-if="selectedOfflineQueueActionId === 'record_shared_decoration_removal_refund_receipt'"
+                class="flex items-start gap-2 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
+                data-testid="online-cohabitation-offline-refund-ack"
+              >
+                <input v-model="offlineQueueRefundAcknowledged" class="online-input mt-0.5 h-4 w-4 min-w-4 accent-accent" type="checkbox" />
+                <span>确认补偿方案，退款只退回共同基金，不改个人小屋、背包或共同仓库。</span>
+              </label>
               <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-offline-local-queue">
                 <div class="flex items-center justify-between gap-2">
                   <span>{{ offlineQueueDraftSummaryLabel }}</span>
@@ -3355,6 +3363,7 @@
     | 'process_shared_workshop_recipe'
     | 'move_shared_decoration'
     | 'record_limited_decoration_delivery_receipt'
+    | 'record_shared_decoration_removal_refund_receipt'
     | 'record_shared_decoration_removal_receipt'
     | 'collect_offline_auto_income'
   type OfflineQueueActionOption = {
@@ -3440,6 +3449,36 @@
   }
   const separationStoryFlagLabel = (value: unknown, truthy = '是', falsy = '否') =>
     value === true ? truthy : falsy
+  const separationStoryDialogueLinesLabel = (value: unknown) => {
+    if (!Array.isArray(value) || value.length === 0) return '待记录'
+    return value
+      .map((line, index) => {
+        const entry = line && typeof line === 'object' && !Array.isArray(line)
+          ? line as Record<string, unknown>
+          : {}
+        const speaker = separationStoryValueLabel(entry.speaker_role, `角色${index + 1}`)
+        const text = separationStoryValueLabel(entry.text, '')
+        return text ? `${speaker}：${text}` : ''
+      })
+      .filter(Boolean)
+      .slice(0, 4)
+      .join(' / ') || '待记录'
+  }
+  const separationStoryAnimationCuesLabel = (value: unknown) => {
+    if (!Array.isArray(value) || value.length === 0) return '待记录'
+    return value
+      .map((cue, index) => {
+        const entry = cue && typeof cue === 'object' && !Array.isArray(cue)
+          ? cue as Record<string, unknown>
+          : {}
+        const action = separationStoryValueLabel(entry.action, '')
+        const stage = separationStoryValueLabel(entry.stage, `段落${index + 1}`)
+        return action ? `${stage}:${action}` : ''
+      })
+      .filter(Boolean)
+      .slice(0, 4)
+      .join(' / ') || '待记录'
+  }
 
   const largeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
     'family_building',
@@ -3576,6 +3615,7 @@
   const dailySettleActionMessage = ref('')
   const dailySettleActionOk = ref(false)
   const selectedOfflineQueueActionId = ref<OfflineQueueUiActionId>('water_shared_farm')
+  const offlineQueueRefundAcknowledged = ref(false)
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
   const fundLargeDraftPurpose = ref<FundLargeSpendPurpose>('family_building')
@@ -3802,6 +3842,9 @@
       { key: 'relationship_story_rule', label: '剧情规则', value: separationStoryValueLabel(resolution.relationship_story_rule) },
       { key: 'dialogue_event_id', label: '对话事件', value: separationStoryValueLabel(resolution.dialogue_event_id) },
       { key: 'animation_event_id', label: '搬离 / 交接演出', value: separationStoryValueLabel(resolution.animation_event_id) },
+      { key: 'dialogue_lines', label: '专属台词', value: separationStoryDialogueLinesLabel(resolution.dialogue_lines) },
+      { key: 'animation_cues', label: '演出 Cue', value: separationStoryAnimationCuesLabel(resolution.animation_cues) },
+      { key: 'cinematic_stage_direction', label: '场景调度', value: separationStoryValueLabel(resolution.cinematic_stage_direction) },
       { key: 'exit_record_kind', label: '退出记录', value: separationStoryValueLabel(resolution.exit_record_kind) },
       { key: 'family_fund_settlement_state', label: '共同基金结算', value: separationStoryValueLabel(resolution.family_fund_settlement_state) },
       { key: 'frontend_cinematic_pending', label: '前端演出', value: separationStoryFlagLabel(resolution.frontend_cinematic_pending, '待播放', '无需播放') },
@@ -4825,7 +4868,18 @@
     bamboo_shoot: '春笋',
     potato: '土豆',
     ginger: '生姜',
+    egg: '鸡蛋',
+    silkie_egg: '乌鸡蛋',
+    goat_milk: '羊奶',
+    truffle: '松露',
+    camel_milk: '驼奶',
     candied_peach: '蜜桃脯',
+    food_scrambled_egg_rice: '蛋炒饭',
+    food_boiled_egg: '水煮蛋',
+    food_silkie_egg_soup: '乌鸡蛋羹',
+    food_goat_milk_soup: '羊奶汤',
+    food_truffle_fried_rice: '松露炒饭',
+    food_camel_milk_tea: '驼奶茶',
     food_spicy_boat_rice_ball: '辛火赛舟饭团',
     food_rapeseed_bamboo_rice_roll: '菜油春笋米粉卷',
     food_pumpkin_harvest_cauldron: '丰收南瓜大锅羹',
@@ -5077,6 +5131,12 @@
     { id: 'shared_miner_lunch', label: '共同灶台矿工便当', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'potato', quantity: 2, quality: 'normal' }, { item_id: 'sweet_potato', quantity: 1, quality: 'normal' }], output_item_id: 'food_miner_lunch', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_honey_tea', label: '共同茶炉蜂蜜茶', station: 'tea_maker', process_kind: 'cooking_dish', input_items: [{ item_id: 'honey', quantity: 1, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }], output_item_id: 'food_honey_tea', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_ginger_soup', label: '共同灶台姜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'ginger', quantity: 2, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_ginger_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_scrambled_egg_rice', label: '共同灶台蛋炒饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'egg', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_scrambled_egg_rice', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_boiled_egg', label: '共同灶台水煮蛋', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'egg', quantity: 2, quality: 'normal' }], output_item_id: 'food_boiled_egg', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_silkie_egg_soup', label: '共同灶台乌鸡蛋羹', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'silkie_egg', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }], output_item_id: 'food_silkie_egg_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_goat_milk_soup', label: '共同灶台羊奶汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'goat_milk', quantity: 2, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }], output_item_id: 'food_goat_milk_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_truffle_fried_rice', label: '共同灶台松露炒饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'truffle', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }, { item_id: 'egg', quantity: 1, quality: 'normal' }], output_item_id: 'food_truffle_fried_rice', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_camel_milk_tea', label: '共同茶炉驼奶茶', station: 'tea_maker', process_kind: 'cooking_dish', input_items: [{ item_id: 'camel_milk', quantity: 1, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }], output_item_id: 'food_camel_milk_tea', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_congee', label: '共同灶台白粥', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'food_congee', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_roasted_sweet_potato', label: '共同灶台烤红薯', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }], output_item_id: 'food_roasted_sweet_potato', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_flour_roll', label: '共同灶台米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'dried_radish', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_flour_roll', output_quantity: 1, output_quality: 'normal' },
@@ -5245,6 +5305,24 @@
     const draft = selectedOfflineSharedDecorationRemovalReceiptDraft.value
     return draft?.target_ref || draft?.id || '未选择共同装修拆除回执'
   })
+  const selectedOfflineSharedDecorationRemovalRefundReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
+    (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
+      draft.purpose === 'shared_decoration_removal' &&
+      draft.state === 'executed' &&
+      Boolean(draft.final_spend_ledger_id) &&
+      (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    ) ?? null
+  )
+  const selectedOfflineSharedDecorationRemovalRefundReceiptTargetLabel = computed(() => {
+    const draft = selectedOfflineSharedDecorationRemovalRefundReceiptDraft.value
+    return draft?.target_ref || draft?.id || '未选择共同装修拆除退款回执'
+  })
+  const canRecordOfflineSharedDecorationRemovalRefundReceipt = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.record_shared_decoration_removal_refund_receipt === true &&
+    Boolean(selectedOfflineSharedDecorationRemovalRefundReceiptDraft.value) &&
+    offlineQueueRefundAcknowledged.value
+  )
   const canRecordOfflineSharedDecorationRemovalReceipt = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
     cohabitationStore.offlineStatus?.actor_capabilities?.record_shared_decoration_removal_receipt === true &&
@@ -5362,13 +5440,14 @@
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_receipt' | 'auto_income') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
     if (kind === 'animal_purchase') return selectedSharedAnimalBuyOption.value?.label || '未选动物类型'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
     if (kind === 'pet') return selectedSharedPet.value?.name || selectedSharedPet.value?.type || selectedSharedPet.value?.id || '未选宠物'
     if (kind === 'decoration') return selectedOfflineSharedDecorationTargetLabel.value
     if (kind === 'limited_decoration_receipt') return selectedOfflineLimitedDecorationDeliveryReceiptTargetLabel.value
+    if (kind === 'decoration_refund_receipt') return selectedOfflineSharedDecorationRemovalRefundReceiptTargetLabel.value
     if (kind === 'decoration_receipt') return selectedOfflineSharedDecorationRemovalReceiptTargetLabel.value
     if (kind === 'auto_income') return `${offlineAutoIncomePendingCount.value} 项待领`
     return selectedSharedWorkshopRecipe.value?.label || '未选配方'
@@ -5379,7 +5458,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_receipt' | 'auto_income',
+      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -5415,6 +5494,7 @@
       makeOption('process_shared_workshop_recipe', 'process_shared_workshop_recipe', '共同工坊处理', 'workshop', canProcessSelectedSharedWorkshopRecipe.value, '请选择材料充足且有权限的工坊配方'),
       makeOption('move_shared_decoration', 'move_shared_decoration', '共同装饰移动', 'decoration', canMoveSelectedSharedDecoration.value, '请选择可移动的共同装饰并确认建设权限'),
       makeOption('record_limited_decoration_delivery_receipt', 'record_limited_decoration_delivery_receipt', '限定装饰交付回执', 'limited_decoration_receipt', canRecordOfflineLimitedDecorationDeliveryReceipt.value, '请选择已扣款且待交付回执的限定装饰草案'),
+      makeOption('record_shared_decoration_removal_refund_receipt', 'record_shared_decoration_removal_refund_receipt', '共同装修拆除退款回执', 'decoration_refund_receipt', canRecordOfflineSharedDecorationRemovalRefundReceipt.value, '请选择已扣款且待退款回执的共同装修拆除草案，并确认补偿方案'),
       makeOption('record_shared_decoration_removal_receipt', 'record_shared_decoration_removal_receipt', '共同装修拆除回执', 'decoration_receipt', canRecordOfflineSharedDecorationRemovalReceipt.value, '请选择已扣款且待回执的共同装修拆除草案'),
       makeOption('collect_offline_auto_income', 'collect_offline_auto_income', '离线自动收益领取', 'auto_income', canCollectOfflineAutoIncome.value, '当前没有可领取自动收益或缺少权限'),
     ]
@@ -5912,6 +5992,7 @@
       process_shared_workshop_recipe: '共同工坊处理',
       move_shared_decoration: '共同装饰移动',
       record_limited_decoration_delivery_receipt: '限定装饰交付回执',
+      record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',
       record_shared_decoration_removal_receipt: '共同装修拆除回执',
       collect_offline_auto_income: '离线自动收益领取',
     }
@@ -5976,6 +6057,25 @@
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.client_base_stale === true ? '客户端基线过期' : '',
       ].filter(Boolean).join(' · ') || '共同装饰移动已按服务端契约状态合并'
+    }
+    if (entry.action === 'record_shared_decoration_removal_refund_receipt') {
+      const draftId = typeof entry.draft_id === 'string' ? entry.draft_id : ''
+      const receiptRef = typeof entry.receipt_ref === 'string' ? entry.receipt_ref : ''
+      const refundAmount = Math.max(0, Math.floor(Number(entry.refund_amount) || 0))
+      const balanceAfter = Math.max(0, Math.floor(Number(entry.balance_after) || 0))
+      const fundLedgerId = typeof entry.refund_fund_ledger_id === 'string' ? entry.refund_fund_ledger_id : ''
+      return [
+        draftId ? `草案 ${draftId}` : '',
+        receiptRef ? `回执 ${receiptRef}` : '',
+        refundAmount ? `退回基金 ${refundAmount}` : '',
+        balanceAfter ? `余额 ${balanceAfter}` : '',
+        fundLedgerId ? '基金退款流水已写' : '',
+        entry.shared_decoration_state_changed === false ? '共同装饰状态未改' : '',
+        entry.personal_home_mutated === false ? '个人小屋未改' : '',
+        entry.personal_inventory_merged === false ? '个人背包未改' : '',
+        entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
+        entry.client_base_stale === true ? '客户端基线过期' : '',
+      ].filter(Boolean).join(' · ') || '共同装修拆除退款回执已按服务端共同基金状态合并'
     }
     if (entry.action === 'record_limited_decoration_delivery_receipt' || entry.action === 'record_shared_decoration_removal_receipt') {
       const isLimitedDecorationDelivery = entry.action === 'record_limited_decoration_delivery_receipt'
@@ -6207,6 +6307,14 @@
       basePayload.target_ref = draft.target_ref
       basePayload.receipt_ref = `limited_decoration:${draft.target_ref || draft.id}:offline_receipt`
       basePayload.outcome = 'delivered'
+    } else if (option.id === 'record_shared_decoration_removal_refund_receipt') {
+      const draft = selectedOfflineSharedDecorationRemovalRefundReceiptDraft.value
+      if (!draft || !offlineQueueRefundAcknowledged.value) return null
+      basePayload.draft_id = draft.id
+      basePayload.target_ref = draft.target_ref
+      basePayload.receipt_ref = `shared_decoration_removal_refund:${draft.target_ref || draft.id}:offline_receipt`
+      basePayload.outcome = 'refunded'
+      basePayload.compensation_plan_acknowledged = true
     } else if (option.id === 'record_shared_decoration_removal_receipt') {
       const draft = selectedOfflineSharedDecorationRemovalReceiptDraft.value
       if (!draft) return null
@@ -9382,6 +9490,9 @@
       buy_shared_animal: '买入共同动物',
       sell_shared_animal: '出售共同动物',
       care_shared_pet: '照料共同宠物',
+      record_limited_decoration_delivery_receipt: '限定装饰交付回执',
+      record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',
+      record_shared_decoration_removal_receipt: '共同装修拆除回执',
       collect_offline_auto_income: '领取离线自动收益',
       preflight_offline_conflicts: '预检离线冲突',
       resolve_offline_conflicts: '离线冲突解决',

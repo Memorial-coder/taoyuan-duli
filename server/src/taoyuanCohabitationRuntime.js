@@ -128,7 +128,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 3;
+const WAREHOUSE_ITEM_POLICY_VERSION = 4;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -141,6 +141,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'seed_cabbage', 'seed_radish', 'seed_rice', 'seed_wheat', 'seed_corn', 'seed_tea', 'seed_lotus', 'seed_turnip', 'seed_carrot', 'seed_sweet_potato', 'seed_pumpkin', 'seed_sesame', 'seed_peach', 'seed_chili',
   'premium_feed', 'nourishing_feed', 'vitality_feed',
   'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
+  'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -572,6 +573,7 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'process_shared_workshop_recipe',
   'move_shared_decoration',
   'record_limited_decoration_delivery_receipt',
+  'record_shared_decoration_removal_refund_receipt',
   'record_shared_decoration_removal_receipt',
   'collect_offline_auto_income',
 ]);
@@ -900,6 +902,82 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_ginger_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_scrambled_egg_rice: {
+    id: 'shared_scrambled_egg_rice',
+    label: '共同灶台蛋炒饭',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'egg', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_scrambled_egg_rice',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_boiled_egg: {
+    id: 'shared_boiled_egg',
+    label: '共同灶台水煮蛋',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [{ item_id: 'egg', quantity: 2, quality: 'normal' }],
+    output_item_id: 'food_boiled_egg',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_silkie_egg_soup: {
+    id: 'shared_silkie_egg_soup',
+    label: '共同灶台乌鸡蛋羹',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'silkie_egg', quantity: 2, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_silkie_egg_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_goat_milk_soup: {
+    id: 'shared_goat_milk_soup',
+    label: '共同灶台羊奶汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'goat_milk', quantity: 2, quality: 'normal' },
+      { item_id: 'herb', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_goat_milk_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_truffle_fried_rice: {
+    id: 'shared_truffle_fried_rice',
+    label: '共同灶台松露炒饭',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'truffle', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+      { item_id: 'egg', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_truffle_fried_rice',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_camel_milk_tea: {
+    id: 'shared_camel_milk_tea',
+    label: '共同茶炉驼奶茶',
+    station: 'tea_maker',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'camel_milk', quantity: 1, quality: 'normal' },
+      { item_id: 'tea', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_camel_milk_tea',
     output_quantity: 1,
     output_quality: 'normal',
   },
@@ -9550,6 +9628,8 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       record_limited_decoration_delivery_receipt: actorPermissions.fund.spend_large === true
         && actorPermissions.confirmations.large_fund_spend_requires_both === true
         && actorPermissions.construction.buy_furniture === true,
+      record_shared_decoration_removal_refund_receipt: actorPermissions.fund.spend_large === true
+        && actorPermissions.confirmations.large_fund_spend_requires_both === true,
       record_shared_decoration_removal_receipt: actorPermissions.fund.spend_large === true
         && actorPermissions.confirmations.large_fund_spend_requires_both === true
         && actorPermissions.construction.demolish_building === true,
@@ -11683,6 +11763,50 @@ function normalizeSeparationStoryCinematicPlaybackPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationStoryDialogueLines(lines = []) {
+  return (Array.isArray(lines) ? lines : [])
+    .map((line, index) => ({
+      line_id: sanitizeText(line?.line_id || `line_${index + 1}`, 80),
+      speaker_role: sanitizeText(line?.speaker_role, 80) || 'narrator',
+      speaker_label: sanitizeText(line?.speaker_label, 80),
+      emotion: sanitizeText(line?.emotion, 80),
+      beat: sanitizeText(line?.beat, 80),
+      text: sanitizeText(line?.text, 180),
+    }))
+    .filter(line => line.text)
+    .slice(0, 12);
+}
+
+function normalizeSeparationStoryAnimationCues(cues = []) {
+  return (Array.isArray(cues) ? cues : [])
+    .map((cue, index) => ({
+      cue_id: sanitizeText(cue?.cue_id || `cue_${index + 1}`, 80),
+      actor_role: sanitizeText(cue?.actor_role, 80) || 'scene',
+      action: sanitizeText(cue?.action, 100),
+      stage: sanitizeText(cue?.stage, 80),
+      timing: sanitizeText(cue?.timing, 80),
+      target_ref: sanitizeText(cue?.target_ref, 120),
+      duration_ms: Math.max(0, Math.floor(Number(cue?.duration_ms) || 0)),
+    }))
+    .filter(cue => cue.action)
+    .slice(0, 12);
+}
+
+function normalizeSeparationStoryContentFields(source = {}) {
+  const dialogueLines = normalizeSeparationStoryDialogueLines(source.dialogue_lines);
+  const animationCues = normalizeSeparationStoryAnimationCues(source.animation_cues);
+  return {
+    story_content_version: Math.max(
+      0,
+      Math.floor(Number(source.story_content_version) || ((dialogueLines.length || animationCues.length) ? 1 : 0))
+    ),
+    dialogue_lines: dialogueLines,
+    animation_cues: animationCues,
+    cinematic_stage_direction: sanitizeText(source.cinematic_stage_direction, 180),
+    cinematic_playback_policy: sanitizeText(source.cinematic_playback_policy, 180),
+  };
+}
+
 function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, options = {}) {
   const relationType = normalizeRelationType(contract.type);
   const relationDef = RELATION_TYPE_DEFS[relationType] || RELATION_TYPE_DEFS.lover_cohabitation;
@@ -11711,6 +11835,11 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
     personal_story_write_required: personalStoryWriteRequired,
     child_arrangement_required: childArrangementRequired,
     frontend_cinematic_pending: false,
+    story_content_version: 1,
+    dialogue_lines: [],
+    animation_cues: [],
+    cinematic_stage_direction: '',
+    cinematic_playback_policy: '前端播放或跳过演出时必须记录回执；该回执只证明共同契约演出状态，不改个人主状态。',
     personal_state_mutated: false,
     personal_save_mutation_enabled: false,
     contract_record_only: true,
@@ -11726,6 +11855,17 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
       animation_event_id: 'separation_lover_moveout_animation',
       exit_record_kind: 'lover_moveout_receipt',
       frontend_cinematic_pending: true,
+      cinematic_stage_direction: '傍晚共同院落；两人收好个人包袱，把共同钥匙放回桌上后从庄园门口分开。',
+      dialogue_lines: [
+        { line_id: 'lover_farewell_01', speaker_role: 'member_a', emotion: 'gentle', beat: 'acknowledge', text: '这段日子是真的，我们只是要把路分清。' },
+        { line_id: 'lover_farewell_02', speaker_role: 'member_b', emotion: 'soft', beat: 'farewell', text: '院里的灯我会留一盏，等风把话说完。' },
+        { line_id: 'lover_farewell_03', speaker_role: 'narrator', emotion: 'quiet', beat: 'moveout', text: '两人把共同钥匙放回案上，搬离的脚步没有惊动院里的花。' },
+      ],
+      animation_cues: [
+        { cue_id: 'lover_dim_shared_lamp', actor_role: 'scene', action: 'dim_shared_room_lamp', stage: 'shared_room', timing: 'intro', duration_ms: 1200 },
+        { cue_id: 'lover_pack_bundle', actor_role: 'member_b', action: 'pack_personal_bundle', stage: 'doorway', timing: 'dialogue_mid', duration_ms: 1800 },
+        { cue_id: 'lover_gate_parting', actor_role: 'both_members', action: 'walk_to_manor_gate_and_part', stage: 'manor_gate', timing: 'outro', duration_ms: 2400 },
+      ],
     },
     marriage_home: {
       relationship_story_rule: 'marriage_breakup_family_story_record',
@@ -11737,6 +11877,17 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
       family_fund_settlement_required: true,
       family_fund_settlement_state: sharedFundRefunded ? 'shared_fund_refunded' : 'shared_fund_refund_required',
       frontend_cinematic_pending: true,
+      cinematic_stage_direction: '家庭桌前合上账册；孩子安排、共同基金结算和搬离路线按剧情规则分别入档。',
+      dialogue_lines: [
+        { line_id: 'marriage_breakup_01', speaker_role: 'member_a', emotion: 'steady', beat: 'family_boundary', text: '家还是家，只是从今天起换一种守法。' },
+        { line_id: 'marriage_breakup_02', speaker_role: 'member_b', emotion: 'resolved', beat: 'child_and_fund', text: '孩子的事按约定来，共同的账也清清楚楚。' },
+        { line_id: 'marriage_breakup_03', speaker_role: 'narrator', emotion: 'calm', beat: 'settlement', text: '桌上的账册合上，家庭安排与基金结算一并入档。' },
+      ],
+      animation_cues: [
+        { cue_id: 'marriage_close_ledger', actor_role: 'both_members', action: 'close_family_ledger', stage: 'family_table', timing: 'intro', duration_ms: 1500 },
+        { cue_id: 'marriage_child_schedule', actor_role: 'scene', action: 'show_child_arrangement_scroll', stage: 'family_table', timing: 'dialogue_mid', duration_ms: 1600 },
+        { cue_id: 'marriage_split_household', actor_role: 'member_b', action: 'leave_household_door_with_bundle', stage: 'home_door', timing: 'outro', duration_ms: 2600 },
+      ],
     },
     bosom_partner: {
       relationship_story_rule: 'bosom_partner_farewell_future_cooperation_record',
@@ -11747,6 +11898,17 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
       exit_record_kind: 'bosom_partner_agreement_receipt',
       future_cooperation_option: true,
       frontend_cinematic_pending: true,
+      cinematic_stage_direction: '旧木桥旁道别；拆伙记录落章，但未来合作木牌仍被保留。',
+      dialogue_lines: [
+        { line_id: 'bosom_farewell_01', speaker_role: 'member_a', emotion: 'warm', beat: 'farewell', text: '今日拆伙，不拆情分。' },
+        { line_id: 'bosom_farewell_02', speaker_role: 'member_b', emotion: 'hopeful', beat: 'future', text: '来日若有好局，再并肩。' },
+        { line_id: 'bosom_farewell_03', speaker_role: 'narrator', emotion: 'bright', beat: 'agreement', text: '两人对掌为约，把未来合作写进旧木牌。' },
+      ],
+      animation_cues: [
+        { cue_id: 'bosom_bridge_pause', actor_role: 'both_members', action: 'pause_on_old_bridge', stage: 'old_bridge', timing: 'intro', duration_ms: 1300 },
+        { cue_id: 'bosom_hand_pact', actor_role: 'both_members', action: 'seal_future_pact', stage: 'old_bridge', timing: 'dialogue_mid', duration_ms: 1700 },
+        { cue_id: 'bosom_future_token', actor_role: 'scene', action: 'focus_future_cooperation_token', stage: 'notice_board', timing: 'outro', duration_ms: 1500 },
+      ],
     },
     oath_manor: {
       relationship_story_rule: 'family_manor_meeting_handover_record',
@@ -11758,6 +11920,17 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
       meeting_record_required: true,
       handover_record_required: true,
       frontend_cinematic_pending: true,
+      cinematic_stage_direction: '家族议事厅内开会，仓、田、账、院按交接册逐项过手。',
+      dialogue_lines: [
+        { line_id: 'oath_meeting_01', speaker_role: 'family_head', emotion: 'formal', beat: 'meeting_open', text: '今日开会，只交接，不问罪。' },
+        { line_id: 'oath_meeting_02', speaker_role: 'member', emotion: 'steady', beat: 'handover', text: '仓、田、账、院都按记录过手。' },
+        { line_id: 'oath_meeting_03', speaker_role: 'narrator', emotion: 'solemn', beat: 'seal', text: '家族印记落在交接册上，离庄的人仍有姓名可查。' },
+      ],
+      animation_cues: [
+        { cue_id: 'oath_open_meeting', actor_role: 'family_head', action: 'open_family_meeting', stage: 'family_hall', timing: 'intro', duration_ms: 1500 },
+        { cue_id: 'oath_pass_handover_book', actor_role: 'member', action: 'pass_handover_book', stage: 'family_hall', timing: 'dialogue_mid', duration_ms: 1800 },
+        { cue_id: 'oath_stamp_record', actor_role: 'scene', action: 'stamp_family_handover_record', stage: 'family_hall', timing: 'outro', duration_ms: 1700 },
+      ],
     },
     business_partner: {
       relationship_story_rule: 'business_partner_handover_settlement_record',
@@ -11769,6 +11942,17 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
       handover_record_required: true,
       future_cooperation_option: true,
       frontend_cinematic_pending: true,
+      cinematic_stage_direction: '柜台前清点账册与货契；拆伙后保留未来合作口头约定。',
+      dialogue_lines: [
+        { line_id: 'business_handover_01', speaker_role: 'partner_a', emotion: 'practical', beat: 'settlement', text: '账算清，路也好再开。' },
+        { line_id: 'business_handover_02', speaker_role: 'partner_b', emotion: 'measured', beat: 'handover', text: '货契交给你，旧招牌我不带走。' },
+        { line_id: 'business_handover_03', speaker_role: 'narrator', emotion: 'calm', beat: 'future', text: '算盘声停下，下一次合作被写在空白账页边角。' },
+      ],
+      animation_cues: [
+        { cue_id: 'business_count_ledger', actor_role: 'both_members', action: 'count_counter_ledger', stage: 'counter', timing: 'intro', duration_ms: 1400 },
+        { cue_id: 'business_pass_contract', actor_role: 'partner_b', action: 'pass_trade_contract', stage: 'counter', timing: 'dialogue_mid', duration_ms: 1500 },
+        { cue_id: 'business_close_signboard', actor_role: 'scene', action: 'close_partner_signboard', stage: 'shop_front', timing: 'outro', duration_ms: 1800 },
+      ],
     },
     seasonal_cofarm: {
       relationship_story_rule: 'seasonal_cofarm_closure_record',
@@ -11776,6 +11960,13 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
       story_event_label: 'Seasonal co-farm closure record',
       dialogue_event_id: 'separation_seasonal_cofarm_closure_dialogue',
       exit_record_kind: 'seasonal_cofarm_closure_record',
+      cinematic_stage_direction: '季节合耕结束时收起木牌，剩余记录按合约归档。',
+      dialogue_lines: [
+        { line_id: 'seasonal_close_01', speaker_role: 'narrator', emotion: 'clear', beat: 'closure', text: '这一季的共同田收进册里，下一季各自再开新垄。' },
+      ],
+      animation_cues: [
+        { cue_id: 'seasonal_collect_sign', actor_role: 'scene', action: 'collect_seasonal_cofarm_sign', stage: 'field_edge', timing: 'outro', duration_ms: 1600 },
+      ],
     },
   };
   return {
@@ -13929,6 +14120,7 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
         && receipt?.execution_ledger_id === ledger.id
       )
     );
+    const storyContent = normalizeSeparationStoryContentFields(storyResolution);
     const receipt = {
       receipt_id: receiptId,
       type: 'cohabitation_separation_personal_story',
@@ -13942,6 +14134,11 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       story_event_kind: sanitizeText(storyResolution.story_event_kind, 100),
       dialogue_event_id: sanitizeText(storyResolution.dialogue_event_id, 120),
       animation_event_id: sanitizeText(storyResolution.animation_event_id, 120),
+      story_content_version: storyContent.story_content_version,
+      dialogue_lines: storyContent.dialogue_lines,
+      animation_cues: storyContent.animation_cues,
+      cinematic_stage_direction: storyContent.cinematic_stage_direction,
+      cinematic_playback_policy: storyContent.cinematic_playback_policy,
       exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
       frontend_cinematic_pending: storyResolution.frontend_cinematic_pending === true,
       frontend_cinematic_played: storyResolution.frontend_cinematic_played === true,
@@ -13984,6 +14181,11 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       story_event_kind: receipt.story_event_kind,
       dialogue_event_id: receipt.dialogue_event_id,
       animation_event_id: receipt.animation_event_id,
+      story_content_version: receipt.story_content_version,
+      dialogue_lines: receipt.dialogue_lines,
+      animation_cues: receipt.animation_cues,
+      cinematic_stage_direction: receipt.cinematic_stage_direction,
+      cinematic_playback_policy: receipt.cinematic_playback_policy,
       exit_record_kind: receipt.exit_record_kind,
       frontend_cinematic_pending: receipt.frontend_cinematic_pending,
       frontend_cinematic_played: receipt.frontend_cinematic_played,
@@ -15328,6 +15530,11 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           story_event_kind: sanitizeText(entry.family_story_cinematic_receipt.story_event_kind, 100),
           dialogue_event_id: sanitizeText(entry.family_story_cinematic_receipt.dialogue_event_id, 120),
           animation_event_id: sanitizeText(entry.family_story_cinematic_receipt.animation_event_id, 120),
+          story_content_version: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.story_content_version) || 0)),
+          dialogue_line_count: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.dialogue_line_count) || 0)),
+          animation_cue_count: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.animation_cue_count) || 0)),
+          cinematic_stage_direction: sanitizeText(entry.family_story_cinematic_receipt.cinematic_stage_direction, 180),
+          cinematic_playback_policy: sanitizeText(entry.family_story_cinematic_receipt.cinematic_playback_policy, 180),
           personal_state_mutated: entry.family_story_cinematic_receipt.personal_state_mutated === true,
           contract_record_only: entry.family_story_cinematic_receipt.contract_record_only !== false,
           played_at: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.played_at) || 0)),
@@ -15343,6 +15550,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           relationship_story_rule: sanitizeText(entry.family_story_resolution.relationship_story_rule, 100),
           story_event_kind: sanitizeText(entry.family_story_resolution.story_event_kind, 100),
           story_event_label: sanitizeText(entry.family_story_resolution.story_event_label, 120),
+          ...normalizeSeparationStoryContentFields(entry.family_story_resolution),
           dialogue_event_id: sanitizeText(entry.family_story_resolution.dialogue_event_id, 120),
           animation_event_id: sanitizeText(entry.family_story_resolution.animation_event_id, 120),
           exit_record_kind: sanitizeText(entry.family_story_resolution.exit_record_kind, 100),
@@ -15385,6 +15593,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           resolution_choice: sanitizeText(item.resolution_choice, 80),
           relationship_story_rule: sanitizeText(item.relationship_story_rule, 100),
           story_event_kind: sanitizeText(item.story_event_kind, 100),
+          ...normalizeSeparationStoryContentFields(item),
           dialogue_event_id: sanitizeText(item.dialogue_event_id, 120),
           animation_event_id: sanitizeText(item.animation_event_id, 120),
           exit_record_kind: sanitizeText(item.exit_record_kind, 100),
@@ -18695,6 +18904,16 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared decoration removal receipt merge', 160),
     }, actor);
   }
+  if (operation.action === 'record_shared_decoration_removal_refund_receipt') {
+    return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
+      ...payload,
+      outcome: 'refunded',
+      receipt_ref: payload.receipt_ref || payload.refund_receipt_ref || payload.removal_receipt_ref || payload.target_ref,
+      compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true || payload.refund_acknowledged === true,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared decoration removal refund receipt merge', 160),
+    }, actor);
+  }
   if (operation.action === 'record_limited_decoration_delivery_receipt') {
     return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
       ...payload,
@@ -18908,6 +19127,40 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       compensation_hint: 'offline shared decoration move only updates contract shared_decoration_state and audit log; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
+  if (action === 'record_shared_decoration_removal_refund_receipt') {
+    const draft = result.draft || {};
+    const receipt = result.receipt || {};
+    const originalFundLedger = result.original_fund_ledger_entry || {};
+    const refundLedger = result.refund_ledger_entry || {};
+    const targetRef = draft.target_ref || sanitizeText(operation.payload?.target_ref || operation.payload?.receipt_ref, 120);
+    const refundLedgerId = refundLedger.id || draft.high_risk_refund_ledger_id || '';
+    const originalFundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || '';
+    return {
+      ...entry,
+      target_ref: entry.target_ref || targetRef || (draft.id ? `shared_decoration_removal:${draft.id}:refund_receipt` : ''),
+      draft_id: draft.id || sanitizeText(operation.payload?.draft_id || operation.payload?.draftId || operation.payload?.id, 100),
+      receipt_id: receipt.id || '',
+      receipt_ref: receipt.receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.refund_receipt_ref || operation.payload?.target_ref, 120),
+      receipt_outcome: receipt.outcome || 'refunded',
+      receipt_kind: 'shared_decoration_removal_refund',
+      original_fund_ledger_id: originalFundLedgerId,
+      refund_fund_ledger_id: refundLedgerId,
+      fund_ledger_id: refundLedgerId,
+      fund_ledger_ids: [refundLedgerId, originalFundLedgerId].filter(Boolean),
+      refund_amount: Math.max(0, Math.floor(Number(result.shared_fund?.refund_amount || refundLedger.amount || draft.amount || originalFundLedger.amount) || 0)),
+      balance_after: Math.max(0, Math.floor(Number(result.shared_fund?.balance_after || result.fund?.balance || refundLedger.balance_after) || 0)),
+      required_permission_keys: Array.isArray(result.required_permission_keys) ? result.required_permission_keys : [],
+      shared_decoration_state_changed: false,
+      personal_home_mutated: false,
+      personal_save_changed: false,
+      personal_inventory_merged: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: true,
+      already_recorded: result.already_recorded === true,
+      audit_action: 'fund_high_risk_receipt_recorded',
+      compensation_hint: 'offline shared decoration removal refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal home saves, personal inventory, and shared warehouse remain unchanged.',
+    };
+  }
   if (action === 'record_shared_decoration_removal_receipt' || action === 'record_limited_decoration_delivery_receipt') {
     const draft = result.draft || {};
     const receipt = result.receipt || {};
@@ -19082,6 +19335,44 @@ function buildCohabitationOfflineSharedDecorationRemovalReceiptRejection(operati
     server_authoritative: true,
     conflict_policy: 'server_authoritative_reject_and_continue',
     compensation_hint: 'offline shared decoration removal receipt was rejected before any shared decoration state, personal home, warehouse, or fund mutation.',
+  };
+}
+
+function buildCohabitationOfflineSharedDecorationRemovalRefundReceiptRejection(operation = {}, error = {}) {
+  if (operation.action !== 'record_shared_decoration_removal_refund_receipt') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'shared_decoration_removal_refund_receipt_server_state_rejected';
+  if (status === 400) reason = 'invalid_shared_decoration_removal_refund_receipt_operation';
+  if (status === 403) reason = 'shared_decoration_removal_refund_receipt_permission_denied';
+  if (status === 404) reason = 'shared_decoration_removal_draft_not_found';
+  if (status === 409) reason = 'shared_decoration_removal_refund_receipt_state_conflict';
+  if (status === 409 && message.includes('补偿方案')) reason = 'shared_decoration_removal_refund_acknowledgement_required';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'shared_decoration_removal_refund_receipt_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    draft_id: sanitizeText(payload.draft_id || payload.draftId || payload.id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.refund_receipt_ref || payload.target_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.receipt_ref || payload.refund_receipt_ref, 120),
+    required_permission_keys: ['fund.spend_large', 'confirmations.large_fund_spend_requires_both'],
+    shared_decoration_state_changed: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    personal_inventory_merged: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline shared decoration removal refund receipt was rejected before any shared fund refund, shared decoration state, personal home, warehouse, or inventory mutation.',
   };
 }
 
@@ -19770,6 +20061,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const sharedDecorationRemovalReceiptRejection = buildCohabitationOfflineSharedDecorationRemovalReceiptRejection(operation, error);
       if (sharedDecorationRemovalReceiptRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(sharedDecorationRemovalReceiptRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const sharedDecorationRemovalRefundReceiptRejection = buildCohabitationOfflineSharedDecorationRemovalRefundReceiptRejection(operation, error);
+      if (sharedDecorationRemovalRefundReceiptRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(sharedDecorationRemovalRefundReceiptRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const limitedDecorationDeliveryReceiptRejection = buildCohabitationOfflineLimitedDecorationDeliveryReceiptRejection(operation, error);
@@ -30618,6 +30914,7 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     child_arrangement_required: childArrangementRequired,
     shared_fund_refunded: ledger.shared_fund_refunded === true,
   }));
+  Object.assign(storyResolution, normalizeSeparationStoryContentFields(storyResolution));
   const nextRequiredOperations = ledger.decorations_buildings_split === true ? [] : ['split_decorations'];
   if (childArrangementRequired) nextRequiredOperations.push('resolve_child_arrangement');
   if (personalStoryWriteRequired) nextRequiredOperations.push('write_personal_story_receipts');
@@ -30673,6 +30970,10 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     story_event_kind: storyResolution.story_event_kind,
     dialogue_event_id: storyResolution.dialogue_event_id,
     animation_event_id: storyResolution.animation_event_id,
+    story_content_version: storyResolution.story_content_version,
+    dialogue_line_count: storyResolution.dialogue_lines.length,
+    animation_cue_count: storyResolution.animation_cues.length,
+    cinematic_stage_direction: storyResolution.cinematic_stage_direction,
     exit_record_kind: storyResolution.exit_record_kind,
     meeting_record_required: storyResolution.meeting_record_required,
     handover_record_required: storyResolution.handover_record_required,
@@ -30766,6 +31067,7 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
   if (ledger.family_story_resolved !== true || !ledger.family_story_resolution) throw createError('分居剧情拆分尚未记录，不能记录剧情演出播放', 409);
 
   const storyResolution = ledger.family_story_resolution || {};
+  const storyContent = normalizeSeparationStoryContentFields(storyResolution);
   const expectedStoryEventKind = sanitizeText(storyResolution.story_event_kind, 100);
   const expectedDialogueEventId = sanitizeText(storyResolution.dialogue_event_id, 120);
   const expectedAnimationEventId = sanitizeText(storyResolution.animation_event_id, 120);
@@ -30782,6 +31084,7 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
   const playedAt = nowSeconds();
   const nextStoryResolution = {
     ...storyResolution,
+    ...storyContent,
     frontend_cinematic_pending: false,
     frontend_cinematic_played: true,
     frontend_cinematic_played_at: playedAt,
@@ -30799,6 +31102,11 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     story_event_kind: expectedStoryEventKind,
     dialogue_event_id: expectedDialogueEventId,
     animation_event_id: expectedAnimationEventId,
+    story_content_version: storyContent.story_content_version,
+    dialogue_line_count: storyContent.dialogue_lines.length,
+    animation_cue_count: storyContent.animation_cues.length,
+    cinematic_stage_direction: storyContent.cinematic_stage_direction,
+    cinematic_playback_policy: storyContent.cinematic_playback_policy,
     exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
     frontend_cinematic_pending: false,
     frontend_cinematic_played: true,
@@ -30858,6 +31166,10 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     story_event_kind: nextStoryResolution.story_event_kind,
     dialogue_event_id: nextStoryResolution.dialogue_event_id,
     animation_event_id: nextStoryResolution.animation_event_id,
+    story_content_version: nextStoryResolution.story_content_version,
+    dialogue_line_count: nextStoryResolution.dialogue_lines.length,
+    animation_cue_count: nextStoryResolution.animation_cues.length,
+    cinematic_stage_direction: nextStoryResolution.cinematic_stage_direction,
     exit_record_kind: nextStoryResolution.exit_record_kind,
     frontend_cinematic_pending: nextStoryResolution.frontend_cinematic_pending,
     frontend_cinematic_played: nextStoryResolution.frontend_cinematic_played,

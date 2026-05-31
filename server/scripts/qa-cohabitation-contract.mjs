@@ -595,13 +595,19 @@ assert.equal(marriageStoryPlan.story_event_kind, 'marriage_breakup_family_arrang
 assert.equal(marriageStoryPlan.child_arrangement_required, true, 'marriage story plan should preserve child arrangement requirement')
 assert.equal(marriageStoryPlan.family_fund_settlement_required, true, 'marriage story plan should require fund settlement evidence')
 assert.equal(marriageStoryPlan.family_fund_settlement_state, 'shared_fund_refunded', 'marriage story plan should acknowledge completed shared fund refund')
+assert.ok(marriageStoryPlan.dialogue_lines.some(line => line.text.includes('孩子的事按约定来')), 'marriage story plan should include dedicated family breakup dialogue text')
+assert.ok(marriageStoryPlan.animation_cues.some(cue => cue.action === 'show_child_arrangement_scroll'), 'marriage story plan should include child arrangement animation cue')
 const bosomStoryPlan = runtime.buildSeparationRelationshipStoryPlan({ type: 'bosom_partner' }, {}, {})
 assert.equal(bosomStoryPlan.story_event_kind, 'bosom_partner_farewell_or_future_cooperation', 'bosom partner separation should map to farewell/future cooperation evidence')
 assert.equal(bosomStoryPlan.future_cooperation_option, true, 'bosom partner story plan should expose future cooperation option')
+assert.ok(bosomStoryPlan.dialogue_lines.some(line => line.text.includes('今日拆伙，不拆情分')), 'bosom partner story plan should include dedicated farewell dialogue text')
+assert.ok(bosomStoryPlan.animation_cues.some(cue => cue.action === 'seal_future_pact'), 'bosom partner story plan should include future cooperation animation cue')
 const oathManorStoryPlan = runtime.buildSeparationRelationshipStoryPlan({ type: 'oath_manor' }, {}, {})
 assert.equal(oathManorStoryPlan.meeting_record_required, true, 'oath manor separation should require a family meeting record')
 assert.equal(oathManorStoryPlan.handover_record_required, true, 'oath manor separation should require a handover record')
 assert.equal(oathManorStoryPlan.personal_story_write_required, false, 'oath manor story plan should stay contract-record-only for personal story receipts')
+assert.ok(oathManorStoryPlan.dialogue_lines.some(line => line.text.includes('只交接，不问罪')), 'oath manor story plan should include family meeting dialogue text')
+assert.ok(oathManorStoryPlan.animation_cues.some(cue => cue.action === 'stamp_family_handover_record'), 'oath manor story plan should include handover animation cue')
 const recipePolicyPartnerRequest = await socialRuntime.requestFriendship(recipePolicyOwner, { target_username: recipePolicyPartner })
 await socialRuntime.acceptFriendRequest(recipePolicyPartner, recipePolicyPartnerRequest.id)
 assert.equal(overview.relation_options.find(option => option.id === 'oath_manor')?.family_role_management, true, 'oath manor should expose family role management capability')
@@ -4034,10 +4040,11 @@ await assert.rejects(
 
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 3, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 4, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_camel_milk_tea'), 'warehouse item policy should list animal-product dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
@@ -4102,6 +4109,37 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_ginger_soup',
   outputItemId: 'food_ginger_soup',
   inputs: [{ itemId: 'ginger', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_scrambled_egg_rice',
+  outputItemId: 'food_scrambled_egg_rice',
+  inputs: [{ itemId: 'egg', quantity: 1 }, { itemId: 'rice', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_boiled_egg',
+  outputItemId: 'food_boiled_egg',
+  inputs: [{ itemId: 'egg', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_silkie_egg_soup',
+  outputItemId: 'food_silkie_egg_soup',
+  inputs: [{ itemId: 'silkie_egg', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_goat_milk_soup',
+  outputItemId: 'food_goat_milk_soup',
+  inputs: [{ itemId: 'goat_milk', quantity: 2 }, { itemId: 'herb', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_truffle_fried_rice',
+  outputItemId: 'food_truffle_fried_rice',
+  inputs: [{ itemId: 'truffle', quantity: 1 }, { itemId: 'rice', quantity: 1 }, { itemId: 'egg', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_camel_milk_tea',
+  outputItemId: 'food_camel_milk_tea',
+  station: 'tea_maker',
+  inputs: [{ itemId: 'camel_milk', quantity: 1 }, { itemId: 'tea', quantity: 1 }],
 })
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',
@@ -8682,6 +8720,10 @@ assert.equal(familyStoryResolution.story_resolution.story_event_kind, 'lover_far
 assert.equal(familyStoryResolution.story_resolution.dialogue_event_id, 'separation_lover_farewell_dialogue', 'lover separation should expose the farewell dialogue id')
 assert.equal(familyStoryResolution.story_resolution.animation_event_id, 'separation_lover_moveout_animation', 'lover separation should expose the move-out animation id')
 assert.equal(familyStoryResolution.story_resolution.exit_record_kind, 'lover_moveout_receipt', 'lover separation should expose the exit receipt kind')
+assert.equal(familyStoryResolution.story_resolution.story_content_version, 1, 'lover separation should expose versioned story content')
+assert.ok(familyStoryResolution.story_resolution.dialogue_lines.some(line => line.text.includes('这段日子是真的')), 'lover separation should expose dedicated farewell dialogue text')
+assert.ok(familyStoryResolution.story_resolution.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part'), 'lover separation should expose move-out animation cue')
+assert.ok(familyStoryResolution.story_resolution.cinematic_stage_direction.includes('共同院落'), 'lover separation should expose stage direction')
 assert.equal(familyStoryResolution.story_resolution.frontend_cinematic_pending, true, 'lover separation should leave the cinematic pending for the frontend')
 assert.equal(familyStoryResolution.story_resolution.personal_state_mutated, false, 'family story resolution should not mutate personal story state')
 assert.equal(familyStoryResolution.story_resolution.contract_record_only, true, 'family story resolution should stay contract-record-only')
@@ -8691,6 +8733,8 @@ const familyStoryAudit = familyStoryResolution.contract.audit_log.find(entry => 
 assert.equal(familyStoryAudit?.detail?.story_event_kind, 'lover_farewell_moveout', 'family story audit should include the concrete story event kind')
 assert.equal(familyStoryAudit?.detail?.dialogue_event_id, 'separation_lover_farewell_dialogue', 'family story audit should include the dialogue event id')
 assert.equal(familyStoryAudit?.detail?.animation_event_id, 'separation_lover_moveout_animation', 'family story audit should include the animation event id')
+assert.equal(familyStoryAudit?.detail?.dialogue_line_count, 3, 'family story audit should count dedicated dialogue lines')
+assert.equal(familyStoryAudit?.detail?.animation_cue_count, 3, 'family story audit should count cinematic cues')
 assert.equal(familyStoryAudit?.detail?.frontend_cinematic_pending, true, 'family story audit should mark pending frontend cinematic work')
 assert.equal(familyStoryAudit?.detail?.personal_state_mutated, false, 'family story audit should keep personal mutation false')
 assert.ok(familyStoryResolution.contract.audit_log.find(entry => entry.action === 'separation_family_story_resolved' && entry.idempotency_key === 'qa-separation-family-story-resolution'), 'family story resolution should be audited')
@@ -8738,8 +8782,12 @@ assert.equal(storyCinematicPlayback.idempotent, false, 'first story cinematic pl
 assert.equal(storyCinematicPlayback.execution_ledger.status, 'family_story_resolved', 'story cinematic playback should not change the separation execution step')
 assert.equal(storyCinematicPlayback.execution_ledger.family_story_cinematic_played, true, 'story cinematic playback should mark the ledger played')
 assert.equal(storyCinematicPlayback.execution_ledger.family_story_cinematic_receipt.story_event_kind, 'lover_farewell_moveout', 'story cinematic receipt should keep event kind')
+assert.equal(storyCinematicPlayback.execution_ledger.family_story_cinematic_receipt.dialogue_line_count, 3, 'story cinematic receipt should keep dialogue line count')
+assert.equal(storyCinematicPlayback.execution_ledger.family_story_cinematic_receipt.animation_cue_count, 3, 'story cinematic receipt should keep animation cue count')
 assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_pending, false, 'story cinematic playback should clear the pending frontend flag')
 assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_played, true, 'story cinematic playback should mark story resolution played')
+assert.ok(storyCinematicPlayback.story_resolution.dialogue_lines.some(line => line.text.includes('这段日子是真的')), 'story cinematic playback should preserve dedicated dialogue text')
+assert.ok(storyCinematicPlayback.story_resolution.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part'), 'story cinematic playback should preserve cinematic cues')
 assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_playback_state, 'played', 'story cinematic playback should keep playback state')
 assert.equal(storyCinematicPlayback.story_resolution.personal_state_mutated, false, 'story cinematic playback should not mutate personal story state')
 assert.equal(storyCinematicPlayback.preview.confirmation_state.execution_request.family_story_resolution.frontend_cinematic_played, true, 'preview execution request should expose played cinematic state')
@@ -8748,6 +8796,8 @@ const storyCinematicAudit = storyCinematicPlayback.contract.audit_log.find(entry
 assert.equal(storyCinematicAudit?.detail?.story_event_kind, 'lover_farewell_moveout', 'story cinematic audit should include event kind')
 assert.equal(storyCinematicAudit?.detail?.dialogue_event_id, 'separation_lover_farewell_dialogue', 'story cinematic audit should include dialogue event id')
 assert.equal(storyCinematicAudit?.detail?.animation_event_id, 'separation_lover_moveout_animation', 'story cinematic audit should include animation event id')
+assert.equal(storyCinematicAudit?.detail?.dialogue_line_count, 3, 'story cinematic audit should count dedicated dialogue lines')
+assert.equal(storyCinematicAudit?.detail?.animation_cue_count, 3, 'story cinematic audit should count cinematic cues')
 assert.equal(storyCinematicAudit?.detail?.frontend_cinematic_pending, false, 'story cinematic audit should clear pending frontend state')
 assert.equal(storyCinematicAudit?.detail?.personal_state_mutated, false, 'story cinematic audit should keep personal mutation false')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeStoryCinematicPlayback, 'story cinematic playback should not rewrite owner personal save')
@@ -8795,6 +8845,8 @@ assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_story
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.story_event_kind === 'lover_farewell_moveout'), 'personal story receipts should keep the story event kind')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.dialogue_event_id === 'separation_lover_farewell_dialogue'), 'personal story receipts should keep the dialogue event id')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.animation_event_id === 'separation_lover_moveout_animation'), 'personal story receipts should keep the animation event id')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.dialogue_lines.some(line => line.text.includes('这段日子是真的'))), 'personal story receipts should keep dedicated dialogue lines')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part')), 'personal story receipts should keep cinematic cues')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_pending === false), 'personal story receipts should preserve the cleared frontend cinematic state after playback')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_played === true), 'personal story receipts should keep the frontend cinematic playback receipt')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_state_mutated === false), 'personal story receipts should not mutate personal story state')
@@ -8810,6 +8862,10 @@ assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).so
   && receipt.story_event_kind === 'lover_farewell_moveout'
   && receipt.dialogue_event_id === 'separation_lover_farewell_dialogue'
   && receipt.animation_event_id === 'separation_lover_moveout_animation'
+  && Array.isArray(receipt.dialogue_lines)
+  && receipt.dialogue_lines.some(line => line.text.includes('这段日子是真的'))
+  && Array.isArray(receipt.animation_cues)
+  && receipt.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part')
   && receipt.frontend_cinematic_played === true
   && receipt.personal_state_mutated === false
 ), 'owner personal story receipt should include the lover farewell cinematic evidence')
@@ -12720,6 +12776,112 @@ const duplicateOfflineLimitedDecorationReceiptQueue = await runtime.mergeCohabit
 }, actor(offlineLimitedDecorationReceiptOwner))
 assert.equal(duplicateOfflineLimitedDecorationReceiptQueue.offline_queue_merge.idempotent, true, 'duplicate offline limited decoration delivery receipt queue should replay by queue idempotency key')
 assert.equal(duplicateOfflineLimitedDecorationReceiptQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline limited decoration delivery receipt should replay conflict resolution evidence')
+
+const offlineDecorationRemovalRefundOwner = 'cohabit_odrf_o31'
+const offlineDecorationRemovalRefundPartner = 'cohabit_odrf_p31'
+const offlineDecorationRemovalRefundContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineDecorationRemovalRefundOwner,
+  partnerUsername: offlineDecorationRemovalRefundPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'offline-decoration-removal-refund',
+})
+const offlineDecorationRemovalRefundFundBeforeDraft = await runtime.getCohabitationFund(offlineDecorationRemovalRefundContractId, actor(offlineDecorationRemovalRefundOwner))
+const offlineDecorationRemovalRefundBalanceBeforeDraft = offlineDecorationRemovalRefundFundBeforeDraft.fund.balance
+const offlineDecorationRemovalRefundOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineDecorationRemovalRefundOwner).slots[0].raw
+const offlineDecorationRemovalRefundPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineDecorationRemovalRefundPartner).slots[0].raw
+const offlineDecorationRemovalRefundDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineDecorationRemovalRefundContractId, {
+  amount: 1300,
+  purpose: 'shared_decoration_removal',
+  target_ref: 'shared_decoration:lotus_wall:remove',
+  memo: 'qa offline shared decoration removal refund receipt draft',
+  idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-draft',
+}, actor(offlineDecorationRemovalRefundOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineDecorationRemovalRefundContractId, offlineDecorationRemovalRefundDraft.draft.id, {
+  memo: 'qa partner confirms offline shared decoration removal refund receipt',
+  idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-confirm',
+}, actor(offlineDecorationRemovalRefundPartner))
+const offlineDecorationRemovalRefundExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineDecorationRemovalRefundContractId, offlineDecorationRemovalRefundDraft.draft.id, {
+  memo: 'qa execute offline shared decoration removal refund receipt',
+  idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-execute',
+}, actor(offlineDecorationRemovalRefundOwner))
+const offlineDecorationRemovalRefundStatus = await runtime.getCohabitationOfflineStatus(offlineDecorationRemovalRefundContractId, actor(offlineDecorationRemovalRefundOwner))
+assert.ok(offlineDecorationRemovalRefundStatus.offline_status.summary.offline_queue_supported_actions.includes('record_shared_decoration_removal_refund_receipt'), 'offline queue should expose shared decoration removal refund receipt as supported action')
+assert.equal(offlineDecorationRemovalRefundStatus.offline_status.actor_capabilities.record_shared_decoration_removal_refund_receipt, true, 'owner should be able to record shared decoration removal refund receipt offline')
+const offlineDecorationRemovalRefundDeniedQueue = await runtime.mergeCohabitationOfflineQueue(offlineDecorationRemovalRefundContractId, {
+  idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-denied-queue',
+  client_queue_revision: offlineDecorationRemovalRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_shared_decoration_removal_refund_receipt',
+    operation_id: 'qa-offline-shared-decoration-removal-refund-receipt-denied-op',
+    idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-denied-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineDecorationRemovalRefundDraft.draft.id,
+      target_ref: 'shared_decoration:lotus_wall:remove',
+      receipt_ref: 'shared_decoration_removal_refund:lotus_wall:offline-denied',
+      memo: 'qa offline shared decoration removal refund receipt denied',
+    },
+  }],
+}, actor(offlineDecorationRemovalRefundOwner))
+assert.equal(offlineDecorationRemovalRefundDeniedQueue.offline_queue_merge.accepted_count, 0, 'offline decoration removal refund receipt without acknowledgement should not commit')
+assert.equal(offlineDecorationRemovalRefundDeniedQueue.offline_queue_merge.rejected_count, 1, 'offline decoration removal refund receipt without acknowledgement should return rejected evidence')
+assert.equal(offlineDecorationRemovalRefundDeniedQueue.offline_queue_merge.rejected[0]?.reason, 'shared_decoration_removal_refund_acknowledgement_required', 'offline decoration removal refund denial should require compensation acknowledgement')
+assert.equal(offlineDecorationRemovalRefundDeniedQueue.offline_queue_merge.rejected[0]?.shared_fund_changed, false, 'rejected offline decoration removal refund receipt should not mutate shared fund')
+const offlineDecorationRemovalRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineDecorationRemovalRefundContractId, {
+  idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-queue',
+  client_queue_revision: offlineDecorationRemovalRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_shared_decoration_removal_refund_receipt',
+    operation_id: 'qa-offline-shared-decoration-removal-refund-receipt-op',
+    idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineDecorationRemovalRefundDraft.draft.id,
+      target_ref: 'shared_decoration:lotus_wall:remove',
+      receipt_ref: 'shared_decoration_removal_refund:lotus_wall:offline-done',
+      compensation_plan_acknowledged: true,
+      memo: 'qa offline shared decoration removal refund receipt',
+    },
+  }],
+}, actor(offlineDecorationRemovalRefundOwner))
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept shared decoration removal refund receipt')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.rejected_count, 0, 'offline shared decoration removal refund receipt should not be rejected')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.action, 'record_shared_decoration_removal_refund_receipt', 'offline decoration removal refund receipt result should keep action')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.draft_id, offlineDecorationRemovalRefundDraft.draft.id, 'offline decoration removal refund receipt should return draft id')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.receipt_ref, 'shared_decoration_removal_refund:lotus_wall:offline-done', 'offline decoration removal refund receipt should return receipt ref')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.receipt_outcome, 'refunded', 'offline decoration removal refund receipt should return refunded outcome')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.receipt_kind, 'shared_decoration_removal_refund', 'offline decoration removal refund receipt should identify receipt kind')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.refund_amount, 1300, 'offline decoration removal refund receipt should return refund amount')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.shared_fund_changed, true, 'offline decoration removal refund receipt should mark shared fund changed')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, false, 'offline decoration removal refund receipt should not mutate shared decoration state')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.personal_home_mutated, false, 'offline decoration removal refund receipt should not mutate personal home')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.personal_inventory_merged, false, 'offline decoration removal refund receipt should not merge personal inventory')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline decoration removal refund receipt should not mutate shared warehouse')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_conflict_resolution.shared_fund_changed, true, 'offline conflict resolution should summarize removal refund shared fund change')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_conflict_resolution.shared_decoration_state_changed, false, 'offline conflict resolution should not report decoration state change for refund')
+assert.equal(offlineDecorationRemovalRefundQueue.contract.shared_fund.balance, offlineDecorationRemovalRefundBalanceBeforeDraft, 'offline decoration removal refund receipt should return executed deduction to shared fund')
+assert.ok(offlineDecorationRemovalRefundQueue.contract.shared_fund.ledger.find(entry => entry.action === 'high_risk_fund_refund' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-refund-receipt-op'), 'offline decoration removal refund receipt should write refund fund ledger')
+assert.ok(!offlineDecorationRemovalRefundQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'lotus_wall'), 'offline decoration removal refund receipt should not persist removed decoration state')
+assert.ok(offlineDecorationRemovalRefundQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-refund-receipt-op' && entry.detail?.refund_amount === 1300), 'offline decoration removal refund receipt should write high-risk refund audit')
+assert.ok(offlineDecorationRemovalRefundQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-refund-receipt-queue' && entry.detail?.offline_conflict_resolution?.shared_fund_changed === true), 'offline decoration removal refund receipt queue should write merge audit evidence')
+assert.equal(offlineDecorationRemovalRefundQueue.offline_queue_merge.results[0]?.original_fund_ledger_id, offlineDecorationRemovalRefundExecute.ledger_entry.id, 'offline decoration removal refund receipt should retain original fund ledger trace')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineDecorationRemovalRefundOwner).slots[0].raw, offlineDecorationRemovalRefundOwnerRawBefore, 'offline decoration removal refund receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineDecorationRemovalRefundPartner).slots[0].raw, offlineDecorationRemovalRefundPartnerRawBefore, 'offline decoration removal refund receipt should not rewrite partner save')
+const duplicateOfflineDecorationRemovalRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineDecorationRemovalRefundContractId, {
+  idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-queue',
+  operations: [{
+    action: 'record_shared_decoration_removal_refund_receipt',
+    operation_id: 'qa-offline-shared-decoration-removal-refund-receipt-op',
+    idempotency_key: 'qa-offline-shared-decoration-removal-refund-receipt-op',
+    payload: {
+      draft_id: offlineDecorationRemovalRefundDraft.draft.id,
+      receipt_ref: 'shared_decoration_removal_refund:lotus_wall:offline-done',
+      compensation_plan_acknowledged: true,
+    },
+  }],
+}, actor(offlineDecorationRemovalRefundOwner))
+assert.equal(duplicateOfflineDecorationRemovalRefundQueue.offline_queue_merge.idempotent, true, 'duplicate offline decoration removal refund receipt queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineDecorationRemovalRefundQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline decoration removal refund receipt should replay conflict resolution evidence')
 
 const offlineDecorationRemovalReceiptOwner = 'cohabit_odrr_o31'
 const offlineDecorationRemovalReceiptPartner = 'cohabit_odrr_p31'
