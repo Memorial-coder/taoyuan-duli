@@ -216,6 +216,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_separation_family_story_resolve',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/record-story-cinematic$/i,
+    action: 'cohabitation_separation_story_cinematic_record',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/write-personal-story-receipts$/i,
     action: 'cohabitation_separation_personal_story_receipts_write',
   },
@@ -282,6 +286,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-conflicts\/preflight$/i,
     action: 'cohabitation_offline_conflict_preflight',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-conflicts\/resolve$/i,
+    action: 'cohabitation_offline_conflict_resolve',
   },
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-auto-income\/collect$/i,
@@ -3645,6 +3653,27 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflict
   });
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflicts/resolve', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.resolveCohabitationOfflineConflicts(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({
+        ok: false,
+        msg: error.message || '自动解决离线经营冲突失败',
+        offline_conflict_preflight: error.offline_conflict_preflight,
+        offline_queue_merge: error.offline_queue_merge,
+        offline_conflict_resolution: error.offline_conflict_resolution,
+        offline_conflict_auto_resolution: error.offline_conflict_auto_resolution,
+      });
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-auto-income/collect', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -4504,6 +4533,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录分居剧情拆分失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/record-story-cinematic', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recordSeparationStoryCinematicPlayback(req.params.contractId, req.params.previewId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '记录分居剧情演出播放失败' });
     }
   });
 });

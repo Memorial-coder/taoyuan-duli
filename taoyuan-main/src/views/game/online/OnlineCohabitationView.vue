@@ -412,6 +412,30 @@
                       </div>
                     </div>
                   </div>
+                  <div
+                    v-if="separationStoryCinematicReadbackRows.length"
+                    class="space-y-2 border border-fuchsia-300/20 bg-fuchsia-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-story-cinematic-readback"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">关系剧情 / 演出证据</p>
+                      <span>{{ separationStoryCinematicBoundaryLabel }}</span>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <p
+                        v-for="row in separationStoryCinematicReadbackRows"
+                        :key="row.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                        :data-testid="`online-cohabitation-separation-story-cinematic-${row.key}`"
+                      >
+                        <span class="block text-accent">{{ row.label }}</span>
+                        <span class="mt-1 block break-all">{{ row.value }}</span>
+                      </p>
+                    </div>
+                    <p class="leading-4">
+                      只读契约记录：剧情 receipt 可写入成员存档，NPC、家庭和孩子主状态仍由后续剧情规则处理。
+                    </p>
+                  </div>
                   <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[10px] text-muted">
                     <p>{{ separationPreviewConfirmationLabel }}</p>
                     <div class="flex flex-wrap gap-2">
@@ -504,6 +528,16 @@
                       >
                         <ClipboardList :size="12" />
                         记录剧情
+                      </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canRecordSeparationStoryCinematicPlayback || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-story-cinematic-playback"
+                        @click="recordSeparationStoryCinematicPlayback"
+                      >
+                        <Play :size="12" />
+                        播放演出
                       </button>
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
@@ -1100,6 +1134,21 @@
                     >
                       <option value="fixed">固定结果</option>
                       <option value="auto">自动概率</option>
+                    </select>
+                  </label>
+                  <label
+                    v-if="sharedWorkshopAlchemyResultMode === 'auto' && selectedSharedWorkshopSupportsAlchemyAuto"
+                    class="grid gap-1 text-[10px] leading-4 text-muted"
+                  >
+                    <span>火候</span>
+                    <select
+                      v-model="sharedWorkshopAlchemyHeatLevel"
+                      class="online-select text-xs"
+                      data-testid="online-cohabitation-shared-workshop-alchemy-heat"
+                    >
+                      <option value="gentle">文火</option>
+                      <option value="balanced">中火</option>
+                      <option value="strong">武火</option>
                     </select>
                   </label>
                   <p
@@ -2985,6 +3034,77 @@
                   {{ selectedOfflineQueueActionOption?.enabled ? '服务端队列可提交' : selectedOfflineQueueActionOption?.disabledReason || '当前不可提交' }}
                 </p>
               </div>
+              <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-offline-local-queue">
+                <div class="flex items-center justify-between gap-2">
+                  <span>{{ offlineQueueDraftSummaryLabel }}</span>
+                  <span>{{ offlineQueueDraftStorageLabel }}</span>
+                </div>
+                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canSubmitOfflineQueueMerge || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-offline-local-queue-add"
+                    @click="cacheSelectedOfflineQueueOperation"
+                  >
+                    <ClipboardList :size="12" />
+                    加入缓存
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canSubmitOfflineQueueDraftMerge || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-offline-local-queue-merge"
+                    @click="submitOfflineQueueDraftMerge"
+                  >
+                    <Clock3 :size="12" />
+                    合并缓存
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canPreflightOfflineQueueDraft || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-offline-local-queue-preflight"
+                    @click="preflightOfflineQueueDraft"
+                  >
+                    <ShieldCheck :size="12" />
+                    预检缓存
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="offlineQueueDraftOperations.length === 0 || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-offline-local-queue-clear"
+                    @click="clearOfflineQueueDraftOperations"
+                  >
+                    <XCircle :size="12" />
+                    清空缓存
+                  </button>
+                </div>
+                <p v-if="offlineQueueDraftRows.length === 0" class="mt-2">本地缓存为空</p>
+                <div v-else class="mt-2 max-h-32 space-y-1 overflow-y-auto pr-1">
+                  <div
+                    v-for="row in offlineQueueDraftRows"
+                    :key="row.id"
+                    class="grid gap-2 border border-accent/10 bg-bg/30 p-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+                    data-testid="online-cohabitation-offline-local-queue-row"
+                  >
+                    <div class="min-w-0">
+                      <p class="truncate text-text">{{ row.label }} · {{ row.targetLabel }}</p>
+                      <p class="mt-1 truncate">{{ row.savedLabel }}</p>
+                    </div>
+                    <button
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      type="button"
+                      :disabled="cohabitationStore.actionLoading"
+                      :data-testid="`online-cohabitation-offline-local-queue-remove-${row.index}`"
+                      @click="removeOfflineQueueDraftOperation(row.index)"
+                    >
+                      <XCircle :size="12" />
+                    </button>
+                  </div>
+                </div>
+              </div>
               <button
                 class="online-action-btn online-action-btn--compact w-full justify-center"
                 type="button"
@@ -3032,7 +3152,7 @@
                 {{ offlineQueueActionMessage }}
               </p>
               <div
-                v-if="offlineQueueMergeRows.length || offlineConflictResolutionLabel || offlineConflictPreflightLabel"
+                v-if="offlineQueueMergeRows.length || offlineConflictResolutionLabel || offlineConflictAutoResolutionLabel || offlineConflictPreflightLabel"
                 class="space-y-1 text-[10px] text-muted"
                 data-testid="online-cohabitation-offline-queue-results"
               >
@@ -3045,6 +3165,13 @@
                   data-testid="online-cohabitation-offline-conflict-resolution"
                 >
                   {{ offlineConflictResolutionLabel }}
+                </p>
+                <p
+                  v-if="offlineConflictAutoResolutionLabel"
+                  class="border border-accent/10 bg-black/10 p-2 leading-4"
+                  data-testid="online-cohabitation-offline-conflict-auto-resolution"
+                >
+                  {{ offlineConflictAutoResolutionLabel }}
                 </p>
                 <p
                   v-if="offlineConflictPreflightLabel"
@@ -3115,6 +3242,7 @@
     Map,
     Network,
     Package,
+    Play,
     Scissors,
     ShieldCheck,
     Sprout,
@@ -3194,6 +3322,7 @@
     failed: number
     rare: number
   }
+  type SharedAlchemyHeatLevel = 'gentle' | 'balanced' | 'strong'
   type SharedWorkshopResultRow = { id: string; label: string; value: string }
   type SharedDecorationStateEntry = Record<string, unknown> & {
     decoration_id?: string
@@ -3225,6 +3354,7 @@
     | 'care_shared_pet'
     | 'process_shared_workshop_recipe'
     | 'move_shared_decoration'
+    | 'record_shared_decoration_removal_receipt'
     | 'collect_offline_auto_income'
   type OfflineQueueActionOption = {
     id: OfflineQueueUiActionId
@@ -3240,6 +3370,18 @@
     status: string
     detail: string
     ok: boolean
+  }
+  type OfflineQueueDraftOperation = CohabitationOfflineQueueOperation & {
+    cached_at?: number
+    cached_label?: string
+    cached_target_label?: string
+  }
+  type OfflineQueueDraftRow = {
+    index: number
+    id: string
+    label: string
+    targetLabel: string
+    savedLabel: string
   }
   type SeparationSharedDecorationRemovalDispute = {
     draft_id: string
@@ -3268,6 +3410,9 @@
     requires_confirmation: boolean
     return_status: string
   }
+
+  const OFFLINE_QUEUE_DRAFT_STORAGE_PREFIX = 'taoyuan:cohabitation:offline-queue:drafts:v1'
+  const OFFLINE_QUEUE_DRAFT_MAX_OPERATIONS = 12
   type SeparationSharedFundReadbackSummary = {
     capital_total: number
     operating_total: number
@@ -3280,6 +3425,20 @@
     all_members_confirmed: boolean
     fund_split_basis: string
   }
+  type SeparationStoryCinematicReadbackRow = {
+    key: string
+    label: string
+    value: string
+  }
+
+  const separationStoryValueLabel = (value: unknown, fallback = '待记录') => {
+    if (typeof value === 'string') return value.trim() || fallback
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+    if (typeof value === 'boolean') return value ? '是' : '否'
+    return fallback
+  }
+  const separationStoryFlagLabel = (value: unknown, truthy = '是', falsy = '否') =>
+    value === true ? truthy : falsy
 
   const largeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
     'family_building',
@@ -3391,6 +3550,7 @@
   const sharedWorkshopActionOk = ref(false)
   const selectedSharedWorkshopRecipeId = ref('shared_dried_cabbage')
   const sharedWorkshopAlchemyResultMode = ref<'fixed' | 'auto'>('fixed')
+  const sharedWorkshopAlchemyHeatLevel = ref<SharedAlchemyHeatLevel>('balanced')
   const sharedWorkshopLastResultRows = ref<SharedWorkshopResultRow[]>([])
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
@@ -3411,6 +3571,7 @@
   const fundActionMessage = ref('')
   const offlineQueueActionMessage = ref('')
   const offlineQueueActionOk = ref(false)
+  const offlineQueueDraftOperations = ref<OfflineQueueDraftOperation[]>([])
   const dailySettleActionMessage = ref('')
   const dailySettleActionOk = ref(false)
   const selectedOfflineQueueActionId = ref<OfflineQueueUiActionId>('water_shared_farm')
@@ -3619,6 +3780,39 @@
     const request = separationExecutionRequest.value
     return request?.shared_fund_delta_confirmed === true || request?.status === 'shared_fund_delta_confirmed'
   })
+  const separationStoryCinematicResolution = computed<Record<string, unknown> | null>(() => {
+    const resolution = separationExecutionRequest.value?.family_story_resolution
+    if (!resolution || typeof resolution !== 'object' || Array.isArray(resolution)) return null
+    return resolution as Record<string, unknown>
+  })
+  const separationStoryCinematicBoundaryLabel = computed(() => {
+    const resolution = separationStoryCinematicResolution.value
+    if (!resolution) return '待记录'
+    const cinematic = resolution.frontend_cinematic_pending === true ? '演出待播放' : '演出无需播放'
+    const personalState = resolution.personal_state_mutated === true ? '个人主状态已变更' : '个人主状态未变更'
+    const contractOnly = resolution.contract_record_only !== false ? '契约只读记录' : '允许后续写主态'
+    return `${cinematic} · ${personalState} · ${contractOnly}`
+  })
+  const separationStoryCinematicReadbackRows = computed<SeparationStoryCinematicReadbackRow[]>(() => {
+    const resolution = separationStoryCinematicResolution.value
+    if (!resolution) return []
+    return [
+      { key: 'story_event_kind', label: '剧情类型', value: separationStoryValueLabel(resolution.story_event_kind) },
+      { key: 'relationship_story_rule', label: '剧情规则', value: separationStoryValueLabel(resolution.relationship_story_rule) },
+      { key: 'dialogue_event_id', label: '对话事件', value: separationStoryValueLabel(resolution.dialogue_event_id) },
+      { key: 'animation_event_id', label: '搬离 / 交接演出', value: separationStoryValueLabel(resolution.animation_event_id) },
+      { key: 'exit_record_kind', label: '退出记录', value: separationStoryValueLabel(resolution.exit_record_kind) },
+      { key: 'family_fund_settlement_state', label: '共同基金结算', value: separationStoryValueLabel(resolution.family_fund_settlement_state) },
+      { key: 'frontend_cinematic_pending', label: '前端演出', value: separationStoryFlagLabel(resolution.frontend_cinematic_pending, '待播放', '无需播放') },
+      { key: 'frontend_cinematic_played', label: '演出回执', value: separationStoryFlagLabel(resolution.frontend_cinematic_played, '已播放', '未播放') },
+      { key: 'frontend_cinematic_played_at', label: '播放时间', value: Number(resolution.frontend_cinematic_played_at) > 0 ? formatTime(Number(resolution.frontend_cinematic_played_at)) : '未记录' },
+      { key: 'frontend_cinematic_played_by', label: '播放记录人', value: separationStoryValueLabel(resolution.frontend_cinematic_played_by, '未记录') },
+      { key: 'personal_state_mutated', label: '个人主状态', value: separationStoryFlagLabel(resolution.personal_state_mutated, '已变更', '未变更') },
+      { key: 'meeting_record_required', label: '家族会议', value: separationStoryFlagLabel(resolution.meeting_record_required, '需要', '不需要') },
+      { key: 'handover_record_required', label: '交接记录', value: separationStoryFlagLabel(resolution.handover_record_required, '需要', '不需要') },
+      { key: 'future_cooperation_option', label: '未来合作', value: separationStoryFlagLabel(resolution.future_cooperation_option, '保留选项', '无') },
+    ]
+  })
   const canConfirmSeparationPreview = computed(() => {
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
@@ -3726,6 +3920,21 @@
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
     if (separationExecutionRequest.value?.status !== 'decorations_buildings_split') return false
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    return true
+  })
+  const canRecordSeparationStoryCinematicPlayback = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    const request = separationExecutionRequest.value
+    const requestStatus = String(request?.status || '')
+    if (!['family_story_resolved', 'personal_story_receipts_written', 'child_arrangement_resolved', 'personal_family_receipts_written'].includes(requestStatus)) return false
+    const resolution = separationStoryCinematicResolution.value
+    if (!resolution || resolution.frontend_cinematic_played === true) return false
+    if (resolution.frontend_cinematic_pending !== true && !resolution.dialogue_event_id && !resolution.animation_event_id) return false
+    if (!request?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
   const canWriteSeparationPersonalStoryReceipts = computed(() => {
@@ -4480,6 +4689,7 @@
       { label: '自动收益', value: summary?.auto_offline_income_enabled ? `可领取 ${summary?.offline_auto_income_pending_count ?? 0} 项` : '暂未开放' },
       { label: '冲突预检', value: summary?.offline_conflict_preflight_enabled ? '服务端预检' : '暂未开放' },
       { label: '冲突解决', value: summary?.offline_conflict_resolution_enabled ? '服务端证据包' : '暂未开放' },
+      { label: '自动解决', value: summary?.offline_conflict_auto_resolve_enabled ? '先预检后合并' : '暂未开放' },
     ]
   })
   const offlineAutoIncomePendingCount = computed(() => Math.max(
@@ -4706,6 +4916,37 @@
     shared_stone_root_guard_pill: { profile: 'stone_guard', label: '石根护脉', weights: { success: 80, partial: 12, failed: 6, rare: 2 } },
     shared_spirit_peach_elixir: { profile: 'spirit_peach_rare_material', label: '灵桃稀材', weights: { success: 70, partial: 15, failed: 7, rare: 8 } },
   }
+  const sharedWorkshopAlchemyHeatProfiles: Record<SharedAlchemyHeatLevel, { label: string; profile: string; deltas: SharedAlchemyWeights }> = {
+    gentle: { label: '文火', profile: 'gentle_fire', deltas: { success: 3, partial: 1, failed: -3, rare: -1 } },
+    balanced: { label: '中火', profile: 'balanced_fire', deltas: { success: 0, partial: 0, failed: 0, rare: 0 } },
+    strong: { label: '武火', profile: 'strong_fire', deltas: { success: -5, partial: -1, failed: 3, rare: 3 } },
+  }
+  const normalizeSharedWorkshopAlchemyWeights = (weights: SharedAlchemyWeights): SharedAlchemyWeights => {
+    const success = Math.max(0, Math.floor(Number(weights.success) || 0))
+    const partial = Math.max(0, Math.floor(Number(weights.partial) || 0))
+    const failed = Math.max(0, Math.floor(Number(weights.failed) || 0))
+    const rare = Math.max(0, Math.floor(Number(weights.rare) || 0))
+    const total = success + partial + failed + rare
+    if (total <= 0 || total === 100) return total <= 0 ? sharedAlchemyDefaultBaseWeights : { success, partial, failed, rare }
+    const normalizedSuccess = Math.max(0, Math.min(100, Math.floor((success * 100) / total)))
+    const normalizedPartial = Math.max(0, Math.min(100 - normalizedSuccess, Math.floor((partial * 100) / total)))
+    const normalizedFailed = Math.max(0, Math.min(100 - normalizedSuccess - normalizedPartial, Math.floor((failed * 100) / total)))
+    return {
+      success: normalizedSuccess,
+      partial: normalizedPartial,
+      failed: normalizedFailed,
+      rare: Math.max(0, 100 - normalizedSuccess - normalizedPartial - normalizedFailed),
+    }
+  }
+  const applySharedWorkshopAlchemyHeatProfile = (weights: SharedAlchemyWeights, heatLevel: SharedAlchemyHeatLevel) => {
+    const heat = sharedWorkshopAlchemyHeatProfiles[heatLevel] ?? sharedWorkshopAlchemyHeatProfiles.balanced
+    return normalizeSharedWorkshopAlchemyWeights({
+      success: weights.success + heat.deltas.success,
+      partial: weights.partial + heat.deltas.partial,
+      failed: weights.failed + heat.deltas.failed,
+      rare: weights.rare + heat.deltas.rare,
+    })
+  }
   const sharedWorkshopAlchemyWeightsLabel = (weights?: Record<string, number> | null) => {
     if (!weights) return ''
     const success = Math.max(0, Math.floor(Number(weights.success) || 0))
@@ -4895,7 +5136,9 @@
   const sharedWorkshopAlchemyWeightPreviewLabel = computed(() => {
     const profile = selectedSharedWorkshopAlchemyWeightProfile.value
     if (!profile) return ''
-    return `${profile.label} · 基础 ${sharedWorkshopAlchemyWeightsLabel(profile.weights)}`
+    const heat = sharedWorkshopAlchemyHeatProfiles[sharedWorkshopAlchemyHeatLevel.value] ?? sharedWorkshopAlchemyHeatProfiles.balanced
+    const heatAdjustedWeights = applySharedWorkshopAlchemyHeatProfile(profile.weights, sharedWorkshopAlchemyHeatLevel.value)
+    return `${profile.label} · ${heat.label} · 火候后 ${sharedWorkshopAlchemyWeightsLabel(heatAdjustedWeights)}`
   })
   const sharedWarehouseItemQuantity = (itemId: string, quality = 'normal') => (cohabitationStore.warehouse?.items ?? [])
     .filter(item => item.item_id === itemId && (item.quality || 'normal') === quality)
@@ -4959,6 +5202,23 @@
     cohabitationStore.canOpenSelectedContract &&
     cohabitationStore.offlineStatus?.actor_capabilities?.move_shared_decoration === true &&
     Boolean(selectedOfflineSharedDecorationId.value)
+  )
+  const selectedOfflineSharedDecorationRemovalReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
+    (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
+      draft.purpose === 'shared_decoration_removal' &&
+      draft.state === 'executed' &&
+      Boolean(draft.final_spend_ledger_id) &&
+      (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    ) ?? null
+  )
+  const selectedOfflineSharedDecorationRemovalReceiptTargetLabel = computed(() => {
+    const draft = selectedOfflineSharedDecorationRemovalReceiptDraft.value
+    return draft?.target_ref || draft?.id || '未选择共同装修拆除回执'
+  })
+  const canRecordOfflineSharedDecorationRemovalReceipt = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.record_shared_decoration_removal_receipt === true &&
+    Boolean(selectedOfflineSharedDecorationRemovalReceiptDraft.value)
   )
   const sharedFarmFertilizerCatalog = [
     { itemId: 'basic_fertilizer', label: '基础肥料', queueAction: 'fertilize_shared_farm_basic' as CohabitationOfflineQueueAction, premium: false },
@@ -5157,6 +5417,15 @@
     const afterRevision = Math.max(0, Math.floor(Number(resolution.server_queue_revision_after) || beforeRevision))
     const stale = resolution.client_queue_stale === true ? '客户端基线过期，按服务端最新状态处理' : '客户端基线一致'
     return `冲突解决证据：提交 ${committed} / 幂等 ${idempotent} / 拒绝 ${rejected} · 流水 ${ledgerCount} 笔 · revision ${beforeRevision}->${afterRevision} · ${stale}`
+  })
+  const offlineConflictAutoResolutionLabel = computed(() => {
+    const resolution = cohabitationStore.offlineConflictAutoResolution
+    if (!resolution) return ''
+    const accepted = Math.max(0, Math.floor(Number(resolution.accepted_count) || 0))
+    const rejected = Math.max(0, Math.floor(Number(resolution.rejected_count) || 0))
+    const unsupported = Math.max(0, Math.floor(Number(resolution.unsupported_action_count) || 0))
+    const stale = resolution.client_queue_stale === true ? '本地基线过期' : '本地基线一致'
+    return `自动解决：${accepted} 项提交 / ${rejected} 项拒绝 · 不支持 ${unsupported} 项 · ${stale}`
   })
   const offlineConflictPreflightLabel = computed(() => {
     const preflight = cohabitationStore.offlineConflictPreflight
@@ -5703,6 +5972,117 @@
     Number(selectedContract.value?.updated_at) || 0,
     Number(selectedContract.value?.shared_decoration_state?.length) || 0,
   )
+  const getOfflineQueueDraftStorageKey = (contractId: string) => `${OFFLINE_QUEUE_DRAFT_STORAGE_PREFIX}:${contractId}`
+  const cloneOfflineQueuePayload = (payload: unknown): Record<string, unknown> => {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {}
+    return { ...(payload as Record<string, unknown>) }
+  }
+  const normalizeOfflineQueueDraftOperation = (raw: unknown): OfflineQueueDraftOperation | null => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+    const record = raw as Record<string, unknown>
+    const action = typeof record.action === 'string' ? record.action.trim() : ''
+    if (!action) return null
+    const operationId = typeof record.operation_id === 'string' && record.operation_id.trim()
+      ? record.operation_id.trim()
+      : `ui-offline-local-${action}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    return {
+      action,
+      operation_id: operationId,
+      idempotency_key: typeof record.idempotency_key === 'string' && record.idempotency_key.trim()
+        ? record.idempotency_key.trim()
+        : operationId,
+      client_base_revision: Math.max(0, Math.floor(Number(record.client_base_revision) || 0)),
+      payload: cloneOfflineQueuePayload(record.payload),
+      cached_at: Math.max(0, Math.floor(Number(record.cached_at) || 0)),
+      cached_label: typeof record.cached_label === 'string' ? record.cached_label : '',
+      cached_target_label: typeof record.cached_target_label === 'string' ? record.cached_target_label : '',
+    }
+  }
+  const loadOfflineQueueDraftOperations = (contractId: string | null | undefined) => {
+    const normalizedContractId = `${contractId || ''}`.trim()
+    if (typeof window === 'undefined' || !normalizedContractId) {
+      offlineQueueDraftOperations.value = []
+      return
+    }
+    try {
+      const raw = window.localStorage.getItem(getOfflineQueueDraftStorageKey(normalizedContractId))
+      if (!raw) {
+        offlineQueueDraftOperations.value = []
+        return
+      }
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      const operations = Array.isArray(parsed.operations)
+        ? parsed.operations
+            .map(normalizeOfflineQueueDraftOperation)
+            .filter((operation): operation is OfflineQueueDraftOperation => Boolean(operation))
+            .slice(-OFFLINE_QUEUE_DRAFT_MAX_OPERATIONS)
+        : []
+      offlineQueueDraftOperations.value = operations
+    } catch {
+      offlineQueueDraftOperations.value = []
+    }
+  }
+  const persistOfflineQueueDraftOperations = () => {
+    const contractId = cohabitationStore.activeContractId
+    if (typeof window === 'undefined' || !contractId) return true
+    const key = getOfflineQueueDraftStorageKey(contractId)
+    try {
+      if (offlineQueueDraftOperations.value.length === 0) {
+        window.localStorage.removeItem(key)
+        return true
+      }
+      window.localStorage.setItem(key, JSON.stringify({
+        version: 1,
+        contract_id: contractId,
+        saved_at: Math.floor(Date.now() / 1000),
+        operations: offlineQueueDraftOperations.value.slice(-OFFLINE_QUEUE_DRAFT_MAX_OPERATIONS),
+      }))
+      return true
+    } catch {
+      offlineQueueActionOk.value = false
+      offlineQueueActionMessage.value = '本地离线缓存写入失败'
+      return false
+    }
+  }
+  const toOfflineQueueMergeOperation = (operation: OfflineQueueDraftOperation): CohabitationOfflineQueueOperation => ({
+    action: operation.action,
+    operation_id: operation.operation_id,
+    idempotency_key: operation.idempotency_key,
+    client_base_revision: operation.client_base_revision,
+    payload: cloneOfflineQueuePayload(operation.payload),
+  })
+  const offlineQueueDraftClientRevision = computed(() => {
+    const revisions = offlineQueueDraftOperations.value
+      .map(operation => Math.max(0, Math.floor(Number(operation.client_base_revision) || 0)))
+      .filter(revision => revision > 0)
+    return revisions.length ? Math.min(...revisions) : offlineQueueClientRevision()
+  })
+  const offlineQueueDraftRows = computed<OfflineQueueDraftRow[]>(() =>
+    offlineQueueDraftOperations.value.map((operation, index) => ({
+      index,
+      id: operation.operation_id || `${operation.action}-${index}`,
+      label: operation.cached_label || offlineQueueActionLabel(operation.action),
+      targetLabel: operation.cached_target_label || String(operation.payload?.target_ref || operation.payload?.plot_id || operation.payload?.animal_id || operation.payload?.pet_id || operation.payload?.recipe_id || operation.payload?.decoration_id || '当前目标'),
+      savedLabel: operation.cached_at ? `缓存 ${formatTime(operation.cached_at)}` : '缓存时间未知',
+    }))
+  )
+  const offlineQueueDraftSummaryLabel = computed(() =>
+    offlineQueueDraftOperations.value.length > 0
+      ? `本地缓存 ${offlineQueueDraftOperations.value.length} 项 · revision ${offlineQueueDraftClientRevision.value}`
+      : '本地缓存 0 项'
+  )
+  const offlineQueueDraftStorageLabel = computed(() =>
+    cohabitationStore.activeContractId ? '当前契约' : '未选契约'
+  )
+  const canSubmitOfflineQueueDraftMerge = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.summary.offline_queue_merge_enabled === true &&
+    offlineQueueDraftOperations.value.length > 0
+  )
+  const canPreflightOfflineQueueDraft = computed(() =>
+    canPreflightOfflineConflicts.value &&
+    offlineQueueDraftOperations.value.length > 0
+  )
   const buildSelectedOfflineQueueOperation = (): CohabitationOfflineQueueOperation | null => {
     const option = selectedOfflineQueueActionOption.value
     if (!option) return null
@@ -5775,6 +6155,43 @@
       payload: basePayload,
     }
   }
+  const cacheSelectedOfflineQueueOperation = () => {
+    const option = selectedOfflineQueueActionOption.value
+    const operation = buildSelectedOfflineQueueOperation()
+    offlineQueueActionMessage.value = ''
+    offlineQueueActionOk.value = false
+    if (!option || !operation || !canSubmitOfflineQueueMerge.value) {
+      offlineQueueActionMessage.value = option?.disabledReason || '请选择可缓存的离线操作'
+      return
+    }
+    const draftOperation: OfflineQueueDraftOperation = {
+      ...operation,
+      payload: cloneOfflineQueuePayload(operation.payload),
+      cached_at: Math.floor(Date.now() / 1000),
+      cached_label: option.label,
+      cached_target_label: option.targetLabel,
+    }
+    offlineQueueDraftOperations.value = [
+      ...offlineQueueDraftOperations.value,
+      draftOperation,
+    ].slice(-OFFLINE_QUEUE_DRAFT_MAX_OPERATIONS)
+    if (!persistOfflineQueueDraftOperations()) return
+    offlineQueueActionOk.value = true
+    offlineQueueActionMessage.value = `已加入本地离线缓存，当前 ${offlineQueueDraftOperations.value.length} 项`
+  }
+  const removeOfflineQueueDraftOperation = (index: number) => {
+    if (index < 0 || index >= offlineQueueDraftOperations.value.length) return
+    offlineQueueDraftOperations.value = offlineQueueDraftOperations.value.filter((_, rowIndex) => rowIndex !== index)
+    if (!persistOfflineQueueDraftOperations()) return
+    offlineQueueActionOk.value = true
+    offlineQueueActionMessage.value = `已移除本地缓存操作，剩余 ${offlineQueueDraftOperations.value.length} 项`
+  }
+  const clearOfflineQueueDraftOperations = () => {
+    offlineQueueDraftOperations.value = []
+    if (!persistOfflineQueueDraftOperations()) return
+    offlineQueueActionOk.value = true
+    offlineQueueActionMessage.value = '本地离线缓存已清空'
+  }
   const submitOfflineConflictPreflight = async () => {
     offlineQueueActionMessage.value = ''
     offlineQueueActionOk.value = false
@@ -5805,6 +6222,36 @@
     }
   }
 
+  const preflightOfflineQueueDraft = async () => {
+    offlineQueueActionMessage.value = ''
+    offlineQueueActionOk.value = false
+    if (!canPreflightOfflineQueueDraft.value) {
+      offlineQueueActionMessage.value = '当前没有可预检的本地离线缓存'
+      return
+    }
+    try {
+      const actions = [...new Set(offlineQueueDraftOperations.value.map(operation => operation.action))]
+      const result = await cohabitationStore.preflightOfflineConflicts({
+        idempotency_key: `ui-offline-local-conflict-preflight-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        client_queue_revision: offlineQueueDraftClientRevision.value,
+        actions,
+        memo: '前端预检本地离线经营缓存',
+      })
+      const preflight = result?.offline_conflict_preflight
+      const stale = preflight?.client_queue_stale === true
+      const unsupportedActions = preflight?.unsupported_actions
+      const unsupportedCount = Array.isArray(unsupportedActions) ? unsupportedActions.length : 0
+      offlineQueueActionOk.value = !stale && unsupportedCount === 0
+      offlineQueueActionMessage.value = stale
+        ? '本地缓存基线已过期，合并时将以服务端最新共同资产为准'
+        : unsupportedCount > 0
+          ? `本地缓存预检发现 ${unsupportedCount} 项暂不支持动作`
+          : `本地缓存预检通过，${actions.length} 类动作可合并`
+    } catch (error) {
+      offlineQueueActionMessage.value = error instanceof Error ? error.message : '预检本地离线缓存失败'
+    }
+  }
+
   const submitSelectedOfflineQueueMerge = async () => {
     const option = selectedOfflineQueueActionOption.value
     const operation = buildSelectedOfflineQueueOperation()
@@ -5830,6 +6277,46 @@
         : `离线队列已合并，${accepted} 项提交并刷新共同日志`
     } catch (error) {
       offlineQueueActionMessage.value = error instanceof Error ? error.message : '合并离线经营队列失败'
+    }
+  }
+
+  const submitOfflineQueueDraftMerge = async () => {
+    offlineQueueActionMessage.value = ''
+    offlineQueueActionOk.value = false
+    if (!canSubmitOfflineQueueDraftMerge.value) {
+      offlineQueueActionMessage.value = '当前没有可合并的本地离线缓存'
+      return
+    }
+    const operations = offlineQueueDraftOperations.value.map(toOfflineQueueMergeOperation)
+    const queueId = `ui-offline-local-queue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    try {
+      const result = await cohabitationStore.resolveOfflineConflicts({
+        idempotency_key: queueId,
+        client_queue_revision: offlineQueueDraftClientRevision.value,
+        resolution_strategy: 'server_authoritative_auto_merge',
+        allow_partial: true,
+        memo: '前端自动解决本地离线缓存冲突',
+        operations,
+      })
+      const merge = result?.offline_queue_merge
+      const accepted = merge?.accepted_count ?? 0
+      const rejected = merge?.rejected_count ?? 0
+      const settledOperationIds = new Set(
+        (merge?.results ?? [])
+          .filter(entry => entry.status === 'committed' || entry.status === 'idempotent')
+          .map(entry => entry.operation_id)
+          .filter((operationId): operationId is string => Boolean(operationId))
+      )
+      offlineQueueDraftOperations.value = rejected > 0
+        ? offlineQueueDraftOperations.value.filter(operation => !settledOperationIds.has(operation.operation_id || ''))
+        : []
+      if (!persistOfflineQueueDraftOperations()) return
+      offlineQueueActionOk.value = accepted > 0 && rejected === 0
+      offlineQueueActionMessage.value = rejected > 0
+        ? `本地缓存已合并，${accepted} 项提交、${rejected} 项拒绝，拒绝项已保留`
+        : `本地缓存已合并，${accepted} 项提交并刷新共同日志`
+    } catch (error) {
+      offlineQueueActionMessage.value = error instanceof Error ? error.message : '合并本地离线缓存失败'
     }
   }
 
@@ -6279,6 +6766,32 @@
     }
   }
 
+  const recordSeparationStoryCinematicPlayback = async () => {
+    if (!latestSeparationPreview.value || !canRecordSeparationStoryCinematicPlayback.value) return
+    const resolution = separationStoryCinematicResolution.value
+    if (!resolution) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.recordSeparationStoryCinematicPlayback(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        story_event_kind: String(resolution.story_event_kind || ''),
+        dialogue_event_id: String(resolution.dialogue_event_id || ''),
+        animation_event_id: String(resolution.animation_event_id || ''),
+        playback_state: resolution.frontend_cinematic_pending === true ? 'played' : 'record_only',
+        memo: '前端已触发分居关系剧情演出；只记录共同契约回执，不改个人 NPC / 家庭主状态',
+        idempotency_key: `ui-separation-story-cinematic-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      separationActionMessage.value = result?.idempotent || result?.already_played
+        ? '已读回分居剧情演出播放记录'
+        : '已记录分居剧情演出播放回执'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '记录分居剧情演出播放失败'
+    }
+  }
+
   const writeSeparationPersonalStoryReceipts = async () => {
     if (!latestSeparationPreview.value || !canWriteSeparationPersonalStoryReceipts.value) return
     separationActionMessage.value = ''
@@ -6725,6 +7238,7 @@
       const result = await cohabitationStore.processSharedWorkshopRecipe({
         recipe_id: recipe.id,
         alchemy_result_mode: selectedSharedWorkshopSupportsAlchemyAuto.value ? sharedWorkshopAlchemyResultMode.value : 'fixed',
+        alchemy_heat_level: selectedSharedWorkshopSupportsAlchemyAuto.value && sharedWorkshopAlchemyResultMode.value === 'auto' ? sharedWorkshopAlchemyHeatLevel.value : 'balanced',
         fund_ledger_id: mediumBudgetLedger?.id || undefined,
         memo: `前端执行共同工坊配方：${recipe.label}`,
         idempotency_key: `ui-shared-workshop-${recipe.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -6743,11 +7257,13 @@
           : ''
       const alchemyWeightsLabel = sharedWorkshopAlchemyWeightsLabel(action?.alchemy_result_weights ?? null)
       const alchemyWeightProfile = typeof action?.alchemy_result_weight_profile === 'string' ? action.alchemy_result_weight_profile : ''
+      const alchemyHeatLevel = (typeof action?.alchemy_heat_level === 'string' ? action.alchemy_heat_level : 'balanced') as SharedAlchemyHeatLevel
+      const alchemyHeatLabel = (sharedWorkshopAlchemyHeatProfiles[alchemyHeatLevel] ?? sharedWorkshopAlchemyHeatProfiles.balanced).label
       sharedWorkshopLastResultRows.value = [
         { id: 'output', label: '产出入仓', value: outputLabel },
         { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '服务端已处理，未返回流水 ID' },
         ...(alchemyAutoResultLabel ? [{ id: 'alchemy-result', label: '炼丹结果', value: alchemyAutoResultLabel }] : []),
-        ...(action?.alchemy_auto_result && alchemyWeightsLabel ? [{ id: 'alchemy-weights', label: '概率权重', value: [alchemyWeightProfile ? `档位 ${alchemyWeightProfile}` : '', alchemyWeightsLabel].filter(Boolean).join(' · ') }] : []),
+        ...(action?.alchemy_auto_result && alchemyWeightsLabel ? [{ id: 'alchemy-weights', label: '概率权重', value: [alchemyWeightProfile ? `档位 ${alchemyWeightProfile}` : '', `火候 ${alchemyHeatLabel}`, alchemyWeightsLabel].filter(Boolean).join(' · ') }] : []),
         { id: 'bonus', label: '同时在线加成', value: simultaneousOnlineBonusLabel(action?.simultaneous_online_bonus) },
         { id: 'personal', label: '个人存档', value: action?.personal_save_changed === false ? '未改个人存档' : '以服务端回执为准' },
         { id: 'warehouse', label: '共同仓库', value: action?.shared_warehouse_changed === true ? '已消耗材料并写入产出' : '以刷新后仓库为准' },
@@ -8352,6 +8868,7 @@
       shared_decoration_moved: '共同装饰移动',
       offline_queue_merged: '离线队列合并',
       offline_conflict_preflighted: '离线冲突预检',
+      offline_conflict_auto_resolved: '离线冲突自动解决',
       offline_auto_income_collected: '离线自动收益领取',
       cohabitation_daily_settled: '共同庄园日结',
       shared_farm_crop_removed: '共同农田铲除',
@@ -8389,6 +8906,7 @@
       separation_shared_warehouse_returned: '共同仓库返还',
       separation_decorations_buildings_split: '装饰建筑拆分',
       separation_family_story_resolved: '剧情拆分记录',
+      separation_story_cinematic_played: '剧情演出播放',
       separation_personal_story_receipts_written: '剧情回执写入',
       separation_child_arrangement_resolved: '孩子安排记录',
       separation_personal_family_receipts_written: '家庭回执写入',
@@ -8453,6 +8971,13 @@
       const serverRevision = Math.max(0, Math.floor(Number(detail.server_queue_revision) || 0))
       const unsupportedCount = Array.isArray(detail.unsupported_actions) ? detail.unsupported_actions.length : 0
       return `客户端 revision ${clientRevision} / 服务端 ${serverRevision}，${detail.client_queue_stale === true ? '需刷新后合并' : '可继续合并'}，不支持动作 ${unsupportedCount} 项`
+    }
+    if (entry.action === 'offline_conflict_auto_resolved') {
+      const accepted = Number(detail.accepted_count) || 0
+      const rejected = Number(detail.rejected_count) || 0
+      const unsupported = Number(detail.unsupported_action_count) || 0
+      const stale = detail.client_queue_stale === true ? '本地基线过期' : '本地基线一致'
+      return `自动解决：提交 ${accepted}、拒绝 ${rejected}、不支持 ${unsupported}，${stale}，按服务端最新状态合并`
     }
     if (entry.action === 'shared_decoration_moved') {
       const move = detail.decoration_move && typeof detail.decoration_move === 'object'
@@ -8551,6 +9076,14 @@
       const needsChildArrangement = detail.child_arrangement_required === true
       if (needsChildArrangement) return '已记录剧情拆分，等待孩子安排和个人剧情 receipt'
       return needsPersonalStory ? '已记录剧情拆分，等待个人剧情 receipt' : '已记录剧情拆分'
+    }
+    if (entry.action === 'separation_story_cinematic_played') {
+      const eventId = typeof detail.animation_event_id === 'string' && detail.animation_event_id
+        ? detail.animation_event_id
+        : typeof detail.dialogue_event_id === 'string'
+          ? detail.dialogue_event_id
+          : ''
+      return eventId ? `已记录分居剧情演出播放：${eventId}` : '已记录分居剧情演出播放'
     }
     if (entry.action === 'separation_personal_story_receipts_written') {
       const count = Number(detail.receipt_count) || 0
@@ -8796,6 +9329,10 @@
     void refreshModule()
   })
 
+  watch(() => cohabitationStore.activeContractId, (contractId) => {
+    loadOfflineQueueDraftOperations(contractId)
+  }, { immediate: true })
+
   watch(() => route.query.tab, () => {
     syncActiveTabFromRoute()
   })
@@ -8808,6 +9345,7 @@
 
   watch(selectedSharedWorkshopRecipeId, () => {
     if (!selectedSharedWorkshopSupportsAlchemyAuto.value) sharedWorkshopAlchemyResultMode.value = 'fixed'
+    if (!selectedSharedWorkshopSupportsAlchemyAuto.value) sharedWorkshopAlchemyHeatLevel.value = 'balanced'
     sharedWorkshopActionMessage.value = ''
     sharedWorkshopActionOk.value = false
     sharedWorkshopLastResultRows.value = []

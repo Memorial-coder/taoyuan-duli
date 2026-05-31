@@ -1,6 +1,11 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-31
+- 同居离线冲突自动解决入口：新增 `/offline-conflicts/resolve`，会先执行离线冲突预检，再用 `server_authoritative_auto_merge` 策略合并队列；响应返回预检、合并和 `offline_conflict_auto_resolution` 摘要并写 `offline_conflict_auto_resolved` 审计，前端本地离线缓存批量合并已改走该入口。
+- 同居共同仓库 11.4 丹炉火候权重：共同工坊自动概率炼丹支持选择文火 / 中火 / 武火，服务端按火候调整丹方基础权重并把火候档位、火候配置、丹方基础权重、火候后权重和最终权重写入 recipe、workshop action、ledger、origin asset、审计和幂等回放；前端回执会读回火候标签与概率证据。
+- 同居离线本地队列缓存：共同庄园离线页新增按契约隔离的本地离线操作缓存，可把当前选中的农田 / 动物 / 宠物 / 工坊 / 装饰 / 自动收益意图先存入 `localStorage`，随后批量预检或批量合并；提交时保留每步幂等键和 `client_base_revision`，成功项自动移除，拒绝项继续留在本地给玩家处理。
+- 同居分居关系剧情前端读回：共同庄园分居预览新增“关系剧情 / 演出证据”只读面板，按执行请求读回 `story_event_kind`、`relationship_story_rule`、对话 / 动画 ID、退出记录、共同基金结算状态、家族会议 / 交接 / 未来合作标记、`frontend_cinematic_pending` 与 `personal_state_mutated`；静态 UI QA 固定字段，当前仍不播放真实演出、不改个人 NPC / 家庭主状态。
+- 同居分居关系剧情演出播放回执：新增 `/record-story-cinematic`，前端可在分居剧情证据面板记录演出播放回执；服务端校验执行 ledger、manifest hash、剧情类型和对话 / 动画 ID 后只写共同契约 playback receipt，清除 `frontend_cinematic_pending` 并读回 `frontend_cinematic_played`、播放人、时间和共同日志，个人 NPC / 家庭主状态仍不改写。
 - 同居分居 12.4 资产返还失败回 pending：分居执行在资产返还 ledger 已写入、但个人存档 / 共同基金 / 共同仓库尚未变更时，可记录补偿回滚审计、把旧执行 ledger 标记为 `reverted` 并恢复 `pending_manual_execution`；新幂等键可安全重试资产返还，已发生个人或共同资产变更的阶段仍拒绝直接回 pending。
 - 同居离线共同装饰移动队列：`mergeCohabitationOfflineQueue` 新增 `move_shared_decoration` 支持，移动共同装饰时复用服务端共同装饰移动写链，响应会读回装饰 ID、位置变化、权限键、契约装饰状态变化和个人小屋 / 共同仓库 / 共同基金不变边界；拒绝路径会保留服务端权威拒绝原因并继续汇总到离线冲突证据。
 - 同居共同仓库 11.4 丹炉配方权重读回：共同工坊自动炼丹结果改为按配方读取权重档案，ledger、origin asset 和幂等回放会保留 `alchemy_result_weight_profile` 与基础权重，方便核对成丹 / 偏丹 / 废丹 / 奇丹概率来源；分居共同基金面板补充拆分 / 争议确认读回，展示注资、可追溯经营收入、返还额和待确认成员，确认阶段继续只写审计，不改个人铜币或共同基金。

@@ -111,6 +111,21 @@ const SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES = Object.freeze({
     weights: { success: 70, partial: 15, failed: 7, rare: 8 },
   },
 });
+const SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL = 'balanced';
+const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
+  gentle: {
+    profile: 'gentle_fire',
+    deltas: { success: 3, partial: 1, failed: -3, rare: -1 },
+  },
+  balanced: {
+    profile: 'balanced_fire',
+    deltas: { success: 0, partial: 0, failed: 0, rare: 0 },
+  },
+  strong: {
+    profile: 'strong_fire',
+    deltas: { success: -5, partial: -1, failed: 3, rare: 3 },
+  },
+});
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_ITEM_POLICY_VERSION = 1;
@@ -541,6 +556,7 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'care_shared_pet',
   'process_shared_workshop_recipe',
   'move_shared_decoration',
+  'record_shared_decoration_removal_receipt',
   'collect_offline_auto_income',
 ]);
 const SHARED_FARM_SEED_CATALOG = Object.freeze(Object.fromEntries(
@@ -3572,6 +3588,16 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
                 rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.rare) || 0)),
               }
             : null,
+          alchemy_result_recipe_base_weights: entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights && typeof entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights === 'object'
+            ? {
+                success: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.success) || 0)),
+                partial: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.partial) || 0)),
+                failed: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.failed) || 0)),
+                rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.rare) || 0)),
+              }
+            : null,
+          alchemy_heat_level: normalizeSharedAlchemyHeatLevel(entry.simultaneous_online_bonus.alchemy_heat_level),
+          alchemy_heat_profile: sanitizeText(entry.simultaneous_online_bonus.alchemy_heat_profile, 80),
           success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
           policy: sanitizeText(entry.simultaneous_online_bonus.policy, 160),
         }
@@ -3598,6 +3624,9 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
           alchemy_result_weights: null,
           alchemy_result_weight_profile: '',
           alchemy_result_base_weights: null,
+          alchemy_result_recipe_base_weights: null,
+          alchemy_heat_level: SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL,
+          alchemy_heat_profile: '',
           success_rate_bonus_percent: 0,
           policy: '',
         },
@@ -9185,6 +9214,13 @@ function normalizeAlchemyResultMode(value) {
   return sanitizeText(value, 20) === 'auto' ? 'auto' : 'fixed';
 }
 
+function normalizeSharedAlchemyHeatLevel(value) {
+  const normalized = sanitizeText(value, 40);
+  if (['gentle', 'gentle_fire', 'low', 'wenhuo'].includes(normalized)) return 'gentle';
+  if (['strong', 'strong_fire', 'high', 'wuhuo'].includes(normalized)) return 'strong';
+  return SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL;
+}
+
 function normalizeSharedAlchemyResultWeights(weights = {}) {
   const normalized = {
     success: Math.max(0, Math.floor(Number(weights.success) || 0)),
@@ -9202,16 +9238,41 @@ function normalizeSharedAlchemyResultWeights(weights = {}) {
   return { success, partial, failed, rare };
 }
 
-function getSharedAlchemyResultWeightProfile(recipeId = '') {
-  const profile = SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES[sanitizeText(recipeId, 100)] || null;
+function getSharedAlchemyHeatProfile(heatLevel = '') {
+  const level = normalizeSharedAlchemyHeatLevel(heatLevel);
+  const profile = SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES[level] || SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES[SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL];
   return {
-    profile: sanitizeText(profile?.profile, 80) || SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_WEIGHT_PROFILE,
-    weights: normalizeSharedAlchemyResultWeights(profile?.weights || SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS),
+    level,
+    profile: sanitizeText(profile.profile, 80) || 'balanced_fire',
+    deltas: profile.deltas || SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES[SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL].deltas,
   };
 }
 
-function buildSharedAlchemyResultWeights(recipeId = '', successRateBonusPercent = 0) {
-  const weightProfile = getSharedAlchemyResultWeightProfile(recipeId);
+function applySharedAlchemyHeatProfile(weights = {}, heatLevel = '') {
+  const heatProfile = getSharedAlchemyHeatProfile(heatLevel);
+  return normalizeSharedAlchemyResultWeights({
+    success: Math.max(0, Math.floor(Number(weights.success) || 0) + Math.floor(Number(heatProfile.deltas.success) || 0)),
+    partial: Math.max(0, Math.floor(Number(weights.partial) || 0) + Math.floor(Number(heatProfile.deltas.partial) || 0)),
+    failed: Math.max(0, Math.floor(Number(weights.failed) || 0) + Math.floor(Number(heatProfile.deltas.failed) || 0)),
+    rare: Math.max(0, Math.floor(Number(weights.rare) || 0) + Math.floor(Number(heatProfile.deltas.rare) || 0)),
+  });
+}
+
+function getSharedAlchemyResultWeightProfile(recipeId = '', heatLevel = '') {
+  const profile = SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES[sanitizeText(recipeId, 100)] || null;
+  const recipeWeights = normalizeSharedAlchemyResultWeights(profile?.weights || SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS);
+  const heatProfile = getSharedAlchemyHeatProfile(heatLevel);
+  return {
+    profile: sanitizeText(profile?.profile, 80) || SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_WEIGHT_PROFILE,
+    heat_level: heatProfile.level,
+    heat_profile: heatProfile.profile,
+    recipe_weights: recipeWeights,
+    weights: applySharedAlchemyHeatProfile(recipeWeights, heatProfile.level),
+  };
+}
+
+function buildSharedAlchemyResultWeights(recipeId = '', successRateBonusPercent = 0, heatLevel = '') {
+  const weightProfile = getSharedAlchemyResultWeightProfile(recipeId, heatLevel);
   const baseWeights = weightProfile.weights;
   const success = Math.min(
     SHARED_ALCHEMY_AUTO_RESULT_MAX_SUCCESS_PERCENT,
@@ -9230,9 +9291,9 @@ function buildSharedAlchemyResultWeights(recipeId = '', successRateBonusPercent 
   return { success, partial, failed, rare };
 }
 
-function rollSharedAlchemyResultKind(recipeId = '', idempotencyKey = '', successRateBonusPercent = 0) {
-  const weightProfile = getSharedAlchemyResultWeightProfile(recipeId);
-  const weights = buildSharedAlchemyResultWeights(recipeId, successRateBonusPercent);
+function rollSharedAlchemyResultKind(recipeId = '', idempotencyKey = '', successRateBonusPercent = 0, heatLevel = '') {
+  const weightProfile = getSharedAlchemyResultWeightProfile(recipeId, heatLevel);
+  const weights = buildSharedAlchemyResultWeights(recipeId, successRateBonusPercent, heatLevel);
   const digest = crypto
     .createHash('sha256')
     .update(`shared_alchemy_auto_result:${sanitizeText(recipeId, 100)}:${sanitizeText(idempotencyKey, 120)}`)
@@ -9254,6 +9315,9 @@ function rollSharedAlchemyResultKind(recipeId = '', idempotencyKey = '', success
     weights,
     weight_profile: weightProfile.profile,
     base_weights: weightProfile.weights,
+    recipe_base_weights: weightProfile.recipe_weights,
+    heat_level: weightProfile.heat_level,
+    heat_profile: weightProfile.heat_profile,
     seed_hash: digest.slice(0, 16),
   };
 }
@@ -9277,6 +9341,9 @@ function resolveSharedAlchemyOutput(recipe = {}, request = {}, simultaneousOnlin
       weights: null,
       weight_profile: '',
       base_weights: null,
+      recipe_base_weights: null,
+      heat_level: '',
+      heat_profile: '',
       seed_hash: '',
     };
   }
@@ -9284,7 +9351,8 @@ function resolveSharedAlchemyOutput(recipe = {}, request = {}, simultaneousOnlin
   const rollResult = rollSharedAlchemyResultKind(
     recipe.id,
     request.idempotency_key,
-    Math.max(0, Math.floor(Number(simultaneousOnlineBonus.success_rate_bonus_percent) || 0))
+    Math.max(0, Math.floor(Number(simultaneousOnlineBonus.success_rate_bonus_percent) || 0)),
+    request.alchemy_heat_level
   );
   const outputItemId = rollResult.kind === 'success'
     ? recipe.output_item_id
@@ -9304,6 +9372,9 @@ function resolveSharedAlchemyOutput(recipe = {}, request = {}, simultaneousOnlin
     weights: rollResult.weights,
     weight_profile: rollResult.weight_profile,
     base_weights: rollResult.base_weights,
+    recipe_base_weights: rollResult.recipe_base_weights,
+    heat_level: rollResult.heat_level,
+    heat_profile: rollResult.heat_profile,
     seed_hash: rollResult.seed_hash,
   };
 }
@@ -9350,6 +9421,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       offline_queue_supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
       offline_conflict_preflight_enabled: true,
       offline_conflict_resolution_enabled: true,
+      offline_conflict_auto_resolve_enabled: true,
       simultaneous_online_bonus_enabled: simultaneousOnlineBonus.farm_water_health_bonus_enabled,
       simultaneous_online_farm_fertilize_bonus_enabled: simultaneousOnlineBonus.farm_plant_fertilize_quality_bonus_enabled,
       simultaneous_online_animal_bonus_enabled: simultaneousOnlineBonus.animal_feed_pet_mood_bonus_enabled,
@@ -9384,6 +9456,9 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
         || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
       move_shared_decoration: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.move_memorial_furniture === true,
+      record_shared_decoration_removal_receipt: actorPermissions.fund.spend_large === true
+        && actorPermissions.confirmations.large_fund_spend_requires_both === true
+        && actorPermissions.construction.demolish_building === true,
       collect_offline_auto_income: actorPermissions.farm.harvest === true || actorPermissions.animal.collect_product === true,
       read_warehouse: true,
       deposit_warehouse: actorPermissions.storage.deposit === true,
@@ -10434,6 +10509,29 @@ function normalizeOfflineQueueMergePayload(payload = {}) {
   };
 }
 
+function normalizeOfflineConflictResolvePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.resolve_id || payload.queue_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('offline conflict resolve requires idempotency_key');
+  const strategy = sanitizeText(payload.resolution_strategy || payload.strategy || 'server_authoritative_auto_merge', 80);
+  const mergeIdempotencyKey = sanitizeText(payload.merge_idempotency_key || `${idempotencyKey}:merge`, 120);
+  const preflightIdempotencyKey = sanitizeText(payload.preflight_idempotency_key || `${idempotencyKey}:preflight`, 120);
+  const mergeRequest = normalizeOfflineQueueMergePayload({
+    ...payload,
+    idempotency_key: mergeIdempotencyKey,
+  });
+  return {
+    idempotency_key: idempotencyKey,
+    strategy,
+    merge_idempotency_key: mergeIdempotencyKey,
+    preflight_idempotency_key: preflightIdempotencyKey,
+    client_queue_revision: mergeRequest.client_queue_revision,
+    allow_partial: payload.allow_partial !== false,
+    memo: sanitizeText(payload.memo || payload.note || 'offline conflict auto resolve', 180),
+    requested_actions: uniqueSanitizedValues(mergeRequest.operations.map(operation => operation.action), 80),
+    merge_request: mergeRequest,
+  };
+}
+
 function buildOfflineQueueRevisionSnapshot(contract = {}) {
   const sharedWarehouseLedger = Array.isArray(contract.shared_warehouse?.ledger) ? contract.shared_warehouse.ledger : [];
   const sharedFarmLedger = Array.isArray(contract.shared_farm_ledger) ? contract.shared_farm_ledger : [];
@@ -10580,6 +10678,7 @@ function normalizeSharedWorkshopProcessPayload(payload = {}) {
     idempotency_key: idempotencyKey,
     fund_ledger_id: sanitizeText(payload.fund_ledger_id || payload.budget_ledger_id || payload.medium_fund_ledger_id, 100),
     alchemy_result_mode: normalizeAlchemyResultMode(payload.alchemy_result_mode || payload.alchemyResultMode || payload.result_mode),
+    alchemy_heat_level: normalizeSharedAlchemyHeatLevel(payload.alchemy_heat_level || payload.alchemyHeatLevel || payload.heat_level || payload.heatLevel),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -11473,6 +11572,23 @@ function normalizeSeparationPersonalStoryReceiptsPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationStoryCinematicPlaybackPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居剧情演出播放记录需要 idempotency_key，以防断线或重试时重复记录');
+  const playbackState = sanitizeText(payload.playback_state || payload.state || 'played', 80);
+  const allowedStates = ['played', 'skipped_no_cinematic', 'record_only'];
+  return {
+    idempotency_key: idempotencyKey,
+    execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    story_event_kind: sanitizeText(payload.story_event_kind, 100),
+    dialogue_event_id: sanitizeText(payload.dialogue_event_id, 120),
+    animation_event_id: sanitizeText(payload.animation_event_id, 120),
+    playback_state: allowedStates.includes(playbackState) ? playbackState : 'played',
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, options = {}) {
   const relationType = normalizeRelationType(contract.type);
   const relationDef = RELATION_TYPE_DEFS[relationType] || RELATION_TYPE_DEFS.lover_cohabitation;
@@ -12053,6 +12169,16 @@ function buildWarehouseOriginAsset(entry) {
                 rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_base_weights.rare) || 0)),
               }
             : null,
+          alchemy_result_recipe_base_weights: entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights && typeof entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights === 'object'
+            ? {
+                success: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.success) || 0)),
+                partial: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.partial) || 0)),
+                failed: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.failed) || 0)),
+                rare: Math.max(0, Math.floor(Number(entry.simultaneous_online_bonus.alchemy_result_recipe_base_weights.rare) || 0)),
+              }
+            : null,
+          alchemy_heat_level: normalizeSharedAlchemyHeatLevel(entry.simultaneous_online_bonus.alchemy_heat_level),
+          alchemy_heat_profile: sanitizeText(entry.simultaneous_online_bonus.alchemy_heat_profile, 80),
           success_rate_bonus_percent: Math.max(0, Math.min(100, Math.floor(Number(entry.simultaneous_online_bonus.success_rate_bonus_percent) || 0))),
         }
       : { applied: false },
@@ -13523,6 +13649,10 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       animation_event_id: sanitizeText(storyResolution.animation_event_id, 120),
       exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
       frontend_cinematic_pending: storyResolution.frontend_cinematic_pending === true,
+      frontend_cinematic_played: storyResolution.frontend_cinematic_played === true,
+      frontend_cinematic_played_at: Math.max(0, Math.floor(Number(storyResolution.frontend_cinematic_played_at) || 0)),
+      frontend_cinematic_played_by: normalizeUsername(storyResolution.frontend_cinematic_played_by),
+      frontend_cinematic_playback_state: sanitizeText(storyResolution.frontend_cinematic_playback_state, 80),
       personal_state_mutated: false,
       personal_save_mutation_enabled: false,
       contract_record_only: storyResolution.contract_record_only !== false,
@@ -13561,6 +13691,10 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       animation_event_id: receipt.animation_event_id,
       exit_record_kind: receipt.exit_record_kind,
       frontend_cinematic_pending: receipt.frontend_cinematic_pending,
+      frontend_cinematic_played: receipt.frontend_cinematic_played,
+      frontend_cinematic_played_at: receipt.frontend_cinematic_played_at,
+      frontend_cinematic_played_by: receipt.frontend_cinematic_played_by,
+      frontend_cinematic_playback_state: receipt.frontend_cinematic_playback_state,
       personal_state_mutated: receipt.personal_state_mutated,
       personal_save_mutation_enabled: receipt.personal_save_mutation_enabled,
       contract_record_only: receipt.contract_record_only,
@@ -14857,6 +14991,23 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     family_story_resolution_idempotency_key: sanitizeText(entry.family_story_resolution_idempotency_key, 120),
     family_story_resolved_at: Math.max(0, Math.floor(Number(entry.family_story_resolved_at) || 0)),
     family_story_resolved_by: normalizeUsername(entry.family_story_resolved_by),
+    family_story_cinematic_played: entry.family_story_cinematic_played === true,
+    family_story_cinematic_idempotency_key: sanitizeText(entry.family_story_cinematic_idempotency_key, 120),
+    family_story_cinematic_played_at: Math.max(0, Math.floor(Number(entry.family_story_cinematic_played_at) || 0)),
+    family_story_cinematic_played_by: normalizeUsername(entry.family_story_cinematic_played_by),
+    family_story_cinematic_receipt: entry.family_story_cinematic_receipt && typeof entry.family_story_cinematic_receipt === 'object'
+      ? {
+          playback_state: sanitizeText(entry.family_story_cinematic_receipt.playback_state, 80),
+          story_event_kind: sanitizeText(entry.family_story_cinematic_receipt.story_event_kind, 100),
+          dialogue_event_id: sanitizeText(entry.family_story_cinematic_receipt.dialogue_event_id, 120),
+          animation_event_id: sanitizeText(entry.family_story_cinematic_receipt.animation_event_id, 120),
+          personal_state_mutated: entry.family_story_cinematic_receipt.personal_state_mutated === true,
+          contract_record_only: entry.family_story_cinematic_receipt.contract_record_only !== false,
+          played_at: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.played_at) || 0)),
+          played_by: normalizeUsername(entry.family_story_cinematic_receipt.played_by),
+          idempotency_key: sanitizeText(entry.family_story_cinematic_receipt.idempotency_key, 120),
+        }
+      : null,
     family_story_resolution: entry.family_story_resolution && typeof entry.family_story_resolution === 'object'
       ? {
           relation_type: sanitizeText(entry.family_story_resolution.relation_type, 80),
@@ -14877,6 +15028,11 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           personal_story_write_required: entry.family_story_resolution.personal_story_write_required !== false,
           child_arrangement_required: entry.family_story_resolution.child_arrangement_required === true,
           frontend_cinematic_pending: entry.family_story_resolution.frontend_cinematic_pending === true,
+          frontend_cinematic_played: entry.family_story_resolution.frontend_cinematic_played === true,
+          frontend_cinematic_played_at: Math.max(0, Math.floor(Number(entry.family_story_resolution.frontend_cinematic_played_at) || 0)),
+          frontend_cinematic_played_by: normalizeUsername(entry.family_story_resolution.frontend_cinematic_played_by),
+          frontend_cinematic_playback_state: sanitizeText(entry.family_story_resolution.frontend_cinematic_playback_state, 80),
+          frontend_cinematic_playback_idempotency_key: sanitizeText(entry.family_story_resolution.frontend_cinematic_playback_idempotency_key, 120),
           personal_state_mutated: entry.family_story_resolution.personal_state_mutated === true,
           personal_save_mutation_enabled: entry.family_story_resolution.personal_save_mutation_enabled === true,
           contract_record_only: entry.family_story_resolution.contract_record_only !== false,
@@ -14906,6 +15062,10 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           animation_event_id: sanitizeText(item.animation_event_id, 120),
           exit_record_kind: sanitizeText(item.exit_record_kind, 100),
           frontend_cinematic_pending: item.frontend_cinematic_pending === true,
+          frontend_cinematic_played: item.frontend_cinematic_played === true,
+          frontend_cinematic_played_at: Math.max(0, Math.floor(Number(item.frontend_cinematic_played_at) || 0)),
+          frontend_cinematic_played_by: normalizeUsername(item.frontend_cinematic_played_by),
+          frontend_cinematic_playback_state: sanitizeText(item.frontend_cinematic_playback_state, 80),
           personal_state_mutated: item.personal_state_mutated === true,
           personal_save_mutation_enabled: item.personal_save_mutation_enabled === true,
           contract_record_only: item.contract_record_only !== false,
@@ -18179,6 +18339,15 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared decoration move merge', 160),
     }, actor);
   }
+  if (operation.action === 'record_shared_decoration_removal_receipt') {
+    return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
+      ...payload,
+      outcome: 'delivered',
+      receipt_ref: payload.receipt_ref || payload.removal_receipt_ref || payload.target_ref,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared decoration removal receipt merge', 160),
+    }, actor);
+  }
   if (operation.action === 'collect_offline_auto_income') {
     return collectCohabitationOfflineAutoIncome(contractId, {
       ...payload,
@@ -18320,6 +18489,8 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       alchemy_auto_result: actionResult.alchemy_auto_result === true || result.recipe?.alchemy_auto_result === true,
       alchemy_result_roll: Math.max(0, Math.floor(Number(actionResult.alchemy_result_roll || outputEntry.simultaneous_online_bonus?.alchemy_result_roll) || 0)),
       alchemy_result_roll_mod: Math.max(0, Math.floor(Number(actionResult.alchemy_result_roll_mod || outputEntry.simultaneous_online_bonus?.alchemy_result_roll_mod) || 0)),
+      alchemy_heat_level: actionResult.alchemy_heat_level || outputEntry.simultaneous_online_bonus?.alchemy_heat_level || result.recipe?.alchemy_heat_level || '',
+      alchemy_heat_profile: actionResult.alchemy_heat_profile || outputEntry.simultaneous_online_bonus?.alchemy_heat_profile || result.recipe?.alchemy_heat_profile || '',
       success_rate_bonus_percent: Math.max(0, Math.floor(Number(actionResult.success_rate_bonus_percent || outputEntry.simultaneous_online_bonus?.success_rate_bonus_percent) || 0)),
       already_processed: result.already_processed === true,
       simultaneous_online_bonus: actionResult.simultaneous_online_bonus || outputEntry.simultaneous_online_bonus || null,
@@ -18379,6 +18550,38 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       already_moved: result.already_moved === true,
       audit_action: 'shared_decoration_moved',
       compensation_hint: 'offline shared decoration move only updates contract shared_decoration_state and audit log; personal home saves, shared warehouse, and shared fund remain unchanged.',
+    };
+  }
+  if (action === 'record_shared_decoration_removal_receipt') {
+    const draft = result.draft || {};
+    const receipt = result.receipt || {};
+    const stateEntry = result.shared_decoration_state_entry || {};
+    const originalFundLedger = result.original_fund_ledger_entry || {};
+    const targetRef = draft.target_ref || stateEntry.target_ref || sanitizeText(operation.payload?.target_ref || operation.payload?.receipt_ref, 120);
+    const decorationId = stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
+    const fundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || stateEntry.fund_ledger_id || '';
+    return {
+      ...entry,
+      target_ref: entry.target_ref || targetRef || (decorationId ? `shared_decoration:${decorationId}:removal_receipt` : ''),
+      draft_id: draft.id || sanitizeText(operation.payload?.draft_id || operation.payload?.draftId || operation.payload?.id, 100),
+      receipt_id: receipt.id || stateEntry.receipt_id || '',
+      receipt_ref: receipt.receipt_ref || stateEntry.removal_receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.removal_receipt_ref || operation.payload?.target_ref, 120),
+      receipt_outcome: receipt.outcome || 'delivered',
+      decoration_id: decorationId,
+      decoration_kind: stateEntry.decoration_kind || normalizeSharedDecorationKind(operation.payload?.decoration_kind || operation.payload?.kind, operation.payload || {}),
+      shared_decoration_state_entry_id: stateEntry.id || '',
+      shared_decoration_state_changed: stateEntry.shared_decoration_state_changed !== false,
+      fund_ledger_id: fundLedgerId,
+      fund_ledger_ids: [fundLedgerId].filter(Boolean),
+      amount: Math.max(0, Math.floor(Number(stateEntry.amount || draft.amount || originalFundLedger.amount) || 0)),
+      required_permission_keys: Array.isArray(result.required_permission_keys) ? result.required_permission_keys : [],
+      personal_home_mutated: false,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: false,
+      already_recorded: result.already_recorded === true,
+      audit_action: 'fund_high_risk_receipt_recorded',
+      compensation_hint: 'offline shared decoration removal receipt only closes an executed high-risk draft and updates contract shared_decoration_state; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
   return {
@@ -18479,6 +18682,43 @@ function buildCohabitationOfflineSharedDecorationMoveRejection(operation = {}, e
     server_authoritative: true,
     conflict_policy: 'server_authoritative_reject_and_continue',
     compensation_hint: 'offline shared decoration move was rejected before any shared decoration state, personal home, warehouse, or fund mutation.',
+  };
+}
+
+function buildCohabitationOfflineSharedDecorationRemovalReceiptRejection(operation = {}, error = {}) {
+  if (operation.action !== 'record_shared_decoration_removal_receipt') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'shared_decoration_removal_receipt_server_state_rejected';
+  if (status === 400) reason = 'invalid_shared_decoration_removal_receipt_operation';
+  if (status === 403) reason = 'shared_decoration_removal_receipt_permission_denied';
+  if (status === 404) reason = 'shared_decoration_removal_draft_not_found';
+  if (status === 409) reason = 'shared_decoration_removal_receipt_state_conflict';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'shared_decoration_removal_receipt_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    draft_id: sanitizeText(payload.draft_id || payload.draftId || payload.id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.removal_receipt_ref || payload.target_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.receipt_ref || payload.removal_receipt_ref, 120),
+    decoration_id: sanitizeText(payload.decoration_id || payload.decorationId || payload.item_id, 80),
+    required_permission_keys: ['fund.spend_large', 'confirmations.large_fund_spend_requires_both', 'construction.demolish_building'],
+    shared_decoration_state_changed: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline shared decoration removal receipt was rejected before any shared decoration state, personal home, warehouse, or fund mutation.',
   };
 }
 
@@ -18889,6 +19129,131 @@ async function preflightCohabitationOfflineConflicts(contractId, payload = {}, a
   };
 }
 
+async function resolveCohabitationOfflineConflicts(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeOfflineConflictResolvePayload(payload);
+  if (request.strategy !== 'server_authoritative_auto_merge') {
+    throw createError('unsupported offline conflict resolution strategy', 422);
+  }
+  const preflightResult = await preflightCohabitationOfflineConflicts(contractId, {
+    idempotency_key: request.preflight_idempotency_key,
+    client_queue_revision: request.client_queue_revision,
+    actions: request.requested_actions,
+    memo: request.memo,
+  }, actor);
+  const preflight = preflightResult.offline_conflict_preflight || {};
+  const unsupportedActions = Array.isArray(preflight.unsupported_actions) ? preflight.unsupported_actions : [];
+  if (unsupportedActions.length > 0 && request.allow_partial !== true) {
+    const autoResolution = {
+      idempotency_key: request.idempotency_key,
+      strategy: request.strategy,
+      status: 'blocked_by_unsupported_actions',
+      preflight_idempotency_key: request.preflight_idempotency_key,
+      merge_idempotency_key: request.merge_idempotency_key,
+      client_queue_revision: request.client_queue_revision,
+      server_queue_revision: Math.max(0, Math.floor(Number(preflight.server_queue_revision) || 0)),
+      client_queue_stale: preflight.client_queue_stale === true,
+      requested_actions: request.requested_actions,
+      unsupported_actions: unsupportedActions,
+      unsupported_action_count: unsupportedActions.length,
+      accepted_count: 0,
+      rejected_count: unsupportedActions.length,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: false,
+      server_authoritative: true,
+      next_step: 'remove_unsupported_actions_or_enable_partial_resolution',
+    };
+    throw Object.assign(createError('offline conflict resolver blocked unsupported actions', 422), {
+      offline_conflict_preflight: preflight,
+      offline_conflict_auto_resolution: autoResolution,
+    });
+  }
+  const mergeRequest = unsupportedActions.length > 0
+    ? {
+        ...request.merge_request,
+        operations: request.merge_request.operations.filter(operation => !unsupportedActions.includes(operation.action)),
+      }
+    : request.merge_request;
+  if (!mergeRequest.operations.length) {
+    const autoResolution = {
+      idempotency_key: request.idempotency_key,
+      strategy: request.strategy,
+      status: 'all_rejected',
+      preflight_idempotency_key: request.preflight_idempotency_key,
+      merge_idempotency_key: request.merge_idempotency_key,
+      client_queue_revision: request.client_queue_revision,
+      server_queue_revision: Math.max(0, Math.floor(Number(preflight.server_queue_revision) || 0)),
+      client_queue_stale: preflight.client_queue_stale === true,
+      requested_actions: request.requested_actions,
+      unsupported_actions: unsupportedActions,
+      unsupported_action_count: unsupportedActions.length,
+      accepted_count: 0,
+      rejected_count: unsupportedActions.length,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: false,
+      server_authoritative: true,
+      next_step: 'remove_unsupported_actions_before_auto_merge',
+    };
+    return {
+      contract: preflightResult.contract,
+      offline_status: preflightResult.offline_status,
+      offline_conflict_preflight: preflight,
+      offline_conflict_auto_resolution: autoResolution,
+    };
+  }
+  const mergeResult = await mergeCohabitationOfflineQueue(contractId, mergeRequest, actor);
+  const merge = mergeResult.offline_queue_merge || {};
+  const resolution = mergeResult.offline_conflict_resolution || merge.offline_conflict_resolution || {};
+  const autoResolution = {
+    idempotency_key: request.idempotency_key,
+    strategy: request.strategy,
+    status: resolution.status || (merge.rejected_count > 0 ? 'partially_committed' : 'committed'),
+    preflight_idempotency_key: request.preflight_idempotency_key,
+    merge_idempotency_key: request.merge_idempotency_key,
+    client_queue_revision: request.client_queue_revision,
+    server_queue_revision_before: merge.server_queue_revision_before,
+    server_queue_revision_after: merge.server_queue_revision_after,
+    client_queue_stale: preflight.client_queue_stale === true || merge.client_queue_stale === true,
+    requested_actions: request.requested_actions,
+    unsupported_actions: unsupportedActions,
+    unsupported_action_count: unsupportedActions.length,
+    accepted_count: Math.max(0, Math.floor(Number(merge.accepted_count) || 0)),
+    rejected_count: Math.max(0, Math.floor(Number(merge.rejected_count) || 0)) + unsupportedActions.length,
+    conflict_policy: 'server_authoritative_preflight_then_auto_merge',
+    personal_save_changed: resolution.personal_save_changed === true,
+    shared_warehouse_changed: resolution.shared_warehouse_changed === true,
+    shared_fund_changed: resolution.shared_fund_changed === true,
+    shared_decoration_state_changed: resolution.shared_decoration_state_changed === true,
+    server_authoritative: true,
+    next_step: Math.max(0, Math.floor(Number(merge.rejected_count) || 0)) > 0
+      ? 'review_rejected_operations_against_latest_server_state'
+      : 'server_state_committed_or_replayed',
+  };
+  const store = loadContractStore();
+  const latestContract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  if (latestContract && !(latestContract.audit_log || []).some(entry =>
+    entry.action === 'offline_conflict_auto_resolved' && entry.idempotency_key === request.idempotency_key
+  )) {
+    appendAudit(latestContract, 'offline_conflict_auto_resolved', actor, {
+      ...autoResolution,
+      offline_conflict_preflight_id: preflight.idempotency_key,
+      offline_queue_merge_id: merge.idempotency_key,
+    }, request.idempotency_key);
+    saveContractStore(store);
+  }
+  const publicContract = latestContract ? toPublicContract(latestContract) : mergeResult.contract;
+  return {
+    ...mergeResult,
+    contract: publicContract,
+    offline_status: latestContract ? buildOfflineOperationSnapshot(latestContract, actorUsername) : mergeResult.offline_status,
+    offline_conflict_preflight: preflight,
+    offline_conflict_auto_resolution: autoResolution,
+  };
+}
+
 async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -18999,6 +19364,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const sharedDecorationMoveRejection = buildCohabitationOfflineSharedDecorationMoveRejection(operation, error);
       if (sharedDecorationMoveRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(sharedDecorationMoveRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const sharedDecorationRemovalReceiptRejection = buildCohabitationOfflineSharedDecorationRemovalReceiptRejection(operation, error);
+      if (sharedDecorationRemovalReceiptRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(sharedDecorationRemovalReceiptRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const careItemProfile = getSharedPetCareItemProfile(careItemId);
@@ -20528,6 +20898,9 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     const previousAlchemyAuto = previousOutputEntry.simultaneous_online_bonus?.alchemy_auto_result === true;
     const previousAlchemyWeightProfile = previousOutputEntry.simultaneous_online_bonus?.alchemy_result_weight_profile || '';
     const previousAlchemyBaseWeights = previousOutputEntry.simultaneous_online_bonus?.alchemy_result_base_weights || null;
+    const previousAlchemyRecipeBaseWeights = previousOutputEntry.simultaneous_online_bonus?.alchemy_result_recipe_base_weights || null;
+    const previousAlchemyHeatLevel = previousOutputEntry.simultaneous_online_bonus?.alchemy_heat_level || SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL;
+    const previousAlchemyHeatProfile = previousOutputEntry.simultaneous_online_bonus?.alchemy_heat_profile || '';
     const previousResponseRecipe = {
       ...recipe,
       output_item_id: previousOutputEntry.item_id,
@@ -20538,6 +20911,9 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       alchemy_auto_result: previousAlchemyAuto,
       alchemy_result_weight_profile: previousAlchemyWeightProfile,
       alchemy_result_base_weights: previousAlchemyBaseWeights,
+      alchemy_result_recipe_base_weights: previousAlchemyRecipeBaseWeights,
+      alchemy_heat_level: previousAlchemyHeatLevel,
+      alchemy_heat_profile: previousAlchemyHeatProfile,
     };
     return {
       contract: toPublicContract(contract),
@@ -20565,6 +20941,9 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
         alchemy_result_weights: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_weights || null,
         alchemy_result_weight_profile: previousAlchemyWeightProfile,
         alchemy_result_base_weights: previousAlchemyBaseWeights,
+        alchemy_result_recipe_base_weights: previousAlchemyRecipeBaseWeights,
+        alchemy_heat_level: previousAlchemyHeatLevel,
+        alchemy_heat_profile: previousAlchemyHeatProfile,
         alchemy_result_seed_hash: previousOutputEntry.simultaneous_online_bonus?.alchemy_result_seed_hash || '',
         success_rate_bonus_percent: previousOutputEntry.simultaneous_online_bonus?.success_rate_bonus_percent || 0,
         warehouse_ledger_ids: previousWarehouseEntries.map(entry => entry.id),
@@ -20613,9 +20992,12 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     alchemy_result_weights: alchemyOutput.weights,
     alchemy_result_weight_profile: alchemyOutput.weight_profile,
     alchemy_result_base_weights: alchemyOutput.base_weights,
+    alchemy_result_recipe_base_weights: alchemyOutput.recipe_base_weights,
+    alchemy_heat_level: alchemyOutput.heat_level,
+    alchemy_heat_profile: alchemyOutput.heat_profile,
     alchemy_result_seed_hash: alchemyOutput.seed_hash,
     policy: alchemyOutput.auto === true
-      ? 'auto result is deterministically rolled from recipe id, recipe weight profile, and idempotency key; retries replay the same output.'
+      ? 'auto result is deterministically rolled from recipe id, recipe weight profile, heat level, and idempotency key; retries replay the same output.'
       : baseSimultaneousOnlineBonus.policy,
   };
   const outputItemId = alchemyOutput.output_item_id || recipe.output_item_id;
@@ -20712,6 +21094,9 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     alchemy_result_weights: alchemyOutput.weights,
     alchemy_result_weight_profile: alchemyOutput.weight_profile,
     alchemy_result_base_weights: alchemyOutput.base_weights,
+    alchemy_result_recipe_base_weights: alchemyOutput.recipe_base_weights,
+    alchemy_heat_level: alchemyOutput.heat_level,
+    alchemy_heat_profile: alchemyOutput.heat_profile,
     alchemy_result_seed_hash: alchemyOutput.seed_hash,
     success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
     input_items: recipe.input_items,
@@ -20740,6 +21125,9 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
     alchemy_auto_result: alchemyOutput.auto === true,
     alchemy_result_weight_profile: alchemyOutput.weight_profile,
     alchemy_result_base_weights: alchemyOutput.base_weights,
+    alchemy_result_recipe_base_weights: alchemyOutput.recipe_base_weights,
+    alchemy_heat_level: alchemyOutput.heat_level,
+    alchemy_heat_profile: alchemyOutput.heat_profile,
   };
 
   return {
@@ -20763,6 +21151,9 @@ async function processCohabitationSharedWorkshopRecipe(contractId, payload = {},
       alchemy_result_weights: alchemyOutput.weights,
       alchemy_result_weight_profile: alchemyOutput.weight_profile,
       alchemy_result_base_weights: alchemyOutput.base_weights,
+      alchemy_result_recipe_base_weights: alchemyOutput.recipe_base_weights,
+      alchemy_heat_level: alchemyOutput.heat_level,
+      alchemy_heat_profile: alchemyOutput.heat_profile,
       alchemy_result_seed_hash: alchemyOutput.seed_hash,
       success_rate_bonus_percent: simultaneousOnlineBonus.success_rate_bonus_percent || 0,
       input_items: recipe.input_items,
@@ -29878,6 +30269,188 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
   };
 }
 
+async function recordSeparationStoryCinematicPlayback(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const playbackPayload = normalizeSeparationStoryCinematicPlaybackPayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要记录剧情演出播放的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以记录剧情演出播放', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以记录剧情演出播放', 403);
+
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  const playableStatuses = ['family_story_resolved', 'personal_story_receipts_written', 'child_arrangement_resolved', 'personal_family_receipts_written'];
+  if (!playableStatuses.includes(String(executionRequest.status || ''))) {
+    throw createError('请先记录分居剧情拆分，再记录剧情演出播放', 409);
+  }
+  const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    entry.id === (playbackPayload.execution_ledger_id || executionRequest.execution_ledger_id)
+    || (entry.preview_id === normalizedPreviewId && playableStatuses.includes(entry.status))
+  );
+  if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
+  const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
+  if (playbackPayload.execution_ledger_id && playbackPayload.execution_ledger_id !== ledger.id) throw createError('分居返还执行记录不匹配，请刷新后重试', 409);
+  if (ledger.family_story_cinematic_idempotency_key === playbackPayload.idempotency_key || ledger.family_story_cinematic_played === true) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_played: ledger.family_story_cinematic_played === true,
+      execution_ledger: ledger,
+      story_resolution: ledger.family_story_resolution,
+      cinematic_receipt: ledger.family_story_cinematic_receipt,
+    };
+  }
+
+  const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
+  if (!expectedManifestHash || !/^[a-f0-9]{64}$/i.test(expectedManifestHash)) throw createError('分居来源田区清单缺少可校验 hash，请重新生成预览', 409);
+  if (playbackPayload.plot_return_manifest_hash && playbackPayload.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免剧情演出记录错账', 409);
+  }
+  if (ledger.plot_return_manifest_hash && ledger.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
+  }
+  if (ledger.family_story_resolved !== true || !ledger.family_story_resolution) throw createError('分居剧情拆分尚未记录，不能记录剧情演出播放', 409);
+
+  const storyResolution = ledger.family_story_resolution || {};
+  const expectedStoryEventKind = sanitizeText(storyResolution.story_event_kind, 100);
+  const expectedDialogueEventId = sanitizeText(storyResolution.dialogue_event_id, 120);
+  const expectedAnimationEventId = sanitizeText(storyResolution.animation_event_id, 120);
+  if (playbackPayload.story_event_kind && playbackPayload.story_event_kind !== expectedStoryEventKind) {
+    throw createError('剧情演出类型与契约记录不匹配，请刷新后重试', 409);
+  }
+  if (playbackPayload.dialogue_event_id && playbackPayload.dialogue_event_id !== expectedDialogueEventId) {
+    throw createError('剧情对话事件与契约记录不匹配，请刷新后重试', 409);
+  }
+  if (playbackPayload.animation_event_id && playbackPayload.animation_event_id !== expectedAnimationEventId) {
+    throw createError('剧情动画事件与契约记录不匹配，请刷新后重试', 409);
+  }
+
+  const playedAt = nowSeconds();
+  const nextStoryResolution = {
+    ...storyResolution,
+    frontend_cinematic_pending: false,
+    frontend_cinematic_played: true,
+    frontend_cinematic_played_at: playedAt,
+    frontend_cinematic_played_by: member.username,
+    frontend_cinematic_playback_state: playbackPayload.playback_state,
+    frontend_cinematic_playback_idempotency_key: playbackPayload.idempotency_key,
+    personal_state_mutated: false,
+    personal_save_mutation_enabled: false,
+    contract_record_only: storyResolution.contract_record_only !== false,
+  };
+  const cinematicReceipt = {
+    playback_state: playbackPayload.playback_state,
+    relation_type: sanitizeText(storyResolution.relation_type || contract.type, 80),
+    relationship_story_rule: sanitizeText(storyResolution.relationship_story_rule, 100),
+    story_event_kind: expectedStoryEventKind,
+    dialogue_event_id: expectedDialogueEventId,
+    animation_event_id: expectedAnimationEventId,
+    exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
+    frontend_cinematic_pending: false,
+    frontend_cinematic_played: true,
+    personal_state_mutated: false,
+    personal_save_mutation_enabled: false,
+    contract_record_only: storyResolution.contract_record_only !== false,
+    played_at: playedAt,
+    played_by: member.username,
+    idempotency_key: playbackPayload.idempotency_key,
+    memo: playbackPayload.memo,
+  };
+
+  const nextLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    family_story_cinematic_played: true,
+    family_story_cinematic_idempotency_key: playbackPayload.idempotency_key,
+    family_story_cinematic_played_at: playedAt,
+    family_story_cinematic_played_by: member.username,
+    family_story_cinematic_receipt: cinematicReceipt,
+    family_story_resolution: nextStoryResolution,
+  });
+  const nextExecutionRequest = {
+    ...executionRequest,
+    family_story_cinematic_played: true,
+    family_story_cinematic_played_at: playedAt,
+    family_story_cinematic_played_by: member.username,
+    family_story_cinematic_receipt: nextLedger.family_story_cinematic_receipt,
+    family_story_resolution: nextLedger.family_story_resolution,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      family_story_cinematic_played: true,
+      family_story_cinematic_played_at: playedAt,
+      family_story_cinematic_receipt: nextLedger.family_story_cinematic_receipt,
+      family_story_resolution: nextLedger.family_story_resolution,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      family_story_cinematic_played: true,
+      family_story_cinematic_played_at: playedAt,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '分居剧情演出播放只记录共同契约回执；个人 NPC、家庭、孩子和资产主状态仍不在此处改写。',
+    },
+  });
+
+  contract.separation_execution_ledger[ledgerIndex] = nextLedger;
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_story_cinematic_played', actor, {
+    preview_id: nextPreview.id,
+    execution_ledger_id: nextLedger.id,
+    plot_return_manifest_hash: expectedManifestHash,
+    playback_state: playbackPayload.playback_state,
+    story_event_kind: nextStoryResolution.story_event_kind,
+    dialogue_event_id: nextStoryResolution.dialogue_event_id,
+    animation_event_id: nextStoryResolution.animation_event_id,
+    exit_record_kind: nextStoryResolution.exit_record_kind,
+    frontend_cinematic_pending: nextStoryResolution.frontend_cinematic_pending,
+    frontend_cinematic_played: nextStoryResolution.frontend_cinematic_played,
+    frontend_cinematic_played_at: playedAt,
+    personal_state_mutated: false,
+    contract_record_only: nextStoryResolution.contract_record_only,
+    personal_save_changed: false,
+    npc_family_child_mutation: false,
+  }, playbackPayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_played: false,
+    execution_ledger: nextLedger,
+    story_resolution: nextLedger.family_story_resolution,
+    cinematic_receipt: nextLedger.family_story_cinematic_receipt,
+  };
+}
+
 async function writeSeparationPersonalStoryReceipts(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -30340,6 +30913,7 @@ module.exports = {
   settleCohabitationFamilyFestivalRewards,
   getCohabitationOfflineStatus,
   preflightCohabitationOfflineConflicts,
+  resolveCohabitationOfflineConflicts,
   mergeCohabitationOfflineQueue,
   collectCohabitationOfflineAutoIncome,
   settleCohabitationDailyBonus,
@@ -30418,6 +30992,7 @@ module.exports = {
   returnSeparationSharedWarehouse,
   splitSeparationDecorationsAndBuildings,
   resolveSeparationFamilyStory,
+  recordSeparationStoryCinematicPlayback,
   writeSeparationPersonalStoryReceipts,
   resolveSeparationChildArrangement,
   writeSeparationPersonalFamilyReceipts,

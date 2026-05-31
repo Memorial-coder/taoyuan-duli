@@ -3897,11 +3897,12 @@ const assertRecipePolicyAlchemyWeights = (actual, expected, message) => {
   }
 }
 
-const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKind, expectedOutputItemId, expectedRiskLevel, expectedRoll, idempotencyKey, inputs, expectedWeightProfile, expectedWeights, expectedBaseWeights }) => {
+const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKind, expectedOutputItemId, expectedRiskLevel, expectedRoll, idempotencyKey, inputs, expectedWeightProfile, expectedWeights, expectedBaseWeights, expectedRecipeBaseWeights, heatLevel = 'balanced', expectedHeatProfile = 'balanced_fire' }) => {
   for (const input of inputs) await injectRecipePolicyStock(input.itemId, input.quantity, input.quality || 'normal')
   const result = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
     recipe_id: recipeId,
     alchemy_result_mode: 'auto',
+    alchemy_heat_level: heatLevel,
     memo: `qa process auto alchemy ${recipeId}`,
     idempotency_key: idempotencyKey,
   }, actor(recipePolicyOwner))
@@ -3911,6 +3912,9 @@ const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKi
   assert.equal(result.workshop_action.alchemy_result_kind, expectedKind, `auto ${label} should resolve expected result kind`)
   assert.equal(result.workshop_action.alchemy_result_mode, 'auto', `auto ${label} action should expose auto mode`)
   assert.equal(result.workshop_action.alchemy_auto_result, true, `auto ${label} action should expose auto result flag`)
+  assert.equal(result.recipe.alchemy_heat_level, heatLevel, `auto ${label} recipe should expose heat level`)
+  assert.equal(result.workshop_action.alchemy_heat_level, heatLevel, `auto ${label} action should expose heat level`)
+  assert.equal(result.workshop_action.alchemy_heat_profile, expectedHeatProfile, `auto ${label} action should expose heat profile`)
   assert.equal(result.workshop_action.alchemy_result_roll, expectedRoll, `auto ${label} should keep deterministic roll evidence`)
   assert.equal(result.workshop_action.alchemy_result_roll_mod, 100, `auto ${label} should keep roll modulus evidence`)
   assert.equal(result.workshop_action.success_rate_bonus_percent, 15, `auto ${label} should still expose cooperation success rate bonus`)
@@ -3918,6 +3922,8 @@ const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKi
   assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, expectedKind, `auto ${label} ledger should keep resolved kind`)
   assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_roll, expectedRoll, `auto ${label} ledger should keep deterministic roll`)
   assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_roll_mod, 100, `auto ${label} ledger should keep roll modulus`)
+  assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_heat_level, heatLevel, `auto ${label} ledger should keep heat level`)
+  assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_heat_profile, expectedHeatProfile, `auto ${label} ledger should keep heat profile`)
   if (!expectedWeights) assert.equal(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_weights?.success, 95, `auto ${label} should apply cooperation success weight`)
   if (expectedWeights) {
     assertRecipePolicyAlchemyWeights(result.workshop_action.alchemy_result_weights, expectedWeights, `auto ${label} action should keep resolved`)
@@ -3926,6 +3932,10 @@ const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKi
   if (expectedBaseWeights) {
     assertRecipePolicyAlchemyWeights(result.workshop_action.alchemy_result_base_weights, expectedBaseWeights, `auto ${label} action should keep base`)
     assertRecipePolicyAlchemyWeights(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_base_weights, expectedBaseWeights, `auto ${label} ledger should keep base`)
+  }
+  if (expectedRecipeBaseWeights) {
+    assertRecipePolicyAlchemyWeights(result.workshop_action.alchemy_result_recipe_base_weights, expectedRecipeBaseWeights, `auto ${label} action should keep recipe base`)
+    assertRecipePolicyAlchemyWeights(result.ledger_entry.simultaneous_online_bonus?.alchemy_result_recipe_base_weights, expectedRecipeBaseWeights, `auto ${label} ledger should keep recipe base`)
   }
   if (expectedWeightProfile) {
     assert.equal(result.recipe.alchemy_result_weight_profile, expectedWeightProfile, `auto ${label} recipe should expose weight profile`)
@@ -3942,17 +3952,21 @@ const assertRecipePolicyAlchemyAutoResult = async ({ label, recipeId, expectedKi
   assert.equal(origin?.high_value_withdrawal_required, true, `auto ${label} origin should require high-value withdrawal`)
   assert.equal(origin?.simultaneous_online_bonus?.alchemy_auto_result, true, `auto ${label} origin should keep auto flag`)
   assert.equal(origin?.simultaneous_online_bonus?.alchemy_result_roll, expectedRoll, `auto ${label} origin should keep roll evidence`)
+  assert.equal(origin?.simultaneous_online_bonus?.alchemy_heat_level, heatLevel, `auto ${label} origin should keep heat level`)
+  assert.equal(origin?.simultaneous_online_bonus?.alchemy_heat_profile, expectedHeatProfile, `auto ${label} origin should keep heat profile`)
   if (expectedWeightProfile) assert.equal(origin?.simultaneous_online_bonus?.alchemy_result_weight_profile, expectedWeightProfile, `auto ${label} origin should keep weight profile`)
   if (expectedWeights) assertRecipePolicyAlchemyWeights(origin?.simultaneous_online_bonus?.alchemy_result_weights, expectedWeights, `auto ${label} origin should keep resolved`)
   const duplicate = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
     recipe_id: recipeId,
     alchemy_result_mode: 'auto',
+    alchemy_heat_level: heatLevel,
     idempotency_key: idempotencyKey,
   }, actor(recipePolicyOwner))
   assert.equal(duplicate.idempotent, true, `duplicate auto ${label} should replay by idempotency key`)
   assert.equal(duplicate.recipe.output_item_id, expectedOutputItemId, `duplicate auto ${label} should retain resolved output`)
   assert.equal(duplicate.workshop_action.alchemy_result_kind, expectedKind, `duplicate auto ${label} should retain result kind`)
   assert.equal(duplicate.workshop_action.alchemy_result_roll, expectedRoll, `duplicate auto ${label} should retain roll`)
+  assert.equal(duplicate.workshop_action.alchemy_heat_level, heatLevel, `duplicate auto ${label} should retain heat level`)
   if (expectedWeightProfile) assert.equal(duplicate.workshop_action.alchemy_result_weight_profile, expectedWeightProfile, `duplicate auto ${label} should retain weight profile`)
 }
 
@@ -4311,8 +4325,11 @@ await assertRecipePolicyAlchemyAutoResult({
   idempotencyKey: 'qa-recipe-policy-auto-spicy-rare-27',
   inputs: [{ itemId: 'pickled_chili', quantity: 1, quality: 'fine' }, { itemId: 'sesame_paste', quantity: 1, quality: 'fine' }, { itemId: 'tea', quantity: 2 }],
   expectedWeightProfile: 'spicy_high_flame',
-  expectedBaseWeights: { success: 72, partial: 16, failed: 7, rare: 5 },
-  expectedWeights: { success: 87, partial: 5, failed: 3, rare: 5 },
+  heatLevel: 'strong',
+  expectedHeatProfile: 'strong_fire',
+  expectedRecipeBaseWeights: { success: 72, partial: 16, failed: 7, rare: 5 },
+  expectedBaseWeights: { success: 67, partial: 15, failed: 10, rare: 8 },
+  expectedWeights: { success: 82, partial: 5, failed: 5, rare: 8 },
 })
 
 await injectRecipePolicyStock('tea', 2)
@@ -8573,6 +8590,65 @@ assert.equal(duplicateFamilyStoryResolution.execution_ledger.id, familyStoryReso
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyStoryResolution, 'idempotent family story resolution should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyStoryResolution, 'idempotent family story resolution should not rewrite partner save')
 await assert.rejects(
+  () => runtime.recordSeparationStoryCinematicPlayback(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong cinematic playback hash',
+    plot_return_manifest_hash: 'e'.repeat(64),
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    story_event_kind: 'lover_farewell_moveout',
+    dialogue_event_id: 'separation_lover_farewell_dialogue',
+    animation_event_id: 'separation_lover_moveout_animation',
+    idempotency_key: 'qa-separation-story-cinematic-wrong-hash',
+  }, actor(owner)),
+  error => error?.status === 409,
+  'story cinematic playback should reject mismatched manifest hash'
+)
+
+const ownerRawBeforeStoryCinematicPlayback = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeStoryCinematicPlayback = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const storyCinematicPlayback = await runtime.recordSeparationStoryCinematicPlayback(created.contract.id, previewResult.preview.id, {
+  memo: 'record frontend cinematic playback only',
+  playback_state: 'played',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  story_event_kind: 'lover_farewell_moveout',
+  dialogue_event_id: 'separation_lover_farewell_dialogue',
+  animation_event_id: 'separation_lover_moveout_animation',
+  idempotency_key: 'qa-separation-story-cinematic-played',
+}, actor(owner))
+assert.equal(storyCinematicPlayback.idempotent, false, 'first story cinematic playback should not be idempotent')
+assert.equal(storyCinematicPlayback.execution_ledger.status, 'family_story_resolved', 'story cinematic playback should not change the separation execution step')
+assert.equal(storyCinematicPlayback.execution_ledger.family_story_cinematic_played, true, 'story cinematic playback should mark the ledger played')
+assert.equal(storyCinematicPlayback.execution_ledger.family_story_cinematic_receipt.story_event_kind, 'lover_farewell_moveout', 'story cinematic receipt should keep event kind')
+assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_pending, false, 'story cinematic playback should clear the pending frontend flag')
+assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_played, true, 'story cinematic playback should mark story resolution played')
+assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_playback_state, 'played', 'story cinematic playback should keep playback state')
+assert.equal(storyCinematicPlayback.story_resolution.personal_state_mutated, false, 'story cinematic playback should not mutate personal story state')
+assert.equal(storyCinematicPlayback.preview.confirmation_state.execution_request.family_story_resolution.frontend_cinematic_played, true, 'preview execution request should expose played cinematic state')
+assert.ok(storyCinematicPlayback.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'story cinematic playback should keep personal story receipt follow-up')
+const storyCinematicAudit = storyCinematicPlayback.contract.audit_log.find(entry => entry.action === 'separation_story_cinematic_played' && entry.idempotency_key === 'qa-separation-story-cinematic-played')
+assert.equal(storyCinematicAudit?.detail?.story_event_kind, 'lover_farewell_moveout', 'story cinematic audit should include event kind')
+assert.equal(storyCinematicAudit?.detail?.dialogue_event_id, 'separation_lover_farewell_dialogue', 'story cinematic audit should include dialogue event id')
+assert.equal(storyCinematicAudit?.detail?.animation_event_id, 'separation_lover_moveout_animation', 'story cinematic audit should include animation event id')
+assert.equal(storyCinematicAudit?.detail?.frontend_cinematic_pending, false, 'story cinematic audit should clear pending frontend state')
+assert.equal(storyCinematicAudit?.detail?.personal_state_mutated, false, 'story cinematic audit should keep personal mutation false')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeStoryCinematicPlayback, 'story cinematic playback should not rewrite owner personal save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeStoryCinematicPlayback, 'story cinematic playback should not rewrite partner personal save')
+
+const duplicateStoryCinematicPlayback = await runtime.recordSeparationStoryCinematicPlayback(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate frontend cinematic playback',
+  playback_state: 'played',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  story_event_kind: 'lover_farewell_moveout',
+  dialogue_event_id: 'separation_lover_farewell_dialogue',
+  animation_event_id: 'separation_lover_moveout_animation',
+  idempotency_key: 'qa-separation-story-cinematic-played',
+}, actor(owner))
+assert.equal(duplicateStoryCinematicPlayback.idempotent, true, 'same story cinematic playback idempotency key should return existing record')
+assert.equal(duplicateStoryCinematicPlayback.execution_ledger.family_story_cinematic_receipt.idempotency_key, 'qa-separation-story-cinematic-played', 'idempotent story cinematic playback should keep original receipt')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeStoryCinematicPlayback, 'idempotent story cinematic playback should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeStoryCinematicPlayback, 'idempotent story cinematic playback should not rewrite partner save')
+await assert.rejects(
   () => runtime.writeSeparationPersonalStoryReceipts(created.contract.id, previewResult.preview.id, {
     memo: 'wrong personal story receipt hash',
     plot_return_manifest_hash: 'd'.repeat(64),
@@ -8600,7 +8676,8 @@ assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_story
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.story_event_kind === 'lover_farewell_moveout'), 'personal story receipts should keep the story event kind')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.dialogue_event_id === 'separation_lover_farewell_dialogue'), 'personal story receipts should keep the dialogue event id')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.animation_event_id === 'separation_lover_moveout_animation'), 'personal story receipts should keep the animation event id')
-assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_pending === true), 'personal story receipts should mark pending frontend cinematic work')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_pending === false), 'personal story receipts should preserve the cleared frontend cinematic state after playback')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_played === true), 'personal story receipts should keep the frontend cinematic playback receipt')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_state_mutated === false), 'personal story receipts should not mutate personal story state')
 assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal story receipt write should keep decoration split closed')
 assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'personal story receipt write should close receipt follow-up')
@@ -8614,6 +8691,7 @@ assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).so
   && receipt.story_event_kind === 'lover_farewell_moveout'
   && receipt.dialogue_event_id === 'separation_lover_farewell_dialogue'
   && receipt.animation_event_id === 'separation_lover_moveout_animation'
+  && receipt.frontend_cinematic_played === true
   && receipt.personal_state_mutated === false
 ), 'owner personal story receipt should include the lover farewell cinematic evidence')
 
@@ -11828,6 +11906,58 @@ const duplicateOfflineDecorationMoveQueue = await runtime.mergeCohabitationOffli
 }, actor(highRiskOwner))
 assert.equal(duplicateOfflineDecorationMoveQueue.offline_queue_merge.idempotent, true, 'duplicate offline decoration move queue should replay by queue idempotency key')
 assert.equal(duplicateOfflineDecorationMoveQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline decoration move should replay conflict resolution evidence')
+const offlineConflictAutoResolveDecoration = await runtime.resolveCohabitationOfflineConflicts(highRiskContractId, {
+  idempotency_key: 'qa-offline-conflict-auto-resolve-decoration',
+  client_queue_revision: 1,
+  resolution_strategy: 'server_authoritative_auto_merge',
+  allow_partial: true,
+  memo: 'qa auto resolve offline decoration move through server state',
+  operations: [{
+    action: 'move_shared_decoration',
+    operation_id: 'qa-offline-conflict-auto-decoration-op',
+    idempotency_key: 'qa-offline-conflict-auto-decoration-op',
+    client_base_revision: 1,
+    payload: {
+      decoration_id: 'moon_gate',
+      decoration_kind: 'common',
+      from_location_ref: 'courtyard:north',
+      to_location_ref: 'courtyard:east',
+      placement_ref: 'courtyard:east:moon_gate',
+      target_ref: 'shared_decoration:moon_gate:auto_resolve',
+      memo: 'qa auto resolve decoration move',
+    },
+  }],
+}, actor(highRiskOwner))
+assert.equal(offlineConflictAutoResolveDecoration.offline_conflict_auto_resolution.strategy, 'server_authoritative_auto_merge', 'offline conflict resolver should expose auto merge strategy')
+assert.equal(offlineConflictAutoResolveDecoration.offline_conflict_auto_resolution.accepted_count, 1, 'offline conflict resolver should commit supported decoration operation')
+assert.equal(offlineConflictAutoResolveDecoration.offline_conflict_auto_resolution.rejected_count, 0, 'offline conflict resolver should not reject supported decoration operation')
+assert.equal(offlineConflictAutoResolveDecoration.offline_conflict_auto_resolution.client_queue_stale, true, 'offline conflict resolver should carry stale client queue evidence')
+assert.equal(offlineConflictAutoResolveDecoration.offline_status.summary.offline_conflict_auto_resolve_enabled, true, 'offline status should expose auto conflict resolver readiness')
+assert.equal(offlineConflictAutoResolveDecoration.offline_queue_merge.results[0]?.to_location_ref, 'courtyard:east', 'offline conflict resolver should execute through queue merge')
+assert.equal(offlineConflictAutoResolveDecoration.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'moon_gate')?.to_location_ref, 'courtyard:east', 'offline conflict resolver should persist latest shared decoration state')
+assert.ok(offlineConflictAutoResolveDecoration.contract.audit_log.find(entry => entry.action === 'offline_conflict_auto_resolved' && entry.idempotency_key === 'qa-offline-conflict-auto-resolve-decoration'), 'offline conflict resolver should write auto-resolution audit evidence')
+const duplicateOfflineConflictAutoResolveDecoration = await runtime.resolveCohabitationOfflineConflicts(highRiskContractId, {
+  idempotency_key: 'qa-offline-conflict-auto-resolve-decoration',
+  client_queue_revision: 1,
+  resolution_strategy: 'server_authoritative_auto_merge',
+  allow_partial: true,
+  operations: [{
+    action: 'move_shared_decoration',
+    operation_id: 'qa-offline-conflict-auto-decoration-op',
+    idempotency_key: 'qa-offline-conflict-auto-decoration-op',
+    payload: {
+      decoration_id: 'moon_gate',
+      decoration_kind: 'common',
+      to_location_ref: 'courtyard:east',
+    },
+  }],
+}, actor(highRiskOwner))
+assert.equal(duplicateOfflineConflictAutoResolveDecoration.offline_conflict_auto_resolution.status, 'idempotent_replay', 'duplicate offline conflict resolver should replay merge evidence')
+assert.equal(
+  duplicateOfflineConflictAutoResolveDecoration.contract.audit_log.filter(entry => entry.action === 'offline_conflict_auto_resolved' && entry.idempotency_key === 'qa-offline-conflict-auto-resolve-decoration').length,
+  1,
+  'duplicate offline conflict resolver should not append auto-resolution audit twice'
+)
 await assert.rejects(
   () => runtime.moveCohabitationSharedDecoration(highRiskContractId, {
     decoration_id: 'ancestor_tablet',

@@ -1939,6 +1939,7 @@ export interface CohabitationOfflineStatus {
     offline_queue_supported_actions?: string[]
     offline_conflict_preflight_enabled?: boolean
     offline_conflict_resolution_enabled?: boolean
+    offline_conflict_auto_resolve_enabled?: boolean
   }
   members: Array<CohabitationMember & {
     online_state: string
@@ -1968,6 +1969,7 @@ export type CohabitationOfflineQueueAction =
   | 'care_shared_pet'
   | 'process_shared_workshop_recipe'
   | 'move_shared_decoration'
+  | 'record_shared_decoration_removal_receipt'
   | 'collect_offline_auto_income'
   | string
 
@@ -2056,6 +2058,37 @@ export interface CohabitationOfflineConflictPreflightResponse extends Cohabitati
   offline_conflict_preflight?: CohabitationOfflineConflictPreflightSummary
 }
 
+export interface CohabitationOfflineConflictResolvePayload extends CohabitationOfflineQueueMergePayload {
+  resolution_strategy?: 'server_authoritative_auto_merge' | string
+  allow_partial?: boolean
+  memo?: string
+}
+
+export interface CohabitationOfflineConflictAutoResolutionSummary {
+  idempotency_key: string
+  strategy: string
+  status: string
+  preflight_idempotency_key?: string
+  merge_idempotency_key?: string
+  client_queue_revision?: number
+  server_queue_revision_before?: number
+  server_queue_revision_after?: number
+  client_queue_stale?: boolean
+  requested_actions?: string[]
+  unsupported_actions?: string[]
+  unsupported_action_count?: number
+  accepted_count?: number
+  rejected_count?: number
+  conflict_policy?: string
+  personal_save_changed?: boolean
+  shared_warehouse_changed?: boolean
+  shared_fund_changed?: boolean
+  shared_decoration_state_changed?: boolean
+  server_authoritative?: boolean
+  next_step?: string
+  [key: string]: unknown
+}
+
 export interface CohabitationOfflineConflictResolutionEvidence {
   idempotency_key?: string
   status: 'committed' | 'partially_committed' | 'all_rejected' | 'idempotent_replay' | string
@@ -2110,6 +2143,11 @@ export interface CohabitationOfflineQueueMergeResponse extends CohabitationDetai
   offline_status?: CohabitationOfflineStatus
   offline_queue_merge?: CohabitationOfflineQueueMergeSummary
   offline_conflict_resolution?: CohabitationOfflineConflictResolutionEvidence
+}
+
+export interface CohabitationOfflineConflictResolveResponse extends CohabitationOfflineQueueMergeResponse {
+  offline_conflict_preflight?: CohabitationOfflineConflictPreflightSummary
+  offline_conflict_auto_resolution?: CohabitationOfflineConflictAutoResolutionSummary
 }
 
 export interface CohabitationOfflineAutoIncomeCollectPayload {
@@ -2622,6 +2660,7 @@ export interface CohabitationSharedWorkshopProcessPayload {
   budget_ledger_id?: string
   medium_fund_ledger_id?: string
   alchemy_result_mode?: 'fixed' | 'auto'
+  alchemy_heat_level?: 'gentle' | 'balanced' | 'strong'
 }
 
 export interface CohabitationSharedWorkshopRecipe {
@@ -2642,6 +2681,9 @@ export interface CohabitationSharedWorkshopRecipe {
   alchemy_auto_result?: boolean
   alchemy_result_weight_profile?: string
   alchemy_result_base_weights?: Record<string, number> | null
+  alchemy_result_recipe_base_weights?: Record<string, number> | null
+  alchemy_heat_level?: 'gentle' | 'balanced' | 'strong' | string
+  alchemy_heat_profile?: string
 }
 
 export interface CohabitationContractCreatePayload {
@@ -2714,6 +2756,17 @@ export interface CohabitationSeparationFamilyStoryResolvePayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
   resolution_choice?: 'peaceful_separation' | 'cooling_off' | 'family_meeting' | 'manual_review' | string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationStoryCinematicPlaybackPayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
+  story_event_kind?: string
+  dialogue_event_id?: string
+  animation_event_id?: string
+  playback_state?: 'played' | 'skipped_no_cinematic' | 'record_only' | string
   memo?: string
   idempotency_key: string
 }
@@ -2991,6 +3044,9 @@ export interface CohabitationSharedWorkshopProcessResponse extends CohabitationD
     alchemy_result_weights?: Record<string, number> | null
     alchemy_result_weight_profile?: string
     alchemy_result_base_weights?: Record<string, number> | null
+    alchemy_result_recipe_base_weights?: Record<string, number> | null
+    alchemy_heat_level?: 'gentle' | 'balanced' | 'strong' | string
+    alchemy_heat_profile?: string
     alchemy_result_seed_hash?: string
     success_rate_bonus_percent?: number
     warehouse_ledger_ids?: string[]
@@ -3409,6 +3465,13 @@ export interface CohabitationSeparationFamilyStoryResolveResponse extends Cohabi
   already_resolved?: boolean
 }
 
+export interface CohabitationSeparationStoryCinematicPlaybackResponse extends CohabitationSeparationPreviewResponse {
+  execution_ledger?: Record<string, unknown>
+  story_resolution?: Record<string, unknown> | null
+  cinematic_receipt?: Record<string, unknown> | null
+  already_played?: boolean
+}
+
 export interface CohabitationSeparationPersonalStoryReceiptsResponse extends CohabitationSeparationPreviewResponse {
   execution_ledger?: Record<string, unknown>
   receipts?: Array<Record<string, unknown>>
@@ -3561,6 +3624,14 @@ export const resolveCohabitationSeparationFamilyStory = async (contractId: strin
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/resolve-family-story`),
     payload as unknown as Record<string, unknown>,
     '记录分居剧情拆分失败'
+  )
+}
+
+export const recordCohabitationSeparationStoryCinematicPlayback = async (contractId: string, previewId: string, payload: CohabitationSeparationStoryCinematicPlaybackPayload) => {
+  return postCohabitationJson<CohabitationSeparationStoryCinematicPlaybackResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/record-story-cinematic`),
+    payload as unknown as Record<string, unknown>,
+    '记录分居剧情演出播放失败'
   )
 }
 
@@ -4236,6 +4307,14 @@ export const preflightCohabitationOfflineConflicts = async (contractId: string, 
     contractPath(contractId, '/offline-conflicts/preflight'),
     payload as unknown as Record<string, unknown>,
     '预检离线经营冲突失败'
+  )
+}
+
+export const resolveCohabitationOfflineConflicts = async (contractId: string, payload: CohabitationOfflineConflictResolvePayload) => {
+  return postCohabitationJson<CohabitationOfflineConflictResolveResponse>(
+    contractPath(contractId, '/offline-conflicts/resolve'),
+    payload as unknown as Record<string, unknown>,
+    '自动解决离线经营冲突失败'
   )
 }
 

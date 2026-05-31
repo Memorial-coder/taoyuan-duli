@@ -58,9 +58,11 @@ import {
   harvestCohabitationSharedPlot,
   petCohabitationSharedAnimal,
   preflightCohabitationOfflineConflicts,
+  resolveCohabitationOfflineConflicts,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   plantCohabitationSharedPlot,
   processCohabitationSharedWorkshopRecipe,
+  recordCohabitationSeparationStoryCinematicPlayback,
   recordCohabitationFundHighRiskReceipt,
   recordCohabitationFamilyChildCare,
   recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
@@ -138,8 +140,10 @@ import {
   type CohabitationFundHighRiskReceiptPayload,
   type CohabitationOfflineStatus,
   type CohabitationOfflineAutoIncomeCollectPayload,
+  type CohabitationOfflineConflictAutoResolutionSummary,
   type CohabitationOfflineConflictPreflightPayload,
   type CohabitationOfflineConflictPreflightSummary,
+  type CohabitationOfflineConflictResolvePayload,
   type CohabitationOfflineQueueMergePayload,
   type CohabitationOfflineQueueMergeSummary,
   type CohabitationOverviewResponse,
@@ -149,6 +153,7 @@ import {
   type CohabitationSeparationDecorationBuildingSplitPayload,
   type CohabitationSeparationExecutionRequestPayload,
   type CohabitationSeparationFamilyStoryResolvePayload,
+  type CohabitationSeparationStoryCinematicPlaybackPayload,
   type CohabitationSeparationPersonalFarmWritePayload,
   type CohabitationSeparationPersonalFamilyReceiptsPayload,
   type CohabitationSeparationPersonalStoryReceiptsPayload,
@@ -210,6 +215,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const familyVisibilityPanel = ref<CohabitationFamilyVisibilityPanel | null>(null)
   const offlineQueueMerge = ref<CohabitationOfflineQueueMergeSummary | null>(null)
   const offlineConflictPreflight = ref<CohabitationOfflineConflictPreflightSummary | null>(null)
+  const offlineConflictAutoResolution = ref<CohabitationOfflineConflictAutoResolutionSummary | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
   const dailySettlement = ref<Record<string, unknown> | null>(null)
 
@@ -240,6 +246,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyVisibilityPanel.value = null
     offlineQueueMerge.value = null
     offlineConflictPreflight.value = null
+    offlineConflictAutoResolution.value = null
     offlineStatus.value = null
     dailySettlement.value = null
     warehouseCompensationAuditBundle.value = null
@@ -628,6 +635,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '记录分居剧情拆分失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const recordSeparationStoryCinematicPlayback = async (previewId: string, payload: CohabitationSeparationStoryCinematicPlaybackPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recordCohabitationSeparationStoryCinematicPlayback(activeContractId.value, previewId, payload)
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录分居剧情演出播放失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -2154,6 +2180,41 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const resolveOfflineConflicts = async (payload: CohabitationOfflineConflictResolvePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.operations.length) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await resolveCohabitationOfflineConflicts(activeContractId.value, payload)
+      offlineQueueMerge.value = result?.offline_queue_merge ?? null
+      offlineConflictPreflight.value = result?.offline_conflict_preflight ?? offlineConflictPreflight.value
+      offlineConflictAutoResolution.value = result?.offline_conflict_auto_resolution ?? null
+      if (result?.offline_status) offlineStatus.value = result.offline_status
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      if (isProtectedApiError(error) && error.data && typeof error.data === 'object') {
+        const data = error.data as {
+          offline_queue_merge?: CohabitationOfflineQueueMergeSummary
+          offline_conflict_preflight?: CohabitationOfflineConflictPreflightSummary
+          offline_conflict_auto_resolution?: CohabitationOfflineConflictAutoResolutionSummary
+          offline_status?: CohabitationOfflineStatus
+          contract?: CohabitationContract
+        }
+        offlineQueueMerge.value = data.offline_queue_merge ?? offlineQueueMerge.value
+        offlineConflictPreflight.value = data.offline_conflict_preflight ?? offlineConflictPreflight.value
+        offlineConflictAutoResolution.value = data.offline_conflict_auto_resolution ?? offlineConflictAutoResolution.value
+        if (data.offline_status) offlineStatus.value = data.offline_status
+        if (data.contract) syncOverviewContract(data.contract)
+      }
+      errorMessage.value = error instanceof Error ? error.message : '自动解决离线经营冲突失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const collectOfflineAutoIncome = async (payload: CohabitationOfflineAutoIncomeCollectPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value) return null
     actionLoading.value = true
@@ -2316,6 +2377,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyFestivalSeatsPanel,
     offlineQueueMerge,
     offlineConflictPreflight,
+    offlineConflictAutoResolution,
     familyOrdersPanel,
     familyRelationsPanel,
     familyReputationPanel,
@@ -2344,6 +2406,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     returnSeparationSharedWarehouse,
     splitSeparationDecorationsBuildings,
     resolveSeparationFamilyStory,
+    recordSeparationStoryCinematicPlayback,
     writeSeparationPersonalStoryReceipts,
     resolveSeparationChildArrangement,
     writeSeparationPersonalFamilyReceipts,
@@ -2385,6 +2448,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     resolveFamilyBuildingRealDemolitionMainStateExactTargets,
     mergeOfflineQueue,
     preflightOfflineConflicts,
+    resolveOfflineConflicts,
     collectOfflineAutoIncome,
     settleDailyBonus,
     executeFamilyBuildingRealDemolitionMainStateExactMutation,
