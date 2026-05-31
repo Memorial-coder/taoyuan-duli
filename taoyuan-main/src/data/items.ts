@@ -1323,6 +1323,14 @@ const ELIXIR_ITEMS: ItemDef[] = [
     description: '草药膏、湿地孢样与夜光藻团炼成的泽地稀材主丹。定位为泽地远征、湿地采样和夜间探索前的净息丹药。',
     sellPrice: 740,
     edible: false
+  },
+  {
+    id: 'moon_pearl_calm_elixir',
+    name: '月珠安神丹',
+    category: 'elixir',
+    description: '绿茶、莲心粉与月珠炼成的稀材安神丹。定位为夜巡、结契仪式和长线探索前的安神丹药。',
+    sellPrice: 780,
+    edible: false
   }
 ]
 

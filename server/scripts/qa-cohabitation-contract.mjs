@@ -4147,7 +4147,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 12, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 13, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4161,6 +4161,7 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.incl
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('marsh_luminous_cleansing_elixir'), 'warehouse item policy should list marsh rare-material elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moon_pearl_calm_elixir'), 'warehouse item policy should list moon pearl rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_etched_core'), 'warehouse item policy should list room rare materials as rare items')
@@ -4758,6 +4759,15 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
   'marsh luminous rare material alchemy should require storage.withdraw_rare before consuming marsh rare materials'
 )
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_moon_pearl_calm_elixir',
+    memo: 'qa moon pearl alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-moon-pearl-calm-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'moon pearl rare material alchemy should require storage.withdraw_rare before consuming moon pearl'
+)
 await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   target_username: recipePolicyOwner,
   permissions: {
@@ -4925,6 +4935,46 @@ await assertRecipePolicyAlchemyAutoResult({
   expectedWeightProfile: 'marsh_luminous_rare_material',
   expectedBaseWeights: { success: 64, partial: 18, failed: 8, rare: 10 },
   expectedWeights: { success: 79, partial: 7, failed: 4, rare: 10 },
+})
+await injectRecipePolicyStock('green_tea_drink', 1, 'fine')
+await injectRecipePolicyStock('lotus_heart_powder', 1, 'fine')
+await injectRecipePolicyStock('moon_pearl', 1)
+const recipePolicyMoonPearlCalmElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_moon_pearl_calm_elixir',
+  memo: 'qa process shared moon pearl calm elixir',
+  idempotency_key: 'qa-recipe-policy-moon-pearl-calm-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyMoonPearlCalmElixir.recipe.output_item_id, 'moon_pearl_calm_elixir', 'new moon pearl calm elixir should output rare elixir item')
+assert.equal(recipePolicyMoonPearlCalmElixir.workshop_action.process_kind, 'alchemy_elixir', 'new moon pearl calm elixir should be alchemy elixir')
+assert.equal(recipePolicyMoonPearlCalmElixir.workshop_action.alchemy_result_kind, 'success', 'new moon pearl calm elixir should expose success result')
+assert.equal(recipePolicyMoonPearlCalmElixir.ledger_entry.quality, 'fine', 'new moon pearl calm elixir should apply cooperation quality bonus')
+assert.ok(recipePolicyMoonPearlCalmElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'green_tea_drink' && entry.quality === 'fine'), 'new moon pearl calm elixir should consume fine green tea drink')
+assert.ok(recipePolicyMoonPearlCalmElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'lotus_heart_powder' && entry.quality === 'fine'), 'new moon pearl calm elixir should consume fine lotus heart powder')
+assert.ok(recipePolicyMoonPearlCalmElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'moon_pearl'), 'new moon pearl calm elixir should consume rare moon pearl')
+const recipePolicyMoonPearlOriginAsset = recipePolicyMoonPearlCalmElixir.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyMoonPearlCalmElixir.ledger_entry.id && item.action === 'deposit')
+assert.equal(recipePolicyMoonPearlOriginAsset?.withdrawal_risk_level, 'rare', 'new moon pearl calm elixir origin should be rare protected')
+assert.equal(recipePolicyMoonPearlOriginAsset?.high_value_withdrawal_required, true, 'new moon pearl calm elixir origin should require high-value withdrawal')
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'moon pearl calm',
+  cases: [
+    { recipeId: 'shared_moon_pearl_calm_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_moon_pearl_calm_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_moon_pearl_calm_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { itemId: 'moon_pearl', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'moon pearl rare profile',
+  recipeId: 'shared_moon_pearl_calm_elixir',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 95,
+  idempotencyKey: 'qa-recipe-policy-auto-moon-pearl-profile-rare-6',
+  inputs: [{ itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { itemId: 'moon_pearl', quantity: 1 }],
+  expectedWeightProfile: 'moon_pearl_rare_material',
+  expectedBaseWeights: { success: 63, partial: 18, failed: 8, rare: 11 },
+  expectedWeights: { success: 78, partial: 7, failed: 4, rare: 11 },
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')

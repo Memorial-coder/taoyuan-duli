@@ -122,6 +122,10 @@ const SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES = Object.freeze({
     profile: 'marsh_luminous_rare_material',
     weights: { success: 64, partial: 18, failed: 8, rare: 10 },
   },
+  shared_moon_pearl_calm_elixir: {
+    profile: 'moon_pearl_rare_material',
+    weights: { success: 63, partial: 18, failed: 8, rare: 11 },
+  },
 });
 const SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL = 'balanced';
 const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
@@ -140,7 +144,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 12;
+const WAREHOUSE_ITEM_POLICY_VERSION = 13;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -167,7 +171,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'stone_root_guard_pill', 'partial_elixir_slurry', 'failed_elixir_ash',
 ]);
 const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
-  'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill', 'marsh_luminous_cleansing_elixir',
+  'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill', 'marsh_luminous_cleansing_elixir', 'moon_pearl_calm_elixir',
   'ley_crystal_shard', 'marsh_spore_sample', 'luminous_algae', 'wind_etched_core',
   'lotus_seed_rare', 'jade_peach', 'moon_pearl', 'jade_orchid',
 ]);
@@ -2205,6 +2209,66 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
       { item_id: 'marsh_spore_sample', quantity: 1, quality: 'normal' },
       { item_id: 'luminous_algae', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
+  shared_moon_pearl_calm_elixir: {
+    id: 'shared_moon_pearl_calm_elixir',
+    label: '共同丹炉月珠安神丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_pearl', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'moon_pearl_calm_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_moon_pearl_calm_partial: {
+    id: 'shared_moon_pearl_calm_partial',
+    label: '共同丹炉月珠偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_pearl', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_moon_pearl_calm_failed: {
+    id: 'shared_moon_pearl_calm_failed',
+    label: '共同丹炉月珠废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_pearl', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_moon_pearl_calm_rare: {
+    id: 'shared_moon_pearl_calm_rare',
+    label: '共同丹炉月珠奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+      { item_id: 'moon_pearl', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'rare_elixir_crystal',
     output_quantity: 1,
