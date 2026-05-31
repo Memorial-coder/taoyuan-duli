@@ -1307,6 +1307,14 @@ const ELIXIR_ITEMS: ItemDef[] = [
     description: '绿茶、精制石英与灵脉碎晶炼成的高地稀材主丹。定位为远征、首领战和高阶准备前的凝神丹药。',
     sellPrice: 680,
     edible: false
+  },
+  {
+    id: 'wind_core_guard_pill',
+    name: '风蚀护脉丸',
+    category: 'elixir',
+    description: '腌姜、精制石英与风蚀晶核炼成的高地稀材护丹。定位为风蚀远征、护送和高压采集前的防护丹药。',
+    sellPrice: 720,
+    edible: false
   }
 ]
 

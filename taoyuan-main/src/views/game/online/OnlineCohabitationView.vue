@@ -5090,6 +5090,7 @@
     sesame_powder: '芝麻粉',
     pumpkin_preserve: '南瓜酱',
     pickled_chili: '泡椒',
+    pickled_ginger: '腌姜',
     sesame_oil: '芝麻油',
     dried_lotus_seed: '干莲子',
     lotus_heart_powder: '莲心粉',
@@ -5187,6 +5188,8 @@
     spirit_peach_elixir: '灵桃醒神丹',
     ley_crystal_shard: '灵脉碎晶',
     ley_crystal_focus_elixir: '灵脉凝神丹',
+    wind_etched_core: '风蚀晶核',
+    wind_core_guard_pill: '风蚀护脉丸',
   }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
@@ -5269,6 +5272,7 @@
     shared_stone_root_guard_pill: { profile: 'stone_guard', label: '石根护脉', weights: { success: 80, partial: 12, failed: 6, rare: 2 } },
     shared_spirit_peach_elixir: { profile: 'spirit_peach_rare_material', label: '灵桃稀材', weights: { success: 70, partial: 15, failed: 7, rare: 8 } },
     shared_ley_crystal_focus_elixir: { profile: 'ley_crystal_rare_material', label: '灵脉稀材', weights: { success: 68, partial: 16, failed: 8, rare: 8 } },
+    shared_wind_core_guard_pill: { profile: 'wind_core_rare_material', label: '风蚀稀材', weights: { success: 66, partial: 17, failed: 8, rare: 9 } },
   }
   const sharedWorkshopAlchemyHeatProfiles: Record<SharedAlchemyHeatLevel, { label: string; profile: string; deltas: SharedAlchemyWeights }> = {
     gentle: { label: '文火', profile: 'gentle_fire', deltas: { success: 3, partial: 1, failed: -3, rare: -1 } },
@@ -5505,6 +5509,10 @@
     { id: 'shared_ley_crystal_focus_partial', label: '共同丹炉灵脉偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'ley_crystal_shard', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
     { id: 'shared_ley_crystal_focus_failed', label: '共同丹炉灵脉废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'ley_crystal_shard', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
     { id: 'shared_ley_crystal_focus_rare', label: '共同丹炉灵脉奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'ley_crystal_shard', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_wind_core_guard_pill', label: '共同丹炉风蚀护脉丸', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_ginger', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'wind_etched_core', quantity: 1, quality: 'normal' }], output_item_id: 'wind_core_guard_pill', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_wind_core_guard_partial', label: '共同丹炉风蚀偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_ginger', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'wind_etched_core', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_wind_core_guard_failed', label: '共同丹炉风蚀废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_ginger', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'wind_etched_core', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_wind_core_guard_rare', label: '共同丹炉风蚀奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'pickled_ginger', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'wind_etched_core', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
   ]
   const selectedSharedWorkshopRecipe = computed(() =>
     sharedWorkshopRecipeOptions.find(recipe => recipe.id === selectedSharedWorkshopRecipeId.value) ?? sharedWorkshopRecipeOptions[0] ?? null

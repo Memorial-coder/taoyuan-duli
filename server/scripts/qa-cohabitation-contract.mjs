@@ -4147,7 +4147,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 10, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 11, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4159,6 +4159,7 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_new_year_dumpling'), 'warehouse item policy should list seasonal festival dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_etched_core'), 'warehouse item policy should list room rare materials as rare items')
@@ -4738,6 +4739,15 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
   'ley crystal rare material alchemy should require storage.withdraw_rare before consuming ley crystal shard'
 )
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_wind_core_guard_pill',
+    memo: 'qa wind core alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-wind-core-guard-pill-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'wind core rare material alchemy should require storage.withdraw_rare before consuming wind etched core'
+)
 await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   target_username: recipePolicyOwner,
   permissions: {
@@ -4825,6 +4835,46 @@ await assertRecipePolicyAlchemyAutoResult({
   expectedWeightProfile: 'ley_crystal_rare_material',
   expectedBaseWeights: { success: 68, partial: 16, failed: 8, rare: 8 },
   expectedWeights: { success: 83, partial: 5, failed: 4, rare: 8 },
+})
+await injectRecipePolicyStock('pickled_ginger', 1, 'fine')
+await injectRecipePolicyStock('refined_quartz', 1, 'fine')
+await injectRecipePolicyStock('wind_etched_core', 1)
+const recipePolicyWindCoreGuardPill = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_wind_core_guard_pill',
+  memo: 'qa process shared wind core guard pill',
+  idempotency_key: 'qa-recipe-policy-wind-core-guard-pill',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyWindCoreGuardPill.recipe.output_item_id, 'wind_core_guard_pill', 'new wind core guard pill should output rare elixir item')
+assert.equal(recipePolicyWindCoreGuardPill.workshop_action.process_kind, 'alchemy_elixir', 'new wind core guard pill should be alchemy elixir')
+assert.equal(recipePolicyWindCoreGuardPill.workshop_action.alchemy_result_kind, 'success', 'new wind core guard pill should expose success result')
+assert.equal(recipePolicyWindCoreGuardPill.ledger_entry.quality, 'fine', 'new wind core guard pill should apply cooperation quality bonus')
+assert.ok(recipePolicyWindCoreGuardPill.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'pickled_ginger' && entry.quality === 'fine'), 'new wind core guard pill should consume fine pickled ginger')
+assert.ok(recipePolicyWindCoreGuardPill.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'refined_quartz' && entry.quality === 'fine'), 'new wind core guard pill should consume fine refined quartz')
+assert.ok(recipePolicyWindCoreGuardPill.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'wind_etched_core'), 'new wind core guard pill should consume rare wind etched core')
+const recipePolicyWindCoreOriginAsset = recipePolicyWindCoreGuardPill.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyWindCoreGuardPill.ledger_entry.id && item.action === 'deposit')
+assert.equal(recipePolicyWindCoreOriginAsset?.withdrawal_risk_level, 'rare', 'new wind core guard pill origin should be rare protected')
+assert.equal(recipePolicyWindCoreOriginAsset?.high_value_withdrawal_required, true, 'new wind core guard pill origin should require high-value withdrawal')
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'wind core guard',
+  cases: [
+    { recipeId: 'shared_wind_core_guard_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_wind_core_guard_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_wind_core_guard_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'pickled_ginger', quantity: 1, quality: 'fine' }, { itemId: 'refined_quartz', quantity: 1, quality: 'fine' }, { itemId: 'wind_etched_core', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'wind core rare profile',
+  recipeId: 'shared_wind_core_guard_pill',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 91,
+  idempotencyKey: 'qa-recipe-policy-auto-wind-core-profile-rare-0',
+  inputs: [{ itemId: 'pickled_ginger', quantity: 1, quality: 'fine' }, { itemId: 'refined_quartz', quantity: 1, quality: 'fine' }, { itemId: 'wind_etched_core', quantity: 1 }],
+  expectedWeightProfile: 'wind_core_rare_material',
+  expectedBaseWeights: { success: 66, partial: 17, failed: 8, rare: 9 },
+  expectedWeights: { success: 81, partial: 6, failed: 4, rare: 9 },
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')
