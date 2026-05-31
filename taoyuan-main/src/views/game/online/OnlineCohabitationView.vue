@@ -5185,6 +5185,8 @@
     stone_root_guard_pill: '石根护脉丸',
     moon_herb: '月草',
     spirit_peach_elixir: '灵桃醒神丹',
+    ley_crystal_shard: '灵脉碎晶',
+    ley_crystal_focus_elixir: '灵脉凝神丹',
   }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
@@ -5266,6 +5268,7 @@
     shared_tea_focus_elixir: { profile: 'tea_focus', label: '茶心凝神', weights: { success: 84, partial: 10, failed: 4, rare: 2 } },
     shared_stone_root_guard_pill: { profile: 'stone_guard', label: '石根护脉', weights: { success: 80, partial: 12, failed: 6, rare: 2 } },
     shared_spirit_peach_elixir: { profile: 'spirit_peach_rare_material', label: '灵桃稀材', weights: { success: 70, partial: 15, failed: 7, rare: 8 } },
+    shared_ley_crystal_focus_elixir: { profile: 'ley_crystal_rare_material', label: '灵脉稀材', weights: { success: 68, partial: 16, failed: 8, rare: 8 } },
   }
   const sharedWorkshopAlchemyHeatProfiles: Record<SharedAlchemyHeatLevel, { label: string; profile: string; deltas: SharedAlchemyWeights }> = {
     gentle: { label: '文火', profile: 'gentle_fire', deltas: { success: 3, partial: 1, failed: -3, rare: -1 } },
@@ -5498,6 +5501,10 @@
     { id: 'shared_spirit_peach_partial', label: '共同丹炉灵桃偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'peach', quantity: 2, quality: 'fine' }, { item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'moon_herb', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
     { id: 'shared_spirit_peach_failed', label: '共同丹炉灵桃废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'peach', quantity: 2, quality: 'fine' }, { item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'moon_herb', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
     { id: 'shared_spirit_peach_rare', label: '共同丹炉灵桃奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'peach', quantity: 2, quality: 'fine' }, { item_id: 'candied_peach', quantity: 1, quality: 'fine' }, { item_id: 'moon_herb', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_ley_crystal_focus_elixir', label: '共同丹炉灵脉凝神丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'ley_crystal_shard', quantity: 1, quality: 'normal' }], output_item_id: 'ley_crystal_focus_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_ley_crystal_focus_partial', label: '共同丹炉灵脉偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'ley_crystal_shard', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_ley_crystal_focus_failed', label: '共同丹炉灵脉废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'ley_crystal_shard', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_ley_crystal_focus_rare', label: '共同丹炉灵脉奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'green_tea_drink', quantity: 1, quality: 'fine' }, { item_id: 'refined_quartz', quantity: 1, quality: 'fine' }, { item_id: 'ley_crystal_shard', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
   ]
   const selectedSharedWorkshopRecipe = computed(() =>
     sharedWorkshopRecipeOptions.find(recipe => recipe.id === selectedSharedWorkshopRecipeId.value) ?? sharedWorkshopRecipeOptions[0] ?? null

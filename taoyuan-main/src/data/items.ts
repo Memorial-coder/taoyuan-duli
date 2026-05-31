@@ -1299,6 +1299,14 @@ const ELIXIR_ITEMS: ItemDef[] = [
     description: '优质桃子、蜜桃脯与月草炼成的灵果主丹。定位为社交、节会拜访和长线经营前的醒神丹药。',
     sellPrice: 520,
     edible: false
+  },
+  {
+    id: 'ley_crystal_focus_elixir',
+    name: '灵脉凝神丹',
+    category: 'elixir',
+    description: '绿茶、精制石英与灵脉碎晶炼成的高地稀材主丹。定位为远征、首领战和高阶准备前的凝神丹药。',
+    sellPrice: 680,
+    edible: false
   }
 ]
 

@@ -3955,7 +3955,6 @@ const recipePolicyPartnerRawBefore = saveRuntime.loadUserSaveSlots(recipePolicyP
 
 const assertRecipePolicyAlchemyResultBranches = async ({ label, cases, inputs }) => {
   for (const resultCase of cases) {
-    const outputQuantityBefore = (await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))).warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity ?? 0
     for (const input of inputs) await injectRecipePolicyStock(input.itemId, input.quantity, input.quality || 'normal')
     const resultRecipe = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
       recipe_id: resultCase.recipeId,
@@ -3966,7 +3965,9 @@ const assertRecipePolicyAlchemyResultBranches = async ({ label, cases, inputs })
     assert.equal(resultRecipe.workshop_action.process_kind, 'alchemy_elixir', `new ${label} ${resultCase.resultKind} recipe should be alchemy elixir`)
     assert.equal(resultRecipe.workshop_action.alchemy_result_kind, resultCase.resultKind, `new ${label} ${resultCase.resultKind} recipe should expose result kind`)
     assert.equal(resultRecipe.ledger_entry.simultaneous_online_bonus?.alchemy_result_kind, resultCase.resultKind, `new ${label} ${resultCase.resultKind} ledger should keep result kind`)
-    assert.equal(resultRecipe.warehouse.items.find(item => item.item_id === resultCase.outputItemId)?.quantity, outputQuantityBefore + 1, `new ${label} ${resultCase.resultKind} output should enter shared warehouse once`)
+    const outputDepositLedger = resultRecipe.warehouse_ledger_entries.find(entry => entry.action === 'deposit' && entry.item_id === resultCase.outputItemId)
+    assert.ok(outputDepositLedger, `new ${label} ${resultCase.resultKind} output should write a shared warehouse deposit ledger`)
+    assert.equal(outputDepositLedger.quantity, 1, `new ${label} ${resultCase.resultKind} output deposit ledger should write one item`)
     for (const input of inputs) assert.ok(resultRecipe.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === input.itemId && entry.quality === (input.quality || 'normal')), `new ${label} ${resultCase.resultKind} should consume ${input.itemId}`)
     const origin = resultRecipe.contract.origin_assets.warehouse_items.find(item => item.ledger_id === resultRecipe.ledger_entry.id && item.action === 'deposit')
     assert.equal(origin?.item_id, resultCase.outputItemId, `new ${label} ${resultCase.resultKind} origin should use expected item id`)
@@ -4146,7 +4147,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 9, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 10, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4157,6 +4158,7 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_winter_bamboo_duck_congee'), 'warehouse item policy should list warm festival dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_new_year_dumpling'), 'warehouse item policy should list seasonal festival dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_etched_core'), 'warehouse item policy should list room rare materials as rare items')
@@ -4727,6 +4729,15 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
   'rare material alchemy should require storage.withdraw_rare before consuming moon herb'
 )
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_ley_crystal_focus_elixir',
+    memo: 'qa ley crystal alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-ley-crystal-focus-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'ley crystal rare material alchemy should require storage.withdraw_rare before consuming ley crystal shard'
+)
 await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   target_username: recipePolicyOwner,
   permissions: {
@@ -4774,6 +4785,46 @@ await assertRecipePolicyAlchemyAutoResult({
   expectedWeightProfile: 'spirit_peach_rare_material',
   expectedBaseWeights: { success: 70, partial: 15, failed: 7, rare: 8 },
   expectedWeights: { success: 85, partial: 4, failed: 3, rare: 8 },
+})
+await injectRecipePolicyStock('green_tea_drink', 1, 'fine')
+await injectRecipePolicyStock('refined_quartz', 1, 'fine')
+await injectRecipePolicyStock('ley_crystal_shard', 1)
+const recipePolicyLeyCrystalFocusElixir = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_ley_crystal_focus_elixir',
+  memo: 'qa process shared ley crystal focus elixir',
+  idempotency_key: 'qa-recipe-policy-ley-crystal-focus-elixir',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyLeyCrystalFocusElixir.recipe.output_item_id, 'ley_crystal_focus_elixir', 'new ley crystal focus elixir should output rare elixir item')
+assert.equal(recipePolicyLeyCrystalFocusElixir.workshop_action.process_kind, 'alchemy_elixir', 'new ley crystal focus elixir should be alchemy elixir')
+assert.equal(recipePolicyLeyCrystalFocusElixir.workshop_action.alchemy_result_kind, 'success', 'new ley crystal focus elixir should expose success result')
+assert.equal(recipePolicyLeyCrystalFocusElixir.ledger_entry.quality, 'fine', 'new ley crystal focus elixir should apply cooperation quality bonus')
+assert.ok(recipePolicyLeyCrystalFocusElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'green_tea_drink' && entry.quality === 'fine'), 'new ley crystal focus elixir should consume fine green tea drink')
+assert.ok(recipePolicyLeyCrystalFocusElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'refined_quartz' && entry.quality === 'fine'), 'new ley crystal focus elixir should consume fine refined quartz')
+assert.ok(recipePolicyLeyCrystalFocusElixir.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === 'ley_crystal_shard'), 'new ley crystal focus elixir should consume rare ley crystal shard')
+const recipePolicyLeyCrystalOriginAsset = recipePolicyLeyCrystalFocusElixir.contract.origin_assets.warehouse_items.find(item => item.ledger_id === recipePolicyLeyCrystalFocusElixir.ledger_entry.id && item.action === 'deposit')
+assert.equal(recipePolicyLeyCrystalOriginAsset?.withdrawal_risk_level, 'rare', 'new ley crystal focus elixir origin should be rare protected')
+assert.equal(recipePolicyLeyCrystalOriginAsset?.high_value_withdrawal_required, true, 'new ley crystal focus elixir origin should require high-value withdrawal')
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'ley crystal focus',
+  cases: [
+    { recipeId: 'shared_ley_crystal_focus_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_ley_crystal_focus_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_ley_crystal_focus_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }, { itemId: 'refined_quartz', quantity: 1, quality: 'fine' }, { itemId: 'ley_crystal_shard', quantity: 1 }],
+})
+await assertRecipePolicyAlchemyAutoResult({
+  label: 'ley crystal rare profile',
+  recipeId: 'shared_ley_crystal_focus_elixir',
+  expectedKind: 'rare',
+  expectedOutputItemId: 'rare_elixir_crystal',
+  expectedRiskLevel: 'rare',
+  expectedRoll: 99,
+  idempotencyKey: 'qa-recipe-policy-auto-ley-crystal-profile-rare-1',
+  inputs: [{ itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }, { itemId: 'refined_quartz', quantity: 1, quality: 'fine' }, { itemId: 'ley_crystal_shard', quantity: 1 }],
+  expectedWeightProfile: 'ley_crystal_rare_material',
+  expectedBaseWeights: { success: 68, partial: 16, failed: 8, rare: 8 },
+  expectedWeights: { success: 83, partial: 5, failed: 4, rare: 8 },
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')
