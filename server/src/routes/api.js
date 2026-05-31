@@ -200,6 +200,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_separation_shared_fund_delta_confirm',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/confirm-shared-fund-dispute$/i,
+    action: 'cohabitation_separation_shared_fund_dispute_confirm',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/refund-shared-fund$/i,
     action: 'cohabitation_separation_shared_fund_refund',
   },
@@ -4477,6 +4481,23 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'confirm separation shared fund delta failed' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/confirm-shared-fund-dispute', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.confirmSeparationSharedFundDelta(req.params.contractId, req.params.previewId, {
+        ...(req.body || {}),
+        confirmation_scope: 'shared_fund_dispute',
+      }, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'confirm separation shared fund dispute failed' });
     }
   });
 });
