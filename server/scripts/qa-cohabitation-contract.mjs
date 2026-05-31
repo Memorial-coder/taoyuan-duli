@@ -3769,6 +3769,15 @@ await assert.rejects(
 )
 
 await injectRecipePolicyStock('rice', 2)
+const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 1, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_items_high_value_withdrawal_blocked, true, 'warehouse item policy should declare task high-value withdrawal block')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.item_policy.visible_item_policies.find(item => item.item_id === 'rice')?.classification, 'common', 'visible warehouse item policy should classify rice as common')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.item_policy.visible_item_policies.find(item => item.item_id === 'rice')?.risk_level, 'common', 'visible warehouse item policy should keep normal rice common risk')
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',
   memo: 'qa process shared rice vinegar',
@@ -6817,29 +6826,70 @@ assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFa
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyVisibility, 'family visibility panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyVisibility, 'family visibility panel should not rewrite extra save')
 
+mutateGameplaySave(owner, gameplayData => {
+  gameplayData.inventory = gameplayData.inventory || {}
+  gameplayData.inventory.items = Array.isArray(gameplayData.inventory.items) ? gameplayData.inventory.items : []
+  const ensureInventoryItem = (itemId, quantity) => {
+    const item = gameplayData.inventory.items.find(entry => entry?.itemId === itemId && String(entry?.quality || 'normal') === 'normal')
+    if (item) {
+      item.quantity = Math.max(Number(item.quantity) || 0, quantity)
+      item.locked = false
+    } else {
+      gameplayData.inventory.items.push({ itemId, quantity, quality: 'normal', locked: false })
+    }
+  }
+  ensureInventoryItem('wood', 4)
+  ensureInventoryItem('firewood', 1)
+})
+const ownerWoodBeforeFamilyFestivalDeposit = getInventoryItemQuantity(owner, 'wood')
+const ownerFirewoodBeforeFamilyFestivalDeposit = getInventoryItemQuantity(owner, 'firewood')
+const familyFestivalWoodDeposit = await runtime.depositCohabitationWarehouseItem(familyContract.contract.id, {
+  item_id: 'wood',
+  quantity: 4,
+  quality: 'normal',
+  idempotency_key: 'qa-family-festival-wood-deposit',
+}, actor(owner))
+const familyFestivalFirewoodDeposit = await runtime.depositCohabitationWarehouseItem(familyContract.contract.id, {
+  item_id: 'firewood',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-family-festival-firewood-deposit',
+}, actor(owner))
+assert.equal(getInventoryItemQuantity(owner, 'wood'), ownerWoodBeforeFamilyFestivalDeposit - 4, 'family festival setup should deduct owner wood once')
+assert.equal(getInventoryItemQuantity(owner, 'firewood'), ownerFirewoodBeforeFamilyFestivalDeposit - 1, 'family festival setup should deduct owner firewood once')
+assert.equal(familyFestivalWoodDeposit.warehouse.items.find(item => item.item_id === 'wood')?.quantity, 4, 'family festival setup should deposit wood into shared warehouse')
+assert.equal(familyFestivalFirewoodDeposit.warehouse.items.find(item => item.item_id === 'firewood')?.quantity, 1, 'family festival setup should deposit firewood into shared warehouse')
 const ownerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const extraRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
 const familyFestivalSeatsRead = await runtime.getCohabitationFamilyFestivalSeats(familyContract.contract.id, actor(owner))
 const familyFestivalSeatsPanel = familyFestivalSeatsRead.family_festival_seats_panel
 assert.equal(familyFestivalSeatsPanel.festival_seats_enabled, true, 'family manor should expose festival seat panel')
-assert.equal(familyFestivalSeatsPanel.readonly, true, 'family festival seat panel should be read-only in first pass')
-assert.equal(familyFestivalSeatsPanel.write_enabled, false, 'family festival seat panel should not enable writes')
-assert.equal(familyFestivalSeatsPanel.seat_reservation_enabled, false, 'family festival seat panel should not reserve seats yet')
-assert.equal(familyFestivalSeatsPanel.festival_room_binding_enabled, false, 'family festival seat panel should not bind rooms yet')
+assert.equal(familyFestivalSeatsPanel.readonly, false, 'family festival seat panel should expose writable family manor mode')
+assert.equal(familyFestivalSeatsPanel.write_enabled, true, 'family festival seat panel should enable writes')
+assert.equal(familyFestivalSeatsPanel.seat_reservation_enabled, true, 'family festival seat panel should reserve seats')
+assert.equal(familyFestivalSeatsPanel.festival_room_binding_enabled, true, 'family festival seat panel should bind rooms')
 assert.equal(familyFestivalSeatsPanel.summary.preview_seat_count, 3, 'three-member family manor should expose three preview seats')
 assert.ok(familyFestivalSeatsPanel.members.find(member => member.username === partner)?.seat_label, 'storage keeper should map to supply festival seat')
 assert.ok(familyFestivalSeatsPanel.members.find(member => member.username === extra)?.seat_label, 'farm steward should map to material festival seat')
 assert.equal(familyFestivalSeatsPanel.summary.festival_ticket_spend_enabled, false, 'family festival seat panel should not spend festival tickets')
-assert.equal(familyFestivalSeatsPanel.summary.reward_enabled, false, 'family festival seat panel should not grant rewards')
+assert.equal(familyFestivalSeatsPanel.summary.reward_enabled, true, 'family festival seat panel should grant shared rewards')
+assert.equal(familyFestivalSeatsPanel.summary.shared_warehouse_consume_enabled, true, 'family festival seat panel should consume shared warehouse supplies')
+assert.equal(familyFestivalSeatsPanel.summary.settlement_enabled, true, 'family festival seat panel should enable settlement')
+assert.equal(familyFestivalSeatsPanel.summary.reputation_award_enabled, true, 'family festival settlement should award reputation')
 assert.equal(familyFestivalSeatsPanel.actor.manor_role, 'family_head', 'family festival actor should expose family head role')
 assert.equal(familyFestivalSeatsPanel.actor.seat_permissions.can_manage_seat_rules_preview, true, 'family head should preview seat rule management')
-assert.equal(familyFestivalSeatsPanel.actor.seat_permissions.can_open_festival_room, false, 'family festival seats should not open rooms directly')
+assert.equal(familyFestivalSeatsPanel.actor.seat_permissions.can_open_festival_room, true, 'family head should open family festival rooms')
+assert.equal(familyFestivalSeatsPanel.actor.seat_permissions.can_reserve_family_seat, true, 'family head should reserve a family festival seat')
+assert.equal(familyFestivalSeatsPanel.actor.seat_permissions.can_claim_festival_reward, true, 'family head should settle family festival rewards')
 assert.equal(familyFestivalSeatsPanel.members.find(member => member.username === partner)?.manor_role, 'storage_keeper', 'family festival members should reflect updated storage keeper role')
 assert.equal(familyFestivalSeatsPanel.members.find(member => member.username === partner)?.seat_label, '供给席', 'storage keeper should map to supply festival seat')
 assert.equal(familyFestivalSeatsPanel.members.find(member => member.username === extra)?.seat_label, '备料席', 'farm steward should map to material festival seat')
 assert.equal(familyFestivalSeatsPanel.candidate_templates.find(template => template.id === 'dragon_boat')?.visual_type, 'track', 'family festival seats should expose dragon boat track template')
 assert.equal(familyFestivalSeatsPanel.candidate_templates.find(template => template.id === 'lantern_fair')?.available, true, 'family festival seats should expose lantern fair as compatible')
+assert.equal(familyFestivalSeatsPanel.candidate_templates.find(template => template.id === 'lantern_fair')?.binding_enabled, true, 'family festival lantern fair should enable room binding')
+assert.equal(familyFestivalSeatsPanel.candidate_templates.find(template => template.id === 'lantern_fair')?.room_create_enabled, true, 'family festival lantern fair should enable room creation')
+assert.equal(familyFestivalSeatsPanel.candidate_templates.find(template => template.id === 'lantern_fair')?.reward_enabled, true, 'family festival lantern fair should enable rewards')
 assert.equal(familyFestivalSeatsPanel.candidate_templates.find(template => template.id === 'qixi_stroll')?.available, false, 'family festival seats should keep qixi as non-family default')
 assert.equal(familyFestivalSeatsPanel.visual_state_preview.board_type, 'scene', 'family festival seat preview should use scene visual state')
 assert.equal(familyFestivalSeatsPanel.visual_state_preview.seats.length, 3, 'family festival seat preview should expose member seats')
@@ -6848,13 +6898,98 @@ assert.equal(familyFestivalSeatsPanel.visual_state_preview.scene_objects.find(ob
 assert.equal(familyFestivalSeatsPanel.governance.seat_reservation_requires_idempotency, true, 'future seat reservations should require idempotency')
 assert.equal(familyFestivalSeatsPanel.governance.compensation_required_for_future_rewards, true, 'future festival rewards should require compensation path')
 assert.equal(familyFestivalSeatsPanel.governance.public_festival_room_scope_unchanged, true, 'family festival seats should not change public festival room scope')
-assert.equal(familyFestivalSeatsPanel.settlement.reward_to_shared_fund_enabled, false, 'family festival rewards should not enter shared fund yet')
-assert.ok(familyFestivalSeatsPanel.deferred_operations.includes('bind_family_seat_to_festival_room'), 'family festival seats should defer room binding')
-assert.ok(familyFestivalSeatsPanel.deferred_operations.includes('family_festival_compensation_replay'), 'family festival seats should defer compensation replay')
+assert.equal(familyFestivalSeatsPanel.settlement.reward_to_shared_fund_enabled, true, 'family festival rewards should enter shared fund')
+assert.equal(familyFestivalSeatsPanel.settlement.family_reputation_enabled, true, 'family festival rewards should award family reputation')
+assert.deepEqual(familyFestivalSeatsPanel.deferred_operations, [], 'family festival seats should not defer the minimum write chain')
+await assert.rejects(
+  () => runtime.reserveCohabitationFamilyFestivalSeats(created.contract.id, {
+    template_id: 'lantern_fair',
+    idempotency_key: 'qa-lover-family-festival-reserve-rejected',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'romance contracts should reject real family festival writes'
+)
+const familyFestivalReserve = await runtime.reserveCohabitationFamilyFestivalSeats(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  seat_usernames: [owner, partner, extra],
+  memo: 'qa reserve family festival seats',
+  idempotency_key: 'qa-family-festival-seat-reserve',
+}, actor(owner))
+assert.equal(familyFestivalReserve.idempotent, false, 'first family festival reserve should not be idempotent')
+assert.equal(familyFestivalReserve.ledger_entry.action, 'seat_reserved', 'family festival reserve should write seat ledger')
+assert.equal(familyFestivalReserve.ledger_entry.seat_count, 3, 'family festival reserve should lock three accepted seats')
+assert.equal(familyFestivalReserve.family_festival_seats_panel.reservations[owner]?.state, 'reserved', 'reserved family festival seat should be marked reserved')
+const duplicateFamilyFestivalReserve = await runtime.reserveCohabitationFamilyFestivalSeats(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  seat_usernames: [owner, partner, extra],
+  idempotency_key: 'qa-family-festival-seat-reserve',
+}, actor(owner))
+assert.equal(duplicateFamilyFestivalReserve.idempotent, true, 'family festival reserve should be idempotent')
+assert.equal(duplicateFamilyFestivalReserve.ledger_entry.id, familyFestivalReserve.ledger_entry.id, 'idempotent family festival reserve should return original ledger')
+const familyFestivalRoom = await runtime.createCohabitationFamilyFestivalRoom(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  title: 'QA 家族灯会',
+  memo: 'qa create family festival room',
+  idempotency_key: 'qa-family-festival-room-create',
+}, actor(owner))
+assert.equal(familyFestivalRoom.idempotent, false, 'first family festival room create should not be idempotent')
+assert.equal(familyFestivalRoom.ledger_entry.action, 'room_created', 'family festival room create should write room ledger')
+assert.equal(familyFestivalRoom.family_festival_seats_panel.active_room_id, familyFestivalRoom.room_id, 'family festival panel should expose active room id')
+assert.equal(familyFestivalRoom.family_festival_seats_panel.reservations[owner]?.state, 'room_bound', 'family festival room create should bind reserved seats')
+const duplicateFamilyFestivalRoom = await runtime.createCohabitationFamilyFestivalRoom(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  title: 'QA 家族灯会',
+  idempotency_key: 'qa-family-festival-room-create',
+}, actor(owner))
+assert.equal(duplicateFamilyFestivalRoom.idempotent, true, 'family festival room create should be idempotent')
+assert.equal(duplicateFamilyFestivalRoom.room_id, familyFestivalRoom.room_id, 'idempotent family festival room create should return original room id')
+const familyFestivalSupplies = await runtime.consumeCohabitationFamilyFestivalSupplies(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  memo: 'qa consume family festival supplies',
+  idempotency_key: 'qa-family-festival-supplies-consume',
+}, actor(partner))
+assert.equal(familyFestivalSupplies.idempotent, false, 'first family festival supplies consume should not be idempotent')
+assert.equal(familyFestivalSupplies.ledger_entry.action, 'supplies_consumed', 'family festival supplies should write consume ledger')
+assert.ok(familyFestivalSupplies.warehouse_ledger_entries.some(entry => entry.item_id === 'wood' && entry.source_ledger_ids.includes(familyFestivalWoodDeposit.ledger_entry.id)), 'family festival supplies should consume wood from deposited ledger')
+assert.ok(familyFestivalSupplies.warehouse_ledger_entries.some(entry => entry.item_id === 'firewood' && entry.source_ledger_ids.includes(familyFestivalFirewoodDeposit.ledger_entry.id)), 'family festival supplies should consume firewood from deposited ledger')
+assert.equal(familyFestivalSupplies.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'family festival supplies should remove wood stock')
+assert.equal(familyFestivalSupplies.warehouse.items.find(item => item.item_id === 'firewood')?.quantity ?? 0, 0, 'family festival supplies should remove firewood stock')
+const duplicateFamilyFestivalSupplies = await runtime.consumeCohabitationFamilyFestivalSupplies(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  idempotency_key: 'qa-family-festival-supplies-consume',
+}, actor(partner))
+assert.equal(duplicateFamilyFestivalSupplies.idempotent, true, 'family festival supplies consume should be idempotent')
+assert.equal(duplicateFamilyFestivalSupplies.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'idempotent festival supplies should not consume wood twice')
+const familyFundBalanceBeforeFestivalSettle = (await runtime.getCohabitationFund(familyContract.contract.id, actor(owner))).fund.balance
+const familyFestivalSettle = await runtime.settleCohabitationFamilyFestivalRewards(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  amount: 77,
+  points: 9,
+  memo: 'qa settle family festival rewards',
+  idempotency_key: 'qa-family-festival-rewards-settle',
+}, actor(owner))
+assert.equal(familyFestivalSettle.idempotent, false, 'first family festival reward settle should not be idempotent')
+assert.equal(familyFestivalSettle.ledger_entry.action, 'rewards_settled', 'family festival settlement should write settlement ledger')
+assert.equal(familyFestivalSettle.fund_ledger_entry.action, 'family_festival_reward', 'family festival settlement should write shared fund ledger')
+assert.equal(familyFestivalSettle.fund_ledger_entry.amount, 77, 'family festival settlement should credit configured shared fund amount')
+assert.equal(familyFestivalSettle.fund.balance, familyFundBalanceBeforeFestivalSettle + 77, 'family festival settlement should increase shared fund once')
+assert.equal(familyFestivalSettle.reputation_ledger_entry.source_type, 'family_festival', 'family festival settlement should award reputation')
+assert.equal(familyFestivalSettle.reputation_ledger_entry.points, 9, 'family festival settlement should keep configured reputation points')
+assert.equal(familyFestivalSettle.family_festival_seats_panel.last_settlement_id, familyFestivalSettle.ledger_entry.id, 'family festival panel should expose last settlement id')
+assert.equal(familyFestivalSettle.family_festival_seats_panel.reservations[owner]?.state, 'settled', 'family festival settlement should mark seats settled')
+const duplicateFamilyFestivalSettle = await runtime.settleCohabitationFamilyFestivalRewards(familyContract.contract.id, {
+  template_id: 'lantern_fair',
+  amount: 77,
+  points: 9,
+  idempotency_key: 'qa-family-festival-rewards-settle',
+}, actor(owner))
+assert.equal(duplicateFamilyFestivalSettle.idempotent, true, 'family festival reward settle should be idempotent')
+assert.equal(duplicateFamilyFestivalSettle.fund.balance, familyFestivalSettle.fund.balance, 'idempotent family festival settle should not double credit fund')
 const repeatedFamilyFestivalSeatsRead = await runtime.getCohabitationFamilyFestivalSeats(familyContract.contract.id, actor(owner))
 assert.equal(repeatedFamilyFestivalSeatsRead.family_festival_seats_panel.visual_state_preview.board_id, familyFestivalSeatsPanel.visual_state_preview.board_id, 'family festival seat preview board id should stay stable across reads')
-assert.equal(repeatedFamilyFestivalSeatsRead.family_festival_seats_panel.revision, familyFestivalSeatsPanel.revision, 'family festival seat preview revision should stay stable across reads')
-assert.equal(repeatedFamilyFestivalSeatsRead.contract.audit_log.length, familyFestivalSeatsRead.contract.audit_log.length, 'family festival seat reads should not append audit entries')
+assert.ok(repeatedFamilyFestivalSeatsRead.family_festival_seats_panel.revision >= familyFestivalSeatsPanel.revision, 'family festival seat revision should advance after writes')
+assert.ok(repeatedFamilyFestivalSeatsRead.family_festival_seats_panel.ledger.some(entry => entry.id === familyFestivalSettle.ledger_entry.id), 'family festival reads should include settlement ledger')
+assert.ok(repeatedFamilyFestivalSeatsRead.contract.audit_log.find(entry => entry.action === 'family_festival_rewards_settled'), 'family festival writes should append settlement audit entry')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyFestivalSeats, 'family festival seat panel should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyFestivalSeats, 'family festival seat panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyFestivalSeats, 'family festival seat panel should not rewrite extra save')

@@ -500,6 +500,8 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'feed_shared_animal',
   'pet_shared_animal',
   'collect_shared_animal_product',
+  'buy_shared_animal',
+  'sell_shared_animal',
   'care_shared_pet',
   'process_shared_workshop_recipe',
   'collect_offline_auto_income',
@@ -3247,6 +3249,63 @@ function getWarehouseItemPolicy(itemId) {
     ordinary_flow_blocked: true,
     high_value_withdrawal_allowed: false,
     block_reason: protectedByPattern ? 'protected_item_id_pattern' : 'missing_shared_warehouse_item_policy',
+  };
+}
+
+function summarizeWarehouseItemPolicy(policy = {}, quality = 'normal') {
+  const normalizedQuality = normalizeQuality(quality);
+  const riskLevel = getWarehouseWithdrawalRiskLevel(policy.item_id, normalizedQuality);
+  return {
+    item_id: normalizeWarehouseItemId(policy.item_id),
+    quality: normalizedQuality,
+    policy_version: Math.max(0, Math.floor(Number(policy.policy_version) || WAREHOUSE_ITEM_POLICY_VERSION)),
+    explicit: policy.explicit === true,
+    policy_id: sanitizeText(policy.policy_id, 80),
+    classification: sanitizeText(policy.classification, 60),
+    risk_level: riskLevel,
+    catalog_risk_level: sanitizeText(policy.risk_level, 60),
+    ordinary_flow_blocked: policy.ordinary_flow_blocked === true,
+    high_value_withdrawal_allowed: policy.high_value_withdrawal_allowed === true,
+    high_value_withdrawal_required: riskLevel !== 'common',
+    block_reason: sanitizeText(policy.block_reason, 120),
+  };
+}
+
+function buildWarehouseItemPolicySnapshot(visibleItems = []) {
+  const catalogEntries = Object.keys(WAREHOUSE_ITEM_POLICY_CATALOG)
+    .sort()
+    .map(itemId => summarizeWarehouseItemPolicy({
+      item_id: itemId,
+      policy_version: WAREHOUSE_ITEM_POLICY_VERSION,
+      explicit: true,
+      ...WAREHOUSE_ITEM_POLICY_CATALOG[itemId],
+    }, 'normal'));
+  const classificationCounts = catalogEntries.reduce((acc, entry) => {
+    acc[entry.classification] = (acc[entry.classification] || 0) + 1;
+    return acc;
+  }, {});
+  const visibleItemPolicies = visibleItems.map(item => summarizeWarehouseItemPolicy(
+    getWarehouseItemPolicy(item.item_id),
+    item.quality
+  ));
+  return {
+    policy_version: WAREHOUSE_ITEM_POLICY_VERSION,
+    catalog_entry_count: catalogEntries.length,
+    explicit_policy_count: catalogEntries.length,
+    common_policy_count: classificationCounts.common || 0,
+    rare_policy_count: classificationCounts.rare || 0,
+    task_protected_policy_count: classificationCounts.task_protected || 0,
+    common_item_ids: [...WAREHOUSE_COMMON_ITEM_IDS],
+    rare_item_ids: [...WAREHOUSE_RARE_ITEM_IDS],
+    task_protected_item_ids: [...WAREHOUSE_TASK_PROTECTED_ITEM_IDS],
+    catalog_entries: catalogEntries,
+    visible_item_policies: visibleItemPolicies,
+    default_unclassified_policy_id: 'shared_warehouse_unclassified_default_protected',
+    default_pattern_policy_id: 'shared_warehouse_pattern_protected',
+    ordinary_flow_requires_explicit_common_policy: true,
+    high_value_withdrawal_requires_common_high_quality_or_explicit_rare_policy: true,
+    unclassified_items_default_protected: true,
+    task_items_high_value_withdrawal_blocked: true,
   };
 }
 
@@ -9187,13 +9246,20 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
   const governance = buildSharedWarehouseGovernanceSnapshot(contract, actorUsername);
   const visibleItems = warehouse.items.map(item => {
     const freezeSummary = buildWarehouseFreezeSummary(contract, item.item_id, item.quality);
-    return normalizeWarehouseItem({
+    const normalizedItem = normalizeWarehouseItem({
       ...item,
       frozen_quantity: freezeSummary.frozen_quantity,
       available_quantity: freezeSummary.available_quantity,
       active_withdrawal_draft_ids: freezeSummary.active_withdrawal_draft_ids,
     });
+    return normalizedItem
+      ? {
+          ...normalizedItem,
+          item_policy: summarizeWarehouseItemPolicy(getWarehouseItemPolicy(normalizedItem.item_id), normalizedItem.quality),
+        }
+      : null;
   }).filter(Boolean);
+  const itemPolicy = buildWarehouseItemPolicySnapshot(visibleItems);
 
   const totalQuantity = warehouse.items.reduce((sum, item) => sum + item.quantity, 0);
   const frozenQuantity = activeWithdrawalDrafts.reduce((sum, draft) => sum + normalizePositiveInt(draft.frozen_quantity || draft.quantity, 0), 0);
@@ -9206,11 +9272,18 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
     ledger: warehouse.ledger.slice(0, 50),
     high_value_withdrawal_drafts: withdrawalDrafts.slice(0, 20),
     governance,
+    item_policy: itemPolicy,
     summary: {
       item_count: warehouse.items.length,
       total_quantity: totalQuantity,
       frozen_quantity: frozenQuantity,
       ledger_count: warehouse.ledger.length,
+      item_policy_version: itemPolicy.policy_version,
+      explicit_item_policy_count: itemPolicy.explicit_policy_count,
+      common_item_policy_count: itemPolicy.common_policy_count,
+      rare_item_policy_count: itemPolicy.rare_policy_count,
+      task_protected_item_policy_count: itemPolicy.task_protected_policy_count,
+      unclassified_items_default_protected: itemPolicy.unclassified_items_default_protected,
       personal_money_merged: false,
       deposit_enabled: contract.status === 'active' && actorPermissions.storage.deposit === true,
       withdraw_enabled: contract.status === 'active' && actorPermissions.storage.withdraw_common === true,

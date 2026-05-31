@@ -628,6 +628,42 @@ export interface CohabitationWarehouseItem {
   active_withdrawal_draft_ids?: string[]
   source_owner_username?: string
   source_owner_display_name?: string
+  item_policy?: CohabitationWarehouseItemPolicyEntry
+}
+
+export interface CohabitationWarehouseItemPolicyEntry {
+  item_id: string
+  quality?: string
+  policy_version?: number
+  explicit?: boolean
+  policy_id: string
+  classification: string
+  risk_level: string
+  catalog_risk_level?: string
+  ordinary_flow_blocked?: boolean
+  high_value_withdrawal_allowed?: boolean
+  high_value_withdrawal_required?: boolean
+  block_reason?: string
+}
+
+export interface CohabitationWarehouseItemPolicySnapshot {
+  policy_version: number
+  catalog_entry_count: number
+  explicit_policy_count: number
+  common_policy_count: number
+  rare_policy_count: number
+  task_protected_policy_count: number
+  common_item_ids: string[]
+  rare_item_ids: string[]
+  task_protected_item_ids: string[]
+  catalog_entries: CohabitationWarehouseItemPolicyEntry[]
+  visible_item_policies: CohabitationWarehouseItemPolicyEntry[]
+  default_unclassified_policy_id: string
+  default_pattern_policy_id: string
+  ordinary_flow_requires_explicit_common_policy: boolean
+  high_value_withdrawal_requires_common_high_quality_or_explicit_rare_policy: boolean
+  unclassified_items_default_protected: boolean
+  task_items_high_value_withdrawal_blocked: boolean
 }
 
 export interface CohabitationWarehouseHighValueWithdrawalDraft {
@@ -923,11 +959,18 @@ export interface CohabitationWarehouseSnapshot {
   ledger: CohabitationWarehouseLedgerEntry[]
   high_value_withdrawal_drafts?: CohabitationWarehouseHighValueWithdrawalDraft[]
   governance?: CohabitationWarehouseGovernanceSnapshot
+  item_policy?: CohabitationWarehouseItemPolicySnapshot
   summary: {
     item_count: number
     total_quantity: number
     frozen_quantity?: number
     ledger_count: number
+    item_policy_version?: number
+    explicit_item_policy_count?: number
+    common_item_policy_count?: number
+    rare_item_policy_count?: number
+    task_protected_item_policy_count?: number
+    unclassified_items_default_protected?: boolean
     personal_money_merged: boolean
     deposit_enabled: boolean
     withdraw_enabled: boolean
