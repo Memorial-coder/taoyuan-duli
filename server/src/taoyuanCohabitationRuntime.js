@@ -33,6 +33,7 @@ const FUND_MAX_SMALL_SPEND_AMOUNT = 300;
 const FUND_MAX_MEDIUM_SPEND_AMOUNT = 1200;
 const FUND_MAX_LARGE_SPEND_AMOUNT = 999999;
 const FUND_LARGE_SPEND_DRAFT_LIMIT = 30;
+const FUND_FREEZE_EVENT_LIMIT = 20;
 const FUND_OPERATING_CONTRIBUTION_ACTIONS = new Set(['order_income', 'warehouse_sale_income', 'shared_animal_sale_income']);
 const FAMILY_BUILDING_LEDGER_LIMIT = 80;
 const FAMILY_ORDER_LEDGER_LIMIT = 80;
@@ -3124,12 +3125,45 @@ function normalizeSharedFundFreezeEvent(entry = {}) {
   };
 }
 
+function normalizeSharedFundUnfreezeEvent(entry = {}) {
+  const idempotencyKey = sanitizeText(entry.idempotency_key, 120);
+  const id = sanitizeText(entry.id, 100) || (idempotencyKey ? `shared_fund_unfreeze:${idempotencyKey}` : makeId('shared_fund_unfreeze'));
+  const reviewedAt = Math.max(0, Math.floor(Number(entry.reviewed_at || entry.unfrozen_at || entry.at) || 0)) || nowSeconds();
+  const reviewerUsername = normalizeUsername(entry.reviewed_by_username || entry.unfrozen_by_username || entry.actor_username);
+  return {
+    id,
+    reviewed_at: reviewedAt,
+    unfrozen_at: reviewedAt,
+    reviewed_by_username: reviewerUsername,
+    reviewed_by_display_name: sanitizeText(entry.reviewed_by_display_name || entry.unfrozen_by_display_name || entry.actor_display_name || reviewerUsername, 60),
+    reason: sanitizeText(entry.reason || entry.review_reason || entry.memo || entry.note, 240),
+    review_result: sanitizeText(entry.review_result || entry.resolution || 'manual_review_completed', 80) || 'manual_review_completed',
+    review_note: sanitizeText(entry.review_note || entry.note || entry.memo, 240),
+    freeze_event_id: sanitizeText(entry.freeze_event_id || entry.source_freeze_event_id, 100),
+    source_ledger_id: sanitizeText(entry.source_ledger_id || entry.ledger_id, 100),
+    source_idempotency_key: sanitizeText(entry.source_idempotency_key, 120),
+    idempotency_key: idempotencyKey,
+    balance_snapshot: Math.max(0, Math.floor(Number(entry.balance_snapshot) || 0)),
+    ledger_count_snapshot: Math.max(0, Math.floor(Number(entry.ledger_count_snapshot) || 0)),
+    record_only: entry.record_only !== false,
+    personal_money_merged: entry.personal_money_merged === true,
+    shared_fund_changed: entry.shared_fund_changed === true,
+    required_operation: sanitizeText(entry.required_operation, 120) || 'fund_writes_reenabled_after_manual_review',
+  };
+}
+
 function normalizeSharedFundFreezeState(value = {}) {
   const events = Array.isArray(value.freeze_events)
-    ? value.freeze_events.map(normalizeSharedFundFreezeEvent).filter(Boolean).slice(0, 20)
+    ? value.freeze_events.map(normalizeSharedFundFreezeEvent).filter(Boolean).slice(0, FUND_FREEZE_EVENT_LIMIT)
     : [];
-  const active = value.active === true || events.some(event => event.id);
+  const unfreezeEvents = Array.isArray(value.unfreeze_events)
+    ? value.unfreeze_events.map(normalizeSharedFundUnfreezeEvent).filter(Boolean).slice(0, FUND_FREEZE_EVENT_LIMIT)
+    : [];
+  const normalizedStatus = sanitizeText(value.status, 40).toLowerCase();
+  const explicitlyOpen = value.active === false || ['open', 'reviewed_open', 'unfrozen'].includes(normalizedStatus);
+  const active = explicitlyOpen ? false : (value.active === true || events.some(event => event.id));
   const lastEvent = events[0] || null;
+  const lastUnfreezeEvent = unfreezeEvents[0] || null;
   return {
     active,
     status: active ? 'frozen' : 'open',
@@ -3145,9 +3179,18 @@ function normalizeSharedFundFreezeState(value = {}) {
     balance_snapshot: Math.max(0, Math.floor(Number(value.balance_snapshot || lastEvent?.balance_snapshot) || 0)),
     ledger_count_snapshot: Math.max(0, Math.floor(Number(value.ledger_count_snapshot || lastEvent?.ledger_count_snapshot) || 0)),
     freeze_events: events,
+    unfreeze_events: unfreezeEvents,
+    last_unfreeze_event_id: sanitizeText(value.last_unfreeze_event_id || lastUnfreezeEvent?.id, 100),
+    unfrozen_at: active ? 0 : Math.max(0, Math.floor(Number(value.unfrozen_at || lastUnfreezeEvent?.unfrozen_at || lastUnfreezeEvent?.reviewed_at) || 0)),
+    reviewed_by_username: active ? '' : normalizeUsername(value.reviewed_by_username || lastUnfreezeEvent?.reviewed_by_username),
+    reviewed_by_display_name: active ? '' : sanitizeText(value.reviewed_by_display_name || lastUnfreezeEvent?.reviewed_by_display_name, 60),
+    review_result: active ? '' : sanitizeText(value.review_result || lastUnfreezeEvent?.review_result, 80),
+    review_note: active ? '' : sanitizeText(value.review_note || lastUnfreezeEvent?.review_note, 240),
     required_operation: active ? (sanitizeText(value.required_operation || lastEvent?.required_operation, 120) || 'manual_fund_review') : '',
     policy: active
       ? 'shared fund is frozen after an abnormality record; new balance-changing fund operations are blocked until manual review.'
+      : lastUnfreezeEvent
+      ? 'shared fund is open after manual review; previous freeze events are retained for audit.'
       : 'shared fund is open for normal audited operations.',
   };
 }
@@ -3173,6 +3216,20 @@ function normalizeSharedFundFreezePayload(payload = {}) {
     source_ledger_id: sanitizeText(payload.source_ledger_id || payload.ledger_id, 100),
     source_idempotency_key: sanitizeText(payload.source_idempotency_key, 120),
     memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeSharedFundUnfreezePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('shared fund unfreeze requires idempotency_key', 400);
+  const reason = sanitizeText(payload.reason || payload.review_reason || payload.memo || payload.note, 240);
+  if (!reason) throw createError('shared fund unfreeze requires review reason', 400);
+  return {
+    idempotency_key: idempotencyKey,
+    reason,
+    review_result: sanitizeText(payload.review_result || payload.resolution || 'manual_review_completed', 80) || 'manual_review_completed',
+    review_note: sanitizeText(payload.review_note || payload.note || payload.memo, 240),
+    freeze_event_id: sanitizeText(payload.freeze_event_id || payload.source_freeze_event_id, 100),
   };
 }
 
@@ -4983,13 +5040,19 @@ function buildOfflineAutoIncomePendingSummary(contract = {}) {
     : [];
   const cropItems = [...new Set(harvestablePlots.map(plot => normalizeWarehouseItemId(plot?.plot_state?.crop_id)).filter(Boolean))];
   const animalItems = [...new Set(readyAnimals.map(animal => getSharedAnimalProductDef(animal)?.product_id).filter(Boolean))];
+  const targetRefs = [
+    ...harvestablePlots.map(buildOfflineAutoIncomeFarmTargetRef),
+    ...readyAnimals.map(buildOfflineAutoIncomeAnimalTargetRef),
+  ].filter(Boolean);
   return {
     enabled: true,
     pending_count: harvestablePlots.length + readyAnimals.length,
     harvestable_plot_count: harvestablePlots.length,
     ready_animal_product_count: readyAnimals.length,
     max_items_per_claim: OFFLINE_AUTO_INCOME_MAX_ITEMS,
+    batch_claim_supported: true,
     claim_supported_actions: ['collect_offline_auto_income'],
+    target_refs: targetRefs.slice(0, OFFLINE_AUTO_INCOME_MAX_ITEMS),
     output_item_ids: [...new Set([...cropItems, ...animalItems])].slice(0, 40),
     source_scopes: ['contract.shared_map.plots', 'contract.shared_animals.animals'],
     settlement_target: 'shared_warehouse.items',
@@ -4997,6 +5060,14 @@ function buildOfflineAutoIncomePendingSummary(contract = {}) {
     personal_save_changed: false,
     shared_fund_changed: false,
   };
+}
+
+function buildOfflineAutoIncomeFarmTargetRef(plot = {}) {
+  return `offline_auto_income:shared_farm:${sanitizeText(plot.id, 140)}`;
+}
+
+function buildOfflineAutoIncomeAnimalTargetRef(animal = {}) {
+  return `offline_auto_income:shared_animal:${sanitizeText(animal.id, 140)}`;
 }
 
 function getSharedAnimalProductDef(animal = {}) {
@@ -5563,7 +5634,7 @@ function buildOfflineAutoIncomeFarmRow(contract = {}, plot = {}, member = {}, ac
     current_steward_manor_role_label: actorManorRoleDef?.label || '',
     readonly: false,
   };
-  const targetRef = `offline_auto_income:shared_farm:${plot.id}`;
+  const targetRef = buildOfflineAutoIncomeFarmTargetRef(plot);
   const itemIdempotencyKey = `${request.idempotency_key}:farm:${plot.id}:${index}`;
   const warehouseLedgerEntries = settlement.outputs.map((output, outputIndex) => normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
@@ -5682,7 +5753,7 @@ function buildOfflineAutoIncomeAnimalRow(contract = {}, animal = {}, member = {}
     readonly: false,
   };
   const productQuality = getSharedAnimalProductQuality(animal);
-  const targetRef = `offline_auto_income:shared_animal:${animal.id}`;
+  const targetRef = buildOfflineAutoIncomeAnimalTargetRef(animal);
   const itemIdempotencyKey = `${request.idempotency_key}:animal:${animal.id}:${index}`;
   const warehouseLedgerEntry = normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
@@ -5768,10 +5839,23 @@ function buildOfflineAutoIncomeAnimalRow(contract = {}, animal = {}, member = {}
 function normalizeOfflineAutoIncomePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('offline auto income claim requires idempotency_key');
+  const rawTargetRefs = [
+    ...(Array.isArray(payload.target_refs) ? payload.target_refs : []),
+    ...(Array.isArray(payload.targetRefs) ? payload.targetRefs : []),
+    payload.target_ref,
+    payload.targetRef,
+  ];
+  const targetRefs = uniqueSanitizedValues(rawTargetRefs, 180).slice(0, OFFLINE_AUTO_INCOME_MAX_ITEMS);
+  const rawBatchLimit = payload.batch_limit ?? payload.batchLimit ?? payload.limit ?? payload.max_items ?? payload.maxItems;
+  const batchLimit = rawBatchLimit === undefined || rawBatchLimit === null || rawBatchLimit === ''
+    ? OFFLINE_AUTO_INCOME_MAX_ITEMS
+    : Math.max(1, Math.min(OFFLINE_AUTO_INCOME_MAX_ITEMS, Math.floor(Number(rawBatchLimit) || 1)));
   return {
     idempotency_key: idempotencyKey,
     client_queue_revision: Math.max(0, Math.floor(Number(payload.client_queue_revision || payload.base_revision) || 0)),
     client_base_revision: Math.max(0, Math.floor(Number(payload.client_base_revision || payload.base_revision) || 0)),
+    target_refs: targetRefs,
+    batch_limit: batchLimit,
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -9725,6 +9809,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       freeze_status: freezeState.status,
       freeze_reason: freezeState.reason,
       freeze_required_operation: freezeState.required_operation,
+      manual_unfreeze_enabled: fundFrozen && canFreezeSharedFundAbnormality(actorMember || {}, actorPermissions),
       shop_purchase_to_shared_warehouse_enabled: fundWritesEnabled && actorPermissions.fund.spend_small === true && actorPermissions.fund.auto_buy_seeds_feed === true,
       contribution_enabled: fundWritesEnabled,
       spend_enabled: fundWritesEnabled && actorPermissions.fund.spend_small === true,
@@ -9758,6 +9843,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       can_spend_large: fundWritesEnabled && actorPermissions.fund.spend_large === true,
       can_auto_buy_seeds_feed: fundWritesEnabled && actorPermissions.fund.auto_buy_seeds_feed === true,
       can_freeze_abnormal: contract.status === 'active' && canFreezeSharedFundAbnormality(actorMember || {}, actorPermissions),
+      can_unfreeze_abnormal: contract.status === 'active' && fundFrozen && canFreezeSharedFundAbnormality(actorMember || {}, actorPermissions),
     },
   };
 }
@@ -9986,6 +10072,7 @@ function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
       'fund_high_risk_receipt_recorded',
       'fund_high_risk_execution_blocked',
       'fund_abnormal_frozen',
+      'fund_abnormal_unfrozen',
     ].includes(entry.action))
     .slice(0, 20);
 
@@ -10334,6 +10421,8 @@ function buildOfflineConflictResolutionEvidence(request = {}, results = [], reje
     ...optionLedgerIds,
     ...results.flatMap(entry => [
       entry?.ledger_id,
+      entry?.fund_ledger_id,
+      ...(Array.isArray(entry?.fund_ledger_ids) ? entry.fund_ledger_ids : []),
       ...(Array.isArray(entry?.warehouse_ledger_ids) ? entry.warehouse_ledger_ids : []),
     ]),
   ], 140);
@@ -11231,6 +11320,17 @@ function normalizeSeparationPersonalSaveWritePayload(payload = {}) {
 function normalizeSeparationSharedFundRefundPayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居共同基金返还需要 idempotency_key，以防断线或重试时重复返还');
+  return {
+    idempotency_key: idempotencyKey,
+    execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeSeparationSharedFundDeltaConfirmPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('shared fund delta confirmation requires idempotency_key to avoid duplicate confirmations', 400);
   return {
     idempotency_key: idempotencyKey,
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
@@ -12768,7 +12868,13 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
       requires_consumption_delta_confirmation: entry.requires_consumption_delta_confirmation === true,
       suggested_refund_amount: Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)),
       return_status: 'manual_personal_money_write_required',
-    })).filter(entry => entry.origin_owner_username && entry.suggested_refund_amount > 0),    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
+    })).filter(entry => entry.origin_owner_username && entry.suggested_refund_amount > 0),
+    shared_fund_delta_confirmation_required: fundReturns.some(entry =>
+      entry.requires_consumption_delta_confirmation === true
+      && Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)) > 0
+    ),
+    shared_fund_delta_confirmations: [],
+    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
     building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
     personal_money_merged: false,
     personal_save_written: false,
@@ -14306,6 +14412,84 @@ function buildFamilyBuildingRealDemolitionMainStateResolvedExactTargetManifest(c
   });
 }
 
+function normalizeSeparationSharedFundDeltaConfirmationEvent(entry = {}) {
+  const username = normalizeUsername(entry.username || entry.actor_username || entry.confirmed_by);
+  const usernameKey = normalizeUsernameKey(entry.username_key || entry.actor_username_key || username);
+  return {
+    username,
+    username_key: usernameKey,
+    confirmed_at: Math.max(0, Math.floor(Number(entry.confirmed_at || entry.at) || 0)),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    memo: sanitizeText(entry.memo || entry.note, 160),
+  };
+}
+
+function normalizeSeparationSharedFundDeltaConfirmationSummary(entry = {}) {
+  const summary = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
+  return {
+    requires_consumption_delta_confirmation: summary.requires_consumption_delta_confirmation === true,
+    requires_all_members: summary.requires_all_members === true,
+    all_members_confirmed: summary.all_members_confirmed === true,
+    required_member_usernames: Array.isArray(summary.required_member_usernames)
+      ? summary.required_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 12)
+      : [],
+    confirmed_member_usernames: Array.isArray(summary.confirmed_member_usernames)
+      ? summary.confirmed_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 12)
+      : [],
+    pending_member_usernames: Array.isArray(summary.pending_member_usernames)
+      ? summary.pending_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 12)
+      : [],
+    rows_requiring_confirmation: Math.max(0, Math.floor(Number(summary.rows_requiring_confirmation) || 0)),
+    refund_total: Math.max(0, Math.floor(Number(summary.refund_total) || 0)),
+    fund_split_basis: sanitizeText(summary.fund_split_basis, 80) || 'capital_and_traceable_operating_income',
+    fund_total_capital_contributed: Math.max(0, Math.floor(Number(summary.fund_total_capital_contributed) || 0)),
+    fund_total_operating_contributed: Math.max(0, Math.floor(Number(summary.fund_total_operating_contributed) || 0)),
+    fund_total_split_basis: Math.max(0, Math.floor(Number(summary.fund_total_split_basis) || 0)),
+    personal_money_mutated: summary.personal_money_mutated === true,
+    shared_fund_mutated: summary.shared_fund_mutated === true,
+    shared_warehouse_mutated: summary.shared_warehouse_mutated === true,
+    confirmation_policy: sanitizeText(summary.confirmation_policy, 180) || 'Both accepted members must record consumption-delta confirmation before shared fund refund.',
+  };
+}
+
+function separationLedgerRequiresSharedFundDeltaConfirmation(ledger = {}) {
+  return (Array.isArray(ledger.fund_refunds_by_origin_owner) ? ledger.fund_refunds_by_origin_owner : [])
+    .some(entry => entry.requires_consumption_delta_confirmation === true && Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)) > 0);
+}
+
+function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract = {}) {
+  const requiredMemberUsernames = getAcceptedSeparationMembers(contract).map(member => member.username).filter(Boolean);
+  const confirmations = Array.isArray(ledger.shared_fund_delta_confirmations)
+    ? ledger.shared_fund_delta_confirmations.map(normalizeSeparationSharedFundDeltaConfirmationEvent).filter(entry => entry.username)
+    : [];
+  const confirmedKeys = new Set(confirmations.map(entry => entry.username_key).filter(Boolean));
+  const confirmedMemberUsernames = requiredMemberUsernames.filter(username => confirmedKeys.has(normalizeUsernameKey(username)));
+  const pendingMemberUsernames = requiredMemberUsernames.filter(username => !confirmedKeys.has(normalizeUsernameKey(username)));
+  const refundRows = Array.isArray(ledger.fund_refunds_by_origin_owner) ? ledger.fund_refunds_by_origin_owner : [];
+  const rowsRequiringConfirmation = refundRows.filter(entry =>
+    entry.requires_consumption_delta_confirmation === true
+    && Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)) > 0
+  );
+  const requiresConfirmation = rowsRequiringConfirmation.length > 0;
+  return normalizeSeparationSharedFundDeltaConfirmationSummary({
+    requires_consumption_delta_confirmation: requiresConfirmation,
+    requires_all_members: requiresConfirmation,
+    all_members_confirmed: !requiresConfirmation || (requiredMemberUsernames.length > 0 && pendingMemberUsernames.length === 0),
+    required_member_usernames: requiredMemberUsernames,
+    confirmed_member_usernames: confirmedMemberUsernames,
+    pending_member_usernames: pendingMemberUsernames,
+    rows_requiring_confirmation: rowsRequiringConfirmation.length,
+    refund_total: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)), 0),
+    fund_split_basis: rowsRequiringConfirmation[0]?.fund_split_basis || refundRows[0]?.fund_split_basis || 'capital_and_traceable_operating_income',
+    fund_total_capital_contributed: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0),
+    fund_total_operating_contributed: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0),
+    fund_total_split_basis: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0),
+    personal_money_mutated: false,
+    shared_fund_mutated: false,
+    shared_warehouse_mutated: false,
+  });
+}
+
 function normalizeSeparationExecutionLedgerEntry(entry = {}) {
   return {
     id: sanitizeText(entry.id, 100) || makeId('separation_asset_return'),
@@ -14317,7 +14501,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     version_idempotency_key: sanitizeText(entry.version_idempotency_key || entry.versionIdempotencyKey, 160),
     memo: sanitizeText(entry.memo, 160),
-    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned', 'decorations_buildings_split', 'family_story_resolved', 'personal_story_receipts_written', 'child_arrangement_resolved', 'personal_family_receipts_written', 'compensated', 'reverted'].includes(entry.status)
+    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_delta_confirmation_pending', 'shared_fund_delta_confirmed', 'shared_fund_refunded', 'shared_warehouse_returned', 'decorations_buildings_split', 'family_story_resolved', 'personal_story_receipts_written', 'child_arrangement_resolved', 'personal_family_receipts_written', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
       : 'asset_return_recorded',
     plot_return_manifest_hash: sanitizeText(entry.plot_return_manifest_hash, 100),
@@ -14504,6 +14688,18 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.restored_plot_count > 0).slice(0, 20)
       : [],
+    shared_fund_delta_confirmation_required: entry.shared_fund_delta_confirmation_required === true,
+    shared_fund_delta_confirmations: Array.isArray(entry.shared_fund_delta_confirmations)
+      ? entry.shared_fund_delta_confirmations
+          .map(normalizeSeparationSharedFundDeltaConfirmationEvent)
+          .filter(item => item.username && item.idempotency_key)
+          .slice(0, 12)
+      : [],
+    shared_fund_delta_confirmation_summary: normalizeSeparationSharedFundDeltaConfirmationSummary(entry.shared_fund_delta_confirmation_summary),
+    shared_fund_delta_confirmed: entry.shared_fund_delta_confirmed === true,
+    shared_fund_delta_confirmation_idempotency_key: sanitizeText(entry.shared_fund_delta_confirmation_idempotency_key, 120),
+    shared_fund_delta_confirmed_at: Math.max(0, Math.floor(Number(entry.shared_fund_delta_confirmed_at) || 0)),
+    shared_fund_delta_confirmed_by: normalizeUsername(entry.shared_fund_delta_confirmed_by),
     shared_fund_refunded: entry.shared_fund_refunded === true,
     shared_fund_refund_idempotency_key: sanitizeText(entry.shared_fund_refund_idempotency_key, 120),
     shared_fund_refunded_at: Math.max(0, Math.floor(Number(entry.shared_fund_refunded_at) || 0)),
@@ -15034,7 +15230,7 @@ async function freezeCohabitationFundAbnormality(contractId, payload = {}, actor
     balance_snapshot: freezeEvent.balance_snapshot,
     ledger_count_snapshot: freezeEvent.ledger_count_snapshot,
     required_operation: freezeEvent.required_operation,
-    freeze_events: [freezeEvent, ...contract.shared_fund.freeze_state.freeze_events].slice(0, 20),
+    freeze_events: [freezeEvent, ...contract.shared_fund.freeze_state.freeze_events].slice(0, FUND_FREEZE_EVENT_LIMIT),
   });
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
   appendAudit(contract, 'fund_abnormal_frozen', actor, {
@@ -15061,6 +15257,103 @@ async function freezeCohabitationFundAbnormality(contractId, payload = {}, actor
     fund: buildSharedFundSnapshot(contract, actorUsername),
     freeze_state: contract.shared_fund.freeze_state,
     freeze_event: freezeEvent,
+    idempotent: false,
+  };
+}
+
+async function unfreezeCohabitationFundAbnormality(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
+  const unfreezeRequest = normalizeSharedFundUnfreezePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'resolve shared fund abnormal freeze');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (!canFreezeSharedFundAbnormality(member, actorPermissions)) {
+    throw createError('shared fund abnormal unfreeze requires contract owner or large fund permission', 403);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const freezeState = contract.shared_fund.freeze_state;
+  const existingUnfreezeEvent = freezeState.unfreeze_events.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === unfreezeRequest.idempotency_key
+  ) || null;
+  if (existingUnfreezeEvent) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      freeze_state: freezeState,
+      unfreeze_event: existingUnfreezeEvent,
+      idempotent: true,
+    };
+  }
+
+  if (freezeState.active !== true) throw createError('shared fund is not frozen', 409);
+  const sourceFreezeEvent = unfreezeRequest.freeze_event_id
+    ? freezeState.freeze_events.find(entry => entry.id === unfreezeRequest.freeze_event_id)
+    : freezeState.freeze_events[0] || null;
+  if (unfreezeRequest.freeze_event_id && !sourceFreezeEvent) throw createError('shared fund freeze event does not exist', 404);
+
+  const reviewedAt = nowSeconds();
+  const balanceSnapshot = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  const ledgerCountSnapshot = contract.shared_fund.ledger.length;
+  const unfreezeEvent = normalizeSharedFundUnfreezeEvent({
+    id: makeId('shared_fund_unfreeze'),
+    reviewed_at: reviewedAt,
+    reviewed_by_username: member.username,
+    reviewed_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    reason: unfreezeRequest.reason,
+    review_result: unfreezeRequest.review_result,
+    review_note: unfreezeRequest.review_note,
+    freeze_event_id: sourceFreezeEvent?.id || '',
+    source_ledger_id: sourceFreezeEvent?.source_ledger_id || '',
+    source_idempotency_key: sourceFreezeEvent?.source_idempotency_key || '',
+    idempotency_key: unfreezeRequest.idempotency_key,
+    balance_snapshot: balanceSnapshot,
+    ledger_count_snapshot: ledgerCountSnapshot,
+    record_only: true,
+    personal_money_merged: false,
+    shared_fund_changed: false,
+    required_operation: 'fund_writes_reenabled_after_manual_review',
+  });
+  contract.shared_fund.freeze_state = normalizeSharedFundFreezeState({
+    ...freezeState,
+    active: false,
+    status: 'open',
+    last_unfreeze_event_id: unfreezeEvent.id,
+    unfrozen_at: unfreezeEvent.unfrozen_at,
+    reviewed_by_username: unfreezeEvent.reviewed_by_username,
+    reviewed_by_display_name: unfreezeEvent.reviewed_by_display_name,
+    review_result: unfreezeEvent.review_result,
+    review_note: unfreezeEvent.review_note,
+    required_operation: '',
+    unfreeze_events: [unfreezeEvent, ...freezeState.unfreeze_events].slice(0, FUND_FREEZE_EVENT_LIMIT),
+  });
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  appendAudit(contract, 'fund_abnormal_unfrozen', actor, {
+    unfreeze_event_id: unfreezeEvent.id,
+    freeze_event_id: unfreezeEvent.freeze_event_id,
+    reviewed_at: unfreezeEvent.reviewed_at,
+    reviewed_by_username: unfreezeEvent.reviewed_by_username,
+    reason: unfreezeEvent.reason,
+    review_result: unfreezeEvent.review_result,
+    source_ledger_id: unfreezeEvent.source_ledger_id,
+    source_idempotency_key: unfreezeEvent.source_idempotency_key,
+    balance_snapshot: unfreezeEvent.balance_snapshot,
+    ledger_count_snapshot: unfreezeEvent.ledger_count_snapshot,
+    block_new_fund_writes: false,
+    record_only: true,
+    shared_fund_changed: false,
+    shared_fund_balance_changed: false,
+    personal_money_merged: false,
+  }, unfreezeRequest.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    freeze_state: contract.shared_fund.freeze_state,
+    unfreeze_event: unfreezeEvent,
     idempotent: false,
   };
 }
@@ -17695,6 +17988,23 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared animal product merge', 160),
     }, actor);
   }
+  if (operation.action === 'buy_shared_animal') {
+    return buyCohabitationSharedAnimal(contractId, {
+      ...payload,
+      animal_type: payload.animal_type || payload.type || payload.animalType,
+      name: payload.name || payload.animal_name || payload.animalName,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared animal buy merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'sell_shared_animal') {
+    return sellCohabitationSharedAnimal(contractId, {
+      ...payload,
+      animal_id: payload.animal_id || payload.shared_animal_id || payload.id,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared animal sell merge', 160),
+    }, actor);
+  }
   if (operation.action === 'process_shared_workshop_recipe') {
     return processCohabitationSharedWorkshopRecipe(contractId, {
       ...payload,
@@ -17785,6 +18095,33 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       simultaneous_online_bonus: actionResult.simultaneous_online_bonus || ledgerEntry.simultaneous_online_bonus || null,
     };
   }
+  if (action === 'buy_shared_animal' || action === 'sell_shared_animal') {
+    const fundLedgerEntry = result.fund_ledger_entry || {};
+    const animalRecord = result.animal || result.sold_animal || {};
+    const tradeKind = action === 'buy_shared_animal' ? 'buy' : 'sell';
+    const animalId = actionResult.animal_id || ledgerEntry.animal_id || animalRecord.id || sanitizeText(operation.payload?.animal_id || operation.payload?.shared_animal_id || operation.payload?.id, 140);
+    const fundLedgerId = actionResult.fund_ledger_id || ledgerEntry.fund_ledger_id || fundLedgerEntry.id || '';
+    return {
+      ...entry,
+      target_ref: entry.target_ref || fundLedgerEntry.target_ref || `shared_animal:${tradeKind}:${animalId}`,
+      animal_id: animalId,
+      animal_type: actionResult.animal_type || ledgerEntry.animal_type || animalRecord.type || sanitizeText(operation.payload?.animal_type || operation.payload?.type || operation.payload?.animalType, 80),
+      animal_name: actionResult.animal_name || ledgerEntry.animal_name || animalRecord.name || sanitizeText(operation.payload?.name || operation.payload?.animal_name || operation.payload?.animalName, 80),
+      unit_price: Math.max(0, Math.floor(Number(actionResult.unit_price || ledgerEntry.unit_price || fundLedgerEntry.target_unit_price || fundLedgerEntry.amount) || 0)),
+      total_amount: Math.max(0, Math.floor(Number(actionResult.total_amount || ledgerEntry.total_amount || fundLedgerEntry.amount) || 0)),
+      balance_before: Math.max(0, Math.floor(Number(actionResult.balance_before || ledgerEntry.balance_before) || 0)),
+      balance_after: Math.max(0, Math.floor(Number(actionResult.balance_after || ledgerEntry.balance_after || fundLedgerEntry.balance_after) || 0)),
+      fund_ledger_id: fundLedgerId,
+      fund_ledger_ids: [fundLedgerId].filter(Boolean),
+      before_animal_state: actionResult.before_animal_state || ledgerEntry.before_animal_state || {},
+      after_animal_state: actionResult.after_animal_state || ledgerEntry.after_animal_state || animalRecord.animal_state || {},
+      already_bought: result.already_bought === true,
+      already_sold: result.already_sold === true,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: true,
+    };
+  }
   if (action === 'process_shared_workshop_recipe') {
     const consumeEntries = warehouseLedgerEntries.filter(item => item.action === 'consume');
     const outputEntry = warehouseLedgerEntries.find(item => item.action === 'deposit') || ledgerEntry;
@@ -17836,6 +18173,14 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       farm_harvest_count: Math.max(0, Math.floor(Number(claim.farm_harvest_count) || 0)),
       animal_product_count: Math.max(0, Math.floor(Number(claim.animal_product_count) || 0)),
       output_items: Array.isArray(claim.output_items) ? claim.output_items : [],
+      batch_mode: claim.batch_mode || 'full',
+      batch_limit: Math.max(0, Math.floor(Number(claim.batch_limit) || 0)),
+      pending_before_count: Math.max(0, Math.floor(Number(claim.pending_before_count) || 0)),
+      remaining_pending_count: Math.max(0, Math.floor(Number(claim.remaining_pending_count) || 0)),
+      requested_target_refs: Array.isArray(claim.requested_target_refs) ? claim.requested_target_refs : [],
+      selected_target_refs: Array.isArray(claim.selected_target_refs) ? claim.selected_target_refs : [],
+      skipped_target_refs: Array.isArray(claim.skipped_target_refs) ? claim.skipped_target_refs : [],
+      selection_policy: claim.selection_policy || 'server_authoritative_target_refs_then_contract_order',
       shared_warehouse_changed: claim.shared_warehouse_changed === true,
       shared_fund_changed: false,
       personal_save_changed: false,
@@ -17855,6 +18200,49 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
     already_petted: result.already_petted === true,
     already_collected: result.already_collected === true,
     simultaneous_online_bonus: actionResult.simultaneous_online_bonus || ledgerEntry.simultaneous_online_bonus || null,
+  };
+}
+
+function buildCohabitationOfflineSharedAnimalTradeRejection(operation = {}, error = {}) {
+  if (operation.action !== 'buy_shared_animal' && operation.action !== 'sell_shared_animal') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = operation.action === 'buy_shared_animal'
+    ? 'shared_animal_buy_server_state_rejected'
+    : 'shared_animal_sell_server_state_rejected';
+  if (status === 403 && message.includes('buy permission')) reason = 'shared_animal_buy_permission_denied';
+  if (status === 403 && message.includes('fund spend medium')) reason = 'shared_animal_buy_fund_permission_denied';
+  if (status === 403 && message.includes('sell permission')) reason = 'shared_animal_sell_permission_denied';
+  if (status === 403 && message.includes('only supports')) reason = operation.action === 'buy_shared_animal'
+    ? 'shared_animal_buy_unsupported_type'
+    : 'shared_animal_sale_not_supported';
+  if (status === 404) reason = 'shared_animal_not_found';
+  if (status === 409 && message.includes('balance is not enough')) reason = 'shared_fund_insufficient_for_animal_purchase';
+  if (status === 409 && message.includes('limit reached')) reason = 'shared_animal_limit_reached';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'shared_animal_trade_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    animal_id: sanitizeText(payload.animal_id || payload.shared_animal_id || payload.id, 140),
+    animal_type: sanitizeText(payload.animal_type || payload.type || payload.animalType, 80),
+    animal_name: sanitizeText(payload.name || payload.animal_name || payload.animalName, 80),
+    target_ref: operation.action === 'buy_shared_animal'
+      ? `shared_animal:buy:${sanitizeText(payload.animal_type || payload.type || payload.animalType, 80)}`
+      : `shared_animal:sell:${sanitizeText(payload.animal_id || payload.shared_animal_id || payload.id, 140)}`,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline shared animal trade was rejected before any shared fund, shared animal, warehouse, or personal save mutation.',
   };
 }
 
@@ -18004,14 +18392,21 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
     };
   }
 
+  const initialPendingSummary = buildOfflineAutoIncomePendingSummary(contract);
+  const requestedTargetRefs = request.target_refs;
+  const requestedTargetRefSet = new Set(requestedTargetRefs);
+  const matchesRequestedTarget = targetRef => requestedTargetRefSet.size === 0 || requestedTargetRefSet.has(targetRef);
+  const batchLimit = request.batch_limit;
   const operatedAt = nowSeconds();
   const rows = [];
   let sharedMap = refreshSharedMapContractFields(contract, contract.shared_map);
   if (actorPermissions.farm.harvest === true && sharedMap) {
     for (const plot of sharedMap.plots || []) {
-      if (rows.length >= OFFLINE_AUTO_INCOME_MAX_ITEMS) break;
+      if (rows.length >= batchLimit) break;
       if (plot?.plot_state?.state !== 'harvestable') continue;
       if (plot.plot_state?.giant_crop_group !== null && plot.plot_state?.giant_crop_group !== undefined) continue;
+      const targetRef = buildOfflineAutoIncomeFarmTargetRef(plot);
+      if (!matchesRequestedTarget(targetRef)) continue;
       try {
         assertSharedFarmHarvestAllowed(contract, member, plot, actorPermissions);
       } catch (error) {
@@ -18026,7 +18421,9 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
   let sharedAnimals = refreshSharedAnimalsContractFields(contract, contract.shared_animals);
   if (actorPermissions.animal.collect_product === true && sharedAnimals) {
     for (const animal of sharedAnimals.animals || []) {
-      if (rows.length >= OFFLINE_AUTO_INCOME_MAX_ITEMS) break;
+      if (rows.length >= batchLimit) break;
+      const targetRef = buildOfflineAutoIncomeAnimalTargetRef(animal);
+      if (!matchesRequestedTarget(targetRef)) continue;
       try {
         assertSharedAnimalProductCollectAllowed(contract, member, animal, actorPermissions);
       } catch (error) {
@@ -18129,6 +18526,9 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
     warehouse_ledger_id: row.warehouse_ledger_id,
     domain_ledger_id: row.domain_ledger_id,
   }));
+  const selectedTargetRefs = uniqueSanitizedValues(rows.map(row => row.target_ref), 180);
+  const skippedTargetRefs = requestedTargetRefs.filter(targetRef => !selectedTargetRefs.includes(targetRef));
+  const remainingPendingSummary = buildOfflineAutoIncomePendingSummary(contract);
   const finalRevisionSnapshot = buildOfflineQueueRevisionSnapshot(contract);
   const revisionEvidence = buildOfflineQueueMergeRevisionEvidence({
     client_queue_revision: request.client_queue_revision,
@@ -18146,6 +18546,19 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
     warehouse_ledger_ids: warehouseLedgerEntries.map(entry => entry.id),
     farm_ledger_ids: farmLedgerEntries.map(entry => entry.id),
     animal_ledger_ids: animalLedgerEntries.map(entry => entry.id),
+    batch_mode: requestedTargetRefs.length > 0
+      ? 'targeted'
+      : batchLimit < OFFLINE_AUTO_INCOME_MAX_ITEMS
+        ? 'limited'
+        : 'full',
+    batch_limit: batchLimit,
+    batch_claim_supported: true,
+    pending_before_count: Math.max(0, Math.floor(Number(initialPendingSummary.pending_count) || 0)),
+    remaining_pending_count: Math.max(0, Math.floor(Number(remainingPendingSummary.pending_count) || 0)),
+    requested_target_refs: requestedTargetRefs,
+    selected_target_refs: selectedTargetRefs,
+    skipped_target_refs: skippedTargetRefs,
+    selection_policy: 'server_authoritative_target_refs_then_contract_order',
     shared_warehouse_changed: warehouseLedgerEntries.length > 0,
     shared_fund_changed: false,
     personal_save_changed: false,
@@ -18342,6 +18755,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
         rejected.push(withOfflineQueueOperationRevisionEvidence(autoIncomeRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
+      const sharedAnimalTradeRejection = buildCohabitationOfflineSharedAnimalTradeRejection(operation, error);
+      if (sharedAnimalTradeRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(sharedAnimalTradeRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
       const careItemProfile = getSharedPetCareItemProfile(careItemId);
       const isMissingHighRiskConfirmation = error?.status === 409
         && operation.action === 'care_shared_pet'
@@ -18391,7 +18809,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
     rejected_operation_ids: rejected.map(entry => entry.operation_id).filter(Boolean),
     rejected_operations: rejected,
     supported_actions: OFFLINE_QUEUE_SUPPORTED_ACTIONS,
-    result_ledger_ids: results.map(entry => entry.ledger_id).filter(Boolean),
+    result_ledger_ids: uniqueSanitizedValues(results.flatMap(entry => [
+      entry.ledger_id,
+      entry.fund_ledger_id,
+      ...(Array.isArray(entry.fund_ledger_ids) ? entry.fund_ledger_ids : []),
+    ]), 140),
     client_queue_revision: request.client_queue_revision,
     server_queue_revision_before: revisionEvidence.server_queue_revision_before,
     server_queue_revision_after: revisionEvidence.server_queue_revision_after,
@@ -27733,7 +28155,7 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
   }
   const existingPreviewLedger = contract.separation_execution_ledger.find(entry =>
     entry.preview_id === normalizedPreviewId
-    && ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned'].includes(entry.status)
+    && ['asset_return_recorded', 'personal_save_written', 'shared_fund_delta_confirmation_pending', 'shared_fund_delta_confirmed', 'shared_fund_refunded', 'shared_warehouse_returned'].includes(entry.status)
   );
   if (existingPreviewLedger) {
     return {
@@ -27910,6 +28332,10 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
   }));
   if (groups.length === 0) throw createError('分居返还清单没有可写回的来源田区', 409);
   const receipts = groups.map(group => writePersonalFarmPlotsFromManifest(group, writePayload));
+  const fundDeltaConfirmationRequired = separationLedgerRequiresSharedFundDeltaConfirmation(ledger);
+  const nextRequiredOperations = fundDeltaConfirmationRequired
+    ? ['confirm_shared_fund_delta', 'refund_shared_fund', 'return_shared_warehouse_items', 'split_decorations', 'resolve_family_story']
+    : ['refund_shared_fund', 'return_shared_warehouse_items', 'split_decorations', 'resolve_family_story'];
   const writtenAt = nowSeconds();
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
@@ -27919,7 +28345,9 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
     personal_save_written_at: writtenAt,
     personal_save_written_by: member.username,
     personal_save_receipts: receipts,
-    next_required_operations: ['verify_personal_save_receipts', 'split_decorations', 'resolve_family_story'],
+    shared_fund_delta_confirmation_required: fundDeltaConfirmationRequired,
+    shared_fund_delta_confirmation_summary: buildSeparationSharedFundDeltaConfirmationSummary(ledger, contract),
+    next_required_operations: nextRequiredOperations,
   });
   const nextManifest = manifest.map(entry => ({
     ...entry,
@@ -27933,6 +28361,8 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
     personal_save_written_at: writtenAt,
     personal_save_written_by: member.username,
     personal_save_receipts: receipts,
+    shared_fund_delta_confirmation_required: fundDeltaConfirmationRequired,
+    shared_fund_delta_confirmation_summary: nextLedger.shared_fund_delta_confirmation_summary,
     next_required_operations: nextLedger.next_required_operations,
   };
   const nextPreview = normalizeSeparationPreview({
@@ -27953,7 +28383,7 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
       execution_enabled: false,
       execution_policy: 'Farm source returns are written by locked manifest hash for farm.plots, farm.greenhousePlots, and farm.fruitTrees; fund, warehouse, decoration, story, child, and family receipts continue through dedicated steps.',
     },
-    deferred_operations: ['verify_personal_save_receipts', 'split_decorations', 'resolve_family_story'],
+    deferred_operations: nextLedger.next_required_operations,
   });
 
   contract.separation_execution_ledger[ledgerIndex] = nextLedger;
@@ -27971,6 +28401,7 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
     personal_money_changed: receipts.some(receipt => receipt.personal_money_changed === true),
     personal_inventory_changed: receipts.some(receipt => receipt.personal_inventory_changed === true),
     shared_fund_changed: receipts.some(receipt => receipt.shared_fund_changed === true),
+    shared_fund_delta_confirmation_required: fundDeltaConfirmationRequired,
     shared_warehouse_changed: receipts.some(receipt => receipt.shared_warehouse_changed === true),
     source_areas: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.source_areas || []), 40),
     return_sources: uniqueSanitizedValues(receipts.flatMap(receipt => receipt.return_sources || [receipt.return_source]), 80),
@@ -27992,6 +28423,186 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
     already_written: false,
     execution_ledger: nextLedger,
     receipts,
+  };
+}
+
+async function confirmSeparationSharedFundDelta(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
+  const confirmPayload = normalizeSeparationSharedFundDeltaConfirmPayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('shared fund delta confirmation requires a separation preview id', 400);
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('cohabitation contract not found', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('浣犱笉鍦ㄨ繖浠藉绾︿腑', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('only active or separation-pending contracts can confirm shared fund delta', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('only accepted contract members can confirm shared fund delta', 403);
+  const memberKey = normalizeUsernameKey(member.username_key || member.username || actorUsername);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('separation preview not found', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  const allowedStatuses = ['personal_save_written', 'shared_fund_delta_confirmation_pending', 'shared_fund_delta_confirmed'];
+  if (!allowedStatuses.includes(String(executionRequest.status || ''))) {
+    throw createError('write personal farm returns before confirming shared fund delta', 409);
+  }
+  const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    entry.id === (confirmPayload.execution_ledger_id || executionRequest.execution_ledger_id)
+    || (entry.preview_id === normalizedPreviewId && allowedStatuses.includes(entry.status))
+  );
+  if (ledgerIndex < 0) throw createError('separation execution ledger is missing for shared fund delta confirmation', 409);
+  const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
+  if (confirmPayload.execution_ledger_id && confirmPayload.execution_ledger_id !== ledger.id) throw createError('separation execution ledger does not match shared fund delta confirmation request', 409);
+  if (ledger.shared_fund_refunded === true) throw createError('shared fund has already been refunded', 409);
+
+  const existingConfirmation = (ledger.shared_fund_delta_confirmations || []).find(entry =>
+    entry.idempotency_key === confirmPayload.idempotency_key
+    || entry.username_key === memberKey
+  );
+  if (existingConfirmation) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      idempotent: true,
+      already_confirmed: ledger.shared_fund_delta_confirmed === true,
+      already_confirmed_by_actor: true,
+      execution_ledger: ledger,
+      confirmation: existingConfirmation,
+      shared_fund_delta_confirmation: ledger.shared_fund_delta_confirmation_summary,
+    };
+  }
+
+  const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
+  if (!expectedManifestHash || !/^[a-f0-9]{64}$/i.test(expectedManifestHash)) throw createError('separation plot return manifest hash is missing', 409);
+  if (confirmPayload.plot_return_manifest_hash && confirmPayload.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('separation plot return manifest hash mismatch for shared fund delta confirmation', 409);
+  }
+  if (ledger.plot_return_manifest_hash && ledger.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('separation execution ledger hash differs from current preview', 409);
+  }
+  if (ledger.personal_save_written !== true) throw createError('personal farm returns must be written before shared fund delta confirmation', 409);
+
+  const confirmedAt = nowSeconds();
+  const nextConfirmation = normalizeSeparationSharedFundDeltaConfirmationEvent({
+    username: member.username,
+    username_key: memberKey,
+    confirmed_at: confirmedAt,
+    idempotency_key: confirmPayload.idempotency_key,
+    memo: confirmPayload.memo,
+  });
+  const nextConfirmations = [...(ledger.shared_fund_delta_confirmations || []), nextConfirmation];
+  const pendingLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    shared_fund_delta_confirmations: nextConfirmations,
+  });
+  const nextSummary = buildSeparationSharedFundDeltaConfirmationSummary(pendingLedger, contract);
+  const allConfirmed = nextSummary.all_members_confirmed === true;
+  const nextStatus = allConfirmed ? 'shared_fund_delta_confirmed' : 'shared_fund_delta_confirmation_pending';
+  const nextRequiredOperations = allConfirmed
+    ? ['refund_shared_fund', 'return_shared_warehouse_items', 'split_decorations', 'resolve_family_story']
+    : ['confirm_shared_fund_delta', 'refund_shared_fund', 'return_shared_warehouse_items', 'split_decorations', 'resolve_family_story'];
+  const nextLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    status: nextStatus,
+    shared_fund_delta_confirmation_required: nextSummary.requires_consumption_delta_confirmation,
+    shared_fund_delta_confirmations: nextConfirmations,
+    shared_fund_delta_confirmation_summary: nextSummary,
+    shared_fund_delta_confirmed: allConfirmed,
+    shared_fund_delta_confirmation_idempotency_key: confirmPayload.idempotency_key,
+    shared_fund_delta_confirmed_at: allConfirmed ? confirmedAt : ledger.shared_fund_delta_confirmed_at,
+    shared_fund_delta_confirmed_by: allConfirmed ? member.username : ledger.shared_fund_delta_confirmed_by,
+    shared_assets_mutated: false,
+    next_required_operations: nextRequiredOperations,
+  });
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: nextStatus,
+    shared_fund_delta_confirmation_required: nextSummary.requires_consumption_delta_confirmation,
+    shared_fund_delta_confirmations: nextLedger.shared_fund_delta_confirmations,
+    shared_fund_delta_confirmation_summary: nextSummary,
+    shared_fund_delta_confirmed: allConfirmed,
+    shared_fund_delta_confirmed_at: nextLedger.shared_fund_delta_confirmed_at,
+    shared_fund_delta_confirmed_by: nextLedger.shared_fund_delta_confirmed_by,
+    next_required_operations: nextLedger.next_required_operations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      shared_fund_delta_confirmation_required: nextSummary.requires_consumption_delta_confirmation,
+      shared_fund_delta_confirmation_summary: nextSummary,
+      shared_fund_delta_confirmed: allConfirmed,
+      shared_fund_delta_confirmed_at: nextLedger.shared_fund_delta_confirmed_at,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      shared_fund_delta_confirmed: allConfirmed,
+      shared_fund_delta_confirmed_at: nextLedger.shared_fund_delta_confirmed_at,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: allConfirmed
+        ? 'Shared fund consumption delta is confirmed by all accepted members; refund can proceed by locked manifest hash.'
+        : 'Shared fund consumption delta confirmation is waiting for all accepted members before refund.',
+    },
+    deferred_operations: nextLedger.next_required_operations,
+  });
+
+  contract.separation_execution_ledger[ledgerIndex] = nextLedger;
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_shared_fund_delta_confirmation_recorded', actor, {
+    preview_id: nextPreview.id,
+    execution_ledger_id: nextLedger.id,
+    plot_return_manifest_hash: expectedManifestHash,
+    confirmed_by: member.username,
+    confirmed_member_usernames: nextSummary.confirmed_member_usernames,
+    pending_member_usernames: nextSummary.pending_member_usernames,
+    all_members_confirmed: allConfirmed,
+    rows_requiring_confirmation: nextSummary.rows_requiring_confirmation,
+    refund_total: nextSummary.refund_total,
+    fund_split_basis: nextSummary.fund_split_basis,
+    fund_total_contributed: nextSummary.fund_total_capital_contributed,
+    fund_total_operating_contributed: nextSummary.fund_total_operating_contributed,
+    fund_total_split_basis: nextSummary.fund_total_split_basis,
+    personal_money_changed: false,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+    next_required_operations: nextLedger.next_required_operations,
+  }, confirmPayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    idempotent: false,
+    already_confirmed: allConfirmed,
+    already_confirmed_by_actor: false,
+    execution_ledger: nextLedger,
+    confirmation: nextConfirmation,
+    shared_fund_delta_confirmation: nextSummary,
   };
 }
 
@@ -28030,12 +28641,12 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
 
   const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
   const executionRequest = preview.confirmation_state.execution_request || {};
-  if (!['personal_save_written', 'shared_fund_refunded'].includes(String(executionRequest.status || ''))) {
+  if (!['personal_save_written', 'shared_fund_delta_confirmation_pending', 'shared_fund_delta_confirmed', 'shared_fund_refunded'].includes(String(executionRequest.status || ''))) {
     throw createError('请先写回来源田区个人农田，再返还共同基金', 409);
   }
   const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
     entry.id === (refundPayload.execution_ledger_id || executionRequest.execution_ledger_id)
-    || (entry.preview_id === normalizedPreviewId && ['personal_save_written', 'shared_fund_refunded'].includes(entry.status))
+    || (entry.preview_id === normalizedPreviewId && ['personal_save_written', 'shared_fund_delta_confirmation_pending', 'shared_fund_delta_confirmed', 'shared_fund_refunded'].includes(entry.status))
   );
   if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
   const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
@@ -28065,6 +28676,11 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
     throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
   }
   if (ledger.personal_save_written !== true) throw createError('来源田区个人农田尚未写回，不能返还共同基金', 409);
+
+  const fundDeltaConfirmationRequired = separationLedgerRequiresSharedFundDeltaConfirmation(ledger);
+  if (fundDeltaConfirmationRequired && ledger.shared_fund_delta_confirmed !== true) {
+    throw createError('shared fund consumption delta requires all accepted member confirmations before refund', 409);
+  }
 
   assertSharedFundNotFrozen(contract, 'refund separation shared fund');
 
@@ -29343,6 +29959,7 @@ module.exports = {
   moveCohabitationSharedDecoration,
   creditCohabitationOrderIncome,
   freezeCohabitationFundAbnormality,
+  unfreezeCohabitationFundAbnormality,
   contributeCohabitationFund,
   spendCohabitationFund,
   purchaseCohabitationSharedFundShopItem,
@@ -29381,6 +29998,7 @@ module.exports = {
   recordSeparationExecutionFailure,
   executeSeparationAssetReturn,
   writeSeparationPersonalFarmReturns,
+  confirmSeparationSharedFundDelta,
   refundSeparationSharedFund,
   returnSeparationSharedWarehouse,
   splitSeparationDecorationsAndBuildings,

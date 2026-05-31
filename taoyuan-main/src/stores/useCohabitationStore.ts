@@ -11,6 +11,7 @@ import {
   buyCohabitationSharedAnimal,
   claimCohabitationFamilyReputationReward,
   confirmCohabitationFundLargeSpendDraft,
+  confirmCohabitationSeparationSharedFundDelta,
   confirmCohabitationWarehouseHighValueWithdrawalDraft,
   confirmCohabitationSeparationPreview,
   consumeCohabitationFamilyBuildingMaterials,
@@ -153,6 +154,7 @@ import {
   type CohabitationSeparationPersonalStoryReceiptsPayload,
   type CohabitationSeparationPreviewConfirmPayload,
   type CohabitationSeparationPreviewPayload,
+  type CohabitationSeparationSharedFundDeltaConfirmPayload,
   type CohabitationSeparationSharedFundRefundPayload,
   type CohabitationSeparationSharedWarehouseReturnPayload,
   type CohabitationWarehouseHighValueWithdrawalConfirmPayload,
@@ -528,6 +530,26 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '写回分居来源田区失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const confirmSeparationSharedFundDelta = async (previewId: string, payload: CohabitationSeparationSharedFundDeltaConfirmPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await confirmCohabitationSeparationSharedFundDelta(activeContractId.value, previewId, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '确认分居共同基金消费差额失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -2317,6 +2339,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     requestSeparationExecution,
     executeSeparationAssetReturn,
     writeSeparationPersonalFarmReturns,
+    confirmSeparationSharedFundDelta,
     refundSeparationSharedFund,
     returnSeparationSharedWarehouse,
     splitSeparationDecorationsBuildings,

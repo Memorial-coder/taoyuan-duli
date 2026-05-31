@@ -780,8 +780,10 @@ assert.equal(fundFreeze.fund.summary.contribution_enabled, false, 'frozen fund s
 assert.equal(fundFreeze.fund.summary.spend_enabled, false, 'frozen fund snapshot should disable spend')
 assert.equal(fundFreeze.fund.summary.shop_purchase_to_shared_warehouse_enabled, false, 'frozen fund snapshot should disable shared-warehouse shop purchase')
 assert.equal(fundFreeze.fund.summary.large_spend_draft_enabled, false, 'frozen fund snapshot should disable large spend drafts')
+assert.equal(fundFreeze.fund.summary.manual_unfreeze_enabled, true, 'frozen fund snapshot should expose manual unfreeze authority')
 assert.equal(fundFreeze.fund.permissions.can_spend_small, false, 'frozen fund permissions should deny small spend')
 assert.equal(fundFreeze.fund.permissions.can_freeze_abnormal, true, 'frozen fund permissions should still expose abnormal freeze authority')
+assert.equal(fundFreeze.fund.permissions.can_unfreeze_abnormal, true, 'frozen fund permissions should expose abnormal unfreeze authority')
 assert.equal(fundFreeze.fund.governance.blocking.block_new_fund_writes, true, 'frozen fund governance should block new writes')
 assert.equal(fundFreeze.fund.governance.blocking.required_operation, 'manual_fund_review', 'frozen fund governance should require manual fund review')
 assert.ok(fundFreeze.contract.audit_log.find(entry => entry.action === 'fund_abnormal_frozen'), 'shared fund abnormal freeze should be audited')
@@ -845,6 +847,51 @@ await assert.rejects(
 )
 assert.equal((await runtime.getCohabitationFund(fundShopContractCreated.contract.id, actor(fundShopOwner))).fund.balance, 30, 'frozen shared fund rejected operations should not change balance')
 assert.equal(saveRuntime.loadUserSaveSlots(fundShopOwner).slots[0].raw, fundShopOwnerRawBeforeFreeze, 'frozen shared fund rejected operations should not rewrite owner save')
+const fundUnfreeze = await runtime.unfreezeCohabitationFundAbnormality(fundShopContractCreated.contract.id, {
+  reason: 'qa manual review completed and shared fund can reopen',
+  review_result: 'manual_review_passed',
+  review_note: 'qa confirms no personal money merge and no balance repair',
+  freeze_event_id: fundFreeze.freeze_event.id,
+  idempotency_key: 'qa-shared-fund-abnormal-unfreeze',
+}, actor(fundShopOwner))
+assert.equal(fundUnfreeze.idempotent, false, 'first shared fund abnormal unfreeze should not be idempotent')
+assert.equal(fundUnfreeze.freeze_state.active, false, 'shared fund abnormal unfreeze should clear active freeze state')
+assert.equal(fundUnfreeze.freeze_state.status, 'open', 'shared fund abnormal unfreeze should reopen fund status')
+assert.equal(fundUnfreeze.freeze_state.freeze_events.length, 1, 'shared fund unfreeze should retain freeze event trace')
+assert.equal(fundUnfreeze.freeze_state.unfreeze_events.length, 1, 'shared fund unfreeze should record one unfreeze event')
+assert.equal(fundUnfreeze.unfreeze_event.freeze_event_id, fundFreeze.freeze_event.id, 'shared fund unfreeze should keep source freeze event id')
+assert.equal(fundUnfreeze.fund.balance, 30, 'shared fund unfreeze should not change balance')
+assert.equal(fundUnfreeze.fund.summary.fund_frozen, false, 'unfrozen fund snapshot should clear frozen flag')
+assert.equal(fundUnfreeze.fund.summary.contribution_enabled, true, 'unfrozen fund snapshot should re-enable contributions')
+assert.equal(fundUnfreeze.fund.summary.spend_enabled, true, 'unfrozen fund snapshot should re-enable small spend')
+assert.equal(fundUnfreeze.fund.summary.shop_purchase_to_shared_warehouse_enabled, true, 'unfrozen fund snapshot should re-enable shared-warehouse shop purchase')
+assert.equal(fundUnfreeze.fund.summary.large_spend_draft_enabled, true, 'unfrozen fund snapshot should re-enable large spend drafts')
+assert.equal(fundUnfreeze.fund.summary.manual_unfreeze_enabled, false, 'unfrozen fund snapshot should not keep manual unfreeze enabled')
+assert.equal(fundUnfreeze.fund.permissions.can_unfreeze_abnormal, false, 'unfrozen fund permissions should not expose active unfreeze authority')
+assert.equal(fundUnfreeze.fund.governance.blocking.block_new_fund_writes, false, 'unfrozen fund governance should unblock new writes')
+assert.equal(fundUnfreeze.fund.governance.blocking.required_operation, '', 'unfrozen fund governance should clear manual review requirement')
+const fundUnfreezeAudit = fundUnfreeze.contract.audit_log.find(entry => entry.action === 'fund_abnormal_unfrozen' && entry.idempotency_key === 'qa-shared-fund-abnormal-unfreeze')
+assert.ok(fundUnfreezeAudit, 'shared fund abnormal unfreeze should be audited')
+assert.equal(fundUnfreezeAudit.detail.shared_fund_balance_changed, false, 'shared fund abnormal unfreeze audit should not claim balance mutation')
+assert.equal(saveRuntime.loadUserSaveSlots(fundShopOwner).slots[0].raw, fundShopOwnerRawBeforeFreeze, 'shared fund abnormal unfreeze should not rewrite owner save')
+const duplicateFundUnfreeze = await runtime.unfreezeCohabitationFundAbnormality(fundShopContractCreated.contract.id, {
+  reason: 'duplicate qa manual review completed',
+  review_result: 'manual_review_passed',
+  freeze_event_id: fundFreeze.freeze_event.id,
+  idempotency_key: 'qa-shared-fund-abnormal-unfreeze',
+}, actor(fundShopOwner))
+assert.equal(duplicateFundUnfreeze.idempotent, true, 'same shared fund unfreeze idempotency key should replay')
+assert.equal(duplicateFundUnfreeze.unfreeze_event.id, fundUnfreeze.unfreeze_event.id, 'idempotent shared fund unfreeze should keep unfreeze event id')
+assert.equal(duplicateFundUnfreeze.freeze_state.unfreeze_events.length, 1, 'idempotent shared fund unfreeze should not duplicate unfreeze events')
+const postUnfreezeSpend = await runtime.spendCohabitationFund(fundShopContractCreated.contract.id, {
+  amount: 1,
+  purpose: 'seed_budget',
+  target_ref: 'qa:post-unfreeze-small-spend',
+  memo: 'qa post-unfreeze shared fund spend should resume without personal save write',
+  idempotency_key: 'qa-post-unfreeze-shared-fund-spend',
+}, actor(fundShopOwner))
+assert.equal(postUnfreezeSpend.fund.balance, 29, 'post-unfreeze shared fund spend should resume balance-changing writes')
+assert.equal(saveRuntime.loadUserSaveSlots(fundShopOwner).slots[0].raw, fundShopOwnerRawBeforeFreeze, 'post-unfreeze shared fund spend should not rewrite owner save')
 
 await runtime.updateCohabitationPermissions(created.contract.id, {
   target_username: owner,
@@ -1971,6 +2018,143 @@ saveRuntime.saveUserSaveSlots(owner, ownerSaveSlotsAfterAnimalTradeQa)
 assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, sharedAnimalFundTopUpBefore.fund.balance, 'shared animal buy/sell QA should restore fund baseline for later fund tests')
 assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeAnimalTopUp, 'shared animal buy/sell QA should restore owner money baseline for later fund tests')
 
+const offlineAnimalTradeFundBefore = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+const offlineAnimalTradeOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const offlineAnimalTradePartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const rejectedOfflineAnimalSellQueue = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-animal-sell-personal-origin-rejected',
+  operations: [
+    {
+      action: 'sell_shared_animal',
+      operation_id: 'qa-offline-shared-animal-sell-personal-origin-op',
+      idempotency_key: 'qa-offline-shared-animal-sell-personal-origin-op-idem',
+      animal_id: qaSharedAnimal.id,
+      memo: 'qa offline shared animal sell should reject personal origin',
+    },
+  ],
+}, actor(owner))
+assert.equal(rejectedOfflineAnimalSellQueue.offline_queue_merge.accepted_count, 0, 'offline shared animal sell should not accept personal-origin animals')
+assert.equal(rejectedOfflineAnimalSellQueue.offline_queue_merge.rejected_count, 1, 'offline shared animal sell should return rejected evidence instead of aborting')
+assert.equal(rejectedOfflineAnimalSellQueue.offline_queue_merge.rejected[0]?.reason, 'shared_animal_sale_not_supported', 'offline shared animal sell rejection should explain personal-origin sale boundary')
+assert.equal(rejectedOfflineAnimalSellQueue.offline_queue_merge.rejected[0]?.shared_fund_changed, false, 'rejected offline shared animal sell should not change shared fund')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, offlineAnimalTradeFundBefore.fund.balance, 'rejected offline shared animal sell should not credit shared fund')
+await mutateStoredContract(created.contract.id, contract => {
+  contract.shared_fund = contract.shared_fund || {}
+  contract.shared_fund.balance = Math.max(0, Number(contract.shared_fund.balance) || 0) + 800
+  contract.shared_fund.ledger = [
+    {
+      id: 'qa-offline-shared-animal-trade-budget',
+      action: 'qa_offline_shared_animal_trade_budget',
+      actor_username: owner,
+      amount: 800,
+      purpose: 'offline_shared_animal_trade_budget',
+      memo: 'qa injected server-side offline shared animal trade budget',
+      at: 1771951510,
+      idempotency_key: 'qa-offline-shared-animal-trade-budget',
+      status: 'committed',
+    },
+    ...(Array.isArray(contract.shared_fund.ledger)
+      ? contract.shared_fund.ledger.filter(entry => entry?.id !== 'qa-offline-shared-animal-trade-budget')
+      : []),
+  ]
+})
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, offlineAnimalTradeFundBefore.fund.balance + 800, 'offline shared animal trade QA budget should increase shared fund without personal save writes')
+const offlineAnimalTradeStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(owner))
+assert.ok(offlineAnimalTradeStatus.offline_status.summary.offline_queue_supported_actions.includes('buy_shared_animal'), 'offline status should expose shared animal buy as supported queue action')
+assert.ok(offlineAnimalTradeStatus.offline_status.summary.offline_queue_supported_actions.includes('sell_shared_animal'), 'offline status should expose shared animal sell as supported queue action')
+assert.equal(offlineAnimalTradeStatus.offline_status.actor_capabilities.buy_shared_animal, true, 'offline status should expose shared animal buy actor capability')
+assert.equal(offlineAnimalTradeStatus.offline_status.actor_capabilities.sell_shared_animal, true, 'offline status should expose shared animal sell actor capability')
+const offlineAnimalBuyQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-animal-buy',
+  operations: [
+    {
+      action: 'buy_shared_animal',
+      operation_id: 'qa-offline-shared-animal-buy-op',
+      idempotency_key: 'qa-offline-shared-animal-buy-op-idem',
+      animal_type: 'chicken',
+      name: 'QA Offline Chicken',
+      memo: 'qa offline shared animal buy',
+    },
+  ],
+}, actor(owner))
+const offlineAnimalBuyEntry = offlineAnimalBuyQueueMerge.offline_queue_merge.results[0]
+assert.equal(offlineAnimalBuyQueueMerge.offline_queue_merge.accepted_count, 1, 'offline queue merge should accept shared animal buy')
+assert.equal(offlineAnimalBuyQueueMerge.offline_queue_merge.rejected_count, 0, 'offline shared animal buy should not reject valid purchase')
+assert.equal(offlineAnimalBuyEntry?.action, 'buy_shared_animal', 'offline shared animal buy result should keep queue action')
+assert.equal(offlineAnimalBuyEntry?.status, 'committed', 'offline shared animal buy should commit')
+assert.equal(offlineAnimalBuyEntry?.animal_type, 'chicken', 'offline shared animal buy should keep animal type')
+assert.equal(offlineAnimalBuyEntry?.animal_name, 'QA Offline Chicken', 'offline shared animal buy should keep animal name')
+assert.equal(offlineAnimalBuyEntry?.total_amount, 800, 'offline shared animal buy should expose shared fund spend amount')
+assert.ok(offlineAnimalBuyEntry?.fund_ledger_id, 'offline shared animal buy should expose paired fund ledger')
+assert.equal(offlineAnimalBuyEntry?.shared_fund_changed, true, 'offline shared animal buy should declare shared fund mutation')
+assert.equal(offlineAnimalBuyEntry?.shared_warehouse_changed, false, 'offline shared animal buy should not change shared warehouse')
+assert.equal(offlineAnimalBuyEntry?.personal_save_changed, false, 'offline shared animal buy should not mutate personal saves')
+assert.ok(offlineAnimalBuyQueueMerge.contract.audit_log.find(entry => entry.action === 'shared_animal_bought' && entry.detail?.animal_id === offlineAnimalBuyEntry?.animal_id), 'offline shared animal buy should write shared animal audit')
+assert.ok(offlineAnimalBuyQueueMerge.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-queue-shared-animal-buy' && entry.detail?.result_ledger_ids?.includes(offlineAnimalBuyEntry?.fund_ledger_id)), 'offline shared animal buy merge audit should include fund ledger evidence')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineAnimalTradeOwnerRawBefore, 'offline shared animal buy should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineAnimalTradePartnerRawBefore, 'offline shared animal buy should not rewrite partner save')
+const duplicateOfflineAnimalBuyQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-animal-buy',
+  operations: [
+    {
+      action: 'buy_shared_animal',
+      operation_id: 'qa-offline-shared-animal-buy-op',
+      idempotency_key: 'qa-offline-shared-animal-buy-op-idem',
+      animal_type: 'chicken',
+    },
+  ],
+}, actor(owner))
+assert.equal(duplicateOfflineAnimalBuyQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline shared animal buy queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineAnimalBuyQueueMerge.offline_queue_merge.accepted_count, 1, 'duplicate offline shared animal buy queue should replay accepted count')
+const offlineAnimalSellQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-animal-sell',
+  operations: [
+    {
+      action: 'sell_shared_animal',
+      operation_id: 'qa-offline-shared-animal-sell-op',
+      idempotency_key: 'qa-offline-shared-animal-sell-op-idem',
+      animal_id: offlineAnimalBuyEntry?.animal_id,
+      memo: 'qa offline shared animal sell',
+    },
+  ],
+}, actor(owner))
+const offlineAnimalSellEntry = offlineAnimalSellQueueMerge.offline_queue_merge.results[0]
+assert.equal(offlineAnimalSellQueueMerge.offline_queue_merge.accepted_count, 1, 'offline queue merge should accept shared animal sell')
+assert.equal(offlineAnimalSellQueueMerge.offline_queue_merge.rejected_count, 0, 'offline shared animal sell should not reject valid sale')
+assert.equal(offlineAnimalSellEntry?.action, 'sell_shared_animal', 'offline shared animal sell result should keep queue action')
+assert.equal(offlineAnimalSellEntry?.status, 'committed', 'offline shared animal sell should commit')
+assert.equal(offlineAnimalSellEntry?.animal_id, offlineAnimalBuyEntry?.animal_id, 'offline shared animal sell should target bought animal')
+assert.equal(offlineAnimalSellEntry?.total_amount, 400, 'offline shared animal sell should expose shared fund income amount')
+assert.ok(offlineAnimalSellEntry?.fund_ledger_id, 'offline shared animal sell should expose paired fund ledger')
+assert.equal(offlineAnimalSellEntry?.shared_fund_changed, true, 'offline shared animal sell should declare shared fund mutation')
+assert.equal(offlineAnimalSellEntry?.personal_save_changed, false, 'offline shared animal sell should not mutate personal saves')
+assert.equal(offlineAnimalSellQueueMerge.contract.shared_animals.animals.some(animal => animal.id === offlineAnimalBuyEntry?.animal_id), false, 'offline shared animal sell should remove sold animal from shared animals')
+assert.ok(offlineAnimalSellQueueMerge.contract.audit_log.find(entry => entry.action === 'shared_animal_sold' && entry.detail?.animal_id === offlineAnimalBuyEntry?.animal_id), 'offline shared animal sell should write shared animal audit')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineAnimalTradeOwnerRawBefore, 'offline shared animal sell should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineAnimalTradePartnerRawBefore, 'offline shared animal sell should not rewrite partner save')
+const duplicateOfflineAnimalSellQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-shared-animal-sell',
+  operations: [
+    {
+      action: 'sell_shared_animal',
+      operation_id: 'qa-offline-shared-animal-sell-op',
+      idempotency_key: 'qa-offline-shared-animal-sell-op-idem',
+      animal_id: offlineAnimalBuyEntry?.animal_id,
+    },
+  ],
+}, actor(owner))
+assert.equal(duplicateOfflineAnimalSellQueueMerge.offline_queue_merge.idempotent, true, 'duplicate offline shared animal sell queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineAnimalSellQueueMerge.offline_queue_merge.accepted_count, 1, 'duplicate offline shared animal sell queue should replay accepted count')
+await mutateStoredContract(created.contract.id, contract => {
+  contract.shared_fund = offlineAnimalTradeFundBefore.contract.shared_fund
+  contract.origin_assets = offlineAnimalTradeFundBefore.contract.origin_assets
+  contract.permissions[owner].animal.buy_animal = true
+  contract.permissions[owner].animal.sell_animal = true
+  contract.permissions[owner].fund.spend_medium = true
+})
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, offlineAnimalTradeFundBefore.fund.balance, 'offline shared animal buy/sell QA should restore fund baseline for later tests')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeAnimalTopUp, 'offline shared animal buy/sell QA should not change owner money')
+
 const offlineAnimalHayDeposit = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
   item_id: 'hay',
   quantity: 1,
@@ -2118,9 +2302,40 @@ assert.equal(offlineAutoIncomeStatusBefore.offline_status.summary.auto_offline_i
 assert.ok(offlineAutoIncomeStatusBefore.offline_status.summary.offline_queue_supported_actions.includes('collect_offline_auto_income'), 'offline status should expose auto income queue action')
 assert.equal(offlineAutoIncomeStatusBefore.offline_status.actor_capabilities.collect_offline_auto_income, true, 'offline status should expose auto income actor capability')
 assert.equal(offlineAutoIncomeStatusBefore.offline_status.offline_auto_income.pending_count, 2, 'offline status should count one crop and one animal product pending')
+assert.equal(offlineAutoIncomeStatusBefore.offline_status.offline_auto_income.batch_claim_supported, true, 'offline status should expose auto income batch claim support')
 assert.ok(!offlineAutoIncomeStatusBefore.offline_status.deferred_operations.includes('offline_auto_income'), 'offline auto income should no longer be deferred')
 const offlineAutoIncomeOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const offlineAutoIncomePartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlineAutoIncomeFarmTargetRef = offlineAutoIncomeStatusBefore.offline_status.offline_auto_income.target_refs.find(ref => ref.includes(':shared_farm:'))
+assert.ok(offlineAutoIncomeFarmTargetRef, 'offline auto income status should expose farm target refs for batch claim')
+const offlineAutoIncomeBatchQueue = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
+  idempotency_key: 'qa-offline-queue-auto-income-targeted-batch',
+  client_queue_revision: 1,
+  operations: [
+    {
+      action: 'collect_offline_auto_income',
+      operation_id: 'qa-offline-auto-income-targeted-batch-op',
+      idempotency_key: 'qa-offline-auto-income-targeted-batch-op-idem',
+      client_base_revision: 1,
+      payload: {
+        target_refs: [offlineAutoIncomeFarmTargetRef],
+        batch_limit: 1,
+        memo: 'qa targeted offline auto income batch',
+      },
+    },
+  ],
+}, actor(owner))
+const offlineAutoIncomeBatchEntry = offlineAutoIncomeBatchQueue.offline_queue_merge.results[0]
+assert.equal(offlineAutoIncomeBatchQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept targeted auto income batch')
+assert.equal(offlineAutoIncomeBatchEntry?.batch_mode, 'targeted', 'targeted auto income batch should report targeted mode')
+assert.equal(offlineAutoIncomeBatchEntry?.collected_count, 1, 'targeted auto income batch should collect one item')
+assert.equal(offlineAutoIncomeBatchEntry?.farm_harvest_count, 1, 'targeted auto income batch should collect the requested farm output')
+assert.equal(offlineAutoIncomeBatchEntry?.animal_product_count, 0, 'targeted auto income batch should leave animal product pending')
+assert.equal(offlineAutoIncomeBatchEntry?.remaining_pending_count, 1, 'targeted auto income batch should report remaining pending server income')
+assert.deepEqual(offlineAutoIncomeBatchEntry?.selected_target_refs, [offlineAutoIncomeFarmTargetRef], 'targeted auto income batch should echo selected target ref')
+assert.equal(offlineAutoIncomeBatchEntry?.personal_save_changed, false, 'targeted auto income batch should not mutate personal saves')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'tea')?.quantity ?? 0, 1, 'targeted auto income batch should deposit crop output once')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 0, 'targeted auto income batch should not collect animal output')
 const offlineAutoIncomeClaim = await runtime.collectCohabitationOfflineAutoIncome(created.contract.id, {
   idempotency_key: 'qa-offline-auto-income-claim',
   client_queue_revision: 1,
@@ -2128,13 +2343,15 @@ const offlineAutoIncomeClaim = await runtime.collectCohabitationOfflineAutoIncom
   memo: 'qa offline auto income claim',
 }, actor(owner))
 assert.equal(offlineAutoIncomeClaim.idempotent, false, 'first offline auto income claim should not be idempotent')
-assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.collected_count, 2, 'offline auto income should collect crop and animal product')
-assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.farm_harvest_count, 1, 'offline auto income should collect one harvestable crop')
-assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.animal_product_count, 1, 'offline auto income should collect one animal product')
+assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.collected_count, 1, 'offline auto income should collect remaining animal product after targeted batch')
+assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.farm_harvest_count, 0, 'offline auto income should not recollect targeted crop output')
+assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.animal_product_count, 1, 'offline auto income should collect one remaining animal product')
+assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.pending_before_count, 1, 'offline auto income claim should see one remaining pending item')
+assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.remaining_pending_count, 0, 'offline auto income claim should clear remaining pending items')
 assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.client_queue_stale, true, 'offline auto income should report stale client revision against latest server state')
 assert.equal(offlineAutoIncomeClaim.offline_auto_income_claim.revision_conflict_policy, 'server_authoritative_latest_state', 'offline auto income should use latest server state conflict policy')
-assert.equal(offlineAutoIncomeClaim.warehouse_ledger_entries.length, 2, 'offline auto income should write one warehouse ledger per collected item')
-assert.equal(offlineAutoIncomeClaim.farm_ledger_entries.length, 1, 'offline auto income should write farm ledger for crop output')
+assert.equal(offlineAutoIncomeClaim.warehouse_ledger_entries.length, 1, 'offline auto income should write one warehouse ledger for remaining item')
+assert.equal(offlineAutoIncomeClaim.farm_ledger_entries.length, 0, 'offline auto income should not write another farm ledger after targeted batch')
 assert.equal(offlineAutoIncomeClaim.animal_ledger_entries.length, 1, 'offline auto income should write animal ledger for product output')
 assert.equal(offlineAutoIncomeClaim.warehouse.items.find(item => item.item_id === 'tea')?.quantity ?? 0, 1, 'offline auto income crop output should enter shared warehouse')
 assert.equal(offlineAutoIncomeClaim.warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 1, 'offline auto income animal output should enter shared warehouse')
@@ -2148,7 +2365,7 @@ const duplicateOfflineAutoIncomeClaim = await runtime.collectCohabitationOffline
   client_queue_revision: 1,
 }, actor(owner))
 assert.equal(duplicateOfflineAutoIncomeClaim.idempotent, true, 'duplicate offline auto income claim should replay by idempotency key')
-assert.equal(duplicateOfflineAutoIncomeClaim.offline_auto_income_claim.collected_count, 2, 'duplicate offline auto income should replay collected count')
+assert.equal(duplicateOfflineAutoIncomeClaim.offline_auto_income_claim.collected_count, 1, 'duplicate offline auto income should replay collected count')
 assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'tea')?.quantity ?? 0, 1, 'duplicate offline auto income should not duplicate crop output')
 assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 1, 'duplicate offline auto income should not duplicate animal output')
 const offlineAutoIncomeQueueMerge = await runtime.mergeCohabitationOfflineQueue(created.contract.id, {
@@ -7556,6 +7773,15 @@ const personalFarmWrite = await runtime.writeSeparationPersonalFarmReturns(creat
 assert.equal(personalFarmWrite.idempotent, false, 'first personal farm return write should not be idempotent')
 assert.equal(personalFarmWrite.execution_ledger.status, 'personal_save_written', 'personal farm write should advance ledger status')
 assert.equal(personalFarmWrite.execution_ledger.personal_save_written, true, 'personal farm write should mark ledger as written')
+assert.equal(personalFarmWrite.execution_ledger.shared_fund_delta_confirmation_required, true, 'personal farm write should require shared fund delta confirmation before refund')
+assert.equal(personalFarmWrite.execution_ledger.shared_fund_delta_confirmed, false, 'personal farm write should not auto-confirm shared fund delta')
+assert.ok(personalFarmWrite.execution_ledger.next_required_operations.includes('confirm_shared_fund_delta'), 'personal farm write should schedule shared fund delta confirmation before refund')
+const personalFarmDeltaSummary = personalFarmWrite.execution_ledger.shared_fund_delta_confirmation_summary || {}
+assert.equal(personalFarmDeltaSummary.requires_consumption_delta_confirmation, true, 'personal farm write should expose fund consumption delta confirmation requirement')
+assert.equal(personalFarmDeltaSummary.all_members_confirmed, false, 'personal farm write should wait for member confirmations')
+assert.ok(personalFarmDeltaSummary.pending_member_usernames.includes(owner), 'personal farm write delta summary should include owner pending confirmation')
+assert.ok(personalFarmDeltaSummary.pending_member_usernames.includes(partner), 'personal farm write delta summary should include partner pending confirmation')
+assert.equal(personalFarmDeltaSummary.refund_total, fundBeforeSeparationPreview.fund.balance, 'personal farm write delta summary should lock the fund refund total')
 assert.equal(personalFarmWrite.receipts.length, 2, 'personal farm write should create one receipt per member save')
 assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_plot_count, 0), 36, 'personal farm write should restore all farm sources')
 assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_field_plot_count, 0), 32, 'personal farm write should restore field plots')
@@ -7607,6 +7833,86 @@ assert.equal(duplicatePersonalFarmWrite.idempotent, true, 'same personal farm wr
 assert.equal(duplicatePersonalFarmWrite.execution_ledger.id, personalFarmWrite.execution_ledger.id, 'idempotent personal farm write should keep ledger id')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterPersonalFarmWrite, 'idempotent personal farm write should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterPersonalFarmWrite, 'idempotent personal farm write should not rewrite partner save again')
+await assert.rejects(
+  () => runtime.refundSeparationSharedFund(created.contract.id, previewResult.preview.id, {
+    memo: 'refund before shared fund delta confirmation',
+    plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-shared-fund-refund-before-delta-confirm',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('consumption delta'),
+  'shared fund refund should wait for all accepted members to confirm the consumption delta'
+)
+await assert.rejects(
+  () => runtime.confirmSeparationSharedFundDelta(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong shared fund delta confirmation hash',
+    plot_return_manifest_hash: 'c'.repeat(64),
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-shared-fund-delta-confirm-wrong-hash',
+  }, actor(owner)),
+  error => error?.status === 409,
+  'shared fund delta confirmation should reject mismatched manifest hash'
+)
+const fundBeforeSharedFundDeltaConfirm = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+const ownerMoneyBeforeSharedFundDeltaConfirm = readGameplayData(owner)?.player?.money
+const partnerMoneyBeforeSharedFundDeltaConfirm = readGameplayData(partner)?.player?.money
+const ownerRawBeforeSharedFundDeltaConfirm = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeSharedFundDeltaConfirm = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const ownerSharedFundDeltaConfirm = await runtime.confirmSeparationSharedFundDelta(created.contract.id, previewResult.preview.id, {
+  memo: 'owner confirms shared fund consumption delta before refund',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-shared-fund-delta-confirm-owner',
+}, actor(owner))
+assert.equal(ownerSharedFundDeltaConfirm.idempotent, false, 'first owner shared fund delta confirmation should not be idempotent')
+assert.equal(ownerSharedFundDeltaConfirm.execution_ledger.status, 'shared_fund_delta_confirmation_pending', 'owner delta confirmation should wait for partner')
+assert.equal(ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_delta_confirmed, false, 'owner delta confirmation should not mark all members confirmed')
+assert.equal(ownerSharedFundDeltaConfirm.preview.confirmation_state.execution_request.status, 'shared_fund_delta_confirmation_pending', 'execution request should wait for remaining shared fund delta confirmation')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.requires_consumption_delta_confirmation, true, 'owner confirmation should keep delta confirmation requirement')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.all_members_confirmed, false, 'owner confirmation should not complete all-member confirmation')
+assert.ok(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.confirmed_member_usernames.includes(owner), 'owner confirmation summary should include owner')
+assert.ok(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.pending_member_usernames.includes(partner), 'owner confirmation summary should keep partner pending')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.refund_total, fundBeforeSharedFundDeltaConfirm.fund.balance, 'owner confirmation should keep refund total evidence')
+assert.equal(ownerSharedFundDeltaConfirm.fund.balance, fundBeforeSharedFundDeltaConfirm.fund.balance, 'owner confirmation should not change shared fund balance')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeSharedFundDeltaConfirm, 'owner confirmation should not change owner personal money')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSharedFundDeltaConfirm, 'owner confirmation should not change partner personal money')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedFundDeltaConfirm, 'owner confirmation should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedFundDeltaConfirm, 'owner confirmation should not rewrite partner save')
+const duplicateOwnerSharedFundDeltaConfirm = await runtime.confirmSeparationSharedFundDelta(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate owner shared fund delta confirmation',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-shared-fund-delta-confirm-owner',
+}, actor(owner))
+assert.equal(duplicateOwnerSharedFundDeltaConfirm.idempotent, true, 'same owner shared fund delta confirmation key should be idempotent')
+assert.equal(duplicateOwnerSharedFundDeltaConfirm.execution_ledger.id, ownerSharedFundDeltaConfirm.execution_ledger.id, 'idempotent owner delta confirmation should keep ledger id')
+assert.equal(duplicateOwnerSharedFundDeltaConfirm.confirmation.idempotency_key, 'qa-separation-shared-fund-delta-confirm-owner', 'idempotent owner delta confirmation should return original confirmation')
+const partnerSharedFundDeltaConfirm = await runtime.confirmSeparationSharedFundDelta(created.contract.id, previewResult.preview.id, {
+  memo: 'partner confirms shared fund consumption delta before refund',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-shared-fund-delta-confirm-partner',
+}, actor(partner))
+assert.equal(partnerSharedFundDeltaConfirm.idempotent, false, 'first partner shared fund delta confirmation should not be idempotent')
+assert.equal(partnerSharedFundDeltaConfirm.execution_ledger.status, 'shared_fund_delta_confirmed', 'partner delta confirmation should advance ledger once all members confirm')
+assert.equal(partnerSharedFundDeltaConfirm.execution_ledger.shared_fund_delta_confirmed, true, 'partner delta confirmation should mark all members confirmed')
+assert.equal(partnerSharedFundDeltaConfirm.preview.confirmation_state.execution_request.status, 'shared_fund_delta_confirmed', 'execution request should advance after all delta confirmations')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.all_members_confirmed, true, 'partner confirmation should complete all-member confirmation')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.pending_member_usernames.length, 0, 'partner confirmation summary should clear pending members')
+assert.ok(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.confirmed_member_usernames.includes(owner), 'partner confirmation summary should keep owner confirmed')
+assert.ok(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.confirmed_member_usernames.includes(partner), 'partner confirmation summary should include partner confirmed')
+assert.ok(!partnerSharedFundDeltaConfirm.execution_ledger.next_required_operations.includes('confirm_shared_fund_delta'), 'confirmed ledger should remove delta confirmation from next operations')
+assert.ok(partnerSharedFundDeltaConfirm.execution_ledger.next_required_operations.includes('refund_shared_fund'), 'confirmed ledger should keep shared fund refund as next operation')
+assert.equal(partnerSharedFundDeltaConfirm.fund.balance, fundBeforeSharedFundDeltaConfirm.fund.balance, 'partner confirmation should not change shared fund balance')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeSharedFundDeltaConfirm, 'partner confirmation should not change owner personal money')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSharedFundDeltaConfirm, 'partner confirmation should not change partner personal money')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedFundDeltaConfirm, 'partner confirmation should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedFundDeltaConfirm, 'partner confirmation should not rewrite partner save')
+const sharedFundDeltaConfirmAudit = partnerSharedFundDeltaConfirm.contract.audit_log.find(entry => entry.action === 'separation_shared_fund_delta_confirmation_recorded' && entry.idempotency_key === 'qa-separation-shared-fund-delta-confirm-partner')
+assert.ok(sharedFundDeltaConfirmAudit, 'shared fund delta confirmation should be audited')
+assert.equal(sharedFundDeltaConfirmAudit.detail?.all_members_confirmed, true, 'shared fund delta audit should mark all members confirmed after partner confirmation')
+assert.equal(sharedFundDeltaConfirmAudit.detail?.shared_fund_changed, false, 'shared fund delta audit should prove shared fund is unchanged')
+assert.equal(sharedFundDeltaConfirmAudit.detail?.personal_money_changed, false, 'shared fund delta audit should prove personal money is unchanged')
 await assert.rejects(
   () => runtime.refundSeparationSharedFund(created.contract.id, previewResult.preview.id, {
     memo: 'wrong shared fund refund hash',

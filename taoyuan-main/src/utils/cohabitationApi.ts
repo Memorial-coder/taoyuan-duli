@@ -1962,6 +1962,8 @@ export type CohabitationOfflineQueueAction =
   | 'feed_shared_animal'
   | 'pet_shared_animal'
   | 'collect_shared_animal_product'
+  | 'buy_shared_animal'
+  | 'sell_shared_animal'
   | 'care_shared_pet'
   | 'process_shared_workshop_recipe'
   | 'collect_offline_auto_income'
@@ -2111,6 +2113,9 @@ export interface CohabitationOfflineAutoIncomeCollectPayload {
   memo?: string
   client_queue_revision?: number
   client_base_revision?: number
+  target_ref?: string
+  target_refs?: string[]
+  batch_limit?: number
 }
 
 export interface CohabitationOfflineAutoIncomeCollectResponse extends CohabitationDetailResponse {
@@ -2670,6 +2675,13 @@ export interface CohabitationSeparationPersonalFarmWritePayload {
 }
 
 export interface CohabitationSeparationSharedFundRefundPayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationSharedFundDeltaConfirmPayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
   memo?: string
@@ -3357,6 +3369,15 @@ export interface CohabitationSeparationSharedFundRefundResponse extends Cohabita
   }
 }
 
+export interface CohabitationSeparationSharedFundDeltaConfirmResponse extends CohabitationSeparationPreviewResponse {
+  fund?: CohabitationFundSnapshot
+  execution_ledger?: Record<string, unknown>
+  confirmation?: Record<string, unknown>
+  shared_fund_delta_confirmation?: Record<string, unknown>
+  already_confirmed?: boolean
+  already_confirmed_by_actor?: boolean
+}
+
 export interface CohabitationSeparationSharedWarehouseReturnResponse extends CohabitationSeparationPreviewResponse {
   warehouse?: CohabitationWarehouseSnapshot
   receipts?: Array<Record<string, unknown>>
@@ -3500,6 +3521,14 @@ export const refundCohabitationSeparationSharedFund = async (contractId: string,
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/refund-shared-fund`),
     payload as unknown as Record<string, unknown>,
     '返还分居共同基金失败'
+  )
+}
+
+export const confirmCohabitationSeparationSharedFundDelta = async (contractId: string, previewId: string, payload: CohabitationSeparationSharedFundDeltaConfirmPayload) => {
+  return postCohabitationJson<CohabitationSeparationSharedFundDeltaConfirmResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/confirm-shared-fund-delta`),
+    payload as unknown as Record<string, unknown>,
+    'confirm separation shared fund delta failed'
   )
 }
 

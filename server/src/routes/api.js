@@ -196,6 +196,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_separation_personal_farm_write',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/confirm-shared-fund-delta$/i,
+    action: 'cohabitation_separation_shared_fund_delta_confirm',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/refund-shared-fund$/i,
     action: 'cohabitation_separation_shared_fund_refund',
   },
@@ -362,6 +366,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/freeze-abnormality$/i,
     action: 'cohabitation_fund_abnormal_frozen',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/unfreeze-abnormality$/i,
+    action: 'cohabitation_fund_abnormal_unfrozen',
   },
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/large-spend-draft$/i,
@@ -3930,6 +3938,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/freeze-abno
   });
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/unfreeze-abnormality', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.unfreezeCohabitationFundAbnormality(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'shared fund abnormal unfreeze failed', code: error.code || '' });
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend-draft', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -4412,6 +4434,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '写回分居来源田区失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/confirm-shared-fund-delta', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.confirmSeparationSharedFundDelta(req.params.contractId, req.params.previewId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'confirm separation shared fund delta failed' });
     }
   });
 });
