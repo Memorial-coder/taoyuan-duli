@@ -1420,7 +1420,7 @@ function buildRoomRewardIdempotencyKey(roomId, memberId, settlementVersion) {
   const normalizedMemberId = sanitizeText(memberId, 40);
   const normalizedVersion = Math.max(1, Math.floor(Number(settlementVersion) || 1));
   if (!normalizedRoomId || !normalizedMemberId) return '';
-  return `room_reward:::v`;
+  return `room_reward:${normalizedRoomId}:${normalizedMemberId}:v${normalizedVersion}`;
 }
 
 function getTemplateDomain(template) {
@@ -6368,7 +6368,7 @@ async function settleFestivalRoom(roomId, actor = {}) {
     target_display_name: member.display_name,
     target_slot: getViewerSaveSlot(member.username),
     status: 'pending_persist',
-    idempotency_key: `festival_room:${room.id}:${room.settlement_version}:${member.username}:slot${getViewerSaveSlot(member.username)}`,
+    idempotency_key: buildRoomRewardIdempotencyKey(room.id, member.username, room.settlement_version),
     reward_payload: rewardPreview.reward_payload,
     reward_breakdown: rewardPreview.reward_breakdown,
     summary: rewardPreview.summary,
@@ -6775,7 +6775,7 @@ async function settleActivityRoom(roomId, actor = {}) {
       target_display_name: member.display_name,
       target_slot: getViewerSaveSlot(member.username),
       status: 'pending_persist',
-      idempotency_key: `${room.activity_domain}_room:${room.id}:${room.settlement_version}:${member.username}:slot${getViewerSaveSlot(member.username)}`,
+      idempotency_key: buildRoomRewardIdempotencyKey(room.id, member.username, room.settlement_version),
       reward_payload: rewardPreview.reward_payload,
       reward_breakdown: rewardPreview.reward_breakdown,
       summary: rewardPreview.summary,
