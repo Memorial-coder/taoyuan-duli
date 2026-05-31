@@ -4,6 +4,14 @@
 
 ## [未发布]
 
+### 0531 同居分居关系剧情 / 退出记录证据
+- 分居家庭剧情解析会按契约类型读回恋人告别对话 / 搬离动画 ID、婚姻家庭剧情与基金结算状态、知己未来合作选项、家族会议和合伙交接记录。
+- 执行 ledger、预览执行请求、审计和个人剧情 receipt 均保留 `story_event_kind`、对话 / 动画 ID、`frontend_cinematic_pending` 与 `personal_state_mutated=false`，继续不改个人 NPC / 家庭 / 资产主状态。
+
+### 0531 公共订单结算失败重放证据
+- 新增 `qa:coop-order-compensation-replay`，固定公共订单个人铜钱结算缺服务端存档时进入 `compensation_pending`，失败重试继续保留 `pending` 与错误，补齐存档后可再次重放成功。
+- 已解决补偿会拒绝再次重放且不重复发个人铜钱；活动房间结算重试继续沿用 `pending_persist` / `appliedReceipts` 防重复发奖证据，12.4 “结算失败可重放”同步标记完成。
+
 ### 0531 同居共同仓库 11.4 丹炉自动结果链
 - 共同工坊炼丹成功丹方新增“结果模式”选择，可保持固定结果，也可提交 `alchemy_result_mode=auto` 让服务端按配方 ID 与幂等键确定性掷出成丹 / 偏丹 / 废丹 / 奇丹。
 - 处理回执会读回自动概率结果、roll / modulus、产物入仓、consume / deposit 流水和个人存档 / 共同基金边界；非成功炼丹结果仍锁定固定模式。
@@ -12,6 +20,10 @@
 - 稀有物采购、限定装饰、共同装修拆除和家庭重大事件均已走大额草案、全员确认、执行扣共同基金、回执或退款收口；基金治理会阻断未回执扣款后的新非建筑高风险执行。
 - `delivered` 回执按用途重检 `storage.withdraw_rare`、`construction.buy_furniture`、`construction.demolish_building` 或 `family.major_family_choice`，并分别写入 `shared_fund_deliveries`、`shared_decoration_state` 或 `family_state.major_event_ledger`；退款只回共同基金，不改个人铜币、个人背包或个人小屋 / 家庭主状态。
 
+### 0531 同居家族订单 / 声望面板写链读回
+- 家族订单面板现在暴露可写模式、订单来源绑定、共同基金 / 共同仓库结算能力和成员创建权限，最小写链不再标记为 deferred。
+- 家族声望面板暴露持久化发放、排行榜和共同基金奖励能力；写链继续走服务端幂等、审计与补偿边界，不改个人存档。
+
 ### 0531 同居分居可识别装饰 / 家具返还
 - 服务端 `split-decorations-buildings` 会按锁定装饰 manifest / hash 把来源可追溯的装饰和家具数量写回原主个人 `decoration.owned`，并返回 `decoration_return_receipts`、来源存档、修订、数量、幂等键和审计边界。
 - 重复拆分不会重复增加家具；家族建筑继续保持 record-only 拆分证据，等待回滚、拆除或人工回执链路，不直接改个人小屋 / 建筑主状态。
@@ -19,6 +31,10 @@
 ### 0531 同居离线队列冲突解决证据包
 - `/offline-queue/merge` 响应新增 `offline_conflict_resolution`，统一读回提交 / 幂等 / 拒绝统计、ledger IDs、revision 前后、stale 标记和个人存档 / 共同基金边界；拒绝和幂等回放也返回同一结构。
 - 共同庄园离线页会展示冲突解决证据摘要；整队列拒绝错误也会保留服务端证据，共同日志的 `offline_queue_merged` 可读回服务端权威批处理结果。
+
+### 0531 同居离线冲突预检
+- 新增 `/offline-conflicts/preflight` 前端 API、store 状态和共同庄园离线页预检按钮，可在真正合并队列前只读检查客户端 revision 是否过期、动作是否受服务端支持。
+- 预检结果会显示服务端权威下一步、unsupported 动作数量和个人存档 / 共同仓库 / 共同基金不变边界；共同日志新增 `offline_conflict_preflighted` 摘要读回。
 
 ### 0531 同居分居共同基金经营贡献拆分
 - 分居预览和执行 ledger 现在按 `capital_and_traceable_operating_income` 计算共同基金返还权重，资本注资与可追溯订单 / 仓库卖出 / 共同动物卖出收入分开记录。

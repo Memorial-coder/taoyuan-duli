@@ -1,9 +1,13 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-31
+- 同居分居关系剧情 / 退出记录证据补强：`resolveSeparationFamilyStory` 会按契约类型写入恋人告别对话 / 搬离动画 ID、婚姻家庭剧情与基金结算状态、知己未来合作选项、家族会议和合伙交接记录；执行 ledger、预览执行请求、审计和个人剧情 receipt 均保留 `story_event_kind`、对话 / 动画 ID、`frontend_cinematic_pending` 与 `personal_state_mutated=false`，继续不改个人 NPC / 家庭 / 资产主状态。
+- 公共订单结算失败重放证据补齐：新增 `qa:coop-order-compensation-replay`，覆盖个人铜钱结算缺服务端存档时进入 `compensation_pending`、失败重试继续保留 `pending` 与 `last_error`、补齐存档后再次重放成功，以及已解决补偿拒绝重复重放且不重复发个人铜钱；12.4 “结算失败可重放”同步标记完成，活动房间结算重试沿用既有 `pending_persist` / `appliedReceipts` 防重复发奖证据。
 - 同居共同仓库 11.4 丹炉自动结果链：共同工坊炼丹成功丹方支持 `alchemy_result_mode=auto`，服务端按配方 ID 与幂等键确定性掷出成丹 / 偏丹 / 废丹 / 奇丹结果；协作 15% 成功率会进入权重并封顶，产物仍回存共同仓库，ledger、origin asset、审计和前端回执读回结果类型、roll、权重与个人存档 / 共同基金边界。
 - 同居共同基金高风险用途确认收口：稀有物采购、限定装饰、共同装修拆除和家庭重大事件均已走大额草案、全员确认、执行扣共同基金、回执或退款收口；`delivered` 回执按用途重检 `storage.withdraw_rare`、`construction.buy_furniture`、`construction.demolish_building` 或 `family.major_family_choice`，并分别写入 `shared_fund_deliveries`、`shared_decoration_state` 或 `family_state.major_event_ledger`，退款只回共同基金，不改个人铜币、个人背包或个人小屋 / 家庭主状态。
+- 同居家族订单 / 声望面板写链读回：家族订单面板现在暴露可写模式、订单来源绑定、共同基金 / 共同仓库结算能力和成员创建权限；家族声望面板暴露持久化发放、排行榜和共同基金奖励能力，写链继续走服务端幂等、审计与补偿边界，不改个人存档。
 - 同居分居可识别装饰 / 家具返还：`split-decorations-buildings` 现在会按锁定装饰 manifest / hash 把来源可追溯的装饰和家具数量写回原主个人 `decoration.owned`，并记录 `decoration_return_receipts`、来源存档、修订、数量、幂等键和审计边界；重复拆分不会重复增加家具，家族建筑仍保持 record-only 证据，等待回滚、拆除或人工回执链路。
+- 同居离线冲突预检只读入口：新增 `/offline-conflicts/preflight` 与前端预检按钮，提交幂等键、客户端队列 revision 和待合并动作即可读回 stale 判断、支持 / 不支持动作、服务端权威下一步和个人存档 / 共同仓库 / 共同基金不变边界；预检只写 `offline_conflict_preflighted` 审计。
 - 同居离线队列冲突解决证据包：`mergeCohabitationOfflineQueue` 正常合并、拒绝和幂等回放都会返回 `offline_conflict_resolution`，聚合提交 / 幂等 / 拒绝数、ledger IDs、revision 前后、stale 标记和个人存档 / 共同基金边界，并写入 `offline_queue_merged` 审计；前端离线队列面板、整队列拒绝错误和共同日志新增证据摘要。
 - 同居分居共同基金经营贡献拆分：分居预览和执行 ledger 会把注资额与可追溯订单 / 仓库卖出 / 共同动物卖出收入合并为 `capital_and_traceable_operating_income` 权重，保留资本额、经营收入额、拆分基数、基金流水和仓库卖出流水证据；共同基金返还审计同步记录拆分依据与资本 / 经营 / 总权重，个人铜币 receipt 仍按锁定预览幂等写回。
 - 同居共同基金大额扩建确认闭环：`manor_expansion` 大额草案现在要求 `fund.spend_large` 与 `construction.expand_manor`，经双方确认后执行只扣共同基金并写 `spend_tier=large` 基金流水和 `manor_expansion_recorded` 家族建筑流水；真实扩建落账复用 `real_build_apply` 幂等安全阀，不重复扣基金、不改个人铜币，契约 QA 覆盖权限拒绝、执行、幂等和建筑面板读回。

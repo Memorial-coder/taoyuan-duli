@@ -1893,6 +1893,7 @@ export interface CohabitationOfflineStatus {
     shared_workshop_offline_writes_enabled?: boolean
     offline_queue_merge_enabled?: boolean
     offline_queue_supported_actions?: string[]
+    offline_conflict_preflight_enabled?: boolean
     offline_conflict_resolution_enabled?: boolean
   }
   members: Array<CohabitationMember & {
@@ -1903,6 +1904,7 @@ export interface CohabitationOfflineStatus {
   actor_capabilities: Record<string, boolean>
   simultaneous_online_bonus?: Record<string, unknown>
   offline_auto_income?: Record<string, unknown>
+  offline_conflict_preflight?: Record<string, unknown>
   recent_shared_log: CohabitationAuditEntry[]
   deferred_operations: string[]
 }
@@ -1969,6 +1971,40 @@ export interface CohabitationOfflineQueueRevisionSnapshot {
   shared_animal_ledger_count: number
   shared_pet_ledger_count: number
   [key: string]: unknown
+}
+
+export interface CohabitationOfflineConflictPreflightPayload {
+  idempotency_key: string
+  client_queue_revision?: number
+  actions?: string[]
+  memo?: string
+}
+
+export interface CohabitationOfflineConflictPreflightSummary {
+  idempotency_key: string
+  client_queue_revision: number
+  server_queue_revision: number
+  client_queue_stale: boolean
+  conflict_policy: string
+  revision_conflict_policy: string
+  supported_actions: string[]
+  requested_actions: string[]
+  supported_requested_actions: string[]
+  unsupported_actions: string[]
+  rejected_count: number
+  next_step: string
+  personal_save_changed: boolean
+  shared_warehouse_changed: boolean
+  shared_fund_changed: boolean
+  server_authoritative: boolean
+  idempotent?: boolean
+  server_revision_snapshot?: CohabitationOfflineQueueRevisionSnapshot
+  [key: string]: unknown
+}
+
+export interface CohabitationOfflineConflictPreflightResponse extends CohabitationDetailResponse {
+  offline_status?: CohabitationOfflineStatus
+  offline_conflict_preflight?: CohabitationOfflineConflictPreflightSummary
 }
 
 export interface CohabitationOfflineConflictResolutionEvidence {
@@ -3035,6 +3071,28 @@ export interface CohabitationFundHighRiskReceiptResponse extends CohabitationFun
   }
 }
 
+export interface CohabitationSharedDecorationMovePayload {
+  decoration_id: string
+  decoration_kind?: string
+  placement_ref?: string
+  target_ref?: string
+  from_location_ref?: string
+  to_location_ref?: string
+  memo?: string
+  idempotency_key: string
+  operation_id?: string
+}
+
+export interface CohabitationSharedDecorationMoveResponse extends CohabitationDetailResponse {
+  shared_decoration_state?: Array<Record<string, unknown>>
+  shared_decoration_state_entry?: Record<string, unknown> | null
+  decoration_move?: Record<string, unknown>
+  required_permission_keys?: string[]
+  idempotent?: boolean
+  already_moved?: boolean
+  personal_home_mutated?: boolean
+}
+
 export interface CohabitationFamilyOrderActionResponse extends CohabitationDetailResponse {
   family_orders_panel?: CohabitationFamilyOrdersPanel
   family_reputation_panel?: CohabitationFamilyReputationPanel
@@ -3594,6 +3652,14 @@ export const sellCohabitationWarehouseItem = async (contractId: string, payload:
   )
 }
 
+export const moveCohabitationSharedDecoration = async (contractId: string, payload: CohabitationSharedDecorationMovePayload) => {
+  return postCohabitationJson<CohabitationSharedDecorationMoveResponse>(
+    contractPath(contractId, '/shared-decorations/move'),
+    payload as unknown as Record<string, unknown>,
+    '绉诲姩鍏卞悓瑁呴グ澶辫触'
+  )
+}
+
 export const withdrawCohabitationWarehouseItem = async (contractId: string, payload: CohabitationWarehouseItemPayload) => {
   return postCohabitationJson<CohabitationWarehouseItemResponse>(
     contractPath(contractId, '/warehouse/withdraw'),
@@ -4082,6 +4148,14 @@ export const mergeCohabitationOfflineQueue = async (contractId: string, payload:
     contractPath(contractId, '/offline-queue/merge'),
     payload as unknown as Record<string, unknown>,
     '合并离线经营队列失败'
+  )
+}
+
+export const preflightCohabitationOfflineConflicts = async (contractId: string, payload: CohabitationOfflineConflictPreflightPayload) => {
+  return postCohabitationJson<CohabitationOfflineConflictPreflightResponse>(
+    contractPath(contractId, '/offline-conflicts/preflight'),
+    payload as unknown as Record<string, unknown>,
+    '预检离线经营冲突失败'
   )
 }
 

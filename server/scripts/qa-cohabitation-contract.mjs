@@ -586,6 +586,22 @@ await socialRuntime.acceptFriendRequest(fundShopPartner, fundShopPartnerRequest.
 
 const overview = await runtime.listCohabitationContracts(owner)
 assert.ok(overview.relation_options.find(option => option.id === 'lover_cohabitation'), 'relation options should expose lover contract type')
+const marriageStoryPlan = runtime.buildSeparationRelationshipStoryPlan(
+  { type: 'marriage_home' },
+  { resolution_choice: 'family_meeting' },
+  { child_arrangement_required: true, shared_fund_refunded: true }
+)
+assert.equal(marriageStoryPlan.story_event_kind, 'marriage_breakup_family_arrangement', 'marriage separation should map to family arrangement story evidence')
+assert.equal(marriageStoryPlan.child_arrangement_required, true, 'marriage story plan should preserve child arrangement requirement')
+assert.equal(marriageStoryPlan.family_fund_settlement_required, true, 'marriage story plan should require fund settlement evidence')
+assert.equal(marriageStoryPlan.family_fund_settlement_state, 'shared_fund_refunded', 'marriage story plan should acknowledge completed shared fund refund')
+const bosomStoryPlan = runtime.buildSeparationRelationshipStoryPlan({ type: 'bosom_partner' }, {}, {})
+assert.equal(bosomStoryPlan.story_event_kind, 'bosom_partner_farewell_or_future_cooperation', 'bosom partner separation should map to farewell/future cooperation evidence')
+assert.equal(bosomStoryPlan.future_cooperation_option, true, 'bosom partner story plan should expose future cooperation option')
+const oathManorStoryPlan = runtime.buildSeparationRelationshipStoryPlan({ type: 'oath_manor' }, {}, {})
+assert.equal(oathManorStoryPlan.meeting_record_required, true, 'oath manor separation should require a family meeting record')
+assert.equal(oathManorStoryPlan.handover_record_required, true, 'oath manor separation should require a handover record')
+assert.equal(oathManorStoryPlan.personal_story_write_required, false, 'oath manor story plan should stay contract-record-only for personal story receipts')
 const recipePolicyPartnerRequest = await socialRuntime.requestFriendship(recipePolicyOwner, { target_username: recipePolicyPartner })
 await socialRuntime.acceptFriendRequest(recipePolicyPartner, recipePolicyPartnerRequest.id)
 assert.equal(overview.relation_options.find(option => option.id === 'oath_manor')?.family_role_management, true, 'oath manor should expose family role management capability')
@@ -1414,6 +1430,40 @@ assert.equal(duplicateOfflineQueueMerge.offline_queue_merge.idempotent, true, 'd
 assert.equal(duplicateOfflineQueueMerge.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline queue merge should replay conflict resolution evidence')
 assert.equal(duplicateOfflineQueueMerge.offline_queue_merge.offline_conflict_resolution.idempotent_count, 1, 'duplicate offline queue merge should replay accepted count as idempotent evidence')
 assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'vitality_feed')?.quantity ?? 0, 0, 'duplicate offline queue merge should not consume vitality feed twice')
+
+const offlineConflictPreflightOwnerRawBefore = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const offlineConflictPreflightPartnerRawBefore = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const offlineConflictPreflight = await runtime.preflightCohabitationOfflineConflicts(created.contract.id, {
+  idempotency_key: 'qa-offline-conflict-preflight-stale',
+  client_queue_revision: 1,
+  actions: ['care_shared_pet', 'unsupported_future_action'],
+  memo: 'qa preflight offline conflict against latest server state',
+}, actor(owner))
+assert.equal(offlineConflictPreflight.offline_status.summary.offline_conflict_preflight_enabled, true, 'offline status should expose conflict preflight readiness')
+assert.equal(offlineConflictPreflight.offline_status.actor_capabilities.preflight_offline_conflicts, true, 'offline status should expose conflict preflight actor capability')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.client_queue_stale, true, 'offline conflict preflight should detect stale client queue revision')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.conflict_policy, 'server_authoritative_refresh_required', 'offline conflict preflight should request refresh when client revision is stale')
+assert.deepEqual(offlineConflictPreflight.offline_conflict_preflight.supported_requested_actions, ['care_shared_pet'], 'offline conflict preflight should keep supported requested actions')
+assert.deepEqual(offlineConflictPreflight.offline_conflict_preflight.unsupported_actions, ['unsupported_future_action'], 'offline conflict preflight should list unsupported actions')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.personal_save_changed, false, 'offline conflict preflight should not mutate personal saves')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.shared_warehouse_changed, false, 'offline conflict preflight should not mutate shared warehouse')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.shared_fund_changed, false, 'offline conflict preflight should not mutate shared fund')
+assert.equal(offlineConflictPreflight.offline_conflict_preflight.server_authoritative, true, 'offline conflict preflight should declare server authority')
+assert.ok(offlineConflictPreflight.contract.audit_log.find(entry => entry.action === 'offline_conflict_preflighted' && entry.idempotency_key === 'qa-offline-conflict-preflight-stale'), 'offline conflict preflight should write audit evidence')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, offlineConflictPreflightOwnerRawBefore, 'offline conflict preflight should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, offlineConflictPreflightPartnerRawBefore, 'offline conflict preflight should not rewrite partner save')
+const duplicateOfflineConflictPreflight = await runtime.preflightCohabitationOfflineConflicts(created.contract.id, {
+  idempotency_key: 'qa-offline-conflict-preflight-stale',
+  client_queue_revision: 1,
+  actions: ['care_shared_pet', 'unsupported_future_action'],
+}, actor(owner))
+assert.equal(duplicateOfflineConflictPreflight.offline_conflict_preflight.idempotent, true, 'duplicate offline conflict preflight should replay by idempotency key')
+assert.equal(duplicateOfflineConflictPreflight.offline_conflict_preflight.conflict_policy, 'server_authoritative_idempotent_replay', 'duplicate offline conflict preflight should report idempotent replay policy')
+assert.equal(
+  duplicateOfflineConflictPreflight.contract.audit_log.filter(entry => entry.action === 'offline_conflict_preflighted' && entry.idempotency_key === 'qa-offline-conflict-preflight-stale').length,
+  1,
+  'duplicate offline conflict preflight should not append audit twice'
+)
 
 await injectSharedWarehouseDepositLedger(created.contract.id, {
   itemId: 'lotus_heart_cat_treat',
@@ -5756,6 +5806,7 @@ assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.order_confir
 assert.equal(offlineStatus.offline_status.simultaneous_online_bonus.recent_member_count, 2, 'offline status should count both recently active members for cooperation bonus')
 assert.equal(offlineStatus.offline_status.summary.auto_offline_income_enabled, true, 'offline status should keep server-authoritative auto income enabled after claim flow')
 assert.equal(offlineStatus.offline_status.summary.offline_auto_income_claim_supported, true, 'offline status should expose auto income claim support')
+assert.equal(offlineStatus.offline_status.summary.offline_conflict_preflight_enabled, true, 'offline status should expose offline conflict preflight support')
 assert.equal(offlineStatus.offline_status.summary.offline_conflict_resolution_enabled, true, 'offline status should expose offline conflict resolution evidence support')
 assert.ok(offlineStatus.offline_status.summary.offline_queue_supported_actions.includes('collect_offline_auto_income'), 'offline status should expose auto income queue action after claim flow')
 assert.equal(offlineStatus.offline_status.offline_auto_income.server_authoritative, true, 'offline status should keep auto income server authoritative')
@@ -5781,6 +5832,7 @@ assert.equal(offlineStatus.offline_status.actor_capabilities.withdraw_warehouse_
 assert.equal(offlineStatus.offline_status.actor_capabilities.spend_fund_small, true, 'owner should be able to spend small shared fund budgets while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.spend_fund_medium, true, 'owner should be able to spend medium shared fund budgets while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.manage_permissions, true, 'owner should retain permission management capability')
+assert.equal(offlineStatus.offline_status.actor_capabilities.preflight_offline_conflicts, true, 'owner should retain offline conflict preflight capability')
 assert.equal(offlineStatus.offline_status.actor_capabilities.resolve_offline_conflicts, true, 'owner should retain offline conflict resolution capability')
 
 const partnerOfflineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(partner))
@@ -6469,6 +6521,30 @@ assert.equal(familyWarehouseDeposit.ledger_entry.source_owner_manor_role, 'stora
 assert.equal(familyWarehouseDeposit.warehouse.family_warehouse.source_owner_summary.find(entry => entry.origin_owner_username === partner)?.total_quantity, 1, 'family warehouse should summarize source owner quantities')
 assert.equal(getInventoryItemQuantity(partner, 'tea'), partnerTeaBeforeFamilyDeposit - 1, 'family warehouse deposit should deduct partner personal inventory once')
 assert.ok(familyWarehouseDeposit.contract.origin_assets.warehouse_items.some(item => item.origin_owner_manor_role === 'storage_keeper'), 'family warehouse origin assets should retain family role at deposit time')
+const extraTeaBeforeFamilyWithdrawDenied = getInventoryItemQuantity(extra, 'tea')
+await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(familyContract.contract.id, {
+    item_id: 'tea',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-family-warehouse-farm-steward-withdraw-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'farm steward should not consume storage keeper common withdrawal permission'
+)
+assert.equal(getInventoryItemQuantity(extra, 'tea'), extraTeaBeforeFamilyWithdrawDenied, 'role-denied family warehouse withdraw should not change farm steward inventory')
+assert.equal((await runtime.getCohabitationWarehouse(familyContract.contract.id, actor(owner))).warehouse.items.find(item => item.item_id === 'tea')?.quantity ?? 0, 1, 'role-denied family warehouse withdraw should keep shared stock')
+const partnerTeaBeforeFamilyWithdraw = getInventoryItemQuantity(partner, 'tea')
+const familyWarehouseWithdraw = await runtime.withdrawCohabitationWarehouseItem(familyContract.contract.id, {
+  item_id: 'tea',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-family-warehouse-storage-keeper-withdraw',
+}, actor(partner))
+assert.equal(familyWarehouseWithdraw.ledger_entry.actor_manor_role, 'storage_keeper', 'family warehouse withdraw ledger should capture storage keeper role')
+assert.equal(familyWarehouseWithdraw.ledger_entry.action, 'withdraw', 'family warehouse storage keeper should perform common withdraw')
+assert.equal(familyWarehouseWithdraw.warehouse.items.find(item => item.item_id === 'tea')?.quantity ?? 0, 0, 'storage keeper withdraw should consume shared stock')
+assert.equal(getInventoryItemQuantity(partner, 'tea'), partnerTeaBeforeFamilyWithdraw + 1, 'storage keeper withdraw should add tea back to personal inventory once')
 
 const ownerRawBeforeFamilyReputation = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeFamilyReputation = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
@@ -6476,29 +6552,75 @@ const extraRawBeforeFamilyReputation = saveRuntime.loadUserSaveSlots(extra).slot
 const familyReputationRead = await runtime.getCohabitationFamilyReputation(familyContract.contract.id, actor(owner))
 const familyReputationPanel = familyReputationRead.family_reputation_panel
 assert.equal(familyReputationPanel.reputation_enabled, true, 'family manor should expose reputation panel')
-assert.equal(familyReputationPanel.readonly, true, 'family reputation panel should be read-only in first pass')
-assert.equal(familyReputationPanel.write_enabled, false, 'family reputation panel should not enable writes')
-assert.equal(familyReputationPanel.summary.reputation_award_enabled, false, 'family reputation should not award persistent points yet')
-assert.equal(familyReputationPanel.summary.leaderboard_enabled, false, 'family reputation should not expose leaderboard yet')
+assert.equal(familyReputationPanel.readonly, false, 'family reputation panel should expose writable family manor mode')
+assert.equal(familyReputationPanel.write_enabled, true, 'family reputation panel should enable writes')
+assert.equal(familyReputationPanel.summary.reputation_award_enabled, true, 'family reputation should award persistent points')
+assert.equal(familyReputationPanel.summary.leaderboard_enabled, true, 'family reputation should expose leaderboard')
 assert.equal(familyReputationPanel.summary.personal_reward_enabled, false, 'family reputation should not grant personal rewards yet')
+assert.equal(familyReputationPanel.summary.shared_fund_reward_enabled, true, 'family reputation should grant shared fund rewards')
 assert.equal(familyReputationPanel.summary.personal_money_merged, false, 'family reputation must not merge personal money')
 assert.ok(familyReputationPanel.summary.current_points > 0, 'family reputation preview should count existing audited activity')
-assert.equal(familyReputationPanel.summary.level.id, 'seed', 'small audited activity should remain in first reputation tier')
+assert.ok(['seed', 'trusted', 'known', 'renowned'].includes(familyReputationPanel.summary.level.id), 'family reputation should resolve a valid level')
 assert.equal(familyReputationPanel.actor.manor_role, 'family_head', 'family reputation actor should expose family head role')
 assert.equal(familyReputationPanel.actor.can_manage_reputation_rules_preview, true, 'family head should preview reputation rule management')
 assert.equal(familyReputationPanel.source_breakdown.find(source => source.id === 'family_governance')?.evidence.role_update_count, 1, 'reputation should count role update audit evidence')
 assert.equal(familyReputationPanel.source_breakdown.find(source => source.id === 'shared_warehouse_stewardship')?.evidence.deposit_count, 1, 'reputation should count committed warehouse deposit evidence')
-assert.equal(familyReputationPanel.source_breakdown.find(source => source.id === 'family_orders')?.enabled, false, 'family orders should not grant reputation before real settlement')
+assert.equal(familyReputationPanel.source_breakdown.find(source => source.id === 'family_orders')?.enabled, true, 'settled family orders should grant reputation')
+assert.equal(familyReputationPanel.source_breakdown.find(source => source.id === 'family_orders')?.evidence.settled_order_count, 1, 'reputation should count settled family orders')
 assert.equal(familyReputationPanel.governance.idempotency_required_for_future_writes, true, 'future reputation writes should require idempotency')
 assert.equal(familyReputationPanel.governance.compensation_required_for_future_rewards, true, 'future reputation rewards should require compensation path')
-assert.ok(familyReputationPanel.deferred_operations.includes('family_reputation_weekly_cap'), 'family reputation should defer weekly cap implementation')
-assert.ok(familyReputationPanel.deferred_operations.includes('family_reputation_compensation_replay'), 'family reputation should defer compensation replay')
+assert.deepEqual(familyReputationPanel.deferred_operations, [], 'family reputation panel should not defer the minimum write chain')
 assert.equal(familyReputationPanel.members.find(member => member.username === partner)?.warehouse_deposit_count, 1, 'reputation member stats should count partner warehouse deposit')
 assert.equal(familyReputationPanel.members.find(member => member.username === partner)?.manor_role, 'storage_keeper', 'reputation member stats should reflect family role')
+await assert.rejects(
+  () => runtime.awardCohabitationFamilyReputation(created.contract.id, {
+    source_type: 'family_governance',
+    points: 1,
+    idempotency_key: 'qa-lover-family-reputation-award-rejected',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'romance contracts should reject real family reputation writes'
+)
+const familyReputationAward = await runtime.awardCohabitationFamilyReputation(familyContract.contract.id, {
+  source_type: 'family_governance',
+  source_ref: 'qa-family-reputation-award',
+  target_username: partner,
+  points: 8,
+  idempotency_key: 'qa-family-reputation-award',
+}, actor(owner))
+assert.equal(familyReputationAward.idempotent, false, 'first family reputation award should not be idempotent')
+assert.equal(familyReputationAward.reputation_ledger_entry.points, 8, 'family reputation award should store points')
+assert.equal(familyReputationAward.reputation_ledger_entry.actor_username, partner, 'family reputation award should target requested member')
+const duplicateFamilyReputationAward = await runtime.awardCohabitationFamilyReputation(familyContract.contract.id, {
+  source_type: 'family_governance',
+  source_ref: 'qa-family-reputation-award',
+  target_username: partner,
+  points: 8,
+  idempotency_key: 'qa-family-reputation-award',
+}, actor(owner))
+assert.equal(duplicateFamilyReputationAward.idempotent, true, 'family reputation award should be idempotent')
+const familyReputationReward = await runtime.claimCohabitationFamilyReputationReward(familyContract.contract.id, {
+  reward_type: 'shared_fund_grant',
+  cost_points: 20,
+  amount: 88,
+  idempotency_key: 'qa-family-reputation-reward-claim',
+}, actor(owner))
+assert.equal(familyReputationReward.idempotent, false, 'first family reputation reward claim should not be idempotent')
+assert.equal(familyReputationReward.reward.status, 'claimed', 'family reputation reward should be claimed')
+assert.equal(familyReputationReward.fund_ledger_entry.action, 'family_reputation_reward', 'family reputation reward should write shared fund ledger')
+assert.equal(familyReputationReward.fund_ledger_entry.amount, 88, 'family reputation reward should credit configured shared fund amount')
+const duplicateFamilyReputationReward = await runtime.claimCohabitationFamilyReputationReward(familyContract.contract.id, {
+  reward_type: 'shared_fund_grant',
+  cost_points: 20,
+  amount: 88,
+  idempotency_key: 'qa-family-reputation-reward-claim',
+}, actor(owner))
+assert.equal(duplicateFamilyReputationReward.idempotent, true, 'family reputation reward claim should be idempotent')
+assert.equal(duplicateFamilyReputationReward.fund.balance, familyReputationReward.fund.balance, 'idempotent family reputation reward should not double credit fund')
 const repeatedFamilyReputationRead = await runtime.getCohabitationFamilyReputation(familyContract.contract.id, actor(owner))
-assert.equal(repeatedFamilyReputationRead.family_reputation_panel.revision, familyReputationPanel.revision, 'family reputation preview revision should stay stable across reads')
-assert.equal(repeatedFamilyReputationRead.family_reputation_panel.summary.current_points, familyReputationPanel.summary.current_points, 'family reputation preview points should stay stable across reads')
-assert.equal(repeatedFamilyReputationRead.contract.audit_log.length, familyReputationRead.contract.audit_log.length, 'family reputation reads should not append audit entries')
+assert.ok(repeatedFamilyReputationRead.family_reputation_panel.revision >= familyReputationPanel.revision, 'family reputation revision should advance after writes')
+assert.ok(repeatedFamilyReputationRead.family_reputation_panel.ledger.some(entry => entry.id === familyReputationAward.reputation_ledger_entry.id), 'family reputation reads should include awarded ledger')
+assert.ok(repeatedFamilyReputationRead.family_reputation_panel.rewards.some(entry => entry.id === familyReputationReward.reward.id), 'family reputation reads should include claimed reward')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyReputation, 'family reputation panel should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyReputation, 'family reputation panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyReputation, 'family reputation panel should not rewrite extra save')
@@ -6603,20 +6725,22 @@ const extraRawBeforeFamilyVisibility = saveRuntime.loadUserSaveSlots(extra).slot
 const familyVisibilityRead = await runtime.getCohabitationFamilyVisibility(familyContract.contract.id, actor(owner))
 const familyVisibilityPanel = familyVisibilityRead.family_visibility_panel
 assert.equal(familyVisibilityPanel.visibility_settings_enabled, true, 'family manor should expose visibility policy panel')
-assert.equal(familyVisibilityPanel.readonly, true, 'family visibility panel should be read-only in first pass')
-assert.equal(familyVisibilityPanel.write_enabled, false, 'family visibility panel should not enable writes')
+assert.equal(familyVisibilityPanel.readonly, false, 'family visibility panel should expose writable family manor mode')
+assert.equal(familyVisibilityPanel.write_enabled, true, 'family visibility panel should enable writes')
 assert.equal(familyVisibilityPanel.summary.default_scope, 'contract_members_only', 'family visibility should default to contract members only')
 assert.equal(familyVisibilityPanel.summary.public_profile_enabled, false, 'family visibility should not publish profile')
 assert.equal(familyVisibilityPanel.summary.festival_room_binding_enabled, false, 'family visibility should not bind festival room')
 assert.equal(familyVisibilityPanel.summary.local_graph_publication_enabled, false, 'family visibility should not publish local graph')
 assert.equal(familyVisibilityPanel.summary.personal_graph_auto_publish_enabled, false, 'family visibility should not auto publish personal graph')
 assert.equal(familyVisibilityPanel.summary.consent_required, true, 'family visibility publication should require consent')
-assert.equal(familyVisibilityPanel.summary.visibility_audit_enabled, false, 'family visibility should not write audit in first pass')
+assert.equal(familyVisibilityPanel.summary.visibility_audit_enabled, true, 'family visibility should write audit')
 assert.equal(familyVisibilityPanel.actor.manor_role, 'family_head', 'family visibility actor should expose family head role')
 assert.equal(familyVisibilityPanel.actor.visibility_permissions.can_manage_visibility_preview, true, 'family head should preview visibility management')
+assert.equal(familyVisibilityPanel.actor.visibility_permissions.write_enabled, true, 'family head should write visibility settings')
 assert.equal(familyVisibilityPanel.members.find(member => member.username === partner)?.visibility_permissions.can_publish_personal_graph_preview, false, 'members should not publish personal graph in first pass')
 assert.equal(familyVisibilityPanel.visibility_scopes.find(scope => scope.id === 'contract_members')?.enabled, true, 'contract members scope should be enabled')
 assert.equal(familyVisibilityPanel.visibility_scopes.find(scope => scope.id === 'public_profile')?.enabled, false, 'public profile scope should be disabled')
+assert.equal(familyVisibilityPanel.visibility_scopes.find(scope => scope.id === 'public_profile')?.write_enabled, true, 'public profile scope should be writable')
 assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'contract_members')?.online_visible, true, 'contract member nodes should be visible to contract members')
 assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'fixed_npcs')?.online_visible, false, 'fixed NPC relationships should stay private')
 assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'children')?.publication_allowed, false, 'children should not be publishable')
@@ -6628,12 +6752,67 @@ assert.equal(familyVisibilityPanel.privacy_guards.personal_save_read_enabled, fa
 assert.equal(familyVisibilityPanel.privacy_guards.random_npcs_private, true, 'visibility panel should keep random NPCs private')
 assert.equal(familyVisibilityPanel.governance.future_writes_require_idempotency, true, 'future visibility writes should require idempotency')
 assert.equal(familyVisibilityPanel.governance.future_publication_requires_all_visible_member_consent, true, 'future visibility publication should require consent')
-assert.ok(familyVisibilityPanel.deferred_operations.includes('visibility_audit_log'), 'visibility panel should defer visibility audit')
-assert.ok(familyVisibilityPanel.deferred_operations.includes('visibility_rollback'), 'visibility panel should defer visibility rollback')
+assert.deepEqual(familyVisibilityPanel.deferred_operations, [], 'family visibility panel should not defer the minimum write chain')
+await assert.rejects(
+  () => runtime.updateCohabitationFamilyVisibility(created.contract.id, {
+    default_scope: 'public_profile',
+    enabled_scope_ids: ['contract_members', 'public_profile'],
+    public_category_ids: ['contract_members'],
+    member_consent: {},
+    idempotency_key: 'qa-lover-family-visibility-rejected',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'romance contracts should reject real visibility writes'
+)
+await assert.rejects(
+  () => runtime.updateCohabitationFamilyVisibility(familyContract.contract.id, {
+    default_scope: 'public_profile',
+    enabled_scope_ids: ['contract_members', 'public_profile'],
+    public_category_ids: ['contract_members', 'fixed_npcs'],
+    member_consent: {},
+    idempotency_key: 'qa-family-visibility-private-category-rejected',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'family visibility should reject private category publication'
+)
+const familyVisibilityConsent = Object.fromEntries(familyVisibilityPanel.members.map(member => [member.username_key, true]))
+const familyVisibilityUpdate = await runtime.updateCohabitationFamilyVisibility(familyContract.contract.id, {
+  default_scope: 'public_profile',
+  enabled_scope_ids: ['contract_members', 'public_profile', 'festival_room'],
+  public_category_ids: ['contract_members', 'family_roles', 'shared_capabilities'],
+  member_consent: familyVisibilityConsent,
+  idempotency_key: 'qa-family-visibility-update',
+}, actor(owner))
+assert.equal(familyVisibilityUpdate.idempotent, false, 'first family visibility update should not be idempotent')
+assert.equal(familyVisibilityUpdate.family_visibility_panel.summary.public_profile_enabled, true, 'visibility update should enable public profile scope')
+assert.equal(familyVisibilityUpdate.family_visibility_panel.summary.festival_room_binding_enabled, true, 'visibility update should enable festival room binding')
+assert.equal(familyVisibilityUpdate.audit_entry.rollback_available, true, 'visibility update audit should be rollbackable')
+assert.equal(familyVisibilityUpdate.relation_event.event_type, 'visibility_updated', 'visibility update should write relation event')
+const duplicateFamilyVisibilityUpdate = await runtime.updateCohabitationFamilyVisibility(familyContract.contract.id, {
+  default_scope: 'public_profile',
+  enabled_scope_ids: ['contract_members', 'public_profile', 'festival_room'],
+  public_category_ids: ['contract_members', 'family_roles', 'shared_capabilities'],
+  member_consent: familyVisibilityConsent,
+  idempotency_key: 'qa-family-visibility-update',
+}, actor(owner))
+assert.equal(duplicateFamilyVisibilityUpdate.idempotent, true, 'family visibility update should be idempotent')
+const familyVisibilityRollback = await runtime.rollbackCohabitationFamilyVisibility(familyContract.contract.id, {
+  audit_id: familyVisibilityUpdate.audit_entry.id,
+  idempotency_key: 'qa-family-visibility-rollback',
+}, actor(owner))
+assert.equal(familyVisibilityRollback.idempotent, false, 'first family visibility rollback should not be idempotent')
+assert.equal(familyVisibilityRollback.audit_entry.action, 'visibility_rolled_back', 'visibility rollback should write rollback audit')
+assert.equal(familyVisibilityRollback.family_visibility_panel.summary.public_profile_enabled, false, 'visibility rollback should restore public profile off')
+assert.equal(familyVisibilityRollback.relation_event.event_type, 'visibility_rolled_back', 'visibility rollback should write relation event')
+const duplicateFamilyVisibilityRollback = await runtime.rollbackCohabitationFamilyVisibility(familyContract.contract.id, {
+  audit_id: familyVisibilityUpdate.audit_entry.id,
+  idempotency_key: 'qa-family-visibility-rollback',
+}, actor(owner))
+assert.equal(duplicateFamilyVisibilityRollback.idempotent, true, 'family visibility rollback should be idempotent')
 const repeatedFamilyVisibilityRead = await runtime.getCohabitationFamilyVisibility(familyContract.contract.id, actor(owner))
-assert.equal(repeatedFamilyVisibilityRead.family_visibility_panel.revision, familyVisibilityPanel.revision, 'family visibility revision should stay stable across reads')
-assert.equal(repeatedFamilyVisibilityRead.family_visibility_panel.summary.default_scope, familyVisibilityPanel.summary.default_scope, 'family visibility default scope should stay stable across reads')
-assert.equal(repeatedFamilyVisibilityRead.contract.audit_log.length, familyVisibilityRead.contract.audit_log.length, 'family visibility reads should not append audit entries')
+assert.ok(repeatedFamilyVisibilityRead.family_visibility_panel.revision >= familyVisibilityPanel.revision, 'family visibility revision should advance after writes')
+assert.equal(repeatedFamilyVisibilityRead.family_visibility_panel.summary.default_scope, 'contract_members_only', 'family visibility rollback should restore default scope')
+assert.ok(repeatedFamilyVisibilityRead.family_visibility_panel.audit.some(entry => entry.id === familyVisibilityRollback.audit_entry.id), 'family visibility reads should include rollback audit')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyVisibility, 'family visibility panel should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyVisibility, 'family visibility panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyVisibility, 'family visibility panel should not rewrite extra save')
@@ -6716,6 +6895,12 @@ const fourMemberFamilyContract = await runtime.createCohabitationContract({
   target_usernames: [partner, extra, fourth],
   idempotency_key: 'qa-business-family-four-member-map',
 }, actor(owner))
+assert.equal(fourMemberFamilyContract.contract.permissions[owner].family.major_family_choice, false, 'business partner family head should not get family major choice by default')
+assert.equal(fourMemberFamilyContract.contract.permissions[owner].storage.withdraw_rare, false, 'business partner family head should not get rare storage by default')
+assert.equal(fourMemberFamilyContract.contract.permissions[owner].confirmations.rare_withdraw_requires_both, true, 'business partner should keep rare withdrawal confirmation safety rail')
+assert.equal(fourMemberFamilyContract.contract.permissions[partner].family.child_daily_care, false, 'business partner invitees should not get family care permissions by default')
+assert.equal(fourMemberFamilyContract.contract.permissions[partner].family.family_wish_submit, false, 'business partner invitees should not get family wish permissions by default')
+assert.equal(fourMemberFamilyContract.contract.permissions[partner].storage.withdraw_rare, false, 'business partner invitees should not get rare storage by default')
 await runtime.acceptCohabitationContract(fourMemberFamilyContract.contract.id, actor(partner))
 await runtime.acceptCohabitationContract(fourMemberFamilyContract.contract.id, actor(extra))
 const activeFourMemberFamily = await runtime.acceptCohabitationContract(fourMemberFamilyContract.contract.id, actor(fourth))
@@ -7819,8 +8004,22 @@ assert.equal(familyStoryResolution.preview.confirmation_state.execution_request.
 assert.equal(familyStoryResolution.story_resolution.relation_type, 'lover_cohabitation', 'family story resolution should keep relation type')
 assert.equal(familyStoryResolution.story_resolution.personal_story_write_required, true, 'lover cohabitation should keep personal story write boundary')
 assert.equal(familyStoryResolution.story_resolution.child_arrangement_required, false, 'lover cohabitation should not require child arrangement in contract store')
+assert.equal(familyStoryResolution.story_resolution.relationship_story_rule, 'lover_farewell_moveout_record', 'lover separation should record the farewell and move-out story rule')
+assert.equal(familyStoryResolution.story_resolution.story_event_kind, 'lover_farewell_moveout', 'lover separation should record the farewell/move-out event kind')
+assert.equal(familyStoryResolution.story_resolution.dialogue_event_id, 'separation_lover_farewell_dialogue', 'lover separation should expose the farewell dialogue id')
+assert.equal(familyStoryResolution.story_resolution.animation_event_id, 'separation_lover_moveout_animation', 'lover separation should expose the move-out animation id')
+assert.equal(familyStoryResolution.story_resolution.exit_record_kind, 'lover_moveout_receipt', 'lover separation should expose the exit receipt kind')
+assert.equal(familyStoryResolution.story_resolution.frontend_cinematic_pending, true, 'lover separation should leave the cinematic pending for the frontend')
+assert.equal(familyStoryResolution.story_resolution.personal_state_mutated, false, 'family story resolution should not mutate personal story state')
+assert.equal(familyStoryResolution.story_resolution.contract_record_only, true, 'family story resolution should stay contract-record-only')
 assert.ok(!familyStoryResolution.execution_ledger.next_required_operations.includes('split_decorations'), 'family story resolution should keep decoration split closed after split record')
 assert.ok(familyStoryResolution.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'family story resolution should keep personal story receipt follow-up')
+const familyStoryAudit = familyStoryResolution.contract.audit_log.find(entry => entry.action === 'separation_family_story_resolved' && entry.idempotency_key === 'qa-separation-family-story-resolution')
+assert.equal(familyStoryAudit?.detail?.story_event_kind, 'lover_farewell_moveout', 'family story audit should include the concrete story event kind')
+assert.equal(familyStoryAudit?.detail?.dialogue_event_id, 'separation_lover_farewell_dialogue', 'family story audit should include the dialogue event id')
+assert.equal(familyStoryAudit?.detail?.animation_event_id, 'separation_lover_moveout_animation', 'family story audit should include the animation event id')
+assert.equal(familyStoryAudit?.detail?.frontend_cinematic_pending, true, 'family story audit should mark pending frontend cinematic work')
+assert.equal(familyStoryAudit?.detail?.personal_state_mutated, false, 'family story audit should keep personal mutation false')
 assert.ok(familyStoryResolution.contract.audit_log.find(entry => entry.action === 'separation_family_story_resolved' && entry.idempotency_key === 'qa-separation-family-story-resolution'), 'family story resolution should be audited')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyStoryResolution, 'family story resolution should not rewrite owner personal save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyStoryResolution, 'family story resolution should not rewrite partner personal save')
@@ -7861,6 +8060,11 @@ assert.equal(personalStoryReceipts.execution_ledger.personal_story_receipts_writ
 assert.equal(personalStoryReceipts.preview.confirmation_state.execution_request.status, 'personal_story_receipts_written', 'execution request should advance to personal-story-receipts-written')
 assert.equal(personalStoryReceipts.receipts.length, 2, 'personal story receipt write should create one receipt per accepted member')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_story_state === 'receipt_recorded_only'), 'personal story receipts should stay receipt-only')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.story_event_kind === 'lover_farewell_moveout'), 'personal story receipts should keep the story event kind')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.dialogue_event_id === 'separation_lover_farewell_dialogue'), 'personal story receipts should keep the dialogue event id')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.animation_event_id === 'separation_lover_moveout_animation'), 'personal story receipts should keep the animation event id')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_pending === true), 'personal story receipts should mark pending frontend cinematic work')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_state_mutated === false), 'personal story receipts should not mutate personal story state')
 assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal story receipt write should keep decoration split closed')
 assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'personal story receipt write should close receipt follow-up')
 assert.ok(personalStoryReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_story_receipts_written' && entry.idempotency_key === 'qa-separation-personal-story-receipts'), 'personal story receipt write should be audited')
@@ -7868,6 +8072,13 @@ assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeStory
 assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change partner money inventory farm npc home family or children state')
 assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).some(receipt => receipt.execution_ledger_id === assetReturnRecord.execution_ledger.id), 'owner save should receive personal story receipt')
 assert.ok((readGameplayData(partner)?.onlineCohabitation?.story_receipts || []).some(receipt => receipt.execution_ledger_id === assetReturnRecord.execution_ledger.id), 'partner save should receive personal story receipt')
+assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).some(receipt =>
+  receipt.execution_ledger_id === assetReturnRecord.execution_ledger.id
+  && receipt.story_event_kind === 'lover_farewell_moveout'
+  && receipt.dialogue_event_id === 'separation_lover_farewell_dialogue'
+  && receipt.animation_event_id === 'separation_lover_moveout_animation'
+  && receipt.personal_state_mutated === false
+), 'owner personal story receipt should include the lover farewell cinematic evidence')
 
 const ownerRawAfterPersonalStoryReceipts = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawAfterPersonalStoryReceipts = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
@@ -10950,6 +11161,81 @@ assert.equal(duplicateHighRiskReceipt.idempotent, true, 'limited decoration rece
 assert.equal(duplicateHighRiskReceipt.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration duplicate receipt should not change balance')
 assert.equal(duplicateHighRiskReceipt.delivery_entry?.receipt_id, highRiskReceipt.receipt.id, 'limited decoration duplicate receipt should return existing delivery entry')
 assert.equal(duplicateHighRiskReceipt.shared_decoration_state_entry?.receipt_id, highRiskReceipt.receipt.id, 'limited decoration duplicate receipt should return existing shared decoration state')
+await runtime.updateCohabitationPermissions(highRiskContractId, {
+  target_username: highRiskPartner,
+  permissions: {
+    construction: { move_common_furniture: false },
+  },
+  idempotency_key: 'qa-high-risk-partner-disable-common-decoration-move',
+}, actor(highRiskOwner))
+await assert.rejects(
+  () => runtime.moveCohabitationSharedDecoration(highRiskContractId, {
+    decoration_id: 'moon_gate',
+    decoration_kind: 'common',
+    from_location_ref: 'courtyard:east',
+    to_location_ref: 'courtyard:west',
+    idempotency_key: 'qa-common-decoration-move-denied',
+  }, actor(highRiskPartner)),
+  error => error?.status === 403 && String(error.message || '').includes('construction.move_common_furniture'),
+  'common shared decoration move should require construction.move_common_furniture'
+)
+const ownerRawBeforeCommonDecorationMove = saveRuntime.loadUserSaveSlots(highRiskOwner).slots[0].raw
+const partnerRawBeforeCommonDecorationMove = saveRuntime.loadUserSaveSlots(highRiskPartner).slots[0].raw
+const commonDecorationMove = await runtime.moveCohabitationSharedDecoration(highRiskContractId, {
+  decoration_id: 'moon_gate',
+  decoration_kind: 'common',
+  from_location_ref: 'courtyard:east',
+  to_location_ref: 'courtyard:west',
+  placement_ref: 'courtyard:west:moon_gate',
+  memo: 'qa move common shared decoration',
+  idempotency_key: 'qa-common-decoration-move',
+}, actor(highRiskOwner))
+assert.equal(commonDecorationMove.idempotent, false, 'common shared decoration move should write once')
+assert.deepEqual(commonDecorationMove.required_permission_keys, ['construction.move_common_furniture'], 'common decoration move should record common furniture permission')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.action, 'shared_decoration_move', 'common decoration move should update shared decoration state action')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.state, 'placed', 'common decoration move should mark decoration placed')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.decoration_id, 'moon_gate', 'common decoration move should keep decoration id')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.fund_ledger_id, highRiskExecute.ledger_entry.id, 'common decoration move should preserve purchase fund ledger trace')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.to_location_ref, 'courtyard:west', 'common decoration move should store destination')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.personal_home_mutated, false, 'common decoration move should not mutate personal home')
+assert.ok(commonDecorationMove.contract.audit_log.find(entry => entry.action === 'shared_decoration_moved' && entry.detail?.required_permission_keys?.includes('construction.move_common_furniture')), 'common decoration move should audit required permission')
+assert.equal(saveRuntime.loadUserSaveSlots(highRiskOwner).slots[0].raw, ownerRawBeforeCommonDecorationMove, 'common decoration move should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(highRiskPartner).slots[0].raw, partnerRawBeforeCommonDecorationMove, 'common decoration move should not rewrite partner save')
+const duplicateCommonDecorationMove = await runtime.moveCohabitationSharedDecoration(highRiskContractId, {
+  decoration_id: 'moon_gate',
+  decoration_kind: 'common',
+  to_location_ref: 'courtyard:west',
+  idempotency_key: 'qa-common-decoration-move',
+}, actor(highRiskOwner))
+assert.equal(duplicateCommonDecorationMove.idempotent, true, 'common decoration move should be idempotent')
+assert.equal(duplicateCommonDecorationMove.shared_decoration_state_entry?.id, commonDecorationMove.shared_decoration_state_entry?.id, 'common decoration duplicate should return current shared decoration state')
+await assert.rejects(
+  () => runtime.moveCohabitationSharedDecoration(highRiskContractId, {
+    decoration_id: 'ancestor_tablet',
+    decoration_kind: 'memorial',
+    to_location_ref: 'family_hall:center',
+    idempotency_key: 'qa-memorial-decoration-move-denied',
+  }, actor(highRiskOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('construction.move_memorial_furniture'),
+  'memorial shared decoration move should require construction.move_memorial_furniture'
+)
+await runtime.updateCohabitationPermissions(highRiskContractId, {
+  target_username: highRiskOwner,
+  permissions: {
+    construction: { move_memorial_furniture: true },
+  },
+  idempotency_key: 'qa-high-risk-owner-enable-memorial-decoration-move',
+}, actor(highRiskOwner))
+const memorialDecorationMove = await runtime.moveCohabitationSharedDecoration(highRiskContractId, {
+  decoration_id: 'ancestor_tablet',
+  decoration_kind: 'memorial',
+  to_location_ref: 'family_hall:center',
+  placement_ref: 'family_hall:center:ancestor_tablet',
+  idempotency_key: 'qa-memorial-decoration-move',
+}, actor(highRiskOwner))
+assert.deepEqual(memorialDecorationMove.required_permission_keys, ['construction.move_memorial_furniture'], 'memorial decoration move should record memorial furniture permission')
+assert.equal(memorialDecorationMove.shared_decoration_state_entry?.decoration_kind, 'memorial', 'memorial decoration move should keep decoration kind')
+assert.equal(memorialDecorationMove.shared_decoration_state_entry?.personal_home_mutated, false, 'memorial decoration move should not mutate personal home')
 await assert.rejects(
   () => runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
     outcome: 'refunded',

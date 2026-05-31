@@ -276,6 +276,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_offline_queue_merge',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-conflicts\/preflight$/i,
+    action: 'cohabitation_offline_conflict_preflight',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/offline-auto-income\/collect$/i,
     action: 'cohabitation_offline_auto_income_collect',
   },
@@ -338,6 +342,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/governance\/recover$/i,
     action: 'cohabitation_warehouse_governance_recover',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-decorations\/move$/i,
+    action: 'cohabitation_shared_decoration_move',
   },
   {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/contribute$/i,
@@ -3611,6 +3619,24 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-queue/me
   });
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflicts/preflight', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.preflightCohabitationOfflineConflicts(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({
+        ok: false,
+        msg: error.message || '预检离线经营冲突失败',
+        offline_conflict_preflight: error.offline_conflict_preflight,
+      });
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-auto-income/collect', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
@@ -3829,6 +3855,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/govern
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复共同仓库治理阻断失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-decorations/move', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.moveCohabitationSharedDecoration(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'move shared decoration failed' });
     }
   });
 });
