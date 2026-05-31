@@ -12814,6 +12814,114 @@ const duplicateOfflineLimitedDecorationReceiptQueue = await runtime.mergeCohabit
 assert.equal(duplicateOfflineLimitedDecorationReceiptQueue.offline_queue_merge.idempotent, true, 'duplicate offline limited decoration delivery receipt queue should replay by queue idempotency key')
 assert.equal(duplicateOfflineLimitedDecorationReceiptQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline limited decoration delivery receipt should replay conflict resolution evidence')
 
+const offlineLimitedDecorationRefundOwner = 'cohabit_olrf_o31'
+const offlineLimitedDecorationRefundPartner = 'cohabit_olrf_p31'
+const offlineLimitedDecorationRefundContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineLimitedDecorationRefundOwner,
+  partnerUsername: offlineLimitedDecorationRefundPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'offline-limited-decoration-refund',
+})
+const offlineLimitedDecorationRefundFundBeforeDraft = await runtime.getCohabitationFund(offlineLimitedDecorationRefundContractId, actor(offlineLimitedDecorationRefundOwner))
+const offlineLimitedDecorationRefundBalanceBeforeDraft = offlineLimitedDecorationRefundFundBeforeDraft.fund.balance
+const offlineLimitedDecorationRefundOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineLimitedDecorationRefundOwner).slots[0].raw
+const offlineLimitedDecorationRefundPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineLimitedDecorationRefundPartner).slots[0].raw
+const offlineLimitedDecorationRefundDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineLimitedDecorationRefundContractId, {
+  amount: 1300,
+  purpose: 'limited_decoration',
+  target_ref: 'limited_decoration:jade_screen:purchase',
+  memo: 'qa offline limited decoration refund receipt draft',
+  idempotency_key: 'qa-offline-limited-decoration-refund-receipt-draft',
+}, actor(offlineLimitedDecorationRefundOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineLimitedDecorationRefundContractId, offlineLimitedDecorationRefundDraft.draft.id, {
+  memo: 'qa partner confirms offline limited decoration refund receipt',
+  idempotency_key: 'qa-offline-limited-decoration-refund-receipt-confirm',
+}, actor(offlineLimitedDecorationRefundPartner))
+const offlineLimitedDecorationRefundExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineLimitedDecorationRefundContractId, offlineLimitedDecorationRefundDraft.draft.id, {
+  memo: 'qa execute offline limited decoration refund receipt',
+  idempotency_key: 'qa-offline-limited-decoration-refund-receipt-execute',
+}, actor(offlineLimitedDecorationRefundOwner))
+const offlineLimitedDecorationRefundStatus = await runtime.getCohabitationOfflineStatus(offlineLimitedDecorationRefundContractId, actor(offlineLimitedDecorationRefundOwner))
+assert.ok(offlineLimitedDecorationRefundStatus.offline_status.summary.offline_queue_supported_actions.includes('record_limited_decoration_refund_receipt'), 'offline queue should expose limited decoration refund receipt as supported action')
+assert.equal(offlineLimitedDecorationRefundStatus.offline_status.actor_capabilities.record_limited_decoration_refund_receipt, true, 'owner should be able to record limited decoration refund receipt offline')
+const offlineLimitedDecorationRefundDeniedQueue = await runtime.mergeCohabitationOfflineQueue(offlineLimitedDecorationRefundContractId, {
+  idempotency_key: 'qa-offline-limited-decoration-refund-receipt-denied-queue',
+  client_queue_revision: offlineLimitedDecorationRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_limited_decoration_refund_receipt',
+    operation_id: 'qa-offline-limited-decoration-refund-receipt-denied-op',
+    idempotency_key: 'qa-offline-limited-decoration-refund-receipt-denied-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineLimitedDecorationRefundDraft.draft.id,
+      target_ref: 'limited_decoration:jade_screen:purchase',
+      receipt_ref: 'limited_decoration_refund:jade_screen:offline-denied',
+      memo: 'qa offline limited decoration refund receipt denied',
+    },
+  }],
+}, actor(offlineLimitedDecorationRefundOwner))
+assert.equal(offlineLimitedDecorationRefundDeniedQueue.offline_queue_merge.accepted_count, 0, 'offline limited decoration refund receipt without acknowledgement should not commit')
+assert.equal(offlineLimitedDecorationRefundDeniedQueue.offline_queue_merge.rejected_count, 1, 'offline limited decoration refund receipt without acknowledgement should return rejected evidence')
+assert.equal(offlineLimitedDecorationRefundDeniedQueue.offline_queue_merge.rejected[0]?.reason, 'limited_decoration_refund_acknowledgement_required', 'offline limited decoration refund denial should require compensation acknowledgement')
+assert.equal(offlineLimitedDecorationRefundDeniedQueue.offline_queue_merge.rejected[0]?.shared_fund_changed, false, 'rejected offline limited decoration refund receipt should not mutate shared fund')
+const offlineLimitedDecorationRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineLimitedDecorationRefundContractId, {
+  idempotency_key: 'qa-offline-limited-decoration-refund-receipt-queue',
+  client_queue_revision: offlineLimitedDecorationRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_limited_decoration_refund_receipt',
+    operation_id: 'qa-offline-limited-decoration-refund-receipt-op',
+    idempotency_key: 'qa-offline-limited-decoration-refund-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineLimitedDecorationRefundDraft.draft.id,
+      target_ref: 'limited_decoration:jade_screen:purchase',
+      receipt_ref: 'limited_decoration_refund:jade_screen:offline-done',
+      compensation_plan_acknowledged: true,
+      memo: 'qa offline limited decoration refund receipt',
+    },
+  }],
+}, actor(offlineLimitedDecorationRefundOwner))
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept limited decoration refund receipt')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.rejected_count, 0, 'offline limited decoration refund receipt should not be rejected')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.action, 'record_limited_decoration_refund_receipt', 'offline limited decoration refund receipt result should keep action')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.draft_id, offlineLimitedDecorationRefundDraft.draft.id, 'offline limited decoration refund receipt should return draft id')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.receipt_ref, 'limited_decoration_refund:jade_screen:offline-done', 'offline limited decoration refund receipt should return receipt ref')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.receipt_outcome, 'refunded', 'offline limited decoration refund receipt should return refunded outcome')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.receipt_kind, 'limited_decoration_refund', 'offline limited decoration refund receipt should identify receipt kind')
+assert.deepEqual(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.required_permission_keys, [], 'offline limited decoration refund receipt should not require delivery purpose permission')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.refund_amount, 1300, 'offline limited decoration refund receipt should return refund amount')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.shared_fund_changed, true, 'offline limited decoration refund receipt should mark shared fund changed')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, false, 'offline limited decoration refund receipt should not mutate shared decoration state')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.personal_home_mutated, false, 'offline limited decoration refund receipt should not mutate personal home')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.personal_inventory_merged, false, 'offline limited decoration refund receipt should not merge personal inventory')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline limited decoration refund receipt should not mutate shared warehouse')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_conflict_resolution.shared_fund_changed, true, 'offline conflict resolution should summarize limited decoration refund shared fund change')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_conflict_resolution.shared_decoration_state_changed, false, 'offline conflict resolution should not report decoration state change for limited refund')
+assert.equal(offlineLimitedDecorationRefundQueue.contract.shared_fund.balance, offlineLimitedDecorationRefundBalanceBeforeDraft, 'offline limited decoration refund receipt should return executed deduction to shared fund')
+assert.ok(offlineLimitedDecorationRefundQueue.contract.shared_fund.ledger.find(entry => entry.action === 'high_risk_fund_refund' && entry.idempotency_key === 'qa-offline-limited-decoration-refund-receipt-op'), 'offline limited decoration refund receipt should write refund fund ledger')
+assert.ok(!offlineLimitedDecorationRefundQueue.contract.shared_fund_deliveries?.find(entry => entry.decoration_id === 'jade_screen'), 'offline limited decoration refund receipt should not persist delivery entry')
+assert.ok(!offlineLimitedDecorationRefundQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'jade_screen'), 'offline limited decoration refund receipt should not persist decoration state')
+assert.ok(offlineLimitedDecorationRefundQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-limited-decoration-refund-receipt-op' && entry.detail?.refund_amount === 1300), 'offline limited decoration refund receipt should write high-risk refund audit')
+assert.ok(offlineLimitedDecorationRefundQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-limited-decoration-refund-receipt-queue' && entry.detail?.offline_conflict_resolution?.shared_fund_changed === true), 'offline limited decoration refund receipt queue should write merge audit evidence')
+assert.equal(offlineLimitedDecorationRefundQueue.offline_queue_merge.results[0]?.original_fund_ledger_id, offlineLimitedDecorationRefundExecute.ledger_entry.id, 'offline limited decoration refund receipt should retain original fund ledger trace')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineLimitedDecorationRefundOwner).slots[0].raw, offlineLimitedDecorationRefundOwnerRawBefore, 'offline limited decoration refund receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineLimitedDecorationRefundPartner).slots[0].raw, offlineLimitedDecorationRefundPartnerRawBefore, 'offline limited decoration refund receipt should not rewrite partner save')
+const duplicateOfflineLimitedDecorationRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineLimitedDecorationRefundContractId, {
+  idempotency_key: 'qa-offline-limited-decoration-refund-receipt-queue',
+  operations: [{
+    action: 'record_limited_decoration_refund_receipt',
+    operation_id: 'qa-offline-limited-decoration-refund-receipt-op',
+    idempotency_key: 'qa-offline-limited-decoration-refund-receipt-op',
+    payload: {
+      draft_id: offlineLimitedDecorationRefundDraft.draft.id,
+      receipt_ref: 'limited_decoration_refund:jade_screen:offline-done',
+      compensation_plan_acknowledged: true,
+    },
+  }],
+}, actor(offlineLimitedDecorationRefundOwner))
+assert.equal(duplicateOfflineLimitedDecorationRefundQueue.offline_queue_merge.idempotent, true, 'duplicate offline limited decoration refund receipt queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineLimitedDecorationRefundQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline limited decoration refund receipt should replay conflict resolution evidence')
+
 const offlineDecorationRemovalRefundOwner = 'cohabit_odrf_o31'
 const offlineDecorationRemovalRefundPartner = 'cohabit_odrf_p31'
 const offlineDecorationRemovalRefundContractId = await setupDualLargeFundContract({

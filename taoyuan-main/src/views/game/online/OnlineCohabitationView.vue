@@ -3035,7 +3035,7 @@
                 </p>
               </div>
               <label
-                v-if="selectedOfflineQueueActionId === 'record_shared_decoration_removal_refund_receipt'"
+                v-if="selectedOfflineQueueActionId === 'record_limited_decoration_refund_receipt' || selectedOfflineQueueActionId === 'record_shared_decoration_removal_refund_receipt'"
                 class="flex items-start gap-2 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
                 data-testid="online-cohabitation-offline-refund-ack"
               >
@@ -3363,6 +3363,7 @@
     | 'process_shared_workshop_recipe'
     | 'move_shared_decoration'
     | 'record_limited_decoration_delivery_receipt'
+    | 'record_limited_decoration_refund_receipt'
     | 'record_shared_decoration_removal_refund_receipt'
     | 'record_shared_decoration_removal_receipt'
     | 'collect_offline_auto_income'
@@ -5309,10 +5310,28 @@
     const draft = selectedOfflineLimitedDecorationDeliveryReceiptDraft.value
     return draft?.target_ref || draft?.id || '未选择限定装饰交付回执'
   })
+  const selectedOfflineLimitedDecorationRefundReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
+    (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
+      draft.purpose === 'limited_decoration' &&
+      draft.state === 'executed' &&
+      Boolean(draft.final_spend_ledger_id) &&
+      (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    ) ?? null
+  )
+  const selectedOfflineLimitedDecorationRefundReceiptTargetLabel = computed(() => {
+    const draft = selectedOfflineLimitedDecorationRefundReceiptDraft.value
+    return draft?.target_ref || draft?.id || '未选择限定装饰退款回执'
+  })
   const canRecordOfflineLimitedDecorationDeliveryReceipt = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
     cohabitationStore.offlineStatus?.actor_capabilities?.record_limited_decoration_delivery_receipt === true &&
     Boolean(selectedOfflineLimitedDecorationDeliveryReceiptDraft.value)
+  )
+  const canRecordOfflineLimitedDecorationRefundReceipt = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.record_limited_decoration_refund_receipt === true &&
+    Boolean(selectedOfflineLimitedDecorationRefundReceiptDraft.value) &&
+    offlineQueueRefundAcknowledged.value
   )
   const selectedOfflineSharedDecorationRemovalReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
     (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
@@ -5461,13 +5480,14 @@
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
     if (kind === 'animal_purchase') return selectedSharedAnimalBuyOption.value?.label || '未选动物类型'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
     if (kind === 'pet') return selectedSharedPet.value?.name || selectedSharedPet.value?.type || selectedSharedPet.value?.id || '未选宠物'
     if (kind === 'decoration') return selectedOfflineSharedDecorationTargetLabel.value
     if (kind === 'limited_decoration_receipt') return selectedOfflineLimitedDecorationDeliveryReceiptTargetLabel.value
+    if (kind === 'limited_decoration_refund_receipt') return selectedOfflineLimitedDecorationRefundReceiptTargetLabel.value
     if (kind === 'decoration_refund_receipt') return selectedOfflineSharedDecorationRemovalRefundReceiptTargetLabel.value
     if (kind === 'decoration_receipt') return selectedOfflineSharedDecorationRemovalReceiptTargetLabel.value
     if (kind === 'auto_income') return `${offlineAutoIncomePendingCount.value} 项待领`
@@ -5479,7 +5499,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income',
+      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -5515,6 +5535,7 @@
       makeOption('process_shared_workshop_recipe', 'process_shared_workshop_recipe', '共同工坊处理', 'workshop', canProcessSelectedSharedWorkshopRecipe.value, '请选择材料充足且有权限的工坊配方'),
       makeOption('move_shared_decoration', 'move_shared_decoration', '共同装饰移动', 'decoration', canMoveSelectedSharedDecoration.value, '请选择可移动的共同装饰并确认建设权限'),
       makeOption('record_limited_decoration_delivery_receipt', 'record_limited_decoration_delivery_receipt', '限定装饰交付回执', 'limited_decoration_receipt', canRecordOfflineLimitedDecorationDeliveryReceipt.value, '请选择已扣款且待交付回执的限定装饰草案'),
+      makeOption('record_limited_decoration_refund_receipt', 'record_limited_decoration_refund_receipt', '限定装饰退款回执', 'limited_decoration_refund_receipt', canRecordOfflineLimitedDecorationRefundReceipt.value, '请选择已扣款且待退款回执的限定装饰草案，并确认补偿方案'),
       makeOption('record_shared_decoration_removal_refund_receipt', 'record_shared_decoration_removal_refund_receipt', '共同装修拆除退款回执', 'decoration_refund_receipt', canRecordOfflineSharedDecorationRemovalRefundReceipt.value, '请选择已扣款且待退款回执的共同装修拆除草案，并确认补偿方案'),
       makeOption('record_shared_decoration_removal_receipt', 'record_shared_decoration_removal_receipt', '共同装修拆除回执', 'decoration_receipt', canRecordOfflineSharedDecorationRemovalReceipt.value, '请选择已扣款且待回执的共同装修拆除草案'),
       makeOption('collect_offline_auto_income', 'collect_offline_auto_income', '离线自动收益领取', 'auto_income', canCollectOfflineAutoIncome.value, '当前没有可领取自动收益或缺少权限'),
@@ -6013,6 +6034,7 @@
       process_shared_workshop_recipe: '共同工坊处理',
       move_shared_decoration: '共同装饰移动',
       record_limited_decoration_delivery_receipt: '限定装饰交付回执',
+      record_limited_decoration_refund_receipt: '限定装饰退款回执',
       record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',
       record_shared_decoration_removal_receipt: '共同装修拆除回执',
       collect_offline_auto_income: '离线自动收益领取',
@@ -6079,7 +6101,8 @@
         entry.client_base_stale === true ? '客户端基线过期' : '',
       ].filter(Boolean).join(' · ') || '共同装饰移动已按服务端契约状态合并'
     }
-    if (entry.action === 'record_shared_decoration_removal_refund_receipt') {
+    if (entry.action === 'record_limited_decoration_refund_receipt' || entry.action === 'record_shared_decoration_removal_refund_receipt') {
+      const isLimitedDecorationRefund = entry.action === 'record_limited_decoration_refund_receipt'
       const draftId = typeof entry.draft_id === 'string' ? entry.draft_id : ''
       const receiptRef = typeof entry.receipt_ref === 'string' ? entry.receipt_ref : ''
       const refundAmount = Math.max(0, Math.floor(Number(entry.refund_amount) || 0))
@@ -6096,7 +6119,7 @@
         entry.personal_inventory_merged === false ? '个人背包未改' : '',
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.client_base_stale === true ? '客户端基线过期' : '',
-      ].filter(Boolean).join(' · ') || '共同装修拆除退款回执已按服务端共同基金状态合并'
+      ].filter(Boolean).join(' · ') || (isLimitedDecorationRefund ? '限定装饰退款回执已按服务端共同基金状态合并' : '共同装修拆除退款回执已按服务端共同基金状态合并')
     }
     if (entry.action === 'record_limited_decoration_delivery_receipt' || entry.action === 'record_shared_decoration_removal_receipt') {
       const isLimitedDecorationDelivery = entry.action === 'record_limited_decoration_delivery_receipt'
@@ -6328,6 +6351,14 @@
       basePayload.target_ref = draft.target_ref
       basePayload.receipt_ref = `limited_decoration:${draft.target_ref || draft.id}:offline_receipt`
       basePayload.outcome = 'delivered'
+    } else if (option.id === 'record_limited_decoration_refund_receipt') {
+      const draft = selectedOfflineLimitedDecorationRefundReceiptDraft.value
+      if (!draft || !offlineQueueRefundAcknowledged.value) return null
+      basePayload.draft_id = draft.id
+      basePayload.target_ref = draft.target_ref
+      basePayload.receipt_ref = `limited_decoration_refund:${draft.target_ref || draft.id}:offline_receipt`
+      basePayload.outcome = 'refunded'
+      basePayload.compensation_plan_acknowledged = true
     } else if (option.id === 'record_shared_decoration_removal_refund_receipt') {
       const draft = selectedOfflineSharedDecorationRemovalRefundReceiptDraft.value
       if (!draft || !offlineQueueRefundAcknowledged.value) return null
@@ -9512,6 +9543,7 @@
       sell_shared_animal: '出售共同动物',
       care_shared_pet: '照料共同宠物',
       record_limited_decoration_delivery_receipt: '限定装饰交付回执',
+      record_limited_decoration_refund_receipt: '限定装饰退款回执',
       record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',
       record_shared_decoration_removal_receipt: '共同装修拆除回执',
       collect_offline_auto_income: '领取离线自动收益',

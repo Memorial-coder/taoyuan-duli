@@ -1970,6 +1970,7 @@ export type CohabitationOfflineQueueAction =
   | 'process_shared_workshop_recipe'
   | 'move_shared_decoration'
   | 'record_limited_decoration_delivery_receipt'
+  | 'record_limited_decoration_refund_receipt'
   | 'record_shared_decoration_removal_refund_receipt'
   | 'record_shared_decoration_removal_receipt'
   | 'collect_offline_auto_income'

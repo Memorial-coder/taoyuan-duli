@@ -29,7 +29,7 @@
 - 普通入仓 / 取出 / 卖出会按 `rare_item_policy` 阻断；高价值草案继续按稀有权限和成员确认保护。
 
 ### 0531 同居离线限定装饰 / 共同装修回执
-- 离线队列新增 `record_limited_decoration_delivery_receipt`、`record_shared_decoration_removal_receipt` 与 `record_shared_decoration_removal_refund_receipt` 前端入口，可把已扣款且待回执的限定装饰交付、共同装修拆除完成或退款草案加入本地离线缓存。
+- 离线队列新增 `record_limited_decoration_delivery_receipt`、`record_limited_decoration_refund_receipt`、`record_shared_decoration_removal_receipt` 与 `record_shared_decoration_removal_refund_receipt` 前端入口，可把已扣款且待回执的限定装饰交付 / 退款、共同装修拆除完成或退款草案加入本地离线缓存。
 - 批量预检 / 自动合并会按服务端高风险回执写链提交 delivered / refunded 回执，结果读回草案、回执、权限、共同装饰状态或共同基金退款流水，以及个人背包 / 个人小屋 / 共同仓库不变的边界。
 
 ### 0531 同居离线冲突自动解决入口

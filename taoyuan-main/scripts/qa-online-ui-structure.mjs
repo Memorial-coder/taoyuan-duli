@@ -235,6 +235,7 @@ expectContains('stores/useCohabitationStore.ts', 'resolveOfflineConflicts', '共
 expectContains('online/OnlineCohabitationView.vue', 'offlineConflictAutoResolutionLabel', '共同庄园离线页应读回自动冲突解决摘要')
 expectContains('online/OnlineCohabitationView.vue', 'offline_conflict_auto_resolve_enabled', '共同庄园离线页应展示自动冲突解决能力')
 expectContains('online/OnlineCohabitationView.vue', 'record_limited_decoration_delivery_receipt', '共同庄园离线队列应提供限定装饰交付回执入口')
+expectContains('online/OnlineCohabitationView.vue', 'record_limited_decoration_refund_receipt', '共同庄园离线队列应提供限定装饰退款回执入口')
 expectContains('online/OnlineCohabitationView.vue', 'record_shared_decoration_removal_refund_receipt', '共同庄园离线队列应提供共同装修拆除退款回执入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-offline-refund-ack', '共同庄园离线退款回执应要求补偿确认')
 expectContains('online/OnlineCohabitationView.vue', 'record_shared_decoration_removal_receipt', '共同庄园离线队列应提供共同装修拆除回执入口')
