@@ -13159,6 +13159,176 @@ const duplicateOfflineRareItemRefundQueue = await runtime.mergeCohabitationOffli
 }, actor(offlineRareItemRefundOwner))
 assert.equal(duplicateOfflineRareItemRefundQueue.offline_queue_merge.idempotent, true, 'duplicate offline rare item refund receipt queue should replay by queue idempotency key')
 
+const offlineFamilyMajorEventOwner = 'cohabit_ofme_o31'
+const offlineFamilyMajorEventPartner = 'cohabit_ofme_p31'
+const offlineFamilyMajorEventContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineFamilyMajorEventOwner,
+  partnerUsername: offlineFamilyMajorEventPartner,
+  contractType: 'marriage',
+  contractKey: 'offline-family-major-event',
+})
+const offlineFamilyMajorEventOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventOwner).slots[0].raw
+const offlineFamilyMajorEventPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventPartner).slots[0].raw
+const offlineFamilyMajorEventDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineFamilyMajorEventContractId, {
+  amount: 1300,
+  purpose: 'family_major_event',
+  target_ref: 'family_event:child_school:offline_plan',
+  memo: 'qa offline family major event receipt draft',
+  idempotency_key: 'qa-offline-family-major-event-receipt-draft',
+}, actor(offlineFamilyMajorEventOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineFamilyMajorEventContractId, offlineFamilyMajorEventDraft.draft.id, {
+  memo: 'qa partner confirms offline family major event receipt',
+  idempotency_key: 'qa-offline-family-major-event-receipt-confirm',
+}, actor(offlineFamilyMajorEventPartner))
+const offlineFamilyMajorEventExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineFamilyMajorEventContractId, offlineFamilyMajorEventDraft.draft.id, {
+  memo: 'qa execute offline family major event receipt',
+  idempotency_key: 'qa-offline-family-major-event-receipt-execute',
+}, actor(offlineFamilyMajorEventOwner))
+const offlineFamilyMajorEventStatus = await runtime.getCohabitationOfflineStatus(offlineFamilyMajorEventContractId, actor(offlineFamilyMajorEventOwner))
+assert.ok(offlineFamilyMajorEventStatus.offline_status.summary.offline_queue_supported_actions.includes('record_family_major_event_receipt'), 'offline queue should expose family major event receipt as supported action')
+assert.equal(offlineFamilyMajorEventStatus.offline_status.actor_capabilities.record_family_major_event_receipt, true, 'owner should be able to record family major event receipt offline')
+const offlineFamilyMajorEventQueue = await runtime.mergeCohabitationOfflineQueue(offlineFamilyMajorEventContractId, {
+  idempotency_key: 'qa-offline-family-major-event-receipt-queue',
+  client_queue_revision: offlineFamilyMajorEventStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_family_major_event_receipt',
+    operation_id: 'qa-offline-family-major-event-receipt-op',
+    idempotency_key: 'qa-offline-family-major-event-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineFamilyMajorEventDraft.draft.id,
+      target_ref: 'family_event:child_school:offline_plan',
+      receipt_ref: 'family_event_receipt:child_school:offline-done',
+      memo: 'qa offline family major event receipt',
+    },
+  }],
+}, actor(offlineFamilyMajorEventOwner))
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept family major event receipt')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.rejected_count, 0, 'offline family major event receipt should not be rejected')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.action, 'record_family_major_event_receipt', 'offline family major event receipt result should keep action')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.receipt_kind, 'family_major_event', 'offline family major event receipt should identify receipt kind')
+assert.deepEqual(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.required_permission_keys, ['family.major_family_choice'], 'offline family major event receipt should require family permission')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.contract_family_state_changed, true, 'offline family major event receipt should mark contract family state changed')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.personal_family_state_mutated, false, 'offline family major event receipt should not mutate personal family state')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, false, 'offline family major event receipt should not mutate shared decoration state')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.shared_fund_changed, false, 'offline family major event receipt should not mutate shared fund after executed deduction')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline family major event receipt should not mutate shared warehouse')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.original_fund_ledger_id, offlineFamilyMajorEventExecute.ledger_entry.id, 'offline family major event receipt should retain original fund ledger trace')
+assert.ok(offlineFamilyMajorEventQueue.contract.family_state?.major_event_ledger?.find(entry => entry.receipt_ref === 'family_event_receipt:child_school:offline-done'), 'offline family major event receipt should persist contract family event ledger')
+assert.ok(!offlineFamilyMajorEventQueue.contract.shared_fund_deliveries?.find(entry => entry.target_ref === 'family_event:child_school:offline_plan'), 'offline family major event receipt should not persist delivery entry')
+assert.ok(offlineFamilyMajorEventQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-family-major-event-receipt-op'), 'offline family major event receipt should write high-risk receipt audit')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventOwner).slots[0].raw, offlineFamilyMajorEventOwnerRawBefore, 'offline family major event receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventPartner).slots[0].raw, offlineFamilyMajorEventPartnerRawBefore, 'offline family major event receipt should not rewrite partner save')
+const duplicateOfflineFamilyMajorEventQueue = await runtime.mergeCohabitationOfflineQueue(offlineFamilyMajorEventContractId, {
+  idempotency_key: 'qa-offline-family-major-event-receipt-queue',
+  operations: [{
+    action: 'record_family_major_event_receipt',
+    operation_id: 'qa-offline-family-major-event-receipt-op',
+    idempotency_key: 'qa-offline-family-major-event-receipt-op',
+    payload: {
+      draft_id: offlineFamilyMajorEventDraft.draft.id,
+      receipt_ref: 'family_event_receipt:child_school:offline-done',
+    },
+  }],
+}, actor(offlineFamilyMajorEventOwner))
+assert.equal(duplicateOfflineFamilyMajorEventQueue.offline_queue_merge.idempotent, true, 'duplicate offline family major event receipt queue should replay by queue idempotency key')
+
+const offlineFamilyMajorEventRefundOwner = 'cohabit_ofmr_o31'
+const offlineFamilyMajorEventRefundPartner = 'cohabit_ofmr_p31'
+const offlineFamilyMajorEventRefundContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineFamilyMajorEventRefundOwner,
+  partnerUsername: offlineFamilyMajorEventRefundPartner,
+  contractType: 'marriage',
+  contractKey: 'offline-family-major-event-refund',
+})
+const offlineFamilyMajorEventRefundFundBeforeDraft = await runtime.getCohabitationFund(offlineFamilyMajorEventRefundContractId, actor(offlineFamilyMajorEventRefundOwner))
+const offlineFamilyMajorEventRefundBalanceBeforeDraft = offlineFamilyMajorEventRefundFundBeforeDraft.fund.balance
+const offlineFamilyMajorEventRefundOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventRefundOwner).slots[0].raw
+const offlineFamilyMajorEventRefundPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventRefundPartner).slots[0].raw
+const offlineFamilyMajorEventRefundDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineFamilyMajorEventRefundContractId, {
+  amount: 1350,
+  purpose: 'family_major_event',
+  target_ref: 'family_event:child_care:offline_refund_plan',
+  memo: 'qa offline family major event refund receipt draft',
+  idempotency_key: 'qa-offline-family-major-event-refund-receipt-draft',
+}, actor(offlineFamilyMajorEventRefundOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineFamilyMajorEventRefundContractId, offlineFamilyMajorEventRefundDraft.draft.id, {
+  memo: 'qa partner confirms offline family major event refund receipt',
+  idempotency_key: 'qa-offline-family-major-event-refund-receipt-confirm',
+}, actor(offlineFamilyMajorEventRefundPartner))
+const offlineFamilyMajorEventRefundExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineFamilyMajorEventRefundContractId, offlineFamilyMajorEventRefundDraft.draft.id, {
+  memo: 'qa execute offline family major event refund receipt',
+  idempotency_key: 'qa-offline-family-major-event-refund-receipt-execute',
+}, actor(offlineFamilyMajorEventRefundOwner))
+const offlineFamilyMajorEventRefundStatus = await runtime.getCohabitationOfflineStatus(offlineFamilyMajorEventRefundContractId, actor(offlineFamilyMajorEventRefundOwner))
+assert.ok(offlineFamilyMajorEventRefundStatus.offline_status.summary.offline_queue_supported_actions.includes('record_family_major_event_refund_receipt'), 'offline queue should expose family major event refund receipt as supported action')
+assert.equal(offlineFamilyMajorEventRefundStatus.offline_status.actor_capabilities.record_family_major_event_refund_receipt, true, 'owner should be able to record family major event refund receipt offline')
+const offlineFamilyMajorEventRefundDeniedQueue = await runtime.mergeCohabitationOfflineQueue(offlineFamilyMajorEventRefundContractId, {
+  idempotency_key: 'qa-offline-family-major-event-refund-receipt-denied-queue',
+  client_queue_revision: offlineFamilyMajorEventRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_family_major_event_refund_receipt',
+    operation_id: 'qa-offline-family-major-event-refund-receipt-denied-op',
+    idempotency_key: 'qa-offline-family-major-event-refund-receipt-denied-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineFamilyMajorEventRefundDraft.draft.id,
+      target_ref: 'family_event:child_care:offline_refund_plan',
+      receipt_ref: 'family_event_refund:child_care:offline-denied',
+      memo: 'qa offline family major event refund receipt denied',
+    },
+  }],
+}, actor(offlineFamilyMajorEventRefundOwner))
+assert.equal(offlineFamilyMajorEventRefundDeniedQueue.offline_queue_merge.accepted_count, 0, 'offline family major event refund without acknowledgement should not commit')
+assert.equal(offlineFamilyMajorEventRefundDeniedQueue.offline_queue_merge.rejected_count, 1, 'offline family major event refund without acknowledgement should return rejected evidence')
+assert.equal(offlineFamilyMajorEventRefundDeniedQueue.offline_queue_merge.rejected[0]?.reason, 'family_major_event_refund_acknowledgement_required', 'offline family major event refund denial should require compensation acknowledgement')
+assert.equal(offlineFamilyMajorEventRefundDeniedQueue.offline_queue_merge.rejected[0]?.shared_fund_changed, false, 'rejected offline family major event refund receipt should not mutate shared fund')
+const offlineFamilyMajorEventRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineFamilyMajorEventRefundContractId, {
+  idempotency_key: 'qa-offline-family-major-event-refund-receipt-queue',
+  client_queue_revision: offlineFamilyMajorEventRefundStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_family_major_event_refund_receipt',
+    operation_id: 'qa-offline-family-major-event-refund-receipt-op',
+    idempotency_key: 'qa-offline-family-major-event-refund-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineFamilyMajorEventRefundDraft.draft.id,
+      target_ref: 'family_event:child_care:offline_refund_plan',
+      receipt_ref: 'family_event_refund:child_care:offline-done',
+      compensation_plan_acknowledged: true,
+      memo: 'qa offline family major event refund receipt',
+    },
+  }],
+}, actor(offlineFamilyMajorEventRefundOwner))
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept family major event refund receipt')
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.results[0]?.action, 'record_family_major_event_refund_receipt', 'offline family major event refund receipt result should keep action')
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.results[0]?.receipt_kind, 'family_major_event_refund', 'offline family major event refund receipt should identify receipt kind')
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.results[0]?.refund_amount, 1350, 'offline family major event refund receipt should return refund amount')
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.results[0]?.shared_fund_changed, true, 'offline family major event refund receipt should mark shared fund changed')
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.results[0]?.contract_family_state_changed, false, 'offline family major event refund receipt should not mutate contract family state')
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.results[0]?.personal_family_state_mutated, false, 'offline family major event refund receipt should not mutate personal family state')
+assert.equal(offlineFamilyMajorEventRefundQueue.contract.shared_fund.balance, offlineFamilyMajorEventRefundBalanceBeforeDraft, 'offline family major event refund receipt should return executed deduction to shared fund')
+assert.ok(offlineFamilyMajorEventRefundQueue.contract.shared_fund.ledger.find(entry => entry.action === 'high_risk_fund_refund' && entry.idempotency_key === 'qa-offline-family-major-event-refund-receipt-op'), 'offline family major event refund receipt should write refund fund ledger')
+assert.ok(!offlineFamilyMajorEventRefundQueue.contract.family_state?.major_event_ledger?.find(entry => entry.target_ref === 'family_event:child_care:offline_refund_plan'), 'offline family major event refund receipt should not persist family event delivery entry')
+assert.ok(offlineFamilyMajorEventRefundQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-family-major-event-refund-receipt-op' && entry.detail?.refund_amount === 1350), 'offline family major event refund receipt should write high-risk refund audit')
+assert.equal(offlineFamilyMajorEventRefundQueue.offline_queue_merge.results[0]?.original_fund_ledger_id, offlineFamilyMajorEventRefundExecute.ledger_entry.id, 'offline family major event refund receipt should retain original fund ledger trace')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventRefundOwner).slots[0].raw, offlineFamilyMajorEventRefundOwnerRawBefore, 'offline family major event refund receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventRefundPartner).slots[0].raw, offlineFamilyMajorEventRefundPartnerRawBefore, 'offline family major event refund receipt should not rewrite partner save')
+const duplicateOfflineFamilyMajorEventRefundQueue = await runtime.mergeCohabitationOfflineQueue(offlineFamilyMajorEventRefundContractId, {
+  idempotency_key: 'qa-offline-family-major-event-refund-receipt-queue',
+  operations: [{
+    action: 'record_family_major_event_refund_receipt',
+    operation_id: 'qa-offline-family-major-event-refund-receipt-op',
+    idempotency_key: 'qa-offline-family-major-event-refund-receipt-op',
+    payload: {
+      draft_id: offlineFamilyMajorEventRefundDraft.draft.id,
+      receipt_ref: 'family_event_refund:child_care:offline-done',
+      compensation_plan_acknowledged: true,
+    },
+  }],
+}, actor(offlineFamilyMajorEventRefundOwner))
+assert.equal(duplicateOfflineFamilyMajorEventRefundQueue.offline_queue_merge.idempotent, true, 'duplicate offline family major event refund receipt queue should replay by queue idempotency key')
+
 const offlineDecorationRemovalRefundOwner = 'cohabit_odrf_o31'
 const offlineDecorationRemovalRefundPartner = 'cohabit_odrf_p31'
 const offlineDecorationRemovalRefundContractId = await setupDualLargeFundContract({

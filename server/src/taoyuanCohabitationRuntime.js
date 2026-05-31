@@ -579,6 +579,8 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'move_shared_decoration',
   'record_rare_item_delivery_receipt',
   'record_rare_item_refund_receipt',
+  'record_family_major_event_receipt',
+  'record_family_major_event_refund_receipt',
   'record_limited_decoration_delivery_receipt',
   'record_limited_decoration_refund_receipt',
   'record_shared_decoration_removal_refund_receipt',
@@ -9902,6 +9904,11 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
         && actorPermissions.storage.withdraw_rare === true,
       record_rare_item_refund_receipt: actorPermissions.fund.spend_large === true
         && actorPermissions.confirmations.large_fund_spend_requires_both === true,
+      record_family_major_event_receipt: actorPermissions.fund.spend_large === true
+        && actorPermissions.confirmations.large_fund_spend_requires_both === true
+        && actorPermissions.family.major_family_choice === true,
+      record_family_major_event_refund_receipt: actorPermissions.fund.spend_large === true
+        && actorPermissions.confirmations.large_fund_spend_requires_both === true,
       record_limited_decoration_delivery_receipt: actorPermissions.fund.spend_large === true
         && actorPermissions.confirmations.large_fund_spend_requires_both === true
         && actorPermissions.construction.buy_furniture === true,
@@ -19212,6 +19219,25 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue rare item refund receipt merge', 160),
     }, actor);
   }
+  if (operation.action === 'record_family_major_event_receipt') {
+    return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
+      ...payload,
+      outcome: 'delivered',
+      receipt_ref: payload.receipt_ref || payload.delivery_receipt_ref || payload.target_ref,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue family major event receipt merge', 160),
+    }, actor);
+  }
+  if (operation.action === 'record_family_major_event_refund_receipt') {
+    return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
+      ...payload,
+      outcome: 'refunded',
+      receipt_ref: payload.receipt_ref || payload.refund_receipt_ref || payload.delivery_receipt_ref || payload.target_ref,
+      compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true || payload.refund_acknowledged === true,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue family major event refund receipt merge', 160),
+    }, actor);
+  }
   if (operation.action === 'record_limited_decoration_delivery_receipt') {
     return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
       ...payload,
@@ -19435,10 +19461,11 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       compensation_hint: 'offline shared decoration move only updates contract shared_decoration_state and audit log; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
-  if (action === 'record_shared_decoration_removal_refund_receipt' || action === 'record_limited_decoration_refund_receipt' || action === 'record_rare_item_refund_receipt') {
+  if (action === 'record_shared_decoration_removal_refund_receipt' || action === 'record_limited_decoration_refund_receipt' || action === 'record_rare_item_refund_receipt' || action === 'record_family_major_event_refund_receipt') {
     const isLimitedDecorationRefund = action === 'record_limited_decoration_refund_receipt';
     const isRareItemRefund = action === 'record_rare_item_refund_receipt';
-    const refundTargetKind = isRareItemRefund ? 'rare_item' : (isLimitedDecorationRefund ? 'limited_decoration' : 'shared_decoration_removal');
+    const isFamilyMajorEventRefund = action === 'record_family_major_event_refund_receipt';
+    const refundTargetKind = isFamilyMajorEventRefund ? 'family_major_event' : (isRareItemRefund ? 'rare_item' : (isLimitedDecorationRefund ? 'limited_decoration' : 'shared_decoration_removal'));
     const draft = result.draft || {};
     const receipt = result.receipt || {};
     const originalFundLedger = result.original_fund_ledger_entry || {};
@@ -19453,7 +19480,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       receipt_id: receipt.id || '',
       receipt_ref: receipt.receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.refund_receipt_ref || operation.payload?.target_ref, 120),
       receipt_outcome: receipt.outcome || 'refunded',
-      receipt_kind: isRareItemRefund ? 'rare_item_refund' : (isLimitedDecorationRefund ? 'limited_decoration_refund' : 'shared_decoration_removal_refund'),
+      receipt_kind: isFamilyMajorEventRefund ? 'family_major_event_refund' : (isRareItemRefund ? 'rare_item_refund' : (isLimitedDecorationRefund ? 'limited_decoration_refund' : 'shared_decoration_removal_refund')),
       original_fund_ledger_id: originalFundLedgerId,
       refund_fund_ledger_id: refundLedgerId,
       fund_ledger_id: refundLedgerId,
@@ -19462,61 +19489,75 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       balance_after: Math.max(0, Math.floor(Number(result.shared_fund?.balance_after || result.fund?.balance || refundLedger.balance_after) || 0)),
       required_permission_keys: Array.isArray(result.required_permission_keys) ? result.required_permission_keys : [],
       shared_decoration_state_changed: false,
+      contract_family_state_changed: false,
       personal_home_mutated: false,
+      personal_family_state_mutated: false,
       personal_save_changed: false,
       personal_inventory_merged: false,
       shared_warehouse_changed: false,
       shared_fund_changed: true,
       already_recorded: result.already_recorded === true,
       audit_action: 'fund_high_risk_receipt_recorded',
-      compensation_hint: isRareItemRefund
+      compensation_hint: isFamilyMajorEventRefund
+        ? 'offline family major event refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal family state, personal home saves, personal inventory, and shared warehouse remain unchanged.'
+        : isRareItemRefund
         ? 'offline rare item refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal inventory, personal home saves, shared decoration state, and shared warehouse remain unchanged.'
         : isLimitedDecorationRefund
         ? 'offline limited decoration refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal inventory, personal home saves, shared decoration state, and shared warehouse remain unchanged.'
         : 'offline shared decoration removal refund receipt returns the executed high-risk spend to the shared fund and writes fund/audit ledgers; personal home saves, personal inventory, and shared warehouse remain unchanged.',
     };
   }
-  if (action === 'record_shared_decoration_removal_receipt' || action === 'record_limited_decoration_delivery_receipt' || action === 'record_rare_item_delivery_receipt') {
+  if (action === 'record_shared_decoration_removal_receipt' || action === 'record_limited_decoration_delivery_receipt' || action === 'record_rare_item_delivery_receipt' || action === 'record_family_major_event_receipt') {
     const draft = result.draft || {};
     const receipt = result.receipt || {};
     const stateEntry = result.shared_decoration_state_entry || {};
     const deliveryEntry = result.delivery_entry || {};
+    const familyEventEntry = result.family_major_event_entry || {};
     const originalFundLedger = result.original_fund_ledger_entry || {};
-    const targetRef = draft.target_ref || stateEntry.target_ref || sanitizeText(operation.payload?.target_ref || operation.payload?.receipt_ref, 120);
+    const targetRef = draft.target_ref || stateEntry.target_ref || familyEventEntry.target_ref || sanitizeText(operation.payload?.target_ref || operation.payload?.receipt_ref, 120);
     const decorationId = stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
     const itemId = deliveryEntry.item_id || sanitizeText(operation.payload?.item_id || operation.payload?.itemId || operation.payload?.rare_item_id, 80);
-    const fundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || stateEntry.fund_ledger_id || '';
+    const fundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || stateEntry.fund_ledger_id || familyEventEntry.fund_ledger_id || '';
     const isLimitedDecorationDelivery = action === 'record_limited_decoration_delivery_receipt';
     const isRareItemDelivery = action === 'record_rare_item_delivery_receipt';
+    const isFamilyMajorEventReceipt = action === 'record_family_major_event_receipt';
+    const fallbackTargetRef = isRareItemDelivery && itemId
+      ? `rare_item:${itemId}:delivery_receipt`
+      : isFamilyMajorEventReceipt && draft.id
+      ? `family_event:${draft.id}:receipt`
+      : (decorationId ? `shared_decoration:${decorationId}:${isLimitedDecorationDelivery ? 'delivery_receipt' : 'removal_receipt'}` : '');
     return {
       ...entry,
-      target_ref: entry.target_ref || targetRef || (isRareItemDelivery && itemId
-        ? `rare_item:${itemId}:delivery_receipt`
-        : (decorationId ? `shared_decoration:${decorationId}:${isLimitedDecorationDelivery ? 'delivery_receipt' : 'removal_receipt'}` : '')),
+      target_ref: entry.target_ref || targetRef || fallbackTargetRef,
       draft_id: draft.id || sanitizeText(operation.payload?.draft_id || operation.payload?.draftId || operation.payload?.id, 100),
-      receipt_id: receipt.id || stateEntry.receipt_id || '',
-      receipt_ref: receipt.receipt_ref || stateEntry.delivery_receipt_ref || stateEntry.removal_receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.delivery_receipt_ref || operation.payload?.removal_receipt_ref || operation.payload?.target_ref, 120),
+      receipt_id: receipt.id || stateEntry.receipt_id || familyEventEntry.receipt_id || '',
+      receipt_ref: receipt.receipt_ref || stateEntry.delivery_receipt_ref || stateEntry.removal_receipt_ref || familyEventEntry.receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.delivery_receipt_ref || operation.payload?.removal_receipt_ref || operation.payload?.target_ref, 120),
       receipt_outcome: receipt.outcome || 'delivered',
-      receipt_kind: isRareItemDelivery ? 'rare_item_delivery' : (isLimitedDecorationDelivery ? 'limited_decoration_delivery' : 'shared_decoration_removal'),
+      receipt_kind: isFamilyMajorEventReceipt ? 'family_major_event' : (isRareItemDelivery ? 'rare_item_delivery' : (isLimitedDecorationDelivery ? 'limited_decoration_delivery' : 'shared_decoration_removal')),
       item_id: itemId,
       decoration_id: decorationId,
       decoration_kind: stateEntry.decoration_kind || normalizeSharedDecorationKind(operation.payload?.decoration_kind || operation.payload?.kind, operation.payload || {}),
       delivery_entry_id: deliveryEntry.id || '',
       shared_decoration_state_entry_id: stateEntry.id || '',
-      shared_decoration_state_changed: isRareItemDelivery ? false : stateEntry.shared_decoration_state_changed !== false,
+      family_major_event_entry_id: familyEventEntry.id || '',
+      contract_family_state_changed: isFamilyMajorEventReceipt ? familyEventEntry.contract_family_state_changed !== false : false,
+      shared_decoration_state_changed: isRareItemDelivery || isFamilyMajorEventReceipt ? false : stateEntry.shared_decoration_state_changed !== false,
       original_fund_ledger_id: fundLedgerId,
       fund_ledger_id: fundLedgerId,
       fund_ledger_ids: [fundLedgerId].filter(Boolean),
-      amount: Math.max(0, Math.floor(Number(stateEntry.amount || deliveryEntry.amount || draft.amount || originalFundLedger.amount) || 0)),
+      amount: Math.max(0, Math.floor(Number(stateEntry.amount || deliveryEntry.amount || familyEventEntry.amount || draft.amount || originalFundLedger.amount) || 0)),
       required_permission_keys: Array.isArray(result.required_permission_keys) ? result.required_permission_keys : [],
       personal_home_mutated: false,
+      personal_family_state_mutated: false,
       personal_save_changed: false,
       personal_inventory_merged: false,
       shared_warehouse_changed: false,
       shared_fund_changed: false,
       already_recorded: result.already_recorded === true,
       audit_action: 'fund_high_risk_receipt_recorded',
-      compensation_hint: isRareItemDelivery
+      compensation_hint: isFamilyMajorEventReceipt
+        ? 'offline family major event receipt only closes an executed high-risk draft and records contract family_state.major_event_ledger; personal family state, personal home saves, shared warehouse, and shared fund remain unchanged.'
+        : isRareItemDelivery
         ? 'offline rare item delivery receipt only closes an executed high-risk draft and records contract shared_fund_deliveries; personal inventory, personal home saves, shared decoration state, shared warehouse, and shared fund remain unchanged.'
         : isLimitedDecorationDelivery
         ? 'offline limited decoration delivery receipt only closes an executed high-risk draft and updates contract shared_fund_deliveries plus shared_decoration_state; personal inventory, personal home saves, shared warehouse, and shared fund remain unchanged.'
@@ -19772,6 +19813,83 @@ function buildCohabitationOfflineRareItemRefundReceiptRejection(operation = {}, 
     server_authoritative: true,
     conflict_policy: 'server_authoritative_reject_and_continue',
     compensation_hint: 'offline rare item refund receipt was rejected before any shared fund refund, delivery record, personal inventory, personal home, warehouse, or decoration mutation.',
+  };
+}
+
+function buildCohabitationOfflineFamilyMajorEventReceiptRejection(operation = {}, error = {}) {
+  if (operation.action !== 'record_family_major_event_receipt') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'family_major_event_receipt_server_state_rejected';
+  if (status === 400) reason = 'invalid_family_major_event_receipt_operation';
+  if (status === 403) reason = 'family_major_event_receipt_permission_denied';
+  if (status === 404) reason = 'family_major_event_draft_not_found';
+  if (status === 409) reason = 'family_major_event_receipt_state_conflict';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'family_major_event_receipt_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    draft_id: sanitizeText(payload.draft_id || payload.draftId || payload.id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.delivery_receipt_ref || payload.target_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.receipt_ref || payload.delivery_receipt_ref, 120),
+    required_permission_keys: ['fund.spend_large', 'confirmations.large_fund_spend_requires_both', 'family.major_family_choice'],
+    contract_family_state_changed: false,
+    personal_family_state_mutated: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_decoration_state_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline family major event receipt was rejected before any contract family event ledger, personal family state, personal home, warehouse, decoration state, or fund mutation.',
+  };
+}
+
+function buildCohabitationOfflineFamilyMajorEventRefundReceiptRejection(operation = {}, error = {}) {
+  if (operation.action !== 'record_family_major_event_refund_receipt') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'family_major_event_refund_receipt_server_state_rejected';
+  if (status === 400) reason = 'invalid_family_major_event_refund_receipt_operation';
+  if (status === 403) reason = 'family_major_event_refund_receipt_permission_denied';
+  if (status === 404) reason = 'family_major_event_draft_not_found';
+  if (status === 409) reason = 'family_major_event_refund_receipt_state_conflict';
+  if (status === 409 && message.includes('补偿方案')) reason = 'family_major_event_refund_acknowledgement_required';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'family_major_event_refund_receipt_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    draft_id: sanitizeText(payload.draft_id || payload.draftId || payload.id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.refund_receipt_ref || payload.target_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.receipt_ref || payload.refund_receipt_ref, 120),
+    required_permission_keys: ['fund.spend_large', 'confirmations.large_fund_spend_requires_both'],
+    contract_family_state_changed: false,
+    personal_family_state_mutated: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_decoration_state_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline family major event refund receipt was rejected before any shared fund refund, contract family event ledger, personal family state, personal home, warehouse, or decoration mutation.',
   };
 }
 
@@ -20513,6 +20631,16 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const rareItemRefundReceiptRejection = buildCohabitationOfflineRareItemRefundReceiptRejection(operation, error);
       if (rareItemRefundReceiptRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(rareItemRefundReceiptRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const familyMajorEventReceiptRejection = buildCohabitationOfflineFamilyMajorEventReceiptRejection(operation, error);
+      if (familyMajorEventReceiptRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(familyMajorEventReceiptRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const familyMajorEventRefundReceiptRejection = buildCohabitationOfflineFamilyMajorEventRefundReceiptRejection(operation, error);
+      if (familyMajorEventRefundReceiptRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(familyMajorEventRefundReceiptRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const limitedDecorationRefundReceiptRejection = buildCohabitationOfflineLimitedDecorationRefundReceiptRejection(operation, error);

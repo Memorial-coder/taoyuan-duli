@@ -3035,7 +3035,7 @@
                 </p>
               </div>
               <label
-                v-if="selectedOfflineQueueActionId === 'record_rare_item_refund_receipt' || selectedOfflineQueueActionId === 'record_limited_decoration_refund_receipt' || selectedOfflineQueueActionId === 'record_shared_decoration_removal_refund_receipt'"
+                v-if="selectedOfflineQueueActionId === 'record_rare_item_refund_receipt' || selectedOfflineQueueActionId === 'record_family_major_event_refund_receipt' || selectedOfflineQueueActionId === 'record_limited_decoration_refund_receipt' || selectedOfflineQueueActionId === 'record_shared_decoration_removal_refund_receipt'"
                 class="flex items-start gap-2 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
                 data-testid="online-cohabitation-offline-refund-ack"
               >
@@ -3364,6 +3364,8 @@
     | 'move_shared_decoration'
     | 'record_rare_item_delivery_receipt'
     | 'record_rare_item_refund_receipt'
+    | 'record_family_major_event_receipt'
+    | 'record_family_major_event_refund_receipt'
     | 'record_limited_decoration_delivery_receipt'
     | 'record_limited_decoration_refund_receipt'
     | 'record_shared_decoration_removal_refund_receipt'
@@ -5361,6 +5363,41 @@
     Boolean(selectedOfflineRareItemRefundReceiptDraft.value) &&
     offlineQueueRefundAcknowledged.value
   )
+  const selectedOfflineFamilyMajorEventReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
+    (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
+      draft.purpose === 'family_major_event' &&
+      draft.state === 'executed' &&
+      Boolean(draft.final_spend_ledger_id) &&
+      (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    ) ?? null
+  )
+  const selectedOfflineFamilyMajorEventReceiptTargetLabel = computed(() => {
+    const draft = selectedOfflineFamilyMajorEventReceiptDraft.value
+    return draft?.target_ref || draft?.id || '未选择家庭事件回执'
+  })
+  const selectedOfflineFamilyMajorEventRefundReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
+    (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
+      draft.purpose === 'family_major_event' &&
+      draft.state === 'executed' &&
+      Boolean(draft.final_spend_ledger_id) &&
+      (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    ) ?? null
+  )
+  const selectedOfflineFamilyMajorEventRefundReceiptTargetLabel = computed(() => {
+    const draft = selectedOfflineFamilyMajorEventRefundReceiptDraft.value
+    return draft?.target_ref || draft?.id || '未选择家庭事件退款回执'
+  })
+  const canRecordOfflineFamilyMajorEventReceipt = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.record_family_major_event_receipt === true &&
+    Boolean(selectedOfflineFamilyMajorEventReceiptDraft.value)
+  )
+  const canRecordOfflineFamilyMajorEventRefundReceipt = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.record_family_major_event_refund_receipt === true &&
+    Boolean(selectedOfflineFamilyMajorEventRefundReceiptDraft.value) &&
+    offlineQueueRefundAcknowledged.value
+  )
   const selectedOfflineLimitedDecorationDeliveryReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
     (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
       draft.purpose === 'limited_decoration' &&
@@ -5543,7 +5580,7 @@
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'family_major_event_receipt' | 'family_major_event_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
     if (kind === 'animal_purchase') return selectedSharedAnimalBuyOption.value?.label || '未选动物类型'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
@@ -5551,6 +5588,8 @@
     if (kind === 'decoration') return selectedOfflineSharedDecorationTargetLabel.value
     if (kind === 'rare_item_receipt') return selectedOfflineRareItemDeliveryReceiptTargetLabel.value
     if (kind === 'rare_item_refund_receipt') return selectedOfflineRareItemRefundReceiptTargetLabel.value
+    if (kind === 'family_major_event_receipt') return selectedOfflineFamilyMajorEventReceiptTargetLabel.value
+    if (kind === 'family_major_event_refund_receipt') return selectedOfflineFamilyMajorEventRefundReceiptTargetLabel.value
     if (kind === 'limited_decoration_receipt') return selectedOfflineLimitedDecorationDeliveryReceiptTargetLabel.value
     if (kind === 'limited_decoration_refund_receipt') return selectedOfflineLimitedDecorationRefundReceiptTargetLabel.value
     if (kind === 'decoration_refund_receipt') return selectedOfflineSharedDecorationRemovalRefundReceiptTargetLabel.value
@@ -5564,7 +5603,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income',
+      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'rare_item_receipt' | 'rare_item_refund_receipt' | 'family_major_event_receipt' | 'family_major_event_refund_receipt' | 'limited_decoration_receipt' | 'limited_decoration_refund_receipt' | 'decoration_refund_receipt' | 'decoration_receipt' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -5601,6 +5640,8 @@
       makeOption('move_shared_decoration', 'move_shared_decoration', '共同装饰移动', 'decoration', canMoveSelectedSharedDecoration.value, '请选择可移动的共同装饰并确认建设权限'),
       makeOption('record_rare_item_delivery_receipt', 'record_rare_item_delivery_receipt', '稀有物交付回执', 'rare_item_receipt', canRecordOfflineRareItemDeliveryReceipt.value, '请选择已扣款且待交付回执的稀有物采购草案'),
       makeOption('record_rare_item_refund_receipt', 'record_rare_item_refund_receipt', '稀有物退款回执', 'rare_item_refund_receipt', canRecordOfflineRareItemRefundReceipt.value, '请选择已扣款且待退款回执的稀有物采购草案，并确认补偿方案'),
+      makeOption('record_family_major_event_receipt', 'record_family_major_event_receipt', '家庭事件回执', 'family_major_event_receipt', canRecordOfflineFamilyMajorEventReceipt.value, '请选择已扣款且待回执的家庭重大事件草案'),
+      makeOption('record_family_major_event_refund_receipt', 'record_family_major_event_refund_receipt', '家庭事件退款回执', 'family_major_event_refund_receipt', canRecordOfflineFamilyMajorEventRefundReceipt.value, '请选择已扣款且待退款回执的家庭重大事件草案，并确认补偿方案'),
       makeOption('record_limited_decoration_delivery_receipt', 'record_limited_decoration_delivery_receipt', '限定装饰交付回执', 'limited_decoration_receipt', canRecordOfflineLimitedDecorationDeliveryReceipt.value, '请选择已扣款且待交付回执的限定装饰草案'),
       makeOption('record_limited_decoration_refund_receipt', 'record_limited_decoration_refund_receipt', '限定装饰退款回执', 'limited_decoration_refund_receipt', canRecordOfflineLimitedDecorationRefundReceipt.value, '请选择已扣款且待退款回执的限定装饰草案，并确认补偿方案'),
       makeOption('record_shared_decoration_removal_refund_receipt', 'record_shared_decoration_removal_refund_receipt', '共同装修拆除退款回执', 'decoration_refund_receipt', canRecordOfflineSharedDecorationRemovalRefundReceipt.value, '请选择已扣款且待退款回执的共同装修拆除草案，并确认补偿方案'),
@@ -6102,6 +6143,8 @@
       move_shared_decoration: '共同装饰移动',
       record_rare_item_delivery_receipt: '稀有物交付回执',
       record_rare_item_refund_receipt: '稀有物退款回执',
+      record_family_major_event_receipt: '家庭事件回执',
+      record_family_major_event_refund_receipt: '家庭事件退款回执',
       record_limited_decoration_delivery_receipt: '限定装饰交付回执',
       record_limited_decoration_refund_receipt: '限定装饰退款回执',
       record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',
@@ -6170,8 +6213,9 @@
         entry.client_base_stale === true ? '客户端基线过期' : '',
       ].filter(Boolean).join(' · ') || '共同装饰移动已按服务端契约状态合并'
     }
-    if (entry.action === 'record_rare_item_refund_receipt' || entry.action === 'record_limited_decoration_refund_receipt' || entry.action === 'record_shared_decoration_removal_refund_receipt') {
+    if (entry.action === 'record_rare_item_refund_receipt' || entry.action === 'record_family_major_event_refund_receipt' || entry.action === 'record_limited_decoration_refund_receipt' || entry.action === 'record_shared_decoration_removal_refund_receipt') {
       const isRareItemRefund = entry.action === 'record_rare_item_refund_receipt'
+      const isFamilyMajorEventRefund = entry.action === 'record_family_major_event_refund_receipt'
       const isLimitedDecorationRefund = entry.action === 'record_limited_decoration_refund_receipt'
       const draftId = typeof entry.draft_id === 'string' ? entry.draft_id : ''
       const receiptRef = typeof entry.receipt_ref === 'string' ? entry.receipt_ref : ''
@@ -6184,15 +6228,18 @@
         refundAmount ? `退回基金 ${refundAmount}` : '',
         balanceAfter ? `余额 ${balanceAfter}` : '',
         fundLedgerId ? '基金退款流水已写' : '',
+        isFamilyMajorEventRefund && entry.contract_family_state_changed === false ? '家庭事件状态未改' : '',
         entry.shared_decoration_state_changed === false ? '共同装饰状态未改' : '',
+        isFamilyMajorEventRefund && entry.personal_family_state_mutated === false ? '个人家庭未改' : '',
         entry.personal_home_mutated === false ? '个人小屋未改' : '',
         entry.personal_inventory_merged === false ? '个人背包未改' : '',
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.client_base_stale === true ? '客户端基线过期' : '',
-      ].filter(Boolean).join(' · ') || (isRareItemRefund ? '稀有物退款回执已按服务端共同基金状态合并' : (isLimitedDecorationRefund ? '限定装饰退款回执已按服务端共同基金状态合并' : '共同装修拆除退款回执已按服务端共同基金状态合并'))
+      ].filter(Boolean).join(' · ') || (isFamilyMajorEventRefund ? '家庭事件退款回执已按服务端共同基金状态合并' : (isRareItemRefund ? '稀有物退款回执已按服务端共同基金状态合并' : (isLimitedDecorationRefund ? '限定装饰退款回执已按服务端共同基金状态合并' : '共同装修拆除退款回执已按服务端共同基金状态合并')))
     }
-    if (entry.action === 'record_rare_item_delivery_receipt' || entry.action === 'record_limited_decoration_delivery_receipt' || entry.action === 'record_shared_decoration_removal_receipt') {
+    if (entry.action === 'record_rare_item_delivery_receipt' || entry.action === 'record_family_major_event_receipt' || entry.action === 'record_limited_decoration_delivery_receipt' || entry.action === 'record_shared_decoration_removal_receipt') {
       const isRareItemDelivery = entry.action === 'record_rare_item_delivery_receipt'
+      const isFamilyMajorEventReceipt = entry.action === 'record_family_major_event_receipt'
       const isLimitedDecorationDelivery = entry.action === 'record_limited_decoration_delivery_receipt'
       const itemId = typeof entry.item_id === 'string' ? entry.item_id : ''
       const decorationId = typeof entry.decoration_id === 'string' ? entry.decoration_id : ''
@@ -6205,15 +6252,17 @@
         draftId ? `草案 ${draftId}` : '',
         receiptRef ? `回执 ${receiptRef}` : '',
         permissions ? `权限 ${permissions}` : '',
+        isFamilyMajorEventReceipt && entry.contract_family_state_changed === true ? '家庭事件状态已写' : '',
         entry.shared_decoration_state_changed === true ? '共同装饰状态已写' : '',
         isRareItemDelivery && entry.shared_decoration_state_changed === false ? '共同装饰状态未改' : '',
+        isFamilyMajorEventReceipt && entry.personal_family_state_mutated === false ? '个人家庭未改' : '',
         isRareItemDelivery && entry.personal_inventory_merged === false ? '个人背包未合并' : '',
         isLimitedDecorationDelivery && entry.personal_inventory_merged === false ? '个人背包未合并' : '',
         entry.personal_home_mutated === false ? '个人小屋未改' : '',
         entry.shared_fund_changed === false ? '共同基金未再扣款' : '',
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.client_base_stale === true ? '客户端基线过期' : '',
-      ].filter(Boolean).join(' · ') || (isRareItemDelivery ? '稀有物交付回执已按服务端契约状态合并' : (isLimitedDecorationDelivery ? '限定装饰交付回执已按服务端契约状态合并' : '共同装修拆除回执已按服务端契约状态合并'))
+      ].filter(Boolean).join(' · ') || (isFamilyMajorEventReceipt ? '家庭事件回执已按服务端契约状态合并' : (isRareItemDelivery ? '稀有物交付回执已按服务端契约状态合并' : (isLimitedDecorationDelivery ? '限定装饰交付回执已按服务端契约状态合并' : '共同装修拆除回执已按服务端契约状态合并')))
     }
     const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
     const outputItemId = typeof entry.output_item_id === 'string' ? entry.output_item_id : ''
@@ -6432,6 +6481,21 @@
       basePayload.draft_id = draft.id
       basePayload.target_ref = draft.target_ref
       basePayload.receipt_ref = `rare_item_refund:${draft.target_ref || draft.id}:offline_receipt`
+      basePayload.outcome = 'refunded'
+      basePayload.compensation_plan_acknowledged = true
+    } else if (option.id === 'record_family_major_event_receipt') {
+      const draft = selectedOfflineFamilyMajorEventReceiptDraft.value
+      if (!draft) return null
+      basePayload.draft_id = draft.id
+      basePayload.target_ref = draft.target_ref
+      basePayload.receipt_ref = `family_event:${draft.target_ref || draft.id}:offline_receipt`
+      basePayload.outcome = 'delivered'
+    } else if (option.id === 'record_family_major_event_refund_receipt') {
+      const draft = selectedOfflineFamilyMajorEventRefundReceiptDraft.value
+      if (!draft || !offlineQueueRefundAcknowledged.value) return null
+      basePayload.draft_id = draft.id
+      basePayload.target_ref = draft.target_ref
+      basePayload.receipt_ref = `family_event_refund:${draft.target_ref || draft.id}:offline_receipt`
       basePayload.outcome = 'refunded'
       basePayload.compensation_plan_acknowledged = true
     } else if (option.id === 'record_limited_decoration_delivery_receipt') {
@@ -9634,6 +9698,8 @@
       care_shared_pet: '照料共同宠物',
       record_rare_item_delivery_receipt: '稀有物交付回执',
       record_rare_item_refund_receipt: '稀有物退款回执',
+      record_family_major_event_receipt: '家庭事件回执',
+      record_family_major_event_refund_receipt: '家庭事件退款回执',
       record_limited_decoration_delivery_receipt: '限定装饰交付回执',
       record_limited_decoration_refund_receipt: '限定装饰退款回执',
       record_shared_decoration_removal_refund_receipt: '共同装修拆除退款回执',

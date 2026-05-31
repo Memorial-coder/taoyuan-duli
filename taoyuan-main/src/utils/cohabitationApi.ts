@@ -1971,6 +1971,8 @@ export type CohabitationOfflineQueueAction =
   | 'move_shared_decoration'
   | 'record_rare_item_delivery_receipt'
   | 'record_rare_item_refund_receipt'
+  | 'record_family_major_event_receipt'
+  | 'record_family_major_event_refund_receipt'
   | 'record_limited_decoration_delivery_receipt'
   | 'record_limited_decoration_refund_receipt'
   | 'record_shared_decoration_removal_refund_receipt'
