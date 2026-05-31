@@ -5419,11 +5419,15 @@
       const collected = Math.max(0, Math.floor(Number(entry.collected_count) || 0))
       const farmCount = Math.max(0, Math.floor(Number(entry.farm_harvest_count) || 0))
       const animalCount = Math.max(0, Math.floor(Number(entry.animal_product_count) || 0))
+      const remainingCount = Math.max(0, Math.floor(Number(entry.remaining_pending_count) || 0))
+      const batchMode = typeof entry.batch_mode === 'string' ? entry.batch_mode : ''
       const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
       return [
         `领取 ${collected} 项`,
         `农田 ${farmCount}`,
         `动物产物 ${animalCount}`,
+        batchMode === 'targeted' ? '按目标批处理' : '',
+        remainingCount ? `剩余 ${remainingCount}` : '',
         ledgerIds.length ? `流水 ${ledgerIds.length} 笔` : '',
         '个人存档未改',
         entry.client_base_stale === true ? '客户端基线过期' : '',
@@ -8263,6 +8267,15 @@
     if (entry.action === 'separation_personal_farm_written') {
       const count = Number(detail.restored_plot_count) || 0
       return count > 0 ? `已写回 ${count} 块来源田区，等待基金 / 仓库返还` : '来源田区已写回个人农田'
+    }
+    if (entry.action === 'separation_shared_fund_delta_confirmation_recorded') {
+      const confirmed = Array.isArray(detail.confirmed_member_usernames) ? detail.confirmed_member_usernames.length : 0
+      const pending = Array.isArray(detail.pending_member_usernames) ? detail.pending_member_usernames.length : 0
+      const amount = Number(detail.refund_total) || 0
+      const amountText = amount > 0 ? `，锁定返还 ${amount} 文` : ''
+      return pending > 0
+        ? `共同基金消费差额已确认 ${confirmed} 人，仍有 ${pending} 人待确认${amountText}，未改动资金`
+        : `共同基金消费差额已全员确认${amountText}，未改动资金`
     }
     if (entry.action === 'separation_shared_fund_refunded') {
       const amount = Number(detail.refund_total) || 0
