@@ -1526,6 +1526,13 @@
               <div v-for="entry in warehouseLedger" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ entry.action }}</p>
                 <p class="mt-1 text-[10px] text-muted">{{ entry.item_id }} x{{ entry.quantity }} · {{ formatTime(entry.created_at) }}</p>
+                <p
+                  v-if="entry.withdrawal_risk_level || entry.item_policy"
+                  class="mt-1 text-[10px] text-muted"
+                  data-testid="online-cohabitation-warehouse-ledger-policy-evidence"
+                >
+                  分级：{{ warehouseLedgerRiskLabel(entry) }} · {{ entry.high_value_withdrawal_required ? '需高价值取出确认' : '普通流可用' }}
+                </p>
               </div>
             </div>
           </div>
@@ -3338,6 +3345,7 @@
     CohabitationWarehouseCompensationAuditBundle,
     CohabitationWarehouseHighValueWithdrawalDraft,
     CohabitationWarehouseItem,
+    CohabitationWarehouseLedgerEntry,
   } from '@/utils/cohabitationApi'
 
   type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'visibility' | 'festivalSeats' | 'offline'
@@ -4538,6 +4546,21 @@
   }
 
   const warehouseLedger = computed(() => cohabitationStore.warehouse?.ledger ?? [])
+  const warehouseLedgerRiskLabel = (entry: CohabitationWarehouseLedgerEntry) => {
+    const riskLevel = entry.withdrawal_risk_level || entry.item_policy?.risk_level || ''
+    const labels: Record<string, string> = {
+      common: '普通',
+      high_quality: '高品质保护',
+      rare: '稀有保护',
+    }
+    const policyVersion = entry.item_policy_version || entry.item_policy?.policy_version
+    const classification = entry.item_classification || entry.item_policy?.classification || ''
+    return [
+      labels[riskLevel] || riskLevel || '未分级',
+      classification,
+      policyVersion ? `v${policyVersion}` : '',
+    ].filter(Boolean).join(' · ')
+  }
   const warehouseHighValueWithdrawalDrafts = computed(() => cohabitationStore.warehouse?.high_value_withdrawal_drafts ?? [])
   const warehouseCompensationAuditBundle = computed<CohabitationWarehouseCompensationAuditBundle | null>(() => cohabitationStore.warehouseCompensationAuditBundle)
   const warehouseCompensationAuditBundleRows = computed(() => {

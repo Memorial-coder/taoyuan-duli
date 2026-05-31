@@ -153,6 +153,12 @@ export interface CohabitationWarehouseLedgerEntry {
   item_id: string
   quantity: number
   quality: string
+  item_policy_version?: number
+  item_policy_id?: string
+  item_classification?: string
+  withdrawal_risk_level?: string
+  high_value_withdrawal_required?: boolean
+  item_policy?: CohabitationWarehouseItemPolicyEntry
   actor_username: string
   actor_display_name: string
   source_owner_username: string

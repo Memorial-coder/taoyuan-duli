@@ -4391,6 +4391,8 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
   const sourceLedgerIds = Array.isArray(entry.source_ledger_ids)
     ? entry.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
     : [];
+  const quality = normalizeQuality(entry.quality);
+  const itemPolicy = summarizeWarehouseItemPolicy(getWarehouseItemPolicy(itemId), quality);
   const targetSlots = Array.isArray(entry.target_slots)
     ? entry.target_slots.map(slot => ({
         bag: sanitizeText(slot?.bag, 24) || 'inventory.items',
@@ -4403,8 +4405,14 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     id: sanitizeText(entry.id, 100) || makeId('shared_warehouse_ledger'),
     action,
     item_id: itemId,
-    quality: normalizeQuality(entry.quality),
+    quality,
     quantity,
+    item_policy_version: itemPolicy.policy_version,
+    item_policy_id: itemPolicy.policy_id,
+    item_classification: itemPolicy.classification,
+    withdrawal_risk_level: itemPolicy.risk_level,
+    high_value_withdrawal_required: itemPolicy.high_value_withdrawal_required,
+    item_policy: itemPolicy,
     actor_username: actorUsername,
     actor_display_name: sanitizeText(entry.actor_display_name || actorUsername, 60),
     actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
@@ -13258,13 +13266,18 @@ function resolveSharedFundAutoPurchase(spend) {
 }
 
 function buildWarehouseOriginAsset(entry) {
-  const withdrawalRiskLevel = getWarehouseWithdrawalRiskLevel(entry.item_id, entry.quality);
+  const quality = normalizeQuality(entry.quality);
+  const itemPolicy = summarizeWarehouseItemPolicy(getWarehouseItemPolicy(entry.item_id), quality);
+  const withdrawalRiskLevel = itemPolicy.risk_level;
   return {
     ledger_id: entry.id,
     action: entry.action,
     item_id: entry.item_id,
     quantity: entry.quantity,
-    quality: entry.quality,
+    quality,
+    item_policy_version: itemPolicy.policy_version,
+    item_policy_id: itemPolicy.policy_id,
+    item_classification: itemPolicy.classification,
     origin_owner_id: entry.source_owner_id,
     origin_owner_username: entry.source_owner_username,
     origin_owner_key: entry.source_owner_key,
