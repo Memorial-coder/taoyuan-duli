@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0530 同居共同动物买卖服务端权威
+- 服务端新增 `/shared-animals/purchase` 兼容入口，并收口 `/shared-animals/buy` / `/shared-animals/sell`；买入按 `animal.buy_animal`、`fund.spend_medium`、共同基金余额和服务端动物白名单裁决，卖出只允许共同基金购入动物并要求 `animal.sell_animal`。
+- 成功买卖会写共同动物 `buy_animal` / `sell_animal` ledger、共同基金 `shared_animal_purchase` / `shared_animal_sale_income` ledger、来源资产和审计；个人动物存档、个人背包和个人铜币保持不变，QA 覆盖权限拒绝、幂等、基金扣入和个人资产边界。
+
 ### 0530 同居离线冲突预检
 - 新增共同庄园离线冲突预检入口：前端离线页可提交当前客户端 revision 和待合并动作，服务端返回是否 stale、服务端 revision、支持 / 不支持动作和下一步建议。
 - 预检只写 `offline_conflict_preflighted` 审计，不执行离线队列，不改个人存档、共同仓库或共同基金；重复幂等键按原预检结果回放。

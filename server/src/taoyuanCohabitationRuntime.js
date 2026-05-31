@@ -141,6 +141,26 @@ const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
   copper_ore: 45,
   iron_ore: 70,
 });
+const SHARED_ANIMAL_PURCHASE_CATALOG = Object.freeze({
+  chicken: {
+    type: 'chicken',
+    label: 'chicken',
+    unit_price: 800,
+    resale_rate: 0.5,
+  },
+  cow: {
+    type: 'cow',
+    label: 'cow',
+    unit_price: 1500,
+    resale_rate: 0.5,
+  },
+  sheep: {
+    type: 'sheep',
+    label: 'sheep',
+    unit_price: 8000,
+    resale_rate: 0.5,
+  },
+});
 const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
 const SEPARATION_PREVIEW_VERSION = 1;
 const FAMILY_MANOR_TYPES = new Set(['oath_manor', 'business_partner']);
@@ -2728,8 +2748,14 @@ function normalizeSharedAnimals(value = {}) {
         animal_feed_write_enabled: true,
         animal_pet_write_enabled: true,
         animal_product_collect_write_enabled: true,
+        animal_buy_write_enabled: true,
+        animal_sell_write_enabled: true,
         shared_warehouse_feed_consume_enabled: true,
         shared_warehouse_product_deposit_enabled: true,
+        shared_fund_animal_purchase_enabled: true,
+        shared_fund_animal_sale_income_enabled: true,
+        supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+          .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
         personal_save_changed: false,
         deferred_writes: [],
       },
@@ -2771,8 +2797,14 @@ function normalizeSharedAnimals(value = {}) {
       animal_feed_write_enabled: true,
       animal_pet_write_enabled: true,
       animal_product_collect_write_enabled: true,
+      animal_buy_write_enabled: true,
+      animal_sell_write_enabled: true,
       shared_warehouse_feed_consume_enabled: true,
       shared_warehouse_product_deposit_enabled: true,
+      shared_fund_animal_purchase_enabled: true,
+      shared_fund_animal_sale_income_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
       personal_save_changed: false,
       deferred_writes: activeDeferredWrites,
     },
@@ -2781,7 +2813,7 @@ function normalizeSharedAnimals(value = {}) {
 
 function normalizeAnimalActionLedgerEntry(entry = {}) {
   const action = sanitizeText(entry.action, 40) || 'feed';
-  if (!['feed', 'pet', 'collect_product'].includes(action)) return null;
+  if (!['feed', 'pet', 'collect_product', 'buy_animal', 'sell_animal'].includes(action)) return null;
   const animalId = sanitizeText(entry.animal_id || entry.shared_animal_id, 140);
   if (!animalId) return null;
   const productItemId = normalizeWarehouseItemId(entry.product_item_id || entry.output_item_id || entry.item_id);
@@ -2796,6 +2828,8 @@ function normalizeAnimalActionLedgerEntry(entry = {}) {
     actor_key: normalizeUsernameKey(entry.actor_key || entry.actor_username),
     actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
     actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
+    animal_type: sanitizeText(entry.animal_type || entry.type || entry.after_animal_state?.type, 80),
+    animal_name: sanitizeText(entry.animal_name || entry.name || entry.after_animal_state?.name, 80),
     feed_item_id: normalizeWarehouseItemId(entry.feed_item_id || entry.item_id),
     product_item_id: productItemId,
     product_quantity: productItemId ? normalizePositiveInt(entry.product_quantity ?? entry.output_quantity ?? entry.quantity, 0) : 0,
@@ -2803,7 +2837,11 @@ function normalizeAnimalActionLedgerEntry(entry = {}) {
     warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids)
       ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
       : [],
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    unit_price: Math.max(0, Math.floor(Number(entry.unit_price) || 0)),
+    total_amount: Math.max(0, Math.floor(Number(entry.total_amount ?? entry.amount) || 0)),
     shared_warehouse_changed: entry.shared_warehouse_changed === true,
+    shared_fund_changed: entry.shared_fund_changed === true,
     origin_owner_id: sanitizeText(entry.origin_owner_id, 100),
     origin_owner_username: normalizeUsername(entry.origin_owner_username),
     origin_owner_display_name: sanitizeText(entry.origin_owner_display_name || entry.origin_owner_username, 60),
@@ -3718,6 +3756,27 @@ function getAnimalPermissionMode(contract = {}, ownerKey = '') {
   return sharedOperators.length > 1 ? 'shared' : 'owner_only';
 }
 
+function isSharedFundAnimal(contract = {}, animal = {}) {
+  const originOwnerId = sanitizeText(animal.origin_owner_id, 100);
+  const originOwnerKey = normalizeUsernameKey(animal.origin_owner_key || animal.origin_owner_username);
+  return originOwnerId === `shared_fund:${sanitizeText(contract.id, 80)}` || originOwnerKey === 'shared_fund';
+}
+
+function getSharedAnimalSalePrice(contract = {}, animal = {}) {
+  const animalId = sanitizeText(animal.id || animal.shared_animal_id, 140);
+  const purchaseEntry = normalizeAnimalActionLedger(contract.shared_animal_ledger).find(entry =>
+    entry.action === 'buy_animal'
+    && entry.status === 'committed'
+    && entry.animal_id === animalId
+    && entry.total_amount > 0
+  );
+  const profile = getSharedAnimalPurchaseProfile(animal.type || animal.animal_state?.type);
+  const purchaseAmount = Math.max(0, Math.floor(Number(purchaseEntry?.total_amount || profile?.unit_price) || 0));
+  const resaleRate = Math.max(0, Math.min(1, Number(profile?.resale_rate) || 0.5));
+  return Math.max(1, Math.floor(purchaseAmount * resaleRate));
+}
+
+
 function countSharedAnimalStates(animals = []) {
   return animals.reduce((summary, animal) => {
     const state = animal?.animal_state || {};
@@ -3992,9 +4051,15 @@ function buildSharedAnimalsFromSnapshots(contract, animalSnapshots, options = {}
       animal_feed_write_enabled: true,
       animal_pet_write_enabled: true,
       animal_product_collect_write_enabled: true,
+      animal_buy_write_enabled: true,
+      animal_sell_write_enabled: true,
       animal_action_ledger_count: Array.isArray(contract.shared_animal_ledger) ? contract.shared_animal_ledger.length : 0,
       shared_warehouse_feed_consume_enabled: true,
       shared_warehouse_product_deposit_enabled: true,
+      shared_fund_animal_purchase_enabled: true,
+      shared_fund_animal_sale_income_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
       included_sources: ['animal.animals'],
       deferred_sources: ['animal.pets', 'animal.buildings', 'animal.products'],
       deferred_writes: [],
@@ -4550,8 +4615,14 @@ function refreshSharedAnimalsContractFields(contract, sharedAnimals) {
       animal_feed_write_enabled: true,
       animal_pet_write_enabled: true,
       animal_product_collect_write_enabled: true,
+      animal_buy_write_enabled: true,
+      animal_sell_write_enabled: true,
       shared_warehouse_feed_consume_enabled: true,
       shared_warehouse_product_deposit_enabled: true,
+      shared_fund_animal_purchase_enabled: true,
+      shared_fund_animal_sale_income_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
       shared_animal_ledger_count: Array.isArray(contract.shared_animal_ledger) ? contract.shared_animal_ledger.length : 0,
       deferred_writes: (normalized.summary?.deferred_writes || [])
         .filter(item => item !== 'animal.collect_product' && item !== 'collect_product'),
@@ -7353,6 +7424,8 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       pet_shared_animal: actorPermissions.animal.pet === true,
       care_shared_pet: actorPermissions.animal.pet === true,
       collect_shared_animal_product: actorPermissions.animal.collect_product === true,
+      buy_shared_animal: actorPermissions.animal.buy_animal === true && actorPermissions.fund.spend_medium === true,
+      sell_shared_animal: actorPermissions.animal.sell_animal === true,
       process_shared_workshop_recipe: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.buy_furniture === true
         || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
@@ -8244,6 +8317,101 @@ function normalizeOfflineConflictPreflightPayload(payload = {}) {
   };
 }
 
+function getSharedAnimalPurchaseProfile(type = '') {
+  const normalizedType = sanitizeText(type, 80).toLowerCase();
+  const profile = SHARED_ANIMAL_PURCHASE_CATALOG[normalizedType];
+  if (!profile) return null;
+  return {
+    ...profile,
+    type: sanitizeText(profile.type, 80),
+    label: sanitizeText(profile.label || profile.type, 80),
+    unit_price: Math.max(0, Math.floor(Number(profile.unit_price) || 0)),
+    resale_rate: Math.max(0, Math.min(1, Number(profile.resale_rate) || 0)),
+  };
+}
+
+function normalizeSharedAnimalPurchasePayload(payload = {}) {
+  const profile = getSharedAnimalPurchaseProfile(payload.animal_type || payload.type || payload.animalType);
+  if (!profile) throw createError('shared animal purchase only supports whitelisted animal types', 403);
+  if (profile.unit_price > FUND_MAX_MEDIUM_SPEND_AMOUNT) {
+    throw createError('shared animal purchase above medium fund limit requires the large fund confirmation flow', 403);
+  }
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('shared animal purchase requires idempotency_key');
+  return {
+    animal_type: profile.type,
+    profile,
+    name: sanitizeText(payload.name || payload.animal_name || profile.label, 60) || profile.label,
+    idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeSharedAnimalSalePayload(payload = {}) {
+  return normalizeSharedAnimalActionPayload(payload);
+}
+
+function buildPurchasedSharedAnimal(contract = {}, member = {}, profile = {}, request = {}, actor = {}, operatedAt = nowSeconds()) {
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const purchaseKey = sanitizeText(request.idempotency_key, 72).replace(/[^a-z0-9_:-]+/gi, '_') || makeId('purchase');
+  const animalId = sanitizeText(`shared_fund:animal:${profile.type}:${purchaseKey}`, 140);
+  const state = summarizeAnimal({
+    id: animalId,
+    type: profile.type,
+    name: request.name || profile.label,
+    friendship: 0,
+    mood: 80,
+    days_owned: 0,
+    days_since_product: 0,
+    was_fed: false,
+    was_petted: false,
+    hunger: 0,
+    sick: false,
+  });
+  const normalizedAnimal = normalizeSharedAnimal({
+    id: animalId,
+    source_animal_id: animalId,
+    type: profile.type,
+    name: request.name || profile.label,
+    origin_owner_id: `shared_fund:${contract.id}`,
+    origin_save_id: 0,
+    origin_owner_username: 'shared_fund',
+    origin_owner_display_name: 'shared fund purchase',
+    origin_owner_key: 'shared_fund',
+    origin_owner_manor_role: actorManorRole,
+    origin_owner_manor_role_label: actorManorRoleDef?.label || '',
+    source_save_slot: null,
+    source_save_revision: Math.max(0, Math.floor(Number(contract.updated_at) || 0)),
+    current_keeper_username: member.username || actor.username,
+    current_keeper_display_name: member.display_name || actor.displayName || actor.display_name || member.username || actor.username,
+    current_keeper_manor_role: actorManorRole,
+    current_keeper_manor_role_label: actorManorRoleDef?.label || '',
+    permission_mode: 'shared',
+    split_rule: 'shared_fund_purchase_split_by_contract_policy_on_separation',
+    permission_restriction: 'accepted_members_with_animal_permission_can_care',
+    readonly: false,
+    animal_state: {
+      ...state,
+      purchased_at: operatedAt,
+      purchased_by_username: normalizeUsername(actor.username),
+      purchase_idempotency_key: request.idempotency_key,
+    },
+  });
+  return normalizedAnimal
+    ? {
+        ...normalizedAnimal,
+        animal_state: {
+          ...normalizedAnimal.animal_state,
+          purchased_at: operatedAt,
+          purchased_by_username: normalizeUsername(actor.username),
+          purchase_idempotency_key: request.idempotency_key,
+        },
+      }
+    : null;
+}
+
+
 function normalizeOfflineQueueMergePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.queue_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('offline queue merge requires idempotency_key');
@@ -8464,6 +8632,18 @@ function assertSharedAnimalProductCollectAllowed(contract = {}, member = {}, ani
   if (animal.permission_mode === 'shared') return true;
   throw createError('shared animal is owner-only', 403);
 }
+
+function assertSharedAnimalBuyAllowed(actorPermissions = {}) {
+  if (actorPermissions?.animal?.buy_animal !== true) throw createError('shared animal buy permission denied', 403);
+  if (actorPermissions?.fund?.spend_medium !== true) throw createError('shared animal purchase requires fund spend medium permission', 403);
+  return true;
+}
+
+function assertSharedAnimalSellAllowed(actorPermissions = {}) {
+  if (actorPermissions?.animal?.sell_animal !== true) throw createError('shared animal sell permission denied', 403);
+  return true;
+}
+
 
 function assertSeparationChildArrangementAllowed(actorPermissions = {}) {
   const requiredChecks = [{ group: 'family', key: 'child_daily_care', label: 'family.child_daily_care' }];
@@ -14797,6 +14977,216 @@ async function feedCohabitationSharedAnimal(contractId, payload = {}, actor = {}
   };
 }
 
+async function buyCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const request = normalizeSharedAnimalPurchasePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'buy shared animal');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  assertSharedAnimalBuyAllowed(actorPermissions);
+
+  contract.shared_animal_ledger = normalizeAnimalActionLedger(contract.shared_animal_ledger);
+  contract.shared_animals = normalizeSharedAnimals(contract.shared_animals);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+
+  const previousEntry = contract.shared_animal_ledger.find(entry =>
+    entry.action === 'buy_animal' && entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousEntry) {
+    if (previousEntry.animal_type && previousEntry.animal_type !== request.animal_type) {
+      throw createError('idempotency_key cannot be reused for another shared animal purchase request', 409);
+    }
+    const previousFundEntry = contract.shared_fund.ledger.find(entry => entry.id === previousEntry.fund_ledger_id) || null;
+    return {
+      contract: toPublicContract(contract),
+      shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      animal: findSharedAnimal(contract.shared_animals, previousEntry.animal_id),
+      ledger_entry: previousEntry,
+      fund_ledger_entry: previousFundEntry,
+      idempotent: true,
+      already_bought: true,
+      animal_action: {
+        action: 'buy_animal',
+        animal_id: previousEntry.animal_id,
+        animal_type: previousEntry.animal_type,
+        unit_price: previousEntry.unit_price,
+        total_amount: previousEntry.total_amount,
+        fund_ledger_id: previousEntry.fund_ledger_id,
+        personal_save_changed: false,
+        shared_warehouse_changed: false,
+        shared_fund_changed: true,
+      },
+    };
+  }
+
+  if (!contract.shared_animals.persisted) {
+    contract.shared_animals = buildSharedAnimalsFromSnapshots(contract, contract.members.map(readMemberAnimalSnapshot), {
+      persisted: true,
+    });
+  }
+  let sharedAnimals = normalizeSharedAnimals(contract.shared_animals);
+  if (sharedAnimals.animals.length >= SHARED_ANIMAL_LIMIT) throw createError('shared animal limit reached', 409);
+  const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  if (beforeBalance < request.profile.unit_price) throw createError('shared fund balance is not enough to buy shared animal', 409);
+  const operatedAt = nowSeconds();
+  const afterBalance = beforeBalance - request.profile.unit_price;
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const nextAnimal = buildPurchasedSharedAnimal(contract, member, request.profile, request, actor, operatedAt);
+  if (!nextAnimal) throw createError('failed to build shared animal purchase state', 500);
+  const fundLedgerId = makeId('shared_fund_ledger');
+  const targetRef = `shared_animal:buy:${nextAnimal.id}`;
+  const fundLedgerEntry = normalizeFundLedgerEntry({
+    id: fundLedgerId,
+    action: 'shared_animal_purchase',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    amount: request.profile.unit_price,
+    at: operatedAt,
+    memo: request.memo,
+    purpose: 'shared_animal_purchase',
+    spend_category: 'animal',
+    spend_tier: 'medium',
+    spend_purpose_label: 'shared animal purchase',
+    source_owner_id: `shared_fund:${contract.id}`,
+    source_owner_username: 'shared_fund',
+    source_owner_display_name: 'shared fund',
+    source_owner_key: 'shared_fund',
+    target_ref: targetRef,
+    target_owner_id: `shared_animals:${contract.id}`,
+    target_owner_username: 'shared_animals',
+    target_owner_display_name: 'shared animals',
+    target_owner_key: 'shared_animals',
+    target_inventory: 'shared_animals.animals',
+    target_quantity: 1,
+    target_unit_price: request.profile.unit_price,
+    balance_after: afterBalance,
+    idempotency_key: request.idempotency_key,
+    reversible: true,
+    compensation_hint: 'shared animal purchase deducted shared fund and created a contract shared animal; personal saves and personal money are unchanged.',
+    status: 'committed',
+  });
+  const beforeState = {};
+  const afterState = nextAnimal.animal_state;
+  const ledgerEntry = normalizeAnimalActionLedgerEntry({
+    id: makeId('shared_animal_ledger'),
+    action: 'buy_animal',
+    animal_id: nextAnimal.id,
+    source_animal_id: nextAnimal.source_animal_id,
+    animal_type: nextAnimal.type,
+    animal_name: nextAnimal.name,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_key: member.username_key,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    fund_ledger_id: fundLedgerEntry.id,
+    unit_price: request.profile.unit_price,
+    total_amount: request.profile.unit_price,
+    shared_fund_changed: true,
+    origin_owner_id: nextAnimal.origin_owner_id,
+    origin_owner_username: nextAnimal.origin_owner_username,
+    origin_owner_display_name: nextAnimal.origin_owner_display_name,
+    origin_owner_key: nextAnimal.origin_owner_key,
+    origin_save_id: nextAnimal.origin_save_id,
+    source_save_slot: nextAnimal.source_save_slot,
+    source_save_revision: nextAnimal.source_save_revision,
+    before_animal_state: beforeState,
+    after_animal_state: afterState,
+    permission_mode: nextAnimal.permission_mode,
+    idempotency_key: request.idempotency_key,
+    at: operatedAt,
+    reversible: true,
+    compensation_hint: 'shared animal purchase is contract-local; rollback should use paired fund and animal ledgers.',
+    status: 'committed',
+  });
+  const nextAnimals = [nextAnimal, ...sharedAnimals.animals].slice(0, SHARED_ANIMAL_LIMIT);
+  const stateCounts = countSharedAnimalStates(nextAnimals);
+  contract.shared_animals = {
+    ...sharedAnimals,
+    persisted: true,
+    persisted_at: sharedAnimals.persisted_at || operatedAt,
+    revision: Math.max(sharedAnimals.revision || 0, operatedAt),
+    animals: nextAnimals,
+    summary: {
+      ...sharedAnimals.summary,
+      animal_count: stateCounts.total,
+      fed_count: stateCounts.fed,
+      petted_count: stateCounts.petted,
+      sick_count: stateCounts.sick,
+      feedable_count: Math.max(0, stateCounts.total - stateCounts.fed),
+      pettable_count: Math.max(0, stateCounts.total - stateCounts.petted),
+      product_ready_count: stateCounts.product_ready,
+      animal_buy_write_enabled: true,
+      animal_sell_write_enabled: true,
+      shared_fund_animal_purchase_enabled: true,
+      shared_fund_animal_sale_income_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
+      animal_action_ledger_count: contract.shared_animal_ledger.length + 1,
+      personal_save_changed: false,
+    },
+  };
+  contract.shared_animal_ledger = [ledgerEntry, ...contract.shared_animal_ledger].slice(0, SHARED_ANIMAL_LEDGER_LIMIT);
+  contract.shared_fund.balance = afterBalance;
+  contract.shared_fund.ledger = [fundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.animals = [
+    buildAnimalOriginAssetFromSharedAnimal(nextAnimal),
+    ...contract.origin_assets.animals.filter(entry => sanitizeText(entry?.id, 140) !== nextAnimal.id),
+  ].slice(0, SHARED_ANIMAL_LIMIT);
+  appendAudit(contract, 'shared_animal_bought', actor, {
+    ledger_id: ledgerEntry.id,
+    fund_ledger_id: fundLedgerEntry.id,
+    animal_id: nextAnimal.id,
+    animal_type: nextAnimal.type,
+    animal_name: nextAnimal.name,
+    unit_price: request.profile.unit_price,
+    total_amount: request.profile.unit_price,
+    balance_before: beforeBalance,
+    balance_after: afterBalance,
+    target_ref: targetRef,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    animal: nextAnimal,
+    ledger_entry: ledgerEntry,
+    fund_ledger_entry: fundLedgerEntry,
+    idempotent: false,
+    already_bought: false,
+    animal_action: {
+      action: 'buy_animal',
+      animal_id: nextAnimal.id,
+      animal_type: nextAnimal.type,
+      animal_name: nextAnimal.name,
+      unit_price: request.profile.unit_price,
+      total_amount: request.profile.unit_price,
+      balance_before: beforeBalance,
+      balance_after: afterBalance,
+      fund_ledger_id: fundLedgerEntry.id,
+      before_animal_state: beforeState,
+      after_animal_state: afterState,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: true,
+    },
+  };
+}
+
+const purchaseCohabitationSharedAnimal = buyCohabitationSharedAnimal;
+
+
 async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -15187,6 +15577,232 @@ async function collectCohabitationSharedAnimalProduct(contractId, payload = {}, 
     },
   };
 }
+
+async function sellCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('login required', 401);
+  const request = normalizeSharedAnimalSalePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, 'sell shared animal');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  assertSharedAnimalSellAllowed(actorPermissions);
+
+  contract.shared_animal_ledger = normalizeAnimalActionLedger(contract.shared_animal_ledger);
+  contract.shared_animals = normalizeSharedAnimals(contract.shared_animals);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const previousEntry = contract.shared_animal_ledger.find(entry =>
+    entry.action === 'sell_animal' && entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousEntry) {
+    if (previousEntry.animal_id !== request.animal_id) {
+      throw createError('idempotency_key cannot be reused for another shared animal sale request', 409);
+    }
+    const previousFundEntry = contract.shared_fund.ledger.find(entry => entry.id === previousEntry.fund_ledger_id) || null;
+    return {
+      contract: toPublicContract(contract),
+      shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      animal: null,
+      ledger_entry: previousEntry,
+      fund_ledger_entry: previousFundEntry,
+      idempotent: true,
+      already_sold: true,
+      animal_action: {
+        action: 'sell_animal',
+        animal_id: previousEntry.animal_id,
+        animal_type: previousEntry.animal_type,
+        unit_price: previousEntry.unit_price,
+        total_amount: previousEntry.total_amount,
+        fund_ledger_id: previousEntry.fund_ledger_id,
+        personal_save_changed: false,
+        shared_warehouse_changed: false,
+        shared_fund_changed: true,
+      },
+    };
+  }
+
+  if (!contract.shared_animals.persisted) {
+    contract.shared_animals = buildSharedAnimalsFromSnapshots(contract, contract.members.map(readMemberAnimalSnapshot), {
+      persisted: true,
+    });
+  }
+  const sharedAnimals = normalizeSharedAnimals(contract.shared_animals);
+  const animal = findSharedAnimal(sharedAnimals, request.animal_id);
+  if (!animal) throw createError('shared animal not found', 404);
+  if (!isSharedFundAnimal(contract, animal)) {
+    throw createError('shared animal sale only supports animals purchased by shared fund in this pass', 403);
+  }
+  const profile = getSharedAnimalPurchaseProfile(animal.type || animal.animal_state?.type);
+  if (!profile) throw createError('shared animal sale only supports whitelisted animal types', 403);
+
+  const operatedAt = nowSeconds();
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const saleAmount = getSharedAnimalSalePrice(contract, animal);
+  const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  const afterBalance = beforeBalance + saleAmount;
+  const fundLedgerId = makeId('shared_fund_ledger');
+  const targetRef = `shared_animal:sell:${animal.id}`;
+  const beforeState = animal.animal_state && typeof animal.animal_state === 'object' ? { ...animal.animal_state } : summarizeAnimal(animal);
+  const afterState = {
+    ...beforeState,
+    sold: true,
+    sold_at: operatedAt,
+    sold_by_username: actorUsername,
+    sale_idempotency_key: request.idempotency_key,
+  };
+  const fundLedgerEntry = normalizeFundLedgerEntry({
+    id: fundLedgerId,
+    action: 'shared_animal_sale_income',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    amount: saleAmount,
+    at: operatedAt,
+    memo: request.memo,
+    purpose: 'shared_animal_sale',
+    spend_category: 'animal',
+    spend_purpose_label: 'shared animal sale income',
+    source_owner_id: animal.origin_owner_id || `shared_animals:${contract.id}`,
+    source_owner_username: animal.origin_owner_username || 'shared_animals',
+    source_owner_display_name: animal.origin_owner_display_name || animal.name || 'shared animal',
+    source_owner_key: animal.origin_owner_key || 'shared_animals',
+    target_ref: targetRef,
+    target_owner_id: `shared_fund:${contract.id}`,
+    target_owner_username: 'shared_fund',
+    target_owner_display_name: 'shared fund',
+    target_owner_key: 'shared_fund',
+    balance_after: afterBalance,
+    idempotency_key: request.idempotency_key,
+    reversible: true,
+    compensation_hint: 'shared animal sale credited shared fund and removed the animal from contract shared animals; personal saves and personal money are unchanged.',
+    status: 'committed',
+  });
+  const ledgerEntry = normalizeAnimalActionLedgerEntry({
+    id: makeId('shared_animal_ledger'),
+    action: 'sell_animal',
+    animal_id: animal.id,
+    source_animal_id: animal.source_animal_id,
+    animal_type: animal.type,
+    animal_name: animal.name,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_key: member.username_key,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    fund_ledger_id: fundLedgerEntry.id,
+    unit_price: saleAmount,
+    total_amount: saleAmount,
+    shared_fund_changed: true,
+    origin_owner_id: animal.origin_owner_id,
+    origin_owner_username: animal.origin_owner_username,
+    origin_owner_display_name: animal.origin_owner_display_name,
+    origin_owner_key: animal.origin_owner_key,
+    origin_save_id: animal.origin_save_id,
+    source_save_slot: animal.source_save_slot,
+    source_save_revision: animal.source_save_revision,
+    before_animal_state: beforeState,
+    after_animal_state: afterState,
+    permission_mode: animal.permission_mode,
+    idempotency_key: request.idempotency_key,
+    at: operatedAt,
+    reversible: true,
+    compensation_hint: 'shared animal sale is contract-local; rollback should use paired fund and animal ledgers.',
+    status: 'committed',
+  });
+  const nextAnimals = sharedAnimals.animals.filter(entry => entry.id !== animal.id);
+  const stateCounts = countSharedAnimalStates(nextAnimals);
+  contract.shared_animals = {
+    ...sharedAnimals,
+    revision: Math.max(sharedAnimals.revision || 0, operatedAt),
+    animals: nextAnimals,
+    summary: {
+      ...sharedAnimals.summary,
+      animal_count: stateCounts.total,
+      fed_count: stateCounts.fed,
+      petted_count: stateCounts.petted,
+      sick_count: stateCounts.sick,
+      feedable_count: Math.max(0, stateCounts.total - stateCounts.fed),
+      pettable_count: Math.max(0, stateCounts.total - stateCounts.petted),
+      product_ready_count: stateCounts.product_ready,
+      animal_buy_write_enabled: true,
+      animal_sell_write_enabled: true,
+      shared_fund_animal_purchase_enabled: true,
+      shared_fund_animal_sale_income_enabled: true,
+      supported_purchase_animal_types: Object.keys(SHARED_ANIMAL_PURCHASE_CATALOG)
+        .filter(type => SHARED_ANIMAL_PURCHASE_CATALOG[type].unit_price <= FUND_MAX_MEDIUM_SPEND_AMOUNT),
+      animal_action_ledger_count: contract.shared_animal_ledger.length + 1,
+      personal_save_changed: false,
+    },
+  };
+  contract.shared_animal_ledger = [ledgerEntry, ...contract.shared_animal_ledger].slice(0, SHARED_ANIMAL_LEDGER_LIMIT);
+  contract.shared_fund.balance = afterBalance;
+  contract.shared_fund.ledger = [fundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  const soldAnimalAsset = {
+    ...buildAnimalOriginAssetFromSharedAnimal({
+      ...animal,
+      animal_state: afterState,
+    }),
+    sale_status: 'sold_to_shared_fund',
+    sold_at: operatedAt,
+    sale_amount: saleAmount,
+    sale_fund_ledger_id: fundLedgerEntry.id,
+    sale_animal_ledger_id: ledgerEntry.id,
+    sale_idempotency_key: request.idempotency_key,
+  };
+  contract.origin_assets.animals = [
+    soldAnimalAsset,
+    ...contract.origin_assets.animals.filter(entry => sanitizeText(entry?.id, 140) !== animal.id),
+  ].slice(0, SHARED_ANIMAL_LIMIT);
+  appendAudit(contract, 'shared_animal_sold', actor, {
+    ledger_id: ledgerEntry.id,
+    fund_ledger_id: fundLedgerEntry.id,
+    animal_id: animal.id,
+    animal_type: animal.type,
+    animal_name: animal.name,
+    unit_price: saleAmount,
+    total_amount: saleAmount,
+    resale_rate: profile.resale_rate,
+    balance_before: beforeBalance,
+    balance_after: afterBalance,
+    target_ref: targetRef,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: true,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    shared_animals: refreshSharedAnimalsContractFields(contract, contract.shared_animals),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    animal: null,
+    sold_animal: { ...animal, animal_state: afterState },
+    ledger_entry: ledgerEntry,
+    fund_ledger_entry: fundLedgerEntry,
+    idempotent: false,
+    already_sold: false,
+    animal_action: {
+      action: 'sell_animal',
+      animal_id: animal.id,
+      animal_type: animal.type,
+      animal_name: animal.name,
+      unit_price: saleAmount,
+      total_amount: saleAmount,
+      balance_before: beforeBalance,
+      balance_after: afterBalance,
+      fund_ledger_id: fundLedgerEntry.id,
+      before_animal_state: beforeState,
+      after_animal_state: afterState,
+      personal_save_changed: false,
+      shared_warehouse_changed: false,
+      shared_fund_changed: true,
+    },
+  };
+}
+
 
 async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
@@ -24598,8 +25214,11 @@ module.exports = {
   fertilizeCohabitationSharedFarmPlot,
   harvestCohabitationSharedFarmPlot,
   feedCohabitationSharedAnimal,
+  buyCohabitationSharedAnimal,
+  purchaseCohabitationSharedAnimal,
   petCohabitationSharedAnimal,
   collectCohabitationSharedAnimalProduct,
+  sellCohabitationSharedAnimal,
   careCohabitationSharedPet,
   processCohabitationSharedWorkshopRecipe,
   depositCohabitationWarehouseItem,

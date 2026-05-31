@@ -1470,6 +1470,174 @@ const sharedAnimalProductCleanup = await runtime.withdrawCohabitationWarehouseIt
 }, actor(owner))
 assert.equal(sharedAnimalProductCleanup.warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 0, 'shared animal product cleanup should remove milk before base warehouse flow')
 
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: {
+    animal: { buy_animal: false },
+    fund: { spend_medium: false },
+  },
+  idempotency_key: 'qa-disable-owner-shared-animal-buy-before-denied-check',
+}, actor(owner))
+const fundBeforeDeniedSharedAnimalBuy = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+await assert.rejects(
+  () => runtime.buyCohabitationSharedAnimal(created.contract.id, {
+    animal_type: 'chicken',
+    idempotency_key: 'qa-shared-animal-buy-denied-no-animal-permission',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'shared animal buy should reject actors without animal buy permission'
+)
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, fundBeforeDeniedSharedAnimalBuy.fund.balance, 'permission-denied shared animal buy should not spend shared fund')
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: {
+    animal: { buy_animal: true },
+    fund: { spend_medium: false },
+  },
+  idempotency_key: 'qa-enable-owner-shared-animal-buy-without-medium-fund',
+}, actor(owner))
+await assert.rejects(
+  () => runtime.buyCohabitationSharedAnimal(created.contract.id, {
+    animal_type: 'chicken',
+    idempotency_key: 'qa-shared-animal-buy-denied-no-medium-fund',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'shared animal buy should reject actors without medium fund spend permission'
+)
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, fundBeforeDeniedSharedAnimalBuy.fund.balance, 'medium-permission-denied shared animal buy should not spend shared fund')
+
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: {
+    animal: { buy_animal: true, sell_animal: true },
+    fund: { spend_medium: true },
+  },
+  idempotency_key: 'qa-enable-owner-shared-animal-buy-sell',
+}, actor(owner))
+const sharedAnimalFundTopUpBefore = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+const ownerMoneyBeforeAnimalTopUp = readGameplayData(owner)?.player?.money
+const ownerRawBeforeAnimalTopUp = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+await mutateStoredContract(created.contract.id, contract => {
+  contract.shared_fund = contract.shared_fund || {}
+  contract.shared_fund.balance = Math.max(0, Number(contract.shared_fund.balance) || 0) + 800
+  contract.shared_fund.ledger = [
+    {
+      id: 'qa-shared-animal-buy-server-budget',
+      action: 'qa_shared_animal_purchase_budget',
+      actor_username: owner,
+      amount: 800,
+      purpose: 'shared_animal_purchase_budget',
+      memo: 'qa injected server-side shared animal purchase budget',
+      at: 1771951500,
+      idempotency_key: 'qa-shared-animal-buy-server-budget',
+      status: 'committed',
+    },
+    ...(Array.isArray(contract.shared_fund.ledger)
+      ? contract.shared_fund.ledger.filter(entry => entry?.id !== 'qa-shared-animal-buy-server-budget')
+      : []),
+  ]
+})
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, sharedAnimalFundTopUpBefore.fund.balance + 800, 'shared animal buy QA budget should increase shared fund without personal save writes')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeAnimalTopUp, 'shared animal buy QA budget should not deduct owner personal money')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeAnimalTopUp, 'shared animal buy QA budget should not rewrite owner save')
+const ownerRawBeforeSharedAnimalBuySell = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeSharedAnimalBuySell = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+await assert.rejects(
+  () => runtime.sellCohabitationSharedAnimal(created.contract.id, {
+    animal_id: qaSharedAnimal.id,
+    idempotency_key: 'qa-shared-animal-sell-personal-origin-denied',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'shared animal sell should reject personal-origin contract animals'
+)
+const sharedAnimalBuyBefore = await runtime.getCohabitationSharedAnimals(created.contract.id, actor(owner))
+assert.equal(sharedAnimalBuyBefore.shared_animals.summary.animal_buy_write_enabled, true, 'shared animal snapshot should expose buy capability')
+assert.ok(sharedAnimalBuyBefore.shared_animals.summary.supported_purchase_animal_types.includes('chicken'), 'shared animal snapshot should expose chicken purchase')
+const sharedAnimalBuy = await runtime.buyCohabitationSharedAnimal(created.contract.id, {
+  animal_type: 'chicken',
+  name: 'QA Chicken',
+  memo: 'qa buy shared chicken from shared fund',
+  idempotency_key: 'qa-shared-animal-buy-chicken',
+}, actor(owner))
+assert.equal(sharedAnimalBuy.idempotent, false, 'first shared animal buy should not be idempotent')
+assert.equal(sharedAnimalBuy.animal.type, 'chicken', 'shared animal buy should create requested animal type')
+assert.equal(sharedAnimalBuy.animal.origin_owner_username, 'shared_fund', 'shared animal buy should mark shared fund as origin owner')
+assert.equal(sharedAnimalBuy.ledger_entry.action, 'buy_animal', 'shared animal buy should write animal ledger')
+assert.equal(sharedAnimalBuy.ledger_entry.animal_type, 'chicken', 'shared animal buy ledger should keep animal type')
+assert.equal(sharedAnimalBuy.fund_ledger_entry.action, 'shared_animal_purchase', 'shared animal buy should write shared fund spend ledger')
+assert.equal(sharedAnimalBuy.fund_ledger_entry.amount, 800, 'shared animal buy fund ledger should keep purchase amount')
+assert.equal(sharedAnimalBuy.animal_action.total_amount, 800, 'shared animal buy response should expose total amount')
+assert.equal(sharedAnimalBuy.animal_action.personal_save_changed, false, 'shared animal buy should not mutate personal saves')
+assert.equal(sharedAnimalBuy.animal_action.shared_fund_changed, true, 'shared animal buy should mutate only shared fund and animal state')
+assert.ok(sharedAnimalBuy.contract.origin_assets.animals.some(item => item.id === sharedAnimalBuy.animal.id && item.origin_owner_username === 'shared_fund'), 'shared animal buy should record origin asset')
+assert.ok(sharedAnimalBuy.contract.audit_log.find(entry => entry.action === 'shared_animal_bought'), 'shared animal buy should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalBuySell, 'shared animal buy should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalBuySell, 'shared animal buy should not rewrite partner save')
+const duplicateSharedAnimalBuy = await runtime.buyCohabitationSharedAnimal(created.contract.id, {
+  animal_type: 'chicken',
+  idempotency_key: 'qa-shared-animal-buy-chicken',
+}, actor(owner))
+assert.equal(duplicateSharedAnimalBuy.idempotent, true, 'same shared animal buy idempotency key should replay')
+assert.equal(duplicateSharedAnimalBuy.fund.balance, sharedAnimalBuy.fund.balance, 'idempotent shared animal buy should not spend fund twice')
+assert.equal(duplicateSharedAnimalBuy.shared_animals.animals.filter(animal => animal.id === sharedAnimalBuy.animal.id).length, 1, 'idempotent shared animal buy should not duplicate animal')
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: {
+    animal: { sell_animal: false },
+  },
+  idempotency_key: 'qa-disable-owner-shared-animal-sell-before-denied-check',
+}, actor(owner))
+await assert.rejects(
+  () => runtime.sellCohabitationSharedAnimal(created.contract.id, {
+    animal_id: sharedAnimalBuy.animal.id,
+    idempotency_key: 'qa-shared-animal-sell-denied-no-sell-permission',
+  }, actor(owner)),
+  error => error?.status === 403,
+  'shared animal sell should reject actors without animal sell permission'
+)
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, sharedAnimalBuy.fund.balance, 'permission-denied shared animal sell should not credit shared fund')
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: { animal: { sell_animal: true } },
+  idempotency_key: 'qa-restore-owner-shared-animal-sell-after-denied-check',
+}, actor(owner))
+const sharedAnimalSell = await runtime.sellCohabitationSharedAnimal(created.contract.id, {
+  animal_id: sharedAnimalBuy.animal.id,
+  memo: 'qa sell shared chicken back to shared fund',
+  idempotency_key: 'qa-shared-animal-sell-chicken',
+}, actor(owner))
+assert.equal(sharedAnimalSell.idempotent, false, 'first shared animal sell should not be idempotent')
+assert.equal(sharedAnimalSell.ledger_entry.action, 'sell_animal', 'shared animal sell should write animal ledger')
+assert.equal(sharedAnimalSell.fund_ledger_entry.action, 'shared_animal_sale_income', 'shared animal sell should write fund income ledger')
+assert.equal(sharedAnimalSell.fund_ledger_entry.amount, 400, 'shared animal sell should credit resale amount')
+assert.equal(sharedAnimalSell.animal_action.total_amount, 400, 'shared animal sell response should expose sale amount')
+assert.equal(sharedAnimalSell.animal_action.personal_save_changed, false, 'shared animal sell should not mutate personal saves')
+assert.equal(sharedAnimalSell.shared_animals.animals.some(animal => animal.id === sharedAnimalBuy.animal.id), false, 'shared animal sell should remove sold animal from shared animals')
+assert.ok(sharedAnimalSell.contract.origin_assets.animals.some(item => item.id === sharedAnimalBuy.animal.id && item.sale_status === 'sold_to_shared_fund'), 'shared animal sell should retain sold origin asset evidence')
+assert.ok(sharedAnimalSell.contract.audit_log.find(entry => entry.action === 'shared_animal_sold'), 'shared animal sell should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalBuySell, 'shared animal sell should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalBuySell, 'shared animal sell should not rewrite partner save')
+const duplicateSharedAnimalSell = await runtime.sellCohabitationSharedAnimal(created.contract.id, {
+  animal_id: sharedAnimalBuy.animal.id,
+  idempotency_key: 'qa-shared-animal-sell-chicken',
+}, actor(owner))
+assert.equal(duplicateSharedAnimalSell.idempotent, true, 'same shared animal sell idempotency key should replay')
+assert.equal(duplicateSharedAnimalSell.fund.balance, sharedAnimalSell.fund.balance, 'idempotent shared animal sell should not credit fund twice')
+assert.equal(duplicateSharedAnimalSell.shared_animals.animals.some(animal => animal.id === sharedAnimalBuy.animal.id), false, 'idempotent shared animal sell should keep animal removed')
+
+await mutateStoredContract(created.contract.id, contract => {
+  contract.shared_fund = sharedAnimalFundTopUpBefore.contract.shared_fund
+  contract.origin_assets.fund_contributions = sharedAnimalFundTopUpBefore.contract.origin_assets.fund_contributions
+  contract.permissions[owner].animal.buy_animal = true
+  contract.permissions[owner].animal.sell_animal = true
+  contract.permissions[owner].fund.spend_medium = true
+})
+const ownerSaveSlotsAfterAnimalTradeQa = saveRuntime.loadUserSaveSlots(owner)
+ownerSaveSlotsAfterAnimalTradeQa.slots[0] = { ...ownerSaveSlotsAfterAnimalTradeQa.slots[0], raw: ownerRawBeforeAnimalTopUp }
+saveRuntime.saveUserSaveSlots(owner, ownerSaveSlotsAfterAnimalTradeQa)
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, sharedAnimalFundTopUpBefore.fund.balance, 'shared animal buy/sell QA should restore fund baseline for later fund tests')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeAnimalTopUp, 'shared animal buy/sell QA should restore owner money baseline for later fund tests')
+
 const offlineAnimalHayDeposit = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
   item_id: 'hay',
   quantity: 1,
