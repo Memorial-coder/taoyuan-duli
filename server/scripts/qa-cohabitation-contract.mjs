@@ -7739,7 +7739,7 @@ await assert.rejects(
 
 const ownerRawBeforeAssetReturnRecord = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeAssetReturnRecord = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
-const assetReturnRecord = await runtime.executeSeparationAssetReturn(created.contract.id, previewResult.preview.id, {
+let assetReturnRecord = await runtime.executeSeparationAssetReturn(created.contract.id, previewResult.preview.id, {
   memo: 'record asset return without personal save writes',
   plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
   execution_request_id: executionRequest.execution_request.id,
@@ -7791,6 +7791,53 @@ const alreadyAssetReturnRecorded = await runtime.executeSeparationAssetReturn(cr
 assert.equal(alreadyAssetReturnRecorded.idempotent, true, 'already recorded asset return should be treated idempotently with a new key')
 assert.equal(alreadyAssetReturnRecorded.already_executed, true, 'already recorded asset return response should be explicit')
 assert.equal(alreadyAssetReturnRecorded.execution_ledger.id, assetReturnRecord.execution_ledger.id, 'already recorded asset return should return original ledger')
+
+const ownerRawBeforeAssetReturnRollback = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeAssetReturnRollback = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const fundBeforeAssetReturnRollback = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+const warehouseBeforeAssetReturnRollback = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+const assetReturnRollback = await runtime.recordSeparationExecutionFailure(created.contract.id, previewResult.preview.id, {
+  memo: 'record post-ledger failure and restore pending before any asset mutation',
+  failure_stage: 'write_personal_farm_returns',
+  failure_reason: 'qa simulated worker crash after asset return ledger but before personal save write',
+  error_code: 'QA_PERSONAL_FARM_WRITE_WORKER_FAILED',
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-asset-return-ledger-rollback',
+}, actor(owner))
+assert.equal(assetReturnRollback.idempotent, false, 'first post-ledger separation failure rollback should not be idempotent')
+assert.equal(assetReturnRollback.execution_request.status, 'pending_manual_execution', 'post-ledger rollback should restore the execution request to pending')
+assert.equal(assetReturnRollback.recovery.execution_ledger_written, true, 'post-ledger rollback should acknowledge the existing execution ledger')
+assert.equal(assetReturnRollback.recovery.compensation_rollback_recorded, true, 'post-ledger rollback should record compensation rollback evidence')
+assert.equal(assetReturnRollback.reverted_execution_ledger.id, assetReturnRecord.execution_ledger.id, 'post-ledger rollback should target the recorded asset return ledger')
+assert.equal(assetReturnRollback.reverted_execution_ledger.status, 'reverted', 'post-ledger rollback should mark the old execution ledger reverted')
+assert.equal(assetReturnRollback.reverted_execution_ledger.compensation_rollback_restored_pending, true, 'reverted ledger should expose restored-pending marker')
+assert.equal(assetReturnRollback.preview.confirmation_state.execution_request.status, 'pending_manual_execution', 'preview should expose pending status after post-ledger rollback')
+assert.equal(assetReturnRollback.preview.asset_return.asset_return_recorded, false, 'post-ledger rollback should clear preview asset-return recorded flag')
+assert.equal(assetReturnRollback.preview.asset_return.plot_return_manifest.every(item => item.execution_status === 'preview_only'), true, 'post-ledger rollback should reset manifest execution status for retry')
+assert.ok(assetReturnRollback.contract.audit_log.find(entry => entry.action === 'separation_execution_ledger_rollback_pending_restored' && entry.idempotency_key === 'qa-separation-asset-return-ledger-rollback'), 'post-ledger rollback should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeAssetReturnRollback, 'post-ledger rollback should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeAssetReturnRollback, 'post-ledger rollback should not rewrite partner save')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, fundBeforeAssetReturnRollback.fund.balance, 'post-ledger rollback should not change shared fund balance')
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, warehouseBeforeAssetReturnRollback.warehouse.summary.total_quantity, 'post-ledger rollback should not change shared warehouse quantity')
+
+const duplicateAssetReturnRollback = await runtime.recordSeparationExecutionFailure(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate post-ledger rollback',
+  failure_stage: 'write_personal_farm_returns',
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-asset-return-ledger-rollback',
+}, actor(owner))
+assert.equal(duplicateAssetReturnRollback.idempotent, true, 'same post-ledger rollback idempotency key should return existing rollback audit')
+assert.equal(duplicateAssetReturnRollback.reverted_execution_ledger.id, assetReturnRecord.execution_ledger.id, 'idempotent post-ledger rollback should keep reverted ledger id')
+
+assetReturnRecord = await runtime.executeSeparationAssetReturn(created.contract.id, previewResult.preview.id, {
+  memo: 'retry asset return after post-ledger rollback',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-asset-return-record-after-rollback',
+}, actor(owner))
+assert.equal(assetReturnRecord.idempotent, false, 'asset return should be executable again after post-ledger pending restore')
+assert.notEqual(assetReturnRecord.execution_ledger.id, assetReturnRollback.reverted_execution_ledger.id, 'retry after post-ledger rollback should create a new execution ledger')
+assert.equal(assetReturnRecord.execution_ledger.status, 'asset_return_recorded', 'retry after post-ledger rollback should record a fresh asset-return ledger')
 await assert.rejects(
   () => runtime.writeSeparationPersonalFarmReturns(created.contract.id, previewResult.preview.id, {
     memo: 'wrong personal farm write hash',
