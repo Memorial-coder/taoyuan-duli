@@ -1,7 +1,10 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-05-31
+- 同居共同仓库 11.4 基础共同料理：共同工坊新增炒青菜、萝卜汤、药膳粥、矿工便当、蜂蜜茶和姜汤白名单，`item_policy` 升到 v3 并把这些料理成品列入普通目录；服务端从共同仓库扣普通材料并把料理写回共同仓库 `deposit` ledger，协作升品继续保留来源流水与高品质取出保护，前端下拉可直接提交这些配方。
+- 同居分居共同基金未知经营贡献争议确认：分居预览会列出无法归属到已接受成员的 `order_income` / `warehouse_sale_income` / `shared_animal_sale_income` 经营收入 ledger、金额、来源和稳定 hash，并加入 `confirm_unidentified_fund_operating_contribution` 暂缓项；共同基金返还前需双方通过基金争议确认链路确认，返还审计读回未知经营贡献总额与 ledger 证据，不直接改分配权重、不提前改共同基金或个人铜币。
 - 同居共同仓库 11.4 物品分级策略：共同仓库 `item_policy` 升到 v2，将金蜜瓜、月光米、凤凰椒、月莲、龙珠等高阶杂交作物纳入显式稀有目录；普通入仓 / 取出 / 卖出命中 `rare_item_policy` 阻断，高价值草案继续按稀有权限保护。
+- 同居离线限定装饰 / 共同装修回执：离线队列新增 `record_limited_decoration_delivery_receipt` 与 `record_shared_decoration_removal_receipt`，仅对已双方确认并执行扣款的限定装饰或共同装修拆除草案提交 delivered 回执；服务端复用高风险回执权限、幂等和审计，成功只写共同装饰状态、交付记录与审计，不再扣共同基金、不改共同仓库、个人背包或个人小屋，前端本地离线缓存也可加入这些回执并批量预检 / 自动合并。
 - 同居离线冲突自动解决入口：新增 `/offline-conflicts/resolve`，会先执行离线冲突预检，再用 `server_authoritative_auto_merge` 策略合并队列；响应返回预检、合并和 `offline_conflict_auto_resolution` 摘要并写 `offline_conflict_auto_resolved` 审计，前端本地离线缓存批量合并已改走该入口。
 - 同居共同仓库 11.4 丹炉火候权重：共同工坊自动概率炼丹支持选择文火 / 中火 / 武火，服务端按火候调整丹方基础权重并把火候档位、火候配置、丹方基础权重、火候后权重和最终权重写入 recipe、workshop action、ledger、origin asset、审计和幂等回放；前端回执会读回火候标签与概率证据。
 - 同居离线本地队列缓存：共同庄园离线页新增按契约隔离的本地离线操作缓存，可把当前选中的农田 / 动物 / 宠物 / 工坊 / 装饰 / 自动收益意图先存入 `localStorage`，随后批量预检或批量合并；提交时保留每步幂等键和 `client_base_revision`，成功项自动移除，拒绝项继续留在本地给玩家处理。

@@ -3354,6 +3354,7 @@
     | 'care_shared_pet'
     | 'process_shared_workshop_recipe'
     | 'move_shared_decoration'
+    | 'record_limited_decoration_delivery_receipt'
     | 'record_shared_decoration_removal_receipt'
     | 'collect_offline_auto_income'
   type OfflineQueueActionOption = {
@@ -4792,6 +4793,12 @@
     lotus_seed: '莲子',
     lotus_root: '莲藕',
     food_congee: '白粥',
+    food_stir_fried_cabbage: '炒青菜',
+    food_radish_soup: '萝卜汤',
+    food_herbal_porridge: '药膳粥',
+    food_miner_lunch: '矿工便当',
+    food_honey_tea: '蜂蜜茶',
+    food_ginger_soup: '姜汤',
     food_rice_ball: '饭团',
     food_vegetable_soup: '田园蔬菜汤',
     food_roasted_sweet_potato: '烤红薯',
@@ -5064,6 +5071,12 @@
     { id: 'shared_osmanthus_honey', label: '共同蜂箱桂花蜜', station: 'beehive', process_kind: 'alchemy_material', input_items: [{ item_id: 'osmanthus', quantity: 1, quality: 'normal' }], output_item_id: 'osmanthus_honey', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_ball', label: '共同灶台饭团', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_ball', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_vegetable_soup', label: '共同灶台田园蔬菜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'cabbage', quantity: 1, quality: 'normal' }, { item_id: 'radish', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_vegetable_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_stir_fried_cabbage', label: '共同灶台炒青菜', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'cabbage', quantity: 2, quality: 'normal' }], output_item_id: 'food_stir_fried_cabbage', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_radish_soup', label: '共同灶台萝卜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'radish', quantity: 2, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_radish_soup', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_herbal_porridge', label: '共同灶台药膳粥', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'herb', quantity: 2, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_herbal_porridge', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_miner_lunch', label: '共同灶台矿工便当', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'potato', quantity: 2, quality: 'normal' }, { item_id: 'sweet_potato', quantity: 1, quality: 'normal' }], output_item_id: 'food_miner_lunch', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_honey_tea', label: '共同茶炉蜂蜜茶', station: 'tea_maker', process_kind: 'cooking_dish', input_items: [{ item_id: 'honey', quantity: 1, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }], output_item_id: 'food_honey_tea', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_ginger_soup', label: '共同灶台姜汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'ginger', quantity: 2, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_ginger_soup', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_congee', label: '共同灶台白粥', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'food_congee', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_roasted_sweet_potato', label: '共同灶台烤红薯', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }], output_item_id: 'food_roasted_sweet_potato', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rice_flour_roll', label: '共同灶台米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'dried_radish', quantity: 1, quality: 'normal' }], output_item_id: 'food_rice_flour_roll', output_quantity: 1, output_quality: 'normal' },
@@ -5203,6 +5216,23 @@
     cohabitationStore.offlineStatus?.actor_capabilities?.move_shared_decoration === true &&
     Boolean(selectedOfflineSharedDecorationId.value)
   )
+  const selectedOfflineLimitedDecorationDeliveryReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
+    (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
+      draft.purpose === 'limited_decoration' &&
+      draft.state === 'executed' &&
+      Boolean(draft.final_spend_ledger_id) &&
+      (!draft.high_risk_receipt_status || draft.high_risk_receipt_status === 'pending')
+    ) ?? null
+  )
+  const selectedOfflineLimitedDecorationDeliveryReceiptTargetLabel = computed(() => {
+    const draft = selectedOfflineLimitedDecorationDeliveryReceiptDraft.value
+    return draft?.target_ref || draft?.id || '未选择限定装饰交付回执'
+  })
+  const canRecordOfflineLimitedDecorationDeliveryReceipt = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.offlineStatus?.actor_capabilities?.record_limited_decoration_delivery_receipt === true &&
+    Boolean(selectedOfflineLimitedDecorationDeliveryReceiptDraft.value)
+  )
   const selectedOfflineSharedDecorationRemovalReceiptDraft = computed<CohabitationFundLargeSpendDraft | null>(() =>
     (cohabitationStore.fund?.large_spend_drafts ?? []).find(draft =>
       draft.purpose === 'shared_decoration_removal' &&
@@ -5332,12 +5362,14 @@
   const offlineQueueSupportedActionSet = computed(() => new Set(cohabitationStore.offlineStatus?.summary.offline_queue_supported_actions ?? []))
   const offlineQueueSupportedActionCount = computed(() => offlineQueueSupportedActionSet.value.size)
   const isOfflineQueueActionSupported = (action: CohabitationOfflineQueueAction) => offlineQueueSupportedActionSet.value.has(action)
-  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'auto_income') => {
+  const offlineQueueTargetLabel = (kind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_receipt' | 'auto_income') => {
     if (kind === 'plot') return selectedSharedFarmPlot.value?.id || '未选地块'
     if (kind === 'animal_purchase') return selectedSharedAnimalBuyOption.value?.label || '未选动物类型'
     if (kind === 'animal') return selectedSharedAnimal.value?.name || selectedSharedAnimal.value?.type || selectedSharedAnimal.value?.id || '未选动物'
     if (kind === 'pet') return selectedSharedPet.value?.name || selectedSharedPet.value?.type || selectedSharedPet.value?.id || '未选宠物'
     if (kind === 'decoration') return selectedOfflineSharedDecorationTargetLabel.value
+    if (kind === 'limited_decoration_receipt') return selectedOfflineLimitedDecorationDeliveryReceiptTargetLabel.value
+    if (kind === 'decoration_receipt') return selectedOfflineSharedDecorationRemovalReceiptTargetLabel.value
     if (kind === 'auto_income') return `${offlineAutoIncomePendingCount.value} 项待领`
     return selectedSharedWorkshopRecipe.value?.label || '未选配方'
   }
@@ -5347,7 +5379,7 @@
       id: OfflineQueueUiActionId,
       queueAction: CohabitationOfflineQueueAction,
       label: string,
-      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'auto_income',
+      targetKind: 'plot' | 'animal' | 'animal_purchase' | 'pet' | 'workshop' | 'decoration' | 'limited_decoration_receipt' | 'decoration_receipt' | 'auto_income',
       actionEnabled: boolean,
       disabledReason: string
     ): OfflineQueueActionOption => {
@@ -5382,6 +5414,8 @@
       makeOption('care_shared_pet', 'care_shared_pet', '共同宠物用品照料', 'pet', canCareSelectedSharedPet.value, '请选择宠物、用品并完成高阶确认'),
       makeOption('process_shared_workshop_recipe', 'process_shared_workshop_recipe', '共同工坊处理', 'workshop', canProcessSelectedSharedWorkshopRecipe.value, '请选择材料充足且有权限的工坊配方'),
       makeOption('move_shared_decoration', 'move_shared_decoration', '共同装饰移动', 'decoration', canMoveSelectedSharedDecoration.value, '请选择可移动的共同装饰并确认建设权限'),
+      makeOption('record_limited_decoration_delivery_receipt', 'record_limited_decoration_delivery_receipt', '限定装饰交付回执', 'limited_decoration_receipt', canRecordOfflineLimitedDecorationDeliveryReceipt.value, '请选择已扣款且待交付回执的限定装饰草案'),
+      makeOption('record_shared_decoration_removal_receipt', 'record_shared_decoration_removal_receipt', '共同装修拆除回执', 'decoration_receipt', canRecordOfflineSharedDecorationRemovalReceipt.value, '请选择已扣款且待回执的共同装修拆除草案'),
       makeOption('collect_offline_auto_income', 'collect_offline_auto_income', '离线自动收益领取', 'auto_income', canCollectOfflineAutoIncome.value, '当前没有可领取自动收益或缺少权限'),
     ]
   })
@@ -5877,6 +5911,8 @@
       care_shared_pet: '共同宠物照料',
       process_shared_workshop_recipe: '共同工坊处理',
       move_shared_decoration: '共同装饰移动',
+      record_limited_decoration_delivery_receipt: '限定装饰交付回执',
+      record_shared_decoration_removal_receipt: '共同装修拆除回执',
       collect_offline_auto_income: '离线自动收益领取',
     }
     return labels[action] || action
@@ -5941,6 +5977,25 @@
         entry.client_base_stale === true ? '客户端基线过期' : '',
       ].filter(Boolean).join(' · ') || '共同装饰移动已按服务端契约状态合并'
     }
+    if (entry.action === 'record_limited_decoration_delivery_receipt' || entry.action === 'record_shared_decoration_removal_receipt') {
+      const isLimitedDecorationDelivery = entry.action === 'record_limited_decoration_delivery_receipt'
+      const decorationId = typeof entry.decoration_id === 'string' ? entry.decoration_id : ''
+      const draftId = typeof entry.draft_id === 'string' ? entry.draft_id : ''
+      const receiptRef = typeof entry.receipt_ref === 'string' ? entry.receipt_ref : ''
+      const permissions = Array.isArray(entry.required_permission_keys) ? entry.required_permission_keys.filter(Boolean).join(' / ') : ''
+      return [
+        decorationId ? `装饰 ${decorationId}` : '',
+        draftId ? `草案 ${draftId}` : '',
+        receiptRef ? `回执 ${receiptRef}` : '',
+        permissions ? `权限 ${permissions}` : '',
+        entry.shared_decoration_state_changed === true ? '共同装饰状态已写' : '',
+        isLimitedDecorationDelivery && entry.personal_inventory_merged === false ? '个人背包未合并' : '',
+        entry.personal_home_mutated === false ? '个人小屋未改' : '',
+        entry.shared_fund_changed === false ? '共同基金未再扣款' : '',
+        entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
+        entry.client_base_stale === true ? '客户端基线过期' : '',
+      ].filter(Boolean).join(' · ') || (isLimitedDecorationDelivery ? '限定装饰交付回执已按服务端契约状态合并' : '共同装修拆除回执已按服务端契约状态合并')
+    }
     const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
     const outputItemId = typeof entry.output_item_id === 'string' ? entry.output_item_id : ''
     const outputQuantity = Math.max(1, Math.floor(Number(entry.output_quantity) || 1))
@@ -5971,6 +6026,7 @@
     Number(cohabitationStore.warehouse?.summary.ledger_count) || 0,
     Number(selectedContract.value?.updated_at) || 0,
     Number(selectedContract.value?.shared_decoration_state?.length) || 0,
+    Number(cohabitationStore.fund?.large_spend_drafts?.length) || 0,
   )
   const getOfflineQueueDraftStorageKey = (contractId: string) => `${OFFLINE_QUEUE_DRAFT_STORAGE_PREFIX}:${contractId}`
   const cloneOfflineQueuePayload = (payload: unknown): Record<string, unknown> => {
@@ -6062,7 +6118,7 @@
       index,
       id: operation.operation_id || `${operation.action}-${index}`,
       label: operation.cached_label || offlineQueueActionLabel(operation.action),
-      targetLabel: operation.cached_target_label || String(operation.payload?.target_ref || operation.payload?.plot_id || operation.payload?.animal_id || operation.payload?.pet_id || operation.payload?.recipe_id || operation.payload?.decoration_id || '当前目标'),
+      targetLabel: operation.cached_target_label || String(operation.payload?.target_ref || operation.payload?.receipt_ref || operation.payload?.draft_id || operation.payload?.plot_id || operation.payload?.animal_id || operation.payload?.pet_id || operation.payload?.recipe_id || operation.payload?.decoration_id || '当前目标'),
       savedLabel: operation.cached_at ? `缓存 ${formatTime(operation.cached_at)}` : '缓存时间未知',
     }))
   )
@@ -6144,6 +6200,20 @@
       basePayload.to_location_ref = toLocationRef
       basePayload.placement_ref = `${toLocationRef}:placed`
       basePayload.target_ref = `shared_decoration:${decorationId}:offline_move`
+    } else if (option.id === 'record_limited_decoration_delivery_receipt') {
+      const draft = selectedOfflineLimitedDecorationDeliveryReceiptDraft.value
+      if (!draft) return null
+      basePayload.draft_id = draft.id
+      basePayload.target_ref = draft.target_ref
+      basePayload.receipt_ref = `limited_decoration:${draft.target_ref || draft.id}:offline_receipt`
+      basePayload.outcome = 'delivered'
+    } else if (option.id === 'record_shared_decoration_removal_receipt') {
+      const draft = selectedOfflineSharedDecorationRemovalReceiptDraft.value
+      if (!draft) return null
+      basePayload.draft_id = draft.id
+      basePayload.target_ref = draft.target_ref
+      basePayload.receipt_ref = `shared_decoration_removal:${draft.target_ref || draft.id}:offline_receipt`
+      basePayload.outcome = 'delivered'
     } else if (option.id === 'collect_offline_auto_income') {
       basePayload.client_queue_revision = offlineQueueClientRevision()
     }

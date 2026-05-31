@@ -128,7 +128,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 2;
+const WAREHOUSE_ITEM_POLICY_VERSION = 3;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -140,6 +140,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'hay', 'fish_feed', 'basic_fertilizer', 'quality_fertilizer', 'speed_gro', 'deluxe_speed_gro', 'quality_retaining_soil',
   'seed_cabbage', 'seed_radish', 'seed_rice', 'seed_wheat', 'seed_corn', 'seed_tea', 'seed_lotus', 'seed_turnip', 'seed_carrot', 'seed_sweet_potato', 'seed_pumpkin', 'seed_sesame', 'seed_peach', 'seed_chili',
   'premium_feed', 'nourishing_feed', 'vitality_feed',
+  'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -570,6 +571,7 @@ const OFFLINE_QUEUE_SUPPORTED_ACTIONS = Object.freeze([
   'care_shared_pet',
   'process_shared_workshop_recipe',
   'move_shared_decoration',
+  'record_limited_decoration_delivery_receipt',
   'record_shared_decoration_removal_receipt',
   'collect_offline_auto_income',
 ]);
@@ -823,6 +825,81 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_vegetable_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_stir_fried_cabbage: {
+    id: 'shared_stir_fried_cabbage',
+    label: '共同灶台炒青菜',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [{ item_id: 'cabbage', quantity: 2, quality: 'normal' }],
+    output_item_id: 'food_stir_fried_cabbage',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_radish_soup: {
+    id: 'shared_radish_soup',
+    label: '共同灶台萝卜汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'radish', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_radish_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_herbal_porridge: {
+    id: 'shared_herbal_porridge',
+    label: '共同灶台药膳粥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_herbal_porridge',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_miner_lunch: {
+    id: 'shared_miner_lunch',
+    label: '共同灶台矿工便当',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'potato', quantity: 2, quality: 'normal' },
+      { item_id: 'sweet_potato', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_miner_lunch',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_honey_tea: {
+    id: 'shared_honey_tea',
+    label: '共同茶炉蜂蜜茶',
+    station: 'tea_maker',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+      { item_id: 'herb', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_honey_tea',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_ginger_soup: {
+    id: 'shared_ginger_soup',
+    label: '共同灶台姜汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'ginger', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_ginger_soup',
     output_quantity: 1,
     output_quality: 'normal',
   },
@@ -9470,6 +9547,9 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
         || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role)),
       move_shared_decoration: actorPermissions.construction.move_common_furniture === true
         || actorPermissions.construction.move_memorial_furniture === true,
+      record_limited_decoration_delivery_receipt: actorPermissions.fund.spend_large === true
+        && actorPermissions.confirmations.large_fund_spend_requires_both === true
+        && actorPermissions.construction.buy_furniture === true,
       record_shared_decoration_removal_receipt: actorPermissions.fund.spend_large === true
         && actorPermissions.confirmations.large_fund_spend_requires_both === true
         && actorPermissions.construction.demolish_building === true,
@@ -12693,6 +12773,194 @@ function addWarehouseSaleOperatingFundBasis(groups, contract = {}, fundEntry = {
   }
 }
 
+function fundReturnIdentityMatchesAcceptedMember(identity = {}, acceptedMembers = []) {
+  if (!identity?.key) return false;
+  const identityKey = normalizeUsernameKey(identity.origin_owner_key || identity.origin_owner_username);
+  const identityUsernameKey = normalizeUsernameKey(identity.origin_owner_username);
+  const identityId = sanitizeText(identity.origin_owner_id, 100);
+  return acceptedMembers.some(member => {
+    const memberKey = normalizeUsernameKey(member.username_key || member.username);
+    return identity.key === `member:${memberKey}`
+      || identityKey === memberKey
+      || identityUsernameKey === memberKey
+      || (identityId && identityId === getMemberReturnTargetId(member));
+  });
+}
+
+function normalizeFundUnidentifiedOperatingContributionRow(entry = {}) {
+  const amount = Math.max(0, Math.floor(Number(entry.amount) || 0));
+  return {
+    action: sanitizeText(entry.action, 80),
+    amount,
+    ledger_ids: Array.isArray(entry.ledger_ids)
+      ? entry.ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+      : [],
+    warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids)
+      ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+      : [],
+    source_owner_username: normalizeUsername(entry.source_owner_username),
+    source_owner_key: normalizeUsernameKey(entry.source_owner_key || entry.source_owner_username),
+    target_refs: Array.isArray(entry.target_refs)
+      ? entry.target_refs.map(ref => sanitizeText(ref, 120)).filter(Boolean).slice(0, 20)
+      : [],
+    dispute_reason: sanitizeText(entry.dispute_reason, 120) || 'source_owner_not_accepted_member',
+    confirmation_status: sanitizeText(entry.confirmation_status, 80) || 'requires_all_member_confirmation',
+    personal_money_mutated: entry.personal_money_mutated === true,
+    shared_fund_mutated: entry.shared_fund_mutated === true,
+  };
+}
+
+function hashFundUnidentifiedOperatingContributionManifest(manifest = []) {
+  const stableRows = (Array.isArray(manifest) ? manifest : [])
+    .map(normalizeFundUnidentifiedOperatingContributionRow)
+    .filter(entry => entry.amount > 0)
+    .map(entry => ({
+      action: entry.action,
+      amount: entry.amount,
+      ledger_ids: [...entry.ledger_ids].sort(),
+      warehouse_ledger_ids: [...entry.warehouse_ledger_ids].sort(),
+      source_owner_key: entry.source_owner_key,
+      target_refs: [...entry.target_refs].sort(),
+      dispute_reason: entry.dispute_reason,
+    }))
+    .sort((a, b) => `${a.action}:${a.source_owner_key}:${a.dispute_reason}:${a.ledger_ids.join(',')}`.localeCompare(`${b.action}:${b.source_owner_key}:${b.dispute_reason}:${b.ledger_ids.join(',')}`));
+  return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
+}
+
+function addFundUnidentifiedOperatingContribution(groups, fundEntry = {}, amount, detail = {}) {
+  const safeAmount = Math.max(0, Math.floor(Number(amount) || 0));
+  if (safeAmount <= 0) return;
+  const action = sanitizeText(detail.action || fundEntry.action, 80);
+  const fundLedgerId = sanitizeText(detail.fund_ledger_id || fundEntry.id, 100);
+  const warehouseLedgerId = sanitizeText(detail.warehouse_ledger_id, 100);
+  const sourceOwnerUsername = normalizeUsername(detail.source_owner_username || fundEntry.source_owner_username || fundEntry.actor_username);
+  const sourceOwnerKey = normalizeUsernameKey(detail.source_owner_key || fundEntry.source_owner_key || sourceOwnerUsername);
+  const targetRef = sanitizeText(detail.target_ref || fundEntry.target_ref, 120);
+  const reason = sanitizeText(detail.dispute_reason, 120) || 'source_owner_not_accepted_member';
+  const key = [
+    action,
+    sourceOwnerKey || sourceOwnerUsername || 'unknown',
+    reason,
+    fundLedgerId,
+    warehouseLedgerId,
+    targetRef,
+  ].join(':');
+  const current = groups.get(key) || normalizeFundUnidentifiedOperatingContributionRow({
+    action,
+    amount: 0,
+    ledger_ids: [],
+    warehouse_ledger_ids: [],
+    source_owner_username: sourceOwnerUsername,
+    source_owner_key: sourceOwnerKey,
+    target_refs: [],
+    dispute_reason: reason,
+    confirmation_status: 'requires_all_member_confirmation',
+    personal_money_mutated: false,
+    shared_fund_mutated: false,
+  });
+  current.amount += safeAmount;
+  pushUniqueFundEvidence(current.ledger_ids, fundLedgerId, 20, value => sanitizeText(value, 100));
+  pushUniqueFundEvidence(current.warehouse_ledger_ids, warehouseLedgerId, 20, value => sanitizeText(value, 100));
+  pushUniqueFundEvidence(current.target_refs, targetRef, 20, value => sanitizeText(value, 120));
+  groups.set(key, normalizeFundUnidentifiedOperatingContributionRow(current));
+}
+
+function buildFundUnidentifiedOperatingContributionPreview(contract = {}) {
+  const fund = normalizeSharedFund(contract.shared_fund);
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const acceptedMembers = getAcceptedSeparationMembers(contract);
+  const groups = new Map();
+  for (const entry of fund.ledger) {
+    if (entry.status !== 'committed' || entry.amount <= 0) continue;
+    if (!FUND_OPERATING_CONTRIBUTION_ACTIONS.has(entry.action)) continue;
+    if (entry.action === 'warehouse_sale_income') {
+      const matchingSales = warehouse.ledger.filter(saleEntry =>
+        saleEntry.status === 'committed'
+        && saleEntry.action === 'sell'
+        && (
+          (entry.id && saleEntry.fund_ledger_id === entry.id)
+          || (entry.target_ref && saleEntry.target_ref === entry.target_ref)
+        )
+      );
+      if (matchingSales.length === 0) {
+        addFundUnidentifiedOperatingContribution(groups, entry, entry.amount, {
+          action: entry.action,
+          fund_ledger_id: entry.id,
+          target_ref: entry.target_ref,
+          dispute_reason: 'missing_matching_warehouse_sale_ledger',
+        });
+        continue;
+      }
+      let matchedSaleAmount = 0;
+      for (const saleEntry of matchingSales) {
+        const saleAmount = Math.max(0, Math.floor(Number(saleEntry.total_amount || saleEntry.amount) || 0));
+        matchedSaleAmount += saleAmount;
+        const identity = buildFundReturnOwnerIdentity(saleEntry, acceptedMembers);
+        if (fundReturnIdentityMatchesAcceptedMember(identity, acceptedMembers)) continue;
+        addFundUnidentifiedOperatingContribution(groups, entry, saleAmount, {
+          action: entry.action,
+          fund_ledger_id: entry.id,
+          warehouse_ledger_id: saleEntry.id,
+          source_owner_username: saleEntry.source_owner_username,
+          source_owner_key: saleEntry.source_owner_key,
+          target_ref: entry.target_ref || saleEntry.target_ref,
+          dispute_reason: identity?.key ? 'warehouse_sale_source_not_accepted_member' : 'warehouse_sale_source_missing',
+        });
+      }
+      const unmatchedFundAmount = Math.max(0, Math.floor(Number(entry.amount) || 0) - matchedSaleAmount);
+      if (unmatchedFundAmount > 0) {
+        addFundUnidentifiedOperatingContribution(groups, entry, unmatchedFundAmount, {
+          action: entry.action,
+          fund_ledger_id: entry.id,
+          target_ref: entry.target_ref,
+          dispute_reason: 'warehouse_sale_fund_amount_exceeds_traceable_sales',
+        });
+      }
+      continue;
+    }
+    const identity = buildFundReturnOwnerIdentity(entry, acceptedMembers);
+    if (fundReturnIdentityMatchesAcceptedMember(identity, acceptedMembers)) continue;
+    addFundUnidentifiedOperatingContribution(groups, entry, entry.amount, {
+      action: entry.action,
+      fund_ledger_id: entry.id,
+      source_owner_username: entry.source_owner_username,
+      source_owner_key: entry.source_owner_key,
+      target_ref: entry.target_ref,
+      dispute_reason: identity?.key ? 'fund_operating_source_not_accepted_member' : 'fund_operating_source_missing',
+    });
+  }
+  const contributions = [...groups.values()]
+    .map(normalizeFundUnidentifiedOperatingContributionRow)
+    .filter(entry => entry.amount > 0)
+    .slice(0, 80);
+  const actionCounts = contributions.reduce((counts, entry) => {
+    counts[entry.action] = (counts[entry.action] || 0) + 1;
+    return counts;
+  }, {});
+  const totalAmount = contributions.reduce((sum, entry) => sum + entry.amount, 0);
+  const manifestHash = hashFundUnidentifiedOperatingContributionManifest(contributions);
+  return {
+    contributions,
+    manifest_hash: manifestHash,
+    summary: {
+      total_amount: totalAmount,
+      ledger_count: new Set(contributions.flatMap(entry => entry.ledger_ids)).size,
+      row_count: contributions.length,
+      action_counts: actionCounts,
+      ledger_ids: [...new Set(contributions.flatMap(entry => entry.ledger_ids))].slice(0, 40),
+      warehouse_ledger_ids: [...new Set(contributions.flatMap(entry => entry.warehouse_ledger_ids))].slice(0, 40),
+      target_refs: [...new Set(contributions.flatMap(entry => entry.target_refs))].slice(0, 40),
+      requires_both_confirm: totalAmount > 0,
+      confirmation_policy: totalAmount > 0
+        ? '无法识别到已接受成员的经营收入不会直接改分配权重；共同基金返还前需双方确认争议证据和当前按可追溯权重执行。'
+        : '当前没有无法识别经营贡献争议。',
+      personal_money_mutated: false,
+      shared_fund_mutated: false,
+      shared_warehouse_mutated: false,
+    },
+  };
+}
+
 function buildFundReturnPreview(contract = {}) {
   const fund = normalizeSharedFund(contract.shared_fund);
   const acceptedMembers = getAcceptedSeparationMembers(contract);
@@ -13043,6 +13311,15 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
   const decorationSplitManifestHash = sanitizeText(assetReturn.decoration_split_manifest_hash, 100) || hashDecorationSplitManifest(decorationManifest);
   const buildingSplitManifestHash = sanitizeText(assetReturn.family_building_split_manifest_hash, 100) || hashFamilyBuildingSplitManifest(buildingManifest);
   const warehouseUnidentifiedSplitManifestHash = sanitizeText(assetReturn.warehouse_unidentified_split_manifest_hash, 100) || hashWarehouseUnidentifiedSplitManifest(warehouseUnidentifiedSplitManifest);
+  const fundUnidentifiedOperatingContributions = Array.isArray(assetReturn.fund_unidentified_operating_contributions)
+    ? assetReturn.fund_unidentified_operating_contributions.map(normalizeFundUnidentifiedOperatingContributionRow).filter(entry => entry.amount > 0)
+    : [];
+  const fundUnidentifiedOperatingContributionHash = sanitizeText(assetReturn.fund_unidentified_operating_contribution_hash, 100)
+    || hashFundUnidentifiedOperatingContributionManifest(fundUnidentifiedOperatingContributions);
+  const fundUnidentifiedOperatingTotal = Math.max(
+    0,
+    Math.floor(Number(assetReturn.fund_unidentified_operating_summary?.total_amount) || 0)
+  ) || fundUnidentifiedOperatingContributions.reduce((sum, entry) => sum + entry.amount, 0);
   return {
     id: makeId('separation_asset_return'),
     preview_id: preview.id,
@@ -13116,10 +13393,14 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
       suggested_refund_amount: Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)),
       return_status: 'manual_personal_money_write_required',
     })).filter(entry => entry.origin_owner_username && entry.suggested_refund_amount > 0),
+    shared_fund_unidentified_operating_contributions: fundUnidentifiedOperatingContributions,
+    shared_fund_unidentified_operating_contribution_hash: fundUnidentifiedOperatingContributionHash,
+    shared_fund_unidentified_operating_total: fundUnidentifiedOperatingTotal,
+    shared_fund_unidentified_operating_confirmation_required: fundUnidentifiedOperatingTotal > 0,
     shared_fund_delta_confirmation_required: fundReturns.some(entry =>
       entry.requires_consumption_delta_confirmation === true
       && Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)) > 0
-    ),
+    ) || fundUnidentifiedOperatingTotal > 0,
     shared_fund_delta_confirmations: [],
     decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
     building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
@@ -14683,6 +14964,7 @@ function normalizeSeparationSharedFundDeltaConfirmationSummary(entry = {}) {
   const summary = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
   return {
     requires_consumption_delta_confirmation: summary.requires_consumption_delta_confirmation === true,
+    requires_unidentified_operating_confirmation: summary.requires_unidentified_operating_confirmation === true,
     requires_all_members: summary.requires_all_members === true,
     all_members_confirmed: summary.all_members_confirmed === true,
     required_member_usernames: Array.isArray(summary.required_member_usernames)
@@ -14700,16 +14982,23 @@ function normalizeSeparationSharedFundDeltaConfirmationSummary(entry = {}) {
     fund_total_capital_contributed: Math.max(0, Math.floor(Number(summary.fund_total_capital_contributed) || 0)),
     fund_total_operating_contributed: Math.max(0, Math.floor(Number(summary.fund_total_operating_contributed) || 0)),
     fund_total_split_basis: Math.max(0, Math.floor(Number(summary.fund_total_split_basis) || 0)),
+    unidentified_operating_contribution_total: Math.max(0, Math.floor(Number(summary.unidentified_operating_contribution_total) || 0)),
+    unidentified_operating_contribution_rows: Math.max(0, Math.floor(Number(summary.unidentified_operating_contribution_rows) || 0)),
+    unidentified_operating_contribution_hash: sanitizeText(summary.unidentified_operating_contribution_hash, 100),
+    unidentified_operating_ledger_ids: Array.isArray(summary.unidentified_operating_ledger_ids)
+      ? summary.unidentified_operating_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40)
+      : [],
     personal_money_mutated: summary.personal_money_mutated === true,
     shared_fund_mutated: summary.shared_fund_mutated === true,
     shared_warehouse_mutated: summary.shared_warehouse_mutated === true,
-    confirmation_policy: sanitizeText(summary.confirmation_policy, 180) || 'Both accepted members must record consumption-delta confirmation before shared fund refund.',
+    confirmation_policy: sanitizeText(summary.confirmation_policy, 220) || 'Both accepted members must record shared-fund dispute confirmation before shared fund refund.',
   };
 }
 
 function separationLedgerRequiresSharedFundDeltaConfirmation(ledger = {}) {
-  return (Array.isArray(ledger.fund_refunds_by_origin_owner) ? ledger.fund_refunds_by_origin_owner : [])
+  const requiresConsumptionDeltaConfirmation = (Array.isArray(ledger.fund_refunds_by_origin_owner) ? ledger.fund_refunds_by_origin_owner : [])
     .some(entry => entry.requires_consumption_delta_confirmation === true && Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)) > 0);
+  return requiresConsumptionDeltaConfirmation || ledger.shared_fund_unidentified_operating_confirmation_required === true;
 }
 
 function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract = {}) {
@@ -14725,9 +15014,16 @@ function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract
     entry.requires_consumption_delta_confirmation === true
     && Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)) > 0
   );
-  const requiresConfirmation = rowsRequiringConfirmation.length > 0;
+  const unidentifiedOperatingContributions = Array.isArray(ledger.shared_fund_unidentified_operating_contributions)
+    ? ledger.shared_fund_unidentified_operating_contributions.map(normalizeFundUnidentifiedOperatingContributionRow).filter(entry => entry.amount > 0)
+    : [];
+  const unidentifiedOperatingTotal = unidentifiedOperatingContributions.reduce((sum, entry) => sum + entry.amount, 0);
+  const requiresUnidentifiedOperatingConfirmation = ledger.shared_fund_unidentified_operating_confirmation_required === true
+    || unidentifiedOperatingTotal > 0;
+  const requiresConfirmation = rowsRequiringConfirmation.length > 0 || requiresUnidentifiedOperatingConfirmation;
   return normalizeSeparationSharedFundDeltaConfirmationSummary({
     requires_consumption_delta_confirmation: requiresConfirmation,
+    requires_unidentified_operating_confirmation: requiresUnidentifiedOperatingConfirmation,
     requires_all_members: requiresConfirmation,
     all_members_confirmed: !requiresConfirmation || (requiredMemberUsernames.length > 0 && pendingMemberUsernames.length === 0),
     required_member_usernames: requiredMemberUsernames,
@@ -14739,9 +15035,17 @@ function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract
     fund_total_capital_contributed: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0),
     fund_total_operating_contributed: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0),
     fund_total_split_basis: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0),
+    unidentified_operating_contribution_total: unidentifiedOperatingTotal,
+    unidentified_operating_contribution_rows: unidentifiedOperatingContributions.length,
+    unidentified_operating_contribution_hash: sanitizeText(ledger.shared_fund_unidentified_operating_contribution_hash, 100)
+      || hashFundUnidentifiedOperatingContributionManifest(unidentifiedOperatingContributions),
+    unidentified_operating_ledger_ids: [...new Set(unidentifiedOperatingContributions.flatMap(entry => entry.ledger_ids))].slice(0, 40),
     personal_money_mutated: false,
     shared_fund_mutated: false,
     shared_warehouse_mutated: false,
+    confirmation_policy: requiresUnidentifiedOperatingConfirmation
+      ? 'Both accepted members must confirm consumption deltas and unidentified operating contribution disputes before shared fund refund.'
+      : 'Both accepted members must record consumption-delta confirmation before shared fund refund.',
   });
 }
 
@@ -14827,6 +15131,15 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           refund_idempotency_key: sanitizeText(item.refund_idempotency_key, 120),
         })).filter(item => item.origin_owner_username && item.suggested_refund_amount > 0).slice(0, 80)
       : [],
+    shared_fund_unidentified_operating_contributions: Array.isArray(entry.shared_fund_unidentified_operating_contributions)
+      ? entry.shared_fund_unidentified_operating_contributions
+          .map(normalizeFundUnidentifiedOperatingContributionRow)
+          .filter(item => item.amount > 0)
+          .slice(0, 80)
+      : [],
+    shared_fund_unidentified_operating_contribution_hash: sanitizeText(entry.shared_fund_unidentified_operating_contribution_hash, 100),
+    shared_fund_unidentified_operating_total: Math.max(0, Math.floor(Number(entry.shared_fund_unidentified_operating_total) || 0)),
+    shared_fund_unidentified_operating_confirmation_required: entry.shared_fund_unidentified_operating_confirmation_required === true,
     decoration_split_manifest_hash: sanitizeText(entry.decoration_split_manifest_hash, 100),
     building_split_manifest_hash: sanitizeText(entry.building_split_manifest_hash, 100),
     decoration_splits_by_origin_owner: Array.isArray(entry.decoration_splits_by_origin_owner)
@@ -15258,8 +15571,9 @@ function buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract = {}) {
   };
 }
 
-function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, fundBalance, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
+function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, fundUnidentifiedOperatingContributionPreview = {}, fundBalance, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
+  const unidentifiedOperatingSummary = fundUnidentifiedOperatingContributionPreview?.summary || {};
   const removalDisputeSummary = sharedDecorationRemovalDisputeFreeze?.summary || {};
   const highValueWithdrawalFreezeSummary = warehouseHighValueWithdrawalDisputeFreeze?.summary || {};
   return [
@@ -15294,7 +15608,17 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, ware
       id: 'fund_preview_balanced',
       passed: totalSuggestedFundRefund === fundBalance,
       detail: '共同基金余额按注资与可追溯经营收入权重生成建议返还额。',
-    },    {
+    },
+    {
+      id: 'fund_unidentified_operating_contribution_dispute_traceable',
+      passed: !unidentifiedOperatingSummary.requires_both_confirm
+        || ((fundUnidentifiedOperatingContributionPreview.contributions || []).length > 0
+          && /^[a-f0-9]{64}$/i.test(fundUnidentifiedOperatingContributionPreview.manifest_hash || '')),
+      detail: unidentifiedOperatingSummary.requires_both_confirm
+        ? '无法识别到已接受成员的经营收入已进入共同基金争议确认清单，返还前需双方确认。'
+        : '当前没有无法识别经营贡献争议。',
+    },
+    {
       id: 'warehouse_unidentified_split_confirmed',
       passed: (warehouseReturnPreview.unidentified_items || []).length === 0
         || ((warehouseReturnPreview.unidentified_split_manifest || []).length > 0
@@ -15326,7 +15650,7 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, ware
   ];
 }
 
-function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, contract, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
+function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, fundUnidentifiedOperatingContributionPreview = {}, contract, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
   const plan = [];
   if (plotReturnPreview.plot_return_summary.total_plots > 0) {
     plan.push({
@@ -15361,6 +15685,15 @@ function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, 
       action: 'refund_by_contribution_share',
       status: 'manual_execution_required',
       detail: '共同基金余额按注资与可追溯经营收入预览返还；消费差额和无法识别来源仍需双方确认补偿。',
+    });
+  }
+  if (fundUnidentifiedOperatingContributionPreview?.summary?.requires_both_confirm) {
+    plan.push({
+      id: 'fund_unidentified_operating_contribution_dispute',
+      target: 'shared_fund',
+      action: 'confirm_unidentified_operating_contribution_before_refund',
+      status: 'manual_execution_required',
+      detail: '无法识别到已接受成员的经营收入只作为争议证据锁定，不直接改分配权重；共同基金返还前需双方确认按当前可追溯权重执行。',
     });
   }
   if (sharedDecorationRemovalDisputeFreeze?.summary?.freeze_required) {
@@ -18362,6 +18695,15 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared decoration removal receipt merge', 160),
     }, actor);
   }
+  if (operation.action === 'record_limited_decoration_delivery_receipt') {
+    return recordCohabitationFundHighRiskReceipt(contractId, payload.draft_id || payload.draftId || payload.id, {
+      ...payload,
+      outcome: 'delivered',
+      receipt_ref: payload.receipt_ref || payload.delivery_receipt_ref || payload.target_ref,
+      idempotency_key: operation.idempotency_key,
+      memo: sanitizeText(payload.memo || payload.note || 'offline queue limited decoration delivery receipt merge', 160),
+    }, actor);
+  }
   if (operation.action === 'collect_offline_auto_income') {
     return collectCohabitationOfflineAutoIncome(contractId, {
       ...payload,
@@ -18566,36 +18908,43 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       compensation_hint: 'offline shared decoration move only updates contract shared_decoration_state and audit log; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
-  if (action === 'record_shared_decoration_removal_receipt') {
+  if (action === 'record_shared_decoration_removal_receipt' || action === 'record_limited_decoration_delivery_receipt') {
     const draft = result.draft || {};
     const receipt = result.receipt || {};
     const stateEntry = result.shared_decoration_state_entry || {};
+    const deliveryEntry = result.delivery_entry || {};
     const originalFundLedger = result.original_fund_ledger_entry || {};
     const targetRef = draft.target_ref || stateEntry.target_ref || sanitizeText(operation.payload?.target_ref || operation.payload?.receipt_ref, 120);
     const decorationId = stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
     const fundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || stateEntry.fund_ledger_id || '';
+    const isLimitedDecorationDelivery = action === 'record_limited_decoration_delivery_receipt';
     return {
       ...entry,
-      target_ref: entry.target_ref || targetRef || (decorationId ? `shared_decoration:${decorationId}:removal_receipt` : ''),
+      target_ref: entry.target_ref || targetRef || (decorationId ? `shared_decoration:${decorationId}:${isLimitedDecorationDelivery ? 'delivery_receipt' : 'removal_receipt'}` : ''),
       draft_id: draft.id || sanitizeText(operation.payload?.draft_id || operation.payload?.draftId || operation.payload?.id, 100),
       receipt_id: receipt.id || stateEntry.receipt_id || '',
-      receipt_ref: receipt.receipt_ref || stateEntry.removal_receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.removal_receipt_ref || operation.payload?.target_ref, 120),
+      receipt_ref: receipt.receipt_ref || stateEntry.delivery_receipt_ref || stateEntry.removal_receipt_ref || sanitizeText(operation.payload?.receipt_ref || operation.payload?.delivery_receipt_ref || operation.payload?.removal_receipt_ref || operation.payload?.target_ref, 120),
       receipt_outcome: receipt.outcome || 'delivered',
+      receipt_kind: isLimitedDecorationDelivery ? 'limited_decoration_delivery' : 'shared_decoration_removal',
       decoration_id: decorationId,
       decoration_kind: stateEntry.decoration_kind || normalizeSharedDecorationKind(operation.payload?.decoration_kind || operation.payload?.kind, operation.payload || {}),
+      delivery_entry_id: deliveryEntry.id || '',
       shared_decoration_state_entry_id: stateEntry.id || '',
       shared_decoration_state_changed: stateEntry.shared_decoration_state_changed !== false,
       fund_ledger_id: fundLedgerId,
       fund_ledger_ids: [fundLedgerId].filter(Boolean),
-      amount: Math.max(0, Math.floor(Number(stateEntry.amount || draft.amount || originalFundLedger.amount) || 0)),
+      amount: Math.max(0, Math.floor(Number(stateEntry.amount || deliveryEntry.amount || draft.amount || originalFundLedger.amount) || 0)),
       required_permission_keys: Array.isArray(result.required_permission_keys) ? result.required_permission_keys : [],
       personal_home_mutated: false,
       personal_save_changed: false,
+      personal_inventory_merged: false,
       shared_warehouse_changed: false,
       shared_fund_changed: false,
       already_recorded: result.already_recorded === true,
       audit_action: 'fund_high_risk_receipt_recorded',
-      compensation_hint: 'offline shared decoration removal receipt only closes an executed high-risk draft and updates contract shared_decoration_state; personal home saves, shared warehouse, and shared fund remain unchanged.',
+      compensation_hint: isLimitedDecorationDelivery
+        ? 'offline limited decoration delivery receipt only closes an executed high-risk draft and updates contract shared_fund_deliveries plus shared_decoration_state; personal inventory, personal home saves, shared warehouse, and shared fund remain unchanged.'
+        : 'offline shared decoration removal receipt only closes an executed high-risk draft and updates contract shared_decoration_state; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
   return {
@@ -18733,6 +19082,44 @@ function buildCohabitationOfflineSharedDecorationRemovalReceiptRejection(operati
     server_authoritative: true,
     conflict_policy: 'server_authoritative_reject_and_continue',
     compensation_hint: 'offline shared decoration removal receipt was rejected before any shared decoration state, personal home, warehouse, or fund mutation.',
+  };
+}
+
+function buildCohabitationOfflineLimitedDecorationDeliveryReceiptRejection(operation = {}, error = {}) {
+  if (operation.action !== 'record_limited_decoration_delivery_receipt') return null;
+  const payload = operation.payload || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0));
+  if (![400, 403, 404, 409].includes(status)) return null;
+  const message = sanitizeText(error?.message || '', 180);
+  let reason = 'limited_decoration_delivery_receipt_server_state_rejected';
+  if (status === 400) reason = 'invalid_limited_decoration_delivery_receipt_operation';
+  if (status === 403) reason = 'limited_decoration_delivery_receipt_permission_denied';
+  if (status === 404) reason = 'limited_decoration_draft_not_found';
+  if (status === 409) reason = 'limited_decoration_delivery_receipt_state_conflict';
+  if (status === 409 && message.includes('idempotency_key cannot be reused')) reason = 'limited_decoration_delivery_receipt_idempotency_conflict';
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason,
+    error_status: status,
+    error_message: message,
+    idempotency_key: operation.idempotency_key,
+    draft_id: sanitizeText(payload.draft_id || payload.draftId || payload.id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.delivery_receipt_ref || payload.target_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.receipt_ref || payload.delivery_receipt_ref, 120),
+    decoration_id: sanitizeText(payload.decoration_id || payload.decorationId || payload.item_id, 80),
+    required_permission_keys: ['fund.spend_large', 'confirmations.large_fund_spend_requires_both', 'construction.buy_furniture'],
+    shared_decoration_state_changed: false,
+    personal_inventory_merged: false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline limited decoration delivery receipt was rejected before any shared decoration state, personal inventory, personal home, warehouse, or fund mutation.',
   };
 }
 
@@ -19383,6 +19770,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
       const sharedDecorationRemovalReceiptRejection = buildCohabitationOfflineSharedDecorationRemovalReceiptRejection(operation, error);
       if (sharedDecorationRemovalReceiptRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(sharedDecorationRemovalReceiptRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
+      const limitedDecorationDeliveryReceiptRejection = buildCohabitationOfflineLimitedDecorationDeliveryReceiptRejection(operation, error);
+      if (limitedDecorationDeliveryReceiptRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(limitedDecorationDeliveryReceiptRejection, operation, beforeOperationRevisionSnapshot));
         continue;
       }
       const careItemProfile = getSharedPetCareItemProfile(careItemId);
@@ -28099,6 +28491,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const warehouseReturnPreview = buildWarehouseReturnPreview(contract);
   const warehouseReturns = warehouseReturnPreview.items_by_origin_owner;
   const fundReturns = buildFundReturnPreview(contract);
+  const fundUnidentifiedOperatingContributionPreview = buildFundUnidentifiedOperatingContributionPreview(contract);
   const decorationSplitManifest = buildDecorationSplitManifest(contract);
   const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
   const sharedDecorationRemovalDisputeFreeze = buildSharedDecorationRemovalDisputeFreezePreview(contract);
@@ -28150,6 +28543,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       fund_total_operating_contributed: totalFundOperatingContributions,
       fund_total_split_basis: totalFundSplitBasis,
       fund_split_basis: 'capital_and_traceable_operating_income',
+      fund_unidentified_operating_contributions: fundUnidentifiedOperatingContributionPreview.contributions,
+      fund_unidentified_operating_contribution_hash: fundUnidentifiedOperatingContributionPreview.manifest_hash,
+      fund_unidentified_operating_summary: fundUnidentifiedOperatingContributionPreview.summary,
       fund_suggested_refund_total: totalSuggestedFundRefund,
       fund_return_policy: contract.shared_fund.balance > 0 ? '按注资与可追溯经营收入共同拆分；消费差额和无法识别来源仍需双方确认。' : '共同基金当前为 0，不涉及返还。',
       personal_money_policy: '个人铜币从未合并，无需拆分。',
@@ -28159,6 +28555,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       warehouseReturns,
       warehouseReturnPreview,
       fundReturns,
+      fundUnidentifiedOperatingContributionPreview,
       contract,
       sharedDecorationRemovalDisputeFreeze,
       warehouseHighValueWithdrawalDisputeFreeze,
@@ -28191,6 +28588,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       warehouseReturns,
       warehouseReturnPreview,
       fundReturns,
+      fundUnidentifiedOperatingContributionPreview,
       fundBalance: contract.shared_fund.balance,
       sharedDecorationRemovalDisputeFreeze,
       warehouseHighValueWithdrawalDisputeFreeze,
@@ -28202,6 +28600,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       'resolve_family_story',
       'freeze_high_value_disputes',
       ...((warehouseReturnPreview.unidentified_items || []).length > 0 ? ['confirm_unidentified_warehouse_split'] : []),
+      ...(fundUnidentifiedOperatingContributionPreview.summary.requires_both_confirm ? ['confirm_unidentified_fund_operating_contribution'] : []),
       ...(sharedDecorationRemovalDisputeFreeze.summary.freeze_required ? ['freeze_shared_decoration_removal_disputes'] : []),
       ...(warehouseHighValueWithdrawalDisputeFreeze.summary.freeze_required ? ['settle_high_value_warehouse_withdrawal_drafts'] : []),
     ],
@@ -28222,6 +28621,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     fund_total_contributed: totalFundContributions,
     fund_total_operating_contributed: totalFundOperatingContributions,
     fund_total_split_basis: totalFundSplitBasis,
+    fund_unidentified_operating_contribution_total: fundUnidentifiedOperatingContributionPreview.summary.total_amount,
+    fund_unidentified_operating_contribution_ledger_ids: fundUnidentifiedOperatingContributionPreview.summary.ledger_ids,
+    fund_unidentified_operating_contribution_hash: fundUnidentifiedOperatingContributionPreview.manifest_hash,
     decoration_groups: preview.asset_return.decorations_by_origin_owner.length,
     family_building_groups: preview.asset_return.family_buildings_by_origin_owner.length,
     shared_decoration_removal_dispute_count: sharedDecorationRemovalDisputeFreeze.summary.pending_count,
@@ -29406,6 +29808,10 @@ async function confirmSeparationSharedFundDelta(contractId, previewId, payload =
     fund_total_contributed: nextSummary.fund_total_capital_contributed,
     fund_total_operating_contributed: nextSummary.fund_total_operating_contributed,
     fund_total_split_basis: nextSummary.fund_total_split_basis,
+    requires_unidentified_operating_confirmation: nextSummary.requires_unidentified_operating_confirmation,
+    unidentified_operating_contribution_total: nextSummary.unidentified_operating_contribution_total,
+    unidentified_operating_contribution_hash: nextSummary.unidentified_operating_contribution_hash,
+    unidentified_operating_ledger_ids: nextSummary.unidentified_operating_ledger_ids,
     personal_money_changed: false,
     shared_fund_changed: false,
     shared_warehouse_changed: false,
@@ -29499,7 +29905,7 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
 
   const fundDeltaConfirmationRequired = separationLedgerRequiresSharedFundDeltaConfirmation(ledger);
   if (fundDeltaConfirmationRequired && ledger.shared_fund_delta_confirmed !== true) {
-    throw createError('shared fund consumption delta requires all accepted member confirmations before refund', 409);
+    throw createError('shared fund consumption delta or unidentified operating contribution dispute requires all accepted member confirmations before refund', 409);
   }
 
   assertSharedFundNotFrozen(contract, 'refund separation shared fund');
@@ -29509,6 +29915,7 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
   const totalRefundCapitalContributions = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0);
   const totalRefundOperatingContributions = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0);
   const totalRefundSplitBasis = refundEvidenceRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0);
+  const fundDisputeSummary = buildSeparationSharedFundDeltaConfirmationSummary(ledger, contract);
   const fundSplitBasis = sanitizeText(preview.asset_return?.fund_split_basis, 80) || 'capital_and_traceable_operating_income';
   const totalRefundAmount = refundRows.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const balanceBefore = contract.shared_fund.balance;
@@ -29609,6 +30016,10 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
     fund_total_contributed: totalRefundCapitalContributions,
     fund_total_operating_contributed: totalRefundOperatingContributions,
     fund_total_split_basis: totalRefundSplitBasis,
+    shared_fund_delta_confirmation_summary: fundDisputeSummary,
+    unidentified_operating_contribution_total: fundDisputeSummary.unidentified_operating_contribution_total,
+    unidentified_operating_contribution_hash: fundDisputeSummary.unidentified_operating_contribution_hash,
+    unidentified_operating_ledger_ids: fundDisputeSummary.unidentified_operating_ledger_ids,
     shared_fund_balance_before: balanceBefore,
     shared_fund_balance_after: contract.shared_fund.balance,
     personal_money_merged: false,
@@ -29634,6 +30045,10 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
       fund_total_contributed: totalRefundCapitalContributions,
       fund_total_operating_contributed: totalRefundOperatingContributions,
       fund_total_split_basis: totalRefundSplitBasis,
+      unidentified_operating_contribution_total: fundDisputeSummary.unidentified_operating_contribution_total,
+      unidentified_operating_contribution_hash: fundDisputeSummary.unidentified_operating_contribution_hash,
+      unidentified_operating_ledger_ids: fundDisputeSummary.unidentified_operating_ledger_ids,
+      dispute_confirmation: fundDisputeSummary,
       personal_money_merged: false,
     },
   };

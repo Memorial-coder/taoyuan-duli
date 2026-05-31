@@ -4034,9 +4034,10 @@ await assert.rejects(
 
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 2, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 3, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('moonlight_lotus'), 'warehouse item policy should list high-value hybrid crops as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dragon_pearl'), 'warehouse item policy should list late hybrid crops as rare items')
@@ -4048,6 +4049,60 @@ const recipePolicyMoonlightLotusCatalog = recipePolicyWarehouseSnapshot.warehous
 assert.equal(recipePolicyMoonlightLotusCatalog?.classification, 'rare', 'warehouse item policy should classify high-value hybrid crops as rare')
 assert.equal(recipePolicyMoonlightLotusCatalog?.ordinary_flow_blocked, true, 'high-value hybrid crop policy should block ordinary warehouse flows')
 assert.equal(recipePolicyMoonlightLotusCatalog?.high_value_withdrawal_allowed, true, 'high-value hybrid crop policy should allow rare high-value drafts')
+const processRecipePolicyBasicDish = async ({ recipeId, outputItemId, station = 'stove', inputs }) => {
+  for (const input of inputs) {
+    await injectRecipePolicyStock(input.itemId, input.quantity, input.quality || 'normal')
+  }
+  const result = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: recipeId,
+    memo: `qa process ${recipeId}`,
+    idempotency_key: `qa-recipe-policy-${recipeId}`,
+  }, actor(recipePolicyOwner))
+  assert.equal(result.recipe.output_item_id, outputItemId, `${recipeId} should output expected food item`)
+  assert.equal(result.workshop_action.station, station, `${recipeId} should use expected shared station`)
+  assert.equal(result.workshop_action.process_kind, 'cooking_dish', `${recipeId} should be cooking dish`)
+  assert.equal(result.ledger_entry.quality, 'fine', `${recipeId} should apply cooperation quality bonus`)
+  assert.ok(result.warehouse.items.some(item => item.item_id === outputItemId && item.quality === 'fine' && item.quantity >= 1), `${recipeId} output should enter shared warehouse`)
+  assert.ok(result.warehouse_ledger_entries.some(entry => entry.action === 'deposit' && entry.item_id === outputItemId), `${recipeId} should write output deposit ledger`)
+  for (const input of inputs) {
+    assert.ok(result.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === input.itemId && entry.quality === (input.quality || 'normal')), `${recipeId} should consume ${input.itemId}`)
+  }
+  const origin = result.contract.origin_assets.warehouse_items.find(item => item.ledger_id === result.ledger_entry.id && item.action === 'deposit')
+  assert.equal(origin?.withdrawal_risk_level, 'high_quality', `${recipeId} upgraded dish origin should be high-quality protected`)
+  assert.equal(origin?.high_value_withdrawal_required, true, `${recipeId} upgraded dish should require high-value withdrawal flow`)
+  return result
+}
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_stir_fried_cabbage',
+  outputItemId: 'food_stir_fried_cabbage',
+  inputs: [{ itemId: 'cabbage', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_radish_soup',
+  outputItemId: 'food_radish_soup',
+  inputs: [{ itemId: 'radish', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_herbal_porridge',
+  outputItemId: 'food_herbal_porridge',
+  inputs: [{ itemId: 'herb', quantity: 2 }, { itemId: 'rice', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_miner_lunch',
+  outputItemId: 'food_miner_lunch',
+  inputs: [{ itemId: 'potato', quantity: 2 }, { itemId: 'sweet_potato', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_honey_tea',
+  outputItemId: 'food_honey_tea',
+  station: 'tea_maker',
+  inputs: [{ itemId: 'honey', quantity: 1 }, { itemId: 'herb', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_ginger_soup',
+  outputItemId: 'food_ginger_soup',
+  inputs: [{ itemId: 'ginger', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+})
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',
   memo: 'qa process shared rice vinegar',
@@ -7406,6 +7461,30 @@ await mutateStoredContract(created.contract.id, contract => {
     },
     ...(contract.family_building_ledger || []),
   ]
+  contract.shared_fund = contract.shared_fund || {}
+  contract.shared_fund.balance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0)) + 29
+  contract.shared_fund.ledger = [
+    {
+      id: 'qa-separation-unidentified-operating-fund-ledger',
+      action: 'order_income',
+      actor_username: 'qa_unknown_helper',
+      actor_display_name: 'QA unknown helper',
+      amount: 29,
+      at: Math.floor(Date.now() / 1000),
+      memo: 'QA unidentified operating contribution for separation dispute',
+      purpose: 'family_order_income',
+      source_owner_id: 'external_order:qa_unknown_helper',
+      source_owner_username: 'qa_unknown_helper',
+      source_owner_display_name: 'QA unknown helper',
+      source_owner_key: 'qa_unknown_helper',
+      target_ref: 'family_order:qa_unknown_operating_income',
+      status: 'committed',
+      idempotency_key: 'qa-separation-unidentified-operating-fund-ledger',
+    },
+    ...(Array.isArray(contract.shared_fund.ledger)
+      ? contract.shared_fund.ledger.filter(entry => entry?.id !== 'qa-separation-unidentified-operating-fund-ledger')
+      : []),
+  ]
 })
 
 const ownerRawBeforePreview = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
@@ -7483,6 +7562,13 @@ assert.equal(previewResult.preview.asset_return.fund_total_contributed, 950, 'se
 assert.equal(previewResult.preview.asset_return.fund_total_operating_contributed, 87, 'separation preview should expose total traceable operating income contribution amount')
 assert.equal(previewResult.preview.asset_return.fund_total_split_basis, 1037, 'separation preview should expose capital plus operating split basis total')
 assert.equal(previewResult.preview.asset_return.fund_split_basis, 'capital_and_traceable_operating_income', 'separation preview should declare capital plus traceable operating income split basis')
+assert.equal(previewResult.preview.asset_return.fund_unidentified_operating_summary.total_amount, 29, 'separation preview should expose unidentified operating contribution dispute amount')
+assert.equal(previewResult.preview.asset_return.fund_unidentified_operating_summary.requires_both_confirm, true, 'unidentified operating contribution should require both-member dispute confirmation')
+assert.match(previewResult.preview.asset_return.fund_unidentified_operating_contribution_hash, /^[a-f0-9]{64}$/, 'unidentified operating contribution dispute should expose stable hash')
+assert.ok(previewResult.preview.asset_return.fund_unidentified_operating_contributions.some(item => item.ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger')), 'unidentified operating contribution should keep fund ledger evidence')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_unidentified_operating_contribution_dispute'), 'separation preview should include unidentified operating contribution dispute plan')
+assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'fund_unidentified_operating_contribution_dispute_traceable')?.passed, 'separation preview should pass unidentified operating dispute evidence safety check')
+assert.ok(previewResult.preview.deferred_operations.includes('confirm_unidentified_fund_operating_contribution'), 'separation preview should defer unidentified operating contribution confirmation')
 assert.ok(ownerPreviewFundRow.operating_contribution_sources.includes('warehouse_sale_income'), 'owner fund row should keep operating contribution source type')
 assert.ok(partnerPreviewFundRow.operating_contribution_sources.includes('warehouse_sale_income'), 'partner fund row should keep operating contribution source type')
 assert.ok(ownerPreviewFundRow.operating_ledger_ids.includes(warehouseSaleResult.fund_ledger_entry.id), 'owner fund row should keep warehouse sale fund ledger evidence')
@@ -7791,6 +7877,10 @@ const partnerAssetReturnFundRow = assetReturnFundRows.find(item => item.origin_o
 assert.equal(assetReturnFundRows.length, previewFundRows.length, 'asset return ledger should keep every fund refund row from preview')
 assert.equal(ownerAssetReturnFundRow?.fund_split_basis, 'capital_and_traceable_operating_income', 'asset return ledger should keep owner fund split basis')
 assert.equal(partnerAssetReturnFundRow?.fund_split_basis, 'capital_and_traceable_operating_income', 'asset return ledger should keep partner fund split basis')
+assert.equal(assetReturnRecord.execution_ledger.shared_fund_unidentified_operating_total, 29, 'asset return ledger should keep unidentified operating contribution total')
+assert.match(assetReturnRecord.execution_ledger.shared_fund_unidentified_operating_contribution_hash, /^[a-f0-9]{64}$/, 'asset return ledger should keep unidentified operating contribution hash')
+assert.ok(assetReturnRecord.execution_ledger.shared_fund_unidentified_operating_contributions.some(item => item.ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger')), 'asset return ledger should keep unidentified operating ledger evidence')
+assert.equal(assetReturnRecord.execution_ledger.shared_fund_unidentified_operating_confirmation_required, true, 'asset return ledger should require unidentified operating contribution confirmation')
 assert.equal(ownerAssetReturnFundRow?.operating_contribution_amount, 35, 'asset return ledger should keep owner operating contribution amount')
 assert.equal(partnerAssetReturnFundRow?.operating_contribution_amount, 52, 'asset return ledger should keep partner operating contribution amount')
 assert.equal(ownerAssetReturnFundRow?.split_basis_amount, 905, 'asset return ledger should keep owner split basis amount')
@@ -7907,6 +7997,9 @@ assert.equal(personalFarmWrite.execution_ledger.shared_fund_delta_confirmed, fal
 assert.ok(personalFarmWrite.execution_ledger.next_required_operations.includes('confirm_shared_fund_delta'), 'personal farm write should schedule shared fund delta confirmation before refund')
 const personalFarmDeltaSummary = personalFarmWrite.execution_ledger.shared_fund_delta_confirmation_summary || {}
 assert.equal(personalFarmDeltaSummary.requires_consumption_delta_confirmation, true, 'personal farm write should expose fund consumption delta confirmation requirement')
+assert.equal(personalFarmDeltaSummary.requires_unidentified_operating_confirmation, true, 'personal farm write should expose unidentified operating contribution confirmation requirement')
+assert.equal(personalFarmDeltaSummary.unidentified_operating_contribution_total, 29, 'personal farm write should keep unidentified operating contribution amount')
+assert.ok(personalFarmDeltaSummary.unidentified_operating_ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger'), 'personal farm write should keep unidentified operating ledger evidence')
 assert.equal(personalFarmDeltaSummary.all_members_confirmed, false, 'personal farm write should wait for member confirmations')
 assert.ok(personalFarmDeltaSummary.pending_member_usernames.includes(owner), 'personal farm write delta summary should include owner pending confirmation')
 assert.ok(personalFarmDeltaSummary.pending_member_usernames.includes(partner), 'personal farm write delta summary should include partner pending confirmation')
@@ -7998,6 +8091,8 @@ assert.equal(ownerSharedFundDeltaConfirm.execution_ledger.status, 'shared_fund_d
 assert.equal(ownerSharedFundDeltaConfirm.execution_ledger.shared_fund_delta_confirmed, false, 'owner delta confirmation should not mark all members confirmed')
 assert.equal(ownerSharedFundDeltaConfirm.preview.confirmation_state.execution_request.status, 'shared_fund_delta_confirmation_pending', 'execution request should wait for remaining shared fund delta confirmation')
 assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.requires_consumption_delta_confirmation, true, 'owner confirmation should keep delta confirmation requirement')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.requires_unidentified_operating_confirmation, true, 'owner confirmation should keep unidentified operating contribution confirmation requirement')
+assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.unidentified_operating_contribution_total, 29, 'owner confirmation should keep unidentified operating contribution total')
 assert.equal(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.all_members_confirmed, false, 'owner confirmation should not complete all-member confirmation')
 assert.ok(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.confirmed_member_usernames.includes(owner), 'owner confirmation summary should include owner')
 assert.ok(ownerSharedFundDeltaConfirm.shared_fund_delta_confirmation.pending_member_usernames.includes(partner), 'owner confirmation summary should keep partner pending')
@@ -8026,6 +8121,7 @@ assert.equal(partnerSharedFundDeltaConfirm.idempotent, false, 'first partner sha
 assert.equal(partnerSharedFundDeltaConfirm.execution_ledger.status, 'shared_fund_delta_confirmed', 'partner delta confirmation should advance ledger once all members confirm')
 assert.equal(partnerSharedFundDeltaConfirm.execution_ledger.shared_fund_delta_confirmed, true, 'partner delta confirmation should mark all members confirmed')
 assert.equal(partnerSharedFundDeltaConfirm.preview.confirmation_state.execution_request.status, 'shared_fund_delta_confirmed', 'execution request should advance after all delta confirmations')
+assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.requires_unidentified_operating_confirmation, true, 'partner confirmation should retain unidentified operating contribution confirmation requirement')
 assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.all_members_confirmed, true, 'partner confirmation should complete all-member confirmation')
 assert.equal(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.pending_member_usernames.length, 0, 'partner confirmation summary should clear pending members')
 assert.ok(partnerSharedFundDeltaConfirm.shared_fund_delta_confirmation.confirmed_member_usernames.includes(owner), 'partner confirmation summary should keep owner confirmed')
@@ -8042,6 +8138,8 @@ assert.ok(sharedFundDeltaConfirmAudit, 'shared fund delta confirmation should be
 assert.equal(sharedFundDeltaConfirmAudit.detail?.all_members_confirmed, true, 'shared fund delta audit should mark all members confirmed after partner confirmation')
 assert.equal(sharedFundDeltaConfirmAudit.detail?.shared_fund_changed, false, 'shared fund delta audit should prove shared fund is unchanged')
 assert.equal(sharedFundDeltaConfirmAudit.detail?.personal_money_changed, false, 'shared fund delta audit should prove personal money is unchanged')
+assert.equal(sharedFundDeltaConfirmAudit.detail?.unidentified_operating_contribution_total, 29, 'shared fund delta audit should keep unidentified operating contribution total')
+assert.ok(sharedFundDeltaConfirmAudit.detail?.unidentified_operating_ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger'), 'shared fund delta audit should keep unidentified operating ledger evidence')
 await assert.rejects(
   () => runtime.refundSeparationSharedFund(created.contract.id, previewResult.preview.id, {
     memo: 'wrong shared fund refund hash',
@@ -8080,6 +8178,9 @@ const partnerRefundedFundRow = sharedFundRefund.execution_ledger.fund_refunds_by
 assert.equal(sharedFundRefund.shared_fund.fund_split_basis, 'capital_and_traceable_operating_income', 'shared fund refund response should keep split basis')
 assert.equal(sharedFundRefund.shared_fund.fund_total_operating_contributed, 87, 'shared fund refund response should keep operating contribution total')
 assert.equal(sharedFundRefund.shared_fund.fund_total_split_basis, 1037, 'shared fund refund response should keep split basis total')
+assert.equal(sharedFundRefund.shared_fund.unidentified_operating_contribution_total, 29, 'shared fund refund response should keep unidentified operating dispute amount')
+assert.ok(sharedFundRefund.shared_fund.unidentified_operating_ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger'), 'shared fund refund response should keep unidentified operating ledger evidence')
+assert.equal(sharedFundRefund.shared_fund.dispute_confirmation.requires_unidentified_operating_confirmation, true, 'shared fund refund should retain unidentified operating confirmation evidence')
 assert.equal(ownerRefundedFundRow?.return_status, 'personal_money_written', 'owner fund refund row should be marked written after refund')
 assert.equal(partnerRefundedFundRow?.return_status, 'personal_money_written', 'partner fund refund row should be marked written after refund')
 assert.equal(ownerRefundedFundRow?.fund_split_basis, 'capital_and_traceable_operating_income', 'refunded owner row should keep fund split basis')
@@ -8097,6 +8198,8 @@ assert.ok(sharedFundRefundAudit, 'shared fund refund should be audited')
 assert.equal(sharedFundRefundAudit.detail?.fund_split_basis, 'capital_and_traceable_operating_income', 'shared fund refund audit should keep split basis')
 assert.equal(sharedFundRefundAudit.detail?.fund_total_operating_contributed, 87, 'shared fund refund audit should keep operating contribution total')
 assert.equal(sharedFundRefundAudit.detail?.fund_total_split_basis, 1037, 'shared fund refund audit should keep split basis total')
+assert.equal(sharedFundRefundAudit.detail?.unidentified_operating_contribution_total, 29, 'shared fund refund audit should keep unidentified operating dispute amount')
+assert.ok(sharedFundRefundAudit.detail?.unidentified_operating_ledger_ids.includes('qa-separation-unidentified-operating-fund-ledger'), 'shared fund refund audit should keep unidentified operating ledger evidence')
 
 const ownerRawAfterSharedFundRefund = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawAfterSharedFundRefund = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
@@ -12494,6 +12597,248 @@ assert.ok(!decorationRemovalDeliveredClearedPreview.preview.compensation_plan.fi
 assert.ok(!decorationRemovalDeliveredClearedPreview.preview.deferred_operations.includes('freeze_shared_decoration_removal_disputes'), 'delivered shared decoration removal should clear dispute freeze deferred operation')
 assert.equal(readGameplayData(decorationRemovalDeliveredOwner)?.player?.money, decorationRemovalDeliveredOwnerMoneyBeforeDraft, 'shared decoration removal delivered clear preview should not touch owner personal money')
 assert.equal(readGameplayData(decorationRemovalDeliveredPartner)?.player?.money, decorationRemovalDeliveredPartnerMoneyBeforeConfirm, 'shared decoration removal delivered clear preview should not touch partner personal money')
+
+const offlineLimitedDecorationReceiptOwner = 'cohabit_oldr_o31'
+const offlineLimitedDecorationReceiptPartner = 'cohabit_oldr_p31'
+const offlineLimitedDecorationReceiptContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineLimitedDecorationReceiptOwner,
+  partnerUsername: offlineLimitedDecorationReceiptPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'offline-limited-decoration-receipt',
+})
+const offlineLimitedDecorationReceiptFundBeforeDraft = await runtime.getCohabitationFund(offlineLimitedDecorationReceiptContractId, actor(offlineLimitedDecorationReceiptOwner))
+const offlineLimitedDecorationReceiptBalanceBeforeDraft = offlineLimitedDecorationReceiptFundBeforeDraft.fund.balance
+const offlineLimitedDecorationReceiptOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineLimitedDecorationReceiptOwner).slots[0].raw
+const offlineLimitedDecorationReceiptPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineLimitedDecorationReceiptPartner).slots[0].raw
+const offlineLimitedDecorationReceiptDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineLimitedDecorationReceiptContractId, {
+  amount: 1300,
+  purpose: 'limited_decoration',
+  target_ref: 'limited_decoration:cloud_screen:purchase',
+  memo: 'qa offline limited decoration delivery receipt draft',
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-draft',
+}, actor(offlineLimitedDecorationReceiptOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineLimitedDecorationReceiptContractId, offlineLimitedDecorationReceiptDraft.draft.id, {
+  memo: 'qa partner confirms offline limited decoration delivery receipt',
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-confirm',
+}, actor(offlineLimitedDecorationReceiptPartner))
+const offlineLimitedDecorationReceiptExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineLimitedDecorationReceiptContractId, offlineLimitedDecorationReceiptDraft.draft.id, {
+  memo: 'qa execute offline limited decoration delivery receipt',
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-execute',
+}, actor(offlineLimitedDecorationReceiptOwner))
+await runtime.updateCohabitationPermissions(offlineLimitedDecorationReceiptContractId, {
+  target_username: offlineLimitedDecorationReceiptOwner,
+  permissions: {
+    construction: {
+      buy_furniture: false,
+    },
+  },
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-revoke-buy',
+}, actor(offlineLimitedDecorationReceiptOwner))
+const offlineLimitedDecorationReceiptDeniedStatus = await runtime.getCohabitationOfflineStatus(offlineLimitedDecorationReceiptContractId, actor(offlineLimitedDecorationReceiptOwner))
+assert.equal(offlineLimitedDecorationReceiptDeniedStatus.offline_status.actor_capabilities.record_limited_decoration_delivery_receipt, false, 'offline limited decoration delivery receipt capability should follow buy furniture permission')
+const offlineLimitedDecorationReceiptDeniedQueue = await runtime.mergeCohabitationOfflineQueue(offlineLimitedDecorationReceiptContractId, {
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-denied-queue',
+  client_queue_revision: offlineLimitedDecorationReceiptDeniedStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_limited_decoration_delivery_receipt',
+    operation_id: 'qa-offline-limited-decoration-delivery-receipt-denied-op',
+    idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-denied-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineLimitedDecorationReceiptDraft.draft.id,
+      target_ref: 'limited_decoration:cloud_screen:purchase',
+      receipt_ref: 'limited_decoration_receipt:cloud_screen:offline-denied',
+      memo: 'qa offline limited decoration delivery receipt denied',
+    },
+  }],
+}, actor(offlineLimitedDecorationReceiptOwner))
+assert.equal(offlineLimitedDecorationReceiptDeniedQueue.offline_queue_merge.accepted_count, 0, 'offline limited decoration delivery receipt denied queue should not commit')
+assert.equal(offlineLimitedDecorationReceiptDeniedQueue.offline_queue_merge.rejected_count, 1, 'offline limited decoration delivery receipt denied queue should return rejected evidence')
+assert.equal(offlineLimitedDecorationReceiptDeniedQueue.offline_queue_merge.rejected[0]?.reason, 'limited_decoration_delivery_receipt_permission_denied', 'offline limited decoration delivery receipt denial should preserve permission reason')
+assert.equal(offlineLimitedDecorationReceiptDeniedQueue.offline_queue_merge.rejected[0]?.shared_decoration_state_changed, false, 'rejected offline limited decoration delivery receipt should not mutate shared decoration state')
+assert.equal(Boolean(offlineLimitedDecorationReceiptDeniedQueue.contract.shared_decoration_state?.some(entry => entry.decoration_id === 'cloud_screen')), false, 'rejected offline limited decoration delivery receipt should not persist decoration state')
+await runtime.updateCohabitationPermissions(offlineLimitedDecorationReceiptContractId, {
+  target_username: offlineLimitedDecorationReceiptOwner,
+  permissions: {
+    construction: {
+      buy_furniture: true,
+    },
+  },
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-restore-buy',
+}, actor(offlineLimitedDecorationReceiptOwner))
+const offlineLimitedDecorationReceiptStatus = await runtime.getCohabitationOfflineStatus(offlineLimitedDecorationReceiptContractId, actor(offlineLimitedDecorationReceiptOwner))
+assert.ok(offlineLimitedDecorationReceiptStatus.offline_status.summary.offline_queue_supported_actions.includes('record_limited_decoration_delivery_receipt'), 'offline queue should expose limited decoration delivery receipt as supported action')
+assert.equal(offlineLimitedDecorationReceiptStatus.offline_status.actor_capabilities.record_limited_decoration_delivery_receipt, true, 'owner should be able to record limited decoration delivery receipt offline')
+const offlineLimitedDecorationReceiptQueue = await runtime.mergeCohabitationOfflineQueue(offlineLimitedDecorationReceiptContractId, {
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-queue',
+  client_queue_revision: offlineLimitedDecorationReceiptStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_limited_decoration_delivery_receipt',
+    operation_id: 'qa-offline-limited-decoration-delivery-receipt-op',
+    idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineLimitedDecorationReceiptDraft.draft.id,
+      target_ref: 'limited_decoration:cloud_screen:purchase',
+      receipt_ref: 'limited_decoration_receipt:cloud_screen:offline-done',
+      memo: 'qa offline limited decoration delivery receipt',
+    },
+  }],
+}, actor(offlineLimitedDecorationReceiptOwner))
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept limited decoration delivery receipt')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.rejected_count, 0, 'offline limited decoration delivery receipt should not be rejected')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.action, 'record_limited_decoration_delivery_receipt', 'offline limited decoration delivery receipt result should keep action')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.draft_id, offlineLimitedDecorationReceiptDraft.draft.id, 'offline limited decoration delivery receipt should return draft id')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.receipt_ref, 'limited_decoration_receipt:cloud_screen:offline-done', 'offline limited decoration delivery receipt should return receipt ref')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.receipt_kind, 'limited_decoration_delivery', 'offline limited decoration delivery receipt should identify receipt kind')
+assert.deepEqual(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.required_permission_keys, ['construction.buy_furniture'], 'offline limited decoration delivery receipt should return buy furniture permission evidence')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, true, 'offline limited decoration delivery receipt should mark shared decoration state changed')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.personal_inventory_merged, false, 'offline limited decoration delivery receipt should not merge personal inventory')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.personal_home_mutated, false, 'offline limited decoration delivery receipt should not mutate personal home')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.shared_fund_changed, false, 'offline limited decoration delivery receipt should not refund or deduct shared fund again')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline limited decoration delivery receipt should not mutate shared warehouse')
+assert.equal(offlineLimitedDecorationReceiptQueue.offline_conflict_resolution.shared_decoration_state_changed, true, 'offline conflict resolution should summarize limited decoration shared decoration state change')
+assert.equal(offlineLimitedDecorationReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'cloud_screen')?.state, 'delivered', 'offline limited decoration delivery receipt should persist delivered state')
+assert.equal(offlineLimitedDecorationReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'cloud_screen')?.fund_ledger_id, offlineLimitedDecorationReceiptExecute.ledger_entry.id, 'offline limited decoration delivery receipt should retain original fund ledger trace')
+assert.equal(offlineLimitedDecorationReceiptQueue.contract.shared_fund_deliveries?.find(entry => entry.decoration_id === 'cloud_screen')?.receipt_ref, 'limited_decoration_receipt:cloud_screen:offline-done', 'offline limited decoration delivery receipt should persist delivery receipt')
+assert.ok(offlineLimitedDecorationReceiptQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-limited-decoration-delivery-receipt-op'), 'offline limited decoration delivery receipt should write high-risk receipt audit')
+assert.ok(offlineLimitedDecorationReceiptQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-limited-decoration-delivery-receipt-queue' && entry.detail?.offline_conflict_resolution?.shared_decoration_state_changed === true), 'offline limited decoration delivery receipt queue should write merge audit evidence')
+assert.equal(offlineLimitedDecorationReceiptQueue.contract.shared_fund.balance, offlineLimitedDecorationReceiptBalanceBeforeDraft - 1300, 'offline limited decoration delivery receipt should keep executed fund deduction only')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineLimitedDecorationReceiptOwner).slots[0].raw, offlineLimitedDecorationReceiptOwnerRawBefore, 'offline limited decoration delivery receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineLimitedDecorationReceiptPartner).slots[0].raw, offlineLimitedDecorationReceiptPartnerRawBefore, 'offline limited decoration delivery receipt should not rewrite partner save')
+const duplicateOfflineLimitedDecorationReceiptQueue = await runtime.mergeCohabitationOfflineQueue(offlineLimitedDecorationReceiptContractId, {
+  idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-queue',
+  operations: [{
+    action: 'record_limited_decoration_delivery_receipt',
+    operation_id: 'qa-offline-limited-decoration-delivery-receipt-op',
+    idempotency_key: 'qa-offline-limited-decoration-delivery-receipt-op',
+    payload: {
+      draft_id: offlineLimitedDecorationReceiptDraft.draft.id,
+      receipt_ref: 'limited_decoration_receipt:cloud_screen:offline-done',
+    },
+  }],
+}, actor(offlineLimitedDecorationReceiptOwner))
+assert.equal(duplicateOfflineLimitedDecorationReceiptQueue.offline_queue_merge.idempotent, true, 'duplicate offline limited decoration delivery receipt queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineLimitedDecorationReceiptQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline limited decoration delivery receipt should replay conflict resolution evidence')
+
+const offlineDecorationRemovalReceiptOwner = 'cohabit_odrr_o31'
+const offlineDecorationRemovalReceiptPartner = 'cohabit_odrr_p31'
+const offlineDecorationRemovalReceiptContractId = await setupDualLargeFundContract({
+  ownerUsername: offlineDecorationRemovalReceiptOwner,
+  partnerUsername: offlineDecorationRemovalReceiptPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'offline-decoration-removal-receipt',
+})
+const offlineDecorationRemovalReceiptFundBeforeDraft = await runtime.getCohabitationFund(offlineDecorationRemovalReceiptContractId, actor(offlineDecorationRemovalReceiptOwner))
+const offlineDecorationRemovalReceiptBalanceBeforeDraft = offlineDecorationRemovalReceiptFundBeforeDraft.fund.balance
+const offlineDecorationRemovalReceiptOwnerRawBefore = saveRuntime.loadUserSaveSlots(offlineDecorationRemovalReceiptOwner).slots[0].raw
+const offlineDecorationRemovalReceiptPartnerRawBefore = saveRuntime.loadUserSaveSlots(offlineDecorationRemovalReceiptPartner).slots[0].raw
+const offlineDecorationRemovalReceiptDraft = await runtime.createCohabitationFundLargeSpendDraft(offlineDecorationRemovalReceiptContractId, {
+  amount: 1300,
+  purpose: 'shared_decoration_removal',
+  target_ref: 'shared_decoration:river_screen:remove',
+  memo: 'qa offline shared decoration removal receipt draft',
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-draft',
+}, actor(offlineDecorationRemovalReceiptOwner))
+await runtime.confirmCohabitationFundLargeSpendDraft(offlineDecorationRemovalReceiptContractId, offlineDecorationRemovalReceiptDraft.draft.id, {
+  memo: 'qa partner confirms offline shared decoration removal receipt',
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-confirm',
+}, actor(offlineDecorationRemovalReceiptPartner))
+const offlineDecorationRemovalReceiptExecute = await runtime.executeCohabitationFundLargeSpendDraft(offlineDecorationRemovalReceiptContractId, offlineDecorationRemovalReceiptDraft.draft.id, {
+  memo: 'qa execute offline shared decoration removal receipt',
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-execute',
+}, actor(offlineDecorationRemovalReceiptOwner))
+await runtime.updateCohabitationPermissions(offlineDecorationRemovalReceiptContractId, {
+  target_username: offlineDecorationRemovalReceiptOwner,
+  permissions: {
+    construction: {
+      demolish_building: false,
+    },
+  },
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-revoke-demolish',
+}, actor(offlineDecorationRemovalReceiptOwner))
+const offlineDecorationRemovalReceiptDeniedStatus = await runtime.getCohabitationOfflineStatus(offlineDecorationRemovalReceiptContractId, actor(offlineDecorationRemovalReceiptOwner))
+assert.equal(offlineDecorationRemovalReceiptDeniedStatus.offline_status.actor_capabilities.record_shared_decoration_removal_receipt, false, 'offline removal receipt capability should follow demolish permission')
+const offlineDecorationRemovalReceiptDeniedQueue = await runtime.mergeCohabitationOfflineQueue(offlineDecorationRemovalReceiptContractId, {
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-denied-queue',
+  client_queue_revision: offlineDecorationRemovalReceiptDeniedStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_shared_decoration_removal_receipt',
+    operation_id: 'qa-offline-shared-decoration-removal-receipt-denied-op',
+    idempotency_key: 'qa-offline-shared-decoration-removal-receipt-denied-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineDecorationRemovalReceiptDraft.draft.id,
+      target_ref: 'shared_decoration:river_screen:remove',
+      receipt_ref: 'shared_decoration_removal_receipt:river_screen:offline-denied',
+      memo: 'qa offline shared decoration removal receipt denied',
+    },
+  }],
+}, actor(offlineDecorationRemovalReceiptOwner))
+assert.equal(offlineDecorationRemovalReceiptDeniedQueue.offline_queue_merge.accepted_count, 0, 'offline decoration removal receipt denied queue should not commit')
+assert.equal(offlineDecorationRemovalReceiptDeniedQueue.offline_queue_merge.rejected_count, 1, 'offline decoration removal receipt denied queue should return rejected evidence')
+assert.equal(offlineDecorationRemovalReceiptDeniedQueue.offline_queue_merge.rejected[0]?.reason, 'shared_decoration_removal_receipt_permission_denied', 'offline decoration removal receipt denial should preserve permission reason')
+assert.equal(offlineDecorationRemovalReceiptDeniedQueue.offline_queue_merge.rejected[0]?.shared_decoration_state_changed, false, 'rejected offline decoration removal receipt should not mutate shared decoration state')
+await runtime.updateCohabitationPermissions(offlineDecorationRemovalReceiptContractId, {
+  target_username: offlineDecorationRemovalReceiptOwner,
+  permissions: {
+    construction: {
+      demolish_building: true,
+    },
+  },
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-restore-demolish',
+}, actor(offlineDecorationRemovalReceiptOwner))
+const offlineDecorationRemovalReceiptStatus = await runtime.getCohabitationOfflineStatus(offlineDecorationRemovalReceiptContractId, actor(offlineDecorationRemovalReceiptOwner))
+assert.ok(offlineDecorationRemovalReceiptStatus.offline_status.summary.offline_queue_supported_actions.includes('record_shared_decoration_removal_receipt'), 'offline queue should expose shared decoration removal receipt as supported action')
+assert.equal(offlineDecorationRemovalReceiptStatus.offline_status.actor_capabilities.record_shared_decoration_removal_receipt, true, 'owner should be able to record shared decoration removal receipt offline')
+const offlineDecorationRemovalReceiptQueue = await runtime.mergeCohabitationOfflineQueue(offlineDecorationRemovalReceiptContractId, {
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-queue',
+  client_queue_revision: offlineDecorationRemovalReceiptStatus.offline_status.server_revision_snapshot?.server_queue_revision ?? 1,
+  operations: [{
+    action: 'record_shared_decoration_removal_receipt',
+    operation_id: 'qa-offline-shared-decoration-removal-receipt-op',
+    idempotency_key: 'qa-offline-shared-decoration-removal-receipt-op',
+    client_base_revision: 1,
+    payload: {
+      draft_id: offlineDecorationRemovalReceiptDraft.draft.id,
+      target_ref: 'shared_decoration:river_screen:remove',
+      receipt_ref: 'shared_decoration_removal_receipt:river_screen:offline-done',
+      memo: 'qa offline shared decoration removal receipt',
+    },
+  }],
+}, actor(offlineDecorationRemovalReceiptOwner))
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.accepted_count, 1, 'offline queue should accept shared decoration removal receipt')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.rejected_count, 0, 'offline shared decoration removal receipt should not be rejected')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.action, 'record_shared_decoration_removal_receipt', 'offline decoration removal receipt result should keep action')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.draft_id, offlineDecorationRemovalReceiptDraft.draft.id, 'offline decoration removal receipt should return draft id')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.receipt_ref, 'shared_decoration_removal_receipt:river_screen:offline-done', 'offline decoration removal receipt should return receipt ref')
+assert.deepEqual(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.required_permission_keys, ['construction.demolish_building'], 'offline decoration removal receipt should return demolish permission evidence')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_state_changed, true, 'offline decoration removal receipt should mark shared decoration state changed')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.personal_home_mutated, false, 'offline decoration removal receipt should not mutate personal home')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_fund_changed, false, 'offline decoration removal receipt should not refund or deduct shared fund again')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline decoration removal receipt should not mutate shared warehouse')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_conflict_resolution.shared_decoration_state_changed, true, 'offline conflict resolution should summarize removal receipt shared decoration state change')
+assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'river_screen')?.state, 'removed', 'offline decoration removal receipt should persist removed state')
+assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'river_screen')?.fund_ledger_id, offlineDecorationRemovalReceiptExecute.ledger_entry.id, 'offline decoration removal receipt should retain original fund ledger trace')
+assert.ok(offlineDecorationRemovalReceiptQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-receipt-op'), 'offline decoration removal receipt should write high-risk receipt audit')
+assert.ok(offlineDecorationRemovalReceiptQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-receipt-queue' && entry.detail?.offline_conflict_resolution?.shared_decoration_state_changed === true), 'offline decoration removal receipt queue should write merge audit evidence')
+assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_fund.balance, offlineDecorationRemovalReceiptBalanceBeforeDraft - 1300, 'offline decoration removal receipt should keep executed fund deduction only')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineDecorationRemovalReceiptOwner).slots[0].raw, offlineDecorationRemovalReceiptOwnerRawBefore, 'offline decoration removal receipt should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(offlineDecorationRemovalReceiptPartner).slots[0].raw, offlineDecorationRemovalReceiptPartnerRawBefore, 'offline decoration removal receipt should not rewrite partner save')
+const duplicateOfflineDecorationRemovalReceiptQueue = await runtime.mergeCohabitationOfflineQueue(offlineDecorationRemovalReceiptContractId, {
+  idempotency_key: 'qa-offline-shared-decoration-removal-receipt-queue',
+  operations: [{
+    action: 'record_shared_decoration_removal_receipt',
+    operation_id: 'qa-offline-shared-decoration-removal-receipt-op',
+    idempotency_key: 'qa-offline-shared-decoration-removal-receipt-op',
+    payload: {
+      draft_id: offlineDecorationRemovalReceiptDraft.draft.id,
+      receipt_ref: 'shared_decoration_removal_receipt:river_screen:offline-done',
+    },
+  }],
+}, actor(offlineDecorationRemovalReceiptOwner))
+assert.equal(duplicateOfflineDecorationRemovalReceiptQueue.offline_queue_merge.idempotent, true, 'duplicate offline decoration removal receipt queue should replay by queue idempotency key')
+assert.equal(duplicateOfflineDecorationRemovalReceiptQueue.offline_conflict_resolution.status, 'idempotent_replay', 'duplicate offline decoration removal receipt should replay conflict resolution evidence')
 
 const warehouseGovernanceOwner = 'cohabit_wgov_owner26'
 const warehouseGovernancePartner = 'cohabit_wgov_part26'
