@@ -210,7 +210,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 34;
+const WAREHOUSE_ITEM_POLICY_VERSION = 35;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -218,7 +218,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
-  'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
+  'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'wheat_flour', 'dried_vegetable', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
   'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
   'hay', 'fish_feed', 'basic_fertilizer', 'quality_fertilizer', 'speed_gro', 'deluxe_speed_gro', 'quality_retaining_soil',
   'seed_cabbage', 'seed_radish', 'seed_rice', 'seed_wheat', 'seed_corn', 'seed_tea', 'seed_lotus', 'seed_turnip', 'seed_carrot', 'seed_sweet_potato', 'seed_pumpkin', 'seed_sesame', 'seed_peach', 'seed_chili',
@@ -240,7 +240,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_la_ba_zhou', 'food_jiaozi', 'food_tangyuan', 'food_bountiful_porridge', 'food_chef_special', 'food_social_tea',
   'food_pumpkin_pie', 'food_golden_fried_rice', 'food_supreme_farm_feast',
   'food_stone_soup', 'food_iron_tonic', 'food_wild_salad', 'food_mushroom_stew', 'food_warrior_ration', 'food_battle_stew', 'food_iron_fist_soup',
-  'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_yam_family_porridge', 'food_garlic_radish_side_dish', 'food_bitter_gourd_cooling_soup', 'food_rice_flour_roll',
+  'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_steamed_bun', 'food_dried_vegetable_soup', 'food_yam_family_porridge', 'food_garlic_radish_side_dish', 'food_bitter_gourd_cooling_soup', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
   'food_candied_peach_spirit_cake', 'qingxin_lotus_elixir', 'warming_sweet_potato_pill', 'grain_breath_elixir',
@@ -761,6 +761,16 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_dried_vegetable: {
+    id: 'shared_dried_vegetable',
+    label: '共同晒架干菜',
+    station: 'drying_rack',
+    process_kind: 'cooking_material',
+    input_items: [{ item_id: 'cabbage', quantity: 2, quality: 'normal' }],
+    output_item_id: 'dried_vegetable',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_dried_radish: {
     id: 'shared_dried_radish',
     label: '共同酱缸萝卜干',
@@ -778,6 +788,16 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     process_kind: 'cooking_material',
     input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }],
     output_item_id: 'rice_flour',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_wheat_flour: {
+    id: 'shared_wheat_flour',
+    label: '共同石磨面粉',
+    station: 'stone_mill',
+    process_kind: 'cooking_material',
+    input_items: [{ item_id: 'winter_wheat', quantity: 2, quality: 'normal' }],
+    output_item_id: 'wheat_flour',
     output_quantity: 1,
     output_quality: 'normal',
   },
@@ -951,6 +971,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_vegetable_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_dried_vegetable_soup: {
+    id: 'shared_dried_vegetable_soup',
+    label: '共同灶台干菜米粉汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'dried_vegetable', quantity: 1, quality: 'fine' },
+      { item_id: 'rice_flour', quantity: 1, quality: 'fine' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_dried_vegetable_soup',
     output_quantity: 1,
     output_quality: 'normal',
   },
@@ -2260,6 +2294,16 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     process_kind: 'cooking_dish',
     input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }],
     output_item_id: 'food_roasted_sweet_potato',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_steamed_bun: {
+    id: 'shared_steamed_bun',
+    label: '共同灶台馒头',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [{ item_id: 'wheat_flour', quantity: 1, quality: 'fine' }],
+    output_item_id: 'food_steamed_bun',
     output_quantity: 1,
     output_quality: 'normal',
   },

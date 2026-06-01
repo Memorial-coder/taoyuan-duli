@@ -4498,7 +4498,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 34, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 35, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4522,6 +4522,10 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_bountiful_porridge'), 'warehouse item policy should list achievement porridge as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_chef_special'), 'warehouse item policy should list chef special as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_social_tea'), 'warehouse item policy should list social tea as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('wheat_flour'), 'warehouse item policy should list wheat flour as a common cooking material')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('dried_vegetable'), 'warehouse item policy should list dried vegetable as a common cooking material')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_steamed_bun'), 'warehouse item policy should list steamed buns as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_dried_vegetable_soup'), 'warehouse item policy should list dried vegetable soup as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_supreme_farm_feast'), 'warehouse item policy should list farming skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_tonic'), 'warehouse item policy should list mining skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_fist_soup'), 'warehouse item policy should list foraging and combat skill dishes as common items')
@@ -5171,6 +5175,59 @@ await processRecipePolicyBasicDish({
   outputItemId: 'food_bitter_gourd_cooling_soup',
   inputs: [{ itemId: 'bitter_gourd', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
 })
+await injectRecipePolicyStock('winter_wheat', 2)
+const recipePolicyWheatFlour = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_wheat_flour',
+  memo: 'qa process shared wheat flour for steamed bun',
+  idempotency_key: 'qa-recipe-policy-wheat-flour-for-steamed-bun',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyWheatFlour.recipe.output_item_id, 'wheat_flour', 'shared wheat flour should output wheat flour')
+assert.equal(recipePolicyWheatFlour.workshop_action.station, 'stone_mill', 'shared wheat flour should use stone mill station')
+assert.equal(recipePolicyWheatFlour.workshop_action.process_kind, 'cooking_material', 'shared wheat flour should be cooking material')
+assert.equal(recipePolicyWheatFlour.ledger_entry.quality, 'fine', 'shared wheat flour should apply cooperation quality bonus')
+const recipePolicySteamedBun = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_steamed_bun',
+  memo: 'qa process shared steamed bun',
+  idempotency_key: 'qa-recipe-policy-steamed-bun',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicySteamedBun.recipe.output_item_id, 'food_steamed_bun', 'shared steamed bun should output food item')
+assert.equal(recipePolicySteamedBun.workshop_action.station, 'stove', 'shared steamed bun should use stove station')
+assert.equal(recipePolicySteamedBun.workshop_action.process_kind, 'cooking_dish', 'shared steamed bun should be cooking dish')
+assert.equal(recipePolicySteamedBun.ledger_entry.quality, 'normal', 'shared steamed bun should keep base quality when only one processed material source is involved')
+assert.ok(recipePolicySteamedBun.warehouse.items.some(item => item.item_id === 'food_steamed_bun' && item.quality === 'normal' && item.quantity >= 1), 'shared steamed bun output should enter shared warehouse')
+const recipePolicySteamedBunFlourConsume = recipePolicySteamedBun.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'wheat_flour')
+assert.equal(recipePolicySteamedBunFlourConsume?.quality, 'fine', 'shared steamed bun should consume fine wheat flour')
+assert.ok(recipePolicySteamedBunFlourConsume?.source_ledger_ids.includes(recipePolicyWheatFlour.ledger_entry.id), 'shared steamed bun should trace wheat flour source ledger')
+
+await injectRecipePolicyStock('cabbage', 2)
+const recipePolicyDriedVegetable = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_dried_vegetable',
+  memo: 'qa process shared dried vegetable for soup',
+  idempotency_key: 'qa-recipe-policy-dried-vegetable-for-soup',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyDriedVegetable.recipe.output_item_id, 'dried_vegetable', 'shared dried vegetable should output dried vegetable')
+assert.equal(recipePolicyDriedVegetable.workshop_action.station, 'drying_rack', 'shared dried vegetable should use drying rack station')
+assert.equal(recipePolicyDriedVegetable.workshop_action.process_kind, 'cooking_material', 'shared dried vegetable should be cooking material')
+assert.equal(recipePolicyDriedVegetable.ledger_entry.quality, 'fine', 'shared dried vegetable should apply cooperation quality bonus')
+await injectRecipePolicyStock('rice', 2)
+const recipePolicySoupRiceFlour = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_rice_flour',
+  memo: 'qa process rice flour for dried vegetable soup',
+  idempotency_key: 'qa-recipe-policy-rice-flour-for-dried-vegetable-soup',
+}, actor(recipePolicyOwner))
+await injectRecipePolicyStock('firewood', 1)
+const recipePolicyDriedVegetableSoup = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+  recipe_id: 'shared_dried_vegetable_soup',
+  memo: 'qa process shared dried vegetable soup',
+  idempotency_key: 'qa-recipe-policy-dried-vegetable-soup',
+}, actor(recipePolicyOwner))
+assert.equal(recipePolicyDriedVegetableSoup.recipe.output_item_id, 'food_dried_vegetable_soup', 'shared dried vegetable soup should output food item')
+assert.equal(recipePolicyDriedVegetableSoup.workshop_action.station, 'stove', 'shared dried vegetable soup should use stove station')
+assert.equal(recipePolicyDriedVegetableSoup.workshop_action.process_kind, 'cooking_dish', 'shared dried vegetable soup should be cooking dish')
+assert.equal(recipePolicyDriedVegetableSoup.ledger_entry.quality, 'fine', 'shared dried vegetable soup should apply cooperation quality bonus')
+assert.ok(recipePolicyDriedVegetableSoup.warehouse.items.some(item => item.item_id === 'food_dried_vegetable_soup' && item.quality === 'fine' && item.quantity >= 1), 'shared dried vegetable soup output should enter shared warehouse')
+assert.ok(recipePolicyDriedVegetableSoup.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'dried_vegetable')?.source_ledger_ids.includes(recipePolicyDriedVegetable.ledger_entry.id), 'shared dried vegetable soup should trace dried vegetable source ledger')
+assert.ok(recipePolicyDriedVegetableSoup.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === 'rice_flour')?.source_ledger_ids.includes(recipePolicySoupRiceFlour.ledger_entry.id), 'shared dried vegetable soup should trace rice flour source ledger')
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
   recipe_id: 'shared_rice_vinegar',
