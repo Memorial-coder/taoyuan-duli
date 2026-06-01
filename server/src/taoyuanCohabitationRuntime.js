@@ -211,16 +211,16 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 37;
+const WAREHOUSE_ITEM_POLICY_VERSION = 36;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
-  'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'chrysanthemum', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'silk', 'hanhai_spice', 'egg', 'duck_egg', 'milk',
+  'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'silk', 'hanhai_spice', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
   'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'wheat_flour', 'dried_vegetable', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
-  'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey', 'peach_wine',
+  'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
   'hay', 'fish_feed', 'basic_fertilizer', 'quality_fertilizer', 'speed_gro', 'deluxe_speed_gro', 'quality_retaining_soil',
   'seed_cabbage', 'seed_radish', 'seed_rice', 'seed_wheat', 'seed_corn', 'seed_tea', 'seed_lotus', 'seed_turnip', 'seed_carrot', 'seed_sweet_potato', 'seed_pumpkin', 'seed_sesame', 'seed_peach', 'seed_chili',
   'premium_feed', 'nourishing_feed', 'vitality_feed',
@@ -231,10 +231,10 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_farmers_feast', 'food_autumn_moon_feast', 'food_lovers_pastry', 'food_forgemasters_meal', 'food_spirit_fruit_wine',
   'food_phoenix_cake', 'food_molten_hotpot', 'food_tea_banquet', 'food_ironforge_stew', 'food_ranch_milk_soup', 'food_moonlit_tea_rice',
   'food_spicy_hotpot', 'food_bamboo_shoot_stir_fry', 'food_lotus_seed_soup', 'food_corn_pancake', 'food_osmanthus_lotus_root',
-  'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_chrysanthemum_wine', 'food_zhi_yuan_gao',
+  'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_zhi_yuan_gao',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_pigeon_egg_herb_soup', 'food_yak_milk_barley_porridge', 'food_donkey_milk_ginger_tea', 'food_ostrich_egg_feast', 'food_antler_velvet_herb_soup',
-  'food_silk_dumpling', 'food_peacock_feast', 'food_spiced_lamb', 'food_drunken_chicken',
+  'food_silk_dumpling', 'food_peacock_feast', 'food_spiced_lamb',
   'food_first_catch_soup', 'food_braised_catfish', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
@@ -1585,19 +1585,6 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
-  shared_chrysanthemum_wine: {
-    id: 'shared_chrysanthemum_wine',
-    label: '共同酒坊菊花酒',
-    station: 'wine_workshop',
-    process_kind: 'cooking_dish',
-    input_items: [
-      { item_id: 'chrysanthemum', quantity: 3, quality: 'normal' },
-      { item_id: 'rice', quantity: 1, quality: 'normal' },
-    ],
-    output_item_id: 'food_chrysanthemum_wine',
-    output_quantity: 1,
-    output_quality: 'normal',
-  },
   shared_zhi_yuan_gao: {
     id: 'shared_zhi_yuan_gao',
     label: '共同灶台纸鸢糕',
@@ -1795,20 +1782,6 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'goat_milk', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_spiced_lamb',
-    output_quantity: 1,
-    output_quality: 'normal',
-  },
-  shared_drunken_chicken: {
-    id: 'shared_drunken_chicken',
-    label: '共同灶台醉仙鸡',
-    station: 'stove',
-    process_kind: 'cooking_dish',
-    input_items: [
-      { item_id: 'egg', quantity: 3, quality: 'normal' },
-      { item_id: 'peach_wine', quantity: 1, quality: 'normal' },
-      { item_id: 'ginger', quantity: 1, quality: 'normal' },
-    ],
-    output_item_id: 'food_drunken_chicken',
     output_quantity: 1,
     output_quality: 'normal',
   },
@@ -17394,25 +17367,89 @@ function hashDecorationSplitManifest(manifest = []) {
   return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
 }
 
+function summarizeFamilyBuildingSplitStatus(entry = {}) {
+  const personalSaveReceipts = Array.isArray(entry.real_build_demolition_personal_save_receipts)
+    ? entry.real_build_demolition_personal_save_receipts
+    : [];
+  const exactMutationReceipts = Array.isArray(entry.real_build_demolition_main_state_exact_mutation_receipts)
+    ? entry.real_build_demolition_main_state_exact_mutation_receipts.map(receipt => ({
+      username: normalizeUsername(receipt?.username),
+      username_key: normalizeUsernameKey(receipt?.username_key || receipt?.username),
+      save_slot: normalizeSaveSlot(receipt?.save_slot),
+      save_id: normalizeSaveId(receipt?.save_id),
+      receipt_id: sanitizeText(receipt?.receipt_id, 140),
+      receipt_status: sanitizeText(receipt?.receipt_status, 40) || 'written',
+      target_kind: sanitizeText(receipt?.target_kind, 60),
+      mutation_result: sanitizeText(receipt?.mutation_result, 100),
+      delete_selector: sanitizeText(receipt?.delete_selector, 180),
+      written_at: Math.max(0, Math.floor(Number(receipt?.written_at) || 0)),
+    })).filter(receipt => receipt.username && receipt.receipt_id).slice(0, 12)
+    : [];
+  const personalSaveReceiptCount = Math.max(
+    personalSaveReceipts.length,
+    Math.max(0, Math.floor(Number(entry.real_build_demolition_personal_save_receipt_count) || 0))
+  );
+  const exactMutationReceiptCount = Math.max(
+    exactMutationReceipts.length,
+    Math.max(0, Math.floor(Number(entry.real_build_demolition_main_state_exact_mutation_receipt_count) || 0))
+  );
+  const exactExecutionState = sanitizeText(entry.real_build_demolition_main_state_exact_execution_state, 100);
+  const mainExecutionState = sanitizeText(entry.real_build_demolition_main_state_execution_state, 100) || exactExecutionState;
+  const personalBuildingMainStateMutated = entry.personal_building_main_state_mutated === true || (
+    exactMutationReceiptCount > 0
+    && (exactExecutionState === 'personal_main_state_mutated' || mainExecutionState === 'personal_main_state_mutated')
+  );
+  const personalHomeMutated = entry.personal_home_mutated === true || exactMutationReceipts.some(receipt => /^home_/.test(receipt.target_kind || ''));
+  const personalDecorationMutated = entry.personal_decoration_mutated === true || exactMutationReceipts.some(receipt => /^decoration/.test(receipt.target_kind || ''));
+  let splitStatus = 'recorded_waiting_building_rollback_or_manual_receipt';
+  let splitPolicy = '家族建筑拆分已保留 ledger / hash 证据，真实建筑状态需走回滚、真实拆除或人工回执链路。';
+  if (personalBuildingMainStateMutated) {
+    splitStatus = 'personal_main_state_mutation_evidence_recorded';
+    splitPolicy = '已读回家族建筑真实拆除精确主状态变更回执；分居拆分只引用既有回执，不重复删除个人 home / decoration 主状态。';
+  } else if (personalSaveReceiptCount > 0 || entry.real_build_demolition_execution_state === 'executed') {
+    splitStatus = 'real_demolition_personal_save_receipt_recorded';
+    splitPolicy = '已读回真实拆除个人存档回执；仍需按主状态精确目标链路确认 home / decoration 字段是否已收口。';
+  }
+  return {
+    split_status: splitStatus,
+    split_policy: splitPolicy,
+    real_build_demolished: entry.real_build_demolished === true,
+    real_build_demolition_review_state: sanitizeText(entry.real_build_demolition_review_state, 80),
+    real_build_demolition_execution_state: sanitizeText(entry.real_build_demolition_execution_state, 80),
+    real_build_demolition_personal_save_receipt_count: personalSaveReceiptCount,
+    real_build_demolition_main_state_execution_state: mainExecutionState,
+    real_build_demolition_main_state_exact_execution_state: exactExecutionState,
+    real_build_demolition_main_state_exact_mutation_receipt_count: exactMutationReceiptCount,
+    personal_building_main_state_mutated: personalBuildingMainStateMutated,
+    personal_save_previously_changed: personalSaveReceiptCount > 0 || exactMutationReceiptCount > 0,
+    personal_home_mutated: personalHomeMutated,
+    personal_decoration_mutated: personalDecorationMutated,
+    main_state_exact_mutation_receipts: exactMutationReceipts,
+  };
+}
+
 function buildFamilyBuildingSplitManifest(contract = {}) {
   const ledger = normalizeFamilyBuildingLedger(contract);
   return ledger
     .filter(entry => entry.real_build_applied === true || entry.shared_warehouse_materials_consumed === true || entry.shared_fund_deducted === true)
-    .map(entry => ({
-      manifest_id: `family_building:${entry.id}`,
-      building_ledger_id: entry.id,
-      building_id: entry.building_id,
-      project_id: entry.project_id,
-      target_ref: entry.target_ref,
-      fund_ledger_id: entry.fund_ledger_id,
-      draft_id: entry.draft_id,
-      amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
-      shared_fund_deducted: entry.shared_fund_deducted === true,
-      real_build_applied: entry.real_build_applied === true,
-      shared_warehouse_materials_consumed: entry.shared_warehouse_materials_consumed === true,
-      split_policy: 'record_only_waiting_building_rollback_or_manual_receipt',
-      execution_status: 'preview_only',
-    }))
+    .map(entry => {
+      const { main_state_exact_mutation_receipts: _receipts, ...splitEvidence } = summarizeFamilyBuildingSplitStatus(entry);
+      return {
+        manifest_id: `family_building:${entry.id}`,
+        building_ledger_id: entry.id,
+        building_id: entry.building_id,
+        project_id: entry.project_id,
+        target_ref: entry.target_ref,
+        fund_ledger_id: entry.fund_ledger_id,
+        draft_id: entry.draft_id,
+        amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+        shared_fund_deducted: entry.shared_fund_deducted === true,
+        real_build_applied: entry.real_build_applied === true,
+        shared_warehouse_materials_consumed: entry.shared_warehouse_materials_consumed === true,
+        ...splitEvidence,
+        execution_status: 'preview_only',
+      };
+    })
     .sort((left, right) => left.manifest_id.localeCompare(right.manifest_id))
     .slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
 }
@@ -17460,15 +17497,28 @@ function summarizeDecorationSplitsByOwner(manifest = []) {
   return [...groups.values()].slice(0, 80);
 }
 
-function summarizeBuildingSplitsByProject(manifest = []) {
-  return (Array.isArray(manifest) ? manifest : []).map(entry => ({
-    building_ledger_id: entry.building_ledger_id,
-    building_id: entry.building_id,
-    project_id: entry.project_id,
-    target_ref: entry.target_ref,
-    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
-    split_status: 'recorded_waiting_building_rollback_or_manual_receipt',
-  })).filter(entry => entry.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+function summarizeBuildingSplitsByProject(manifest = [], contract = null) {
+  const ledgerById = new Map();
+  if (contract && typeof contract === 'object') {
+    for (const ledgerEntry of normalizeFamilyBuildingLedger(contract)) {
+      if (ledgerEntry.id) ledgerById.set(ledgerEntry.id, ledgerEntry);
+    }
+  }
+  return (Array.isArray(manifest) ? manifest : []).map(entry => {
+    const buildingLedgerId = sanitizeText(entry.building_ledger_id, 100);
+    const ledgerEntry = ledgerById.get(buildingLedgerId);
+    const splitEvidence = ledgerEntry
+      ? summarizeFamilyBuildingSplitStatus(ledgerEntry)
+      : summarizeFamilyBuildingSplitStatus(entry);
+    return {
+      building_ledger_id: buildingLedgerId,
+      building_id: sanitizeText(entry.building_id, 80),
+      project_id: sanitizeText(entry.project_id, 80),
+      target_ref: sanitizeText(entry.target_ref, 120),
+      amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+      ...splitEvidence,
+    };
+  }).filter(entry => entry.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
 }
 
 function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payload = {}) {
@@ -19554,6 +19604,32 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           target_ref: sanitizeText(item.target_ref, 120),
           amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
           split_status: sanitizeText(item.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
+          split_policy: sanitizeText(item.split_policy, 220),
+          real_build_demolished: item.real_build_demolished === true,
+          real_build_demolition_review_state: sanitizeText(item.real_build_demolition_review_state, 80),
+          real_build_demolition_execution_state: sanitizeText(item.real_build_demolition_execution_state, 80),
+          real_build_demolition_personal_save_receipt_count: Math.max(0, Math.floor(Number(item.real_build_demolition_personal_save_receipt_count) || 0)),
+          real_build_demolition_main_state_execution_state: sanitizeText(item.real_build_demolition_main_state_execution_state, 100),
+          real_build_demolition_main_state_exact_execution_state: sanitizeText(item.real_build_demolition_main_state_exact_execution_state, 100),
+          real_build_demolition_main_state_exact_mutation_receipt_count: Math.max(0, Math.floor(Number(item.real_build_demolition_main_state_exact_mutation_receipt_count) || 0)),
+          personal_building_main_state_mutated: item.personal_building_main_state_mutated === true,
+          personal_save_previously_changed: item.personal_save_previously_changed === true,
+          personal_home_mutated: item.personal_home_mutated === true,
+          personal_decoration_mutated: item.personal_decoration_mutated === true,
+          main_state_exact_mutation_receipts: Array.isArray(item.main_state_exact_mutation_receipts)
+            ? item.main_state_exact_mutation_receipts.map(receipt => ({
+                username: normalizeUsername(receipt?.username),
+                username_key: normalizeUsernameKey(receipt?.username_key || receipt?.username),
+                save_slot: normalizeSaveSlot(receipt?.save_slot),
+                save_id: normalizeSaveId(receipt?.save_id),
+                receipt_id: sanitizeText(receipt?.receipt_id, 140),
+                receipt_status: sanitizeText(receipt?.receipt_status, 40) || 'written',
+                target_kind: sanitizeText(receipt?.target_kind, 60),
+                mutation_result: sanitizeText(receipt?.mutation_result, 100),
+                delete_selector: sanitizeText(receipt?.delete_selector, 180),
+                written_at: Math.max(0, Math.floor(Number(receipt?.written_at) || 0)),
+              })).filter(receipt => receipt.username && receipt.receipt_id).slice(0, 12)
+            : [],
         })).filter(item => item.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
       : [],
     decorations_buildings_split: entry.decorations_buildings_split === true,
@@ -19570,9 +19646,45 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           manifest_hash: sanitizeText(item.manifest_hash, 100),
           status: sanitizeText(item.status, 80) || 'recorded_only',
           personal_save_changed: item.personal_save_changed === true,
+          personal_save_previously_changed: item.personal_save_previously_changed === true,
           personal_home_mutated: item.personal_home_mutated === true,
           personal_decoration_owned_mutated: item.personal_decoration_owned_mutated === true,
           compensation_or_memorial_required: item.compensation_or_memorial_required === true,
+          personal_building_main_state_mutated: item.personal_building_main_state_mutated === true,
+          building_main_state_mutation_evidence_recorded: item.building_main_state_mutation_evidence_recorded === true,
+          real_build_demolition_personal_save_receipt_count: Math.max(0, Math.floor(Number(item.real_build_demolition_personal_save_receipt_count) || 0)),
+          main_state_exact_mutation_receipt_count: Math.max(0, Math.floor(Number(item.main_state_exact_mutation_receipt_count) || 0)),
+          building_split_status_rows: Array.isArray(item.building_split_status_rows)
+            ? item.building_split_status_rows.map(row => ({
+                building_ledger_id: sanitizeText(row?.building_ledger_id, 100),
+                building_id: sanitizeText(row?.building_id, 80),
+                project_id: sanitizeText(row?.project_id, 80),
+                target_ref: sanitizeText(row?.target_ref, 120),
+                amount: Math.max(0, Math.floor(Number(row?.amount) || 0)),
+                split_status: sanitizeText(row?.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
+                split_policy: sanitizeText(row?.split_policy, 220),
+                real_build_demolished: row?.real_build_demolished === true,
+                real_build_demolition_personal_save_receipt_count: Math.max(0, Math.floor(Number(row?.real_build_demolition_personal_save_receipt_count) || 0)),
+                real_build_demolition_main_state_exact_mutation_receipt_count: Math.max(0, Math.floor(Number(row?.real_build_demolition_main_state_exact_mutation_receipt_count) || 0)),
+                personal_building_main_state_mutated: row?.personal_building_main_state_mutated === true,
+                personal_home_mutated: row?.personal_home_mutated === true,
+                personal_decoration_mutated: row?.personal_decoration_mutated === true,
+              })).filter(row => row.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
+            : [],
+          building_main_state_receipts: Array.isArray(item.building_main_state_receipts)
+            ? item.building_main_state_receipts.map(receipt => ({
+                username: normalizeUsername(receipt?.username),
+                username_key: normalizeUsernameKey(receipt?.username_key || receipt?.username),
+                save_slot: normalizeSaveSlot(receipt?.save_slot),
+                save_id: normalizeSaveId(receipt?.save_id),
+                receipt_id: sanitizeText(receipt?.receipt_id, 140),
+                receipt_status: sanitizeText(receipt?.receipt_status, 40) || 'written',
+                target_kind: sanitizeText(receipt?.target_kind, 60),
+                mutation_result: sanitizeText(receipt?.mutation_result, 100),
+                delete_selector: sanitizeText(receipt?.delete_selector, 180),
+                written_at: Math.max(0, Math.floor(Number(receipt?.written_at) || 0)),
+              })).filter(receipt => receipt.username && receipt.receipt_id).slice(0, 80)
+            : [],
           personal_save_receipts: Array.isArray(item.personal_save_receipts)
             ? item.personal_save_receipts.map(receipt => ({
                 username: normalizeUsername(receipt?.username),
@@ -36136,6 +36248,36 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
   const nonDivisibleDecorationCount = decorationManifest
     .filter(entry => entry.return_policy !== 'return_to_origin_owner_personal_decoration_owned')
     .reduce((sum, entry) => sum + Math.max(1, Math.floor(Number(entry.quantity) || 1)), 0);
+  const buildingSplitRows = summarizeBuildingSplitsByProject(buildingManifest, contract);
+  const buildingSplitRowsByLedgerId = new Map(buildingSplitRows.map(row => [row.building_ledger_id, row]));
+  const buildingMainStateReceipts = buildingSplitRows
+    .flatMap(row => Array.isArray(row.main_state_exact_mutation_receipts) ? row.main_state_exact_mutation_receipts : [])
+    .slice(0, 80);
+  const buildingPersonalSaveReceiptCount = buildingSplitRows.reduce(
+    (sum, row) => sum + Math.max(0, Math.floor(Number(row.real_build_demolition_personal_save_receipt_count) || 0)),
+    0
+  );
+  const buildingMainStateMutationReceiptCount = buildingSplitRows.reduce(
+    (sum, row) => sum + Math.max(0, Math.floor(Number(row.real_build_demolition_main_state_exact_mutation_receipt_count) || 0)),
+    0
+  );
+  const buildingMainStateMutatedCount = buildingSplitRows.filter(row => row.personal_building_main_state_mutated === true).length;
+  const buildingPersonalSavePreviouslyChanged = buildingPersonalSaveReceiptCount > 0 || buildingMainStateMutationReceiptCount > 0;
+  const buildingReceiptStatus = buildingManifest.length <= 0
+    ? 'no_family_building_to_split'
+    : (
+        buildingMainStateMutatedCount === buildingManifest.length
+          ? 'personal_main_state_mutation_evidence_recorded'
+          : (
+              buildingMainStateMutatedCount > 0
+                ? 'partial_personal_main_state_mutation_evidence_recorded'
+                : (
+                    buildingPersonalSaveReceiptCount > 0
+                      ? 'real_demolition_personal_save_receipt_recorded'
+                    : 'recorded_waiting_building_rollback_or_manual_receipt'
+                  )
+            )
+      );
   const receipts = [
     {
       receipt_id: makeId('decoration_split_receipt'),
@@ -36160,9 +36302,16 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       receipt_type: 'family_buildings',
       count: buildingManifest.length,
       manifest_hash: expectedBuildingHash,
-      status: buildingManifest.length > 0 ? 'recorded_waiting_building_rollback_or_manual_receipt' : 'no_family_building_to_split',
+      status: buildingReceiptStatus,
       personal_save_changed: false,
+      personal_save_previously_changed: buildingPersonalSavePreviouslyChanged,
       personal_home_mutated: false,
+      personal_building_main_state_mutated: buildingMainStateMutatedCount > 0,
+      building_main_state_mutation_evidence_recorded: buildingMainStateMutationReceiptCount > 0,
+      real_build_demolition_personal_save_receipt_count: buildingPersonalSaveReceiptCount,
+      main_state_exact_mutation_receipt_count: buildingMainStateMutationReceiptCount,
+      building_split_status_rows: buildingSplitRows,
+      building_main_state_receipts: buildingMainStateReceipts,
       personal_decoration_owned_mutated: false,
       personal_save_receipts: [],
       idempotency_key: splitPayload.idempotency_key,
@@ -36185,6 +36334,16 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       return_idempotency_key: splitPayload.idempotency_key,
     };
   });
+  const nextBuildingManifest = buildingManifest.map(entry => {
+    const row = buildingSplitRowsByLedgerId.get(sanitizeText(entry.building_ledger_id, 100)) || {};
+    const { main_state_exact_mutation_receipts: _receipts, ...splitEvidence } = row;
+    return {
+      ...entry,
+      ...splitEvidence,
+      execution_status: sanitizeText(row.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
+      return_idempotency_key: splitPayload.idempotency_key,
+    };
+  });
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
     status: 'decorations_buildings_split',
@@ -36195,7 +36354,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     decoration_split_manifest_hash: expectedDecorationHash,
     building_split_manifest_hash: expectedBuildingHash,
     decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(nextDecorationManifest),
-    building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
+    building_splits_by_origin_owner: buildingSplitRows,
     decoration_building_split_receipts: receipts,
     next_required_operations: nextRequiredOperations,
   });
@@ -36205,6 +36364,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     decorations_buildings_split: true,
     decorations_buildings_split_at: splitAt,
     decorations_buildings_split_by: member.username,
+    building_splits_by_origin_owner: buildingSplitRows,
     decoration_building_split_receipts: receipts,
     next_required_operations: nextLedger.next_required_operations,
   };
@@ -36214,6 +36374,8 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       ...preview.asset_return,
       decorations_by_origin_owner: summarizeDecorationSplitsByOwner(nextDecorationManifest),
       decoration_split_manifest: nextDecorationManifest,
+      family_buildings_by_origin_owner: buildingSplitRows,
+      family_building_split_manifest: nextBuildingManifest,
       decorations_buildings_split: true,
       decorations_buildings_split_at: splitAt,
       decoration_building_split_receipts: receipts,
@@ -36225,7 +36387,9 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       decorations_buildings_split_at: splitAt,
       can_execute_now: false,
       execution_enabled: false,
-      execution_policy: '分居可识别来源装饰 / 家具已按锁定 hash 写回原主个人 decoration.owned；真实家族建筑仍只记录拆分证据，等待回滚、拆除或人工回执。',
+      execution_policy: buildingMainStateMutationReceiptCount > 0
+        ? '分居可识别来源装饰 / 家具已按锁定 hash 写回原主个人 decoration.owned；家族建筑已读回既有真实拆除 / 个人主状态变更回执，未由本步骤重复删除个人 home / decoration 状态。'
+        : '分居可识别来源装饰 / 家具已按锁定 hash 写回原主个人 decoration.owned；真实家族建筑仍只记录拆分证据，等待回滚、拆除或人工回执。',
     },
     deferred_operations: nextLedger.next_required_operations,
   });
@@ -36242,6 +36406,9 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     returned_decoration_count: returnedDecorationCount,
     non_divisible_decoration_count: nonDivisibleDecorationCount,
     building_count: buildingManifest.length,
+    building_personal_save_receipt_count: buildingPersonalSaveReceiptCount,
+    building_main_state_mutation_receipt_count: buildingMainStateMutationReceiptCount,
+    building_main_state_mutated_count: buildingMainStateMutatedCount,
     shared_assets_mutated: false,
     personal_home_mutated: false,
     personal_decoration_owned_mutated: returnedDecorationCount > 0,

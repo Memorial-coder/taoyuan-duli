@@ -4,10 +4,6 @@
 
 ## [未发布]
 
-### 0601 同居共同仓库 11.4 花酒 / 桃酒普通料理补齐
-- 共同工坊配方下拉新增共同酒坊菊花酒和共同灶台醉仙鸡，可从共同仓库扣普通菊花、稻米、鸡蛋、桃花酒与生姜，并把料理产物回存共同仓库。
-- 共同仓库策略版本升到 v37，菊花、桃花酒、菊花酒和醉仙鸡进入普通目录；服务端契约 QA 覆盖 consume / deposit 流水、协作升品来源资产和个人 / 基金边界，高价值红枣、瀚海仙人掌、雪莲、鲟鱼、龙鱼与虚空矿材料继续留给后续分级批次。
-
 ### 0601 同居共同仓库 11.4 仓库流水分级证据恢复
 - 共同仓库 ledger 归一化重新带回 `item_policy_version`、`item_policy_id`、`item_classification`、`withdrawal_risk_level`、`high_value_withdrawal_required` 和 `item_policy`，协作加工 / 料理升品产物的 deposit 流水可直接读到 `high_quality` 与高价值取出要求。
 - 修复 20.2 异常检测收尾后共同工坊升品保护证据丢失的回归，契约 QA 继续固定升品产物 ledger 与来源资产保护边界。
@@ -107,6 +103,9 @@
 ### 0601 随机 NPC 绑定偏好第一版收口
 - `RandomNpcTemplate.preferences` 新增 `bindings`，8 个随机 NPC 模板各自补入作物、宠物、店铺或庄园语义偏好，旧档加载时继续按模板兜底。
 - NPC 页短访 / 熟人 / 长住卡片新增“绑定偏好”回看，`qa:random-npc-content-guard` 固定四类偏好、每模板至少 3 条绑定和页面入口。
+### 0601 同居分居建筑主状态证据读回
+- 分居建筑拆分清单和 `split-decorations-buildings` receipt 会读回家族建筑真实拆除 / 精确个人主状态 mutation 链路，展示 `split_status`、真实拆除个人存档回执数、`main_state_exact_mutation_receipt_count`、每建筑状态行和审计计数。
+- 共同庄园分居面板新增“建筑 / 小屋主状态证据”只读区，可区分已读回既有主状态变更回执与仍待回滚 / 拆除 / 人工回执的建筑；本轮不由分居步骤重复删除个人 `home / decoration` 主状态，不改共同基金、共同仓库、个人铜币或背包。
 
 ### 0601 随机 NPC 存档控制收尾
 - 长住家庭线新增旧档接续、关系线开启、婚约 / 成婚、婚后日常和节会同行触发记录，继续复用 `familyLine.reviewHistory` 最近 4 条上限，NPC 页可读回对应标签。

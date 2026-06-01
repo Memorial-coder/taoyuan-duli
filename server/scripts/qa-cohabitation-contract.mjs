@@ -4498,7 +4498,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 37, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 36, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4582,8 +4582,6 @@ for (const itemId of recipePolicyLateHybridCropIds) {
   assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list late hybrid crop ${itemId} as rare items`)
 }
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('jujube'), 'warehouse item policy should list jujube as common cooking input')
-assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('chrysanthemum'), 'warehouse item policy should list chrysanthemum as common cooking input')
-assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('peach_wine'), 'warehouse item policy should list peach wine as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_osmanthus_cake'), 'warehouse item policy should list osmanthus cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_jujube_cake'), 'warehouse item policy should list jujube cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_peach_blossom_cake'), 'warehouse item policy should list peach blossom cake as common output')
@@ -4626,8 +4624,6 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_silk_dumpling'), 'warehouse item policy should list silk dumplings as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_peacock_feast'), 'warehouse item policy should list peacock feast as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_spiced_lamb'), 'warehouse item policy should list spiced lamb as common output')
-assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_drunken_chicken'), 'warehouse item policy should list drunken chicken as common output')
-assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_chrysanthemum_wine'), 'warehouse item policy should list chrysanthemum wine as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4927,12 +4923,6 @@ await processRecipePolicyBasicDish({
   inputs: [{ itemId: 'tea', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
-  recipeId: 'shared_chrysanthemum_wine',
-  outputItemId: 'food_chrysanthemum_wine',
-  station: 'wine_workshop',
-  inputs: [{ itemId: 'chrysanthemum', quantity: 3 }, { itemId: 'rice', quantity: 1 }],
-})
-await processRecipePolicyBasicDish({
   recipeId: 'shared_zhi_yuan_gao',
   outputItemId: 'food_zhi_yuan_gao',
   inputs: [{ itemId: 'rice', quantity: 2 }, { itemId: 'peach', quantity: 1 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }],
@@ -5008,11 +4998,6 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_spiced_lamb',
   outputItemId: 'food_spiced_lamb',
   inputs: [{ itemId: 'hanhai_spice', quantity: 1 }, { itemId: 'goat_milk', quantity: 1 }],
-})
-await processRecipePolicyBasicDish({
-  recipeId: 'shared_drunken_chicken',
-  outputItemId: 'food_drunken_chicken',
-  inputs: [{ itemId: 'egg', quantity: 3 }, { itemId: 'peach_wine', quantity: 1 }, { itemId: 'ginger', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_first_catch_soup',
@@ -9319,6 +9304,9 @@ assert.ok(previewResult.preview.asset_return.building_split_policy.includes('dec
 assert.ok(previewResult.preview.asset_return.decorations_by_origin_owner.some(item => item.origin_owner_username === owner && item.decoration_count === 1), 'separation preview should summarize owner decorations')
 assert.ok(previewResult.preview.asset_return.decorations_by_origin_owner.some(item => item.origin_owner_username === 'shared_fund' && item.decoration_count === 1 && item.return_policies.includes('non_divisible_shared_fund_decoration_compensate_or_memorialize')), 'separation preview should summarize non-divisible shared-fund decoration compensation policy')
 assert.ok(previewResult.preview.asset_return.family_buildings_by_origin_owner.some(item => item.building_ledger_id === 'qa-separation-building-ledger'), 'separation preview should summarize family building ledger splits')
+const separationPreviewBuildingSplitRow = previewResult.preview.asset_return.family_buildings_by_origin_owner.find(item => item.building_ledger_id === 'qa-separation-building-ledger')
+assert.equal(separationPreviewBuildingSplitRow?.split_status, 'recorded_waiting_building_rollback_or_manual_receipt', 'separation preview should keep pending building split status when no real demolition receipt exists')
+assert.equal(separationPreviewBuildingSplitRow?.real_build_demolition_main_state_exact_mutation_receipt_count, 0, 'separation preview should expose zero building main-state mutation receipts before demolition chain')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), 'separation preview should include warehouse return plan when shared stock remains')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_proportional_refund'), 'separation preview should include fund proportional refund plan')
@@ -10435,6 +10423,10 @@ assert.equal(decorationSplitReceipt?.personal_decoration_owned_mutated, true, 'd
 assert.equal(decorationSplitReceipt?.personal_home_mutated, false, 'decoration split should not change personal home layout')
 assert.equal(decorationSplitReceipt?.personal_save_receipts.length, 2, 'decoration split should keep per-person save receipts')
 assert.equal(buildingSplitReceipt?.status, 'recorded_waiting_building_rollback_or_manual_receipt', 'family building split should remain record-only pending rollback or manual receipt')
+assert.equal(buildingSplitReceipt?.main_state_exact_mutation_receipt_count, 0, 'family building split should expose zero main-state mutation receipts while pending')
+assert.equal(buildingSplitReceipt?.building_main_state_mutation_evidence_recorded, false, 'family building split should not claim mutation evidence without receipts')
+assert.equal(buildingSplitReceipt?.building_split_status_rows?.[0]?.split_status, 'recorded_waiting_building_rollback_or_manual_receipt', 'family building split receipt should keep per-building pending status')
+assert.equal(decorationBuildingSplit.execution_ledger.building_splits_by_origin_owner[0]?.real_build_demolition_main_state_exact_mutation_receipt_count, 0, 'execution ledger should preserve building main-state receipt count')
 assert.equal(getOwnedDecorationQuantity(owner, 'qa-owner-lantern'), ownerLanternBeforeDecorationSplit + 1, 'decoration split should return owner lantern to owner decoration owned inventory')
 assert.equal(getOwnedDecorationQuantity(partner, 'qa-partner-bench'), partnerBenchBeforeDecorationSplit + 1, 'decoration split should return partner bench to partner decoration owned inventory')
 assert.ok((readGameplayData(owner)?.onlineCohabitation?.decoration_return_receipts || []).some(receipt => receipt.decoration_id === 'qa-owner-lantern' && receipt.preview_id === previewResult.preview.id), 'owner save should keep decoration return receipt')
@@ -12743,6 +12735,24 @@ assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_buil
 assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.target_kind, 'home_cellar_slot', 'cellar partner main state mutation receipt should record cellar slot target kind')
 assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.mutation_result, 'home_cellar_slot_removed', 'cellar partner main state mutation receipt should record cellar slot removal result')
 assert.ok(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === largeCellarPartner && receipt.target_kind === 'home_cellar_slot' && receipt.mutation_result === 'home_cellar_slot_removed'), 'main state exact mutation response should include cellar slot receipt summary')
+
+const ownerRawBeforeBuildingMutationSeparationPreview = saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw
+const partnerRawBeforeBuildingMutationSeparationPreview = saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw
+const caveRawBeforeBuildingMutationSeparationPreview = saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw
+const cellarRawBeforeBuildingMutationSeparationPreview = saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw
+const buildingMutationSeparationPreview = await runtime.createSeparationPreview(largeContract.contract.id, {
+  reason: 'qa read back building main-state mutation evidence in separation preview',
+  idempotency_key: 'qa-separation-building-main-state-mutation-readback-preview',
+}, actor(largeOwner))
+const buildingMutationPreviewRow = buildingMutationSeparationPreview.preview.asset_return.family_building_split_manifest.find(item => item.building_ledger_id === largeExecute.building_ledger_entry.id)
+assert.equal(buildingMutationPreviewRow?.split_status, 'personal_main_state_mutation_evidence_recorded', 'separation preview should read existing building main-state mutation evidence')
+assert.equal(buildingMutationPreviewRow?.real_build_demolition_main_state_exact_mutation_receipt_count, 4, 'separation preview should expose building main-state mutation receipt count')
+assert.equal(buildingMutationPreviewRow?.personal_building_main_state_mutated, true, 'separation preview should mark building main-state mutation already completed')
+assert.ok(buildingMutationSeparationPreview.preview.asset_return.family_buildings_by_origin_owner.some(item => item.building_ledger_id === largeExecute.building_ledger_entry.id && item.split_status === 'personal_main_state_mutation_evidence_recorded'), 'separation preview building summary should keep completed main-state mutation status')
+assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeBuildingMutationSeparationPreview, 'building mutation separation preview should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeBuildingMutationSeparationPreview, 'building mutation separation preview should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCavePartner).slots[0].raw, caveRawBeforeBuildingMutationSeparationPreview, 'building mutation separation preview should not rewrite cave partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(largeCellarPartner).slots[0].raw, cellarRawBeforeBuildingMutationSeparationPreview, 'building mutation separation preview should not rewrite cellar partner save')
 
 const greenhouseMember = 'cohabit_lg_gh25'
 const farmhouseMember = 'cohabit_lg_fh25'

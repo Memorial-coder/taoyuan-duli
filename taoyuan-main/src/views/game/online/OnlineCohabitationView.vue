@@ -505,6 +505,30 @@
                     </div>
                   </div>
                   <div
+                    v-if="separationBuildingMainStateReadbackRows.length"
+                    class="space-y-2 border border-cyan-300/20 bg-cyan-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-building-main-state-readback"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">建筑 / 小屋主状态证据</p>
+                      <span>{{ separationBuildingSplitReceipt?.building_main_state_mutation_evidence_recorded ? 'mutation receipt' : 'record-only' }}</span>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <p
+                        v-for="row in separationBuildingMainStateReadbackRows"
+                        :key="row.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                        :data-testid="`online-cohabitation-separation-building-main-state-${row.key}`"
+                      >
+                        <span class="block text-accent">{{ row.label }}</span>
+                        <span class="mt-1 block break-all">{{ row.value }}</span>
+                      </p>
+                    </div>
+                    <p class="leading-4">
+                      分居拆分会引用家族建筑真实拆除 / 精确主状态链路的既有回执；没有回执的建筑仍保留 hash 和 ledger，等待回滚、拆除或人工收口。
+                    </p>
+                  </div>
+                  <div
                     v-if="separationStoryCinematicReadbackRows.length"
                     class="space-y-2 border border-fuchsia-300/20 bg-fuchsia-500/5 p-2 text-[10px] text-muted"
                     data-testid="online-cohabitation-separation-story-cinematic-readback"
@@ -3667,6 +3691,8 @@
     CohabitationSharedPet,
     CohabitationSharedPlot,
     CohabitationSharedRegion,
+    CohabitationSeparationBuildingSplitStatusRow,
+    CohabitationSeparationDecorationBuildingSplitReceipt,
     CohabitationSeparationManorExitHandoverRecord,
     CohabitationSeparationPersonalFamilyMainStateMigrationSummary,
     CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
@@ -3833,6 +3859,11 @@
   }
   type SeparationSharedDecorationRemovalFreezePolicy = {
     status: string
+  }
+  type SeparationBuildingMainStateReadbackRow = {
+    key: string
+    label: string
+    value: string
   }
   type SeparationSharedFundReadbackRow = {
     key: string
@@ -4289,6 +4320,69 @@
     return {
       status: String(policy?.status ?? policy?.mode ?? '等待拆除完成或退款回执'),
     }
+  })
+  const separationBuildingSplitStatusLabel = (status = '') => {
+    const labels: Record<string, string> = {
+      personal_main_state_mutation_evidence_recorded: '个人主状态变更回执已读回',
+      partial_personal_main_state_mutation_evidence_recorded: '部分个人主状态变更回执已读回',
+      real_demolition_personal_save_receipt_recorded: '真实拆除个人存档回执已读回',
+      recorded_waiting_building_rollback_or_manual_receipt: '等待建筑回滚 / 拆除 / 人工回执',
+      no_family_building_to_split: '无家族建筑待拆分',
+    }
+    return labels[status] || status || '待记录'
+  }
+  const separationDecorationBuildingSplitReceipts = computed<CohabitationSeparationDecorationBuildingSplitReceipt[]>(() => {
+    const receipts = separationExecutionRequest.value?.decoration_building_split_receipts
+    return Array.isArray(receipts) ? receipts : []
+  })
+  const separationBuildingSplitReceipt = computed<CohabitationSeparationDecorationBuildingSplitReceipt | null>(() =>
+    separationDecorationBuildingSplitReceipts.value.find(receipt => receipt.receipt_type === 'family_buildings') ?? null
+  )
+  const separationBuildingSplitStatusRows = computed<CohabitationSeparationBuildingSplitStatusRow[]>(() => {
+    const receiptRows = separationBuildingSplitReceipt.value?.building_split_status_rows
+    if (Array.isArray(receiptRows) && receiptRows.length > 0) return receiptRows
+    const executionRows = separationExecutionRequest.value?.building_splits_by_origin_owner
+    if (Array.isArray(executionRows) && executionRows.length > 0) return executionRows
+    const previewRows = latestSeparationPreview.value?.asset_return?.family_buildings_by_origin_owner
+    return Array.isArray(previewRows) ? previewRows as CohabitationSeparationBuildingSplitStatusRow[] : []
+  })
+  const separationBuildingMainStateReadbackRows = computed<SeparationBuildingMainStateReadbackRow[]>(() => {
+    const receipt = separationBuildingSplitReceipt.value
+    const rows = separationBuildingSplitStatusRows.value
+    const status = String(receipt?.status ?? rows[0]?.split_status ?? '')
+    const receiptCount = Number(receipt?.main_state_exact_mutation_receipt_count ?? rows.reduce((sum, row) => sum + Number(row.real_build_demolition_main_state_exact_mutation_receipt_count || 0), 0)) || 0
+    const personalSaveReceiptCount = Number(receipt?.real_build_demolition_personal_save_receipt_count ?? rows.reduce((sum, row) => sum + Number(row.real_build_demolition_personal_save_receipt_count || 0), 0)) || 0
+    const result: SeparationBuildingMainStateReadbackRow[] = []
+    if (receipt || rows.length > 0) {
+      result.push({
+        key: 'summary',
+        label: '建筑拆分状态',
+        value: `${separationBuildingSplitStatusLabel(status)} · 建筑 ${Number(receipt?.count ?? rows.length) || rows.length} 项`,
+      })
+      result.push({
+        key: 'mutation-receipts',
+        label: '主状态回执',
+        value: `精确 mutation ${receiptCount} 份 · 真实拆除个人存档 ${personalSaveReceiptCount} 份`,
+      })
+      result.push({
+        key: 'boundary',
+        label: '分居拆分边界',
+        value: receipt?.personal_save_changed
+          ? '本次拆分写入了个人存档'
+          : '本次分居拆分不重复删除个人 home / decoration 主状态',
+      })
+    }
+    for (const row of rows.slice(0, 6)) {
+      const target = row.target_ref || row.building_id || row.project_id || row.building_ledger_id
+      const mutationCount = Number(row.real_build_demolition_main_state_exact_mutation_receipt_count || 0)
+      const personalCount = Number(row.real_build_demolition_personal_save_receipt_count || 0)
+      result.push({
+        key: `building-${row.building_ledger_id}`,
+        label: String(target || '家族建筑'),
+        value: `${separationBuildingSplitStatusLabel(String(row.split_status || ''))} · 主态 ${mutationCount} · 个人存档 ${personalCount}`,
+      })
+    }
+    return result
   })
   const canCreateSeparationPreview = computed(() =>
     selectedContract.value?.status === 'active' && cohabitationStore.canOpenSelectedContract
@@ -5893,8 +5987,6 @@
     peanut: '花生',
     silk: '蚕丝',
     hanhai_spice: '西域香料',
-    chrysanthemum: '菊花',
-    peach_wine: '桃花酒',
     food_congee: '白粥',
     food_stir_fried_cabbage: '炒青菜',
     food_radish_soup: '萝卜汤',
@@ -5941,7 +6033,6 @@
     food_dragon_boat_zongzi: '粽子',
     food_qiao_guo: '巧果',
     food_dou_cha_yin: '斗茶饮',
-    food_chrysanthemum_wine: '菊花酒',
     food_zhi_yuan_gao: '纸鸢糕',
     food_rice_ball: '饭团',
     food_vegetable_soup: '田园蔬菜汤',
@@ -6012,7 +6103,6 @@
     food_silk_dumpling: '锦囊玉饺',
     food_peacock_feast: '孔雀宴',
     food_spiced_lamb: '香料烤羊',
-    food_drunken_chicken: '醉仙鸡',
     food_spicy_boat_rice_ball: '辛火赛舟饭团',
     food_first_catch_soup: '初钓鱼汤',
     food_braised_catfish: '红烧鲶鱼',
@@ -6374,7 +6464,6 @@
     { id: 'shared_dragon_boat_zongzi', label: '共同灶台粽子', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'bamboo_shoot', quantity: 1, quality: 'normal' }], output_item_id: 'food_dragon_boat_zongzi', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_qiao_guo', label: '共同灶台巧果', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'winter_wheat', quantity: 2, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_qiao_guo', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_dou_cha_yin', label: '共同茶炉斗茶饮', station: 'tea_maker', process_kind: 'cooking_dish', input_items: [{ item_id: 'tea', quantity: 2, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_dou_cha_yin', output_quantity: 1, output_quality: 'normal' },
-    { id: 'shared_chrysanthemum_wine', label: '共同酒坊菊花酒', station: 'wine_workshop', process_kind: 'cooking_dish', input_items: [{ item_id: 'chrysanthemum', quantity: 3, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_chrysanthemum_wine', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_zhi_yuan_gao', label: '共同灶台纸鸢糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }, { item_id: 'peach', quantity: 1, quality: 'normal' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_zhi_yuan_gao', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_scrambled_egg_rice', label: '共同灶台蛋炒饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'egg', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_scrambled_egg_rice', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_boiled_egg', label: '共同灶台水煮蛋', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'egg', quantity: 2, quality: 'normal' }], output_item_id: 'food_boiled_egg', output_quantity: 1, output_quality: 'normal' },
@@ -6390,7 +6479,6 @@
     { id: 'shared_silk_dumpling', label: '共同灶台锦囊玉饺', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'silk', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 2, quality: 'normal' }, { item_id: 'cabbage', quantity: 2, quality: 'normal' }], output_item_id: 'food_silk_dumpling', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_peacock_feast', label: '共同灶台孔雀宴', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'peacock_feather', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 2, quality: 'normal' }, { item_id: 'osmanthus', quantity: 1, quality: 'normal' }], output_item_id: 'food_peacock_feast', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_spiced_lamb', label: '共同灶台香料烤羊', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'hanhai_spice', quantity: 1, quality: 'normal' }, { item_id: 'goat_milk', quantity: 1, quality: 'normal' }], output_item_id: 'food_spiced_lamb', output_quantity: 1, output_quality: 'normal' },
-    { id: 'shared_drunken_chicken', label: '共同灶台醉仙鸡', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'egg', quantity: 3, quality: 'normal' }, { item_id: 'peach_wine', quantity: 1, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }], output_item_id: 'food_drunken_chicken', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_congee', label: '共同灶台白粥', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice', quantity: 2, quality: 'normal' }], output_item_id: 'food_congee', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_first_catch_soup', label: '共同灶台初钓鱼汤', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'crucian', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }], output_item_id: 'food_first_catch_soup', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_braised_catfish', label: '共同灶台红烧鲶鱼', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'catfish', quantity: 1, quality: 'normal' }, { item_id: 'chili', quantity: 1, quality: 'normal' }], output_item_id: 'food_braised_catfish', output_quantity: 1, output_quality: 'normal' },
@@ -10961,6 +11049,8 @@
     if (entry.action === 'separation_decorations_buildings_split') {
       const decorationCount = Number(detail.decoration_count) || 0
       const buildingCount = Number(detail.building_count) || 0
+      const buildingMainStateMutationReceiptCount = Number(detail.building_main_state_mutation_receipt_count) || 0
+      if (buildingMainStateMutationReceiptCount > 0) return `已记录装饰 ${decorationCount} 件、建筑 ${buildingCount} 项拆分，并读回建筑主状态回执 ${buildingMainStateMutationReceiptCount} 份`
       if (decorationCount > 0 || buildingCount > 0) return `已记录装饰 ${decorationCount} 件、建筑 ${buildingCount} 项拆分，等待剧情拆分`
       return '装饰 / 建筑拆分已记录，等待剧情拆分'
     }

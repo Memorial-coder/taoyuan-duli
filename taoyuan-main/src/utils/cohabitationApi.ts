@@ -2543,6 +2543,50 @@ export interface CohabitationSeparationSharedFundDeltaConfirmationSummary {
   [key: string]: unknown
 }
 
+export interface CohabitationSeparationBuildingSplitStatusRow {
+  building_ledger_id: string
+  building_id?: string
+  project_id?: string
+  target_ref?: string
+  amount?: number
+  split_status?: string
+  split_policy?: string
+  real_build_demolished?: boolean
+  real_build_demolition_review_state?: string
+  real_build_demolition_execution_state?: string
+  real_build_demolition_personal_save_receipt_count?: number
+  real_build_demolition_main_state_execution_state?: string
+  real_build_demolition_main_state_exact_execution_state?: string
+  real_build_demolition_main_state_exact_mutation_receipt_count?: number
+  personal_building_main_state_mutated?: boolean
+  personal_save_previously_changed?: boolean
+  personal_home_mutated?: boolean
+  personal_decoration_mutated?: boolean
+  main_state_exact_mutation_receipts?: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationDecorationBuildingSplitReceipt {
+  receipt_id: string
+  receipt_type: string
+  count?: number
+  returned_count?: number
+  manifest_hash?: string
+  status?: string
+  personal_save_changed?: boolean
+  personal_save_previously_changed?: boolean
+  personal_home_mutated?: boolean
+  personal_decoration_owned_mutated?: boolean
+  personal_building_main_state_mutated?: boolean
+  building_main_state_mutation_evidence_recorded?: boolean
+  real_build_demolition_personal_save_receipt_count?: number
+  main_state_exact_mutation_receipt_count?: number
+  building_split_status_rows?: CohabitationSeparationBuildingSplitStatusRow[]
+  building_main_state_receipts?: Array<Record<string, unknown>>
+  personal_save_receipts?: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
+
 export interface CohabitationSeparationPreview {
   id: string
   version: number
@@ -2600,7 +2644,8 @@ export interface CohabitationSeparationPreview {
       decorations_buildings_split?: boolean
       decorations_buildings_split_at?: number
       decorations_buildings_split_by?: string
-      decoration_building_split_receipts?: Array<Record<string, unknown>>
+      building_splits_by_origin_owner?: CohabitationSeparationBuildingSplitStatusRow[]
+      decoration_building_split_receipts?: CohabitationSeparationDecorationBuildingSplitReceipt[]
       execution_enabled?: boolean
       next_required_operations?: string[]
       [key: string]: unknown
