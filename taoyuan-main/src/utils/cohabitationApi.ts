@@ -238,9 +238,15 @@ export interface CohabitationContract {
   audit_log: CohabitationAuditEntry[]
   separation_previews?: CohabitationSeparationPreview[]
   shared_map?: CohabitationSharedMap | null
+  relationship_switch_cooldown_until?: number
+  relationship_switch_cooldown_hours?: number
+  relationship_switch_cooldown_reason?: string
+  relationship_switch_cooldown_source_contract_id?: string
   created_at: number
   updated_at: number
   activated_at?: number
+  closed_at?: number
+  closed_by?: string
 }
 
 export interface CohabitationOverviewResponse {

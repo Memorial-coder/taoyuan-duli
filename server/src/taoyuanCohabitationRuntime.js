@@ -320,6 +320,8 @@ const SHARED_ANIMAL_PURCHASE_CATALOG = Object.freeze({
 const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
 const SEPARATION_PREVIEW_VERSION = 1;
 const SEPARATION_OFFLINE_CONFIRM_TIMEOUT_SECONDS = 7 * 24 * 60 * 60;
+const RELATIONSHIP_SWITCH_COOLDOWN_HOURS = 72;
+const RELATIONSHIP_SWITCH_COOLDOWN_SECONDS = RELATIONSHIP_SWITCH_COOLDOWN_HOURS * 60 * 60;
 const FAMILY_MANOR_TYPES = new Set(['oath_manor', 'business_partner']);
 const SMALL_FUND_SPEND_PURPOSES = Object.freeze({
   seed_budget: {
@@ -3937,6 +3939,11 @@ function createDefaultPermissionSet(type) {
 
 function isFamilyRoleContractType(type) {
   return FAMILY_MANOR_TYPES.has(normalizeRelationType(type));
+}
+
+function isRomanceContractType(type) {
+  const normalizedType = normalizeRelationType(type);
+  return RELATION_TYPE_DEFS[normalizedType]?.romance_only === true;
 }
 
 function normalizeFamilyManorRole(value, type, memberRole = 'partner') {
@@ -8449,6 +8456,10 @@ function normalizeContract(entry = {}) {
       ? entry.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry).slice(0, 20)
       : [],
     separation_state: sanitizeText(entry.separation_state, 100),
+    relationship_switch_cooldown_until: Math.max(0, Math.floor(Number(entry.relationship_switch_cooldown_until) || 0)),
+    relationship_switch_cooldown_hours: Math.max(0, Math.floor(Number(entry.relationship_switch_cooldown_hours) || 0)),
+    relationship_switch_cooldown_reason: sanitizeText(entry.relationship_switch_cooldown_reason, 120),
+    relationship_switch_cooldown_source_contract_id: sanitizeText(entry.relationship_switch_cooldown_source_contract_id, 80),
     fund_large_spend_drafts: Array.isArray(entry.fund_large_spend_drafts)
       ? entry.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
       : [],
@@ -8459,6 +8470,8 @@ function normalizeContract(entry = {}) {
     created_at: Number(entry.created_at) || nowSeconds(),
     updated_at: Number(entry.updated_at) || Number(entry.created_at) || nowSeconds(),
     activated_at: Number(entry.activated_at) || 0,
+    closed_at: Math.max(0, Math.floor(Number(entry.closed_at) || 0)),
+    closed_by: normalizeUsername(entry.closed_by),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     audit_log: Array.isArray(entry.audit_log) ? entry.audit_log.map(normalizeAuditEntry).slice(-80) : [],
   };
@@ -8479,6 +8492,93 @@ function findOpenContract(store, members) {
     OPEN_CONTRACT_STATUSES.has(contract.status)
     && buildMembersKey(contract.members) === targetKey
   ) || null;
+}
+
+function getRelationshipSwitchCooldownUntil(contract = {}) {
+  const explicitUntil = Math.max(0, Math.floor(Number(contract.relationship_switch_cooldown_until) || 0));
+  if (explicitUntil > 0) return explicitUntil;
+  const closedAt = Math.max(
+    0,
+    Math.floor(
+      Number(contract.closed_at)
+      || Number(contract.separation_closed_at)
+      || Number(contract.relationship_closed_at)
+      || 0
+    )
+  );
+  return closedAt > 0 ? closedAt + RELATIONSHIP_SWITCH_COOLDOWN_SECONDS : 0;
+}
+
+function buildRelationshipSwitchCooldownBlock(store, members, requestedType, options = {}) {
+  if (!isRomanceContractType(requestedType)) return null;
+  const now = Math.max(0, Math.floor(Number(options.now) || nowSeconds()));
+  const ignoreContractId = sanitizeText(options.ignoreContractId, 80);
+  const requestedKeys = new Set((members || []).map(member => normalizeUsernameKey(member.username_key || member.username)).filter(Boolean));
+  if (requestedKeys.size === 0) return null;
+  const requestedMembersKey = buildMembersKey(members || []);
+  for (const contract of Array.isArray(store?.contracts) ? store.contracts : []) {
+    if (!contract || contract.id === ignoreContractId || !isRomanceContractType(contract.type)) continue;
+    const overlappingMembers = (contract.members || [])
+      .filter(member => requestedKeys.has(normalizeUsernameKey(member.username_key || member.username)));
+    if (overlappingMembers.length === 0) continue;
+    const sameMemberSet = buildMembersKey(contract.members || []) === requestedMembersKey;
+    if (sameMemberSet && OPEN_CONTRACT_STATUSES.has(contract.status)) continue;
+    const relationDef = RELATION_TYPE_DEFS[normalizeRelationType(contract.type)] || {};
+    if (OPEN_CONTRACT_STATUSES.has(contract.status)) {
+      return {
+        reason: 'open_romance_contract',
+        blocking_contract_id: contract.id,
+        blocking_contract_status: contract.status,
+        blocking_relation_type: contract.type,
+        blocking_relation_label: relationDef.label || contract.type,
+        blocked_member_usernames: overlappingMembers.map(member => member.username),
+        cooldown_until: 0,
+        remaining_seconds: 0,
+      };
+    }
+    const cooldownUntil = getRelationshipSwitchCooldownUntil(contract);
+    if (cooldownUntil > now) {
+      return {
+        reason: 'relationship_switch_cooldown',
+        blocking_contract_id: contract.id,
+        blocking_contract_status: contract.status,
+        blocking_relation_type: contract.type,
+        blocking_relation_label: relationDef.label || contract.type,
+        blocked_member_usernames: overlappingMembers.map(member => member.username),
+        cooldown_until: cooldownUntil,
+        remaining_seconds: cooldownUntil - now,
+      };
+    }
+  }
+  return null;
+}
+
+function assertRelationshipSwitchAllowed(store, members, requestedType, options = {}) {
+  const block = buildRelationshipSwitchCooldownBlock(store, members, requestedType, options);
+  if (!block) return null;
+  const memberLabel = block.blocked_member_usernames.join('、') || '成员';
+  if (block.reason === 'open_romance_contract') {
+    throw createError(`${memberLabel}已有进行中的${block.blocking_relation_label}，不能同时发起或接受新的恋爱 / 婚姻同居`, 409, 'relationship_switch_open_contract');
+  }
+  throw createError(`${memberLabel}仍在恋爱 / 婚姻关系切换冷却中，冷却结束前不能发起或接受新的恋爱 / 婚姻同居`, 409, 'relationship_switch_cooldown');
+}
+
+function stampRelationshipSwitchCooldown(contract, reason = 'relationship_separation_completed', at = nowSeconds()) {
+  if (!isRomanceContractType(contract.type)) return null;
+  const startedAt = Math.max(0, Math.floor(Number(at) || nowSeconds()));
+  const cooldownUntil = startedAt + RELATIONSHIP_SWITCH_COOLDOWN_SECONDS;
+  contract.relationship_switch_cooldown_until = Math.max(
+    Math.max(0, Math.floor(Number(contract.relationship_switch_cooldown_until) || 0)),
+    cooldownUntil
+  );
+  contract.relationship_switch_cooldown_hours = RELATIONSHIP_SWITCH_COOLDOWN_HOURS;
+  contract.relationship_switch_cooldown_reason = sanitizeText(reason, 120);
+  contract.relationship_switch_cooldown_source_contract_id = sanitizeText(contract.id, 80);
+  return {
+    cooldown_hours: RELATIONSHIP_SWITCH_COOLDOWN_HOURS,
+    cooldown_until: contract.relationship_switch_cooldown_until,
+    reason: contract.relationship_switch_cooldown_reason,
+  };
 }
 
 function appendAudit(contract, action, actor = {}, detail = {}, idempotencyKey = '') {
@@ -31702,6 +31802,7 @@ async function createCohabitationContract(payload = {}, actor = {}) {
   }
   const existing = findOpenContract(store, members);
   if (existing) return { contract: toPublicContract(existing), idempotent: true };
+  assertRelationshipSwitchAllowed(store, members, type);
 
   const permissions = {};
   for (const member of members) {
@@ -31760,6 +31861,7 @@ async function acceptCohabitationContract(contractId, actor = {}) {
   if (member.status === 'accepted' && contract.status === 'active') {
     return { contract: toPublicContract(contract), idempotent: true };
   }
+  assertRelationshipSwitchAllowed(store, contract.members, contract.type, { ignoreContractId: contract.id });
   if (member.status !== 'accepted') {
     member.status = 'accepted';
     member.accepted_at = nowSeconds();
@@ -34447,6 +34549,11 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
 
   contract.separation_execution_ledger[ledgerIndex] = nextLedger;
   contract.separation_previews[previewIndex] = nextPreview;
+  const relationshipSwitchCooldown = stampRelationshipSwitchCooldown(
+    contract,
+    'separation_personal_story_receipts_written',
+    writtenAt
+  );
   appendAudit(contract, 'separation_personal_story_receipts_written', actor, {
     preview_id: nextPreview.id,
     execution_ledger_id: nextLedger.id,
@@ -34459,6 +34566,7 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     personal_relationship_mutation_summary: personalRelationshipMutationSummary,
     npc_relationship_main_state_mutation: personalRelationshipMutationSummary.personal_state_mutated,
     npc_family_child_mutation: false,
+    relationship_switch_cooldown: relationshipSwitchCooldown,
     next_required_operations: nextLedger.next_required_operations,
   }, receiptPayload.idempotency_key);
   saveContractStore(store);

@@ -39,6 +39,12 @@ const recipePolicyOwner = 'recipe_o30'
 const recipePolicyPartner = 'recipe_p30'
 const fundShopOwner = 'cohabit_shop_owner30'
 const fundShopPartner = 'cohabit_shop_part30'
+const relationshipCooldownOwner = 'relcd_owner30'
+const relationshipCooldownPartner = 'relcd_part30'
+const relationshipCooldownNext = 'relcd_next30'
+const relationshipAcceptOwner = 'relac_owner30'
+const relationshipAcceptFirst = 'relac_first30'
+const relationshipAcceptSecond = 'relac_second30'
 const SHARED_ORDER_EFFICIENCY_REDUCTION_SECONDS = 15 * 60
 
 const actor = username => ({
@@ -560,6 +566,12 @@ await db.registerUser(harvestOwner, 'SmokePass_0524', '同居收获主人')
 await db.registerUser(harvestPartner, 'SmokePass_0524', '同居收获伙伴')
 await db.registerUser(fundShopOwner, 'SmokePass_0524', 'shared fund shop owner')
 await db.registerUser(fundShopPartner, 'SmokePass_0524', 'shared fund shop partner')
+await db.registerUser(relationshipCooldownOwner, 'SmokePass_0524', 'relationship cooldown owner')
+await db.registerUser(relationshipCooldownPartner, 'SmokePass_0524', 'relationship cooldown partner')
+await db.registerUser(relationshipCooldownNext, 'SmokePass_0524', 'relationship cooldown next')
+await db.registerUser(relationshipAcceptOwner, 'SmokePass_0524', 'relationship accept owner')
+await db.registerUser(relationshipAcceptFirst, 'SmokePass_0524', 'relationship accept first')
+await db.registerUser(relationshipAcceptSecond, 'SmokePass_0524', 'relationship accept second')
 seedSave(owner)
 seedSave(partner)
 assert.equal((await db.registerUser(recipePolicyOwner, 'SmokePass_0524', 'shared recipe policy owner')).ok, true, 'recipe policy owner should register')
@@ -570,6 +582,12 @@ seedSave(harvestOwner)
 seedSave(harvestPartner)
 seedSave(fundShopOwner)
 seedSave(fundShopPartner)
+seedSave(relationshipCooldownOwner)
+seedSave(relationshipCooldownPartner)
+seedSave(relationshipCooldownNext)
+seedSave(relationshipAcceptOwner)
+seedSave(relationshipAcceptFirst)
+seedSave(relationshipAcceptSecond)
 
 const partnerRequest = await socialRuntime.requestFriendship(owner, { target_username: partner })
 seedSave(recipePolicyOwner)
@@ -583,6 +601,14 @@ const harvestPartnerRequest = await socialRuntime.requestFriendship(harvestOwner
 await socialRuntime.acceptFriendRequest(harvestPartner, harvestPartnerRequest.id)
 const fundShopPartnerRequest = await socialRuntime.requestFriendship(fundShopOwner, { target_username: fundShopPartner })
 await socialRuntime.acceptFriendRequest(fundShopPartner, fundShopPartnerRequest.id)
+const relationshipCooldownPartnerRequest = await socialRuntime.requestFriendship(relationshipCooldownOwner, { target_username: relationshipCooldownPartner })
+await socialRuntime.acceptFriendRequest(relationshipCooldownPartner, relationshipCooldownPartnerRequest.id)
+const relationshipCooldownNextRequest = await socialRuntime.requestFriendship(relationshipCooldownOwner, { target_username: relationshipCooldownNext })
+await socialRuntime.acceptFriendRequest(relationshipCooldownNext, relationshipCooldownNextRequest.id)
+const relationshipAcceptFirstRequest = await socialRuntime.requestFriendship(relationshipAcceptOwner, { target_username: relationshipAcceptFirst })
+await socialRuntime.acceptFriendRequest(relationshipAcceptFirst, relationshipAcceptFirstRequest.id)
+const relationshipAcceptSecondRequest = await socialRuntime.requestFriendship(relationshipAcceptSecond, { target_username: relationshipAcceptOwner })
+await socialRuntime.acceptFriendRequest(relationshipAcceptOwner, relationshipAcceptSecondRequest.id)
 
 const pickPersonalNonRelationshipBoundaryState = username => {
   const data = readGameplayData(username) || {}
@@ -831,6 +857,66 @@ await assert.rejects(
   }, actor(owner)),
   error => error?.status === 400 && String(error.message || '').includes('2-2'),
   'romance or marriage contracts must reject more than two members'
+)
+
+await assert.rejects(
+  () => runtime.createCohabitationContract({
+    type: 'lover_cohabitation',
+    target_username: extra,
+    idempotency_key: 'qa-romance-open-contract-switch-blocked',
+  }, actor(owner)),
+  error => error?.status === 409 && error?.code === 'relationship_switch_open_contract',
+  'open romance contract should block switching to a different partner'
+)
+
+const relationshipCooldownContract = await runtime.createCohabitationContract({
+  type: 'lover_cohabitation',
+  target_username: relationshipCooldownPartner,
+  idempotency_key: 'qa-romance-cooldown-contract',
+}, actor(relationshipCooldownOwner))
+await mutateStoredContract(relationshipCooldownContract.contract.id, contract => {
+  const now = Math.floor(Date.now() / 1000)
+  contract.status = 'closed'
+  contract.closed_at = now
+  contract.closed_by = relationshipCooldownOwner
+  contract.relationship_switch_cooldown_until = now + (72 * 60 * 60)
+  contract.relationship_switch_cooldown_hours = 72
+  contract.relationship_switch_cooldown_reason = 'qa_closed_romance_contract'
+})
+await assert.rejects(
+  () => runtime.createCohabitationContract({
+    type: 'marriage_home',
+    target_username: relationshipCooldownNext,
+    idempotency_key: 'qa-romance-cooldown-switch-blocked',
+  }, actor(relationshipCooldownOwner)),
+  error => error?.status === 409 && error?.code === 'relationship_switch_cooldown',
+  'closed romance contract should block switching until cooldown expires'
+)
+
+const pendingAcceptSwitch = await runtime.createCohabitationContract({
+  type: 'lover_cohabitation',
+  target_username: relationshipAcceptOwner,
+  idempotency_key: 'qa-romance-accept-switch-pending',
+}, actor(relationshipAcceptSecond))
+await mutateStoredContract(pendingAcceptSwitch.contract.id, contract => {
+  contract.status = 'declined'
+})
+const activeAcceptSwitch = await runtime.createCohabitationContract({
+  type: 'lover_cohabitation',
+  target_username: relationshipAcceptFirst,
+  idempotency_key: 'qa-romance-accept-switch-active',
+}, actor(relationshipAcceptOwner))
+await runtime.acceptCohabitationContract(activeAcceptSwitch.contract.id, actor(relationshipAcceptFirst))
+await mutateStoredContract(pendingAcceptSwitch.contract.id, contract => {
+  contract.status = 'pending_acceptance'
+  const pendingMember = contract.members.find(member => member.username === relationshipAcceptOwner)
+  assert.ok(pendingMember, 'pending accept switch target member should exist')
+  pendingMember.status = 'pending'
+})
+await assert.rejects(
+  () => runtime.acceptCohabitationContract(pendingAcceptSwitch.contract.id, actor(relationshipAcceptOwner)),
+  error => error?.status === 409 && error?.code === 'relationship_switch_open_contract',
+  'accepting a pending romance contract should be blocked when the member already has another active romance contract'
 )
 
 const accepted = await runtime.acceptCohabitationContract(created.contract.id, actor(partner))
@@ -10326,6 +10412,9 @@ const personalStoryAudit = personalStoryReceipts.contract.audit_log.find(entry =
 assert.ok(personalStoryAudit, 'personal story receipt write should be audited')
 assert.equal(personalStoryAudit?.detail?.personal_state_mutated, true, 'personal story audit should record relationship main-state mutation')
 assert.equal(personalStoryAudit?.detail?.personal_relationship_mutation_summary?.mutated_receipt_count, 2, 'personal story audit should summarize mutated personal saves')
+assert.equal(personalStoryReceipts.contract.relationship_switch_cooldown_hours, 72, 'personal story receipts should stamp relationship switch cooldown hours')
+assert.ok(personalStoryReceipts.contract.relationship_switch_cooldown_until > personalStoryReceipts.execution_ledger.personal_story_receipts_written_at, 'personal story receipts should expose relationship switch cooldown end time')
+assert.equal(personalStoryAudit?.detail?.relationship_switch_cooldown?.cooldown_hours, 72, 'personal story audit should include relationship switch cooldown evidence')
 assert.deepEqual(pickPersonalNonRelationshipBoundaryState(owner), ownerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change owner money inventory farm home family or children state')
 assert.deepEqual(pickPersonalNonRelationshipBoundaryState(partner), partnerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change partner money inventory farm home family or children state')
 const ownerNpcAfterStoryReceipts = getNpcRelationshipSaveState(owner)
