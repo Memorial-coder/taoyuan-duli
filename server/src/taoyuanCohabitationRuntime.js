@@ -211,7 +211,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 37;
+const WAREHOUSE_ITEM_POLICY_VERSION = 38;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -252,6 +252,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
 const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
   'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill', 'marsh_luminous_cleansing_elixir', 'moon_pearl_calm_elixir', 'jade_orchid_focus_elixir',
   'rare_lotus_guard_elixir', 'jade_peach_spirit_elixir', 'snow_lotus_calm_elixir', 'dew_bloom_focus_elixir', 'star_lotus_calm_elixir',
+  'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup',
   'ley_crystal_shard', 'marsh_spore_sample', 'luminous_algae', 'wind_etched_core',
   'lotus_seed_rare', 'jade_peach', 'moon_pearl', 'jade_orchid',
 ]);
@@ -1164,6 +1165,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_ginseng_soup: {
+    id: 'shared_ginseng_soup',
+    label: '共同灶台人参汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'ginseng', quantity: 1, quality: 'normal' },
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_ginseng_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_chive_egg_stir_fry: {
     id: 'shared_chive_egg_stir_fry',
     label: '共同灶台韭菜炒蛋',
@@ -1757,6 +1772,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_antler_soup: {
+    id: 'shared_antler_soup',
+    label: '共同灶台鹿茸汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'antler_velvet', quantity: 1, quality: 'normal' },
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+      { item_id: 'ginseng', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_antler_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_silk_dumpling: {
     id: 'shared_silk_dumpling',
     label: '共同灶台锦囊玉饺',
@@ -1887,6 +1916,19 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_herbal_pill: {
+    id: 'shared_herbal_pill',
+    label: '共同灶台百草丹',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'herb', quantity: 3, quality: 'normal' },
+      { item_id: 'ginseng', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_herbal_pill',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_grilled_eel: {
     id: 'shared_grilled_eel',
     label: '共同灶台烤鳗鱼',
@@ -1956,6 +1998,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_longevity_soup: {
+    id: 'shared_longevity_soup',
+    label: '共同灶台长生汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'ginseng', quantity: 2, quality: 'normal' },
+      { item_id: 'herb', quantity: 3, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_longevity_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_crab_osmanthus_congee: {
     id: 'shared_crab_osmanthus_congee',
     label: '共同灶台桂香蟹粥',
@@ -1997,6 +2053,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'ginger', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_winter_bamboo_duck_congee',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_scholars_porridge: {
+    id: 'shared_scholars_porridge',
+    label: '共同灶台文曲星粥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'tea', quantity: 1, quality: 'normal' },
+      { item_id: 'ginseng', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_scholars_porridge',
     output_quantity: 1,
     output_quality: 'normal',
   },

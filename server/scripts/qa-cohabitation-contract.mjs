@@ -4504,7 +4504,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 37, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 38, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4587,6 +4587,12 @@ const recipePolicyLateHybridCropIds = [
 for (const itemId of recipePolicyLateHybridCropIds) {
   assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list late hybrid crop ${itemId} as rare items`)
 }
+const recipePolicyGinsengRareDishItemIds = [
+  'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup',
+]
+for (const itemId of recipePolicyGinsengRareDishItemIds) {
+  assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list ginseng rare cooking item ${itemId} as rare items`)
+}
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('jujube'), 'warehouse item policy should list jujube as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('chrysanthemum'), 'warehouse item policy should list chrysanthemum as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('peach_wine'), 'warehouse item policy should list peach wine as common cooking input')
@@ -4661,6 +4667,14 @@ const recipePolicySnowLotusCatalog = recipePolicyWarehouseSnapshot.warehouse.ite
 assert.equal(recipePolicySnowLotusCatalog?.classification, 'rare', 'warehouse item policy should classify valuable base spirit crops as rare')
 assert.equal(recipePolicySnowLotusCatalog?.ordinary_flow_blocked, true, 'valuable base spirit crop policy should block ordinary warehouse flows')
 assert.equal(recipePolicySnowLotusCatalog?.high_value_withdrawal_allowed, true, 'valuable base spirit crop policy should allow rare high-value drafts')
+const recipePolicyGinsengCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'ginseng')
+assert.equal(recipePolicyGinsengCatalog?.classification, 'rare', 'warehouse item policy should classify ginseng as a rare cooking material')
+assert.equal(recipePolicyGinsengCatalog?.ordinary_flow_blocked, true, 'ginseng policy should block ordinary warehouse flows')
+assert.equal(recipePolicyGinsengCatalog?.high_value_withdrawal_allowed, true, 'ginseng policy should allow rare high-value drafts')
+const recipePolicyGinsengSoupCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'food_ginseng_soup')
+assert.equal(recipePolicyGinsengSoupCatalog?.classification, 'rare', 'warehouse item policy should classify ginseng soup output as rare')
+assert.equal(recipePolicyGinsengSoupCatalog?.ordinary_flow_blocked, true, 'ginseng soup policy should block ordinary warehouse flows')
+assert.equal(recipePolicyGinsengSoupCatalog?.high_value_withdrawal_allowed, true, 'ginseng soup policy should allow rare high-value drafts')
 const recipePolicyHanhaiCactusCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'hanhai_cactus')
 assert.equal(recipePolicyHanhaiCactusCatalog?.classification, 'rare', 'warehouse item policy should classify Hanhai regional crops as rare')
 assert.equal(recipePolicyHanhaiCactusCatalog?.ordinary_flow_blocked, true, 'Hanhai regional crop policy should block ordinary warehouse flows')
@@ -4698,6 +4712,41 @@ const processRecipePolicyBasicDish = async ({ recipeId, outputItemId, station = 
   assert.equal(origin?.withdrawal_risk_level, 'high_quality', `${recipeId} upgraded dish origin should be high-quality protected`)
   assert.equal(origin?.high_value_withdrawal_required, true, `${recipeId} upgraded dish should require high-value withdrawal flow`)
   assert.equal(origin?.item_policy_version, outputDepositLedger.item_policy_version, `${recipeId} upgraded dish origin should keep item policy version`)
+  return result
+}
+const processRecipePolicyRareDish = async ({ recipeId, outputItemId, station = 'stove', inputs }) => {
+  for (const input of inputs) {
+    await injectRecipePolicyStock(input.itemId, input.quantity, input.quality || 'normal')
+  }
+  const result = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: recipeId,
+    memo: `qa process rare ${recipeId}`,
+    idempotency_key: `qa-recipe-policy-rare-${recipeId}`,
+  }, actor(recipePolicyOwner))
+  assert.equal(result.recipe.output_item_id, outputItemId, `${recipeId} should output expected rare food item`)
+  assert.equal(result.workshop_action.station, station, `${recipeId} should use expected shared station`)
+  assert.equal(result.workshop_action.process_kind, 'cooking_dish', `${recipeId} should be cooking dish`)
+  assert.equal(result.ledger_entry.quality, 'fine', `${recipeId} should apply cooperation quality bonus`)
+  assert.ok(result.warehouse.items.some(item => item.item_id === outputItemId && item.quality === 'fine' && item.quantity >= 1), `${recipeId} rare output should enter shared warehouse`)
+  const outputDepositLedger = result.warehouse_ledger_entries.find(entry => entry.action === 'deposit' && entry.item_id === outputItemId)
+  assert.ok(outputDepositLedger, `${recipeId} should write rare output deposit ledger`)
+  assert.equal(outputDepositLedger.withdrawal_risk_level, 'rare', `${recipeId} output ledger should be rare protected`)
+  assert.equal(outputDepositLedger.high_value_withdrawal_required, true, `${recipeId} output ledger should require high-value withdrawal`)
+  assert.equal(outputDepositLedger.item_policy?.classification, 'rare', `${recipeId} output ledger should keep rare item classification`)
+  assert.equal(outputDepositLedger.item_policy?.high_value_withdrawal_allowed, true, `${recipeId} rare output should allow high-value withdrawal drafts`)
+  for (const input of inputs) {
+    const consumeLedger = result.warehouse_ledger_entries.find(entry => entry.action === 'consume' && entry.item_id === input.itemId && entry.quality === (input.quality || 'normal'))
+    assert.ok(consumeLedger, `${recipeId} should consume ${input.itemId}`)
+    if (input.itemId === 'ginseng') {
+      assert.equal(consumeLedger.withdrawal_risk_level, 'rare', `${recipeId} should consume ginseng through rare material policy`)
+      assert.equal(consumeLedger.item_policy?.classification, 'rare', `${recipeId} ginseng consume ledger should keep rare classification`)
+    }
+  }
+  const origin = result.contract.origin_assets.warehouse_items.find(item => item.ledger_id === result.ledger_entry.id && item.action === 'deposit')
+  assert.equal(origin?.withdrawal_risk_level, 'rare', `${recipeId} rare dish origin should be rare protected`)
+  assert.equal(origin?.high_value_withdrawal_required, true, `${recipeId} rare dish should require high-value withdrawal flow`)
+  assert.equal(origin?.item_policy_version, outputDepositLedger.item_policy_version, `${recipeId} rare dish origin should keep item policy version`)
+  assert.equal(origin?.item_classification, 'rare', `${recipeId} rare dish origin should keep rare classification`)
   return result
 }
 await processRecipePolicyBasicDish({
@@ -5632,6 +5681,18 @@ await assertRecipePolicyAlchemyResultBranches({
   inputs: [{ itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'tea', quantity: 2 }, { itemId: 'lotus_seed', quantity: 1 }],
 })
 
+for (const recipeId of ['shared_ginseng_soup', 'shared_herbal_pill', 'shared_longevity_soup', 'shared_scholars_porridge', 'shared_antler_soup']) {
+  await assert.rejects(
+    () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+      recipe_id: recipeId,
+      memo: 'qa rare ginseng cooking should require rare storage permission',
+      idempotency_key: `qa-recipe-policy-${recipeId}-denied`,
+    }, actor(recipePolicyOwner)),
+    error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+    `${recipeId} should require storage.withdraw_rare before consuming ginseng`
+  )
+}
+
 await assert.rejects(
   () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
     recipe_id: 'shared_spirit_peach_elixir',
@@ -5739,6 +5800,31 @@ await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   memo: 'qa allow rare material shared alchemy',
   idempotency_key: 'qa-recipe-policy-allow-rare-alchemy',
 }, actor(recipePolicyOwner))
+await processRecipePolicyRareDish({
+  recipeId: 'shared_ginseng_soup',
+  outputItemId: 'food_ginseng_soup',
+  inputs: [{ itemId: 'ginseng', quantity: 1 }, { itemId: 'herb', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_herbal_pill',
+  outputItemId: 'food_herbal_pill',
+  inputs: [{ itemId: 'herb', quantity: 3 }, { itemId: 'ginseng', quantity: 1 }],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_longevity_soup',
+  outputItemId: 'food_longevity_soup',
+  inputs: [{ itemId: 'ginseng', quantity: 2 }, { itemId: 'herb', quantity: 3 }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_scholars_porridge',
+  outputItemId: 'food_scholars_porridge',
+  inputs: [{ itemId: 'rice', quantity: 3 }, { itemId: 'tea', quantity: 1 }, { itemId: 'ginseng', quantity: 1 }],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_antler_soup',
+  outputItemId: 'food_antler_soup',
+  inputs: [{ itemId: 'antler_velvet', quantity: 1 }, { itemId: 'herb', quantity: 2 }, { itemId: 'ginseng', quantity: 1 }],
+})
 await injectRecipePolicyStock('peach', 2, 'fine')
 await injectRecipePolicyStock('candied_peach', 1, 'fine')
 await injectRecipePolicyStock('moon_herb', 1)
