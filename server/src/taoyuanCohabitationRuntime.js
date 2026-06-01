@@ -168,7 +168,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 25;
+const WAREHOUSE_ITEM_POLICY_VERSION = 26;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -185,6 +185,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_osmanthus_cake', 'food_jujube_cake', 'food_peach_blossom_cake', 'food_dried_persimmon', 'food_fish_noodle', 'food_miner_iron_pot',
   'food_stir_fried_potato', 'food_sesame_paste', 'food_chive_egg_stir_fry', 'food_peanut_candy', 'food_sweet_osmanthus_tea',
   'food_aged_radish_stew', 'food_embroidered_cake', 'food_deep_mine_stew', 'food_wild_berry_jam',
+  'food_farmers_feast', 'food_autumn_moon_feast', 'food_lovers_pastry', 'food_forgemasters_meal', 'food_spirit_fruit_wine',
   'food_spicy_hotpot', 'food_bamboo_shoot_stir_fry', 'food_lotus_seed_soup', 'food_corn_pancake', 'food_osmanthus_lotus_root',
   'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_zhi_yuan_gao',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
@@ -1168,6 +1169,76 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'honey', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_wild_berry_jam',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_farmers_feast: {
+    id: 'shared_farmers_feast',
+    label: '共同灶台农家盛宴',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'cabbage', quantity: 2, quality: 'normal' },
+      { item_id: 'egg', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_farmers_feast',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_autumn_moon_feast: {
+    id: 'shared_autumn_moon_feast',
+    label: '共同灶台秋月宴',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'mandarin_fish', quantity: 1, quality: 'normal' },
+      { item_id: 'river_crab', quantity: 1, quality: 'normal' },
+      { item_id: 'osmanthus', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_autumn_moon_feast',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_lovers_pastry: {
+    id: 'shared_lovers_pastry',
+    label: '共同灶台鸳鸯酥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'peach', quantity: 2, quality: 'normal' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_lovers_pastry',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_forgemasters_meal: {
+    id: 'shared_forgemasters_meal',
+    label: '共同灶台锻造师套餐',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'iron_ore', quantity: 2, quality: 'normal' },
+      { item_id: 'potato', quantity: 3, quality: 'normal' },
+      { item_id: 'firewood', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_forgemasters_meal',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_spirit_fruit_wine: {
+    id: 'shared_spirit_fruit_wine',
+    label: '共同酒坊灵果酒',
+    station: 'wine_workshop',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'wild_berry', quantity: 3, quality: 'normal' },
+      { item_id: 'honey', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_spirit_fruit_wine',
     output_quantity: 1,
     output_quality: 'normal',
   },
