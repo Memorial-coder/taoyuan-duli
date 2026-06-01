@@ -168,7 +168,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 21;
+const WAREHOUSE_ITEM_POLICY_VERSION = 22;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -214,6 +214,11 @@ const WAREHOUSE_HIGH_VALUE_CROP_ITEM_IDS = Object.freeze([
   'melon_tea_fruit', 'dragon_fire', 'celestial_rice', 'ice_lotus', 'jade_peach_tea',
   'golden_dragon', 'moonlight_frost', 'jade_golden_melon', 'immortal_flower', 'dragon_pearl',
   'snow_lotus_pearl', 'dew_bloom', 'star_lotus',
+  'peach_blossom_tea', 'lotus_tea', 'honey_peach_melon', 'crystal_yam', 'osmanthus_tea',
+  'snow_tea', 'double_lotus', 'mountain_lotus', 'osmanthus_lotus', 'snow_fire_pepper',
+  'autumn_gem', 'winter_pumpkin', 'snow_chrysanthemum', 'snow_pumpkin', 'wind_melon',
+  'cloud_bean', 'rain_rice', 'hoar_tuber', 'thunder_green', 'rainbow_fruit',
+  'dawn_tea', 'dusk_shoot', 'emerald_jade_tea', 'frost_chrysanthemum', 'pearl_peach',
   'wind_splendor_wheat', 'cloud_splendor_sesame', 'rain_splendor_pepper', 'hoar_splendor_root', 'thunder_splendor_sprout',
   'rainbow_splendor_vine', 'dew_splendor_bud', 'dawn_splendor_orchid', 'dusk_splendor_gourd', 'star_splendor_herb',
   'wind_jade3_chestnut', 'cloud_jade3_apricot', 'rain_jade3_pear', 'hoar_jade3_berry', 'thunder_jade3_peach_t',
