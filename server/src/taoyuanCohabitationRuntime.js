@@ -46,6 +46,8 @@ const SHARED_ANIMAL_LEDGER_LIMIT = 120;
 const SHARED_ANIMAL_LIMIT = 80;
 const SHARED_PET_LEDGER_LIMIT = 120;
 const SHARED_PET_LIMIT = 80;
+const SHARED_DECORATION_LEDGER_LIMIT = 120;
+const DECORATION_ORIGIN_LIMIT = 160;
 const COHABITATION_RECENT_ONLINE_SECONDS = 15 * 60;
 const SHARED_FARM_WATER_COOP_HEALTH_BONUS = 1;
 const SHARED_FARM_PLANT_FERTILIZE_COOP_QUALITY_BONUS = 1;
@@ -4068,6 +4070,8 @@ function normalizeFamilyChildCareLedgerEntry(entry = {}) {
   if (!careRef) return null;
   return {
     id: sanitizeText(entry.id, 100) || makeId('family_child_care'),
+    contract_id: sanitizeText(entry.contract_id, 80),
+    owner_scope: sanitizeText(entry.owner_scope || entry.asset_owner_scope, 80) || 'cohabitation_contract',
     care_ref: careRef,
     target_ref: sanitizeText(entry.target_ref || careRef, 120),
     child_ref: sanitizeText(entry.child_ref || entry.child_id || 'contract_child_private', 120),
@@ -4092,6 +4096,8 @@ function normalizeFamilyWishLedgerEntry(entry = {}) {
   if (!wishRef) return null;
   return {
     id: sanitizeText(entry.id, 100) || makeId('family_wish'),
+    contract_id: sanitizeText(entry.contract_id, 80),
+    owner_scope: sanitizeText(entry.owner_scope || entry.asset_owner_scope, 80) || 'cohabitation_contract',
     wish_ref: wishRef,
     target_ref: sanitizeText(entry.target_ref || wishRef, 120),
     wish_type: sanitizeText(entry.wish_type || entry.type || 'shared_family_wish', 60),
@@ -4115,6 +4121,9 @@ function normalizeFamilyMajorEventLedgerEntry(entry = {}) {
   if (!targetRef) return null;
   return {
     id: sanitizeText(entry.id, 100) || makeId('family_major_event'),
+    contract_id: sanitizeText(entry.contract_id, 80),
+    owner_scope: sanitizeText(entry.owner_scope || entry.asset_owner_scope, 80) || 'cohabitation_contract',
+    contract_event_ref: sanitizeText(entry.contract_event_ref || targetRef, 140),
     target_ref: targetRef,
     status: sanitizeText(entry.status, 40) || 'delivered',
     draft_id: sanitizeText(entry.draft_id, 100),
@@ -4450,6 +4459,9 @@ function normalizeSharedDecorationStateEntry(entry = {}) {
   const requiredPermissionKeys = Array.isArray(entry.required_permission_keys)
     ? entry.required_permission_keys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 8)
     : [];
+  const purchasedByUsername = normalizeUsername(entry.purchased_by_username || entry.purchase_by_username || entry.buyer_username);
+  const placedByUsername = normalizeUsername(entry.placed_by_username || entry.placer_username || entry.recorded_by_username || entry.actor_username);
+  const isDivisible = entry.is_divisible === true || entry.divisible === true || entry.can_split === true;
   return {
     id: sanitizeText(entry.id, 100) || makeId('shared_decoration_state'),
     decoration_id: decorationId,
@@ -4468,6 +4480,21 @@ function normalizeSharedDecorationStateEntry(entry = {}) {
     delivery_receipt_ref: sanitizeText(entry.delivery_receipt_ref, 120),
     removal_receipt_ref: sanitizeText(entry.removal_receipt_ref, 120),
     amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    purchased_by_username: purchasedByUsername,
+    purchased_by_display_name: sanitizeText(entry.purchased_by_display_name || entry.buyer_display_name || purchasedByUsername, 80),
+    purchased_by_key: normalizeUsernameKey(entry.purchased_by_key || purchasedByUsername),
+    purchased_at: Math.max(0, Math.floor(Number(entry.purchased_at || entry.purchase_at) || 0)),
+    placed_by_username: placedByUsername,
+    placed_by_display_name: sanitizeText(entry.placed_by_display_name || entry.placer_display_name || entry.recorded_by_display_name || entry.actor_display_name || placedByUsername, 80),
+    placed_by_key: normalizeUsernameKey(entry.placed_by_key || placedByUsername),
+    placed_at: Math.max(0, Math.floor(Number(entry.placed_at || entry.recorded_at || entry.at) || 0)),
+    is_divisible: isDivisible,
+    split_policy: sanitizeText(entry.split_policy, 160) || (isDivisible
+      ? 'divisible_shared_decoration_split_by_quantity_or_contribution_on_separation'
+      : 'non_divisible_shared_decoration_compensate_or_memorialize_on_separation'),
+    return_policy: sanitizeText(entry.return_policy, 140) || (isDivisible
+      ? 'divide_or_return_traceable_decoration_quantity'
+      : 'compensate_or_keep_contract_memorial'),
     recorded_by_username: normalizeUsername(entry.recorded_by_username || entry.actor_username),
     recorded_by_display_name: sanitizeText(entry.recorded_by_display_name || entry.actor_display_name || entry.recorded_by_username || entry.actor_username, 60),
     recorded_at: Math.max(0, Math.floor(Number(entry.recorded_at || entry.at) || 0)),
@@ -4485,6 +4512,92 @@ function normalizeSharedDecorationState(value = []) {
   return Array.isArray(value)
     ? value.map(normalizeSharedDecorationStateEntry).filter(Boolean).slice(0, 80)
     : [];
+}
+
+function normalizeSharedDecorationLedgerEntry(entry = {}) {
+  const decorationId = sanitizeText(entry.decoration_id || entry.item_id, 80);
+  const targetRef = sanitizeText(entry.target_ref || entry.target || entry.placement_ref, 120);
+  if (!decorationId && !targetRef) return null;
+  const requiredPermissionKeys = Array.isArray(entry.required_permission_keys)
+    ? entry.required_permission_keys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 8)
+    : [];
+  const actorUsername = normalizeUsername(entry.actor_username || entry.recorded_by_username);
+  const purchasedByUsername = normalizeUsername(entry.purchased_by_username || entry.purchase_by_username || entry.buyer_username);
+  const placedByUsername = normalizeUsername(entry.placed_by_username || entry.placer_username || actorUsername);
+  const isDivisible = entry.is_divisible === true || entry.divisible === true || entry.can_split === true;
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('shared_decoration_ledger'),
+    action: sanitizeText(entry.action, 80) || 'shared_decoration_move',
+    decoration_id: decorationId,
+    decoration_kind: sanitizeText(entry.decoration_kind || entry.kind, 40) || 'common',
+    target_ref: targetRef || (decorationId ? `shared_decoration:${decorationId}:move` : ''),
+    placement_ref: sanitizeText(entry.placement_ref || entry.location_ref || targetRef, 120),
+    from_location_ref: sanitizeText(entry.from_location_ref || entry.previous_location_ref, 120),
+    to_location_ref: sanitizeText(entry.to_location_ref || entry.next_location_ref || entry.location_ref, 120),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id || entry.original_fund_ledger_id, 100),
+    draft_id: sanitizeText(entry.draft_id, 100),
+    receipt_id: sanitizeText(entry.receipt_id, 100),
+    receipt_ref: sanitizeText(entry.receipt_ref, 120),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    purchased_by_username: purchasedByUsername,
+    purchased_by_display_name: sanitizeText(entry.purchased_by_display_name || entry.buyer_display_name || purchasedByUsername, 80),
+    purchased_by_key: normalizeUsernameKey(entry.purchased_by_key || purchasedByUsername),
+    purchased_at: Math.max(0, Math.floor(Number(entry.purchased_at || entry.purchase_at) || 0)),
+    placed_by_username: placedByUsername,
+    placed_by_display_name: sanitizeText(entry.placed_by_display_name || entry.placer_display_name || entry.actor_display_name || placedByUsername, 80),
+    placed_by_key: normalizeUsernameKey(entry.placed_by_key || placedByUsername),
+    placed_at: Math.max(0, Math.floor(Number(entry.placed_at || entry.at || entry.recorded_at || entry.moved_at) || 0)),
+    is_divisible: isDivisible,
+    split_policy: sanitizeText(entry.split_policy, 160) || (isDivisible
+      ? 'divisible_shared_decoration_split_by_quantity_or_contribution_on_separation'
+      : 'non_divisible_shared_decoration_compensate_or_memorialize_on_separation'),
+    return_policy: sanitizeText(entry.return_policy, 140) || (isDivisible
+      ? 'divide_or_return_traceable_decoration_quantity'
+      : 'compensate_or_keep_contract_memorial'),
+    actor_username: actorUsername,
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.recorded_by_display_name || actorUsername, 60),
+    actor_key: normalizeUsernameKey(entry.actor_key || actorUsername),
+    actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
+    actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
+    required_permission_keys: requiredPermissionKeys,
+    shared_decoration_state_entry_id: sanitizeText(entry.shared_decoration_state_entry_id || entry.state_entry_id, 100),
+    shared_decoration_state_changed: entry.shared_decoration_state_changed !== false,
+    personal_home_mutated: entry.personal_home_mutated === true,
+    personal_save_changed: entry.personal_save_changed === true,
+    shared_warehouse_changed: entry.shared_warehouse_changed === true,
+    shared_fund_changed: entry.shared_fund_changed === true,
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    operation_id: sanitizeText(entry.operation_id || entry.operationId, 120),
+    memo: sanitizeText(entry.memo || entry.note, 180),
+    at: Math.max(0, Math.floor(Number(entry.at || entry.recorded_at || entry.moved_at) || nowSeconds())),
+    reversible: entry.reversible !== false,
+    compensation_hint: sanitizeText(entry.compensation_hint, 240)
+      || 'shared decoration mutation is contract-local; rollback should use the shared decoration ledger and state entry.',
+    status: ['committed', 'rolled_back', 'blocked'].includes(entry.status) ? entry.status : 'committed',
+  };
+}
+
+function normalizeSharedDecorationLedger(value = []) {
+  return Array.isArray(value)
+    ? value.map(normalizeSharedDecorationLedgerEntry).filter(Boolean).slice(0, SHARED_DECORATION_LEDGER_LIMIT)
+    : [];
+}
+
+function prependSharedDecorationLedgerEntry(entries = [], nextEntry = {}) {
+  const normalizedNext = normalizeSharedDecorationLedgerEntry(nextEntry);
+  const normalizedEntries = normalizeSharedDecorationLedger(entries);
+  if (!normalizedNext) return { entries: normalizedEntries, entry: null, changed: false };
+  const filtered = normalizedEntries.filter(entry => {
+    if (normalizedNext.id && entry.id === normalizedNext.id) return false;
+    if (normalizedNext.idempotency_key && entry.idempotency_key === normalizedNext.idempotency_key && entry.action === normalizedNext.action) return false;
+    if (normalizedNext.operation_id && entry.operation_id === normalizedNext.operation_id && entry.action === normalizedNext.action) return false;
+    return true;
+  });
+  return {
+    entries: [normalizedNext, ...filtered].slice(0, SHARED_DECORATION_LEDGER_LIMIT),
+    entry: normalizedNext,
+    changed: true,
+  };
 }
 
 function parseSharedFundTargetSubject(targetRef = '') {
@@ -4596,6 +4709,7 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
   }
   const targetSubject = parseSharedFundTargetSubject(draft.target_ref);
   const base = {
+    contract_id: receiptMeta.contract_id,
     target_ref: draft.target_ref,
     draft_id: draft.id,
     fund_ledger_id: originalFundLedger.id,
@@ -4610,6 +4724,9 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
     amount: Math.max(0, Math.floor(Number(draft.amount || originalFundLedger.amount) || 0)),
     shared_fund_changed: false,
   };
+  const purchaseActorUsername = normalizeUsername(draft.requested_by || originalFundLedger.actor_username);
+  const purchaseActorKey = normalizeUsernameKey(draft.requested_by_key || purchaseActorUsername);
+  const purchaseActorDisplayName = sanitizeText(draft.requested_by_display_name || purchaseActorUsername, 80);
   const decorationId = targetSubject.subject_id || sanitizeText(draft.target_ref, 80);
   const deliveryEntry = ['rare_item_purchase', 'limited_decoration'].includes(draft.purpose)
     ? normalizeSharedFundDeliveryEntry({
@@ -4634,6 +4751,17 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
       state: 'delivered',
       status: 'delivered',
       delivery_receipt_ref: receiptRequest.receipt_ref,
+      purchased_by_username: purchaseActorUsername,
+      purchased_by_display_name: purchaseActorDisplayName,
+      purchased_by_key: purchaseActorKey,
+      purchased_at: originalFundLedger.at || draft.executed_at,
+      placed_by_username: receiptMeta.recorded_by_username,
+      placed_by_display_name: receiptMeta.recorded_by_display_name,
+      placed_by_key: receiptMeta.actor_key || receiptMeta.recorded_by_username,
+      placed_at: receiptMeta.recorded_at,
+      is_divisible: receiptRequest.is_divisible === true,
+      split_policy: receiptRequest.split_policy || 'non_divisible_shared_fund_decoration_compensate_or_memorialize_on_separation',
+      return_policy: 'non_divisible_shared_fund_decoration_compensate_or_memorialize',
       shared_decoration_state_changed: true,
       personal_home_mutated: false,
     })
@@ -4645,6 +4773,17 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
         state: 'removed',
         status: 'removed',
         removal_receipt_ref: receiptRequest.receipt_ref,
+        purchased_by_username: purchaseActorUsername,
+        purchased_by_display_name: purchaseActorDisplayName,
+        purchased_by_key: purchaseActorKey,
+        purchased_at: originalFundLedger.at || draft.executed_at,
+        placed_by_username: receiptMeta.recorded_by_username,
+        placed_by_display_name: receiptMeta.recorded_by_display_name,
+        placed_by_key: receiptMeta.actor_key || receiptMeta.recorded_by_username,
+        placed_at: receiptMeta.recorded_at,
+        is_divisible: receiptRequest.is_divisible === true,
+        split_policy: receiptRequest.split_policy || 'non_divisible_shared_decoration_removal_compensate_or_memorialize_on_separation',
+        return_policy: 'record_removal_receipt_for_compensation_review',
         shared_decoration_state_changed: true,
         personal_home_mutated: false,
       })
@@ -4653,6 +4792,8 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
     ? normalizeFamilyMajorEventLedgerEntry({
       ...base,
       status: 'delivered',
+      owner_scope: 'cohabitation_contract',
+      contract_event_ref: `contract:${receiptMeta.contract_id}:family_event:${targetSubject.subject_id || draft.id}`,
       contract_family_state_changed: true,
       personal_family_state_mutated: false,
     })
@@ -4662,6 +4803,100 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
     shared_decoration_state_entry: sharedDecorationStateEntry,
     family_major_event_entry: familyMajorEventEntry,
   };
+}
+
+function buildHighRiskReceiptSharedDecorationLedgerEntry(stateEntry = {}, draft = {}, originalFundLedger = {}, receiptRequest = {}, receiptMeta = {}) {
+  const normalizedStateEntry = normalizeSharedDecorationStateEntry(stateEntry);
+  if (!normalizedStateEntry) return null;
+  if (!['limited_decoration_delivery', 'shared_decoration_removal'].includes(normalizedStateEntry.action)) return null;
+  const actorUsername = normalizeUsername(receiptMeta.actor_username || normalizedStateEntry.recorded_by_username);
+  return normalizeSharedDecorationLedgerEntry({
+    id: makeId('shared_decoration_ledger'),
+    action: normalizedStateEntry.action,
+    decoration_id: normalizedStateEntry.decoration_id,
+    decoration_kind: normalizedStateEntry.decoration_kind,
+    target_ref: normalizedStateEntry.target_ref || draft.target_ref,
+    placement_ref: normalizedStateEntry.placement_ref || normalizedStateEntry.target_ref || draft.target_ref,
+    from_location_ref: normalizedStateEntry.from_location_ref,
+    to_location_ref: normalizedStateEntry.to_location_ref,
+    fund_ledger_id: originalFundLedger.id || normalizedStateEntry.fund_ledger_id,
+    draft_id: draft.id || normalizedStateEntry.draft_id,
+    receipt_id: receiptMeta.receipt_id || normalizedStateEntry.receipt_id,
+    receipt_ref: receiptRequest.receipt_ref || normalizedStateEntry.receipt_ref || normalizedStateEntry.delivery_receipt_ref || normalizedStateEntry.removal_receipt_ref,
+    amount: Math.max(0, Math.floor(Number(draft.amount || originalFundLedger.amount || normalizedStateEntry.amount) || 0)),
+    purchased_by_username: normalizedStateEntry.purchased_by_username,
+    purchased_by_display_name: normalizedStateEntry.purchased_by_display_name,
+    purchased_by_key: normalizedStateEntry.purchased_by_key,
+    purchased_at: normalizedStateEntry.purchased_at || originalFundLedger.at || draft.executed_at,
+    placed_by_username: normalizedStateEntry.placed_by_username || actorUsername,
+    placed_by_display_name: normalizedStateEntry.placed_by_display_name,
+    placed_by_key: normalizedStateEntry.placed_by_key || receiptMeta.actor_key,
+    placed_at: normalizedStateEntry.placed_at || receiptMeta.recorded_at,
+    is_divisible: normalizedStateEntry.is_divisible,
+    split_policy: normalizedStateEntry.split_policy,
+    return_policy: normalizedStateEntry.return_policy,
+    actor_username: actorUsername,
+    actor_display_name: sanitizeText(receiptMeta.actor_display_name || normalizedStateEntry.recorded_by_display_name || actorUsername, 60),
+    actor_key: receiptMeta.actor_key || actorUsername,
+    actor_manor_role: receiptMeta.actor_manor_role,
+    actor_manor_role_label: receiptMeta.actor_manor_role_label,
+    required_permission_keys: Array.isArray(receiptMeta.required_permission_keys) ? receiptMeta.required_permission_keys : [],
+    shared_decoration_state_entry_id: normalizedStateEntry.id,
+    shared_decoration_state_changed: normalizedStateEntry.shared_decoration_state_changed !== false,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    idempotency_key: receiptRequest.idempotency_key,
+    memo: receiptRequest.memo,
+    at: receiptMeta.recorded_at,
+    reversible: true,
+    compensation_hint: normalizedStateEntry.action === 'shared_decoration_removal'
+      ? 'shared decoration removal receipt writes contract decoration state and decoration ledger only; personal home saves, warehouse, and shared fund remain unchanged.'
+      : 'limited decoration delivery receipt writes contract delivery, decoration state, and decoration ledger only; personal inventory, personal home saves, warehouse, and shared fund remain unchanged.',
+    status: 'committed',
+  });
+}
+
+function buildSharedDecorationOriginAssetFromReceipt(stateEntry = {}, ledgerEntry = {}, draft = {}, originalFundLedger = {}, receiptRequest = {}, receiptMeta = {}) {
+  const normalizedStateEntry = normalizeSharedDecorationStateEntry(stateEntry);
+  const normalizedLedgerEntry = normalizeSharedDecorationLedgerEntry(ledgerEntry);
+  if (!normalizedStateEntry || normalizedStateEntry.action !== 'limited_decoration_delivery') return null;
+  const contractId = sanitizeText(receiptMeta.contract_id || draft.contract_id, 80);
+  return normalizeOriginDecorationAsset({
+    id: `shared_fund_decoration:${contractId}:${normalizedStateEntry.decoration_id}:${normalizedStateEntry.receipt_id || normalizedLedgerEntry?.id || draft.id}`,
+    decoration_id: normalizedStateEntry.decoration_id,
+    decoration_label: normalizedStateEntry.decoration_id,
+    decoration_kind: normalizedStateEntry.decoration_kind,
+    quantity: 1,
+    origin_owner_id: contractId ? `shared_fund:${contractId}` : 'shared_fund',
+    origin_owner_username: 'shared_fund',
+    origin_owner_key: 'shared_fund',
+    origin_owner_display_name: 'shared fund purchase',
+    source_inventory: 'shared_decoration_state',
+    ledger_id: normalizedLedgerEntry?.id,
+    source_ledger_id: normalizedLedgerEntry?.id,
+    fund_ledger_id: originalFundLedger.id || normalizedStateEntry.fund_ledger_id,
+    draft_id: draft.id || normalizedStateEntry.draft_id,
+    receipt_id: normalizedStateEntry.receipt_id,
+    receipt_ref: receiptRequest.receipt_ref || normalizedStateEntry.receipt_ref,
+    purchased_by_username: normalizedStateEntry.purchased_by_username,
+    purchased_by_display_name: normalizedStateEntry.purchased_by_display_name,
+    purchased_by_key: normalizedStateEntry.purchased_by_key,
+    purchased_at: normalizedStateEntry.purchased_at || originalFundLedger.at || draft.executed_at,
+    placed_by_username: normalizedStateEntry.placed_by_username,
+    placed_by_display_name: normalizedStateEntry.placed_by_display_name,
+    placed_by_key: normalizedStateEntry.placed_by_key,
+    placed_at: normalizedStateEntry.placed_at || receiptMeta.recorded_at,
+    placement_ref: normalizedStateEntry.placement_ref || normalizedStateEntry.target_ref,
+    is_divisible: normalizedStateEntry.is_divisible,
+    split_policy: normalizedStateEntry.split_policy,
+    return_policy: normalizedStateEntry.return_policy || 'non_divisible_shared_fund_decoration_compensate_or_memorialize',
+    compensation_policy: 'Use shared fund contribution weights for compensation, or keep the decoration as a contract memorial if no fair split exists.',
+    memorialization_policy: 'Non-divisible shared fund decorations may remain as a relationship memorial bound to the contract after separation.',
+    status: 'active',
+    idempotency_key: receiptRequest.idempotency_key,
+  });
 }
 
 function getFamilyManorRoleDef(roleId) {
@@ -5816,13 +6051,75 @@ function assertWarehouseHighValueWithdrawalPermission(actorPermissions = {}, ris
   throw createError('普通物品请使用普通取出流程', 400);
 }
 
+function normalizeOriginDecorationAsset(entry = {}, index = 0) {
+  const decorationId = sanitizeText(entry.decoration_id || entry.item_id || entry.id || `decoration_${index + 1}`, 100);
+  if (!decorationId) return null;
+  const originUsername = normalizeUsername(entry.origin_owner_username || entry.source_owner_username || entry.username);
+  const originKey = normalizeUsernameKey(entry.origin_owner_key || entry.source_owner_key || originUsername);
+  const quantity = Math.max(1, Math.floor(Number(entry.quantity || entry.count) || 1));
+  const purchasedByUsername = normalizeUsername(entry.purchased_by_username || entry.purchase_by_username || entry.buyer_username || entry.bought_by_username);
+  const placedByUsername = normalizeUsername(entry.placed_by_username || entry.placement_by_username || entry.placer_username || entry.recorded_by_username);
+  const isSharedFundOrigin = originKey === 'shared_fund' || originUsername === 'shared_fund' || sanitizeText(entry.origin_owner_id, 100).startsWith('shared_fund:');
+  const isDivisible = entry.is_divisible === true || entry.divisible === true || entry.can_split === true;
+  const returnPolicy = sanitizeText(entry.return_policy, 140)
+    || (isSharedFundOrigin
+      ? 'non_divisible_shared_fund_decoration_compensate_or_memorialize'
+      : 'return_to_origin_owner_personal_decoration_owned');
+  return {
+    id: sanitizeText(entry.id || entry.origin_asset_id, 120) || `origin_decoration:${decorationId}:${index}`,
+    origin_asset_id: sanitizeText(entry.origin_asset_id || entry.id, 120),
+    decoration_id: decorationId,
+    decoration_label: sanitizeText(entry.decoration_label || entry.label || entry.name || decorationId, 80),
+    decoration_kind: normalizeSharedDecorationKind(entry.decoration_kind || entry.kind, entry),
+    quantity,
+    origin_owner_id: sanitizeText(entry.origin_owner_id || entry.source_owner_id, 100) || (isSharedFundOrigin ? 'shared_fund' : ''),
+    origin_owner_username: originUsername,
+    origin_owner_key: originKey,
+    origin_owner_display_name: sanitizeText(entry.origin_owner_display_name || entry.source_owner_display_name || originUsername, 80),
+    origin_save_id: normalizeSaveId(entry.origin_save_id || entry.source_save_id),
+    source_save_slot: normalizeSaveSlot(entry.source_save_slot),
+    source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
+    source_inventory: sanitizeText(entry.source_inventory || 'shared_decoration_state', 80),
+    ledger_id: sanitizeText(entry.ledger_id || entry.source_ledger_id || entry.shared_decoration_ledger_id, 100),
+    source_ledger_id: sanitizeText(entry.source_ledger_id || entry.ledger_id || entry.shared_decoration_ledger_id, 100),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id || entry.purchase_fund_ledger_id || entry.original_fund_ledger_id, 100),
+    draft_id: sanitizeText(entry.draft_id || entry.purchase_draft_id, 100),
+    receipt_id: sanitizeText(entry.receipt_id, 100),
+    receipt_ref: sanitizeText(entry.receipt_ref, 120),
+    purchased_by_username: purchasedByUsername,
+    purchased_by_display_name: sanitizeText(entry.purchased_by_display_name || entry.buyer_display_name || purchasedByUsername, 80),
+    purchased_by_key: normalizeUsernameKey(entry.purchased_by_key || purchasedByUsername),
+    purchased_at: Math.max(0, Math.floor(Number(entry.purchased_at || entry.purchase_at) || 0)),
+    placed_by_username: placedByUsername,
+    placed_by_display_name: sanitizeText(entry.placed_by_display_name || entry.placer_display_name || placedByUsername, 80),
+    placed_by_key: normalizeUsernameKey(entry.placed_by_key || placedByUsername),
+    placed_at: Math.max(0, Math.floor(Number(entry.placed_at || entry.recorded_at) || 0)),
+    placement_ref: sanitizeText(entry.placement_ref || entry.location_ref || entry.target_ref, 120),
+    is_divisible: isDivisible,
+    split_policy: sanitizeText(entry.split_policy, 160) || (isSharedFundOrigin
+      ? 'non_divisible_shared_fund_decoration_compensate_or_memorialize_on_separation'
+      : 'return_traceable_personal_decoration_to_origin_owner_on_separation'),
+    return_policy: returnPolicy,
+    compensation_policy: sanitizeText(entry.compensation_policy, 180) || (isSharedFundOrigin
+      ? 'Use shared fund contribution weights for compensation, or keep the decoration as a contract memorial if no fair split exists.'
+      : 'Return the traceable decoration quantity to the origin owner personal decoration.owned inventory.'),
+    memorialization_policy: sanitizeText(entry.memorialization_policy, 180) || (isSharedFundOrigin
+      ? 'Non-divisible shared fund decorations may remain as a relationship memorial bound to the contract after separation.'
+      : ''),
+    status: sanitizeText(entry.status, 40) || 'active',
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+  };
+}
+
 function normalizeOriginAssets(value = {}) {
   return {
     plots: Array.isArray(value.plots) ? value.plots : [],
     animals: Array.isArray(value.animals) ? value.animals : [],
     pets: Array.isArray(value.pets) ? value.pets : [],
     warehouse_items: Array.isArray(value.warehouse_items) ? value.warehouse_items : [],
-    decorations: Array.isArray(value.decorations) ? value.decorations : [],
+    decorations: Array.isArray(value.decorations)
+      ? value.decorations.map(normalizeOriginDecorationAsset).filter(Boolean).slice(0, DECORATION_ORIGIN_LIMIT)
+      : [],
     fund_contributions: Array.isArray(value.fund_contributions) ? value.fund_contributions : [],
   };
 }
@@ -8511,6 +8808,7 @@ function normalizeContract(entry = {}) {
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(entry.shared_warehouse_governance_recoveries),
     shared_fund_deliveries: normalizeSharedFundDeliveries(entry.shared_fund_deliveries),
     shared_decoration_state: normalizeSharedDecorationState(entry.shared_decoration_state),
+    shared_decoration_ledger: normalizeSharedDecorationLedger(entry.shared_decoration_ledger),
     family_orders_state: normalizeFamilyOrdersState(entry.family_orders_state),
     family_reputation_state: normalizeFamilyReputationState(entry.family_reputation_state),
     family_visibility_state: normalizeFamilyVisibilityState(entry.family_visibility_state),
@@ -8695,6 +8993,7 @@ function toPublicContract(contract) {
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries),
     shared_fund_deliveries: normalizeSharedFundDeliveries(contract.shared_fund_deliveries),
     shared_decoration_state: normalizeSharedDecorationState(contract.shared_decoration_state),
+    shared_decoration_ledger: normalizeSharedDecorationLedger(contract.shared_decoration_ledger),
     family_orders_state: normalizeFamilyOrdersState(contract.family_orders_state),
     family_reputation_state: normalizeFamilyReputationState(contract.family_reputation_state),
     family_visibility_state: normalizeFamilyVisibilityState(contract.family_visibility_state),
@@ -13613,6 +13912,10 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
     future_cooperation_option: false,
     family_fund_settlement_required: false,
     family_fund_settlement_state: 'not_applicable',
+    memorial_record_required: true,
+    contract_memorial_ref: `relationship_memorial:${sanitizeText(contract.id, 80) || relationType}`,
+    memorial_record_policy: 'preserve_contract_story_cinematic_title_and_keepsake_after_separation',
+    memory_title_keepsake_policy: 'keep_story_event_dialogue_animation_and_personal_story_receipts_as_relationship_memory',
     story_state: childArrangementRequired
       ? 'child_arrangement_pending'
       : (personalStoryWriteRequired ? 'personal_story_write_pending' : 'contract_story_closed'),
@@ -16026,23 +16329,41 @@ function buildDecorationSplitManifest(contract = {}) {
       const originKey = normalizeUsernameKey(item.origin_owner_key || item.source_owner_key || originUsername);
       const decorationId = sanitizeText(item.decoration_id || item.item_id || item.id || `decoration_${index + 1}`, 100);
       const quantity = Math.max(1, Math.floor(Number(item.quantity || item.count) || 1));
+      const returnPolicy = sanitizeText(item.return_policy, 140) || (originKey === 'shared_fund'
+        ? 'non_divisible_shared_fund_decoration_compensate_or_memorialize'
+        : 'return_to_origin_owner_personal_decoration_owned');
+      const personalReturn = returnPolicy === 'return_to_origin_owner_personal_decoration_owned';
       return {
         manifest_id: `${originKey}:decoration:${decorationId}:${index}`,
         origin_asset_id: sanitizeText(item.id || item.origin_asset_id, 120),
         decoration_id: decorationId,
         decoration_label: sanitizeText(item.decoration_label || item.label || item.name || decorationId, 80),
+        decoration_kind: normalizeSharedDecorationKind(item.decoration_kind || item.kind, item),
         quantity,
         origin_owner_id: sanitizeText(item.origin_owner_id || item.source_owner_id, 80),
         origin_owner_username: originUsername,
         origin_owner_key: originKey,
-        return_target_username: originUsername,
-        return_target_key: originKey,
-        return_target_save_id: normalizeSaveId(item.origin_save_id || item.source_save_id),
+        return_target_username: personalReturn ? originUsername : '',
+        return_target_key: personalReturn ? originKey : '',
+        return_target_save_id: personalReturn ? normalizeSaveId(item.origin_save_id || item.source_save_id) : '',
         source_save_slot: normalizeSaveSlot(item.source_save_slot),
         source_save_revision: Math.max(0, Math.floor(Number(item.source_save_revision) || 0)),
         source_inventory: sanitizeText(item.source_inventory || 'shared_decoration_state', 80),
         source_ledger_id: sanitizeText(item.ledger_id || item.source_ledger_id, 100),
-        return_policy: 'return_to_origin_owner_personal_decoration_owned',
+        fund_ledger_id: sanitizeText(item.fund_ledger_id || item.purchase_fund_ledger_id, 100),
+        draft_id: sanitizeText(item.draft_id || item.purchase_draft_id, 100),
+        receipt_id: sanitizeText(item.receipt_id, 100),
+        purchased_by_username: normalizeUsername(item.purchased_by_username),
+        purchased_by_display_name: sanitizeText(item.purchased_by_display_name || item.purchased_by_username, 80),
+        placed_by_username: normalizeUsername(item.placed_by_username),
+        placed_by_display_name: sanitizeText(item.placed_by_display_name || item.placed_by_username, 80),
+        placement_ref: sanitizeText(item.placement_ref || item.target_ref, 120),
+        is_divisible: item.is_divisible === true,
+        split_policy: sanitizeText(item.split_policy, 160),
+        return_policy: returnPolicy,
+        compensation_policy: sanitizeText(item.compensation_policy, 180),
+        memorialization_policy: sanitizeText(item.memorialization_policy, 180),
+        compensation_or_memorial_required: !personalReturn,
         execution_status: 'preview_only',
       };
     })
@@ -16062,6 +16383,8 @@ function hashDecorationSplitManifest(manifest = []) {
     return_target_username: entry.return_target_username,
     return_target_save_id: entry.return_target_save_id,
     source_ledger_id: entry.source_ledger_id,
+    return_policy: entry.return_policy,
+    is_divisible: entry.is_divisible,
   }));
   return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
 }
@@ -16114,11 +16437,18 @@ function summarizeDecorationSplitsByOwner(manifest = []) {
       origin_owner_username: entry.origin_owner_username,
       origin_owner_key: key,
       decoration_count: 0,
+      non_divisible_count: 0,
       decoration_ids: [],
+      return_policies: [],
       return_status: sanitizeText(entry.return_status || entry.execution_status, 80) || 'preview_waiting_personal_decoration_write',
     };
     current.decoration_count += Math.max(1, Math.floor(Number(entry.quantity) || 1));
+    if (entry.return_policy !== 'return_to_origin_owner_personal_decoration_owned') {
+      current.non_divisible_count += Math.max(1, Math.floor(Number(entry.quantity) || 1));
+    }
     if (current.decoration_ids.length < 40) current.decoration_ids.push(entry.decoration_id);
+    const returnPolicy = sanitizeText(entry.return_policy, 140);
+    if (returnPolicy && !current.return_policies.includes(returnPolicy)) current.return_policies.push(returnPolicy);
     current.return_status = sanitizeText(entry.return_status || current.return_status, 80) || current.return_status;
     groups.set(key, current);
   }
@@ -16574,6 +16904,7 @@ function writePersonalDecorationReturnsFromManifest(rows = [], contract = {}, pa
   const prepared = [];
   const writtenAt = nowSeconds();
   for (const row of Array.isArray(rows) ? rows : []) {
+    if (sanitizeText(row.return_policy, 140) && row.return_policy !== 'return_to_origin_owner_personal_decoration_owned') continue;
     const username = normalizeUsername(row.return_target_username || row.origin_owner_username);
     const usernameKey = normalizeUsernameKey(row.return_target_key || row.origin_owner_key || username);
     const decorationId = sanitizeText(row.decoration_id, 100);
@@ -16801,6 +17132,10 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       cinematic_stage_direction: storyContent.cinematic_stage_direction,
       cinematic_playback_policy: storyContent.cinematic_playback_policy,
       exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
+      memorial_record_required: storyResolution.memorial_record_required !== false,
+      contract_memorial_ref: sanitizeText(storyResolution.contract_memorial_ref, 120),
+      memorial_record_policy: sanitizeText(storyResolution.memorial_record_policy, 160),
+      memory_title_keepsake_policy: sanitizeText(storyResolution.memory_title_keepsake_policy, 180),
       frontend_cinematic_pending: storyResolution.frontend_cinematic_pending === true,
       frontend_cinematic_played: storyResolution.frontend_cinematic_played === true,
       frontend_cinematic_played_at: Math.max(0, Math.floor(Number(storyResolution.frontend_cinematic_played_at) || 0)),
@@ -16853,6 +17188,10 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       cinematic_stage_direction: receipt.cinematic_stage_direction,
       cinematic_playback_policy: receipt.cinematic_playback_policy,
       exit_record_kind: receipt.exit_record_kind,
+      memorial_record_required: receipt.memorial_record_required,
+      contract_memorial_ref: receipt.contract_memorial_ref,
+      memorial_record_policy: receipt.memorial_record_policy,
+      memory_title_keepsake_policy: receipt.memory_title_keepsake_policy,
       frontend_cinematic_pending: receipt.frontend_cinematic_pending,
       frontend_cinematic_played: receipt.frontend_cinematic_played,
       frontend_cinematic_played_at: receipt.frontend_cinematic_played_at,
@@ -18193,7 +18532,9 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           origin_owner_username: normalizeUsername(item.origin_owner_username),
           origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
           decoration_count: Math.max(0, Math.floor(Number(item.decoration_count) || 0)),
+          non_divisible_count: Math.max(0, Math.floor(Number(item.non_divisible_count) || 0)),
           decoration_ids: Array.isArray(item.decoration_ids) ? item.decoration_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+          return_policies: Array.isArray(item.return_policies) ? item.return_policies.map(policy => sanitizeText(policy, 140)).filter(Boolean).slice(0, 8) : [],
           return_status: sanitizeText(item.return_status, 80) || 'preview_waiting_personal_decoration_write',
         })).filter(item => item.origin_owner_username && item.decoration_count > 0).slice(0, 80)
       : [],
@@ -18217,11 +18558,13 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           receipt_type: sanitizeText(item.receipt_type, 80),
           count: Math.max(0, Math.floor(Number(item.count) || 0)),
           returned_count: Math.max(0, Math.floor(Number(item.returned_count) || 0)),
+          non_divisible_count: Math.max(0, Math.floor(Number(item.non_divisible_count) || 0)),
           manifest_hash: sanitizeText(item.manifest_hash, 100),
           status: sanitizeText(item.status, 80) || 'recorded_only',
           personal_save_changed: item.personal_save_changed === true,
           personal_home_mutated: item.personal_home_mutated === true,
           personal_decoration_owned_mutated: item.personal_decoration_owned_mutated === true,
+          compensation_or_memorial_required: item.compensation_or_memorial_required === true,
           personal_save_receipts: Array.isArray(item.personal_save_receipts)
             ? item.personal_save_receipts.map(receipt => ({
                 username: normalizeUsername(receipt?.username),
@@ -18378,6 +18721,10 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           animation_cue_count: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.animation_cue_count) || 0)),
           cinematic_stage_direction: sanitizeText(entry.family_story_cinematic_receipt.cinematic_stage_direction, 180),
           cinematic_playback_policy: sanitizeText(entry.family_story_cinematic_receipt.cinematic_playback_policy, 180),
+          memorial_record_required: entry.family_story_cinematic_receipt.memorial_record_required !== false,
+          contract_memorial_ref: sanitizeText(entry.family_story_cinematic_receipt.contract_memorial_ref, 120),
+          memorial_record_policy: sanitizeText(entry.family_story_cinematic_receipt.memorial_record_policy, 160),
+          memory_title_keepsake_policy: sanitizeText(entry.family_story_cinematic_receipt.memory_title_keepsake_policy, 180),
           personal_state_mutated: entry.family_story_cinematic_receipt.personal_state_mutated === true,
           contract_record_only: entry.family_story_cinematic_receipt.contract_record_only !== false,
           played_at: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.played_at) || 0)),
@@ -18402,6 +18749,10 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           future_cooperation_option: entry.family_story_resolution.future_cooperation_option === true,
           family_fund_settlement_required: entry.family_story_resolution.family_fund_settlement_required === true,
           family_fund_settlement_state: sanitizeText(entry.family_story_resolution.family_fund_settlement_state, 100),
+          memorial_record_required: entry.family_story_resolution.memorial_record_required !== false,
+          contract_memorial_ref: sanitizeText(entry.family_story_resolution.contract_memorial_ref, 120),
+          memorial_record_policy: sanitizeText(entry.family_story_resolution.memorial_record_policy, 160),
+          memory_title_keepsake_policy: sanitizeText(entry.family_story_resolution.memory_title_keepsake_policy, 180),
           story_state: sanitizeText(entry.family_story_resolution.story_state, 100),
           personal_story_write_required: entry.family_story_resolution.personal_story_write_required !== false,
           child_arrangement_required: entry.family_story_resolution.child_arrangement_required === true,
@@ -18445,6 +18796,10 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           dialogue_event_id: sanitizeText(item.dialogue_event_id, 120),
           animation_event_id: sanitizeText(item.animation_event_id, 120),
           exit_record_kind: sanitizeText(item.exit_record_kind, 100),
+          memorial_record_required: item.memorial_record_required !== false,
+          contract_memorial_ref: sanitizeText(item.contract_memorial_ref, 120),
+          memorial_record_policy: sanitizeText(item.memorial_record_policy, 160),
+          memory_title_keepsake_policy: sanitizeText(item.memory_title_keepsake_policy, 180),
           frontend_cinematic_pending: item.frontend_cinematic_pending === true,
           frontend_cinematic_played: item.frontend_cinematic_played === true,
           frontend_cinematic_played_at: Math.max(0, Math.floor(Number(item.frontend_cinematic_played_at) || 0)),
@@ -18742,6 +19097,9 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, ware
 
 function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, fundUnidentifiedOperatingContributionPreview = {}, contract, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
   const plan = [];
+  const decorationManifest = buildDecorationSplitManifest(contract);
+  const traceableDecorationRows = decorationManifest.filter(entry => entry.return_policy === 'return_to_origin_owner_personal_decoration_owned');
+  const nonDivisibleDecorationRows = decorationManifest.filter(entry => entry.return_policy !== 'return_to_origin_owner_personal_decoration_owned');
   if (plotReturnPreview.plot_return_summary.total_plots > 0) {
     plan.push({
       id: 'plots_return_by_origin',
@@ -18786,6 +19144,24 @@ function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, 
       detail: '无法识别到已接受成员的经营收入只作为争议证据锁定，不直接改分配权重；共同基金返还前需双方确认按当前可追溯权重执行。',
     });
   }
+  if (traceableDecorationRows.length > 0) {
+    plan.push({
+      id: 'traceable_decoration_return',
+      target: 'shared_decoration',
+      action: 'return_traceable_personal_decoration_to_origin_owner',
+      status: 'manual_execution_required',
+      detail: 'Traceable personal-origin decorations are returned only to the origin owner decoration.owned inventory by locked manifest hash.',
+    });
+  }
+  if (nonDivisibleDecorationRows.length > 0) {
+    plan.push({
+      id: 'non_divisible_decoration_compensation_or_memorial',
+      target: 'shared_decoration',
+      action: 'compensate_or_keep_contract_memorial',
+      status: 'manual_execution_required',
+      detail: 'Non-divisible shared-fund decorations are not written to one personal home automatically; use fund contribution weights for compensation or keep them as contract memorials.',
+    });
+  }
   if (sharedDecorationRemovalDisputeFreeze?.summary?.freeze_required) {
     plan.push({
       id: 'shared_decoration_removal_dispute_freeze',
@@ -18809,7 +19185,8 @@ function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, 
       id: 'relationship_memorial',
       target: 'relationship_memory',
       action: 'keep_memorial_record',
-      status: 'deferred',
+      status: 'manual_execution_required',
+      memorial_record_policy: 'preserve_contract_story_cinematic_title_and_keepsake_after_separation',
       detail: '保留关系回忆、称号或纪念物的剧情规则待后续接入。',
     });
   }
@@ -22078,6 +22455,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
   if (action === 'move_shared_decoration') {
     const decorationMove = result.decoration_move || {};
     const stateEntry = result.shared_decoration_state_entry || {};
+    const decorationLedgerEntry = result.shared_decoration_ledger_entry || {};
     const decorationId = decorationMove.decoration_id || stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
     const decorationKind = decorationMove.decoration_kind || stateEntry.decoration_kind || normalizeSharedDecorationKind(operation.payload?.decoration_kind || operation.payload?.kind, operation.payload || {});
     const toLocationRef = decorationMove.to_location_ref || stateEntry.to_location_ref || sanitizeText(operation.payload?.to_location_ref || operation.payload?.next_location_ref || operation.payload?.location_ref || operation.payload?.room_id, 120);
@@ -22092,6 +22470,9 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       placement_ref: placementRef,
       required_permission_keys: Array.isArray(result.required_permission_keys) ? result.required_permission_keys : (Array.isArray(stateEntry.required_permission_keys) ? stateEntry.required_permission_keys : []),
       shared_decoration_state_entry_id: stateEntry.id || '',
+      shared_decoration_ledger_id: decorationLedgerEntry.id || decorationMove.shared_decoration_ledger_id || '',
+      shared_decoration_ledger_count: decorationLedgerEntry.id ? 1 : 0,
+      ledger_id: decorationLedgerEntry.id || entry.ledger_id || '',
       shared_decoration_state_changed: stateEntry.shared_decoration_state_changed !== false,
       personal_home_mutated: false,
       personal_save_changed: false,
@@ -22099,7 +22480,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       shared_fund_changed: false,
       already_moved: result.already_moved === true,
       audit_action: 'shared_decoration_moved',
-      compensation_hint: 'offline shared decoration move only updates contract shared_decoration_state and audit log; personal home saves, shared warehouse, and shared fund remain unchanged.',
+      compensation_hint: 'offline shared decoration move updates contract shared_decoration_state, shared_decoration_ledger, and audit log only; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
   if (action === 'record_shared_decoration_removal_refund_receipt' || action === 'record_limited_decoration_refund_receipt' || action === 'record_rare_item_refund_receipt' || action === 'record_family_major_event_refund_receipt') {
@@ -22152,6 +22533,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
     const draft = result.draft || {};
     const receipt = result.receipt || {};
     const stateEntry = result.shared_decoration_state_entry || {};
+    const decorationLedgerEntry = result.shared_decoration_ledger_entry || {};
     const deliveryEntry = result.delivery_entry || {};
     const familyEventEntry = result.family_major_event_entry || {};
     const originalFundLedger = result.original_fund_ledger_entry || {};
@@ -22159,6 +22541,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
     const decorationId = stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
     const itemId = deliveryEntry.item_id || sanitizeText(operation.payload?.item_id || operation.payload?.itemId || operation.payload?.rare_item_id, 80);
     const fundLedgerId = originalFundLedger.id || draft.final_spend_ledger_id || stateEntry.fund_ledger_id || familyEventEntry.fund_ledger_id || '';
+    const decorationLedgerId = decorationLedgerEntry.id || '';
     const isLimitedDecorationDelivery = action === 'record_limited_decoration_delivery_receipt';
     const isRareItemDelivery = action === 'record_rare_item_delivery_receipt';
     const isFamilyMajorEventReceipt = action === 'record_family_major_event_receipt';
@@ -22180,7 +22563,10 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       decoration_kind: stateEntry.decoration_kind || normalizeSharedDecorationKind(operation.payload?.decoration_kind || operation.payload?.kind, operation.payload || {}),
       delivery_entry_id: deliveryEntry.id || '',
       shared_decoration_state_entry_id: stateEntry.id || '',
+      shared_decoration_ledger_id: decorationLedgerId,
+      shared_decoration_ledger_count: decorationLedgerId ? 1 : 0,
       family_major_event_entry_id: familyEventEntry.id || '',
+      family_major_event_entry: isFamilyMajorEventReceipt ? familyEventEntry : null,
       contract_family_state_changed: isFamilyMajorEventReceipt ? familyEventEntry.contract_family_state_changed !== false : false,
       shared_decoration_state_changed: isRareItemDelivery || isFamilyMajorEventReceipt ? false : stateEntry.shared_decoration_state_changed !== false,
       original_fund_ledger_id: fundLedgerId,
@@ -22195,14 +22581,15 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       shared_warehouse_changed: false,
       shared_fund_changed: false,
       already_recorded: result.already_recorded === true,
+      ledger_id: decorationLedgerId || entry.ledger_id || '',
       audit_action: 'fund_high_risk_receipt_recorded',
       compensation_hint: isFamilyMajorEventReceipt
         ? 'offline family major event receipt only closes an executed high-risk draft and records contract family_state.major_event_ledger; personal family state, personal home saves, shared warehouse, and shared fund remain unchanged.'
         : isRareItemDelivery
         ? 'offline rare item delivery receipt only closes an executed high-risk draft and records contract shared_fund_deliveries; personal inventory, personal home saves, shared decoration state, shared warehouse, and shared fund remain unchanged.'
         : isLimitedDecorationDelivery
-        ? 'offline limited decoration delivery receipt only closes an executed high-risk draft and updates contract shared_fund_deliveries plus shared_decoration_state; personal inventory, personal home saves, shared warehouse, and shared fund remain unchanged.'
-        : 'offline shared decoration removal receipt only closes an executed high-risk draft and updates contract shared_decoration_state; personal home saves, shared warehouse, and shared fund remain unchanged.',
+        ? 'offline limited decoration delivery receipt only closes an executed high-risk draft and updates contract shared_fund_deliveries, shared_decoration_state, and shared_decoration_ledger; personal inventory, personal home saves, shared warehouse, and shared fund remain unchanged.'
+        : 'offline shared decoration removal receipt only closes an executed high-risk draft and updates contract shared_decoration_state plus shared_decoration_ledger; personal home saves, shared warehouse, and shared fund remain unchanged.',
     };
   }
   return {
@@ -27115,6 +27502,7 @@ async function moveCohabitationSharedDecoration(contractId, payload = {}, actor 
   const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
   const requiredPermissionChecks = assertSharedDecorationMoveAllowed(actorPermissions, moveRequest.decoration_kind);
   contract.shared_decoration_state = normalizeSharedDecorationState(contract.shared_decoration_state);
+  contract.shared_decoration_ledger = normalizeSharedDecorationLedger(contract.shared_decoration_ledger);
 
   const previousAudit = (contract.audit_log || []).find(entry =>
     entry.action === 'shared_decoration_moved'
@@ -27126,10 +27514,17 @@ async function moveCohabitationSharedDecoration(contractId, payload = {}, actor 
       || entry.idempotency_key === moveRequest.idempotency_key
       || entry.operation_id === moveRequest.operation_id
     ) || null;
+    const existingLedgerEntry = contract.shared_decoration_ledger.find(entry =>
+      entry.idempotency_key === moveRequest.idempotency_key
+      || entry.operation_id === moveRequest.operation_id
+      || entry.id === previousAudit.detail?.shared_decoration_ledger_id
+    ) || null;
     return {
       contract: toPublicContract(contract),
       shared_decoration_state: contract.shared_decoration_state,
       shared_decoration_state_entry: existingEntry,
+      shared_decoration_ledger: contract.shared_decoration_ledger,
+      shared_decoration_ledger_entry: existingLedgerEntry,
       decoration_move: previousAudit.detail?.decoration_move || {
         decoration_id: moveRequest.decoration_id,
         decoration_kind: moveRequest.decoration_kind,
@@ -27145,6 +27540,7 @@ async function moveCohabitationSharedDecoration(contractId, payload = {}, actor 
   }
 
   const existingDecoration = contract.shared_decoration_state.find(entry => entry.decoration_id === moveRequest.decoration_id) || null;
+  const { manorRole: actorManorRole, manorRoleLabel: actorManorRoleLabel } = getActorManorRoleSnapshot(contract, member);
   const movedAt = nowSeconds();
   const nextEntry = normalizeSharedDecorationStateEntry({
     ...existingDecoration,
@@ -27160,6 +27556,13 @@ async function moveCohabitationSharedDecoration(contractId, payload = {}, actor 
     recorded_by_username: member.username,
     recorded_by_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
     recorded_at: movedAt,
+    placed_by_username: member.username,
+    placed_by_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    placed_by_key: member.username_key,
+    placed_at: movedAt,
+    is_divisible: existingDecoration?.is_divisible === true || moveRequest.is_divisible === true,
+    split_policy: existingDecoration?.split_policy,
+    return_policy: existingDecoration?.return_policy,
     memo: moveRequest.memo,
     idempotency_key: moveRequest.idempotency_key,
     operation_id: moveRequest.operation_id,
@@ -27170,6 +27573,63 @@ async function moveCohabitationSharedDecoration(contractId, payload = {}, actor 
   });
   const decorationResult = upsertSharedDecorationStateEntry(contract.shared_decoration_state, nextEntry);
   contract.shared_decoration_state = decorationResult.entries;
+  const ledgerResult = prependSharedDecorationLedgerEntry(contract.shared_decoration_ledger, {
+    id: makeId('shared_decoration_ledger'),
+    action: 'shared_decoration_move',
+    decoration_id: moveRequest.decoration_id,
+    decoration_kind: moveRequest.decoration_kind,
+    target_ref: nextEntry.target_ref,
+    placement_ref: nextEntry.placement_ref,
+    from_location_ref: nextEntry.from_location_ref,
+    to_location_ref: nextEntry.to_location_ref,
+    fund_ledger_id: decorationResult.entry?.fund_ledger_id || nextEntry.fund_ledger_id || '',
+    purchased_by_username: nextEntry.purchased_by_username,
+    purchased_by_display_name: nextEntry.purchased_by_display_name,
+    purchased_by_key: nextEntry.purchased_by_key,
+    purchased_at: nextEntry.purchased_at,
+    placed_by_username: member.username,
+    placed_by_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    placed_by_key: member.username_key,
+    placed_at: movedAt,
+    is_divisible: nextEntry.is_divisible,
+    split_policy: nextEntry.split_policy,
+    return_policy: nextEntry.return_policy,
+    actor_username: member.username,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    actor_key: member.username_key,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleLabel,
+    required_permission_keys: requiredPermissionChecks.map(check => check.label),
+    shared_decoration_state_entry_id: decorationResult.entry?.id || '',
+    shared_decoration_state_changed: decorationResult.changed,
+    personal_home_mutated: false,
+    personal_save_changed: false,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    idempotency_key: moveRequest.idempotency_key,
+    operation_id: moveRequest.operation_id,
+    memo: moveRequest.memo,
+    at: movedAt,
+    reversible: true,
+    compensation_hint: 'shared decoration move writes contract shared_decoration_state and shared_decoration_ledger only; personal home saves, shared warehouse, and shared fund remain unchanged.',
+    status: 'committed',
+  });
+  contract.shared_decoration_ledger = ledgerResult.entries;
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.decorations = contract.origin_assets.decorations.map(entry =>
+    entry.decoration_id === moveRequest.decoration_id
+      ? normalizeOriginDecorationAsset({
+          ...entry,
+          placed_by_username: member.username,
+          placed_by_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+          placed_by_key: member.username_key,
+          placed_at: movedAt,
+          placement_ref: nextEntry.placement_ref,
+          return_policy: entry.return_policy || nextEntry.return_policy,
+          ledger_id: entry.ledger_id || ledgerResult.entry?.id,
+        })
+      : entry
+  ).filter(Boolean).slice(0, DECORATION_ORIGIN_LIMIT);
   const decorationMove = {
     decoration_id: moveRequest.decoration_id,
     decoration_kind: moveRequest.decoration_kind,
@@ -27181,11 +27641,16 @@ async function moveCohabitationSharedDecoration(contractId, payload = {}, actor 
     moved_by: member.username,
     personal_home_mutated: false,
     shared_fund_changed: false,
+    ledger_id: ledgerResult.entry?.id || '',
+    shared_decoration_ledger_id: ledgerResult.entry?.id || '',
+    shared_decoration_state_entry_id: decorationResult.entry?.id || '',
+    shared_decoration_ledger_count: ledgerResult.entry ? 1 : 0,
   };
   appendAudit(contract, 'shared_decoration_moved', actor, {
     decoration_move: decorationMove,
     decoration_id: moveRequest.decoration_id,
     decoration_kind: moveRequest.decoration_kind,
+    shared_decoration_ledger_id: ledgerResult.entry?.id || '',
     required_permission_keys: requiredPermissionChecks.map(check => check.label),
     shared_decoration_state_changed: decorationResult.changed,
     personal_home_mutated: false,
@@ -27198,6 +27663,8 @@ async function moveCohabitationSharedDecoration(contractId, payload = {}, actor 
     contract: toPublicContract(contract),
     shared_decoration_state: contract.shared_decoration_state,
     shared_decoration_state_entry: decorationResult.entry,
+    shared_decoration_ledger: contract.shared_decoration_ledger,
+    shared_decoration_ledger_entry: ledgerResult.entry,
     decoration_move: decorationMove,
     required_permission_keys: requiredPermissionChecks.map(check => check.label),
     idempotent: false,
@@ -27913,6 +28380,9 @@ async function createCohabitationFundLargeSpendDraft(contractId, payload = {}, a
   }
 
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_fund_deliveries = normalizeSharedFundDeliveries(contract.shared_fund_deliveries);
+  contract.shared_decoration_state = normalizeSharedDecorationState(contract.shared_decoration_state);
+  contract.shared_decoration_ledger = normalizeSharedDecorationLedger(contract.shared_decoration_ledger);
   contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
     ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
     : [];
@@ -28514,10 +28984,13 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   if (previousRefundLedger && previousRefundLedger.target_ref !== `high_risk_refund:${draft.id}`) {
     throw createError('共同基金高风险回执幂等键已用于其他退款目标，请更换 idempotency_key', 409);
   }
-  const existingDeliveryEntry = normalizeSharedFundDeliveries(contract.shared_fund_deliveries)
+  const existingDeliveryEntry = contract.shared_fund_deliveries
     .find(entry => entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key) || null;
-  const existingDecorationStateEntry = normalizeSharedDecorationState(contract.shared_decoration_state)
+  const existingDecorationStateEntry = contract.shared_decoration_state
     .find(entry => entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key) || null;
+  const existingDecorationLedgerEntry = contract.shared_decoration_ledger.find(entry =>
+    entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key
+  ) || null;
   const existingFamilyEventEntry = normalizeContractFamilyState(contract.family_state).major_event_ledger
     .find(entry => entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key) || null;
   if (draft.high_risk_receipt_idempotency_key === receiptRequest.idempotency_key && draft.high_risk_receipt_status !== 'pending') {
@@ -28541,6 +29014,8 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
       already_recorded: true,
       delivery_entry: existingDeliveryEntry,
       shared_decoration_state_entry: existingDecorationStateEntry,
+      shared_decoration_ledger: contract.shared_decoration_ledger,
+      shared_decoration_ledger_entry: existingDecorationLedgerEntry,
       family_major_event_entry: existingFamilyEventEntry,
       required_permission_keys: receiptPermissionChecks.map(check => check.label),
       shared_fund: {
@@ -28557,6 +29032,7 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   assertSharedFundNotFrozen(contract, 'record high risk shared fund receipt');
 
   const operatedAt = nowSeconds();
+  const { manorRole: actorManorRole, manorRoleLabel: actorManorRoleLabel } = getActorManorRoleSnapshot(contract, member);
   const receiptId = makeId('fund_high_risk_receipt');
   let refundLedgerEntry = null;
   let balanceBefore = contract.shared_fund.balance;
@@ -28600,16 +29076,25 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   }
 
   const receiptArtifacts = buildHighRiskReceiptStateArtifacts(draft, originalFundLedger, receiptRequest, {
+    contract_id: contract.id,
     receipt_id: receiptId,
     recorded_by_username: member.username,
     recorded_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    actor_username: member.username,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    actor_key: member.username_key,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleLabel,
+    required_permission_keys: receiptPermissionChecks.map(check => check.label),
     recorded_at: operatedAt,
   });
   let deliveryEntry = null;
   let sharedDecorationStateEntry = null;
   let familyMajorEventEntry = null;
+  let sharedDecorationLedgerEntry = null;
   let contractDeliveryRecorded = false;
   let sharedDecorationStateChanged = false;
+  let sharedDecorationLedgerChanged = false;
   let contractFamilyStateChanged = false;
   if (receiptArtifacts.delivery_entry) {
     const deliveryResult = prependSharedFundDeliveryEntry(contract.shared_fund_deliveries, receiptArtifacts.delivery_entry);
@@ -28622,6 +29107,36 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     contract.shared_decoration_state = decorationResult.entries;
     sharedDecorationStateEntry = decorationResult.entry;
     sharedDecorationStateChanged = decorationResult.changed;
+    const decorationLedgerEntry = buildHighRiskReceiptSharedDecorationLedgerEntry(sharedDecorationStateEntry, draft, originalFundLedger, receiptRequest, {
+      contract_id: contract.id,
+      receipt_id: receiptId,
+      actor_username: member.username,
+      actor_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+      actor_key: member.username_key,
+      actor_manor_role: actorManorRole,
+      actor_manor_role_label: actorManorRoleLabel,
+      required_permission_keys: receiptPermissionChecks.map(check => check.label),
+      recorded_at: operatedAt,
+    });
+    if (decorationLedgerEntry) {
+      const decorationLedgerResult = prependSharedDecorationLedgerEntry(contract.shared_decoration_ledger, decorationLedgerEntry);
+      contract.shared_decoration_ledger = decorationLedgerResult.entries;
+      sharedDecorationLedgerEntry = decorationLedgerResult.entry;
+      sharedDecorationLedgerChanged = decorationLedgerResult.changed;
+      if (draft.purpose === 'limited_decoration' && sharedDecorationLedgerEntry) {
+        const originAsset = buildSharedDecorationOriginAssetFromReceipt(sharedDecorationStateEntry, sharedDecorationLedgerEntry, draft, originalFundLedger, receiptRequest, {
+          contract_id: contract.id,
+          recorded_at: operatedAt,
+        });
+        if (originAsset) {
+          contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+          contract.origin_assets.decorations = [
+            originAsset,
+            ...contract.origin_assets.decorations.filter(entry => sanitizeText(entry.id, 120) !== originAsset.id),
+          ].slice(0, DECORATION_ORIGIN_LIMIT);
+        }
+      }
+    }
   }
   if (receiptArtifacts.family_major_event_entry) {
     const familyResult = prependFamilyMajorEventLedgerEntry(contract.family_state, receiptArtifacts.family_major_event_entry);
@@ -28664,6 +29179,9 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     shared_fund_changed: refundAmount > 0,
     contract_delivery_recorded: contractDeliveryRecorded,
     shared_decoration_state_changed: sharedDecorationStateChanged,
+    shared_decoration_ledger_written: sharedDecorationLedgerChanged,
+    shared_decoration_ledger_id: sharedDecorationLedgerEntry?.id || '',
+    shared_decoration_ledger_count: sharedDecorationLedgerEntry ? 1 : 0,
     contract_family_state_changed: contractFamilyStateChanged,
     personal_money_merged: false,
     personal_inventory_merged: false,
@@ -28690,6 +29208,8 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     refund_ledger_entry: refundLedgerEntry,
     delivery_entry: deliveryEntry,
     shared_decoration_state_entry: sharedDecorationStateEntry,
+    shared_decoration_ledger: contract.shared_decoration_ledger,
+    shared_decoration_ledger_entry: sharedDecorationLedgerEntry,
     family_major_event_entry: familyMajorEventEntry,
     required_permission_keys: receiptPermissionChecks.map(check => check.label),
     idempotent: false,
@@ -28730,6 +29250,8 @@ async function recordCohabitationFamilyChildCare(contractId, payload = {}, actor
 
   const recordedAt = nowSeconds();
   const careEntry = normalizeFamilyChildCareLedgerEntry({
+    contract_id: contract.id,
+    owner_scope: 'cohabitation_contract',
     care_ref: careRequest.care_ref,
     target_ref: careRequest.target_ref,
     child_ref: careRequest.child_ref,
@@ -28801,6 +29323,8 @@ async function submitCohabitationFamilyWish(contractId, payload = {}, actor = {}
 
   const submittedAt = nowSeconds();
   const wishEntry = normalizeFamilyWishLedgerEntry({
+    contract_id: contract.id,
+    owner_scope: 'cohabitation_contract',
     wish_ref: wishRequest.wish_ref,
     target_ref: wishRequest.target_ref,
     wish_type: wishRequest.wish_type,
@@ -33993,17 +34517,24 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     execution_ledger_id: ledger.id,
   });
   const returnedDecorationCount = decorationReturnReceipts.reduce((sum, receipt) => sum + Math.max(0, Math.floor(Number(receipt.returned_quantity) || 0)), 0);
+  const nonDivisibleDecorationCount = decorationManifest
+    .filter(entry => entry.return_policy !== 'return_to_origin_owner_personal_decoration_owned')
+    .reduce((sum, entry) => sum + Math.max(1, Math.floor(Number(entry.quantity) || 1)), 0);
   const receipts = [
     {
       receipt_id: makeId('decoration_split_receipt'),
       receipt_type: 'decorations',
       count: decorationManifest.length,
       returned_count: returnedDecorationCount,
+      non_divisible_count: nonDivisibleDecorationCount,
       manifest_hash: expectedDecorationHash,
-      status: returnedDecorationCount > 0 ? 'personal_decoration_owned_written' : 'no_traceable_decoration_to_return',
+      status: returnedDecorationCount > 0
+        ? (nonDivisibleDecorationCount > 0 ? 'personal_decoration_written_with_non_divisible_compensation_pending' : 'personal_decoration_owned_written')
+        : (nonDivisibleDecorationCount > 0 ? 'non_divisible_compensation_or_memorial_pending' : 'no_traceable_decoration_to_return'),
       personal_save_changed: returnedDecorationCount > 0,
       personal_home_mutated: false,
       personal_decoration_owned_mutated: returnedDecorationCount > 0,
+      compensation_or_memorial_required: nonDivisibleDecorationCount > 0,
       personal_save_receipts: decorationReturnReceipts,
       idempotency_key: splitPayload.idempotency_key,
       recorded_at: splitAt,
@@ -34025,6 +34556,19 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
   const nextRequiredOperations = (ledger.next_required_operations || [])
     .filter(operation => operation && operation !== 'split_decorations' && operation !== 'split_buildings');
   if (!nextRequiredOperations.includes('resolve_family_story')) nextRequiredOperations.push('resolve_family_story');
+  const nextDecorationManifest = decorationManifest.map(entry => {
+    const personalReturn = entry.return_policy === 'return_to_origin_owner_personal_decoration_owned';
+    const returnStatus = personalReturn
+      ? 'personal_decoration_owned_written'
+      : 'non_divisible_compensation_or_memorial_pending';
+    return {
+      ...entry,
+      execution_status: returnStatus,
+      return_status: returnStatus,
+      compensation_or_memorial_required: !personalReturn,
+      return_idempotency_key: splitPayload.idempotency_key,
+    };
+  });
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
     status: 'decorations_buildings_split',
@@ -34034,20 +34578,11 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     decorations_buildings_split_by: member.username,
     decoration_split_manifest_hash: expectedDecorationHash,
     building_split_manifest_hash: expectedBuildingHash,
-    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest.map(entry => ({
-      ...entry,
-      return_status: 'personal_decoration_owned_written',
-    }))),
+    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(nextDecorationManifest),
     building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
     decoration_building_split_receipts: receipts,
     next_required_operations: nextRequiredOperations,
   });
-  const nextDecorationManifest = decorationManifest.map(entry => ({
-    ...entry,
-    execution_status: 'personal_decoration_owned_written',
-    return_status: 'personal_decoration_owned_written',
-    return_idempotency_key: splitPayload.idempotency_key,
-  }));
   const nextExecutionRequest = {
     ...executionRequest,
     status: 'decorations_buildings_split',
@@ -34089,12 +34624,14 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     building_split_manifest_hash: expectedBuildingHash,
     decoration_count: decorationManifest.length,
     returned_decoration_count: returnedDecorationCount,
+    non_divisible_decoration_count: nonDivisibleDecorationCount,
     building_count: buildingManifest.length,
     shared_assets_mutated: false,
     personal_home_mutated: false,
     personal_decoration_owned_mutated: returnedDecorationCount > 0,
     personal_save_changed: returnedDecorationCount > 0,
     decoration_return_receipt_count: decorationReturnReceipts.length,
+    compensation_or_memorial_required: nonDivisibleDecorationCount > 0,
     next_required_operations: nextLedger.next_required_operations,
   }, splitPayload.idempotency_key);
   saveContractStore(store);
@@ -34278,6 +34815,10 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     manor_exit_handover_record_id: storyResolution.manor_exit_handover_record?.record_id || '',
     manor_exit_handover_member_count: storyResolution.manor_exit_handover_record?.member_count || 0,
     manor_exit_asset_domain_handover: storyResolution.manor_exit_handover_record?.asset_domain_handover || null,
+    memorial_record_required: storyResolution.memorial_record_required,
+    contract_memorial_ref: storyResolution.contract_memorial_ref,
+    memorial_record_policy: storyResolution.memorial_record_policy,
+    memory_title_keepsake_policy: storyResolution.memory_title_keepsake_policy,
     frontend_cinematic_pending: storyResolution.frontend_cinematic_pending,
     personal_state_mutated: storyResolution.personal_state_mutated,
     personal_story_write_required: storyResolution.personal_story_write_required,
@@ -34392,6 +34933,10 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     personal_state_mutated: false,
     personal_save_mutation_enabled: false,
     contract_record_only: storyResolution.contract_record_only !== false,
+    memorial_record_required: storyResolution.memorial_record_required !== false,
+    contract_memorial_ref: sanitizeText(storyResolution.contract_memorial_ref, 120),
+    memorial_record_policy: sanitizeText(storyResolution.memorial_record_policy, 160),
+    memory_title_keepsake_policy: sanitizeText(storyResolution.memory_title_keepsake_policy, 180),
   };
   const cinematicReceipt = {
     playback_state: playbackPayload.playback_state,
@@ -34406,6 +34951,10 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     cinematic_stage_direction: storyContent.cinematic_stage_direction,
     cinematic_playback_policy: storyContent.cinematic_playback_policy,
     exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
+    memorial_record_required: storyResolution.memorial_record_required !== false,
+    contract_memorial_ref: sanitizeText(storyResolution.contract_memorial_ref, 120),
+    memorial_record_policy: sanitizeText(storyResolution.memorial_record_policy, 160),
+    memory_title_keepsake_policy: sanitizeText(storyResolution.memory_title_keepsake_policy, 180),
     frontend_cinematic_pending: false,
     frontend_cinematic_played: true,
     personal_state_mutated: false,
@@ -34469,6 +35018,10 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     animation_cue_count: nextStoryResolution.animation_cues.length,
     cinematic_stage_direction: nextStoryResolution.cinematic_stage_direction,
     exit_record_kind: nextStoryResolution.exit_record_kind,
+    memorial_record_required: nextStoryResolution.memorial_record_required,
+    contract_memorial_ref: nextStoryResolution.contract_memorial_ref,
+    memorial_record_policy: nextStoryResolution.memorial_record_policy,
+    memory_title_keepsake_policy: nextStoryResolution.memory_title_keepsake_policy,
     frontend_cinematic_pending: nextStoryResolution.frontend_cinematic_pending,
     frontend_cinematic_played: nextStoryResolution.frontend_cinematic_played,
     frontend_cinematic_played_at: playedAt,
@@ -34585,6 +35138,10 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     contract_record_only: personalRelationshipMutationSummary.personal_save_mutation_enabled !== true,
     personal_story_state: personalRelationshipMutationSummary.personal_story_state,
     personal_relationship_mutation_summary: personalRelationshipMutationSummary,
+    memorial_record_required: ledger.family_story_resolution.memorial_record_required !== false,
+    contract_memorial_ref: sanitizeText(ledger.family_story_resolution.contract_memorial_ref, 120),
+    memorial_record_policy: sanitizeText(ledger.family_story_resolution.memorial_record_policy, 160),
+    memory_title_keepsake_policy: sanitizeText(ledger.family_story_resolution.memory_title_keepsake_policy, 180),
   };
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
@@ -34647,6 +35204,10 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     personal_state_mutated: personalRelationshipMutationSummary.personal_state_mutated,
     personal_save_mutation_enabled: personalRelationshipMutationSummary.personal_save_mutation_enabled,
     personal_relationship_mutation_summary: personalRelationshipMutationSummary,
+    memorial_record_required: nextFamilyStoryResolution.memorial_record_required,
+    contract_memorial_ref: nextFamilyStoryResolution.contract_memorial_ref,
+    memorial_record_policy: nextFamilyStoryResolution.memorial_record_policy,
+    memory_title_keepsake_policy: nextFamilyStoryResolution.memory_title_keepsake_policy,
     npc_relationship_main_state_mutation: personalRelationshipMutationSummary.personal_state_mutated,
     npc_family_child_mutation: false,
     relationship_switch_cooldown: relationshipSwitchCooldown,

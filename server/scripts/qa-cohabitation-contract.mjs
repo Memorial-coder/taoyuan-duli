@@ -1208,6 +1208,8 @@ assert.deepEqual(childCareRecord.required_permission_keys, ['family.child_daily_
 assert.equal(childCareRecord.children_private, true, 'family child care should keep children private')
 assert.equal(childCareRecord.personal_family_state_mutated, false, 'family child care should not mutate personal family saves')
 assert.equal(childCareRecord.contract.family_state.child_care_ledger.length, 1, 'family child care should write contract child care ledger')
+assert.equal(childCareRecord.child_care.contract_id, created.contract.id, 'family child care should be owned by the cohabitation contract')
+assert.equal(childCareRecord.child_care.owner_scope, 'cohabitation_contract', 'family child care should not be owned by one player')
 assert.equal(childCareRecord.contract.family_state.last_child_care_ref, 'family_child_care:morning_story', 'family child care should update family state summary')
 assert.ok(childCareRecord.contract.audit_log.find(entry => entry.action === 'family_child_care_recorded' && entry.detail?.required_permission_keys?.includes('family.child_daily_care')), 'family child care should be audited with required permission')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyChildCare, 'family child care should not rewrite owner save')
@@ -1255,6 +1257,8 @@ assert.equal(familyWishSubmit.family_wish.status, 'submitted', 'family wish shou
 assert.deepEqual(familyWishSubmit.required_permission_keys, ['family.family_wish_submit'], 'family wish should expose required family permission')
 assert.equal(familyWishSubmit.personal_family_state_mutated, false, 'family wish should not mutate personal family saves')
 assert.equal(familyWishSubmit.contract.family_state.family_wish_ledger.length, 1, 'family wish should write contract family wish ledger')
+assert.equal(familyWishSubmit.family_wish.contract_id, created.contract.id, 'family wish should be owned by the cohabitation contract')
+assert.equal(familyWishSubmit.family_wish.owner_scope, 'cohabitation_contract', 'family wish should not be owned by one player')
 assert.equal(familyWishSubmit.contract.family_state.last_family_wish_ref, 'family_wish:shared_lantern_evening', 'family wish should update family state summary')
 assert.ok(familyWishSubmit.contract.audit_log.find(entry => entry.action === 'family_wish_submitted' && entry.detail?.required_permission_keys?.includes('family.family_wish_submit')), 'family wish submit should be audited with required permission')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyWish, 'family wish should not rewrite owner save')
@@ -8944,6 +8948,29 @@ await mutateStoredContract(created.contract.id, contract => {
       origin_owner_key: partner.toLowerCase(),
       ledger_id: 'qa-decoration-ledger-partner',
     },
+    {
+      id: 'qa-shared-moon-gate',
+      decoration_id: 'qa-shared-moon-gate',
+      decoration_label: 'QA shared moon gate',
+      decoration_kind: 'common',
+      origin_owner_id: `shared_fund:${contract.id}`,
+      origin_owner_username: 'shared_fund',
+      origin_owner_key: 'shared_fund',
+      ledger_id: 'qa-decoration-ledger-shared',
+      fund_ledger_id: 'qa-decoration-fund-ledger-shared',
+      draft_id: 'qa-decoration-draft-shared',
+      receipt_id: 'qa-decoration-receipt-shared',
+      purchased_by_username: owner,
+      purchased_by_display_name: owner,
+      placed_by_username: partner,
+      placed_by_display_name: partner,
+      placement_ref: 'courtyard:moon_gate',
+      is_divisible: false,
+      split_policy: 'non_divisible_shared_fund_decoration_compensate_or_memorialize_on_separation',
+      return_policy: 'non_divisible_shared_fund_decoration_compensate_or_memorialize',
+      compensation_policy: 'Use shared fund contribution weights for compensation, or keep the decoration as a contract memorial if no fair split exists.',
+      memorialization_policy: 'Non-divisible shared fund decorations may remain as a relationship memorial bound to the contract after separation.',
+    },
   ]
   contract.family_building_ledger = [
     {
@@ -9096,15 +9123,26 @@ for (const item of previewFundRows) {
 assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, fundBeforeSeparationPreview.fund.balance, 'separation preview should balance suggested fund refunds after warehouse sale')
 assert.match(previewResult.preview.asset_return.decoration_split_manifest_hash, /^[a-f0-9]{64}$/, 'separation preview should expose decoration split manifest hash')
 assert.match(previewResult.preview.asset_return.family_building_split_manifest_hash, /^[a-f0-9]{64}$/, 'separation preview should expose family building split manifest hash')
-assert.equal(previewResult.preview.asset_return.decoration_split_manifest.length, 2, 'separation preview should include traceable decoration split rows')
+assert.equal(previewResult.preview.asset_return.decoration_split_manifest.length, 3, 'separation preview should include traceable personal and shared-fund decoration split rows')
 assert.equal(previewResult.preview.asset_return.family_building_split_manifest.length, 1, 'separation preview should include traceable family building split rows')
-assert.ok(previewResult.preview.asset_return.decoration_split_manifest.every(item => item.return_policy === 'return_to_origin_owner_personal_decoration_owned'), 'separation preview should mark traceable decorations as personal decoration return candidates')
+const previewPersonalDecorationRows = previewResult.preview.asset_return.decoration_split_manifest.filter(item => item.return_policy === 'return_to_origin_owner_personal_decoration_owned')
+const previewSharedFundDecorationRow = previewResult.preview.asset_return.decoration_split_manifest.find(item => item.decoration_id === 'qa-shared-moon-gate')
+assert.equal(previewPersonalDecorationRows.length, 2, 'separation preview should keep two personal decoration return candidates')
+assert.ok(previewResult.preview.asset_return.decoration_split_manifest.every(item => item.purchased_by_username !== undefined && item.placed_by_username !== undefined && item.split_policy), 'separation preview should expose purchaser, placer, and split policy for every decoration')
+assert.equal(previewSharedFundDecorationRow?.origin_owner_username, 'shared_fund', 'separation preview should group shared-fund decoration separately from player-owned returns')
+assert.equal(previewSharedFundDecorationRow?.is_divisible, false, 'separation preview should preserve non-divisible shared decoration flag')
+assert.equal(previewSharedFundDecorationRow?.return_target_username, '', 'separation preview should not assign a shared-fund decoration to one personal home automatically')
+assert.equal(previewSharedFundDecorationRow?.return_policy, 'non_divisible_shared_fund_decoration_compensate_or_memorialize', 'separation preview should require compensation or memorialization for shared-fund decoration')
 assert.ok(previewResult.preview.asset_return.building_split_policy.includes('decoration.owned'), 'separation preview should declare personal decoration owned write policy')
 assert.ok(previewResult.preview.asset_return.decorations_by_origin_owner.some(item => item.origin_owner_username === owner && item.decoration_count === 1), 'separation preview should summarize owner decorations')
+assert.ok(previewResult.preview.asset_return.decorations_by_origin_owner.some(item => item.origin_owner_username === 'shared_fund' && item.decoration_count === 1 && item.return_policies.includes('non_divisible_shared_fund_decoration_compensate_or_memorialize')), 'separation preview should summarize non-divisible shared-fund decoration compensation policy')
 assert.ok(previewResult.preview.asset_return.family_buildings_by_origin_owner.some(item => item.building_ledger_id === 'qa-separation-building-ledger'), 'separation preview should summarize family building ledger splits')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), 'separation preview should include warehouse return plan when shared stock remains')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_proportional_refund'), 'separation preview should include fund proportional refund plan')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'traceable_decoration_return'), 'separation preview should include traceable decoration return plan')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'non_divisible_decoration_compensation_or_memorial'), 'separation preview should include non-divisible decoration compensation or memorial plan')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'relationship_memorial' && item.status === 'manual_execution_required'), 'separation preview should keep relationship memorial plan current')
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'preview_only')?.passed, 'separation preview should declare preview-only safety check')
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'fund_preview_balanced')?.passed, 'separation preview should balance fund safety check')
 assert.ok(previewResult.preview.deferred_operations.includes('execute_asset_return'), 'separation preview should keep execution deferred')
@@ -10196,15 +10234,18 @@ assert.equal(decorationBuildingSplit.idempotent, false, 'first decoration buildi
 assert.equal(decorationBuildingSplit.execution_ledger.status, 'decorations_buildings_split', 'decoration building split should advance execution ledger status')
 assert.equal(decorationBuildingSplit.execution_ledger.decorations_buildings_split, true, 'decoration building split should mark ledger split')
 assert.equal(decorationBuildingSplit.preview.confirmation_state.execution_request.status, 'decorations_buildings_split', 'execution request should advance to decorations-buildings-split')
-assert.equal(decorationBuildingSplit.execution_ledger.decoration_splits_by_origin_owner.reduce((sum, item) => sum + item.decoration_count, 0), 2, 'decoration split should summarize all decorations')
+assert.equal(decorationBuildingSplit.execution_ledger.decoration_splits_by_origin_owner.reduce((sum, item) => sum + item.decoration_count, 0), 3, 'decoration split should summarize all decorations')
+assert.ok(decorationBuildingSplit.execution_ledger.decoration_splits_by_origin_owner.some(item => item.origin_owner_username === 'shared_fund' && item.non_divisible_count === 1 && item.return_status === 'non_divisible_compensation_or_memorial_pending'), 'decoration split should keep shared-fund non-divisible decoration pending compensation or memorial')
 assert.equal(decorationBuildingSplit.execution_ledger.building_splits_by_origin_owner.length, 1, 'building split should summarize family building ledger')
 assert.ok(!decorationBuildingSplit.execution_ledger.next_required_operations.includes('split_decorations'), 'decoration building split should close split_decorations follow-up')
 assert.ok(decorationBuildingSplit.execution_ledger.next_required_operations.includes('resolve_family_story'), 'decoration building split should keep family story follow-up')
 assert.equal(decorationBuildingSplit.receipts.length, 2, 'decoration building split should create decoration and building receipts')
 const decorationSplitReceipt = decorationBuildingSplit.receipts.find(receipt => receipt.receipt_type === 'decorations')
 const buildingSplitReceipt = decorationBuildingSplit.receipts.find(receipt => receipt.receipt_type === 'family_buildings')
-assert.equal(decorationSplitReceipt?.status, 'personal_decoration_owned_written', 'decoration split should write traceable decorations to personal owned state')
+assert.equal(decorationSplitReceipt?.status, 'personal_decoration_written_with_non_divisible_compensation_pending', 'decoration split should write personal returns while keeping non-divisible shared decoration pending')
 assert.equal(decorationSplitReceipt?.returned_count, 2, 'decoration split should report returned decoration quantity')
+assert.equal(decorationSplitReceipt?.non_divisible_count, 1, 'decoration split should count non-divisible shared-fund decoration')
+assert.equal(decorationSplitReceipt?.compensation_or_memorial_required, true, 'decoration split should require compensation or memorial for non-divisible shared decoration')
 assert.equal(decorationSplitReceipt?.personal_decoration_owned_mutated, true, 'decoration split receipt should mark personal decoration owned mutation')
 assert.equal(decorationSplitReceipt?.personal_home_mutated, false, 'decoration split should not change personal home layout')
 assert.equal(decorationSplitReceipt?.personal_save_receipts.length, 2, 'decoration split should keep per-person save receipts')
@@ -10214,10 +10255,12 @@ assert.equal(getOwnedDecorationQuantity(partner, 'qa-partner-bench'), partnerBen
 assert.ok((readGameplayData(owner)?.onlineCohabitation?.decoration_return_receipts || []).some(receipt => receipt.decoration_id === 'qa-owner-lantern' && receipt.preview_id === previewResult.preview.id), 'owner save should keep decoration return receipt')
 assert.ok((readGameplayData(partner)?.onlineCohabitation?.decoration_return_receipts || []).some(receipt => receipt.decoration_id === 'qa-partner-bench' && receipt.preview_id === previewResult.preview.id), 'partner save should keep decoration return receipt')
 assert.equal(decorationBuildingSplit.decoration_return_receipts.length, 2, 'decoration split response should expose personal decoration return receipts')
-assert.ok(decorationBuildingSplit.preview.asset_return.decoration_split_manifest.every(item => item.execution_status === 'personal_decoration_owned_written'), 'decoration split preview should mark decoration manifest rows written')
+assert.equal(decorationBuildingSplit.preview.asset_return.decoration_split_manifest.find(item => item.decoration_id === 'qa-owner-lantern')?.execution_status, 'personal_decoration_owned_written', 'decoration split preview should mark owner personal decoration returned')
+assert.equal(decorationBuildingSplit.preview.asset_return.decoration_split_manifest.find(item => item.decoration_id === 'qa-partner-bench')?.execution_status, 'personal_decoration_owned_written', 'decoration split preview should mark partner personal decoration returned')
+assert.equal(decorationBuildingSplit.preview.asset_return.decoration_split_manifest.find(item => item.decoration_id === 'qa-shared-moon-gate')?.execution_status, 'non_divisible_compensation_or_memorial_pending', 'decoration split preview should not write shared-fund decoration to personal owned state')
 assert.equal(decorationBuildingSplit.preview.confirmation_state.execution_request.decoration_building_split_receipts[0]?.personal_decoration_owned_mutated, true, 'execution request should keep decoration mutation receipt evidence')
 assert.ok(decorationBuildingSplit.contract.audit_log.find(entry => entry.action === 'separation_decorations_buildings_split' && entry.idempotency_key === 'qa-separation-decoration-building-split'), 'decoration building split should be audited')
-assert.ok(decorationBuildingSplit.contract.audit_log.find(entry => entry.action === 'separation_decorations_buildings_split' && entry.detail?.returned_decoration_count === 2 && entry.detail?.personal_decoration_owned_mutated === true), 'decoration building split audit should record returned decoration mutation evidence')
+assert.ok(decorationBuildingSplit.contract.audit_log.find(entry => entry.action === 'separation_decorations_buildings_split' && entry.detail?.returned_decoration_count === 2 && entry.detail?.non_divisible_decoration_count === 1 && entry.detail?.personal_decoration_owned_mutated === true), 'decoration building split audit should record returned and non-divisible decoration evidence')
 assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeDecorationSplit, 'decoration building split should not change owner money inventory farm npc home family or children state')
 assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeDecorationSplit, 'decoration building split should not change partner money inventory farm npc home family or children state')
 
@@ -10289,6 +10332,9 @@ assert.ok(familyStoryResolution.story_resolution.dialogue_lines.some(line => lin
 assert.ok(familyStoryResolution.story_resolution.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part'), 'lover separation should expose move-out animation cue')
 assert.ok(familyStoryResolution.story_resolution.cinematic_stage_direction.includes('共同院落'), 'lover separation should expose stage direction')
 assert.equal(familyStoryResolution.story_resolution.frontend_cinematic_pending, true, 'lover separation should leave the cinematic pending for the frontend')
+assert.equal(familyStoryResolution.story_resolution.memorial_record_required, true, 'family story resolution should require memorial record preservation')
+assert.equal(familyStoryResolution.story_resolution.memorial_record_policy, 'preserve_contract_story_cinematic_title_and_keepsake_after_separation', 'family story resolution should keep memorial policy')
+assert.equal(familyStoryResolution.story_resolution.contract_memorial_ref, `relationship_memorial:${created.contract.id}`, 'family story resolution should bind memorial to the contract')
 assert.equal(familyStoryResolution.story_resolution.personal_state_mutated, false, 'family story resolution should not mutate personal story state')
 assert.equal(familyStoryResolution.story_resolution.contract_record_only, true, 'family story resolution should stay contract-record-only')
 assert.ok(!familyStoryResolution.execution_ledger.next_required_operations.includes('split_decorations'), 'family story resolution should keep decoration split closed after split record')
@@ -10299,6 +10345,7 @@ assert.equal(familyStoryAudit?.detail?.dialogue_event_id, 'separation_lover_fare
 assert.equal(familyStoryAudit?.detail?.animation_event_id, 'separation_lover_moveout_animation', 'family story audit should include the animation event id')
 assert.equal(familyStoryAudit?.detail?.dialogue_line_count, 3, 'family story audit should count dedicated dialogue lines')
 assert.equal(familyStoryAudit?.detail?.animation_cue_count, 3, 'family story audit should count cinematic cues')
+assert.equal(familyStoryAudit?.detail?.memorial_record_required, true, 'family story audit should record memorial requirement')
 assert.equal(familyStoryAudit?.detail?.frontend_cinematic_pending, true, 'family story audit should mark pending frontend cinematic work')
 assert.equal(familyStoryAudit?.detail?.personal_state_mutated, false, 'family story audit should keep personal mutation false')
 assert.ok(familyStoryResolution.contract.audit_log.find(entry => entry.action === 'separation_family_story_resolved' && entry.idempotency_key === 'qa-separation-family-story-resolution'), 'family story resolution should be audited')
@@ -10353,6 +10400,8 @@ assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_played, 
 assert.ok(storyCinematicPlayback.story_resolution.dialogue_lines.some(line => line.text.includes('这段日子是真的')), 'story cinematic playback should preserve dedicated dialogue text')
 assert.ok(storyCinematicPlayback.story_resolution.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part'), 'story cinematic playback should preserve cinematic cues')
 assert.equal(storyCinematicPlayback.story_resolution.frontend_cinematic_playback_state, 'played', 'story cinematic playback should keep playback state')
+assert.equal(storyCinematicPlayback.story_resolution.memorial_record_required, true, 'story cinematic playback should preserve memorial requirement')
+assert.equal(storyCinematicPlayback.cinematic_receipt.contract_memorial_ref, `relationship_memorial:${created.contract.id}`, 'story cinematic receipt should keep contract memorial ref')
 assert.equal(storyCinematicPlayback.story_resolution.personal_state_mutated, false, 'story cinematic playback should not mutate personal story state')
 assert.equal(storyCinematicPlayback.preview.confirmation_state.execution_request.family_story_resolution.frontend_cinematic_played, true, 'preview execution request should expose played cinematic state')
 assert.ok(storyCinematicPlayback.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'story cinematic playback should keep personal story receipt follow-up')
@@ -10362,6 +10411,7 @@ assert.equal(storyCinematicAudit?.detail?.dialogue_event_id, 'separation_lover_f
 assert.equal(storyCinematicAudit?.detail?.animation_event_id, 'separation_lover_moveout_animation', 'story cinematic audit should include animation event id')
 assert.equal(storyCinematicAudit?.detail?.dialogue_line_count, 3, 'story cinematic audit should count dedicated dialogue lines')
 assert.equal(storyCinematicAudit?.detail?.animation_cue_count, 3, 'story cinematic audit should count cinematic cues')
+assert.equal(storyCinematicAudit?.detail?.contract_memorial_ref, `relationship_memorial:${created.contract.id}`, 'story cinematic audit should include contract memorial ref')
 assert.equal(storyCinematicAudit?.detail?.frontend_cinematic_pending, false, 'story cinematic audit should clear pending frontend state')
 assert.equal(storyCinematicAudit?.detail?.personal_state_mutated, false, 'story cinematic audit should keep personal mutation false')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeStoryCinematicPlayback, 'story cinematic playback should not rewrite owner personal save')
@@ -10430,6 +10480,8 @@ assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.dialogue_lines
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part')), 'personal story receipts should keep cinematic cues')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_pending === false), 'personal story receipts should preserve the cleared frontend cinematic state after playback')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_played === true), 'personal story receipts should keep the frontend cinematic playback receipt')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.contract_memorial_ref === `relationship_memorial:${created.contract.id}`), 'personal story receipts should keep contract memorial ref')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.memory_title_keepsake_policy === 'keep_story_event_dialogue_animation_and_personal_story_receipts_as_relationship_memory'), 'personal story receipts should keep memory title and keepsake policy')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_state_mutated === true), 'personal story receipts should mutate explicit personal relationship state')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_save_mutation_enabled === true), 'personal story receipts should mark relationship main-state adapter enabled')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_relationship_mutation?.mutation_adapter === 'separation_personal_relationship_main_state_v1'), 'personal story receipts should expose relationship mutation adapter evidence')
@@ -10443,6 +10495,7 @@ assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.inclu
 const personalStoryAudit = personalStoryReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_story_receipts_written' && entry.idempotency_key === 'qa-separation-personal-story-receipts')
 assert.ok(personalStoryAudit, 'personal story receipt write should be audited')
 assert.equal(personalStoryAudit?.detail?.personal_state_mutated, true, 'personal story audit should record relationship main-state mutation')
+assert.equal(personalStoryAudit?.detail?.contract_memorial_ref, `relationship_memorial:${created.contract.id}`, 'personal story audit should keep contract memorial ref')
 assert.equal(personalStoryAudit?.detail?.personal_relationship_mutation_summary?.mutated_receipt_count, 2, 'personal story audit should summarize mutated personal saves')
 assert.equal(personalStoryReceipts.contract.relationship_switch_cooldown_hours, 72, 'personal story receipts should stamp relationship switch cooldown hours')
 assert.ok(personalStoryReceipts.contract.relationship_switch_cooldown_until > personalStoryReceipts.execution_ledger.personal_story_receipts_written_at, 'personal story receipts should expose relationship switch cooldown end time')
@@ -13594,8 +13647,33 @@ assert.equal(highRiskReceipt.shared_decoration_state_entry?.fund_ledger_id, high
 assert.equal(highRiskReceipt.shared_decoration_state_entry?.amount, 1300, 'limited decoration state should retain original fund amount')
 assert.equal(highRiskReceipt.shared_decoration_state_entry?.shared_decoration_state_changed, true, 'limited decoration receipt should mark shared decoration state changed')
 assert.equal(highRiskReceipt.shared_decoration_state_entry?.personal_home_mutated, false, 'limited decoration state should not mutate personal home')
+assert.equal(highRiskReceipt.shared_decoration_state_entry?.purchased_by_username, highRiskOwner, 'limited decoration state should record purchaser')
+assert.equal(highRiskReceipt.shared_decoration_state_entry?.placed_by_username, highRiskOwner, 'limited decoration state should record placer from receipt actor')
+assert.equal(highRiskReceipt.shared_decoration_state_entry?.is_divisible, false, 'limited decoration state should preserve non-divisible flag')
+assert.equal(highRiskReceipt.shared_decoration_state_entry?.split_policy, 'non_divisible_shared_fund_decoration_compensate_or_memorialize_on_separation', 'limited decoration state should expose separation split policy')
+assert.equal(highRiskReceipt.shared_decoration_state_entry?.return_policy, 'non_divisible_shared_fund_decoration_compensate_or_memorialize', 'limited decoration state should expose compensation or memorial return policy')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.action, 'limited_decoration_delivery', 'limited decoration receipt should write shared decoration ledger action')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.decoration_id, 'moon_gate', 'limited decoration ledger should keep decoration id')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.fund_ledger_id, highRiskExecute.ledger_entry.id, 'limited decoration ledger should reference original fund ledger')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.receipt_id, highRiskReceipt.receipt.id, 'limited decoration ledger should reference receipt id')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.shared_decoration_state_entry_id, highRiskReceipt.shared_decoration_state_entry?.id, 'limited decoration ledger should link decoration state entry')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.personal_home_mutated, false, 'limited decoration ledger should keep personal home boundary')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.purchased_by_username, highRiskOwner, 'limited decoration ledger should record purchaser')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.placed_by_username, highRiskOwner, 'limited decoration ledger should record placer')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.is_divisible, false, 'limited decoration ledger should preserve non-divisible flag')
+assert.equal(highRiskReceipt.shared_decoration_ledger_entry?.return_policy, 'non_divisible_shared_fund_decoration_compensate_or_memorialize', 'limited decoration ledger should expose non-divisible return policy')
 assert.equal(highRiskReceipt.contract.shared_fund_deliveries?.[0]?.receipt_id, highRiskReceipt.receipt.id, 'limited decoration delivery should be readable from contract deliveries')
 assert.equal(highRiskReceipt.contract.shared_decoration_state?.[0]?.receipt_id, highRiskReceipt.receipt.id, 'limited decoration state should be readable from contract shared decoration state')
+assert.equal(highRiskReceipt.contract.shared_decoration_ledger?.[0]?.id, highRiskReceipt.shared_decoration_ledger_entry?.id, 'limited decoration ledger should be readable from public contract')
+const highRiskOriginDecoration = highRiskReceipt.contract.origin_assets.decorations.find(entry => entry.decoration_id === 'moon_gate')
+assert.ok(highRiskOriginDecoration, 'limited decoration receipt should write origin asset decoration row')
+assert.equal(highRiskOriginDecoration.origin_owner_username, 'shared_fund', 'limited decoration origin asset should belong to shared fund')
+assert.equal(highRiskOriginDecoration.purchased_by_username, highRiskOwner, 'limited decoration origin asset should record purchaser')
+assert.equal(highRiskOriginDecoration.placed_by_username, highRiskOwner, 'limited decoration origin asset should record placer')
+assert.equal(highRiskOriginDecoration.fund_ledger_id, highRiskExecute.ledger_entry.id, 'limited decoration origin asset should reference fund ledger')
+assert.equal(highRiskOriginDecoration.is_divisible, false, 'limited decoration origin asset should preserve non-divisible flag')
+assert.equal(highRiskOriginDecoration.return_policy, 'non_divisible_shared_fund_decoration_compensate_or_memorialize', 'limited decoration origin asset should use compensation or memorial return policy')
+assert.ok(highRiskReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.shared_decoration_ledger_id === highRiskReceipt.shared_decoration_ledger_entry?.id), 'limited decoration receipt audit should include decoration ledger id')
 const duplicateHighRiskReceipt = await runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
   outcome: 'delivered',
   receipt_ref: 'limited_decoration_receipt:moon_gate:delivered',
@@ -13642,7 +13720,21 @@ assert.equal(commonDecorationMove.shared_decoration_state_entry?.decoration_id, 
 assert.equal(commonDecorationMove.shared_decoration_state_entry?.fund_ledger_id, highRiskExecute.ledger_entry.id, 'common decoration move should preserve purchase fund ledger trace')
 assert.equal(commonDecorationMove.shared_decoration_state_entry?.to_location_ref, 'courtyard:west', 'common decoration move should store destination')
 assert.equal(commonDecorationMove.shared_decoration_state_entry?.personal_home_mutated, false, 'common decoration move should not mutate personal home')
-assert.ok(commonDecorationMove.contract.audit_log.find(entry => entry.action === 'shared_decoration_moved' && entry.detail?.required_permission_keys?.includes('construction.move_common_furniture')), 'common decoration move should audit required permission')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.purchased_by_username, highRiskOwner, 'common decoration move should preserve purchaser')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.placed_by_username, highRiskOwner, 'common decoration move should record current placer')
+assert.equal(commonDecorationMove.shared_decoration_state_entry?.return_policy, 'non_divisible_shared_fund_decoration_compensate_or_memorialize', 'common decoration move should preserve non-divisible return policy')
+assert.equal(commonDecorationMove.shared_decoration_ledger_entry?.action, 'shared_decoration_move', 'common decoration move should write shared decoration ledger action')
+assert.equal(commonDecorationMove.shared_decoration_ledger_entry?.decoration_id, 'moon_gate', 'common decoration ledger should keep decoration id')
+assert.equal(commonDecorationMove.shared_decoration_ledger_entry?.shared_decoration_state_entry_id, commonDecorationMove.shared_decoration_state_entry?.id, 'common decoration ledger should link state entry')
+assert.equal(commonDecorationMove.shared_decoration_ledger_entry?.personal_home_mutated, false, 'common decoration ledger should keep personal home boundary')
+assert.equal(commonDecorationMove.shared_decoration_ledger_entry?.purchased_by_username, highRiskOwner, 'common decoration ledger should preserve purchaser')
+assert.equal(commonDecorationMove.shared_decoration_ledger_entry?.placed_by_username, highRiskOwner, 'common decoration ledger should record placer')
+assert.equal(commonDecorationMove.contract.shared_decoration_ledger?.[0]?.id, commonDecorationMove.shared_decoration_ledger_entry?.id, 'common decoration ledger should be readable from public contract')
+const movedHighRiskOriginDecoration = commonDecorationMove.contract.origin_assets.decorations.find(entry => entry.decoration_id === 'moon_gate')
+assert.equal(movedHighRiskOriginDecoration?.placed_by_username, highRiskOwner, 'common decoration move should update origin asset placer')
+assert.equal(movedHighRiskOriginDecoration?.placement_ref, 'courtyard:west:moon_gate', 'common decoration move should update origin asset placement ref')
+assert.equal(movedHighRiskOriginDecoration?.return_policy, 'non_divisible_shared_fund_decoration_compensate_or_memorialize', 'common decoration move should keep origin asset compensation or memorial return policy')
+assert.ok(commonDecorationMove.contract.audit_log.find(entry => entry.action === 'shared_decoration_moved' && entry.detail?.required_permission_keys?.includes('construction.move_common_furniture') && entry.detail?.shared_decoration_ledger_id === commonDecorationMove.shared_decoration_ledger_entry?.id), 'common decoration move should audit required permission and ledger id')
 assert.equal(saveRuntime.loadUserSaveSlots(highRiskOwner).slots[0].raw, ownerRawBeforeCommonDecorationMove, 'common decoration move should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(highRiskPartner).slots[0].raw, partnerRawBeforeCommonDecorationMove, 'common decoration move should not rewrite partner save')
 const duplicateCommonDecorationMove = await runtime.moveCohabitationSharedDecoration(highRiskContractId, {
@@ -14058,6 +14150,9 @@ assert.equal(familyEventDeliveredReceipt.family_major_event_entry?.amount, 1300,
 assert.equal(familyEventDeliveredReceipt.family_major_event_entry?.fund_ledger_id, familyEventDeliveredExecute.ledger_entry.id, 'family event ledger should reference original fund ledger')
 assert.equal(familyEventDeliveredReceipt.family_major_event_entry?.contract_family_state_changed, true, 'family event receipt should mark contract family state changed')
 assert.equal(familyEventDeliveredReceipt.family_major_event_entry?.personal_family_state_mutated, false, 'family event receipt should not mutate personal family state')
+assert.equal(familyEventDeliveredReceipt.family_major_event_entry?.contract_id, familyEventDeliveredContractId, 'family event ledger should be owned by the contract')
+assert.equal(familyEventDeliveredReceipt.family_major_event_entry?.owner_scope, 'cohabitation_contract', 'family event ledger should not be owned by one player')
+assert.ok(familyEventDeliveredReceipt.family_major_event_entry?.contract_event_ref?.includes(familyEventDeliveredContractId), 'family event ledger should keep contract event ref')
 assert.equal(familyEventDeliveredReceipt.contract.family_state?.major_event_ledger?.[0]?.receipt_id, familyEventDeliveredReceipt.receipt.id, 'family event ledger should be readable from contract family state')
 assert.equal(familyEventDeliveredReceipt.contract.family_state?.last_major_event_ref, 'family_event:child_care:festival_plan', 'family event contract state should remember latest event ref')
 assert.equal(familyEventDeliveredReceipt.contract.family_building_ledger.length, 0, 'family event delivered receipt should not create building ledger')
@@ -14294,8 +14389,16 @@ assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_state_entry?.am
 assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_state_entry?.fund_ledger_id, decorationRemovalDeliveredExecute.ledger_entry.id, 'shared decoration removal state should reference original fund ledger')
 assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_state_entry?.shared_decoration_state_changed, true, 'shared decoration removal should mark shared decoration state changed')
 assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_state_entry?.personal_home_mutated, false, 'shared decoration removal should not mutate personal home')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.action, 'shared_decoration_removal', 'shared decoration removal receipt should write decoration ledger action')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.decoration_id, 'stone_lantern', 'shared decoration removal ledger should keep decoration id')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.fund_ledger_id, decorationRemovalDeliveredExecute.ledger_entry.id, 'shared decoration removal ledger should reference original fund ledger')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.receipt_id, decorationRemovalDeliveredReceipt.receipt.id, 'shared decoration removal ledger should reference receipt id')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.shared_decoration_state_entry_id, decorationRemovalDeliveredReceipt.shared_decoration_state_entry?.id, 'shared decoration removal ledger should link state entry')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.personal_home_mutated, false, 'shared decoration removal ledger should keep personal home boundary')
 assert.equal(decorationRemovalDeliveredReceipt.family_major_event_entry, null, 'shared decoration removal should not write family event state')
 assert.equal(decorationRemovalDeliveredReceipt.contract.shared_decoration_state?.[0]?.receipt_id, decorationRemovalDeliveredReceipt.receipt.id, 'shared decoration removal state should be readable from contract shared decoration state')
+assert.equal(decorationRemovalDeliveredReceipt.contract.shared_decoration_ledger?.[0]?.id, decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.id, 'shared decoration removal ledger should be readable from public contract')
+assert.ok(decorationRemovalDeliveredReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.shared_decoration_ledger_id === decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.id), 'shared decoration removal audit should include decoration ledger id')
 const decorationRemovalDeliveredClearedPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
   reason: 'qa shared decoration removal delivered receipt clears dispute freeze',
   idempotency_key: 'qa-shared-decoration-removal-delivered-cleared-preview',
@@ -14766,7 +14869,14 @@ assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.shared
 assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.shared_fund_changed, false, 'offline family major event receipt should not mutate shared fund after executed deduction')
 assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline family major event receipt should not mutate shared warehouse')
 assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.original_fund_ledger_id, offlineFamilyMajorEventExecute.ledger_entry.id, 'offline family major event receipt should retain original fund ledger trace')
-assert.ok(offlineFamilyMajorEventQueue.contract.family_state?.major_event_ledger?.find(entry => entry.receipt_ref === 'family_event_receipt:child_school:offline-done'), 'offline family major event receipt should persist contract family event ledger')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.family_major_event_entry?.contract_id, offlineFamilyMajorEventContractId, 'offline family major event result should return contract-owned event entry')
+assert.equal(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.family_major_event_entry?.owner_scope, 'cohabitation_contract', 'offline family major event result should keep contract owner scope')
+assert.ok(offlineFamilyMajorEventQueue.offline_queue_merge.results[0]?.family_major_event_entry?.contract_event_ref?.includes(offlineFamilyMajorEventContractId), 'offline family major event result should keep contract event ref')
+const offlineFamilyMajorEventLedgerEntry = offlineFamilyMajorEventQueue.contract.family_state?.major_event_ledger?.find(entry => entry.receipt_ref === 'family_event_receipt:child_school:offline-done')
+assert.ok(offlineFamilyMajorEventLedgerEntry, 'offline family major event receipt should persist contract family event ledger')
+assert.equal(offlineFamilyMajorEventLedgerEntry?.contract_id, offlineFamilyMajorEventContractId, 'offline family major event ledger should be owned by the contract')
+assert.equal(offlineFamilyMajorEventLedgerEntry?.owner_scope, 'cohabitation_contract', 'offline family major event ledger should not be owned by one player')
+assert.ok(offlineFamilyMajorEventLedgerEntry?.contract_event_ref?.includes(offlineFamilyMajorEventContractId), 'offline family major event ledger should keep contract event ref')
 assert.ok(!offlineFamilyMajorEventQueue.contract.shared_fund_deliveries?.find(entry => entry.target_ref === 'family_event:child_school:offline_plan'), 'offline family major event receipt should not persist delivery entry')
 assert.ok(offlineFamilyMajorEventQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-family-major-event-receipt-op'), 'offline family major event receipt should write high-risk receipt audit')
 assert.equal(saveRuntime.loadUserSaveSlots(offlineFamilyMajorEventOwner).slots[0].raw, offlineFamilyMajorEventOwnerRawBefore, 'offline family major event receipt should not rewrite owner save')
@@ -15083,9 +15193,12 @@ assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]
 assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.personal_home_mutated, false, 'offline decoration removal receipt should not mutate personal home')
 assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_fund_changed, false, 'offline decoration removal receipt should not refund or deduct shared fund again')
 assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline decoration removal receipt should not mutate shared warehouse')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_ledger_count, 1, 'offline decoration removal receipt should report one decoration ledger')
+assert.ok(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_ledger_id, 'offline decoration removal receipt should return decoration ledger id')
 assert.equal(offlineDecorationRemovalReceiptQueue.offline_conflict_resolution.shared_decoration_state_changed, true, 'offline conflict resolution should summarize removal receipt shared decoration state change')
 assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'river_screen')?.state, 'removed', 'offline decoration removal receipt should persist removed state')
 assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'river_screen')?.fund_ledger_id, offlineDecorationRemovalReceiptExecute.ledger_entry.id, 'offline decoration removal receipt should retain original fund ledger trace')
+assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_ledger?.find(entry => entry.decoration_id === 'river_screen')?.id, offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_ledger_id, 'offline decoration removal receipt should persist decoration ledger')
 assert.ok(offlineDecorationRemovalReceiptQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-receipt-op'), 'offline decoration removal receipt should write high-risk receipt audit')
 assert.ok(offlineDecorationRemovalReceiptQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-receipt-queue' && entry.detail?.offline_conflict_resolution?.shared_decoration_state_changed === true), 'offline decoration removal receipt queue should write merge audit evidence')
 assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_fund.balance, offlineDecorationRemovalReceiptBalanceBeforeDraft - 1300, 'offline decoration removal receipt should keep executed fund deduction only')
