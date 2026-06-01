@@ -52,6 +52,14 @@ const actor = username => ({
   displayName: username,
 })
 
+const riskActor = (username, risk = {}) => ({
+  username,
+  displayName: username,
+  actor_ip_address: risk.ip || '',
+  actor_device_id: risk.device || '',
+  userAgent: risk.userAgent || 'qa-cohabitation-contract',
+})
+
 const createFarmPlots = username => {
   const plots = Array.from({ length: 16 }, (_, id) => ({
     id,
@@ -15471,5 +15479,299 @@ assert.equal(recoveredWarehouseDeposit.idempotent, false, 'recovered warehouse g
 assert.equal(recoveredWarehouseDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 13, 'recovered warehouse deposit should add shared stock')
 assert.equal(getInventoryItemQuantity(warehouseInboundGovernanceOwner, 'rice'), ownerRiceBeforeRecoveredDeposit - 1, 'recovered warehouse deposit should deduct personal stock once')
 assert.equal(recoveredWarehouseDeposit.warehouse.governance.blocking.block_inbound, false, 'active recovery should keep inbound unblocked after recovered write')
+
+const warehouseNetworkOutboundOwner = 'cohabit_wndo_owner26'
+const warehouseNetworkOutboundPartner = 'cohabit_wndo_part26'
+const warehouseNetworkOutboundContractId = await setupDualLargeFundContract({
+  ownerUsername: warehouseNetworkOutboundOwner,
+  partnerUsername: warehouseNetworkOutboundPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'warehouse-network-outbound-governance',
+})
+const warehouseNetworkOutboundDevice = 'qa-shared-device-outbound'
+const warehouseNetworkOutboundAt = Math.floor(Date.now() / 1000)
+await mutateStoredContract(warehouseNetworkOutboundContractId, contract => {
+  const sourceLedgerId = 'qa-warehouse-network-outbound-wheat-deposit'
+  const makeWithdrawal = (username, index) => ({
+    id: `qa-warehouse-network-outbound-wheat-withdraw-${index + 1}`,
+    action: 'withdraw',
+    item_id: 'wheat',
+    quantity: 1,
+    quality: 'normal',
+    actor_username: username,
+    actor_display_name: username,
+    actor_device_id: warehouseNetworkOutboundDevice,
+    actor_ip_address: '198.51.100.21',
+    source_owner_id: 'save:123456793',
+    source_owner_username: warehouseNetworkOutboundOwner,
+    source_owner_display_name: warehouseNetworkOutboundOwner,
+    source_owner_key: warehouseNetworkOutboundOwner.toLowerCase(),
+    source_save_id: 123456793,
+    source_save_slot: 0,
+    source_inventory: 'shared_warehouse.items',
+    source_ledger_ids: [sourceLedgerId],
+    target_owner_id: `account:${username.toLowerCase()}`,
+    target_owner_username: username,
+    target_owner_display_name: username,
+    target_owner_key: username.toLowerCase(),
+    target_inventory: 'inventory.items',
+    at: warehouseNetworkOutboundAt - (4 - index),
+    idempotency_key: `qa-warehouse-network-outbound-existing-withdraw-${index + 1}`,
+    reversible: true,
+    compensation_hint: 'QA injected cross-device outbound ledger',
+    status: 'committed',
+  })
+  contract.shared_warehouse = contract.shared_warehouse || {}
+  contract.shared_warehouse.ledger = [
+    makeWithdrawal(warehouseNetworkOutboundPartner, 3),
+    makeWithdrawal(warehouseNetworkOutboundOwner, 2),
+    makeWithdrawal(warehouseNetworkOutboundPartner, 1),
+    makeWithdrawal(warehouseNetworkOutboundOwner, 0),
+    {
+      id: sourceLedgerId,
+      action: 'deposit',
+      item_id: 'wheat',
+      quantity: 8,
+      quality: 'normal',
+      actor_username: warehouseNetworkOutboundOwner,
+      actor_display_name: warehouseNetworkOutboundOwner,
+      source_owner_id: 'save:123456793',
+      source_owner_username: warehouseNetworkOutboundOwner,
+      source_owner_display_name: warehouseNetworkOutboundOwner,
+      source_owner_key: warehouseNetworkOutboundOwner.toLowerCase(),
+      source_save_id: 123456793,
+      source_save_slot: 0,
+      source_save_revision: 1,
+      source_inventory: 'inventory.items',
+      source_slots: [{ index: 0, quantity: 8 }],
+      target_inventory: 'shared_warehouse.items',
+      at: warehouseNetworkOutboundAt - 60,
+      idempotency_key: sourceLedgerId,
+      reversible: true,
+      compensation_hint: 'QA injected cross-device outbound stock',
+      status: 'committed',
+    },
+    ...(Array.isArray(contract.shared_warehouse.ledger) ? contract.shared_warehouse.ledger : []),
+  ]
+})
+const warehouseNetworkOutboundActor = riskActor(warehouseNetworkOutboundOwner, { device: warehouseNetworkOutboundDevice, ip: '198.51.100.21' })
+const warehouseNetworkOutboundBefore = await runtime.getCohabitationWarehouse(warehouseNetworkOutboundContractId, warehouseNetworkOutboundActor)
+assert.equal(warehouseNetworkOutboundBefore.warehouse.governance.actor_window.outbound_action_count, 2, 'cross-device outbound setup should keep single actor below high-frequency limit')
+assert.equal(warehouseNetworkOutboundBefore.warehouse.governance.blocking.raw_block_outbound, false, 'cross-device outbound setup should not trip single-actor outbound block')
+assert.equal(warehouseNetworkOutboundBefore.warehouse.governance.blocking.raw_block_outbound_cross_device_brush, true, 'cross-device outbound setup should trip network outbound block')
+assert.ok(warehouseNetworkOutboundBefore.warehouse.governance.suspicious_networks.some(entry => entry.direction === 'outbound' && entry.signal_type === 'device' && entry.actor_count === 2), 'cross-device outbound setup should expose two-member suspicious network')
+const ownerWheatBeforeNetworkOutboundBlock = getInventoryItemQuantity(warehouseNetworkOutboundOwner, 'wheat')
+await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(warehouseNetworkOutboundContractId, {
+    item_id: 'wheat',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-warehouse-network-outbound-blocked-withdraw',
+  }, warehouseNetworkOutboundActor),
+  error => error?.status === 429,
+  'cross-device warehouse outbound should block new withdraws'
+)
+const warehouseNetworkOutboundAfter = await runtime.getCohabitationWarehouse(warehouseNetworkOutboundContractId, warehouseNetworkOutboundActor)
+assert.equal(warehouseNetworkOutboundAfter.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 4, 'blocked cross-device outbound should not change shared stock')
+assert.equal(getInventoryItemQuantity(warehouseNetworkOutboundOwner, 'wheat'), ownerWheatBeforeNetworkOutboundBlock, 'blocked cross-device outbound should not change personal inventory')
+assert.ok(warehouseNetworkOutboundAfter.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_cross_device_brush_blocked'), 'cross-device outbound block should write governance audit')
+
+const warehouseNetworkInboundOwner = 'cohabit_wndi_owner26'
+const warehouseNetworkInboundPartner = 'cohabit_wndi_part26'
+const warehouseNetworkInboundContractId = await setupDualLargeFundContract({
+  ownerUsername: warehouseNetworkInboundOwner,
+  partnerUsername: warehouseNetworkInboundPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'warehouse-network-inbound-governance',
+})
+const warehouseNetworkInboundDevice = 'qa-shared-device-inbound'
+const warehouseNetworkInboundAt = Math.floor(Date.now() / 1000)
+await mutateStoredContract(warehouseNetworkInboundContractId, contract => {
+  const makeDeposit = (username, index) => ({
+    id: `qa-warehouse-network-inbound-rice-deposit-${index + 1}`,
+    action: 'deposit',
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    actor_username: username,
+    actor_display_name: username,
+    actor_device_id: warehouseNetworkInboundDevice,
+    actor_ip_address: '198.51.100.22',
+    source_owner_id: `account:${username.toLowerCase()}`,
+    source_owner_username: username,
+    source_owner_display_name: username,
+    source_owner_key: username.toLowerCase(),
+    source_save_id: 123456794 + index,
+    source_save_slot: 0,
+    source_save_revision: 1,
+    source_inventory: 'inventory.items',
+    source_slots: [{ index: 0, quantity: 1 }],
+    target_inventory: 'shared_warehouse.items',
+    at: warehouseNetworkInboundAt - (4 - index),
+    idempotency_key: `qa-warehouse-network-inbound-existing-deposit-${index + 1}`,
+    reversible: true,
+    compensation_hint: 'QA injected cross-device inbound ledger',
+    status: 'committed',
+  })
+  contract.shared_warehouse = contract.shared_warehouse || {}
+  contract.shared_warehouse.ledger = [
+    makeDeposit(warehouseNetworkInboundPartner, 3),
+    makeDeposit(warehouseNetworkInboundOwner, 2),
+    makeDeposit(warehouseNetworkInboundPartner, 1),
+    makeDeposit(warehouseNetworkInboundOwner, 0),
+    ...(Array.isArray(contract.shared_warehouse.ledger) ? contract.shared_warehouse.ledger : []),
+  ]
+})
+const warehouseNetworkInboundActor = riskActor(warehouseNetworkInboundOwner, { device: warehouseNetworkInboundDevice, ip: '198.51.100.22' })
+const warehouseNetworkInboundBefore = await runtime.getCohabitationWarehouse(warehouseNetworkInboundContractId, warehouseNetworkInboundActor)
+assert.equal(warehouseNetworkInboundBefore.warehouse.governance.actor_window.inbound_action_count, 2, 'cross-device inbound setup should keep single actor below high-frequency limit')
+assert.equal(warehouseNetworkInboundBefore.warehouse.governance.blocking.raw_block_inbound, false, 'cross-device inbound setup should not trip single-actor inbound block')
+assert.equal(warehouseNetworkInboundBefore.warehouse.governance.blocking.raw_block_inbound_cross_device_brush, true, 'cross-device inbound setup should trip network inbound block')
+assert.ok(warehouseNetworkInboundBefore.warehouse.governance.suspicious_networks.some(entry => entry.direction === 'inbound' && entry.signal_type === 'device' && entry.actor_count === 2), 'cross-device inbound setup should expose two-member suspicious network')
+const ownerRiceBeforeNetworkInboundBlock = getInventoryItemQuantity(warehouseNetworkInboundOwner, 'rice')
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(warehouseNetworkInboundContractId, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-warehouse-network-inbound-blocked-deposit',
+  }, warehouseNetworkInboundActor),
+  error => error?.status === 429,
+  'cross-device warehouse inbound should block new deposits'
+)
+const warehouseNetworkInboundAfter = await runtime.getCohabitationWarehouse(warehouseNetworkInboundContractId, warehouseNetworkInboundActor)
+assert.equal(warehouseNetworkInboundAfter.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 4, 'blocked cross-device inbound should not change shared stock')
+assert.equal(getInventoryItemQuantity(warehouseNetworkInboundOwner, 'rice'), ownerRiceBeforeNetworkInboundBlock, 'blocked cross-device inbound should not change personal inventory')
+assert.ok(warehouseNetworkInboundAfter.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_cross_device_brush_blocked'), 'cross-device inbound block should write governance audit')
+
+const fundHighFrequencyOwner = 'cohabit_fhf_owner26'
+const fundHighFrequencyPartner = 'cohabit_fhf_part26'
+const fundHighFrequencyContractId = await setupDualLargeFundContract({
+  ownerUsername: fundHighFrequencyOwner,
+  partnerUsername: fundHighFrequencyPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'fund-high-frequency-governance',
+})
+const fundHighFrequencyAt = Math.floor(Date.now() / 1000)
+await mutateStoredContract(fundHighFrequencyContractId, contract => {
+  const ledger = Array.isArray(contract.shared_fund?.ledger) ? contract.shared_fund.ledger : []
+  contract.shared_fund = contract.shared_fund || {}
+  contract.shared_fund.balance = 1200
+  contract.shared_fund.ledger = [
+    ...Array.from({ length: 6 }, (_, index) => ({
+      id: `qa-fund-high-frequency-spend-${index + 1}`,
+      action: 'spend',
+      actor_username: fundHighFrequencyOwner,
+      actor_display_name: fundHighFrequencyOwner,
+      actor_device_id: 'qa-single-budget-device',
+      actor_ip_address: '198.51.100.23',
+      amount: 10,
+      at: fundHighFrequencyAt - (6 - index),
+      memo: 'QA injected high-frequency fund spend',
+      purpose: 'seed_budget',
+      spend_purpose_label: 'QA seed budget',
+      spend_category: 'farm_inputs',
+      spend_tier: 'small',
+      target_ref: `qa:fund-high-frequency:${index + 1}`,
+      source_owner_id: `shared_fund:${contract.id}`,
+      source_owner_username: 'shared_fund',
+      source_owner_display_name: 'shared fund',
+      source_owner_key: 'shared_fund',
+      balance_after: 1200 - ((index + 1) * 10),
+      idempotency_key: `qa-fund-high-frequency-existing-spend-${index + 1}`,
+      reversible: true,
+      compensation_hint: 'QA injected high-frequency fund spend',
+      status: 'committed',
+    })).reverse(),
+    ...ledger,
+  ]
+})
+const fundHighFrequencyActor = riskActor(fundHighFrequencyOwner, { device: 'qa-single-budget-device', ip: '198.51.100.23' })
+const fundHighFrequencyBefore = await runtime.getCohabitationFund(fundHighFrequencyContractId, fundHighFrequencyActor)
+assert.equal(fundHighFrequencyBefore.fund.governance.actor_window.budget_spend_action_count, 6, 'fund high-frequency setup should count actor budget spends')
+assert.equal(fundHighFrequencyBefore.fund.governance.blocking.raw_block_high_frequency_budget_spend, true, 'fund high-frequency setup should trip single-actor budget block')
+assert.equal(fundHighFrequencyBefore.fund.governance.blocking.raw_block_cross_device_brush, false, 'fund high-frequency setup should not trip cross-device block')
+const fundHighFrequencyBalanceBefore = fundHighFrequencyBefore.fund.balance
+await assert.rejects(
+  () => runtime.spendCohabitationFund(fundHighFrequencyContractId, {
+    amount: 5,
+    purpose: 'seed_budget',
+    target_ref: 'qa:fund-high-frequency:blocked',
+    idempotency_key: 'qa-fund-high-frequency-blocked-spend',
+  }, fundHighFrequencyActor),
+  error => error?.status === 429,
+  'fund high-frequency budget spend should block new spends'
+)
+const fundHighFrequencyAfter = await runtime.getCohabitationFund(fundHighFrequencyContractId, fundHighFrequencyActor)
+assert.equal(fundHighFrequencyAfter.fund.balance, fundHighFrequencyBalanceBefore, 'blocked fund high-frequency spend should not change shared balance')
+assert.ok(fundHighFrequencyAfter.fund.governance.recent_audits.find(entry => entry.action === 'fund_high_frequency_spend_blocked'), 'blocked fund high-frequency spend should write audit')
+
+const fundNetworkOwner = 'cohabit_fnet_owner26'
+const fundNetworkPartner = 'cohabit_fnet_part26'
+const fundNetworkContractId = await setupDualLargeFundContract({
+  ownerUsername: fundNetworkOwner,
+  partnerUsername: fundNetworkPartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'fund-network-governance',
+})
+const fundNetworkDevice = 'qa-shared-budget-device'
+const fundNetworkAt = Math.floor(Date.now() / 1000)
+await mutateStoredContract(fundNetworkContractId, contract => {
+  const ledger = Array.isArray(contract.shared_fund?.ledger) ? contract.shared_fund.ledger : []
+  const makeSpend = (username, index) => ({
+    id: `qa-fund-network-spend-${index + 1}`,
+    action: 'spend',
+    actor_username: username,
+    actor_display_name: username,
+    actor_device_id: fundNetworkDevice,
+    actor_ip_address: '198.51.100.24',
+    amount: 10,
+    at: fundNetworkAt - (4 - index),
+    memo: 'QA injected cross-device fund spend',
+    purpose: 'seed_budget',
+    spend_purpose_label: 'QA seed budget',
+    spend_category: 'farm_inputs',
+    spend_tier: 'small',
+    target_ref: `qa:fund-network:${index + 1}`,
+    source_owner_id: `shared_fund:${contract.id}`,
+    source_owner_username: 'shared_fund',
+    source_owner_display_name: 'shared fund',
+    source_owner_key: 'shared_fund',
+    balance_after: 1200 - ((index + 1) * 10),
+    idempotency_key: `qa-fund-network-existing-spend-${index + 1}`,
+    reversible: true,
+    compensation_hint: 'QA injected cross-device fund spend',
+    status: 'committed',
+  })
+  contract.shared_fund = contract.shared_fund || {}
+  contract.shared_fund.balance = 1200
+  contract.shared_fund.ledger = [
+    makeSpend(fundNetworkPartner, 3),
+    makeSpend(fundNetworkOwner, 2),
+    makeSpend(fundNetworkPartner, 1),
+    makeSpend(fundNetworkOwner, 0),
+    ...ledger,
+  ]
+})
+const fundNetworkActor = riskActor(fundNetworkOwner, { device: fundNetworkDevice, ip: '198.51.100.24' })
+const fundNetworkBefore = await runtime.getCohabitationFund(fundNetworkContractId, fundNetworkActor)
+assert.equal(fundNetworkBefore.fund.governance.actor_window.budget_spend_action_count, 2, 'fund cross-device setup should keep single actor below budget limit')
+assert.equal(fundNetworkBefore.fund.governance.blocking.raw_block_high_frequency_budget_spend, false, 'fund cross-device setup should not trip single-actor budget block')
+assert.equal(fundNetworkBefore.fund.governance.blocking.raw_block_cross_device_brush, true, 'fund cross-device setup should trip network budget block')
+assert.ok(fundNetworkBefore.fund.governance.suspicious_networks.some(entry => entry.direction === 'fund_budget_spend' && entry.signal_type === 'device' && entry.actor_count === 2), 'fund cross-device setup should expose two-member suspicious network')
+const fundNetworkBalanceBefore = fundNetworkBefore.fund.balance
+await assert.rejects(
+  () => runtime.spendCohabitationFund(fundNetworkContractId, {
+    amount: 5,
+    purpose: 'seed_budget',
+    target_ref: 'qa:fund-network:blocked',
+    idempotency_key: 'qa-fund-network-blocked-spend',
+  }, fundNetworkActor),
+  error => error?.status === 429,
+  'cross-device fund budget spend should block new spends'
+)
+const fundNetworkAfter = await runtime.getCohabitationFund(fundNetworkContractId, fundNetworkActor)
+assert.equal(fundNetworkAfter.fund.balance, fundNetworkBalanceBefore, 'blocked cross-device fund spend should not change shared balance')
+assert.ok(fundNetworkAfter.fund.governance.recent_audits.find(entry => entry.action === 'fund_cross_device_brush_blocked'), 'blocked cross-device fund spend should write governance audit')
 
 console.log('[qa-cohabitation-contract] OK')

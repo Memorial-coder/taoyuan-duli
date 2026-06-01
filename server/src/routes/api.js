@@ -640,6 +640,21 @@ function getSessionActor(req) {
   };
 }
 
+function getCohabitationGovernanceActor(req) {
+  const forwardedIp = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim();
+  return {
+    ...getSessionActor(req),
+    actor_ip_address: String(req.ip || forwardedIp || req.socket?.remoteAddress || '').trim(),
+    actor_device_id: String(
+      req.headers?.['x-taoyuan-device-id']
+        || req.headers?.['x-client-device-id']
+        || req.headers?.['x-device-id']
+        || ''
+    ).trim(),
+    userAgent: String(req.headers?.['user-agent'] || '').trim(),
+  };
+}
+
 function collectActivityRoomRealtimeRecipients(room, extraUsernames = []) {
   const recipients = new Set();
   const addUsername = username => {
@@ -3346,10 +3361,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-workshop/
 
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/warehouse', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
-    const result = await taoyuanCohabitationRuntime.getCohabitationWarehouse(req.params.contractId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanCohabitationRuntime.getCohabitationWarehouse(req.params.contractId, getCohabitationGovernanceActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取共同仓库失败' });
@@ -3358,10 +3370,7 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/warehouse', creat
 
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/fund', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
-    const result = await taoyuanCohabitationRuntime.getCohabitationFund(req.params.contractId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanCohabitationRuntime.getCohabitationFund(req.params.contractId, getCohabitationGovernanceActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取共同基金失败' });
@@ -3695,10 +3704,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-auto-inc
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/deposit', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.depositCohabitationWarehouseItem(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.depositCohabitationWarehouseItem(req.params.contractId, req.body || {}, getCohabitationGovernanceActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '放入共同仓库失败' });
@@ -3709,10 +3715,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/deposi
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/withdraw', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.withdrawCohabitationWarehouseItem(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.withdrawCohabitationWarehouseItem(req.params.contractId, req.body || {}, getCohabitationGovernanceActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '从共同仓库取出物品失败' });
@@ -3723,10 +3726,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/withdr
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.createCohabitationWarehouseHighValueWithdrawalDraft(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.createCohabitationWarehouseHighValueWithdrawalDraft(req.params.contractId, req.body || {}, getCohabitationGovernanceActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '创建共同仓库高价值取出草案失败' });
@@ -3751,10 +3751,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/execute', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.executeCohabitationWarehouseHighValueWithdrawalDraft(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.executeCohabitationWarehouseHighValueWithdrawalDraft(req.params.contractId, req.params.draftId, req.body || {}, getCohabitationGovernanceActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行共同仓库高价值取出草案失败' });
@@ -3875,10 +3872,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/sell', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.sellCohabitationWarehouseItem(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.sellCohabitationWarehouseItem(req.params.contractId, req.body || {}, getCohabitationGovernanceActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '卖出共同仓库物品失败' });
@@ -3931,10 +3925,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/contribute'
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/spend', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.spendCohabitationFund(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.spendCohabitationFund(req.params.contractId, req.body || {}, getCohabitationGovernanceActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '使用共同基金失败' });
@@ -3946,10 +3937,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/spend', cre
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/shop-purchase', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.purchaseCohabitationSharedFundShopItem(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.purchaseCohabitationSharedFundShopItem(req.params.contractId, req.body || {}, getCohabitationGovernanceActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'shared fund shop purchase failed' });

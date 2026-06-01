@@ -72,7 +72,11 @@ const WAREHOUSE_TEMP_BAG_CAPACITY = 10;
 const WAREHOUSE_GOVERNANCE_WINDOW_SECONDS = 10 * 60;
 const WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT = 6;
 const WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT = 12;
+const WAREHOUSE_GOVERNANCE_NETWORK_ACTION_LIMIT = 4;
 const WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT = 60;
+const FUND_GOVERNANCE_WINDOW_SECONDS = 10 * 60;
+const FUND_GOVERNANCE_BUDGET_ACTION_LIMIT = 6;
+const FUND_GOVERNANCE_NETWORK_ACTION_LIMIT = 4;
 const SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS = Object.freeze({
   success: 80,
   partial: 14,
@@ -3958,6 +3962,95 @@ function normalizeUsernameKey(value) {
   return normalizeUsername(value).toLocaleLowerCase('zh-CN');
 }
 
+function normalizeRiskSignal(value, maxLength = 120) {
+  return sanitizeText(value, maxLength).toLocaleLowerCase('zh-CN');
+}
+
+function hashRiskSignal(value) {
+  const normalized = normalizeRiskSignal(value, 240);
+  if (!normalized) return '';
+  return crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 24);
+}
+
+function buildActorRiskMeta(actor = {}) {
+  const userAgentHash = normalizeRiskSignal(actor.actor_user_agent_hash ?? actor.userAgentHash, 80)
+    || hashRiskSignal(actor.userAgent ?? actor.user_agent ?? actor.userAgentRaw ?? actor.user_agent_raw);
+  return {
+    actor_ip_address: normalizeRiskSignal(actor.actor_ip_address ?? actor.ipAddress ?? actor.ip_address ?? actor.ip, 120),
+    actor_device_id: normalizeRiskSignal(actor.actor_device_id ?? actor.deviceId ?? actor.device_id ?? actor.clientDeviceId, 120),
+    actor_user_agent_hash: userAgentHash,
+  };
+}
+
+function actorHasRiskSignal(actor = {}) {
+  const meta = buildActorRiskMeta(actor);
+  return Boolean(meta.actor_ip_address || meta.actor_device_id);
+}
+
+function buildActorGovernanceContext(actorOrUsername = {}) {
+  const actor = actorOrUsername && typeof actorOrUsername === 'object'
+    ? actorOrUsername
+    : { username: actorOrUsername };
+  const actorUsername = normalizeUsername(actor.username);
+  return {
+    actor,
+    actorUsername,
+    actorKey: normalizeUsernameKey(actorUsername),
+    actorRiskMeta: buildActorRiskMeta(actor),
+  };
+}
+
+function buildActorRiskLedgerFields(actor = {}) {
+  const meta = buildActorRiskMeta(actor);
+  return Object.fromEntries(Object.entries(meta).filter(([, value]) => Boolean(value)));
+}
+
+function getEntryRiskSignal(entry = {}, signalType = '') {
+  if (signalType === 'ip') return normalizeRiskSignal(entry.actor_ip_address ?? entry.actorIpAddress ?? entry.ip_address ?? entry.ipAddress, 120);
+  if (signalType === 'device') return normalizeRiskSignal(entry.actor_device_id ?? entry.actorDeviceId ?? entry.device_id ?? entry.deviceId, 120);
+  return '';
+}
+
+function buildRiskNetworkClusters(entries = [], actor = {}, options = {}) {
+  const actionLimit = Math.max(1, Math.floor(Number(options.actionLimit) || 1));
+  const direction = sanitizeText(options.direction, 40);
+  const actorRiskMeta = buildActorRiskMeta(actor);
+  const signalTypes = [
+    { type: 'ip', field: 'actor_ip_address', actorValue: actorRiskMeta.actor_ip_address },
+    { type: 'device', field: 'actor_device_id', actorValue: actorRiskMeta.actor_device_id },
+  ];
+  const clusters = [];
+  for (const signalType of signalTypes) {
+    const bySignal = new Map();
+    for (const entry of entries) {
+      const signal = getEntryRiskSignal(entry, signalType.type);
+      if (!signal) continue;
+      if (!bySignal.has(signal)) bySignal.set(signal, []);
+      bySignal.get(signal).push(entry);
+    }
+    for (const [signal, signalEntries] of bySignal.entries()) {
+      if (signalEntries.length < actionLimit) continue;
+      const actorUsernames = [...new Set(signalEntries.map(entry => normalizeUsername(entry.actor_username)).filter(Boolean))];
+      if (actorUsernames.length < 2) continue;
+      const actorInvolved = Boolean(signalType.actorValue && signalType.actorValue === signal);
+      clusters.push({
+        direction,
+        signal_type: signalType.type,
+        signal_hash: hashRiskSignal(signal),
+        action_count: signalEntries.length,
+        total_quantity: signalEntries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.quantity ?? entry.amount) || 0)), 0),
+        actor_count: actorUsernames.length,
+        actor_usernames: actorUsernames.slice(0, 12),
+        actor_involved: actorInvolved,
+        ledger_ids: signalEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
+      });
+    }
+  }
+  return clusters
+    .sort((left, right) => right.action_count - left.action_count)
+    .slice(0, 20);
+}
+
 function normalizeSaveId(value) {
   const saveId = Number(value);
   return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
@@ -5189,6 +5282,9 @@ function normalizeFundLedgerEntry(entry = {}) {
     action: sanitizeText(entry?.action, 80) || 'contribution',
     actor_username: normalizeUsername(entry?.actor_username),
     actor_display_name: sanitizeText(entry?.actor_display_name || entry?.actor_username, 60),
+    actor_ip_address: normalizeRiskSignal(entry?.actor_ip_address ?? entry?.actorIpAddress ?? entry?.ip_address ?? entry?.ipAddress, 120),
+    actor_device_id: normalizeRiskSignal(entry?.actor_device_id ?? entry?.actorDeviceId ?? entry?.device_id ?? entry?.deviceId, 120),
+    actor_user_agent_hash: normalizeRiskSignal(entry?.actor_user_agent_hash ?? entry?.actorUserAgentHash, 80),
     amount: Math.max(0, Math.floor(Number(entry?.amount) || 0)),
     at: Number(entry?.at) || nowSeconds(),
     memo: sanitizeText(entry?.memo, 160),
@@ -5641,6 +5737,9 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     item_policy: itemPolicy,
     actor_username: actorUsername,
     actor_display_name: sanitizeText(entry.actor_display_name || actorUsername, 60),
+    actor_ip_address: normalizeRiskSignal(entry.actor_ip_address ?? entry.actorIpAddress ?? entry.ip_address ?? entry.ipAddress, 120),
+    actor_device_id: normalizeRiskSignal(entry.actor_device_id ?? entry.actorDeviceId ?? entry.device_id ?? entry.deviceId, 120),
+    actor_user_agent_hash: normalizeRiskSignal(entry.actor_user_agent_hash ?? entry.actorUserAgentHash, 80),
     actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
     actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
     source_owner_id: sanitizeText(entry.source_owner_id, 100),
@@ -11799,15 +11898,16 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
   };
 }
 
-function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
+function buildSharedWarehouseSnapshot(contract, actorOrUsername = '') {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const withdrawalDrafts = normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts);
   const activeWithdrawalDrafts = withdrawalDrafts.filter(draft => WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES.has(draft.state));
+  const { actorUsername } = buildActorGovernanceContext(actorOrUsername);
   const actorKey = normalizeUsernameKey(actorUsername);
   const actorMember = getContractMember(contract, actorUsername);
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorKey], contract.type);
   const familyWarehouse = buildFamilyWarehouseSummary(contract, warehouse, actorMember);
-  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actorUsername);
+  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actorOrUsername);
   const visibleItems = warehouse.items.map(item => {
     const freezeSummary = buildWarehouseFreezeSummary(contract, item.item_id, item.quality);
     const normalizedItem = normalizeWarehouseItem({
@@ -11878,9 +11978,9 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
   };
 }
 
-function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
+function buildSharedWarehouseGovernanceSnapshot(contract, actorOrUsername = '') {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
-  const actorKey = normalizeUsernameKey(actorUsername);
+  const { actor, actorUsername, actorKey, actorRiskMeta } = buildActorGovernanceContext(actorOrUsername);
   const checkedAt = nowSeconds();
   const windowStartedAt = Math.max(0, checkedAt - WAREHOUSE_GOVERNANCE_WINDOW_SECONDS);
   const inboundActions = new Set(['deposit']);
@@ -11900,6 +12000,16 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
   const actorOutboundEntries = recentOutboundEntries.filter(entry =>
     normalizeUsernameKey(entry.actor_username) === actorKey
   );
+  const inboundNetworkClusters = buildRiskNetworkClusters(recentInboundEntries, actor, {
+    direction: 'inbound',
+    actionLimit: WAREHOUSE_GOVERNANCE_NETWORK_ACTION_LIMIT,
+  });
+  const outboundNetworkClusters = buildRiskNetworkClusters(recentOutboundEntries, actor, {
+    direction: 'outbound',
+    actionLimit: WAREHOUSE_GOVERNANCE_NETWORK_ACTION_LIMIT,
+  });
+  const actorInboundNetworkClusters = inboundNetworkClusters.filter(cluster => cluster.actor_involved);
+  const actorOutboundNetworkClusters = outboundNetworkClusters.filter(cluster => cluster.actor_involved);
   const byActor = new Map();
   const trackActorWarehouseAction = (entry, direction) => {
     const key = normalizeUsernameKey(entry.actor_username) || 'unknown';
@@ -11972,8 +12082,10 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
   const activeOutboundRecovery = activeRecoveries.find(recovery => warehouseGovernanceRecoveryCoversDirection(recovery, 'outbound')) || null;
   const rawBlockInbound = actorInboundCount >= WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT;
   const rawBlockOutbound = actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT;
-  const blockInbound = rawBlockInbound && !activeInboundRecovery;
-  const blockOutbound = rawBlockOutbound && !activeOutboundRecovery;
+  const rawBlockInboundNetwork = actorInboundNetworkClusters.length > 0;
+  const rawBlockOutboundNetwork = actorOutboundNetworkClusters.length > 0;
+  const blockInbound = (rawBlockInbound || rawBlockInboundNetwork) && !activeInboundRecovery;
+  const blockOutbound = (rawBlockOutbound || rawBlockOutboundNetwork) && !activeOutboundRecovery;
   const recentGovernanceAudits = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
     .filter(entry => [
       'warehouse_deposited',
@@ -11983,6 +12095,7 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
       'warehouse_high_value_withdrawal_executed',
       'warehouse_high_frequency_inbound_blocked',
       'warehouse_high_frequency_outbound_blocked',
+      'warehouse_cross_device_brush_blocked',
       'warehouse_governance_recovered',
     ].includes(entry.action))
     .slice(0, 20);
@@ -11994,20 +12107,28 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
     window_seconds: WAREHOUSE_GOVERNANCE_WINDOW_SECONDS,
     inbound_action_limit: WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT,
     outbound_action_limit: WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT,
+    network_action_limit: WAREHOUSE_GOVERNANCE_NETWORK_ACTION_LIMIT,
     actor_window: {
       inbound_action_count: actorInboundCount,
       inbound_quantity: actorInboundQuantity,
       outbound_action_count: actorOutboundCount,
       outbound_quantity: actorOutboundQuantity,
+      actor_ip_address: actorRiskMeta.actor_ip_address,
+      actor_device_id: actorRiskMeta.actor_device_id,
       inbound_ledger_ids: actorInboundEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
       outbound_ledger_ids: actorOutboundEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
       ledger_ids: actorOutboundEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
+      network_inbound_action_count: actorInboundNetworkClusters.reduce((sum, cluster) => sum + cluster.action_count, 0),
+      network_outbound_action_count: actorOutboundNetworkClusters.reduce((sum, cluster) => sum + cluster.action_count, 0),
+      network_actor_usernames: [...new Set([...actorInboundNetworkClusters, ...actorOutboundNetworkClusters]
+        .flatMap(cluster => cluster.actor_usernames || []))].slice(0, 12),
       actions: [...actorInboundEntries, ...actorOutboundEntries].reduce((acc, entry) => {
         acc[entry.action] = (acc[entry.action] || 0) + 1;
         return acc;
       }, {}),
     },
     suspicious_actors: suspiciousActors,
+    suspicious_networks: [...inboundNetworkClusters, ...outboundNetworkClusters],
     active_high_value_withdrawal_drafts: activeHighValueDrafts,
     active_recoveries: activeRecoveries.slice(0, 10),
     last_recovery: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries)
@@ -12018,6 +12139,10 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
       block_outbound: blockOutbound,
       raw_block_inbound: rawBlockInbound,
       raw_block_outbound: rawBlockOutbound,
+      raw_block_inbound_cross_device_brush: rawBlockInboundNetwork,
+      raw_block_outbound_cross_device_brush: rawBlockOutboundNetwork,
+      block_inbound_cross_device_brush: rawBlockInboundNetwork && !activeInboundRecovery,
+      block_outbound_cross_device_brush: rawBlockOutboundNetwork && !activeOutboundRecovery,
       recovery_active: activeRecoveries.length > 0,
       recovered_directions: [
         activeInboundRecovery ? 'inbound' : '',
@@ -12031,13 +12156,21 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
         blockInbound ? 'inbound' : '',
         blockOutbound ? 'outbound' : '',
       ].filter(Boolean),
-      reason: blockOutbound
-        ? '当前成员短时间共同仓库取出 / 卖出次数过高，需等待窗口结束或走申诉恢复。'
+      reason: rawBlockOutboundNetwork && blockOutbound
+        ? 'shared warehouse outbound is blocked because multiple members share the same IP/device risk signal in this window.'
+        : rawBlockInboundNetwork && blockInbound
+          ? 'shared warehouse inbound is blocked because multiple members share the same IP/device risk signal in this window.'
+        : blockOutbound
+          ? '当前成员短时间共同仓库取出 / 卖出次数过高，需等待窗口结束或走申诉恢复。'
         : blockInbound
           ? '当前成员短时间共同仓库放入次数过高，需等待窗口结束或走申诉恢复。'
         : '',
-      required_operation: blockOutbound
-        ? 'wait_or_appeal_shared_warehouse_outbound'
+      required_operation: rawBlockOutboundNetwork && blockOutbound
+        ? 'review_shared_warehouse_cross_device_outbound'
+        : rawBlockInboundNetwork && blockInbound
+          ? 'review_shared_warehouse_cross_device_inbound'
+        : blockOutbound
+          ? 'wait_or_appeal_shared_warehouse_outbound'
         : blockInbound
           ? 'wait_or_appeal_shared_warehouse_inbound'
         : '',
@@ -12051,19 +12184,25 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
       appeal_recovery_required_for_blocked_outbound: true,
       appeal_recovery_required_for_blocked_inbound: true,
       managed_recovery_records_enabled: true,
+      cross_device_brush_detection_enabled: true,
     },
   };
 }
 
 function assertSharedWarehouseOutboundGovernance(contract, actor = {}, operation = 'withdraw', idempotencyKey = '', store = null) {
-  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actor.username);
+  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actor);
   if (governance.blocking.block_outbound !== true) return governance;
-  appendAudit(contract, 'warehouse_high_frequency_outbound_blocked', actor, {
+  const blockedByNetwork = governance.blocking.block_outbound_cross_device_brush === true;
+  appendAudit(contract, blockedByNetwork ? 'warehouse_cross_device_brush_blocked' : 'warehouse_high_frequency_outbound_blocked', actor, {
     operation: sanitizeText(operation, 80),
     outbound_action_count: governance.actor_window.outbound_action_count,
     outbound_quantity: governance.actor_window.outbound_quantity,
+    network_outbound_action_count: governance.actor_window.network_outbound_action_count,
+    network_actor_usernames: governance.actor_window.network_actor_usernames,
+    suspicious_networks: governance.suspicious_networks.filter(cluster => cluster.direction === 'outbound' && cluster.actor_involved).slice(0, 4),
     window_seconds: governance.window_seconds,
     outbound_action_limit: governance.outbound_action_limit,
+    network_action_limit: governance.network_action_limit,
     recent_ledger_ids: governance.actor_window.ledger_ids,
     personal_inventory_merged: false,
     personal_money_merged: false,
@@ -12074,14 +12213,19 @@ function assertSharedWarehouseOutboundGovernance(contract, actor = {}, operation
 }
 
 function assertSharedWarehouseInboundGovernance(contract, actor = {}, operation = 'deposit', idempotencyKey = '', store = null) {
-  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actor.username);
+  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actor);
   if (governance.blocking.block_inbound !== true) return governance;
-  appendAudit(contract, 'warehouse_high_frequency_inbound_blocked', actor, {
+  const blockedByNetwork = governance.blocking.block_inbound_cross_device_brush === true;
+  appendAudit(contract, blockedByNetwork ? 'warehouse_cross_device_brush_blocked' : 'warehouse_high_frequency_inbound_blocked', actor, {
     operation: sanitizeText(operation, 80),
     inbound_action_count: governance.actor_window.inbound_action_count,
     inbound_quantity: governance.actor_window.inbound_quantity,
+    network_inbound_action_count: governance.actor_window.network_inbound_action_count,
+    network_actor_usernames: governance.actor_window.network_actor_usernames,
+    suspicious_networks: governance.suspicious_networks.filter(cluster => cluster.direction === 'inbound' && cluster.actor_involved).slice(0, 4),
     window_seconds: governance.window_seconds,
     inbound_action_limit: governance.inbound_action_limit,
+    network_action_limit: governance.network_action_limit,
     recent_ledger_ids: governance.actor_window.inbound_ledger_ids,
     shared_warehouse_changed: false,
     personal_inventory_merged: false,
@@ -12235,8 +12379,9 @@ function assertSharedFundBudgetLedgerTarget(entry = {}, targetRef = '') {
 }
 
 
-function buildSharedFundSnapshot(contract, actorUsername = '') {
+function buildSharedFundSnapshot(contract, actorOrUsername = '') {
   const fund = normalizeSharedFund(contract.shared_fund);
+  const { actorUsername } = buildActorGovernanceContext(actorOrUsername);
   const actorKey = normalizeUsernameKey(actorUsername);
   const actorMember = getContractMember(contract, actorUsername);
   const actorPermissions = normalizePermissionSet(contract.permissions?.[actorKey], contract.type);
@@ -12270,7 +12415,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
   const pendingLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'pending_confirmation');
   const readyLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'ready_to_execute');
   const executedLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'executed');
-  const governance = buildSharedFundGovernanceSnapshot(contract, actorUsername);
+  const governance = buildSharedFundGovernanceSnapshot(contract, actorOrUsername);
   return {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
@@ -12313,7 +12458,10 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       ready_large_spend_draft_count: readyLargeSpendDrafts.length,
       executed_large_spend_draft_count: executedLargeSpendDrafts.length,
       pending_high_risk_receipt_count: governance.pending_high_risk_receipts.length,
-      governance_blocked: governance.blocking.block_new_high_risk_execution === true || governance.blocking.block_new_fund_writes === true,
+      governance_blocked: governance.blocking.block_new_high_risk_execution === true
+        || governance.blocking.block_new_fund_writes === true
+        || governance.blocking.block_high_frequency_budget_spend === true
+        || governance.blocking.block_cross_device_brush === true,
       compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算、大额确认草案和已确认草案扣款；大额执行会写建筑流水，真实建造、自动返还和补偿重放待后续接入。',
     },
     permissions: {
@@ -12485,9 +12633,12 @@ function normalizeWarehouseDepositPayload(payload = {}) {
   };
 }
 
-function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
+function buildSharedFundGovernanceSnapshot(contract, actorOrUsername = '') {
+  const { actor, actorUsername, actorKey, actorRiskMeta } = buildActorGovernanceContext(actorOrUsername);
   const normalizedActor = normalizeUsername(actorUsername);
   const fund = normalizeSharedFund(contract.shared_fund);
+  const checkedAt = nowSeconds();
+  const windowStartedAt = Math.max(0, checkedAt - FUND_GOVERNANCE_WINDOW_SECONDS);
   const freezeState = fund.freeze_state;
   const fundFrozen = freezeState.active === true;
   const drafts = Array.isArray(contract.fund_large_spend_drafts)
@@ -12544,6 +12695,26 @@ function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
       actor_usernames: Array.from(new Set(entries.map(entry => entry.actor_username).filter(Boolean))).slice(0, 10),
     }))
     .slice(0, 20);
+  const budgetSpendEntries = fund.ledger
+    .filter(entry => entry.status === 'committed')
+    .filter(entry => entry.action === 'spend' || entry.action === 'shop_purchase')
+    .filter(entry => ['small', 'medium'].includes(entry.spend_tier) || entry.action === 'shop_purchase')
+    .filter(entry => Math.max(0, Number(entry.at) || 0) >= windowStartedAt);
+  const actorBudgetSpendEntries = budgetSpendEntries.filter(entry =>
+    normalizeUsernameKey(entry.actor_username) === actorKey
+  );
+  const actorBudgetSpendAmount = actorBudgetSpendEntries.reduce(
+    (sum, entry) => sum + Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    0
+  );
+  const fundNetworkClusters = buildRiskNetworkClusters(budgetSpendEntries, actor, {
+    direction: 'fund_budget_spend',
+    actionLimit: FUND_GOVERNANCE_NETWORK_ACTION_LIMIT,
+  });
+  const actorFundNetworkClusters = fundNetworkClusters.filter(cluster => cluster.actor_involved);
+  const rawBlockHighFrequencyBudgetSpend = actorHasRiskSignal(actor)
+    && actorBudgetSpendEntries.length >= FUND_GOVERNANCE_BUDGET_ACTION_LIMIT;
+  const rawBlockCrossDeviceBrush = actorFundNetworkClusters.length > 0;
   const recentGovernanceAudits = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
     .filter(entry => [
       'fund_large_spend_draft_created',
@@ -12551,6 +12722,8 @@ function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
       'fund_large_spend_draft_executed',
       'fund_high_risk_receipt_recorded',
       'fund_high_risk_execution_blocked',
+      'fund_high_frequency_spend_blocked',
+      'fund_cross_device_brush_blocked',
       'fund_abnormal_frozen',
       'fund_abnormal_unfrozen',
     ].includes(entry.action))
@@ -12559,21 +12732,46 @@ function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
   return {
     contract_id: contract.id,
     actor_username: normalizedActor,
-    checked_at: nowSeconds(),
+    checked_at: checkedAt,
+    window_seconds: FUND_GOVERNANCE_WINDOW_SECONDS,
+    budget_action_limit: FUND_GOVERNANCE_BUDGET_ACTION_LIMIT,
+    network_action_limit: FUND_GOVERNANCE_NETWORK_ACTION_LIMIT,
+    actor_window: {
+      budget_spend_action_count: actorBudgetSpendEntries.length,
+      budget_spend_amount: actorBudgetSpendAmount,
+      budget_spend_ledger_ids: actorBudgetSpendEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
+      actor_ip_address: actorRiskMeta.actor_ip_address,
+      actor_device_id: actorRiskMeta.actor_device_id,
+      network_action_count: actorFundNetworkClusters.reduce((sum, cluster) => sum + cluster.action_count, 0),
+      network_actor_usernames: [...new Set(actorFundNetworkClusters.flatMap(cluster => cluster.actor_usernames || []))].slice(0, 12),
+    },
     freeze_state: freezeState,
     pending_high_risk_receipts: pendingHighRiskReceipts,
     high_risk_refund_ledger_entries: highRiskRefundLedgerEntries,
     suspicious_large_spends: suspiciousLargeSpends,
+    suspicious_networks: fundNetworkClusters,
     recent_audits: recentGovernanceAudits,
     blocking: {
-      block_new_fund_writes: fundFrozen,
+      block_new_fund_writes: fundFrozen || rawBlockHighFrequencyBudgetSpend || rawBlockCrossDeviceBrush,
       block_new_high_risk_execution: pendingHighRiskReceipts.length > 0,
-      reason: fundFrozen
-        ? 'shared fund is frozen after an abnormality record; manual fund review is required before new fund writes.'
+      block_high_frequency_budget_spend: rawBlockHighFrequencyBudgetSpend,
+      block_cross_device_brush: rawBlockCrossDeviceBrush,
+      raw_block_high_frequency_budget_spend: rawBlockHighFrequencyBudgetSpend,
+      raw_block_cross_device_brush: rawBlockCrossDeviceBrush,
+      reason: rawBlockCrossDeviceBrush
+        ? 'shared fund budget spend is blocked because multiple members share the same IP/device risk signal in this window.'
+        : rawBlockHighFrequencyBudgetSpend
+          ? 'shared fund budget spend is blocked because this actor created too many budget spends in the current risk window.'
+        : fundFrozen
+          ? 'shared fund is frozen after an abnormality record; manual fund review is required before new fund writes.'
         : pendingHighRiskReceipts.length > 0
-        ? '存在已扣款但未记录交付或退款回执的高风险共同基金草案，需先收口回执再执行新的高风险扣款。'
+          ? '存在已扣款但未记录交付或退款回执的高风险共同基金草案，需先收口回执再执行新的高风险扣款。'
         : '',
-      required_operation: fundFrozen ? (freezeState.required_operation || 'manual_fund_review') : (pendingHighRiskReceipts.length > 0 ? 'record_high_risk_receipt' : ''),
+      required_operation: rawBlockCrossDeviceBrush
+        ? 'review_shared_fund_cross_device_budget_spend'
+        : rawBlockHighFrequencyBudgetSpend
+          ? 'review_shared_fund_high_frequency_budget_spend'
+        : fundFrozen ? (freezeState.required_operation || 'manual_fund_review') : (pendingHighRiskReceipts.length > 0 ? 'record_high_risk_receipt' : ''),
       pending_draft_ids: pendingHighRiskReceipts.map(entry => entry.draft_id),
     },
     policy: {
@@ -12583,8 +12781,38 @@ function buildSharedFundGovernanceSnapshot(contract, actorUsername = '') {
       abnormal_freeze_blocks_new_writes: true,
       frozen_requires_manual_review: fundFrozen,
       duplicate_target_review_required: suspiciousLargeSpends.length > 0,
+      high_frequency_budget_spend_detection_enabled: true,
+      cross_device_brush_detection_enabled: true,
     },
   };
+}
+
+function assertSharedFundSpendGovernance(contract, actor = {}, operation = 'spend', idempotencyKey = '', store = null) {
+  const governance = buildSharedFundGovernanceSnapshot(contract, actor);
+  if (governance.blocking.block_high_frequency_budget_spend !== true
+    && governance.blocking.block_cross_device_brush !== true) {
+    return governance;
+  }
+  const blockedByNetwork = governance.blocking.block_cross_device_brush === true;
+  appendAudit(contract, blockedByNetwork ? 'fund_cross_device_brush_blocked' : 'fund_high_frequency_spend_blocked', actor, {
+    operation: sanitizeText(operation, 80),
+    budget_spend_action_count: governance.actor_window.budget_spend_action_count,
+    budget_spend_amount: governance.actor_window.budget_spend_amount,
+    budget_spend_ledger_ids: governance.actor_window.budget_spend_ledger_ids,
+    network_action_count: governance.actor_window.network_action_count,
+    network_actor_usernames: governance.actor_window.network_actor_usernames,
+    suspicious_networks: governance.suspicious_networks.filter(cluster => cluster.actor_involved).slice(0, 4),
+    window_seconds: governance.window_seconds,
+    budget_action_limit: governance.budget_action_limit,
+    network_action_limit: governance.network_action_limit,
+    shared_fund_changed: false,
+    personal_money_merged: false,
+    required_operation: governance.blocking.required_operation,
+  }, idempotencyKey);
+  if (store) saveContractStore(store);
+  throw createError(blockedByNetwork
+    ? '共同基金短时间多账号 / 设备协同支出风险过高，已暂时阻断本次操作，请等待窗口结束或走人工复核'
+    : '共同基金短时间预算支出次数过高，已暂时阻断本次操作，请等待窗口结束或走人工复核', 429);
 }
 
 function normalizeSharedFarmActionPayload(payload = {}) {
@@ -19344,7 +19572,7 @@ async function getCohabitationWarehouse(contractId, actor = {}) {
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   return {
     contract: toPublicContract(contract),
-    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, typeof actor === 'string' ? { username: actorUsername } : actor),
   };
 }
 
@@ -19357,7 +19585,7 @@ async function getCohabitationFund(contractId, actor = {}) {
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
   return {
     contract: toPublicContract(contract),
-    fund: buildSharedFundSnapshot(contract, actorUsername),
+    fund: buildSharedFundSnapshot(contract, typeof actor === 'string' ? { username: actorUsername } : actor),
   };
 }
 
@@ -25607,7 +25835,7 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
   if (previousEntry) {
     return {
       contract: toPublicContract(contract),
-      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actor),
       ledger_entry: previousEntry,
       idempotent: true,
     };
@@ -25646,6 +25874,7 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
     quality: deposit.quality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: sourceOwnerId,
@@ -25692,7 +25921,7 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
 
   return {
     contract: toPublicContract(contract),
-    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actor),
     ledger_entry: ledgerEntry,
     idempotent: false,
     personal_inventory: {
@@ -25725,7 +25954,7 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
   if (previousEntries.length > 0) {
     return {
       contract: toPublicContract(contract),
-      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actor),
       ledger_entry: previousEntries[0],
       ledger_entries: previousEntries,
       idempotent: true,
@@ -25779,6 +26008,7 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
     quality: withdraw.quality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: allocation.source_owner_id,
@@ -25833,7 +26063,7 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
 
   return {
     contract: toPublicContract(contract),
-    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actor),
     ledger_entry: ledgerEntries[0],
     ledger_entries: ledgerEntries,
     idempotent: false,
@@ -25867,7 +26097,7 @@ async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, p
   if (previousDraft) {
     return {
       contract: toPublicContract(contract),
-      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actor),
       draft: previousDraft,
       idempotent: true,
     };
@@ -25942,7 +26172,7 @@ async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, p
 
   return {
     contract: toPublicContract(contract),
-    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actor),
     draft,
     idempotent: false,
   };
@@ -26050,7 +26280,7 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
   )) {
     return {
       contract: toPublicContract(contract),
-      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actor),
       draft,
       ledger_entries: (contract.shared_warehouse.ledger || []).filter(entry => draft.warehouse_ledger_ids.includes(entry.id)),
       idempotent: true,
@@ -26102,6 +26332,7 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
     quality: draft.quality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: allocation.source_owner_id,
@@ -26171,7 +26402,7 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
 
   return {
     contract: toPublicContract(contract),
-    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actor),
     draft,
     ledger_entry: ledgerEntries[0],
     ledger_entries: ledgerEntries,
@@ -27407,8 +27638,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
   if (previousEntries.length > 0 || previousFundEntry) {
     return {
       contract: toPublicContract(contract),
-      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
-      fund: buildSharedFundSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actor),
+      fund: buildSharedFundSnapshot(contract, actor),
       ledger_entry: previousEntries[0] || null,
       ledger_entries: previousEntries,
       fund_ledger_entry: previousFundEntry,
@@ -27455,6 +27686,7 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     quality: sale.quality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: allocation.source_owner_id,
@@ -27486,6 +27718,7 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
     action: 'warehouse_sale_income',
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     amount: sale.total_amount,
     at: operatedAt,
     memo: sale.memo,
@@ -27537,8 +27770,8 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
 
   return {
     contract: toPublicContract(contract),
-    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
-    fund: buildSharedFundSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actor),
+    fund: buildSharedFundSnapshot(contract, actor),
     ledger_entry: ledgerEntries[0],
     ledger_entries: ledgerEntries,
     fund_ledger_entry: fundLedgerEntry,
@@ -28003,7 +28236,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     } : null;
     return {
       contract: toPublicContract(contract),
-      fund: buildSharedFundSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actor),
       ledger_entry: previousEntry,
       idempotent: true,
       shared_fund: {
@@ -28017,6 +28250,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
   }
 
   assertSharedFundNotFrozen(contract, 'spend shared fund');
+  assertSharedFundSpendGovernance(contract, actor, 'spend', spend.idempotency_key, store);
 
   const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
   if (beforeBalance < spend.amount) throw createError('共同基金余额不足，暂时无法完成本次支出');
@@ -28068,6 +28302,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     action: 'spend',
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     amount: spend.amount,
     at: nowSeconds(),
     memo: spend.memo,
@@ -28134,7 +28369,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
 
   return {
     contract: toPublicContract(contract),
-    fund: buildSharedFundSnapshot(contract, actorUsername),
+    fund: buildSharedFundSnapshot(contract, actor),
     ledger_entry: ledgerEntry,
     idempotent: false,
     shared_fund: {
@@ -28181,8 +28416,8 @@ async function purchaseCohabitationSharedFundShopItem(contractId, payload = {}, 
     }
     return {
       contract: toPublicContract(contract),
-      fund: buildSharedFundSnapshot(contract, actorUsername),
-      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actor),
+      warehouse: buildSharedWarehouseSnapshot(contract, actor),
       ledger_entry: previousFundEntry,
       fund_ledger_entry: previousFundEntry,
       warehouse_ledger_entry: previousWarehouseEntry,
@@ -28210,6 +28445,7 @@ async function purchaseCohabitationSharedFundShopItem(contractId, payload = {}, 
   }
 
   assertSharedFundNotFrozen(contract, 'purchase shared fund shop item');
+  assertSharedFundSpendGovernance(contract, actor, 'shop_purchase', purchase.idempotency_key, store);
 
   const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
   if (beforeBalance < purchase.total_amount) throw createError('shared fund balance is not enough for shop purchase', 409);
@@ -28225,6 +28461,7 @@ async function purchaseCohabitationSharedFundShopItem(contractId, payload = {}, 
     action: 'shop_purchase',
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     amount: purchase.total_amount,
     at: operatedAt,
     memo: purchase.memo,
@@ -28263,6 +28500,7 @@ async function purchaseCohabitationSharedFundShopItem(contractId, payload = {}, 
     quantity: purchase.quantity,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: `shared_fund:${contract.id}`,
@@ -28321,8 +28559,8 @@ async function purchaseCohabitationSharedFundShopItem(contractId, payload = {}, 
 
   return {
     contract: toPublicContract(contract),
-    fund: buildSharedFundSnapshot(contract, actorUsername),
-    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    fund: buildSharedFundSnapshot(contract, actor),
+    warehouse: buildSharedWarehouseSnapshot(contract, actor),
     ledger_entry: fundLedgerEntry,
     fund_ledger_entry: fundLedgerEntry,
     warehouse_ledger_entry: warehouseLedgerEntry,
