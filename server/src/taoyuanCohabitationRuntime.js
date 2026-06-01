@@ -168,7 +168,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 26;
+const WAREHOUSE_ITEM_POLICY_VERSION = 27;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -186,6 +186,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_stir_fried_potato', 'food_sesame_paste', 'food_chive_egg_stir_fry', 'food_peanut_candy', 'food_sweet_osmanthus_tea',
   'food_aged_radish_stew', 'food_embroidered_cake', 'food_deep_mine_stew', 'food_wild_berry_jam',
   'food_farmers_feast', 'food_autumn_moon_feast', 'food_lovers_pastry', 'food_forgemasters_meal', 'food_spirit_fruit_wine',
+  'food_phoenix_cake', 'food_molten_hotpot', 'food_tea_banquet', 'food_ironforge_stew', 'food_ranch_milk_soup', 'food_moonlit_tea_rice',
   'food_spicy_hotpot', 'food_bamboo_shoot_stir_fry', 'food_lotus_seed_soup', 'food_corn_pancake', 'food_osmanthus_lotus_root',
   'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_zhi_yuan_gao',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
@@ -1239,6 +1240,91 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'honey', quantity: 2, quality: 'normal' },
     ],
     output_item_id: 'food_spirit_fruit_wine',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_phoenix_cake: {
+    id: 'shared_phoenix_cake',
+    label: '共同灶台凤凰糕',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'osmanthus', quantity: 2, quality: 'normal' },
+      { item_id: 'jujube', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_phoenix_cake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_molten_hotpot: {
+    id: 'shared_molten_hotpot',
+    label: '共同灶台熔岩铁锅',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'iron_ore', quantity: 3, quality: 'normal' },
+      { item_id: 'chili', quantity: 2, quality: 'normal' },
+      { item_id: 'potato', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_molten_hotpot',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_tea_banquet: {
+    id: 'shared_tea_banquet',
+    label: '共同茶炉茶宴八珍',
+    station: 'tea_maker',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'tea', quantity: 3, quality: 'normal' },
+      { item_id: 'lotus_seed', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_tea_banquet',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_ironforge_stew: {
+    id: 'shared_ironforge_stew',
+    label: '共同灶台铁匠炖',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'potato', quantity: 3, quality: 'normal' },
+      { item_id: 'corn', quantity: 2, quality: 'normal' },
+      { item_id: 'iron_ore', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_ironforge_stew',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_ranch_milk_soup: {
+    id: 'shared_ranch_milk_soup',
+    label: '共同灶台牧场鲜奶汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'milk', quantity: 2, quality: 'normal' },
+      { item_id: 'corn', quantity: 2, quality: 'normal' },
+      { item_id: 'sweet_potato', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_ranch_milk_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_moonlit_tea_rice: {
+    id: 'shared_moonlit_tea_rice',
+    label: '共同茶炉月下茶泡饭',
+    station: 'tea_maker',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'tea', quantity: 2, quality: 'normal' },
+      { item_id: 'bamboo_shoot', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_moonlit_tea_rice',
     output_quantity: 1,
     output_quality: 'normal',
   },
