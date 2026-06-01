@@ -584,6 +584,52 @@ await socialRuntime.acceptFriendRequest(harvestPartner, harvestPartnerRequest.id
 const fundShopPartnerRequest = await socialRuntime.requestFriendship(fundShopOwner, { target_username: fundShopPartner })
 await socialRuntime.acceptFriendRequest(fundShopPartner, fundShopPartnerRequest.id)
 
+const pickPersonalNonRelationshipBoundaryState = username => {
+  const data = readGameplayData(username) || {}
+  return JSON.parse(JSON.stringify({
+    player: data.player || null,
+    inventory: data.inventory || null,
+    farm: data.farm || null,
+    hiddenNpcs: data.hiddenNpcs || null,
+    hiddenNpc: data.hiddenNpc || null,
+    home: data.home || null,
+    family: data.family || null,
+    children: data.children || null,
+    npcChildren: data.npc?.children || null,
+  }))
+}
+
+const seedNpcRelationshipSaveState = (username, npcPatch) => {
+  mutateGameplaySave(username, data => {
+    data.npc = {
+      npcStates: [],
+      relationshipClues: [],
+      householdDivision: undefined,
+      familyWishBoard: undefined,
+      zhijiCompanionProjects: [],
+      children: [],
+      nextChildId: 0,
+      daysMarried: 0,
+      daysZhiji: 0,
+      pregnancy: null,
+      familyExpansion: null,
+      childProposalPending: false,
+      childProposalDeclinedCount: 0,
+      daysSinceProposalDecline: 0,
+      pendingChild: false,
+      childCountdown: 0,
+      weddingCountdown: 0,
+      weddingNpcId: null,
+      hiredHelpers: [],
+      friendshipVersion: 3,
+      ...(data.npc && typeof data.npc === 'object' ? data.npc : {}),
+      ...npcPatch,
+    }
+  })
+}
+
+const getNpcRelationshipSaveState = username => readGameplayData(username)?.npc || {}
+
 const overview = await runtime.listCohabitationContracts(owner)
 assert.ok(overview.relation_options.find(option => option.id === 'lover_cohabitation'), 'relation options should expose lover contract type')
 const marriageStoryPlan = runtime.buildSeparationRelationshipStoryPlan(
@@ -663,6 +709,67 @@ const directBusinessHandoverRecord = runtime.buildSeparationManorExitHandoverRec
 assert.equal(directBusinessHandoverRecord.meeting_record_required, false, 'business partner handover should not require a family meeting')
 assert.equal(directBusinessHandoverRecord.handover_recorded, true, 'business partner handover should record a handover receipt')
 assert.equal(directBusinessHandoverRecord.asset_domain_handover.shared_fund, 'shared_fund_pending', 'business handover should expose pending fund settlement')
+
+const directMarriageRelationshipSave = {
+  npc: {
+    npcStates: [
+      { npcId: 'chen_bo', married: true, dating: false, zhiji: false, friendship: 4200 },
+      { npcId: 'liu_niang', married: false, dating: true, zhiji: false, friendship: 2800 },
+    ],
+    daysMarried: 18,
+    daysZhiji: 0,
+    pregnancy: { kind: 'pregnancy', stage: 'mid', daysInStage: 1 },
+    familyExpansion: { kind: 'pregnancy', stage: 'mid', daysInStage: 1 },
+    childProposalPending: true,
+    pendingChild: true,
+    childCountdown: 5,
+    weddingCountdown: 2,
+    weddingNpcId: 'liu_niang',
+    children: [{ id: 1, name: 'QA Child', daysOld: 3 }],
+  },
+}
+const directMarriageMutation = runtime.applySeparationPersonalRelationshipMainStateMutation(
+  directMarriageRelationshipSave,
+  'marriage_home',
+  { idempotency_key: 'qa-direct-marriage-main-state' }
+)
+assert.equal(directMarriageMutation.personal_state_mutated, true, 'marriage main-state adapter should mutate explicit relationship fields')
+assert.deepEqual(directMarriageRelationshipSave.npc.npcStates.map(state => [state.married, state.dating]), [[false, false], [false, false]], 'marriage main-state adapter should clear married and dating flags')
+assert.equal(directMarriageRelationshipSave.npc.daysMarried, 0, 'marriage main-state adapter should reset married day counter')
+assert.equal(directMarriageRelationshipSave.npc.pregnancy, null, 'marriage main-state adapter should clear pregnancy state')
+assert.equal(directMarriageRelationshipSave.npc.childProposalPending, false, 'marriage main-state adapter should clear pending child proposal')
+assert.equal(directMarriageRelationshipSave.npc.children.length, 1, 'marriage main-state adapter should preserve children for child arrangement rules')
+
+const directBosomRelationshipSave = {
+  npc: {
+    npcStates: [{ npcId: 'qiu_yue', married: false, dating: false, zhiji: true, friendship: 3600 }],
+    daysZhiji: 12,
+    children: [],
+  },
+}
+const directBosomMutation = runtime.applySeparationPersonalRelationshipMainStateMutation(
+  directBosomRelationshipSave,
+  'bosom_partner',
+  { idempotency_key: 'qa-direct-bosom-main-state' }
+)
+assert.equal(directBosomMutation.personal_state_mutated, true, 'bosom main-state adapter should mutate explicit zhiji fields')
+assert.equal(directBosomRelationshipSave.npc.npcStates[0].zhiji, false, 'bosom main-state adapter should clear zhiji flag')
+assert.equal(directBosomRelationshipSave.npc.daysZhiji, 0, 'bosom main-state adapter should reset zhiji day counter')
+
+const directOathRelationshipSave = {
+  npc: {
+    npcStates: [{ npcId: 'a_shi', married: false, dating: false, zhiji: true, friendship: 2500 }],
+    daysZhiji: 9,
+  },
+}
+const directOathMutation = runtime.applySeparationPersonalRelationshipMainStateMutation(
+  directOathRelationshipSave,
+  'oath_manor',
+  { idempotency_key: 'qa-direct-oath-record-only' }
+)
+assert.equal(directOathMutation.personal_state_mutated, false, 'oath manor adapter should stay contract-record-only for personal relationship fields')
+assert.equal(directOathRelationshipSave.npc.npcStates[0].zhiji, true, 'oath manor adapter should not clear personal zhiji state')
+
 const recipePolicyPartnerRequest = await socialRuntime.requestFriendship(recipePolicyOwner, { target_username: recipePolicyPartner })
 await socialRuntime.acceptFriendRequest(recipePolicyPartner, recipePolicyPartnerRequest.id)
 assert.equal(overview.relation_options.find(option => option.id === 'oath_manor')?.family_role_management, true, 'oath manor should expose family role management capability')
@@ -9675,6 +9782,23 @@ assert.equal(duplicateStoryCinematicPlayback.idempotent, true, 'same story cinem
 assert.equal(duplicateStoryCinematicPlayback.execution_ledger.family_story_cinematic_receipt.idempotency_key, 'qa-separation-story-cinematic-played', 'idempotent story cinematic playback should keep original receipt')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeStoryCinematicPlayback, 'idempotent story cinematic playback should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeStoryCinematicPlayback, 'idempotent story cinematic playback should not rewrite partner save')
+seedNpcRelationshipSaveState(owner, {
+  npcStates: [
+    { npcId: 'chen_bo', married: false, dating: true, zhiji: false, friendship: 3600 },
+    { npcId: 'liu_niang', married: false, dating: false, zhiji: false, friendship: 800 },
+  ],
+  weddingCountdown: 2,
+  weddingNpcId: 'chen_bo',
+  children: [{ id: 1, name: 'QA Owner Child', daysOld: 4 }],
+})
+seedNpcRelationshipSaveState(partner, {
+  npcStates: [
+    { npcId: 'qiu_yue', married: false, dating: true, zhiji: false, friendship: 3400 },
+  ],
+  weddingCountdown: 0,
+  weddingNpcId: null,
+  children: [{ id: 2, name: 'QA Partner Child', daysOld: 5 }],
+})
 await assert.rejects(
   () => runtime.writeSeparationPersonalStoryReceipts(created.contract.id, previewResult.preview.id, {
     memo: 'wrong personal story receipt hash',
@@ -9686,10 +9810,10 @@ await assert.rejects(
   'personal story receipts should reject mismatched manifest hash'
 )
 
-const ownerBoundaryBeforeStoryReceipts = pickPersonalStoryBoundaryState(owner)
-const partnerBoundaryBeforeStoryReceipts = pickPersonalStoryBoundaryState(partner)
+const ownerBoundaryBeforeStoryReceipts = pickPersonalNonRelationshipBoundaryState(owner)
+const partnerBoundaryBeforeStoryReceipts = pickPersonalNonRelationshipBoundaryState(partner)
 const personalStoryReceipts = await runtime.writeSeparationPersonalStoryReceipts(created.contract.id, previewResult.preview.id, {
-  memo: 'write personal story receipt only',
+  memo: 'write personal story receipt and clear relationship main state',
   plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
   execution_ledger_id: assetReturnRecord.execution_ledger.id,
   idempotency_key: 'qa-separation-personal-story-receipts',
@@ -9699,7 +9823,7 @@ assert.equal(personalStoryReceipts.execution_ledger.status, 'personal_story_rece
 assert.equal(personalStoryReceipts.execution_ledger.personal_story_receipts_written, true, 'personal story receipts should mark ledger written')
 assert.equal(personalStoryReceipts.preview.confirmation_state.execution_request.status, 'personal_story_receipts_written', 'execution request should advance to personal-story-receipts-written')
 assert.equal(personalStoryReceipts.receipts.length, 2, 'personal story receipt write should create one receipt per accepted member')
-assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_story_state === 'receipt_recorded_only'), 'personal story receipts should stay receipt-only')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_story_state === 'personal_relationship_main_state_mutated'), 'personal story receipts should record relationship main-state mutation')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.story_event_kind === 'lover_farewell_moveout'), 'personal story receipts should keep the story event kind')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.dialogue_event_id === 'separation_lover_farewell_dialogue'), 'personal story receipts should keep the dialogue event id')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.animation_event_id === 'separation_lover_moveout_animation'), 'personal story receipts should keep the animation event id')
@@ -9707,12 +9831,31 @@ assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.dialogue_lines
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part')), 'personal story receipts should keep cinematic cues')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_pending === false), 'personal story receipts should preserve the cleared frontend cinematic state after playback')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.frontend_cinematic_played === true), 'personal story receipts should keep the frontend cinematic playback receipt')
-assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_state_mutated === false), 'personal story receipts should not mutate personal story state')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_state_mutated === true), 'personal story receipts should mutate explicit personal relationship state')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_save_mutation_enabled === true), 'personal story receipts should mark relationship main-state adapter enabled')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_relationship_mutation?.mutation_adapter === 'separation_personal_relationship_main_state_v1'), 'personal story receipts should expose relationship mutation adapter evidence')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_relationship_mutation_actions.includes('clear_dating')), 'personal story receipts should record dating clear action')
+assert.equal(personalStoryReceipts.execution_ledger.family_story_resolution.personal_state_mutated, true, 'family story resolution should summarize personal relationship mutation after receipts')
+assert.equal(personalStoryReceipts.execution_ledger.family_story_resolution.personal_save_mutation_enabled, true, 'family story resolution should mark personal save mutation enabled after receipts')
+assert.equal(personalStoryReceipts.execution_ledger.family_story_resolution.personal_relationship_mutation_summary.mutated_receipt_count, 2, 'family story mutation summary should count mutated member saves')
+assert.equal(personalStoryReceipts.preview.confirmation_state.execution_request.personal_relationship_mutation_summary.personal_state_mutated, true, 'preview execution request should expose relationship mutation summary')
 assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal story receipt write should keep decoration split closed')
 assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'personal story receipt write should close receipt follow-up')
-assert.ok(personalStoryReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_story_receipts_written' && entry.idempotency_key === 'qa-separation-personal-story-receipts'), 'personal story receipt write should be audited')
-assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change owner money inventory farm npc home family or children state')
-assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change partner money inventory farm npc home family or children state')
+const personalStoryAudit = personalStoryReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_story_receipts_written' && entry.idempotency_key === 'qa-separation-personal-story-receipts')
+assert.ok(personalStoryAudit, 'personal story receipt write should be audited')
+assert.equal(personalStoryAudit?.detail?.personal_state_mutated, true, 'personal story audit should record relationship main-state mutation')
+assert.equal(personalStoryAudit?.detail?.personal_relationship_mutation_summary?.mutated_receipt_count, 2, 'personal story audit should summarize mutated personal saves')
+assert.deepEqual(pickPersonalNonRelationshipBoundaryState(owner), ownerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change owner money inventory farm home family or children state')
+assert.deepEqual(pickPersonalNonRelationshipBoundaryState(partner), partnerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change partner money inventory farm home family or children state')
+const ownerNpcAfterStoryReceipts = getNpcRelationshipSaveState(owner)
+const partnerNpcAfterStoryReceipts = getNpcRelationshipSaveState(partner)
+assert.equal(ownerNpcAfterStoryReceipts.npcStates.find(state => state.npcId === 'chen_bo')?.dating, false, 'owner lover dating flag should be cleared by personal story receipt write')
+assert.equal(ownerNpcAfterStoryReceipts.npcStates.find(state => state.npcId === 'chen_bo')?.friendship, 1000, 'owner lover friendship should be settled to relationship floor')
+assert.equal(ownerNpcAfterStoryReceipts.weddingCountdown, 0, 'owner pending wedding countdown should be cleared with lover separation')
+assert.equal(ownerNpcAfterStoryReceipts.weddingNpcId, null, 'owner pending wedding npc should be cleared with lover separation')
+assert.equal(ownerNpcAfterStoryReceipts.children.length, 1, 'owner children should be preserved for family arrangement rules')
+assert.equal(partnerNpcAfterStoryReceipts.npcStates.find(state => state.npcId === 'qiu_yue')?.dating, false, 'partner lover dating flag should be cleared by personal story receipt write')
+assert.equal(partnerNpcAfterStoryReceipts.children.length, 1, 'partner children should be preserved for family arrangement rules')
 assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).some(receipt => receipt.execution_ledger_id === assetReturnRecord.execution_ledger.id), 'owner save should receive personal story receipt')
 assert.ok((readGameplayData(partner)?.onlineCohabitation?.story_receipts || []).some(receipt => receipt.execution_ledger_id === assetReturnRecord.execution_ledger.id), 'partner save should receive personal story receipt')
 assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).some(receipt =>
@@ -9725,8 +9868,9 @@ assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).so
   && Array.isArray(receipt.animation_cues)
   && receipt.animation_cues.some(cue => cue.action === 'walk_to_manor_gate_and_part')
   && receipt.frontend_cinematic_played === true
-  && receipt.personal_state_mutated === false
-), 'owner personal story receipt should include the lover farewell cinematic evidence')
+  && receipt.personal_state_mutated === true
+  && receipt.personal_relationship_mutation?.personal_story_state === 'personal_relationship_main_state_mutated'
+), 'owner personal story receipt should include the lover farewell cinematic and relationship mutation evidence')
 
 const ownerRawAfterPersonalStoryReceipts = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawAfterPersonalStoryReceipts = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
