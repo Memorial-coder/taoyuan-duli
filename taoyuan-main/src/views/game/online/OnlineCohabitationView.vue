@@ -1355,24 +1355,64 @@
               <p v-else-if="warehouseGovernanceActiveRecovery" class="mt-2 text-[10px] leading-4 text-muted">
                 已恢复 {{ warehouseGovernanceActiveRecovery.direction }}，至 {{ formatTime(warehouseGovernanceActiveRecovery.expires_at) }}
               </p>
+              <p
+                v-else-if="warehouseGovernanceLastAppeal"
+                class="mt-2 text-[10px] leading-4 text-muted"
+                data-testid="online-cohabitation-warehouse-governance-appeal-last"
+              >
+                最近申诉：{{ warehouseGovernanceLastAppeal.state }} · {{ formatTime(warehouseGovernanceLastAppeal.created_at) }}
+              </p>
               <div v-if="warehouseGovernanceNeedsRecovery" class="mt-2 grid gap-2">
-                <input
-                  v-model.trim="warehouseGovernanceRecoverReason"
-                  class="online-input text-xs"
-                  maxlength="80"
-                  placeholder="恢复原因"
-                  data-testid="online-cohabitation-warehouse-governance-reason"
+                <div
+                  class="grid gap-2 border border-accent/10 p-2"
+                  data-testid="online-cohabitation-warehouse-governance-appeal-form"
                 >
-                <button
-                  type="button"
-                  class="online-action-btn online-action-btn--compact justify-center"
-                  :disabled="!canRecoverWarehouseGovernance || cohabitationStore.actionLoading"
-                  data-testid="online-cohabitation-warehouse-governance-recover"
-                  @click="recoverWarehouseGovernance"
-                >
-                  <ShieldCheck :size="12" />
-                  恢复{{ warehouseGovernanceDirectionLabel }}
-                </button>
+                  <p
+                    v-if="warehouseGovernancePendingAppeal"
+                    class="text-[10px] leading-4 text-muted"
+                    data-testid="online-cohabitation-warehouse-governance-appeal-pending"
+                  >
+                    申诉已提交：{{ warehouseGovernancePendingAppeal.id }} · {{ formatTime(warehouseGovernancePendingAppeal.created_at) }}
+                  </p>
+                  <template v-else>
+                    <input
+                      v-model.trim="warehouseGovernanceAppealReason"
+                      class="online-input text-xs"
+                      maxlength="80"
+                      placeholder="申诉说明"
+                      data-testid="online-cohabitation-warehouse-governance-appeal-reason"
+                    >
+                    <button
+                      type="button"
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      :disabled="!canSubmitWarehouseGovernanceAppeal || cohabitationStore.actionLoading"
+                      data-testid="online-cohabitation-warehouse-governance-appeal-submit"
+                      @click="submitWarehouseGovernanceAppeal"
+                    >
+                      <ShieldCheck :size="12" />
+                      提交{{ warehouseGovernanceDirectionLabel }}申诉
+                    </button>
+                  </template>
+                </div>
+                <div v-if="canDirectRecoverWarehouseGovernance" class="grid gap-2" data-testid="online-cohabitation-warehouse-governance-recover-form">
+                  <input
+                    v-model.trim="warehouseGovernanceRecoverReason"
+                    class="online-input text-xs"
+                    maxlength="80"
+                    placeholder="恢复原因"
+                    data-testid="online-cohabitation-warehouse-governance-reason"
+                  >
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canRecoverWarehouseGovernance || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-warehouse-governance-recover"
+                    @click="recoverWarehouseGovernance"
+                  >
+                    <ShieldCheck :size="12" />
+                    恢复{{ warehouseGovernanceDirectionLabel }}
+                  </button>
+                </div>
               </div>
             </div>
             <div class="mt-3 border border-accent/10 bg-black/10 p-2">
@@ -4051,6 +4091,7 @@
   const warehouseDepositItemId = ref('rice')
   const warehouseDepositQuantity = ref(1)
   const warehouseGovernanceRecoverReason = ref('')
+  const warehouseGovernanceAppealReason = ref('')
   const warehouseCompensationExecutionReceipt = ref('')
   const warehouseCompensationExecutionNote = ref('')
   const warehouseCompensationExecutionConfirmed = ref(false)
@@ -5517,6 +5558,8 @@
   const warehouseGovernance = computed(() => cohabitationStore.warehouse?.governance ?? null)
   const warehouseGovernanceBlocking = computed(() => warehouseGovernance.value?.blocking ?? null)
   const warehouseGovernanceActiveRecovery = computed(() => warehouseGovernance.value?.active_recoveries?.[0] ?? null)
+  const warehouseGovernancePendingAppeal = computed(() => warehouseGovernance.value?.pending_appeal ?? null)
+  const warehouseGovernanceLastAppeal = computed(() => warehouseGovernance.value?.last_appeal ?? null)
   const warehouseGovernanceNeedsRecovery = computed(() =>
     warehouseGovernanceBlocking.value?.block_inbound === true || warehouseGovernanceBlocking.value?.block_outbound === true
   )
@@ -5536,6 +5579,12 @@
     if (warehouseGovernanceNeedsRecovery.value) return '已阻断'
     if (warehouseGovernanceActiveRecovery.value) return '恢复中'
     return '正常'
+  })
+  const canDirectRecoverWarehouseGovernance = computed(() => {
+    const permissions = cohabitationStore.warehouse?.permissions ?? {}
+    return selectedContractActorMember.value?.role === 'owner'
+      || permissions.can_withdraw_rare === true
+      || permissions.can_withdraw_high_quality === true
   })
   const fundLedger = computed(() => cohabitationStore.fund?.ledger ?? [])
   const findLatestMediumFundBudgetLedger = (purpose: FundMediumSpendPurpose, targetRefs: string[] = []) => {
@@ -6940,8 +6989,15 @@
   )
   const canRecoverWarehouseGovernance = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
+    canDirectRecoverWarehouseGovernance.value &&
     warehouseGovernanceNeedsRecovery.value &&
     warehouseGovernanceRecoverReason.value.trim().length >= 4
+  )
+  const canSubmitWarehouseGovernanceAppeal = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    warehouseGovernanceNeedsRecovery.value &&
+    !warehouseGovernancePendingAppeal.value &&
+    warehouseGovernanceAppealReason.value.trim().length >= 4
   )
   const normalizedFundContributionAmount = computed(() => Math.max(0, Math.floor(Number(fundContributionAmount.value) || 0)))
   const canUseFundContribution = computed(() =>
@@ -7167,6 +7223,7 @@
     await cohabitationStore.selectContract(contractId)
     warehouseActionMessage.value = ''
     warehouseGovernanceRecoverReason.value = ''
+    warehouseGovernanceAppealReason.value = ''
     sharedFarmActionMessage.value = ''
     sharedAnimalActionMessage.value = ''
     sharedPetActionMessage.value = ''
@@ -8959,6 +9016,33 @@
         : `已完成 ${recipe.label}，${outputLabel} 已进入共同仓库${budgetSuffix}`
     } catch (error) {
       sharedWorkshopActionMessage.value = error instanceof Error ? error.message : '处理共同工坊配方失败'
+    }
+  }
+
+  const submitWarehouseGovernanceAppeal = async () => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    if (!canSubmitWarehouseGovernanceAppeal.value) {
+      warehouseActionMessage.value = warehouseGovernancePendingAppeal.value
+        ? '当前阻断已提交申诉，等待人工处理或管理恢复'
+        : '请填写至少 4 个字的共同仓库治理申诉说明'
+      return
+    }
+    try {
+      const direction = warehouseGovernanceRecoveryDirection.value
+      const result = await cohabitationStore.submitWarehouseGovernanceAppeal({
+        direction,
+        reason: warehouseGovernanceAppealReason.value.trim(),
+        player_note: `前端提交共同仓库${warehouseGovernanceDirectionLabel.value}治理阻断申诉`,
+        idempotency_key: `ui-warehouse-governance-appeal-${direction}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseGovernanceAppealReason.value = ''
+      warehouseActionMessage.value = result?.appeal?.id
+        ? `已提交共同仓库${warehouseGovernanceDirectionLabel.value}治理申诉，编号 ${result.appeal.id}`
+        : '已提交共同仓库治理申诉'
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '提交共同仓库治理申诉失败'
     }
   }
 

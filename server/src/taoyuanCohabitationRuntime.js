@@ -74,6 +74,7 @@ const WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT = 6;
 const WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT = 12;
 const WAREHOUSE_GOVERNANCE_NETWORK_ACTION_LIMIT = 4;
 const WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT = 60;
+const WAREHOUSE_GOVERNANCE_APPEAL_LIMIT = 80;
 const FUND_GOVERNANCE_WINDOW_SECONDS = 10 * 60;
 const FUND_GOVERNANCE_BUDGET_ACTION_LIMIT = 6;
 const FUND_GOVERNANCE_NETWORK_ACTION_LIMIT = 4;
@@ -6457,6 +6458,77 @@ function normalizeWarehouseGovernanceRecovery(entry = {}) {
   };
 }
 
+function normalizeWarehouseGovernanceAppealNetworkCluster(entry = {}) {
+  const direction = sanitizeText(entry.direction, 40);
+  const signalType = sanitizeText(entry.signal_type, 40);
+  const signalHash = sanitizeText(entry.signal_hash, 120);
+  if (!direction || !signalType) return null;
+  return {
+    direction,
+    signal_type: signalType,
+    signal_hash: signalHash,
+    action_count: Math.max(0, Math.floor(Number(entry.action_count) || 0)),
+    actor_count: Math.max(0, Math.floor(Number(entry.actor_count) || 0)),
+    actor_usernames: Array.isArray(entry.actor_usernames)
+      ? entry.actor_usernames.map(username => normalizeUsername(username)).filter(Boolean).slice(0, 12)
+      : [],
+    actor_involved: entry.actor_involved === true,
+  };
+}
+
+function normalizeWarehouseGovernanceAppeal(entry = {}) {
+  const requesterUsername = normalizeUsername(entry.requester_username || entry.requesterUsername || entry.username);
+  const requesterUsernameKey = normalizeUsernameKey(entry.requester_username_key || entry.requester_key || requesterUsername);
+  if (!requesterUsername || !requesterUsernameKey) return null;
+  const createdAt = Math.max(0, Math.floor(Number(entry.created_at || entry.at) || 0)) || nowSeconds();
+  const updatedAt = Math.max(0, Math.floor(Number(entry.updated_at || entry.resolved_at || entry.closed_at) || 0)) || createdAt;
+  const state = sanitizeText(entry.state, 40).toLowerCase();
+  const inboundLedgerIds = Array.isArray(entry.inbound_ledger_ids)
+    ? entry.inbound_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const outboundLedgerIds = Array.isArray(entry.outbound_ledger_ids)
+    ? entry.outbound_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const recentAuditIds = Array.isArray(entry.recent_audit_ids)
+    ? entry.recent_audit_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const suspiciousNetworks = Array.isArray(entry.suspicious_networks)
+    ? entry.suspicious_networks.map(normalizeWarehouseGovernanceAppealNetworkCluster).filter(Boolean).slice(0, 8)
+    : [];
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('warehouse_governance_appeal'),
+    state: ['submitted', 'recovery_applied', 'closed'].includes(state) ? state : 'submitted',
+    direction: normalizeWarehouseGovernanceDirection(entry.direction || entry.blocked_direction),
+    requester_username: requesterUsername,
+    requester_username_key: requesterUsernameKey,
+    requester_display_name: sanitizeText(entry.requester_display_name || requesterUsername, 60),
+    reason: sanitizeText(entry.reason || entry.appeal_reason, 180),
+    player_note: sanitizeText(entry.player_note || entry.note || entry.memo, 180),
+    blocking_reason: sanitizeText(entry.blocking_reason, 240),
+    required_operation: sanitizeText(entry.required_operation, 120),
+    inbound_action_count: Math.max(0, Math.floor(Number(entry.inbound_action_count) || 0)),
+    inbound_quantity: Math.max(0, Math.floor(Number(entry.inbound_quantity) || 0)),
+    outbound_action_count: Math.max(0, Math.floor(Number(entry.outbound_action_count) || 0)),
+    outbound_quantity: Math.max(0, Math.floor(Number(entry.outbound_quantity) || 0)),
+    network_inbound_action_count: Math.max(0, Math.floor(Number(entry.network_inbound_action_count) || 0)),
+    network_outbound_action_count: Math.max(0, Math.floor(Number(entry.network_outbound_action_count) || 0)),
+    network_actor_usernames: Array.isArray(entry.network_actor_usernames)
+      ? entry.network_actor_usernames.map(username => normalizeUsername(username)).filter(Boolean).slice(0, 12)
+      : [],
+    inbound_ledger_ids: inboundLedgerIds,
+    outbound_ledger_ids: outboundLedgerIds,
+    recent_audit_ids: recentAuditIds,
+    suspicious_networks: suspiciousNetworks,
+    recovery_id: sanitizeText(entry.recovery_id, 100),
+    recovery_idempotency_key: sanitizeText(entry.recovery_idempotency_key, 120),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    personal_inventory_changed: entry.personal_inventory_changed === true,
+    shared_warehouse_changed: entry.shared_warehouse_changed === true,
+  };
+}
+
 function normalizeWarehouseGovernanceRecoveries(value = []) {
   return Array.isArray(value)
     ? value
@@ -6467,9 +6539,25 @@ function normalizeWarehouseGovernanceRecoveries(value = []) {
     : [];
 }
 
+function normalizeWarehouseGovernanceAppeals(value = []) {
+  return Array.isArray(value)
+    ? value
+        .map(normalizeWarehouseGovernanceAppeal)
+        .filter(Boolean)
+        .sort((left, right) => right.created_at - left.created_at)
+        .slice(0, WAREHOUSE_GOVERNANCE_APPEAL_LIMIT)
+    : [];
+}
+
 function warehouseGovernanceRecoveryCoversDirection(recovery = {}, direction = '') {
   const normalizedDirection = normalizeWarehouseGovernanceDirection(direction);
   return recovery.direction === 'all' || recovery.direction === normalizedDirection;
+}
+
+function warehouseGovernanceDirectionsOverlap(left = '', right = '') {
+  const normalizedLeft = normalizeWarehouseGovernanceDirection(left);
+  const normalizedRight = normalizeWarehouseGovernanceDirection(right);
+  return normalizedRight === 'all' || normalizedLeft === normalizedRight;
 }
 
 function getActiveSharedWarehouseGovernanceRecoveries(contract = {}, actorUsernameOrKey = '', direction = '', checkedAt = nowSeconds()) {
@@ -9339,6 +9427,7 @@ function normalizeContract(entry = {}) {
     shared_warehouse: normalizeSharedWarehouse(entry.shared_warehouse),
     shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(entry.shared_warehouse_withdrawal_drafts),
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(entry.shared_warehouse_governance_recoveries),
+    shared_warehouse_governance_appeals: normalizeWarehouseGovernanceAppeals(entry.shared_warehouse_governance_appeals),
     shared_fund_deliveries: normalizeSharedFundDeliveries(entry.shared_fund_deliveries),
     shared_decoration_state: normalizeSharedDecorationState(entry.shared_decoration_state),
     shared_decoration_ledger: normalizeSharedDecorationLedger(entry.shared_decoration_ledger),
@@ -9532,6 +9621,7 @@ function toPublicContract(contract) {
     shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
     shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts),
     shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries),
+    shared_warehouse_governance_appeals: normalizeWarehouseGovernanceAppeals(contract.shared_warehouse_governance_appeals),
     shared_fund_deliveries: normalizeSharedFundDeliveries(contract.shared_fund_deliveries),
     shared_decoration_state: normalizeSharedDecorationState(contract.shared_decoration_state),
     shared_decoration_ledger: normalizeSharedDecorationLedger(contract.shared_decoration_ledger),
@@ -12510,6 +12600,10 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorOrUsername = '') 
   const activeRecoveries = getActiveSharedWarehouseGovernanceRecoveries(contract, actorKey, '', checkedAt);
   const activeInboundRecovery = activeRecoveries.find(recovery => warehouseGovernanceRecoveryCoversDirection(recovery, 'inbound')) || null;
   const activeOutboundRecovery = activeRecoveries.find(recovery => warehouseGovernanceRecoveryCoversDirection(recovery, 'outbound')) || null;
+  const recentAppeals = normalizeWarehouseGovernanceAppeals(contract.shared_warehouse_governance_appeals)
+    .filter(appeal => appeal.requester_username_key === actorKey)
+    .slice(0, 10);
+  const pendingAppeal = recentAppeals.find(appeal => appeal.state === 'submitted') || null;
   const rawBlockInbound = actorInboundCount >= WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT;
   const rawBlockOutbound = actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT;
   const rawBlockInboundNetwork = actorInboundNetworkClusters.length > 0;
@@ -12526,6 +12620,7 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorOrUsername = '') 
       'warehouse_high_frequency_inbound_blocked',
       'warehouse_high_frequency_outbound_blocked',
       'warehouse_cross_device_brush_blocked',
+      'warehouse_governance_appeal_submitted',
       'warehouse_governance_recovered',
     ].includes(entry.action))
     .slice(0, 20);
@@ -12561,8 +12656,11 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorOrUsername = '') 
     suspicious_networks: [...inboundNetworkClusters, ...outboundNetworkClusters],
     active_high_value_withdrawal_drafts: activeHighValueDrafts,
     active_recoveries: activeRecoveries.slice(0, 10),
+    recent_appeals: recentAppeals,
+    pending_appeal: pendingAppeal,
     last_recovery: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries)
       .find(recovery => recovery.target_username_key === actorKey) || null,
+    last_appeal: recentAppeals[0] || null,
     recent_audits: recentGovernanceAudits,
     blocking: {
       block_inbound: blockInbound,
@@ -12614,6 +12712,7 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorOrUsername = '') 
       appeal_recovery_required_for_blocked_outbound: true,
       appeal_recovery_required_for_blocked_inbound: true,
       managed_recovery_records_enabled: true,
+      player_recovery_appeals_enabled: true,
       cross_device_brush_detection_enabled: true,
     },
   };
@@ -14074,6 +14173,20 @@ function normalizeWarehouseGovernanceRecoveryPayload(payload = {}) {
     target_username: normalizeUsername(payload.target_username || payload.targetUsername || payload.username),
     reason,
     recovery_note: sanitizeText(payload.recovery_note || payload.approval_note || payload.note, 180),
+  };
+}
+
+function normalizeWarehouseGovernanceAppealPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同仓库治理申诉需要 idempotency_key，以防断线或重试时重复提交');
+  const direction = normalizeWarehouseGovernanceDirection(payload.direction || payload.blocked_direction || payload.operation_direction);
+  const reason = sanitizeText(payload.reason || payload.appeal_reason || payload.memo || payload.note, 180);
+  if (reason.length < 4) throw createError('共同仓库治理申诉至少需要 4 个字的说明');
+  return {
+    idempotency_key: idempotencyKey,
+    direction,
+    reason,
+    player_note: sanitizeText(payload.player_note || payload.note || payload.memo, 180),
   };
 }
 
@@ -28128,6 +28241,107 @@ async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId,
   };
 }
 
+async function submitCohabitationWarehouseGovernanceAppeal(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseGovernanceAppealPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '提交共同仓库治理申诉');
+
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_governance_appeals = normalizeWarehouseGovernanceAppeals(contract.shared_warehouse_governance_appeals);
+  const previousAppeal = contract.shared_warehouse_governance_appeals.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousAppeal) {
+    const warehouse = buildSharedWarehouseSnapshot(contract, actor);
+    return {
+      contract: toPublicContract(contract),
+      warehouse,
+      governance: warehouse.governance,
+      appeal: previousAppeal,
+      idempotent: true,
+    };
+  }
+
+  const governance = buildSharedWarehouseGovernanceSnapshot(contract, actor);
+  const directionBlocked = request.direction === 'all'
+    ? governance.blocking.block_inbound === true || governance.blocking.block_outbound === true
+    : request.direction === 'inbound'
+      ? governance.blocking.block_inbound === true
+      : governance.blocking.block_outbound === true;
+  if (!directionBlocked) throw createError('当前成员没有对应方向的共同仓库治理阻断可申诉', 409);
+
+  const submittedAt = nowSeconds();
+  const suspiciousNetworks = (governance.suspicious_networks || [])
+    .filter(cluster => cluster.actor_involved === true)
+    .filter(cluster => request.direction === 'all' || cluster.direction === request.direction)
+    .slice(0, 8);
+  const appeal = normalizeWarehouseGovernanceAppeal({
+    id: makeId('warehouse_governance_appeal'),
+    state: 'submitted',
+    direction: request.direction,
+    requester_username: member.username,
+    requester_username_key: member.username_key,
+    requester_display_name: member.display_name || actor.displayName || actor.display_name || actorUsername,
+    reason: request.reason,
+    player_note: request.player_note,
+    blocking_reason: governance.blocking.reason,
+    required_operation: governance.blocking.required_operation,
+    inbound_action_count: governance.actor_window.inbound_action_count,
+    inbound_quantity: governance.actor_window.inbound_quantity,
+    outbound_action_count: governance.actor_window.outbound_action_count,
+    outbound_quantity: governance.actor_window.outbound_quantity,
+    network_inbound_action_count: governance.actor_window.network_inbound_action_count,
+    network_outbound_action_count: governance.actor_window.network_outbound_action_count,
+    network_actor_usernames: governance.actor_window.network_actor_usernames,
+    inbound_ledger_ids: governance.actor_window.inbound_ledger_ids,
+    outbound_ledger_ids: governance.actor_window.outbound_ledger_ids,
+    recent_audit_ids: (governance.recent_audits || []).map(entry => entry.id).filter(Boolean).slice(0, 20),
+    suspicious_networks: suspiciousNetworks,
+    created_at: submittedAt,
+    updated_at: submittedAt,
+    idempotency_key: request.idempotency_key,
+    personal_inventory_changed: false,
+    shared_warehouse_changed: false,
+  });
+  contract.shared_warehouse_governance_appeals = [
+    appeal,
+    ...contract.shared_warehouse_governance_appeals,
+  ].slice(0, WAREHOUSE_GOVERNANCE_APPEAL_LIMIT);
+  appendAudit(contract, 'warehouse_governance_appeal_submitted', actor, {
+    appeal_id: appeal.id,
+    direction: appeal.direction,
+    requester_username: appeal.requester_username,
+    requester_username_key: appeal.requester_username_key,
+    reason: appeal.reason,
+    blocking_reason: appeal.blocking_reason,
+    required_operation: appeal.required_operation,
+    inbound_action_count: appeal.inbound_action_count,
+    outbound_action_count: appeal.outbound_action_count,
+    network_inbound_action_count: appeal.network_inbound_action_count,
+    network_outbound_action_count: appeal.network_outbound_action_count,
+    network_actor_usernames: appeal.network_actor_usernames,
+    suspicious_networks: appeal.suspicious_networks,
+    recent_audit_ids: appeal.recent_audit_ids,
+    recovery_applied: false,
+    shared_warehouse_changed: false,
+    personal_inventory_changed: false,
+    personal_money_merged: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  const warehouse = buildSharedWarehouseSnapshot(contract, actor);
+  return {
+    contract: toPublicContract(contract),
+    warehouse,
+    governance: warehouse.governance,
+    appeal,
+    idempotent: false,
+  };
+}
+
 async function recoverCohabitationWarehouseGovernance(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -28146,6 +28360,7 @@ async function recoverCohabitationWarehouseGovernance(contractId, payload = {}, 
 
   contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   contract.shared_warehouse_governance_recoveries = normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries);
+  contract.shared_warehouse_governance_appeals = normalizeWarehouseGovernanceAppeals(contract.shared_warehouse_governance_appeals);
   const previousRecovery = contract.shared_warehouse_governance_recoveries.find(entry =>
     entry.idempotency_key && entry.idempotency_key === request.idempotency_key
   );
@@ -28196,6 +28411,27 @@ async function recoverCohabitationWarehouseGovernance(contractId, payload = {}, 
     expires_at: recoveredAt + WAREHOUSE_GOVERNANCE_WINDOW_SECONDS,
     idempotency_key: request.idempotency_key,
   });
+  const appliedAppealIds = contract.shared_warehouse_governance_appeals
+    .filter(appeal => appeal.state === 'submitted')
+    .filter(appeal => appeal.requester_username_key === targetMember.username_key)
+    .filter(appeal => warehouseGovernanceDirectionsOverlap(appeal.direction, recovery.direction))
+    .map(appeal => appeal.id)
+    .slice(0, 20);
+  if (appliedAppealIds.length > 0) {
+    const appliedAppealIdSet = new Set(appliedAppealIds);
+    contract.shared_warehouse_governance_appeals = contract.shared_warehouse_governance_appeals.map(appeal => {
+      if (!appliedAppealIdSet.has(appeal.id)) return appeal;
+      return normalizeWarehouseGovernanceAppeal({
+        ...appeal,
+        state: 'recovery_applied',
+        recovery_id: recovery.id,
+        recovery_idempotency_key: recovery.idempotency_key,
+        updated_at: recoveredAt,
+        personal_inventory_changed: false,
+        shared_warehouse_changed: false,
+      });
+    }).filter(Boolean);
+  }
   contract.shared_warehouse_governance_recoveries = [
     recovery,
     ...contract.shared_warehouse_governance_recoveries,
@@ -28207,6 +28443,7 @@ async function recoverCohabitationWarehouseGovernance(contractId, payload = {}, 
     target_username_key: recovery.target_username_key,
     reason: recovery.reason,
     recovery_note: recovery.recovery_note,
+    appeal_ids: appliedAppealIds,
     expires_at: recovery.expires_at,
     window_seconds: recovery.window_seconds,
     inbound_action_count: recovery.inbound_action_count,
@@ -36812,6 +37049,7 @@ module.exports = {
   recordCohabitationWarehouseHighValueWithdrawalCompensationExecution,
   recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution,
   recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview,
+  submitCohabitationWarehouseGovernanceAppeal,
   recoverCohabitationWarehouseGovernance,
   sellCohabitationWarehouseItem,
   moveCohabitationSharedDecoration,

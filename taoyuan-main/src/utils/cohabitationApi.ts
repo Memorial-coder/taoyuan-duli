@@ -265,6 +265,7 @@ export interface CohabitationContract {
     items: CohabitationWarehouseItem[]
     ledger: CohabitationWarehouseLedgerEntry[]
   }
+  shared_warehouse_governance_appeals?: CohabitationWarehouseGovernanceAppeal[]
   shared_fund_deliveries?: Array<Record<string, unknown>>
   shared_decoration_state?: Array<Record<string, unknown>>
   family_state?: {
@@ -969,6 +970,37 @@ export interface CohabitationWarehouseGovernanceRecovery {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseGovernanceAppeal {
+  id: string
+  state: string
+  direction: 'inbound' | 'outbound' | 'all' | string
+  requester_username: string
+  requester_username_key: string
+  requester_display_name: string
+  reason: string
+  player_note?: string
+  blocking_reason?: string
+  required_operation?: string
+  inbound_action_count: number
+  inbound_quantity: number
+  outbound_action_count: number
+  outbound_quantity: number
+  network_inbound_action_count?: number
+  network_outbound_action_count?: number
+  network_actor_usernames?: string[]
+  inbound_ledger_ids: string[]
+  outbound_ledger_ids: string[]
+  recent_audit_ids?: string[]
+  suspicious_networks?: Array<Record<string, unknown>>
+  recovery_id?: string
+  recovery_idempotency_key?: string
+  created_at: number
+  updated_at: number
+  idempotency_key: string
+  personal_inventory_changed?: boolean
+  shared_warehouse_changed?: boolean
+}
+
 export interface CohabitationWarehouseGovernanceSnapshot {
   contract_id: string
   actor_username: string
@@ -984,18 +1016,29 @@ export interface CohabitationWarehouseGovernanceSnapshot {
     inbound_ledger_ids: string[]
     outbound_ledger_ids: string[]
     ledger_ids: string[]
+    network_inbound_action_count?: number
+    network_outbound_action_count?: number
+    network_actor_usernames?: string[]
     actions: Record<string, number>
   }
   suspicious_actors: Array<Record<string, unknown>>
+  suspicious_networks?: Array<Record<string, unknown>>
   active_high_value_withdrawal_drafts: Array<Record<string, unknown>>
   active_recoveries: CohabitationWarehouseGovernanceRecovery[]
+  recent_appeals?: CohabitationWarehouseGovernanceAppeal[]
+  pending_appeal?: CohabitationWarehouseGovernanceAppeal | null
   last_recovery: CohabitationWarehouseGovernanceRecovery | null
+  last_appeal?: CohabitationWarehouseGovernanceAppeal | null
   recent_audits: CohabitationAuditEntry[]
   blocking: {
     block_inbound: boolean
     block_outbound: boolean
     raw_block_inbound?: boolean
     raw_block_outbound?: boolean
+    raw_block_inbound_cross_device_brush?: boolean
+    raw_block_outbound_cross_device_brush?: boolean
+    block_inbound_cross_device_brush?: boolean
+    block_outbound_cross_device_brush?: boolean
     recovery_active?: boolean
     recovered_directions?: string[]
     recovery_expires_at?: number
@@ -2936,6 +2979,13 @@ export interface CohabitationWarehouseGovernanceRecoveryPayload {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseGovernanceAppealPayload {
+  direction: 'inbound' | 'outbound' | 'all'
+  reason: string
+  player_note?: string
+  idempotency_key: string
+}
+
 export interface CohabitationSharedFarmWaterPayload {
   plot_id: string
   memo?: string
@@ -3188,6 +3238,13 @@ export interface CohabitationWarehouseGovernanceRecoveryResponse extends Cohabit
   warehouse?: CohabitationWarehouseSnapshot
   governance?: CohabitationWarehouseGovernanceSnapshot
   recovery?: CohabitationWarehouseGovernanceRecovery
+  idempotent?: boolean
+}
+
+export interface CohabitationWarehouseGovernanceAppealResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  governance?: CohabitationWarehouseGovernanceSnapshot
+  appeal?: CohabitationWarehouseGovernanceAppeal
   idempotent?: boolean
 }
 
@@ -4288,6 +4345,14 @@ export const recoverCohabitationWarehouseGovernance = async (contractId: string,
     contractPath(contractId, '/warehouse/governance/recover'),
     payload as unknown as Record<string, unknown>,
     '恢复共同仓库治理阻断失败'
+  )
+}
+
+export const submitCohabitationWarehouseGovernanceAppeal = async (contractId: string, payload: CohabitationWarehouseGovernanceAppealPayload) => {
+  return postCohabitationJson<CohabitationWarehouseGovernanceAppealResponse>(
+    contractPath(contractId, '/warehouse/governance/appeals'),
+    payload as unknown as Record<string, unknown>,
+    '提交共同仓库治理申诉失败'
   )
 }
 

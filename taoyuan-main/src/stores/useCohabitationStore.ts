@@ -70,6 +70,7 @@ import {
   recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution,
   recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview,
   recoverCohabitationWarehouseGovernance,
+  submitCohabitationWarehouseGovernanceAppeal,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
   rejectCohabitationFamilyBuildingRealDemolitionReview,
@@ -177,6 +178,7 @@ import {
   type CohabitationWarehouseCompensationPreflightPayload,
   type CohabitationWarehouseManualAppealResolutionPayload,
   type CohabitationWarehouseOperatorReceiptAuditReviewPayload,
+  type CohabitationWarehouseGovernanceAppealPayload,
   type CohabitationWarehouseGovernanceRecoveryPayload,
   type CohabitationSharedAnimalBuyPayload,
   type CohabitationSharedAnimalFeedPayload,
@@ -1912,6 +1914,29 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const submitWarehouseGovernanceAppeal = async (payload: CohabitationWarehouseGovernanceAppealPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await submitCohabitationWarehouseGovernanceAppeal(activeContractId.value, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '提交共同仓库治理申诉失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const waterSharedFarmPlot = async (payload: CohabitationSharedFarmWaterPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
     actionLoading.value = true
@@ -2533,6 +2558,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     executeWarehouseHighValueWithdrawalDraft,
     rollbackWarehouseHighValueWithdrawalDraft,
     recoverWarehouseGovernance,
+    submitWarehouseGovernanceAppeal,
     fetchWarehouseHighValueWithdrawalCompensationAuditBundle,
     recordWarehouseHighValueWithdrawalCompensationPreflight,
     recordWarehouseHighValueWithdrawalCompensationExecution,

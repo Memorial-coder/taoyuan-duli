@@ -15460,6 +15460,27 @@ const warehouseGovernanceAfterBlock = await runtime.getCohabitationWarehouse(war
 assert.equal(warehouseGovernanceAfterBlock.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 4, 'blocked warehouse withdraw should not change shared stock')
 assert.equal(getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat'), ownerWheatBeforeGovernanceBlock, 'blocked warehouse withdraw should not change personal inventory')
 assert.ok(warehouseGovernanceAfterBlock.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_high_frequency_outbound_blocked'), 'blocked warehouse withdraw should write governance audit')
+const warehouseGovernanceAppeal = await runtime.submitCohabitationWarehouseGovernanceAppeal(warehouseGovernanceContractId, {
+  direction: 'outbound',
+  reason: 'QA player submits outbound governance appeal',
+  player_note: 'QA appeal should record evidence without restoring assets',
+  idempotency_key: 'qa-warehouse-governance-appeal-outbound',
+}, actor(warehouseGovernanceOwner))
+assert.equal(warehouseGovernanceAppeal.idempotent, false, 'warehouse governance appeal should write once')
+assert.equal(warehouseGovernanceAppeal.appeal.state, 'submitted', 'warehouse governance appeal should stay pending after submit')
+assert.equal(warehouseGovernanceAppeal.appeal.direction, 'outbound', 'warehouse governance appeal should keep blocked direction')
+assert.equal(warehouseGovernanceAppeal.warehouse.governance.pending_appeal.id, warehouseGovernanceAppeal.appeal.id, 'warehouse governance should read back pending appeal')
+assert.equal(warehouseGovernanceAppeal.warehouse.governance.blocking.block_outbound, true, 'submitting appeal should not recover outbound governance')
+assert.equal(warehouseGovernanceAppeal.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 4, 'warehouse governance appeal should not change shared stock')
+assert.equal(getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat'), ownerWheatBeforeGovernanceBlock, 'warehouse governance appeal should not change personal inventory')
+assert.ok(warehouseGovernanceAppeal.contract.audit_log.find(entry => entry.action === 'warehouse_governance_appeal_submitted' && entry.idempotency_key === 'qa-warehouse-governance-appeal-outbound' && entry.detail?.shared_warehouse_changed === false), 'warehouse governance appeal should write record-only audit')
+const duplicateWarehouseGovernanceAppeal = await runtime.submitCohabitationWarehouseGovernanceAppeal(warehouseGovernanceContractId, {
+  direction: 'outbound',
+  reason: 'QA duplicate player appeal',
+  idempotency_key: 'qa-warehouse-governance-appeal-outbound',
+}, actor(warehouseGovernanceOwner))
+assert.equal(duplicateWarehouseGovernanceAppeal.idempotent, true, 'warehouse governance appeal should replay by idempotency key')
+assert.equal(duplicateWarehouseGovernanceAppeal.appeal.id, warehouseGovernanceAppeal.appeal.id, 'duplicate appeal should return original appeal')
 await assert.rejects(
   () => runtime.recoverCohabitationWarehouseGovernance(warehouseGovernanceContractId, {
     target_username: warehouseGovernanceOwner,
@@ -15482,6 +15503,9 @@ assert.equal(warehouseGovernanceRecovery.recovery.direction, 'outbound', 'wareho
 assert.equal(warehouseGovernanceRecovery.warehouse.governance.blocking.raw_block_outbound, true, 'warehouse governance recovery should preserve raw outbound evidence')
 assert.equal(warehouseGovernanceRecovery.warehouse.governance.blocking.block_outbound, false, 'warehouse governance recovery should clear active outbound block')
 assert.ok(warehouseGovernanceRecovery.warehouse.governance.active_recoveries.find(entry => entry.id === warehouseGovernanceRecovery.recovery.id), 'warehouse governance should expose active recovery')
+assert.equal(warehouseGovernanceRecovery.warehouse.governance.pending_appeal, null, 'warehouse governance recovery should close pending appeal')
+assert.ok(warehouseGovernanceRecovery.warehouse.governance.recent_appeals.find(entry => entry.id === warehouseGovernanceAppeal.appeal.id && entry.state === 'recovery_applied'), 'warehouse governance recovery should mark appeal applied')
+assert.ok(warehouseGovernanceRecovery.contract.audit_log.find(entry => entry.action === 'warehouse_governance_recovered' && entry.detail?.appeal_ids?.includes(warehouseGovernanceAppeal.appeal.id)), 'warehouse governance recovery audit should reference applied appeal')
 assert.ok(warehouseGovernanceRecovery.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_governance_recovered'), 'warehouse governance recovery should be audited')
 const duplicateWarehouseGovernanceRecovery = await runtime.recoverCohabitationWarehouseGovernance(warehouseGovernanceContractId, {
   target_username: warehouseGovernanceOwner,
@@ -15689,6 +15713,20 @@ const warehouseNetworkOutboundAfter = await runtime.getCohabitationWarehouse(war
 assert.equal(warehouseNetworkOutboundAfter.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 4, 'blocked cross-device outbound should not change shared stock')
 assert.equal(getInventoryItemQuantity(warehouseNetworkOutboundOwner, 'wheat'), ownerWheatBeforeNetworkOutboundBlock, 'blocked cross-device outbound should not change personal inventory')
 assert.ok(warehouseNetworkOutboundAfter.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_cross_device_brush_blocked'), 'cross-device outbound block should write governance audit')
+const warehouseNetworkOutboundPartnerActor = riskActor(warehouseNetworkOutboundPartner, { device: warehouseNetworkOutboundDevice, ip: '198.51.100.21' })
+const warehouseNetworkOutboundPartnerBeforeAppeal = await runtime.getCohabitationWarehouse(warehouseNetworkOutboundContractId, warehouseNetworkOutboundPartnerActor)
+assert.equal(warehouseNetworkOutboundPartnerBeforeAppeal.warehouse.governance.blocking.block_outbound, true, 'cross-device partner should also see outbound governance block')
+const warehouseNetworkOutboundPartnerAppeal = await runtime.submitCohabitationWarehouseGovernanceAppeal(warehouseNetworkOutboundContractId, {
+  direction: 'outbound',
+  reason: 'QA non-owner submits cross-device outbound appeal',
+  player_note: 'QA partner appeal should not require owner recovery permission',
+  idempotency_key: 'qa-warehouse-network-outbound-partner-appeal',
+}, warehouseNetworkOutboundPartnerActor)
+assert.equal(warehouseNetworkOutboundPartnerAppeal.idempotent, false, 'non-owner cross-device appeal should write once')
+assert.equal(warehouseNetworkOutboundPartnerAppeal.appeal.requester_username, warehouseNetworkOutboundPartner, 'non-owner appeal should keep requester')
+assert.ok(warehouseNetworkOutboundPartnerAppeal.appeal.suspicious_networks.some(entry => entry.direction === 'outbound' && entry.signal_type === 'device'), 'non-owner appeal should preserve suspicious network evidence')
+assert.equal(warehouseNetworkOutboundPartnerAppeal.warehouse.governance.blocking.block_outbound, true, 'non-owner appeal should not clear cross-device outbound block')
+assert.ok(warehouseNetworkOutboundPartnerAppeal.contract.audit_log.find(entry => entry.action === 'warehouse_governance_appeal_submitted' && entry.detail?.requester_username === warehouseNetworkOutboundPartner), 'non-owner appeal should write audit')
 
 const warehouseNetworkInboundOwner = 'cohabit_wndi_owner26'
 const warehouseNetworkInboundPartner = 'cohabit_wndi_part26'
