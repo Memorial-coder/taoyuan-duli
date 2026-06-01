@@ -1621,6 +1621,20 @@ export const useNpcStore = defineStore('npc', () => {
     return { itemId: 'guest_green_tea', quantity: 1, summary: '前缘高阶加赠待客清茶×1' }
   }
 
+  const getRandomNpcFamilyLineStageTwoRewardBonus = (
+    tie: RandomNpcFamilyTieDef
+  ): { itemId: string; quantity: number; summary: string } => {
+    if (tie.kind === 'parent') return { itemId: 'honey', quantity: 1, summary: '长辈中段加赠蜂蜜×1' }
+    if (tie.kind === 'sibling') return { itemId: 'wild_berry', quantity: 1, summary: '手足中段加赠野果×1' }
+    if (tie.kind === 'distant_relative') return { itemId: 'paper', quantity: 2, summary: '远亲中段加赠纸张×2' }
+    if (tie.kind === 'mentor') return { itemId: 'dried_herb', quantity: 1, summary: '师门中段加赠药材干×1' }
+    if (tie.kind === 'caravan') return { itemId: 'hanhai_spice', quantity: 1, summary: '商队中段加赠西域香料×1' }
+    if (tie.kind === 'old_debt') return { itemId: 'dried_herb', quantity: 1, summary: '旧债中段加赠药材干×1' }
+    if (tie.kind === 'family_business') return { itemId: 'cloth', quantity: 1, summary: '家业中段加赠布匹×1' }
+    if (tie.kind === 'sworn_kin') return { itemId: 'guest_green_tea', quantity: 1, summary: '义亲中段加赠待客清茶×1' }
+    return { itemId: 'guest_green_tea', quantity: 1, summary: '前缘中段加赠待客清茶×1' }
+  }
+
   const getRandomNpcFamilyLineSpecialEventRewardBonus = (
     tie: RandomNpcFamilyTieDef,
     stage: 1 | 2 | 3
@@ -1629,7 +1643,11 @@ export const useNpcStore = defineStore('npc', () => {
       return { items: [{ itemId: 'guest_green_tea', quantity: 1 }], summary: '家人线加赠待客清茶×1' }
     }
     if (stage === 2) {
-      return { items: [{ itemId: 'honey', quantity: 1 }], summary: '家人线加赠蜂蜜×1' }
+      const middleTierBonus = getRandomNpcFamilyLineStageTwoRewardBonus(tie)
+      return {
+        items: [{ itemId: middleTierBonus.itemId, quantity: middleTierBonus.quantity }],
+        summary: `家人线中段差异加赠：${middleTierBonus.summary}`
+      }
     }
     const highTierBonus = getRandomNpcFamilyLineStageThreeRewardBonus(tie)
     return {

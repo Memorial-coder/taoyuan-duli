@@ -12,6 +12,10 @@
 - 设置存档新增 `cropUseTagSaveVersion=1` 与 `cropUseFilterState.version=1`，作物用途筛选会兼容旧 `inventoryCropUseFilter` 并自动补默认 / 清洗非法标签。
 - 服务端联机活动房间 store 与 `visual_state` 写入 `version=1`，共同庄园共享日志拆出 `shared_log.version=1` 并继续同步 legacy `audit_log`。
 
+### 0601 随机 NPC 家人线中段差异奖励收口
+- 核心家族深线第 2 段在家人线中改为节点差异加赠，父母 / 手足 / 远亲 / 师门 / 商队 / 旧债 / 家族产业 / 义亲 / 前缘会分别给出蜂蜜、野果、纸张、药材干、西域香料、布匹或待客清茶。
+- 第 3 段高阶差异奖励继续保留，奖励仍走整组入包、最多 3 项和有界 `specialTieEventHistory`；19.3 关系模板与家族模板 TODO 按第一版收口，`qa:random-npc-content-guard` 固定中段差异加赠入口。
+
 ### 0601 18.2 共同庄园资产来源收口
 - 共同装修来源资产现在记录购买者、摆放者、可分割状态、基金草案 / 回执与返还策略；共同孩子、家庭心愿和家庭重大事件统一以契约为归属边界。
 - 分居预览 / 执行清单补齐装修、家庭剧情、不可分装修补偿或契约纪念；个人剧情回执保留 `relationship_memorial:*`、记忆称号和纪念物策略，`qa:cohabitation-contract` 覆盖不误写个人资产与不可分资产规则。
