@@ -4224,7 +4224,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 16, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 17, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4253,6 +4253,9 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_osmanthus_cake'), 'warehouse item policy should list osmanthus cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_jujube_cake'), 'warehouse item policy should list jujube cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_peach_blossom_cake'), 'warehouse item policy should list peach blossom cake as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_spicy_hotpot'), 'warehouse item policy should list spicy hotpot as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_lotus_seed_soup'), 'warehouse item policy should list lotus seed soup as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_osmanthus_lotus_root'), 'warehouse item policy should list osmanthus lotus root as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4340,6 +4343,31 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_peach_blossom_cake',
   outputItemId: 'food_peach_blossom_cake',
   inputs: [{ itemId: 'peach', quantity: 2 }, { itemId: 'rice', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_spicy_hotpot',
+  outputItemId: 'food_spicy_hotpot',
+  inputs: [{ itemId: 'chili', quantity: 2 }, { itemId: 'cabbage', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_bamboo_shoot_stir_fry',
+  outputItemId: 'food_bamboo_shoot_stir_fry',
+  inputs: [{ itemId: 'winter_bamboo_shoot', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_lotus_seed_soup',
+  outputItemId: 'food_lotus_seed_soup',
+  inputs: [{ itemId: 'lotus_seed', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_corn_pancake',
+  outputItemId: 'food_corn_pancake',
+  inputs: [{ itemId: 'corn', quantity: 2 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_osmanthus_lotus_root',
+  outputItemId: 'food_osmanthus_lotus_root',
+  inputs: [{ itemId: 'osmanthus', quantity: 1 }, { itemId: 'lotus_root', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_scrambled_egg_rice',

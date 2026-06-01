@@ -156,7 +156,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 16;
+const WAREHOUSE_ITEM_POLICY_VERSION = 17;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -171,6 +171,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'premium_feed', 'nourishing_feed', 'vitality_feed',
   'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
   'food_osmanthus_cake', 'food_jujube_cake', 'food_peach_blossom_cake',
+  'food_spicy_hotpot', 'food_bamboo_shoot_stir_fry', 'food_lotus_seed_soup', 'food_corn_pancake', 'food_osmanthus_lotus_root',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_first_catch_soup', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
@@ -989,6 +990,72 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'rice', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_peach_blossom_cake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_spicy_hotpot: {
+    id: 'shared_spicy_hotpot',
+    label: '共同灶台麻辣火锅',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'chili', quantity: 2, quality: 'normal' },
+      { item_id: 'cabbage', quantity: 1, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_spicy_hotpot',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_bamboo_shoot_stir_fry: {
+    id: 'shared_bamboo_shoot_stir_fry',
+    label: '共同灶台冬笋炒肉',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'winter_bamboo_shoot', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_bamboo_shoot_stir_fry',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_lotus_seed_soup: {
+    id: 'shared_lotus_seed_soup',
+    label: '共同灶台莲子羹',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'lotus_seed', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_lotus_seed_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_corn_pancake: {
+    id: 'shared_corn_pancake',
+    label: '共同灶台玉米烙',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'corn', quantity: 2, quality: 'normal' },
+      { item_id: 'sesame_oil', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'food_corn_pancake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_osmanthus_lotus_root: {
+    id: 'shared_osmanthus_lotus_root',
+    label: '共同灶台桂花藕粉',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'osmanthus', quantity: 1, quality: 'normal' },
+      { item_id: 'lotus_root', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_osmanthus_lotus_root',
     output_quantity: 1,
     output_quality: 'normal',
   },
