@@ -6,7 +6,7 @@ import { LATE_GAME_BALANCE_CONFIG } from '@/data/balance/lateGameBalance'
 import { getThemeByKey, hexToRgb, type ThemeKey } from '@/data/themes'
 import { applyQmsgConfig } from '@/composables/useGameLog'
 import type { ItemCategory, LateGameBalanceConfig, LateGameBalanceOverride, LateGameFeatureFlag, LateGameFeatureOverrideMap } from '@/types'
-import type { CropUseTag } from '@/data/cropUseProfiles'
+import { CROP_USE_TAG_LABELS, type CropUseTag } from '@/data/cropUseProfiles'
 
 export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 'right' | 'bottomleft' | 'bottom' | 'bottomright'
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
@@ -14,10 +14,40 @@ export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
 export const DEFAULT_FONT_SIZE = 16
 export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 24
+export const CROP_USE_TAG_SAVE_VERSION = 1
 const DEFAULT_THEME: ThemeKey = 'dark'
 const DEFAULT_QMSG_POSITION: QmsgPosition = 'top'
+const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
+const CROP_USE_FILTER_TAG_SET = new Set<CropUseTag>(CROP_USE_FILTER_TAGS)
 
 const clampFontSize = (value: number) => Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(value)))
+
+const sanitizeInventoryCropUseFilter = (value: any): CropUseTag[] => {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<CropUseTag>()
+  const normalized: CropUseTag[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue
+    const tag = entry as CropUseTag
+    if (!CROP_USE_FILTER_TAG_SET.has(tag) || seen.has(tag)) continue
+    seen.add(tag)
+    normalized.push(tag)
+  }
+  return normalized
+}
+
+const normalizeCropUseFilterState = (data: any) => {
+  const state = data?.cropUseFilterState && typeof data.cropUseFilterState === 'object'
+    ? data.cropUseFilterState
+    : {}
+  const selectedTags = Array.isArray(state.selectedTags)
+    ? state.selectedTags
+    : data?.inventoryCropUseFilter
+  return {
+    version: Math.max(1, Math.floor(Number(state.version ?? data?.cropUseTagSaveVersion) || CROP_USE_TAG_SAVE_VERSION)),
+    selectedTags: sanitizeInventoryCropUseFilter(selectedTags)
+  }
+}
 
 export const useSettingsStore = defineStore('settings', () => {
   const fontSize = ref(DEFAULT_FONT_SIZE)
@@ -38,6 +68,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const inventoryFilter = ref<ItemCategory[]>([])
   /** 背包作物用途筛选：选中的用途标签（空数组 = 不按用途限制） */
   const inventoryCropUseFilter = ref<CropUseTag[]>([])
+  const cropUseTagSaveVersion = ref(CROP_USE_TAG_SAVE_VERSION)
   const lateGameFeatureOverrides = ref<LateGameFeatureOverrideMap>({})
   const lateGameFeatureBaselineSaveVersion = ref(Number.MAX_SAFE_INTEGER)
   const lateGameBalanceOverrides = ref<LateGameBalanceOverride>({})
@@ -142,6 +173,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const serialize = () => {
     const { sfxEnabled, bgmEnabled } = useAudio()
+    const selectedCropUseTags = sanitizeInventoryCropUseFilter(inventoryCropUseFilter.value)
     return {
       fontSize: fontSize.value,
       sfxEnabled: sfxEnabled.value,
@@ -159,7 +191,12 @@ export const useSettingsStore = defineStore('settings', () => {
       qmsgShowIcon: qmsgShowIcon.value,
       qmsgShowReverse: qmsgShowReverse.value,
       inventoryFilter: inventoryFilter.value,
-      inventoryCropUseFilter: inventoryCropUseFilter.value,
+      inventoryCropUseFilter: selectedCropUseTags,
+      cropUseTagSaveVersion: CROP_USE_TAG_SAVE_VERSION,
+      cropUseFilterState: {
+        version: CROP_USE_TAG_SAVE_VERSION,
+        selectedTags: selectedCropUseTags
+      },
       lateGameFeatureOverrides: lateGameFeatureOverrides.value,
       lateGameBalanceOverrides: lateGameBalanceOverrides.value
     }
@@ -183,7 +220,9 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowIcon.value = data?.qmsgShowIcon ?? false
     qmsgShowReverse.value = data?.qmsgShowReverse ?? false
     inventoryFilter.value = data?.inventoryFilter ?? []
-    inventoryCropUseFilter.value = data?.inventoryCropUseFilter ?? []
+    const cropUseFilterState = normalizeCropUseFilterState(data)
+    cropUseTagSaveVersion.value = cropUseFilterState.version
+    inventoryCropUseFilter.value = cropUseFilterState.selectedTags
     lateGameFeatureOverrides.value = import.meta.env.DEV
       ? normalizeLateGameFeatureOverrides(data?.lateGameFeatureOverrides, lateGameFeatureBaselineSaveVersion.value)
       : {}
@@ -222,6 +261,7 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowReverse,
     inventoryFilter,
     inventoryCropUseFilter,
+    cropUseTagSaveVersion,
     lateGameFeatureOverrides,
     lateGameFeatureBaselineSaveVersion,
     lateGameBalanceOverrides,

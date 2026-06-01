@@ -3,6 +3,11 @@
 ---
 
 ## [未发布]
+### 0601 18.1 存档版本收口
+- 主存档版本升至 `SAVE_VERSION=6`，迁移层保留 `randomNpcBoard` 与未来 NPC 子状态，避免旧档升级时丢随机 NPC 池。
+- 设置存档新增 `cropUseTagSaveVersion=1` 与 `cropUseFilterState.version=1`，作物用途筛选会兼容旧 `inventoryCropUseFilter` 并自动补默认 / 清洗非法标签。
+- 服务端联机活动房间 store 与 `visual_state` 写入 `version=1`，共同庄园共享日志拆出 `shared_log.version=1` 并继续同步 legacy `audit_log`。
+
 ### 0601 18.2 共同庄园资产来源收口
 - 共同装修来源资产现在记录购买者、摆放者、可分割状态、基金草案 / 回执与返还策略；共同孩子、家庭心愿和家庭重大事件统一以契约为归属边界。
 - 分居预览 / 执行清单补齐装修、家庭剧情、不可分装修补偿或契约纪念；个人剧情回执保留 `relationship_memorial:*`、记忆称号和纪念物策略，`qa:cohabitation-contract` 覆盖不误写个人资产与不可分资产规则。

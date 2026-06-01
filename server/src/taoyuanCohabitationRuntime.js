@@ -23,6 +23,7 @@ const DATA_DIR = process.env.DB_STORAGE
 const TAOYUAN_COHABITATION_FILE = path.join(DATA_DIR, 'taoyuan_cohabitation_contracts.json');
 
 const CONTRACT_STORE_VERSION = 1;
+const SHARED_LOG_VERSION = 1;
 const OPEN_CONTRACT_STATUSES = new Set(['pending_acceptance', 'active', 'separation_pending']);
 const CONTRACT_STATUSES = new Set(['pending_acceptance', 'active', 'separation_pending', 'closed', 'declined']);
 const MEMBER_STATUSES = new Set(['accepted', 'pending', 'declined', 'left']);
@@ -5125,6 +5126,23 @@ function normalizeAuditEntry(entry = {}) {
   };
 }
 
+function normalizeSharedLogState(value = {}, fallbackEntries = []) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const sourceEntries = Array.isArray(source.entries) ? source.entries : [];
+  const fallbackLogEntries = Array.isArray(fallbackEntries) ? fallbackEntries : [];
+  const rawEntries = fallbackLogEntries.length >= sourceEntries.length
+    ? fallbackLogEntries
+    : sourceEntries;
+  return {
+    version: Math.max(SHARED_LOG_VERSION, Math.floor(Number(source.version) || SHARED_LOG_VERSION)),
+    entries: Array.isArray(rawEntries) ? rawEntries.map(normalizeAuditEntry).slice(0, 80) : [],
+  };
+}
+
+function getSharedLogState(contract = {}) {
+  return normalizeSharedLogState(contract.shared_log, contract.audit_log);
+}
+
 function normalizeFundLedgerEntry(entry = {}) {
   return {
     id: sanitizeText(entry?.id, 80) || makeId('shared_fund_ledger'),
@@ -8788,6 +8806,8 @@ function normalizeContract(entry = {}) {
   for (const member of uniqueMembers) {
     permissions[member.username_key] = normalizePermissionSet(rawPermissions[member.username_key] || rawPermissions[member.username], type);
   }
+  const auditLogEntries = Array.isArray(entry.audit_log) ? entry.audit_log.map(normalizeAuditEntry).slice(-80) : [];
+  const sharedLog = normalizeSharedLogState(entry.shared_log, auditLogEntries);
   return {
     id: sanitizeText(entry.id, 80) || makeId('cohabitation_contract'),
     type,
@@ -8854,7 +8874,8 @@ function normalizeContract(entry = {}) {
     closed_at: Math.max(0, Math.floor(Number(entry.closed_at) || 0)),
     closed_by: normalizeUsername(entry.closed_by),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
-    audit_log: Array.isArray(entry.audit_log) ? entry.audit_log.map(normalizeAuditEntry).slice(-80) : [],
+    shared_log: sharedLog,
+    audit_log: sharedLog.entries,
   };
 }
 
@@ -8979,11 +9000,13 @@ function appendAudit(contract, action, actor = {}, detail = {}, idempotencyKey =
     }),
     ...(Array.isArray(contract.audit_log) ? contract.audit_log : []),
   ].slice(0, 80);
+  contract.shared_log = normalizeSharedLogState(contract.shared_log, contract.audit_log);
   contract.updated_at = nowSeconds();
   return contract;
 }
 
 function toPublicContract(contract) {
+  const sharedLog = getSharedLogState(contract);
   return {
     ...contract,
     members: contract.members.map(member => ({ ...member })),
@@ -8999,6 +9022,7 @@ function toPublicContract(contract) {
     family_visibility_state: normalizeFamilyVisibilityState(contract.family_visibility_state),
     family_festival_seats_state: normalizeFamilyFestivalSeatsState(contract.family_festival_seats_state),
     family_state: normalizeContractFamilyState(contract.family_state),
+    shared_log: sharedLog,
     shared_animals: normalizeSharedAnimals(contract.shared_animals),
     shared_animal_ledger: normalizeAnimalActionLedger(contract.shared_animal_ledger),
     shared_pets: normalizeSharedPets(contract.shared_pets),
@@ -9010,7 +9034,7 @@ function toPublicContract(contract) {
       ? contract.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
       : [],
     permissions: Object.fromEntries(Object.entries(contract.permissions || {}).map(([key, value]) => [key, normalizePermissionSet(value, contract.type)])),
-    audit_log: (contract.audit_log || []).map(entry => ({ ...entry })).slice(0, 20),
+    audit_log: sharedLog.entries.map(entry => ({ ...entry })).slice(0, 20),
   };
 }
 
@@ -11616,6 +11640,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
   const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorMember?.username_key], contract.type);
   const simultaneousOnlineBonus = buildSimultaneousOnlineBonusSnapshot(contract, actorUsername, 'offline_status');
   const offlineAutoIncome = buildOfflineAutoIncomePendingSummary(contract);
+  const sharedLog = getSharedLogState(contract);
   const now = nowSeconds();
   const members = (contract.members || []).map(member => {
     const lastActiveAt = resolveMemberLastActive(contract, member);
@@ -11644,6 +11669,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       independent_operations_enabled: contract.status === 'active' && actorMember?.status === 'accepted',
       personal_money_merged: false,
       shared_log_available: true,
+      shared_log_version: sharedLog.version,
       shared_farm_offline_writes_enabled: true,
       shared_animal_offline_writes_enabled: true,
       shared_pet_offline_writes_enabled: true,
@@ -11727,7 +11753,8 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
     },
     simultaneous_online_bonus: simultaneousOnlineBonus,
     offline_auto_income: offlineAutoIncome,
-    recent_shared_log: (contract.audit_log || []).slice(0, 30),
+    shared_log_version: sharedLog.version,
+    recent_shared_log: sharedLog.entries.slice(0, 30),
     deferred_operations: ['simultaneous_online_bonus'],
   };
 }

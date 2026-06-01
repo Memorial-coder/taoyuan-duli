@@ -12,10 +12,11 @@ const srcRoot = path.join(projectRoot, 'src')
 
 const readSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
 
-const [cropUseProfiles, inventoryView, itemEncyclopedia] = await Promise.all([
+const [cropUseProfiles, inventoryView, itemEncyclopedia, settingsStore] = await Promise.all([
   readSource('src/data/cropUseProfiles.ts'),
   readSource('src/views/game/InventoryView.vue'),
-  readSource('src/data/itemEncyclopedia.ts')
+  readSource('src/data/itemEncyclopedia.ts'),
+  readSource('src/stores/useSettingsStore.ts')
 ])
 
 const errors = []
@@ -183,6 +184,15 @@ assertIncludes(itemEncyclopedia, "'炼丹读取用途标签'", '百科搜索必�
 assertIncludes(itemEncyclopedia, "'宠物喂食读取用途标签'", '百科搜索必须保留宠物喂食用途标签入口')
 assertIncludes(itemEncyclopedia, "'订单用途筛选'", '百科搜索必须保留订单用途筛选入口')
 assertIncludes(itemEncyclopedia, "'节会用途筛选'", '百科搜索必须保留节会用途筛选入口')
+
+assertIncludes(settingsStore, 'export const CROP_USE_TAG_SAVE_VERSION = 1', 'settings store must version crop use tag filter saves')
+assertIncludes(settingsStore, 'CROP_USE_TAG_LABELS, type CropUseTag', 'settings store must derive valid crop use tags from CROP_USE_TAG_LABELS')
+assertIncludes(settingsStore, 'const sanitizeInventoryCropUseFilter', 'settings store must sanitize saved crop use tags')
+assertIncludes(settingsStore, 'cropUseTagSaveVersion: CROP_USE_TAG_SAVE_VERSION', 'settings serialization must include crop use tag save version')
+assertIncludes(settingsStore, 'cropUseFilterState: {', 'settings serialization must include versioned crop use filter state')
+assertIncludes(settingsStore, 'selectedTags: selectedCropUseTags', 'settings serialization must write sanitized crop use tags')
+assertIncludes(settingsStore, 'const cropUseFilterState = normalizeCropUseFilterState(data)', 'settings deserialization must normalize crop use filter state')
+assertIncludes(settingsStore, 'inventoryCropUseFilter.value = cropUseFilterState.selectedTags', 'settings deserialization must fill missing/invalid crop use tag defaults')
 
 const {
   CROPS,

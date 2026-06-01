@@ -17,6 +17,8 @@ const DATA_DIR = process.env.DB_STORAGE
 
 const TAOYUAN_ACTIVITY_ROOM_FILE = path.join(DATA_DIR, 'taoyuan_activity_rooms.json');
 
+const ACTIVITY_ROOM_STORE_VERSION = 1;
+const ONLINE_VISUAL_STATE_VERSION = 1;
 const ROOM_STATES = Object.freeze(['created', 'inviting', 'ready_check', 'countdown', 'running', 'paused', 'settling', 'closed', 'aborted']);
 const MEMBER_STATES = Object.freeze(['invited', 'joined', 'ready', 'countdown_locked', 'active', 'disconnected', 'reconnecting', 'finished', 'settled', 'left', 'kicked']);
 const INVITATION_STATES = Object.freeze(['pending', 'accepted', 'rejected']);
@@ -1437,6 +1439,7 @@ function ensureStoreDir() {
 
 function createEmptyStore() {
   return {
+    version: ACTIVITY_ROOM_STORE_VERSION,
     rooms: [],
     receipts: [],
   };
@@ -1449,6 +1452,7 @@ function loadStore() {
     const raw = JSON.parse(fs.readFileSync(TAOYUAN_ACTIVITY_ROOM_FILE, 'utf8'));
     return raw && typeof raw === 'object'
       ? {
+          version: Math.max(ACTIVITY_ROOM_STORE_VERSION, Math.floor(Number(raw.version) || ACTIVITY_ROOM_STORE_VERSION)),
           rooms: Array.isArray(raw.rooms) ? raw.rooms : [],
           receipts: Array.isArray(raw.receipts) ? raw.receipts : [],
         }
@@ -1461,6 +1465,7 @@ function loadStore() {
 function saveStore(store) {
   ensureStoreDir();
   writeJsonFileAtomic(TAOYUAN_ACTIVITY_ROOM_FILE, {
+    version: ACTIVITY_ROOM_STORE_VERSION,
     rooms: Array.isArray(store?.rooms) ? store.rooms : [],
     receipts: Array.isArray(store?.receipts) ? store.receipts : [],
   });
@@ -2218,6 +2223,7 @@ function normalizeOnlineVisualState(value, room) {
     ? boardType
     : resolveDefaultVisualBoardType(room);
   return {
+    version: Math.max(ONLINE_VISUAL_STATE_VERSION, Math.floor(Number(source.version) || ONLINE_VISUAL_STATE_VERSION)),
     board_type: normalizedBoardType,
     board_id: sanitizeText(source.board_id, 80) || buildDefaultVisualBoardId(room),
     revision: Math.max(0, Math.floor(Number(source.revision) || 0)),

@@ -7566,6 +7566,8 @@ assert.equal(offlineStatus.offline_status.summary.server_authoritative, true, 'o
 assert.equal(offlineStatus.offline_status.summary.member_online_required, false, 'offline status should not require all members online')
 assert.equal(offlineStatus.offline_status.summary.offline_member_blocks_operations, false, 'offline members should not block operations')
 assert.equal(offlineStatus.offline_status.summary.independent_operations_enabled, true, 'active members should be able to operate independently')
+assert.equal(created.contract.shared_log?.version, 1, 'contract public snapshot should expose shared log version 1')
+assert.ok(Array.isArray(created.contract.shared_log?.entries), 'contract public snapshot should expose shared log entries')
 assert.equal(offlineStatus.offline_status.summary.shared_farm_offline_writes_enabled, true, 'offline status should expose shared farm writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.shared_animal_offline_writes_enabled, true, 'offline status should expose shared animal writes as server-authoritative')
 assert.equal(offlineStatus.offline_status.summary.shared_pet_offline_writes_enabled, true, 'offline status should expose shared pet care writes as server-authoritative')
@@ -7590,6 +7592,8 @@ assert.ok(offlineStatus.offline_status.offline_auto_income.pending_count >= 0, '
 assert.ok(!offlineStatus.offline_status.deferred_operations.includes('offline_auto_income'), 'offline auto income should not be marked deferred after claim flow')
 assert.ok(offlineStatus.offline_status.members.find(member => member.username === owner)?.last_active_at > 0, 'offline status should expose owner last active time')
 assert.ok(offlineStatus.offline_status.members.find(member => member.username === partner)?.last_active_at > 0, 'offline status should expose partner last active time')
+assert.equal(offlineStatus.offline_status.summary.shared_log_version, 1, 'offline status summary should expose shared log version 1')
+assert.equal(offlineStatus.offline_status.shared_log_version, 1, 'offline status should expose shared log version 1')
 assert.ok(offlineStatus.offline_status.recent_shared_log.some(entry => entry.action === 'permissions_updated'), 'offline status should expose recent shared log')
 assert.ok(!offlineStatus.offline_status.deferred_operations.includes('frontend_shared_log'), 'frontend shared log should no longer be marked deferred')
 assert.equal(offlineStatus.offline_status.actor_capabilities.water_shared_farm, true, 'owner should be able to water shared farm while partner is not required online')
@@ -9358,6 +9362,9 @@ const offlineUnlockPartnerRawBeforeRequest = saveRuntime.loadUserSaveSlots(offli
 await mutateStoredContract(offlineUnlockContract.contract.id, contract => {
   const now = Math.floor(Date.now() / 1000)
   contract.audit_log = (contract.audit_log || []).filter(entry => entry.actor_username !== offlineUnlockPartner)
+  if (contract.shared_log && Array.isArray(contract.shared_log.entries)) {
+    contract.shared_log.entries = contract.shared_log.entries.filter(entry => entry.actor_username !== offlineUnlockPartner)
+  }
   const partnerMember = contract.members.find(member => member.username === offlineUnlockPartner)
   assert.ok(partnerMember, 'offline unlock partner member should exist')
   partnerMember.last_active_at = now - (8 * 24 * 60 * 60)

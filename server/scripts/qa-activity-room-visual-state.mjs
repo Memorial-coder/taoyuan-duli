@@ -73,6 +73,7 @@ const sumRewardInventoryQuantity = (saveData, itemId) => {
 }
 
 const assertVisualStateShape = (visualState, expectedBoardType, expectedBoardIdPrefix) => {
+  assert.equal(visualState?.version, 1, 'visual_state save version should default to 1')
   assert.equal(visualState?.board_type, expectedBoardType, 'visual_state board_type mismatch')
   assert.equal(typeof visualState.board_id, 'string', 'visual_state board_id should be string')
   assert.ok(visualState.board_id.startsWith(expectedBoardIdPrefix), `visual_state board_id should start with ${expectedBoardIdPrefix}`)
@@ -416,6 +417,7 @@ assert.ok(lifecycleCountdown.room.countdown_ends_at > lifecycleCountdown.room.co
 assert.ok(lifecycleCountdown.room.members.every(member => member.status === 'countdown_locked'), 'activity room lifecycle countdown should lock ready members')
 
 const lifecycleCountdownStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+assert.equal(lifecycleCountdownStore.version, 1, 'activity room store should persist version 1')
 lifecycleCountdownStore.rooms = lifecycleCountdownStore.rooms.map(room => room.id === lifecycleRoom.room.id
   ? {
       ...room,
@@ -1084,6 +1086,8 @@ const escortSettledSnapshotReceipt = escortSettledResult.room.settlement_receipt
 assert.equal(escortSettledSnapshotReceipt?.route_replay?.kind, 'escort_convoy', 'room snapshot escort convoy receipt should include route replay')
 
 const stored = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+assert.equal(stored.version, 1, 'activity room store should keep version 1 before legacy visual migration')
+delete stored.version
 stored.rooms = stored.rooms.map(room => {
   const nextRoom = { ...room }
   delete nextRoom.visual_state
@@ -1092,9 +1096,11 @@ stored.rooms = stored.rooms.map(room => {
 await writeFile(roomStoreFile, JSON.stringify(stored, null, 2), 'utf8')
 
 const legacyOverview = await runtime.listFestivalRoomOverview('visual_host_festival')
+assert.equal(legacyOverview.my_room.visual_state.version, 1, 'legacy festival room visual_state should fill version 1')
 assertLanternFairVisualObjects(legacyOverview.my_room, 0, { expectInitialStates: false })
 
 const legacyExpeditionOverview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
+assert.equal(legacyExpeditionOverview.my_room.visual_state.version, 1, 'legacy expedition room visual_state should fill version 1')
 assertCavernVisualNodes(legacyExpeditionOverview.my_room, 0)
 
 const nodeStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
