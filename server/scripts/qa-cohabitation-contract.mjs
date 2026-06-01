@@ -4331,7 +4331,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 18, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 19, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4366,6 +4366,11 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_nian_gao'), 'warehouse item policy should list nian gao as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_yue_bing'), 'warehouse item policy should list mooncake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_zhi_yuan_gao'), 'warehouse item policy should list kite cake as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_pigeon_egg_herb_soup'), 'warehouse item policy should list pigeon egg herb soup as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_yak_milk_barley_porridge'), 'warehouse item policy should list yak milk porridge as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_donkey_milk_ginger_tea'), 'warehouse item policy should list donkey milk ginger tea as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_ostrich_egg_feast'), 'warehouse item policy should list ostrich egg feast as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_antler_velvet_herb_soup'), 'warehouse item policy should list antler velvet herb soup as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4550,6 +4555,32 @@ await processRecipePolicyBasicDish({
   outputItemId: 'food_camel_milk_tea',
   station: 'tea_maker',
   inputs: [{ itemId: 'camel_milk', quantity: 1 }, { itemId: 'tea', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_pigeon_egg_herb_soup',
+  outputItemId: 'food_pigeon_egg_herb_soup',
+  inputs: [{ itemId: 'pigeon_egg', quantity: 2 }, { itemId: 'herb', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_yak_milk_barley_porridge',
+  outputItemId: 'food_yak_milk_barley_porridge',
+  inputs: [{ itemId: 'yak_milk', quantity: 1 }, { itemId: 'wheat', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_donkey_milk_ginger_tea',
+  outputItemId: 'food_donkey_milk_ginger_tea',
+  station: 'tea_maker',
+  inputs: [{ itemId: 'donkey_milk', quantity: 1 }, { itemId: 'ginger', quantity: 1 }, { itemId: 'tea', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_ostrich_egg_feast',
+  outputItemId: 'food_ostrich_egg_feast',
+  inputs: [{ itemId: 'ostrich_egg', quantity: 1 }, { itemId: 'potato', quantity: 1 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_antler_velvet_herb_soup',
+  outputItemId: 'food_antler_velvet_herb_soup',
+  inputs: [{ itemId: 'antler_velvet', quantity: 1 }, { itemId: 'herb', quantity: 2 }, { itemId: 'goat_milk', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_first_catch_soup',
