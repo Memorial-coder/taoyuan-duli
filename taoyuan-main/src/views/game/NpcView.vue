@@ -1831,6 +1831,7 @@
     })
     return lockedIds.size
   })
+    RandomNpcFamilyReviewEntry,
   const NPC_COOKING_TOPIC_LABELS = ['NPC 来访话题', '送礼话题', '家宴团圆']
   const npcCookingTopicRecords = computed(() => {
     const records = cookingStore.recentStoryTriggerRecords
@@ -2130,7 +2131,7 @@
     resident.familyLine.familyBusinessHistory.slice(-3).reverse()
   const getRecentRandomNpcFamilySpecialEvents = (resident: RandomNpcLongStayEntry): RandomNpcFamilySpecialEventEntry[] =>
     [...(resident.familyLine.specialTieEventHistory ?? [])].slice(-3).reverse()
-  const getRandomNpcFamilyReviewTypeLabel = (type: 'meeting' | 'commission' | 'business'): string => {
+  const getRandomNpcFamilyReviewTypeLabel = (type: RandomNpcFamilyReviewEntry['type']): string => {
     if (type === 'commission') return '家族委托'
     if (type === 'business') return '婚后家业'
     return '见家人'
@@ -2214,6 +2215,11 @@
     [...(child.trainingState.familyEventHistory ?? [])]
       .filter(event => event.sourceResidentId === resident.residentId)
       .slice(-2)
+    if (type === 'relationship') return '关系触发'
+    if (type === 'commitment') return '婚约成婚'
+    if (type === 'home') return '婚后日常'
+    if (type === 'festival') return '节会同行'
+    if (type === 'reunion') return '旧档接续'
       .reverse()
   const getRandomNpcFamilyCommissionButtonText = (resident: RandomNpcLongStayEntry): string => {
     const commission = getRandomNpcFamilyCommission(resident)

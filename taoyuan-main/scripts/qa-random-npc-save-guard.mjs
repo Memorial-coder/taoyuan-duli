@@ -87,7 +87,8 @@ for (const [key, maxValue, label] of [
   ['maxWeeklyReunionVisitors', 1, '每周自然重逢人数不能放大'],
   ['weeklyReunionCooldownDays', 7, '每周重逢冷却不能缩短到无限刷出'],
   ['acquaintanceColdArchiveDays', 28, '熟人冷归档天数必须保留'],
-  ['longStayColdArchiveDays', 56, '长住冷归档天数必须保留']
+  ['longStayColdArchiveDays', 56, '长住冷归档天数必须保留'],
+  ['longStayDeepArchiveDays', 112, '深关系长住归档天数必须保留']
 ]) {
   assertLimitAtMost(randomNpcs, key, maxValue, label)
 }
@@ -150,6 +151,17 @@ assertBlockIncludes(useNpcStore, 'const sanitizeRandomNpcDialogueScenes', '.slic
 assertBlockIncludes(useNpcStore, 'const sanitizeRandomNpcFamilyTies', '.slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)', '家族节点读档必须按上限裁剪')
 assertBlockIncludes(useNpcStore, 'const sanitizeRandomNpcFamilyLineState', '.slice(-RANDOM_NPC_FAMILY_REVIEW_LIMIT)', '家族评价 / 家业历史读档必须按上限裁剪', 4200)
 assertBlockIncludes(useNpcStore, 'const sanitizeRandomNpcFamilyLineState', '.slice(-RANDOM_NPC_FAMILY_SPECIAL_EVENT_LIMIT)', '家族深线历史读档必须按上限裁剪', 4200)
+assertIncludes(npcTypes, 'export type RandomNpcFamilyReviewType', '家族评价类型必须结构化，避免触发器写入散落字符串')
+for (const reviewType of ["'relationship'", "'commitment'", "'home'", "'festival'", "'reunion'"]) {
+  assertIncludes(npcTypes, reviewType, `家族评价类型缺少 ${reviewType} 触发记录`)
+}
+assertBlockIncludes(useNpcStore, 'const appendRandomNpcFamilyTriggerReview', 'appendRandomNpcFamilyReview', '家庭线触发器必须复用限长家族评价追加逻辑')
+assertBlockIncludes(useNpcStore, 'const createRandomNpcLongStayResidentFromArchive', "type: 'reunion'", '长住旧档召回必须写入家庭线接续触发器', 5200)
+assertBlockIncludes(useNpcStore, 'const startRandomNpcRelationLine', "type: 'relationship'", '开启长住关系线必须触发家庭线记录', 5200)
+assertBlockIncludes(useNpcStore, 'const engageRandomNpcRelationLine', "type: 'commitment'", '随机 NPC 订婚必须触发家庭线记录', 5200)
+assertBlockIncludes(useNpcStore, 'const marryRandomNpcRelationLine', "type: 'commitment'", '随机 NPC 成婚必须触发家庭线记录', 5200)
+assertBlockIncludes(useNpcStore, 'const recordRandomNpcMarriedLife', "type: 'home'", '婚后日常必须触发家庭线记录', 5200)
+assertBlockIncludes(useNpcStore, 'const progressRandomNpcFestivalCompanion', "type: 'festival'", '长住节会同行必须触发家庭线记录', 5200)
 assertIncludes(useNpcStore, '.slice(0, RANDOM_NPC_FAMILY_TIE_LIMIT)', '已见家人 ID 必须按家族节点上限裁剪')
 assertIncludes(useNpcStore, '.slice(-RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT)', '关系线读档必须按历史上限裁剪')
 assertIncludes(useNpcStore, '): RandomNpcRelationLineState[\'history\'] => [...line.history, event].slice(-RANDOM_NPC_RELATION_LINE_HISTORY_LIMIT)', '关系线追加必须按历史上限裁剪')
@@ -177,9 +189,11 @@ assertBlockIncludes(useNpcStore, 'const createRandomNpcWeeklyReunionVisitors', '
 assertBlockIncludes(useNpcStore, 'const getRandomNpcWeeklyReunionArchiveCandidates', 'RANDOM_NPC_VISITOR_CONFIG.weeklyReunionCooldownDays', '旧档自然重逢必须检查冷却天数')
 assertBlockIncludes(useNpcStore, 'const getRandomNpcWeeklyReunionAcquaintanceCandidates', 'RANDOM_NPC_VISITOR_CONFIG.weeklyReunionCooldownDays', '熟人自然重逢必须检查冷却天数')
 
-assertBlockIncludes(useNpcStore, 'const canArchiveRandomNpcLongStayResident', 'RANDOM_NPC_VISITOR_CONFIG.longStayColdArchiveDays', '长住冷归档必须保留低活跃天数门槛')
-assertBlockIncludes(useNpcStore, 'const canArchiveRandomNpcLongStayResident', 'relationshipLine.commitmentStatus === \'none\'', '长住冷归档不能归档已订婚 / 已婚关系')
-assertBlockIncludes(useNpcStore, 'const canArchiveRandomNpcLongStayResident', 'familyLine.familyBusinessStage === 0', '长住冷归档不能归档已推进家业线')
+assertBlockIncludes(useNpcStore, 'const getRandomNpcLongStayArchiveKind', 'RANDOM_NPC_VISITOR_CONFIG.longStayColdArchiveDays', '长住冷归档必须保留低活跃天数门槛')
+assertBlockIncludes(useNpcStore, 'const getRandomNpcLongStayArchiveKind', 'relationshipLine.commitmentStatus === \'none\'', '长住冷归档不能归档已订婚 / 已婚关系')
+assertBlockIncludes(useNpcStore, 'const getRandomNpcLongStayArchiveKind', 'familyLine.familyBusinessStage === 0', '长住冷归档不能归档已推进家业线')
+assertBlockIncludes(useNpcStore, 'const getRandomNpcLongStayArchiveKind', 'RANDOM_NPC_VISITOR_CONFIG.longStayDeepArchiveDays', '深关系长住归档必须有更长低活跃门槛')
+assertBlockIncludes(useNpcStore, 'const getRandomNpcLongStayArchiveKind', 'hasRandomNpcLockedArchiveCapacity(plannedLockedArchives)', '深关系长住归档必须预留锁定旧档名额')
 assertBlockIncludes(useNpcStore, 'const archiveStaleRandomNpcAcquaintances', 'RANDOM_NPC_VISITOR_CONFIG.acquaintanceColdArchiveDays', '熟人冷归档必须保留低活跃天数门槛')
 assertBlockIncludes(useNpcStore, 'const archiveStaleRandomNpcAcquaintances', 'shortRomance.status !== \'invited\'', '熟人冷归档不能归档进行中的短线暧昧邀约')
 
@@ -189,7 +203,9 @@ assertBlockIncludes(useNpcStore, 'const createRandomNpcLongStayArchiveSnapshot',
 assertBlockIncludes(useNpcStore, 'const createRandomNpcLongStayArchiveSnapshot', 'relationshipLine: sanitizeRandomNpcRelationLineState', '长住旧档快照必须清洗关系线')
 assertBlockIncludes(useNpcStore, 'const summarizeRandomNpcLongStayResident', 'dialogueMemories:', '长住冷归档必须生成轻量摘要对话记忆')
 assertBlockIncludes(useNpcStore, 'const summarizeRandomNpcLongStayResident', '].slice(-3)', '长住冷归档摘要必须裁剪关键事件 / 对话记忆到 3 条')
+assertBlockIncludes(useNpcStore, 'const summarizeRandomNpcLongStayResident', 'locked: isDeepRelationshipArchive', '深关系长住归档必须自动锁定旧档摘要')
 assertBlockIncludes(useNpcStore, 'const summarizeRandomNpcLongStayResident', 'longStaySnapshot: createRandomNpcLongStayArchiveSnapshot(resident)', '长住冷归档必须写入轻量长住快照')
+assertBlockIncludes(useNpcStore, 'const archiveStaleRandomNpcLongStayResidents', 'plannedLockedArchives += 1', '批量深关系长住归档必须计入锁定名额规划')
 assertBlockIncludes(useNpcStore, 'const canProgressRandomNpcFestivalCompanion', 'getCurrentFestivalRecallEventName()', '长住节会同行必须读取今日节会门槛')
 assertBlockIncludes(useNpcStore, 'const canProgressRandomNpcFestivalCompanion', 'resident.lastStoryDayTag === dayTag', '长住节会同行必须复用长住当日事件限制')
 assertBlockIncludes(useNpcStore, 'const progressRandomNpcFestivalCompanion', 'lastStoryDayTag: dayTag', '长住节会同行成功后必须写入当日事件标记', 5200)
@@ -226,6 +242,7 @@ assertIncludes(npcView, 'random-npc-archive-old-keepsake', 'NPC 页旧档摘要�
 assertIncludes(npcView, 'random-npc-archive-festival-reunion', 'NPC 页旧档摘要必须提供节会重逢召回入口')
 assertIncludes(npcView, 'random-npc-festival-companion', 'NPC 页长住卡片必须提供节会同行入口')
 assertIncludes(npcView, '今日节会同行', 'NPC 页必须展示长住节会同行说明')
+assertIncludes(npcView, '旧档接续', 'NPC 页必须能读回旧档接续家庭线触发记录')
 assertIncludes(npcView, '旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}', 'NPC 页必须展示旧信和旧物召回消耗')
 assertIncludes(npcView, '节会重逢需今日有节会', 'NPC 页必须展示节会重逢召回条件')
 assertIncludes(itemEncyclopedia, '随机 NPC 旧信召回：NPC 页旧日来客摘要可消耗纸张寄旧信', '百科必须能读回纸张的随机 NPC 旧信召回用途')

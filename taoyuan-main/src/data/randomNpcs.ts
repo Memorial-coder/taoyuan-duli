@@ -10,6 +10,7 @@ export const RANDOM_NPC_VISITOR_CONFIG = {
   weeklyReunionCooldownDays: 7,
   acquaintanceColdArchiveDays: 28,
   longStayColdArchiveDays: 56,
+  longStayDeepArchiveDays: 112,
   acquaintanceAffinityThreshold: 40,
   longStayAffinityThreshold: 70
 } as const

@@ -205,11 +205,21 @@ export interface RandomNpcFamilyCommissionDef {
   rewardSummary: string
 }
 
+export type RandomNpcFamilyReviewType =
+  | 'meeting'
+  | 'commission'
+  | 'business'
+  | 'relationship'
+  | 'commitment'
+  | 'home'
+  | 'festival'
+  | 'reunion'
+
 export interface RandomNpcFamilyReviewEntry {
   id: string
   dayTag: string
   tieId: string
-  type: 'meeting' | 'commission' | 'business'
+  type: RandomNpcFamilyReviewType
   summary: string
   reputationDelta: number
 }

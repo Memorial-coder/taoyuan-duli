@@ -37,6 +37,7 @@ import type {
   RandomNpcFamilyLineState,
   RandomNpcLongStayArchiveSnapshot,
   RandomNpcFamilyReviewEntry,
+  RandomNpcFamilyReviewType,
   RandomNpcFamilySpecialEventEntry,
   RandomNpcFamilyTieDef,
   RandomNpcFamilyTieKind,
@@ -1007,7 +1008,7 @@ export const useNpcStore = defineStore('npc', () => {
       id: typeof entry.id === 'string' ? entry.id : `${tieId}:${entry.type ?? 'meeting'}`,
       dayTag: typeof entry.dayTag === 'string' ? entry.dayTag : '',
       tieId,
-      type: entry.type === 'commission' || entry.type === 'business' ? entry.type : 'meeting',
+      type,
       summary: typeof entry.summary === 'string' ? entry.summary : '家族评价已记录。',
       reputationDelta: Math.max(-20, Math.min(20, Number(entry.reputationDelta) || 0))
     }
@@ -1092,6 +1093,16 @@ export const useNpcStore = defineStore('npc', () => {
     raw: unknown,
     familyTies: RandomNpcFamilyTieDef[],
     commission: RandomNpcFamilyCommissionDef
+    const type: RandomNpcFamilyReviewType =
+      entry.type === 'commission' ||
+      entry.type === 'business' ||
+      entry.type === 'relationship' ||
+      entry.type === 'commitment' ||
+      entry.type === 'home' ||
+      entry.type === 'festival' ||
+      entry.type === 'reunion'
+        ? entry.type
+        : 'meeting'
   ): RandomNpcFamilyLineState => {
     const validTieIds = new Set(familyTies.map(tie => tie.id))
     const fallbackTieId = validTieIds.has(commission.tieId) ? commission.tieId : familyTies[0]?.id ?? commission.tieId
@@ -1396,6 +1407,33 @@ export const useNpcStore = defineStore('npc', () => {
   const buildRandomNpcChildFamilyEventSummary = (
     child: ChildState,
     resident: RandomNpcLongStayEntry,
+  const appendRandomNpcFamilyTriggerReview = (
+    familyLine: RandomNpcFamilyLineState,
+    resident: RandomNpcLongStayEntry,
+    template: typeof RANDOM_NPC_TEMPLATES[number],
+    params: {
+      dayTag: string
+      type: Exclude<RandomNpcFamilyReviewType, 'meeting' | 'commission' | 'business'>
+      summary: string
+      reputationDelta: number
+      key: string
+    }
+  ): RandomNpcFamilyLineState => {
+    const anchorTieId = familyLine.metTieIds.find(tieId => resident.familyTies.some(tie => tie.id === tieId)) ??
+      (resident.familyTies.some(tie => tie.id === template.familyCommission.tieId)
+        ? template.familyCommission.tieId
+        : resident.familyTies[0]?.id)
+    if (!anchorTieId) return familyLine
+    return appendRandomNpcFamilyReview(familyLine, {
+      id: `${params.dayTag}:${resident.residentId}:family-trigger:${params.type}:${params.key}`,
+      dayTag: params.dayTag,
+      tieId: anchorTieId,
+      type: params.type,
+      summary: params.summary.slice(0, 140),
+      reputationDelta: Math.max(0, Math.min(6, params.reputationDelta))
+    })
+  }
+
     focus: ChildTrainingFocus,
     stage: 1 | 2 | 3
   ): string => {
@@ -2244,7 +2282,14 @@ export const useNpcStore = defineStore('npc', () => {
     ].find(dayTag => typeof dayTag === 'string' && dayTag.length > 0) ?? ''
   }
 
-  const canArchiveRandomNpcLongStayResident = (resident: RandomNpcLongStayEntry, currentDayTag: string): boolean => {
+  const hasRandomNpcLockedArchiveCapacity = (plannedLockedArchives = 0): boolean =>
+    randomNpcBoard.value.recentSummaries.filter(archive => archive.locked).length + plannedLockedArchives < RANDOM_NPC_VISITOR_CONFIG.maxLockedArchives
+
+  const getRandomNpcLongStayArchiveKind = (
+    resident: RandomNpcLongStayEntry,
+    currentDayTag: string,
+    plannedLockedArchives = 0
+  ): 'cold' | 'deep_relationship' | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
     if (!template) return false
     const familyLine = sanitizeRandomNpcFamilyLineState(resident.familyLine, resident.familyTies, template.familyCommission)
@@ -2279,14 +2324,24 @@ export const useNpcStore = defineStore('npc', () => {
 
   const summarizeRandomNpcLongStayResident = (
     resident: RandomNpcLongStayEntry,
+    resident.familyLine = appendRandomNpcFamilyTriggerReview(resident.familyLine, resident, template, {
+      dayTag,
+      type: 'reunion',
+      summary: `${resident.name}从旧日长住摘要回到桃源村，家庭线按旧档快照继续接续。`,
+      reputationDelta: 1,
+      key: trigger
+    })
     currentDayTag: string,
-    inactiveDays: number
+    inactiveDays: number,
+    archiveKind: 'cold' | 'deep_relationship' = 'cold'
   ): RandomNpcArchiveSummary => {
     const farewellMemory = buildRandomNpcLifecycleDialogueMemory(resident, {
       dayTag: currentDayTag,
       kind: 'farewell',
       choiceId: 'lifecycle:long_stay_cold_archive',
-      choiceText: `离别：长住冷归档 ${inactiveDays} 天`,
+      choiceText: isDeepRelationshipArchive
+        ? `离别：深关系长住锁定归档 ${inactiveDays} 天`
+        : `离别：长住冷归档 ${inactiveDays} 天`,
       direction: 'trust'
     })
     return {
@@ -2297,14 +2352,18 @@ export const useNpcStore = defineStore('npc', () => {
       relationshipTag: resident.relationshipTag === 'passing' ? 'acquaintance' : resident.relationshipTag,
       affinity: resident.affinity,
       lastSeenDayTag: getRandomNpcLongStayLastTouchedDayTag(resident) || resident.movedInDayTag,
-      summary: `${resident.name}长期未推进长住事件，已冷归档为旧日长住摘要；之后可在长住名额空余时召回。`,
+      summary: isDeepRelationshipArchive
+        ? `${resident.name}已有深关系记录但长期未互动，已锁定为旧日长住摘要；之后可在长住名额空余时召回并接续家庭线。`
+        : `${resident.name}长期未推进长住事件，已冷归档为旧日长住摘要；之后可在长住名额空余时召回。`,
       keyEvents: [
         ...resident.keyEvents,
-        `${currentDayTag} 长住低活跃 ${inactiveDays} 天，冷归档为旧日长住摘要。`,
+        isDeepRelationshipArchive
+          ? `${currentDayTag} 深关系长住低活跃 ${inactiveDays} 天，锁定归档为旧日长住摘要。`
+          : `${currentDayTag} 长住低活跃 ${inactiveDays} 天，冷归档为旧日长住摘要。`,
         ...(farewellMemory ? [`${currentDayTag} ${farewellMemory.response}`] : [])
       ].slice(-3),
       smallOrderCompleted: !!resident.smallOrderCompleted,
-      locked: false,
+      locked: isDeepRelationshipArchive,
       relationshipSignals: sanitizeRandomNpcRelationshipSignals(resident.relationshipSignals),
       dialogueMemories: [
         ...resident.dialogueMemories,
@@ -2321,8 +2380,10 @@ export const useNpcStore = defineStore('npc', () => {
 
     for (const resident of randomNpcBoard.value.longStayResidents) {
       const inactiveDays = getRandomNpcInactiveDays(getRandomNpcLongStayLastTouchedDayTag(resident), currentDayTag)
-      if (canArchiveRandomNpcLongStayResident(resident, currentDayTag)) {
-        staleArchives.push(summarizeRandomNpcLongStayResident(resident, currentDayTag, inactiveDays))
+      const archiveKind = getRandomNpcLongStayArchiveKind(resident, currentDayTag, plannedLockedArchives)
+      if (archiveKind) {
+        staleArchives.push(summarizeRandomNpcLongStayResident(resident, currentDayTag, inactiveDays, archiveKind))
+        if (archiveKind === 'deep_relationship') plannedLockedArchives += 1
       } else {
         keptResidents.push(resident)
       }
@@ -2367,7 +2428,19 @@ export const useNpcStore = defineStore('npc', () => {
     randomNpcBoard.value.acquaintanceIds = randomNpcBoard.value.acquaintanceIds.filter(id =>
       keptAcquaintances.some(acquaintance => acquaintance.visitorId === id) ||
       activeVisitorIds.has(id)
-    )
+    ) {
+      return 'cold'
+    }
+    if (
+      inactiveDays >= RANDOM_NPC_VISITOR_CONFIG.longStayDeepArchiveDays &&
+      relationshipLine.commitmentStatus === 'none' &&
+      relationshipLine.stage > 0 &&
+      relationshipLine.kind !== 'severed' &&
+      hasRandomNpcLockedArchiveCapacity(plannedLockedArchives)
+    ) {
+      return 'deep_relationship'
+    }
+    return null
     randomNpcBoard.value.recentSummaries = trimRandomNpcArchives([
       ...staleArchives,
       ...randomNpcBoard.value.recentSummaries
@@ -2423,6 +2496,7 @@ export const useNpcStore = defineStore('npc', () => {
   const createRandomNpcLongStayEntry = (acquaintance: RandomNpcAcquaintanceEntry): RandomNpcLongStayEntry | null => {
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === acquaintance.templateId)
     if (!template) return null
+    const isDeepRelationshipArchive = archiveKind === 'deep_relationship'
     const dayTag = getCurrentNpcDayTag()
     return {
       residentId: `resident:${acquaintance.visitorId}`,
@@ -2459,6 +2533,7 @@ export const useNpcStore = defineStore('npc', () => {
       smallOrderCompleted: !!acquaintance.smallOrderCompleted,
       relationshipTag: acquaintance.relationshipTag === 'passing' ? 'acquaintance' : acquaintance.relationshipTag,
       affinity: acquaintance.affinity,
+    let plannedLockedArchives = 0
       movedInDayTag: dayTag,
       residenceReason: `${acquaintance.name}决定在桃源村暂住，继续追索“${template.lifeGoal}”。`,
       route: getRandomNpcLongStayRoute(template.id),
@@ -3269,7 +3344,7 @@ export const useNpcStore = defineStore('npc', () => {
     const dayTag = getCurrentNpcDayTag()
     const direction: RandomNpcRelationshipDirection = 'family_impression'
     const affinityChange = 4
-    const choiceText = `节会同行：${guard.eventName}`
+    const choiceText = `节会同行：${eventName}`
     const dialogueScene = getRandomNpcTriggeredDialogueScene(resident, {
       direction,
       choiceId: 'festival:long_stay_companion',
@@ -3279,7 +3354,7 @@ export const useNpcStore = defineStore('npc', () => {
     const dialogueSceneLine = buildRandomNpcDialogueSceneLine(dialogueScene)
     const contextLine = buildRandomNpcDialogueContextLine(resident)
     const response = [
-      `${resident.name}与你在${guard.eventName}里同行，把家族、旧识和桃源当下的热闹重新对上。`,
+      `${resident.name}与你在${eventName}里同行，把家族、旧识和桃源当下的热闹重新对上。`,
       dialogueSceneLine,
       contextLine
     ].filter(Boolean).join(' ')
@@ -3294,7 +3369,7 @@ export const useNpcStore = defineStore('npc', () => {
       affinityChange,
       relationshipTag: resident.relationshipTag
     })
-    const eventLine = `${dayTag} 【节会同行】${guard.eventName}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
+    const eventLine = `${dayTag} 【节会同行】${eventName}：${response}（${getRandomNpcRelationshipDirectionLabel(direction)}）`
     let nextResident: RandomNpcLongStayEntry | null = null
     randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
       if (entry.residentId !== residentId) return entry
@@ -3454,6 +3529,7 @@ export const useNpcStore = defineStore('npc', () => {
         familyTieId: tie.id,
         familyTieKind: tie.kind,
         stage: nextMeetingStage,
+    const eventName = guard.eventName
         summary: `${familyTieAuditResident.name} met family tie ${tie.id} at stage ${nextMeetingStage}.`,
         idempotencyKey: `random_npc:${familyTieAuditResident.residentId}:family_tie:${tie.id}:${nextMeetingStage}`
       })
@@ -3486,9 +3562,25 @@ export const useNpcStore = defineStore('npc', () => {
     if (currentStage >= 3) return { success: false, message: `${tie.relation}深线已完成。` }
     if (familyLine.specialTieEventLastDayTags[tieId] === getCurrentNpcDayTag()) {
       return { success: false, message: `${tie.relation}深线今天已经推进过，明天再继续。` }
+      const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)
+      const nextFamilyLine = template
+        ? appendRandomNpcFamilyTriggerReview(
+            sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission),
+            entry,
+            template,
+            {
+              dayTag,
+              type: 'festival',
+              summary: `${entry.name}与你在${eventName}同行，家庭线记录一次节会重逢式的家族印象。`,
+              reputationDelta: 1,
+              key: eventName
+            }
+          )
+        : entry.familyLine
     }
     return { success: true, message: `可以推进${tie.relation}深线。`, stage: (currentStage + 1) as 1 | 2 | 3 }
   }
+        familyLine: nextFamilyLine,
 
   const progressRandomNpcFamilySpecialEvent = (
     residentId: string,
@@ -4007,10 +4099,26 @@ export const useNpcStore = defineStore('npc', () => {
       return nextResident
     })
     recordRandomNpcRelationshipMilestoneAudit({
+      const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)
+      const nextFamilyLine = template && kind !== 'rivalry'
+        ? appendRandomNpcFamilyTriggerReview(
+            sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission),
+            entry,
+            template,
+            {
+              dayTag,
+              type: 'relationship',
+              summary: `${entry.name}开启${getRandomNpcRelationLineLabel(kind)}，家庭线同步记录这段长期关系的起点。`,
+              reputationDelta: kind === 'family' ? 3 : kind === 'friend' ? 1 : 2,
+              key: kind
+            }
+          )
+        : entry.familyLine
       action: 'relation_line_engaged',
       visitorId: resident.sourceVisitorId,
       residentId: resident.residentId,
       templateId: resident.templateId,
+        familyLine: nextFamilyLine,
       npcName: resident.name,
       relationshipTag: resident.relationshipTag,
       relationLineKind: 'romance',
@@ -4121,14 +4229,22 @@ export const useNpcStore = defineStore('npc', () => {
       if (entry.residentId !== residentId) return entry
       const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)
       if (!template) return entry
-      const nextFamilyLine = sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission)
+      const nextFamilyLine = appendRandomNpcFamilyTriggerReview(
+        sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission),
+        entry,
+        template,
+        {
+          dayTag,
+          type: 'home',
+          summary,
+          reputationDelta: 1,
+          key: `home:${currentLine.history.length}`
+        }
+      )
       nextResident = {
         ...entry,
         affinity: Math.min(100, entry.affinity + 1),
-        familyLine: {
-          ...nextFamilyLine,
-          reputation: Math.min(100, nextFamilyLine.reputation + 1)
-        },
+        familyLine: nextFamilyLine,
         relationshipLine: {
           ...currentLine,
           stage: 3,
@@ -4177,9 +4293,25 @@ export const useNpcStore = defineStore('npc', () => {
   const developRandomNpcFamilyBusiness = (
     residentId: string
   ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+      const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)
+      const nextFamilyLine = template
+        ? appendRandomNpcFamilyTriggerReview(
+            sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission),
+            entry,
+            template,
+            {
+              dayTag,
+              type: 'commitment',
+              summary: `${entry.name}定下婚约，家庭线同步记录婚约阶段与家族见证。`,
+              reputationDelta: 3,
+              key: 'engage'
+            }
+          )
+        : entry.familyLine
     const guard = canDevelopRandomNpcFamilyBusiness(residentId)
     const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
     if (!guard.success || !resident) return { ...guard, resident }
+        familyLine: nextFamilyLine,
     const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === resident.templateId)
     if (!template) return { success: false, message: '随机 NPC 模板缺失。', resident }
     const dayTag = getCurrentNpcDayTag()
@@ -4245,10 +4377,26 @@ export const useNpcStore = defineStore('npc', () => {
       return nextResident
     })
     recordRandomNpcRelationshipMilestoneAudit({
+      const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)
+      const nextFamilyLine = template
+        ? appendRandomNpcFamilyTriggerReview(
+            sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission),
+            entry,
+            template,
+            {
+              dayTag,
+              type: 'commitment',
+              summary: `${entry.name}在桃源村成婚，家庭线同步记录婚后关系与家族接续。`,
+              reputationDelta: 4,
+              key: 'marry'
+            }
+          )
+        : entry.familyLine
       action: 'family_business_progressed',
       visitorId: resident.sourceVisitorId,
       residentId: resident.residentId,
       templateId: resident.templateId,
+        familyLine: nextFamilyLine,
       npcName: resident.name,
       relationshipTag: resident.relationshipTag,
       relationLineKind: 'romance',
