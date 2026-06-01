@@ -156,11 +156,11 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 15;
+const WAREHOUSE_ITEM_POLICY_VERSION = 16;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
-  'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
+  'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
@@ -170,6 +170,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'seed_cabbage', 'seed_radish', 'seed_rice', 'seed_wheat', 'seed_corn', 'seed_tea', 'seed_lotus', 'seed_turnip', 'seed_carrot', 'seed_sweet_potato', 'seed_pumpkin', 'seed_sesame', 'seed_peach', 'seed_chili',
   'premium_feed', 'nourishing_feed', 'vitality_feed',
   'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
+  'food_osmanthus_cake', 'food_jujube_cake', 'food_peach_blossom_cake',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_first_catch_soup', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
@@ -257,6 +258,7 @@ const WAREHOUSE_SELL_PRICE_BY_ITEM_ID = Object.freeze({
   pumpkin: 120,
   sesame: 95,
   peach: 140,
+  jujube: 120,
   chili: 90,
   wood: 15,
   stone: 10,
@@ -948,6 +950,45 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_ginger_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_osmanthus_cake: {
+    id: 'shared_osmanthus_cake',
+    label: '共同灶台桂花糕',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'osmanthus', quantity: 3, quality: 'normal' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_osmanthus_cake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_jujube_cake: {
+    id: 'shared_jujube_cake',
+    label: '共同灶台红枣糕',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'jujube', quantity: 3, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_jujube_cake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_peach_blossom_cake: {
+    id: 'shared_peach_blossom_cake',
+    label: '共同灶台桃花饼',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'peach', quantity: 2, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_peach_blossom_cake',
     output_quantity: 1,
     output_quality: 'normal',
   },

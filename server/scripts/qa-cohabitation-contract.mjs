@@ -4224,7 +4224,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 15, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 16, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4249,6 +4249,10 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.incl
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_orchid'), 'warehouse item policy should list jade orchid purchase targets as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('lotus_seed_rare'), 'warehouse item policy should list rare lotus seed purchase targets as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_peach'), 'warehouse item policy should list jade peach purchase targets as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('jujube'), 'warehouse item policy should list jujube as common cooking input')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_osmanthus_cake'), 'warehouse item policy should list osmanthus cake as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_jujube_cake'), 'warehouse item policy should list jujube cake as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_peach_blossom_cake'), 'warehouse item policy should list peach blossom cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4321,6 +4325,21 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_ginger_soup',
   outputItemId: 'food_ginger_soup',
   inputs: [{ itemId: 'ginger', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_osmanthus_cake',
+  outputItemId: 'food_osmanthus_cake',
+  inputs: [{ itemId: 'osmanthus', quantity: 3 }, { itemId: 'rice', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_jujube_cake',
+  outputItemId: 'food_jujube_cake',
+  inputs: [{ itemId: 'jujube', quantity: 3 }, { itemId: 'rice', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_peach_blossom_cake',
+  outputItemId: 'food_peach_blossom_cake',
+  inputs: [{ itemId: 'peach', quantity: 2 }, { itemId: 'rice', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_scrambled_egg_rice',
