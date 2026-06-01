@@ -14620,6 +14620,7 @@ function normalizeSeparationExecutionFailurePayload(payload = {}) {
     'refund_shared_fund',
     'return_shared_warehouse',
     'split_decorations',
+    'chain_family_building_followups',
     'resolve_family_story',
     'write_personal_story_receipts',
     'resolve_child_arrangement',
@@ -17762,6 +17763,186 @@ function summarizeFamilyBuildingSplitStatus(entry = {}) {
   };
 }
 
+const SEPARATION_BUILDING_FOLLOWUP_ACTIONS = new Set([
+  'already_resolved_by_main_state_receipt',
+  'bind_or_execute_main_state_exact_targets',
+  'write_real_demolition_personal_save',
+  'request_real_demolition_execution',
+  'review_real_demolition_request',
+  'request_real_demolition_review',
+  'record_building_rollback_or_manual_receipt',
+]);
+
+function normalizeSeparationBuildingFollowupAction(action) {
+  const normalized = sanitizeText(action, 80);
+  return SEPARATION_BUILDING_FOLLOWUP_ACTIONS.has(normalized)
+    ? normalized
+    : 'record_building_rollback_or_manual_receipt';
+}
+
+function buildSeparationBuildingFollowupOperation(row = {}, manifestEntry = {}) {
+  const buildingLedgerId = sanitizeText(row.building_ledger_id || manifestEntry.building_ledger_id, 100);
+  const realBuildApplied = row.real_build_applied === true || manifestEntry.real_build_applied === true;
+  const realBuildDemolished = row.real_build_demolished === true || manifestEntry.real_build_demolished === true;
+  const reviewState = sanitizeText(row.real_build_demolition_review_state || manifestEntry.real_build_demolition_review_state, 80) || 'not_requested';
+  const executionState = sanitizeText(row.real_build_demolition_execution_state || manifestEntry.real_build_demolition_execution_state, 80) || 'not_requested';
+  const exactExecutionState = sanitizeText(row.real_build_demolition_main_state_exact_execution_state || manifestEntry.real_build_demolition_main_state_exact_execution_state, 100);
+  const personalSaveReceiptCount = Math.max(0, Math.floor(Number(
+    row.real_build_demolition_personal_save_receipt_count
+    ?? manifestEntry.real_build_demolition_personal_save_receipt_count
+  ) || 0));
+  const exactMutationReceiptCount = Math.max(0, Math.floor(Number(
+    row.real_build_demolition_main_state_exact_mutation_receipt_count
+    ?? manifestEntry.real_build_demolition_main_state_exact_mutation_receipt_count
+  ) || 0));
+  const mainStateMutated = row.personal_building_main_state_mutated === true
+    || manifestEntry.personal_building_main_state_mutated === true
+    || exactMutationReceiptCount > 0;
+  let followupAction = 'record_building_rollback_or_manual_receipt';
+  let operationState = 'pending';
+  if (mainStateMutated) {
+    followupAction = 'already_resolved_by_main_state_receipt';
+    operationState = 'completed';
+  } else if (realBuildDemolished || executionState === 'executed' || personalSaveReceiptCount > 0) {
+    followupAction = 'bind_or_execute_main_state_exact_targets';
+  } else if (executionState === 'pending_personal_save_write') {
+    followupAction = 'write_real_demolition_personal_save';
+  } else if (reviewState === 'approved_for_execute') {
+    followupAction = 'request_real_demolition_execution';
+  } else if (reviewState === 'pending_manual_review') {
+    followupAction = 'review_real_demolition_request';
+  } else if (realBuildApplied) {
+    followupAction = 'request_real_demolition_review';
+  }
+  return {
+    operation_id: buildingLedgerId ? `separation_building_followup:${buildingLedgerId}` : makeId('separation_building_followup'),
+    building_ledger_id: buildingLedgerId,
+    building_id: sanitizeText(row.building_id || manifestEntry.building_id, 80),
+    project_id: sanitizeText(row.project_id || manifestEntry.project_id, 80),
+    target_ref: sanitizeText(row.target_ref || manifestEntry.target_ref, 120),
+    fund_ledger_id: sanitizeText(row.fund_ledger_id || manifestEntry.fund_ledger_id, 100),
+    draft_id: sanitizeText(row.draft_id || manifestEntry.draft_id, 100),
+    followup_action: followupAction,
+    operation_state: operationState,
+    split_status: sanitizeText(row.split_status || manifestEntry.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
+    real_build_applied: realBuildApplied,
+    real_build_demolished: realBuildDemolished,
+    real_build_demolition_review_state: reviewState,
+    real_build_demolition_execution_state: executionState,
+    real_build_demolition_main_state_exact_execution_state: exactExecutionState,
+    real_build_demolition_personal_save_receipt_count: personalSaveReceiptCount,
+    real_build_demolition_main_state_exact_mutation_receipt_count: exactMutationReceiptCount,
+    personal_building_main_state_mutated: mainStateMutated,
+    requires_manual_receipt: operationState !== 'completed',
+    requires_real_demolition_chain: operationState !== 'completed' && realBuildApplied,
+    requires_main_state_exact_targets: followupAction === 'bind_or_execute_main_state_exact_targets',
+    safe_to_auto_execute: false,
+    no_personal_home_mutation_in_split_step: true,
+    no_shared_asset_mutation_in_split_step: true,
+  };
+}
+
+function normalizeSeparationBuildingFollowupOperation(entry = {}) {
+  const followupAction = normalizeSeparationBuildingFollowupAction(entry.followup_action || entry.action);
+  const operationState = entry.operation_state === 'completed' || followupAction === 'already_resolved_by_main_state_receipt'
+    ? 'completed'
+    : 'pending';
+  return {
+    operation_id: sanitizeText(entry.operation_id, 140) || (entry.building_ledger_id ? `separation_building_followup:${sanitizeText(entry.building_ledger_id, 100)}` : makeId('separation_building_followup')),
+    building_ledger_id: sanitizeText(entry.building_ledger_id, 100),
+    building_id: sanitizeText(entry.building_id, 80),
+    project_id: sanitizeText(entry.project_id, 80),
+    target_ref: sanitizeText(entry.target_ref, 120),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    draft_id: sanitizeText(entry.draft_id, 100),
+    followup_action: followupAction,
+    operation_state: operationState,
+    split_status: sanitizeText(entry.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
+    real_build_applied: entry.real_build_applied === true,
+    real_build_demolished: entry.real_build_demolished === true,
+    real_build_demolition_review_state: sanitizeText(entry.real_build_demolition_review_state, 80),
+    real_build_demolition_execution_state: sanitizeText(entry.real_build_demolition_execution_state, 80),
+    real_build_demolition_main_state_exact_execution_state: sanitizeText(entry.real_build_demolition_main_state_exact_execution_state, 100),
+    real_build_demolition_personal_save_receipt_count: Math.max(0, Math.floor(Number(entry.real_build_demolition_personal_save_receipt_count) || 0)),
+    real_build_demolition_main_state_exact_mutation_receipt_count: Math.max(0, Math.floor(Number(entry.real_build_demolition_main_state_exact_mutation_receipt_count) || 0)),
+    personal_building_main_state_mutated: entry.personal_building_main_state_mutated === true,
+    requires_manual_receipt: entry.requires_manual_receipt !== false && operationState !== 'completed',
+    requires_real_demolition_chain: entry.requires_real_demolition_chain === true,
+    requires_main_state_exact_targets: entry.requires_main_state_exact_targets === true,
+    safe_to_auto_execute: false,
+    no_personal_home_mutation_in_split_step: true,
+    no_shared_asset_mutation_in_split_step: true,
+  };
+}
+
+function summarizeSeparationBuildingFollowupPlan(operations = []) {
+  const totalCount = operations.length;
+  const completedCount = operations.filter(operation => operation.operation_state === 'completed').length;
+  const pendingCount = totalCount - completedCount;
+  const mainStateExactTargetRequiredCount = operations.filter(operation => operation.followup_action === 'bind_or_execute_main_state_exact_targets').length;
+  const personalSaveWriteRequiredCount = operations.filter(operation => operation.followup_action === 'write_real_demolition_personal_save').length;
+  const realDemolitionExecutionRequiredCount = operations.filter(operation => operation.followup_action === 'request_real_demolition_execution').length;
+  const realDemolitionReviewRequiredCount = operations.filter(operation =>
+    operation.followup_action === 'request_real_demolition_review'
+    || operation.followup_action === 'review_real_demolition_request'
+  ).length;
+  const rollbackOrManualReceiptCount = operations.filter(operation => operation.followup_action === 'record_building_rollback_or_manual_receipt').length;
+  const status = totalCount <= 0
+    ? 'no_family_building_to_followup'
+    : (
+        pendingCount <= 0
+          ? 'all_family_building_followups_resolved'
+          : (completedCount > 0 ? 'partial_family_building_followup_required' : 'family_building_followup_required')
+      );
+  return {
+    status,
+    total_count: totalCount,
+    completed_count: completedCount,
+    pending_count: pendingCount,
+    real_demolition_review_required_count: realDemolitionReviewRequiredCount,
+    real_demolition_execution_required_count: realDemolitionExecutionRequiredCount,
+    personal_save_write_required_count: personalSaveWriteRequiredCount,
+    main_state_exact_target_required_count: mainStateExactTargetRequiredCount,
+    rollback_or_manual_receipt_count: rollbackOrManualReceiptCount,
+  };
+}
+
+function normalizeSeparationBuildingFollowupPlan(entry = {}) {
+  const operations = Array.isArray(entry.operations)
+    ? entry.operations.map(normalizeSeparationBuildingFollowupOperation).filter(operation => operation.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
+    : [];
+  const summary = summarizeSeparationBuildingFollowupPlan(operations);
+  return {
+    version: Math.max(1, Math.floor(Number(entry.version) || 1)),
+    status: sanitizeText(entry.status, 80) || summary.status,
+    total_count: Math.max(summary.total_count, Math.floor(Number(entry.total_count) || 0)),
+    completed_count: Math.max(summary.completed_count, Math.floor(Number(entry.completed_count) || 0)),
+    pending_count: Math.max(summary.pending_count, Math.floor(Number(entry.pending_count) || 0)),
+    real_demolition_review_required_count: Math.max(summary.real_demolition_review_required_count, Math.floor(Number(entry.real_demolition_review_required_count) || 0)),
+    real_demolition_execution_required_count: Math.max(summary.real_demolition_execution_required_count, Math.floor(Number(entry.real_demolition_execution_required_count) || 0)),
+    personal_save_write_required_count: Math.max(summary.personal_save_write_required_count, Math.floor(Number(entry.personal_save_write_required_count) || 0)),
+    main_state_exact_target_required_count: Math.max(summary.main_state_exact_target_required_count, Math.floor(Number(entry.main_state_exact_target_required_count) || 0)),
+    rollback_or_manual_receipt_count: Math.max(summary.rollback_or_manual_receipt_count, Math.floor(Number(entry.rollback_or_manual_receipt_count) || 0)),
+    operations,
+    automation_state: sanitizeText(entry.automation_state, 80) || 'record_only_queue_ready',
+    auto_execute_enabled: false,
+    no_personal_home_mutation_in_split_step: true,
+    no_shared_asset_mutation_in_split_step: true,
+    policy: sanitizeText(entry.policy, 260) || '分居建筑拆分只生成后续串联队列证据；真实回滚、拆除、精确主状态 selector 或人工回执仍走既有建筑安全阀，不由本步骤自动删除个人 home / decoration。'
+  };
+}
+
+function buildSeparationBuildingFollowupPlan(rows = [], manifest = []) {
+  const manifestByLedgerId = new Map((Array.isArray(manifest) ? manifest : [])
+    .map(entry => [sanitizeText(entry.building_ledger_id, 100), entry]));
+  return normalizeSeparationBuildingFollowupPlan({
+    version: 1,
+    operations: (Array.isArray(rows) ? rows : [])
+      .map(row => buildSeparationBuildingFollowupOperation(row, manifestByLedgerId.get(sanitizeText(row.building_ledger_id, 100)) || {}))
+      .filter(operation => operation.building_ledger_id),
+  });
+}
+
 function buildFamilyBuildingSplitManifest(contract = {}) {
   const ledger = normalizeFamilyBuildingLedger(contract);
   return ledger
@@ -17849,7 +18030,12 @@ function summarizeBuildingSplitsByProject(manifest = [], contract = null) {
       building_id: sanitizeText(entry.building_id, 80),
       project_id: sanitizeText(entry.project_id, 80),
       target_ref: sanitizeText(entry.target_ref, 120),
+      fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+      draft_id: sanitizeText(entry.draft_id, 100),
       amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+      shared_fund_deducted: entry.shared_fund_deducted === true,
+      real_build_applied: entry.real_build_applied === true,
+      shared_warehouse_materials_consumed: entry.shared_warehouse_materials_consumed === true,
       ...splitEvidence,
     };
   }).filter(entry => entry.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
@@ -17867,6 +18053,10 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
   const plotReturnManifestHash = sanitizeText(assetReturn.plot_return_manifest_hash, 100) || hashPlotReturnManifest(plotManifest);
   const decorationSplitManifestHash = sanitizeText(assetReturn.decoration_split_manifest_hash, 100) || hashDecorationSplitManifest(decorationManifest);
   const buildingSplitManifestHash = sanitizeText(assetReturn.family_building_split_manifest_hash, 100) || hashFamilyBuildingSplitManifest(buildingManifest);
+  const buildingSplitRows = summarizeBuildingSplitsByProject(buildingManifest);
+  const familyBuildingFollowupPlan = normalizeSeparationBuildingFollowupPlan(
+    assetReturn.family_building_followup_plan || buildSeparationBuildingFollowupPlan(buildingSplitRows, buildingManifest)
+  );
   const warehouseUnidentifiedSplitManifestHash = sanitizeText(assetReturn.warehouse_unidentified_split_manifest_hash, 100) || hashWarehouseUnidentifiedSplitManifest(warehouseUnidentifiedSplitManifest);
   const fundUnidentifiedOperatingContributions = Array.isArray(assetReturn.fund_unidentified_operating_contributions)
     ? assetReturn.fund_unidentified_operating_contributions.map(normalizeFundUnidentifiedOperatingContributionRow).filter(entry => entry.amount > 0)
@@ -17960,7 +18150,8 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
     ) || fundUnidentifiedOperatingTotal > 0,
     shared_fund_delta_confirmations: [],
     decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
-    building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
+    building_splits_by_origin_owner: buildingSplitRows,
+    family_building_followup_plan: familyBuildingFollowupPlan,
     personal_money_merged: false,
     personal_save_written: false,
     shared_assets_mutated: false,
@@ -19999,7 +20190,12 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           building_id: sanitizeText(item.building_id, 80),
           project_id: sanitizeText(item.project_id, 80),
           target_ref: sanitizeText(item.target_ref, 120),
+          fund_ledger_id: sanitizeText(item.fund_ledger_id, 100),
+          draft_id: sanitizeText(item.draft_id, 100),
           amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
+          shared_fund_deducted: item.shared_fund_deducted === true,
+          real_build_applied: item.real_build_applied === true,
+          shared_warehouse_materials_consumed: item.shared_warehouse_materials_consumed === true,
           split_status: sanitizeText(item.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
           split_policy: sanitizeText(item.split_policy, 220),
           real_build_demolished: item.real_build_demolished === true,
@@ -20029,6 +20225,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
             : [],
         })).filter(item => item.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
       : [],
+    family_building_followup_plan: normalizeSeparationBuildingFollowupPlan(entry.family_building_followup_plan),
     decorations_buildings_split: entry.decorations_buildings_split === true,
     decorations_buildings_split_idempotency_key: sanitizeText(entry.decorations_buildings_split_idempotency_key, 120),
     decorations_buildings_split_at: Math.max(0, Math.floor(Number(entry.decorations_buildings_split_at) || 0)),
@@ -20057,7 +20254,12 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
                 building_id: sanitizeText(row?.building_id, 80),
                 project_id: sanitizeText(row?.project_id, 80),
                 target_ref: sanitizeText(row?.target_ref, 120),
+                fund_ledger_id: sanitizeText(row?.fund_ledger_id, 100),
+                draft_id: sanitizeText(row?.draft_id, 100),
                 amount: Math.max(0, Math.floor(Number(row?.amount) || 0)),
+                shared_fund_deducted: row?.shared_fund_deducted === true,
+                real_build_applied: row?.real_build_applied === true,
+                shared_warehouse_materials_consumed: row?.shared_warehouse_materials_consumed === true,
                 split_status: sanitizeText(row?.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
                 split_policy: sanitizeText(row?.split_policy, 220),
                 real_build_demolished: row?.real_build_demolished === true,
@@ -20068,6 +20270,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
                 personal_decoration_mutated: row?.personal_decoration_mutated === true,
               })).filter(row => row.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
             : [],
+          family_building_followup_plan: normalizeSeparationBuildingFollowupPlan(item.family_building_followup_plan),
           building_main_state_receipts: Array.isArray(item.building_main_state_receipts)
             ? item.building_main_state_receipts.map(receipt => ({
                 username: normalizeUsername(receipt?.username),
@@ -34683,6 +34886,8 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const fundUnidentifiedOperatingContributionPreview = buildFundUnidentifiedOperatingContributionPreview(contract);
   const decorationSplitManifest = buildDecorationSplitManifest(contract);
   const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
+  const familyBuildingSplitRows = summarizeBuildingSplitsByProject(familyBuildingSplitManifest, contract);
+  const familyBuildingFollowupPlan = buildSeparationBuildingFollowupPlan(familyBuildingSplitRows, familyBuildingSplitManifest);
   const sharedDecorationRemovalDisputeFreeze = buildSharedDecorationRemovalDisputeFreezePreview(contract);
   const warehouseHighValueWithdrawalDisputeFreeze = buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract);
   const separationAssetDisputeSourceRows = buildSeparationAssetDisputeSourceRows({
@@ -34731,9 +34936,10 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       decorations_by_origin_owner: summarizeDecorationSplitsByOwner(decorationSplitManifest),
       decoration_split_manifest: decorationSplitManifest,
       decoration_split_manifest_hash: hashDecorationSplitManifest(decorationSplitManifest),
-      family_buildings_by_origin_owner: summarizeBuildingSplitsByProject(familyBuildingSplitManifest),
+      family_buildings_by_origin_owner: familyBuildingSplitRows,
       family_building_split_manifest: familyBuildingSplitManifest,
       family_building_split_manifest_hash: hashFamilyBuildingSplitManifest(familyBuildingSplitManifest),
+      family_building_followup_plan: familyBuildingFollowupPlan,
       building_split_policy: '拆分执行会按锁定清单把可识别来源装饰 / 家具写回原主个人 decoration.owned；家族建筑仍只记录 ledger、hash、审计和补偿提示，真实建筑状态需走回滚、拆除或人工回执。',
       shared_decoration_removal_disputes: sharedDecorationRemovalDisputeFreeze.disputes,
       shared_decoration_removal_freeze_summary: sharedDecorationRemovalDisputeFreeze.summary,
@@ -36621,6 +36827,9 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       receipts: ledger.decoration_building_split_receipts || [],
       decoration_return_receipts: (ledger.decoration_building_split_receipts || [])
         .flatMap(receipt => Array.isArray(receipt.personal_save_receipts) ? receipt.personal_save_receipts : []),
+      family_building_followup_plan: ledger.family_building_followup_plan
+        || (ledger.decoration_building_split_receipts || []).find(receipt => receipt.receipt_type === 'family_buildings')?.family_building_followup_plan
+        || normalizeSeparationBuildingFollowupPlan(),
     };
   }
 
@@ -36656,6 +36865,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     .filter(entry => entry.return_policy !== 'return_to_origin_owner_personal_decoration_owned')
     .reduce((sum, entry) => sum + Math.max(1, Math.floor(Number(entry.quantity) || 1)), 0);
   const buildingSplitRows = summarizeBuildingSplitsByProject(buildingManifest, contract);
+  const familyBuildingFollowupPlan = buildSeparationBuildingFollowupPlan(buildingSplitRows, buildingManifest);
   const buildingSplitRowsByLedgerId = new Map(buildingSplitRows.map(row => [row.building_ledger_id, row]));
   const buildingMainStateReceipts = buildingSplitRows
     .flatMap(row => Array.isArray(row.main_state_exact_mutation_receipts) ? row.main_state_exact_mutation_receipts : [])
@@ -36718,6 +36928,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       real_build_demolition_personal_save_receipt_count: buildingPersonalSaveReceiptCount,
       main_state_exact_mutation_receipt_count: buildingMainStateMutationReceiptCount,
       building_split_status_rows: buildingSplitRows,
+      family_building_followup_plan: familyBuildingFollowupPlan,
       building_main_state_receipts: buildingMainStateReceipts,
       personal_decoration_owned_mutated: false,
       personal_save_receipts: [],
@@ -36727,6 +36938,9 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
   ];
   const nextRequiredOperations = (ledger.next_required_operations || [])
     .filter(operation => operation && operation !== 'split_decorations' && operation !== 'split_buildings');
+  if (familyBuildingFollowupPlan.pending_count > 0 && !nextRequiredOperations.includes('chain_family_building_followups')) {
+    nextRequiredOperations.unshift('chain_family_building_followups');
+  }
   if (!nextRequiredOperations.includes('resolve_family_story')) nextRequiredOperations.push('resolve_family_story');
   const nextDecorationManifest = decorationManifest.map(entry => {
     const personalReturn = entry.return_policy === 'return_to_origin_owner_personal_decoration_owned';
@@ -36748,6 +36962,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       ...entry,
       ...splitEvidence,
       execution_status: sanitizeText(row.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
+      followup_action: familyBuildingFollowupPlan.operations.find(operation => operation.building_ledger_id === row.building_ledger_id)?.followup_action || 'record_building_rollback_or_manual_receipt',
       return_idempotency_key: splitPayload.idempotency_key,
     };
   });
@@ -36762,6 +36977,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     building_split_manifest_hash: expectedBuildingHash,
     decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(nextDecorationManifest),
     building_splits_by_origin_owner: buildingSplitRows,
+    family_building_followup_plan: familyBuildingFollowupPlan,
     decoration_building_split_receipts: receipts,
     next_required_operations: nextRequiredOperations,
   });
@@ -36772,6 +36988,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     decorations_buildings_split_at: splitAt,
     decorations_buildings_split_by: member.username,
     building_splits_by_origin_owner: buildingSplitRows,
+    family_building_followup_plan: familyBuildingFollowupPlan,
     decoration_building_split_receipts: receipts,
     next_required_operations: nextLedger.next_required_operations,
   };
@@ -36783,6 +37000,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
       decoration_split_manifest: nextDecorationManifest,
       family_buildings_by_origin_owner: buildingSplitRows,
       family_building_split_manifest: nextBuildingManifest,
+      family_building_followup_plan: familyBuildingFollowupPlan,
       decorations_buildings_split: true,
       decorations_buildings_split_at: splitAt,
       decoration_building_split_receipts: receipts,
@@ -36816,6 +37034,9 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     building_personal_save_receipt_count: buildingPersonalSaveReceiptCount,
     building_main_state_mutation_receipt_count: buildingMainStateMutationReceiptCount,
     building_main_state_mutated_count: buildingMainStateMutatedCount,
+    family_building_followup_status: familyBuildingFollowupPlan.status,
+    family_building_followup_pending_count: familyBuildingFollowupPlan.pending_count,
+    family_building_followup_actions: familyBuildingFollowupPlan.operations.map(operation => operation.followup_action),
     shared_assets_mutated: false,
     personal_home_mutated: false,
     personal_decoration_owned_mutated: returnedDecorationCount > 0,
@@ -36834,6 +37055,7 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
     execution_ledger: nextLedger,
     receipts,
     decoration_return_receipts: decorationReturnReceipts,
+    family_building_followup_plan: familyBuildingFollowupPlan,
   };
 }
 

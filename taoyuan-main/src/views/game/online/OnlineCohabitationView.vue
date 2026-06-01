@@ -3738,6 +3738,7 @@
     CohabitationSharedPet,
     CohabitationSharedPlot,
     CohabitationSharedRegion,
+    CohabitationSeparationBuildingFollowupPlan,
     CohabitationSeparationBuildingSplitStatusRow,
     CohabitationSeparationDecorationBuildingSplitReceipt,
     CohabitationSeparationFamilyStoryResolution,
@@ -4402,6 +4403,27 @@
     }
     return labels[status] || status || '待记录'
   }
+  const separationBuildingFollowupStatusLabel = (status = '') => {
+    const labels: Record<string, string> = {
+      no_family_building_to_followup: '无建筑后续待办',
+      all_family_building_followups_resolved: '建筑后续已收口',
+      partial_family_building_followup_required: '部分建筑仍需后续收口',
+      family_building_followup_required: '建筑后续待串联',
+    }
+    return labels[status] || status || '待串联'
+  }
+  const separationBuildingFollowupActionLabel = (action = '') => {
+    const labels: Record<string, string> = {
+      already_resolved_by_main_state_receipt: '已由主状态回执收口',
+      bind_or_execute_main_state_exact_targets: '绑定 / 执行精确 selector',
+      write_real_demolition_personal_save: '写真实拆除个人回执',
+      request_real_demolition_execution: '请求真实拆除执行',
+      review_real_demolition_request: '复核真实拆除申请',
+      request_real_demolition_review: '请求真实拆除复核',
+      record_building_rollback_or_manual_receipt: '记录回滚或人工回执',
+    }
+    return labels[action] || action || '待人工收口'
+  }
   const separationDecorationBuildingSplitReceipts = computed<CohabitationSeparationDecorationBuildingSplitReceipt[]>(() => {
     const receipts = separationExecutionRequest.value?.decoration_building_split_receipts
     return Array.isArray(receipts) ? receipts : []
@@ -4409,6 +4431,15 @@
   const separationBuildingSplitReceipt = computed<CohabitationSeparationDecorationBuildingSplitReceipt | null>(() =>
     separationDecorationBuildingSplitReceipts.value.find(receipt => receipt.receipt_type === 'family_buildings') ?? null
   )
+  const separationBuildingFollowupPlan = computed<CohabitationSeparationBuildingFollowupPlan | null>(() => {
+    const receiptPlan = separationBuildingSplitReceipt.value?.family_building_followup_plan
+    if (receiptPlan?.total_count || receiptPlan?.operations?.length) return receiptPlan
+    const executionPlan = separationExecutionRequest.value?.family_building_followup_plan
+    if (executionPlan?.total_count || executionPlan?.operations?.length) return executionPlan
+    const previewPlan = latestSeparationPreview.value?.asset_return?.family_building_followup_plan as CohabitationSeparationBuildingFollowupPlan | undefined
+    if (previewPlan?.total_count || previewPlan?.operations?.length) return previewPlan
+    return null
+  })
   const separationBuildingSplitStatusRows = computed<CohabitationSeparationBuildingSplitStatusRow[]>(() => {
     const receiptRows = separationBuildingSplitReceipt.value?.building_split_status_rows
     if (Array.isArray(receiptRows) && receiptRows.length > 0) return receiptRows
@@ -4420,6 +4451,7 @@
   const separationBuildingMainStateReadbackRows = computed<SeparationBuildingMainStateReadbackRow[]>(() => {
     const receipt = separationBuildingSplitReceipt.value
     const rows = separationBuildingSplitStatusRows.value
+    const followupPlan = separationBuildingFollowupPlan.value
     const status = String(receipt?.status ?? rows[0]?.split_status ?? '')
     const receiptCount = Number(receipt?.main_state_exact_mutation_receipt_count ?? rows.reduce((sum, row) => sum + Number(row.real_build_demolition_main_state_exact_mutation_receipt_count || 0), 0)) || 0
     const personalSaveReceiptCount = Number(receipt?.real_build_demolition_personal_save_receipt_count ?? rows.reduce((sum, row) => sum + Number(row.real_build_demolition_personal_save_receipt_count || 0), 0)) || 0
@@ -4441,6 +4473,21 @@
         value: receipt?.personal_save_changed
           ? '本次拆分写入了个人存档'
           : '本次分居拆分不重复删除个人 home / decoration 主状态',
+      })
+      if (followupPlan) {
+        result.push({
+          key: 'followup-plan',
+          label: '建筑后续串联',
+          value: `${separationBuildingFollowupStatusLabel(followupPlan.status)} · 待办 ${followupPlan.pending_count || 0} · selector ${followupPlan.main_state_exact_target_required_count || 0}`,
+        })
+      }
+    }
+    for (const operation of (followupPlan?.operations || []).slice(0, 4)) {
+      const target = operation.target_ref || operation.building_id || operation.project_id || operation.building_ledger_id
+      result.push({
+        key: `followup-${operation.building_ledger_id}`,
+        label: `下一步：${target || '家族建筑'}`,
+        value: `${separationBuildingFollowupActionLabel(operation.followup_action)} · ${operation.operation_state || 'pending'} · 自动执行 ${operation.safe_to_auto_execute ? '开启' : '关闭'}`,
       })
     }
     for (const row of rows.slice(0, 6)) {

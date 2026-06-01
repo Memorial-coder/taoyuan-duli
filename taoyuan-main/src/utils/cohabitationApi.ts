@@ -2640,7 +2640,12 @@ export interface CohabitationSeparationBuildingSplitStatusRow {
   building_id?: string
   project_id?: string
   target_ref?: string
+  fund_ledger_id?: string
+  draft_id?: string
   amount?: number
+  shared_fund_deducted?: boolean
+  real_build_applied?: boolean
+  shared_warehouse_materials_consumed?: boolean
   split_status?: string
   split_policy?: string
   real_build_demolished?: boolean
@@ -2655,6 +2660,54 @@ export interface CohabitationSeparationBuildingSplitStatusRow {
   personal_home_mutated?: boolean
   personal_decoration_mutated?: boolean
   main_state_exact_mutation_receipts?: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationBuildingFollowupOperation {
+  operation_id: string
+  building_ledger_id: string
+  building_id?: string
+  project_id?: string
+  target_ref?: string
+  fund_ledger_id?: string
+  draft_id?: string
+  followup_action: string
+  operation_state: string
+  split_status?: string
+  real_build_applied?: boolean
+  real_build_demolished?: boolean
+  real_build_demolition_review_state?: string
+  real_build_demolition_execution_state?: string
+  real_build_demolition_main_state_exact_execution_state?: string
+  real_build_demolition_personal_save_receipt_count?: number
+  real_build_demolition_main_state_exact_mutation_receipt_count?: number
+  personal_building_main_state_mutated?: boolean
+  requires_manual_receipt?: boolean
+  requires_real_demolition_chain?: boolean
+  requires_main_state_exact_targets?: boolean
+  safe_to_auto_execute?: boolean
+  no_personal_home_mutation_in_split_step?: boolean
+  no_shared_asset_mutation_in_split_step?: boolean
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationBuildingFollowupPlan {
+  version: number
+  status: string
+  total_count: number
+  completed_count: number
+  pending_count: number
+  real_demolition_review_required_count?: number
+  real_demolition_execution_required_count?: number
+  personal_save_write_required_count?: number
+  main_state_exact_target_required_count?: number
+  rollback_or_manual_receipt_count?: number
+  operations: CohabitationSeparationBuildingFollowupOperation[]
+  automation_state?: string
+  auto_execute_enabled?: boolean
+  no_personal_home_mutation_in_split_step?: boolean
+  no_shared_asset_mutation_in_split_step?: boolean
+  policy?: string
   [key: string]: unknown
 }
 
@@ -2674,6 +2727,7 @@ export interface CohabitationSeparationDecorationBuildingSplitReceipt {
   real_build_demolition_personal_save_receipt_count?: number
   main_state_exact_mutation_receipt_count?: number
   building_split_status_rows?: CohabitationSeparationBuildingSplitStatusRow[]
+  family_building_followup_plan?: CohabitationSeparationBuildingFollowupPlan
   building_main_state_receipts?: Array<Record<string, unknown>>
   personal_save_receipts?: Array<Record<string, unknown>>
   [key: string]: unknown
@@ -2768,6 +2822,7 @@ export interface CohabitationSeparationPreview {
       decorations_buildings_split_at?: number
       decorations_buildings_split_by?: string
       building_splits_by_origin_owner?: CohabitationSeparationBuildingSplitStatusRow[]
+      family_building_followup_plan?: CohabitationSeparationBuildingFollowupPlan
       decoration_building_split_receipts?: CohabitationSeparationDecorationBuildingSplitReceipt[]
       execution_enabled?: boolean
       confirmation_basis?: string

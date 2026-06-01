@@ -115,6 +115,11 @@
 ### 0601 随机 NPC 绑定偏好第一版收口
 - `RandomNpcTemplate.preferences` 新增 `bindings`，8 个随机 NPC 模板各自补入作物、宠物、店铺或庄园语义偏好，旧档加载时继续按模板兜底。
 - NPC 页短访 / 熟人 / 长住卡片新增“绑定偏好”回看，`qa:random-npc-content-guard` 固定四类偏好、每模板至少 3 条绑定和页面入口。
+
+### 0601 同居分居建筑后续串联计划
+- 分居预览、执行请求和 `split-decorations-buildings` receipt 新增 `family_building_followup_plan`，按建筑读回请求真实拆除复核、复核 / 执行、个人存档回执、精确 selector 收口、回滚或人工回执下一步。
+- 共同庄园分居面板的“建筑 / 小屋主状态证据”区会展示后续串联状态、pending / completed 计数、每建筑下一步动作和 `safe_to_auto_execute=false` 边界；本轮仍不在分居拆分步骤直接删除个人 `home / decoration` 或改共同资产。
+
 ### 0601 同居分居婚姻孩子抚养判定证据
 - 分居孩子安排和个人家庭 receipt 新增 `custody_decision_state`、`custody_rule`、共同照料 / 主照料成员、探视规则、教育重大选择规则和 `story_rule_not_resource_split` 读回。
 - 共同庄园分居面板的“个人家庭主状态迁移证明”区会展示抚养判定、照料成员、探视 / 教育规则和不当资源拆边界；前端 API 类型新增结构化 `CohabitationSeparationChildArrangement`。本轮只读展示证据，不公开孩子身份，不新增个人家庭主状态迁移写链。
