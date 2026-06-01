@@ -22,6 +22,7 @@
     "qa:cohabitation-idempotency-credentials": "node scripts/qa-cohabitation-idempotency-credentials.mjs",
     "qa:hall-upload-visibility-guard": "node scripts/qa-hall-upload-visibility-guard.mjs",
     "qa:save-corruption-guard": "node scripts/qa-save-corruption-guard.mjs",
+    "qa:cohabitation-offline-closeout": "node scripts/qa-cohabitation-offline-closeout.mjs",
     "qa:realtime-smoke": "node scripts/qa-realtime-smoke.mjs"
   },
   "dependencies": {
