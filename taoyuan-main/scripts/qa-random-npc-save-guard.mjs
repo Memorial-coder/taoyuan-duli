@@ -296,6 +296,33 @@ assertIncludes(npcView, 'random-npc-relationship-audit', 'NPC page must read bac
 assertIncludes(npcView, 'randomNpcBoard.relationshipMilestoneAudit.slice(-6).reverse()', 'NPC page must only show recent relationship audit rows')
 assertIncludes(npcView, 'entry.idempotencyKey', 'NPC page relationship audit must read back idempotency key')
 
+assertIncludes(npcTypes, 'export interface RandomNpcGenerationAnomalyEntry', 'random NPC generation anomaly audit must expose structured entries')
+for (const field of [
+  'action: RandomNpcGenerationAnomalyAction',
+  "source: 'local_npc_save'",
+  'visitorIds: string[]',
+  'templateIds: string[]',
+  'observedCount: number',
+  'limit: number',
+  'idempotencyKey: string',
+  "privacyScope: 'local_save_only'",
+  'generationAnomalyAudit: RandomNpcGenerationAnomalyEntry[]'
+]) {
+  assertIncludes(npcTypes, field, `random NPC generation anomaly audit missing ${field}`)
+}
+assertIncludes(useNpcStore, 'const RANDOM_NPC_GENERATION_ANOMALY_AUDIT_LIMIT = 12', 'random NPC generation anomaly audit must have a fixed 12-entry cap')
+assertIncludes(useNpcStore, 'sanitizeRandomNpcGenerationAnomalyAudit', 'random NPC generation anomaly audit must sanitize loaded rows')
+assertIncludes(useNpcStore, '.slice(-RANDOM_NPC_GENERATION_ANOMALY_AUDIT_LIMIT)', 'random NPC generation anomaly audit must be capped on sanitize / append')
+assertBlockIncludes(useNpcStore, 'const appendRandomNpcGenerationAnomalyAudit', 'item.idempotencyKey === entry.idempotencyKey', 'random NPC generation anomaly audit must dedupe by idempotency key')
+assertBlockIncludes(useNpcStore, 'const buildRandomNpcGenerationAnomalyEntry', "privacyScope: 'local_save_only'", 'random NPC generation anomaly audit must stay local-save only')
+assertIncludes(useNpcStore, 'generationAnomalyAudit: sanitizeRandomNpcGenerationAnomalyAudit', 'random NPC generation anomaly audit must be sanitized on load')
+assertIncludes(useNpcStore, "action: 'active_visitor_overflow'", 'random NPC save load must audit active visitor overflow')
+assertIncludes(useNpcStore, "action: 'duplicate_visitor_id'", 'random NPC save load must audit duplicate visitor ids')
+assertIncludes(useNpcStore, "action: 'invalid_template_reference'", 'random NPC save load must audit invalid template references')
+assertIncludes(useNpcStore, "action: 'weekly_generation_overflow'", 'random NPC weekly generation must audit generation overflow')
+assertIncludes(npcView, 'random-npc-generation-anomaly-audit', 'NPC page must read back random NPC generation anomaly audit panel')
+assertIncludes(npcView, 'randomNpcBoard.generationAnomalyAudit.slice(-4).reverse()', 'NPC page must only show recent generation anomaly audit rows')
+
 const collectFiles = async (root, extensions) => {
   const entries = await readdir(root, { withFileTypes: true })
   const files = []
@@ -344,6 +371,9 @@ for (const absolutePath of publicSurfaceFiles) {
 }
 
 const saveStore = await readProjectSource('src/stores/useSaveStore.ts')
+assertIncludes(saveStore, 'const SAVE_VERSION = 6', 'save migration version must advance for random NPC board preservation')
+assertBlockIncludes(saveStore, 'if (next.npc && typeof next.npc === \'object\')', '...next.npc', 'save migration must preserve unknown/local NPC substates')
+assertBlockIncludes(saveStore, 'if (next.npc && typeof next.npc === \'object\')', 'randomNpcBoard: next.npc.randomNpcBoard ?? undefined', 'save migration must not drop randomNpcBoard before NPC deserialize')
 assertIncludes(saveStore, 'const npcStore = useNpcStore()', '保存系统必须继续通过本地 npcStore 处理 NPC 存档')
 assertIncludes(saveStore, 'npc: npcStore.serialize()', '保存系统必须把随机 NPC 留在单机 npc 存档')
 

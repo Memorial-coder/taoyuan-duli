@@ -1,4 +1,4 @@
-import type { RandomNpcLongStayStoryEventDef, RandomNpcTemplate } from '@/types'
+import type { RandomNpcLongStayStoryEventDef, RandomNpcRelationshipGrowthBeatDef, RandomNpcTemplate } from '@/types'
 
 export const RANDOM_NPC_VISITOR_CONFIG = {
   maxActiveVisitors: 2,
@@ -14,6 +14,62 @@ export const RANDOM_NPC_VISITOR_CONFIG = {
   acquaintanceAffinityThreshold: 40,
   longStayAffinityThreshold: 70
 } as const
+
+export const RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS: RandomNpcRelationshipGrowthBeatDef[] = [
+  {
+    id: 'daily_to_acquaintance',
+    kind: 'acquaintance',
+    title: '日常熟面',
+    requiredAffinity: RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold,
+    requiredDirection: 'trust',
+    requiredSignal: 3,
+    sourceSummary: '聊天、帮忙和小订单先把萍水相逢压成可回看的熟人册记录。',
+    unlockedHint: '达到后可记入熟人册，保留偏好、对话记忆和旧日召回线索。'
+  },
+  {
+    id: 'acquaintance_to_long_stay',
+    kind: 'long_stay',
+    title: '熟人长住',
+    requiredAffinity: RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold,
+    requiredDirection: 'trust',
+    requiredSignal: 5,
+    sourceSummary: '熟人册、小订单和跨周重逢继续积累信任，关系可以从来访转成桃源长住。',
+    unlockedHint: '达到后可邀为长住 NPC，开启长住文游、家族节点和关系线入口。'
+  },
+  {
+    id: 'daily_to_short_romance',
+    kind: 'short_romance',
+    title: '暧昧邀约',
+    requiredAffinity: 45,
+    requiredDirection: 'ambiguity',
+    requiredSignal: 4,
+    sourceSummary: '雨天、夜访、重逢或含蓄回应会把日常余波积成短线暧昧。',
+    unlockedHint: '达到后可开启短线暧昧邀约；仍不会绕过长住正式亲密线。'
+  },
+  {
+    id: 'long_stay_to_romance',
+    kind: 'romance',
+    title: '长住恋爱',
+    requiredAffinity: 85,
+    requiredDirection: 'ambiguity',
+    requiredSignal: 8,
+    sourceSummary: '长住文游、节会同行和暧昧方向选择把陪伴从日常推进到正式恋爱线。',
+    unlockedHint: '达到后可开启恋爱线，并继续走婚约、成婚和婚后日常。',
+    relationLineKind: 'romance'
+  },
+  {
+    id: 'daily_to_family',
+    kind: 'family',
+    title: '家人线',
+    requiredAffinity: 75,
+    requiredDirection: 'family_impression',
+    requiredSignal: 8,
+    sourceSummary: '送礼、小订单、家族旧闻和见家人让日常照应被对方家里真正看见。',
+    unlockedHint: '达到且至少见过一个家族节点后，可开启家人线并推进核心家族深线。',
+    relationLineKind: 'family',
+    requiresMetFamilyTie: true
+  }
+]
 
 export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
   {

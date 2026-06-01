@@ -266,6 +266,29 @@ export interface RandomNpcFamilyLineState {
 export type RandomNpcRelationLineKind = 'friend' | 'family' | 'romance' | 'zhiji' | 'sworn' | 'rivalry' | 'severed'
 export type RandomNpcRelationLineAction = 'start' | 'sever' | 'engage' | 'marry' | 'home'
 export type RandomNpcCommitmentStatus = 'none' | 'engaged' | 'married'
+export type RandomNpcRelationshipGrowthBeatKind = 'acquaintance' | 'long_stay' | 'short_romance' | 'romance' | 'family'
+
+export interface RandomNpcRelationshipGrowthBeatDef {
+  id: string
+  kind: RandomNpcRelationshipGrowthBeatKind
+  title: string
+  requiredAffinity: number
+  requiredDirection: RandomNpcRelationshipDirection
+  requiredSignal: number
+  sourceSummary: string
+  unlockedHint: string
+  relationLineKind?: Extract<RandomNpcRelationLineKind, 'romance' | 'family'>
+  requiresMetFamilyTie?: boolean
+}
+
+export interface RandomNpcRelationshipGrowthPreviewEntry extends RandomNpcRelationshipGrowthBeatDef {
+  currentAffinity: number
+  currentSignal: number
+  metFamilyTieCount: number
+  ready: boolean
+  progressLabel: string
+  statusLabel: string
+}
 
 export interface RandomNpcRelationLineEvent {
   id: string
@@ -594,6 +617,29 @@ export interface RandomNpcLongStayArchiveSnapshot {
   relationshipLine: RandomNpcRelationLineState
 }
 
+export type RandomNpcGenerationAnomalyAction =
+  | 'active_visitor_overflow'
+  | 'duplicate_visitor_id'
+  | 'invalid_template_reference'
+  | 'weekly_generation_overflow'
+
+export interface RandomNpcGenerationAnomalyEntry {
+  id: string
+  action: RandomNpcGenerationAnomalyAction
+  weekId: string
+  dayTag: string
+  createdAt: string
+  source: 'local_npc_save'
+  visitorIds: string[]
+  templateIds: string[]
+  observedCount: number
+  limit: number
+  idempotencyKey: string
+  summary: string
+  compensationHint: string
+  privacyScope: 'local_save_only'
+}
+
 export interface RandomNpcBoardState {
   version: number
   lastGeneratedWeekId: string
@@ -603,6 +649,7 @@ export interface RandomNpcBoardState {
   longStayResidents: RandomNpcLongStayEntry[]
   recentSummaries: RandomNpcArchiveSummary[]
   relationshipMilestoneAudit: RandomNpcRelationshipMilestoneAuditEntry[]
+  generationAnomalyAudit: RandomNpcGenerationAnomalyEntry[]
 }
 
 /** NPC 定义 */

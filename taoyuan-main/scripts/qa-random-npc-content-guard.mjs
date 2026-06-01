@@ -53,6 +53,20 @@ for (const kind of ['parent', 'sibling', 'mentor', 'distant_relative', 'caravan'
   assertIncludes(randomNpcs, `kind: '${kind}'`, `missing random NPC family tie kind: ${kind}`)
 }
 
+for (const fragment of [
+  'export const RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS',
+  "id: 'daily_to_acquaintance'",
+  "id: 'acquaintance_to_long_stay'",
+  "id: 'daily_to_short_romance'",
+  "id: 'long_stay_to_romance'",
+  "id: 'daily_to_family'",
+  "relationLineKind: 'romance'",
+  "relationLineKind: 'family'",
+  'requiresMetFamilyTie: true'
+]) {
+  assertIncludes(randomNpcs, fragment, `missing random NPC natural growth beat fragment: ${fragment}`)
+}
+
 for (const id of templateIds) {
   const block = getTemplateBlock(id)
   const dialogueSceneCount = (block.match(/kind: '(first_meeting|daily|gift|request|misunderstanding|festival|rain|night|farewell|reunion)'/g) ?? []).length
@@ -115,6 +129,9 @@ for (const [id, checks] of Object.entries({
 
 for (const fragment of [
   "export type RandomNpcRelationLineKind = 'friend' | 'family' | 'romance' | 'zhiji' | 'sworn' | 'rivalry' | 'severed'",
+  "export type RandomNpcRelationshipGrowthBeatKind = 'acquaintance' | 'long_stay' | 'short_romance' | 'romance' | 'family'",
+  'export interface RandomNpcRelationshipGrowthBeatDef',
+  'export interface RandomNpcRelationshipGrowthPreviewEntry',
   'kind: RandomNpcRelationLineKind',
   'history: RandomNpcRelationLineEvent[]'
 ]) {
@@ -134,6 +151,11 @@ for (const fragment of [
   'getRecentRandomNpcDialogueMemories(resident.dialogueMemories)',
   '见家人与家族评价',
   '核心家族深线',
+  '自然成长',
+  '日常长出关系线',
+  'getRandomNpcVisitorGrowthPreview',
+  'getRandomNpcAcquaintanceGrowthPreview',
+  'getRandomNpcResidentGrowthPreview',
   'getRecentRandomNpcFamilyReviews(resident)',
   'getRecentRandomNpcFamilySpecialEvents(resident)',
   "family: '家人线'",
@@ -145,6 +167,11 @@ for (const fragment of [
 
 for (const fragment of [
   'plotHook: template.plotHook',
+  'RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS',
+  'getRandomNpcRelationshipGrowthPreview',
+  'metFamilyTieCount',
+  'requiresMetFamilyTie',
+  'statusLabel',
   'familyTies: sanitizeRandomNpcFamilyTies(template.familyTies)',
   'RANDOM_NPC_TEMPLATES.length',
   'const RANDOM_NPC_DIALOGUE_MEMORY_LIMIT = 6',

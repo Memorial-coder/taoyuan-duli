@@ -65,7 +65,7 @@ const LEGACY_SAVE_KEY_PREFIX = 'taoyuanxiang_save_'
 const MAX_SLOTS = 3
 const ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const SAVE_FILE_EXT = '.tyx'
-const SAVE_VERSION = 5
+const SAVE_VERSION = 6
 const PENDING_SERVER_SAVE_KEY_PREFIX = 'taoyuanxiang_pending_server_saves_'
 const EXPORT_FILE_NAME_RESERVED_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
 const sanitizeExportFileName = (value: string): string =>
@@ -413,6 +413,7 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
 
   if (next.npc && typeof next.npc === 'object') {
     next.npc = {
+      ...next.npc,
       npcStates: next.npc.npcStates ?? [],
       relationshipClues: next.npc.relationshipClues ?? [],
       householdDivision: next.npc.householdDivision ?? undefined,
@@ -432,6 +433,7 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       weddingCountdown: next.npc.weddingCountdown ?? 0,
       weddingNpcId: next.npc.weddingNpcId ?? null,
       hiredHelpers: next.npc.hiredHelpers ?? [],
+      randomNpcBoard: next.npc.randomNpcBoard ?? undefined,
       friendshipVersion: next.npc.friendshipVersion
     }
   }

@@ -108,6 +108,26 @@
         </div>
       </div>
 
+      <div v-if="randomNpcBoard.generationAnomalyAudit.length > 0" class="border border-danger/20 rounded-xs p-2 mb-3 bg-danger/5" data-testid="random-npc-generation-anomaly-audit">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <p class="text-[10px] text-danger">随机 NPC 生成审计</p>
+          <span class="text-[10px] text-muted">最近 {{ randomNpcBoard.generationAnomalyAudit.length }}/12 条 · 本地存档</span>
+        </div>
+        <div
+          v-for="entry in randomNpcBoard.generationAnomalyAudit.slice(-4).reverse()"
+          :key="entry.id"
+          class="text-[10px] border-t border-danger/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
+          :data-testid="`random-npc-generation-anomaly-${entry.action}`"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <p class="text-danger min-w-0">{{ entry.weekId || entry.dayTag }} · {{ entry.action }} · {{ entry.observedCount }}/{{ entry.limit }}</p>
+            <span class="text-muted shrink-0">{{ entry.privacyScope }}</span>
+          </div>
+          <p class="text-muted leading-4">{{ entry.summary }}</p>
+          <p class="text-muted/80 leading-4 mt-0.5">{{ entry.visitorIds.join('、') || entry.templateIds.join('、') }} · {{ entry.idempotencyKey }}</p>
+        </div>
+      </div>
+
       <div v-if="npcCookingTopicRecords.length > 0" class="border border-water/20 rounded-xs p-2 mb-3 bg-water/5">
         <div class="flex items-center justify-between gap-2 mb-1">
           <div>
@@ -205,6 +225,23 @@
                   <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
                   <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
                   <p v-if="memory.sceneTitle" class="text-muted leading-4 mt-0.5">触发场景「{{ memory.sceneTitle }}」：{{ memory.sceneSummary }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${visitor.id}`">
+              <p class="text-[10px] text-muted">自然成长</p>
+              <div class="mt-1 space-y-1">
+                <div
+                  v-for="beat in getRandomNpcVisitorGrowthPreview(visitor)"
+                  :key="`${visitor.id}-${beat.id}`"
+                  class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
+                    <span class="text-muted">{{ beat.progressLabel }}</span>
+                  </div>
+                  <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
+                  <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
                 </div>
               </div>
             </div>
@@ -405,6 +442,23 @@
                   >
                     收束
                   </Button>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${acquaintance.visitorId}`">
+                <p class="text-[10px] text-muted">自然成长</p>
+                <div class="mt-1 space-y-1">
+                  <div
+                    v-for="beat in getRandomNpcAcquaintanceGrowthPreview(acquaintance)"
+                    :key="`${acquaintance.visitorId}-${beat.id}`"
+                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  >
+                    <div class="flex items-center justify-between gap-2">
+                      <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
+                      <span class="text-muted">{{ beat.progressLabel }}</span>
+                    </div>
+                    <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
+                    <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
+                  </div>
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
@@ -683,6 +737,23 @@
                   婚后日常：{{ resident.relationshipLine.homeLifeNote }}
                 </p>
                 <p class="text-[10px] text-muted leading-4 mt-0.5">{{ getRandomNpcRelationLineHint(resident) }}</p>
+                <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${resident.residentId}`">
+                  <p class="text-[10px] text-muted">日常长出关系线</p>
+                  <div class="mt-1 space-y-1">
+                    <div
+                      v-for="beat in getRandomNpcResidentGrowthPreview(resident)"
+                      :key="`${resident.residentId}-${beat.id}`"
+                      class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
+                        <span class="text-muted">{{ beat.progressLabel }}</span>
+                      </div>
+                      <p class="text-muted leading-4 mt-0.5">{{ beat.sourceSummary }}</p>
+                      <p class="text-accent/80 leading-4 mt-0.5">{{ beat.statusLabel }}</p>
+                    </div>
+                  </div>
+                </div>
                 <div v-if="getRecentRandomNpcRelationLineHistory(resident).length > 0" class="mt-1 space-y-1">
                   <p
                     v-for="event in getRecentRandomNpcRelationLineHistory(resident)"
@@ -1760,6 +1831,7 @@
     RandomNpcDialogueSceneDef,
     RandomNpcDialogueMemoryEntry,
     RandomNpcFamilyCommissionDef,
+    RandomNpcFamilyReviewEntry,
     RandomNpcFamilySpecialEventEntry,
     RandomNpcFamilyTieDef,
     RandomNpcFamilyTieKind,
@@ -1767,6 +1839,7 @@
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
     RandomNpcRelationshipDirection,
+    RandomNpcRelationshipGrowthPreviewEntry,
     RandomNpcRelationshipSignals,
     RandomNpcRelationshipTag,
     RandomNpcShortRomanceState,
@@ -1831,7 +1904,6 @@
     })
     return lockedIds.size
   })
-    RandomNpcFamilyReviewEntry,
   const NPC_COOKING_TOPIC_LABELS = ['NPC 来访话题', '送礼话题', '家宴团圆']
   const npcCookingTopicRecords = computed(() => {
     const records = cookingStore.recentStoryTriggerRecords
@@ -2112,6 +2184,15 @@
       .map(entry => `${getRandomNpcRelationshipDirectionLabel(entry.direction)} ${entry.value}`)
       .join(' / ')
   }
+  const getRandomNpcVisitorGrowthPreview = (visitor: RandomNpcVisitorState): RandomNpcRelationshipGrowthPreviewEntry[] =>
+    npcStore.getRandomNpcRelationshipGrowthPreview(visitor)
+      .filter(beat => beat.kind === 'acquaintance' || beat.kind === 'short_romance')
+  const getRandomNpcAcquaintanceGrowthPreview = (acquaintance: RandomNpcAcquaintanceEntry): RandomNpcRelationshipGrowthPreviewEntry[] =>
+    npcStore.getRandomNpcRelationshipGrowthPreview(acquaintance)
+      .filter(beat => beat.kind === 'long_stay' || beat.kind === 'short_romance')
+  const getRandomNpcResidentGrowthPreview = (resident: RandomNpcLongStayEntry): RandomNpcRelationshipGrowthPreviewEntry[] =>
+    npcStore.getRandomNpcRelationshipGrowthPreview(resident)
+      .filter(beat => beat.kind === 'romance' || beat.kind === 'family')
   const getRecentRandomNpcDialogueMemories = (memories: RandomNpcDialogueMemoryEntry[] = []): RandomNpcDialogueMemoryEntry[] =>
     memories.slice(-3).reverse()
   const getRecentRandomNpcShortRomanceHistory = (line?: RandomNpcShortRomanceState) =>
@@ -2134,6 +2215,11 @@
   const getRandomNpcFamilyReviewTypeLabel = (type: RandomNpcFamilyReviewEntry['type']): string => {
     if (type === 'commission') return '家族委托'
     if (type === 'business') return '婚后家业'
+    if (type === 'relationship') return '关系触发'
+    if (type === 'commitment') return '婚约成婚'
+    if (type === 'home') return '婚后日常'
+    if (type === 'festival') return '节会同行'
+    if (type === 'reunion') return '旧档接续'
     return '见家人'
   }
   const getRandomNpcFamilyCommission = (resident: RandomNpcLongStayEntry): RandomNpcFamilyCommissionDef | null =>
@@ -2215,11 +2301,6 @@
     [...(child.trainingState.familyEventHistory ?? [])]
       .filter(event => event.sourceResidentId === resident.residentId)
       .slice(-2)
-    if (type === 'relationship') return '关系触发'
-    if (type === 'commitment') return '婚约成婚'
-    if (type === 'home') return '婚后日常'
-    if (type === 'festival') return '节会同行'
-    if (type === 'reunion') return '旧档接续'
       .reverse()
   const getRandomNpcFamilyCommissionButtonText = (resident: RandomNpcLongStayEntry): string => {
     const commission = getRandomNpcFamilyCommission(resident)
