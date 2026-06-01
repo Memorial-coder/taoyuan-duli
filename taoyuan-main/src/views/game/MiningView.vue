@@ -1152,9 +1152,6 @@
         if (result.startsCombat) {
           startBattleBgm()
           sfxEncounter()
-          const tr = gameStore.advanceTime(ACTION_TIME_COSTS.combat)
-          if (tr.message) addLog(tr.message)
-          if (tr.passedOut) handleEndDay()
         }
       } else {
         exploreLog.value.push(result.message)
@@ -1171,15 +1168,12 @@
       if (result.startsCombat) {
         startBattleBgm()
         sfxEncounter()
-        const tr = gameStore.advanceTime(ACTION_TIME_COSTS.combat)
-        if (tr.message) addLog(tr.message)
-        if (tr.passedOut) handleEndDay()
       } else {
         sfxClick()
-        const tr = gameStore.advanceTime(ACTION_TIME_COSTS.revealTile)
-        if (tr.message) addLog(tr.message)
-        if (tr.passedOut) handleEndDay()
       }
+      const tr = gameStore.advanceTime(ACTION_TIME_COSTS.revealTile * inventoryStore.getToolWorkTimeMultiplier('pickaxe'))
+      if (tr.message) addLog(tr.message)
+      if (tr.passedOut) handleEndDay()
     } else {
       exploreLog.value.push(result.message)
       addLog(result.message)
@@ -1216,7 +1210,8 @@
     combatAnimLock.value = true
 
     const result = miningStore.combatAction(action)
-    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.combat)
+    const combatTimeCost = result.timeCostHours * inventoryStore.getToolWorkTimeMultiplier('pickaxe')
+    const tr = combatTimeCost > 0 ? gameStore.advanceTime(combatTimeCost) : null
     const { dealt, taken, isCrit } = parseDamage(result.message)
 
     if (action === 'attack') sfxAttack()
@@ -1237,8 +1232,8 @@
     }
 
     addLog(result.message)
-    if (tr.message) addLog(tr.message)
-    if (tr.passedOut) {
+    if (tr?.message) addLog(tr.message)
+    if (tr?.passedOut) {
       handleEndDay()
     }
 

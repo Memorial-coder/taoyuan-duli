@@ -47,6 +47,7 @@ import {
   buildPlayerCombatRuntime,
   calculateIncomingDamage,
   getDefendHeal,
+  getExpectedAttackDamage,
   getLifestealHeal,
   rollAttackOutcome
 } from '@/utils/combatRuntime'
@@ -54,6 +55,12 @@ import {
 const DEFEAT_MONEY_PENALTY_RATE = 0.1
 const DEFEAT_MONEY_PENALTY_CAP = 15000
 const DEFEAT_MAX_ITEM_LOSS = 3
+const COMBAT_TIME_FAST = 0.08
+const COMBAT_TIME_ADVANTAGE = 0.12
+const COMBAT_TIME_NORMAL = 0.17
+const COMBAT_TIME_LONG = 0.25
+
+type CombatActionResult = { message: string; combatOver: boolean; won: boolean; timeCostHours: number }
 
 type SessionLootEntry =
   | { kind: 'item'; itemId: string; quantity: number }
@@ -1062,11 +1069,30 @@ export const useMiningStore = defineStore('mining', () => {
     }
   }
 
-  const combatAction = (action: CombatAction): { message: string; combatOver: boolean; won: boolean } => combatActionRuntime(action)
+  const applyBossCombatTimeMinimum = (timeCostHours: number) =>
+    combatIsBoss.value ? Math.max(timeCostHours, COMBAT_TIME_NORMAL) : timeCostHours
 
-  const combatActionRuntime = (action: CombatAction): { message: string; combatOver: boolean; won: boolean } => {
+  const getAttackCombatTimeCost = (monsterHpBefore: number, totalDamage: number, expectedDamage: number): number => {
+    const safeHpBefore = Math.max(1, monsterHpBefore)
+    if (totalDamage >= safeHpBefore) {
+      return combatIsBoss.value ? COMBAT_TIME_NORMAL : COMBAT_TIME_FAST
+    }
+
+    const damageRatio = Math.max(0, totalDamage) / safeHpBefore
+    const roundsByActualHit = damageRatio > 0 ? Math.ceil(1 / damageRatio) : Number.POSITIVE_INFINITY
+    const expectedRounds = Math.ceil(safeHpBefore / Math.max(1, expectedDamage))
+    const estimatedRounds = Math.min(roundsByActualHit, expectedRounds)
+
+    if (estimatedRounds <= 2) return applyBossCombatTimeMinimum(COMBAT_TIME_ADVANTAGE)
+    if (estimatedRounds <= 4) return applyBossCombatTimeMinimum(COMBAT_TIME_NORMAL)
+    return COMBAT_TIME_LONG
+  }
+
+  const combatAction = (action: CombatAction): CombatActionResult => combatActionRuntime(action)
+
+  const combatActionRuntime = (action: CombatAction): CombatActionResult => {
     if (!inCombat.value || !combatMonster.value) {
-      return { message: '不在战斗中。', combatOver: true, won: false }
+      return { message: '不在战斗中。', combatOver: true, won: false, timeCostHours: 0 }
     }
 
     combatRound.value++
@@ -1076,7 +1102,7 @@ export const useMiningStore = defineStore('mining', () => {
     if (action === 'flee') {
       if (combatIsBoss.value) {
         combatLog.value.push('BOSS 战无法逃跑。')
-        return { message: 'BOSS 战无法逃跑。', combatOver: false, won: false }
+        return { message: 'BOSS 战无法逃跑。', combatOver: false, won: false, timeCostHours: COMBAT_TIME_FAST }
       }
       inCombat.value = false
       if (_combatTileIndex.value >= 0) {
@@ -1085,10 +1111,11 @@ export const useMiningStore = defineStore('mining', () => {
         _combatTileIndex.value = -1
       }
       combatLog.value.push('你逃跑了。')
-      return { message: '成功逃离了战斗。', combatOver: true, won: false }
+      return { message: '成功逃离了战斗。', combatOver: true, won: false, timeCostHours: COMBAT_TIME_FAST }
     }
 
     if (action === 'defend') {
+      const timeCostHours = combatIsBoss.value ? COMBAT_TIME_LONG : COMBAT_TIME_NORMAL
       const damage = calculateIncomingDamage({
         incomingAttack: monster.attack,
         flatReduction: runtime.defendDefense.flatReduction,
@@ -1109,12 +1136,18 @@ export const useMiningStore = defineStore('mining', () => {
 
       combatLog.value.push(defendMsg)
       if (playerStore.hp <= 0) {
-        return handleDefeat()
+        return { ...handleDefeat(), timeCostHours }
       }
-      return { message: defendMsg, combatOver: false, won: false }
+      return { message: defendMsg, combatOver: false, won: false, timeCostHours }
     }
 
+    const monsterHpBefore = combatMonsterHp.value
     const attackOutcome = rollAttackOutcome(runtime.attack, monster.defense)
+    const timeCostHours = getAttackCombatTimeCost(
+      monsterHpBefore,
+      attackOutcome.totalDamage,
+      getExpectedAttackDamage(runtime.attack, monster.defense)
+    )
     combatMonsterHp.value -= attackOutcome.damage
     combatMonsterHp.value -= attackOutcome.extraDamage
 
@@ -1133,20 +1166,20 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     if (combatMonsterHp.value <= 0) {
-      return handleMonsterDefeat(monster, msg, attackOutcome.totalDamage)
+      return { ...handleMonsterDefeat(monster, msg, attackOutcome.totalDamage), timeCostHours }
     }
 
     if (attackOutcome.didStun) {
       msg += ` ${monster.name}被震晕了，没能反击。`
       combatLog.value.push(msg)
-      return { message: msg, combatOver: false, won: false }
+      return { message: msg, combatOver: false, won: false, timeCostHours }
     }
 
     const dodgeRate = runtime.defense.dodgeRate ?? 0
     if (dodgeRate > 0 && Math.random() < dodgeRate) {
       msg += ` 你灵巧地闪避了${monster.name}的反击。`
       combatLog.value.push(msg)
-      return { message: msg, combatOver: false, won: false }
+      return { message: msg, combatOver: false, won: false, timeCostHours }
     }
 
     const counterDamage = calculateIncomingDamage({
@@ -1159,10 +1192,10 @@ export const useMiningStore = defineStore('mining', () => {
     combatLog.value.push(msg)
 
     if (playerStore.hp <= 0) {
-      return handleDefeat()
+      return { ...handleDefeat(), timeCostHours }
     }
 
-    return { message: msg, combatOver: false, won: false }
+    return { message: msg, combatOver: false, won: false, timeCostHours }
   }
 
   const handleMonsterDefeat = (

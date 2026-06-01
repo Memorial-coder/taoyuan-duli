@@ -609,6 +609,14 @@ export const useInventoryStore = defineStore('inventory', () => {
     return multipliers[tool.tier]
   }
 
+  /** 获取工具等级对应的工作耗时倍率 */
+  const getToolWorkTimeMultiplier = (type: ToolType): number => {
+    const tool = getTool(type)
+    if (!tool) return 1
+    const multipliers: Record<ToolTier, number> = { basic: 1.0, iron: 0.9, steel: 0.8, iridium: 0.7 }
+    return multipliers[tool.tier]
+  }
+
   /** 获取工具等级对应的批量操作数量（蓄力机制） */
   const getToolBatchCount = (type: ToolType): number => {
     const tool = getTool(type)
@@ -1323,6 +1331,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     MAX_EQUIPMENT_PRESETS,
     getTool,
     getToolStaminaMultiplier,
+    getToolWorkTimeMultiplier,
     getToolBatchCount,
     upgradeTool,
     isToolAvailable,
