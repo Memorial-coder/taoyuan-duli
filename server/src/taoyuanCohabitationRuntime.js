@@ -138,6 +138,18 @@ const SHARED_ALCHEMY_AUTO_RESULT_RECIPE_WEIGHT_PROFILES = Object.freeze({
     profile: 'jade_peach_rare_material',
     weights: { success: 60, partial: 19, failed: 8, rare: 13 },
   },
+  shared_snow_lotus_calm_elixir: {
+    profile: 'snow_lotus_pearl_rare_crop',
+    weights: { success: 59, partial: 19, failed: 8, rare: 14 },
+  },
+  shared_dew_bloom_focus_elixir: {
+    profile: 'dew_bloom_rare_crop',
+    weights: { success: 58, partial: 19, failed: 8, rare: 15 },
+  },
+  shared_star_lotus_calm_elixir: {
+    profile: 'star_lotus_rare_crop',
+    weights: { success: 57, partial: 20, failed: 8, rare: 15 },
+  },
 });
 const SHARED_ALCHEMY_AUTO_RESULT_DEFAULT_HEAT_LEVEL = 'balanced';
 const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
@@ -156,7 +168,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 19;
+const WAREHOUSE_ITEM_POLICY_VERSION = 20;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -188,7 +200,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
 ]);
 const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
   'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill', 'marsh_luminous_cleansing_elixir', 'moon_pearl_calm_elixir', 'jade_orchid_focus_elixir',
-  'rare_lotus_guard_elixir', 'jade_peach_spirit_elixir',
+  'rare_lotus_guard_elixir', 'jade_peach_spirit_elixir', 'snow_lotus_calm_elixir', 'dew_bloom_focus_elixir', 'star_lotus_calm_elixir',
   'ley_crystal_shard', 'marsh_spore_sample', 'luminous_algae', 'wind_etched_core',
   'lotus_seed_rare', 'jade_peach', 'moon_pearl', 'jade_orchid',
 ]);
@@ -201,6 +213,7 @@ const WAREHOUSE_HIGH_VALUE_CROP_ITEM_IDS = Object.freeze([
   'golden_lotus', 'phoenix_broad_bean', 'moonlight_tea', 'jade_rapeseed', 'frost_yam',
   'melon_tea_fruit', 'dragon_fire', 'celestial_rice', 'ice_lotus', 'jade_peach_tea',
   'golden_dragon', 'moonlight_frost', 'jade_golden_melon', 'immortal_flower', 'dragon_pearl',
+  'snow_lotus_pearl', 'dew_bloom', 'star_lotus',
 ]);
 const WAREHOUSE_RARE_ITEM_IDS = Object.freeze([
   ...WAREHOUSE_RARE_MATERIAL_ITEM_IDS,
@@ -2749,6 +2762,186 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'candied_peach', quantity: 1, quality: 'fine' },
       { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
       { item_id: 'jade_peach', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
+  shared_snow_lotus_calm_elixir: {
+    id: 'shared_snow_lotus_calm_elixir',
+    label: '共同丹炉雪莲清心丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'snow_lotus_pearl', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'snow_lotus_calm_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_snow_lotus_calm_partial: {
+    id: 'shared_snow_lotus_calm_partial',
+    label: '共同丹炉雪莲偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'snow_lotus_pearl', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_snow_lotus_calm_failed: {
+    id: 'shared_snow_lotus_calm_failed',
+    label: '共同丹炉雪莲废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'snow_lotus_pearl', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_snow_lotus_calm_rare: {
+    id: 'shared_snow_lotus_calm_rare',
+    label: '共同丹炉雪莲奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'snow_lotus_pearl', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
+  shared_dew_bloom_focus_elixir: {
+    id: 'shared_dew_bloom_focus_elixir',
+    label: '共同丹炉露花凝神丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'dew_bloom', quantity: 1, quality: 'normal' },
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'dew_bloom_focus_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_dew_bloom_focus_partial: {
+    id: 'shared_dew_bloom_focus_partial',
+    label: '共同丹炉露花偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'dew_bloom', quantity: 1, quality: 'normal' },
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_dew_bloom_focus_failed: {
+    id: 'shared_dew_bloom_focus_failed',
+    label: '共同丹炉露花废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'dew_bloom', quantity: 1, quality: 'normal' },
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_dew_bloom_focus_rare: {
+    id: 'shared_dew_bloom_focus_rare',
+    label: '共同丹炉露花奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'dew_bloom', quantity: 1, quality: 'normal' },
+      { item_id: 'osmanthus_honey', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'rare_elixir_crystal',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'rare',
+  },
+  shared_star_lotus_calm_elixir: {
+    id: 'shared_star_lotus_calm_elixir',
+    label: '共同丹炉星莲安神丹',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'star_lotus', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'star_lotus_calm_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'success',
+  },
+  shared_star_lotus_calm_partial: {
+    id: 'shared_star_lotus_calm_partial',
+    label: '共同丹炉星莲偏丹膏',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'star_lotus', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'partial_elixir_slurry',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'partial',
+  },
+  shared_star_lotus_calm_failed: {
+    id: 'shared_star_lotus_calm_failed',
+    label: '共同丹炉星莲废丹灰',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'star_lotus', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
+    ],
+    output_item_id: 'failed_elixir_ash',
+    output_quantity: 1,
+    output_quality: 'normal',
+    alchemy_result_kind: 'failed',
+  },
+  shared_star_lotus_calm_rare: {
+    id: 'shared_star_lotus_calm_rare',
+    label: '共同丹炉星莲奇丹晶',
+    station: 'alchemy_furnace',
+    process_kind: 'alchemy_elixir',
+    input_items: [
+      { item_id: 'star_lotus', quantity: 1, quality: 'normal' },
+      { item_id: 'herbal_paste', quantity: 1, quality: 'fine' },
+      { item_id: 'green_tea_drink', quantity: 1, quality: 'fine' },
     ],
     output_item_id: 'rare_elixir_crystal',
     output_quantity: 1,

@@ -4152,7 +4152,7 @@ const assertRecipePolicyAlchemyResultBranches = async ({ label, cases, inputs })
   }
 }
 
-const assertRecipePolicyAlchemySuccessRecipe = async ({ label, recipeId, outputItemId, inputs }) => {
+const assertRecipePolicyAlchemySuccessRecipe = async ({ label, recipeId, outputItemId, inputs, expectedRiskLevel = 'high_quality' }) => {
   for (const input of inputs) await injectRecipePolicyStock(input.itemId, input.quantity, input.quality || 'normal')
   const result = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
     recipe_id: recipeId,
@@ -4166,9 +4166,22 @@ const assertRecipePolicyAlchemySuccessRecipe = async ({ label, recipeId, outputI
   assert.equal(result.ledger_entry.quality, 'fine', `new ${label} recipe should apply cooperation quality bonus`)
   const outputDepositLedger = result.warehouse_ledger_entries.find(entry => entry.action === 'deposit' && entry.item_id === outputItemId)
   assert.ok(outputDepositLedger, `new ${label} recipe should write output deposit ledger`)
-  assert.equal(outputDepositLedger.withdrawal_risk_level, 'high_quality', `new ${label} recipe output ledger should be high-quality protected`)
+  assert.equal(outputDepositLedger.withdrawal_risk_level, expectedRiskLevel, `new ${label} recipe output ledger should keep expected withdrawal risk`)
   assert.equal(outputDepositLedger.high_value_withdrawal_required, true, `new ${label} recipe output ledger should require high-value withdrawal`)
   for (const input of inputs) assert.ok(result.warehouse_ledger_entries.some(entry => entry.action === 'consume' && entry.item_id === input.itemId && entry.quality === (input.quality || 'normal')), `new ${label} recipe should consume ${input.itemId}`)
+  return result
+}
+
+const assertRecipePolicyRareAlchemySuccessRecipe = async ({ label, recipeId, outputItemId, inputs }) => {
+  const result = await assertRecipePolicyAlchemySuccessRecipe({ label, recipeId, outputItemId, inputs, expectedRiskLevel: 'rare' })
+  const outputDepositLedger = result.warehouse_ledger_entries.find(entry => entry.action === 'deposit' && entry.item_id === outputItemId)
+  assert.equal(outputDepositLedger?.withdrawal_risk_level, 'rare', `new ${label} output ledger should be rare protected`)
+  assert.equal(outputDepositLedger?.item_policy?.classification, 'rare', `new ${label} output ledger should keep rare classification`)
+  const origin = result.contract.origin_assets.warehouse_items.find(item => item.ledger_id === result.ledger_entry.id && item.action === 'deposit')
+  assert.equal(origin?.item_id, outputItemId, `new ${label} origin should use rare elixir item id`)
+  assert.equal(origin?.withdrawal_risk_level, 'rare', `new ${label} origin should be rare protected`)
+  assert.equal(origin?.high_value_withdrawal_required, true, `new ${label} origin should require high-value withdrawal`)
+  assert.equal(origin?.item_policy_version, outputDepositLedger?.item_policy_version, `new ${label} origin should keep item policy version`)
   return result
 }
 
@@ -4331,7 +4344,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 19, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 20, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4356,6 +4369,12 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.incl
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_orchid'), 'warehouse item policy should list jade orchid purchase targets as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('lotus_seed_rare'), 'warehouse item policy should list rare lotus seed purchase targets as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('jade_peach'), 'warehouse item policy should list jade peach purchase targets as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('snow_lotus_pearl'), 'warehouse item policy should list snow lotus pearl hybrid crop as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dew_bloom'), 'warehouse item policy should list dew bloom hybrid crop as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('star_lotus'), 'warehouse item policy should list star lotus hybrid crop as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('snow_lotus_calm_elixir'), 'warehouse item policy should list snow lotus elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dew_bloom_focus_elixir'), 'warehouse item policy should list dew bloom elixir outputs as rare items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('star_lotus_calm_elixir'), 'warehouse item policy should list star lotus elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('jujube'), 'warehouse item policy should list jujube as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_osmanthus_cake'), 'warehouse item policy should list osmanthus cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_jujube_cake'), 'warehouse item policy should list jujube cake as common output')
@@ -5112,6 +5131,33 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
   'jade peach rare material alchemy should require storage.withdraw_rare before consuming jade peach'
 )
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_snow_lotus_calm_elixir',
+    memo: 'qa snow lotus hybrid alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-snow-lotus-calm-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'snow lotus hybrid alchemy should require storage.withdraw_rare before consuming snow lotus pearl'
+)
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_dew_bloom_focus_elixir',
+    memo: 'qa dew bloom hybrid alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-dew-bloom-focus-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'dew bloom hybrid alchemy should require storage.withdraw_rare before consuming dew bloom'
+)
+await assert.rejects(
+  () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
+    recipe_id: 'shared_star_lotus_calm_elixir',
+    memo: 'qa star lotus hybrid alchemy should require rare storage permission',
+    idempotency_key: 'qa-recipe-policy-star-lotus-calm-elixir-denied',
+  }, actor(recipePolicyOwner)),
+  error => error?.status === 403 && String(error.message || '').includes('storage.withdraw_rare'),
+  'star lotus hybrid alchemy should require storage.withdraw_rare before consuming star lotus'
+)
 await runtime.updateCohabitationPermissions(recipePolicyContractId, {
   target_username: recipePolicyOwner,
   permissions: {
@@ -5439,6 +5485,51 @@ await assertRecipePolicyAlchemyAutoResult({
   expectedWeightProfile: 'jade_peach_rare_material',
   expectedBaseWeights: { success: 60, partial: 19, failed: 8, rare: 13 },
   expectedWeights: { success: 75, partial: 7, failed: 5, rare: 13 },
+})
+await assertRecipePolicyRareAlchemySuccessRecipe({
+  label: 'snow lotus calm',
+  recipeId: 'shared_snow_lotus_calm_elixir',
+  outputItemId: 'snow_lotus_calm_elixir',
+  inputs: [{ itemId: 'snow_lotus_pearl', quantity: 1 }, { itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }],
+})
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'snow lotus calm',
+  cases: [
+    { recipeId: 'shared_snow_lotus_calm_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_snow_lotus_calm_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_snow_lotus_calm_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'snow_lotus_pearl', quantity: 1 }, { itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'lotus_heart_powder', quantity: 1, quality: 'fine' }],
+})
+await assertRecipePolicyRareAlchemySuccessRecipe({
+  label: 'dew bloom focus',
+  recipeId: 'shared_dew_bloom_focus_elixir',
+  outputItemId: 'dew_bloom_focus_elixir',
+  inputs: [{ itemId: 'dew_bloom', quantity: 1 }, { itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }],
+})
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'dew bloom focus',
+  cases: [
+    { recipeId: 'shared_dew_bloom_focus_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_dew_bloom_focus_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_dew_bloom_focus_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'dew_bloom', quantity: 1 }, { itemId: 'osmanthus_honey', quantity: 1, quality: 'fine' }, { itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }],
+})
+await assertRecipePolicyRareAlchemySuccessRecipe({
+  label: 'star lotus calm',
+  recipeId: 'shared_star_lotus_calm_elixir',
+  outputItemId: 'star_lotus_calm_elixir',
+  inputs: [{ itemId: 'star_lotus', quantity: 1 }, { itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }],
+})
+await assertRecipePolicyAlchemyResultBranches({
+  label: 'star lotus calm',
+  cases: [
+    { recipeId: 'shared_star_lotus_calm_partial', resultKind: 'partial', outputItemId: 'partial_elixir_slurry', riskLevel: 'high_quality' },
+    { recipeId: 'shared_star_lotus_calm_failed', resultKind: 'failed', outputItemId: 'failed_elixir_ash', riskLevel: 'high_quality' },
+    { recipeId: 'shared_star_lotus_calm_rare', resultKind: 'rare', outputItemId: 'rare_elixir_crystal', riskLevel: 'rare' },
+  ],
+  inputs: [{ itemId: 'star_lotus', quantity: 1 }, { itemId: 'herbal_paste', quantity: 1, quality: 'fine' }, { itemId: 'green_tea_drink', quantity: 1, quality: 'fine' }],
 })
 
 assert.equal(saveRuntime.loadUserSaveSlots(recipePolicyOwner).slots[0].raw, recipePolicyOwnerRawBefore, 'new shared warehouse recipe QA should not rewrite recipe owner save')
