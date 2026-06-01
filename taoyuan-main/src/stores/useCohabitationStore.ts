@@ -80,8 +80,10 @@ import {
   resolveCohabitationSeparationChildArrangement,
   resolveCohabitationSeparationFamilyStory,
   resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
+  restoreCohabitationDefaultPermissions,
   restoreCohabitationFamilyBuildingMaterials,
   reserveCohabitationFamilyFestivalSeats,
+  rollbackCohabitationContractSafeVersion,
   rollbackCohabitationFamilyBuilding,
   rollbackCohabitationFamilyVisibility,
   rollbackCohabitationWarehouseHighValueWithdrawalDraft,
@@ -93,6 +95,7 @@ import {
   settleCohabitationFamilyOrder,
   splitCohabitationSeparationDecorationsBuildings,
   spendCohabitationFund,
+  submitCohabitationRecoveryAppeal,
   submitCohabitationFamilyWish,
   purchaseCohabitationSharedFundShopItem,
   updateCohabitationFamilyVisibility,
@@ -148,6 +151,9 @@ import {
   type CohabitationOfflineQueueMergeSummary,
   type CohabitationOverviewResponse,
   type CohabitationPermissionsPanel,
+  type CohabitationPermissionDefaultRestorePayload,
+  type CohabitationRecoveryAppealPayload,
+  type CohabitationContractSafeVersionRollbackPayload,
   type CohabitationSeparationAssetReturnExecutePayload,
   type CohabitationSeparationChildArrangementResolvePayload,
   type CohabitationSeparationDecorationBuildingSplitPayload,
@@ -2285,6 +2291,73 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const restoreMemberDefaultPermissions = async (payload: CohabitationPermissionDefaultRestorePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await restoreCohabitationDefaultPermissions(activeContractId.value, payload)
+      if (result?.permissions_panel) permissionsPanel.value = result.permissions_panel
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '恢复共同庄园默认权限失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const submitRecoveryAppeal = async (payload: CohabitationRecoveryAppealPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await submitCohabitationRecoveryAppeal(activeContractId.value, payload)
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '提交共同庄园恢复申诉失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const rollbackContractSafeVersion = async (payload: CohabitationContractSafeVersionRollbackPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await rollbackCohabitationContractSafeVersion(activeContractId.value, payload)
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '回滚同居契约安全版本失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberRole = async (payload: {
     target_username: string
     manor_role: string
@@ -2478,6 +2551,9 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     careSharedPet,
     processSharedWorkshopRecipe,
     updateMemberPermissions,
+    restoreMemberDefaultPermissions,
+    submitRecoveryAppeal,
+    rollbackContractSafeVersion,
     updateMemberRole,
     recordFamilyChildCare,
     submitFamilyWish,

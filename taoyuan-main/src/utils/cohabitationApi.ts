@@ -44,6 +44,47 @@ export interface CohabitationAuditEntry {
   at: number
 }
 
+export interface CohabitationContractSafeVersion {
+  id: string
+  created_at: number
+  source_action: string
+  actor_username: string
+  actor_display_name: string
+  snapshot_hash: string
+  summary: {
+    status?: string
+    updated_at?: number
+    accepted_member_count?: number
+    shared_warehouse_ledger_count?: number
+    shared_fund_ledger_count?: number
+    audit_count?: number
+    separation_preview_count?: number
+    [key: string]: unknown
+  }
+  rollback_available: boolean
+}
+
+export interface CohabitationRecoveryAppeal {
+  id: string
+  issue_type: string
+  target_ref: string
+  note: string
+  submitted_by_username: string
+  submitted_by_display_name: string
+  submitted_at: number
+  warehouse_ledger_ids: string[]
+  audit_ids: string[]
+  preview_id?: string
+  safe_version_id?: string
+  safe_version_snapshot_hash?: string
+  separation_preview_version?: number
+  status: string
+  support_locator?: Record<string, unknown> | null
+  player_explanation?: string
+  record_only?: boolean
+  idempotency_key?: string
+}
+
 export interface CohabitationFundLedgerEntry {
   id: string
   action: string
@@ -232,6 +273,8 @@ export interface CohabitationContract {
     major_event_ledger?: Array<Record<string, unknown>>
     [key: string]: unknown
   }
+  contract_safe_versions?: CohabitationContractSafeVersion[]
+  recovery_appeals?: CohabitationRecoveryAppeal[]
   shared_farm_ledger?: CohabitationSharedFarmLedgerEntry[]
   shared_animals?: CohabitationSharedAnimals | null
   shared_animal_ledger?: CohabitationSharedAnimalLedgerEntry[]
@@ -1078,6 +1121,10 @@ export interface CohabitationPermissionsPanel {
   safety_rails: Record<string, boolean>
   groups: Array<{
     id: string
+    default_permissions?: Record<string, Record<string, boolean>>
+    default_template?: string
+    default_restore_available?: boolean
+    default_restore_changed_count?: number
     keys: string[]
   }>
   members: Array<CohabitationMember & {
@@ -2299,6 +2346,29 @@ export interface CohabitationSeparationPersonalFamilyReceipt {
   personal_family_state_mutated?: boolean
   personal_child_state_mutated?: boolean
   personal_money_mutated?: boolean
+export interface CohabitationSeparationAssetDisputeSourceRow {
+  id?: string
+  category?: string
+  target_ref?: string
+  source_ref?: string
+  source_owner_username?: string
+  return_target_username?: string
+  item_id?: string
+  quality?: string
+  quantity?: number
+  amount?: number
+  draft_id?: string
+  ledger_ids?: string[]
+  evidence_refs?: string[]
+  status?: string
+  required_action?: string
+  requires_confirmation?: boolean
+  freeze_required?: boolean
+  no_personal_mutation?: boolean
+  note?: string
+  [key: string]: unknown
+}
+
   personal_inventory_mutated?: boolean
   personal_home_mutated?: boolean
   personal_npc_state_mutated?: boolean
@@ -2435,7 +2505,10 @@ export interface CohabitationSeparationPreview {
   created_at: number
   expires_at: number
   confirm_after_at: number
-  asset_return: Record<string, unknown>
+  asset_return: Record<string, unknown> & {
+    separation_asset_dispute_source_rows?: CohabitationSeparationAssetDisputeSourceRow[]
+    separation_asset_dispute_source_summary?: Record<string, unknown>
+  }
   compensation_plan: Array<Record<string, unknown>>
   confirmation_state?: {
     state?: string
@@ -3022,6 +3095,7 @@ export interface CohabitationSeparationStoryCinematicPlaybackPayload {
   playback_state?: 'played' | 'skipped_no_cinematic' | 'record_only' | string
   memo?: string
   idempotency_key: string
+  confirmation_text?: string
 }
 
 export interface CohabitationSeparationPersonalStoryReceiptsPayload {
@@ -3192,6 +3266,30 @@ export interface CohabitationSharedAnimalActionResponse extends CohabitationDeta
   ledger_entry?: CohabitationSharedAnimalLedgerEntry | null
   fund_ledger_entry?: CohabitationFundLedgerEntry | null
   warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+export interface CohabitationPermissionDefaultRestorePayload {
+  target_username: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationRecoveryAppealPayload {
+  issue_type: 'warehouse_misoperation' | 'separation_asset_dispute' | 'contract_exception' | 'relationship_story_review' | string
+  target_ref?: string
+  note?: string
+  warehouse_ledger_ids?: string[]
+  audit_ids?: string[]
+  preview_id?: string
+  safe_version_id?: string
+  idempotency_key: string
+}
+
+export interface CohabitationContractSafeVersionRollbackPayload {
+  safe_version_id?: string
+  reason?: string
+  confirmation_text: string
+  idempotency_key: string
+}
+
   idempotent?: boolean
   already_fed?: boolean
   already_bought?: boolean
@@ -3204,6 +3302,23 @@ export interface CohabitationSharedAnimalActionResponse extends CohabitationDeta
     animal_id: string
     animal_type?: string
     animal_name?: string
+export interface CohabitationPermissionDefaultRestoreResponse extends CohabitationPermissionUpdateResponse {
+  already_default?: boolean
+}
+
+export interface CohabitationRecoveryAppealResponse extends CohabitationDetailResponse {
+  appeal?: CohabitationRecoveryAppeal | null
+  audit_entry?: CohabitationAuditEntry
+  idempotent?: boolean
+}
+
+export interface CohabitationContractSafeVersionRollbackResponse extends CohabitationDetailResponse {
+  safe_version?: CohabitationContractSafeVersion | null
+  rollback?: Record<string, unknown> | null
+  audit_entry?: CohabitationAuditEntry
+  idempotent?: boolean
+}
+
     feed_item_id?: string
     product_item_id?: string
     product_quantity?: number
@@ -4104,6 +4219,30 @@ export const rollbackCohabitationWarehouseHighValueWithdrawalDraft = async (cont
     '回滚共同仓库高价值取出草案失败'
   )
 }
+export const restoreCohabitationDefaultPermissions = async (contractId: string, payload: CohabitationPermissionDefaultRestorePayload) => {
+  return postCohabitationJson<CohabitationPermissionDefaultRestoreResponse>(
+    contractPath(contractId, '/permissions/default-restore'),
+    payload as unknown as Record<string, unknown>,
+    '恢复共同庄园默认权限失败'
+  )
+}
+
+export const submitCohabitationRecoveryAppeal = async (contractId: string, payload: CohabitationRecoveryAppealPayload) => {
+  return postCohabitationJson<CohabitationRecoveryAppealResponse>(
+    contractPath(contractId, '/recovery-appeals'),
+    payload as unknown as Record<string, unknown>,
+    '提交共同庄园恢复申诉失败'
+  )
+}
+
+export const rollbackCohabitationContractSafeVersion = async (contractId: string, payload: CohabitationContractSafeVersionRollbackPayload) => {
+  return postCohabitationJson<CohabitationContractSafeVersionRollbackResponse>(
+    contractPath(contractId, '/safe-versions/rollback'),
+    payload as unknown as Record<string, unknown>,
+    '回滚同居契约安全版本失败'
+  )
+}
+
 
 export const fetchCohabitationWarehouseHighValueWithdrawalCompensationAuditBundle = async (contractId: string, draftId: string) => {
   return fetchCohabitationJson<CohabitationWarehouseCompensationAuditBundleResponse>(

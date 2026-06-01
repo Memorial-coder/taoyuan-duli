@@ -480,6 +480,18 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_permissions_update',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/permissions\/default-restore$/i,
+    action: 'cohabitation_permissions_default_restore',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/recovery-appeals$/i,
+    action: 'cohabitation_recovery_appeal_submit',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/safe-versions\/rollback$/i,
+    action: 'cohabitation_contract_safe_version_rollback',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/roles$/i,
     action: 'cohabitation_family_role_update',
   },
@@ -4324,6 +4336,48 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 });
 
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/reject', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions/default-restore', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.restoreCohabitationDefaultPermissions(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复同居默认权限失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/recovery-appeals', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.submitCohabitationRecoveryAppeal(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '提交共同庄园恢复申诉失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/safe-versions/rollback', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.rollbackCohabitationContractSafeVersion(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '回滚同居契约安全版本失败' });
+    }
+  });
+});
+
   return withTaoyuanExchangeLock(async () => {
     try {
       const result = await taoyuanCohabitationRuntime.rejectCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, {

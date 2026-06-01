@@ -446,6 +446,38 @@
                     </div>
                   </div>
                   <div
+                    v-if="separationAssetDisputeSourceRows.length"
+                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-asset-dispute-source-list"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">分居资产争议来源清单</p>
+                      <span>{{ separationAssetDisputeSourceRows.length }} 行 · 只读证据</span>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <div
+                        v-for="row in separationAssetDisputeSourceRows.slice(0, 8)"
+                        :key="row.id"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                        :data-testid="`online-cohabitation-separation-asset-dispute-source-row-${row.category}`"
+                      >
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <p class="text-accent">{{ separationAssetDisputeSourceCategoryLabel(row.category) }}</p>
+                          <span>{{ row.freeze_required ? '冻结' : row.requires_confirmation ? '待确认' : row.status }}</span>
+                        </div>
+                        <p class="mt-1 break-all">目标：{{ row.target_ref || row.item_id || '未绑定目标' }}</p>
+                        <p class="mt-1 break-all">来源：{{ row.source_ref || row.source_owner_username || '来源待核对' }}</p>
+                        <p class="mt-1" v-if="row.quantity || row.amount">
+                          {{ row.quantity ? `数量 ${row.quantity}` : '' }}{{ row.quantity && row.amount ? ' · ' : '' }}{{ row.amount ? `金额 ${row.amount}` : '' }}
+                        </p>
+                        <p class="mt-1 break-all" v-if="row.ledger_ids.length">流水：{{ row.ledger_ids.join('、') }}</p>
+                        <p class="mt-1 break-all" v-if="row.draft_id">草案：{{ row.draft_id }}</p>
+                        <p class="mt-1">动作：{{ row.required_action || row.status }}</p>
+                        <p class="mt-1">{{ row.no_personal_mutation ? '预览不改个人资产' : '需人工复核资产边界' }}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div
                     v-if="separationSharedDecorationRemovalDisputes.length"
                     class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[10px] text-muted"
                     data-testid="online-cohabitation-shared-decoration-removal-disputes"
@@ -675,6 +707,116 @@
                       </button>
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
+
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-recovery-panel">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2 text-accent">
+                <ShieldCheck :size="13" />
+                <p class="text-sm">玩家申诉与恢复</p>
+              </div>
+              <span class="text-[10px] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
+            </div>
+            <div v-if="selectedContract" class="mt-3 grid gap-3 text-[10px] text-muted">
+              <div class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-safe-version-list">
+                <div
+                  v-for="version in contractSafeVersions.slice(0, 4)"
+                  :key="version.id"
+                  class="border border-accent/10 bg-black/10 p-2"
+                  :data-testid="`online-cohabitation-safe-version-${version.id}`"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-accent">{{ version.source_action || 'safe_version' }}</p>
+                    <span>{{ formatTime(version.created_at) }}</span>
+                  </div>
+                  <p class="mt-1 break-all">hash {{ version.snapshot_hash || '待生成' }}</p>
+                  <p class="mt-1">{{ contractSafeVersionSummaryLabel(version.summary) }}</p>
+                </div>
+                <p v-if="contractSafeVersions.length === 0" class="border border-accent/10 bg-black/10 p-2">暂无安全版本；下一次共同契约写入后会自动生成快照。</p>
+              </div>
+
+              <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-recovery-appeal-form">
+                <select v-model="recoveryAppealIssueType" class="online-select text-xs" data-testid="online-cohabitation-recovery-appeal-issue-type">
+                  <option v-for="option in recoveryAppealIssueOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                </select>
+                <input
+                  v-model.trim="recoveryAppealTargetRef"
+                  class="online-input text-xs"
+                  maxlength="120"
+                  placeholder="目标引用、流水或草案 ID"
+                  data-testid="online-cohabitation-recovery-appeal-target"
+                />
+                <input
+                  v-model.trim="recoveryAppealNote"
+                  class="online-input text-xs md:col-span-2"
+                  maxlength="160"
+                  placeholder="说明发生了什么"
+                  data-testid="online-cohabitation-recovery-appeal-note"
+                />
+                <button
+                  type="button"
+                  class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
+                  :disabled="!canSubmitRecoveryAppeal || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-recovery-appeal-submit"
+                  @click="submitContractRecoveryAppeal"
+                >
+                  <ShieldCheck :size="12" />
+                  提交申诉
+                </button>
+              </div>
+
+              <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-safe-version-rollback-form">
+                <select v-model="rollbackSafeVersionId" class="online-select text-xs" data-testid="online-cohabitation-safe-version-rollback-target">
+                  <option value="">最近安全版本</option>
+                  <option v-for="version in contractSafeVersions" :key="version.id" :value="version.id">
+                    {{ version.source_action || version.id }} · {{ formatTime(version.created_at) }}
+                  </option>
+                </select>
+                <input
+                  v-model.trim="rollbackSafeVersionReason"
+                  class="online-input text-xs"
+                  maxlength="120"
+                  placeholder="回滚原因"
+                  data-testid="online-cohabitation-safe-version-rollback-reason"
+                />
+                <input
+                  v-model.trim="rollbackSafeVersionConfirmationText"
+                  class="online-input text-xs md:col-span-2"
+                  maxlength="20"
+                  :placeholder="CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT"
+                  data-testid="online-cohabitation-safe-version-rollback-confirmation"
+                />
+                <button
+                  type="button"
+                  class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
+                  :disabled="!canRollbackContractSafeVersion || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-safe-version-rollback-submit"
+                  @click="rollbackContractSafeVersion"
+                >
+                  <RotateCcw :size="12" />
+                  回滚安全版本
+                </button>
+              </div>
+
+              <div v-if="contractRecoveryAppeals.length" class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-recovery-appeal-list">
+                <div
+                  v-for="appeal in contractRecoveryAppeals.slice(0, 4)"
+                  :key="appeal.id"
+                  class="border border-accent/10 bg-black/10 p-2"
+                >
+                  <p class="text-accent">{{ recoveryAppealIssueLabel(appeal.issue_type) }} · {{ appeal.status }}</p>
+                  <p class="mt-1 break-all">目标 {{ appeal.target_ref || appeal.preview_id || appeal.safe_version_id || '未绑定' }}</p>
+                  <p class="mt-1">仓库流水 {{ appeal.warehouse_ledger_ids?.length ?? 0 }} · 审计 {{ appeal.audit_ids?.length ?? 0 }} · {{ formatTime(appeal.submitted_at) }}</p>
+                </div>
+              </div>
+              <p
+                v-if="recoveryActionMessage"
+                class="text-xs leading-5"
+                :class="recoveryActionOk ? 'text-emerald-200' : 'text-red-100'"
+              >
+                {{ recoveryActionMessage }}
+              </p>
+            </div>
+          </div>
                         type="button"
                         :disabled="!canRefundSeparationSharedFund || cohabitationStore.actionLoading"
                         data-testid="online-cohabitation-separation-shared-fund-refund"
@@ -1918,6 +2060,9 @@
                     <select
                       v-model="fundHighRiskReceiptOutcome"
                       class="online-select text-xs"
+              <p class="mt-2 text-[10px] text-muted">
+                默认模板 {{ member.default_template || '契约默认' }} · 偏离 {{ member.default_restore_changed_count || 0 }} 项
+              </p>
                       data-testid="online-cohabitation-fund-high-risk-receipt-outcome"
                     >
                       <option value="delivered">交付回执</option>
@@ -2009,7 +2154,21 @@
                   <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
                   <p class="mt-1 text-[10px] text-muted">{{ member.role }} · {{ member.manor_role || '无家族职位' }}</p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px] text-accent">{{ enabledPermissionCount(member.permissions) }} 项已开</span>
+                <div class="flex shrink-0 flex-col items-start gap-2 md:items-end">
+                  <span class="w-fit text-[10px] text-accent">{{ enabledPermissionCount(member.permissions) }} 项已开</span>
+                  <button
+                    v-if="canManagePermissionPanel"
+                    type="button"
+                    class="online-action-btn online-action-btn--compact inline-flex items-center justify-center gap-1"
+                    :disabled="cohabitationStore.actionLoading || member.default_restore_available !== true"
+                    :data-testid="`online-cohabitation-permission-default-restore-${member.username}`"
+                    title="按当前契约或家族职位恢复默认权限"
+                    @click="restoreMemberDefaultPermissions(member)"
+                  >
+                    <RotateCcw :size="12" />
+                    <span>恢复默认</span>
+                  </button>
+                </div>
               </div>
               <div class="mt-3 grid gap-2 md:grid-cols-2">
                 <div v-for="group in permissionGroups(member.permissions)" :key="`${member.username}-${group.id}`" class="border border-accent/10 bg-bg/30 p-2">
@@ -3350,6 +3509,7 @@
               >
                 {{ offlineQueueActionMessage }}
               </p>
+    RotateCcw,
               <div
                 v-if="offlineQueueMergeRows.length || offlineConflictResolutionLabel || offlineConflictAutoResolutionLabel || offlineConflictPreflightLabel"
                 class="space-y-1 text-[10px] text-muted"
@@ -3516,6 +3676,26 @@
     requiresConfirmation?: boolean
     confirmationPhrase?: string
     rollbackPlan?: string
+  type SeparationAssetDisputeSourceRow = {
+    id: string
+    category: string
+    target_ref: string
+    source_ref: string
+    source_owner_username: string
+    return_target_username: string
+    item_id: string
+    quality: string
+    quantity: number
+    amount: number
+    draft_id: string
+    ledger_ids: string[]
+    status: string
+    required_action: string
+    requires_confirmation: boolean
+    freeze_required: boolean
+    no_personal_mutation: boolean
+    note: string
+  }
     compensationHint?: string
   }
   type SharedWorkshopRecipeOption = CohabitationSharedWorkshopRecipe
@@ -3592,7 +3772,13 @@
     id: string
     label: string
     targetLabel: string
+  type RecoveryAppealIssueOption = {
+    id: string
+    label: string
+  }
     savedLabel: string
+  const CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT = '确认回滚到安全版本'
+  const SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT = '确认播放关系破裂剧情'
   }
   type SeparationSharedDecorationRemovalDispute = {
     draft_id: string
@@ -3795,6 +3981,14 @@
     yak: { productId: 'yak_milk', produceDays: 2 },
     alpaca: { productId: 'alpaca_wool', produceDays: 3 },
     deer: { productId: 'antler_velvet', produceDays: 5 },
+  const recoveryActionMessage = ref('')
+  const recoveryActionOk = ref(false)
+  const recoveryAppealIssueType = ref('warehouse_misoperation')
+  const recoveryAppealTargetRef = ref('')
+  const recoveryAppealNote = ref('')
+  const rollbackSafeVersionId = ref('')
+  const rollbackSafeVersionReason = ref('')
+  const rollbackSafeVersionConfirmationText = ref('')
     donkey: { productId: 'donkey_milk', produceDays: 3 },
     camel: { productId: 'camel_milk', produceDays: 2 },
     ostrich: { productId: 'ostrich_egg', produceDays: 3 },
@@ -3821,6 +4015,13 @@
       effect: '高阶灵宠点心',
       friendshipGain: 10,
       moodGain: 16,
+  const recoveryAppealIssueOptions: RecoveryAppealIssueOption[] = [
+    { id: 'warehouse_misoperation', label: '仓库误操作' },
+    { id: 'separation_asset_dispute', label: '分居资产争议' },
+    { id: 'contract_exception', label: '契约异常' },
+    { id: 'relationship_story_review', label: '剧情回看' },
+  ]
+
       riskLevel: 'high_value_pet_treat',
       requiresConfirmation: true,
       confirmationPhrase: '确认消耗共同宠物高阶点心',
@@ -3856,6 +4057,14 @@
   const warehouseManualAppealResolutionAction = ref('manual_appeal_compensated')
   const warehouseManualAppealResolutionReceipt = ref('')
   const warehouseManualAppealResolutionNote = ref('')
+  const contractSafeVersions = computed(() => selectedContract.value?.contract_safe_versions ?? [])
+  const contractRecoveryAppeals = computed(() => selectedContract.value?.recovery_appeals ?? [])
+  const selectedRollbackSafeVersion = computed(() =>
+    contractSafeVersions.value.find(version => version.id === rollbackSafeVersionId.value)
+    ?? contractSafeVersions.value[1]
+    ?? contractSafeVersions.value[0]
+    ?? null
+  )
   const warehouseManualAppealResolutionConfirmed = ref(false)
   const warehouseOperatorReceiptAuditAction = ref('operator_receipt_verified')
   const warehouseOperatorReceiptAuditReceipt = ref('')
@@ -3887,6 +4096,36 @@
   const offlineQueueActionMessage = ref('')
   const offlineQueueActionOk = ref(false)
   const offlineQueueDraftOperations = ref<OfflineQueueDraftOperation[]>([])
+  const separationAssetDisputeSourceRows = computed<SeparationAssetDisputeSourceRow[]>(() => {
+    const rows = latestSeparationPreview.value?.asset_return?.separation_asset_dispute_source_rows
+    if (!Array.isArray(rows)) return []
+    return rows.map((entry, index) => {
+      const item = entry as Record<string, unknown>
+      const ledgerIds = Array.isArray(item.ledger_ids)
+        ? item.ledger_ids.map(value => String(value || '')).filter(Boolean).slice(0, 8)
+        : []
+      return {
+        id: String(item.id || `${item.category || 'source'}-${index}`),
+        category: String(item.category || 'separation_asset_source'),
+        target_ref: String(item.target_ref || ''),
+        source_ref: String(item.source_ref || ''),
+        source_owner_username: String(item.source_owner_username || ''),
+        return_target_username: String(item.return_target_username || ''),
+        item_id: String(item.item_id || ''),
+        quality: String(item.quality || ''),
+        quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)),
+        amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
+        draft_id: String(item.draft_id || ''),
+        ledger_ids: ledgerIds,
+        status: String(item.status || 'preview_only'),
+        required_action: String(item.required_action || ''),
+        requires_confirmation: item.requires_confirmation === true,
+        freeze_required: item.freeze_required === true,
+        no_personal_mutation: item.no_personal_mutation !== false,
+        note: String(item.note || ''),
+      }
+    }).filter(row => row.category || row.target_ref || row.source_ref || row.ledger_ids.length)
+  })
   const dailySettleActionMessage = ref('')
   const dailySettleActionOk = ref(false)
   const selectedOfflineQueueActionId = ref<OfflineQueueUiActionId>('water_shared_farm')
@@ -4234,6 +4473,8 @@
       next[member.username_key] = amount
     })
     separationSharedFundManualAllocation.value = next
+      { key: 'frontend_cinematic_confirmation_required', label: '播放确认', value: separationStoryFlagLabel(resolution.frontend_cinematic_confirmation_required, '已要求确认', '无需确认') },
+      { key: 'frontend_cinematic_confirmation_matched', label: '确认回执', value: separationStoryFlagLabel(resolution.frontend_cinematic_confirmation_matched, '确认文案匹配', '未确认') },
   }
   watch(
     () => [
@@ -4413,6 +4654,18 @@
     if (!raw) return null
     const summary = raw as CohabitationSeparationPersonalFamilyMainStateMigrationSummary
     return {
+  const canSubmitRecoveryAppeal = computed(() =>
+    Boolean(selectedContract.value && cohabitationStore.canOpenSelectedContract && selectedContractActorMember.value?.status === 'accepted')
+  )
+  const canRollbackContractSafeVersion = computed(() =>
+    Boolean(
+      selectedContract.value
+      && cohabitationStore.canOpenSelectedContract
+      && selectedContractActorMember.value?.role === 'owner'
+      && selectedRollbackSafeVersion.value?.rollback_available !== false
+      && rollbackSafeVersionConfirmationText.value.trim() === CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT
+    )
+  )
       migration_adapter: String(summary.migration_adapter ?? ''),
       mutation_adapter: String(summary.mutation_adapter ?? ''),
       migration_state: String(summary.migration_state ?? ''),
@@ -7767,6 +8020,7 @@
         ? '已读回共同农田种植记录'
         : '共同农田已种植，共同仓库扣种流水已刷新'
     } catch (error) {
+        confirmation_text: resolution.frontend_cinematic_pending === true ? SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT : '',
       sharedFarmActionMessage.value = error instanceof Error ? error.message : '种植共同农田失败'
     }
   }
@@ -9480,6 +9734,84 @@
 
   const guardFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
     familyBuildingActionMessage.value = ''
+  const restoreMemberDefaultPermissions = async (
+    member: CohabitationMember & {
+      default_restore_changed_count?: number
+      default_restore_available?: boolean
+    }
+  ) => {
+    permissionActionMessage.value = ''
+    permissionActionOk.value = false
+    try {
+      const result = await cohabitationStore.restoreMemberDefaultPermissions({
+        target_username: member.username,
+        note: '前端权限面板恢复默认权限',
+        idempotency_key: `ui-permission-default-restore-${member.username}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const changedCount = result?.changed_fields?.length ?? member.default_restore_changed_count ?? 0
+      permissionActionOk.value = true
+      permissionActionMessage.value = result?.already_default
+        ? `${member.display_name || member.username} 已经是默认权限`
+        : `${member.display_name || member.username} 已恢复默认权限，调整 ${changedCount} 项`
+    } catch (error) {
+      permissionActionMessage.value = error instanceof Error ? error.message : '恢复共同庄园默认权限失败'
+    }
+  }
+
+  const submitContractRecoveryAppeal = async () => {
+    recoveryActionMessage.value = ''
+    recoveryActionOk.value = false
+    if (!canSubmitRecoveryAppeal.value) {
+      recoveryActionMessage.value = '当前成员不能提交恢复申诉'
+      return
+    }
+    try {
+      const result = await cohabitationStore.submitRecoveryAppeal({
+        issue_type: recoveryAppealIssueType.value,
+        target_ref: recoveryAppealTargetRef.value.trim(),
+        note: recoveryAppealNote.value.trim(),
+        preview_id: latestSeparationPreview.value?.id,
+        safe_version_id: selectedRollbackSafeVersion.value?.id,
+        idempotency_key: `ui-recovery-appeal-${selectedContract.value?.id || 'contract'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      recoveryActionOk.value = true
+      recoveryActionMessage.value = result?.idempotent
+        ? '已读回恢复申诉记录'
+        : '已提交恢复申诉，客服可按日志定位资产流向'
+      recoveryAppealTargetRef.value = ''
+      recoveryAppealNote.value = ''
+    } catch (error) {
+      recoveryActionMessage.value = error instanceof Error ? error.message : '提交共同庄园恢复申诉失败'
+    }
+  }
+
+  const rollbackContractSafeVersion = async () => {
+    recoveryActionMessage.value = ''
+    recoveryActionOk.value = false
+    const safeVersion = selectedRollbackSafeVersion.value
+    if (!safeVersion || !canRollbackContractSafeVersion.value) {
+      recoveryActionMessage.value = '请选择可回滚的安全版本，并输入确认文案'
+      return
+    }
+    try {
+      const result = await cohabitationStore.rollbackContractSafeVersion({
+        safe_version_id: safeVersion.id,
+        reason: rollbackSafeVersionReason.value.trim() || '前端申诉恢复面板回滚到最近安全版本',
+        confirmation_text: rollbackSafeVersionConfirmationText.value.trim(),
+        idempotency_key: `ui-contract-safe-version-rollback-${safeVersion.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      recoveryActionOk.value = true
+      recoveryActionMessage.value = result?.idempotent
+        ? '已读回安全版本回滚记录'
+        : '已回滚到安全版本，个人存档未被改写'
+      rollbackSafeVersionReason.value = ''
+      rollbackSafeVersionConfirmationText.value = ''
+      rollbackSafeVersionId.value = ''
+    } catch (error) {
+      recoveryActionMessage.value = error instanceof Error ? error.message : '回滚同居契约安全版本失败'
+    }
+  }
+
     familyBuildingActionOk.value = false
     const mappingManifest = entry.real_build_demolition_main_state_mapping_manifest || []
     if (!entry.real_build_demolition_main_state_mapping_manifest_hash || mappingManifest.length === 0) {
@@ -9521,6 +9853,30 @@
       const result = await cohabitationStore.executeFamilyBuildingRealDemolitionMainStateMutation({
         building_ledger_id: entry.id,
         guard_manifest_hash: entry.real_build_demolition_main_state_guard_manifest_hash,
+  const recoveryAppealIssueLabel = (value: string) =>
+    recoveryAppealIssueOptions.find(option => option.id === value)?.label || value || '恢复申诉'
+
+  const separationAssetDisputeSourceCategoryLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      shared_warehouse_return_source: '仓库来源',
+      shared_warehouse_unidentified_dispute: '仓库未知来源',
+      shared_fund_unidentified_operating_dispute: '基金未知贡献',
+      shared_decoration_removal_dispute: '装修拆除争议',
+      warehouse_high_value_withdrawal_dispute: '高价值取出冻结',
+      shared_decoration_source: '装修来源',
+      family_building_source: '建筑来源',
+      relationship_story_review: '关系剧情回看',
+    }
+    return labels[value] || value || '分居来源'
+  }
+
+  const contractSafeVersionSummaryLabel = (summary: Record<string, unknown> | undefined) => {
+    const auditCount = Math.max(0, Math.floor(Number(summary?.audit_count) || 0))
+    const warehouseLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_warehouse_ledger_count) || 0))
+    const fundLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_fund_ledger_count) || 0))
+    return `审计 ${auditCount} · 仓库流水 ${warehouseLedgerCount} · 基金流水 ${fundLedgerCount}`
+  }
+
         memo: `前端执行家族建筑真实拆除个人主状态阻断：${entry.target_ref || entry.building_id || entry.project_id}`,
         idempotency_key: `ui-family-building-real-demolition-main-state-execute-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
@@ -9840,6 +10196,7 @@
       familyVisibilityActionMessage.value = result?.idempotent ? '已读回家族公开回滚记录' : '已回滚家族公开设置'
     } catch (error) {
       familyVisibilityActionMessage.value = error instanceof Error ? error.message : '回滚家族公开设置失败'
+      permissions_default_restored: '默认权限恢复',
     }
   }
   const reserveFamilyFestivalSeatsFromPanel = async () => {
@@ -9883,6 +10240,11 @@
     const template = firstAvailableFamilyFestivalTemplate.value
     if (!template) return
     familyFestivalSeatActionMessage.value = ''
+    if (entry.action === 'permissions_default_restored') {
+      const count = Number(detail.changed_field_count) || 0
+      const template = typeof detail.default_template === 'string' ? detail.default_template : '默认模板'
+      return target ? `${target} 恢复 ${template}，调整 ${count} 项权限` : `恢复 ${template}，调整 ${count} 项权限`
+    }
     familyFestivalSeatActionOk.value = false
     try {
       const result = await cohabitationStore.consumeFamilyFestivalSupplies({

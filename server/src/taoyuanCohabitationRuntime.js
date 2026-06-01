@@ -77,6 +77,41 @@ const WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT = 60;
 const FUND_GOVERNANCE_WINDOW_SECONDS = 10 * 60;
 const FUND_GOVERNANCE_BUDGET_ACTION_LIMIT = 6;
 const FUND_GOVERNANCE_NETWORK_ACTION_LIMIT = 4;
+const CONTRACT_SAFE_VERSION_LIMIT = 8;
+const CONTRACT_RECOVERY_APPEAL_LIMIT = 40;
+const CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT = '确认回滚到安全版本';
+const SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT = '确认播放关系破裂剧情';
+const CONTRACT_RECOVERY_APPEAL_TYPES = new Set([
+  'warehouse_misoperation',
+  'separation_asset_dispute',
+  'contract_exception',
+  'relationship_story_review',
+]);
+const CONTRACT_SAFE_VERSION_CAPTURE_ACTIONS = new Set([
+  'contract_created',
+  'contract_accepted',
+  'contract_activated',
+  'contract_safe_version_rolled_back',
+  'permissions_updated',
+  'permissions_default_restored',
+  'family_role_updated',
+  'player_recovery_appeal_submitted',
+  'warehouse_deposited',
+  'warehouse_withdrawn',
+  'warehouse_sold',
+  'warehouse_governance_recovered',
+  'fund_contributed',
+  'fund_spent',
+  'fund_shop_purchase_deposited',
+  'fund_large_spend_draft_created',
+  'fund_large_spend_draft_confirmed',
+  'fund_large_spend_draft_executed',
+  'fund_high_risk_receipt_recorded',
+  'separation_preview_created',
+  'separation_preview_confirmed',
+  'separation_execution_requested',
+  'separation_asset_return_recorded',
+]);
 const SHARED_ALCHEMY_AUTO_RESULT_BASE_WEIGHTS = Object.freeze({
   success: 80,
   partial: 14,
@@ -4111,6 +4146,171 @@ function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function stripContractSafeSnapshotFields(contract = {}) {
+  const snapshot = clonePlain(contract) || {};
+  delete snapshot.contract_safe_versions;
+  delete snapshot.shared_log;
+  return snapshot;
+}
+
+function summarizeContractSafeSnapshot(snapshot = {}) {
+  const warehouseLedgerCount = Array.isArray(snapshot.shared_warehouse?.ledger) ? snapshot.shared_warehouse.ledger.length : 0;
+  const fundLedgerCount = Array.isArray(snapshot.shared_fund?.ledger) ? snapshot.shared_fund.ledger.length : 0;
+  const auditCount = Array.isArray(snapshot.audit_log) ? snapshot.audit_log.length : 0;
+  const acceptedMemberCount = Array.isArray(snapshot.members)
+    ? snapshot.members.filter(member => member?.status === 'accepted').length
+    : 0;
+  return {
+    status: sanitizeText(snapshot.status, 60),
+    updated_at: Math.max(0, Math.floor(Number(snapshot.updated_at) || 0)),
+    accepted_member_count: acceptedMemberCount,
+    shared_warehouse_ledger_count: warehouseLedgerCount,
+    shared_fund_ledger_count: fundLedgerCount,
+    audit_count: auditCount,
+    separation_preview_count: Array.isArray(snapshot.separation_previews) ? snapshot.separation_previews.length : 0,
+  };
+}
+
+function normalizeContractSafeVersion(entry = {}) {
+  const snapshot = entry.snapshot && typeof entry.snapshot === 'object' && !Array.isArray(entry.snapshot)
+    ? stripContractSafeSnapshotFields(entry.snapshot)
+    : null;
+  const snapshotHash = sanitizeText(entry.snapshot_hash, 100) || (snapshot ? hashPlainObject(snapshot) : '');
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('contract_safe_version'),
+    created_at: Math.max(0, Math.floor(Number(entry.created_at) || nowSeconds())),
+    source_action: sanitizeText(entry.source_action, 80),
+    actor_username: normalizeUsername(entry.actor_username),
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
+    snapshot_hash: snapshotHash,
+    summary: entry.summary && typeof entry.summary === 'object' && !Array.isArray(entry.summary)
+      ? {
+          status: sanitizeText(entry.summary.status, 60),
+          updated_at: Math.max(0, Math.floor(Number(entry.summary.updated_at) || 0)),
+          accepted_member_count: Math.max(0, Math.floor(Number(entry.summary.accepted_member_count) || 0)),
+          shared_warehouse_ledger_count: Math.max(0, Math.floor(Number(entry.summary.shared_warehouse_ledger_count) || 0)),
+          shared_fund_ledger_count: Math.max(0, Math.floor(Number(entry.summary.shared_fund_ledger_count) || 0)),
+          audit_count: Math.max(0, Math.floor(Number(entry.summary.audit_count) || 0)),
+          separation_preview_count: Math.max(0, Math.floor(Number(entry.summary.separation_preview_count) || 0)),
+        }
+      : summarizeContractSafeSnapshot(snapshot || {}),
+    rollback_available: entry.rollback_available !== false && Boolean(snapshot),
+    snapshot,
+  };
+}
+
+function normalizeContractSafeVersions(entries = []) {
+  return (Array.isArray(entries) ? entries : [])
+    .map(normalizeContractSafeVersion)
+    .filter(entry => entry.snapshot && entry.snapshot_hash)
+    .slice(0, CONTRACT_SAFE_VERSION_LIMIT);
+}
+
+function toPublicContractSafeVersion(entry = {}) {
+  const normalized = normalizeContractSafeVersion(entry);
+  return {
+    id: normalized.id,
+    created_at: normalized.created_at,
+    source_action: normalized.source_action,
+    actor_username: normalized.actor_username,
+    actor_display_name: normalized.actor_display_name,
+    snapshot_hash: normalized.snapshot_hash,
+    summary: normalized.summary,
+    rollback_available: normalized.rollback_available,
+  };
+}
+
+function normalizeContractRecoveryAppeal(entry = {}) {
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('contract_recovery_appeal'),
+    issue_type: CONTRACT_RECOVERY_APPEAL_TYPES.has(entry.issue_type) ? entry.issue_type : 'warehouse_misoperation',
+    target_ref: sanitizeText(entry.target_ref, 160),
+    note: sanitizeText(entry.note, 300),
+    submitted_by_username: normalizeUsername(entry.submitted_by_username),
+    submitted_by_display_name: sanitizeText(entry.submitted_by_display_name || entry.submitted_by_username, 80),
+    submitted_at: Math.max(0, Math.floor(Number(entry.submitted_at) || 0)),
+    warehouse_ledger_ids: Array.isArray(entry.warehouse_ledger_ids)
+      ? entry.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    audit_ids: Array.isArray(entry.audit_ids)
+      ? entry.audit_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    preview_id: sanitizeText(entry.preview_id, 100),
+    safe_version_id: sanitizeText(entry.safe_version_id, 100),
+    safe_version_snapshot_hash: sanitizeText(entry.safe_version_snapshot_hash, 100),
+    separation_preview_version: Math.max(0, Math.floor(Number(entry.separation_preview_version) || 0)),
+    status: sanitizeText(entry.status, 60) || 'submitted',
+    support_locator: entry.support_locator && typeof entry.support_locator === 'object' && !Array.isArray(entry.support_locator)
+      ? {
+          contract_id: sanitizeText(entry.support_locator.contract_id, 80),
+          shared_log_available: entry.support_locator.shared_log_available !== false,
+          warehouse_ledger_count: Math.max(0, Math.floor(Number(entry.support_locator.warehouse_ledger_count) || 0)),
+          audit_count: Math.max(0, Math.floor(Number(entry.support_locator.audit_count) || 0)),
+          safe_version_available: entry.support_locator.safe_version_available === true,
+          separation_preview_available: entry.support_locator.separation_preview_available === true,
+        }
+      : null,
+    player_explanation: sanitizeText(entry.player_explanation, 240),
+    record_only: entry.record_only !== false,
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+  };
+}
+
+function normalizeContractRecoveryAppeals(entries = []) {
+  return (Array.isArray(entries) ? entries : [])
+    .map(normalizeContractRecoveryAppeal)
+    .filter(entry => entry.submitted_by_username && entry.id)
+    .slice(0, CONTRACT_RECOVERY_APPEAL_LIMIT);
+}
+
+function createContractSafeVersion(contract = {}, sourceAction = '', actor = {}) {
+  const snapshot = stripContractSafeSnapshotFields(contract);
+  return normalizeContractSafeVersion({
+    id: makeId('contract_safe_version'),
+    created_at: nowSeconds(),
+    source_action: sourceAction,
+    actor_username: actor.username,
+    actor_display_name: actor.displayName || actor.display_name || actor.username,
+    snapshot_hash: hashPlainObject(snapshot),
+    summary: summarizeContractSafeSnapshot(snapshot),
+    snapshot,
+  });
+}
+
+function appendContractSafeVersion(contract = {}, sourceAction = '', actor = {}) {
+  if (!contract || typeof contract !== 'object') return null;
+  const safeVersion = createContractSafeVersion(contract, sourceAction, actor);
+  const previous = normalizeContractSafeVersions(contract.contract_safe_versions);
+  contract.contract_safe_versions = [
+    safeVersion,
+    ...previous.filter(entry => entry.snapshot_hash !== safeVersion.snapshot_hash),
+  ].slice(0, CONTRACT_SAFE_VERSION_LIMIT);
+  return safeVersion;
+}
+
+function shouldCaptureContractSafeVersion(action = '') {
+  const normalizedAction = sanitizeText(action, 120);
+  return (
+    CONTRACT_SAFE_VERSION_CAPTURE_ACTIONS.has(normalizedAction) ||
+    normalizedAction.startsWith('warehouse_high_value_withdrawal_') ||
+    normalizedAction.startsWith('family_building_') ||
+    normalizedAction.startsWith('shared_decoration_') ||
+    normalizedAction.startsWith('separation_personal_') ||
+    normalizedAction.startsWith('separation_shared_') ||
+    normalizedAction.startsWith('fund_abnormal_')
+  );
+}
+
+function clonePlain(value) {
+  return value && typeof value === 'object'
+    ? JSON.parse(JSON.stringify(value))
+    : value;
+}
+
+function hashPlainObject(value = {}) {
+  return crypto.createHash('sha256').update(JSON.stringify(value || {})).digest('hex');
+}
+
 function ensureContractStore() {
   fs.mkdirSync(path.dirname(TAOYUAN_COHABITATION_FILE), { recursive: true });
 }
@@ -5171,6 +5371,14 @@ function createPermissionSetForFamilyRole(type, roleId) {
     permissionSet.fund.auto_buy_seeds_feed = true;
   }
   return enforcePermissionSafetyRails(permissionSet, type);
+}
+
+function createDefaultPermissionSetForMember(contract = {}, member = {}) {
+  if (isFamilyRoleContractType(contract.type)) {
+    const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    return createPermissionSetForFamilyRole(contract.type, manorRole);
+  }
+  return enforcePermissionSafetyRails(createDefaultPermissionSet(contract.type), contract.type);
 }
 
 function normalizePermissionSet(value, type) {
@@ -9032,6 +9240,8 @@ function normalizeContract(entry = {}) {
     separation_previews: Array.isArray(entry.separation_previews)
       ? entry.separation_previews.map(normalizeSeparationPreview).slice(-10)
       : [],
+    contract_safe_versions: normalizeContractSafeVersions(entry.contract_safe_versions),
+    recovery_appeals: normalizeContractRecoveryAppeals(entry.recovery_appeals),
     separation_execution_ledger: Array.isArray(entry.separation_execution_ledger)
       ? entry.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry).slice(0, 20)
       : [],
@@ -9181,6 +9391,9 @@ function appendAudit(contract, action, actor = {}, detail = {}, idempotencyKey =
   ].slice(0, 80);
   contract.shared_log = normalizeSharedLogState(contract.shared_log, contract.audit_log);
   contract.updated_at = nowSeconds();
+  if (shouldCaptureContractSafeVersion(action)) {
+    appendContractSafeVersion(contract, action, actor);
+  }
   return contract;
 }
 
@@ -9212,6 +9425,8 @@ function toPublicContract(contract) {
     family_building_ledger: Array.isArray(contract.family_building_ledger)
       ? contract.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
       : [],
+    contract_safe_versions: normalizeContractSafeVersions(contract.contract_safe_versions).map(toPublicContractSafeVersion),
+    recovery_appeals: normalizeContractRecoveryAppeals(contract.recovery_appeals),
     permissions: Object.fromEntries(Object.entries(contract.permissions || {}).map(([key, value]) => [key, normalizePermissionSet(value, contract.type)])),
     audit_log: sharedLog.entries.map(entry => ({ ...entry })).slice(0, 20),
   };
@@ -9228,6 +9443,17 @@ function assertActiveContractForActor(contract, actorUsername, actionLabel) {
   if (!member) throw createError('你不在这份契约中', 403);
   if (contract.status !== 'active') throw createError(`只有已生效契约可以${actionLabel}`, 409);
   if (member.status !== 'accepted') throw createError('只有已接受契约的成员可以操作共同庄园', 403);
+  return member;
+}
+
+function assertRecoverableContractForActor(contract, actorUsername, actionLabel = 'contract recovery') {
+  if (!contract) throw createError('cohabitation contract not found', 404);
+  const member = getContractMember(contract, actorUsername);
+  if (!member) throw createError('actor is not in this cohabitation contract', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) {
+    throw createError(`${actionLabel} requires an active or separation-pending contract`, 409);
+  }
+  if (member.status !== 'accepted') throw createError('only accepted cohabitation members can use recovery actions', 403);
   return member;
 }
 
@@ -9256,6 +9482,35 @@ function requireCohabitationIdempotencyKey(payload = {}, actionLabel = 'operatio
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.idempotencyKey || payload.operation_id || payload.operationId || payload.request_id || payload.requestId, 120);
   if (!idempotencyKey) throw createError(`${actionLabel} requires idempotency_key`, 400);
   return idempotencyKey;
+}
+
+function normalizeContractRecoveryAppealPayload(payload = {}) {
+  const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'contract recovery appeal');
+  const issueType = sanitizeText(payload.issue_type || payload.type || 'warehouse_misoperation', 80);
+  return {
+    idempotency_key: idempotencyKey,
+    issue_type: CONTRACT_RECOVERY_APPEAL_TYPES.has(issueType) ? issueType : 'warehouse_misoperation',
+    target_ref: sanitizeText(payload.target_ref || payload.target || payload.draft_id || payload.preview_id, 160),
+    note: sanitizeText(payload.note || payload.reason || payload.memo, 300),
+    warehouse_ledger_ids: Array.isArray(payload.warehouse_ledger_ids)
+      ? payload.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    audit_ids: Array.isArray(payload.audit_ids)
+      ? payload.audit_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+      : [],
+    preview_id: sanitizeText(payload.preview_id, 100),
+    safe_version_id: sanitizeText(payload.safe_version_id, 100),
+  };
+}
+
+function normalizeContractSafeVersionRollbackPayload(payload = {}) {
+  const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'contract safe version rollback');
+  return {
+    idempotency_key: idempotencyKey,
+    safe_version_id: sanitizeText(payload.safe_version_id || payload.version_id || payload.id, 100),
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 240),
+    confirmation_text: sanitizeText(payload.confirmation_text || payload.confirmation || payload.confirm_text, 80),
+  };
 }
 
 function getFamilyOrderStageDef(stageId = '') {
@@ -11420,18 +11675,27 @@ function buildPermissionSnapshot(contract, actorUsername = '') {
       id: group,
       keys: Object.keys(createDefaultPermissionSet(contract.type)[group] || {}),
     })),
-    members: (contract.members || []).map(member => ({
-      username: member.username,
-      username_key: member.username_key,
-      display_name: member.display_name,
-      role: member.role,
-      manor_role: normalizeFamilyManorRole(member.manor_role, contract.type, member.role),
-      status: member.status,
-      can_manage_permissions: canManageCohabitationPermissions(member),
-      permissions: enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type),
-    })),
+    members: (contract.members || []).map(member => {
+      const permissions = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+      const defaultPermissions = createDefaultPermissionSetForMember(contract, member);
+      const defaultChanges = diffPermissionSets(defaultPermissions, permissions, contract.type);
+      return {
+        username: member.username,
+        username_key: member.username_key,
+        display_name: member.display_name,
+        role: member.role,
+        manor_role: normalizeFamilyManorRole(member.manor_role, contract.type, member.role),
+        status: member.status,
+        can_manage_permissions: canManageCohabitationPermissions(member),
+        permissions,
+        default_permissions: defaultPermissions,
+        default_template: defaultPermissions.template,
+        default_restore_available: defaultChanges.length > 0,
+        default_restore_changed_count: defaultChanges.length,
+      };
+    }),
     recent_permission_audits: (contract.audit_log || [])
-      .filter(entry => entry.action === 'permissions_updated')
+      .filter(entry => ['permissions_updated', 'permissions_default_restored'].includes(entry.action))
       .slice(0, 10),
   };
 }
@@ -14177,6 +14441,7 @@ function normalizeSeparationStoryCinematicPlaybackPayload(payload = {}) {
     dialogue_event_id: sanitizeText(payload.dialogue_event_id, 120),
     animation_event_id: sanitizeText(payload.animation_event_id, 120),
     playback_state: allowedStates.includes(playbackState) ? playbackState : 'played',
+    confirmation_text: sanitizeText(payload.confirmation_text || payload.confirmation || payload.confirm_text, 80),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -19062,6 +19327,9 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           memory_title_keepsake_policy: sanitizeText(entry.family_story_cinematic_receipt.memory_title_keepsake_policy, 180),
           personal_state_mutated: entry.family_story_cinematic_receipt.personal_state_mutated === true,
           contract_record_only: entry.family_story_cinematic_receipt.contract_record_only !== false,
+          confirmation_required: entry.family_story_cinematic_receipt.confirmation_required === true,
+          confirmation_text: sanitizeText(entry.family_story_cinematic_receipt.confirmation_text, 80),
+          confirmation_matched: entry.family_story_cinematic_receipt.confirmation_matched === true,
           played_at: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.played_at) || 0)),
           played_by: normalizeUsername(entry.family_story_cinematic_receipt.played_by),
           idempotency_key: sanitizeText(entry.family_story_cinematic_receipt.idempotency_key, 120),
@@ -19097,13 +19365,13 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           frontend_cinematic_played_by: normalizeUsername(entry.family_story_resolution.frontend_cinematic_played_by),
           frontend_cinematic_playback_state: sanitizeText(entry.family_story_resolution.frontend_cinematic_playback_state, 80),
           frontend_cinematic_playback_idempotency_key: sanitizeText(entry.family_story_resolution.frontend_cinematic_playback_idempotency_key, 120),
+          frontend_cinematic_confirmation_required: entry.family_story_resolution.frontend_cinematic_confirmation_required === true,
+          frontend_cinematic_confirmation_text: sanitizeText(entry.family_story_resolution.frontend_cinematic_confirmation_text, 80),
+          frontend_cinematic_confirmation_matched: entry.family_story_resolution.frontend_cinematic_confirmation_matched === true,
           personal_state_mutated: entry.family_story_resolution.personal_state_mutated === true,
           personal_save_mutation_enabled: entry.family_story_resolution.personal_save_mutation_enabled === true,
           personal_story_state: sanitizeText(entry.family_story_resolution.personal_story_state, 100),
           personal_relationship_mutation_summary: normalizeSeparationPersonalRelationshipMutationSummary(entry.family_story_resolution.personal_relationship_mutation_summary),
-          manor_exit_handover_recorded: entry.family_story_resolution.manor_exit_handover_recorded === true,
-          family_role_handover_executed: entry.family_story_resolution.family_role_handover_executed === true,
-          manor_exit_handover_record: normalizeSeparationManorExitHandoverRecord(entry.family_story_resolution.manor_exit_handover_record),
           contract_record_only: entry.family_story_resolution.contract_record_only !== false,
           privacy_boundary: sanitizeText(entry.family_story_resolution.privacy_boundary, 160),
           memo: sanitizeText(entry.family_story_resolution.memo, 160),
@@ -19349,6 +19617,195 @@ function buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract = {}) {
       no_shared_warehouse_mutation: true,
     },
   };
+}
+
+function buildSeparationAssetDisputeSourceRows({
+  contract = {},
+  warehouseReturnPreview = {},
+  fundUnidentifiedOperatingContributionPreview = {},
+  decorationSplitManifest = [],
+  familyBuildingSplitManifest = [],
+  sharedDecorationRemovalDisputeFreeze = {},
+  warehouseHighValueWithdrawalDisputeFreeze = {},
+} = {}) {
+  const rows = [];
+  const pushRow = (entry = {}) => {
+    const ledgerIds = uniqueSanitizedValues([
+      ...(Array.isArray(entry.ledger_ids) ? entry.ledger_ids : []),
+      ...(Array.isArray(entry.source_ledger_ids) ? entry.source_ledger_ids : []),
+      ...(Array.isArray(entry.material_ledger_ids) ? entry.material_ledger_ids : []),
+      entry.ledger_id,
+      entry.source_ledger_id,
+      entry.fund_ledger_id,
+      entry.original_fund_ledger_id,
+      entry.building_ledger_id,
+    ], 100).slice(0, 40);
+    const id = sanitizeText(entry.id, 120)
+      || [
+        sanitizeText(entry.category, 80),
+        sanitizeText(entry.target_ref, 120),
+        sanitizeText(entry.draft_id, 100),
+        sanitizeText(entry.source_ref, 120),
+        ledgerIds.join('|'),
+      ].filter(Boolean).join(':')
+      || makeId('separation_asset_dispute_source');
+    rows.push({
+      id,
+      category: sanitizeText(entry.category, 80) || 'separation_asset_source',
+      target_ref: sanitizeText(entry.target_ref, 160),
+      source_ref: sanitizeText(entry.source_ref, 160),
+      source_owner_username: normalizeUsername(entry.source_owner_username || entry.origin_owner_username),
+      return_target_username: normalizeUsername(entry.return_target_username),
+      item_id: sanitizeText(entry.item_id, 100),
+      quality: normalizeQuality(entry.quality),
+      quantity: Math.max(0, Math.floor(Number(entry.quantity) || 0)),
+      amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+      draft_id: sanitizeText(entry.draft_id, 100),
+      ledger_ids: ledgerIds,
+      evidence_refs: uniqueSanitizedValues(Array.isArray(entry.evidence_refs) ? entry.evidence_refs : [], 160).slice(0, 20),
+      status: sanitizeText(entry.status || entry.return_status || entry.execution_status, 100) || 'preview_only',
+      required_action: sanitizeText(entry.required_action, 120),
+      requires_confirmation: entry.requires_confirmation === true || entry.requires_both_confirm === true,
+      freeze_required: entry.freeze_required === true,
+      no_personal_mutation: entry.no_personal_mutation !== false,
+      note: sanitizeText(entry.note || entry.freeze_reason || entry.return_policy || entry.split_policy, 240),
+    });
+  };
+
+  for (const entry of Array.isArray(warehouseReturnPreview.items_by_origin_owner) ? warehouseReturnPreview.items_by_origin_owner : []) {
+    pushRow({
+      id: `warehouse_return:${entry.origin_owner_key || entry.origin_owner_username}:${entry.item_id}:${entry.quality}`,
+      category: 'shared_warehouse_return_source',
+      target_ref: `shared_warehouse:${entry.item_id}:${entry.quality}`,
+      source_ref: entry.split_source || 'traceable_origin_owner',
+      origin_owner_username: entry.origin_owner_username,
+      return_target_username: entry.return_target_username,
+      item_id: entry.item_id,
+      quality: entry.quality,
+      quantity: entry.quantity,
+      ledger_ids: entry.ledger_ids,
+      status: entry.return_status || 'manual_return_required',
+      required_action: 'return_shared_warehouse_by_source_ledger',
+      note: entry.return_policy,
+    });
+  }
+
+  for (const entry of Array.isArray(warehouseReturnPreview.unidentified_items) ? warehouseReturnPreview.unidentified_items : []) {
+    pushRow({
+      id: `warehouse_unidentified:${entry.item_id}:${entry.quality}`,
+      category: 'shared_warehouse_unidentified_dispute',
+      target_ref: `shared_warehouse:${entry.item_id}:${entry.quality}`,
+      source_ref: 'unidentified_shared_product',
+      item_id: entry.item_id,
+      quality: entry.quality,
+      quantity: entry.quantity,
+      ledger_ids: entry.ledger_ids,
+      evidence_refs: entry.source_owner_usernames,
+      status: 'requires_both_confirm',
+      required_action: 'confirm_unidentified_warehouse_split',
+      requires_confirmation: true,
+      note: entry.return_policy,
+    });
+  }
+
+  for (const entry of Array.isArray(fundUnidentifiedOperatingContributionPreview.contributions) ? fundUnidentifiedOperatingContributionPreview.contributions : []) {
+    pushRow({
+      id: `fund_unidentified:${entry.key || entry.source_ref}`,
+      category: 'shared_fund_unidentified_operating_dispute',
+      target_ref: 'shared_fund:operating_contribution',
+      source_ref: entry.source_ref || entry.contribution_source,
+      origin_owner_username: entry.origin_owner_username,
+      amount: entry.amount,
+      ledger_ids: entry.ledger_ids,
+      status: 'requires_both_confirm',
+      required_action: 'confirm_unidentified_fund_operating_contribution',
+      requires_confirmation: true,
+      note: entry.dispute_reason,
+    });
+  }
+
+  for (const entry of Array.isArray(sharedDecorationRemovalDisputeFreeze.disputes) ? sharedDecorationRemovalDisputeFreeze.disputes : []) {
+    pushRow({
+      id: `shared_decoration_removal:${entry.draft_id}`,
+      category: 'shared_decoration_removal_dispute',
+      target_ref: entry.target_ref,
+      source_ref: 'fund_large_spend_draft',
+      draft_id: entry.draft_id,
+      amount: entry.amount,
+      original_fund_ledger_id: entry.original_fund_ledger_id,
+      status: entry.receipt_status || entry.status,
+      required_action: 'record_shared_decoration_removal_receipt_or_refund',
+      freeze_required: true,
+      note: entry.freeze_reason,
+    });
+  }
+
+  for (const entry of Array.isArray(warehouseHighValueWithdrawalDisputeFreeze.disputes) ? warehouseHighValueWithdrawalDisputeFreeze.disputes : []) {
+    pushRow({
+      id: `warehouse_high_value:${entry.draft_id}`,
+      category: 'warehouse_high_value_withdrawal_dispute',
+      target_ref: `shared_warehouse:${entry.item_id}:${entry.quality}`,
+      source_ref: 'shared_warehouse_withdrawal_draft',
+      draft_id: entry.draft_id,
+      item_id: entry.item_id,
+      quality: entry.quality,
+      quantity: entry.frozen_quantity || entry.quantity,
+      source_ledger_ids: entry.source_ledger_ids,
+      status: entry.state,
+      required_action: 'execute_or_rollback_high_value_withdrawal_draft',
+      freeze_required: true,
+      note: entry.freeze_reason,
+    });
+  }
+
+  for (const entry of Array.isArray(decorationSplitManifest) ? decorationSplitManifest : []) {
+    pushRow({
+      id: `decoration:${entry.manifest_id}`,
+      category: 'shared_decoration_source',
+      target_ref: `shared_decoration:${entry.decoration_id}`,
+      source_ref: entry.origin_asset_id || entry.source_inventory,
+      origin_owner_username: entry.origin_owner_username,
+      return_target_username: entry.return_target_username,
+      quantity: entry.quantity,
+      ledger_ids: [entry.source_ledger_id, entry.fund_ledger_id].filter(Boolean),
+      draft_id: entry.draft_id,
+      status: entry.execution_status,
+      required_action: entry.return_policy === 'return_to_origin_owner_personal_decoration_owned'
+        ? 'return_decoration_to_origin_owner'
+        : 'compensate_or_memorialize_decoration',
+      requires_confirmation: entry.return_policy !== 'return_to_origin_owner_personal_decoration_owned',
+      note: entry.return_policy,
+    });
+  }
+
+  for (const entry of Array.isArray(familyBuildingSplitManifest) ? familyBuildingSplitManifest : []) {
+    pushRow({
+      id: `family_building:${entry.building_ledger_id}`,
+      category: 'family_building_source',
+      target_ref: entry.target_ref || `family_building:${entry.building_id || entry.project_id}`,
+      source_ref: entry.building_ledger_id,
+      amount: entry.amount,
+      ledger_ids: [entry.building_ledger_id, entry.fund_ledger_id, ...(Array.isArray(entry.material_ledger_ids) ? entry.material_ledger_ids : [])].filter(Boolean),
+      draft_id: entry.draft_id,
+      status: entry.execution_status,
+      required_action: 'record_building_split_or_compensation_receipt',
+      requires_confirmation: true,
+      note: entry.split_policy,
+    });
+  }
+
+  pushRow({
+    id: `relationship_story:${contract.id || 'contract'}`,
+    category: 'relationship_story_review',
+    target_ref: `cohabitation_contract:${contract.id || ''}`,
+    source_ref: sanitizeText(contract.type, 80) || 'cohabitation_contract',
+    status: 'pending_family_story_resolution',
+    required_action: 'resolve_family_story_and_confirm_cinematic_before_playback',
+    requires_confirmation: true,
+    note: 'Relationship-break story requires preview confirmation, readback, cinematic confirmation, and record-only receipts before personal story writes.',
+  });
+
+  return rows.slice(0, 160);
 }
 
 function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, warehouseReturnPreview = {}, fundReturns, fundUnidentifiedOperatingContributionPreview = {}, fundBalance, sharedDecorationRemovalDisputeFreeze, warehouseHighValueWithdrawalDisputeFreeze }) {
@@ -28066,6 +28523,254 @@ async function updateCohabitationPermissions(contractId, payload = {}, actor = {
   };
 }
 
+async function restoreCohabitationDefaultPermissions(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('恢复同居默认权限需要 idempotency_key，以防断线或重试时重复写入审计');
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const actorMember = assertActiveContractForActor(contract, actorUsername, '恢复同居默认权限');
+  if (!canManageCohabitationPermissions(actorMember)) throw createError('只有契约发起者可以恢复同居默认权限', 403);
+
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'permissions_default_restored' && entry.idempotency_key === idempotencyKey
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      permissions_panel: buildPermissionSnapshot(contract, actorUsername),
+      idempotent: true,
+      audit_entry: previousAudit,
+      already_default: previousAudit.detail?.already_default === true,
+      changed_fields: Array.isArray(previousAudit.detail?.changed_fields) ? previousAudit.detail.changed_fields : [],
+    };
+  }
+
+  const targetUsername = normalizeUsername(payload.target_username || payload.member_username || payload.username);
+  const targetMember = getContractMember(contract, targetUsername);
+  if (!targetMember) throw createError('要恢复默认权限的成员不在这份契约中', 404);
+  if (targetMember.status !== 'accepted') throw createError('只能恢复已接受契约成员的默认权限', 409);
+
+  const beforePermissions = enforcePermissionSafetyRails(contract.permissions?.[targetMember.username_key], contract.type);
+  const nextPermissions = createDefaultPermissionSetForMember(contract, targetMember);
+  const changes = diffPermissionSets(beforePermissions, nextPermissions, contract.type);
+  contract.permissions[targetMember.username_key] = nextPermissions;
+  appendAudit(contract, 'permissions_default_restored', actor, {
+    target_username: targetMember.username,
+    target_display_name: targetMember.display_name,
+    changed_fields: changes,
+    changed_field_count: changes.length,
+    already_default: changes.length <= 0,
+    default_template: nextPermissions.template,
+    restore_policy: isFamilyRoleContractType(contract.type)
+      ? 'restore_to_current_family_role_default_permissions'
+      : 'restore_to_relationship_template_default_permissions',
+    confirmations_locked: true,
+    note: sanitizeText(payload.note || payload.memo, 160),
+    player_explanation: '已按当前契约类型或家族职位恢复默认权限；高风险确认阀仍保持强制开启。',
+  }, idempotencyKey);
+  saveContractStore(store);
+  const auditEntry = contract.audit_log.find(entry => entry.idempotency_key === idempotencyKey && entry.action === 'permissions_default_restored');
+  return {
+    contract: toPublicContract(contract),
+    permissions_panel: buildPermissionSnapshot(contract, actorUsername),
+    changed_fields: changes,
+    already_default: changes.length <= 0,
+    idempotent: false,
+    audit_entry: auditEntry,
+  };
+}
+
+async function submitCohabitationRecoveryAppeal(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('please login first', 401);
+  const appealPayload = normalizeContractRecoveryAppealPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertRecoverableContractForActor(contract, actorUsername, 'contract recovery appeal');
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'player_recovery_appeal_submitted'
+    && entry.idempotency_key === appealPayload.idempotency_key
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      appeal: previousAudit.detail?.appeal || null,
+      audit_entry: previousAudit,
+      idempotent: true,
+    };
+  }
+
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const fallbackWarehouseLedgerIds = appealPayload.issue_type === 'warehouse_misoperation'
+    ? warehouse.ledger
+        .filter(entry =>
+          normalizeUsernameKey(entry.actor_username) === member.username_key
+          || normalizeUsernameKey(entry.source_owner_username) === member.username_key
+        )
+        .slice(0, 6)
+        .map(entry => entry.id)
+    : [];
+  const warehouseLedgerIds = appealPayload.warehouse_ledger_ids.length > 0
+    ? appealPayload.warehouse_ledger_ids
+    : fallbackWarehouseLedgerIds;
+  const auditIds = appealPayload.audit_ids.length > 0
+    ? appealPayload.audit_ids
+    : (contract.audit_log || [])
+        .filter(entry => normalizeUsernameKey(entry.actor_username) === member.username_key)
+        .slice(0, 6)
+        .map(entry => entry.id);
+  const safeVersion = normalizeContractSafeVersions(contract.contract_safe_versions)
+    .find(entry => entry.id === appealPayload.safe_version_id) || null;
+  const preview = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.find(entry => entry.id === appealPayload.preview_id) || null
+    : null;
+  const appeal = {
+    id: makeId('contract_recovery_appeal'),
+    issue_type: appealPayload.issue_type,
+    target_ref: appealPayload.target_ref,
+    note: appealPayload.note,
+    submitted_by_username: member.username,
+    submitted_by_display_name: member.display_name || actor.displayName || actor.display_name || member.username,
+    submitted_at: nowSeconds(),
+    warehouse_ledger_ids: warehouseLedgerIds,
+    audit_ids: auditIds,
+    preview_id: appealPayload.preview_id,
+    safe_version_id: safeVersion?.id || appealPayload.safe_version_id,
+    safe_version_snapshot_hash: safeVersion?.snapshot_hash || '',
+    separation_preview_version: preview?.version || 0,
+    status: 'submitted',
+    support_locator: {
+      contract_id: contract.id,
+      shared_log_available: true,
+      warehouse_ledger_count: warehouseLedgerIds.length,
+      audit_count: auditIds.length,
+      safe_version_available: Boolean(safeVersion),
+      separation_preview_available: Boolean(preview),
+    },
+    player_explanation: 'appeal submitted with shared contract log, warehouse ledger references, and safe-version recovery hints.',
+    record_only: true,
+    idempotency_key: appealPayload.idempotency_key,
+  };
+  contract.recovery_appeals = [
+    normalizeContractRecoveryAppeal(appeal),
+    ...normalizeContractRecoveryAppeals(contract.recovery_appeals)
+      .filter(entry => entry.idempotency_key !== appealPayload.idempotency_key),
+  ].slice(0, CONTRACT_RECOVERY_APPEAL_LIMIT);
+  appendAudit(contract, 'player_recovery_appeal_submitted', actor, {
+    appeal,
+    issue_type: appeal.issue_type,
+    target_ref: appeal.target_ref,
+    warehouse_ledger_ids: appeal.warehouse_ledger_ids,
+    audit_ids: appeal.audit_ids,
+    preview_id: appeal.preview_id,
+    safe_version_id: appeal.safe_version_id,
+    support_locator: appeal.support_locator,
+    record_only: true,
+  }, appealPayload.idempotency_key);
+  saveContractStore(store);
+  const auditEntry = contract.audit_log.find(entry =>
+    entry.action === 'player_recovery_appeal_submitted'
+    && entry.idempotency_key === appealPayload.idempotency_key
+  );
+  return {
+    contract: toPublicContract(contract),
+    appeal,
+    audit_entry: auditEntry,
+    idempotent: false,
+  };
+}
+
+async function rollbackCohabitationContractSafeVersion(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('please login first', 401);
+  const rollbackPayload = normalizeContractSafeVersionRollbackPayload(payload);
+  if (rollbackPayload.confirmation_text !== CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT) {
+    throw createError('contract safe version rollback requires confirmation text', 409);
+  }
+  const store = loadContractStore();
+  const contractIndex = store.contracts.findIndex(entry => entry.id === sanitizeText(contractId, 80));
+  const contract = store.contracts[contractIndex];
+  const actorMember = assertRecoverableContractForActor(contract, actorUsername, 'contract safe version rollback');
+  if (!canManageCohabitationPermissions(actorMember)) {
+    throw createError('only the contract owner can roll back to a safe version', 403);
+  }
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'contract_safe_version_rolled_back'
+    && entry.idempotency_key === rollbackPayload.idempotency_key
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      safe_version: normalizeContractSafeVersions(contract.contract_safe_versions)
+        .map(toPublicContractSafeVersion)
+        .find(entry => entry.id === previousAudit.detail?.safe_version_id) || null,
+      rollback: previousAudit.detail || null,
+      audit_entry: previousAudit,
+      idempotent: true,
+    };
+  }
+
+  const safeVersions = normalizeContractSafeVersions(contract.contract_safe_versions);
+  const target = rollbackPayload.safe_version_id
+    ? safeVersions.find(entry => entry.id === rollbackPayload.safe_version_id)
+    : safeVersions[1] || safeVersions[0];
+  if (!target || !target.snapshot) throw createError('contract safe version not found', 404);
+  const restored = normalizeContract({
+    ...clonePlain(target.snapshot),
+    id: contract.id,
+    contract_safe_versions: [],
+  });
+  if (!restored) throw createError('contract safe version snapshot is invalid', 409);
+  if (!['active', 'separation_pending'].includes(restored.status)) {
+    throw createError('only active or separation-pending safe versions can be restored', 409);
+  }
+
+  const beforeRollbackVersion = createContractSafeVersion(contract, 'contract_safe_version_rollback_before', actor);
+  const preservedRecoveryAppeals = normalizeContractRecoveryAppeals(contract.recovery_appeals);
+  const preservedSafeVersions = [
+    beforeRollbackVersion,
+    target,
+    ...safeVersions.filter(entry => entry.id !== target.id && entry.id !== beforeRollbackVersion.id),
+  ].slice(0, CONTRACT_SAFE_VERSION_LIMIT);
+  Object.assign(contract, restored);
+  contract.id = sanitizeText(contractId, 80) || restored.id;
+  contract.contract_safe_versions = preservedSafeVersions;
+  contract.recovery_appeals = [
+    ...preservedRecoveryAppeals,
+    ...normalizeContractRecoveryAppeals(restored.recovery_appeals)
+      .filter(restoredAppeal => !preservedRecoveryAppeals.some(appeal => appeal.id === restoredAppeal.id)),
+  ].slice(0, CONTRACT_RECOVERY_APPEAL_LIMIT);
+  appendAudit(contract, 'contract_safe_version_rolled_back', actor, {
+    safe_version_id: target.id,
+    safe_version_snapshot_hash: target.snapshot_hash,
+    rollback_from_safe_version_id: beforeRollbackVersion.id,
+    rollback_from_snapshot_hash: beforeRollbackVersion.snapshot_hash,
+    reason: rollbackPayload.reason,
+    confirmation_text: rollbackPayload.confirmation_text,
+    restored_status: restored.status,
+    restored_updated_at: restored.updated_at,
+    personal_save_changed: false,
+    shared_contract_state_restored: true,
+    player_explanation: 'contract state was restored from a server safe-version snapshot; personal saves are not rewritten by this recovery action.',
+  }, rollbackPayload.idempotency_key);
+  store.contracts[contractIndex] = normalizeContract(contract);
+  saveContractStore(store);
+  const latestContract = store.contracts[contractIndex];
+  const auditEntry = (latestContract.audit_log || []).find(entry =>
+    entry.action === 'contract_safe_version_rolled_back'
+    && entry.idempotency_key === rollbackPayload.idempotency_key
+  );
+  return {
+    contract: toPublicContract(latestContract),
+    safe_version: toPublicContractSafeVersion(target),
+    rollback: auditEntry?.detail || null,
+    audit_entry: auditEntry,
+    idempotent: false,
+  };
+}
+
 async function updateCohabitationFamilyRole(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -32921,6 +33626,20 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
   const sharedDecorationRemovalDisputeFreeze = buildSharedDecorationRemovalDisputeFreezePreview(contract);
   const warehouseHighValueWithdrawalDisputeFreeze = buildWarehouseHighValueWithdrawalDisputeFreezePreview(contract);
+  const separationAssetDisputeSourceRows = buildSeparationAssetDisputeSourceRows({
+    contract,
+    warehouseReturnPreview,
+    fundUnidentifiedOperatingContributionPreview,
+    decorationSplitManifest,
+    familyBuildingSplitManifest,
+    sharedDecorationRemovalDisputeFreeze,
+    warehouseHighValueWithdrawalDisputeFreeze,
+  });
+  const separationAssetDisputeSourceCategories = [...new Set(separationAssetDisputeSourceRows.map(row => row.category).filter(Boolean))].slice(0, 20);
+  const separationAssetDisputeLedgerIds = uniqueSanitizedValues(
+    separationAssetDisputeSourceRows.flatMap(row => row.ledger_ids || []),
+    100
+  ).slice(0, 60);
   const totalFundContributions = fundReturns.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0);
   const totalFundOperatingContributions = fundReturns.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.operating_contribution_amount) || 0)), 0);
   const totalFundSplitBasis = fundReturns.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.split_basis_amount ?? entry.amount) || 0)), 0);
@@ -32963,6 +33682,15 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       warehouse_high_value_withdrawal_disputes: warehouseHighValueWithdrawalDisputeFreeze.disputes,
       warehouse_high_value_withdrawal_freeze_summary: warehouseHighValueWithdrawalDisputeFreeze.summary,
       warehouse_high_value_withdrawal_freeze_policy: warehouseHighValueWithdrawalDisputeFreeze.policy,
+      separation_asset_dispute_source_rows: separationAssetDisputeSourceRows,
+      separation_asset_dispute_source_summary: {
+        row_count: separationAssetDisputeSourceRows.length,
+        categories: separationAssetDisputeSourceCategories,
+        ledger_ids: separationAssetDisputeLedgerIds,
+        freeze_required: separationAssetDisputeSourceRows.some(row => row.freeze_required === true),
+        requires_confirmation: separationAssetDisputeSourceRows.some(row => row.requires_confirmation === true),
+        no_personal_mutation: true,
+      },
       fund_balance: contract.shared_fund.balance,
       fund_total_contributed: totalFundContributions,
       fund_total_operating_contributed: totalFundOperatingContributions,
@@ -33062,6 +33790,9 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     warehouse_high_value_withdrawal_freeze_required: warehouseHighValueWithdrawalDisputeFreeze.summary.freeze_required,
     warehouse_high_value_withdrawal_draft_ids: warehouseHighValueWithdrawalDisputeFreeze.summary.draft_ids,
     warehouse_high_value_withdrawal_freeze_status: warehouseHighValueWithdrawalDisputeFreeze.policy.status,
+    separation_asset_dispute_source_row_count: separationAssetDisputeSourceRows.length,
+    separation_asset_dispute_source_categories: separationAssetDisputeSourceCategories,
+    separation_asset_dispute_source_ledger_ids: separationAssetDisputeLedgerIds,
     confirm_after_at: preview.confirm_after_at,
     requires_both_confirm: true,
   }, idempotencyKey);
@@ -35252,6 +35983,13 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
 
   const storyResolution = ledger.family_story_resolution || {};
   const storyContent = normalizeSeparationStoryContentFields(storyResolution);
+  const cinematicConfirmationRequired = storyResolution.frontend_cinematic_pending === true;
+  if (
+    cinematicConfirmationRequired
+    && playbackPayload.confirmation_text !== SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT
+  ) {
+    throw createError('relationship breakup cinematic playback requires confirmation text', 409);
+  }
   const expectedStoryEventKind = sanitizeText(storyResolution.story_event_kind, 100);
   const expectedDialogueEventId = sanitizeText(storyResolution.dialogue_event_id, 120);
   const expectedAnimationEventId = sanitizeText(storyResolution.animation_event_id, 120);
@@ -35275,13 +36013,13 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     frontend_cinematic_played_by: member.username,
     frontend_cinematic_playback_state: playbackPayload.playback_state,
     frontend_cinematic_playback_idempotency_key: playbackPayload.idempotency_key,
+    frontend_cinematic_confirmation_required: cinematicConfirmationRequired,
+    frontend_cinematic_confirmation_text: playbackPayload.confirmation_text,
+    frontend_cinematic_confirmation_matched: !cinematicConfirmationRequired
+      || playbackPayload.confirmation_text === SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT,
     personal_state_mutated: false,
     personal_save_mutation_enabled: false,
     contract_record_only: storyResolution.contract_record_only !== false,
-    memorial_record_required: storyResolution.memorial_record_required !== false,
-    contract_memorial_ref: sanitizeText(storyResolution.contract_memorial_ref, 120),
-    memorial_record_policy: sanitizeText(storyResolution.memorial_record_policy, 160),
-    memory_title_keepsake_policy: sanitizeText(storyResolution.memory_title_keepsake_policy, 180),
   };
   const cinematicReceipt = {
     playback_state: playbackPayload.playback_state,
@@ -35305,6 +36043,10 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     personal_state_mutated: false,
     personal_save_mutation_enabled: false,
     contract_record_only: storyResolution.contract_record_only !== false,
+    confirmation_required: cinematicConfirmationRequired,
+    confirmation_text: playbackPayload.confirmation_text,
+    confirmation_matched: !cinematicConfirmationRequired
+      || playbackPayload.confirmation_text === SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT,
     played_at: playedAt,
     played_by: member.username,
     idempotency_key: playbackPayload.idempotency_key,
@@ -35370,6 +36112,9 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     frontend_cinematic_pending: nextStoryResolution.frontend_cinematic_pending,
     frontend_cinematic_played: nextStoryResolution.frontend_cinematic_played,
     frontend_cinematic_played_at: playedAt,
+    confirmation_required: cinematicConfirmationRequired,
+    confirmation_text: playbackPayload.confirmation_text,
+    confirmation_matched: nextStoryResolution.frontend_cinematic_confirmation_matched,
     personal_state_mutated: false,
     contract_record_only: nextStoryResolution.contract_record_only,
     personal_save_changed: false,
@@ -35976,6 +36721,9 @@ module.exports = {
   resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets,
   executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter,
   updateCohabitationPermissions,
+  restoreCohabitationDefaultPermissions,
+  submitCohabitationRecoveryAppeal,
+  rollbackCohabitationContractSafeVersion,
   updateCohabitationFamilyRole,
   createCohabitationContract,
   acceptCohabitationContract,
