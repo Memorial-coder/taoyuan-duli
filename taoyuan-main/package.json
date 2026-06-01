@@ -25,6 +25,7 @@
     "qa:mailbox-account-reset": "node scripts/qa-mailbox-account-reset.mjs",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",
+    "qa:reward-delivery-control": "node scripts/qa-reward-delivery-control.mjs",
     "qa:random-npc-save-guard": "node scripts/qa-random-npc-save-guard.mjs",
     "qa:random-npc-content-guard": "node scripts/qa-random-npc-content-guard.mjs",
     "qa:late-game": "npm run qa:late-game-samples && npm run type-check && npm run lint",
