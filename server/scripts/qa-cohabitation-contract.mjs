@@ -4490,7 +4490,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 31, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 32, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4511,6 +4511,10 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_fist_soup'), 'warehouse item policy should list foraging and combat skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('catfish'), 'warehouse item policy should list ordinary catfish as a common fish item')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_braised_catfish'), 'warehouse item policy should list ordinary fishing skill catfish dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('wild_mushroom'), 'warehouse item policy should list ordinary wild mushroom as a common foraging item')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('pine_cone'), 'warehouse item policy should list ordinary pine cone as a common foraging item')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_mushroom_stew'), 'warehouse item policy should list ordinary foraging mushroom dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_hunters_roast'), 'warehouse item policy should list ordinary hunter roast dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
@@ -4814,6 +4818,11 @@ await processRecipePolicyBasicDish({
   inputs: [{ itemId: 'potato', quantity: 3 }, { itemId: 'corn', quantity: 2 }, { itemId: 'iron_ore', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
+  recipeId: 'shared_hunters_roast',
+  outputItemId: 'food_hunters_roast',
+  inputs: [{ itemId: 'wild_mushroom', quantity: 3 }, { itemId: 'herb', quantity: 2 }, { itemId: 'pine_cone', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
   recipeId: 'shared_ranch_milk_soup',
   outputItemId: 'food_ranch_milk_soup',
   inputs: [{ itemId: 'milk', quantity: 2 }, { itemId: 'corn', quantity: 2 }, { itemId: 'sweet_potato', quantity: 1 }],
@@ -5071,6 +5080,11 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_wild_salad',
   outputItemId: 'food_wild_salad',
   inputs: [{ itemId: 'herb', quantity: 2 }, { itemId: 'wild_berry', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_mushroom_stew',
+  outputItemId: 'food_mushroom_stew',
+  inputs: [{ itemId: 'wild_mushroom', quantity: 3 }, { itemId: 'firewood', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_warrior_ration',

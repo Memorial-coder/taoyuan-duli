@@ -171,10 +171,10 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 31;
+const WAREHOUSE_ITEM_POLICY_VERSION = 32;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
-  'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
+  'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
   'yam', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
@@ -187,7 +187,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
   'food_osmanthus_cake', 'food_jujube_cake', 'food_peach_blossom_cake', 'food_dried_persimmon', 'food_fish_noodle', 'food_miner_iron_pot',
   'food_stir_fried_potato', 'food_sesame_paste', 'food_chive_egg_stir_fry', 'food_peanut_candy', 'food_sweet_osmanthus_tea',
-  'food_aged_radish_stew', 'food_embroidered_cake', 'food_deep_mine_stew', 'food_wild_berry_jam',
+  'food_aged_radish_stew', 'food_embroidered_cake', 'food_deep_mine_stew', 'food_wild_berry_jam', 'food_hunters_roast',
   'food_farmers_feast', 'food_autumn_moon_feast', 'food_lovers_pastry', 'food_forgemasters_meal', 'food_spirit_fruit_wine',
   'food_phoenix_cake', 'food_molten_hotpot', 'food_tea_banquet', 'food_ironforge_stew', 'food_ranch_milk_soup', 'food_moonlit_tea_rice',
   'food_spicy_hotpot', 'food_bamboo_shoot_stir_fry', 'food_lotus_seed_soup', 'food_corn_pancake', 'food_osmanthus_lotus_root',
@@ -199,7 +199,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
   'food_spring_roll', 'food_lotus_lantern_cake', 'food_harvest_feast', 'food_new_year_dumpling',
   'food_pumpkin_pie', 'food_golden_fried_rice', 'food_supreme_farm_feast',
-  'food_stone_soup', 'food_iron_tonic', 'food_wild_salad', 'food_warrior_ration', 'food_battle_stew', 'food_iron_fist_soup',
+  'food_stone_soup', 'food_iron_tonic', 'food_wild_salad', 'food_mushroom_stew', 'food_warrior_ration', 'food_battle_stew', 'food_iron_fist_soup',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -1307,6 +1307,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_hunters_roast: {
+    id: 'shared_hunters_roast',
+    label: '共同灶台猎人烤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'wild_mushroom', quantity: 3, quality: 'normal' },
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+      { item_id: 'pine_cone', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_hunters_roast',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_ranch_milk_soup: {
     id: 'shared_ranch_milk_soup',
     label: '共同灶台牧场鲜奶汤',
@@ -2007,6 +2021,19 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'wild_berry', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_wild_salad',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_mushroom_stew: {
+    id: 'shared_mushroom_stew',
+    label: '共同灶台蘑菇炖',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'wild_mushroom', quantity: 3, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_mushroom_stew',
     output_quantity: 1,
     output_quality: 'normal',
   },
