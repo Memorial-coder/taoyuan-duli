@@ -4331,7 +4331,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 17, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 18, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_honey_tea'), 'warehouse item policy should list new basic dishes as common items')
@@ -4363,6 +4363,9 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_spicy_hotpot'), 'warehouse item policy should list spicy hotpot as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_lotus_seed_soup'), 'warehouse item policy should list lotus seed soup as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_osmanthus_lotus_root'), 'warehouse item policy should list osmanthus lotus root as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_nian_gao'), 'warehouse item policy should list nian gao as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_yue_bing'), 'warehouse item policy should list mooncake as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_zhi_yuan_gao'), 'warehouse item policy should list kite cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4475,6 +4478,47 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_osmanthus_lotus_root',
   outputItemId: 'food_osmanthus_lotus_root',
   inputs: [{ itemId: 'osmanthus', quantity: 1 }, { itemId: 'lotus_root', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_nian_gao',
+  outputItemId: 'food_nian_gao',
+  inputs: [{ itemId: 'rice', quantity: 3 }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_hua_gao',
+  outputItemId: 'food_hua_gao',
+  inputs: [{ itemId: 'peach', quantity: 2 }, { itemId: 'rice', quantity: 1 }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_qing_tuan',
+  outputItemId: 'food_qing_tuan',
+  inputs: [{ itemId: 'herb', quantity: 2 }, { itemId: 'rice', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_yue_bing',
+  outputItemId: 'food_yue_bing',
+  inputs: [{ itemId: 'lotus_seed', quantity: 2 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_dragon_boat_zongzi',
+  outputItemId: 'food_dragon_boat_zongzi',
+  inputs: [{ itemId: 'rice', quantity: 3 }, { itemId: 'bamboo_shoot', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_qiao_guo',
+  outputItemId: 'food_qiao_guo',
+  inputs: [{ itemId: 'winter_wheat', quantity: 2 }, { itemId: 'honey', quantity: 1 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_dou_cha_yin',
+  outputItemId: 'food_dou_cha_yin',
+  station: 'tea_maker',
+  inputs: [{ itemId: 'tea', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_zhi_yuan_gao',
+  outputItemId: 'food_zhi_yuan_gao',
+  inputs: [{ itemId: 'rice', quantity: 2 }, { itemId: 'peach', quantity: 1 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_scrambled_egg_rice',
