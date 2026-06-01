@@ -1182,6 +1182,10 @@ expectContains('online/OnlineSocietyView.vue', 'online-society-warehouse-consume
 expectContains('online/OnlineSocietyView.vue', '只扣公共仓', '村社仓廪公共消耗应明确只扣公共仓')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineSocietyView.vue', /overflow-y-auto/g, 12, '村社长列表应保留滚动边界')
 
+expectContains('online/OnlineCohabitationView.vue', 'personal_child_family_event_and_custody_summary_recorded', 'separation ui should expose child arrangement custody-summary migration state')
+expectContains('online/OnlineCohabitationView.vue', 'custody_arrangement_recorded_count', 'separation ui should read back child custody arrangement summary count')
+expectContains('utils/cohabitationApi.ts', 'custody_arrangement_recorded_count', 'cohabitation api should expose child custody arrangement summary count')
+
 if (failures.length > 0) {
   console.error('在线 UI 结构静态检查失败：')
   for (const failure of failures) {

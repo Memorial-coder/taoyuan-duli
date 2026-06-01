@@ -2315,6 +2315,7 @@ export interface CohabitationSeparationPersonalFamilyMainStateMigrationSummary {
   child_count?: number
   mutated_child_count?: number
   family_event_receipt_count?: number
+  custody_arrangement_recorded_count?: number
   children_private?: boolean
   personal_family_save_receipt_written?: boolean
   personal_family_save_mutation_enabled?: boolean
@@ -2354,6 +2355,7 @@ export interface CohabitationSeparationPersonalFamilyMainStateMutationReceipt {
   child_count?: number
   mutated_child_count?: number
   family_event_receipt_count?: number
+  custody_arrangement_recorded_count?: number
   mutation_actions?: string[]
   before_summary?: Record<string, unknown> | null
   after_summary?: Record<string, unknown> | null
@@ -2419,6 +2421,7 @@ export interface CohabitationSeparationAssetDisputeSourceRow {
   shared_assets_mutated?: boolean
   mutated_child_count?: number
   family_event_receipt_count?: number
+  custody_arrangement_recorded_count?: number
   personal_family_main_state_mutation?: CohabitationSeparationPersonalFamilyMainStateMutationReceipt | null
   personal_family_main_state_migration_summary?: CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null
   privacy_boundary?: string

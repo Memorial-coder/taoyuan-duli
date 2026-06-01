@@ -15279,6 +15279,25 @@ const PERSONAL_CHILD_FAMILY_EVENT_HISTORY_LIMIT = 4;
 const PERSONAL_CHILD_FAMILY_EVENT_STAGE_LIMIT = 3;
 const PERSONAL_CHILD_TRAINING_FOCUS_VALUES = new Set(['farm', 'craft', 'social', 'spirit']);
 
+function normalizePersonalChildSeparationArrangementSummary(entry = null) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const arrangementId = sanitizeText(entry.arrangement_id || entry.arrangementId, 120);
+  const source = sanitizeText(entry.source, 80) || (arrangementId ? 'cohabitation_separation' : '');
+  if (!arrangementId || source !== 'cohabitation_separation') return null;
+  return {
+    arrangement_id: arrangementId,
+    arrangement_choice: sanitizeText(entry.arrangement_choice || entry.arrangementChoice, 100),
+    arrangement_state: sanitizeText(entry.arrangement_state || entry.arrangementState, 100),
+    source,
+    execution_ledger_id: sanitizeText(entry.execution_ledger_id || entry.executionLedgerId, 100),
+    recorded_at: Math.max(0, Math.floor(Number(entry.recorded_at ?? entry.recordedAt) || 0)),
+    dayTag: sanitizeText(entry.dayTag || entry.day_tag, 80),
+    caregiver_policy: sanitizeText(entry.caregiver_policy || entry.caregiverPolicy, 120),
+    manual_review_required: entry.manual_review_required === true,
+    children_private: entry.children_private !== false,
+  };
+}
+
 function normalizePersonalChildTrainingState(entry = {}) {
   const source = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
   const focus = PERSONAL_CHILD_TRAINING_FOCUS_VALUES.has(source.focus) ? source.focus : null;
@@ -15313,6 +15332,9 @@ function normalizePersonalChildTrainingState(entry = {}) {
         summary: sanitizeText(event?.summary, 180),
       })).filter(event => event.id).slice(-PERSONAL_CHILD_FAMILY_EVENT_HISTORY_LIMIT)
     : [];
+  const separationArrangementSummary = normalizePersonalChildSeparationArrangementSummary(
+    source.separationArrangementSummary || source.cohabitationSeparationArrangement || source.separationArrangement
+  );
   return {
     focus,
     lessonsThisWeek: Math.max(0, Math.floor(Number(source.lessonsThisWeek) || 0)),
@@ -15325,6 +15347,7 @@ function normalizePersonalChildTrainingState(entry = {}) {
     familyEventStages,
     familyEventLastDayTags,
     familyEventHistory,
+    separationArrangementSummary,
   };
 }
 
@@ -15341,11 +15364,20 @@ function summarizePersonalFamilyMainState(saveData = {}) {
     const history = Array.isArray(child?.trainingState?.familyEventHistory) ? child.trainingState.familyEventHistory : [];
     return sum + history.filter(event => String(event?.sourceResidentId || '') === 'cohabitation_separation').length;
   }, 0);
+  const separationArrangementSummaryCount = children.reduce((sum, child) => {
+    const summary = normalizePersonalChildSeparationArrangementSummary(
+      child?.trainingState?.separationArrangementSummary
+      || child?.trainingState?.cohabitationSeparationArrangement
+      || child?.trainingState?.separationArrangement
+    );
+    return sum + (summary ? 1 : 0);
+  }, 0);
   const activeFamilyWishId = sanitizeText(npcData?.familyWishBoard?.activeWishId, 80);
   return {
     npc_child_count: children.length,
     child_family_event_count: familyEventCount,
     separation_child_arrangement_event_count: separationEventCount,
+    separation_child_arrangement_summary_count: separationArrangementSummaryCount,
     active_family_wish_id: activeFamilyWishId,
     family_wish_completed_count: Array.isArray(npcData?.familyWishBoard?.completedWishIds) ? npcData.familyWishBoard.completedWishIds.length : 0,
     pregnancy_active: Boolean(npcData?.pregnancy || npcData?.familyExpansion || npcData?.pendingChild),
@@ -15359,6 +15391,7 @@ function normalizePersonalFamilyMainStateSummary(summary = null) {
     npc_child_count: Math.max(0, Math.floor(Number(summary.npc_child_count) || 0)),
     child_family_event_count: Math.max(0, Math.floor(Number(summary.child_family_event_count) || 0)),
     separation_child_arrangement_event_count: Math.max(0, Math.floor(Number(summary.separation_child_arrangement_event_count) || 0)),
+    separation_child_arrangement_summary_count: Math.max(0, Math.floor(Number(summary.separation_child_arrangement_summary_count) || 0)),
     active_family_wish_id: sanitizeText(summary.active_family_wish_id, 80),
     family_wish_completed_count: Math.max(0, Math.floor(Number(summary.family_wish_completed_count) || 0)),
     pregnancy_active: summary.pregnancy_active === true,
@@ -15389,6 +15422,7 @@ function normalizeSeparationPersonalFamilyMainStateMutationReceipt(entry = null)
     child_count: Math.max(0, Math.floor(Number(entry.child_count) || 0)),
     mutated_child_count: Math.max(0, Math.floor(Number(entry.mutated_child_count) || 0)),
     family_event_receipt_count: Math.max(0, Math.floor(Number(entry.family_event_receipt_count) || 0)),
+    custody_arrangement_recorded_count: Math.max(0, Math.floor(Number(entry.custody_arrangement_recorded_count) || 0)),
     mutation_actions: Array.isArray(entry.mutation_actions)
       ? entry.mutation_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
       : [],
@@ -15428,6 +15462,7 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
     child_count: expectedChildCount,
     mutated_child_count: 0,
     family_event_receipt_count: 0,
+    custody_arrangement_recorded_count: 0,
     mutation_actions: [],
     before_summary: npcData ? summarizePersonalFamilyMainState(saveData) : null,
     after_summary: null,
@@ -15458,16 +15493,24 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
   const ledgerId = sanitizeText(ledger.id || options.execution_ledger_id || options.idempotency_key, 100);
   const arrangementChoice = mutation.arrangement_choice;
   const eventKey = `separation_child_arrangement:${ledgerId}`;
-  const dayTag = `separation:${Math.max(0, Math.floor(Number(ledger.child_arrangement_resolved_at) || nowSeconds()))}`;
+  const arrangementRecordedAt = Math.max(0, Math.floor(Number(ledger.child_arrangement_resolved_at) || nowSeconds()));
+  const dayTag = `separation:${arrangementRecordedAt}`;
   const actionSet = new Set(mutation.mutation_actions);
   const arrangementLabel = arrangementChoice === 'primary_owner_care'
     ? '主照料人安排'
     : arrangementChoice === 'manual_family_review'
       ? '人工家庭复核安排'
       : '共同照料安排';
+  const caregiverPolicy = arrangementChoice === 'primary_owner_care'
+    ? 'primary_owner_care_pending_personal_save_review'
+    : arrangementChoice === 'manual_family_review'
+      ? 'manual_family_review_required'
+      : 'shared_care_pending_personal_saves';
+  let changedChildCount = 0;
 
   children.forEach((child, index) => {
     if (!child || typeof child !== 'object') return;
+    const childBeforeSerialized = JSON.stringify(child);
     const childId = Math.max(0, Math.floor(Number(child.id) || index + 1));
     const trainingState = normalizePersonalChildTrainingState(child.trainingState);
     const eventId = `${eventKey}:child:${childId}`;
@@ -15487,23 +15530,46 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
         },
       ].slice(-PERSONAL_CHILD_FAMILY_EVENT_HISTORY_LIMIT);
       actionSet.add('append_child_family_event_history');
-      mutation.mutated_child_count += 1;
     }
+    const previousStage = Math.max(0, Math.floor(Number(trainingState.familyEventStages[eventKey]) || 0));
     trainingState.familyEventStages = {
       ...trainingState.familyEventStages,
       [eventKey]: Math.max(1, Number(trainingState.familyEventStages[eventKey]) || 1),
     };
+    if (previousStage <= 0) actionSet.add('record_child_family_event_stage');
     trainingState.familyEventLastDayTags = {
       ...trainingState.familyEventLastDayTags,
       [eventKey]: dayTag,
     };
     trainingState.milestoneIds = [...new Set([...trainingState.milestoneIds, eventKey])].slice(-8);
+    const nextArrangementSummary = normalizePersonalChildSeparationArrangementSummary({
+      arrangement_id: eventKey,
+      arrangement_choice: arrangementChoice,
+      arrangement_state: 'custody_arrangement_summary_recorded',
+      source: 'cohabitation_separation',
+      execution_ledger_id: ledgerId,
+      recorded_at: arrangementRecordedAt,
+      dayTag,
+      caregiver_policy: caregiverPolicy,
+      manual_review_required: arrangementChoice === 'manual_family_review',
+      children_private: childArrangement.children_private !== false,
+    });
+    if (JSON.stringify(trainingState.separationArrangementSummary) !== JSON.stringify(nextArrangementSummary)) {
+      trainingState.separationArrangementSummary = nextArrangementSummary;
+      actionSet.add('record_child_custody_arrangement_summary');
+    }
     child.trainingState = trainingState;
+    if (JSON.stringify(child) !== childBeforeSerialized) changedChildCount += 1;
   });
 
+  mutation.mutated_child_count = changedChildCount;
   mutation.family_event_receipt_count = children.reduce((sum, child) => {
     const history = Array.isArray(child?.trainingState?.familyEventHistory) ? child.trainingState.familyEventHistory : [];
     return sum + history.filter(event => String(event?.id || '').startsWith(eventKey)).length;
+  }, 0);
+  mutation.custody_arrangement_recorded_count = children.reduce((sum, child) => {
+    const summary = normalizePersonalChildSeparationArrangementSummary(child?.trainingState?.separationArrangementSummary);
+    return sum + (summary?.arrangement_id === eventKey ? 1 : 0);
   }, 0);
   mutation.mutation_actions = Array.from(actionSet).slice(0, 20);
   mutation.after_summary = summarizePersonalFamilyMainState(saveData);
@@ -15512,8 +15578,8 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
   mutation.personal_family_state_mutated = mutated;
   mutation.personal_child_state_mutated = mutated;
   mutation.arrangement_state = mutated
-    ? 'personal_child_family_event_recorded'
-    : 'personal_child_family_event_already_recorded';
+    ? 'personal_child_family_event_and_custody_summary_recorded'
+    : 'personal_child_family_event_and_custody_summary_already_recorded';
   mutation.reason = mutated ? 'mutated' : 'already_recorded';
   if (!mutation.mutation_actions.length) mutation.mutation_actions = ['child_family_event_already_recorded'];
   return mutation;
@@ -15529,6 +15595,7 @@ function normalizeSeparationPersonalFamilyMainStateMigrationSummary(entry = null
     child_count: Math.max(0, Math.floor(Number(entry.child_count) || 0)),
     mutated_child_count: Math.max(0, Math.floor(Number(entry.mutated_child_count) || 0)),
     family_event_receipt_count: Math.max(0, Math.floor(Number(entry.family_event_receipt_count) || 0)),
+    custody_arrangement_recorded_count: Math.max(0, Math.floor(Number(entry.custody_arrangement_recorded_count) || 0)),
     children_private: entry.children_private !== false,
     personal_family_save_receipt_written: entry.personal_family_save_receipt_written === true,
     personal_family_save_mutation_enabled: entry.personal_family_save_mutation_enabled === true,
@@ -15584,14 +15651,26 @@ function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, l
       ?? receipt?.personal_family_main_state_mutation?.mutated_child_count
     ) || 0))
   ), 0);
+  const custodyArrangementRecordedCount = receiptList.reduce((sum, receipt) => (
+    sum + Math.max(0, Math.floor(Number(
+      receipt?.custody_arrangement_recorded_count
+      ?? receipt?.personal_family_main_state_mutation?.custody_arrangement_recorded_count
+    ) || 0))
+  ), 0);
+  const migrationState = mutated
+    ? (custodyArrangementRecordedCount > 0
+      ? 'personal_child_family_event_and_custody_summary_recorded'
+      : 'personal_child_family_event_recorded')
+    : 'receipt_recorded_main_state_migration_pending';
   return normalizeSeparationPersonalFamilyMainStateMigrationSummary({
     migration_adapter: 'separation_personal_family_main_state_receipt_v1',
     mutation_adapter: mutationReceipts[0]?.mutation_adapter || '',
-    migration_state: mutated ? 'personal_child_family_event_recorded' : 'receipt_recorded_main_state_migration_pending',
+    migration_state: migrationState,
     receipt_count: receiptList.length,
     child_count: Math.max(0, Math.floor(Number(childArrangement.child_count) || Number(contract.family_state?.child_count) || 0)),
     mutated_child_count: mutatedChildCount,
     family_event_receipt_count: familyEventReceiptCount,
+    custody_arrangement_recorded_count: custodyArrangementRecordedCount,
     children_private: childArrangement.children_private !== false,
     personal_family_save_receipt_written: true,
     personal_family_save_mutation_enabled: mutationEnabled,
@@ -15604,12 +15683,16 @@ function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, l
     personal_npc_state_mutated: false,
     contract_family_state_mutated: false,
     shared_assets_mutated: false,
-    required_followup: mutated ? 'personal_family_main_state_mutation_recorded_child_events' : 'personal_family_main_state_migration_deferred',
+    required_followup: mutated
+      ? (custodyArrangementRecordedCount > 0
+        ? 'personal_family_main_state_mutation_recorded_child_events_and_custody_summary'
+        : 'personal_family_main_state_mutation_recorded_child_events')
+      : 'personal_family_main_state_migration_deferred',
     migration_actions: mutationActions,
     receipt_ids: receiptList.map(receipt => receipt.receipt_id),
     receipt_usernames: receiptList.map(receipt => receipt.username),
     privacy_boundary: mutated
-      ? '已把分居孩子安排写入个人孩子家庭事件历史；孩子身份仍不公开，不改铜币、背包、农田、小屋、NPC 关系或共同资产。'
+      ? '已把分居孩子安排写入个人孩子家庭事件历史和抚养安排摘要；孩子身份仍不公开，不改铜币、背包、农田、小屋、NPC 关系或共同资产。'
       : '仅记录分居孩子安排和个人家庭回执；孩子、家庭心愿、NPC、铜币、背包、农田、小屋与家庭主状态真实迁移仍等待独立个人存档接口。',
   });
 }
@@ -18151,6 +18234,7 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       personal_child_state_mutated: personalFamilyMainStateMutation.personal_child_state_mutated,
       mutated_child_count: personalFamilyMainStateMutation.mutated_child_count,
       family_event_receipt_count: personalFamilyMainStateMutation.family_event_receipt_count,
+      custody_arrangement_recorded_count: personalFamilyMainStateMutation.custody_arrangement_recorded_count,
       personal_family_main_state_mutation: personalFamilyMainStateMutation,
     }]);
     const receipt = {
@@ -18181,10 +18265,11 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       shared_assets_mutated: false,
       mutated_child_count: personalFamilyMainStateMutation.mutated_child_count,
       family_event_receipt_count: personalFamilyMainStateMutation.family_event_receipt_count,
+      custody_arrangement_recorded_count: personalFamilyMainStateMutation.custody_arrangement_recorded_count,
       personal_family_main_state_mutation: personalFamilyMainStateMutation,
       personal_family_main_state_migration_summary: receiptMigrationSummary,
       privacy_boundary: personalFamilyMainStateMutation.personal_family_main_state_mutated
-        ? '已把分居孩子安排写入个人孩子家庭事件历史；不改孩子身份公开范围、NPC 关系、铜币、背包、农田、小屋或共同资产。'
+        ? '已把分居孩子安排写入个人孩子家庭事件历史和抚养安排摘要；不改孩子身份公开范围、NPC 关系、铜币、背包、农田、小屋或共同资产。'
         : '仅追加分居孩子安排回执；不改写孩子、家庭心愿、NPC、恋爱或资产状态。',
       memo: payload.memo,
       idempotency_key: payload.idempotency_key,
@@ -18233,6 +18318,7 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       shared_assets_mutated: false,
       mutated_child_count: receipt.mutated_child_count,
       family_event_receipt_count: receipt.family_event_receipt_count,
+      custody_arrangement_recorded_count: receipt.custody_arrangement_recorded_count,
       personal_family_main_state_mutation: receipt.personal_family_main_state_mutation,
       personal_family_main_state_migration_summary: receiptMigrationSummary,
       privacy_boundary: receipt.privacy_boundary,
@@ -19776,6 +19862,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           shared_assets_mutated: item.shared_assets_mutated === true,
           mutated_child_count: Math.max(0, Math.floor(Number(item.mutated_child_count) || 0)),
           family_event_receipt_count: Math.max(0, Math.floor(Number(item.family_event_receipt_count) || 0)),
+          custody_arrangement_recorded_count: Math.max(0, Math.floor(Number(item.custody_arrangement_recorded_count) || 0)),
           personal_family_main_state_mutation: normalizeSeparationPersonalFamilyMainStateMutationReceipt(item.personal_family_main_state_mutation),
           personal_family_main_state_migration_summary: normalizeSeparationPersonalFamilyMainStateMigrationSummary(item.personal_family_main_state_migration_summary),
           privacy_boundary: sanitizeText(item.privacy_boundary, 220),
@@ -37013,7 +37100,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
       can_execute_now: false,
       execution_enabled: false,
       execution_policy: personalFamilyMainStateMigrationSummary.personal_child_state_mutated
-        ? '分居个人家庭回执已写入各成员存档；孩子安排已追加到个人孩子家庭事件历史，孩子身份、NPC 关系和资产状态不由联机契约公开或改写。'
+        ? '分居个人家庭回执已写入各成员存档；孩子安排已追加到个人孩子家庭事件历史和抚养安排摘要，孩子身份、NPC 关系和资产状态不由联机契约公开或改写。'
         : '分居个人家庭回执已写入各成员存档；孩子、家庭心愿、NPC 和资产状态仍不由联机契约自动改写。',
     },
     deferred_operations: nextLedger.next_required_operations,
@@ -37029,7 +37116,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
     receipt_usernames: receipts.map(receipt => receipt.username),
     child_count: nextLedger.child_arrangement_resolution?.child_count || 0,
     personal_family_state: personalFamilyMainStateMigrationSummary.personal_child_state_mutated
-      ? 'personal_child_family_event_recorded'
+      ? personalFamilyMainStateMigrationSummary.migration_state
       : 'receipt_recorded_only',
     personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
     children_private: true,
