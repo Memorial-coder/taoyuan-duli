@@ -16,7 +16,9 @@ const require = createRequire(import.meta.url)
 const {
   TAOYUAN_SAVES_DIR,
   createEmptySlots,
+  encryptTaoyuanData,
   loadUserSaveSlots,
+  prepareSlotEntryForSave,
   saveUserSaveSlots,
 } = require('../src/taoyuanSaveRuntime')
 
@@ -41,6 +43,31 @@ assert.throws(
 
 const after = await readFile(saveFile, 'utf8')
 assert.equal(after, '{ broken json', 'corrupted save file must remain untouched after blocked write')
+
+const illegalSaveRaw = encryptTaoyuanData({
+  data: {
+    player: { playerName: 'illegal_guard_user', money: -1 },
+    game: { year: 0, season: 'void', day: 99 },
+    inventory: {
+      items: [{ itemId: 'rice', quantity: -5 }],
+      tempItems: [],
+    },
+    farm: {
+      plots: [{ id: 0, state: 'teleport', growthDays: -1 }],
+    },
+  },
+})
+
+assert.throws(
+  () => prepareSlotEntryForSave('illegal_guard_user', 0, illegalSaveRaw, 1),
+  error =>
+    error?.status === 422 &&
+    error?.code === 'TAOYUAN_SAVE_FIELD_ANOMALY' &&
+    error?.details?.anomalies?.some(entry => entry.field_path === 'player.money') &&
+    error?.details?.anomalies?.some(entry => entry.field_path === 'game.season') &&
+    error?.details?.required_operation === 'repair_save_fields_before_write',
+  'out-of-range or illegal gameplay fields should block save writes before overwrite'
+)
 
 await rm(tempDir, { recursive: true, force: true })
 console.log('[qa-save-corruption-guard] passed')

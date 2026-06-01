@@ -3783,6 +3783,18 @@ function recordRoomEvent(room, event, actor, summary, options = {}) {
   }), ...(room.action_log || []).map(normalizeRoomActionLogEntry)].slice(0, ACTION_LOG_LIMIT);
 }
 
+function blockDuplicateRoomSettlement(store, room, actor = {}) {
+  recordRoomEvent(room, 'room.settlement.duplicate_blocked', actor, 'duplicate settlement creation blocked', {
+    action_category: 'settlement',
+    settlement_receipt_ids: room.settlement_receipt_ids || [],
+    idempotency_key: buildRoomRewardIdempotencyKey(room.id, actor?.username || room.host_username, room.settlement_version),
+    compensation_hint: 'existing settlement receipts remain authoritative; no new receipt or reward write is created.',
+  });
+  replaceRoom(store, room);
+  saveStore(store);
+  throw createError('褰撳墠鎴块棿宸茬粡鐢熸垚杩囩粨绠楀嚟璇佷簡', 409);
+}
+
 function getRoomMember(room, username) {
   const normalizedUsername = sanitizeText(username, 40);
   return (room.members || []).find(member => member.username === normalizedUsername) || null;
@@ -5774,6 +5786,16 @@ function applyFestivalReceiptReward(receipt, room) {
   ensureFestivalDecorationState(context.data);
   const festivalRewardState = ensureFestivalRewardState(context.data);
   if (festivalRewardState.appliedReceipts[receipt.idempotency_key]) {
+    recordRoomEvent(room, 'room.reward.duplicate_blocked', {
+      username: receipt.target_username,
+      displayName: receipt.target_display_name,
+    }, 'duplicate reward receipt blocked', {
+      action_category: 'reward',
+      settlement_receipt_ids: [receipt.id],
+      idempotency_key: receipt.idempotency_key,
+      target_ref: `activity_receipt:${receipt.id}`,
+      compensation_hint: 'appliedReceipts prevents duplicate reward persistence.',
+    });
     return {
       slot: context.slot,
       revision: context.saves.slots[context.slot]?.revision ?? 0,
@@ -6352,6 +6374,9 @@ async function settleFestivalRoom(roomId, actor = {}) {
   materializeCountdownState(room);
   materializeGameplayPhase(room);
   ensureHost(room, username);
+  if ((room.settlement_receipt_ids || []).length > 0) {
+    blockDuplicateRoomSettlement(store, room, actor);
+  }
   if (!['running', 'paused'].includes(room.state)) {
     throw createError('只有进行中的节会房间才能进入结算');
   }
@@ -6546,6 +6571,16 @@ function applyActivityReceiptReward(receipt, room) {
   ensureFestivalDecorationState(context.data);
   const festivalRewardState = ensureFestivalRewardState(context.data);
   if (festivalRewardState.appliedReceipts[receipt.idempotency_key]) {
+    recordRoomEvent(room, 'room.reward.duplicate_blocked', {
+      username: receipt.target_username,
+      displayName: receipt.target_display_name,
+    }, 'duplicate reward receipt blocked', {
+      action_category: 'reward',
+      settlement_receipt_ids: [receipt.id],
+      idempotency_key: receipt.idempotency_key,
+      target_ref: `activity_receipt:${receipt.id}`,
+      compensation_hint: 'appliedReceipts prevents duplicate reward persistence.',
+    });
     return {
       slot: context.slot,
       revision: context.saves.slots[context.slot]?.revision ?? 0,
@@ -6749,6 +6784,9 @@ async function settleActivityRoom(roomId, actor = {}) {
   materializeCountdownState(room);
   materializeGameplayPhase(room);
   ensureHost(room, username);
+  if ((room.settlement_receipt_ids || []).length > 0) {
+    blockDuplicateRoomSettlement(store, room, actor);
+  }
   if (!['running', 'paused'].includes(room.state)) {
     throw createError('只有进行中的活动房间才能进入结算');
   }

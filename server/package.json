@@ -19,6 +19,7 @@
     "qa:society-lantern-wall": "node scripts/qa-society-lantern-wall.mjs",
     "qa:society-warehouse": "node scripts/qa-society-warehouse.mjs",
     "qa:cohabitation-contract": "node scripts/qa-cohabitation-contract.mjs",
+    "qa:anomaly-detection-20-2": "node scripts/qa-anomaly-detection-20-2.mjs",
     "qa:cohabitation-idempotency-credentials": "node scripts/qa-cohabitation-idempotency-credentials.mjs",
     "qa:hall-upload-visibility-guard": "node scripts/qa-hall-upload-visibility-guard.mjs",
     "qa:save-corruption-guard": "node scripts/qa-save-corruption-guard.mjs",

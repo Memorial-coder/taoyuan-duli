@@ -13,6 +13,11 @@ const SAVE_ENCRYPTION_KEY = 'taoyuanxiang_2024_secret';
 const CURRENT_SAVE_VERSION = 4;
 const SAVE_ID_MIN = 100000000;
 const SAVE_ID_MAX_EXCLUSIVE = 1000000000;
+const SAVE_FIELD_ANOMALY_AUDIT_LIMIT = 20;
+const SAVE_PLAYER_MONEY_LIMIT = 999999999;
+const SAVE_INVENTORY_QUANTITY_LIMIT = 999999;
+const SAVE_FARM_PLOT_LIMIT = 400;
+const SAVE_FARM_GROWTH_DAY_LIMIT = 9999;
 
 function createError(message, status = 400, code = '') {
   const error = new Error(message);
@@ -436,6 +441,115 @@ function normalizeGameplaySaveContainer(rawData) {
   };
 }
 
+function summarizeSaveFieldValue(value) {
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.slice(0, 80);
+  if (value === null) return null;
+  if (Array.isArray(value)) return `array:${value.length}`;
+  if (value && typeof value === 'object') return 'object';
+  return typeof value;
+}
+
+function createSaveFieldAnomaly(action, fieldPath, observedValue, limit, normalizedValue = null) {
+  return {
+    id: `${action}:${fieldPath}`,
+    action,
+    field_path: fieldPath,
+    observed_value: summarizeSaveFieldValue(observedValue),
+    normalized_value: summarizeSaveFieldValue(normalizedValue),
+    limit,
+    severity: 'blocked',
+    detected_at: new Date().toISOString(),
+    required_operation: 'repair_save_fields_before_write',
+  };
+}
+
+function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
+  const anomalies = [];
+  const push = (action, fieldPath, observedValue, limit, normalizedValue = null) => {
+    if (anomalies.length < SAVE_FIELD_ANOMALY_AUDIT_LIMIT) {
+      anomalies.push(createSaveFieldAnomaly(action, fieldPath, observedValue, limit, normalizedValue));
+    }
+  };
+  const isFiniteInteger = value => Number.isInteger(Number(value)) && Number.isFinite(Number(value));
+  const assertIntegerRange = (fieldPath, value, min, max) => {
+    if (value === undefined || value === null || value === '') return;
+    const number = Number(value);
+    if (!Number.isFinite(number) || !Number.isInteger(number) || number < min || number > max) {
+      push('numeric_field_out_of_range', fieldPath, value, `${min}..${max}`, Math.min(max, Math.max(min, Math.floor(Number.isFinite(number) ? number : min))));
+    }
+  };
+
+  if (!gameplayData || typeof gameplayData !== 'object') return anomalies;
+  if (gameplayData.player && typeof gameplayData.player === 'object') {
+    assertIntegerRange('player.money', gameplayData.player.money, 0, SAVE_PLAYER_MONEY_LIMIT);
+  }
+  if (gameplayData.game && typeof gameplayData.game === 'object') {
+    assertIntegerRange('game.year', gameplayData.game.year, 1, 99);
+    assertIntegerRange('game.day', gameplayData.game.day, 1, 28);
+    if (gameplayData.game.season !== undefined && !['spring', 'summer', 'autumn', 'fall', 'winter'].includes(String(gameplayData.game.season))) {
+      push('illegal_enum_state', 'game.season', gameplayData.game.season, 'spring|summer|autumn|winter', 'spring');
+    }
+  }
+  const inspectInventoryList = (fieldPath, value) => {
+    if (value === undefined || value === null) return;
+    if (!Array.isArray(value)) {
+      push('illegal_collection_state', fieldPath, value, 'array', []);
+      return;
+    }
+    value.slice(0, 120).forEach((slot, index) => {
+      if (!slot || typeof slot !== 'object') {
+        push('illegal_inventory_slot', `${fieldPath}[${index}]`, slot, 'object', null);
+        return;
+      }
+      const itemId = slot.itemId ?? slot.item_id;
+      if (itemId !== undefined && typeof itemId !== 'string') {
+        push('illegal_inventory_item_id', `${fieldPath}[${index}].itemId`, itemId, 'string', String(itemId || ''));
+      }
+      assertIntegerRange(`${fieldPath}[${index}].quantity`, slot.quantity, 0, SAVE_INVENTORY_QUANTITY_LIMIT);
+    });
+  };
+  if (gameplayData.inventory && typeof gameplayData.inventory === 'object') {
+    inspectInventoryList('inventory.items', gameplayData.inventory.items);
+    inspectInventoryList('inventory.tempItems', gameplayData.inventory.tempItems);
+  }
+  if (gameplayData.farm && typeof gameplayData.farm === 'object') {
+    const plots = gameplayData.farm.plots;
+    if (plots !== undefined) {
+      if (!Array.isArray(plots)) {
+        push('illegal_collection_state', 'farm.plots', plots, 'array', []);
+      } else {
+        if (plots.length > SAVE_FARM_PLOT_LIMIT) push('collection_overflow', 'farm.plots', plots.length, SAVE_FARM_PLOT_LIMIT, SAVE_FARM_PLOT_LIMIT);
+        const validPlotStates = new Set(['wasteland', 'tilled', 'growing', 'harvestable', 'withered', 'empty', 'locked']);
+        plots.slice(0, SAVE_FARM_PLOT_LIMIT).forEach((plot, index) => {
+          if (!plot || typeof plot !== 'object') {
+            push('illegal_farm_plot', `farm.plots[${index}]`, plot, 'object', null);
+            return;
+          }
+          if (plot.state !== undefined && !validPlotStates.has(String(plot.state))) {
+            push('illegal_enum_state', `farm.plots[${index}].state`, plot.state, [...validPlotStates].join('|'), 'wasteland');
+          }
+          assertIntegerRange(`farm.plots[${index}].growthDays`, plot.growthDays, 0, SAVE_FARM_GROWTH_DAY_LIMIT);
+        });
+      }
+    }
+  }
+  return anomalies;
+}
+
+function assertGameplaySaveFieldIntegrity(saveContainer, phase = 'save_write') {
+  const anomalies = detectGameplaySaveFieldAnomalies(saveContainer?.gameplayData);
+  if (anomalies.length <= 0) return;
+  const error = createError('save field anomaly detected; repair out-of-range or illegal fields before writing this save', 422, 'TAOYUAN_SAVE_FIELD_ANOMALY');
+  error.details = {
+    phase,
+    anomaly_count: anomalies.length,
+    anomalies,
+    required_operation: 'repair_save_fields_before_write',
+  };
+  throw error;
+}
+
 function serializeGameplaySaveContainer(container) {
   const savedAt = new Date().toISOString();
   if (container?.wrapped) {
@@ -530,6 +644,7 @@ function prepareSlotEntryForSave(username, slot, raw, revision = 0) {
       changed: false,
     };
   }
+  assertGameplaySaveFieldIntegrity(saveContainer, 'prepare_slot_entry_for_save');
 
   const identity = ensureSaveIdentityRecord(username, normalizedSlot, getSaveNicknameSnapshot(saveContainer, username));
   const changed = applySaveIdentityToContainer(saveContainer, identity);
@@ -618,6 +733,7 @@ module.exports = {
   encryptTaoyuanData,
   buildSaveMeta,
   normalizeGameplaySaveContainer,
+  detectGameplaySaveFieldAnomalies,
   serializeGameplaySaveContainer,
   ensureSaveIdentityForSlot,
   ensureSaveIdentitiesForSlots,

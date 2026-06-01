@@ -4225,31 +4225,45 @@ function buildRiskNetworkClusters(entries = [], actor = {}, options = {}) {
   for (const signalType of signalTypes) {
     const bySignal = new Map();
     for (const entry of entries) {
-      const signal = getEntryRiskSignal(entry, signalType.type);
-      if (!signal) continue;
-      if (!bySignal.has(signal)) bySignal.set(signal, []);
-      bySignal.get(signal).push(entry);
-    }
-    for (const [signal, signalEntries] of bySignal.entries()) {
-      if (signalEntries.length < actionLimit) continue;
-      const actorUsernames = [...new Set(signalEntries.map(entry => normalizeUsername(entry.actor_username)).filter(Boolean))];
-      if (actorUsernames.length < 2) continue;
-      const actorInvolved = Boolean(signalType.actorValue && signalType.actorValue === signal);
-      clusters.push({
-        direction,
+      const signalValue = getEntryRiskSignal(entry, signalType.type);
+      if (!signalValue) continue;
+      const current = bySignal.get(signalValue) || {
         signal_type: signalType.type,
-        signal_hash: hashRiskSignal(signal),
-        action_count: signalEntries.length,
-        total_quantity: signalEntries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.quantity ?? entry.amount) || 0)), 0),
-        actor_count: actorUsernames.length,
-        actor_usernames: actorUsernames.slice(0, 12),
-        actor_involved: actorInvolved,
-        ledger_ids: signalEntries.map(entry => entry.id).filter(Boolean).slice(0, 20),
-      });
+        signal_hash: hashRiskSignal(`${signalType.type}:${signalValue}`),
+        direction,
+        action_count: 0,
+        quantity: 0,
+        amount: 0,
+        actor_usernames: [],
+        actor_count: 0,
+        ledger_ids: [],
+        actions: {},
+        actor_involved: signalType.actorValue && signalType.actorValue === signalValue,
+      };
+      const actorUsername = normalizeUsername(entry.actor_username);
+      if (actorUsername && !current.actor_usernames.includes(actorUsername)) {
+        current.actor_usernames.push(actorUsername);
+      }
+      current.actor_count = current.actor_usernames.length;
+      current.action_count += 1;
+      current.quantity += Math.max(0, Math.floor(Number(entry.quantity) || 0));
+      current.amount += Math.max(0, Math.floor(Number(entry.amount) || entry.total_amount || 0));
+      current.total_quantity = current.quantity + current.amount;
+      if (entry.id && current.ledger_ids.length < 20) current.ledger_ids.push(entry.id);
+      current.actions[entry.action] = (current.actions[entry.action] || 0) + 1;
+      bySignal.set(signalValue, current);
     }
+    clusters.push(...[...bySignal.values()]
+      .filter(cluster => cluster.actor_count >= 2 && cluster.action_count >= actionLimit)
+      .map(cluster => ({
+        ...cluster,
+        actor_usernames: cluster.actor_usernames.slice(0, 12),
+        ledger_ids: cluster.ledger_ids.slice(0, 20),
+        action_limit: actionLimit,
+      })));
   }
   return clusters
-    .sort((left, right) => right.action_count - left.action_count)
+    .sort((left, right) => right.action_count - left.action_count || right.actor_count - left.actor_count)
     .slice(0, 20);
 }
 
@@ -6088,8 +6102,6 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
   const sourceLedgerIds = Array.isArray(entry.source_ledger_ids)
     ? entry.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
     : [];
-  const quality = normalizeQuality(entry.quality);
-  const itemPolicy = summarizeWarehouseItemPolicy(getWarehouseItemPolicy(itemId), quality);
   const targetSlots = Array.isArray(entry.target_slots)
     ? entry.target_slots.map(slot => ({
         bag: sanitizeText(slot?.bag, 24) || 'inventory.items',
@@ -6102,14 +6114,8 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     id: sanitizeText(entry.id, 100) || makeId('shared_warehouse_ledger'),
     action,
     item_id: itemId,
-    quality,
+    quality: normalizeQuality(entry.quality),
     quantity,
-    item_policy_version: itemPolicy.policy_version,
-    item_policy_id: itemPolicy.policy_id,
-    item_classification: itemPolicy.classification,
-    withdrawal_risk_level: itemPolicy.risk_level,
-    high_value_withdrawal_required: itemPolicy.high_value_withdrawal_required,
-    item_policy: itemPolicy,
     actor_username: actorUsername,
     actor_display_name: sanitizeText(entry.actor_display_name || actorUsername, 60),
     actor_ip_address: normalizeRiskSignal(entry.actor_ip_address ?? entry.actorIpAddress ?? entry.ip_address ?? entry.ipAddress, 120),
@@ -28375,9 +28381,14 @@ async function recoverCohabitationWarehouseGovernance(contractId, payload = {}, 
     };
   }
 
-  const targetGovernance = buildSharedWarehouseGovernanceSnapshot(contract, targetMember.username);
-  const needsInboundRecovery = targetGovernance.actor_window.inbound_action_count >= targetGovernance.inbound_action_limit;
-  const needsOutboundRecovery = targetGovernance.actor_window.outbound_action_count >= targetGovernance.outbound_action_limit;
+  const targetGovernance = buildSharedWarehouseGovernanceSnapshot(contract, {
+    ...actor,
+    username: targetMember.username,
+  });
+  const needsInboundRecovery = targetGovernance.blocking.raw_block_inbound === true
+    || targetGovernance.blocking.raw_block_inbound_cross_device_brush === true;
+  const needsOutboundRecovery = targetGovernance.blocking.raw_block_outbound === true
+    || targetGovernance.blocking.raw_block_outbound_cross_device_brush === true;
   const directionNeedsRecovery = request.direction === 'all'
     ? needsInboundRecovery || needsOutboundRecovery
     : request.direction === 'inbound'
@@ -29252,6 +29263,7 @@ async function contributeCohabitationFund(contractId, payload = {}, actor = {}) 
     action: 'contribution',
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     amount: contribution.amount,
     at: nowSeconds(),
     memo: contribution.memo,
@@ -30240,6 +30252,7 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     action: 'spend',
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    ...buildActorRiskLedgerFields(actor),
     amount: draft.amount,
     at: operatedAt,
     memo: executeRequest.memo || draft.memo,

@@ -475,9 +475,15 @@ assert.equal(lifecycleSettled.room.action_log[0]?.room_state, 'settling', 'activ
 assert.deepEqual(lifecycleSettled.room.action_log[0]?.settlement_receipt_ids, lifecycleSettled.room.settlement_receipts.map(receipt => receipt.id), 'activity room settlement audit should record receipt ids')
 assert.match(lifecycleSettled.room.action_log[0]?.compensation_hint || '', /retryAdminActivityRoomSettlement/, 'activity room settlement audit should include compensation hint')
 await assert.rejects(
-  runtime.settleFestivalRoom(lifecycleRoom.room.id, actor(lifecycleHost)),
-  /当前房间已经生成过结算凭证了|只有进行中的活动房间才能进入结算/,
+  () => runtime.settleFestivalRoom(lifecycleRoom.room.id, actor(lifecycleHost)),
+  error => error?.status === 409,
   'activity room lifecycle should reject duplicate settlement creation'
+)
+const duplicateSettlementStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+const duplicateSettlementRoom = duplicateSettlementStore.rooms.find(room => room.id === lifecycleRoom.room.id)
+assert.ok(
+  duplicateSettlementRoom?.action_log?.some(entry => entry.action === 'room.settlement.duplicate_blocked'),
+  'duplicate settlement creation should write a blocked settlement audit row'
 )
 const lifecycleClosed = await runtime.retryAdminActivityRoomSettlement(lifecycleRoom.room.id)
 assert.equal(lifecycleClosed.room.state, 'closed', 'activity room lifecycle settlement replay should persist and close room')
@@ -881,6 +887,10 @@ if (dragonRewardDecoration.decoration_id) {
     'replayed receipt should not duplicate decoration rewards'
   )
 }
+assert.ok(
+  dragonReplayResult.room.action_log.some(entry => entry.action === 'room.reward.duplicate_blocked' && entry.idempotency_key === dragonStoredReceipt.idempotency_key),
+  'replayed dragon boat receipt should audit duplicate reward blocking'
+)
 
 const overview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
 assertCavernVisualNodes(overview.my_room, 0)
@@ -1053,6 +1063,11 @@ assert.equal(cavernReplayedReceipt?.route_replay?.kind, 'expedition_cavern', 're
 assert.equal(cavernReplayedReceipt?.route_replay?.combo_records?.length, 3, 'replayed cavern receipt should keep all combo records')
 assert.equal(cavernReplayedReceipt?.route_replay?.withdrawal_locked_combo_count, 3, 'replayed cavern receipt should keep locked combo count')
 assert.ok(cavernReplayedReceipt?.route_replay?.summary.includes('提前撤离'), 'replayed cavern receipt should keep early withdrawal summary')
+
+assert.ok(
+  cavernReplayResult.room.action_log.some(entry => entry.action === 'room.reward.duplicate_blocked' && entry.idempotency_key === cavernStoredReceipt.idempotency_key),
+  'replayed cavern receipt should audit duplicate reward blocking'
+)
 
 const escortActionResult = await runtime.submitExpeditionRoomGameplayAction(escortConvoy.room.id, {
   action_id: 'escort_step',

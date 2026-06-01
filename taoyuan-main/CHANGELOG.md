@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0601 20.2 异常检测收尾
+- 共同仓库 / 共同基金 / 庄园照料和偷菜治理快照新增同 IP / 设备短窗聚类证据，仓库放入 / 取出 / 卖出、基金小额预算、庄园照料和偷菜异常会在写资产、发奖励或写记录前限流，并保留 `warehouse_cross_device_brush_blocked`、`fund_high_frequency_spend_blocked`、`fund_cross_device_brush_blocked`、`manor_cross_device_brush_blocked` 等审计。
+- 房间重复结算 / 奖励重放、随机 NPC 生成异常和服务端坏档字段越界补齐阻断或审计证据；NPC 页展示最近生成异常审计，存档写入异常返回 422 字段清单。
+- 已跑 `qa:anomaly-detection-20-2`、`qa:manor-care`、`qa:manor-steal`、`qa:activity-room-visual-state`、`qa:save-corruption-guard` 和 `qa:random-npc-save-guard`。
+
 ### 0601 作物用途标签真实替代
 - 新增共用用途替代规划器：灶台在原食材不足时按 `food` 标签、风味和药性自动选同类作物补位；丹炉在原丹材不足时按 `alchemy / medicine` 标签、风味、药性与灵性补位。
 - 可制作判断、最大制作数、品质预览、批量丹炉上限、扣料和日志均读取同一替代计划；灶台 / 丹炉界面显示“用途替代”摘要，玩家能看到实际消耗来源。

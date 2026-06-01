@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const db = require('./db');
 const taoyuanImageModeration = require('./taoyuanImageModeration');
 const { moderateText } = require('./taoyuanTextModeration');
@@ -239,6 +240,7 @@ function createEmptyCareStore() {
     policies: {},
     entries: [],
     steals: [],
+    governance_events: [],
     care_rooms: [],
   };
 }
@@ -253,6 +255,7 @@ function loadCareStore() {
           policies: raw.policies && typeof raw.policies === 'object' ? raw.policies : {},
           entries: Array.isArray(raw.entries) ? raw.entries : [],
           steals: Array.isArray(raw.steals) ? raw.steals : [],
+          governance_events: Array.isArray(raw.governance_events) ? raw.governance_events : [],
           care_rooms: Array.isArray(raw.care_rooms) ? raw.care_rooms : [],
         }
       : createEmptyCareStore();
@@ -267,6 +270,7 @@ function saveCareStore(store) {
     policies: store?.policies && typeof store.policies === 'object' ? store.policies : {},
     entries: Array.isArray(store?.entries) ? store.entries : [],
     steals: Array.isArray(store?.steals) ? store.steals : [],
+    governance_events: Array.isArray(store?.governance_events) ? store.governance_events : [],
     care_rooms: Array.isArray(store?.care_rooms) ? store.care_rooms : [],
   });
 }
@@ -317,6 +321,9 @@ const MANOR_STEAL_OBJECT_DAILY_LIMIT = 1;
 const MANOR_STEAL_REWARD_QUANTITY_CAP = 1;
 const MANOR_STEAL_RECENT_LOG_LIMIT = 24;
 const MANOR_ACTIVITY_RECENT_WINDOW_SECONDS = 10 * 60;
+const MANOR_CARE_NETWORK_ACTION_LIMIT = 4;
+const MANOR_STEAL_NETWORK_ACTION_LIMIT = 3;
+const MANOR_GOVERNANCE_EVENT_LIMIT = 80;
 const MANOR_CARE_ROOM_MIN_MEMBERS = 2;
 const MANOR_CARE_ROOM_MAX_MEMBERS = 4;
 const MANOR_CARE_ROOM_WINDOW_SECONDS = 30 * 60;
@@ -731,6 +738,201 @@ function normalizeManorAccessPolicy(policy = {}, profile = {}) {
   };
 }
 
+function normalizeManorRiskSignal(value, maxLength = 160) {
+  if (Array.isArray(value)) return normalizeManorRiskSignal(value[0], maxLength);
+  return String(value || '').normalize('NFKC').trim().slice(0, maxLength).toLocaleLowerCase('zh-CN');
+}
+
+function hashManorRiskSignal(kind, value) {
+  const normalized = normalizeManorRiskSignal(value, 240);
+  if (!normalized) return '';
+  return crypto.createHash('sha256').update(`${kind}:${normalized}`).digest('hex').slice(0, 24);
+}
+
+function buildManorActorRiskMeta(actor = {}) {
+  const ipHash = normalizeManorRiskSignal(actor.visitor_ip_hash ?? actor.actor_ip_hash ?? actor.ipHash, 80)
+    || hashManorRiskSignal('ip', actor.ipAddress ?? actor.ip_address ?? actor.ip ?? actor.actor_ip_address);
+  const deviceHash = normalizeManorRiskSignal(actor.visitor_device_hash ?? actor.actor_device_hash ?? actor.deviceHash, 80)
+    || hashManorRiskSignal('device', actor.deviceId ?? actor.device_id ?? actor.clientDeviceId ?? actor.actor_device_id);
+  const userAgentHash = normalizeManorRiskSignal(actor.visitor_user_agent_hash ?? actor.actor_user_agent_hash ?? actor.userAgentHash, 80)
+    || hashManorRiskSignal('ua', actor.userAgent ?? actor.user_agent ?? actor.userAgentRaw ?? actor.user_agent_raw);
+  return {
+    visitor_ip_hash: ipHash,
+    visitor_device_hash: deviceHash,
+    visitor_user_agent_hash: userAgentHash,
+  };
+}
+
+function manorActorHasNetworkSignal(actor = {}) {
+  const meta = buildManorActorRiskMeta(actor);
+  return Boolean(meta.visitor_ip_hash || meta.visitor_device_hash);
+}
+
+function buildManorActorRiskLedgerFields(actor = {}) {
+  const meta = buildManorActorRiskMeta(actor);
+  return Object.fromEntries(Object.entries(meta).filter(([, value]) => Boolean(value)));
+}
+
+function getManorEntryRiskSignal(entry = {}, signalType = '') {
+  if (signalType === 'ip') {
+    return normalizeManorRiskSignal(entry.visitor_ip_hash ?? entry.actor_ip_hash, 80)
+      || hashManorRiskSignal('ip', entry.visitor_ip_address ?? entry.actor_ip_address ?? entry.ipAddress ?? entry.ip);
+  }
+  if (signalType === 'device') {
+    return normalizeManorRiskSignal(entry.visitor_device_hash ?? entry.actor_device_hash, 80)
+      || hashManorRiskSignal('device', entry.visitor_device_id ?? entry.actor_device_id ?? entry.deviceId ?? entry.device_id);
+  }
+  return '';
+}
+
+function buildManorRiskNetworkClusters(entries = [], actor = {}, options = {}) {
+  const checkedAt = nowSeconds();
+  const windowSeconds = Math.max(1, Math.floor(Number(options.windowSeconds) || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS));
+  const windowStartedAt = checkedAt - windowSeconds;
+  const actionLimit = Math.max(1, Math.floor(Number(options.actionLimit) || 1));
+  const interactionKind = sanitizeText(options.kind, 40) || 'manor_interaction';
+  const actorRiskMeta = buildManorActorRiskMeta(actor);
+  const signalTypes = [
+    { type: 'ip', actorValue: actorRiskMeta.visitor_ip_hash },
+    { type: 'device', actorValue: actorRiskMeta.visitor_device_hash },
+  ];
+  const recentEntries = entries.filter(entry => Math.max(0, Number(entry?.created_at) || 0) >= windowStartedAt);
+  const clusters = [];
+  for (const signalType of signalTypes) {
+    const bySignal = new Map();
+    for (const entry of recentEntries) {
+      const signalValue = getManorEntryRiskSignal(entry, signalType.type);
+      if (!signalValue) continue;
+      const current = bySignal.get(signalValue) || {
+        signal_type: signalType.type,
+        signal_hash: signalValue,
+        interaction_kind: interactionKind,
+        action_count: 0,
+        visitor_usernames: [],
+        visitor_count: 0,
+        entry_ids: [],
+        actions: {},
+        actor_involved: Boolean(signalType.actorValue && signalType.actorValue === signalValue),
+      };
+      const visitorUsername = String(entry.visitor_username || entry.actor_username || '').trim();
+      if (visitorUsername && !current.visitor_usernames.includes(visitorUsername)) {
+        current.visitor_usernames.push(visitorUsername);
+      }
+      current.visitor_count = current.visitor_usernames.length;
+      current.action_count += 1;
+      if (entry.id && current.entry_ids.length < 20) current.entry_ids.push(entry.id);
+      const actionId = sanitizeText(entry.action_id || entry.action, 60) || 'unknown';
+      current.actions[actionId] = (current.actions[actionId] || 0) + 1;
+      bySignal.set(signalValue, current);
+    }
+    clusters.push(...[...bySignal.values()]
+      .filter(cluster => cluster.visitor_count >= 2 && cluster.action_count >= actionLimit)
+      .map(cluster => ({
+        ...cluster,
+        visitor_usernames: cluster.visitor_usernames.slice(0, 12),
+        entry_ids: cluster.entry_ids.slice(0, 20),
+        action_limit: actionLimit,
+        window_seconds: windowSeconds,
+      })));
+  }
+  return clusters
+    .sort((left, right) => right.action_count - left.action_count || right.visitor_count - left.visitor_count)
+    .slice(0, 20);
+}
+
+function buildManorInteractionGovernance(entries = [], actor = {}, options = {}) {
+  const actionLimit = Math.max(1, Math.floor(Number(options.actionLimit) || 1));
+  const windowSeconds = Math.max(1, Math.floor(Number(options.windowSeconds) || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS));
+  const clusters = buildManorRiskNetworkClusters(entries, actor, {
+    kind: options.kind,
+    actionLimit,
+    windowSeconds,
+  });
+  const actorClusters = clusters.filter(cluster => cluster.actor_involved);
+  const actorRiskMeta = buildManorActorRiskMeta(actor);
+  return {
+    checked_at: nowSeconds(),
+    window_seconds: windowSeconds,
+    network_action_limit: actionLimit,
+    actor_window: {
+      actor_has_ip_signal: Boolean(actorRiskMeta.visitor_ip_hash),
+      actor_has_device_signal: Boolean(actorRiskMeta.visitor_device_hash),
+      network_action_count: actorClusters.reduce((sum, cluster) => sum + cluster.action_count, 0),
+      network_actor_usernames: [...new Set(actorClusters.flatMap(cluster => cluster.visitor_usernames || []))].slice(0, 12),
+    },
+    suspicious_networks: clusters,
+    blocking: {
+      block_cross_device_brush: manorActorHasNetworkSignal(actor) && actorClusters.length > 0,
+      raw_block_cross_device_brush: actorClusters.length > 0,
+      reason: actorClusters.length > 0
+        ? 'manor interaction is blocked because multiple visitors share the same IP/device risk signal in this window.'
+        : '',
+      required_operation: actorClusters.length > 0 ? 'review_manor_cross_device_brush' : '',
+    },
+    policy: {
+      cross_device_brush_detection_enabled: true,
+    },
+  };
+}
+
+function normalizeManorGovernanceEvent(entry = {}) {
+  return {
+    id: String(entry?.id || makeId('manor_governance')),
+    action: sanitizeText(entry?.action, 80) || 'manor_cross_device_brush_blocked',
+    kind: sanitizeText(entry?.kind, 40) || 'care',
+    target_username: String(entry?.target_username || '').trim(),
+    visitor_username: String(entry?.visitor_username || '').trim(),
+    visitor_display_name: sanitizeText(entry?.visitor_display_name, 30) || String(entry?.visitor_username || '匿名'),
+    day_tag: sanitizeText(entry?.day_tag, 20),
+    visitor_ip_hash: normalizeManorRiskSignal(entry?.visitor_ip_hash ?? entry?.actor_ip_hash, 80),
+    visitor_device_hash: normalizeManorRiskSignal(entry?.visitor_device_hash ?? entry?.actor_device_hash, 80),
+    visitor_user_agent_hash: normalizeManorRiskSignal(entry?.visitor_user_agent_hash ?? entry?.actor_user_agent_hash, 80),
+    action_id: sanitizeText(entry?.action_id, 60),
+    object_id: sanitizeText(entry?.object_id, 80),
+    idempotency_key: sanitizeText(entry?.idempotency_key, 160),
+    status: sanitizeText(entry?.status, 40) || 'blocked',
+    reason: sanitizeText(entry?.reason, 220),
+    window_seconds: Math.max(1, Math.floor(Number(entry?.window_seconds) || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS)),
+    network_action_limit: Math.max(1, Math.floor(Number(entry?.network_action_limit) || 1)),
+    network_action_count: Math.max(0, Math.floor(Number(entry?.network_action_count) || 0)),
+    network_actor_usernames: Array.isArray(entry?.network_actor_usernames)
+      ? entry.network_actor_usernames.map(username => sanitizeText(username, 60)).filter(Boolean).slice(0, 12)
+      : [],
+    suspicious_networks: Array.isArray(entry?.suspicious_networks)
+      ? entry.suspicious_networks.map(cluster => ({
+          signal_type: sanitizeText(cluster?.signal_type, 20),
+          signal_hash: sanitizeText(cluster?.signal_hash, 80),
+          interaction_kind: sanitizeText(cluster?.interaction_kind, 40),
+          action_count: Math.max(0, Math.floor(Number(cluster?.action_count) || 0)),
+          visitor_count: Math.max(0, Math.floor(Number(cluster?.visitor_count) || 0)),
+          visitor_usernames: Array.isArray(cluster?.visitor_usernames)
+            ? cluster.visitor_usernames.map(username => sanitizeText(username, 60)).filter(Boolean).slice(0, 12)
+            : [],
+          entry_ids: Array.isArray(cluster?.entry_ids)
+            ? cluster.entry_ids.map(id => sanitizeText(id, 120)).filter(Boolean).slice(0, 20)
+            : [],
+          action_limit: Math.max(1, Math.floor(Number(cluster?.action_limit) || 1)),
+          window_seconds: Math.max(1, Math.floor(Number(cluster?.window_seconds) || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS)),
+        })).slice(0, 8)
+      : [],
+    created_at: Number(entry?.created_at) || nowSeconds(),
+  };
+}
+
+function appendManorGovernanceEvent(store, event = {}) {
+  const events = Array.isArray(store?.governance_events)
+    ? store.governance_events.map(normalizeManorGovernanceEvent)
+    : [];
+  store.governance_events = [
+    normalizeManorGovernanceEvent({
+      id: makeId('manor_governance'),
+      created_at: nowSeconds(),
+      ...event,
+    }),
+    ...events,
+  ].slice(0, MANOR_GOVERNANCE_EVENT_LIMIT);
+}
+
 function normalizeManorCareEntry(entry) {
   return {
     id: String(entry?.id || makeId('manor_care')),
@@ -738,6 +940,9 @@ function normalizeManorCareEntry(entry) {
     target_save_id: normalizeManorSaveId(entry?.target_save_id ?? entry?.targetSaveId),
     target_save_slot: normalizeManorSaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
     visitor_username: String(entry?.visitor_username || '').trim(),
+    visitor_ip_hash: normalizeManorRiskSignal(entry?.visitor_ip_hash ?? entry?.actor_ip_hash, 80),
+    visitor_device_hash: normalizeManorRiskSignal(entry?.visitor_device_hash ?? entry?.actor_device_hash, 80),
+    visitor_user_agent_hash: normalizeManorRiskSignal(entry?.visitor_user_agent_hash ?? entry?.actor_user_agent_hash, 80),
     visitor_display_name: sanitizeText(entry?.visitor_display_name, 30) || String(entry?.visitor_username || '匿名'),
     action_id: sanitizeText(entry?.action_id, 60),
     action_label: sanitizeText(entry?.action_label, 40),
@@ -751,6 +956,12 @@ function normalizeManorCareEntry(entry) {
     reward_quantity: Math.max(0, Math.floor(Number(entry?.reward_quantity) || 0)),
     reward_quality: sanitizeText(entry?.reward_quality, 20) || 'normal',
     reward_save_revision: Math.max(0, Math.floor(Number(entry?.reward_save_revision) || 0)),
+    recent_window_seconds: Math.max(1, Math.floor(Number(entry?.recent_window_seconds) || MANOR_ACTIVITY_RECENT_WINDOW_SECONDS)),
+    recent_window_count: Math.max(0, Math.floor(Number(entry?.recent_window_count) || 0)),
+    risk_flags: Array.isArray(entry?.risk_flags)
+      ? entry.risk_flags.map(flag => sanitizeText(flag, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    anti_abuse_summary: sanitizeText(entry?.anti_abuse_summary, 180),
     summary: sanitizeText(entry?.summary, 180),
     created_at: Number(entry?.created_at) || nowSeconds(),
   };
@@ -781,6 +992,9 @@ function normalizeManorStealEntry(entry) {
     target_save_id: normalizeManorSaveId(entry?.target_save_id ?? entry?.targetSaveId),
     target_save_slot: normalizeManorSaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
     visitor_username: String(entry?.visitor_username || '').trim(),
+    visitor_ip_hash: normalizeManorRiskSignal(entry?.visitor_ip_hash ?? entry?.actor_ip_hash, 80),
+    visitor_device_hash: normalizeManorRiskSignal(entry?.visitor_device_hash ?? entry?.actor_device_hash, 80),
+    visitor_user_agent_hash: normalizeManorRiskSignal(entry?.visitor_user_agent_hash ?? entry?.actor_user_agent_hash, 80),
     visitor_display_name: sanitizeText(entry?.visitor_display_name, 30) || String(entry?.visitor_username || '匿名'),
     action_id: sanitizeText(entry?.action_id, 60),
     action_label: sanitizeText(entry?.action_label, 40),
@@ -1100,6 +1314,15 @@ function getStealEntriesForTarget(targetUsername) {
   const store = loadCareStore();
   return store.steals
     .map(normalizeManorStealEntry)
+    .filter(entry => entry.target_username === normalizedTarget)
+    .sort((left, right) => right.created_at - left.created_at);
+}
+
+function getManorGovernanceEventsForTarget(targetUsername) {
+  const normalizedTarget = String(targetUsername || '').trim();
+  const store = loadCareStore();
+  return (store.governance_events || [])
+    .map(normalizeManorGovernanceEvent)
     .filter(entry => entry.target_username === normalizedTarget)
     .sort((left, right) => right.created_at - left.created_at);
 }
@@ -1672,7 +1895,7 @@ function buildManorCareVisualObjects(gameplay, careEntries, stealEntries, contex
   });
 }
 
-function buildManorCareSnapshot(username, viewerUsername, gameplay, relationContext, accessPolicy, careEntries, stealEntries) {
+function buildManorCareSnapshot(username, viewerUsername, gameplay, relationContext, accessPolicy, careEntries, stealEntries, governanceEvents = []) {
   const dayTag = getLocalDayTag();
   const todayEntries = careEntries.filter(entry => entry.day_tag === dayTag);
   const viewerEntries = todayEntries.filter(entry => entry.visitor_username === viewerUsername);
@@ -1680,6 +1903,14 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
   const viewerStealEntries = todayStealEntries.filter(entry => entry.visitor_username === viewerUsername);
   const careVisitorCounts = buildDailyVisitorCountEntries(todayEntries, MANOR_CARE_DAILY_VISITOR_LIMIT);
   const stealVisitorCounts = buildDailyVisitorCountEntries(todayStealEntries, MANOR_STEAL_DAILY_VISITOR_LIMIT);
+  const careNetworkClusters = buildManorRiskNetworkClusters(todayEntries, {}, {
+    kind: 'care',
+    actionLimit: MANOR_CARE_NETWORK_ACTION_LIMIT,
+  });
+  const stealNetworkClusters = buildManorRiskNetworkClusters(todayStealEntries, {}, {
+    kind: 'steal',
+    actionLimit: MANOR_STEAL_NETWORK_ACTION_LIMIT,
+  });
   const careRiskFlags = buildInteractionRiskFlags(
     todayEntries,
     careVisitorCounts,
@@ -1687,6 +1918,7 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
     MANOR_CARE_DAILY_MANOR_LIMIT,
     3
   );
+  if (careNetworkClusters.length > 0) careRiskFlags.push('cross_device_brush_cluster');
   const stealRiskFlags = buildInteractionRiskFlags(
     todayStealEntries,
     stealVisitorCounts,
@@ -1694,6 +1926,8 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
     MANOR_STEAL_DAILY_MANOR_LIMIT,
     2
   );
+  if (stealNetworkClusters.length > 0) stealRiskFlags.push('cross_device_brush_cluster');
+  const todayGovernanceEvents = governanceEvents.filter(entry => entry.day_tag === dayTag);
   const objectCounts = new Map();
   for (const entry of todayEntries) {
     objectCounts.set(entry.object_id, (objectCounts.get(entry.object_id) || 0) + 1);
@@ -1794,7 +2028,11 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
         recent_window_seconds: MANOR_ACTIVITY_RECENT_WINDOW_SECONDS,
         recent_window_count: countRecentWindowEntries(todayEntries),
         daily_visitor_counts: careVisitorCounts,
-        risk_flags: careRiskFlags,
+        network_action_limit: MANOR_CARE_NETWORK_ACTION_LIMIT,
+        suspicious_networks: careNetworkClusters,
+        recent_governance_events: todayGovernanceEvents.filter(entry => entry.kind === 'care').slice(0, 10),
+        risk_flags: [...new Set(careRiskFlags)],
+        cross_device_brush_detection_enabled: true,
         dispute_log_available: true,
       },
       care_denied_reason: canCare
@@ -1835,7 +2073,11 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
         recent_window_seconds: MANOR_ACTIVITY_RECENT_WINDOW_SECONDS,
         recent_window_count: countRecentWindowEntries(todayStealEntries),
         daily_visitor_counts: stealVisitorCounts,
-        risk_flags: stealRiskFlags,
+        network_action_limit: MANOR_STEAL_NETWORK_ACTION_LIMIT,
+        suspicious_networks: stealNetworkClusters,
+        recent_governance_events: todayGovernanceEvents.filter(entry => entry.kind === 'steal').slice(0, 10),
+        risk_flags: [...new Set(stealRiskFlags)],
+        cross_device_brush_detection_enabled: true,
         dispute_log_available: true,
       },
       whitelist_summary: '仅普通成熟作物、普通果实和边角产物可轻采；任务物、稀有物、唯一物、绑定物和活动核心物被排除；可偷目标会显示料理、订单、节会、宠物或赠礼用途标签。',
@@ -2057,6 +2299,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
   const visitEntries = getVisitsForTarget(user.username);
   const careEntries = getCareEntriesForTarget(user.username);
   const stealEntries = getStealEntriesForTarget(user.username);
+  const governanceEvents = getManorGovernanceEventsForTarget(user.username);
   const careRooms = getCareRoomsForTarget(user.username);
   const careRoomRecords = careRooms.filter(room => room.status === 'completed');
   const guideConfig = getGuideConfig(user.username);
@@ -2074,7 +2317,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     .filter(entry => entry.manor_username === user.username)
     .length;
   const themeWeek = buildThemeWeekState(user.username, gameplay, profile.showcase_theme, publicTags, favoriteCount, placedDecorationCount);
-  const careSnapshot = buildManorCareSnapshot(user.username, viewer, gameplay, relationContext, accessPolicy, careEntries, stealEntries);
+  const careSnapshot = buildManorCareSnapshot(user.username, viewer, gameplay, relationContext, accessPolicy, careEntries, stealEntries, governanceEvents);
   const careRoomState = buildManorCareRoomState(user.username, viewer, relationContext, accessPolicy, careRooms);
 
   return {
@@ -2267,6 +2510,32 @@ async function submitManorCareAction(payload = {}, actor = {}) {
     throw createError('这座庄园今天已经被照料得足够多了', 429);
   }
 
+  const careGovernance = buildManorInteractionGovernance(todayEntries, actor, {
+    kind: 'care',
+    actionLimit: MANOR_CARE_NETWORK_ACTION_LIMIT,
+  });
+  if (careGovernance.blocking.block_cross_device_brush === true) {
+    appendManorGovernanceEvent(store, {
+      action: 'manor_cross_device_brush_blocked',
+      kind: 'care',
+      target_username: targetUsername,
+      visitor_username: visitorUsername,
+      visitor_display_name: actor.displayName || visitorUsername,
+      day_tag: dayTag,
+      action_id: actionDef.id,
+      object_id: actionDef.object_id,
+      idempotency_key: idempotencyKey,
+      reason: careGovernance.blocking.reason,
+      window_seconds: careGovernance.window_seconds,
+      network_action_limit: careGovernance.network_action_limit,
+      network_action_count: careGovernance.actor_window.network_action_count,
+      network_actor_usernames: careGovernance.actor_window.network_actor_usernames,
+      suspicious_networks: careGovernance.suspicious_networks.filter(cluster => cluster.actor_involved).slice(0, 4),
+    });
+    saveCareStore(store);
+    throw createError('庄园照料触发同 IP / 设备互刷检测，请稍后再试或提交申诉复核。', 429);
+  }
+
   const objectDef = MANOR_CARE_VISUAL_OBJECT_DEFS.find(definition => definition.id === actionDef.object_id);
   const objectDailyLimit = Math.max(1, objectDef?.progress_target || 1);
   const objectDailyCount = countCareEntries(todayEntries, entry => entry.object_id === actionDef.object_id);
@@ -2287,6 +2556,32 @@ async function submitManorCareAction(payload = {}, actor = {}) {
   }
 
   const objectLabel = objectDef?.label || actionDef.object_id;
+  const createdAt = nowSeconds();
+  const actorRiskFields = buildManorActorRiskLedgerFields(actor);
+  const projectedCareEntries = [
+    {
+      visitor_username: visitorUsername,
+      visitor_display_name: actor.displayName || visitorUsername,
+      action_id: actionDef.id,
+      object_id: actionDef.object_id,
+      created_at: createdAt,
+      ...actorRiskFields,
+    },
+    ...todayEntries,
+  ];
+  const projectedCareRiskFlags = new Set(buildInteractionRiskFlags(
+    projectedCareEntries,
+    buildDailyVisitorCountEntries(projectedCareEntries, MANOR_CARE_DAILY_VISITOR_LIMIT),
+    MANOR_CARE_DAILY_VISITOR_LIMIT,
+    MANOR_CARE_DAILY_MANOR_LIMIT,
+    3
+  ));
+  if (buildManorRiskNetworkClusters(projectedCareEntries, actor, {
+    kind: 'care',
+    actionLimit: MANOR_CARE_NETWORK_ACTION_LIMIT,
+  }).some(cluster => cluster.actor_involved)) {
+    projectedCareRiskFlags.add('cross_device_brush_cluster');
+  }
   const visitorRewardResult = grantManorCareVisitorReward(visitorUsername, actionDef.reward_item);
   const entry = normalizeManorCareEntry({
     id: makeId('manor_care'),
@@ -2295,6 +2590,7 @@ async function submitManorCareAction(payload = {}, actor = {}) {
     target_save_slot: targetIdentity?.save_slot ?? null,
     visitor_username: visitorUsername,
     visitor_display_name: actor.displayName || visitorUsername,
+    ...actorRiskFields,
     action_id: actionDef.id,
     action_label: actionDef.label,
     object_id: actionDef.object_id,
@@ -2307,8 +2603,12 @@ async function submitManorCareAction(payload = {}, actor = {}) {
     reward_quantity: visitorRewardResult.quantity,
     reward_quality: visitorRewardResult.quality,
     reward_save_revision: visitorRewardResult.save_revision,
+    recent_window_seconds: MANOR_ACTIVITY_RECENT_WINDOW_SECONDS,
+    recent_window_count: countRecentWindowEntries(projectedCareEntries),
+    risk_flags: Array.from(projectedCareRiskFlags),
+    anti_abuse_summary: `反刷窗口 ${Math.floor(MANOR_ACTIVITY_RECENT_WINDOW_SECONDS / 60)} 分钟内 ${countRecentWindowEntries(projectedCareEntries)} 次；访客 ${visitorDailyCount + 1}/${MANOR_CARE_DAILY_VISITOR_LIMIT}，庄园 ${todayEntries.length + 1}/${MANOR_CARE_DAILY_MANOR_LIMIT}。`,
     summary: `${actor.displayName || visitorUsername} 在${objectLabel}完成「${actionDef.label}」：${actionDef.owner_benefit}。`,
-    created_at: nowSeconds(),
+    created_at: createdAt,
   });
   store.entries = [entry, ...entries].slice(0, 1000);
   saveCareStore(store);
@@ -2390,6 +2690,31 @@ async function submitManorStealAction(payload = {}, actor = {}) {
   if (todaySteals.length >= MANOR_STEAL_DAILY_MANOR_LIMIT) {
     throw createError('这座庄园今天已经被轻采得足够多了', 429);
   }
+  const stealGovernance = buildManorInteractionGovernance(todaySteals, actor, {
+    kind: 'steal',
+    actionLimit: MANOR_STEAL_NETWORK_ACTION_LIMIT,
+  });
+  if (stealGovernance.blocking.block_cross_device_brush === true) {
+    appendManorGovernanceEvent(store, {
+      action: 'manor_cross_device_brush_blocked',
+      kind: 'steal',
+      target_username: targetUsername,
+      visitor_username: visitorUsername,
+      visitor_display_name: actor.displayName || visitorUsername,
+      day_tag: dayTag,
+      action_id: actionDef.id,
+      object_id: actionDef.object_id,
+      idempotency_key: idempotencyKey,
+      reason: stealGovernance.blocking.reason,
+      window_seconds: stealGovernance.window_seconds,
+      network_action_limit: stealGovernance.network_action_limit,
+      network_action_count: stealGovernance.actor_window.network_action_count,
+      network_actor_usernames: stealGovernance.actor_window.network_actor_usernames,
+      suspicious_networks: stealGovernance.suspicious_networks.filter(cluster => cluster.actor_involved).slice(0, 4),
+    });
+    saveCareStore(store);
+    throw createError('庄园偷菜触发同 IP / 设备互刷检测，请稍后再试或提交申诉复核。', 429);
+  }
   const objectDailyCount = countCareEntries(todaySteals, entry => entry.object_id === actionDef.object_id);
   if (objectDailyCount >= MANOR_STEAL_OBJECT_DAILY_LIMIT) {
     throw createError('这个庄园物件今天已经被轻采过了', 409);
@@ -2408,16 +2733,26 @@ async function submitManorStealAction(payload = {}, actor = {}) {
   const objectDef = MANOR_CARE_VISUAL_OBJECT_DEFS.find(definition => definition.id === actionDef.object_id);
   const objectLabel = objectDef?.label || actionDef.object_id;
   const createdAt = nowSeconds();
+  const actorRiskFields = buildManorActorRiskLedgerFields(actor);
   const projectedSteals = [
     {
       visitor_username: visitorUsername,
       visitor_display_name: actor.displayName || visitorUsername,
+      action_id: actionDef.id,
+      object_id: actionDef.object_id,
       created_at: createdAt,
+      ...actorRiskFields,
     },
     ...todaySteals,
   ];
   const projectedVisitorCounts = buildDailyVisitorCountEntries(projectedSteals, MANOR_STEAL_DAILY_VISITOR_LIMIT);
   const projectedRiskFlags = new Set(buildInteractionRiskFlags(projectedSteals, projectedVisitorCounts, MANOR_STEAL_DAILY_VISITOR_LIMIT, MANOR_STEAL_DAILY_MANOR_LIMIT, 2));
+  if (buildManorRiskNetworkClusters(projectedSteals, actor, {
+    kind: 'steal',
+    actionLimit: MANOR_STEAL_NETWORK_ACTION_LIMIT,
+  }).some(cluster => cluster.actor_involved)) {
+    projectedRiskFlags.add('cross_device_brush_cluster');
+  }
   if (objectDailyCount + 1 >= MANOR_STEAL_OBJECT_DAILY_LIMIT) projectedRiskFlags.add('object_daily_limit_reached');
   const entry = normalizeManorStealEntry({
     id: makeId('manor_steal'),
@@ -2426,6 +2761,7 @@ async function submitManorStealAction(payload = {}, actor = {}) {
     target_save_slot: targetIdentity?.save_slot ?? null,
     visitor_username: visitorUsername,
     visitor_display_name: actor.displayName || visitorUsername,
+    ...actorRiskFields,
     action_id: actionDef.id,
     action_label: actionDef.label,
     object_id: actionDef.object_id,
