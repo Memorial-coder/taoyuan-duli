@@ -2211,6 +2211,54 @@ export interface CohabitationSeparationPersonalRelationshipMutationSummary {
   [key: string]: unknown
 }
 
+export interface CohabitationSeparationManorExitHandoverRecord {
+  record_version?: number
+  record_id?: string
+  relation_type?: string
+  shared_manor_id?: string
+  preview_id?: string
+  execution_ledger_id?: string
+  story_event_kind?: string
+  exit_record_kind?: string
+  meeting_record_required?: boolean
+  meeting_recorded?: boolean
+  handover_record_required?: boolean
+  handover_recorded?: boolean
+  family_role_handover_executed?: boolean
+  contract_role_state_mutated?: boolean
+  personal_save_mutated?: boolean
+  member_count?: number
+  member_roles?: Array<{
+    username?: string
+    username_key?: string
+    display_name?: string
+    contract_role?: string
+    manor_role?: string
+    manor_role_label?: string
+    handover_status?: string
+    [key: string]: unknown
+  }>
+  family_head_username?: string
+  successor_required?: boolean
+  successor_username?: string
+  role_reassignment_policy?: string
+  asset_domain_handover?: Record<string, string>
+  followup_required?: string
+  privacy_boundary?: string
+  recorded_by_username?: string
+  recorded_at?: number
+  idempotency_key?: string
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationFamilyStoryResolution {
+  personal_relationship_mutation_summary?: CohabitationSeparationPersonalRelationshipMutationSummary
+  manor_exit_handover_record?: CohabitationSeparationManorExitHandoverRecord | null
+  manor_exit_handover_recorded?: boolean
+  family_role_handover_executed?: boolean
+  [key: string]: unknown
+}
+
 export interface CohabitationSeparationSharedFundConsumptionDeltaDisputeRow {
   key?: string
   origin_owner_id?: string
@@ -2312,9 +2360,7 @@ export interface CohabitationSeparationPreview {
       family_story_resolved?: boolean
       family_story_resolved_at?: number
       family_story_resolved_by?: string
-      family_story_resolution?: Record<string, unknown> & {
-        personal_relationship_mutation_summary?: CohabitationSeparationPersonalRelationshipMutationSummary
-      }
+      family_story_resolution?: CohabitationSeparationFamilyStoryResolution
       personal_story_receipts_written?: boolean
       personal_story_receipts_written_at?: number
       personal_story_receipts_written_by?: string

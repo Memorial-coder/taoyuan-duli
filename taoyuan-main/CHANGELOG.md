@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0601 同居分居庄园退出交接记录前端读回
+- 分居面板新增“庄园退出交接”只读区，读取 `manor_exit_handover_record` 展示记录 ID、成员职位、家主 / 负责人、职位释放策略、记录人 / 时间和个人存档 / 契约职位不改写边界。
+- 交接区同步展示 `asset_domain_handover` 的共同地图、基金、仓库、装饰 / 家具、家族建筑、订单和声望状态；前端 API 类型与 `qa:online-ui-structure` 守护 `family_role_handover_executed` 与 `member_roles`。
+
 ### 0601 同居分居共同基金消费差额争议明细读回
 - 共同基金差额确认摘要新增 `consumption_delta_dispute_rows`，逐行保留原主、建议返还、拆分基数、资本 / 经营 / 未知经营贡献金额、来源 ledger、确认状态和 no-mutation 边界。
 - 分居基金面板新增消费差额争议明细区，前端 API 类型与 `qa:online-ui-structure` 同步守护行级读回；本轮只补只读证据，不改变共同基金返还金额、个人铜币、共同基金或共同仓库写回。

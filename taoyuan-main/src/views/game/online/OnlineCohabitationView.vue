@@ -521,6 +521,58 @@
                     </p>
                   </div>
                   <div
+                    v-if="separationManorExitHandoverRecord"
+                    class="space-y-2 border border-emerald-300/20 bg-emerald-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-manor-exit-handover-readback"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">庄园退出交接</p>
+                      <span>{{ separationManorExitHandoverBoundaryLabel }}</span>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <p
+                        v-for="row in separationManorExitHandoverReadbackRows"
+                        :key="row.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                        :data-testid="`online-cohabitation-separation-manor-exit-${row.key}`"
+                      >
+                        <span class="block text-accent">{{ row.label }}</span>
+                        <span class="mt-1 block break-all">{{ row.value }}</span>
+                      </p>
+                    </div>
+                    <div
+                      v-if="separationManorExitMemberRoles.length"
+                      class="grid gap-2 md:grid-cols-2"
+                      data-testid="online-cohabitation-separation-manor-exit-member-roles"
+                    >
+                      <p
+                        v-for="member in separationManorExitMemberRoles"
+                        :key="member.username_key || member.username"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                      >
+                        <span class="block text-accent">{{ member.display_name || member.username }}</span>
+                        <span class="mt-1 block">{{ member.manor_role_label || member.manor_role || member.contract_role }} · {{ member.handover_status }}</span>
+                      </p>
+                    </div>
+                    <div
+                      v-if="separationManorExitAssetDomainRows.length"
+                      class="grid gap-2 md:grid-cols-3"
+                      data-testid="online-cohabitation-separation-manor-exit-asset-domain-handover"
+                    >
+                      <p
+                        v-for="row in separationManorExitAssetDomainRows"
+                        :key="row.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                      >
+                        <span class="block text-accent">{{ row.label }}</span>
+                        <span class="mt-1 block break-all">{{ row.value }}</span>
+                      </p>
+                    </div>
+                    <p class="leading-4">
+                      {{ separationManorExitHandoverRecord.privacy_boundary || '仅记录共同契约交接册；不改个人存档、家族图谱、孩子、铜币、背包、农田或小屋主状态。' }}
+                    </p>
+                  </div>
+                  <div
                     v-if="separationPersonalRelationshipMutationReadbackRows.length"
                     class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
                     data-testid="online-cohabitation-separation-personal-relationship-mutation-readback"
@@ -3391,6 +3443,7 @@
     CohabitationSharedPet,
     CohabitationSharedPlot,
     CohabitationSharedRegion,
+    CohabitationSeparationManorExitHandoverRecord,
     CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
     CohabitationSharedWorkshopRecipe,
     CohabitationWarehouseCompensationAuditBundle,
@@ -3606,6 +3659,20 @@
     mutation_adapter: string
     affected_npc_ids: string[]
     mutation_actions: string[]
+  }
+  type SeparationManorExitMemberRole = {
+    username: string
+    username_key: string
+    display_name: string
+    contract_role: string
+    manor_role: string
+    manor_role_label: string
+    handover_status: string
+  }
+  type SeparationManorExitAssetDomainRow = {
+    key: string
+    label: string
+    value: string
   }
   type SeparationStoryCinematicPlaybackStep = {
     key: string
@@ -3987,7 +4054,7 @@
     const sharedFundMutated = row.shared_fund_mutated === true
     const sharedWarehouseMutated = row.shared_warehouse_mutated === true
     return {
-      key: String(row.key ?? row.origin_owner_key ?? owner || `row-${index + 1}`),
+      key: String(row.key ?? row.origin_owner_key ?? (owner || `row-${index + 1}`)),
       origin_owner_username: owner || '未知成员',
       suggested_refund_amount: separationSharedFundAmount(row.suggested_refund_amount),
       capital_contribution_amount: separationSharedFundAmount(row.capital_contribution_amount),
@@ -4165,6 +4232,97 @@
     const resolution = separationExecutionRequest.value?.family_story_resolution
     if (!resolution || typeof resolution !== 'object' || Array.isArray(resolution)) return null
     return resolution as Record<string, unknown>
+  })
+  const separationManorExitStatusLabel = (status = '') => {
+    const labels: Record<string, string> = {
+      role_released_on_contract_exit: '退出时释放职位',
+      origin_plots_returned: '来源田区已返还',
+      plot_return_pending: '田区返还待处理',
+      shared_fund_refunded: '共同基金已结算',
+      shared_fund_pending: '共同基金待结算',
+      shared_warehouse_returned: '共同仓库已返还',
+      shared_warehouse_pending: '共同仓库待返还',
+      decorations_split_recorded: '装饰 / 建筑拆分已记录',
+      decorations_split_pending: '装饰 / 建筑待拆分',
+      family_buildings_split_recorded: '家族建筑拆分已记录',
+      family_buildings_split_pending: '家族建筑待拆分',
+      contract_record_only: '仅共同契约记录',
+      not_applicable: '不适用',
+      personal_and_family_main_state_migration_deferred: '个人 / 家族主状态迁移待后续',
+      contract_exit_releases_family_roles_without_reassigning_owner: '退出释放职位，不静默重排家主',
+    }
+    return labels[status] || status || '待记录'
+  }
+  const separationManorExitHandoverRecord = computed<CohabitationSeparationManorExitHandoverRecord | null>(() => {
+    const resolution = separationStoryCinematicResolution.value
+    const record = resolution?.manor_exit_handover_record
+    if (!record || typeof record !== 'object' || Array.isArray(record)) return null
+    return record as CohabitationSeparationManorExitHandoverRecord
+  })
+  const separationManorExitMemberRoles = computed<SeparationManorExitMemberRole[]>(() =>
+    Array.isArray(separationManorExitHandoverRecord.value?.member_roles)
+      ? separationManorExitHandoverRecord.value.member_roles
+          .map(member => {
+            const username = String(member?.username ?? '').trim()
+            const usernameKey = String(member?.username_key ?? username).trim()
+            return {
+              username,
+              username_key: usernameKey,
+              display_name: String(member?.display_name ?? username).trim(),
+              contract_role: String(member?.contract_role ?? '').trim(),
+              manor_role: String(member?.manor_role ?? '').trim(),
+              manor_role_label: String(member?.manor_role_label ?? '').trim(),
+              handover_status: separationManorExitStatusLabel(String(member?.handover_status ?? '')),
+            }
+          })
+          .filter(member => member.username)
+      : []
+  )
+  const separationManorExitAssetDomainRows = computed<SeparationManorExitAssetDomainRow[]>(() => {
+    const assetDomain = separationManorExitHandoverRecord.value?.asset_domain_handover
+    if (!assetDomain || typeof assetDomain !== 'object' || Array.isArray(assetDomain)) return []
+    const labels: Record<string, string> = {
+      shared_map: '共同地图',
+      shared_fund: '共同基金',
+      shared_warehouse: '共同仓库',
+      shared_decorations: '装饰 / 家具',
+      family_buildings: '家族建筑',
+      family_orders: '家族订单',
+      family_reputation: '家族声望',
+    }
+    return Object.entries(assetDomain as Record<string, unknown>)
+      .map(([key, value]) => ({
+        key,
+        label: labels[key] || key,
+        value: separationManorExitStatusLabel(String(value ?? '')),
+      }))
+      .filter(row => row.value !== '待记录')
+      .slice(0, 12)
+  })
+  const separationManorExitHandoverBoundaryLabel = computed(() => {
+    const record = separationManorExitHandoverRecord.value
+    if (!record) return '等待交接记录'
+    const meeting = record.meeting_recorded === true ? '会议已记录' : record.meeting_record_required === true ? '会议待记录' : '无需会议'
+    const handover = record.handover_recorded === true ? '交接册已记录' : '交接册待记录'
+    const role = record.family_role_handover_executed === true ? '职位交接已登记' : '职位交接待登记'
+    return `${meeting} · ${handover} · ${role}`
+  })
+  const separationManorExitHandoverReadbackRows = computed<SeparationStoryCinematicReadbackRow[]>(() => {
+    const record = separationManorExitHandoverRecord.value
+    if (!record) return []
+    return [
+      { key: 'record_id', label: '交接记录', value: separationStoryValueLabel(record.record_id) },
+      { key: 'relation_type', label: '契约类型', value: separationStoryValueLabel(record.relation_type) },
+      { key: 'exit_record_kind', label: '退出记录类型', value: separationStoryValueLabel(record.exit_record_kind) },
+      { key: 'member_count', label: '交接成员', value: String(record.member_count || separationManorExitMemberRoles.value.length || 0) },
+      { key: 'family_head_username', label: '原家主 / 负责人', value: separationStoryValueLabel(record.family_head_username, '未记录') },
+      { key: 'role_reassignment_policy', label: '职位策略', value: separationManorExitStatusLabel(String(record.role_reassignment_policy || '')) },
+      { key: 'followup_required', label: '后续事项', value: separationManorExitStatusLabel(String(record.followup_required || '')) },
+      { key: 'recorded_by_username', label: '记录人', value: separationStoryValueLabel(record.recorded_by_username, '未记录') },
+      { key: 'recorded_at', label: '记录时间', value: Number(record.recorded_at) > 0 ? formatTime(Number(record.recorded_at)) : '未记录' },
+      { key: 'personal_save_mutated', label: '个人存档', value: record.personal_save_mutated === true ? '已改写' : '未改写' },
+      { key: 'contract_role_state_mutated', label: '契约职位主状态', value: record.contract_role_state_mutated === true ? '已重排' : '未静默重排' },
+    ]
   })
   const separationPersonalRelationshipMutationSummary = computed<SeparationPersonalRelationshipMutationSummary | null>(() => {
     const resolution = separationStoryCinematicResolution.value
