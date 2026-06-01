@@ -23,6 +23,9 @@
 - 设置存档新增 `cropUseTagSaveVersion=1` 与 `cropUseFilterState.version=1`，作物用途筛选会兼容旧 `inventoryCropUseFilter` 并自动补默认 / 清洗非法标签。
 - 服务端联机活动房间 store 与 `visual_state` 写入 `version=1`，共同庄园共享日志拆出 `shared_log.version=1` 并继续同步 legacy `audit_log`。
 
+### 0601 随机 NPC 对话模板第一版收口
+- 联机节会房间最近凭证和当前房间结算凭证会触发本地随机 NPC 对话记忆，短访 / 熟人 / 长住 NPC 会按节会场景写入 `online_festival_room:*` 记录、关系方向信号和限长关键事件。
+- 长住随机 NPC 会同步一条节会型家族印象；触发器只读联机房间凭证，不把随机 NPC 私密字段写入服务端公开关系图或联机资料，`qa:random-npc-content-guard` 固定房间 store 接线。
 ### 0601 随机 NPC 家人线中段差异奖励收口
 - 核心家族深线第 2 段在家人线中改为节点差异加赠，父母 / 手足 / 远亲 / 师门 / 商队 / 旧债 / 家族产业 / 义亲 / 前缘会分别给出蜂蜜、野果、纸张、药材干、西域香料、布匹或待客清茶。
 - 第 3 段高阶差异奖励继续保留，奖励仍走整组入包、最多 3 项和有界 `specialTieEventHistory`；19.3 关系模板与家族模板 TODO 按第一版收口，`qa:random-npc-content-guard` 固定中段差异加赠入口。

@@ -8,11 +8,12 @@ const projectRoot = path.resolve(__dirname, '..')
 
 const readProjectSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
 
-const [randomNpcs, npcTypes, npcView, useNpcStore, familyRelationGraph] = await Promise.all([
+const [randomNpcs, npcTypes, npcView, useNpcStore, useFestivalRoomStore, familyRelationGraph] = await Promise.all([
   readProjectSource('src/data/randomNpcs.ts'),
   readProjectSource('src/types/npc.ts'),
   readProjectSource('src/views/game/NpcView.vue'),
   readProjectSource('src/stores/useNpcStore.ts'),
+  readProjectSource('src/stores/useFestivalRoomStore.ts'),
   readProjectSource('src/components/game/FamilyRelationGraph.vue')
 ])
 
@@ -200,6 +201,10 @@ for (const fragment of [
   "if (kind === 'family') {",
   "if (familyLine.metTieIds.length <= 0) return { success: false, message: '家人线需要先至少见过一个家族节点。' }",
   'getRandomNpcFamilyLineSpecialEventReward',
+  'recordRandomNpcOnlineFestivalRoomDialogue',
+  'online_festival_room:',
+  '【联机节会房间】',
+  'RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT',
   "resident.relationshipLine.kind !== 'family'",
   '家人线加赠',
   'mergeRandomNpcFamilySpecialEventRewardItems',
@@ -222,6 +227,18 @@ for (const fragment of [
   'sanitizeRandomNpcDialogueMemories(entry.dialogueMemories, RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT)'
 ]) {
   assertIncludes(useNpcStore, fragment, `NPC store should continue reading template content: ${fragment}`)
+}
+
+for (const fragment of [
+  'useNpcStore',
+  'syncRandomNpcOnlineFestivalRoomTriggers',
+  'recordRandomNpcOnlineFestivalRoomDialogue',
+  "trigger: 'recent_receipt'",
+  "trigger: 'settlement_receipt'",
+  'nextOverview.recent_receipts',
+  'room.settlement_receipts'
+]) {
+  assertIncludes(useFestivalRoomStore, fragment, `festival room store should trigger bounded random NPC dialogue memory: ${fragment}`)
 }
 
 for (const fragment of [

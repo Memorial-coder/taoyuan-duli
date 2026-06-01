@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { useNpcStore } from '@/stores/useNpcStore'
 import {
   closeFestivalRoom,
   createFestivalRoom,
@@ -76,8 +77,40 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     return recommended.length > 0 ? recommended : gameplayTemplates.value
   })
 
+  const syncRandomNpcOnlineFestivalRoomTriggers = (nextOverview: FestivalRoomOverview | null) => {
+    if (!nextOverview) return
+    const npcStore = useNpcStore()
+    for (const receipt of nextOverview.recent_receipts ?? []) {
+      npcStore.recordRandomNpcOnlineFestivalRoomDialogue({
+        trigger: 'recent_receipt',
+        roomId: receipt.room_id,
+        roomTitle: receipt.room_title,
+        templateId: receipt.template_id,
+        templateLabel: receipt.template_label,
+        receiptId: receipt.id,
+        receiptSummary: receipt.summary,
+        replayTitle: receipt.route_replay?.title
+      })
+    }
+    const room = nextOverview.my_room
+    if (!room) return
+    for (const receipt of room.settlement_receipts ?? []) {
+      npcStore.recordRandomNpcOnlineFestivalRoomDialogue({
+        trigger: 'settlement_receipt',
+        roomId: room.id,
+        roomTitle: room.title,
+        templateId: room.template_id,
+        templateLabel: room.template_label,
+        receiptId: receipt.id,
+        receiptSummary: receipt.summary,
+        replayTitle: receipt.route_replay?.title
+      })
+    }
+  }
+
   const hydrateOverview = (nextOverview: FestivalRoomOverview | null) => {
     overview.value = nextOverview
+    syncRandomNpcOnlineFestivalRoomTriggers(nextOverview)
     const nextTemplates = nextOverview?.templates ?? []
     const firstTemplate = nextTemplates[0]
     if (firstTemplate && !nextTemplates.some(template => template.id === selectedTemplateId.value)) {

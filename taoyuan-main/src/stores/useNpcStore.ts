@@ -152,6 +152,17 @@ type RandomNpcDialogueContextTarget = {
   dialogueMemories: RandomNpcDialogueMemoryEntry[]
 }
 
+type RandomNpcOnlineFestivalRoomDialoguePayload = {
+  trigger: 'recent_receipt' | 'settlement_receipt'
+  roomId: string
+  roomTitle: string
+  templateId: string
+  templateLabel: string
+  receiptId: string
+  receiptSummary: string
+  replayTitle?: string
+}
+
 const RANDOM_NPC_SEASON_CONTEXT_LINES: Record<Season, string> = {
   spring: '春日草木新发，话题自然绕回播种与新客。',
   summer: '夏日气息正盛，路上的见闻也被晒得更明亮。',
@@ -3615,6 +3626,152 @@ export const useNpcStore = defineStore('npc', () => {
       )
     }
     return { success: true, message: response, resident: nextResident ?? resident }
+  }
+
+  const recordRandomNpcOnlineFestivalRoomDialogue = (
+    payload: RandomNpcOnlineFestivalRoomDialoguePayload
+  ): { success: boolean; message: string } => {
+    const receiptKey = `${payload.roomId}:${payload.receiptId || payload.templateId}`
+    const choiceId = `online_festival_room:${receiptKey}`
+    const alreadyRecorded = [
+      ...randomNpcBoard.value.longStayResidents,
+      ...randomNpcBoard.value.activeVisitors,
+      ...randomNpcBoard.value.acquaintances
+    ].some(entry => entry.dialogueMemories.some(memory => memory.choiceId === choiceId))
+    if (alreadyRecorded) return { success: false, message: '这次联机节会房间对话已经记录过。' }
+
+    const longStayTargets = randomNpcBoard.value.longStayResidents
+      .filter(entry => sanitizeRandomNpcDialogueScenes(entry.dialogueScenes).some(scene => scene.kind === 'festival'))
+      .map(entry => ({ tier: 'long_stay' as const, id: entry.residentId, entry }))
+    const activeTargets = randomNpcBoard.value.activeVisitors
+      .filter(entry => sanitizeRandomNpcDialogueScenes(entry.dialogueScenes).some(scene => scene.kind === 'festival'))
+      .map(entry => ({ tier: 'active_visitor' as const, id: entry.id, entry }))
+    const acquaintanceTargets = randomNpcBoard.value.acquaintances
+      .filter(entry => sanitizeRandomNpcDialogueScenes(entry.dialogueScenes).some(scene => scene.kind === 'festival'))
+      .map(entry => ({ tier: 'acquaintance' as const, id: entry.visitorId, entry }))
+    const candidates = [...longStayTargets, ...activeTargets, ...acquaintanceTargets]
+    if (candidates.length <= 0) return { success: false, message: '当前没有可承接联机节会房间话题的随机 NPC。' }
+
+    const target = candidates[hashText(`${receiptKey}:${payload.templateId}:${payload.trigger}`) % candidates.length]!
+    const dayTag = getCurrentNpcDayTag()
+    const direction: RandomNpcRelationshipDirection = 'family_impression'
+    const affinityChange = target.tier === 'long_stay' ? 3 : 2
+    const choiceText = `联机节会房间：${payload.templateLabel || payload.roomTitle || payload.templateId}`
+    const dialogueScene = getRandomNpcTriggeredDialogueScene(target.entry, {
+      direction,
+      choiceId,
+      choiceText,
+      preferredKinds: ['festival', 'reunion']
+    })
+    const dialogueSceneLine = buildRandomNpcDialogueSceneLine(dialogueScene)
+    const response = [
+      `${target.entry.name}听你说起联机节会房间「${payload.roomTitle || payload.templateLabel}」的收尾，把${payload.templateLabel || '节会'}里的协作、人情和家族印象记成可回看的节会话题。`,
+      payload.receiptSummary ? `房间凭证：${payload.receiptSummary}` : '',
+      payload.replayTitle ? `回放线索：${payload.replayTitle}` : '',
+      dialogueSceneLine
+    ].filter(Boolean).join(' ')
+    const dialogueMemory = buildRandomNpcDialogueMemory({
+      npcName: target.entry.name,
+      dayTag,
+      choiceId,
+      choiceText,
+      response,
+      scene: dialogueScene,
+      direction: dialogueScene?.relationshipDirection ?? direction,
+      affinityChange,
+      relationshipTag: target.entry.relationshipTag
+    })
+    const eventLine = `${dayTag} 【联机节会房间】${payload.templateLabel || payload.templateId}：${response}（${getRandomNpcRelationshipDirectionLabel(dialogueMemory.direction)}）`
+
+    if (target.tier === 'long_stay') {
+      let nextResident: RandomNpcLongStayEntry | null = null
+      randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+        if (entry.residentId !== target.id) return entry
+        const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)
+        const nextFamilyLine = template
+          ? appendRandomNpcFamilyTriggerReview(
+              sanitizeRandomNpcFamilyLineState(entry.familyLine, entry.familyTies, template.familyCommission),
+              entry,
+              template,
+              {
+                dayTag,
+                type: 'festival',
+                summary: `${entry.name}听你复盘联机节会房间「${payload.roomTitle || payload.templateLabel}」，家中把这次协作记作一次节会印象。`,
+                reputationDelta: 1,
+                key: receiptKey
+              }
+            )
+          : entry.familyLine
+        nextResident = {
+          ...entry,
+          affinity: Math.min(100, entry.affinity + affinityChange),
+          familyLine: nextFamilyLine,
+          relationshipSignals: applyRandomNpcRelationshipSignal(
+            sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+            dialogueMemory.direction,
+            affinityChange
+          ),
+          dialogueMemories: appendRandomNpcDialogueMemory(
+            entry.dialogueMemories,
+            dialogueMemory,
+            RANDOM_NPC_LONG_STAY_DIALOGUE_MEMORY_LIMIT
+          ),
+          keyEvents: [...entry.keyEvents, eventLine].slice(-8)
+        }
+        return nextResident
+      })
+      if (nextResident) {
+        randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+          entry.visitorId === nextResident!.sourceVisitorId
+            ? {
+                ...entry,
+                affinity: nextResident!.affinity,
+                relationshipSignals: sanitizeRandomNpcRelationshipSignals(nextResident!.relationshipSignals),
+                dialogueMemories: nextResident!.dialogueMemories.slice(-6),
+                keyEvents: nextResident!.keyEvents.slice(-6)
+              }
+            : entry
+        )
+      }
+      return { success: true, message: response }
+    }
+
+    if (target.tier === 'active_visitor') {
+      randomNpcBoard.value.activeVisitors = randomNpcBoard.value.activeVisitors.map(entry =>
+        entry.id === target.id
+          ? {
+              ...entry,
+              affinity: Math.min(100, entry.affinity + affinityChange),
+              relationshipSignals: applyRandomNpcRelationshipSignal(
+                sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+                dialogueMemory.direction,
+                affinityChange
+              ),
+              dialogueMemories: appendRandomNpcDialogueMemory(entry.dialogueMemories, dialogueMemory),
+              keyEvents: [...entry.keyEvents, eventLine].slice(-6)
+            }
+          : entry
+      )
+      return { success: true, message: response }
+    }
+
+    randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+      entry.visitorId === target.id
+        ? {
+            ...entry,
+            affinity: Math.min(100, entry.affinity + affinityChange),
+            lastSeenDayTag: dayTag,
+            relationshipSignals: applyRandomNpcRelationshipSignal(
+              sanitizeRandomNpcRelationshipSignals(entry.relationshipSignals),
+              dialogueMemory.direction,
+              affinityChange
+            ),
+            dialogueMemories: appendRandomNpcDialogueMemory(entry.dialogueMemories, dialogueMemory),
+            keyEvents: [...entry.keyEvents, eventLine].slice(-6)
+          }
+        : entry
+    )
+    return { success: true, message: response }
   }
 
   const getRandomNpcFamilyCommission = (residentId: string): RandomNpcFamilyCommissionDef | null => {
@@ -7626,6 +7783,7 @@ export const useNpcStore = defineStore('npc', () => {
     progressRandomNpcLongStayStory,
     canProgressRandomNpcFestivalCompanion,
     progressRandomNpcFestivalCompanion,
+    recordRandomNpcOnlineFestivalRoomDialogue,
     getRandomNpcFamilyCommission,
     canMeetRandomNpcFamilyTie,
     meetRandomNpcFamilyTie,
