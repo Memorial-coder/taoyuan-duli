@@ -168,10 +168,10 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 24;
+const WAREHOUSE_ITEM_POLICY_VERSION = 25;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
-  'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
+  'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
   'yam', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
@@ -184,6 +184,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_stir_fried_cabbage', 'food_radish_soup', 'food_herbal_porridge', 'food_miner_lunch', 'food_honey_tea', 'food_ginger_soup',
   'food_osmanthus_cake', 'food_jujube_cake', 'food_peach_blossom_cake', 'food_dried_persimmon', 'food_fish_noodle', 'food_miner_iron_pot',
   'food_stir_fried_potato', 'food_sesame_paste', 'food_chive_egg_stir_fry', 'food_peanut_candy', 'food_sweet_osmanthus_tea',
+  'food_aged_radish_stew', 'food_embroidered_cake', 'food_deep_mine_stew', 'food_wild_berry_jam',
   'food_spicy_hotpot', 'food_bamboo_shoot_stir_fry', 'food_lotus_seed_soup', 'food_corn_pancake', 'food_osmanthus_lotus_root',
   'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_zhi_yuan_gao',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
@@ -1114,6 +1115,59 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'honey', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_sweet_osmanthus_tea',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_aged_radish_stew: {
+    id: 'shared_aged_radish_stew',
+    label: '共同灶台老萝卜炖肉',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'radish', quantity: 3, quality: 'normal' },
+      { item_id: 'firewood', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_aged_radish_stew',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_embroidered_cake: {
+    id: 'shared_embroidered_cake',
+    label: '共同灶台绣囊糕',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'osmanthus', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_embroidered_cake',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_deep_mine_stew: {
+    id: 'shared_deep_mine_stew',
+    label: '共同灶台深矿炖菜',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'potato', quantity: 2, quality: 'normal' },
+      { item_id: 'copper_ore', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_deep_mine_stew',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_wild_berry_jam: {
+    id: 'shared_wild_berry_jam',
+    label: '共同灶台野果酱',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'wild_berry', quantity: 3, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_wild_berry_jam',
     output_quantity: 1,
     output_quality: 'normal',
   },
