@@ -4656,6 +4656,18 @@
       personal_child_family_event_and_custody_summary_recorded: '孩子事件和抚养安排摘要已写入',
       personal_family_main_state_mutation_recorded_child_events: '孩子家庭事件已落地',
       personal_family_main_state_mutation_recorded_child_events_and_custody_summary: '孩子家庭事件与抚养安排摘要已落地',
+      custody_decision_recorded: '抚养判定已记录',
+      manual_family_review_required: '需要家庭人工复核',
+      shared_care_until_personal_saves_confirm: '共同照料，待个人存档确认',
+      primary_owner_with_secondary_visitation_pending_personal_receipts: '主照料与探视，待个人 receipt',
+      manual_family_review_before_custody_change: '人工复核后再变更抚养',
+      contract_family_story_rule: '按婚姻破裂剧情规则',
+      shared_care_pending_personal_saves: '共同照料，待个人存档确认',
+      primary_owner_care_pending_personal_save_review: '主照料人方案，待个人存档复核',
+      mutual_visit_and_daily_care_receipts_pending: '互访与日常照料 receipt 待确认',
+      secondary_guardian_visit_pending_personal_receipts: '次要监护探视待个人 receipt',
+      joint_major_family_choice_required: '重大教育选择需共同确认',
+      story_rule_not_resource_split: '按家庭事件处理，不当资源拆分',
       contract_exit_releases_family_roles_without_reassigning_owner: '退出释放职位，不静默重排家主',
     }
     return labels[status] || status || '待记录'
@@ -4805,12 +4817,27 @@
   )
       migration_adapter: String(summary.migration_adapter ?? ''),
       mutation_adapter: String(summary.mutation_adapter ?? ''),
+      arrangement_choice: String(summary.arrangement_choice ?? ''),
       migration_state: String(summary.migration_state ?? ''),
       receipt_count: Math.max(0, Math.floor(Number(summary.receipt_count) || 0)),
       child_count: Math.max(0, Math.floor(Number(summary.child_count) || 0)),
       mutated_child_count: Math.max(0, Math.floor(Number(summary.mutated_child_count) || 0)),
       family_event_receipt_count: Math.max(0, Math.floor(Number(summary.family_event_receipt_count) || 0)),
       custody_arrangement_recorded_count: Math.max(0, Math.floor(Number(summary.custody_arrangement_recorded_count) || 0)),
+      custody_decision_recorded_count: Math.max(0, Math.floor(Number(summary.custody_decision_recorded_count) || 0)),
+      custody_decision_state: String(summary.custody_decision_state ?? ''),
+      custody_rule: String(summary.custody_rule ?? ''),
+      custody_basis: String(summary.custody_basis ?? ''),
+      caregiver_policy: String(summary.caregiver_policy ?? ''),
+      primary_caregiver_username: String(summary.primary_caregiver_username ?? ''),
+      co_caregiver_usernames: separationStoryStringList(summary.co_caregiver_usernames).slice(0, 8),
+      secondary_caregiver_usernames: separationStoryStringList(summary.secondary_caregiver_usernames).slice(0, 8),
+      visitation_policy: String(summary.visitation_policy ?? ''),
+      education_decision_policy: String(summary.education_decision_policy ?? ''),
+      family_event_policy: String(summary.family_event_policy ?? ''),
+      custody_decision_recorded: summary.custody_decision_recorded === true,
+      no_resource_split: summary.no_resource_split !== false,
+      requires_manual_review: summary.requires_manual_review === true,
       children_private: summary.children_private !== false,
       personal_family_save_receipt_written: summary.personal_family_save_receipt_written === true,
       personal_family_save_mutation_enabled: summary.personal_family_save_mutation_enabled === true,
@@ -4837,7 +4864,7 @@
       || summary.personal_family_state_mutated === true
       || summary.personal_child_state_mutated === true
     const state = childFamilyEventMutated ? '孩子安排事件已写入' : '家庭 / 孩子主状态未变'
-    return `${state} · receipt ${summary.receipt_count || 0} · 孩子 ${summary.child_count || 0} · 摘要 ${summary.custody_arrangement_recorded_count || 0}`
+    return `${state} · receipt ${summary.receipt_count || 0} · 孩子 ${summary.child_count || 0} · 摘要 ${summary.custody_arrangement_recorded_count || 0} · 判定 ${summary.custody_decision_recorded_count || 0}`
   })
   const separationPersonalFamilyMainStateMigrationReadbackRows = computed<SeparationStoryCinematicReadbackRow[]>(() => {
     const summary = separationPersonalFamilyMainStateMigrationSummary.value
@@ -4856,13 +4883,23 @@
       : nonFamilyMainStateSafe
         ? '不改孩子 / 家庭 / NPC / 铜币 / 背包 / 农田 / 小屋 / 共同资产主状态'
         : '检测到个人资产 / NPC / 契约家庭 / 共同资产主状态变更'
+    const caregiverValue = summary.primary_caregiver_username
+      ? `${summary.primary_caregiver_username} / 探视：${separationStoryListLabel(summary.secondary_caregiver_usernames, '待确认')}`
+      : separationStoryListLabel(summary.co_caregiver_usernames, '共同照料待确认')
     return [
       { key: 'migration_state', label: '迁移状态', value: separationManorExitStatusLabel(summary.migration_state || '') },
       { key: 'migration_adapter', label: '迁移适配器', value: summary.migration_adapter || '待记录' },
       { key: 'mutation_adapter', label: '写入适配器', value: summary.mutation_adapter || '待记录' },
+      { key: 'arrangement_choice', label: '孩子安排', value: separationManorExitStatusLabel(summary.arrangement_choice || '') },
       { key: 'receipt_count', label: '家庭 receipt', value: `${summary.receipt_count || 0} 份 · 孩子 ${summary.child_count || 0}` },
       { key: 'family_event_receipts', label: '孩子家庭事件', value: `${summary.family_event_receipt_count || 0} 条 · 影响孩子 ${summary.mutated_child_count || 0}` },
       { key: 'custody_arrangement_summary', label: '抚养安排摘要', value: `${summary.custody_arrangement_recorded_count || 0} 条 · 隐私边界内` },
+      { key: 'custody_decision_state', label: '抚养判定', value: separationManorExitStatusLabel(summary.custody_decision_state || '') },
+      { key: 'custody_rule', label: '判定规则', value: separationManorExitStatusLabel(summary.custody_rule || '') },
+      { key: 'caregiver_policy', label: '照料成员', value: caregiverValue },
+      { key: 'visitation_policy', label: '探视规则', value: separationManorExitStatusLabel(summary.visitation_policy || '') },
+      { key: 'education_decision_policy', label: '教育决策', value: separationManorExitStatusLabel(summary.education_decision_policy || '') },
+      { key: 'family_event_policy', label: '事件边界', value: separationManorExitStatusLabel(summary.family_event_policy || '') },
       { key: 'receipt_usernames', label: '成员回执', value: separationStoryListLabel(summary.receipt_usernames, '待写入') },
       { key: 'migration_actions', label: '迁移动作', value: separationStoryListLabel(summary.migration_actions, '等待独立迁移') },
       { key: 'main_state_boundary', label: '主状态边界', value: boundaryValue },

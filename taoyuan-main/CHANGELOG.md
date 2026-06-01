@@ -103,6 +103,10 @@
 ### 0601 随机 NPC 绑定偏好第一版收口
 - `RandomNpcTemplate.preferences` 新增 `bindings`，8 个随机 NPC 模板各自补入作物、宠物、店铺或庄园语义偏好，旧档加载时继续按模板兜底。
 - NPC 页短访 / 熟人 / 长住卡片新增“绑定偏好”回看，`qa:random-npc-content-guard` 固定四类偏好、每模板至少 3 条绑定和页面入口。
+### 0601 同居分居婚姻孩子抚养判定证据
+- 分居孩子安排和个人家庭 receipt 新增 `custody_decision_state`、`custody_rule`、共同照料 / 主照料成员、探视规则、教育重大选择规则和 `story_rule_not_resource_split` 读回。
+- 共同庄园分居面板的“个人家庭主状态迁移证明”区会展示抚养判定、照料成员、探视 / 教育规则和不当资源拆边界；前端 API 类型新增结构化 `CohabitationSeparationChildArrangement`。本轮只读展示证据，不公开孩子身份，不新增个人家庭主状态迁移写链。
+
 ### 0601 同居分居建筑主状态证据读回
 - 分居建筑拆分清单和 `split-decorations-buildings` receipt 会读回家族建筑真实拆除 / 精确个人主状态 mutation 链路，展示 `split_status`、真实拆除个人存档回执数、`main_state_exact_mutation_receipt_count`、每建筑状态行和审计计数。
 - 共同庄园分居面板新增“建筑 / 小屋主状态证据”只读区，可区分已读回既有主状态变更回执与仍待回滚 / 拆除 / 人工回执的建筑；本轮不由分居步骤重复删除个人 `home / decoration` 主状态，不改共同基金、共同仓库、个人铜币或背包。
@@ -127,7 +131,7 @@
 
 ### 0601 同居分居婚姻孩子安排个人家庭摘要写入
 - 分居预览执行请求会读回 `personal_child_family_event_and_custody_summary_recorded`、`mutation_adapter`、`mutated_child_count`、`family_event_receipt_count` 和 `custody_arrangement_recorded_count`，用于证明婚姻孩子安排已写入个人孩子家庭事件历史和抚养安排摘要。
-- 共同庄园分居面板的“个人家庭主状态迁移证明”区会展示写入适配器、孩子家庭事件回执数、抚养安排摘要数和非资产主状态边界；前端 API 类型与 `qa:online-ui-structure` 同步守护该摘要。本轮不改铜币 / 背包 / 农田 / 小屋 / NPC 关系 / 共同资产，完整抚养权裁决和家庭主状态迁移仍留后续。
+- 共同庄园分居面板的“个人家庭主状态迁移证明”区会展示写入适配器、孩子家庭事件回执数、抚养安排摘要数和非资产主状态边界；前端 API 类型与 `qa:online-ui-structure` 同步守护该摘要。本轮不改铜币 / 背包 / 农田 / 小屋 / NPC 关系 / 共同资产，完整家庭主状态迁移和更复杂多阶段裁决仍留后续。
 
 ### 0601 同居分居庄园退出交接记录前端读回
 - 分居面板新增“庄园退出交接”只读区，读取 `manor_exit_handover_record` 展示记录 ID、成员职位、家主 / 负责人、职位释放策略、记录人 / 时间和个人存档 / 契约职位不改写边界。

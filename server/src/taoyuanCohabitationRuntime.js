@@ -15279,11 +15279,154 @@ const PERSONAL_CHILD_FAMILY_EVENT_HISTORY_LIMIT = 4;
 const PERSONAL_CHILD_FAMILY_EVENT_STAGE_LIMIT = 3;
 const PERSONAL_CHILD_TRAINING_FOCUS_VALUES = new Set(['farm', 'craft', 'social', 'spirit']);
 
+function normalizeCustodyUsernameList(value, fallback = []) {
+  const source = Array.isArray(value) ? value : fallback;
+  return [...new Set(source.map(normalizeUsername).filter(Boolean))].slice(0, 8);
+}
+
+function hasSeparationCustodyDecisionEvidence(entry = {}) {
+  const source = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
+  return Boolean(
+    sanitizeText(source.arrangement_choice || source.arrangementChoice, 100)
+    || Math.max(0, Math.floor(Number(source.custody_decision_recorded_count ?? source.custodyDecisionRecordedCount) || 0))
+    || source.custody_decision_recorded === true
+    || source.custodyDecisionRecorded === true
+    || source.no_resource_split === true
+    || source.noResourceSplit === true
+    || source.requires_manual_review === true
+    || source.requiresManualReview === true
+    || sanitizeText(source.custody_decision_state || source.custodyDecisionState, 100)
+    || sanitizeText(source.custody_rule || source.custodyRule, 140)
+    || sanitizeText(source.custody_basis || source.custodyBasis, 120)
+    || sanitizeText(source.caregiver_policy || source.caregiverPolicy, 120)
+    || normalizeUsername(source.primary_caregiver_username || source.primaryCaregiverUsername)
+    || normalizeCustodyUsernameList(source.co_caregiver_usernames || source.coCaregiverUsernames).length
+    || normalizeCustodyUsernameList(source.secondary_caregiver_usernames || source.secondaryCaregiverUsernames).length
+    || sanitizeText(source.visitation_policy || source.visitationPolicy, 140)
+    || sanitizeText(source.education_decision_policy || source.educationDecisionPolicy, 140)
+    || sanitizeText(source.family_event_policy || source.familyEventPolicy, 140)
+  );
+}
+
+function createEmptySeparationCustodyDecisionEvidence() {
+  return {
+    custody_decision_state: '',
+    custody_rule: '',
+    custody_basis: '',
+    caregiver_policy: '',
+    primary_caregiver_username: '',
+    co_caregiver_usernames: [],
+    secondary_caregiver_usernames: [],
+    visitation_policy: '',
+    education_decision_policy: '',
+    family_event_policy: '',
+    custody_decision_recorded: false,
+    no_resource_split: false,
+    requires_manual_review: false,
+  };
+}
+
+function normalizeSeparationCustodyDecisionEvidence(entry = {}, fallback = {}) {
+  const source = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
+  const arrangementChoice = sanitizeText(source.arrangement_choice || source.arrangementChoice || fallback.arrangement_choice, 100)
+    || 'shared_care_pending_personal_saves';
+  const isManualReview = arrangementChoice === 'manual_family_review';
+  const isPrimaryOwnerCare = arrangementChoice === 'primary_owner_care';
+  const coCaregiverUsernames = normalizeCustodyUsernameList(
+    source.co_caregiver_usernames || source.coCaregiverUsernames,
+    fallback.co_caregiver_usernames || fallback.accepted_member_usernames || []
+  );
+  const primaryCaregiverUsername = normalizeUsername(
+    source.primary_caregiver_username
+    || source.primaryCaregiverUsername
+    || fallback.primary_caregiver_username
+    || ''
+  );
+  const secondaryCaregiverUsernames = normalizeCustodyUsernameList(
+    source.secondary_caregiver_usernames || source.secondaryCaregiverUsernames,
+    fallback.secondary_caregiver_usernames || []
+  );
+  return {
+    custody_decision_state: sanitizeText(source.custody_decision_state || source.custodyDecisionState, 100)
+      || (isManualReview ? 'manual_family_review_required' : 'custody_decision_recorded'),
+    custody_rule: sanitizeText(source.custody_rule || source.custodyRule, 140)
+      || (isManualReview
+        ? 'manual_family_review_before_custody_change'
+        : isPrimaryOwnerCare
+          ? 'primary_owner_with_secondary_visitation_pending_personal_receipts'
+          : 'shared_care_until_personal_saves_confirm'),
+    custody_basis: sanitizeText(source.custody_basis || source.custodyBasis, 120)
+      || 'contract_family_story_rule',
+    caregiver_policy: sanitizeText(source.caregiver_policy || source.caregiverPolicy, 120)
+      || (isManualReview
+        ? 'manual_family_review_required'
+        : isPrimaryOwnerCare
+          ? 'primary_owner_care_pending_personal_save_review'
+          : 'shared_care_pending_personal_saves'),
+    primary_caregiver_username: primaryCaregiverUsername,
+    co_caregiver_usernames: coCaregiverUsernames,
+    secondary_caregiver_usernames: secondaryCaregiverUsernames,
+    visitation_policy: sanitizeText(source.visitation_policy || source.visitationPolicy, 140)
+      || (isManualReview
+        ? 'manual_family_review_required'
+        : isPrimaryOwnerCare
+          ? 'secondary_guardian_visit_pending_personal_receipts'
+          : 'mutual_visit_and_daily_care_receipts_pending'),
+    education_decision_policy: sanitizeText(source.education_decision_policy || source.educationDecisionPolicy, 140)
+      || (isManualReview ? 'manual_family_review_required' : 'joint_major_family_choice_required'),
+    family_event_policy: sanitizeText(source.family_event_policy || source.familyEventPolicy, 140)
+      || 'story_rule_not_resource_split',
+    custody_decision_recorded: source.custody_decision_recorded !== false,
+    no_resource_split: source.no_resource_split !== false,
+    requires_manual_review: source.requires_manual_review === true || isManualReview,
+  };
+}
+
+function buildSeparationCustodyDecisionEvidence(contract = {}, childPayload = {}, member = {}) {
+  const acceptedMembers = (contract.members || [])
+    .filter(entry => entry?.status === 'accepted')
+    .map(entry => ({
+      username: normalizeUsername(entry.username),
+      username_key: normalizeUsernameKey(entry.username_key || entry.username),
+      role: sanitizeText(entry.role || entry.contract_role, 60),
+    }))
+    .filter(entry => entry.username);
+  const acceptedMemberUsernames = acceptedMembers.map(entry => entry.username);
+  const ownerMember = acceptedMembers.find(entry => entry.role === 'owner') || acceptedMembers[0] || {};
+  const arrangementChoice = sanitizeText(childPayload.arrangement_choice, 100) || 'shared_care_pending_personal_saves';
+  const primaryCaregiverUsername = arrangementChoice === 'primary_owner_care'
+    ? ownerMember.username
+    : '';
+  const secondaryCaregiverUsernames = arrangementChoice === 'primary_owner_care'
+    ? acceptedMemberUsernames.filter(username => username && username !== primaryCaregiverUsername)
+    : [];
+  const coCaregiverUsernames = arrangementChoice === 'shared_care_pending_personal_saves'
+    ? acceptedMemberUsernames
+    : arrangementChoice === 'manual_family_review'
+      ? acceptedMemberUsernames
+      : [];
+  return normalizeSeparationCustodyDecisionEvidence({
+    arrangement_choice: arrangementChoice,
+    custody_decision_recorded: true,
+    children_private: true,
+  }, {
+    accepted_member_usernames: acceptedMemberUsernames,
+    co_caregiver_usernames: coCaregiverUsernames,
+    primary_caregiver_username: primaryCaregiverUsername,
+    secondary_caregiver_usernames: secondaryCaregiverUsernames,
+    recorded_by_username: normalizeUsername(member.username),
+  });
+}
+
 function normalizePersonalChildSeparationArrangementSummary(entry = null) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
   const arrangementId = sanitizeText(entry.arrangement_id || entry.arrangementId, 120);
   const source = sanitizeText(entry.source, 80) || (arrangementId ? 'cohabitation_separation' : '');
   if (!arrangementId || source !== 'cohabitation_separation') return null;
+  const custodyDecisionEvidence = normalizeSeparationCustodyDecisionEvidence(entry, {
+    arrangement_choice: entry.arrangement_choice || entry.arrangementChoice,
+    children_private: entry.children_private,
+  });
   return {
     arrangement_id: arrangementId,
     arrangement_choice: sanitizeText(entry.arrangement_choice || entry.arrangementChoice, 100),
@@ -15295,6 +15438,18 @@ function normalizePersonalChildSeparationArrangementSummary(entry = null) {
     caregiver_policy: sanitizeText(entry.caregiver_policy || entry.caregiverPolicy, 120),
     manual_review_required: entry.manual_review_required === true,
     children_private: entry.children_private !== false,
+    custody_decision_state: custodyDecisionEvidence.custody_decision_state,
+    custody_rule: custodyDecisionEvidence.custody_rule,
+    custody_basis: custodyDecisionEvidence.custody_basis,
+    primary_caregiver_username: custodyDecisionEvidence.primary_caregiver_username,
+    co_caregiver_usernames: custodyDecisionEvidence.co_caregiver_usernames,
+    secondary_caregiver_usernames: custodyDecisionEvidence.secondary_caregiver_usernames,
+    visitation_policy: custodyDecisionEvidence.visitation_policy,
+    education_decision_policy: custodyDecisionEvidence.education_decision_policy,
+    family_event_policy: custodyDecisionEvidence.family_event_policy,
+    custody_decision_recorded: custodyDecisionEvidence.custody_decision_recorded,
+    no_resource_split: custodyDecisionEvidence.no_resource_split,
+    requires_manual_review: custodyDecisionEvidence.requires_manual_review,
   };
 }
 
@@ -15403,6 +15558,10 @@ function normalizeSeparationPersonalFamilyMainStateMutationReceipt(entry = null)
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
   const adapter = sanitizeText(entry.mutation_adapter, 100);
   if (!adapter) return null;
+  const custodyDecisionEvidence = normalizeSeparationCustodyDecisionEvidence(entry, {
+    arrangement_choice: entry.arrangement_choice,
+    children_private: entry.children_private,
+  });
   return {
     mutation_version: Math.max(1, Math.floor(Number(entry.mutation_version) || 1)),
     mutation_adapter: adapter,
@@ -15423,6 +15582,19 @@ function normalizeSeparationPersonalFamilyMainStateMutationReceipt(entry = null)
     mutated_child_count: Math.max(0, Math.floor(Number(entry.mutated_child_count) || 0)),
     family_event_receipt_count: Math.max(0, Math.floor(Number(entry.family_event_receipt_count) || 0)),
     custody_arrangement_recorded_count: Math.max(0, Math.floor(Number(entry.custody_arrangement_recorded_count) || 0)),
+    custody_decision_state: custodyDecisionEvidence.custody_decision_state,
+    custody_rule: custodyDecisionEvidence.custody_rule,
+    custody_basis: custodyDecisionEvidence.custody_basis,
+    caregiver_policy: custodyDecisionEvidence.caregiver_policy,
+    primary_caregiver_username: custodyDecisionEvidence.primary_caregiver_username,
+    co_caregiver_usernames: custodyDecisionEvidence.co_caregiver_usernames,
+    secondary_caregiver_usernames: custodyDecisionEvidence.secondary_caregiver_usernames,
+    visitation_policy: custodyDecisionEvidence.visitation_policy,
+    education_decision_policy: custodyDecisionEvidence.education_decision_policy,
+    family_event_policy: custodyDecisionEvidence.family_event_policy,
+    custody_decision_recorded: custodyDecisionEvidence.custody_decision_recorded,
+    no_resource_split: custodyDecisionEvidence.no_resource_split,
+    requires_manual_review: custodyDecisionEvidence.requires_manual_review,
     mutation_actions: Array.isArray(entry.mutation_actions)
       ? entry.mutation_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
       : [],
@@ -15440,6 +15612,10 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
   const childArrangement = ledger.child_arrangement_resolution || {};
   const relationType = normalizeRelationType(childArrangement.relation_type || contract.type);
   const expectedChildCount = Math.max(0, Math.floor(Number(childArrangement.child_count) || Number(contract.family_state?.child_count) || 0));
+  const custodyDecisionEvidence = normalizeSeparationCustodyDecisionEvidence(childArrangement, {
+    arrangement_choice: childArrangement.arrangement_choice || 'shared_care_pending_personal_saves',
+    children_private: childArrangement.children_private,
+  });
   const npcData = saveData.npc && typeof saveData.npc === 'object' && !Array.isArray(saveData.npc)
     ? saveData.npc
     : null;
@@ -15463,6 +15639,19 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
     mutated_child_count: 0,
     family_event_receipt_count: 0,
     custody_arrangement_recorded_count: 0,
+    custody_decision_state: custodyDecisionEvidence.custody_decision_state,
+    custody_rule: custodyDecisionEvidence.custody_rule,
+    custody_basis: custodyDecisionEvidence.custody_basis,
+    caregiver_policy: custodyDecisionEvidence.caregiver_policy,
+    primary_caregiver_username: custodyDecisionEvidence.primary_caregiver_username,
+    co_caregiver_usernames: custodyDecisionEvidence.co_caregiver_usernames,
+    secondary_caregiver_usernames: custodyDecisionEvidence.secondary_caregiver_usernames,
+    visitation_policy: custodyDecisionEvidence.visitation_policy,
+    education_decision_policy: custodyDecisionEvidence.education_decision_policy,
+    family_event_policy: custodyDecisionEvidence.family_event_policy,
+    custody_decision_recorded: custodyDecisionEvidence.custody_decision_recorded,
+    no_resource_split: custodyDecisionEvidence.no_resource_split,
+    requires_manual_review: custodyDecisionEvidence.requires_manual_review,
     mutation_actions: [],
     before_summary: npcData ? summarizePersonalFamilyMainState(saveData) : null,
     after_summary: null,
@@ -15553,10 +15742,23 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
       caregiver_policy: caregiverPolicy,
       manual_review_required: arrangementChoice === 'manual_family_review',
       children_private: childArrangement.children_private !== false,
+      custody_decision_state: custodyDecisionEvidence.custody_decision_state,
+      custody_rule: custodyDecisionEvidence.custody_rule,
+      custody_basis: custodyDecisionEvidence.custody_basis,
+      primary_caregiver_username: custodyDecisionEvidence.primary_caregiver_username,
+      co_caregiver_usernames: custodyDecisionEvidence.co_caregiver_usernames,
+      secondary_caregiver_usernames: custodyDecisionEvidence.secondary_caregiver_usernames,
+      visitation_policy: custodyDecisionEvidence.visitation_policy,
+      education_decision_policy: custodyDecisionEvidence.education_decision_policy,
+      family_event_policy: custodyDecisionEvidence.family_event_policy,
+      custody_decision_recorded: custodyDecisionEvidence.custody_decision_recorded,
+      no_resource_split: custodyDecisionEvidence.no_resource_split,
+      requires_manual_review: custodyDecisionEvidence.requires_manual_review,
     });
     if (JSON.stringify(trainingState.separationArrangementSummary) !== JSON.stringify(nextArrangementSummary)) {
       trainingState.separationArrangementSummary = nextArrangementSummary;
       actionSet.add('record_child_custody_arrangement_summary');
+      actionSet.add('record_child_custody_decision_evidence');
     }
     child.trainingState = trainingState;
     if (JSON.stringify(child) !== childBeforeSerialized) changedChildCount += 1;
@@ -15587,15 +15789,36 @@ function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract 
 
 function normalizeSeparationPersonalFamilyMainStateMigrationSummary(entry = null) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const custodyDecisionEvidence = hasSeparationCustodyDecisionEvidence(entry)
+    ? normalizeSeparationCustodyDecisionEvidence(entry, {
+        arrangement_choice: entry.arrangement_choice || entry.arrangementChoice,
+        children_private: entry.children_private,
+      })
+    : createEmptySeparationCustodyDecisionEvidence();
   return {
     migration_adapter: sanitizeText(entry.migration_adapter, 100),
     mutation_adapter: sanitizeText(entry.mutation_adapter, 100),
+    arrangement_choice: sanitizeText(entry.arrangement_choice || entry.arrangementChoice, 100),
     migration_state: sanitizeText(entry.migration_state, 100),
     receipt_count: Math.max(0, Math.floor(Number(entry.receipt_count) || 0)),
     child_count: Math.max(0, Math.floor(Number(entry.child_count) || 0)),
     mutated_child_count: Math.max(0, Math.floor(Number(entry.mutated_child_count) || 0)),
     family_event_receipt_count: Math.max(0, Math.floor(Number(entry.family_event_receipt_count) || 0)),
     custody_arrangement_recorded_count: Math.max(0, Math.floor(Number(entry.custody_arrangement_recorded_count) || 0)),
+    custody_decision_recorded_count: Math.max(0, Math.floor(Number(entry.custody_decision_recorded_count) || 0)),
+    custody_decision_state: custodyDecisionEvidence.custody_decision_state,
+    custody_rule: custodyDecisionEvidence.custody_rule,
+    custody_basis: custodyDecisionEvidence.custody_basis,
+    caregiver_policy: custodyDecisionEvidence.caregiver_policy,
+    primary_caregiver_username: custodyDecisionEvidence.primary_caregiver_username,
+    co_caregiver_usernames: custodyDecisionEvidence.co_caregiver_usernames,
+    secondary_caregiver_usernames: custodyDecisionEvidence.secondary_caregiver_usernames,
+    visitation_policy: custodyDecisionEvidence.visitation_policy,
+    education_decision_policy: custodyDecisionEvidence.education_decision_policy,
+    family_event_policy: custodyDecisionEvidence.family_event_policy,
+    custody_decision_recorded: custodyDecisionEvidence.custody_decision_recorded,
+    no_resource_split: custodyDecisionEvidence.no_resource_split,
+    requires_manual_review: custodyDecisionEvidence.requires_manual_review,
     children_private: entry.children_private !== false,
     personal_family_save_receipt_written: entry.personal_family_save_receipt_written === true,
     personal_family_save_mutation_enabled: entry.personal_family_save_mutation_enabled === true,
@@ -15624,6 +15847,10 @@ function normalizeSeparationPersonalFamilyMainStateMigrationSummary(entry = null
 
 function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, ledger = {}, receipts = []) {
   const childArrangement = ledger.child_arrangement_resolution || {};
+  const custodyDecisionEvidence = normalizeSeparationCustodyDecisionEvidence(childArrangement, {
+    arrangement_choice: childArrangement.arrangement_choice || 'shared_care_pending_personal_saves',
+    children_private: childArrangement.children_private,
+  });
   const receiptList = Array.isArray(receipts) ? receipts : [];
   const mutationReceipts = receiptList
     .map(receipt => normalizeSeparationPersonalFamilyMainStateMutationReceipt(receipt.personal_family_main_state_mutation))
@@ -15657,6 +15884,12 @@ function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, l
       ?? receipt?.personal_family_main_state_mutation?.custody_arrangement_recorded_count
     ) || 0))
   ), 0);
+  const custodyDecisionRecordedCount = receiptList.reduce((sum, receipt) => (
+    sum + (receipt?.custody_decision_recorded === true
+      || receipt?.personal_family_main_state_mutation?.custody_decision_recorded === true
+      ? 1
+      : 0)
+  ), 0);
   const migrationState = mutated
     ? (custodyArrangementRecordedCount > 0
       ? 'personal_child_family_event_and_custody_summary_recorded'
@@ -15665,12 +15898,27 @@ function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, l
   return normalizeSeparationPersonalFamilyMainStateMigrationSummary({
     migration_adapter: 'separation_personal_family_main_state_receipt_v1',
     mutation_adapter: mutationReceipts[0]?.mutation_adapter || '',
+    arrangement_choice: sanitizeText(childArrangement.arrangement_choice, 100),
     migration_state: migrationState,
     receipt_count: receiptList.length,
     child_count: Math.max(0, Math.floor(Number(childArrangement.child_count) || Number(contract.family_state?.child_count) || 0)),
     mutated_child_count: mutatedChildCount,
     family_event_receipt_count: familyEventReceiptCount,
     custody_arrangement_recorded_count: custodyArrangementRecordedCount,
+    custody_decision_recorded_count: custodyDecisionRecordedCount,
+    custody_decision_state: custodyDecisionEvidence.custody_decision_state,
+    custody_rule: custodyDecisionEvidence.custody_rule,
+    custody_basis: custodyDecisionEvidence.custody_basis,
+    caregiver_policy: custodyDecisionEvidence.caregiver_policy,
+    primary_caregiver_username: custodyDecisionEvidence.primary_caregiver_username,
+    co_caregiver_usernames: custodyDecisionEvidence.co_caregiver_usernames,
+    secondary_caregiver_usernames: custodyDecisionEvidence.secondary_caregiver_usernames,
+    visitation_policy: custodyDecisionEvidence.visitation_policy,
+    education_decision_policy: custodyDecisionEvidence.education_decision_policy,
+    family_event_policy: custodyDecisionEvidence.family_event_policy,
+    custody_decision_recorded: custodyDecisionRecordedCount > 0 || custodyDecisionEvidence.custody_decision_recorded,
+    no_resource_split: custodyDecisionEvidence.no_resource_split,
+    requires_manual_review: custodyDecisionEvidence.requires_manual_review,
     children_private: childArrangement.children_private !== false,
     personal_family_save_receipt_written: true,
     personal_family_save_mutation_enabled: mutationEnabled,
@@ -18312,6 +18560,19 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       mutated_child_count: personalFamilyMainStateMutation.mutated_child_count,
       family_event_receipt_count: personalFamilyMainStateMutation.family_event_receipt_count,
       custody_arrangement_recorded_count: personalFamilyMainStateMutation.custody_arrangement_recorded_count,
+      custody_decision_recorded: personalFamilyMainStateMutation.custody_decision_recorded,
+      custody_decision_state: personalFamilyMainStateMutation.custody_decision_state,
+      custody_rule: personalFamilyMainStateMutation.custody_rule,
+      custody_basis: personalFamilyMainStateMutation.custody_basis,
+      caregiver_policy: personalFamilyMainStateMutation.caregiver_policy,
+      primary_caregiver_username: personalFamilyMainStateMutation.primary_caregiver_username,
+      co_caregiver_usernames: personalFamilyMainStateMutation.co_caregiver_usernames,
+      secondary_caregiver_usernames: personalFamilyMainStateMutation.secondary_caregiver_usernames,
+      visitation_policy: personalFamilyMainStateMutation.visitation_policy,
+      education_decision_policy: personalFamilyMainStateMutation.education_decision_policy,
+      family_event_policy: personalFamilyMainStateMutation.family_event_policy,
+      no_resource_split: personalFamilyMainStateMutation.no_resource_split,
+      requires_manual_review: personalFamilyMainStateMutation.requires_manual_review,
       personal_family_main_state_mutation: personalFamilyMainStateMutation,
     }]);
     const receipt = {
@@ -18343,6 +18604,20 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       mutated_child_count: personalFamilyMainStateMutation.mutated_child_count,
       family_event_receipt_count: personalFamilyMainStateMutation.family_event_receipt_count,
       custody_arrangement_recorded_count: personalFamilyMainStateMutation.custody_arrangement_recorded_count,
+      custody_decision_recorded_count: personalFamilyMainStateMutation.custody_decision_recorded ? 1 : 0,
+      custody_decision_recorded: personalFamilyMainStateMutation.custody_decision_recorded,
+      custody_decision_state: personalFamilyMainStateMutation.custody_decision_state,
+      custody_rule: personalFamilyMainStateMutation.custody_rule,
+      custody_basis: personalFamilyMainStateMutation.custody_basis,
+      caregiver_policy: personalFamilyMainStateMutation.caregiver_policy,
+      primary_caregiver_username: personalFamilyMainStateMutation.primary_caregiver_username,
+      co_caregiver_usernames: personalFamilyMainStateMutation.co_caregiver_usernames,
+      secondary_caregiver_usernames: personalFamilyMainStateMutation.secondary_caregiver_usernames,
+      visitation_policy: personalFamilyMainStateMutation.visitation_policy,
+      education_decision_policy: personalFamilyMainStateMutation.education_decision_policy,
+      family_event_policy: personalFamilyMainStateMutation.family_event_policy,
+      no_resource_split: personalFamilyMainStateMutation.no_resource_split,
+      requires_manual_review: personalFamilyMainStateMutation.requires_manual_review,
       personal_family_main_state_mutation: personalFamilyMainStateMutation,
       personal_family_main_state_migration_summary: receiptMigrationSummary,
       privacy_boundary: personalFamilyMainStateMutation.personal_family_main_state_mutated
@@ -18396,6 +18671,20 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       mutated_child_count: receipt.mutated_child_count,
       family_event_receipt_count: receipt.family_event_receipt_count,
       custody_arrangement_recorded_count: receipt.custody_arrangement_recorded_count,
+      custody_decision_recorded_count: receipt.custody_decision_recorded_count,
+      custody_decision_recorded: receipt.custody_decision_recorded,
+      custody_decision_state: receipt.custody_decision_state,
+      custody_rule: receipt.custody_rule,
+      custody_basis: receipt.custody_basis,
+      caregiver_policy: receipt.caregiver_policy,
+      primary_caregiver_username: receipt.primary_caregiver_username,
+      co_caregiver_usernames: receipt.co_caregiver_usernames,
+      secondary_caregiver_usernames: receipt.secondary_caregiver_usernames,
+      visitation_policy: receipt.visitation_policy,
+      education_decision_policy: receipt.education_decision_policy,
+      family_event_policy: receipt.family_event_policy,
+      no_resource_split: receipt.no_resource_split,
+      requires_manual_review: receipt.requires_manual_review,
       personal_family_main_state_mutation: receipt.personal_family_main_state_mutation,
       personal_family_main_state_migration_summary: receiptMigrationSummary,
       privacy_boundary: receipt.privacy_boundary,
@@ -19958,6 +20247,10 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           child_count: Math.max(0, Math.floor(Number(entry.child_arrangement_resolution.child_count) || 0)),
           personal_family_save_write_required: entry.child_arrangement_resolution.personal_family_save_write_required !== false,
           children_private: entry.child_arrangement_resolution.children_private !== false,
+          ...normalizeSeparationCustodyDecisionEvidence(entry.child_arrangement_resolution, {
+            arrangement_choice: entry.child_arrangement_resolution.arrangement_choice,
+            children_private: entry.child_arrangement_resolution.children_private,
+          }),
           privacy_boundary: sanitizeText(entry.child_arrangement_resolution.privacy_boundary, 180),
           memo: sanitizeText(entry.child_arrangement_resolution.memo, 160),
       }
@@ -20002,6 +20295,11 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           mutated_child_count: Math.max(0, Math.floor(Number(item.mutated_child_count) || 0)),
           family_event_receipt_count: Math.max(0, Math.floor(Number(item.family_event_receipt_count) || 0)),
           custody_arrangement_recorded_count: Math.max(0, Math.floor(Number(item.custody_arrangement_recorded_count) || 0)),
+          custody_decision_recorded_count: Math.max(0, Math.floor(Number(item.custody_decision_recorded_count) || 0)),
+          ...normalizeSeparationCustodyDecisionEvidence(item, {
+            arrangement_choice: item.arrangement_choice,
+            children_private: item.children_private,
+          }),
           personal_family_main_state_mutation: normalizeSeparationPersonalFamilyMainStateMutationReceipt(item.personal_family_main_state_mutation),
           personal_family_main_state_migration_summary: normalizeSeparationPersonalFamilyMainStateMigrationSummary(item.personal_family_main_state_migration_summary),
           privacy_boundary: sanitizeText(item.privacy_boundary, 220),
@@ -37097,6 +37395,7 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
   const childCount = Math.max(0, Math.floor(Number(contract.family_state?.child_count) || (contract.family_state?.has_children === true ? 1 : 0)));
   if (contract.type !== 'marriage_home' || childCount <= 0) throw createError('只有有孩子的婚姻同居分居需要孩子安排记录', 409);
   const resolvedAt = nowSeconds();
+  const custodyDecisionEvidence = buildSeparationCustodyDecisionEvidence(contract, childPayload, member);
   const childArrangement = {
     relation_type: contract.type,
     arrangement_choice: childPayload.arrangement_choice,
@@ -37104,6 +37403,7 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
     child_count: childCount,
     personal_family_save_write_required: true,
     children_private: true,
+    ...custodyDecisionEvidence,
     privacy_boundary: '仅在共同契约记录孩子安排方案；孩子、家庭心愿和监护细节仍留在个人存档，后续需独立家庭存档 receipt 确认。',
     memo: childPayload.memo,
   };
@@ -37159,6 +37459,14 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
     arrangement_choice: childArrangement.arrangement_choice,
     child_count: childArrangement.child_count,
     children_private: true,
+    custody_decision_state: childArrangement.custody_decision_state,
+    custody_rule: childArrangement.custody_rule,
+    caregiver_policy: childArrangement.caregiver_policy,
+    visitation_policy: childArrangement.visitation_policy,
+    education_decision_policy: childArrangement.education_decision_policy,
+    family_event_policy: childArrangement.family_event_policy,
+    custody_decision_recorded: childArrangement.custody_decision_recorded,
+    no_resource_split: childArrangement.no_resource_split,
     personal_family_save_write_required: true,
     npc_family_child_mutation: false,
     required_permission_keys: arrangementPermissionChecks.map(check => check.label),

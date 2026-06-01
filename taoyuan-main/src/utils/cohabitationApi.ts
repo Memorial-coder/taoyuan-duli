@@ -2310,12 +2310,27 @@ export interface CohabitationSeparationPersonalRelationshipMutationSummary {
 export interface CohabitationSeparationPersonalFamilyMainStateMigrationSummary {
   migration_adapter?: string
   mutation_adapter?: string
+  arrangement_choice?: string
   migration_state?: string
   receipt_count?: number
   child_count?: number
   mutated_child_count?: number
   family_event_receipt_count?: number
   custody_arrangement_recorded_count?: number
+  custody_decision_recorded_count?: number
+  custody_decision_state?: string
+  custody_rule?: string
+  custody_basis?: string
+  caregiver_policy?: string
+  primary_caregiver_username?: string
+  co_caregiver_usernames?: string[]
+  secondary_caregiver_usernames?: string[]
+  visitation_policy?: string
+  education_decision_policy?: string
+  family_event_policy?: string
+  custody_decision_recorded?: boolean
+  no_resource_split?: boolean
+  requires_manual_review?: boolean
   children_private?: boolean
   personal_family_save_receipt_written?: boolean
   personal_family_save_mutation_enabled?: boolean
@@ -2356,6 +2371,19 @@ export interface CohabitationSeparationPersonalFamilyMainStateMutationReceipt {
   mutated_child_count?: number
   family_event_receipt_count?: number
   custody_arrangement_recorded_count?: number
+  custody_decision_state?: string
+  custody_rule?: string
+  custody_basis?: string
+  caregiver_policy?: string
+  primary_caregiver_username?: string
+  co_caregiver_usernames?: string[]
+  secondary_caregiver_usernames?: string[]
+  visitation_policy?: string
+  education_decision_policy?: string
+  family_event_policy?: string
+  custody_decision_recorded?: boolean
+  no_resource_split?: boolean
+  requires_manual_review?: boolean
   mutation_actions?: string[]
   before_summary?: Record<string, unknown> | null
   after_summary?: Record<string, unknown> | null
@@ -2422,11 +2450,50 @@ export interface CohabitationSeparationAssetDisputeSourceRow {
   mutated_child_count?: number
   family_event_receipt_count?: number
   custody_arrangement_recorded_count?: number
+  custody_decision_recorded_count?: number
+  custody_decision_state?: string
+  custody_rule?: string
+  custody_basis?: string
+  caregiver_policy?: string
+  primary_caregiver_username?: string
+  co_caregiver_usernames?: string[]
+  secondary_caregiver_usernames?: string[]
+  visitation_policy?: string
+  education_decision_policy?: string
+  family_event_policy?: string
+  custody_decision_recorded?: boolean
+  no_resource_split?: boolean
+  requires_manual_review?: boolean
   personal_family_main_state_mutation?: CohabitationSeparationPersonalFamilyMainStateMutationReceipt | null
   personal_family_main_state_migration_summary?: CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null
   privacy_boundary?: string
   idempotency_key?: string
   written_at?: number
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationChildArrangement {
+  relation_type?: string
+  arrangement_choice?: string
+  arrangement_state?: string
+  child_count?: number
+  personal_family_save_write_required?: boolean
+  children_private?: boolean
+  custody_decision_state?: string
+  custody_rule?: string
+  custody_basis?: string
+  caregiver_policy?: string
+  primary_caregiver_username?: string
+  co_caregiver_usernames?: string[]
+  secondary_caregiver_usernames?: string[]
+  visitation_policy?: string
+  education_decision_policy?: string
+  family_event_policy?: string
+  custody_decision_recorded?: boolean
+  no_resource_split?: boolean
+  requires_manual_review?: boolean
+  privacy_boundary?: string
+  memo?: string
   [key: string]: unknown
 }
 
@@ -2635,7 +2702,7 @@ export interface CohabitationSeparationPreview {
       child_arrangement_resolved?: boolean
       child_arrangement_resolved_at?: number
       child_arrangement_resolved_by?: string
-      child_arrangement_resolution?: Record<string, unknown>
+      child_arrangement_resolution?: CohabitationSeparationChildArrangement | null
       personal_family_receipts_written?: boolean
       personal_family_receipts_written_at?: number
       personal_family_receipts_written_by?: string
@@ -3206,7 +3273,7 @@ export interface CohabitationSeparationPersonalStoryReceiptsPayload {
 export interface CohabitationSeparationChildArrangementResolvePayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
-  arrangement_choice?: 'shared_care_pending_personal_saves' | 'owner_care_pending_personal_saves' | 'manual_family_review' | string
+  arrangement_choice?: 'shared_care_pending_personal_saves' | 'primary_owner_care' | 'manual_family_review' | string
   memo?: string
   idempotency_key: string
 }
@@ -3953,7 +4020,7 @@ export interface CohabitationSeparationPersonalStoryReceiptsResponse extends Coh
 
 export interface CohabitationSeparationChildArrangementResolveResponse extends CohabitationSeparationPreviewResponse {
   execution_ledger?: Record<string, unknown>
-  child_arrangement?: Record<string, unknown> | null
+  child_arrangement?: CohabitationSeparationChildArrangement | null
   already_resolved?: boolean
 }
 
