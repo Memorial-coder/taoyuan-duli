@@ -2200,6 +2200,17 @@ export interface CohabitationDailySettleResponse extends CohabitationDetailRespo
   already_settled?: boolean
 }
 
+export interface CohabitationSeparationPersonalRelationshipMutationSummary {
+  personal_state_mutated?: boolean
+  personal_story_state?: string
+  mutated_receipt_count?: number
+  receipt_count?: number
+  mutation_adapter?: string
+  affected_npc_ids?: string[]
+  mutation_actions?: string[]
+  [key: string]: unknown
+}
+
 export interface CohabitationSeparationPreview {
   id: string
   version: number
@@ -2235,11 +2246,14 @@ export interface CohabitationSeparationPreview {
       family_story_resolved?: boolean
       family_story_resolved_at?: number
       family_story_resolved_by?: string
-      family_story_resolution?: Record<string, unknown>
+      family_story_resolution?: Record<string, unknown> & {
+        personal_relationship_mutation_summary?: CohabitationSeparationPersonalRelationshipMutationSummary
+      }
       personal_story_receipts_written?: boolean
       personal_story_receipts_written_at?: number
       personal_story_receipts_written_by?: string
       personal_story_receipts?: Array<Record<string, unknown>>
+      personal_relationship_mutation_summary?: CohabitationSeparationPersonalRelationshipMutationSummary
       child_arrangement_resolved?: boolean
       child_arrangement_resolved_at?: number
       child_arrangement_resolved_by?: string

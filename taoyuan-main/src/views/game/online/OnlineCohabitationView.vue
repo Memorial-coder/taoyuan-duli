@@ -494,6 +494,30 @@
                       只读契约记录：剧情 receipt 可写入成员存档，NPC、家庭和孩子主状态仍由后续剧情规则处理。
                     </p>
                   </div>
+                  <div
+                    v-if="separationPersonalRelationshipMutationReadbackRows.length"
+                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-personal-relationship-mutation-readback"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">个人关系主状态写回</p>
+                      <span>{{ separationPersonalRelationshipMutationBoundaryLabel }}</span>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <p
+                        v-for="row in separationPersonalRelationshipMutationReadbackRows"
+                        :key="row.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                        :data-testid="`online-cohabitation-separation-personal-relationship-mutation-${row.key}`"
+                      >
+                        <span class="block text-accent">{{ row.label }}</span>
+                        <span class="mt-1 block break-all">{{ row.value }}</span>
+                      </p>
+                    </div>
+                    <p class="leading-4">
+                      该区只读展示个人剧情 receipt 的主状态清理证据；恋人、婚姻、知己可清理识别字段，结拜 / 合伙庄园保持契约记录-only。
+                    </p>
+                  </div>
                   <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[10px] text-muted">
                     <p>{{ separationPreviewConfirmationLabel }}</p>
                     <div class="flex flex-wrap gap-2">
@@ -3526,6 +3550,15 @@
     label: string
     value: string
   }
+  type SeparationPersonalRelationshipMutationSummary = {
+    personal_state_mutated: boolean
+    personal_story_state: string
+    mutated_receipt_count: number
+    receipt_count: number
+    mutation_adapter: string
+    affected_npc_ids: string[]
+    mutation_actions: string[]
+  }
   type SeparationStoryCinematicPlaybackStep = {
     key: string
     kind: 'stage' | 'dialogue' | 'animation'
@@ -3543,6 +3576,14 @@
   }
   const separationStoryFlagLabel = (value: unknown, truthy = '是', falsy = '否') =>
     value === true ? truthy : falsy
+  const separationStoryStringList = (value: unknown) =>
+    Array.isArray(value)
+      ? value.map(item => String(item ?? '').trim()).filter(Boolean)
+      : []
+  const separationStoryListLabel = (value: unknown, fallback = '无') => {
+    const list = separationStoryStringList(value)
+    return list.length ? list.join('、') : fallback
+  }
   const separationStoryDialogueLinesLabel = (value: unknown) => {
     if (!Array.isArray(value) || value.length === 0) return '待记录'
     return value
@@ -4021,6 +4062,45 @@
     const resolution = separationExecutionRequest.value?.family_story_resolution
     if (!resolution || typeof resolution !== 'object' || Array.isArray(resolution)) return null
     return resolution as Record<string, unknown>
+  })
+  const separationPersonalRelationshipMutationSummary = computed<SeparationPersonalRelationshipMutationSummary | null>(() => {
+    const resolution = separationStoryCinematicResolution.value
+    const requestSummary = separationExecutionRequest.value?.personal_relationship_mutation_summary
+    const resolutionSummary = resolution?.personal_relationship_mutation_summary
+    const raw = requestSummary && typeof requestSummary === 'object' && !Array.isArray(requestSummary)
+      ? requestSummary
+      : resolutionSummary && typeof resolutionSummary === 'object' && !Array.isArray(resolutionSummary)
+        ? resolutionSummary
+        : null
+    if (!raw) return null
+    const summary = raw as Record<string, unknown>
+    return {
+      personal_state_mutated: summary.personal_state_mutated === true,
+      personal_story_state: String(summary.personal_story_state ?? ''),
+      mutated_receipt_count: Math.max(0, Math.floor(Number(summary.mutated_receipt_count) || 0)),
+      receipt_count: Math.max(0, Math.floor(Number(summary.receipt_count) || 0)),
+      mutation_adapter: String(summary.mutation_adapter ?? ''),
+      affected_npc_ids: separationStoryStringList(summary.affected_npc_ids).slice(0, 20),
+      mutation_actions: separationStoryStringList(summary.mutation_actions).slice(0, 20),
+    }
+  })
+  const separationPersonalRelationshipMutationBoundaryLabel = computed(() => {
+    const summary = separationPersonalRelationshipMutationSummary.value
+    if (!summary) return '等待个人剧情 receipt'
+    const state = summary.personal_state_mutated ? '个人关系主状态已清理' : '个人关系主状态无需变更'
+    return `${state} · receipt ${summary.mutated_receipt_count}/${summary.receipt_count}`
+  })
+  const separationPersonalRelationshipMutationReadbackRows = computed<SeparationStoryCinematicReadbackRow[]>(() => {
+    const summary = separationPersonalRelationshipMutationSummary.value
+    if (!summary) return []
+    return [
+      { key: 'personal_story_state', label: '剧情写回状态', value: summary.personal_story_state || '待记录' },
+      { key: 'mutation_adapter', label: '写回适配器', value: summary.mutation_adapter || '待记录' },
+      { key: 'mutated_receipt_count', label: '变更 receipt', value: `${summary.mutated_receipt_count} / ${summary.receipt_count}` },
+      { key: 'affected_npc_ids', label: '影响 NPC', value: separationStoryListLabel(summary.affected_npc_ids) },
+      { key: 'mutation_actions', label: '清理动作', value: separationStoryListLabel(summary.mutation_actions, '无需清理') },
+      { key: 'asset_boundary', label: '资产边界', value: '不改孩子、铜币、背包、农田、房屋和家庭资产' },
+    ]
   })
   const separationStoryCinematicBoundaryLabel = computed(() => {
     const resolution = separationStoryCinematicResolution.value
