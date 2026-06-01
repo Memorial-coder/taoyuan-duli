@@ -6132,6 +6132,8 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
   const itemId = normalizeWarehouseItemId(entry.item_id ?? entry.itemId);
   const quantity = normalizePositiveInt(entry.quantity, 0);
   if (!itemId || quantity <= 0) return null;
+  const quality = normalizeQuality(entry.quality);
+  const itemPolicy = summarizeWarehouseItemPolicy(getWarehouseItemPolicy(itemId), quality);
   const action = ['deposit', 'withdraw', 'sell', 'consume', 'compensate', 'revert', 'separation_return'].includes(entry.action) ? entry.action : 'deposit';
   const actorUsername = normalizeUsername(entry.actor_username);
   const sourceOwnerUsername = normalizeUsername(entry.source_owner_username || actorUsername);
@@ -6156,8 +6158,14 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     id: sanitizeText(entry.id, 100) || makeId('shared_warehouse_ledger'),
     action,
     item_id: itemId,
-    quality: normalizeQuality(entry.quality),
+    quality,
     quantity,
+    item_policy_version: itemPolicy.policy_version,
+    item_policy_id: itemPolicy.policy_id,
+    item_classification: itemPolicy.classification,
+    withdrawal_risk_level: itemPolicy.risk_level,
+    high_value_withdrawal_required: itemPolicy.high_value_withdrawal_required,
+    item_policy: itemPolicy,
     actor_username: actorUsername,
     actor_display_name: sanitizeText(entry.actor_display_name || actorUsername, 60),
     actor_ip_address: normalizeRiskSignal(entry.actor_ip_address ?? entry.actorIpAddress ?? entry.ip_address ?? entry.ipAddress, 120),

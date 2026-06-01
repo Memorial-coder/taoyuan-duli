@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0601 同居共同仓库 11.4 仓库流水分级证据恢复
+- 共同仓库 ledger 归一化重新带回 `item_policy_version`、`item_policy_id`、`item_classification`、`withdrawal_risk_level`、`high_value_withdrawal_required` 和 `item_policy`，协作加工 / 料理升品产物的 deposit 流水可直接读到 `high_quality` 与高价值取出要求。
+- 修复 20.2 异常检测收尾后共同工坊升品保护证据丢失的回归，契约 QA 继续固定升品产物 ledger 与来源资产保护边界。
+
 ### 0601 20.2 异常检测收尾
 - 共同仓库 / 共同基金 / 庄园照料和偷菜治理快照新增同 IP / 设备短窗聚类证据，仓库放入 / 取出 / 卖出、基金小额预算、庄园照料和偷菜异常会在写资产、发奖励或写记录前限流，并保留 `warehouse_cross_device_brush_blocked`、`fund_high_frequency_spend_blocked`、`fund_cross_device_brush_blocked`、`manor_cross_device_brush_blocked` 等审计。
 - 房间重复结算 / 奖励重放、随机 NPC 生成异常和服务端坏档字段越界补齐阻断或审计证据；NPC 页展示最近生成异常审计，存档写入异常返回 422 字段清单。
