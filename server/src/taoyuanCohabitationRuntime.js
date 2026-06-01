@@ -175,11 +175,11 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 32;
+const WAREHOUSE_ITEM_POLICY_VERSION = 33;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
-  'yam', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
+  'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
@@ -204,7 +204,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_spring_roll', 'food_lotus_lantern_cake', 'food_harvest_feast', 'food_new_year_dumpling',
   'food_pumpkin_pie', 'food_golden_fried_rice', 'food_supreme_farm_feast',
   'food_stone_soup', 'food_iron_tonic', 'food_wild_salad', 'food_mushroom_stew', 'food_warrior_ration', 'food_battle_stew', 'food_iron_fist_soup',
-  'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
+  'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_yam_family_porridge', 'food_garlic_radish_side_dish', 'food_bitter_gourd_cooling_soup', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
   'food_candied_peach_spirit_cake', 'qingxin_lotus_elixir', 'warming_sweet_potato_pill', 'grain_breath_elixir',
@@ -2093,6 +2093,46 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'ginger', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_new_year_dumpling',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_yam_family_porridge: {
+    id: 'shared_yam_family_porridge',
+    label: '共同灶台山药团圆粥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'yam', quantity: 2, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_yam_family_porridge',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_garlic_radish_side_dish: {
+    id: 'shared_garlic_radish_side_dish',
+    label: '共同灶台蒜香萝卜',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'garlic', quantity: 1, quality: 'normal' },
+      { item_id: 'radish', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_garlic_radish_side_dish',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_bitter_gourd_cooling_soup: {
+    id: 'shared_bitter_gourd_cooling_soup',
+    label: '共同灶台苦瓜清暑汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'bitter_gourd', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_bitter_gourd_cooling_soup',
     output_quantity: 1,
     output_quality: 'normal',
   },

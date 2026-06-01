@@ -4498,10 +4498,12 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 32, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 33, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('garlic'), 'warehouse item policy should list ordinary garlic as common cooking input')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('bitter_gourd'), 'warehouse item policy should list ordinary bitter gourd as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('persimmon'), 'warehouse item policy should list persimmon as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('chives'), 'warehouse item policy should list chives as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('peanut'), 'warehouse item policy should list peanut as common cooking input')
@@ -4523,6 +4525,9 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('pine_cone'), 'warehouse item policy should list ordinary pine cone as a common foraging item')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_mushroom_stew'), 'warehouse item policy should list ordinary foraging mushroom dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_hunters_roast'), 'warehouse item policy should list ordinary hunter roast dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_yam_family_porridge'), 'warehouse item policy should list ordinary yam family porridge dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_garlic_radish_side_dish'), 'warehouse item policy should list ordinary garlic radish dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_bitter_gourd_cooling_soup'), 'warehouse item policy should list ordinary bitter gourd soup dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
@@ -5113,6 +5118,21 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_new_year_dumpling',
   outputItemId: 'food_new_year_dumpling',
   inputs: [{ itemId: 'winter_wheat', quantity: 3 }, { itemId: 'napa_cabbage', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_yam_family_porridge',
+  outputItemId: 'food_yam_family_porridge',
+  inputs: [{ itemId: 'yam', quantity: 2 }, { itemId: 'rice', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_garlic_radish_side_dish',
+  outputItemId: 'food_garlic_radish_side_dish',
+  inputs: [{ itemId: 'garlic', quantity: 1 }, { itemId: 'radish', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_bitter_gourd_cooling_soup',
+  outputItemId: 'food_bitter_gourd_cooling_soup',
+  inputs: [{ itemId: 'bitter_gourd', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
 })
 await injectRecipePolicyStock('rice', 2)
 const recipePolicyRiceVinegar = await runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
