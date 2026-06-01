@@ -203,6 +203,9 @@
                       <span v-if="option.cropUseText" class="text-muted">
                         {{ option.cropUseText }}
                       </span>
+                      <span v-if="option.substitutionText" class="text-accent/80">
+                        {{ option.substitutionText }}
+                      </span>
                     </Button>
                   </div>
                   <p v-else class="text-xs text-muted">{{ group.emptyMessage }}</p>
@@ -527,6 +530,7 @@
                   <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
                   <span v-if="option.alchemyLimitText" class="text-muted">[{{ option.alchemyLimitText }}]</span>
                   <span v-if="option.cropUseText" class="text-muted">{{ option.cropUseText }}</span>
+                  <span v-if="option.substitutionText" class="text-accent/80">{{ option.substitutionText }}</span>
                 </span>
                 <span class="text-muted ml-2 whitespace-nowrap">
                   {{ option.alchemyMetaText || `${option.recipe.processingDays}天` }}
@@ -548,7 +552,7 @@
               <span class="text-[10px] text-muted">{{ currentBatchRecipe.processingDays }}天/台</span>
             </div>
             <div v-if="currentBatchOption?.alchemyLimitText" class="text-[10px] text-muted mb-1.5">
-              {{ [currentBatchOption.alchemyLimitText, currentBatchOption.alchemyMetaText, currentBatchOption.cropUseText].filter(Boolean).join(' · ') }}
+              {{ [currentBatchOption.alchemyLimitText, currentBatchOption.alchemyMetaText, currentBatchOption.cropUseText, currentBatchOption.substitutionText].filter(Boolean).join(' · ') }}
             </div>
             <div class="flex items-center space-x-1 mb-1.5">
               <Button class="h-6 px-1.5 py-0.5 text-xs justify-center" :disabled="batchQuantity <= 1" @click="addBatchQuantity(-1)">-</Button>
@@ -691,6 +695,7 @@
     alchemyLimitText: string
     alchemyMetaText: string
     cropUseText: string
+    substitutionText: string
     recommendationText: string
     alchemyBlocked: boolean
   }
@@ -849,15 +854,20 @@
   }
 
   const buildRecipeOption = (recipe: ProcessingRecipeDef, quality?: Quality): RecipeOptionViewModel => {
+    const alchemyPlan = recipe.alchemy ? processingStore.getAlchemyMaterialPlan(recipe.id, 1, quality) : null
     const count = recipe.inputItemId
-      ? quality
+      ? recipe.alchemy
+        ? processingStore.getAlchemyRequirementAvailableCount(recipe.id, recipe.inputItemId, quality)
+        : quality
         ? getIndexedItemCount(recipe.inputItemId, quality)
         : recipe.minInputQuality
           ? getIndexedItemCountAtMinQuality(recipe.inputItemId, recipe.minInputQuality)
           : getIndexedItemCount(recipe.inputItemId)
       : 0
     const inputAvailable =
-      recipe.inputItemId === null ||
+      recipe.alchemy
+        ? !!alchemyPlan?.fulfilled
+        : recipe.inputItemId === null ||
       (quality
         ? hasIndexedItem(recipe.inputItemId, recipe.inputQuantity, quality)
         : recipe.minInputQuality
@@ -867,10 +877,10 @@
       key: `${recipe.id}:${extra.itemId}`,
       itemId: extra.itemId,
       itemName: getItemName(extra.itemId),
-      count: getIndexedItemCount(extra.itemId),
+      count: recipe.alchemy ? processingStore.getAlchemyRequirementAvailableCount(recipe.id, extra.itemId, quality) : getIndexedItemCount(extra.itemId),
       quantity: extra.quantity
     }))
-    const available = inputAvailable && extraInputs.every(extra => extra.count >= extra.quantity)
+    const available = recipe.alchemy ? !!alchemyPlan?.fulfilled : inputAvailable && extraInputs.every(extra => extra.count >= extra.quantity)
     const alchemyLimit = processingStore.getAlchemyDailyLimitStatus(recipe.id)
     const alchemyLimitText = alchemyLimit ? `${ALCHEMY_PILL_ROLE_LABELS[alchemyLimit.role]} ${alchemyLimit.used}/${alchemyLimit.limit}` : ''
     const alchemyMetaText = recipe.alchemy
@@ -880,6 +890,7 @@
       [recipe.inputItemId, ...(recipe.extraInputs?.map(extra => extra.itemId) ?? [])].filter((itemId): itemId is string => !!itemId),
       getProcessingRecommendationTags(recipe)
     )
+    const substitutionText = recipe.alchemy ? processingStore.getAlchemySubstitutionText(recipe.id, 1, quality) : ''
     const recommendationText = buildProcessingRecommendationText(recipe, available && !alchemyLimit?.blocked, alchemyMetaText, cropUseText)
 
     return {
@@ -897,6 +908,7 @@
       alchemyLimitText,
       alchemyMetaText,
       cropUseText,
+      substitutionText,
       recommendationText,
       alchemyBlocked: !!alchemyLimit?.blocked
     }
@@ -1134,6 +1146,7 @@
 
   const getRecipeOptionBatchLimit = (option: RecipeOptionViewModel | null, idleCount: number): number => {
     if (!option || idleCount <= 0) return 0
+    if (option.recipe.alchemy) return processingStore.getBatchProcessLimit(option.recipe.machineType, option.recipe.id, option.quality)
 
     let limit = idleCount
     if (option.recipe.inputItemId !== null) {
@@ -1171,6 +1184,9 @@
     if (!batchProcessModal.value?.recipeId) return
     const recipe = getProcessingRecipeById(batchProcessModal.value.recipeId)
     if (!recipe) return
+    const substitutionText = recipe.alchemy
+      ? processingStore.getAlchemySubstitutionText(recipe.id, batchQuantity.value, batchProcessModal.value.quality)
+      : ''
     const started = processingStore.startProcessingBatch(
       batchProcessModal.value.machineType,
       batchProcessModal.value.recipeId,
@@ -1179,7 +1195,7 @@
     )
     if (started > 0) {
       sfxClick()
-      addLog(`开始批量加工${recipe.name}${batchQualityLabel.value} ×${started}。`)
+      addLog(`开始批量加工${recipe.name}${batchQualityLabel.value} ×${started}。${substitutionText ? ` ${substitutionText}。` : ''}`)
       batchProcessModal.value = null
       return
     }
@@ -1807,13 +1823,13 @@
   // === 加工处理 ===
 
   const handleStartProcessing = (slotIndex: number, recipeId: string, quality?: Quality) => {
+    const recipe = getProcessingRecipeById(recipeId)
+    const substitutionText = recipe?.alchemy ? processingStore.getAlchemySubstitutionText(recipeId, 1, quality) : ''
     if (processingStore.startProcessing(slotIndex, recipeId, quality)) {
       sfxClick()
-      const recipe = getProcessingRecipeById(recipeId)
       const qualityLabel = quality && quality !== 'normal' ? `(${QUALITY_NAMES[quality]})` : ''
-      addLog(`开始加工${recipe?.name ?? recipeId}${qualityLabel}，需要${recipe?.processingDays ?? '?'}天。`)
+      addLog(`开始加工${recipe?.name ?? recipeId}${qualityLabel}，需要${recipe?.processingDays ?? '?'}天。${substitutionText ? ` ${substitutionText}。` : ''}`)
     } else {
-      const recipe = getProcessingRecipeById(recipeId)
       if (recipe?.alchemy) {
         const status = processingStore.getAlchemyDailyLimitStatus(recipeId)
         if (status?.blocked) {

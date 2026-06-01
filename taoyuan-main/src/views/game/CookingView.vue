@@ -78,6 +78,7 @@
         <p v-if="info.storyTriggerText" class="text-[10px] text-water/90 mt-0.5">{{ info.storyTriggerText }}</p>
         <p v-if="info.recipe.effect.buff" class="text-[10px] text-water mt-0.5">{{ info.recipe.effect.buff.description }}</p>
         <p v-if="info.cropUseText" class="text-[10px] text-muted mt-0.5">{{ info.cropUseText }}</p>
+        <p v-if="info.substitutionText" class="text-[10px] text-accent/80 mt-0.5">{{ info.substitutionText }}</p>
         <p v-if="info.recommendationText" class="text-[10px] text-accent/80 mt-0.5">{{ info.recommendationText }}</p>
       </div>
     </div>
@@ -135,6 +136,7 @@
                 <span class="text-xs" :class="ing.enough ? '' : 'text-danger'">{{ ing.available }}/{{ ing.quantity }}</span>
               </div>
               <p v-if="ing.cropUseText" class="text-[10px] text-muted/80 leading-snug">{{ ing.cropUseText }}</p>
+              <p v-if="ing.substitutionText" class="text-[10px] text-accent/80 leading-snug">{{ ing.substitutionText }}</p>
             </div>
           </div>
 
@@ -195,7 +197,6 @@
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
-  import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { getItemById } from '@/data'
   import { getCropUseTagMatches } from '@/data/cropUseProfiles'
   import { getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from '@/data/recipes'
@@ -217,6 +218,20 @@
   const modalQty = ref(1)
 
   const uniqueStrings = (values: string[]): string[] => Array.from(new Set(values.filter(Boolean)))
+  const getItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId
+
+  const formatIngredientSubstitutionText = (
+    entries: ReturnType<typeof cookingStore.getCookingUsePlan>['entries'],
+    requirementItemId: string
+  ): string => {
+    const substitutions = entries.filter(entry => entry.requirementItemId === requirementItemId && entry.substitute)
+    if (substitutions.length === 0) return ''
+    const summary = new Map<string, number>()
+    for (const entry of substitutions) {
+      summary.set(entry.itemId, (summary.get(entry.itemId) ?? 0) + entry.quantity)
+    }
+    return `用途替代：${Array.from(summary.entries()).map(([itemId, quantity]) => `${getItemName(itemId)}×${quantity}`).join('、')}`
+  }
 
   const getCookingCropUseText = (itemId: string): string => {
     const labels = uniqueStrings(getCropUseTagMatches(itemId, ['food']).map(match => match.label))
@@ -246,17 +261,21 @@
       const canCook = cookingStore.canCook(recipe.id)
       const maxQty = cookingStore.maxCookable(recipe.id)
       const quality = cookingStore.previewCookQuality(recipe.id)
+      const cookingPlan = cookingStore.getCookingUsePlan(recipe.id)
+      const substitutionText = cookingStore.getCookingSubstitutionText(recipe.id)
       const ingredients = recipe.ingredients.map(ing => {
         const item = getItemById(ing.itemId)
-        const available = getCombinedItemCount(ing.itemId)
+        const available = cookingStore.getCookingIngredientAvailableCount(ing.itemId)
         const cropUseText = getCookingCropUseText(ing.itemId)
+        const substitutionText = formatIngredientSubstitutionText(cookingPlan.entries, ing.itemId)
         return {
           itemId: ing.itemId,
           name: item?.name ?? ing.itemId,
           quantity: ing.quantity,
           available,
-          enough: available >= ing.quantity,
-          cropUseText
+          enough: !cookingPlan.missing.some(missing => missing.requirementItemId === ing.itemId),
+          cropUseText,
+          substitutionText
         }
       })
       const categoryText = getRecipeCategoryLabels(recipe).join('、')
@@ -264,7 +283,7 @@
       const cropUseLabels = uniqueStrings(ingredients.map(ing => ing.cropUseText.replace(/^用途：/, '')))
       const cropUseText = cropUseLabels.length > 0 ? `用途标签：${cropUseLabels.join('、')}` : ''
       const recommendationText = buildCookingRecommendationText(canCook, categoryText, storyTriggerText, cropUseText)
-      return { recipe, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText, recommendationText }
+      return { recipe, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText, substitutionText, recommendationText }
     })
   })
 

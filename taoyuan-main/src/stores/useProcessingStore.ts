@@ -25,6 +25,14 @@ import { useWarehouseStore } from './useWarehouseStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { addLog } from '@/composables/useGameLog'
 import { hasCombinedItem, removeCombinedItem, getLowestCombinedQuality, getCombinedItemCount } from '@/composables/useCombinedInventory'
+import {
+  formatCropUseSubstitutionSummary,
+  getCropUseRequirementAvailableCount,
+  getLowestCropUsePlanQuality,
+  resolveCropUseSubstitutionPlan,
+  type CropUseSubstitutionPlan,
+  type CropUseSubstitutionRequirement
+} from '@/utils/cropUseSubstitution'
 
 /** 工坊升级定义 */
 const WORKSHOP_UPGRADES = [
@@ -104,6 +112,127 @@ export const useProcessingStore = defineStore('processing', () => {
     } else {
       alchemyDailyLimitState.value.supportStarted++
     }
+  }
+
+  const getItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId
+
+  const buildAlchemyMaterialRequirements = (recipe: ProcessingRecipeDef, quantity: number = 1, specifiedQuality?: Quality) => {
+    const normalizedQuantity = Math.max(1, Math.floor(quantity))
+    const requirements: CropUseSubstitutionRequirement[] = []
+
+    if (recipe.inputItemId) {
+      requirements.push({
+        itemId: recipe.inputItemId,
+        quantity: recipe.inputQuantity * normalizedQuantity,
+        tags: ['alchemy' as const, 'medicine' as const],
+        minQuality: recipe.minInputQuality,
+        quality: specifiedQuality
+      })
+    }
+
+    for (const extra of recipe.extraInputs ?? []) {
+      requirements.push({
+        itemId: extra.itemId,
+        quantity: extra.quantity * normalizedQuantity,
+        tags: ['alchemy' as const, 'medicine' as const]
+      })
+    }
+
+    return requirements
+  }
+
+  const resolveAlchemyMaterialPlan = (
+    recipe: ProcessingRecipeDef,
+    quantity: number = 1,
+    specifiedQuality?: Quality
+  ): CropUseSubstitutionPlan => {
+    return resolveCropUseSubstitutionPlan(buildAlchemyMaterialRequirements(recipe, quantity, specifiedQuality), getCombinedItemCount)
+  }
+
+  const getAlchemyMaterialPlan = (recipeId: string, quantity: number = 1, specifiedQuality?: Quality): CropUseSubstitutionPlan => {
+    const recipe = getProcessingRecipeById(recipeId)
+    return recipe?.alchemy
+      ? resolveAlchemyMaterialPlan(recipe, quantity, specifiedQuality)
+      : { fulfilled: false, entries: [], missing: [] }
+  }
+
+  const getAlchemyRequirementAvailableCount = (recipeId: string, itemId: string, specifiedQuality?: Quality): number => {
+    const recipe = getProcessingRecipeById(recipeId)
+    if (!recipe?.alchemy) return getCombinedItemCount(itemId, specifiedQuality)
+    const requirement = buildAlchemyMaterialRequirements(recipe, 1, specifiedQuality).find(entry => entry.itemId === itemId)
+    return requirement ? getCropUseRequirementAvailableCount(requirement, getCombinedItemCount) : getCombinedItemCount(itemId, specifiedQuality)
+  }
+
+  const getAlchemySubstitutionText = (recipeId: string, quantity: number = 1, specifiedQuality?: Quality): string => {
+    return formatCropUseSubstitutionSummary(getAlchemyMaterialPlan(recipeId, quantity, specifiedQuality), getItemName)
+  }
+
+  const getAlchemyMaterialProcessLimit = (recipe: ProcessingRecipeDef, maxLimit: number, specifiedQuality?: Quality): number => {
+    let low = 0
+    let high = Math.max(0, Math.floor(maxLimit))
+    while (low < high) {
+      const mid = Math.ceil((low + high + 1) / 2)
+      if (resolveAlchemyMaterialPlan(recipe, mid, specifiedQuality).fulfilled) {
+        low = mid
+      } else {
+        high = mid - 1
+      }
+    }
+    return low
+  }
+
+  const getAlchemyMainInputQuality = (recipe: ProcessingRecipeDef, plan: CropUseSubstitutionPlan): Quality => {
+    const mainEntries = recipe.inputItemId ? plan.entries.filter(entry => entry.requirementItemId === recipe.inputItemId) : []
+    return mainEntries.length > 0 ? getLowestCropUsePlanQuality({ fulfilled: true, entries: mainEntries, missing: [] }) : 'normal'
+  }
+
+  const toConsumedInputs = (plan: CropUseSubstitutionPlan): ProcessingSlot['consumedInputs'] =>
+    plan.entries.map(entry => ({
+      requirementItemId: entry.requirementItemId,
+      itemId: entry.itemId,
+      quantity: entry.quantity,
+      quality: entry.quality,
+      substitute: entry.substitute
+    }))
+
+  const normalizeConsumedInputs = (value: unknown): ProcessingSlot['consumedInputs'] => {
+    if (!Array.isArray(value)) return undefined
+    const entries = value
+      .map((raw): NonNullable<ProcessingSlot['consumedInputs']>[number] | null => {
+        if (!raw || typeof raw !== 'object') return null
+        const entry = raw as Record<string, unknown>
+        const itemId = typeof entry.itemId === 'string' ? entry.itemId : ''
+        const quantity = Math.max(1, Math.floor(Number(entry.quantity) || 0))
+        if (!itemId || quantity <= 0) return null
+        const rawQuality = typeof entry.quality === 'string' ? entry.quality : undefined
+        const quality = rawQuality && QUALITY_VALUES.includes(rawQuality as Quality) ? (rawQuality as Quality) : undefined
+        return {
+          requirementItemId: typeof entry.requirementItemId === 'string' ? entry.requirementItemId : undefined,
+          itemId,
+          quantity,
+          quality,
+          substitute: entry.substitute === true
+        }
+      })
+      .filter((entry): entry is NonNullable<ProcessingSlot['consumedInputs']>[number] => entry !== null)
+    return entries.length > 0 ? entries : undefined
+  }
+
+  const getDefaultRecipeRefundEntries = (recipe: ProcessingRecipeDef, quality: Quality): { itemId: string; quantity: number; quality?: Quality }[] => {
+    const entries: { itemId: string; quantity: number; quality?: Quality }[] = (recipe.extraInputs ?? []).map(extra => ({ itemId: extra.itemId, quantity: extra.quantity }))
+    if (recipe.inputItemId) entries.push({ itemId: recipe.inputItemId, quantity: recipe.inputQuantity, quality })
+    return entries
+  }
+
+  const getSlotInputRefundEntries = (slot: ProcessingSlot, recipe: ProcessingRecipeDef): { itemId: string; quantity: number; quality?: Quality }[] => {
+    if (slot.consumedInputs?.length) {
+      return slot.consumedInputs.map(entry => ({
+        itemId: entry.itemId,
+        quantity: entry.quantity,
+        quality: entry.quality
+      }))
+    }
+    return getDefaultRecipeRefundEntries(recipe, slot.inputQuality ?? 'normal')
   }
 
   const ALCHEMY_RESULT_KINDS: AlchemyResultKind[] = ['success', 'partial', 'failed', 'rare']
@@ -253,12 +382,14 @@ export const useProcessingStore = defineStore('processing', () => {
     const totalDays = recipe ? Math.max(1, Number(slot.totalDays) || recipe.processingDays) : 0
     const ready = !!recipe && !!slot.ready
     const alchemyResult = ready ? sanitizeAlchemyResult(recipe, (slot as any).alchemyResult) : undefined
+    const consumedInputs = ready ? undefined : normalizeConsumedInputs((slot as any).consumedInputs)
 
     const sanitized: ProcessingSlot = {
       machineType,
       recipeId,
       inputItemId: recipe ? recipe.inputItemId : null,
       inputQuality,
+      consumedInputs,
       daysProcessed: recipe ? Math.min(daysProcessed, totalDays) : 0,
       totalDays,
       ready
@@ -419,6 +550,10 @@ export const useProcessingStore = defineStore('processing', () => {
       limit = Math.min(limit, alchemyLimit.remaining)
     }
 
+    if (recipe.alchemy) {
+      return getAlchemyMaterialProcessLimit(recipe, limit, specifiedQuality)
+    }
+
     if (recipe.inputItemId !== null) {
       const availableInput = specifiedQuality
         ? recipe.minInputQuality && !isQualityAtLeast(specifiedQuality, recipe.minInputQuality)
@@ -467,6 +602,26 @@ export const useProcessingStore = defineStore('processing', () => {
     const alchemyLimit = getAlchemyDailyLimitStatus(recipeId)
     if (alchemyLimit?.blocked) return false
 
+    if (recipe.alchemy) {
+      const materialPlan = resolveAlchemyMaterialPlan(recipe, 1, specifiedQuality)
+      if (!materialPlan.fulfilled) return false
+      const quality = getAlchemyMainInputQuality(recipe, materialPlan)
+      for (const entry of materialPlan.entries) {
+        if (!removeCombinedItem(entry.itemId, entry.quantity, entry.quality)) return false
+      }
+
+      slot.recipeId = recipeId
+      slot.inputItemId = recipe.inputItemId
+      slot.inputQuality = quality
+      slot.consumedInputs = toConsumedInputs(materialPlan)
+      slot.alchemyResult = undefined
+      slot.daysProcessed = 0
+      slot.totalDays = recipe.processingDays
+      slot.ready = false
+      incrementAlchemyDailyUse(recipeId)
+      return true
+    }
+
     if (recipe.extraInputs && recipe.extraInputs.length > 0) {
       for (const extra of recipe.extraInputs) {
         if (!hasCombinedItem(extra.itemId, extra.quantity)) return false
@@ -499,6 +654,7 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.recipeId = recipeId
     slot.inputItemId = recipe.inputItemId
     slot.inputQuality = quality
+    slot.consumedInputs = undefined
     slot.alchemyResult = undefined
     slot.daysProcessed = 0
     slot.totalDays = recipe.processingDays
@@ -564,6 +720,7 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.recipeId = null
     slot.inputItemId = null
     slot.inputQuality = undefined
+    slot.consumedInputs = undefined
     slot.alchemyResult = undefined
     slot.daysProcessed = 0
     slot.totalDays = 0
@@ -609,14 +766,7 @@ export const useProcessingStore = defineStore('processing', () => {
         refundEntries.push({ itemId: output.itemId, quantity: output.quantity, quality: outputQuality })
       }
     } else if (slot.recipeId && !slot.ready && recipe) {
-      if (recipe.extraInputs) {
-        for (const extra of recipe.extraInputs) {
-          refundEntries.push({ itemId: extra.itemId, quantity: extra.quantity })
-        }
-      }
-      if (recipe.inputItemId) {
-        refundEntries.push({ itemId: recipe.inputItemId, quantity: recipe.inputQuantity, quality: slot.inputQuality ?? 'normal' })
-      }
+      refundEntries.push(...getSlotInputRefundEntries(slot, recipe))
     }
 
     if (machineDef) {
@@ -638,17 +788,7 @@ export const useProcessingStore = defineStore('processing', () => {
     }
     // 如果正在加工：退回原料
     else if (slot.recipeId && !slot.ready && recipe) {
-      const stagedRefunds: { itemId: string; quantity: number; quality?: Quality }[] = []
-      if (recipe.extraInputs) {
-        for (const extra of recipe.extraInputs) {
-          stagedRefunds.push({ itemId: extra.itemId, quantity: extra.quantity })
-        }
-      }
-      if (recipe.inputItemId) {
-        const outputQuality = slot.inputQuality ?? 'normal'
-        stagedRefunds.push({ itemId: recipe.inputItemId, quantity: recipe.inputQuantity, quality: outputQuality })
-      }
-      refundItemsExact(stagedRefunds)
+      refundItemsExact(getSlotInputRefundEntries(slot, recipe))
     }
 
     // 退还机器制作材料
@@ -669,15 +809,7 @@ export const useProcessingStore = defineStore('processing', () => {
     const refundEntries: { itemId: string; quantity: number; quality?: Quality }[] = []
     // 如果正在加工且有原料投入，退回原料
     if (!slot.ready && slot.inputItemId && recipe) {
-      if (recipe.inputItemId) {
-        refundEntries.push({ itemId: recipe.inputItemId, quantity: recipe.inputQuantity, quality: slot.inputQuality ?? 'normal' })
-      }
-      // 退回副材料
-      if (recipe?.extraInputs) {
-        for (const extra of recipe.extraInputs) {
-          refundEntries.push({ itemId: extra.itemId, quantity: extra.quantity })
-        }
-      }
+      refundEntries.push(...getSlotInputRefundEntries(slot, recipe))
     }
     if (!canRefundItems(refundEntries)) return false
     refundItemsExact(refundEntries)
@@ -685,6 +817,7 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.recipeId = null
     slot.inputItemId = null
     slot.inputQuality = undefined
+    slot.consumedInputs = undefined
     slot.alchemyResult = undefined
     slot.daysProcessed = 0
     slot.totalDays = 0
@@ -716,6 +849,7 @@ export const useProcessingStore = defineStore('processing', () => {
       slot.recipeId = null
       slot.inputItemId = null
       slot.inputQuality = undefined
+      slot.consumedInputs = undefined
       slot.alchemyResult = undefined
       slot.daysProcessed = 0
       slot.totalDays = 0
@@ -778,12 +912,14 @@ export const useProcessingStore = defineStore('processing', () => {
             if (recipe.inputItemId === null) {
               slot.daysProcessed = 0
               slot.inputQuality = undefined
+              slot.consumedInputs = undefined
               slot.alchemyResult = undefined
               slot.ready = false
             } else {
               slot.recipeId = null
               slot.inputItemId = null
               slot.inputQuality = undefined
+              slot.consumedInputs = undefined
               slot.alchemyResult = undefined
               slot.daysProcessed = 0
               slot.totalDays = 0
@@ -831,6 +967,7 @@ export const useProcessingStore = defineStore('processing', () => {
                   slot.totalDays = Math.max(1, Math.ceil(slot.totalDays * 0.7))
                 }
                 slot.inputQuality = restartPlan.nextQuality
+                slot.consumedInputs = undefined
                 slot.ready = false
               } else {
                 // 虚空箱无足够原料，回到空闲
@@ -931,6 +1068,9 @@ export const useProcessingStore = defineStore('processing', () => {
     craftBomb,
     getBatchProcessLimit,
     getAlchemyDailyLimitStatus,
+    getAlchemyMaterialPlan,
+    getAlchemyRequirementAvailableCount,
+    getAlchemySubstitutionText,
     startProcessing,
     startProcessingBatch,
     collectProduct,

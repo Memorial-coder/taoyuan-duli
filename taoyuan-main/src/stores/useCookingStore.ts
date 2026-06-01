@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { RecipeDef, Quality } from '@/types'
-import { getRecipeById } from '@/data'
+import { getItemById, getRecipeById } from '@/data'
 import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
 import { getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from '@/data/recipes'
 import { useInventoryStore } from './useInventoryStore'
@@ -12,6 +12,13 @@ import { useWalletStore } from './useWalletStore'
 import { useHomeStore } from './useHomeStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { getCombinedItemCount, removeCombinedItem, getLowestCombinedQuality } from '@/composables/useCombinedInventory'
+import {
+  formatCropUseSubstitutionSummary,
+  getCropUseRequirementAvailableCount,
+  getLowestCropUsePlanQuality,
+  resolveCropUseSubstitutionPlan,
+  type CropUseSubstitutionPlan
+} from '@/utils/cropUseSubstitution'
 
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 const QUALITY_MULTIPLIER: Record<Quality, number> = { normal: 1, fine: 1.25, excellent: 1.5, supreme: 2 }
@@ -231,6 +238,36 @@ export const useCookingStore = defineStore('cooking', () => {
   /** 已解锁的食谱定义 */
   const recipes = computed(() => unlockedRecipes.value.map(id => getRecipeById(id)).filter((r): r is RecipeDef => r !== undefined))
 
+  const getItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId
+
+  const buildCookingRequirements = (recipe: RecipeDef, quantity: number = 1) => {
+    const normalizedQuantity = Math.max(1, Math.floor(quantity))
+    return recipe.ingredients.map(ing => ({
+      itemId: ing.itemId,
+      quantity: ing.quantity * normalizedQuantity,
+      tags: ['food' as const]
+    }))
+  }
+
+  const resolveCookingUsePlan = (recipe: RecipeDef, quantity: number = 1): CropUseSubstitutionPlan => {
+    return resolveCropUseSubstitutionPlan(buildCookingRequirements(recipe, quantity), getCombinedItemCount)
+  }
+
+  const getCookingUsePlan = (recipeId: string, quantity: number = 1): CropUseSubstitutionPlan => {
+    const recipe = getRecipeById(recipeId)
+    return recipe
+      ? resolveCookingUsePlan(recipe, quantity)
+      : { fulfilled: false, entries: [], missing: [] }
+  }
+
+  const getCookingIngredientAvailableCount = (itemId: string): number => {
+    return getCropUseRequirementAvailableCount({ itemId, quantity: 1, tags: ['food'] }, getCombinedItemCount)
+  }
+
+  const getCookingSubstitutionText = (recipeId: string, quantity: number = 1): string => {
+    return formatCropUseSubstitutionSummary(getCookingUsePlan(recipeId, quantity), getItemName)
+  }
+
   /** 检查是否有足够材料 */
   const canCook = (recipeId: string): boolean => {
     const recipe = getRecipeById(recipeId)
@@ -241,7 +278,7 @@ export const useCookingStore = defineStore('cooking', () => {
       const skill = skillStore.getSkill(recipe.requiredSkill.type)
       if (skill.level < recipe.requiredSkill.level) return false
     }
-    return recipe.ingredients.every(ing => getCombinedItemCount(ing.itemId) >= ing.quantity)
+    return resolveCookingUsePlan(recipe).fulfilled
   }
 
   /** 计算最多能烹饪几份 */
@@ -253,18 +290,32 @@ export const useCookingStore = defineStore('cooking', () => {
       const skill = skillStore.getSkill(recipe.requiredSkill.type)
       if (skill.level < recipe.requiredSkill.level) return 0
     }
-    let max = Infinity
+    let upper = Infinity
     for (const ing of recipe.ingredients) {
-      const available = getCombinedItemCount(ing.itemId)
-      max = Math.min(max, Math.floor(available / ing.quantity))
+      const available = getCookingIngredientAvailableCount(ing.itemId)
+      upper = Math.min(upper, Math.floor(available / ing.quantity))
     }
-    return max === Infinity ? 0 : max
+    if (upper === Infinity || upper <= 0) return 0
+
+    let low = 0
+    let high = upper
+    while (low < high) {
+      const mid = Math.ceil((low + high + 1) / 2)
+      if (resolveCookingUsePlan(recipe, mid).fulfilled) {
+        low = mid
+      } else {
+        high = mid - 1
+      }
+    }
+    return low
   }
 
   /** 预览烹饪品质（取所有材料最低品质） */
   const previewCookQuality = (recipeId: string): Quality => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return 'normal'
+    const plan = resolveCookingUsePlan(recipe)
+    if (plan.entries.length > 0) return getLowestCropUsePlanQuality(plan)
     let minIdx = 3
     for (const ing of recipe.ingredients) {
       const q = getLowestCombinedQuality(ing.itemId)
@@ -288,28 +339,21 @@ export const useCookingStore = defineStore('cooking', () => {
     }
 
     // 计算最多能做几份
-    let maxPossible = Math.floor(quantity)
-    for (const ing of recipe.ingredients) {
-      const available = getCombinedItemCount(ing.itemId)
-      maxPossible = Math.min(maxPossible, Math.floor(available / ing.quantity))
-    }
+    const maxPossible = Math.min(Math.floor(quantity), maxCookable(recipeId))
     if (maxPossible <= 0) return { success: false, message: '材料不足。' }
 
+    const cookingPlan = resolveCookingUsePlan(recipe, maxPossible)
+    if (!cookingPlan.fulfilled) return { success: false, message: '材料不足。' }
+
     // 计算品质（取所有材料中最低品质）
-    let minQualityIndex = 3
-    for (const ing of recipe.ingredients) {
-      const quality = getLowestCombinedQuality(ing.itemId)
-      const idx = QUALITY_ORDER.indexOf(quality)
-      if (idx < minQualityIndex) minQualityIndex = idx
-    }
-    const resultQuality = QUALITY_ORDER[minQualityIndex]!
+    const resultQuality = getLowestCropUsePlanQuality(cookingPlan)
     if (!inventoryStore.canAddItem(`food_${recipe.id}`, maxPossible, resultQuality)) {
       return { success: false, message: '背包空间不足，无法放入烹饪成品。' }
     }
 
     // 批量消耗材料
-    for (const ing of recipe.ingredients) {
-      removeCombinedItem(ing.itemId, ing.quantity * maxPossible)
+    for (const entry of cookingPlan.entries) {
+      if (!removeCombinedItem(entry.itemId, entry.quantity, entry.quality)) return { success: false, message: '材料不足。' }
     }
 
     // 添加食物到背包
@@ -334,8 +378,9 @@ export const useCookingStore = defineStore('cooking', () => {
     }
     const qualityTag = QUALITY_LABEL[resultQuality] ? `【${QUALITY_LABEL[resultQuality]}】` : ''
     const qtyTag = maxPossible > 1 ? `${maxPossible}份` : ''
+    const substitutionHint = formatCropUseSubstitutionSummary(cookingPlan, getItemName)
     const storyHint = storyTriggerLabels.length > 0 ? ` 可作为：${storyTriggerLabels.join('、')}。` : ''
-    return { success: true, message: `烹饪了${qtyTag}${qualityTag}${recipe.name}！${storyHint}` }
+    return { success: true, message: `烹饪了${qtyTag}${qualityTag}${recipe.name}！${substitutionHint ? ` ${substitutionHint}。` : ''}${storyHint}` }
   }
 
   /** 食用烹饪品 */
@@ -496,6 +541,9 @@ export const useCookingStore = defineStore('cooking', () => {
     canCook,
     maxCookable,
     previewCookQuality,
+    getCookingUsePlan,
+    getCookingIngredientAvailableCount,
+    getCookingSubstitutionText,
     cook,
     eat,
     useElixir,

@@ -106,6 +106,13 @@ export interface ProcessingSlot {
   recipeId: string | null
   inputItemId: string | null
   inputQuality?: Quality
+  consumedInputs?: {
+    requirementItemId?: string
+    itemId: string
+    quantity: number
+    quality?: Quality
+    substitute?: boolean
+  }[]
   alchemyResult?: {
     kind: AlchemyResultKind
     outputItemId: string

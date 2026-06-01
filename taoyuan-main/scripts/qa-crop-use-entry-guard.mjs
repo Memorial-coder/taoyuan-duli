@@ -12,11 +12,26 @@ const srcRoot = path.join(projectRoot, 'src')
 
 const readSource = relativePath => readFile(path.join(projectRoot, relativePath), 'utf8')
 
-const [cropUseProfiles, inventoryView, itemEncyclopedia, settingsStore] = await Promise.all([
+const [
+  cropUseProfiles,
+  inventoryView,
+  itemEncyclopedia,
+  settingsStore,
+  cookingStoreSource,
+  processingStoreSource,
+  cookingViewSource,
+  processingViewSource,
+  cropUseSubstitutionSource
+] = await Promise.all([
   readSource('src/data/cropUseProfiles.ts'),
   readSource('src/views/game/InventoryView.vue'),
   readSource('src/data/itemEncyclopedia.ts'),
-  readSource('src/stores/useSettingsStore.ts')
+  readSource('src/stores/useSettingsStore.ts'),
+  readSource('src/stores/useCookingStore.ts'),
+  readSource('src/stores/useProcessingStore.ts'),
+  readSource('src/views/game/CookingView.vue'),
+  readSource('src/views/game/ProcessingView.vue'),
+  readSource('src/utils/cropUseSubstitution.ts')
 ])
 
 const errors = []
@@ -103,6 +118,7 @@ const loadRuntimeModules = async () => {
       const cropsModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/crops.ts')).href)
       const itemsModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
       const itemEncyclopediaModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/itemEncyclopedia.ts')).href)
+      const cropUseSubstitutionModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/cropUseSubstitution.ts')).href)
 
       return {
         CROPS: cropsModule.CROPS,
@@ -112,7 +128,10 @@ const loadRuntimeModules = async () => {
         getItemById: itemsModule.getItemById,
         getItemExtraDetails: itemEncyclopediaModule.getItemExtraDetails,
         getItemUsedIn: itemEncyclopediaModule.getItemUsedIn,
-        getItemSearchKeywords: itemEncyclopediaModule.getItemSearchKeywords
+        getItemSearchKeywords: itemEncyclopediaModule.getItemSearchKeywords,
+        getCropUseSubstitutionCandidateIds: cropUseSubstitutionModule.getCropUseSubstitutionCandidateIds,
+        resolveCropUseSubstitutionPlan: cropUseSubstitutionModule.resolveCropUseSubstitutionPlan,
+        formatCropUseSubstitutionSummary: cropUseSubstitutionModule.formatCropUseSubstitutionSummary
       }
     })()
   }
@@ -194,6 +213,18 @@ assertIncludes(settingsStore, 'selectedTags: selectedCropUseTags', 'settings ser
 assertIncludes(settingsStore, 'const cropUseFilterState = normalizeCropUseFilterState(data)', 'settings deserialization must normalize crop use filter state')
 assertIncludes(settingsStore, 'inventoryCropUseFilter.value = cropUseFilterState.selectedTags', 'settings deserialization must fill missing/invalid crop use tag defaults')
 
+assertIncludes(cropUseSubstitutionSource, 'resolveCropUseSubstitutionPlan', '用途标签替代工具必须提供统一规划入口')
+assertIncludes(cropUseSubstitutionSource, 'getCropUseSubstitutionCandidateIds', '用途标签替代工具必须能枚举同类作物候选')
+assertIncludes(cropUseSubstitutionSource, 'formatCropUseSubstitutionSummary', '用途标签替代工具必须能输出玩家可读替代摘要')
+assertIncludes(cookingStoreSource, 'resolveCookingUsePlan', '灶台必须按用途标签生成材料替代计划')
+assertIncludes(cookingStoreSource, 'getCookingIngredientAvailableCount', '灶台材料可用量必须纳入用途标签替代')
+assertIncludes(cookingStoreSource, 'getCookingSubstitutionText', '灶台必须向界面暴露用途替代提示')
+assertIncludes(processingStoreSource, 'resolveAlchemyMaterialPlan', '丹炉必须按用途标签生成丹材替代计划')
+assertIncludes(processingStoreSource, 'getAlchemyRequirementAvailableCount', '丹炉材料可用量必须纳入用途标签替代')
+assertIncludes(processingStoreSource, 'consumedInputs', '丹炉替代消耗必须记录真实消耗材料以便取消退回')
+assertIncludes(cookingViewSource, 'substitutionText', '灶台界面必须展示用途标签替代提示')
+assertIncludes(processingViewSource, 'substitutionText', '加工界面必须展示丹炉用途标签替代提示')
+
 const {
   CROPS,
   getCropUseProfile,
@@ -202,8 +233,33 @@ const {
   getItemById,
   getItemExtraDetails,
   getItemUsedIn,
-  getItemSearchKeywords
+  getItemSearchKeywords,
+  getCropUseSubstitutionCandidateIds,
+  resolveCropUseSubstitutionPlan,
+  formatCropUseSubstitutionSummary
 } = await loadRuntimeModules()
+
+const cabbageFoodCandidates = getCropUseSubstitutionCandidateIds('cabbage', ['food'])
+assert(cabbageFoodCandidates.includes('napa_cabbage'), '料理用途替代必须能用白菜补位青菜类食材')
+const cabbageFoodPlan = resolveCropUseSubstitutionPlan(
+  [{ itemId: 'cabbage', quantity: 2, tags: ['food'] }],
+  (itemId, quality) => (itemId === 'napa_cabbage' && quality === 'normal' ? 2 : 0)
+)
+assert(cabbageFoodPlan.fulfilled, '料理用途替代计划必须能在原食材不足时使用同类 food 作物')
+assert(cabbageFoodPlan.entries.some(entry => entry.itemId === 'napa_cabbage' && entry.substitute), '料理用途替代计划必须标记替代食材')
+assert(
+  formatCropUseSubstitutionSummary(cabbageFoodPlan, itemId => getItemById(itemId)?.name ?? itemId).includes('白菜代青菜×2'),
+  '料理用途替代摘要必须说明实际食材流向'
+)
+
+const radishAlchemyCandidates = getCropUseSubstitutionCandidateIds('radish', ['alchemy', 'medicine'])
+assert(radishAlchemyCandidates.includes('potato'), '炼丹用途替代必须能用同类根茎丹材补位萝卜')
+const radishAlchemyPlan = resolveCropUseSubstitutionPlan(
+  [{ itemId: 'radish', quantity: 2, tags: ['alchemy', 'medicine'] }],
+  (itemId, quality) => (itemId === 'potato' && quality === 'normal' ? 2 : 0)
+)
+assert(radishAlchemyPlan.fulfilled, '炼丹用途替代计划必须能在原丹材不足时使用同类 alchemy / medicine 作物')
+assert(radishAlchemyPlan.entries.some(entry => entry.itemId === 'potato' && entry.substitute), '炼丹用途替代计划必须标记替代丹材')
 
 const cropRuntimeCases = [
   {
