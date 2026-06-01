@@ -2213,11 +2213,15 @@ export interface CohabitationSeparationPersonalRelationshipMutationSummary {
 
 export interface CohabitationSeparationPersonalFamilyMainStateMigrationSummary {
   migration_adapter?: string
+  mutation_adapter?: string
   migration_state?: string
   receipt_count?: number
   child_count?: number
+  mutated_child_count?: number
+  family_event_receipt_count?: number
   children_private?: boolean
   personal_family_save_receipt_written?: boolean
+  personal_family_save_mutation_enabled?: boolean
   personal_family_main_state_mutated?: boolean
   personal_family_state_mutated?: boolean
   personal_child_state_mutated?: boolean
@@ -2232,6 +2236,36 @@ export interface CohabitationSeparationPersonalFamilyMainStateMigrationSummary {
   receipt_ids?: string[]
   receipt_usernames?: string[]
   privacy_boundary?: string
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationPersonalFamilyMainStateMutationReceipt {
+  mutation_version?: number
+  mutation_adapter?: string
+  relation_type?: string
+  arrangement_choice?: string
+  arrangement_state?: string
+  personal_family_save_mutation_enabled?: boolean
+  personal_family_main_state_mutated?: boolean
+  personal_family_state_mutated?: boolean
+  personal_child_state_mutated?: boolean
+  personal_money_mutated?: boolean
+  personal_inventory_mutated?: boolean
+  personal_home_mutated?: boolean
+  personal_npc_state_mutated?: boolean
+  contract_family_state_mutated?: boolean
+  shared_assets_mutated?: boolean
+  child_count?: number
+  mutated_child_count?: number
+  family_event_receipt_count?: number
+  mutation_actions?: string[]
+  before_summary?: Record<string, unknown> | null
+  after_summary?: Record<string, unknown> | null
+  children_private?: boolean
+  reason?: string
+  privacy_boundary?: string
+  idempotency_key?: string
+  execution_ledger_id?: string
   [key: string]: unknown
 }
 
@@ -2250,9 +2284,11 @@ export interface CohabitationSeparationPersonalFamilyReceipt {
   child_count?: number
   children_private?: boolean
   migration_adapter?: string
+  mutation_adapter?: string
   migration_state?: string
   required_followup?: string
   migration_actions?: string[]
+  personal_family_save_mutation_enabled?: boolean
   personal_family_main_state_mutated?: boolean
   personal_family_state_mutated?: boolean
   personal_child_state_mutated?: boolean
@@ -2262,6 +2298,9 @@ export interface CohabitationSeparationPersonalFamilyReceipt {
   personal_npc_state_mutated?: boolean
   contract_family_state_mutated?: boolean
   shared_assets_mutated?: boolean
+  mutated_child_count?: number
+  family_event_receipt_count?: number
+  personal_family_main_state_mutation?: CohabitationSeparationPersonalFamilyMainStateMutationReceipt | null
   personal_family_main_state_migration_summary?: CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null
   privacy_boundary?: string
   idempotency_key?: string

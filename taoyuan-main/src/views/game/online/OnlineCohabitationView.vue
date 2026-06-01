@@ -4276,6 +4276,8 @@
       personal_and_family_main_state_migration_deferred: '个人 / 家族主状态迁移待后续',
       personal_family_main_state_migration_deferred: '个人家庭主状态迁移待后续',
       receipt_recorded_main_state_migration_pending: 'receipt 已记录，主状态迁移待后续',
+      personal_child_family_event_recorded: '孩子安排已写入个人家庭事件',
+      personal_family_main_state_mutation_recorded_child_events: '孩子家庭事件已落地',
       contract_exit_releases_family_roles_without_reassigning_owner: '退出释放职位，不静默重排家主',
     }
     return labels[status] || status || '待记录'
@@ -4412,11 +4414,15 @@
     const summary = raw as CohabitationSeparationPersonalFamilyMainStateMigrationSummary
     return {
       migration_adapter: String(summary.migration_adapter ?? ''),
+      mutation_adapter: String(summary.mutation_adapter ?? ''),
       migration_state: String(summary.migration_state ?? ''),
       receipt_count: Math.max(0, Math.floor(Number(summary.receipt_count) || 0)),
       child_count: Math.max(0, Math.floor(Number(summary.child_count) || 0)),
+      mutated_child_count: Math.max(0, Math.floor(Number(summary.mutated_child_count) || 0)),
+      family_event_receipt_count: Math.max(0, Math.floor(Number(summary.family_event_receipt_count) || 0)),
       children_private: summary.children_private !== false,
       personal_family_save_receipt_written: summary.personal_family_save_receipt_written === true,
+      personal_family_save_mutation_enabled: summary.personal_family_save_mutation_enabled === true,
       personal_family_main_state_mutated: summary.personal_family_main_state_mutated === true,
       personal_family_state_mutated: summary.personal_family_state_mutated === true,
       personal_child_state_mutated: summary.personal_child_state_mutated === true,
@@ -4436,32 +4442,38 @@
   const separationPersonalFamilyMainStateMigrationBoundaryLabel = computed(() => {
     const summary = separationPersonalFamilyMainStateMigrationSummary.value
     if (!summary) return '等待个人家庭 receipt'
-    const mutated = summary.personal_family_main_state_mutated === true
+    const childFamilyEventMutated = summary.personal_family_main_state_mutated === true
       || summary.personal_family_state_mutated === true
       || summary.personal_child_state_mutated === true
-      || summary.contract_family_state_mutated === true
-    const state = mutated ? '检测到主状态变更' : '家庭 / 孩子主状态未变'
+    const state = childFamilyEventMutated ? '孩子安排事件已写入' : '家庭 / 孩子主状态未变'
     return `${state} · receipt ${summary.receipt_count || 0} · 孩子 ${summary.child_count || 0}`
   })
   const separationPersonalFamilyMainStateMigrationReadbackRows = computed<SeparationStoryCinematicReadbackRow[]>(() => {
     const summary = separationPersonalFamilyMainStateMigrationSummary.value
     if (!summary) return []
-    const mainStateSafe = summary.personal_family_main_state_mutated !== true
-      && summary.personal_family_state_mutated !== true
-      && summary.personal_child_state_mutated !== true
-      && summary.personal_money_mutated !== true
+    const childFamilyEventMutated = summary.personal_family_main_state_mutated === true
+      || summary.personal_family_state_mutated === true
+      || summary.personal_child_state_mutated === true
+    const nonFamilyMainStateSafe = summary.personal_money_mutated !== true
       && summary.personal_inventory_mutated !== true
       && summary.personal_home_mutated !== true
       && summary.personal_npc_state_mutated !== true
       && summary.contract_family_state_mutated !== true
       && summary.shared_assets_mutated !== true
+    const boundaryValue = childFamilyEventMutated && nonFamilyMainStateSafe
+      ? '只写孩子家庭事件历史；不改铜币 / 背包 / 农田 / 小屋 / NPC 关系 / 共同资产'
+      : nonFamilyMainStateSafe
+        ? '不改孩子 / 家庭 / NPC / 铜币 / 背包 / 农田 / 小屋 / 共同资产主状态'
+        : '检测到个人资产 / NPC / 契约家庭 / 共同资产主状态变更'
     return [
       { key: 'migration_state', label: '迁移状态', value: separationManorExitStatusLabel(summary.migration_state || '') },
       { key: 'migration_adapter', label: '迁移适配器', value: summary.migration_adapter || '待记录' },
+      { key: 'mutation_adapter', label: '写入适配器', value: summary.mutation_adapter || '待记录' },
       { key: 'receipt_count', label: '家庭 receipt', value: `${summary.receipt_count || 0} 份 · 孩子 ${summary.child_count || 0}` },
+      { key: 'family_event_receipts', label: '孩子家庭事件', value: `${summary.family_event_receipt_count || 0} 条 · 影响孩子 ${summary.mutated_child_count || 0}` },
       { key: 'receipt_usernames', label: '成员回执', value: separationStoryListLabel(summary.receipt_usernames, '待写入') },
       { key: 'migration_actions', label: '迁移动作', value: separationStoryListLabel(summary.migration_actions, '等待独立迁移') },
-      { key: 'main_state_boundary', label: '主状态边界', value: mainStateSafe ? '不改孩子 / 家庭 / NPC / 铜币 / 背包 / 农田 / 小屋 / 共同资产主状态' : '存在主状态变更风险' },
+      { key: 'main_state_boundary', label: '主状态边界', value: boundaryValue },
       { key: 'children_private', label: '孩子隐私', value: summary.children_private !== false ? '仅显示数量和回执证明' : '需要人工复核隐私边界' },
       { key: 'required_followup', label: '后续事项', value: separationManorExitStatusLabel(summary.required_followup || '') },
     ]

@@ -599,6 +599,32 @@ const pickPersonalNonRelationshipBoundaryState = username => {
   }))
 }
 
+const pickPersonalFamilyMutationBoundaryState = username => {
+  const data = readGameplayData(username) || {}
+  const npc = data.npc && typeof data.npc === 'object'
+    ? JSON.parse(JSON.stringify(data.npc))
+    : null
+  if (npc && Array.isArray(npc.children)) {
+    npc.children = npc.children.map(child => {
+      if (!child || typeof child !== 'object') return child
+      const { trainingState, ...childWithoutTrainingState } = child
+      return childWithoutTrainingState
+    })
+  }
+  return JSON.parse(JSON.stringify({
+    player: data.player || null,
+    inventory: data.inventory || null,
+    farm: data.farm || null,
+    npcs: data.npcs || null,
+    npc,
+    hiddenNpcs: data.hiddenNpcs || null,
+    hiddenNpc: data.hiddenNpc || null,
+    home: data.home || null,
+    family: data.family || null,
+    children: data.children || null,
+  }))
+}
+
 const seedNpcRelationshipSaveState = (username, npcPatch) => {
   mutateGameplaySave(username, data => {
     data.npc = {
@@ -10448,8 +10474,8 @@ await assert.rejects(
   'personal family receipts should reject mismatched manifest hash'
 )
 
-const ownerBoundaryBeforeFamilyReceipts = pickPersonalStoryBoundaryState(owner)
-const partnerBoundaryBeforeFamilyReceipts = pickPersonalStoryBoundaryState(partner)
+const ownerBoundaryBeforeFamilyReceipts = pickPersonalFamilyMutationBoundaryState(owner)
+const partnerBoundaryBeforeFamilyReceipts = pickPersonalFamilyMutationBoundaryState(partner)
 const personalFamilyReceipts = await runtime.writeSeparationPersonalFamilyReceipts(created.contract.id, previewResult.preview.id, {
   memo: 'write personal family receipt only',
   plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
@@ -10463,30 +10489,61 @@ assert.equal(personalFamilyReceipts.preview.confirmation_state.execution_request
 assert.equal(personalFamilyReceipts.receipts.length, 2, 'personal family receipt write should create one receipt per accepted member')
 assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.arrangement_state === 'personal_family_receipt_recorded_only'), 'personal family receipts should stay receipt-only')
 assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.migration_adapter, 'separation_personal_family_main_state_receipt_v1', 'personal family receipts should expose family main-state migration adapter')
-assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.migration_state, 'receipt_recorded_main_state_migration_pending', 'personal family receipts should keep main-state migration pending')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.mutation_adapter, 'separation_personal_family_main_state_v1', 'personal family receipts should expose family main-state mutation adapter')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.migration_state, 'personal_child_family_event_recorded', 'personal family receipts should record child family event mutation')
 assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.receipt_count, 2, 'personal family migration summary should count receipts')
 assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.child_count, 1, 'personal family migration summary should keep child count')
-assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_family_main_state_mutated, false, 'personal family migration summary should not mark family main state mutated')
-assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_child_state_mutated, false, 'personal family migration summary should not mark child state mutated')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_family_save_mutation_enabled, true, 'personal family migration summary should mark family save mutation enabled')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_family_main_state_mutated, true, 'personal family migration summary should mark family main state mutated')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_family_state_mutated, true, 'personal family migration summary should mark family state mutated')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_child_state_mutated, true, 'personal family migration summary should mark child event state mutated')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.mutated_child_count, 2, 'personal family migration summary should count mutated children across saves')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.family_event_receipt_count, 2, 'personal family migration summary should count child family event receipts')
 assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_money_mutated, false, 'personal family migration summary should not mark personal money mutated')
 assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_inventory_mutated, false, 'personal family migration summary should not mark personal inventory mutated')
 assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_home_mutated, false, 'personal family migration summary should not mark personal home mutated')
-assert.equal(personalFamilyReceipts.execution_ledger.personal_family_main_state_migration_summary?.migration_state, 'receipt_recorded_main_state_migration_pending', 'execution ledger should preserve family main-state migration summary')
-assert.equal(personalFamilyReceipts.preview.confirmation_state.execution_request.personal_family_main_state_migration_summary?.required_followup, 'personal_family_main_state_migration_deferred', 'execution request should expose deferred family main-state follow-up')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.personal_npc_state_mutated, false, 'personal family migration summary should not mark NPC relationship state mutated')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.contract_family_state_mutated, false, 'personal family migration summary should not mark contract family state mutated')
+assert.equal(personalFamilyReceipts.personal_family_main_state_migration_summary?.shared_assets_mutated, false, 'personal family migration summary should not mark shared assets mutated')
+assert.equal(personalFamilyReceipts.execution_ledger.personal_family_main_state_migration_summary?.migration_state, 'personal_child_family_event_recorded', 'execution ledger should preserve family event mutation summary')
+assert.equal(personalFamilyReceipts.preview.confirmation_state.execution_request.personal_family_main_state_migration_summary?.required_followup, 'personal_family_main_state_mutation_recorded_child_events', 'execution request should expose recorded child event follow-up')
 assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.personal_family_main_state_migration_summary?.migration_adapter === 'separation_personal_family_main_state_receipt_v1'), 'each personal family receipt should keep migration summary')
-assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.personal_child_state_mutated === false && receipt.personal_family_main_state_mutated === false), 'personal family receipt rows should stay main-state mutation safe')
+assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.personal_family_main_state_migration_summary?.mutation_adapter === 'separation_personal_family_main_state_v1'), 'each personal family receipt should keep migration summary mutation adapter')
+assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.mutation_adapter === 'separation_personal_family_main_state_v1'), 'each personal family receipt should expose mutation adapter')
+assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.personal_family_main_state_mutation?.mutation_adapter === 'separation_personal_family_main_state_v1'), 'each personal family receipt should keep nested mutation evidence')
+assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.personal_child_state_mutated === true && receipt.personal_family_main_state_mutated === true), 'personal family receipt rows should record child event main-state mutation')
 assert.ok(!personalFamilyReceipts.execution_ledger.next_required_operations.includes('write_personal_family_receipts'), 'personal family receipt write should close family receipt follow-up')
 assert.ok(!personalFamilyReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal family receipt write should keep decoration split closed')
 assert.ok(personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.idempotency_key === 'qa-separation-personal-family-receipts'), 'personal family receipt write should be audited')
-assert.ok(personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.detail?.personal_family_main_state_migration_summary?.migration_state === 'receipt_recorded_main_state_migration_pending'), 'personal family receipt audit should preserve migration summary')
-assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeFamilyReceipts, 'personal family receipt write should not change owner money inventory farm npc home family or children state')
-assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeFamilyReceipts, 'personal family receipt write should not change partner money inventory farm npc home family or children state')
+assert.ok(personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.detail?.personal_family_main_state_migration_summary?.migration_state === 'personal_child_family_event_recorded'), 'personal family receipt audit should preserve child family event mutation summary')
+assert.deepEqual(pickPersonalFamilyMutationBoundaryState(owner), ownerBoundaryBeforeFamilyReceipts, 'personal family receipt write should only change owner child family event training history')
+assert.deepEqual(pickPersonalFamilyMutationBoundaryState(partner), partnerBoundaryBeforeFamilyReceipts, 'personal family receipt write should only change partner child family event training history')
 const ownerPersonalFamilyReceipt = (readGameplayData(owner)?.onlineCohabitation?.family_receipts || []).find(receipt => receipt.execution_ledger_id === childArrangement.execution_ledger.id)
 const partnerPersonalFamilyReceipt = (readGameplayData(partner)?.onlineCohabitation?.family_receipts || []).find(receipt => receipt.execution_ledger_id === childArrangement.execution_ledger.id)
 assert.ok(ownerPersonalFamilyReceipt, 'owner save should receive personal family receipt')
 assert.ok(partnerPersonalFamilyReceipt, 'partner save should receive personal family receipt')
-assert.equal(ownerPersonalFamilyReceipt?.personal_family_main_state_migration_summary?.personal_family_state_mutated, false, 'owner personal family receipt should record family state not mutated')
-assert.equal(partnerPersonalFamilyReceipt?.personal_family_main_state_migration_summary?.personal_child_state_mutated, false, 'partner personal family receipt should record child state not mutated')
+assert.equal(ownerPersonalFamilyReceipt?.personal_family_main_state_migration_summary?.personal_family_state_mutated, true, 'owner personal family receipt should record family child event mutation')
+assert.equal(partnerPersonalFamilyReceipt?.personal_family_main_state_migration_summary?.personal_child_state_mutated, true, 'partner personal family receipt should record child event mutation')
+assert.equal(ownerPersonalFamilyReceipt?.personal_family_main_state_mutation?.mutation_adapter, 'separation_personal_family_main_state_v1', 'owner personal family receipt should keep nested mutation adapter')
+assert.equal(partnerPersonalFamilyReceipt?.personal_family_main_state_mutation?.family_event_receipt_count, 1, 'partner personal family receipt should count one child event receipt')
+
+const childArrangementEventKey = `separation_child_arrangement:${childArrangement.execution_ledger.id}`
+const ownerChildTrainingState = readGameplayData(owner)?.npc?.children?.find(child => child?.id === 1)?.trainingState || {}
+const partnerChildTrainingState = readGameplayData(partner)?.npc?.children?.find(child => child?.id === 2)?.trainingState || {}
+assert.ok((ownerChildTrainingState.familyEventHistory || []).some(event =>
+  event?.id === `${childArrangementEventKey}:child:1`
+  && event.sourceResidentId === 'cohabitation_separation'
+  && event.title === '分居孩子安排'
+), 'owner child training state should record separation child arrangement event')
+assert.ok((partnerChildTrainingState.familyEventHistory || []).some(event =>
+  event?.id === `${childArrangementEventKey}:child:2`
+  && event.sourceResidentId === 'cohabitation_separation'
+  && event.title === '分居孩子安排'
+), 'partner child training state should record separation child arrangement event')
+assert.equal(ownerChildTrainingState.familyEventStages?.[childArrangementEventKey], 1, 'owner child family event stage should be recorded')
+assert.equal(partnerChildTrainingState.familyEventStages?.[childArrangementEventKey], 1, 'partner child family event stage should be recorded')
+assert.ok((ownerChildTrainingState.milestoneIds || []).includes(childArrangementEventKey), 'owner child milestone should include separation child arrangement event')
+assert.ok((partnerChildTrainingState.milestoneIds || []).includes(childArrangementEventKey), 'partner child milestone should include separation child arrangement event')
 
 const ownerRawAfterFamilyReceipts = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawAfterFamilyReceipts = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
@@ -10498,7 +10555,7 @@ const duplicateFamilyReceipts = await runtime.writeSeparationPersonalFamilyRecei
 }, actor(owner))
 assert.equal(duplicateFamilyReceipts.idempotent, true, 'same personal family receipt idempotency key should return existing receipts')
 assert.equal(duplicateFamilyReceipts.execution_ledger.id, personalFamilyReceipts.execution_ledger.id, 'idempotent personal family receipt write should keep ledger id')
-assert.equal(duplicateFamilyReceipts.personal_family_main_state_migration_summary?.migration_state, 'receipt_recorded_main_state_migration_pending', 'idempotent personal family receipt write should replay migration summary')
+assert.equal(duplicateFamilyReceipts.personal_family_main_state_migration_summary?.migration_state, 'personal_child_family_event_recorded', 'idempotent personal family receipt write should replay migration summary')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterFamilyReceipts, 'idempotent personal family receipt write should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterFamilyReceipts, 'idempotent personal family receipt write should not rewrite partner save again')
 

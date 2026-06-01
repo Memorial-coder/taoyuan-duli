@@ -13894,15 +13894,263 @@ function normalizeSeparationPersonalRelationshipMutationSummary(entry = null) {
   };
 }
 
+const PERSONAL_CHILD_FAMILY_EVENT_HISTORY_LIMIT = 4;
+const PERSONAL_CHILD_FAMILY_EVENT_STAGE_LIMIT = 3;
+const PERSONAL_CHILD_TRAINING_FOCUS_VALUES = new Set(['farm', 'craft', 'social', 'spirit']);
+
+function normalizePersonalChildTrainingState(entry = {}) {
+  const source = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
+  const focus = PERSONAL_CHILD_TRAINING_FOCUS_VALUES.has(source.focus) ? source.focus : null;
+  const familyInfluenceFocus = PERSONAL_CHILD_TRAINING_FOCUS_VALUES.has(source.familyInfluenceFocus)
+    ? source.familyInfluenceFocus
+    : null;
+  const familyEventStages = {};
+  if (source.familyEventStages && typeof source.familyEventStages === 'object' && !Array.isArray(source.familyEventStages)) {
+    for (const [key, value] of Object.entries(source.familyEventStages)) {
+      const normalizedKey = sanitizeText(key, 80);
+      const normalizedValue = Math.max(0, Math.min(PERSONAL_CHILD_FAMILY_EVENT_STAGE_LIMIT, Math.floor(Number(value) || 0)));
+      if (normalizedKey && normalizedValue > 0) familyEventStages[normalizedKey] = normalizedValue;
+    }
+  }
+  const familyEventLastDayTags = {};
+  if (source.familyEventLastDayTags && typeof source.familyEventLastDayTags === 'object' && !Array.isArray(source.familyEventLastDayTags)) {
+    for (const [key, value] of Object.entries(source.familyEventLastDayTags)) {
+      const normalizedKey = sanitizeText(key, 80);
+      const normalizedValue = sanitizeText(value, 80);
+      if (normalizedKey && normalizedValue) familyEventLastDayTags[normalizedKey] = normalizedValue;
+    }
+  }
+  const familyEventHistory = Array.isArray(source.familyEventHistory)
+    ? source.familyEventHistory.map(event => ({
+        id: sanitizeText(event?.id, 120),
+        dayTag: sanitizeText(event?.dayTag, 80),
+        focus: PERSONAL_CHILD_TRAINING_FOCUS_VALUES.has(event?.focus) ? event.focus : 'social',
+        stage: Math.max(1, Math.min(PERSONAL_CHILD_FAMILY_EVENT_STAGE_LIMIT, Math.floor(Number(event?.stage) || 1))),
+        sourceResidentId: sanitizeText(event?.sourceResidentId, 80),
+        sourceName: sanitizeText(event?.sourceName, 40),
+        title: sanitizeText(event?.title, 80),
+        summary: sanitizeText(event?.summary, 180),
+      })).filter(event => event.id).slice(-PERSONAL_CHILD_FAMILY_EVENT_HISTORY_LIMIT)
+    : [];
+  return {
+    focus,
+    lessonsThisWeek: Math.max(0, Math.floor(Number(source.lessonsThisWeek) || 0)),
+    milestoneIds: Array.isArray(source.milestoneIds)
+      ? source.milestoneIds.map(id => sanitizeText(id, 80)).filter(Boolean).slice(-8)
+      : [],
+    familyInfluenceFocus,
+    familyInfluenceSource: sanitizeText(source.familyInfluenceSource, 80),
+    familyInfluenceHistory: Array.isArray(source.familyInfluenceHistory) ? source.familyInfluenceHistory.slice(-4) : [],
+    familyEventStages,
+    familyEventLastDayTags,
+    familyEventHistory,
+  };
+}
+
+function summarizePersonalFamilyMainState(saveData = {}) {
+  const npcData = saveData.npc && typeof saveData.npc === 'object' && !Array.isArray(saveData.npc)
+    ? saveData.npc
+    : null;
+  const children = Array.isArray(npcData?.children) ? npcData.children : [];
+  const familyEventCount = children.reduce((sum, child) => {
+    const history = Array.isArray(child?.trainingState?.familyEventHistory) ? child.trainingState.familyEventHistory : [];
+    return sum + history.length;
+  }, 0);
+  const separationEventCount = children.reduce((sum, child) => {
+    const history = Array.isArray(child?.trainingState?.familyEventHistory) ? child.trainingState.familyEventHistory : [];
+    return sum + history.filter(event => String(event?.sourceResidentId || '') === 'cohabitation_separation').length;
+  }, 0);
+  const activeFamilyWishId = sanitizeText(npcData?.familyWishBoard?.activeWishId, 80);
+  return {
+    npc_child_count: children.length,
+    child_family_event_count: familyEventCount,
+    separation_child_arrangement_event_count: separationEventCount,
+    active_family_wish_id: activeFamilyWishId,
+    family_wish_completed_count: Array.isArray(npcData?.familyWishBoard?.completedWishIds) ? npcData.familyWishBoard.completedWishIds.length : 0,
+    pregnancy_active: Boolean(npcData?.pregnancy || npcData?.familyExpansion || npcData?.pendingChild),
+    child_proposal_pending: npcData?.childProposalPending === true,
+  };
+}
+
+function normalizePersonalFamilyMainStateSummary(summary = null) {
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return null;
+  return {
+    npc_child_count: Math.max(0, Math.floor(Number(summary.npc_child_count) || 0)),
+    child_family_event_count: Math.max(0, Math.floor(Number(summary.child_family_event_count) || 0)),
+    separation_child_arrangement_event_count: Math.max(0, Math.floor(Number(summary.separation_child_arrangement_event_count) || 0)),
+    active_family_wish_id: sanitizeText(summary.active_family_wish_id, 80),
+    family_wish_completed_count: Math.max(0, Math.floor(Number(summary.family_wish_completed_count) || 0)),
+    pregnancy_active: summary.pregnancy_active === true,
+    child_proposal_pending: summary.child_proposal_pending === true,
+  };
+}
+
+function normalizeSeparationPersonalFamilyMainStateMutationReceipt(entry = null) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const adapter = sanitizeText(entry.mutation_adapter, 100);
+  if (!adapter) return null;
+  return {
+    mutation_version: Math.max(1, Math.floor(Number(entry.mutation_version) || 1)),
+    mutation_adapter: adapter,
+    relation_type: sanitizeText(entry.relation_type, 80),
+    arrangement_choice: sanitizeText(entry.arrangement_choice, 100),
+    arrangement_state: sanitizeText(entry.arrangement_state, 100),
+    personal_family_save_mutation_enabled: entry.personal_family_save_mutation_enabled === true,
+    personal_family_main_state_mutated: entry.personal_family_main_state_mutated === true,
+    personal_family_state_mutated: entry.personal_family_state_mutated === true,
+    personal_child_state_mutated: entry.personal_child_state_mutated === true,
+    personal_money_mutated: entry.personal_money_mutated === true,
+    personal_inventory_mutated: entry.personal_inventory_mutated === true,
+    personal_home_mutated: entry.personal_home_mutated === true,
+    personal_npc_state_mutated: entry.personal_npc_state_mutated === true,
+    contract_family_state_mutated: entry.contract_family_state_mutated === true,
+    shared_assets_mutated: entry.shared_assets_mutated === true,
+    child_count: Math.max(0, Math.floor(Number(entry.child_count) || 0)),
+    mutated_child_count: Math.max(0, Math.floor(Number(entry.mutated_child_count) || 0)),
+    family_event_receipt_count: Math.max(0, Math.floor(Number(entry.family_event_receipt_count) || 0)),
+    mutation_actions: Array.isArray(entry.mutation_actions)
+      ? entry.mutation_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
+      : [],
+    before_summary: normalizePersonalFamilyMainStateSummary(entry.before_summary),
+    after_summary: normalizePersonalFamilyMainStateSummary(entry.after_summary),
+    children_private: entry.children_private !== false,
+    reason: sanitizeText(entry.reason, 100),
+    privacy_boundary: sanitizeText(entry.privacy_boundary, 220),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    execution_ledger_id: sanitizeText(entry.execution_ledger_id, 100),
+  };
+}
+
+function applySeparationPersonalFamilyMainStateMutation(saveData = {}, contract = {}, ledger = {}, member = {}, options = {}) {
+  const childArrangement = ledger.child_arrangement_resolution || {};
+  const relationType = normalizeRelationType(childArrangement.relation_type || contract.type);
+  const expectedChildCount = Math.max(0, Math.floor(Number(childArrangement.child_count) || Number(contract.family_state?.child_count) || 0));
+  const npcData = saveData.npc && typeof saveData.npc === 'object' && !Array.isArray(saveData.npc)
+    ? saveData.npc
+    : null;
+  const mutation = {
+    mutation_version: 1,
+    mutation_adapter: 'separation_personal_family_main_state_v1',
+    relation_type: relationType,
+    arrangement_choice: sanitizeText(childArrangement.arrangement_choice || 'shared_care_pending_personal_saves', 100),
+    arrangement_state: 'personal_child_family_event_pending',
+    personal_family_save_mutation_enabled: false,
+    personal_family_main_state_mutated: false,
+    personal_family_state_mutated: false,
+    personal_child_state_mutated: false,
+    personal_money_mutated: false,
+    personal_inventory_mutated: false,
+    personal_home_mutated: false,
+    personal_npc_state_mutated: false,
+    contract_family_state_mutated: false,
+    shared_assets_mutated: false,
+    child_count: expectedChildCount,
+    mutated_child_count: 0,
+    family_event_receipt_count: 0,
+    mutation_actions: [],
+    before_summary: npcData ? summarizePersonalFamilyMainState(saveData) : null,
+    after_summary: null,
+    children_private: childArrangement.children_private !== false,
+    reason: 'npc_save_bucket_missing',
+    privacy_boundary: '只在个人存档孩子家庭事件历史记录分居安排；不公开孩子身份，不改铜币、背包、农田、小屋、NPC 关系或共同资产。',
+    idempotency_key: sanitizeText(options.idempotency_key, 120),
+    execution_ledger_id: sanitizeText(ledger.id || options.execution_ledger_id, 100),
+  };
+
+  if (relationType !== 'marriage_home' || expectedChildCount <= 0) {
+    mutation.arrangement_state = 'contract_family_receipt_recorded_only';
+    mutation.reason = 'child_family_main_state_not_required';
+    mutation.after_summary = mutation.before_summary;
+    return mutation;
+  }
+  if (!npcData) return mutation;
+  const children = Array.isArray(npcData.children) ? npcData.children : [];
+  mutation.personal_family_save_mutation_enabled = true;
+  if (children.length === 0) {
+    mutation.arrangement_state = 'personal_child_family_event_no_children';
+    mutation.reason = 'personal_children_missing';
+    mutation.after_summary = summarizePersonalFamilyMainState(saveData);
+    return mutation;
+  }
+
+  const beforeSerialized = JSON.stringify(children);
+  const ledgerId = sanitizeText(ledger.id || options.execution_ledger_id || options.idempotency_key, 100);
+  const arrangementChoice = mutation.arrangement_choice;
+  const eventKey = `separation_child_arrangement:${ledgerId}`;
+  const dayTag = `separation:${Math.max(0, Math.floor(Number(ledger.child_arrangement_resolved_at) || nowSeconds()))}`;
+  const actionSet = new Set(mutation.mutation_actions);
+  const arrangementLabel = arrangementChoice === 'primary_owner_care'
+    ? '主照料人安排'
+    : arrangementChoice === 'manual_family_review'
+      ? '人工家庭复核安排'
+      : '共同照料安排';
+
+  children.forEach((child, index) => {
+    if (!child || typeof child !== 'object') return;
+    const childId = Math.max(0, Math.floor(Number(child.id) || index + 1));
+    const trainingState = normalizePersonalChildTrainingState(child.trainingState);
+    const eventId = `${eventKey}:child:${childId}`;
+    const existed = trainingState.familyEventHistory.some(event => event.id === eventId);
+    if (!existed) {
+      trainingState.familyEventHistory = [
+        ...trainingState.familyEventHistory,
+        {
+          id: eventId,
+          dayTag,
+          focus: 'social',
+          stage: 1,
+          sourceResidentId: 'cohabitation_separation',
+          sourceName: '分居孩子安排',
+          title: '分居孩子安排',
+          summary: `${arrangementLabel}已按分居剧情规则写入；孩子身份仅保留在个人存档。`,
+        },
+      ].slice(-PERSONAL_CHILD_FAMILY_EVENT_HISTORY_LIMIT);
+      actionSet.add('append_child_family_event_history');
+      mutation.mutated_child_count += 1;
+    }
+    trainingState.familyEventStages = {
+      ...trainingState.familyEventStages,
+      [eventKey]: Math.max(1, Number(trainingState.familyEventStages[eventKey]) || 1),
+    };
+    trainingState.familyEventLastDayTags = {
+      ...trainingState.familyEventLastDayTags,
+      [eventKey]: dayTag,
+    };
+    trainingState.milestoneIds = [...new Set([...trainingState.milestoneIds, eventKey])].slice(-8);
+    child.trainingState = trainingState;
+  });
+
+  mutation.family_event_receipt_count = children.reduce((sum, child) => {
+    const history = Array.isArray(child?.trainingState?.familyEventHistory) ? child.trainingState.familyEventHistory : [];
+    return sum + history.filter(event => String(event?.id || '').startsWith(eventKey)).length;
+  }, 0);
+  mutation.mutation_actions = Array.from(actionSet).slice(0, 20);
+  mutation.after_summary = summarizePersonalFamilyMainState(saveData);
+  const mutated = JSON.stringify(children) !== beforeSerialized;
+  mutation.personal_family_main_state_mutated = mutated;
+  mutation.personal_family_state_mutated = mutated;
+  mutation.personal_child_state_mutated = mutated;
+  mutation.arrangement_state = mutated
+    ? 'personal_child_family_event_recorded'
+    : 'personal_child_family_event_already_recorded';
+  mutation.reason = mutated ? 'mutated' : 'already_recorded';
+  if (!mutation.mutation_actions.length) mutation.mutation_actions = ['child_family_event_already_recorded'];
+  return mutation;
+}
+
 function normalizeSeparationPersonalFamilyMainStateMigrationSummary(entry = null) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
   return {
     migration_adapter: sanitizeText(entry.migration_adapter, 100),
+    mutation_adapter: sanitizeText(entry.mutation_adapter, 100),
     migration_state: sanitizeText(entry.migration_state, 100),
     receipt_count: Math.max(0, Math.floor(Number(entry.receipt_count) || 0)),
     child_count: Math.max(0, Math.floor(Number(entry.child_count) || 0)),
+    mutated_child_count: Math.max(0, Math.floor(Number(entry.mutated_child_count) || 0)),
+    family_event_receipt_count: Math.max(0, Math.floor(Number(entry.family_event_receipt_count) || 0)),
     children_private: entry.children_private !== false,
     personal_family_save_receipt_written: entry.personal_family_save_receipt_written === true,
+    personal_family_save_mutation_enabled: entry.personal_family_save_mutation_enabled === true,
     personal_family_main_state_mutated: entry.personal_family_main_state_mutated === true,
     personal_family_state_mutated: entry.personal_family_state_mutated === true,
     personal_child_state_mutated: entry.personal_child_state_mutated === true,
@@ -13928,31 +14176,60 @@ function normalizeSeparationPersonalFamilyMainStateMigrationSummary(entry = null
 
 function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, ledger = {}, receipts = []) {
   const childArrangement = ledger.child_arrangement_resolution || {};
+  const receiptList = Array.isArray(receipts) ? receipts : [];
+  const mutationReceipts = receiptList
+    .map(receipt => normalizeSeparationPersonalFamilyMainStateMutationReceipt(receipt.personal_family_main_state_mutation))
+    .filter(Boolean);
+  const mutated = receiptList.some(receipt => receipt?.personal_family_main_state_mutated === true || receipt?.personal_child_state_mutated === true);
+  const mutationEnabled = receiptList.some(receipt =>
+    receipt?.personal_family_save_mutation_enabled === true
+    || receipt?.personal_family_main_state_mutation?.personal_family_save_mutation_enabled === true
+  );
+  const mutationActions = [...new Set([
+    ...receiptList.flatMap(receipt => Array.isArray(receipt?.migration_actions) ? receipt.migration_actions : []),
+    ...mutationReceipts.flatMap(receipt => Array.isArray(receipt?.mutation_actions) ? receipt.mutation_actions : []),
+    mutated ? 'record_child_arrangement_in_personal_family_state' : 'defer_personal_family_main_state_mutation',
+    'keep_children_private',
+  ].map(action => sanitizeText(action, 80)).filter(Boolean))].slice(0, 20);
+  const familyEventReceiptCount = receiptList.reduce((sum, receipt) => (
+    sum + Math.max(0, Math.floor(Number(
+      receipt?.family_event_receipt_count
+      ?? receipt?.personal_family_main_state_mutation?.family_event_receipt_count
+    ) || 0))
+  ), 0);
+  const mutatedChildCount = receiptList.reduce((sum, receipt) => (
+    sum + Math.max(0, Math.floor(Number(
+      receipt?.mutated_child_count
+      ?? receipt?.personal_family_main_state_mutation?.mutated_child_count
+    ) || 0))
+  ), 0);
   return normalizeSeparationPersonalFamilyMainStateMigrationSummary({
     migration_adapter: 'separation_personal_family_main_state_receipt_v1',
-    migration_state: 'receipt_recorded_main_state_migration_pending',
-    receipt_count: Array.isArray(receipts) ? receipts.length : 0,
+    mutation_adapter: mutationReceipts[0]?.mutation_adapter || '',
+    migration_state: mutated ? 'personal_child_family_event_recorded' : 'receipt_recorded_main_state_migration_pending',
+    receipt_count: receiptList.length,
     child_count: Math.max(0, Math.floor(Number(childArrangement.child_count) || Number(contract.family_state?.child_count) || 0)),
+    mutated_child_count: mutatedChildCount,
+    family_event_receipt_count: familyEventReceiptCount,
     children_private: childArrangement.children_private !== false,
     personal_family_save_receipt_written: true,
-    personal_family_main_state_mutated: false,
-    personal_family_state_mutated: false,
-    personal_child_state_mutated: false,
+    personal_family_save_mutation_enabled: mutationEnabled,
+    personal_family_main_state_mutated: mutated,
+    personal_family_state_mutated: mutated,
+    personal_child_state_mutated: mutated,
     personal_money_mutated: false,
     personal_inventory_mutated: false,
     personal_home_mutated: false,
     personal_npc_state_mutated: false,
     contract_family_state_mutated: false,
     shared_assets_mutated: false,
-    required_followup: 'personal_family_main_state_migration_deferred',
-    migration_actions: [
-      'record_child_arrangement_receipt',
-      'defer_personal_family_main_state_mutation',
-      'keep_children_private',
-    ],
-    receipt_ids: Array.isArray(receipts) ? receipts.map(receipt => receipt.receipt_id) : [],
-    receipt_usernames: Array.isArray(receipts) ? receipts.map(receipt => receipt.username) : [],
-    privacy_boundary: '仅记录分居孩子安排和个人家庭回执；孩子、家庭心愿、NPC、铜币、背包、农田、小屋与家庭主状态真实迁移仍等待独立个人存档接口。',
+    required_followup: mutated ? 'personal_family_main_state_mutation_recorded_child_events' : 'personal_family_main_state_migration_deferred',
+    migration_actions: mutationActions,
+    receipt_ids: receiptList.map(receipt => receipt.receipt_id),
+    receipt_usernames: receiptList.map(receipt => receipt.username),
+    privacy_boundary: mutated
+      ? '已把分居孩子安排写入个人孩子家庭事件历史；孩子身份仍不公开，不改铜币、背包、农田、小屋、NPC 关系或共同资产。'
+      : '仅记录分居孩子安排和个人家庭回执；孩子、家庭心愿、NPC、铜币、背包、农田、小屋与家庭主状态真实迁移仍等待独立个人存档接口。',
   });
 }
 
@@ -16444,9 +16721,20 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
         && receipt?.execution_ledger_id === ledger.id
       )
     );
+    const personalFamilyMainStateMutation = applySeparationPersonalFamilyMainStateMutation(projectedData, contract, ledger, member, {
+      idempotency_key: payload.idempotency_key,
+      execution_ledger_id: ledger.id,
+    });
     const receiptMigrationSummary = buildSeparationPersonalFamilyMainStateMigrationSummary(contract, ledger, [{
       receipt_id: receiptId,
       username: member.username,
+      personal_family_save_mutation_enabled: personalFamilyMainStateMutation.personal_family_save_mutation_enabled,
+      personal_family_main_state_mutated: personalFamilyMainStateMutation.personal_family_main_state_mutated,
+      personal_family_state_mutated: personalFamilyMainStateMutation.personal_family_state_mutated,
+      personal_child_state_mutated: personalFamilyMainStateMutation.personal_child_state_mutated,
+      mutated_child_count: personalFamilyMainStateMutation.mutated_child_count,
+      family_event_receipt_count: personalFamilyMainStateMutation.family_event_receipt_count,
+      personal_family_main_state_mutation: personalFamilyMainStateMutation,
     }]);
     const receipt = {
       receipt_id: receiptId,
@@ -16460,20 +16748,27 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       child_count: Math.max(0, Math.floor(Number(childArrangement.child_count) || 0)),
       children_private: childArrangement.children_private !== false,
       migration_adapter: receiptMigrationSummary.migration_adapter,
+      mutation_adapter: personalFamilyMainStateMutation.mutation_adapter,
       migration_state: receiptMigrationSummary.migration_state,
       required_followup: receiptMigrationSummary.required_followup,
       migration_actions: receiptMigrationSummary.migration_actions,
-      personal_family_main_state_mutated: false,
-      personal_family_state_mutated: false,
-      personal_child_state_mutated: false,
+      personal_family_save_mutation_enabled: personalFamilyMainStateMutation.personal_family_save_mutation_enabled,
+      personal_family_main_state_mutated: personalFamilyMainStateMutation.personal_family_main_state_mutated,
+      personal_family_state_mutated: personalFamilyMainStateMutation.personal_family_state_mutated,
+      personal_child_state_mutated: personalFamilyMainStateMutation.personal_child_state_mutated,
       personal_money_mutated: false,
       personal_inventory_mutated: false,
       personal_home_mutated: false,
       personal_npc_state_mutated: false,
       contract_family_state_mutated: false,
       shared_assets_mutated: false,
+      mutated_child_count: personalFamilyMainStateMutation.mutated_child_count,
+      family_event_receipt_count: personalFamilyMainStateMutation.family_event_receipt_count,
+      personal_family_main_state_mutation: personalFamilyMainStateMutation,
       personal_family_main_state_migration_summary: receiptMigrationSummary,
-      privacy_boundary: '仅追加分居孩子安排回执；不改写孩子、家庭心愿、NPC、恋爱或资产状态。',
+      privacy_boundary: personalFamilyMainStateMutation.personal_family_main_state_mutated
+        ? '已把分居孩子安排写入个人孩子家庭事件历史；不改孩子身份公开范围、NPC 关系、铜币、背包、农田、小屋或共同资产。'
+        : '仅追加分居孩子安排回执；不改写孩子、家庭心愿、NPC、恋爱或资产状态。',
       memo: payload.memo,
       idempotency_key: payload.idempotency_key,
       written_at: writtenAt,
@@ -16505,18 +16800,23 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       child_count: receipt.child_count,
       children_private: receipt.children_private,
       migration_adapter: receipt.migration_adapter,
+      mutation_adapter: receipt.mutation_adapter,
       migration_state: receipt.migration_state,
       required_followup: receipt.required_followup,
       migration_actions: receipt.migration_actions,
-      personal_family_main_state_mutated: false,
-      personal_family_state_mutated: false,
-      personal_child_state_mutated: false,
+      personal_family_save_mutation_enabled: receipt.personal_family_save_mutation_enabled,
+      personal_family_main_state_mutated: receipt.personal_family_main_state_mutated,
+      personal_family_state_mutated: receipt.personal_family_state_mutated,
+      personal_child_state_mutated: receipt.personal_child_state_mutated,
       personal_money_mutated: false,
       personal_inventory_mutated: false,
       personal_home_mutated: false,
       personal_npc_state_mutated: false,
       contract_family_state_mutated: false,
       shared_assets_mutated: false,
+      mutated_child_count: receipt.mutated_child_count,
+      family_event_receipt_count: receipt.family_event_receipt_count,
+      personal_family_main_state_mutation: receipt.personal_family_main_state_mutation,
       personal_family_main_state_migration_summary: receiptMigrationSummary,
       privacy_boundary: receipt.privacy_boundary,
       idempotency_key: payload.idempotency_key,
@@ -18022,11 +18322,13 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           child_count: Math.max(0, Math.floor(Number(item.child_count) || 0)),
           children_private: item.children_private !== false,
           migration_adapter: sanitizeText(item.migration_adapter, 100),
+          mutation_adapter: sanitizeText(item.mutation_adapter, 100),
           migration_state: sanitizeText(item.migration_state, 100),
           required_followup: sanitizeText(item.required_followup, 100),
           migration_actions: Array.isArray(item.migration_actions)
             ? item.migration_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
             : [],
+          personal_family_save_mutation_enabled: item.personal_family_save_mutation_enabled === true,
           personal_family_main_state_mutated: item.personal_family_main_state_mutated === true,
           personal_family_state_mutated: item.personal_family_state_mutated === true,
           personal_child_state_mutated: item.personal_child_state_mutated === true,
@@ -18036,6 +18338,9 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           personal_npc_state_mutated: item.personal_npc_state_mutated === true,
           contract_family_state_mutated: item.contract_family_state_mutated === true,
           shared_assets_mutated: item.shared_assets_mutated === true,
+          mutated_child_count: Math.max(0, Math.floor(Number(item.mutated_child_count) || 0)),
+          family_event_receipt_count: Math.max(0, Math.floor(Number(item.family_event_receipt_count) || 0)),
+          personal_family_main_state_mutation: normalizeSeparationPersonalFamilyMainStateMutationReceipt(item.personal_family_main_state_mutation),
           personal_family_main_state_migration_summary: normalizeSeparationPersonalFamilyMainStateMigrationSummary(item.personal_family_main_state_migration_summary),
           privacy_boundary: sanitizeText(item.privacy_boundary, 220),
           idempotency_key: sanitizeText(item.idempotency_key, 120),
@@ -34439,7 +34744,9 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
       personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
       can_execute_now: false,
       execution_enabled: false,
-      execution_policy: '分居个人家庭回执已写入各成员存档；孩子、家庭心愿、NPC 和资产状态仍不由联机契约自动改写。',
+      execution_policy: personalFamilyMainStateMigrationSummary.personal_child_state_mutated
+        ? '分居个人家庭回执已写入各成员存档；孩子安排已追加到个人孩子家庭事件历史，孩子身份、NPC 关系和资产状态不由联机契约公开或改写。'
+        : '分居个人家庭回执已写入各成员存档；孩子、家庭心愿、NPC 和资产状态仍不由联机契约自动改写。',
     },
     deferred_operations: nextLedger.next_required_operations,
   });
@@ -34453,10 +34760,12 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
     receipt_count: receipts.length,
     receipt_usernames: receipts.map(receipt => receipt.username),
     child_count: nextLedger.child_arrangement_resolution?.child_count || 0,
-    personal_family_state: 'receipt_recorded_only',
+    personal_family_state: personalFamilyMainStateMigrationSummary.personal_child_state_mutated
+      ? 'personal_child_family_event_recorded'
+      : 'receipt_recorded_only',
     personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
     children_private: true,
-    npc_family_child_mutation: false,
+    npc_family_child_mutation: personalFamilyMainStateMigrationSummary.personal_child_state_mutated === true,
     next_required_operations: nextLedger.next_required_operations,
   }, receiptPayload.idempotency_key);
   saveContractStore(store);

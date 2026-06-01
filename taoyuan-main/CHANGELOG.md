@@ -22,9 +22,9 @@
 - 在线中心开关面板改为“高风险功能开关”，继续展示 fallback、降级入口、安全收尾和缺失配置保守策略；`qa:online-visual-feature-flags` 与 `qa:online-ui-structure` 同步守护完整清单。本轮只补入口层定义与提示，不新增奖励、不改服务端结算。
 
 
-### 0601 同居分居个人家庭主状态迁移回执读回
-- 分居预览执行请求新增 `personal_family_main_state_migration_summary` 读回，个人家庭回执会展示迁移 adapter、receipt 数、孩子数、成员范围、迁移动作和主状态 mutation 待接入状态。
-- 共同庄园分居面板新增“个人家庭主状态迁移证明”只读区，前端 API 类型与 `qa:online-ui-structure` 同步守护该摘要；本轮只补可追溯证据，不改真实孩子 / 家庭 / NPC / 铜币 / 背包 / 农田 / 小屋 / 共同资产主状态。
+### 0601 同居分居婚姻孩子安排个人家庭事件写入
+- 分居预览执行请求会读回 `personal_child_family_event_recorded`、`mutation_adapter`、`mutated_child_count` 和 `family_event_receipt_count`，用于证明婚姻孩子安排已写入个人孩子家庭事件历史。
+- 共同庄园分居面板的“个人家庭主状态迁移证明”区会展示写入适配器、孩子家庭事件回执数和非资产主状态边界；前端 API 类型与 `qa:online-ui-structure` 同步守护该摘要。本轮不改铜币 / 背包 / 农田 / 小屋 / NPC 关系 / 共同资产，完整抚养权和家庭主状态迁移仍留后续。
 
 ### 0601 同居分居庄园退出交接记录前端读回
 - 分居面板新增“庄园退出交接”只读区，读取 `manor_exit_handover_record` 展示记录 ID、成员职位、家主 / 负责人、职位释放策略、记录人 / 时间和个人存档 / 契约职位不改写边界。
