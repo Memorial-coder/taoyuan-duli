@@ -24,6 +24,18 @@ const requiredFlagKeys = [
   'dragon_boat',
   'manor_care',
   'manor_steal',
+  'crop_alchemy',
+  'crop_cooking',
+  'crop_processing',
+  'pet_feeding',
+  'random_npc',
+  'romance_system',
+  'family_system',
+  'child_system',
+  'cohabitation_duo',
+  'shared_warehouse',
+  'shared_fund',
+  'separation_simulation',
 ]
 
 const getFlagBlock = key => {
@@ -46,9 +58,10 @@ for (const key of requiredFlagKeys) {
   assert.match(block, /旧|只读|回看|结算|访客记录/, `${key} fallback should preserve an old or read-only path`)
   assert.match(
     block,
-    /统一房间状态机|服务端|轻采权限|照料次数/,
-    `${key} safe close should stay server-authoritative`,
+    /统一房间状态机|服务端|轻采权限|照料次数|本地存档|共同仓库|共同基金|ledger|审计/,
+    `${key} safe close should preserve authoritative or bounded persisted state`,
   )
+  assert.match(block, /缺失配置时按关闭处理|缺失配置时隐藏/, `${key} missing config should use conservative fallback`)
 }
 
 assert.equal(
@@ -92,6 +105,15 @@ for (const key of ['expedition_cavern', 'lantern_fair', 'dragon_boat', 'manor_ca
     activityScheduleSource.includes(`sceneSpecId: '${key}'`),
     `${key} schedule entry should carry a sceneSpecId for fallback routing`,
   )
+}
+for (const key of ['shared_warehouse', 'shared_fund', 'separation_simulation']) {
+  assert.ok(
+    getFlagBlock(key).includes("requires: ['cohabitation_duo']"),
+    `${key} should depend on the cohabitation master switch`,
+  )
+}
+for (const key of ['crop_alchemy', 'crop_cooking', 'crop_processing', 'pet_feeding']) {
+  assert.ok(featureFlagSource.includes(`fallbackTestId: 'online-visual-feature-flag-${key.replaceAll('_', '-')}'`), `${key} should expose a stable fallback test id`)
 }
 assert.ok(
   onlineViewSource.includes('online-visual-feature-flag-safe-close'),

@@ -103,12 +103,12 @@
       <div class="mt-3 border border-accent/10 bg-black/10 p-3" data-testid="online-visual-feature-flag-panel">
         <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div class="min-w-0">
-            <p class="text-xs leading-4 text-accent">可视化功能开关</p>
+            <p class="text-xs leading-4 text-accent">高风险功能开关</p>
             <p class="mt-1 text-[10px] leading-4 text-muted">
               {{ onlineVisualFeatureFlagSummary }}
             </p>
           </div>
-          <span class="text-[10px] leading-4 text-muted">关闭时保留旧入口或只读回看</span>
+          <span class="text-[10px] leading-4 text-muted">关闭时保留旧入口、收尾或只读回看</span>
         </div>
         <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <article

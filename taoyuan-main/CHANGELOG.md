@@ -3,6 +3,10 @@
 ---
 
 ## [未发布]
+### 0601 17.1 高风险功能开关收尾
+- `onlineVisualFeatureFlags` 从 6 个可视化 / 活动开关扩展为 18 个高风险功能开关，新增作物炼丹 / 料理 / 加工、宠物喂食、随机 NPC、恋爱、家族、孩子、双人同居、共同仓库、共同基金和分居演算负责范围。
+- 在线中心开关面板改为“高风险功能开关”，继续展示 fallback、降级入口、安全收尾和缺失配置保守策略；`qa:online-visual-feature-flags` 与 `qa:online-ui-structure` 同步守护完整清单。本轮只补入口层定义与提示，不新增奖励、不改服务端结算。
+
 
 ### 0601 同居分居个人家庭主状态迁移回执读回
 - 分居预览执行请求新增 `personal_family_main_state_migration_summary` 读回，个人家庭回执会展示迁移 adapter、receipt 数、孩子数、成员范围、迁移动作和主状态 mutation 待接入状态。
