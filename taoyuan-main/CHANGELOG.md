@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0601 同居分居个人家庭主状态迁移回执读回
+- 分居预览执行请求新增 `personal_family_main_state_migration_summary` 读回，个人家庭回执会展示迁移 adapter、receipt 数、孩子数、成员范围、迁移动作和主状态 mutation 待接入状态。
+- 共同庄园分居面板新增“个人家庭主状态迁移证明”只读区，前端 API 类型与 `qa:online-ui-structure` 同步守护该摘要；本轮只补可追溯证据，不改真实孩子 / 家庭 / NPC / 铜币 / 背包 / 农田 / 小屋 / 共同资产主状态。
+
 ### 0601 同居分居庄园退出交接记录前端读回
 - 分居面板新增“庄园退出交接”只读区，读取 `manor_exit_handover_record` 展示记录 ID、成员职位、家主 / 负责人、职位释放策略、记录人 / 时间和个人存档 / 契约职位不改写边界。
 - 交接区同步展示 `asset_domain_handover` 的共同地图、基金、仓库、装饰 / 家具、家族建筑、订单和声望状态；前端 API 类型与 `qa:online-ui-structure` 守护 `family_role_handover_executed` 与 `member_roles`。

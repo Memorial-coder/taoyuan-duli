@@ -2211,6 +2211,64 @@ export interface CohabitationSeparationPersonalRelationshipMutationSummary {
   [key: string]: unknown
 }
 
+export interface CohabitationSeparationPersonalFamilyMainStateMigrationSummary {
+  migration_adapter?: string
+  migration_state?: string
+  receipt_count?: number
+  child_count?: number
+  children_private?: boolean
+  personal_family_save_receipt_written?: boolean
+  personal_family_main_state_mutated?: boolean
+  personal_family_state_mutated?: boolean
+  personal_child_state_mutated?: boolean
+  personal_money_mutated?: boolean
+  personal_inventory_mutated?: boolean
+  personal_home_mutated?: boolean
+  personal_npc_state_mutated?: boolean
+  contract_family_state_mutated?: boolean
+  shared_assets_mutated?: boolean
+  required_followup?: string
+  migration_actions?: string[]
+  receipt_ids?: string[]
+  receipt_usernames?: string[]
+  privacy_boundary?: string
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationPersonalFamilyReceipt {
+  username?: string
+  username_key?: string
+  save_slot?: number
+  save_id?: string
+  before_revision?: number
+  after_revision?: number
+  receipt_id?: string
+  receipt_status?: string
+  relation_type?: string
+  arrangement_choice?: string
+  arrangement_state?: string
+  child_count?: number
+  children_private?: boolean
+  migration_adapter?: string
+  migration_state?: string
+  required_followup?: string
+  migration_actions?: string[]
+  personal_family_main_state_mutated?: boolean
+  personal_family_state_mutated?: boolean
+  personal_child_state_mutated?: boolean
+  personal_money_mutated?: boolean
+  personal_inventory_mutated?: boolean
+  personal_home_mutated?: boolean
+  personal_npc_state_mutated?: boolean
+  contract_family_state_mutated?: boolean
+  shared_assets_mutated?: boolean
+  personal_family_main_state_migration_summary?: CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null
+  privacy_boundary?: string
+  idempotency_key?: string
+  written_at?: number
+  [key: string]: unknown
+}
+
 export interface CohabitationSeparationManorExitHandoverRecord {
   record_version?: number
   record_id?: string
@@ -2373,7 +2431,8 @@ export interface CohabitationSeparationPreview {
       personal_family_receipts_written?: boolean
       personal_family_receipts_written_at?: number
       personal_family_receipts_written_by?: string
-      personal_family_receipts?: Array<Record<string, unknown>>
+      personal_family_main_state_migration_summary?: CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null
+      personal_family_receipts?: CohabitationSeparationPersonalFamilyReceipt[]
       decorations_buildings_split?: boolean
       decorations_buildings_split_at?: number
       decorations_buildings_split_by?: string
@@ -3635,7 +3694,8 @@ export interface CohabitationSeparationChildArrangementResolveResponse extends C
 
 export interface CohabitationSeparationPersonalFamilyReceiptsResponse extends CohabitationSeparationPreviewResponse {
   execution_ledger?: Record<string, unknown>
-  receipts?: Array<Record<string, unknown>>
+  receipts?: CohabitationSeparationPersonalFamilyReceipt[]
+  personal_family_main_state_migration_summary?: CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null
   already_written?: boolean
 }
 

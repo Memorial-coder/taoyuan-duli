@@ -13765,6 +13765,68 @@ function normalizeSeparationPersonalRelationshipMutationSummary(entry = null) {
   };
 }
 
+function normalizeSeparationPersonalFamilyMainStateMigrationSummary(entry = null) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  return {
+    migration_adapter: sanitizeText(entry.migration_adapter, 100),
+    migration_state: sanitizeText(entry.migration_state, 100),
+    receipt_count: Math.max(0, Math.floor(Number(entry.receipt_count) || 0)),
+    child_count: Math.max(0, Math.floor(Number(entry.child_count) || 0)),
+    children_private: entry.children_private !== false,
+    personal_family_save_receipt_written: entry.personal_family_save_receipt_written === true,
+    personal_family_main_state_mutated: entry.personal_family_main_state_mutated === true,
+    personal_family_state_mutated: entry.personal_family_state_mutated === true,
+    personal_child_state_mutated: entry.personal_child_state_mutated === true,
+    personal_money_mutated: entry.personal_money_mutated === true,
+    personal_inventory_mutated: entry.personal_inventory_mutated === true,
+    personal_home_mutated: entry.personal_home_mutated === true,
+    personal_npc_state_mutated: entry.personal_npc_state_mutated === true,
+    contract_family_state_mutated: entry.contract_family_state_mutated === true,
+    shared_assets_mutated: entry.shared_assets_mutated === true,
+    required_followup: sanitizeText(entry.required_followup, 100),
+    migration_actions: Array.isArray(entry.migration_actions)
+      ? entry.migration_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
+      : [],
+    receipt_ids: Array.isArray(entry.receipt_ids)
+      ? entry.receipt_ids.map(id => sanitizeText(id, 140)).filter(Boolean).slice(0, 20)
+      : [],
+    receipt_usernames: Array.isArray(entry.receipt_usernames)
+      ? entry.receipt_usernames.map(normalizeUsername).filter(Boolean).slice(0, 20)
+      : [],
+    privacy_boundary: sanitizeText(entry.privacy_boundary, 220),
+  };
+}
+
+function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, ledger = {}, receipts = []) {
+  const childArrangement = ledger.child_arrangement_resolution || {};
+  return normalizeSeparationPersonalFamilyMainStateMigrationSummary({
+    migration_adapter: 'separation_personal_family_main_state_receipt_v1',
+    migration_state: 'receipt_recorded_main_state_migration_pending',
+    receipt_count: Array.isArray(receipts) ? receipts.length : 0,
+    child_count: Math.max(0, Math.floor(Number(childArrangement.child_count) || Number(contract.family_state?.child_count) || 0)),
+    children_private: childArrangement.children_private !== false,
+    personal_family_save_receipt_written: true,
+    personal_family_main_state_mutated: false,
+    personal_family_state_mutated: false,
+    personal_child_state_mutated: false,
+    personal_money_mutated: false,
+    personal_inventory_mutated: false,
+    personal_home_mutated: false,
+    personal_npc_state_mutated: false,
+    contract_family_state_mutated: false,
+    shared_assets_mutated: false,
+    required_followup: 'personal_family_main_state_migration_deferred',
+    migration_actions: [
+      'record_child_arrangement_receipt',
+      'defer_personal_family_main_state_mutation',
+      'keep_children_private',
+    ],
+    receipt_ids: Array.isArray(receipts) ? receipts.map(receipt => receipt.receipt_id) : [],
+    receipt_usernames: Array.isArray(receipts) ? receipts.map(receipt => receipt.username) : [],
+    privacy_boundary: '仅记录分居孩子安排和个人家庭回执；孩子、家庭心愿、NPC、铜币、背包、农田、小屋与家庭主状态真实迁移仍等待独立个人存档接口。',
+  });
+}
+
 function normalizeSeparationChildArrangementResolvePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居孩子安排记录需要 idempotency_key，以防断线或重试时重复记录');
@@ -16253,6 +16315,10 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
         && receipt?.execution_ledger_id === ledger.id
       )
     );
+    const receiptMigrationSummary = buildSeparationPersonalFamilyMainStateMigrationSummary(contract, ledger, [{
+      receipt_id: receiptId,
+      username: member.username,
+    }]);
     const receipt = {
       receipt_id: receiptId,
       type: 'cohabitation_separation_family_child_arrangement',
@@ -16264,6 +16330,20 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       arrangement_state: 'personal_family_receipt_recorded_only',
       child_count: Math.max(0, Math.floor(Number(childArrangement.child_count) || 0)),
       children_private: childArrangement.children_private !== false,
+      migration_adapter: receiptMigrationSummary.migration_adapter,
+      migration_state: receiptMigrationSummary.migration_state,
+      required_followup: receiptMigrationSummary.required_followup,
+      migration_actions: receiptMigrationSummary.migration_actions,
+      personal_family_main_state_mutated: false,
+      personal_family_state_mutated: false,
+      personal_child_state_mutated: false,
+      personal_money_mutated: false,
+      personal_inventory_mutated: false,
+      personal_home_mutated: false,
+      personal_npc_state_mutated: false,
+      contract_family_state_mutated: false,
+      shared_assets_mutated: false,
+      personal_family_main_state_migration_summary: receiptMigrationSummary,
       privacy_boundary: '仅追加分居孩子安排回执；不改写孩子、家庭心愿、NPC、恋爱或资产状态。',
       memo: payload.memo,
       idempotency_key: payload.idempotency_key,
@@ -16295,6 +16375,21 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       arrangement_state: receipt.arrangement_state,
       child_count: receipt.child_count,
       children_private: receipt.children_private,
+      migration_adapter: receipt.migration_adapter,
+      migration_state: receipt.migration_state,
+      required_followup: receipt.required_followup,
+      migration_actions: receipt.migration_actions,
+      personal_family_main_state_mutated: false,
+      personal_family_state_mutated: false,
+      personal_child_state_mutated: false,
+      personal_money_mutated: false,
+      personal_inventory_mutated: false,
+      personal_home_mutated: false,
+      personal_npc_state_mutated: false,
+      contract_family_state_mutated: false,
+      shared_assets_mutated: false,
+      personal_family_main_state_migration_summary: receiptMigrationSummary,
+      privacy_boundary: receipt.privacy_boundary,
       idempotency_key: payload.idempotency_key,
       written_at: writtenAt,
     };
@@ -17781,6 +17876,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     personal_family_receipts_idempotency_key: sanitizeText(entry.personal_family_receipts_idempotency_key, 120),
     personal_family_receipts_written_at: Math.max(0, Math.floor(Number(entry.personal_family_receipts_written_at) || 0)),
     personal_family_receipts_written_by: normalizeUsername(entry.personal_family_receipts_written_by),
+    personal_family_main_state_migration_summary: normalizeSeparationPersonalFamilyMainStateMigrationSummary(entry.personal_family_main_state_migration_summary),
     personal_family_receipts: Array.isArray(entry.personal_family_receipts)
       ? entry.personal_family_receipts.map(item => ({
           username: normalizeUsername(item.username),
@@ -17796,6 +17892,23 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           arrangement_state: sanitizeText(item.arrangement_state, 100),
           child_count: Math.max(0, Math.floor(Number(item.child_count) || 0)),
           children_private: item.children_private !== false,
+          migration_adapter: sanitizeText(item.migration_adapter, 100),
+          migration_state: sanitizeText(item.migration_state, 100),
+          required_followup: sanitizeText(item.required_followup, 100),
+          migration_actions: Array.isArray(item.migration_actions)
+            ? item.migration_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
+            : [],
+          personal_family_main_state_mutated: item.personal_family_main_state_mutated === true,
+          personal_family_state_mutated: item.personal_family_state_mutated === true,
+          personal_child_state_mutated: item.personal_child_state_mutated === true,
+          personal_money_mutated: item.personal_money_mutated === true,
+          personal_inventory_mutated: item.personal_inventory_mutated === true,
+          personal_home_mutated: item.personal_home_mutated === true,
+          personal_npc_state_mutated: item.personal_npc_state_mutated === true,
+          contract_family_state_mutated: item.contract_family_state_mutated === true,
+          shared_assets_mutated: item.shared_assets_mutated === true,
+          personal_family_main_state_migration_summary: normalizeSeparationPersonalFamilyMainStateMigrationSummary(item.personal_family_main_state_migration_summary),
+          privacy_boundary: sanitizeText(item.privacy_boundary, 220),
           idempotency_key: sanitizeText(item.idempotency_key, 120),
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.receipt_id).slice(0, 20)
@@ -34125,6 +34238,8 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
   const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
   if (receiptPayload.execution_ledger_id && receiptPayload.execution_ledger_id !== ledger.id) throw createError('分居返还执行记录不匹配，请刷新后重试', 409);
   if (ledger.personal_family_receipts_idempotency_key === receiptPayload.idempotency_key || ledger.personal_family_receipts_written === true) {
+    const personalFamilyMainStateMigrationSummary = ledger.personal_family_main_state_migration_summary
+      || buildSeparationPersonalFamilyMainStateMigrationSummary(contract, ledger, ledger.personal_family_receipts || []);
     return {
       contract: toPublicContract(contract),
       preview,
@@ -34132,6 +34247,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
       already_written: ledger.personal_family_receipts_written === true,
       execution_ledger: ledger,
       receipts: ledger.personal_family_receipts || [],
+      personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
     };
   }
 
@@ -34152,6 +34268,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
   const receipts = writePersonalFamilyReceiptsFromChildArrangement(contract, ledger, receiptPayload);
   if (receipts.length === 0) throw createError('没有可写入个人家庭回执的已接受成员', 409);
   const writtenAt = nowSeconds();
+  const personalFamilyMainStateMigrationSummary = buildSeparationPersonalFamilyMainStateMigrationSummary(contract, ledger, receipts);
   const nextRequiredOperations = (ledger.next_required_operations || [])
     .filter(operation => operation && operation !== 'write_personal_family_receipts');
   if (ledger.decorations_buildings_split !== true && !nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
@@ -34162,6 +34279,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
     personal_family_receipts_idempotency_key: receiptPayload.idempotency_key,
     personal_family_receipts_written_at: writtenAt,
     personal_family_receipts_written_by: member.username,
+    personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
     personal_family_receipts: receipts,
     next_required_operations: nextRequiredOperations,
   });
@@ -34171,6 +34289,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
     personal_family_receipts_written: true,
     personal_family_receipts_written_at: writtenAt,
     personal_family_receipts_written_by: member.username,
+    personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
     personal_family_receipts: receipts,
     next_required_operations: nextLedger.next_required_operations,
   };
@@ -34180,6 +34299,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
       ...preview.asset_return,
       personal_family_receipts_written: true,
       personal_family_receipts_written_at: writtenAt,
+      personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
       personal_family_receipts: receipts,
     },
     confirmation_state: {
@@ -34187,6 +34307,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
       execution_request: nextExecutionRequest,
       personal_family_receipts_written: true,
       personal_family_receipts_written_at: writtenAt,
+      personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
       can_execute_now: false,
       execution_enabled: false,
       execution_policy: '分居个人家庭回执已写入各成员存档；孩子、家庭心愿、NPC 和资产状态仍不由联机契约自动改写。',
@@ -34204,6 +34325,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
     receipt_usernames: receipts.map(receipt => receipt.username),
     child_count: nextLedger.child_arrangement_resolution?.child_count || 0,
     personal_family_state: 'receipt_recorded_only',
+    personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
     children_private: true,
     npc_family_child_mutation: false,
     next_required_operations: nextLedger.next_required_operations,
@@ -34217,6 +34339,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
     already_written: false,
     execution_ledger: nextLedger,
     receipts,
+    personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
   };
 }
 

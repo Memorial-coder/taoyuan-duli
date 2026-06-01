@@ -596,6 +596,30 @@
                       该区只读展示个人剧情 receipt 的主状态清理证据；恋人、婚姻、知己可清理识别字段，结拜 / 合伙庄园保持契约记录-only。
                     </p>
                   </div>
+                  <div
+                    v-if="separationPersonalFamilyMainStateMigrationReadbackRows.length"
+                    class="space-y-2 border border-emerald-300/20 bg-emerald-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-personal-family-main-state-readback"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">个人家庭主状态迁移证明</p>
+                      <span>{{ separationPersonalFamilyMainStateMigrationBoundaryLabel }}</span>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <p
+                        v-for="row in separationPersonalFamilyMainStateMigrationReadbackRows"
+                        :key="row.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                        :data-testid="`online-cohabitation-separation-personal-family-main-state-${row.key}`"
+                      >
+                        <span class="block text-accent">{{ row.label }}</span>
+                        <span class="mt-1 block break-all">{{ row.value }}</span>
+                      </p>
+                    </div>
+                    <p class="leading-4">
+                      {{ separationPersonalFamilyMainStateMigrationSummary?.privacy_boundary || '仅记录分居孩子安排和个人家庭回执；真实孩子 / 家庭主状态迁移仍等待独立个人存档接口。' }}
+                    </p>
+                  </div>
                   <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[10px] text-muted">
                     <p>{{ separationPreviewConfirmationLabel }}</p>
                     <div class="flex flex-wrap gap-2">
@@ -3444,6 +3468,7 @@
     CohabitationSharedPlot,
     CohabitationSharedRegion,
     CohabitationSeparationManorExitHandoverRecord,
+    CohabitationSeparationPersonalFamilyMainStateMigrationSummary,
     CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
     CohabitationSharedWorkshopRecipe,
     CohabitationWarehouseCompensationAuditBundle,
@@ -4249,6 +4274,8 @@
       contract_record_only: '仅共同契约记录',
       not_applicable: '不适用',
       personal_and_family_main_state_migration_deferred: '个人 / 家族主状态迁移待后续',
+      personal_family_main_state_migration_deferred: '个人家庭主状态迁移待后续',
+      receipt_recorded_main_state_migration_pending: 'receipt 已记录，主状态迁移待后续',
       contract_exit_releases_family_roles_without_reassigning_owner: '退出释放职位，不静默重排家主',
     }
     return labels[status] || status || '待记录'
@@ -4361,6 +4388,82 @@
       { key: 'affected_npc_ids', label: '影响 NPC', value: separationStoryListLabel(summary.affected_npc_ids) },
       { key: 'mutation_actions', label: '清理动作', value: separationStoryListLabel(summary.mutation_actions, '无需清理') },
       { key: 'asset_boundary', label: '资产边界', value: '不改孩子、铜币、背包、农田、房屋和家庭资产' },
+    ]
+  })
+  const separationPersonalFamilyMainStateMigrationSummary = computed<CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null>(() => {
+    const request = separationExecutionRequest.value
+    const requestSummary = request?.personal_family_main_state_migration_summary
+    const assetSummary = latestSeparationPreview.value?.asset_return?.personal_family_main_state_migration_summary
+    const receiptSummary = Array.isArray(request?.personal_family_receipts)
+      ? request.personal_family_receipts.find(receipt =>
+          receipt?.personal_family_main_state_migration_summary
+          && typeof receipt.personal_family_main_state_migration_summary === 'object'
+          && !Array.isArray(receipt.personal_family_main_state_migration_summary)
+        )?.personal_family_main_state_migration_summary
+      : null
+    const raw = requestSummary && typeof requestSummary === 'object' && !Array.isArray(requestSummary)
+      ? requestSummary
+      : assetSummary && typeof assetSummary === 'object' && !Array.isArray(assetSummary)
+        ? assetSummary as Record<string, unknown>
+        : receiptSummary && typeof receiptSummary === 'object' && !Array.isArray(receiptSummary)
+          ? receiptSummary
+          : null
+    if (!raw) return null
+    const summary = raw as CohabitationSeparationPersonalFamilyMainStateMigrationSummary
+    return {
+      migration_adapter: String(summary.migration_adapter ?? ''),
+      migration_state: String(summary.migration_state ?? ''),
+      receipt_count: Math.max(0, Math.floor(Number(summary.receipt_count) || 0)),
+      child_count: Math.max(0, Math.floor(Number(summary.child_count) || 0)),
+      children_private: summary.children_private !== false,
+      personal_family_save_receipt_written: summary.personal_family_save_receipt_written === true,
+      personal_family_main_state_mutated: summary.personal_family_main_state_mutated === true,
+      personal_family_state_mutated: summary.personal_family_state_mutated === true,
+      personal_child_state_mutated: summary.personal_child_state_mutated === true,
+      personal_money_mutated: summary.personal_money_mutated === true,
+      personal_inventory_mutated: summary.personal_inventory_mutated === true,
+      personal_home_mutated: summary.personal_home_mutated === true,
+      personal_npc_state_mutated: summary.personal_npc_state_mutated === true,
+      contract_family_state_mutated: summary.contract_family_state_mutated === true,
+      shared_assets_mutated: summary.shared_assets_mutated === true,
+      required_followup: String(summary.required_followup ?? ''),
+      migration_actions: separationStoryStringList(summary.migration_actions).slice(0, 20),
+      receipt_ids: separationStoryStringList(summary.receipt_ids).slice(0, 20),
+      receipt_usernames: separationStoryStringList(summary.receipt_usernames).slice(0, 20),
+      privacy_boundary: String(summary.privacy_boundary ?? ''),
+    }
+  })
+  const separationPersonalFamilyMainStateMigrationBoundaryLabel = computed(() => {
+    const summary = separationPersonalFamilyMainStateMigrationSummary.value
+    if (!summary) return '等待个人家庭 receipt'
+    const mutated = summary.personal_family_main_state_mutated === true
+      || summary.personal_family_state_mutated === true
+      || summary.personal_child_state_mutated === true
+      || summary.contract_family_state_mutated === true
+    const state = mutated ? '检测到主状态变更' : '家庭 / 孩子主状态未变'
+    return `${state} · receipt ${summary.receipt_count || 0} · 孩子 ${summary.child_count || 0}`
+  })
+  const separationPersonalFamilyMainStateMigrationReadbackRows = computed<SeparationStoryCinematicReadbackRow[]>(() => {
+    const summary = separationPersonalFamilyMainStateMigrationSummary.value
+    if (!summary) return []
+    const mainStateSafe = summary.personal_family_main_state_mutated !== true
+      && summary.personal_family_state_mutated !== true
+      && summary.personal_child_state_mutated !== true
+      && summary.personal_money_mutated !== true
+      && summary.personal_inventory_mutated !== true
+      && summary.personal_home_mutated !== true
+      && summary.personal_npc_state_mutated !== true
+      && summary.contract_family_state_mutated !== true
+      && summary.shared_assets_mutated !== true
+    return [
+      { key: 'migration_state', label: '迁移状态', value: separationManorExitStatusLabel(summary.migration_state || '') },
+      { key: 'migration_adapter', label: '迁移适配器', value: summary.migration_adapter || '待记录' },
+      { key: 'receipt_count', label: '家庭 receipt', value: `${summary.receipt_count || 0} 份 · 孩子 ${summary.child_count || 0}` },
+      { key: 'receipt_usernames', label: '成员回执', value: separationStoryListLabel(summary.receipt_usernames, '待写入') },
+      { key: 'migration_actions', label: '迁移动作', value: separationStoryListLabel(summary.migration_actions, '等待独立迁移') },
+      { key: 'main_state_boundary', label: '主状态边界', value: mainStateSafe ? '不改孩子 / 家庭 / NPC / 铜币 / 背包 / 农田 / 小屋 / 共同资产主状态' : '存在主状态变更风险' },
+      { key: 'children_private', label: '孩子隐私', value: summary.children_private !== false ? '仅显示数量和回执证明' : '需要人工复核隐私边界' },
+      { key: 'required_followup', label: '后续事项', value: separationManorExitStatusLabel(summary.required_followup || '') },
     ]
   })
   const separationStoryCinematicBoundaryLabel = computed(() => {
