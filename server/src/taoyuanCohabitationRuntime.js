@@ -9670,6 +9670,82 @@ function stampRelationshipSwitchCooldown(contract, reason = 'relationship_separa
   };
 }
 
+function getSeparationClosureMissingOperations(ledger = {}) {
+  const entry = normalizeSeparationExecutionLedgerEntry(ledger);
+  const missing = [];
+  for (const operation of entry.next_required_operations || []) {
+    if (operation && !missing.includes(operation)) missing.push(operation);
+  }
+  if (isSeparationExecutionLedgerRollbackTerminal(entry)) missing.push('resolve_failed_separation_execution');
+  if (entry.personal_save_written !== true) missing.push('write_personal_save_refunds');
+  if (entry.shared_fund_refunded !== true) missing.push('refund_shared_fund');
+  if (entry.shared_warehouse_returned !== true) missing.push('return_shared_warehouse_items');
+  if (entry.decorations_buildings_split !== true) missing.push('split_decorations');
+  if (entry.family_story_resolved !== true || !entry.family_story_resolution) missing.push('resolve_family_story');
+  const storyResolution = entry.family_story_resolution || {};
+  if (storyResolution.personal_story_write_required !== false && entry.personal_story_receipts_written !== true) {
+    missing.push('write_personal_story_receipts');
+  }
+  if (storyResolution.child_arrangement_required === true) {
+    if (entry.child_arrangement_resolved !== true || !entry.child_arrangement_resolution) missing.push('resolve_child_arrangement');
+    const childArrangement = entry.child_arrangement_resolution || {};
+    if (childArrangement.personal_family_save_write_required !== false && entry.personal_family_receipts_written !== true) {
+      missing.push('write_personal_family_receipts');
+    }
+  }
+  return Array.from(new Set(missing.filter(Boolean))).slice(0, 16);
+}
+
+function closeSeparationContractIfReady(contract, ledger = {}, actor = {}, options = {}) {
+  if (!contract || typeof contract !== 'object') return null;
+  const entry = normalizeSeparationExecutionLedgerEntry(ledger);
+  const missingOperations = getSeparationClosureMissingOperations(entry);
+  if (missingOperations.length > 0) return null;
+  const closedAt = Math.max(0, Math.floor(Number(options.closed_at || options.at) || nowSeconds()));
+  const closedBy = normalizeUsername(
+    options.closed_by
+    || actor.username
+    || entry.personal_family_receipts_written_by
+    || entry.personal_story_receipts_written_by
+    || entry.family_story_resolved_by
+    || entry.executed_by
+  );
+  if (contract.status !== 'closed') {
+    contract.status = 'closed';
+    contract.closed_at = closedAt;
+    contract.closed_by = closedBy;
+    contract.separation_state = 'closed';
+  }
+  const relationshipSwitchCooldown = stampRelationshipSwitchCooldown(contract, 'separation_contract_closed', closedAt);
+  return {
+    contract_status: contract.status,
+    separation_state: contract.separation_state,
+    closed_at: contract.closed_at,
+    closed_by: contract.closed_by,
+    preview_id: sanitizeText(options.preview_id || entry.preview_id, 100),
+    execution_ledger_id: entry.id,
+    execution_status: entry.status,
+    pending_operations: [],
+    relationship_switch_cooldown: relationshipSwitchCooldown,
+  };
+}
+
+function appendSeparationContractClosedAudit(contract, actor, closure = null, idempotencyKey = '') {
+  if (!closure || closure.contract_status !== 'closed') return null;
+  appendAudit(contract, 'separation_contract_closed', actor, {
+    preview_id: closure.preview_id,
+    execution_ledger_id: closure.execution_ledger_id,
+    execution_status: closure.execution_status,
+    contract_status: closure.contract_status,
+    separation_state: closure.separation_state,
+    closed_at: closure.closed_at,
+    closed_by: closure.closed_by,
+    pending_operations: closure.pending_operations,
+    relationship_switch_cooldown: closure.relationship_switch_cooldown,
+  }, idempotencyKey);
+  return closure;
+}
+
 function appendAudit(contract, action, actor = {}, detail = {}, idempotencyKey = '') {
   const actorKey = normalizeUsernameKey(actor.username);
   const actorMember = actorKey ? getContractMember(contract, actorKey) : null;
@@ -20497,6 +20573,9 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           exit_record_kind: sanitizeText(entry.family_story_resolution.exit_record_kind, 100),
           meeting_record_required: entry.family_story_resolution.meeting_record_required === true,
           handover_record_required: entry.family_story_resolution.handover_record_required === true,
+          manor_exit_handover_recorded: entry.family_story_resolution.manor_exit_handover_recorded === true,
+          family_role_handover_executed: entry.family_story_resolution.family_role_handover_executed === true,
+          manor_exit_handover_record: normalizeSeparationManorExitHandoverRecord(entry.family_story_resolution.manor_exit_handover_record),
           future_cooperation_option: entry.family_story_resolution.future_cooperation_option === true,
           family_fund_settlement_required: entry.family_story_resolution.family_fund_settlement_required === true,
           family_fund_settlement_state: sanitizeText(entry.family_story_resolution.family_fund_settlement_state, 100),
@@ -37098,7 +37177,8 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
   const contract = store.contracts.find(entry => entry.id === normalizedContractId);
   if (!contract) throw createError('同居契约不存在', 404);
   if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
-  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以记录剧情拆分', 409);
+  const contractStatus = String(contract.status || '');
+  if (!['active', 'separation_pending', 'closed'].includes(contractStatus)) throw createError('只有已生效或分居处理中的契约可以记录剧情拆分', 409);
 
   const member = (contract.members || []).find(entry =>
     entry.status === 'accepted' && (
@@ -37139,6 +37219,7 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
       story_resolution: ledger.family_story_resolution,
     };
   }
+  if (contractStatus === 'closed') throw createError('这份契约已经完成分居收口，不能再记录新的剧情拆分', 409);
 
   const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
   const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
@@ -37229,6 +37310,11 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
 
   contract.separation_execution_ledger[ledgerIndex] = nextLedger;
   contract.separation_previews[previewIndex] = nextPreview;
+  const separationContractClosure = closeSeparationContractIfReady(contract, nextLedger, actor, {
+    at: familyStoryResolvedAt,
+    preview_id: nextPreview.id,
+    idempotency_key: storyPayload.idempotency_key,
+  });
   appendAudit(contract, 'separation_family_story_resolved', actor, {
     preview_id: nextPreview.id,
     execution_ledger_id: nextLedger.id,
@@ -37268,7 +37354,11 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     child_arrangement_required: storyResolution.child_arrangement_required,
     privacy_boundary: storyResolution.privacy_boundary,
     next_required_operations: nextLedger.next_required_operations,
+    contract_status: contract.status,
+    separation_state: contract.separation_state,
+    separation_contract_closure: separationContractClosure,
   }, storyPayload.idempotency_key);
+  appendSeparationContractClosedAudit(contract, actor, separationContractClosure, storyPayload.idempotency_key);
   saveContractStore(store);
 
   return {
@@ -37517,7 +37607,8 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
   const contract = store.contracts.find(entry => entry.id === normalizedContractId);
   if (!contract) throw createError('同居契约不存在', 404);
   if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
-  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以写入个人剧情回执', 409);
+  const contractStatus = String(contract.status || '');
+  if (!['active', 'separation_pending', 'closed'].includes(contractStatus)) throw createError('只有已生效或分居处理中的契约可以写入个人剧情回执', 409);
 
   const member = (contract.members || []).find(entry =>
     entry.status === 'accepted' && (
@@ -37558,6 +37649,7 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
       receipts: ledger.personal_story_receipts || [],
     };
   }
+  if (contractStatus === 'closed') throw createError('这份契约已经完成分居收口，不能再写入新的个人剧情回执', 409);
 
   const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
   const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
@@ -37656,6 +37748,12 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     'separation_personal_story_receipts_written',
     writtenAt
   );
+  const separationContractClosure = closeSeparationContractIfReady(contract, nextLedger, actor, {
+    at: writtenAt,
+    preview_id: nextPreview.id,
+    idempotency_key: receiptPayload.idempotency_key,
+  });
+  const finalRelationshipSwitchCooldown = separationContractClosure?.relationship_switch_cooldown || relationshipSwitchCooldown;
   appendAudit(contract, 'separation_personal_story_receipts_written', actor, {
     preview_id: nextPreview.id,
     execution_ledger_id: nextLedger.id,
@@ -37672,9 +37770,13 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     memory_title_keepsake_policy: nextFamilyStoryResolution.memory_title_keepsake_policy,
     npc_relationship_main_state_mutation: personalRelationshipMutationSummary.personal_state_mutated,
     npc_family_child_mutation: false,
-    relationship_switch_cooldown: relationshipSwitchCooldown,
+    relationship_switch_cooldown: finalRelationshipSwitchCooldown,
     next_required_operations: nextLedger.next_required_operations,
+    contract_status: contract.status,
+    separation_state: contract.separation_state,
+    separation_contract_closure: separationContractClosure,
   }, receiptPayload.idempotency_key);
+  appendSeparationContractClosedAudit(contract, actor, separationContractClosure, receiptPayload.idempotency_key);
   saveContractStore(store);
 
   return {
@@ -37864,7 +37966,8 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
   const contract = store.contracts.find(entry => entry.id === normalizedContractId);
   if (!contract) throw createError('同居契约不存在', 404);
   if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
-  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以写入个人家庭回执', 409);
+  const contractStatus = String(contract.status || '');
+  if (!['active', 'separation_pending', 'closed'].includes(contractStatus)) throw createError('只有已生效或分居处理中的契约可以写入个人家庭回执', 409);
 
   const member = (contract.members || []).find(entry =>
     entry.status === 'accepted' && (
@@ -37908,6 +38011,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
       personal_family_main_state_migration_summary: personalFamilyMainStateMigrationSummary,
     };
   }
+  if (contractStatus === 'closed') throw createError('这份契约已经完成分居收口，不能再写入新的个人家庭回执', 409);
 
   const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
   const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
@@ -37977,6 +38081,11 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
 
   contract.separation_execution_ledger[ledgerIndex] = nextLedger;
   contract.separation_previews[previewIndex] = nextPreview;
+  const separationContractClosure = closeSeparationContractIfReady(contract, nextLedger, actor, {
+    at: writtenAt,
+    preview_id: nextPreview.id,
+    idempotency_key: receiptPayload.idempotency_key,
+  });
   appendAudit(contract, 'separation_personal_family_receipts_written', actor, {
     preview_id: nextPreview.id,
     execution_ledger_id: nextLedger.id,
@@ -37991,7 +38100,11 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
     children_private: true,
     npc_family_child_mutation: personalFamilyMainStateMigrationSummary.personal_child_state_mutated === true,
     next_required_operations: nextLedger.next_required_operations,
+    contract_status: contract.status,
+    separation_state: contract.separation_state,
+    separation_contract_closure: separationContractClosure,
   }, receiptPayload.idempotency_key);
+  appendSeparationContractClosedAudit(contract, actor, separationContractClosure, receiptPayload.idempotency_key);
   saveContractStore(store);
 
   return {

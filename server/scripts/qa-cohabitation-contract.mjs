@@ -10583,6 +10583,7 @@ await assert.rejects(
     story_event_kind: 'lover_farewell_moveout',
     dialogue_event_id: 'separation_lover_farewell_dialogue',
     animation_event_id: 'separation_lover_moveout_animation',
+    confirmation_text: '确认播放关系破裂剧情',
     idempotency_key: 'qa-separation-story-cinematic-wrong-hash',
   }, actor(owner)),
   error => error?.status === 409,
@@ -10599,6 +10600,7 @@ const storyCinematicPlayback = await runtime.recordSeparationStoryCinematicPlayb
   story_event_kind: 'lover_farewell_moveout',
   dialogue_event_id: 'separation_lover_farewell_dialogue',
   animation_event_id: 'separation_lover_moveout_animation',
+  confirmation_text: '确认播放关系破裂剧情',
   idempotency_key: 'qa-separation-story-cinematic-played',
 }, actor(owner))
 assert.equal(storyCinematicPlayback.idempotent, false, 'first story cinematic playback should not be idempotent')
@@ -10641,6 +10643,7 @@ const duplicateStoryCinematicPlayback = await runtime.recordSeparationStoryCinem
   story_event_kind: 'lover_farewell_moveout',
   dialogue_event_id: 'separation_lover_farewell_dialogue',
   animation_event_id: 'separation_lover_moveout_animation',
+  confirmation_text: '确认播放关系破裂剧情',
   idempotency_key: 'qa-separation-story-cinematic-played',
 }, actor(owner))
 assert.equal(duplicateStoryCinematicPlayback.idempotent, true, 'same story cinematic playback idempotency key should return existing record')
@@ -10717,6 +10720,22 @@ assert.equal(personalStoryAudit?.detail?.personal_relationship_mutation_summary?
 assert.equal(personalStoryReceipts.contract.relationship_switch_cooldown_hours, 72, 'personal story receipts should stamp relationship switch cooldown hours')
 assert.ok(personalStoryReceipts.contract.relationship_switch_cooldown_until > personalStoryReceipts.execution_ledger.personal_story_receipts_written_at, 'personal story receipts should expose relationship switch cooldown end time')
 assert.equal(personalStoryAudit?.detail?.relationship_switch_cooldown?.cooldown_hours, 72, 'personal story audit should include relationship switch cooldown evidence')
+assert.equal(personalStoryReceipts.contract.status, 'closed', 'final personal story receipts should close a separation contract with no remaining operations')
+assert.equal(personalStoryReceipts.contract.separation_state, 'closed', 'final personal story receipts should mark separation state closed')
+assert.ok(personalStoryReceipts.contract.closed_at >= personalStoryReceipts.execution_ledger.personal_story_receipts_written_at, 'closed contract should keep the final receipt close time')
+assert.equal(personalStoryReceipts.contract.closed_by, owner, 'closed contract should record the final receipt actor')
+assert.equal(personalStoryAudit?.detail?.separation_contract_closure?.contract_status, 'closed', 'personal story audit should expose separation closure evidence')
+const personalStoryCloseAudit = personalStoryReceipts.contract.audit_log.find(entry => entry.action === 'separation_contract_closed' && entry.idempotency_key === 'qa-separation-personal-story-receipts')
+assert.equal(personalStoryCloseAudit?.detail?.relationship_switch_cooldown?.cooldown_hours, 72, 'separation closure audit should keep relationship cooldown evidence')
+await assert.rejects(
+  () => runtime.createCohabitationContract({
+    type: 'lover_cohabitation',
+    target_username: fourth,
+    idempotency_key: 'qa-separation-closed-cooldown-switch-blocked',
+  }, actor(owner)),
+  error => error?.status === 409 && error?.code === 'relationship_switch_cooldown',
+  'closed separation contract should block a new romance contract until the cooldown expires'
+)
 assert.deepEqual(pickPersonalNonRelationshipBoundaryState(owner), ownerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change owner money inventory farm home family or children state')
 assert.deepEqual(pickPersonalNonRelationshipBoundaryState(partner), partnerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change partner money inventory farm home family or children state')
 const ownerNpcAfterStoryReceipts = getNpcRelationshipSaveState(owner)
@@ -10754,10 +10773,18 @@ const duplicatePersonalStoryReceipts = await runtime.writeSeparationPersonalStor
 }, actor(owner))
 assert.equal(duplicatePersonalStoryReceipts.idempotent, true, 'same personal story receipt idempotency key should return existing receipts')
 assert.equal(duplicatePersonalStoryReceipts.execution_ledger.id, personalStoryReceipts.execution_ledger.id, 'idempotent personal story receipt write should keep ledger id')
+assert.equal(duplicatePersonalStoryReceipts.contract.status, 'closed', 'idempotent personal story receipt replay should keep the contract closed')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterPersonalStoryReceipts, 'idempotent personal story receipt write should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterPersonalStoryReceipts, 'idempotent personal story receipt write should not rewrite partner save again')
 
 await mutateStoredContract(created.contract.id, contract => {
+  contract.status = 'active'
+  contract.separation_state = 'qa_reopened_for_child_arrangement_coverage'
+  contract.closed_at = 0
+  contract.closed_by = ''
+  contract.relationship_switch_cooldown_until = 0
+  contract.relationship_switch_cooldown_hours = 0
+  contract.relationship_switch_cooldown_reason = ''
   contract.type = 'marriage_home'
   contract.family_state = {
     ...(contract.family_state || {}),
@@ -10929,6 +10956,14 @@ assert.ok(!personalFamilyReceipts.execution_ledger.next_required_operations.incl
 assert.ok(!personalFamilyReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal family receipt write should keep decoration split closed')
 assert.ok(personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.idempotency_key === 'qa-separation-personal-family-receipts'), 'personal family receipt write should be audited')
 assert.ok(personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.detail?.personal_family_main_state_migration_summary?.migration_state === 'personal_child_family_event_and_custody_summary_recorded'), 'personal family receipt audit should preserve child family event and custody summary mutation')
+assert.equal(personalFamilyReceipts.contract.status, 'closed', 'final personal family receipts should close a child-arrangement separation contract')
+assert.equal(personalFamilyReceipts.contract.separation_state, 'closed', 'final personal family receipts should mark separation state closed')
+assert.ok(personalFamilyReceipts.contract.closed_at >= personalFamilyReceipts.execution_ledger.personal_family_receipts_written_at, 'family receipt closure should keep the final close time')
+assert.equal(personalFamilyReceipts.contract.closed_by, owner, 'family receipt closure should record the final receipt actor')
+const personalFamilyAudit = personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.idempotency_key === 'qa-separation-personal-family-receipts')
+assert.equal(personalFamilyAudit?.detail?.separation_contract_closure?.contract_status, 'closed', 'personal family receipt audit should expose separation closure evidence')
+const personalFamilyCloseAudit = personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_contract_closed' && entry.idempotency_key === 'qa-separation-personal-family-receipts')
+assert.equal(personalFamilyCloseAudit?.detail?.execution_status, 'personal_family_receipts_written', 'family closure audit should point at the final family receipt ledger')
 assert.deepEqual(pickPersonalFamilyMutationBoundaryState(owner), ownerBoundaryBeforeFamilyReceipts, 'personal family receipt write should only change owner child family event training history')
 assert.deepEqual(pickPersonalFamilyMutationBoundaryState(partner), partnerBoundaryBeforeFamilyReceipts, 'personal family receipt write should only change partner child family event training history')
 const ownerPersonalFamilyReceipt = (readGameplayData(owner)?.onlineCohabitation?.family_receipts || []).find(receipt => receipt.execution_ledger_id === childArrangement.execution_ledger.id)
@@ -10984,8 +11019,19 @@ const duplicateFamilyReceipts = await runtime.writeSeparationPersonalFamilyRecei
 assert.equal(duplicateFamilyReceipts.idempotent, true, 'same personal family receipt idempotency key should return existing receipts')
 assert.equal(duplicateFamilyReceipts.execution_ledger.id, personalFamilyReceipts.execution_ledger.id, 'idempotent personal family receipt write should keep ledger id')
 assert.equal(duplicateFamilyReceipts.personal_family_main_state_migration_summary?.migration_state, 'personal_child_family_event_and_custody_summary_recorded', 'idempotent personal family receipt write should replay migration summary')
+assert.equal(duplicateFamilyReceipts.contract.status, 'closed', 'idempotent personal family receipt replay should keep the contract closed')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterFamilyReceipts, 'idempotent personal family receipt write should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterFamilyReceipts, 'idempotent personal family receipt write should not rewrite partner save again')
+
+await mutateStoredContract(created.contract.id, contract => {
+  contract.status = 'active'
+  contract.separation_state = 'qa_reopened_after_separation_closure_for_remaining_contract_coverage'
+  contract.closed_at = 0
+  contract.closed_by = ''
+  contract.relationship_switch_cooldown_until = 0
+  contract.relationship_switch_cooldown_hours = 0
+  contract.relationship_switch_cooldown_reason = ''
+})
 
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const fundBeforeMediumFundTopUp = await runtime.getCohabitationFund(created.contract.id, actor(owner))
