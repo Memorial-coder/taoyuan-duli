@@ -4504,7 +4504,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 36, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 37, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4588,6 +4588,8 @@ for (const itemId of recipePolicyLateHybridCropIds) {
   assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list late hybrid crop ${itemId} as rare items`)
 }
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('jujube'), 'warehouse item policy should list jujube as common cooking input')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('chrysanthemum'), 'warehouse item policy should list chrysanthemum as common cooking input')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('peach_wine'), 'warehouse item policy should list peach wine as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_osmanthus_cake'), 'warehouse item policy should list osmanthus cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_jujube_cake'), 'warehouse item policy should list jujube cake as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_peach_blossom_cake'), 'warehouse item policy should list peach blossom cake as common output')
@@ -4630,6 +4632,8 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_silk_dumpling'), 'warehouse item policy should list silk dumplings as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_peacock_feast'), 'warehouse item policy should list peacock feast as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_spiced_lamb'), 'warehouse item policy should list spiced lamb as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_drunken_chicken'), 'warehouse item policy should list drunken chicken as common output')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_chrysanthemum_wine'), 'warehouse item policy should list chrysanthemum wine as common output')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('family_contract'), 'warehouse item policy should list task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('ancient_waybill'), 'warehouse item policy should list room credential rewards as task-protected items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.task_protected_item_ids.includes('merchant_seal'), 'warehouse item policy should list wallet achievement seals as task-protected items')
@@ -4929,6 +4933,12 @@ await processRecipePolicyBasicDish({
   inputs: [{ itemId: 'tea', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
+  recipeId: 'shared_chrysanthemum_wine',
+  outputItemId: 'food_chrysanthemum_wine',
+  station: 'wine_workshop',
+  inputs: [{ itemId: 'chrysanthemum', quantity: 3 }, { itemId: 'rice', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
   recipeId: 'shared_zhi_yuan_gao',
   outputItemId: 'food_zhi_yuan_gao',
   inputs: [{ itemId: 'rice', quantity: 2 }, { itemId: 'peach', quantity: 1 }, { itemId: 'sesame_oil', quantity: 1, quality: 'fine' }],
@@ -5004,6 +5014,11 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_spiced_lamb',
   outputItemId: 'food_spiced_lamb',
   inputs: [{ itemId: 'hanhai_spice', quantity: 1 }, { itemId: 'goat_milk', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_drunken_chicken',
+  outputItemId: 'food_drunken_chicken',
+  inputs: [{ itemId: 'egg', quantity: 3 }, { itemId: 'peach_wine', quantity: 1 }, { itemId: 'ginger', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_first_catch_soup',

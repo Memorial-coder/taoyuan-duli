@@ -211,16 +211,16 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 36;
+const WAREHOUSE_ITEM_POLICY_VERSION = 37;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
-  'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'silk', 'hanhai_spice', 'egg', 'duck_egg', 'milk',
+  'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'chrysanthemum', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'silk', 'hanhai_spice', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
   'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'wheat_flour', 'dried_vegetable', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
-  'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
+  'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey', 'peach_wine',
   'hay', 'fish_feed', 'basic_fertilizer', 'quality_fertilizer', 'speed_gro', 'deluxe_speed_gro', 'quality_retaining_soil',
   'seed_cabbage', 'seed_radish', 'seed_rice', 'seed_wheat', 'seed_corn', 'seed_tea', 'seed_lotus', 'seed_turnip', 'seed_carrot', 'seed_sweet_potato', 'seed_pumpkin', 'seed_sesame', 'seed_peach', 'seed_chili',
   'premium_feed', 'nourishing_feed', 'vitality_feed',
@@ -231,10 +231,10 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_farmers_feast', 'food_autumn_moon_feast', 'food_lovers_pastry', 'food_forgemasters_meal', 'food_spirit_fruit_wine',
   'food_phoenix_cake', 'food_molten_hotpot', 'food_tea_banquet', 'food_ironforge_stew', 'food_ranch_milk_soup', 'food_moonlit_tea_rice',
   'food_spicy_hotpot', 'food_bamboo_shoot_stir_fry', 'food_lotus_seed_soup', 'food_corn_pancake', 'food_osmanthus_lotus_root',
-  'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_zhi_yuan_gao',
+  'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_chrysanthemum_wine', 'food_zhi_yuan_gao',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_pigeon_egg_herb_soup', 'food_yak_milk_barley_porridge', 'food_donkey_milk_ginger_tea', 'food_ostrich_egg_feast', 'food_antler_velvet_herb_soup',
-  'food_silk_dumpling', 'food_peacock_feast', 'food_spiced_lamb',
+  'food_silk_dumpling', 'food_peacock_feast', 'food_spiced_lamb', 'food_drunken_chicken',
   'food_first_catch_soup', 'food_braised_catfish', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
@@ -1585,6 +1585,19 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_chrysanthemum_wine: {
+    id: 'shared_chrysanthemum_wine',
+    label: '共同酒坊菊花酒',
+    station: 'wine_workshop',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'chrysanthemum', quantity: 3, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_chrysanthemum_wine',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_zhi_yuan_gao: {
     id: 'shared_zhi_yuan_gao',
     label: '共同灶台纸鸢糕',
@@ -1782,6 +1795,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'goat_milk', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_spiced_lamb',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_drunken_chicken: {
+    id: 'shared_drunken_chicken',
+    label: '共同灶台醉仙鸡',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'egg', quantity: 3, quality: 'normal' },
+      { item_id: 'peach_wine', quantity: 1, quality: 'normal' },
+      { item_id: 'ginger', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_drunken_chicken',
     output_quantity: 1,
     output_quality: 'normal',
   },
