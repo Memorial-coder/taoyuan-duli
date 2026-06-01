@@ -1578,8 +1578,16 @@ export interface CohabitationFamilyBuildingMainStateManifestEntry {
     decoration?: {
       ownedCount?: number
       ownedKeys?: string[]
+      ownedEntries?: Array<{
+        key: string
+        quantity: number
+      }>
       placedCount?: number
       placedKeys?: string[]
+      placedEntries?: Array<{
+        key: string
+        quantity: number
+      }>
     }
     onlineCohabitation?: {
       realBuildDemolitionReceiptCount?: number

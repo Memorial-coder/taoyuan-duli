@@ -1200,6 +1200,12 @@ checkedScrollBoundaries += expectCountAtLeast('online/OnlineSocietyView.vue', /o
 expectContains('online/OnlineCohabitationView.vue', 'personal_child_family_event_and_custody_summary_recorded', 'separation ui should expose child arrangement custody-summary migration state')
 expectContains('online/OnlineCohabitationView.vue', 'custody_arrangement_recorded_count', 'separation ui should read back child custody arrangement summary count')
 expectContains('utils/cohabitationApi.ts', 'custody_arrangement_recorded_count', 'cohabitation api should expose child custody arrangement summary count')
+expectContains('online/OnlineCohabitationView.vue', 'selectFamilyBuildingResolvedExactSelectorFromSnapshot', 'separation building ui should resolve exact targets from personal main-state snapshots')
+expectContains('online/OnlineCohabitationView.vue', 'ownedEntries', 'separation building ui should use owned decoration quantities for decoration.owned selectors')
+expectContains('online/OnlineCohabitationView.vue', 'home.cellarSlots.0', 'separation building ui should resolve cellar targets to executable index selectors')
+expectContains('online/OnlineCohabitationView.vue', 'ui-snapshot-selector-proof', 'separation building ui should write proof for snapshot-derived selectors')
+expectContains('utils/cohabitationApi.ts', 'ownedEntries', 'cohabitation api should expose owned decoration quantity entries for exact selector migration')
+expectContains('utils/cohabitationApi.ts', 'placedEntries', 'cohabitation api should expose placed decoration quantity entries for exact selector migration')
 
 if (failures.length > 0) {
   console.error('在线 UI 结构静态检查失败：')

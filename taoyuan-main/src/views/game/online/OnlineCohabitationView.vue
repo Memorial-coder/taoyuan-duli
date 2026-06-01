@@ -3763,6 +3763,8 @@
     maxAmount: number
     confirmationRequired: boolean
   }
+  type FamilyBuildingMainStatePreviewRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number]
+  type FamilyBuildingMainStateExactTargetRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_exact_target_manifest'][number]
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
   type SharedAnimalPurchaseOption = { type: string; label: string; unitPrice: number }
@@ -9031,7 +9033,7 @@
     return familyBuildingCandidates.value.find(building => building.id === targetId) ?? null
   }
   const formatFamilyBuildingMainStateCandidateSnapshot = (
-    row: CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number],
+    row: FamilyBuildingMainStatePreviewRow,
   ) => {
     const snapshot = row.candidate_snapshot || {}
     const home = snapshot.home || {}
@@ -9042,7 +9044,7 @@
     return `农舍 ${home.farmhouseLevel ?? '-'} · 山洞 ${home.caveUnlocked ? '开' : '关'} / ${home.caveChoice || 'none'} · 温室 ${home.greenhouseUnlocked ? '开' : '关'} · 酒窖 ${home.cellarSlots ?? 0} · 改造 ${renovationKeys} · 装饰拥有 ${decoration.ownedCount ?? 0}(${ownedKeys}) · 已放置 ${decoration.placedCount ?? 0}(${placedKeys})`
   }
   const selectFamilyBuildingMainStateCandidatePathForMapping = (
-    row: CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number],
+    row: FamilyBuildingMainStatePreviewRow,
   ) => {
     const paths = row.candidate_paths || []
     const snapshot = row.candidate_snapshot || {}
@@ -9061,6 +9063,63 @@
       (home.farmhouseLevel ?? 0) > 0 ? 'home.farmhouseLevel' : '',
     ].filter(Boolean)
     return preferredPaths.find(path => paths.includes(path)) || paths[0] || 'home.homeRenovationStates'
+  }
+  const findFamilyBuildingMainStatePreviewRowForExactTarget = (
+    entry: CohabitationFamilyBuildingLedgerEntry,
+    target: FamilyBuildingMainStateExactTargetRow,
+  ) => {
+    const rows = entry.real_build_demolition_main_state_manifest || []
+    return rows.find(row =>
+      row.username_key === target.username_key &&
+      row.snapshot_hash === target.snapshot_hash &&
+      (row.candidate_paths || []).includes(target.candidate_path)
+    ) || rows.find(row =>
+      row.username_key === target.username_key &&
+      (row.candidate_paths || []).includes(target.candidate_path)
+    ) || null
+  }
+  const selectDecorationOwnedExactTargetKey = (
+    decoration: NonNullable<NonNullable<FamilyBuildingMainStatePreviewRow['candidate_snapshot']>['decoration']> = {},
+  ) => {
+    const placedByKey = new Map((decoration.placedEntries || []).map(item => [item.key, item.quantity]))
+    const surplusEntry = (decoration.ownedEntries || []).find(item => item.quantity > (placedByKey.get(item.key) || 0))
+    if (surplusEntry?.key) return surplusEntry.key
+    const placedKeys = new Set(decoration.placedKeys || [])
+    return (decoration.ownedKeys || []).find(key => !placedKeys.has(key)) || decoration.ownedKeys?.[0] || ''
+  }
+  const selectFamilyBuildingResolvedExactSelectorFromSnapshot = (
+    entry: CohabitationFamilyBuildingLedgerEntry,
+    target: FamilyBuildingMainStateExactTargetRow,
+  ) => {
+    const candidatePath = target.candidate_path || ''
+    const row = findFamilyBuildingMainStatePreviewRowForExactTarget(entry, target)
+    const snapshot = row?.candidate_snapshot || {}
+    const home = snapshot.home || {}
+    const decoration = snapshot.decoration || {}
+    if (candidatePath === 'home.homeRenovationStates') {
+      const key = home.homeRenovationStateKeys?.find(Boolean) || ''
+      return key ? `${candidatePath}.${key}` : ''
+    }
+    if (candidatePath === 'home.farmhouseLevel') {
+      const level = home.farmhouseLevel ?? 0
+      return level >= 1 && level <= 3 ? `${candidatePath}.${level}` : ''
+    }
+    if (candidatePath === 'home.caveChoice') {
+      const choice = home.caveChoice || ''
+      return choice === 'mushroom' || choice === 'fruit_bat' ? `${candidatePath}.${choice}` : ''
+    }
+    if (candidatePath === 'home.caveUnlocked') return home.caveUnlocked === true ? `${candidatePath}.true` : ''
+    if (candidatePath === 'home.cellarSlots') return (home.cellarSlots ?? 0) > 0 ? 'home.cellarSlots.0' : ''
+    if (candidatePath === 'home.greenhouseUnlocked') return home.greenhouseUnlocked === true ? `${candidatePath}.true` : ''
+    if (candidatePath === 'decoration.owned') {
+      const key = selectDecorationOwnedExactTargetKey(decoration)
+      return key ? `${candidatePath}.${key}` : ''
+    }
+    if (candidatePath === 'decoration.placed') {
+      const key = decoration.placedEntries?.[0]?.key || decoration.placedKeys?.[0] || ''
+      return key ? `${candidatePath}.${key}` : ''
+    }
+    return ''
   }
   const canApplyFamilyBuildingRealBuild = (entry: CohabitationFamilyBuildingLedgerEntry) =>
     cohabitationStore.canOpenSelectedContract &&
@@ -10382,8 +10441,30 @@
     familyBuildingActionMessage.value = ''
     familyBuildingActionOk.value = false
     const exactTargetManifest = entry.real_build_demolition_main_state_exact_target_manifest || []
+    const resolvedTargets = exactTargetManifest.map((item, index) => {
+      const resolvedTargetRef = selectFamilyBuildingResolvedExactSelectorFromSnapshot(entry, item)
+      return {
+        username: item.username,
+        username_key: item.username_key,
+        save_slot: item.save_slot,
+        save_id: item.save_id,
+        real_build_ref: item.real_build_ref,
+        candidate_path: item.candidate_path,
+        binding_ref: item.binding_ref,
+        snapshot_hash: item.snapshot_hash,
+        exact_target_ref: resolvedTargetRef,
+        delete_selector: resolvedTargetRef,
+        target_kind: item.target_kind,
+        resolution_proof: `ui-snapshot-selector-proof-${entry.id}-${index}`,
+      }
+    })
     if (!entry.real_build_demolition_main_state_exact_target_manifest_hash || exactTargetManifest.length === 0) {
       familyBuildingActionMessage.value = '请先绑定并执行个人主状态精确目标安全阀'
+      return
+    }
+    const unresolvedTargetCount = resolvedTargets.filter(item => !item.exact_target_ref).length
+    if (unresolvedTargetCount > 0) {
+      familyBuildingActionMessage.value = `还有 ${unresolvedTargetCount} 个目标缺少可执行 selector，请刷新主态预览或补充人工映射`
       return
     }
     try {
@@ -10394,23 +10475,7 @@
         confirmation_text: '确认人工解析精确目标',
         memo: `前端人工解析家族建筑真实拆除个人主状态精确目标：${entry.target_ref || entry.building_id || entry.project_id}`,
         idempotency_key: `ui-family-building-real-demolition-main-state-exact-target-resolution-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        targets: exactTargetManifest.map((item, index) => {
-          const resolvedTargetRef = `${item.candidate_path}.resolved_target_${entry.id}_${index}`
-          return {
-            username: item.username,
-            username_key: item.username_key,
-            save_slot: item.save_slot,
-            save_id: item.save_id,
-            real_build_ref: item.real_build_ref,
-            candidate_path: item.candidate_path,
-            binding_ref: item.binding_ref,
-            snapshot_hash: item.snapshot_hash,
-            exact_target_ref: resolvedTargetRef,
-            delete_selector: resolvedTargetRef,
-            target_kind: item.target_kind,
-            resolution_proof: `ui-resolution-proof-${entry.id}-${index}`,
-          }
-        }),
+        targets: resolvedTargets,
       })
       const manifestCount = result?.main_state_exact_target_resolution?.manifest?.length
         ?? result?.building_ledger_entry?.real_build_demolition_main_state_exact_target_manifest?.length

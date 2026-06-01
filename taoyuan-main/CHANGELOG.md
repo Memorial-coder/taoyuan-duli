@@ -7,6 +7,10 @@
 ### 0601 同居共同仓库 11.4 仓库流水分级证据恢复
 - 共同仓库 ledger 归一化重新带回 `item_policy_version`、`item_policy_id`、`item_classification`、`withdrawal_risk_level`、`high_value_withdrawal_required` 和 `item_policy`，协作加工 / 料理升品产物的 deposit 流水可直接读到 `high_quality` 与高价值取出要求。
 - 修复 20.2 异常检测收尾后共同工坊升品保护证据丢失的回归，契约 QA 继续固定升品产物 ledger 与来源资产保护边界。
+### 0601 同居分居建筑 / 家具 selector 迁移收口
+- 真实拆除主状态候选快照新增 `ownedEntries / placedEntries` 数量明细，前端 API 类型同步读回装饰拥有 / 已放置数量。
+- 共同庄园“解析目标”会从快照生成真实窄 selector，覆盖 `home.homeRenovationStates.<id>`、`home.farmhouseLevel.<level>`、`home.caveChoice.<choice>`、`home.caveUnlocked.true`、`home.cellarSlots.0`、`home.greenhouseUnlocked.true`、`decoration.owned.<id>` 和 `decoration.placed.<id>`；后续执行仍要求 hash、确认文案、补偿 / 回滚确认和个人 receipt 幂等边界。
+
 ### 0601 同居分居长期离线确认前端收口
 - 分居面板新增长期离线确认保护读回，展示待确认成员最后活跃、离线时长、保护期和后端策略；请求执行按钮现在同时支持双方确认和长期离线超时 override 门槛。
 - 前端 API 类型新增 `CohabitationSeparationOfflineTimeoutOverride`，执行请求会读回 `offline_timeout_override_applied` 与 `confirmation_basis=offline_timeout_override`；本轮只进入待人工执行，不伪造离线成员确认、不改个人存档。

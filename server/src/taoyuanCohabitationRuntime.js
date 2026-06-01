@@ -19181,7 +19181,23 @@ function summarizeMainStateCountMap(value) {
   return {
     count: entries.reduce((sum, entry) => sum + entry.quantity, 0),
     keys: entries.map(entry => entry.key),
+    entries: entries.map(entry => ({
+      key: entry.key,
+      quantity: entry.quantity,
+    })),
   };
+}
+
+function sanitizeMainStateCountEntries(entries = []) {
+  return Array.isArray(entries)
+    ? entries
+      .map(entry => ({
+        key: sanitizeText(entry?.key, 80),
+        quantity: Math.max(0, Math.floor(Number(entry?.quantity) || 0)),
+      }))
+      .filter(entry => entry.key && entry.quantity > 0)
+      .slice(0, 80)
+    : [];
 }
 
 function sanitizeFamilyBuildingMainStateCandidateSnapshot(snapshot = {}) {
@@ -19206,10 +19222,12 @@ function sanitizeFamilyBuildingMainStateCandidateSnapshot(snapshot = {}) {
       ownedKeys: Array.isArray(decoration.ownedKeys)
         ? decoration.ownedKeys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 80)
         : [],
+      ownedEntries: sanitizeMainStateCountEntries(decoration.ownedEntries),
       placedCount: Math.max(0, Math.floor(Number(decoration.placedCount) || 0)),
       placedKeys: Array.isArray(decoration.placedKeys)
         ? decoration.placedKeys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 80)
         : [],
+      placedEntries: sanitizeMainStateCountEntries(decoration.placedEntries),
     },
     onlineCohabitation: {
       realBuildDemolitionReceiptCount: Math.max(0, Math.floor(Number(onlineCohabitation.realBuildDemolitionReceiptCount) || 0)),
@@ -19239,14 +19257,16 @@ function buildFamilyBuildingRealDemolitionMainStateManifest(contract = {}, build
         greenhouseUnlocked: data.home?.greenhouseUnlocked === true,
         cellarSlots: Array.isArray(data.home?.cellarSlots) ? data.home.cellarSlots.length : 0,
         homeRenovationStateKeys: data.home?.homeRenovationStates && typeof data.home.homeRenovationStates === 'object'
-          ? Object.keys(data.home.homeRenovationStates).sort().slice(0, 80)
+          ? Object.keys(data.home.homeRenovationStates).filter(id => data.home.homeRenovationStates[id] === true).sort().slice(0, 80)
           : [],
       },
       decoration: {
         ownedCount: ownedDecorationSummary.count,
         ownedKeys: ownedDecorationSummary.keys,
+        ownedEntries: ownedDecorationSummary.entries,
         placedCount: placedDecorationSummary.count,
         placedKeys: placedDecorationSummary.keys,
+        placedEntries: placedDecorationSummary.entries,
       },
       onlineCohabitation: {
         realBuildDemolitionReceiptCount: Array.isArray(data.onlineCohabitation?.real_build_demolition_receipts)
