@@ -7,7 +7,8 @@ import {
   LATE_NIGHT_RECOVERY_MIN,
   PASSOUT_STAMINA_RECOVERY,
   PASSOUT_MONEY_PENALTY_RATE,
-  PASSOUT_MONEY_PENALTY_CAP
+  PASSOUT_MONEY_PENALTY_CAP,
+  SHORT_REST_DAILY_STAMINA_CAP
 } from '@/data/timeConstants'
 import { useSkillStore } from './useSkillStore'
 import { useHomeStore } from './useHomeStore'
@@ -237,6 +238,7 @@ export const usePlayerStore = defineStore('player', () => {
   /** 额外体力上限加成（仙翁金丹等），不受仙桃阶梯覆盖 */
   const bonusMaxStamina = ref(0)
   const temporaryFoodMaxStaminaBonus = ref(0)
+  const shortRestRecoveredToday = ref(0)
 
   // HP 系统
   const hp = ref(BASE_MAX_HP)
@@ -249,6 +251,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   const isExhausted = computed(() => stamina.value <= 5)
   const staminaPercent = computed(() => Math.round((stamina.value / Math.max(1, maxStamina.value)) * 100))
+  const shortRestRecoveryRemaining = computed(() => Math.max(0, SHORT_REST_DAILY_STAMINA_CAP - shortRestRecoveredToday.value))
   /** NPC 用来称呼玩家的称谓 */
   const honorific = computed(() => (gender.value === 'male' ? '小哥' : '姑娘'))
 
@@ -310,6 +313,17 @@ export const usePlayerStore = defineStore('player', () => {
     stamina.value = Math.min(stamina.value + normalizedAmount, maxStamina.value)
   }
 
+  const recoverShortRestStamina = (amount: number): number => {
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return 0
+    const staminaMissing = Math.max(0, maxStamina.value - stamina.value)
+    const actual = Math.min(normalizedAmount, staminaMissing, shortRestRecoveryRemaining.value)
+    if (actual <= 0) return 0
+    stamina.value = Math.min(stamina.value + actual, maxStamina.value)
+    shortRestRecoveredToday.value += actual
+    return actual
+  }
+
   /** 受到伤害（扣 HP），返回实际伤害值 */
   const takeDamage = (amount: number): number => {
     const normalizedAmount = normalizeNonNegativeInteger(amount)
@@ -365,6 +379,7 @@ export const usePlayerStore = defineStore('player', () => {
       }
     }
     // HP 每天都回满
+    shortRestRecoveredToday.value = 0
     hp.value = getMaxHp()
     return { moneyLost, recoveryPct: appliedRecoveryPct }
   }
@@ -804,6 +819,10 @@ export const usePlayerStore = defineStore('player', () => {
     }
     stamina.value = Math.min(Math.max(0, stamina.value), maxStamina.value)
     hp.value = Math.min(Math.max(0, hp.value), getMaxHp())
+    shortRestRecoveredToday.value = Math.min(
+      SHORT_REST_DAILY_STAMINA_CAP,
+      normalizeNonNegativeInteger(shortRestRecoveredToday.value)
+    )
   }
 
   const serialize = () => {
@@ -815,6 +834,7 @@ export const usePlayerStore = defineStore('player', () => {
       maxStamina: maxStamina.value,
       staminaCapLevel: staminaCapLevel.value,
       bonusMaxStamina: bonusMaxStamina.value,
+      shortRestRecoveredToday: shortRestRecoveredToday.value,
       hp: hp.value,
       baseMaxHp: baseMaxHp.value,
       economyTelemetry: normalizeEconomyTelemetry(economyTelemetry.value),
@@ -842,6 +862,10 @@ export const usePlayerStore = defineStore('player', () => {
     staminaCapLevel.value = Math.min(STAMINA_CAPS.length - 1, normalizeNonNegativeInteger(data.staminaCapLevel, 0))
     bonusMaxStamina.value = normalizeNonNegativeInteger((data as any).bonusMaxStamina ?? 0)
     temporaryFoodMaxStaminaBonus.value = 0
+    shortRestRecoveredToday.value = Math.min(
+      SHORT_REST_DAILY_STAMINA_CAP,
+      normalizeNonNegativeInteger((data as any).shortRestRecoveredToday ?? 0)
+    )
     maxStamina.value = normalizeNonNegativeInteger(data.maxStamina, STAMINA_CAPS[staminaCapLevel.value] ?? 120)
     stamina.value = normalizeNonNegativeInteger(data.stamina, maxStamina.value)
     // 旧存档兼容：如果没有 bonusMaxStamina 字段，从 maxStamina 和 staminaCapLevel 推算
@@ -903,6 +927,7 @@ export const usePlayerStore = defineStore('player', () => {
     staminaCapLevel,
     bonusMaxStamina,
     temporaryFoodMaxStaminaBonus,
+    shortRestRecoveredToday,
     hp,
     baseMaxHp,
     economyTelemetry,
@@ -914,11 +939,13 @@ export const usePlayerStore = defineStore('player', () => {
     qaGovernanceOverview,
     isExhausted,
     staminaPercent,
+    shortRestRecoveryRemaining,
     getMaxHp,
     getHpPercent,
     getIsLowHp,
     consumeStamina,
     restoreStamina,
+    recoverShortRestStamina,
     takeDamage,
     restoreHealth,
     dailyReset,

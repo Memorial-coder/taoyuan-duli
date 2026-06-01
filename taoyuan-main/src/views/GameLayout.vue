@@ -427,7 +427,19 @@
           <Divider title>{{ sleepLabel }}</Divider>
           <p class="text-xs leading-relaxed mb-1">{{ sleepSummary }}</p>
           <p v-for="(warn, wi) in sleepWarning.split('\n').filter(Boolean)" :key="wi" class="text-danger text-xs mb-1">{{ warn }}</p>
-          <div class="flex space-x-3 justify-center mt-4">
+          <div class="grid grid-cols-2 gap-1.5 mt-4">
+            <Button
+              v-for="option in SHORT_REST_OPTIONS"
+              :key="option.id"
+              class="w-full justify-center"
+              :icon="Moon"
+              :icon-size="12"
+              @click="handleShortRest(option)"
+            >
+              {{ getShortRestButtonLabel(option) }}
+            </Button>
+          </div>
+          <div class="flex space-x-3 justify-center mt-2">
             <Button :icon="X" :icon-size="12" @click="showSleepConfirm = false">再等等</Button>
             <Button class="btn-danger" :icon="Moon" :icon-size="12" @click="confirmSleep">{{ sleepLabel }}</Button>
           </div>
@@ -461,7 +473,8 @@
     LATE_NIGHT_RECOVERY_MIN,
     PASSOUT_STAMINA_RECOVERY,
     PASSOUT_MONEY_PENALTY_RATE,
-    PASSOUT_MONEY_PENALTY_CAP
+    PASSOUT_MONEY_PENALTY_CAP,
+    SHORT_REST_OPTIONS
   } from '@/data/timeConstants'
   import { getNpcById, getItemById, getCropById } from '@/data'
   import { CHEST_DEFS } from '@/data/items'
@@ -495,6 +508,18 @@
   import { Capacitor } from '@capacitor/core'
 
   const BACKGROUND_AUTOSAVE_INTERVAL_MS = 60_000
+  type ShortRestOption = (typeof SHORT_REST_OPTIONS)[number]
+
+  type FullscreenDocument = Document & {
+    webkitFullscreenElement?: Element | null
+    webkitFullscreenEnabled?: boolean
+    webkitExitFullscreen?: () => Promise<void> | void
+  }
+
+  type FullscreenTarget = HTMLDivElement & {
+    webkitRequestFullscreen?: () => Promise<void> | void
+    webkitRequestFullScreen?: () => Promise<void> | void
+  }
 
   const router = useRouter()
   const route = useRoute()
@@ -598,21 +623,68 @@
     showVoidModal.value = true
   }
 
+  const getActiveFullscreenElement = () => {
+    const fullscreenDocument = document as FullscreenDocument
+    return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null
+  }
+
+  const supportsGameFullscreen = () => {
+    if (typeof document === 'undefined') return false
+    const fullscreenDocument = document as FullscreenDocument
+    const target = gameLayoutRoot.value as FullscreenTarget | null
+    return Boolean(
+      document.fullscreenEnabled ||
+      fullscreenDocument.webkitFullscreenEnabled ||
+      target?.requestFullscreen ||
+      target?.webkitRequestFullscreen ||
+      target?.webkitRequestFullScreen
+    )
+  }
+
+  const requestGameFullscreen = async () => {
+    const target = gameLayoutRoot.value as FullscreenTarget | null
+    if (!target) return
+
+    if (typeof target.requestFullscreen === 'function') {
+      await target.requestFullscreen()
+      return
+    }
+
+    const requestWebkitFullscreen = target.webkitRequestFullscreen ?? target.webkitRequestFullScreen
+    if (typeof requestWebkitFullscreen === 'function') {
+      await requestWebkitFullscreen.call(target)
+    }
+  }
+
+  const exitGameFullscreen = async () => {
+    const fullscreenDocument = document as FullscreenDocument
+    if (document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+      await document.exitFullscreen()
+      return
+    }
+
+    if (fullscreenDocument.webkitFullscreenElement && typeof fullscreenDocument.webkitExitFullscreen === 'function') {
+      await fullscreenDocument.webkitExitFullscreen()
+    }
+  }
+
   const syncFullscreenState = () => {
     if (typeof document === 'undefined') return
-    isFullscreen.value = document.fullscreenElement === gameLayoutRoot.value
+    isFullscreen.value = getActiveFullscreenElement() === gameLayoutRoot.value
   }
 
   const toggleFullscreen = async () => {
     if (typeof document === 'undefined') return
 
     try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen()
+      if (getActiveFullscreenElement()) {
+        await exitGameFullscreen()
+        syncFullscreenState()
         return
       }
 
-      await gameLayoutRoot.value?.requestFullscreen()
+      await requestGameFullscreen()
+      syncFullscreenState()
     } catch {
       addLog('浏览器暂时无法切换全屏，请检查权限或使用系统全屏。')
     }
@@ -683,9 +755,10 @@
 
   onMounted(() => {
     startClock()
-    isFullscreenSupported.value = typeof document !== 'undefined' && Boolean(document.fullscreenEnabled)
+    isFullscreenSupported.value = supportsGameFullscreen()
     syncFullscreenState()
     document.addEventListener('fullscreenchange', syncFullscreenState)
+    document.addEventListener('webkitfullscreenchange', syncFullscreenState)
     void realtimeStore.start()
     void saveStore.syncPendingServerSaves()
     void mailboxStore.refreshList().catch(() => {})
@@ -705,6 +778,7 @@
     stopClock()
     realtimeStore.stop()
     document.removeEventListener('fullscreenchange', syncFullscreenState)
+    document.removeEventListener('webkitfullscreenchange', syncFullscreenState)
     if (backgroundAutoSaveTimer.value !== null) {
       window.clearInterval(backgroundAutoSaveTimer.value)
       backgroundAutoSaveTimer.value = null
@@ -814,6 +888,45 @@
     }
     return warnings.join('\n')
   })
+
+  /** 短睡恢复 */
+  const getShortRestPreviewRecover = (option: ShortRestOption): number =>
+    Math.min(
+      option.staminaRestore,
+      Math.max(0, playerStore.maxStamina - playerStore.stamina),
+      playerStore.shortRestRecoveryRemaining
+    )
+
+  const getShortRestButtonLabel = (option: ShortRestOption): string => {
+    const recover = getShortRestPreviewRecover(option)
+    return recover > 0 ? `${option.label} +${recover}体力` : option.label
+  }
+
+  const handleShortRest = (option: ShortRestOption) => {
+    showSleepConfirm.value = false
+    const tr = gameStore.advanceTime(option.timeHours, { skipSpeedBuff: true })
+    if (tr.passedOut) {
+      if (tr.message) addLog(tr.message)
+      pauseClock('endday')
+      try {
+        handleEndDay()
+      } finally {
+        resumeClock('endday')
+      }
+      switchToSeasonalBgm()
+      return
+    }
+
+    const recovered = playerStore.recoverShortRestStamina(option.staminaRestore)
+    if (recovered > 0) {
+      addLog(`${option.label}，恢复了${recovered}点体力。`)
+    } else if (playerStore.stamina >= playerStore.maxStamina) {
+      addLog(`${option.label}，精神没有更多恢复。`)
+    } else {
+      addLog(`${option.label}，今天小睡恢复已经到上限。`)
+    }
+    if (tr.message) addLog(tr.message)
+  }
 
   /** 宠物领养 */
   const petChoice = ref<'cat' | 'dog' | null>(null)
@@ -1140,15 +1253,20 @@
     color: rgb(var(--color-bg));
   }
 
-  .game-layout-root:fullscreen {
+  .game-layout-root:fullscreen,
+  .game-layout-root:-webkit-full-screen {
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
+    max-width: none;
+    margin: 0;
     background: rgb(var(--color-bg));
+    overflow: hidden;
     padding: var(--spacing-2);
   }
 
   @media (min-width: 768px) {
-    .game-layout-root:fullscreen {
+    .game-layout-root:fullscreen,
+    .game-layout-root:-webkit-full-screen {
       padding: var(--spacing-4);
     }
   }

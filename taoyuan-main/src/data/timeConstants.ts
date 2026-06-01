@@ -117,13 +117,13 @@ export const ACTION_TIME_COSTS = {
   collectFishProducts: 0.17
 } as const
 
-/** 工具等级对行动时间的减免（分钟） */
-export const TOOL_TIME_SAVINGS: Record<string, number> = {
-  basic: 0,
-  iron: 10,
-  steel: 20,
-  iridium: 30
-}
+/** 床上小睡选项 */
+export const SHORT_REST_OPTIONS = [
+  { id: 'half_hour', label: '小睡半小时', timeHours: 0.5, staminaRestore: 8 },
+  { id: 'one_hour', label: '小睡一小时', timeHours: 1, staminaRestore: 18 }
+] as const
+
+export const SHORT_REST_DAILY_STAMINA_CAP = 40
 
 /** 技能等级每级减免行动时间的比例 */
 export const SKILL_TIME_REDUCTION_PER_LEVEL = 0.02
