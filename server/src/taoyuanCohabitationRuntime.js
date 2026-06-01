@@ -12969,6 +12969,196 @@ function buildSeparationManorExitHandoverRecord(contract = {}, storyResolution =
   });
 }
 
+function summarizePersonalRelationshipMainState(npcData = {}) {
+  const npcStates = Array.isArray(npcData.npcStates) ? npcData.npcStates : [];
+  return {
+    npc_state_count: npcStates.length,
+    dating_count: npcStates.filter(state => state?.dating === true).length,
+    married_count: npcStates.filter(state => state?.married === true).length,
+    zhiji_count: npcStates.filter(state => state?.zhiji === true).length,
+    days_married: Math.max(0, Math.floor(Number(npcData.daysMarried) || 0)),
+    days_zhiji: Math.max(0, Math.floor(Number(npcData.daysZhiji) || 0)),
+    wedding_pending: Math.max(0, Math.floor(Number(npcData.weddingCountdown) || 0)) > 0 || Boolean(npcData.weddingNpcId),
+    pregnancy_active: Boolean(npcData.pregnancy || npcData.familyExpansion || npcData.pendingChild),
+    child_proposal_pending: npcData.childProposalPending === true,
+    child_count: Array.isArray(npcData.children) ? npcData.children.length : 0,
+  };
+}
+
+function setPersonalRelationshipField(target, key, value, actions, actionId) {
+  if (!target || typeof target !== 'object') return false;
+  const hasKey = Object.prototype.hasOwnProperty.call(target, key);
+  if (!hasKey && (value === null || value === false || value === 0)) return false;
+  if (target[key] === value) return false;
+  target[key] = value;
+  if (actionId && !actions.includes(actionId)) actions.push(actionId);
+  return true;
+}
+
+function applySeparationPersonalRelationshipMainStateMutation(saveData = {}, relationTypeValue = '', options = {}) {
+  const relationType = normalizeRelationType(relationTypeValue);
+  const supportedRelationTypes = new Set(['lover_cohabitation', 'marriage_home', 'bosom_partner']);
+  const npcData = saveData.npc && typeof saveData.npc === 'object' && !Array.isArray(saveData.npc)
+    ? saveData.npc
+    : null;
+  const mutation = {
+    mutation_version: 1,
+    mutation_adapter: 'separation_personal_relationship_main_state_v1',
+    relation_type: relationType,
+    personal_save_mutation_enabled: false,
+    personal_state_mutated: false,
+    personal_story_state: 'personal_relationship_state_unavailable',
+    reason: 'npc_save_bucket_missing',
+    affected_npc_ids: [],
+    mutation_actions: [],
+    before_summary: npcData ? summarizePersonalRelationshipMainState(npcData) : null,
+    after_summary: null,
+    children_preserved: true,
+    privacy_boundary: 'personal npc relationship flags only; children, money, inventory, farm, home and family assets are not mutated',
+    idempotency_key: sanitizeText(options.idempotency_key, 120),
+    execution_ledger_id: sanitizeText(options.execution_ledger_id, 100),
+  };
+
+  if (!supportedRelationTypes.has(relationType)) {
+    mutation.reason = 'relation_type_contract_record_only';
+    mutation.personal_story_state = 'contract_story_recorded_only';
+    mutation.after_summary = mutation.before_summary;
+    return mutation;
+  }
+  if (!npcData) return mutation;
+
+  mutation.personal_save_mutation_enabled = true;
+  mutation.reason = '';
+  const beforeSerialized = JSON.stringify(npcData);
+  const npcStates = Array.isArray(npcData.npcStates) ? npcData.npcStates : [];
+  const affectedIds = new Set();
+  const actions = mutation.mutation_actions;
+
+  for (const state of npcStates) {
+    if (!state || typeof state !== 'object') continue;
+    const npcId = sanitizeText(state.npcId || state.id, 80);
+    let affected = false;
+    if (relationType === 'lover_cohabitation' && state.dating === true && state.married !== true) {
+      affected = setPersonalRelationshipField(state, 'dating', false, actions, 'clear_dating') || affected;
+      affected = setPersonalRelationshipField(state, 'friendship', 1000, actions, 'set_friendship_floor') || affected;
+    }
+    if (relationType === 'marriage_home' && (state.married === true || state.dating === true)) {
+      affected = setPersonalRelationshipField(state, 'married', false, actions, 'clear_married') || affected;
+      affected = setPersonalRelationshipField(state, 'dating', false, actions, 'clear_dating') || affected;
+      affected = setPersonalRelationshipField(state, 'friendship', 1000, actions, 'set_friendship_floor') || affected;
+    }
+    if (relationType === 'bosom_partner' && state.zhiji === true) {
+      affected = setPersonalRelationshipField(state, 'zhiji', false, actions, 'clear_zhiji') || affected;
+      affected = setPersonalRelationshipField(state, 'friendship', 1000, actions, 'set_friendship_floor') || affected;
+    }
+    if (affected && npcId) affectedIds.add(npcId);
+  }
+
+  if (relationType === 'lover_cohabitation') {
+    const weddingNpcId = sanitizeText(npcData.weddingNpcId, 80);
+    if (weddingNpcId && affectedIds.has(weddingNpcId)) {
+      setPersonalRelationshipField(npcData, 'weddingCountdown', 0, actions, 'clear_wedding_countdown');
+      setPersonalRelationshipField(npcData, 'weddingNpcId', null, actions, 'clear_wedding_npc');
+    }
+  }
+
+  if (relationType === 'marriage_home') {
+    setPersonalRelationshipField(npcData, 'daysMarried', 0, actions, 'reset_days_married');
+    setPersonalRelationshipField(npcData, 'pregnancy', null, actions, 'clear_pregnancy');
+    setPersonalRelationshipField(npcData, 'familyExpansion', null, actions, 'clear_family_expansion');
+    setPersonalRelationshipField(npcData, 'childProposalPending', false, actions, 'clear_child_proposal_pending');
+    setPersonalRelationshipField(npcData, 'pendingChild', false, actions, 'clear_pending_child');
+    setPersonalRelationshipField(npcData, 'childCountdown', 0, actions, 'clear_child_countdown');
+    setPersonalRelationshipField(npcData, 'weddingCountdown', 0, actions, 'clear_wedding_countdown');
+    setPersonalRelationshipField(npcData, 'weddingNpcId', null, actions, 'clear_wedding_npc');
+  }
+
+  if (relationType === 'bosom_partner') {
+    setPersonalRelationshipField(npcData, 'daysZhiji', 0, actions, 'reset_days_zhiji');
+  }
+
+  mutation.affected_npc_ids = Array.from(affectedIds).slice(0, 20);
+  mutation.after_summary = summarizePersonalRelationshipMainState(npcData);
+  mutation.personal_state_mutated = JSON.stringify(npcData) !== beforeSerialized;
+  mutation.personal_story_state = mutation.personal_state_mutated
+    ? 'personal_relationship_main_state_mutated'
+    : 'personal_relationship_main_state_already_clear';
+  mutation.reason = mutation.personal_state_mutated ? 'mutated' : 'already_clear';
+  return mutation;
+}
+
+function normalizePersonalRelationshipMainStateSummary(summary = null) {
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return null;
+  return {
+    npc_state_count: Math.max(0, Math.floor(Number(summary.npc_state_count) || 0)),
+    dating_count: Math.max(0, Math.floor(Number(summary.dating_count) || 0)),
+    married_count: Math.max(0, Math.floor(Number(summary.married_count) || 0)),
+    zhiji_count: Math.max(0, Math.floor(Number(summary.zhiji_count) || 0)),
+    days_married: Math.max(0, Math.floor(Number(summary.days_married) || 0)),
+    days_zhiji: Math.max(0, Math.floor(Number(summary.days_zhiji) || 0)),
+    wedding_pending: summary.wedding_pending === true,
+    pregnancy_active: summary.pregnancy_active === true,
+    child_proposal_pending: summary.child_proposal_pending === true,
+    child_count: Math.max(0, Math.floor(Number(summary.child_count) || 0)),
+  };
+}
+
+function normalizeSeparationPersonalRelationshipMutationReceipt(entry = null) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+  const adapter = sanitizeText(entry.mutation_adapter, 100);
+  if (!adapter) return null;
+  return {
+    mutation_version: Math.max(1, Math.floor(Number(entry.mutation_version) || 1)),
+    mutation_adapter: adapter,
+    relation_type: sanitizeText(entry.relation_type, 80),
+    personal_save_mutation_enabled: entry.personal_save_mutation_enabled === true,
+    personal_state_mutated: entry.personal_state_mutated === true,
+    personal_story_state: sanitizeText(entry.personal_story_state, 100),
+    reason: sanitizeText(entry.reason, 100),
+    affected_npc_ids: Array.isArray(entry.affected_npc_ids)
+      ? entry.affected_npc_ids.map(id => sanitizeText(id, 80)).filter(Boolean).slice(0, 20)
+      : [],
+    mutation_actions: Array.isArray(entry.mutation_actions)
+      ? entry.mutation_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
+      : [],
+    before_summary: normalizePersonalRelationshipMainStateSummary(entry.before_summary),
+    after_summary: normalizePersonalRelationshipMainStateSummary(entry.after_summary),
+    children_preserved: entry.children_preserved !== false,
+    privacy_boundary: sanitizeText(entry.privacy_boundary, 180),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    execution_ledger_id: sanitizeText(entry.execution_ledger_id, 100),
+  };
+}
+
+function normalizeSeparationPersonalRelationshipMutationSummary(entry = null) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    return {
+      personal_save_mutation_enabled: false,
+      personal_state_mutated: false,
+      personal_story_state: '',
+      receipt_count: 0,
+      mutated_receipt_count: 0,
+      enabled_receipt_count: 0,
+      affected_npc_ids: [],
+      mutation_actions: [],
+    };
+  }
+  return {
+    personal_save_mutation_enabled: entry.personal_save_mutation_enabled === true,
+    personal_state_mutated: entry.personal_state_mutated === true,
+    personal_story_state: sanitizeText(entry.personal_story_state, 100),
+    receipt_count: Math.max(0, Math.floor(Number(entry.receipt_count) || 0)),
+    mutated_receipt_count: Math.max(0, Math.floor(Number(entry.mutated_receipt_count) || 0)),
+    enabled_receipt_count: Math.max(0, Math.floor(Number(entry.enabled_receipt_count) || 0)),
+    affected_npc_ids: Array.isArray(entry.affected_npc_ids)
+      ? entry.affected_npc_ids.map(id => sanitizeText(id, 80)).filter(Boolean).slice(0, 40)
+      : [],
+    mutation_actions: Array.isArray(entry.mutation_actions)
+      ? entry.mutation_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 40)
+      : [],
+  };
+}
+
 function normalizeSeparationChildArrangementResolvePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居孩子安排记录需要 idempotency_key，以防断线或重试时重复记录');
@@ -15321,6 +15511,20 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       )
     );
     const storyContent = normalizeSeparationStoryContentFields(storyResolution);
+    const existingReceipt = existingIndex >= 0 ? projectedData.onlineCohabitation.story_receipts[existingIndex] : null;
+    const existingRelationshipMutation = existingReceipt?.personal_relationship_mutation
+      && typeof existingReceipt.personal_relationship_mutation === 'object'
+      && existingReceipt.personal_relationship_mutation.mutation_adapter === 'separation_personal_relationship_main_state_v1'
+      ? existingReceipt.personal_relationship_mutation
+      : null;
+    const relationshipMutation = existingRelationshipMutation || applySeparationPersonalRelationshipMainStateMutation(
+      projectedData,
+      storyResolution.relation_type || contract.type,
+      {
+        idempotency_key: payload.idempotency_key,
+        execution_ledger_id: ledger.id,
+      }
+    );
     const receipt = {
       receipt_id: receiptId,
       type: 'cohabitation_separation_personal_story',
@@ -15345,11 +15549,16 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       frontend_cinematic_played_at: Math.max(0, Math.floor(Number(storyResolution.frontend_cinematic_played_at) || 0)),
       frontend_cinematic_played_by: normalizeUsername(storyResolution.frontend_cinematic_played_by),
       frontend_cinematic_playback_state: sanitizeText(storyResolution.frontend_cinematic_playback_state, 80),
-      personal_state_mutated: false,
-      personal_save_mutation_enabled: false,
-      contract_record_only: storyResolution.contract_record_only !== false,
-      personal_story_state: 'receipt_recorded_only',
-      privacy_boundary: '仅追加分居剧情回执；不改写 NPC、恋爱、家庭、孩子或资产状态。',
+      personal_state_mutated: relationshipMutation.personal_state_mutated === true,
+      personal_save_mutation_enabled: relationshipMutation.personal_save_mutation_enabled === true,
+      contract_record_only: relationshipMutation.personal_save_mutation_enabled !== true,
+      personal_story_state: relationshipMutation.personal_story_state,
+      personal_relationship_mutation: relationshipMutation,
+      personal_relationship_affected_npc_ids: relationshipMutation.affected_npc_ids,
+      personal_relationship_mutation_actions: relationshipMutation.mutation_actions,
+      personal_relationship_before_summary: relationshipMutation.before_summary,
+      personal_relationship_after_summary: relationshipMutation.after_summary,
+      privacy_boundary: relationshipMutation.privacy_boundary,
       memo: payload.memo,
       idempotency_key: payload.idempotency_key,
       written_at: writtenAt,
@@ -15396,6 +15605,12 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       personal_save_mutation_enabled: receipt.personal_save_mutation_enabled,
       contract_record_only: receipt.contract_record_only,
       personal_story_state: receipt.personal_story_state,
+      personal_relationship_mutation: receipt.personal_relationship_mutation,
+      personal_relationship_affected_npc_ids: receipt.personal_relationship_affected_npc_ids,
+      personal_relationship_mutation_actions: receipt.personal_relationship_mutation_actions,
+      personal_relationship_before_summary: receipt.personal_relationship_before_summary,
+      personal_relationship_after_summary: receipt.personal_relationship_after_summary,
+      privacy_boundary: receipt.privacy_boundary,
       idempotency_key: payload.idempotency_key,
       written_at: writtenAt,
     };
@@ -16803,6 +17018,8 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           frontend_cinematic_playback_idempotency_key: sanitizeText(entry.family_story_resolution.frontend_cinematic_playback_idempotency_key, 120),
           personal_state_mutated: entry.family_story_resolution.personal_state_mutated === true,
           personal_save_mutation_enabled: entry.family_story_resolution.personal_save_mutation_enabled === true,
+          personal_story_state: sanitizeText(entry.family_story_resolution.personal_story_state, 100),
+          personal_relationship_mutation_summary: normalizeSeparationPersonalRelationshipMutationSummary(entry.family_story_resolution.personal_relationship_mutation_summary),
           manor_exit_handover_recorded: entry.family_story_resolution.manor_exit_handover_recorded === true,
           family_role_handover_executed: entry.family_story_resolution.family_role_handover_executed === true,
           manor_exit_handover_record: normalizeSeparationManorExitHandoverRecord(entry.family_story_resolution.manor_exit_handover_record),
@@ -16842,6 +17059,16 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           personal_save_mutation_enabled: item.personal_save_mutation_enabled === true,
           contract_record_only: item.contract_record_only !== false,
           personal_story_state: sanitizeText(item.personal_story_state, 100),
+          personal_relationship_mutation: normalizeSeparationPersonalRelationshipMutationReceipt(item.personal_relationship_mutation),
+          personal_relationship_affected_npc_ids: Array.isArray(item.personal_relationship_affected_npc_ids)
+            ? item.personal_relationship_affected_npc_ids.map(id => sanitizeText(id, 80)).filter(Boolean).slice(0, 20)
+            : [],
+          personal_relationship_mutation_actions: Array.isArray(item.personal_relationship_mutation_actions)
+            ? item.personal_relationship_mutation_actions.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 20)
+            : [],
+          personal_relationship_before_summary: normalizePersonalRelationshipMainStateSummary(item.personal_relationship_before_summary),
+          personal_relationship_after_summary: normalizePersonalRelationshipMainStateSummary(item.personal_relationship_after_summary),
+          privacy_boundary: sanitizeText(item.privacy_boundary, 180),
           idempotency_key: sanitizeText(item.idempotency_key, 120),
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.receipt_id).slice(0, 20)
@@ -32917,6 +33144,28 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
   const nextRequiredOperations = (ledger.next_required_operations || [])
     .filter(operation => operation && operation !== 'write_personal_story_receipts');
   if (ledger.decorations_buildings_split !== true && !nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
+  const personalRelationshipMutationSummary = normalizeSeparationPersonalRelationshipMutationSummary({
+    personal_save_mutation_enabled: receipts.some(receipt => receipt.personal_save_mutation_enabled === true),
+    personal_state_mutated: receipts.some(receipt => receipt.personal_state_mutated === true),
+    personal_story_state: receipts.some(receipt => receipt.personal_state_mutated === true)
+      ? 'personal_relationship_main_state_mutated'
+      : (receipts.some(receipt => receipt.personal_save_mutation_enabled === true)
+        ? 'personal_relationship_main_state_already_clear'
+        : 'personal_relationship_state_unavailable'),
+    receipt_count: receipts.length,
+    mutated_receipt_count: receipts.filter(receipt => receipt.personal_state_mutated === true).length,
+    enabled_receipt_count: receipts.filter(receipt => receipt.personal_save_mutation_enabled === true).length,
+    affected_npc_ids: Array.from(new Set(receipts.flatMap(receipt => receipt.personal_relationship_affected_npc_ids || []))),
+    mutation_actions: Array.from(new Set(receipts.flatMap(receipt => receipt.personal_relationship_mutation_actions || []))),
+  });
+  const nextFamilyStoryResolution = {
+    ...(ledger.family_story_resolution || {}),
+    personal_state_mutated: personalRelationshipMutationSummary.personal_state_mutated,
+    personal_save_mutation_enabled: personalRelationshipMutationSummary.personal_save_mutation_enabled,
+    contract_record_only: personalRelationshipMutationSummary.personal_save_mutation_enabled !== true,
+    personal_story_state: personalRelationshipMutationSummary.personal_story_state,
+    personal_relationship_mutation_summary: personalRelationshipMutationSummary,
+  };
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
     status: 'personal_story_receipts_written',
@@ -32925,6 +33174,7 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     personal_story_receipts_written_at: writtenAt,
     personal_story_receipts_written_by: member.username,
     personal_story_receipts: receipts,
+    family_story_resolution: nextFamilyStoryResolution,
     next_required_operations: nextRequiredOperations,
   });
   const nextExecutionRequest = {
@@ -32934,6 +33184,8 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     personal_story_receipts_written_at: writtenAt,
     personal_story_receipts_written_by: member.username,
     personal_story_receipts: receipts,
+    family_story_resolution: nextLedger.family_story_resolution,
+    personal_relationship_mutation_summary: personalRelationshipMutationSummary,
     next_required_operations: nextLedger.next_required_operations,
   };
   const nextPreview = normalizeSeparationPreview({
@@ -32943,6 +33195,8 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
       personal_story_receipts_written: true,
       personal_story_receipts_written_at: writtenAt,
       personal_story_receipts: receipts,
+      family_story_resolution: nextLedger.family_story_resolution,
+      personal_relationship_mutation_summary: personalRelationshipMutationSummary,
     },
     confirmation_state: {
       ...preview.confirmation_state,
@@ -32951,7 +33205,7 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
       personal_story_receipts_written_at: writtenAt,
       can_execute_now: false,
       execution_enabled: false,
-      execution_policy: '分居个人剧情回执已写入各成员存档；NPC、家庭、孩子状态仍不由联机契约自动改写。',
+      execution_policy: '分居个人剧情回执已写入各成员存档；可识别 NPC 关系主状态已按关系类型清理，孩子与资产状态仍走独立接口。',
     },
     deferred_operations: nextLedger.next_required_operations,
   });
@@ -32964,7 +33218,11 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
     plot_return_manifest_hash: expectedManifestHash,
     receipt_count: receipts.length,
     receipt_usernames: receipts.map(receipt => receipt.username),
-    personal_story_state: 'receipt_recorded_only',
+    personal_story_state: personalRelationshipMutationSummary.personal_story_state,
+    personal_state_mutated: personalRelationshipMutationSummary.personal_state_mutated,
+    personal_save_mutation_enabled: personalRelationshipMutationSummary.personal_save_mutation_enabled,
+    personal_relationship_mutation_summary: personalRelationshipMutationSummary,
+    npc_relationship_main_state_mutation: personalRelationshipMutationSummary.personal_state_mutated,
     npc_family_child_mutation: false,
     next_required_operations: nextLedger.next_required_operations,
   }, receiptPayload.idempotency_key);
@@ -33278,6 +33536,7 @@ module.exports = {
   RELATION_TYPE_DEFS,
   buildSeparationRelationshipStoryPlan,
   buildSeparationManorExitHandoverRecord,
+  applySeparationPersonalRelationshipMainStateMutation,
   listCohabitationContracts,
   getCohabitationSharedMap,
   getCohabitationSharedAnimals,
