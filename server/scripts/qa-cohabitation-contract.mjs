@@ -4486,7 +4486,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 28, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 29, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4503,6 +4503,7 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_winter_bamboo_duck_congee'), 'warehouse item policy should list warm festival dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_new_year_dumpling'), 'warehouse item policy should list seasonal festival dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_supreme_farm_feast'), 'warehouse item policy should list farming skill dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_tonic'), 'warehouse item policy should list mining skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
@@ -5043,6 +5044,16 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_supreme_farm_feast',
   outputItemId: 'food_supreme_farm_feast',
   inputs: [{ itemId: 'pumpkin', quantity: 1 }, { itemId: 'watermelon', quantity: 1 }, { itemId: 'corn', quantity: 1 }, { itemId: 'rice', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_stone_soup',
+  outputItemId: 'food_stone_soup',
+  inputs: [{ itemId: 'copper_ore', quantity: 2 }, { itemId: 'radish', quantity: 1 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_iron_tonic',
+  outputItemId: 'food_iron_tonic',
+  inputs: [{ itemId: 'iron_ore', quantity: 2 }, { itemId: 'herb', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_new_year_dumpling',

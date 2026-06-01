@@ -168,7 +168,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 28;
+const WAREHOUSE_ITEM_POLICY_VERSION = 29;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -196,6 +196,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
   'food_spring_roll', 'food_lotus_lantern_cake', 'food_harvest_feast', 'food_new_year_dumpling',
   'food_pumpkin_pie', 'food_golden_fried_rice', 'food_supreme_farm_feast',
+  'food_stone_soup', 'food_iron_tonic',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_rice_flour_roll',
   'food_sesame_tangyuan', 'food_lotus_sesame_calming_cake', 'food_spicy_pumpkin_rice', 'food_spicy_boat_rice_ball',
   'food_rapeseed_bamboo_rice_roll', 'food_pumpkin_harvest_cauldron', 'food_pickled_radish_guard_soup',
@@ -1949,6 +1950,34 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'rice', quantity: 2, quality: 'normal' },
     ],
     output_item_id: 'food_supreme_farm_feast',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_stone_soup: {
+    id: 'shared_stone_soup',
+    label: '共同灶台矿石汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'copper_ore', quantity: 2, quality: 'normal' },
+      { item_id: 'radish', quantity: 1, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_stone_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_iron_tonic: {
+    id: 'shared_iron_tonic',
+    label: '共同灶台铁骨汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'iron_ore', quantity: 2, quality: 'normal' },
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_iron_tonic',
     output_quantity: 1,
     output_quality: 'normal',
   },

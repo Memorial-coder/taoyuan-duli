@@ -413,6 +413,8 @@ expectContains('online/OnlineCohabitationView.vue', 'shared_new_year_dumpling', 
 expectContains('online/OnlineCohabitationView.vue', 'shared_pumpkin_pie', 'cohabitation shared workshop should keep farming skill pumpkin pie in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_golden_fried_rice', 'cohabitation shared workshop should keep farming skill fried rice in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_supreme_farm_feast', 'cohabitation shared workshop should keep farming skill feast in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_stone_soup', 'cohabitation shared workshop should keep mining skill stone soup in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_iron_tonic', 'cohabitation shared workshop should keep mining skill iron tonic in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_sesame_tangyuan', 'cohabitation shared workshop should keep sesame tangyuan in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_lotus_sesame_calming_cake', 'cohabitation shared workshop should keep lotus sesame cake in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_spicy_pumpkin_rice', 'cohabitation shared workshop should keep spicy pumpkin rice in the frontend catalog')
