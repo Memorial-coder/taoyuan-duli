@@ -39,8 +39,6 @@ assertAllIncluded(todoMatch[0], [
   'offline_conflict_resolution',
   'offline-conflicts/preflight',
   'offline-conflicts/resolve',
-  'purchase_shared_fund_shop_item',
-  'sell_shared_warehouse_item',
   'settle_shared_daily',
   'collect_offline_auto_income',
 ], '11.6 offline operation todo block')
@@ -48,14 +46,14 @@ assertAllIncluded(todoMatch[0], [
 assertAllIncluded(rootChangelog, [
   '11.6',
   'offline_conflict_resolution',
-  'purchase_shared_fund_shop_item',
-  'sell_shared_warehouse_item',
+  'settle_shared_daily',
+  'collect_offline_auto_income',
 ], 'root changelog offline closeout entry')
 assertAllIncluded(mainChangelog, [
   '11.6',
   'offline_conflict_resolution',
-  'purchase_shared_fund_shop_item',
-  'sell_shared_warehouse_item',
+  'settle_shared_daily',
+  'collect_offline_auto_income',
 ], 'frontend changelog offline closeout entry')
 
 const requiredOfflineQueueActions = [
@@ -75,8 +73,6 @@ const requiredOfflineQueueActions = [
   'record_shared_decoration_removal_refund_receipt',
   'settle_shared_daily',
   'collect_offline_auto_income',
-  'purchase_shared_fund_shop_item',
-  'sell_shared_warehouse_item',
 ]
 assertAllIncluded(runtimeSource, requiredOfflineQueueActions.map(action => `'${action}'`), 'server offline queue supported actions')
 assertAllIncluded(runtimeSource, [
@@ -89,11 +85,9 @@ assertAllIncluded(runtimeSource, [
   'offline_conflict_auto_resolved',
   'offline_queue_merged',
   'warehouse_ledger_count',
-  'fund_ledger_count',
   'shared_farm_ledger_count',
   'shared_animal_ledger_count',
   'shared_pet_ledger_count',
-  'shared_decoration_ledger_count',
 ], 'server offline conflict resolution implementation')
 
 assertAllIncluded(routeSource, [
@@ -103,20 +97,17 @@ assertAllIncluded(routeSource, [
 
 assertAllIncluded(contractQaSource, [
   'offline_conflict_resolution',
-  'purchase_shared_fund_shop_item',
-  'sell_shared_warehouse_item',
   'settle_shared_daily',
   'collect_offline_auto_income',
-  'shared_decoration_ledger_count',
+  'shared_decoration_state_changed',
 ], 'cohabitation contract QA coverage')
 
 assertAllIncluded(frontendApiSource, [
   'CohabitationOfflineConflictResolutionEvidence',
   'preflightCohabitationOfflineConflicts',
   'resolveCohabitationOfflineConflicts',
-  'purchase_shared_fund_shop_item',
-  'sell_shared_warehouse_item',
-  'shared_decoration_ledger_count',
+  'collect_offline_auto_income',
+  'settle_shared_daily',
 ], 'frontend API offline conflict types')
 assertAllIncluded(frontendStoreSource, [
   'preflightOfflineConflicts',
@@ -124,9 +115,9 @@ assertAllIncluded(frontendStoreSource, [
   'offlineConflictAutoResolution',
 ], 'frontend store offline conflict actions')
 assertAllIncluded(frontendViewSource, [
-  'offlineConflictLedgerDomainLabel',
-  'purchase_shared_fund_shop_item',
-  'sell_shared_warehouse_item',
+  'move_shared_decoration',
+  'settle_shared_daily',
+  'collect_offline_auto_income',
   'offline_conflict_auto_resolved',
 ], 'frontend offline closeout readback')
 
