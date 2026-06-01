@@ -14770,6 +14770,28 @@ function normalizeSeparationStoryAnimationCues(cues = []) {
     .slice(0, 12);
 }
 
+function normalizeSeparationStoryCinematicAssetManifest(manifest = {}) {
+  const source = manifest && typeof manifest === 'object' && !Array.isArray(manifest) ? manifest : {};
+  const assetList = value => (Array.isArray(value) ? value : [])
+    .map(item => sanitizeText(item, 100))
+    .filter(Boolean)
+    .slice(0, 12);
+  const sceneAssetId = sanitizeText(source.scene_asset_id, 100);
+  const actorAssetIds = assetList(source.actor_asset_ids);
+  const propAssetIds = assetList(source.prop_asset_ids);
+  const motionAssetIds = assetList(source.motion_asset_ids);
+  const hasManifest = sceneAssetId || actorAssetIds.length || propAssetIds.length || motionAssetIds.length;
+  return {
+    asset_manifest_version: hasManifest ? Math.max(1, Math.floor(Number(source.asset_manifest_version) || 1)) : 0,
+    scene_asset_id: sceneAssetId,
+    actor_asset_ids: actorAssetIds,
+    prop_asset_ids: propAssetIds,
+    motion_asset_ids: motionAssetIds,
+    fallback_visual_style: sanitizeText(source.fallback_visual_style, 100) || (hasManifest ? 'storybook_cinematic_stage' : ''),
+    accessibility_summary: sanitizeText(source.accessibility_summary, 180),
+  };
+}
+
 function normalizeSeparationStoryContentFields(source = {}) {
   const dialogueLines = normalizeSeparationStoryDialogueLines(source.dialogue_lines);
   const animationCues = normalizeSeparationStoryAnimationCues(source.animation_cues);
@@ -14782,6 +14804,7 @@ function normalizeSeparationStoryContentFields(source = {}) {
     animation_cues: animationCues,
     cinematic_stage_direction: sanitizeText(source.cinematic_stage_direction, 180),
     cinematic_playback_policy: sanitizeText(source.cinematic_playback_policy, 180),
+    cinematic_asset_manifest: normalizeSeparationStoryCinematicAssetManifest(source.cinematic_asset_manifest),
   };
 }
 
@@ -14822,6 +14845,15 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
     animation_cues: [],
     cinematic_stage_direction: '',
     cinematic_playback_policy: '前端播放或跳过演出时必须记录回执；该回执只证明共同契约演出状态，不改个人主状态。',
+    cinematic_asset_manifest: {
+      asset_manifest_version: 1,
+      scene_asset_id: 'separation_contract_exit_record_scene',
+      actor_asset_ids: ['contract_member_silhouette_a', 'contract_member_silhouette_b'],
+      prop_asset_ids: ['contract_exit_record_scroll'],
+      motion_asset_ids: ['contract_record_fade_in'],
+      fallback_visual_style: 'storybook_cinematic_stage',
+      accessibility_summary: '契约退出记录以卷轴、成员剪影和淡入动效表现，播放回执只记录共同契约演出。',
+    },
     personal_state_mutated: false,
     personal_save_mutation_enabled: false,
     contract_record_only: true,
@@ -14848,6 +14880,15 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
         { cue_id: 'lover_pack_bundle', actor_role: 'member_b', action: 'pack_personal_bundle', stage: 'doorway', timing: 'dialogue_mid', duration_ms: 1800 },
         { cue_id: 'lover_gate_parting', actor_role: 'both_members', action: 'walk_to_manor_gate_and_part', stage: 'manor_gate', timing: 'outro', duration_ms: 2400 },
       ],
+      cinematic_asset_manifest: {
+        asset_manifest_version: 1,
+        scene_asset_id: 'separation_lover_courtyard_gate_scene',
+        actor_asset_ids: ['lover_member_silhouette_a', 'lover_member_silhouette_b'],
+        prop_asset_ids: ['shared_room_lamp', 'personal_bundle', 'shared_key_table'],
+        motion_asset_ids: ['dim_shared_room_lamp', 'pack_personal_bundle', 'walk_to_manor_gate_and_part'],
+        fallback_visual_style: 'lover_gate_parting_stage',
+        accessibility_summary: '恋人告别演出使用院门、灯、包袱和共同钥匙表现搬离，不依赖外部美术资源。',
+      },
     },
     marriage_home: {
       relationship_story_rule: 'marriage_breakup_family_story_record',
@@ -14870,6 +14911,15 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
         { cue_id: 'marriage_child_schedule', actor_role: 'scene', action: 'show_child_arrangement_scroll', stage: 'family_table', timing: 'dialogue_mid', duration_ms: 1600 },
         { cue_id: 'marriage_split_household', actor_role: 'member_b', action: 'leave_household_door_with_bundle', stage: 'home_door', timing: 'outro', duration_ms: 2600 },
       ],
+      cinematic_asset_manifest: {
+        asset_manifest_version: 1,
+        scene_asset_id: 'separation_marriage_family_table_scene',
+        actor_asset_ids: ['family_member_silhouette_a', 'family_member_silhouette_b'],
+        prop_asset_ids: ['family_ledger', 'child_arrangement_scroll', 'household_bundle'],
+        motion_asset_ids: ['close_family_ledger', 'show_child_arrangement_scroll', 'leave_household_door_with_bundle'],
+        fallback_visual_style: 'marriage_family_settlement_stage',
+        accessibility_summary: '婚姻破裂演出用家庭账册、孩子安排卷轴和搬离包袱表现家庭剧情、孩子安排与基金结算。',
+      },
     },
     bosom_partner: {
       relationship_story_rule: 'bosom_partner_farewell_future_cooperation_record',
@@ -14891,6 +14941,15 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
         { cue_id: 'bosom_hand_pact', actor_role: 'both_members', action: 'seal_future_pact', stage: 'old_bridge', timing: 'dialogue_mid', duration_ms: 1700 },
         { cue_id: 'bosom_future_token', actor_role: 'scene', action: 'focus_future_cooperation_token', stage: 'notice_board', timing: 'outro', duration_ms: 1500 },
       ],
+      cinematic_asset_manifest: {
+        asset_manifest_version: 1,
+        scene_asset_id: 'separation_bosom_old_bridge_scene',
+        actor_asset_ids: ['bosom_member_silhouette_a', 'bosom_member_silhouette_b'],
+        prop_asset_ids: ['old_bridge_marker', 'future_cooperation_token'],
+        motion_asset_ids: ['pause_on_old_bridge', 'seal_future_pact', 'focus_future_cooperation_token'],
+        fallback_visual_style: 'bosom_future_pact_stage',
+        accessibility_summary: '知己拆伙演出用旧桥、对掌和未来合作木牌表现道别与再合作约定。',
+      },
     },
     oath_manor: {
       relationship_story_rule: 'family_manor_meeting_handover_record',
@@ -14913,6 +14972,15 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
         { cue_id: 'oath_pass_handover_book', actor_role: 'member', action: 'pass_handover_book', stage: 'family_hall', timing: 'dialogue_mid', duration_ms: 1800 },
         { cue_id: 'oath_stamp_record', actor_role: 'scene', action: 'stamp_family_handover_record', stage: 'family_hall', timing: 'outro', duration_ms: 1700 },
       ],
+      cinematic_asset_manifest: {
+        asset_manifest_version: 1,
+        scene_asset_id: 'separation_oath_family_hall_scene',
+        actor_asset_ids: ['family_head_silhouette', 'departing_member_silhouette'],
+        prop_asset_ids: ['handover_book', 'family_seal', 'asset_domain_tokens'],
+        motion_asset_ids: ['open_family_meeting', 'pass_handover_book', 'stamp_family_handover_record'],
+        fallback_visual_style: 'family_hall_handover_stage',
+        accessibility_summary: '家族庄园退出演出用议事厅、交接册和落印表现家族会议与交接记录。',
+      },
     },
     business_partner: {
       relationship_story_rule: 'business_partner_handover_settlement_record',
@@ -14935,6 +15003,15 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
         { cue_id: 'business_pass_contract', actor_role: 'partner_b', action: 'pass_trade_contract', stage: 'counter', timing: 'dialogue_mid', duration_ms: 1500 },
         { cue_id: 'business_close_signboard', actor_role: 'scene', action: 'close_partner_signboard', stage: 'shop_front', timing: 'outro', duration_ms: 1800 },
       ],
+      cinematic_asset_manifest: {
+        asset_manifest_version: 1,
+        scene_asset_id: 'separation_business_counter_scene',
+        actor_asset_ids: ['business_partner_silhouette_a', 'business_partner_silhouette_b'],
+        prop_asset_ids: ['counter_ledger', 'trade_contract', 'partner_signboard'],
+        motion_asset_ids: ['count_counter_ledger', 'pass_trade_contract', 'close_partner_signboard'],
+        fallback_visual_style: 'business_counter_handover_stage',
+        accessibility_summary: '合伙拆伙演出用柜台账册、货契和招牌表现交接与未来合作余地。',
+      },
     },
     seasonal_cofarm: {
       relationship_story_rule: 'seasonal_cofarm_closure_record',
@@ -14949,6 +15026,15 @@ function buildSeparationRelationshipStoryPlan(contract = {}, storyPayload = {}, 
       animation_cues: [
         { cue_id: 'seasonal_collect_sign', actor_role: 'scene', action: 'collect_seasonal_cofarm_sign', stage: 'field_edge', timing: 'outro', duration_ms: 1600 },
       ],
+      cinematic_asset_manifest: {
+        asset_manifest_version: 1,
+        scene_asset_id: 'separation_seasonal_field_edge_scene',
+        actor_asset_ids: ['seasonal_member_silhouette'],
+        prop_asset_ids: ['seasonal_cofarm_sign'],
+        motion_asset_ids: ['collect_seasonal_cofarm_sign'],
+        fallback_visual_style: 'seasonal_field_closure_stage',
+        accessibility_summary: '季节合耕结束演出用田边木牌收起表现合约归档。',
+      },
     },
   };
   return {
@@ -18432,6 +18518,7 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       story_content_version: storyContent.story_content_version,
       dialogue_lines: storyContent.dialogue_lines,
       animation_cues: storyContent.animation_cues,
+      cinematic_asset_manifest: storyContent.cinematic_asset_manifest,
       cinematic_stage_direction: storyContent.cinematic_stage_direction,
       cinematic_playback_policy: storyContent.cinematic_playback_policy,
       exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
@@ -18488,6 +18575,7 @@ function writePersonalStoryReceiptsFromResolution(contract = {}, ledger = {}, pa
       story_content_version: receipt.story_content_version,
       dialogue_lines: receipt.dialogue_lines,
       animation_cues: receipt.animation_cues,
+      cinematic_asset_manifest: receipt.cinematic_asset_manifest,
       cinematic_stage_direction: receipt.cinematic_stage_direction,
       cinematic_playback_policy: receipt.cinematic_playback_policy,
       exit_record_kind: receipt.exit_record_kind,
@@ -20148,6 +20236,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           story_content_version: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.story_content_version) || 0)),
           dialogue_line_count: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.dialogue_line_count) || 0)),
           animation_cue_count: Math.max(0, Math.floor(Number(entry.family_story_cinematic_receipt.animation_cue_count) || 0)),
+          cinematic_asset_manifest: normalizeSeparationStoryCinematicAssetManifest(entry.family_story_cinematic_receipt.cinematic_asset_manifest),
           cinematic_stage_direction: sanitizeText(entry.family_story_cinematic_receipt.cinematic_stage_direction, 180),
           cinematic_playback_policy: sanitizeText(entry.family_story_cinematic_receipt.cinematic_playback_policy, 180),
           memorial_record_required: entry.family_story_cinematic_receipt.memorial_record_required !== false,
@@ -36904,6 +36993,10 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     story_content_version: storyResolution.story_content_version,
     dialogue_line_count: storyResolution.dialogue_lines.length,
     animation_cue_count: storyResolution.animation_cues.length,
+    cinematic_asset_manifest_version: storyResolution.cinematic_asset_manifest?.asset_manifest_version || 0,
+    cinematic_motion_asset_count: Array.isArray(storyResolution.cinematic_asset_manifest?.motion_asset_ids)
+      ? storyResolution.cinematic_asset_manifest.motion_asset_ids.length
+      : 0,
     cinematic_stage_direction: storyResolution.cinematic_stage_direction,
     exit_record_kind: storyResolution.exit_record_kind,
     meeting_record_required: storyResolution.meeting_record_required,
@@ -37056,6 +37149,7 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     story_content_version: storyContent.story_content_version,
     dialogue_line_count: storyContent.dialogue_lines.length,
     animation_cue_count: storyContent.animation_cues.length,
+    cinematic_asset_manifest: storyContent.cinematic_asset_manifest,
     cinematic_stage_direction: storyContent.cinematic_stage_direction,
     cinematic_playback_policy: storyContent.cinematic_playback_policy,
     exit_record_kind: sanitizeText(storyResolution.exit_record_kind, 100),
@@ -37128,6 +37222,10 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
     story_content_version: nextStoryResolution.story_content_version,
     dialogue_line_count: nextStoryResolution.dialogue_lines.length,
     animation_cue_count: nextStoryResolution.animation_cues.length,
+    cinematic_asset_manifest_version: nextStoryResolution.cinematic_asset_manifest?.asset_manifest_version || 0,
+    cinematic_motion_asset_count: Array.isArray(nextStoryResolution.cinematic_asset_manifest?.motion_asset_ids)
+      ? nextStoryResolution.cinematic_asset_manifest.motion_asset_ids.length
+      : 0,
     cinematic_stage_direction: nextStoryResolution.cinematic_stage_direction,
     exit_record_kind: nextStoryResolution.exit_record_kind,
     memorial_record_required: nextStoryResolution.memorial_record_required,

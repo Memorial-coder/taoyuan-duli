@@ -2545,11 +2545,28 @@ export interface CohabitationSeparationManorExitHandoverRecord {
   [key: string]: unknown
 }
 
+export interface CohabitationSeparationCinematicAssetManifest {
+  asset_manifest_version?: number
+  scene_asset_id?: string
+  actor_asset_ids?: string[]
+  prop_asset_ids?: string[]
+  motion_asset_ids?: string[]
+  fallback_visual_style?: string
+  accessibility_summary?: string
+  [key: string]: unknown
+}
+
 export interface CohabitationSeparationFamilyStoryResolution {
   personal_relationship_mutation_summary?: CohabitationSeparationPersonalRelationshipMutationSummary
   manor_exit_handover_record?: CohabitationSeparationManorExitHandoverRecord | null
   manor_exit_handover_recorded?: boolean
   family_role_handover_executed?: boolean
+  story_content_version?: number
+  dialogue_lines?: Array<Record<string, unknown>>
+  animation_cues?: Array<Record<string, unknown>>
+  cinematic_stage_direction?: string
+  cinematic_playback_policy?: string
+  cinematic_asset_manifest?: CohabitationSeparationCinematicAssetManifest
   [key: string]: unknown
 }
 

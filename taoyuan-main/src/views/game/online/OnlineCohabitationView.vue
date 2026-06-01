@@ -594,6 +594,20 @@
                         <p class="text-accent">{{ separationStoryCinematicPlaybackActiveStep.label }}</p>
                         <p class="mt-1 leading-4">{{ separationStoryCinematicPlaybackActiveStep.detail }}</p>
                       </div>
+                      <div
+                        class="separation-cinematic-stage"
+                        :class="[separationStoryCinematicStageClass, separationStoryCinematicActionClass, { 'is-playing': separationStoryCinematicPlaybackActive }]"
+                        data-testid="online-cohabitation-separation-story-cinematic-visual-stage"
+                        :aria-label="separationStoryCinematicAssetLabel"
+                      >
+                        <div class="separation-cinematic-stage__backdrop"></div>
+                        <div class="separation-cinematic-stage__path"></div>
+                        <div class="separation-cinematic-stage__prop separation-cinematic-stage__prop--lamp"></div>
+                        <div class="separation-cinematic-stage__prop separation-cinematic-stage__prop--ledger"></div>
+                        <div class="separation-cinematic-stage__prop separation-cinematic-stage__prop--seal"></div>
+                        <div class="separation-cinematic-stage__actor separation-cinematic-stage__actor--left"></div>
+                        <div class="separation-cinematic-stage__actor separation-cinematic-stage__actor--right"></div>
+                      </div>
                       <div class="grid gap-1 md:grid-cols-3">
                         <span
                           v-for="(step, index) in separationStoryCinematicPlaybackSteps"
@@ -3726,6 +3740,7 @@
     CohabitationSharedRegion,
     CohabitationSeparationBuildingSplitStatusRow,
     CohabitationSeparationDecorationBuildingSplitReceipt,
+    CohabitationSeparationFamilyStoryResolution,
     CohabitationSeparationManorExitHandoverRecord,
     CohabitationSeparationOfflineTimeoutOverride,
     CohabitationSeparationPersonalFamilyMainStateMigrationSummary,
@@ -4009,6 +4024,9 @@
     short_label: string
     detail: string
     duration_ms: number
+    stage_key: string
+    action_key: string
+    asset_key: string
   }
 
   const separationStoryValueLabel = (value: unknown, fallback = '待记录') => {
@@ -4056,6 +4074,13 @@
       .filter(Boolean)
       .slice(0, 4)
       .join(' / ') || '待记录'
+  }
+  const separationStoryCinematicAssetManifestLabel = (value: unknown) => {
+    const manifest = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+    const scene = separationStoryValueLabel(manifest.scene_asset_id, '')
+    const motions = separationStoryStringList(manifest.motion_asset_ids).slice(0, 4)
+    const style = separationStoryValueLabel(manifest.fallback_visual_style, '')
+    return [scene, motions.length ? motions.join('、') : '', style].filter(Boolean).join(' / ') || '待记录'
   }
 
   const largeFundSpendPurposeIds: FundLargeSpendPurpose[] = [
@@ -4790,10 +4815,10 @@
     const request = separationExecutionRequest.value
     return request?.shared_fund_delta_confirmed === true || request?.status === 'shared_fund_delta_confirmed'
   })
-  const separationStoryCinematicResolution = computed<Record<string, unknown> | null>(() => {
+  const separationStoryCinematicResolution = computed<CohabitationSeparationFamilyStoryResolution | null>(() => {
     const resolution = separationExecutionRequest.value?.family_story_resolution
     if (!resolution || typeof resolution !== 'object' || Array.isArray(resolution)) return null
-    return resolution as Record<string, unknown>
+    return resolution as CohabitationSeparationFamilyStoryResolution
   })
   const separationManorExitStatusLabel = (status = '') => {
     const labels: Record<string, string> = {
@@ -5083,6 +5108,38 @@
           .filter((item): item is Record<string, unknown> => item !== null)
       : []
   const compactSeparationStoryText = (value: unknown) => String(value ?? '').trim()
+  const toSeparationStoryCinematicAssetManifest = (value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+  const normalizeSeparationStoryCinematicToken = (value: unknown, fallback = 'default') => {
+    const token = compactSeparationStoryText(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+    return token || fallback
+  }
+  const selectSeparationStoryCinematicSceneVariant = (resolution: CohabitationSeparationFamilyStoryResolution | null) => {
+    const manifest = toSeparationStoryCinematicAssetManifest(resolution?.cinematic_asset_manifest)
+    const scene = normalizeSeparationStoryCinematicToken(manifest.scene_asset_id || resolution?.story_event_kind)
+    if (scene.includes('lover')) return 'lover'
+    if (scene.includes('marriage')) return 'marriage'
+    if (scene.includes('bosom')) return 'bosom'
+    if (scene.includes('oath') || scene.includes('family_hall')) return 'manor'
+    if (scene.includes('business') || scene.includes('counter')) return 'business'
+    if (scene.includes('seasonal') || scene.includes('field')) return 'seasonal'
+    return 'generic'
+  }
+  const selectSeparationStoryCinematicActionVariant = (step: SeparationStoryCinematicPlaybackStep) => {
+    const action = normalizeSeparationStoryCinematicToken(step.asset_key || step.action_key || step.kind)
+    if (step.kind === 'dialogue') return 'dialogue'
+    if (step.kind === 'stage') return 'stage'
+    if (action.includes('walk') || action.includes('leave') || action.includes('part')) return 'parting'
+    if (action.includes('ledger') || action.includes('scroll')) return 'ledger'
+    if (action.includes('pact') || action.includes('token')) return 'pact'
+    if (action.includes('meeting') || action.includes('handover') || action.includes('stamp')) return 'handover'
+    if (action.includes('bundle') || action.includes('pack')) return 'bundle'
+    if (action.includes('lamp')) return 'lamp'
+    return 'motion'
+  }
   const separationStoryCinematicPlaybackSteps = computed<SeparationStoryCinematicPlaybackStep[]>(() => {
     const resolution = separationStoryCinematicResolution.value
     if (!resolution) return []
@@ -5096,6 +5153,9 @@
         short_label: '场景',
         detail: stageDirection,
         duration_ms: 1200,
+        stage_key: selectSeparationStoryCinematicSceneVariant(resolution),
+        action_key: 'stage_direction',
+        asset_key: 'stage_direction',
       })
     }
     toSeparationStoryObjects(resolution.dialogue_lines).forEach((line, index) => {
@@ -5110,6 +5170,9 @@
         short_label: `台词${index + 1}`,
         detail: text,
         duration_ms: 1500,
+        stage_key: selectSeparationStoryCinematicSceneVariant(resolution),
+        action_key: normalizeSeparationStoryCinematicToken(line.emotion || line.beat || 'dialogue'),
+        asset_key: normalizeSeparationStoryCinematicToken(line.speaker_role || 'dialogue'),
       })
     })
     toSeparationStoryObjects(resolution.animation_cues).forEach((cue, index) => {
@@ -5117,6 +5180,8 @@
       if (!action) return
       const stage = compactSeparationStoryText(cue.stage) || '场景'
       const timing = compactSeparationStoryText(cue.timing)
+      const manifest = toSeparationStoryCinematicAssetManifest(resolution.cinematic_asset_manifest)
+      const motionAssetIds = Array.isArray(manifest.motion_asset_ids) ? manifest.motion_asset_ids : []
       steps.push({
         key: `cue_${compactSeparationStoryText(cue.cue_id) || index}`,
         kind: 'animation',
@@ -5124,6 +5189,9 @@
         short_label: `Cue${index + 1}`,
         detail: action,
         duration_ms: Math.min(2400, Math.max(700, Math.floor(Number(cue.duration_ms) || 1200))),
+        stage_key: normalizeSeparationStoryCinematicToken(cue.stage || selectSeparationStoryCinematicSceneVariant(resolution)),
+        action_key: normalizeSeparationStoryCinematicToken(action),
+        asset_key: normalizeSeparationStoryCinematicToken(motionAssetIds[index] || action),
       })
     })
     return steps.slice(0, 18)
@@ -5138,12 +5206,23 @@
       short_label: '待播放',
       detail: '等待剧情记录生成演出时间线。',
       duration_ms: 900,
+      stage_key: 'generic',
+      action_key: 'pending',
+      asset_key: 'pending',
     }
   )
   const separationStoryCinematicPlaybackStepLabel = computed(() => {
     const total = separationStoryCinematicPlaybackSteps.value.length
     if (total <= 0) return '0 / 0'
     return `${Math.min(separationStoryCinematicPlaybackIndex.value + 1, total)} / ${total}`
+  })
+  const separationStoryCinematicStageClass = computed(() => `separation-cinematic-stage--${selectSeparationStoryCinematicSceneVariant(separationStoryCinematicResolution.value)}`)
+  const separationStoryCinematicActionClass = computed(() => `separation-cinematic-action--${selectSeparationStoryCinematicActionVariant(separationStoryCinematicPlaybackActiveStep.value)}`)
+  const separationStoryCinematicAssetLabel = computed(() => {
+    const manifest = toSeparationStoryCinematicAssetManifest(separationStoryCinematicResolution.value?.cinematic_asset_manifest)
+    const scene = compactSeparationStoryText(manifest.scene_asset_id) || selectSeparationStoryCinematicSceneVariant(separationStoryCinematicResolution.value)
+    const action = separationStoryCinematicPlaybackActiveStep.value.asset_key
+    return `${scene} · ${action}`
   })
   onBeforeUnmount(() => {
     if (separationStoryCinematicPlaybackTimer.value !== null) {
@@ -5160,6 +5239,7 @@
       { key: 'animation_event_id', label: '搬离 / 交接演出', value: separationStoryValueLabel(resolution.animation_event_id) },
       { key: 'dialogue_lines', label: '专属台词', value: separationStoryDialogueLinesLabel(resolution.dialogue_lines) },
       { key: 'animation_cues', label: '演出 Cue', value: separationStoryAnimationCuesLabel(resolution.animation_cues) },
+      { key: 'cinematic_asset_manifest', label: '演出资产', value: separationStoryCinematicAssetManifestLabel(resolution.cinematic_asset_manifest) },
       { key: 'cinematic_stage_direction', label: '场景调度', value: separationStoryValueLabel(resolution.cinematic_stage_direction) },
       { key: 'exit_record_kind', label: '退出记录', value: separationStoryValueLabel(resolution.exit_record_kind) },
       { key: 'family_fund_settlement_state', label: '共同基金结算', value: separationStoryValueLabel(resolution.family_fund_settlement_state) },
@@ -11606,3 +11686,157 @@
     sharedWorkshopLastResultRows.value = []
   })
 </script>
+
+<style scoped>
+.separation-cinematic-stage {
+  position: relative;
+  min-height: 120px;
+  overflow: hidden;
+  border: 1px solid rgb(240 171 252 / 0.22);
+  background:
+    linear-gradient(180deg, rgb(15 23 42 / 0.86), rgb(30 41 59 / 0.72)),
+    radial-gradient(circle at 22% 24%, rgb(244 114 182 / 0.2), transparent 30%),
+    radial-gradient(circle at 78% 18%, rgb(45 212 191 / 0.16), transparent 28%);
+}
+
+.separation-cinematic-stage__backdrop,
+.separation-cinematic-stage__path,
+.separation-cinematic-stage__prop,
+.separation-cinematic-stage__actor {
+  position: absolute;
+  pointer-events: none;
+}
+
+.separation-cinematic-stage__backdrop {
+  inset: 14px 18px 34px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.02));
+}
+
+.separation-cinematic-stage__path {
+  right: 20px;
+  bottom: 22px;
+  left: 20px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+}
+
+.separation-cinematic-stage__actor {
+  bottom: 30px;
+  width: 22px;
+  height: 46px;
+  border-radius: 999px 999px 5px 5px;
+  background: linear-gradient(180deg, rgb(253 224 71), rgb(244 114 182));
+  box-shadow: 0 0 18px rgb(244 114 182 / 0.24);
+}
+
+.separation-cinematic-stage__actor::before {
+  position: absolute;
+  top: -12px;
+  left: 4px;
+  width: 14px;
+  height: 14px;
+  content: "";
+  border-radius: 999px;
+  background: rgb(254 249 195);
+}
+
+.separation-cinematic-stage__actor--left {
+  left: 27%;
+}
+
+.separation-cinematic-stage__actor--right {
+  right: 27%;
+  background: linear-gradient(180deg, rgb(125 211 252), rgb(167 139 250));
+}
+
+.separation-cinematic-stage__prop {
+  opacity: 0.72;
+}
+
+.separation-cinematic-stage__prop--lamp {
+  top: 20px;
+  left: 20%;
+  width: 14px;
+  height: 26px;
+  border-radius: 999px 999px 4px 4px;
+  background: rgb(251 191 36);
+  box-shadow: 0 0 20px rgb(251 191 36 / 0.45);
+}
+
+.separation-cinematic-stage__prop--ledger {
+  right: 18%;
+  bottom: 40px;
+  width: 42px;
+  height: 26px;
+  border: 1px solid rgb(255 255 255 / 0.24);
+  background: linear-gradient(135deg, rgb(255 247 237 / 0.82), rgb(253 186 116 / 0.62));
+  transform: rotate(-4deg);
+}
+
+.separation-cinematic-stage__prop--seal {
+  right: 22%;
+  bottom: 62px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgb(248 113 113);
+  box-shadow: 0 0 16px rgb(248 113 113 / 0.35);
+}
+
+.separation-cinematic-stage--marriage .separation-cinematic-stage__backdrop {
+  background: linear-gradient(135deg, rgb(251 191 36 / 0.18), rgb(45 212 191 / 0.08));
+}
+
+.separation-cinematic-stage--bosom .separation-cinematic-stage__path {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgb(125 211 252 / 0.58), transparent);
+}
+
+.separation-cinematic-stage--manor .separation-cinematic-stage__backdrop {
+  border-color: rgb(52 211 153 / 0.24);
+  background: linear-gradient(135deg, rgb(52 211 153 / 0.14), rgb(250 204 21 / 0.08));
+}
+
+.separation-cinematic-stage--business .separation-cinematic-stage__prop--ledger,
+.separation-cinematic-stage--seasonal .separation-cinematic-stage__prop--ledger {
+  width: 52px;
+}
+
+.separation-cinematic-action--dialogue .separation-cinematic-stage__actor {
+  box-shadow: 0 0 22px rgb(255 255 255 / 0.22);
+}
+
+.separation-cinematic-action--lamp .separation-cinematic-stage__prop--lamp {
+  opacity: 0.32;
+}
+
+.separation-cinematic-action--ledger .separation-cinematic-stage__prop--ledger,
+.separation-cinematic-action--handover .separation-cinematic-stage__prop--seal {
+  transform: translateY(-4px) rotate(-4deg);
+}
+
+.separation-cinematic-action--parting .separation-cinematic-stage__actor--left {
+  transform: translateX(-22px);
+}
+
+.separation-cinematic-action--parting .separation-cinematic-stage__actor--right {
+  transform: translateX(22px);
+}
+
+.separation-cinematic-action--pact .separation-cinematic-stage__actor--left {
+  transform: translateX(12px);
+}
+
+.separation-cinematic-action--pact .separation-cinematic-stage__actor--right {
+  transform: translateX(-12px);
+}
+
+.is-playing.separation-cinematic-action--parting .separation-cinematic-stage__actor,
+.is-playing.separation-cinematic-action--pact .separation-cinematic-stage__actor,
+.is-playing.separation-cinematic-action--handover .separation-cinematic-stage__prop--seal,
+.is-playing.separation-cinematic-action--ledger .separation-cinematic-stage__prop--ledger {
+  transition: transform 560ms ease, opacity 560ms ease;
+}
+</style>

@@ -7,6 +7,11 @@
 ### 0601 同居共同仓库 11.4 仓库流水分级证据恢复
 - 共同仓库 ledger 归一化重新带回 `item_policy_version`、`item_policy_id`、`item_classification`、`withdrawal_risk_level`、`high_value_withdrawal_required` 和 `item_policy`，协作加工 / 料理升品产物的 deposit 流水可直接读到 `high_quality` 与高价值取出要求。
 - 修复 20.2 异常检测收尾后共同工坊升品保护证据丢失的回归，契约 QA 继续固定升品产物 ledger 与来源资产保护边界。
+
+### 0601 同居分居关系剧情演出资产化收口
+- 分居剧情计划读回 `cinematic_asset_manifest`，覆盖恋人告别、婚姻家庭安排、知己未来合作、家族 / 合伙交接和季节合耕退出的场景、角色剪影、道具与 motion asset。
+- 共同庄园“关系剧情 / 演出证据”播放器新增轻量视觉舞台，会按剧情类型和当前 cue 渲染院门、家庭桌、旧桥、议事厅等舞台动效；播放完成后继续写既有共同契约回执，不改个人 NPC / 家庭 / 资产主状态。
+
 ### 0601 同居分居建筑 / 家具 selector 迁移收口
 - 真实拆除主状态候选快照新增 `ownedEntries / placedEntries` 数量明细，前端 API 类型同步读回装饰拥有 / 已放置数量。
 - 共同庄园“解析目标”会从快照生成真实窄 selector，覆盖 `home.homeRenovationStates.<id>`、`home.farmhouseLevel.<level>`、`home.caveChoice.<choice>`、`home.caveUnlocked.true`、`home.cellarSlots.0`、`home.greenhouseUnlocked.true`、`decoration.owned.<id>` 和 `decoration.placed.<id>`；后续执行仍要求 hash、确认文案、补偿 / 回滚确认和个人 receipt 幂等边界。
