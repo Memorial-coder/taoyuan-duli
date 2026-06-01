@@ -2654,6 +2654,30 @@ export interface CohabitationSeparationDecorationBuildingSplitReceipt {
   [key: string]: unknown
 }
 
+export interface CohabitationSeparationOfflineTimeoutMember {
+  username?: string
+  username_key?: string
+  display_name?: string
+  last_active_at?: number
+  offline_seconds?: number | null
+  offline_timeout_seconds?: number
+  offline_timeout_met?: boolean
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationOfflineTimeoutOverride {
+  can_apply?: boolean
+  policy?: string
+  threshold_seconds?: number
+  required_member_usernames?: string[]
+  confirmed_member_usernames?: string[]
+  pending_member_usernames?: string[]
+  offline_member_usernames?: string[]
+  offline_member_keys?: string[]
+  offline_members?: CohabitationSeparationOfflineTimeoutMember[]
+  [key: string]: unknown
+}
+
 export interface CohabitationSeparationPreview {
   id: string
   version: number
@@ -2676,6 +2700,13 @@ export interface CohabitationSeparationPreview {
     ready_for_execution_request?: boolean
     can_execute_now?: boolean
     execution_enabled?: boolean
+    offline_confirm_timeout_seconds?: number
+    offline_confirm_timeout_hours?: number
+    offline_confirm_timeout_policy?: string
+    confirmation_basis?: string
+    offline_timeout_override_applied?: boolean
+    offline_timeout_member_usernames?: string[]
+    offline_timeout_override?: CohabitationSeparationOfflineTimeoutOverride | null
     execution_request?: {
       id?: string
       status?: string
@@ -2714,6 +2745,9 @@ export interface CohabitationSeparationPreview {
       building_splits_by_origin_owner?: CohabitationSeparationBuildingSplitStatusRow[]
       decoration_building_split_receipts?: CohabitationSeparationDecorationBuildingSplitReceipt[]
       execution_enabled?: boolean
+      confirmation_basis?: string
+      offline_timeout_override_applied?: boolean
+      offline_timeout_override?: CohabitationSeparationOfflineTimeoutOverride | null
       next_required_operations?: string[]
       [key: string]: unknown
     }

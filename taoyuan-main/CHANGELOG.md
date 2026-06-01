@@ -7,6 +7,9 @@
 ### 0601 同居共同仓库 11.4 仓库流水分级证据恢复
 - 共同仓库 ledger 归一化重新带回 `item_policy_version`、`item_policy_id`、`item_classification`、`withdrawal_risk_level`、`high_value_withdrawal_required` 和 `item_policy`，协作加工 / 料理升品产物的 deposit 流水可直接读到 `high_quality` 与高价值取出要求。
 - 修复 20.2 异常检测收尾后共同工坊升品保护证据丢失的回归，契约 QA 继续固定升品产物 ledger 与来源资产保护边界。
+### 0601 同居分居长期离线确认前端收口
+- 分居面板新增长期离线确认保护读回，展示待确认成员最后活跃、离线时长、保护期和后端策略；请求执行按钮现在同时支持双方确认和长期离线超时 override 门槛。
+- 前端 API 类型新增 `CohabitationSeparationOfflineTimeoutOverride`，执行请求会读回 `offline_timeout_override_applied` 与 `confirmation_basis=offline_timeout_override`；本轮只进入待人工执行，不伪造离线成员确认、不改个人存档。
 
 ### 0601 20.2 异常检测收尾
 - 共同仓库 / 共同基金 / 庄园照料和偷菜治理快照新增同 IP / 设备短窗聚类证据，仓库放入 / 取出 / 卖出、基金小额预算、庄园照料和偷菜异常会在写资产、发奖励或写记录前限流，并保留 `warehouse_cross_device_brush_blocked`、`fund_high_frequency_spend_blocked`、`fund_cross_device_brush_blocked`、`manor_cross_device_brush_blocked` 等审计。

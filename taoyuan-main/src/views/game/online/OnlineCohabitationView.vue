@@ -353,6 +353,39 @@
                     </span>
                   </div>
                   <div
+                    v-if="separationPreviewOfflineTimeoutRows.length || separationPreviewOfflineTimeoutOverrideApplied"
+                    class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[10px] text-muted"
+                    data-testid="online-cohabitation-separation-offline-timeout-readback"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-accent">长期离线确认保护</p>
+                      <span data-testid="online-cohabitation-separation-offline-timeout-summary">
+                        {{ separationPreviewOfflineTimeoutSummaryLabel }}
+                      </span>
+                    </div>
+                    <div
+                      v-if="separationPreviewOfflineTimeoutRows.length"
+                      class="grid gap-2 md:grid-cols-2"
+                    >
+                      <p
+                        v-for="member in separationPreviewOfflineTimeoutRows"
+                        :key="member.key"
+                        class="border border-accent/10 bg-bg/30 p-2"
+                        :data-testid="`online-cohabitation-separation-offline-timeout-member-${member.key}`"
+                      >
+                        <span class="block text-accent">{{ member.display_name || member.username }}</span>
+                        <span class="mt-1 block">{{ member.status_label }} · {{ formatDuration(member.offline_seconds) }} / {{ formatDuration(member.offline_timeout_seconds) }}</span>
+                        <span class="mt-1 block">最后活跃：{{ member.last_active_at > 0 ? formatTime(member.last_active_at) : '等待服务端校验' }}</span>
+                      </p>
+                    </div>
+                    <p
+                      class="leading-4"
+                      data-testid="online-cohabitation-separation-offline-timeout-policy"
+                    >
+                      {{ latestSeparationPreview.confirmation_state?.offline_confirm_timeout_policy || '冷静期结束后，长期离线待确认成员会由服务端按超时证据复核；通过后只进入待人工执行，不伪造确认、不改个人存档。' }}
+                    </p>
+                  </div>
+                  <div
                     v-if="separationSharedFundReadbackRows.length"
                     class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
                     data-testid="online-cohabitation-separation-shared-fund-dispute-readback"
@@ -3694,6 +3727,7 @@
     CohabitationSeparationBuildingSplitStatusRow,
     CohabitationSeparationDecorationBuildingSplitReceipt,
     CohabitationSeparationManorExitHandoverRecord,
+    CohabitationSeparationOfflineTimeoutOverride,
     CohabitationSeparationPersonalFamilyMainStateMigrationSummary,
     CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
     CohabitationSharedWorkshopRecipe,
@@ -3864,6 +3898,16 @@
     key: string
     label: string
     value: string
+  }
+  type SeparationOfflineTimeoutReadbackRow = {
+    key: string
+    username: string
+    display_name: string
+    last_active_at: number
+    offline_seconds: number | null
+    offline_timeout_seconds: number
+    offline_timeout_met: boolean
+    status_label: string
   }
   type SeparationSharedFundReadbackRow = {
     key: string
@@ -4398,6 +4442,121 @@
   const separationExecutionRequest = computed(() =>
     latestSeparationPreview.value?.confirmation_state?.execution_request ?? null
   )
+  const separationPreviewCooldownPassed = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview) return false
+    return Math.floor(Date.now() / 1000) >= Number(preview.confirm_after_at || 0)
+  })
+  const separationPreviewOfflineTimeoutSeconds = computed(() => {
+    const state = latestSeparationPreview.value?.confirmation_state
+    return Math.max(24 * 60 * 60, Math.floor(Number(state?.offline_confirm_timeout_seconds) || 7 * 24 * 60 * 60))
+  })
+  const separationPreviewOfflineTimeoutHours = computed(() =>
+    Math.floor(separationPreviewOfflineTimeoutSeconds.value / 3600)
+  )
+  const separationPreviewOfflineTimeoutOverride = computed<CohabitationSeparationOfflineTimeoutOverride | null>(() => {
+    const stateOverride = latestSeparationPreview.value?.confirmation_state?.offline_timeout_override
+    if (stateOverride && typeof stateOverride === 'object' && !Array.isArray(stateOverride)) {
+      return stateOverride as CohabitationSeparationOfflineTimeoutOverride
+    }
+    const requestOverride = separationExecutionRequest.value?.offline_timeout_override
+    if (requestOverride && typeof requestOverride === 'object' && !Array.isArray(requestOverride)) {
+      return requestOverride as CohabitationSeparationOfflineTimeoutOverride
+    }
+    return null
+  })
+  const separationPreviewOfflineTimeoutOverrideApplied = computed(() =>
+    latestSeparationPreview.value?.confirmation_state?.offline_timeout_override_applied === true
+    || separationExecutionRequest.value?.offline_timeout_override_applied === true
+    || latestSeparationPreview.value?.confirmation_state?.confirmation_basis === 'offline_timeout_override'
+    || separationExecutionRequest.value?.confirmation_basis === 'offline_timeout_override'
+  )
+  const findSeparationPreviewMember = (username = ''): CohabitationMember | null => {
+    const key = normalizeActorKey(username)
+    if (!key) return null
+    return selectedContract.value?.members.find(member =>
+      normalizeActorKey(member.username) === key
+      || normalizeActorKey(member.username_key) === key
+    ) ?? null
+  }
+  const buildSeparationOfflineTimeoutRow = (
+    username: string,
+    member: CohabitationMember | null,
+    override: Record<string, unknown> | null,
+  ): SeparationOfflineTimeoutReadbackRow => {
+    const threshold = Math.max(
+      24 * 60 * 60,
+      Math.floor(Number(override?.offline_timeout_seconds) || Number(override?.threshold_seconds) || separationPreviewOfflineTimeoutSeconds.value),
+    )
+    const lastActiveAt = Math.max(0, Math.floor(
+      Number(override?.last_active_at)
+      || Number(member?.last_active_at)
+      || Number(member?.accepted_at)
+      || Number(member?.invited_at)
+      || 0,
+    ))
+    const offlineSeconds = override?.offline_seconds === null
+      ? null
+      : Number.isFinite(Number(override?.offline_seconds))
+        ? Math.max(0, Math.floor(Number(override?.offline_seconds)))
+        : lastActiveAt > 0
+          ? Math.max(0, Math.floor(Date.now() / 1000) - lastActiveAt)
+          : null
+    const offlineTimeoutMet = override?.offline_timeout_met === true
+      || (offlineSeconds !== null && offlineSeconds >= threshold)
+    const displayName = String(override?.display_name || member?.display_name || username || 'pending member')
+    const normalizedUsername = String(override?.username || member?.username || username || '').trim()
+    return {
+      key: normalizeActorKey(String(override?.username_key || member?.username_key || normalizedUsername || displayName)),
+      username: normalizedUsername || displayName,
+      display_name: displayName,
+      last_active_at: lastActiveAt,
+      offline_seconds: offlineSeconds,
+      offline_timeout_seconds: threshold,
+      offline_timeout_met: offlineTimeoutMet,
+      status_label: offlineTimeoutMet ? '已超过离线确认保护期' : '仍在离线保护期内',
+    }
+  }
+  const separationPreviewOfflineTimeoutRows = computed<SeparationOfflineTimeoutReadbackRow[]>(() => {
+    const overrideMembers = separationPreviewOfflineTimeoutOverride.value?.offline_members
+    if (Array.isArray(overrideMembers) && overrideMembers.length > 0) {
+      return overrideMembers
+        .map(member => {
+          const username = String(member.username || member.username_key || '').trim()
+          return buildSeparationOfflineTimeoutRow(username, findSeparationPreviewMember(username), member as Record<string, unknown>)
+        })
+        .filter(row => row.key)
+    }
+    return separationPreviewPendingMembers.value
+      .map(username => buildSeparationOfflineTimeoutRow(username, findSeparationPreviewMember(username), null))
+      .filter(row => row.key)
+  })
+  const separationPreviewOfflineTimeoutOverrideReady = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview) return false
+    if (preview.confirmation_state?.all_members_confirmed === true) return false
+    if (!separationPreviewCooldownPassed.value) return false
+    if (separationPreviewConfirmedBy.value.length === 0) return false
+    const currentKeys = currentActorKeys.value
+    const requesterConfirmed = separationPreviewConfirmedBy.value
+      .some(username => currentKeys.has(normalizeActorKey(username)))
+    if (!requesterConfirmed) return false
+    const rows = separationPreviewOfflineTimeoutRows.value
+    return rows.length > 0 && rows.every(row => row.offline_timeout_met)
+  })
+  const separationPreviewExecutionGateSatisfied = computed(() =>
+    latestSeparationPreview.value?.confirmation_state?.all_members_confirmed === true
+    || separationPreviewOfflineTimeoutOverrideReady.value
+    || separationPreviewOfflineTimeoutOverrideApplied.value
+  )
+  const separationPreviewOfflineTimeoutSummaryLabel = computed(() => {
+    if (separationPreviewOfflineTimeoutOverrideApplied.value) return '已按长期离线超时进入执行请求'
+    if (separationPreviewOfflineTimeoutOverrideReady.value) return '冷静期已结束，可由已确认成员请求执行'
+    const pendingCount = separationPreviewOfflineTimeoutRows.value.length
+    return pendingCount > 0
+      ? `${pendingCount} 名待确认成员 · 保护期 ${separationPreviewOfflineTimeoutHours.value} 小时`
+      : `保护期 ${separationPreviewOfflineTimeoutHours.value} 小时`
+  })
   const separationPlotReturnManifestHash = computed(() => {
     const hash = latestSeparationPreview.value?.asset_return?.plot_return_manifest_hash
     return typeof hash === 'string' ? hash : ''
@@ -5035,6 +5194,8 @@
     if (separationExecutionRequest.value?.status === 'personal_save_written') return '来源田区已写回个人农田，等待共同基金 / 仓库返还。'
     if (separationExecutionRequest.value?.status === 'asset_return_recorded') return '已记录返还执行，等待个人存档写回。'
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return '已请求执行，等待后续返还执行接口。'
+    if (separationPreviewOfflineTimeoutOverrideApplied.value) return '长期离线确认超时已作为执行依据，等待后续返还执行接口。'
+    if (separationPreviewOfflineTimeoutOverrideReady.value) return '已确认成员可按长期离线保护请求执行，不再被待确认离线成员永久锁住。'
     if (latestSeparationPreview.value?.confirmation_state?.all_members_confirmed) return '双方已确认，等待后续返还执行接口。'
     if (confirmed.length) return `已确认：${confirmed.join('、')}；待确认：${pending.join('、') || '无'}`
     return `待确认：${pending.join('、') || '契约成员'}`
@@ -5043,10 +5204,10 @@
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
     if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
-    if (preview.state !== 'confirmed') return false
-    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (!['draft', 'confirmed'].includes(String(preview.state))) return false
+    if (!separationPreviewExecutionGateSatisfied.value) return false
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return false
-    return Math.floor(Date.now() / 1000) >= Number(preview.confirm_after_at || 0)
+    return separationPreviewCooldownPassed.value
   })
   const canExecuteSeparationAssetReturn = computed(() => {
     const preview = latestSeparationPreview.value
