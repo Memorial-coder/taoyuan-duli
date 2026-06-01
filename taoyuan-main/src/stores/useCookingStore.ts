@@ -172,7 +172,10 @@ export const useCookingStore = defineStore('cooking', () => {
     'vegetable_soup',
     'chive_egg_stir_fry',
     'peanut_candy',
-    'silkie_egg_soup'
+    'silkie_egg_soup',
+    'yam_family_porridge',
+    'garlic_radish_side_dish',
+    'bitter_gourd_cooling_soup'
   ])
 
   /** 当天生效的食物增益 */

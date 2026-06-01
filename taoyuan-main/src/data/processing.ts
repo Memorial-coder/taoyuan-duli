@@ -1989,6 +1989,99 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '南瓜、芝麻粉与蜂蜜中火聚暖，和南瓜料理的节会 / 宠物餐价值区分为短时节会与安抚辅丹。'
   },
   {
+    id: 'alchemy_yam_foundation_elixir',
+    machineType: 'alchemy_furnace',
+    name: '固元山药丹',
+    inputItemId: 'yam',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'ginseng', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'yam_foundation_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'root',
+      mainMaterialId: 'yam',
+      supportMaterialIds: ['ginseng'],
+      primerItemId: 'honey',
+      heat: 'steady',
+      shortEffect: '长辈拜访、宠物安抚和药膳订单前的短时固元准备',
+      results: buildAlchemyResultRules('yam_foundation_elixir'),
+      effect: {
+        description: '今日 NPC 对话好感+3，宠物安抚好感+2，远征体力消耗-3%',
+        dialogueAffinityBonus: 3,
+        petCalmFriendshipBonus: 2,
+        journeyStaminaReduction: 0.03
+      }
+    },
+    description: '山药、人参与蜂蜜中火固元，和山药团圆粥的家宴价值区分为拜访、宠物安抚和远行前的短效辅丹。'
+  },
+  {
+    id: 'alchemy_garlic_coldward_elixir',
+    machineType: 'alchemy_furnace',
+    name: '蒜辛驱寒丹',
+    inputItemId: 'garlic',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'ginger', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'garlic_coldward_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'spicy',
+      mainMaterialId: 'garlic',
+      supportMaterialIds: ['ginger'],
+      primerItemId: 'honey',
+      heat: 'strong',
+      shortEffect: '冬日巡田、护送和节会暖场前的短时驱寒准备',
+      results: buildAlchemyResultRules('garlic_coldward_elixir'),
+      effect: {
+        description: '今日行动耗时-4%，受到伤害-5%，节会奖金×1.03',
+        actionSpeedBonus: 0.04,
+        defenseReduction: 0.05,
+        festivalRewardMultiplier: 1.03
+      }
+    },
+    description: '大蒜、生姜与蜂蜜武火催辛，和蒜香萝卜的来访小菜价值区分为护送、防护和节会暖场辅丹。'
+  },
+  {
+    id: 'alchemy_bitter_gourd_cooling_elixir',
+    machineType: 'alchemy_furnace',
+    name: '苦瓜清暑丹',
+    inputItemId: 'bitter_gourd',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'tea', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'bitter_gourd_cooling_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'clear',
+      mainMaterialId: 'bitter_gourd',
+      supportMaterialIds: ['tea'],
+      primerItemId: 'honey',
+      heat: 'gentle',
+      shortEffect: '夏日行旅、采集和节会清供前的短时清暑准备',
+      results: buildAlchemyResultRules('bitter_gourd_cooling_elixir'),
+      effect: {
+        description: '今日远征体力消耗-4%，采矿体力消耗-5%，节会奖金×1.04',
+        journeyStaminaReduction: 0.04,
+        miningStaminaReduction: 0.05,
+        festivalRewardMultiplier: 1.04
+      }
+    },
+    description: '苦瓜、茶叶与蜂蜜文火清炼，和苦瓜清暑汤的夏日剧情价值区分为行旅、采集与节会前的短效辅丹。'
+  },
+  {
     id: 'alchemy_spicy_vitality_pill',
     machineType: 'alchemy_furnace',
     name: '辛火行气丸',

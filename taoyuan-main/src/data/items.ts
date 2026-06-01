@@ -1309,6 +1309,30 @@ const ELIXIR_ITEMS: ItemDef[] = [
     edible: false
   },
   {
+    id: 'yam_foundation_elixir',
+    name: '固元山药丹',
+    category: 'elixir',
+    description: '山药、人参与蜂蜜炼成的根茎辅丹。定位为长辈拜访、宠物安抚和药膳订单前的固元丹药。',
+    sellPrice: 265,
+    edible: false
+  },
+  {
+    id: 'garlic_coldward_elixir',
+    name: '蒜辛驱寒丹',
+    category: 'elixir',
+    description: '大蒜、生姜与蜂蜜炼成的辛烈辅丹。定位为冬日巡田、护送和节会暖场前的驱寒丹药。',
+    sellPrice: 255,
+    edible: false
+  },
+  {
+    id: 'bitter_gourd_cooling_elixir',
+    name: '苦瓜清暑丹',
+    category: 'elixir',
+    description: '苦瓜、茶叶与蜂蜜炼成的清润辅丹。定位为夏日行旅、采集和节会清供前的清暑丹药。',
+    sellPrice: 250,
+    edible: false
+  },
+  {
     id: 'wind_core_guard_pill',
     name: '风蚀护脉丸',
     category: 'elixir',

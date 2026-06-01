@@ -449,8 +449,8 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     nature: 'warm',
     spirituality: 'spirit',
     rarityUse: 'valuable',
-    recommendedUses: ['山药粥', '温补药膳', '固元山药丹', '灵宠滋养餐', '长辈滋补赠礼', '药膳订单'],
-    summary: '秋季滋补根茎，适合山药粥、温补药膳、固元炼丹辅材、灵宠滋养餐、长辈赠礼和药膳订单。'
+    recommendedUses: ['山药团圆粥', '温补药膳', '固元山药丹', '灵宠滋养餐', '长辈滋补赠礼', '药膳订单'],
+    summary: '秋季滋补根茎，适合山药团圆粥、温补药膳、固元山药丹、灵宠滋养餐、长辈赠礼和药膳订单。'
   },
   {
     cropId: 'spinach',
@@ -479,8 +479,8 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     nature: 'warm',
     spirituality: 'earth',
     rarityUse: 'stable',
-    recommendedUses: ['蒜蓉调味', '蒜香萝卜', '驱寒丹引子', '腌蒜', '龙舟暖菜', '辛香调料订单'],
-    summary: '冬季辛香调料，适合料理增香、腌制、驱寒炼丹引子、龙舟暖菜、节会调料和辛香订单。'
+    recommendedUses: ['蒜香萝卜', '蒜辛驱寒丹', '腌蒜', '龙舟暖菜', '辛香调料订单'],
+    summary: '冬季辛香调料，适合蒜香萝卜、腌制、蒜辛驱寒丹、龙舟暖菜、节会调料和辛香订单。'
   },
   {
     cropId: 'longan',
@@ -509,8 +509,8 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
     nature: 'cool',
     spirituality: 'earth',
     rarityUse: 'daily',
-    recommendedUses: ['苦瓜汤', '凉拌苦瓜', '清暑丹辅材', '腌苦瓜', '夏日清供', '解暑订单'],
-    summary: '苦凉消暑瓜蔬，适合汤菜凉拌、清暑炼丹辅材、腌制、夏日节会清供和解暑订单。'
+    recommendedUses: ['苦瓜清暑汤', '凉拌苦瓜', '苦瓜清暑丹', '腌苦瓜', '夏日清供', '解暑订单'],
+    summary: '苦凉消暑瓜蔬，适合苦瓜清暑汤、凉拌、苦瓜清暑丹、腌制、夏日节会清供和解暑订单。'
   },
   {
     cropId: 'chestnut',

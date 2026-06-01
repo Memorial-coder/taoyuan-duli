@@ -553,6 +553,61 @@ export const RECIPES: RecipeDef[] = [
     requiredSkill: { type: 'farming', level: 3 },
     description: '腌萝卜和豆腐熬成的暖汤，给萝卜加工品补上料理消耗，并呼应石根护脉丸的防护路线。'
   },
+  {
+    id: 'yam_family_porridge',
+    name: '山药团圆粥',
+    ingredients: [
+      { itemId: 'yam', quantity: 2 },
+      { itemId: 'rice', quantity: 1 },
+      { itemId: 'firewood', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 34,
+      healthRestore: 14,
+      buff: { type: 'farming', value: 6, description: '农耕体力消耗-6%（当天）' }
+    },
+    unlockSource: '秋季山药料理',
+    requiredSkill: { type: 'farming', level: 3 },
+    description: '山药和稻米熬成的温和家常粥，适合家宴团圆、长辈来访和药膳订单。',
+    categoryTags: ['home', 'banquet'],
+    storyTriggers: ['family_banquet', 'npc_visit', 'order']
+  },
+  {
+    id: 'garlic_radish_side_dish',
+    name: '蒜香萝卜',
+    ingredients: [
+      { itemId: 'garlic', quantity: 1 },
+      { itemId: 'radish', quantity: 2 }
+    ],
+    effect: {
+      staminaRestore: 24,
+      healthRestore: 8,
+      buff: { type: 'defense', value: 4, description: '受到伤害-4%（当天）' }
+    },
+    unlockSource: '冬季辛香小菜',
+    requiredSkill: { type: 'farming', level: 2 },
+    description: '大蒜提香、萝卜压辛的家常小菜，适合冬日来访、龙舟暖菜和辛香调料订单。',
+    categoryTags: ['home', 'festival'],
+    storyTriggers: ['npc_visit', 'festival', 'order']
+  },
+  {
+    id: 'bitter_gourd_cooling_soup',
+    name: '苦瓜清暑汤',
+    ingredients: [
+      { itemId: 'bitter_gourd', quantity: 2 },
+      { itemId: 'firewood', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 26,
+      healthRestore: 12,
+      buff: { type: 'luck', value: 5, description: '幸运+5%（当天）' }
+    },
+    unlockSource: '夏季清暑小汤',
+    requiredSkill: { type: 'farming', level: 2 },
+    description: '苦瓜慢煮成的清暑汤，适合夏日节会清供、旅人解暑和水乡小订单。',
+    categoryTags: ['home', 'festival', 'travel_ration'],
+    storyTriggers: ['festival', 'travel', 'order', 'npc_visit']
+  },
 
   // ==================== 新增初始食谱 (8) ====================
   {
