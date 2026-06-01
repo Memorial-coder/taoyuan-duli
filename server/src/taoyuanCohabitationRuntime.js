@@ -16958,6 +16958,73 @@ function normalizeSeparationSharedFundDeltaConfirmationEvent(entry = {}) {
   };
 }
 
+function normalizeSeparationSharedFundConsumptionDeltaDisputeRow(entry = {}, index = 0) {
+  const row = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
+  const originOwnerUsername = normalizeUsername(row.origin_owner_username || row.return_target_username || row.username);
+  const originOwnerKey = normalizeUsernameKey(row.origin_owner_key || row.return_target_key || originOwnerUsername);
+  const ledgerIds = Array.isArray(row.ledger_ids)
+    ? row.ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40)
+    : [];
+  const capitalLedgerIds = Array.isArray(row.capital_ledger_ids)
+    ? row.capital_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const operatingLedgerIds = Array.isArray(row.operating_ledger_ids)
+    ? row.operating_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const warehouseSaleLedgerIds = Array.isArray(row.warehouse_sale_ledger_ids)
+    ? row.warehouse_sale_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const operatingSourceRefs = Array.isArray(row.operating_source_refs)
+    ? row.operating_source_refs.map(ref => sanitizeText(ref, 120)).filter(Boolean).slice(0, 20)
+    : [];
+  const operatingContributionSources = Array.isArray(row.operating_contribution_sources)
+    ? row.operating_contribution_sources.map(action => sanitizeText(action, 80)).filter(Boolean).slice(0, 12)
+    : [];
+  const fundSplitBasis = sanitizeText(row.fund_split_basis, 80) || 'capital_and_traceable_operating_income';
+  const suggestedRefundAmount = Math.max(0, Math.floor(Number(row.suggested_refund_amount) || 0));
+  const splitBasisAmount = Math.max(0, Math.floor(Number(row.split_basis_amount ?? row.amount) || 0));
+  const key = sanitizeText(row.key, 140)
+    || [
+      originOwnerKey || `row_${index + 1}`,
+      fundSplitBasis,
+      suggestedRefundAmount,
+      splitBasisAmount,
+    ].join(':');
+  return {
+    key,
+    origin_owner_id: sanitizeText(row.origin_owner_id || row.return_target_id, 80),
+    origin_owner_username: originOwnerUsername,
+    origin_owner_key: originOwnerKey,
+    suggested_refund_amount: suggestedRefundAmount,
+    capital_contribution_amount: Math.max(0, Math.floor(Number(row.capital_contribution_amount ?? row.amount) || 0)),
+    operating_contribution_amount: Math.max(0, Math.floor(Number(row.operating_contribution_amount) || 0)),
+    traceable_operating_contribution_amount: Math.max(0, Math.floor(Number(row.traceable_operating_contribution_amount ?? row.operating_contribution_amount) || 0)),
+    manual_unidentified_operating_contribution_amount: Math.max(0, Math.floor(Number(row.manual_unidentified_operating_contribution_amount) || 0)),
+    split_basis_amount: splitBasisAmount,
+    contribution_share_basis_points: Math.max(0, Math.floor(Number(row.contribution_share_basis_points) || 0)),
+    capital_share_basis_points: Math.max(0, Math.floor(Number(row.capital_share_basis_points) || 0)),
+    operating_share_basis_points: Math.max(0, Math.floor(Number(row.operating_share_basis_points) || 0)),
+    fund_split_basis: fundSplitBasis,
+    ledger_ids: ledgerIds,
+    capital_ledger_ids: capitalLedgerIds,
+    operating_ledger_ids: operatingLedgerIds,
+    warehouse_sale_ledger_ids: warehouseSaleLedgerIds,
+    operating_source_refs: operatingSourceRefs,
+    operating_contribution_sources: operatingContributionSources,
+    source_ledger_count: Math.max(ledgerIds.length, Math.floor(Number(row.source_ledger_count) || 0)),
+    capital_ledger_count: Math.max(capitalLedgerIds.length, Math.floor(Number(row.capital_ledger_count) || 0)),
+    operating_ledger_count: Math.max(operatingLedgerIds.length, Math.floor(Number(row.operating_ledger_count) || 0)),
+    warehouse_sale_ledger_count: warehouseSaleLedgerIds.length,
+    requires_consumption_delta_confirmation: row.requires_consumption_delta_confirmation === true,
+    confirmation_reason: sanitizeText(row.confirmation_reason, 120) || 'consumption_delta_requires_all_member_confirmation',
+    confirmation_status: sanitizeText(row.confirmation_status, 80) || 'requires_all_member_confirmation',
+    return_status: sanitizeText(row.return_status, 80) || 'manual_personal_money_write_required',
+    personal_money_mutated: row.personal_money_mutated === true,
+    shared_fund_mutated: row.shared_fund_mutated === true,
+    shared_warehouse_mutated: row.shared_warehouse_mutated === true,
+  };
+}
+
 function normalizeSeparationSharedFundDeltaConfirmationSummary(entry = {}) {
   const summary = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry : {};
   return {
@@ -16975,6 +17042,12 @@ function normalizeSeparationSharedFundDeltaConfirmationSummary(entry = {}) {
       ? summary.pending_member_usernames.map(normalizeUsername).filter(Boolean).slice(0, 12)
       : [],
     rows_requiring_confirmation: Math.max(0, Math.floor(Number(summary.rows_requiring_confirmation) || 0)),
+    consumption_delta_dispute_rows: Array.isArray(summary.consumption_delta_dispute_rows)
+      ? summary.consumption_delta_dispute_rows
+          .map(normalizeSeparationSharedFundConsumptionDeltaDisputeRow)
+          .filter(item => item.origin_owner_username && item.suggested_refund_amount > 0 && item.requires_consumption_delta_confirmation)
+          .slice(0, 40)
+      : [],
     refund_total: Math.max(0, Math.floor(Number(summary.refund_total) || 0)),
     fund_split_basis: sanitizeText(summary.fund_split_basis, 80) || 'capital_and_traceable_operating_income',
     fund_total_capital_contributed: Math.max(0, Math.floor(Number(summary.fund_total_capital_contributed) || 0)),
@@ -17021,6 +17094,14 @@ function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract
     entry.requires_consumption_delta_confirmation === true
     && Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)) > 0
   );
+  const consumptionDeltaDisputeRows = rowsRequiringConfirmation.map((entry, index) => normalizeSeparationSharedFundConsumptionDeltaDisputeRow({
+    ...entry,
+    confirmation_reason: 'consumption_delta_requires_all_member_confirmation',
+    confirmation_status: pendingMemberUsernames.length > 0 ? 'requires_all_member_confirmation' : 'all_members_confirmed',
+    personal_money_mutated: false,
+    shared_fund_mutated: false,
+    shared_warehouse_mutated: false,
+  }, index));
   const unidentifiedOperatingContributions = Array.isArray(ledger.shared_fund_unidentified_operating_contributions)
     ? ledger.shared_fund_unidentified_operating_contributions.map(normalizeFundUnidentifiedOperatingContributionRow).filter(entry => entry.amount > 0)
     : [];
@@ -17042,6 +17123,7 @@ function buildSeparationSharedFundDeltaConfirmationSummary(ledger = {}, contract
     confirmed_member_usernames: confirmedMemberUsernames,
     pending_member_usernames: pendingMemberUsernames,
     rows_requiring_confirmation: rowsRequiringConfirmation.length,
+    consumption_delta_dispute_rows: consumptionDeltaDisputeRows,
     refund_total: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)), 0),
     fund_split_basis: rowsRequiringConfirmation[0]?.fund_split_basis || refundRows[0]?.fund_split_basis || 'capital_and_traceable_operating_income',
     fund_total_capital_contributed: refundRows.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.capital_contribution_amount ?? entry.amount) || 0)), 0),

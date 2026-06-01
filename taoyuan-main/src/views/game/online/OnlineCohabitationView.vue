@@ -372,6 +372,32 @@
                     >
                       需要差额确认 {{ separationSharedFundReadbackSummary.rows_requiring_confirmation }} 行；未知经营贡献 {{ separationSharedFundReadbackSummary.unidentified_operating_contribution_total }} 铜币 / {{ separationSharedFundReadbackSummary.unidentified_operating_contribution_rows }} 组；已确认 {{ separationSharedFundReadbackSummary.confirmed_member_usernames.join('、') || '暂无' }}；待确认 {{ separationSharedFundReadbackSummary.pending_member_usernames.join('、') || '暂无' }}。
                     </p>
+                    <div
+                      v-if="separationSharedFundConsumptionDeltaDisputeRows.length"
+                      class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2"
+                      data-testid="online-cohabitation-separation-shared-fund-consumption-delta-disputes"
+                    >
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-accent">消费差额争议明细</p>
+                        <span>{{ separationSharedFundConsumptionDeltaDisputeRows.length }} 行</span>
+                      </div>
+                      <div class="grid gap-2 md:grid-cols-2">
+                        <div
+                          v-for="row in separationSharedFundConsumptionDeltaDisputeRows"
+                          :key="row.key"
+                          class="border border-accent/10 bg-bg/30 p-2"
+                          :data-testid="`online-cohabitation-separation-shared-fund-consumption-delta-${row.key}`"
+                        >
+                          <p class="text-accent">{{ row.origin_owner_username }}</p>
+                          <p class="mt-1">建议返还 {{ row.suggested_refund_amount }} · 拆分基数 {{ row.split_basis_amount }}</p>
+                          <p class="mt-1">注资 {{ row.capital_contribution_amount }} · 经营 {{ row.operating_contribution_amount }} · 未知经营 {{ row.manual_unidentified_operating_contribution_amount }}</p>
+                          <p class="mt-1">流水 {{ row.ledger_ids.length }} · 注资 {{ row.capital_ledger_ids.length }} · 经营 {{ row.operating_ledger_ids.length }} · 卖出 {{ row.warehouse_sale_ledger_ids.length }}</p>
+                          <p class="mt-1 break-all">证据 {{ row.ledger_ids.slice(0, 4).join('、') || row.operating_ledger_ids.slice(0, 4).join('、') || row.warehouse_sale_ledger_ids.slice(0, 4).join('、') || '待补充' }}</p>
+                          <p class="mt-1">{{ row.confirmation_status }} · {{ row.return_status }}</p>
+                          <p class="mt-1">{{ row.boundary_label }}</p>
+                        </div>
+                      </div>
+                    </div>
                     <p
                       v-if="separationSharedFundReadbackSummary.requires_unidentified_operating_confirmation"
                       class="break-all leading-4"
@@ -3365,6 +3391,7 @@
     CohabitationSharedPet,
     CohabitationSharedPlot,
     CohabitationSharedRegion,
+    CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
     CohabitationSharedWorkshopRecipe,
     CohabitationWarehouseCompensationAuditBundle,
     CohabitationWarehouseHighValueWithdrawalDraft,
@@ -3515,6 +3542,27 @@
     warehouse_sale_ledger_count: number
     requires_confirmation: boolean
     return_status: string
+  }
+  type SeparationSharedFundConsumptionDeltaDisputeReadbackRow = {
+    key: string
+    origin_owner_username: string
+    suggested_refund_amount: number
+    capital_contribution_amount: number
+    operating_contribution_amount: number
+    manual_unidentified_operating_contribution_amount: number
+    split_basis_amount: number
+    fund_split_basis: string
+    ledger_ids: string[]
+    capital_ledger_ids: string[]
+    operating_ledger_ids: string[]
+    warehouse_sale_ledger_ids: string[]
+    confirmation_reason: string
+    confirmation_status: string
+    return_status: string
+    personal_money_mutated: boolean
+    shared_fund_mutated: boolean
+    shared_warehouse_mutated: boolean
+    boundary_label: string
   }
 
   const OFFLINE_QUEUE_DRAFT_STORAGE_PREFIX = 'taoyuan:cohabitation:offline-queue:drafts:v1'
@@ -3920,6 +3968,48 @@
       }
     }).filter(row => row.suggested_refund_amount > 0 || row.capital_contribution_amount > 0 || row.operating_contribution_amount > 0)
   )
+  const separationSharedFundEvidenceIds = (value: unknown, limit = 20) =>
+    Array.isArray(value)
+      ? value.map(item => String(item ?? '').trim()).filter(Boolean).slice(0, limit)
+      : []
+  const separationSharedFundAmount = (value: unknown) =>
+    Math.max(0, Math.floor(Number(value) || 0))
+  const normalizeSeparationSharedFundConsumptionDeltaDisputeRow = (
+    row: CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
+    index: number,
+  ): SeparationSharedFundConsumptionDeltaDisputeReadbackRow => {
+    const owner = String(row.origin_owner_username ?? row.origin_owner_key ?? '').trim()
+    const ledgerIds = separationSharedFundEvidenceIds(row.ledger_ids, 40)
+    const capitalLedgerIds = separationSharedFundEvidenceIds(row.capital_ledger_ids, 20)
+    const operatingLedgerIds = separationSharedFundEvidenceIds(row.operating_ledger_ids, 20)
+    const warehouseSaleLedgerIds = separationSharedFundEvidenceIds(row.warehouse_sale_ledger_ids, 20)
+    const personalMoneyMutated = row.personal_money_mutated === true
+    const sharedFundMutated = row.shared_fund_mutated === true
+    const sharedWarehouseMutated = row.shared_warehouse_mutated === true
+    return {
+      key: String(row.key ?? row.origin_owner_key ?? owner || `row-${index + 1}`),
+      origin_owner_username: owner || '未知成员',
+      suggested_refund_amount: separationSharedFundAmount(row.suggested_refund_amount),
+      capital_contribution_amount: separationSharedFundAmount(row.capital_contribution_amount),
+      operating_contribution_amount: separationSharedFundAmount(row.operating_contribution_amount),
+      manual_unidentified_operating_contribution_amount: separationSharedFundAmount(row.manual_unidentified_operating_contribution_amount),
+      split_basis_amount: separationSharedFundAmount(row.split_basis_amount),
+      fund_split_basis: String(row.fund_split_basis ?? 'capital_and_traceable_operating_income'),
+      ledger_ids: ledgerIds,
+      capital_ledger_ids: capitalLedgerIds,
+      operating_ledger_ids: operatingLedgerIds,
+      warehouse_sale_ledger_ids: warehouseSaleLedgerIds,
+      confirmation_reason: String(row.confirmation_reason ?? 'consumption_delta_requires_all_member_confirmation'),
+      confirmation_status: String(row.confirmation_status ?? 'requires_all_member_confirmation'),
+      return_status: String(row.return_status ?? 'manual_personal_money_write_required'),
+      personal_money_mutated: personalMoneyMutated,
+      shared_fund_mutated: sharedFundMutated,
+      shared_warehouse_mutated: sharedWarehouseMutated,
+      boundary_label: personalMoneyMutated || sharedFundMutated || sharedWarehouseMutated
+        ? '存在写回风险'
+        : '确认阶段不改个人铜币 / 共同基金 / 共同仓库',
+    }
+  }
   const separationSharedFundDeltaConfirmationSummary = computed<Record<string, unknown>>(() => {
     const requestSummary = separationExecutionRequest.value?.shared_fund_delta_confirmation_summary
     if (requestSummary && typeof requestSummary === 'object' && !Array.isArray(requestSummary)) return requestSummary as Record<string, unknown>
@@ -3927,8 +4017,21 @@
     if (assetSummary && typeof assetSummary === 'object' && !Array.isArray(assetSummary)) return assetSummary as Record<string, unknown>
     return {}
   })
+  const separationSharedFundConsumptionDeltaDisputeRows = computed<SeparationSharedFundConsumptionDeltaDisputeReadbackRow[]>(() => {
+    const summary = separationSharedFundDeltaConfirmationSummary.value
+    const summaryRows = Array.isArray(summary.consumption_delta_dispute_rows)
+      ? summary.consumption_delta_dispute_rows as CohabitationSeparationSharedFundConsumptionDeltaDisputeRow[]
+      : []
+    const fallbackRows = summaryRows.length > 0
+      ? []
+      : separationSharedFundRows.value.filter(row => row.requires_consumption_delta_confirmation === true) as CohabitationSeparationSharedFundConsumptionDeltaDisputeRow[]
+    return [...summaryRows, ...fallbackRows]
+      .map(normalizeSeparationSharedFundConsumptionDeltaDisputeRow)
+      .filter(row => row.suggested_refund_amount > 0 || row.split_basis_amount > 0)
+  })
   const separationSharedFundReadbackSummary = computed<SeparationSharedFundReadbackSummary>(() => {
     const rows = separationSharedFundReadbackRows.value
+    const consumptionDeltaRows = separationSharedFundConsumptionDeltaDisputeRows.value
     const summary = separationSharedFundDeltaConfirmationSummary.value
     const assetReturn = latestSeparationPreview.value?.asset_return as Record<string, unknown> | undefined
     const unidentifiedSummary = assetReturn?.fund_unidentified_operating_summary
@@ -3944,7 +4047,7 @@
     const requiredMemberUsernames = toUsernameList(summary.required_member_usernames)
     const confirmedMemberUsernames = toUsernameList(summary.confirmed_member_usernames)
     const pendingMemberUsernames = toUsernameList(summary.pending_member_usernames)
-    const rowsRequiringConfirmation = Math.max(0, Math.floor(Number(summary.rows_requiring_confirmation) || rows.filter(row => row.requires_confirmation).length))
+    const rowsRequiringConfirmation = Math.max(0, Math.floor(Number(summary.rows_requiring_confirmation) || consumptionDeltaRows.length || rows.filter(row => row.requires_confirmation).length))
     const unidentifiedOperatingTotal = Math.max(0, Math.floor(
       Number(summary.unidentified_operating_contribution_total)
       || Number(unidentifiedOperatingSummary.total_amount)

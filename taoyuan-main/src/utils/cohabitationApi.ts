@@ -2211,6 +2211,71 @@ export interface CohabitationSeparationPersonalRelationshipMutationSummary {
   [key: string]: unknown
 }
 
+export interface CohabitationSeparationSharedFundConsumptionDeltaDisputeRow {
+  key?: string
+  origin_owner_id?: string
+  origin_owner_username?: string
+  origin_owner_key?: string
+  suggested_refund_amount?: number
+  capital_contribution_amount?: number
+  operating_contribution_amount?: number
+  traceable_operating_contribution_amount?: number
+  manual_unidentified_operating_contribution_amount?: number
+  split_basis_amount?: number
+  contribution_share_basis_points?: number
+  capital_share_basis_points?: number
+  operating_share_basis_points?: number
+  fund_split_basis?: string
+  ledger_ids?: string[]
+  capital_ledger_ids?: string[]
+  operating_ledger_ids?: string[]
+  warehouse_sale_ledger_ids?: string[]
+  operating_source_refs?: string[]
+  operating_contribution_sources?: string[]
+  source_ledger_count?: number
+  capital_ledger_count?: number
+  operating_ledger_count?: number
+  warehouse_sale_ledger_count?: number
+  requires_consumption_delta_confirmation?: boolean
+  confirmation_reason?: string
+  confirmation_status?: string
+  return_status?: string
+  personal_money_mutated?: boolean
+  shared_fund_mutated?: boolean
+  shared_warehouse_mutated?: boolean
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationSharedFundDeltaConfirmationSummary {
+  requires_consumption_delta_confirmation?: boolean
+  requires_unidentified_operating_confirmation?: boolean
+  requires_all_members?: boolean
+  all_members_confirmed?: boolean
+  required_member_usernames?: string[]
+  confirmed_member_usernames?: string[]
+  pending_member_usernames?: string[]
+  rows_requiring_confirmation?: number
+  consumption_delta_dispute_rows?: CohabitationSeparationSharedFundConsumptionDeltaDisputeRow[]
+  refund_total?: number
+  fund_split_basis?: string
+  fund_total_capital_contributed?: number
+  fund_total_operating_contributed?: number
+  fund_total_split_basis?: number
+  unidentified_operating_contribution_total?: number
+  unidentified_operating_contribution_rows?: number
+  unidentified_operating_contribution_hash?: string
+  unidentified_operating_ledger_ids?: string[]
+  manual_unidentified_operating_allocation_total?: number
+  manual_unidentified_operating_allocation_hash?: string
+  manual_unidentified_operating_allocation_applied?: boolean
+  manual_unidentified_operating_allocation_rows?: Array<Record<string, unknown>>
+  personal_money_mutated?: boolean
+  shared_fund_mutated?: boolean
+  shared_warehouse_mutated?: boolean
+  confirmation_policy?: string
+  [key: string]: unknown
+}
+
 export interface CohabitationSeparationPreview {
   id: string
   version: number
@@ -2243,6 +2308,7 @@ export interface CohabitationSeparationPreview {
       personal_save_written_at?: number
       personal_save_written_by?: string
       personal_save_receipts?: Array<Record<string, unknown>>
+      shared_fund_delta_confirmation_summary?: CohabitationSeparationSharedFundDeltaConfirmationSummary
       family_story_resolved?: boolean
       family_story_resolved_at?: number
       family_story_resolved_by?: string
@@ -3474,7 +3540,7 @@ export interface CohabitationSeparationSharedFundDeltaConfirmResponse extends Co
   fund?: CohabitationFundSnapshot
   execution_ledger?: Record<string, unknown>
   confirmation?: Record<string, unknown>
-  shared_fund_delta_confirmation?: Record<string, unknown>
+  shared_fund_delta_confirmation?: CohabitationSeparationSharedFundDeltaConfirmationSummary
   already_confirmed?: boolean
   already_confirmed_by_actor?: boolean
 }
