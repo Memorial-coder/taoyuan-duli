@@ -2106,6 +2106,26 @@ export const handleEndDay = () => {
     priority: 20
   })
 
+  const helperDigestLines = uniqueLines([
+    ...helperFeedResult.messages,
+    ...helperMorningResult.messages
+  ])
+  const getHelperDigestTone = (lines: string[]): DailyDigestTone => {
+    if (lines.some(line => /付不起|不干了|不足|未能|不再担任/.test(line))) return 'warning'
+    if (lines.some(line => /帮你|清理了/.test(line))) return 'success'
+    return 'normal'
+  }
+  if (helperDigestLines.length > 0) {
+    pushDigestSection({
+      sectionId: 'hired_helpers',
+      title: '雇工帮忙',
+      tone: getHelperDigestTone(helperDigestLines),
+      headline: helperDigestLines[0] ?? '雇工今日没有新的工作结果。',
+      detailLines: helperDigestLines.slice(1),
+      priority: 25
+    })
+  }
+
   const animalHighlights = uniqueLines([
     animalResult.products.length > 0 ? `动物们产出了${animalResult.products.length}件产品。` : '',
     animalResult.died.length > 0 ? `${animalResult.died.length}只动物/家禽离世。` : '',
