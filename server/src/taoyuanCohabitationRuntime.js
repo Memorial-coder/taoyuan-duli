@@ -168,11 +168,11 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 22;
+const WAREHOUSE_ITEM_POLICY_VERSION = 23;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
-  'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
+  'yam', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
@@ -213,7 +213,7 @@ const WAREHOUSE_HIGH_VALUE_CROP_ITEM_IDS = Object.freeze([
   'golden_lotus', 'phoenix_broad_bean', 'moonlight_tea', 'jade_rapeseed', 'frost_yam',
   'melon_tea_fruit', 'dragon_fire', 'celestial_rice', 'ice_lotus', 'jade_peach_tea',
   'golden_dragon', 'moonlight_frost', 'jade_golden_melon', 'immortal_flower', 'dragon_pearl',
-  'snow_lotus_pearl', 'dew_bloom', 'star_lotus',
+  'snow_lotus_pearl', 'dew_bloom', 'star_lotus', 'snow_lotus', 'hanhai_cactus', 'hanhai_date',
   'peach_blossom_tea', 'lotus_tea', 'honey_peach_melon', 'crystal_yam', 'osmanthus_tea',
   'snow_tea', 'double_lotus', 'mountain_lotus', 'osmanthus_lotus', 'snow_fire_pepper',
   'autumn_gem', 'winter_pumpkin', 'snow_chrysanthemum', 'snow_pumpkin', 'wind_melon',
