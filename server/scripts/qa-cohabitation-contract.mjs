@@ -4490,7 +4490,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 30, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 31, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4509,6 +4509,8 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_supreme_farm_feast'), 'warehouse item policy should list farming skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_tonic'), 'warehouse item policy should list mining skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_fist_soup'), 'warehouse item policy should list foraging and combat skill dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('catfish'), 'warehouse item policy should list ordinary catfish as a common fish item')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_braised_catfish'), 'warehouse item policy should list ordinary fishing skill catfish dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('rare_elixir_crystal'), 'warehouse item policy should list rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('ley_crystal_focus_elixir'), 'warehouse item policy should list rare-material elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('wind_core_guard_pill'), 'warehouse item policy should list wind core rare-material elixir outputs as rare items')
@@ -4949,6 +4951,11 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_first_catch_soup',
   outputItemId: 'food_first_catch_soup',
   inputs: [{ itemId: 'crucian', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_braised_catfish',
+  outputItemId: 'food_braised_catfish',
+  inputs: [{ itemId: 'catfish', quantity: 1 }, { itemId: 'chili', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_braised_carp',

@@ -171,13 +171,13 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 30;
+const WAREHOUSE_ITEM_POLICY_VERSION = 31;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
   'yam', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
-  'crucian', 'carp', 'bass', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
+  'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
   'pickled_ginger', 'sesame_oil', 'rapeseed_oil', 'rice_flour', 'sesame_paste', 'sesame_powder', 'dried_lotus_seed',
   'lotus_heart_powder', 'green_tea_drink', 'tofu', 'herbal_paste', 'refined_quartz', 'candied_peach', 'osmanthus_honey',
@@ -194,7 +194,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_zhi_yuan_gao',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_pigeon_egg_herb_soup', 'food_yak_milk_barley_porridge', 'food_donkey_milk_ginger_tea', 'food_ostrich_egg_feast', 'food_antler_velvet_herb_soup',
-  'food_first_catch_soup', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
+  'food_first_catch_soup', 'food_braised_catfish', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
   'food_spring_roll', 'food_lotus_lantern_cake', 'food_harvest_feast', 'food_new_year_dumpling',
@@ -1674,6 +1674,19 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'ginger', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_first_catch_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_braised_catfish: {
+    id: 'shared_braised_catfish',
+    label: '共同灶台红烧鲶鱼',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'catfish', quantity: 1, quality: 'normal' },
+      { item_id: 'chili', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_braised_catfish',
     output_quantity: 1,
     output_quality: 'normal',
   },

@@ -402,6 +402,7 @@ expectContains('online/OnlineCohabitationView.vue', 'shared_donkey_milk_ginger_t
 expectContains('online/OnlineCohabitationView.vue', 'shared_ostrich_egg_feast', 'cohabitation shared workshop should keep advanced egg feast in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_antler_velvet_herb_soup', 'cohabitation shared workshop should keep antler herb soup in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_rice_flour_roll', 'cohabitation shared workshop should keep chained cooking recipes in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_braised_catfish', 'cohabitation shared workshop should keep ordinary fishing skill catfish dish in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_braised_carp', 'cohabitation shared workshop should keep fish cooking recipes in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_anglers_platter', 'cohabitation shared workshop should keep fish platter recipes in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_lotus_fish_roll', 'cohabitation shared workshop should keep advanced fish roll recipes in the frontend catalog')
