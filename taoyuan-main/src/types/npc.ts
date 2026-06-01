@@ -205,6 +205,17 @@ export interface RandomNpcFamilyCommissionDef {
   rewardSummary: string
 }
 
+export type RandomNpcBindingPreferenceKind = 'crop' | 'pet' | 'shop' | 'manor'
+
+export interface RandomNpcBindingPreferenceDef {
+  id: string
+  kind: RandomNpcBindingPreferenceKind
+  title: string
+  targetIds: string[]
+  summary: string
+  triggerHint: string
+}
+
 export type RandomNpcFamilyReviewType =
   | 'meeting'
   | 'commission'
@@ -449,6 +460,7 @@ export interface RandomNpcTemplate {
     loved: string[]
     liked: string[]
     disliked: string[]
+    bindings: RandomNpcBindingPreferenceDef[]
   }
   dialogueOpening: string
   dialogueChoices: RandomNpcDialogueChoiceDef[]

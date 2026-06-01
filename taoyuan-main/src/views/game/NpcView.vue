@@ -198,9 +198,10 @@
               <p class="text-muted">人物卡</p>
               <p class="text-accent/90 leading-4 mt-0.5">外貌：{{ visitor.appearanceKeywords.join('、') }}</p>
               <p class="text-muted leading-4 mt-0.5">来村目的：{{ visitor.villagePurpose }}</p>
-              <p class="text-muted leading-4 mt-0.5">恋爱观：{{ visitor.romanceView }}</p>
-              <p class="text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(visitor.developmentRoutes) }}</p>
-              <p class="text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(visitor.dialogueScenes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">恋爱观：{{ visitor.romanceView }}</p>
+                <p class="text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(visitor.developmentRoutes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(visitor.dialogueScenes) }}</p>
+                <p class="text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(visitor.preferences.bindings) }}</p>
             </div>
             <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
               <div class="border border-accent/10 rounded-xs px-1.5 py-1">
@@ -471,10 +472,11 @@
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <p class="text-[10px] text-muted">偏好</p>
-                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">
-                  最爱 {{ getRandomNpcPreferenceNames(acquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(acquaintance.preferences.liked) }}
-                </p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">家庭线索：{{ acquaintance.familySeed }}</p>
+                  <p class="text-[10px] text-accent/90 leading-4 mt-0.5">
+                    最爱 {{ getRandomNpcPreferenceNames(acquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(acquaintance.preferences.liked) }}
+                  </p>
+                  <p class="text-[10px] text-accent/90 leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(acquaintance.preferences.bindings) }}</p>
+                  <p class="text-[10px] text-muted leading-4 mt-0.5">家庭线索：{{ acquaintance.familySeed }}</p>
               </div>
               <p class="text-[10px] text-muted leading-4 mt-2">{{ getLastRandomNpcAcquaintanceEvent(acquaintance) }}</p>
               <div class="flex items-center justify-between gap-2 mt-1">
@@ -543,6 +545,7 @@
                 <p class="text-[10px] text-muted leading-4 mt-0.5">恋爱观：{{ resident.romanceView }}</p>
                 <p class="text-[10px] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(resident.developmentRoutes) }}</p>
                 <p class="text-[10px] text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(resident.dialogueScenes) }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(resident.preferences.bindings) }}</p>
               </div>
               <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
@@ -1828,6 +1831,8 @@
     RandomNpcAcquaintanceEntry,
     RandomNpcAgeBand,
     RandomNpcArchiveSummary,
+    RandomNpcBindingPreferenceDef,
+    RandomNpcBindingPreferenceKind,
     RandomNpcDialogueSceneDef,
     RandomNpcDialogueMemoryEntry,
     RandomNpcFamilyCommissionDef,
@@ -2120,6 +2125,12 @@
     misunderstanding: '误会',
     family_impression: '家族印象'
   }
+  const RANDOM_NPC_BINDING_PREFERENCE_LABELS: Record<RandomNpcBindingPreferenceKind, string> = {
+    crop: '作物',
+    pet: '宠物',
+    shop: '店铺',
+    manor: '庄园'
+  }
   const RANDOM_NPC_FAMILY_TIE_LABELS: Record<RandomNpcFamilyTieKind, string> = {
     parent: '父母',
     sibling: '兄弟姐妹',
@@ -2167,6 +2178,8 @@
     routes.map(route => RANDOM_NPC_LONG_STAY_ROUTE_LABELS[route]).join('、') || '待观察'
   const getRandomNpcDialogueSceneText = (scenes: RandomNpcDialogueSceneDef[]): string =>
     scenes.slice(0, 3).map(scene => scene.title).join('、') || '待触发'
+  const getRandomNpcBindingPreferenceText = (bindings: RandomNpcBindingPreferenceDef[]): string =>
+    bindings.slice(0, 4).map(binding => `${RANDOM_NPC_BINDING_PREFERENCE_LABELS[binding.kind]}：${binding.title}`).join('；') || '待观察'
   const getRandomNpcRelationshipDirectionLabel = (direction: RandomNpcRelationshipDirection): string =>
     RANDOM_NPC_RELATIONSHIP_DIRECTION_LABELS[direction]
   const getRandomNpcFamilyTieKindLabel = (kind: RandomNpcFamilyTieKind): string =>

@@ -53,6 +53,10 @@ for (const kind of ['parent', 'sibling', 'mentor', 'distant_relative', 'caravan'
   assertIncludes(randomNpcs, `kind: '${kind}'`, `missing random NPC family tie kind: ${kind}`)
 }
 
+for (const kind of ['crop', 'pet', 'shop', 'manor']) {
+  assertIncludes(randomNpcs, `kind: '${kind}'`, `missing random NPC binding preference kind: ${kind}`)
+}
+
 for (const fragment of [
   'export const RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS',
   "id: 'daily_to_acquaintance'",
@@ -74,12 +78,14 @@ for (const id of templateIds) {
   const familyTieSection = block.match(/familyTies: \[([\s\S]*?)\n    \],\n    familyCommission:/)?.[1] ?? ''
   const familyTieIds = [...familyTieSection.matchAll(/\{ id: '([^']+)', kind: '([^']+)'/g)].map(match => match[1])
   const commissionTieId = block.match(/familyCommission: \{[\s\S]*?\n      tieId: '([^']+)'/)?.[1]
+  const bindingPreferenceCount = (block.match(/targetIds: \[/g) ?? []).length
 
   assert(dialogueSceneCount >= 3, `${id} should keep at least 3 dialogue scenes, got ${dialogueSceneCount}`)
   assert(dialogueChoiceCount >= 3, `${id} should keep 3 relationship-direction choices, got ${dialogueChoiceCount}`)
   assert(familyTieIds.length >= 3, `${id} should keep at least 3 family ties, got ${familyTieIds.length}`)
   assert(familyTieIds.length <= 4, `${id} should respect the 4 family tie save limit, got ${familyTieIds.length}`)
   assert(!!commissionTieId && familyTieIds.includes(commissionTieId), `${id} family commission should target a local family tie`)
+  assert(bindingPreferenceCount >= 3, `${id} should keep at least 3 binding preferences, got ${bindingPreferenceCount}`)
 }
 
 for (const [id, checks] of Object.entries({
@@ -130,6 +136,9 @@ for (const [id, checks] of Object.entries({
 for (const fragment of [
   "export type RandomNpcRelationLineKind = 'friend' | 'family' | 'romance' | 'zhiji' | 'sworn' | 'rivalry' | 'severed'",
   "export type RandomNpcRelationshipGrowthBeatKind = 'acquaintance' | 'long_stay' | 'short_romance' | 'romance' | 'family'",
+  "export type RandomNpcBindingPreferenceKind = 'crop' | 'pet' | 'shop' | 'manor'",
+  'export interface RandomNpcBindingPreferenceDef',
+  'bindings: RandomNpcBindingPreferenceDef[]',
   'export interface RandomNpcRelationshipGrowthBeatDef',
   'export interface RandomNpcRelationshipGrowthPreviewEntry',
   'kind: RandomNpcRelationLineKind',
@@ -146,6 +155,9 @@ for (const fragment of [
   '恋爱观',
   '发展路线',
   '对话场景',
+  '绑定偏好',
+  'getRandomNpcBindingPreferenceText',
+  'RANDOM_NPC_BINDING_PREFERENCE_LABELS',
   'getRecentRandomNpcDialogueMemories(visitor.dialogueMemories)',
   'getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories)',
   'getRecentRandomNpcDialogueMemories(resident.dialogueMemories)',
@@ -167,6 +179,8 @@ for (const fragment of [
 
 for (const fragment of [
   'plotHook: template.plotHook',
+  'cloneRandomNpcPreferences',
+  'bindings: (Array.isArray(preferences.bindings) ? preferences.bindings : []).map(binding => ({',
   'RANDOM_NPC_RELATIONSHIP_GROWTH_BEATS',
   'getRandomNpcRelationshipGrowthPreview',
   'metFamilyTieCount',

@@ -51,6 +51,7 @@ import type {
   RandomNpcRelationshipDirection,
   RandomNpcRelationshipGrowthPreviewEntry,
   RandomNpcRelationshipSignals,
+  RandomNpcTemplate,
   RandomNpcLongStayEntry,
   RandomNpcLongStayRoute,
   RandomNpcRelationshipTag,
@@ -479,6 +480,16 @@ export const useNpcStore = defineStore('npc', () => {
     ambiguity: 0,
     misunderstanding: 0,
     family_impression: 0
+  })
+
+  const cloneRandomNpcPreferences = (preferences: RandomNpcTemplate['preferences']): RandomNpcTemplate['preferences'] => ({
+    loved: [...preferences.loved],
+    liked: [...preferences.liked],
+    disliked: [...preferences.disliked],
+    bindings: (Array.isArray(preferences.bindings) ? preferences.bindings : []).map(binding => ({
+      ...binding,
+      targetIds: [...binding.targetIds]
+    }))
   })
 
   const sanitizeRandomNpcRelationshipSignals = (raw: unknown): RandomNpcRelationshipSignals => {
@@ -1897,11 +1908,7 @@ export const useNpcStore = defineStore('npc', () => {
       developmentRoutes: [...template.developmentRoutes],
       plotHook: template.plotHook,
       familySeed: template.familySeed,
-      preferences: {
-        loved: [...template.preferences.loved],
-        liked: [...template.preferences.liked],
-        disliked: [...template.preferences.disliked]
-      },
+      preferences: cloneRandomNpcPreferences(template.preferences),
       dialogueOpening: template.dialogueOpening,
       dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
       dialogueScenes: sanitizeRandomNpcDialogueScenes(template.dialogueScenes),
@@ -2065,11 +2072,7 @@ export const useNpcStore = defineStore('npc', () => {
       developmentRoutes: [...template.developmentRoutes],
       plotHook: template.plotHook,
       familySeed: template.familySeed,
-      preferences: {
-        loved: [...template.preferences.loved],
-        liked: [...template.preferences.liked],
-        disliked: [...template.preferences.disliked]
-      },
+      preferences: cloneRandomNpcPreferences(template.preferences),
       dialogueOpening: template.dialogueOpening,
       dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
       dialogueScenes: sanitizeRandomNpcDialogueScenes(template.dialogueScenes),
@@ -2128,11 +2131,7 @@ export const useNpcStore = defineStore('npc', () => {
       developmentRoutes: acquaintance.developmentRoutes.length > 0 ? [...acquaintance.developmentRoutes] : [...template.developmentRoutes],
       plotHook: acquaintance.plotHook || template.plotHook,
       familySeed: acquaintance.familySeed || template.familySeed,
-      preferences: {
-        loved: [...acquaintance.preferences.loved],
-        liked: [...acquaintance.preferences.liked],
-        disliked: [...acquaintance.preferences.disliked]
-      },
+      preferences: cloneRandomNpcPreferences(acquaintance.preferences),
       dialogueOpening: template.dialogueOpening,
       dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
       dialogueScenes: sanitizeRandomNpcDialogueScenes(acquaintance.dialogueScenes, template.dialogueScenes),
@@ -2278,11 +2277,7 @@ export const useNpcStore = defineStore('npc', () => {
       familySeed: template.familySeed,
       familyTies,
       familyLine: sanitizeRandomNpcFamilyLineState(snapshot.familyLine, familyTies, template.familyCommission),
-      preferences: {
-        loved: [...template.preferences.loved],
-        liked: [...template.preferences.liked],
-        disliked: [...template.preferences.disliked]
-      },
+      preferences: cloneRandomNpcPreferences(template.preferences),
       dialogueScenes: sanitizeRandomNpcDialogueScenes(template.dialogueScenes),
       smallOrder: {
         ...template.smallOrder,
@@ -2613,11 +2608,7 @@ export const useNpcStore = defineStore('npc', () => {
     developmentRoutes: [...visitor.developmentRoutes],
     plotHook: visitor.plotHook,
     familySeed: visitor.familySeed,
-    preferences: {
-      loved: [...visitor.preferences.loved],
-      liked: [...visitor.preferences.liked],
-      disliked: [...visitor.preferences.disliked]
-    },
+    preferences: cloneRandomNpcPreferences(visitor.preferences),
     dialogueScenes: sanitizeRandomNpcDialogueScenes(visitor.dialogueScenes),
     smallOrder: {
       ...visitor.smallOrder,
@@ -2662,11 +2653,7 @@ export const useNpcStore = defineStore('npc', () => {
       familySeed: template.familySeed,
       familyTies: sanitizeRandomNpcFamilyTies(template.familyTies),
       familyLine: createDefaultRandomNpcFamilyLineState(),
-      preferences: {
-        loved: [...template.preferences.loved],
-        liked: [...template.preferences.liked],
-        disliked: [...template.preferences.disliked]
-      },
+      preferences: cloneRandomNpcPreferences(template.preferences),
       dialogueScenes: sanitizeRandomNpcDialogueScenes(acquaintance.dialogueScenes, template.dialogueScenes),
       smallOrder: {
         ...template.smallOrder,
@@ -7295,11 +7282,7 @@ export const useNpcStore = defineStore('npc', () => {
               : [...template.developmentRoutes],
             plotHook: template.plotHook,
             familySeed: template.familySeed,
-            preferences: {
-              loved: [...template.preferences.loved],
-              liked: [...template.preferences.liked],
-              disliked: [...template.preferences.disliked]
-            },
+            preferences: cloneRandomNpcPreferences(template.preferences),
             dialogueOpening: template.dialogueOpening,
             dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
             dialogueScenes: sanitizeRandomNpcDialogueScenes(visitor.dialogueScenes, template.dialogueScenes),
@@ -7356,11 +7339,7 @@ export const useNpcStore = defineStore('npc', () => {
                   : [...template.developmentRoutes],
                 plotHook: template.plotHook,
                 familySeed: template.familySeed,
-                preferences: {
-                  loved: [...template.preferences.loved],
-                  liked: [...template.preferences.liked],
-                  disliked: [...template.preferences.disliked]
-                },
+                preferences: cloneRandomNpcPreferences(template.preferences),
                 dialogueScenes: sanitizeRandomNpcDialogueScenes(entry.dialogueScenes, template.dialogueScenes),
                 smallOrder: {
                   ...template.smallOrder,
@@ -7425,11 +7404,7 @@ export const useNpcStore = defineStore('npc', () => {
                   sanitizeRandomNpcFamilyTies(entry.familyTies, template.familyTies),
                   template.familyCommission
                 ),
-                preferences: {
-                  loved: [...template.preferences.loved],
-                  liked: [...template.preferences.liked],
-                  disliked: [...template.preferences.disliked]
-                },
+                preferences: cloneRandomNpcPreferences(template.preferences),
                 dialogueScenes: sanitizeRandomNpcDialogueScenes(entry.dialogueScenes, template.dialogueScenes),
                 smallOrder: {
                   ...template.smallOrder,

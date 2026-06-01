@@ -106,7 +106,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['tea', 'osmanthus'],
       liked: ['honey', 'rice'],
-      disliked: ['copper_ore']
+      disliked: ['copper_ore'],
+      bindings: [
+        { id: 'tea_crop_route', kind: 'crop', title: '茶叶 / 桂花供货', targetIds: ['tea', 'osmanthus'], summary: '更愿意围绕茶叶、桂花和蜂蜜谈供货稳定性。', triggerHint: '种植、送礼或小订单交付茶叶 / 桂花后读回。' },
+        { id: 'tea_shop_counter', kind: 'shop', title: '茶铺试卖角', targetIds: ['shop:tea_counter', 'shop:market_stall'], summary: '希望在商店或集市留一个小茶铺试卖位。', triggerHint: '商店货架、集市摊位或家族产业节点推进后读回。' },
+        { id: 'tea_manor_drying_room', kind: 'manor', title: '通风晒茶廊', targetIds: ['manor:drying_room', 'manor:guest_storehouse'], summary: '偏好干燥、通风、能分清货箱的庄园角落。', triggerHint: '庄园仓房、晒架或长住生活安排时读回。' }
+      ]
     },
     dialogueOpening: '她在村口晒账册，抬头先问你这里秋露重不重。',
     dialogueChoices: [
@@ -161,7 +166,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['lotus_seed', 'goat_milk'],
       liked: ['sesame', 'sweet_potato'],
-      disliked: ['chili']
+      disliked: ['chili'],
+      bindings: [
+        { id: 'healer_pet_care', kind: 'pet', title: '温和宠物照料', targetIds: ['pet:cat', 'pet:dog', 'pet:hare'], summary: '更在意宠物胃口、作息和温和点心。', triggerHint: '宠物喂食、宠物互动或动物照料后读回。' },
+        { id: 'healer_crop_feed', kind: 'crop', title: '莲子 / 芝麻安神料', targetIds: ['lotus_seed', 'sesame'], summary: '会把莲子、芝麻和羊奶视作可长期观察的安神样本。', triggerHint: '种植、送礼或宠物照料偏好联动时读回。' },
+        { id: 'healer_manor_shed', kind: 'manor', title: '安静畜棚边角', targetIds: ['manor:animal_shed', 'manor:pet_nook'], summary: '偏好靠近动物、但不吵闹的照料角落。', triggerHint: '长住、庄园动物区或宠物照料扩展时读回。' }
+      ]
     },
     dialogueOpening: '对方蹲在路边看一串爪印，问你家宠物最近胃口好不好。',
     dialogueChoices: [
@@ -216,7 +226,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['rice', 'tea'],
       liked: ['radish', 'bamboo'],
-      disliked: ['iron_ore']
+      disliked: ['iron_ore'],
+      bindings: [
+        { id: 'scholar_crop_notes', kind: 'crop', title: '稻米 / 萝卜农桑笔记', targetIds: ['rice', 'radish'], summary: '偏好能写进策论的日常农作和收成记录。', triggerHint: '作物详情、订单或小订单交付后读回。' },
+        { id: 'scholar_shop_notice', kind: 'shop', title: '书肆与告示板', targetIds: ['shop:book_stall', 'shop:quest_board'], summary: '喜欢从书肆、告示板和订单往来里整理乡土见闻。', triggerHint: '商店、委托板或熟人册回看时读回。' },
+        { id: 'scholar_manor_study', kind: 'manor', title: '借宿书案', targetIds: ['manor:guest_desk', 'manor:study_corner'], summary: '长住时偏好一张能摊开地图和策论草稿的桌子。', triggerHint: '长住安排、庄园客房或家族来信节点后读回。' }
+      ]
     },
     dialogueOpening: '他站在告示牌前把地图拿反了，仍努力装作正在考察民情。',
     dialogueChoices: [
@@ -271,7 +286,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['bamboo', 'pumpkin'],
       liked: ['osmanthus', 'wood'],
-      disliked: ['quartz']
+      disliked: ['quartz'],
+      bindings: [
+        { id: 'lantern_crop_materials', kind: 'crop', title: '竹子 / 桂花染材', targetIds: ['bamboo', 'osmanthus'], summary: '偏好能做灯骨、染纸和旧灯修补的材料。', triggerHint: '采集、种植、节会布置或小订单交付后读回。' },
+        { id: 'lantern_shop_workshop', kind: 'shop', title: '灯坊修补台', targetIds: ['shop:craft_counter', 'shop:festival_stall'], summary: '希望集市或工坊能摆出修灯和看灯样的窄台。', triggerHint: '节会现场、商店工坊或家族产业节点后读回。' },
+        { id: 'lantern_manor_wall', kind: 'manor', title: '花灯墙', targetIds: ['manor:lantern_wall', 'manor:festival_yard'], summary: '偏好能挂旧灯、留署名和回看节会记忆的院墙。', triggerHint: '庄园装饰、节会同行或长住手艺线推进后读回。' }
+      ]
     },
     dialogueOpening: '她把一盏破灯挂在树枝上试光，问你觉得这灯还能不能救。',
     dialogueChoices: [
@@ -327,7 +347,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['rice', 'osmanthus'],
       liked: ['bamboo', 'tea'],
-      disliked: ['chili']
+      disliked: ['chili'],
+      bindings: [
+        { id: 'weaver_shop_tailor', kind: 'shop', title: '织补寄信铺', targetIds: ['shop:tailor_corner', 'shop:post_counter'], summary: '偏好能把织补和寄信放在一起的小铺面。', triggerHint: '商店货架、旧识召回或义女来信后读回。' },
+        { id: 'weaver_manor_loom', kind: 'manor', title: '安静织机间', targetIds: ['manor:loom_room', 'manor:letter_table'], summary: '长住时偏好能收针线、分信件和放旧布样的屋角。', triggerHint: '庄园客房、长住文游或前缘节点推进后读回。' },
+        { id: 'weaver_crop_dye', kind: 'crop', title: '桂花 / 稻米随信包', targetIds: ['osmanthus', 'rice'], summary: '会把桂花和稻米当作寄给旧渡的温和随信礼。', triggerHint: '送礼、小订单或家族委托交付后读回。' }
+      ]
     },
     dialogueOpening: '她坐在桥边补一只旧布包，针线停在半空，问你桃源有没有能寄信的熟路。',
     dialogueChoices: [
@@ -383,7 +408,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['herb', 'lotus_seed'],
       liked: ['tea', 'honey'],
-      disliked: ['copper_ore']
+      disliked: ['copper_ore'],
+      bindings: [
+        { id: 'apothecary_crop_medicine', kind: 'crop', title: '草药 / 莲子药汤', targetIds: ['herb', 'lotus_seed'], summary: '偏好能稳定入药、也能安神的作物。', triggerHint: '采药、送礼、小订单或家族委托后读回。' },
+        { id: 'apothecary_shop_medicine', kind: 'shop', title: '药摊线索角', targetIds: ['shop:medicine_stall', 'shop:travel_supply'], summary: '会留意药摊、旅人补给和寻亲线索是否能连起来。', triggerHint: '商店、行旅补给或寻亲事件推进后读回。' },
+        { id: 'apothecary_manor_notice', kind: 'manor', title: '避雨寻人栏', targetIds: ['manor:notice_post', 'manor:guest_shelter'], summary: '偏好能挡雨、能贴寻人纸且不被随手揭掉的庄园角落。', triggerHint: '雨天、夜访或长住寻亲线推进后读回。' }
+      ]
     },
     dialogueOpening: '他在井边摊开半张寻人纸，先问你有没有听过一串细小的药铃声。',
     dialogueChoices: [
@@ -439,7 +469,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['cloth', 'silk_ribbon'],
       liked: ['osmanthus', 'tea'],
-      disliked: ['chili']
+      disliked: ['chili'],
+      bindings: [
+        { id: 'tailor_shop_tailor', kind: 'shop', title: '低调缝纫角', targetIds: ['shop:tailor_corner', 'shop:cloth_counter'], summary: '偏好不追问来历、只按手艺算账的小铺角。', triggerHint: '商店布料、缝纫订单或逃婚线索后读回。' },
+        { id: 'tailor_manor_workbench', kind: 'manor', title: '可收起的工作台', targetIds: ['manor:guest_workbench', 'manor:quiet_room'], summary: '长住时偏好能随时收线、也能让她自己决定去留的房间。', triggerHint: '长住、夜访或婚约误会化解后读回。' },
+        { id: 'tailor_pet_thread', kind: 'pet', title: '怕宠物叼线', targetIds: ['pet:cat', 'pet:dog'], summary: '喜欢温顺宠物，但会提醒别让宠物叼走针线。', triggerHint: '宠物照料、庄园客房或日常对话后读回。' }
+      ]
     },
     dialogueOpening: '她把一截红线绕在指尖又松开，问你这里有没有不查来历的绣活。',
     dialogueChoices: [
@@ -494,7 +529,12 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
     preferences: {
       loved: ['peach', 'tea'],
       liked: ['bamboo', 'rice'],
-      disliked: ['quartz']
+      disliked: ['quartz'],
+      bindings: [
+        { id: 'painter_crop_road_food', kind: 'crop', title: '桃子 / 稻米路粮', targetIds: ['peach', 'rice'], summary: '偏好轻便、能边走边记路的路粮。', triggerHint: '作物送礼、小订单或行旅地图线索后读回。' },
+        { id: 'painter_shop_map', kind: 'shop', title: '地图寄卖摊', targetIds: ['shop:map_stall', 'shop:market_stall'], summary: '喜欢把地图寄放在愿意讲故事的摊位。', triggerHint: '商店、集市节会或旧路向导节点后读回。' },
+        { id: 'painter_manor_signpost', kind: 'manor', title: '路标与客栈墙', targetIds: ['manor:signpost', 'manor:guest_wall'], summary: '长住时偏好能标方向、挂路图和记录来客的墙面。', triggerHint: '庄园导览、节会人流图或长住路线推进后读回。' }
+      ]
     },
     dialogueOpening: '他蹲在村口量路宽，抬头问你桃源哪条小路最容易让人走着走着就熟了。',
     dialogueChoices: [
