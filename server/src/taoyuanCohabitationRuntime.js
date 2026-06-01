@@ -211,11 +211,11 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 35;
+const WAREHOUSE_ITEM_POLICY_VERSION = 36;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
-  'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'egg', 'duck_egg', 'milk',
+  'yam', 'garlic', 'bitter_gourd', 'persimmon', 'chives', 'peanut', 'broad_bean', 'rapeseed', 'quartz', 'charcoal', 'osmanthus', 'jujube', 'bamboo_shoot', 'winter_bamboo_shoot', 'winter_wheat', 'napa_cabbage', 'silk', 'hanhai_spice', 'egg', 'duck_egg', 'milk',
   'rabbit_fur', 'goose_egg', 'quail_egg', 'pigeon_egg', 'silkie_egg', 'peacock_feather', 'wool', 'goat_milk', 'truffle', 'buffalo_milk', 'yak_milk', 'alpaca_wool', 'antler_velvet', 'donkey_milk', 'camel_milk', 'ostrich_egg',
   'crucian', 'carp', 'bass', 'catfish', 'mandarin_fish', 'eel', 'river_crab', 'creek_shrimp',
   'dried_cabbage', 'dried_radish', 'rice_vinegar', 'pickled_radish', 'pickled_cabbage', 'pumpkin_preserve', 'pickled_chili',
@@ -234,6 +234,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_nian_gao', 'food_hua_gao', 'food_qing_tuan', 'food_yue_bing', 'food_dragon_boat_zongzi', 'food_qiao_guo', 'food_dou_cha_yin', 'food_zhi_yuan_gao',
   'food_scrambled_egg_rice', 'food_boiled_egg', 'food_silkie_egg_soup', 'food_goat_milk_soup', 'food_truffle_fried_rice', 'food_camel_milk_tea',
   'food_pigeon_egg_herb_soup', 'food_yak_milk_barley_porridge', 'food_donkey_milk_ginger_tea', 'food_ostrich_egg_feast', 'food_antler_velvet_herb_soup',
+  'food_silk_dumpling', 'food_peacock_feast', 'food_spiced_lamb',
   'food_first_catch_soup', 'food_braised_catfish', 'food_braised_carp', 'food_steamed_bass', 'food_maple_grilled_fish', 'food_grilled_eel', 'food_crab_soup', 'food_anglers_platter',
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
@@ -1740,6 +1741,47 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'goat_milk', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_antler_velvet_herb_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_silk_dumpling: {
+    id: 'shared_silk_dumpling',
+    label: '共同灶台锦囊玉饺',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'silk', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'cabbage', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_silk_dumpling',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_peacock_feast: {
+    id: 'shared_peacock_feast',
+    label: '共同灶台孔雀宴',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'peacock_feather', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'osmanthus', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_peacock_feast',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_spiced_lamb: {
+    id: 'shared_spiced_lamb',
+    label: '共同灶台香料烤羊',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'hanhai_spice', quantity: 1, quality: 'normal' },
+      { item_id: 'goat_milk', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_spiced_lamb',
     output_quantity: 1,
     output_quality: 'normal',
   },
