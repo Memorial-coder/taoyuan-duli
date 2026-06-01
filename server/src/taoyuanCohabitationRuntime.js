@@ -210,7 +210,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 33;
+const WAREHOUSE_ITEM_POLICY_VERSION = 34;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -237,6 +237,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'food_lotus_fish_roll', 'food_sesame_eel_rice', 'food_crab_osmanthus_congee', 'food_festival_fish_feast',
   'food_winter_bamboo_duck_congee', 'food_buffalo_milk_pudding', 'food_goose_egg_sesame_cake', 'food_quail_egg_herb_custard',
   'food_spring_roll', 'food_lotus_lantern_cake', 'food_harvest_feast', 'food_new_year_dumpling',
+  'food_la_ba_zhou', 'food_jiaozi', 'food_tangyuan', 'food_bountiful_porridge', 'food_chef_special', 'food_social_tea',
   'food_pumpkin_pie', 'food_golden_fried_rice', 'food_supreme_farm_feast',
   'food_stone_soup', 'food_iron_tonic', 'food_wild_salad', 'food_mushroom_stew', 'food_warrior_ration', 'food_battle_stew', 'food_iron_fist_soup',
   'food_congee', 'food_rice_ball', 'food_vegetable_soup', 'food_roasted_sweet_potato', 'food_yam_family_porridge', 'food_garlic_radish_side_dish', 'food_bitter_gourd_cooling_soup', 'food_rice_flour_roll',
@@ -2128,6 +2129,87 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'ginger', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_new_year_dumpling',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_la_ba_zhou: {
+    id: 'shared_la_ba_zhou',
+    label: '共同灶台腊八粥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'peanut', quantity: 1, quality: 'normal' },
+      { item_id: 'wild_berry', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_la_ba_zhou',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_jiaozi: {
+    id: 'shared_jiaozi',
+    label: '共同灶台冬至饺',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'winter_wheat', quantity: 2, quality: 'normal' },
+      { item_id: 'napa_cabbage', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_jiaozi',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_tangyuan: {
+    id: 'shared_tangyuan',
+    label: '共同灶台花生汤圆',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+      { item_id: 'peanut', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_tangyuan',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_bountiful_porridge: {
+    id: 'shared_bountiful_porridge',
+    label: '共同灶台百收粥',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'rice', quantity: 3, quality: 'normal' },
+      { item_id: 'jujube', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_bountiful_porridge',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_chef_special: {
+    id: 'shared_chef_special',
+    label: '共同灶台大厨特供',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'egg', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+      { item_id: 'sesame', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_chef_special',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_social_tea: {
+    id: 'shared_social_tea',
+    label: '共同茶炉交际花茶',
+    station: 'tea_maker',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'osmanthus', quantity: 2, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_social_tea',
     output_quantity: 1,
     output_quality: 'normal',
   },

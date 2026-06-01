@@ -4498,7 +4498,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 33, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 34, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4516,6 +4516,12 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.in
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_festival_fish_feast'), 'warehouse item policy should list advanced fish feast as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_winter_bamboo_duck_congee'), 'warehouse item policy should list warm festival dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_new_year_dumpling'), 'warehouse item policy should list seasonal festival dishes as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_la_ba_zhou'), 'warehouse item policy should list la ba porridge as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_jiaozi'), 'warehouse item policy should list winter solstice dumplings as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_tangyuan'), 'warehouse item policy should list ordinary tangyuan as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_bountiful_porridge'), 'warehouse item policy should list achievement porridge as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_chef_special'), 'warehouse item policy should list chef special as common items')
+assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_social_tea'), 'warehouse item policy should list social tea as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_supreme_farm_feast'), 'warehouse item policy should list farming skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_tonic'), 'warehouse item policy should list mining skill dishes as common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('food_iron_fist_soup'), 'warehouse item policy should list foraging and combat skill dishes as common items')
@@ -5118,6 +5124,37 @@ await processRecipePolicyBasicDish({
   recipeId: 'shared_new_year_dumpling',
   outputItemId: 'food_new_year_dumpling',
   inputs: [{ itemId: 'winter_wheat', quantity: 3 }, { itemId: 'napa_cabbage', quantity: 2 }, { itemId: 'ginger', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_la_ba_zhou',
+  outputItemId: 'food_la_ba_zhou',
+  inputs: [{ itemId: 'rice', quantity: 2 }, { itemId: 'peanut', quantity: 1 }, { itemId: 'wild_berry', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_jiaozi',
+  outputItemId: 'food_jiaozi',
+  inputs: [{ itemId: 'winter_wheat', quantity: 2 }, { itemId: 'napa_cabbage', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_tangyuan',
+  outputItemId: 'food_tangyuan',
+  inputs: [{ itemId: 'rice', quantity: 3 }, { itemId: 'honey', quantity: 1 }, { itemId: 'peanut', quantity: 1 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_bountiful_porridge',
+  outputItemId: 'food_bountiful_porridge',
+  inputs: [{ itemId: 'rice', quantity: 3 }, { itemId: 'jujube', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_chef_special',
+  outputItemId: 'food_chef_special',
+  inputs: [{ itemId: 'egg', quantity: 2 }, { itemId: 'honey', quantity: 1 }, { itemId: 'sesame', quantity: 2 }],
+})
+await processRecipePolicyBasicDish({
+  recipeId: 'shared_social_tea',
+  outputItemId: 'food_social_tea',
+  station: 'tea_maker',
+  inputs: [{ itemId: 'osmanthus', quantity: 2 }, { itemId: 'honey', quantity: 1 }],
 })
 await processRecipePolicyBasicDish({
   recipeId: 'shared_yam_family_porridge',
