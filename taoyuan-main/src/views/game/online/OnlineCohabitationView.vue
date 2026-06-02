@@ -778,116 +778,6 @@
                       </button>
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
-
-          <div class="game-panel-muted p-3" data-testid="online-cohabitation-recovery-panel">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2 text-accent">
-                <ShieldCheck :size="13" />
-                <p class="text-sm">玩家申诉与恢复</p>
-              </div>
-              <span class="text-[10px] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
-            </div>
-            <div v-if="selectedContract" class="mt-3 grid gap-3 text-[10px] text-muted">
-              <div class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-safe-version-list">
-                <div
-                  v-for="version in contractSafeVersions.slice(0, 4)"
-                  :key="version.id"
-                  class="border border-accent/10 bg-black/10 p-2"
-                  :data-testid="`online-cohabitation-safe-version-${version.id}`"
-                >
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <p class="text-accent">{{ version.source_action || 'safe_version' }}</p>
-                    <span>{{ formatTime(version.created_at) }}</span>
-                  </div>
-                  <p class="mt-1 break-all">hash {{ version.snapshot_hash || '待生成' }}</p>
-                  <p class="mt-1">{{ contractSafeVersionSummaryLabel(version.summary) }}</p>
-                </div>
-                <p v-if="contractSafeVersions.length === 0" class="border border-accent/10 bg-black/10 p-2">暂无安全版本；下一次共同契约写入后会自动生成快照。</p>
-              </div>
-
-              <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-recovery-appeal-form">
-                <select v-model="recoveryAppealIssueType" class="online-select text-xs" data-testid="online-cohabitation-recovery-appeal-issue-type">
-                  <option v-for="option in recoveryAppealIssueOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                </select>
-                <input
-                  v-model.trim="recoveryAppealTargetRef"
-                  class="online-input text-xs"
-                  maxlength="120"
-                  placeholder="目标引用、流水或草案 ID"
-                  data-testid="online-cohabitation-recovery-appeal-target"
-                />
-                <input
-                  v-model.trim="recoveryAppealNote"
-                  class="online-input text-xs md:col-span-2"
-                  maxlength="160"
-                  placeholder="说明发生了什么"
-                  data-testid="online-cohabitation-recovery-appeal-note"
-                />
-                <button
-                  type="button"
-                  class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
-                  :disabled="!canSubmitRecoveryAppeal || cohabitationStore.actionLoading"
-                  data-testid="online-cohabitation-recovery-appeal-submit"
-                  @click="submitContractRecoveryAppeal"
-                >
-                  <ShieldCheck :size="12" />
-                  提交申诉
-                </button>
-              </div>
-
-              <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-safe-version-rollback-form">
-                <select v-model="rollbackSafeVersionId" class="online-select text-xs" data-testid="online-cohabitation-safe-version-rollback-target">
-                  <option value="">最近安全版本</option>
-                  <option v-for="version in contractSafeVersions" :key="version.id" :value="version.id">
-                    {{ version.source_action || version.id }} · {{ formatTime(version.created_at) }}
-                  </option>
-                </select>
-                <input
-                  v-model.trim="rollbackSafeVersionReason"
-                  class="online-input text-xs"
-                  maxlength="120"
-                  placeholder="回滚原因"
-                  data-testid="online-cohabitation-safe-version-rollback-reason"
-                />
-                <input
-                  v-model.trim="rollbackSafeVersionConfirmationText"
-                  class="online-input text-xs md:col-span-2"
-                  maxlength="20"
-                  :placeholder="CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT"
-                  data-testid="online-cohabitation-safe-version-rollback-confirmation"
-                />
-                <button
-                  type="button"
-                  class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
-                  :disabled="!canRollbackContractSafeVersion || cohabitationStore.actionLoading"
-                  data-testid="online-cohabitation-safe-version-rollback-submit"
-                  @click="rollbackContractSafeVersion"
-                >
-                  <RotateCcw :size="12" />
-                  回滚安全版本
-                </button>
-              </div>
-
-              <div v-if="contractRecoveryAppeals.length" class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-recovery-appeal-list">
-                <div
-                  v-for="appeal in contractRecoveryAppeals.slice(0, 4)"
-                  :key="appeal.id"
-                  class="border border-accent/10 bg-black/10 p-2"
-                >
-                  <p class="text-accent">{{ recoveryAppealIssueLabel(appeal.issue_type) }} · {{ appeal.status }}</p>
-                  <p class="mt-1 break-all">目标 {{ appeal.target_ref || appeal.preview_id || appeal.safe_version_id || '未绑定' }}</p>
-                  <p class="mt-1">仓库流水 {{ appeal.warehouse_ledger_ids?.length ?? 0 }} · 审计 {{ appeal.audit_ids?.length ?? 0 }} · {{ formatTime(appeal.submitted_at) }}</p>
-                </div>
-              </div>
-              <p
-                v-if="recoveryActionMessage"
-                class="text-xs leading-5"
-                :class="recoveryActionOk ? 'text-emerald-200' : 'text-red-100'"
-              >
-                {{ recoveryActionMessage }}
-              </p>
-            </div>
-          </div>
                         type="button"
                         :disabled="!canRefundSeparationSharedFund || cohabitationStore.actionLoading"
                         data-testid="online-cohabitation-separation-shared-fund-refund"
@@ -968,6 +858,115 @@
                       </button>
                     </div>
                   </div>
+                </div>
+              </div>
+              <div class="game-panel-muted p-3" data-testid="online-cohabitation-recovery-panel">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 text-accent">
+                    <ShieldCheck :size="13" />
+                    <p class="text-sm">玩家申诉与恢复</p>
+                  </div>
+                  <span class="text-[10px] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
+                </div>
+                <div class="mt-3 grid gap-3 text-[10px] text-muted">
+                  <div class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-safe-version-list">
+                    <div
+                      v-for="version in contractSafeVersions.slice(0, 4)"
+                      :key="version.id"
+                      class="border border-accent/10 bg-black/10 p-2"
+                      :data-testid="`online-cohabitation-safe-version-${version.id}`"
+                    >
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-accent">{{ version.source_action || 'safe_version' }}</p>
+                        <span>{{ formatTime(version.created_at) }}</span>
+                      </div>
+                      <p class="mt-1 break-all">hash {{ version.snapshot_hash || '待生成' }}</p>
+                      <p class="mt-1">{{ contractSafeVersionSummaryLabel(version.summary) }}</p>
+                    </div>
+                    <p v-if="contractSafeVersions.length === 0" class="border border-accent/10 bg-black/10 p-2">暂无安全版本；下一次共同契约写入后会自动生成快照。</p>
+                  </div>
+
+                  <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-recovery-appeal-form">
+                    <select v-model="recoveryAppealIssueType" class="online-select text-xs" data-testid="online-cohabitation-recovery-appeal-issue-type">
+                      <option v-for="option in recoveryAppealIssueOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <input
+                      v-model.trim="recoveryAppealTargetRef"
+                      class="online-input text-xs"
+                      maxlength="120"
+                      placeholder="目标引用、流水或草案 ID"
+                      data-testid="online-cohabitation-recovery-appeal-target"
+                    />
+                    <input
+                      v-model.trim="recoveryAppealNote"
+                      class="online-input text-xs md:col-span-2"
+                      maxlength="160"
+                      placeholder="说明发生了什么"
+                      data-testid="online-cohabitation-recovery-appeal-note"
+                    />
+                    <button
+                      type="button"
+                      class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
+                      :disabled="!canSubmitRecoveryAppeal || cohabitationStore.actionLoading"
+                      data-testid="online-cohabitation-recovery-appeal-submit"
+                      @click="submitContractRecoveryAppeal"
+                    >
+                      <ShieldCheck :size="12" />
+                      提交申诉
+                    </button>
+                  </div>
+
+                  <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-safe-version-rollback-form">
+                    <select v-model="rollbackSafeVersionId" class="online-select text-xs" data-testid="online-cohabitation-safe-version-rollback-target">
+                      <option value="">最近安全版本</option>
+                      <option v-for="version in contractSafeVersions" :key="version.id" :value="version.id">
+                        {{ version.source_action || version.id }} · {{ formatTime(version.created_at) }}
+                      </option>
+                    </select>
+                    <input
+                      v-model.trim="rollbackSafeVersionReason"
+                      class="online-input text-xs"
+                      maxlength="120"
+                      placeholder="回滚原因"
+                      data-testid="online-cohabitation-safe-version-rollback-reason"
+                    />
+                    <input
+                      v-model.trim="rollbackSafeVersionConfirmationText"
+                      class="online-input text-xs md:col-span-2"
+                      maxlength="20"
+                      :placeholder="CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT"
+                      data-testid="online-cohabitation-safe-version-rollback-confirmation"
+                    />
+                    <button
+                      type="button"
+                      class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
+                      :disabled="!canRollbackContractSafeVersion || cohabitationStore.actionLoading"
+                      data-testid="online-cohabitation-safe-version-rollback-submit"
+                      @click="rollbackContractSafeVersion"
+                    >
+                      <RotateCcw :size="12" />
+                      回滚安全版本
+                    </button>
+                  </div>
+
+                  <div v-if="contractRecoveryAppeals.length" class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-recovery-appeal-list">
+                    <div
+                      v-for="appeal in contractRecoveryAppeals.slice(0, 4)"
+                      :key="appeal.id"
+                      class="border border-accent/10 bg-black/10 p-2"
+                    >
+                      <p class="text-accent">{{ recoveryAppealIssueLabel(appeal.issue_type) }} · {{ appeal.status }}</p>
+                      <p class="mt-1 break-all">目标 {{ appeal.target_ref || appeal.preview_id || appeal.safe_version_id || '未绑定' }}</p>
+                      <p class="mt-1">仓库流水 {{ appeal.warehouse_ledger_ids?.length ?? 0 }} · 审计 {{ appeal.audit_ids?.length ?? 0 }} · {{ formatTime(appeal.submitted_at) }}</p>
+                    </div>
+                  </div>
+                  <p
+                    v-if="recoveryActionMessage"
+                    class="text-xs leading-5"
+                    :class="recoveryActionOk ? 'text-emerald-200' : 'text-red-100'"
+                  >
+                    {{ recoveryActionMessage }}
+                  </p>
                 </div>
               </div>
             </div>
@@ -2129,7 +2128,7 @@
                   </span>
                 </div>
                 <p v-if="draft.final_spend_ledger_id" class="mt-2 text-[10px] leading-4 text-muted">基金流水：{{ draft.final_spend_ledger_id }}</p>
-                <div class="mt-2 grid gap-2 sm:grid-cols-3">
+                <div class="mt-2 grid gap-2 sm:grid-cols-4">
                   <button
                     type="button"
                     class="online-action-btn online-action-btn--compact justify-center"
@@ -2161,6 +2160,17 @@
                     <ShieldCheck :size="12" />
                     记录回执
                   </button>
+                  <button
+                    v-if="isSharedDecorationRemovalMainStateMutationDraft(draft)"
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canOpenSharedDecorationRemovalMainStateMutationDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-shared-decoration-removal-main-state-mutation-${draft.id}`"
+                    @click="selectSharedDecorationRemovalMainStateMutationDraft(draft)"
+                  >
+                    <ShieldCheck :size="12" />
+                    主状态写回
+                  </button>
                 </div>
                 <div
                   v-if="selectedHighRiskReceiptDraftId === draft.id"
@@ -2171,9 +2181,6 @@
                     <select
                       v-model="fundHighRiskReceiptOutcome"
                       class="online-select text-xs"
-              <p class="mt-2 text-[10px] text-muted">
-                默认模板 {{ member.default_template || '契约默认' }} · 偏离 {{ member.default_restore_changed_count || 0 }} 项
-              </p>
                       data-testid="online-cohabitation-fund-high-risk-receipt-outcome"
                     >
                       <option value="delivered">交付回执</option>
@@ -2217,6 +2224,54 @@
                     提交高风险回执
                   </button>
                 </div>
+                <div
+                  v-if="selectedSharedDecorationRemovalMainStateDraftId === draft.id"
+                  class="mt-2 border border-sky-300/20 bg-sky-500/10 p-2"
+                  data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-form"
+                >
+                  <div class="grid gap-2 sm:grid-cols-[0.8fr_1.2fr_1fr]">
+                    <select
+                      v-model="sharedDecorationRemovalMainStateCandidatePath"
+                      class="online-select text-xs"
+                      data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-path"
+                      @change="resetSharedDecorationRemovalMainStateSelector(draft)"
+                    >
+                      <option value="decoration.placed">decoration.placed</option>
+                      <option value="decoration.owned">decoration.owned</option>
+                    </select>
+                    <input
+                      v-model="sharedDecorationRemovalMainStateSelector"
+                      class="online-input text-xs"
+                      data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-selector"
+                      maxlength="120"
+                      placeholder="decoration.placed.decoration_id"
+                    >
+                    <input
+                      v-model="sharedDecorationRemovalMainStateTargetUsername"
+                      class="online-input text-xs"
+                      data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-username"
+                      maxlength="80"
+                      placeholder="目标成员"
+                    >
+                  </div>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact mt-2 w-full justify-center"
+                    :disabled="cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-submit"
+                    @click="executeSharedDecorationRemovalMainStateMutation(draft)"
+                  >
+                    <ShieldCheck :size="12" />
+                    确认写回主状态
+                  </button>
+                </div>
+                <p
+                  v-else-if="isSharedDecorationRemovalMainStateMutationDraft(draft) && sharedDecorationRemovalMainStateMutationState(draft) === 'personal_main_state_mutated'"
+                  class="mt-2 border border-emerald-300/20 bg-emerald-500/10 p-2 text-[10px] text-emerald-100"
+                  :data-testid="`online-cohabitation-shared-decoration-removal-main-state-mutated-${draft.id}`"
+                >
+                  个人主状态已写回，保留回执链路。
+                </p>
               </div>
             </div>
           </div>
@@ -3746,6 +3801,7 @@
     CohabitationSeparationOfflineTimeoutOverride,
     CohabitationSeparationPersonalFamilyMainStateMigrationSummary,
     CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
+    CohabitationSharedDecorationRemovalMainStateMutationTarget,
     CohabitationSharedWorkshopRecipe,
     CohabitationWarehouseCompensationAuditBundle,
     CohabitationWarehouseHighValueWithdrawalDraft,
@@ -3782,6 +3838,7 @@
   type FamilyBuildingMainStatePreviewRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number]
   type FamilyBuildingMainStateExactTargetRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_exact_target_manifest'][number]
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
+  type SharedDecorationRemovalMainStateCandidatePath = 'decoration.placed' | 'decoration.owned'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
   type SharedAnimalPurchaseOption = { type: string; label: string; unitPrice: number }
   type SharedPetCareItemInfo = {
@@ -3794,6 +3851,8 @@
     requiresConfirmation?: boolean
     confirmationPhrase?: string
     rollbackPlan?: string
+    compensationHint?: string
+  }
   type SeparationAssetDisputeSourceRow = {
     id: string
     category: string
@@ -3814,8 +3873,6 @@
     no_personal_mutation: boolean
     note: string
   }
-    compensationHint?: string
-  }
   type SharedWorkshopRecipeOption = CohabitationSharedWorkshopRecipe
   type SharedAlchemyWeights = {
     success: number
@@ -3833,6 +3890,8 @@
     placement_ref?: string
     target_ref?: string
     state?: string
+    shared_decoration_removal_main_state_mutation_state?: string
+    shared_decoration_removal_main_state_mutation_receipt_count?: number
   }
   type StitchedSharedFarmCell = {
     key: string
@@ -3890,14 +3949,14 @@
     id: string
     label: string
     targetLabel: string
+    savedLabel: string
+  }
   type RecoveryAppealIssueOption = {
     id: string
     label: string
   }
-    savedLabel: string
   const CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT = '确认回滚到安全版本'
   const SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT = '确认播放关系破裂剧情'
-  }
   type SeparationSharedDecorationRemovalDispute = {
     draft_id: string
     target_ref: string
@@ -4124,14 +4183,6 @@
     yak: { productId: 'yak_milk', produceDays: 2 },
     alpaca: { productId: 'alpaca_wool', produceDays: 3 },
     deer: { productId: 'antler_velvet', produceDays: 5 },
-  const recoveryActionMessage = ref('')
-  const recoveryActionOk = ref(false)
-  const recoveryAppealIssueType = ref('warehouse_misoperation')
-  const recoveryAppealTargetRef = ref('')
-  const recoveryAppealNote = ref('')
-  const rollbackSafeVersionId = ref('')
-  const rollbackSafeVersionReason = ref('')
-  const rollbackSafeVersionConfirmationText = ref('')
     donkey: { productId: 'donkey_milk', produceDays: 3 },
     camel: { productId: 'camel_milk', produceDays: 2 },
     ostrich: { productId: 'ostrich_egg', produceDays: 3 },
@@ -4158,13 +4209,6 @@
       effect: '高阶灵宠点心',
       friendshipGain: 10,
       moodGain: 16,
-  const recoveryAppealIssueOptions: RecoveryAppealIssueOption[] = [
-    { id: 'warehouse_misoperation', label: '仓库误操作' },
-    { id: 'separation_asset_dispute', label: '分居资产争议' },
-    { id: 'contract_exception', label: '契约异常' },
-    { id: 'relationship_story_review', label: '剧情回看' },
-  ]
-
       riskLevel: 'high_value_pet_treat',
       requiresConfirmation: true,
       confirmationPhrase: '确认消耗共同宠物高阶点心',
@@ -4189,6 +4233,20 @@
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
   const lastRefreshAttemptAt = ref(0)
+  const recoveryActionMessage = ref('')
+  const recoveryActionOk = ref(false)
+  const recoveryAppealIssueType = ref('warehouse_misoperation')
+  const recoveryAppealTargetRef = ref('')
+  const recoveryAppealNote = ref('')
+  const rollbackSafeVersionId = ref('')
+  const rollbackSafeVersionReason = ref('')
+  const rollbackSafeVersionConfirmationText = ref('')
+  const recoveryAppealIssueOptions: RecoveryAppealIssueOption[] = [
+    { id: 'warehouse_misoperation', label: '仓库误操作' },
+    { id: 'separation_asset_dispute', label: '分居资产争议' },
+    { id: 'contract_exception', label: '契约异常' },
+    { id: 'relationship_story_review', label: '剧情回看' },
+  ]
   const warehouseActionMessage = ref('')
   const warehouseActionOk = ref(false)
   const warehouseDepositItemId = ref('rice')
@@ -4285,6 +4343,10 @@
   const fundHighRiskReceiptRef = ref('')
   const fundHighRiskReceiptMemo = ref('')
   const fundHighRiskReceiptCompensationAcknowledged = ref(false)
+  const selectedSharedDecorationRemovalMainStateDraftId = ref('')
+  const sharedDecorationRemovalMainStateCandidatePath = ref<SharedDecorationRemovalMainStateCandidatePath>('decoration.placed')
+  const sharedDecorationRemovalMainStateSelector = ref('')
+  const sharedDecorationRemovalMainStateTargetUsername = ref('')
   const familyOrderActionMessage = ref('')
   const familyOrderActionOk = ref(false)
   const familyReputationActionMessage = ref('')
@@ -4841,8 +4903,6 @@
       next[member.username_key] = amount
     })
     separationSharedFundManualAllocation.value = next
-      { key: 'frontend_cinematic_confirmation_required', label: '播放确认', value: separationStoryFlagLabel(resolution.frontend_cinematic_confirmation_required, '已要求确认', '无需确认') },
-      { key: 'frontend_cinematic_confirmation_matched', label: '确认回执', value: separationStoryFlagLabel(resolution.frontend_cinematic_confirmation_matched, '确认文案匹配', '未确认') },
   }
   watch(
     () => [
@@ -5015,6 +5075,18 @@
       { key: 'asset_boundary', label: '资产边界', value: '不改孩子、铜币、背包、农田、房屋和家庭资产' },
     ]
   })
+  const canSubmitRecoveryAppeal = computed(() =>
+    Boolean(selectedContract.value && cohabitationStore.canOpenSelectedContract && selectedContractActorMember.value?.status === 'accepted')
+  )
+  const canRollbackContractSafeVersion = computed(() =>
+    Boolean(
+      selectedContract.value
+      && cohabitationStore.canOpenSelectedContract
+      && selectedContractActorMember.value?.role === 'owner'
+      && selectedRollbackSafeVersion.value?.rollback_available !== false
+      && rollbackSafeVersionConfirmationText.value.trim() === CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT
+    )
+  )
   const separationPersonalFamilyMainStateMigrationSummary = computed<CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null>(() => {
     const request = separationExecutionRequest.value
     const requestSummary = request?.personal_family_main_state_migration_summary
@@ -5036,18 +5108,6 @@
     if (!raw) return null
     const summary = raw as CohabitationSeparationPersonalFamilyMainStateMigrationSummary
     return {
-  const canSubmitRecoveryAppeal = computed(() =>
-    Boolean(selectedContract.value && cohabitationStore.canOpenSelectedContract && selectedContractActorMember.value?.status === 'accepted')
-  )
-  const canRollbackContractSafeVersion = computed(() =>
-    Boolean(
-      selectedContract.value
-      && cohabitationStore.canOpenSelectedContract
-      && selectedContractActorMember.value?.role === 'owner'
-      && selectedRollbackSafeVersion.value?.rollback_available !== false
-      && rollbackSafeVersionConfirmationText.value.trim() === CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT
-    )
-  )
       migration_adapter: String(summary.migration_adapter ?? ''),
       mutation_adapter: String(summary.mutation_adapter ?? ''),
       arrangement_choice: String(summary.arrangement_choice ?? ''),
@@ -9213,6 +9273,46 @@
     fundHighRiskReceiptCompensationAcknowledged.value = false
   }
 
+  const parseSharedDecorationRemovalDraftDecorationId = (draft: CohabitationFundLargeSpendDraft) => {
+    const parts = String(draft.target_ref || '').split(':').map(part => part.trim()).filter(Boolean)
+    if (parts[0] === 'shared_decoration' && parts[1]) return parts[1]
+    return parts.find(part => !['shared_decoration', 'remove', 'removal'].includes(part)) || ''
+  }
+  const sharedDecorationRemovalStateEntryForDraft = (draft: CohabitationFundLargeSpendDraft) => {
+    const decorationId = parseSharedDecorationRemovalDraftDecorationId(draft)
+    return sharedDecorationStateEntries.value.find(entry =>
+      (decorationId && String(entry.decoration_id || '') === decorationId) ||
+      String(entry.target_ref || '') === draft.target_ref ||
+      String(entry.placement_ref || '') === draft.target_ref
+    ) ?? null
+  }
+  const sharedDecorationRemovalMainStateMutationState = (draft: CohabitationFundLargeSpendDraft) =>
+    String(sharedDecorationRemovalStateEntryForDraft(draft)?.shared_decoration_removal_main_state_mutation_state || '')
+  const isSharedDecorationRemovalMainStateMutationDraft = (draft: CohabitationFundLargeSpendDraft) =>
+    draft.purpose === 'shared_decoration_removal' &&
+    draft.state === 'executed' &&
+    draft.high_risk_receipt_status === 'delivered'
+  const canOpenSharedDecorationRemovalMainStateMutationDraft = (draft: CohabitationFundLargeSpendDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    isSharedDecorationRemovalMainStateMutationDraft(draft) &&
+    sharedDecorationRemovalMainStateMutationState(draft) !== 'personal_main_state_mutated'
+  const sharedDecorationRemovalMainStateDefaultSelector = (
+    draft: CohabitationFundLargeSpendDraft,
+    candidatePath: SharedDecorationRemovalMainStateCandidatePath = sharedDecorationRemovalMainStateCandidatePath.value,
+  ) => {
+    const decorationId = parseSharedDecorationRemovalDraftDecorationId(draft)
+    return decorationId ? `${candidatePath}.${decorationId}` : candidatePath
+  }
+  const resetSharedDecorationRemovalMainStateSelector = (draft: CohabitationFundLargeSpendDraft) => {
+    sharedDecorationRemovalMainStateSelector.value = sharedDecorationRemovalMainStateDefaultSelector(draft)
+  }
+  const selectSharedDecorationRemovalMainStateMutationDraft = (draft: CohabitationFundLargeSpendDraft) => {
+    selectedSharedDecorationRemovalMainStateDraftId.value = draft.id
+    sharedDecorationRemovalMainStateCandidatePath.value = 'decoration.placed'
+    resetSharedDecorationRemovalMainStateSelector(draft)
+    sharedDecorationRemovalMainStateTargetUsername.value = selectedContractActorMember.value?.username || cohabitationStore.currentAccount
+  }
+
   const familyBuildingLedgerTargetId = (entry: CohabitationFamilyBuildingLedgerEntry) => {
     if (entry.building_id) return entry.building_id
     if (entry.project_id) return entry.project_id
@@ -10123,6 +10223,53 @@
     }
   }
 
+  const executeSharedDecorationRemovalMainStateMutation = async (draft: CohabitationFundLargeSpendDraft) => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    const decorationId = parseSharedDecorationRemovalDraftDecorationId(draft)
+    const selector = sharedDecorationRemovalMainStateSelector.value.trim()
+    const username = sharedDecorationRemovalMainStateTargetUsername.value.trim()
+    if (!canOpenSharedDecorationRemovalMainStateMutationDraft(draft) || !decorationId || !selector || !username) {
+      fundActionMessage.value = '请选择已交付回执的共同装修拆除草案，并填写目标成员和删除 selector'
+      return
+    }
+    const stateEntry = sharedDecorationRemovalStateEntryForDraft(draft)
+    const targets: CohabitationSharedDecorationRemovalMainStateMutationTarget[] = [{
+      username,
+      candidate_path: sharedDecorationRemovalMainStateCandidatePath.value,
+      exact_target_ref: selector,
+      delete_selector: selector,
+      decoration_id: decorationId,
+    }]
+    try {
+      const result = await cohabitationStore.executeSharedDecorationRemovalMainStateMutation({
+        draft_id: draft.id,
+        fund_ledger_id: draft.final_spend_ledger_id,
+        shared_decoration_state_entry_id: stateEntry?.id ? String(stateEntry.id) : undefined,
+        receipt_id: draft.high_risk_receipt_id,
+        receipt_ref: draft.high_risk_receipt_ref || `shared_decoration_removal:${draft.target_ref}:receipt`,
+        target_ref: draft.target_ref,
+        expected_decoration_id: decorationId,
+        expected_execution_state: sharedDecorationRemovalMainStateMutationState(draft) || 'pending_main_state_mutation',
+        confirmation_text: '确认执行共同装修拆除主状态变更',
+        compensation_plan_acknowledged: true,
+        rollback_plan_acknowledged: true,
+        memo: `前端执行共同装修拆除个人主状态写回：${draft.target_ref}`,
+        idempotency_key: `ui-shared-decoration-removal-main-state-mutation-${draft.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        targets,
+      })
+      const receiptCount = result?.shared_decoration_removal_main_state_mutation?.receipt_count ?? 0
+      fundActionOk.value = true
+      fundActionMessage.value = result?.idempotent || result?.already_mutated
+        ? `已读回共同装修拆除主状态写回，凭据 ${receiptCount} 条`
+        : `已写回共同装修拆除个人主状态，凭据 ${receiptCount} 条；共同基金、仓库、背包和铜币未改`
+      selectedSharedDecorationRemovalMainStateDraftId.value = ''
+      sharedDecorationRemovalMainStateSelector.value = ''
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '执行共同装修拆除个人主状态写回失败'
+    }
+  }
+
   const applyFamilyBuildingRealBuild = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
     familyBuildingActionMessage.value = ''
     familyBuildingActionOk.value = false
@@ -10392,8 +10539,6 @@
     }
   }
 
-  const guardFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
-    familyBuildingActionMessage.value = ''
   const restoreMemberDefaultPermissions = async (
     member: CohabitationMember & {
       default_restore_changed_count?: number
@@ -10472,6 +10617,32 @@
     }
   }
 
+  const recoveryAppealIssueLabel = (value: string) =>
+    recoveryAppealIssueOptions.find(option => option.id === value)?.label || value || '恢复申诉'
+
+  const separationAssetDisputeSourceCategoryLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      shared_warehouse_return_source: '仓库来源',
+      shared_warehouse_unidentified_dispute: '仓库未知来源',
+      shared_fund_unidentified_operating_dispute: '基金未知贡献',
+      shared_decoration_removal_dispute: '装修拆除争议',
+      warehouse_high_value_withdrawal_dispute: '高价值取出冻结',
+      shared_decoration_source: '装修来源',
+      family_building_source: '建筑来源',
+      relationship_story_review: '关系剧情回看',
+    }
+    return labels[value] || value || '分居来源'
+  }
+
+  const contractSafeVersionSummaryLabel = (summary: Record<string, unknown> | undefined) => {
+    const auditCount = Math.max(0, Math.floor(Number(summary?.audit_count) || 0))
+    const warehouseLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_warehouse_ledger_count) || 0))
+    const fundLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_fund_ledger_count) || 0))
+    return `审计 ${auditCount} · 仓库流水 ${warehouseLedgerCount} · 基金流水 ${fundLedgerCount}`
+  }
+
+  const guardFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
     familyBuildingActionOk.value = false
     const mappingManifest = entry.real_build_demolition_main_state_mapping_manifest || []
     if (!entry.real_build_demolition_main_state_mapping_manifest_hash || mappingManifest.length === 0) {
@@ -10513,30 +10684,6 @@
       const result = await cohabitationStore.executeFamilyBuildingRealDemolitionMainStateMutation({
         building_ledger_id: entry.id,
         guard_manifest_hash: entry.real_build_demolition_main_state_guard_manifest_hash,
-  const recoveryAppealIssueLabel = (value: string) =>
-    recoveryAppealIssueOptions.find(option => option.id === value)?.label || value || '恢复申诉'
-
-  const separationAssetDisputeSourceCategoryLabel = (value: string) => {
-    const labels: Record<string, string> = {
-      shared_warehouse_return_source: '仓库来源',
-      shared_warehouse_unidentified_dispute: '仓库未知来源',
-      shared_fund_unidentified_operating_dispute: '基金未知贡献',
-      shared_decoration_removal_dispute: '装修拆除争议',
-      warehouse_high_value_withdrawal_dispute: '高价值取出冻结',
-      shared_decoration_source: '装修来源',
-      family_building_source: '建筑来源',
-      relationship_story_review: '关系剧情回看',
-    }
-    return labels[value] || value || '分居来源'
-  }
-
-  const contractSafeVersionSummaryLabel = (summary: Record<string, unknown> | undefined) => {
-    const auditCount = Math.max(0, Math.floor(Number(summary?.audit_count) || 0))
-    const warehouseLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_warehouse_ledger_count) || 0))
-    const fundLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_fund_ledger_count) || 0))
-    return `审计 ${auditCount} · 仓库流水 ${warehouseLedgerCount} · 基金流水 ${fundLedgerCount}`
-  }
-
         memo: `前端执行家族建筑真实拆除个人主状态阻断：${entry.target_ref || entry.building_id || entry.project_id}`,
         idempotency_key: `ui-family-building-real-demolition-main-state-execute-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
@@ -10862,7 +11009,6 @@
       familyVisibilityActionMessage.value = result?.idempotent ? '已读回家族公开回滚记录' : '已回滚家族公开设置'
     } catch (error) {
       familyVisibilityActionMessage.value = error instanceof Error ? error.message : '回滚家族公开设置失败'
-      permissions_default_restored: '默认权限恢复',
     }
   }
   const reserveFamilyFestivalSeatsFromPanel = async () => {
@@ -10906,11 +11052,6 @@
     const template = firstAvailableFamilyFestivalTemplate.value
     if (!template) return
     familyFestivalSeatActionMessage.value = ''
-    if (entry.action === 'permissions_default_restored') {
-      const count = Number(detail.changed_field_count) || 0
-      const template = typeof detail.default_template === 'string' ? detail.default_template : '默认模板'
-      return target ? `${target} 恢复 ${template}，调整 ${count} 项权限` : `恢复 ${template}，调整 ${count} 项权限`
-    }
     familyFestivalSeatActionOk.value = false
     try {
       const result = await cohabitationStore.consumeFamilyFestivalSupplies({
@@ -11331,6 +11472,7 @@
       family_building_real_demolition_personal_save_written: '真实拆除存档写回',
       family_building_real_demolition_main_state_execution_blocked: '真实拆除主态执行阻断',
       permissions_updated: '权限更新',
+      permissions_default_restored: '默认权限恢复',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
       separation_preview_confirmed: '分居预览确认',
@@ -11373,6 +11515,11 @@
     if (entry.action === 'permissions_updated') {
       const count = Number(detail.changed_field_count) || 0
       return target ? `${target} 变更 ${count} 项权限` : `变更 ${count} 项权限`
+    }
+    if (entry.action === 'permissions_default_restored') {
+      const count = Number(detail.changed_field_count) || 0
+      const template = typeof detail.default_template === 'string' ? detail.default_template : '默认模板'
+      return target ? `${target} 恢复 ${template}，调整 ${count} 项权限` : `恢复 ${template}，调整 ${count} 项权限`
     }
     if (entry.action === 'family_role_updated') {
       const before = typeof detail.before_role_label === 'string' ? detail.before_role_label : ''
