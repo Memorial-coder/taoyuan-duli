@@ -76,6 +76,17 @@ async function openTechnicalDetailsForTestId(page: Page, testId: string) {
   await expect(target).toBeVisible()
 }
 
+async function openCohabitationTab(page: Page, tabKey: string) {
+  const target = page.getByTestId(`online-module-tab-${tabKey}`)
+  if (!(await target.isVisible().catch(() => false))) {
+    const groupedMore = page.getByTestId('online-cohabitation-more-tab-groups')
+    const isOpen = await groupedMore.evaluate(node => (node as HTMLDetailsElement).open).catch(() => false)
+    if (!isOpen) await groupedMore.locator('summary').click()
+  }
+  await expect(target).toBeVisible()
+  await target.click()
+}
+
 function buildWorldEventOverview() {
   return {
     ok: true,
@@ -3466,9 +3477,8 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/cohabitation')
     await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
-    await expect(page.getByTestId('online-module-tab-permissions')).toBeVisible()
 
-    await page.getByTestId('online-module-tab-permissions').click()
+    await openCohabitationTab(page, 'permissions')
     const helperDeposit = page.getByTestId('online-cohabitation-permission-helper-storage-deposit')
     await expect(helperDeposit).toContainText('仓库放入')
     await expect(helperDeposit).toContainText('关闭')
@@ -3486,7 +3496,7 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/cohabitation')
     await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
-    await page.getByTestId('online-module-tab-offline').click()
+    await openCohabitationTab(page, 'offline')
 
     const auditSummary = page.getByTestId('online-cohabitation-shared-audit-detail').first()
     await expect(auditSummary).toContainText('离线队列合并')
@@ -3509,6 +3519,25 @@ test.describe('web game smoke', () => {
     await expect(technicalDetail).toContainText('idempotency-shared-log-e2e')
     await expect(technicalDetail).toContainText('client_queue_revision')
     await expect(technicalDetail).toContainText('server_queue_revision')
+  })
+
+  test('online cohabitation keeps legacy tab query aliases grouped', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '分组')
+    await mockOnlineCohabitation(page)
+
+    await page.goto('/#/game/online/cohabitation?tab=festival')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-tab-groups')).toBeVisible()
+    await expect(page.getByTestId('online-module-tab-festivalSeats')).toHaveAttribute('aria-selected', 'true')
+
+    await page.goto('/#/game/online/cohabitation?tab=public')
+    await expect(page.getByTestId('online-module-tab-visibility')).toBeVisible()
+    await expect(page.getByTestId('online-module-tab-visibility')).toHaveAttribute('aria-selected', 'true')
+
+    await page.goto('/#/game/online/cohabitation?tab=separation')
+    await expect(page.getByTestId('online-module-tab-offline')).toBeVisible()
+    await expect(page.getByTestId('online-module-tab-offline')).toHaveAttribute('aria-selected', 'true')
   })
 
   test('online cohabitation shared pet care uses shared warehouse feed', async ({ page }) => {

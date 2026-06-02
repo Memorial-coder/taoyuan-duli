@@ -9,10 +9,10 @@
       :refresh-disabled="cohabitationStore.loading || cohabitationStore.detailsLoading"
       :stats="summaryStats"
       stats-grid-class="grid gap-2 text-xs md:grid-cols-3 xl:grid-cols-6"
-      :tabs="tabs"
-      :active-tab="activeTab"
+      :tabs="cohabitationTabGroups"
+      :active-tab="activeTabGroupKey"
       @refresh="refreshModule"
-      @update:active-tab="setActiveTab"
+      @update:active-tab="setActiveTabGroup"
     >
       <template #icon>
         <HeartHandshake :size="16" />
@@ -23,6 +23,78 @@
         </div>
       </template>
     </OnlineModuleShell>
+
+    <section class="game-panel-muted space-y-3 p-3" data-testid="online-cohabitation-tab-groups">
+      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div class="min-w-0">
+          <p class="text-sm text-accent">{{ activeTabGroupMeta.label }}</p>
+          <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabGroupMeta.summary }}</p>
+        </div>
+        <span class="w-fit shrink-0 border border-accent/15 px-2 py-1 text-[10px] text-muted">
+          {{ activeTabMeta.label }}
+        </span>
+      </div>
+
+      <div
+        class="flex gap-2 overflow-x-auto pb-1"
+        role="tablist"
+        aria-label="共同庄园常用入口"
+        data-testid="online-cohabitation-primary-tabs"
+      >
+        <button
+          v-for="tab in cohabitationPrimaryTabs"
+          :id="cohabitationTabButtonId(tab.key)"
+          :key="tab.key"
+          :data-testid="`online-module-tab-${tab.key}`"
+          type="button"
+          role="tab"
+          :aria-selected="activeTab === tab.key"
+          :aria-controls="`online-module-panel-${tab.key}`"
+          :tabindex="activeTab === tab.key ? 0 : -1"
+          class="min-h-[36px] shrink-0 border px-3 py-2 text-xs transition-colors"
+          :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
+          @click="setActiveTab(tab.key)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <details
+        class="border border-accent/10 bg-black/10 p-2"
+        :open="shouldOpenMoreTabGroups"
+        data-testid="online-cohabitation-more-tab-groups"
+      >
+        <summary class="cursor-pointer text-xs text-accent">更多分组入口</summary>
+        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div
+            v-for="group in cohabitationHiddenTabGroups"
+            :key="group.key"
+            class="space-y-2"
+            :data-testid="`online-cohabitation-tab-group-${group.key}`"
+          >
+            <p class="text-[10px] text-muted">{{ group.label }}</p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="tab in group.tabs"
+                :id="cohabitationTabButtonId(tab.key)"
+                :key="tab.key"
+                :data-testid="`online-module-tab-${tab.key}`"
+                type="button"
+                role="tab"
+                :aria-selected="activeTab === tab.key"
+                :aria-controls="`online-module-panel-${tab.key}`"
+                :tabindex="activeTab === tab.key ? 0 : -1"
+                class="min-h-[36px] border px-3 py-2 text-xs transition-colors"
+                :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
+                @click="setActiveTab(tab.key)"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
 
     <section
       class="space-y-3"
@@ -3862,7 +3934,10 @@
   } from '@/utils/cohabitationApi'
 
   type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'visibility' | 'festivalSeats' | 'offline'
+  type CohabitationTabGroupKey = 'cohab-summary' | 'cohab-operations' | 'cohab-family' | 'cohab-assets' | 'cohab-more'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
+  type CohabitationTabGroupMeta = { key: CohabitationTabGroupKey; label: string; summary: string; defaultTab: CohabitationTabKey; tabKeys: CohabitationTabKey[] }
+  type CohabitationHiddenTabGroup = { key: CohabitationTabGroupKey; label: string; tabs: CohabitationTabMeta[] }
   type FundMediumSpendPurpose = 'processing_materials' | 'building_materials'
   type FundMediumSpendOption = {
     label: string
@@ -4450,18 +4525,73 @@
   ]
 
   const cohabitationTabKeys = new Set<CohabitationTabKey>(tabs.map(tab => tab.key))
+  const cohabitationTabGroups: CohabitationTabGroupMeta[] = [
+    { key: 'cohab-summary', label: '总览', summary: '契约状态、成员边界和今日建议集中在一个入口。', defaultTab: 'overview', tabKeys: ['overview', 'visibility'] },
+    { key: 'cohab-operations', label: '共同经营', summary: '农田地图、仓库和建筑经营动作按经营线收拢。', defaultTab: 'map', tabKeys: ['map', 'warehouse', 'buildings'] },
+    { key: 'cohab-family', label: '家庭与节会', summary: '家族关系、节会席位和声望信息合并浏览。', defaultTab: 'festivalSeats', tabKeys: ['festivalSeats', 'relations', 'reputation'] },
+    { key: 'cohab-assets', label: '资产与治理', summary: '共同基金、成员权限和离线协作放在治理入口。', defaultTab: 'fund', tabKeys: ['fund', 'permissions', 'offline'] },
+    { key: 'cohab-more', label: '更多', summary: '家族订单和低频公开信息不再挤占默认入口。', defaultTab: 'orders', tabKeys: ['orders'] },
+  ]
+  const cohabitationPrimaryTabKeys: CohabitationTabKey[] = ['overview', 'map', 'warehouse', 'fund', 'festivalSeats']
+  const cohabitationPrimaryTabKeySet = new Set<CohabitationTabKey>(cohabitationPrimaryTabKeys)
+  const cohabitationTabAliases: Record<string, CohabitationTabKey> = {
+    family: 'relations',
+    festival: 'festivalSeats',
+    public: 'visibility',
+    separation: 'offline',
+    summary: 'overview',
+    operations: 'map',
+    assets: 'fund',
+    governance: 'fund',
+    more: 'orders',
+    'cohab-summary': 'overview',
+    'cohab-operations': 'map',
+    'cohab-family': 'festivalSeats',
+    'cohab-assets': 'fund',
+    'cohab-more': 'orders',
+  }
+
+  const getCohabitationTabMeta = (key: CohabitationTabKey) => tabs.find(tab => tab.key === key) ?? tabs[0]!
+  const cohabitationTabButtonId = (key: CohabitationTabKey) => `online-module-tab-${key}`
+  const resolveCohabitationTabKey = (value = ''): CohabitationTabKey | null => {
+    const candidate = value.trim()
+    if (!candidate) return null
+    if (cohabitationTabKeys.has(candidate as CohabitationTabKey)) return candidate as CohabitationTabKey
+    const alias = cohabitationTabAliases[candidate] ?? cohabitationTabAliases[candidate.toLocaleLowerCase('en-US')]
+    return alias ?? null
+  }
 
   const syncActiveTabFromRoute = () => {
     const tab = route.query.tab
     const candidate = Array.isArray(tab) ? tab[0] : tab
-    if (candidate && cohabitationTabKeys.has(candidate as CohabitationTabKey)) {
-      activeTab.value = candidate as CohabitationTabKey
+    const resolvedTab = resolveCohabitationTabKey(candidate ?? '')
+    if (resolvedTab) {
+      activeTab.value = resolvedTab
     }
   }
 
   const normalizeActorKey = (value = '') => value.trim().toLocaleLowerCase('zh-CN')
 
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
+  const activeTabGroupKey = computed<CohabitationTabGroupKey>(() =>
+    cohabitationTabGroups.find(group => group.tabKeys.includes(activeTab.value))?.key ?? 'cohab-summary'
+  )
+  const activeTabGroupMeta = computed(() =>
+    cohabitationTabGroups.find(group => group.key === activeTabGroupKey.value) ?? cohabitationTabGroups[0]!
+  )
+  const cohabitationPrimaryTabs = computed(() => cohabitationPrimaryTabKeys.map(getCohabitationTabMeta))
+  const cohabitationHiddenTabGroups = computed<CohabitationHiddenTabGroup[]>(() =>
+    cohabitationTabGroups
+      .map(group => ({
+        key: group.key,
+        label: group.label,
+        tabs: group.tabKeys
+          .filter(key => !cohabitationPrimaryTabKeySet.has(key))
+          .map(getCohabitationTabMeta),
+      }))
+      .filter(group => group.tabs.length > 0)
+  )
+  const shouldOpenMoreTabGroups = computed(() => !cohabitationPrimaryTabKeySet.has(activeTab.value))
   const relationOptions = computed(() => cohabitationStore.overview?.relation_options ?? [])
   const selectedRelationOption = computed(() =>
     relationOptions.value.find(option => option.id === contractDraftType.value) ?? relationOptions.value[0] ?? null
@@ -7837,7 +7967,13 @@
   }
 
   const setActiveTab = (tab: string) => {
-    activeTab.value = tab as CohabitationTabKey
+    const resolvedTab = resolveCohabitationTabKey(tab)
+    if (resolvedTab) activeTab.value = resolvedTab
+  }
+
+  const setActiveTabGroup = (groupKey: string) => {
+    const group = cohabitationTabGroups.find(entry => entry.key === groupKey)
+    if (group) activeTab.value = group.defaultTab
   }
 
   const syncContractDraftType = () => {
