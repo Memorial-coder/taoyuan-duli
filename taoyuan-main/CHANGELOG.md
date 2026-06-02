@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0602 共同庄园基金与仓库高风险确认
+- 共同基金大额草案创建、成员确认、执行扣款和高风险回执提交接入 `OnlineConfirmActionDialog`，统一展示用途、目标、金额、共同基金、共同仓库和个人铜币影响，并要求输入「确认消耗共同资产」后才调用原 store action。
+- 共同仓库高价值取用申请、草案确认和执行接入同一确认弹窗，展示物品、数量、目标用途、成员确认状态、共同仓库冻结 / 扣除、个人背包与共同基金边界，并要求输入「确认取用共同资产」；`game-smoke.spec.ts` 新增基金 + 仓库高风险确认浏览器 smoke。
+
 ### 0602 在线节会房结算与关闭确认
 - 在线节会房接入 `OnlineConfirmActionDialog`，准备大厅的结算 / 取消房间事件和旧 `online-festival-room-settle-submit`、`online-festival-room-close-submit` 备用按钮都会先进入确认弹窗；弹窗展示房间状态、成员影响、奖励预览 / 结算记录和失败恢复提示。
 - 结算确认继续调用既有 `festivalRoomStore.settleRoomAction(roomId)`；关闭确认继续调用既有 `festivalRoomStore.closeRoomAction(roomId)`，运行中关闭要求输入「确认关闭房间」。结构 QA 已补确认弹窗、旧 test id、原 action 调用和浏览器 smoke 确认路径断言。

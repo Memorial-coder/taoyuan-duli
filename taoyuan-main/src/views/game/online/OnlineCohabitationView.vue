@@ -1506,7 +1506,7 @@
                     class="online-action-btn online-action-btn--compact"
                     :disabled="!canCreateHighValueWarehouseWithdrawalDraft(item) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-warehouse-high-value-draft-${item.item_id}`"
-                    @click="createHighValueWarehouseWithdrawalDraft(item)"
+                    @click="openCohabitationRiskConfirm({ kind: 'warehouse-high-value-create', item })"
                   >
                     申请取出
                   </button>
@@ -1783,7 +1783,7 @@
                     class="online-action-btn online-action-btn--compact"
                     :disabled="!canConfirmHighValueWarehouseDraft(draft) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-warehouse-high-value-confirm-${draft.id}`"
-                    @click="confirmHighValueWarehouseWithdrawalDraft(draft)"
+                    @click="openCohabitationRiskConfirm({ kind: 'warehouse-high-value-confirm', draft })"
                   >
                     确认
                   </button>
@@ -1792,7 +1792,7 @@
                     class="online-action-btn online-action-btn--compact"
                     :disabled="!canExecuteHighValueWarehouseDraft(draft) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-warehouse-high-value-execute-${draft.id}`"
-                    @click="executeHighValueWarehouseWithdrawalDraft(draft)"
+                    @click="openCohabitationRiskConfirm({ kind: 'warehouse-high-value-execute', draft })"
                   >
                     执行
                   </button>
@@ -2192,7 +2192,7 @@
                 class="online-action-btn online-action-btn--compact justify-center"
                 :disabled="!canCreateLargeFundDraft || cohabitationStore.actionLoading"
                 data-testid="online-cohabitation-fund-large-draft-submit"
-                @click="createLargeFundSpendDraft"
+                @click="openCohabitationRiskConfirm({ kind: 'fund-large-draft-create' })"
               >
                 <ClipboardList :size="12" />
                 创建确认草案
@@ -2272,7 +2272,7 @@
                     class="online-action-btn online-action-btn--compact justify-center"
                     :disabled="!canConfirmLargeFundDraft(draft) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-fund-large-draft-confirm-${draft.id}`"
-                    @click="confirmLargeFundSpendDraft(draft)"
+                    @click="openCohabitationRiskConfirm({ kind: 'fund-large-draft-confirm', draft })"
                   >
                     <CheckCircle2 :size="12" />
                     确认
@@ -2282,7 +2282,7 @@
                     class="online-action-btn online-action-btn--compact justify-center"
                     :disabled="!canExecuteLargeFundDraft(draft) || cohabitationStore.actionLoading"
                     :data-testid="`online-cohabitation-fund-large-draft-execute-${draft.id}`"
-                    @click="executeLargeFundSpendDraft(draft)"
+                    @click="openCohabitationRiskConfirm({ kind: 'fund-large-draft-execute', draft })"
                   >
                     <Wallet :size="12" />
                     执行扣款
@@ -2356,7 +2356,7 @@
                     class="online-action-btn online-action-btn--compact mt-2 w-full justify-center"
                     :disabled="!canSubmitHighRiskReceipt || cohabitationStore.actionLoading"
                     data-testid="online-cohabitation-fund-high-risk-receipt-submit"
-                    @click="recordHighRiskReceipt"
+                    @click="openCohabitationRiskConfirm({ kind: 'fund-high-risk-receipt' })"
                   >
                     <ShieldCheck :size="12" />
                     提交高风险回执
@@ -3911,6 +3911,22 @@
         </div>
       </div>
     </section>
+
+    <OnlineConfirmActionDialog
+      :open="cohabitationRiskConfirmOpen"
+      :title="cohabitationRiskConfirmTitle"
+      :description="cohabitationRiskConfirmDescription"
+      :impact-items="cohabitationRiskConfirmImpactItems"
+      :asset-changes="cohabitationRiskConfirmAssetChanges"
+      :irreversible="cohabitationRiskConfirmIrreversible"
+      :require-text="cohabitationRiskConfirmRequireText"
+      :confirm-label="cohabitationRiskConfirmLabel"
+      :running="cohabitationStore.actionLoading"
+      :recovery-hint="cohabitationRiskConfirmRecoveryHint"
+      @confirm="confirmCohabitationRiskAction"
+      @cancel="closeCohabitationRiskConfirm"
+      @close="closeCohabitationRiskConfirm"
+    />
   </div>
 </template>
 
@@ -3940,6 +3956,7 @@
     Wallet,
     XCircle,
   } from 'lucide-vue-next'
+  import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
@@ -4007,6 +4024,15 @@
   type FamilyBuildingMainStatePreviewRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number]
   type FamilyBuildingMainStateExactTargetRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_exact_target_manifest'][number]
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
+  type ConfirmDialogItem = { id: string; label: string; value?: string }
+  type CohabitationRiskConfirmState =
+    | { kind: 'fund-large-draft-create' }
+    | { kind: 'fund-large-draft-confirm'; draft: CohabitationFundLargeSpendDraft }
+    | { kind: 'fund-large-draft-execute'; draft: CohabitationFundLargeSpendDraft }
+    | { kind: 'fund-high-risk-receipt' }
+    | { kind: 'warehouse-high-value-create'; item: CohabitationWarehouseItem }
+    | { kind: 'warehouse-high-value-confirm'; draft: CohabitationWarehouseHighValueWithdrawalDraft }
+    | { kind: 'warehouse-high-value-execute'; draft: CohabitationWarehouseHighValueWithdrawalDraft }
   type SharedDecorationRemovalMainStateCandidatePath =
     | 'decoration.placed'
     | 'decoration.owned'
@@ -4520,6 +4546,7 @@
   const fundHighRiskReceiptRef = ref('')
   const fundHighRiskReceiptMemo = ref('')
   const fundHighRiskReceiptCompensationAcknowledged = ref(false)
+  const cohabitationRiskConfirm = ref<CohabitationRiskConfirmState | null>(null)
   const selectedSharedDecorationRemovalMainStateDraftId = ref('')
   const sharedDecorationRemovalMainStateCandidatePath = ref<SharedDecorationRemovalMainStateCandidatePath>('decoration.placed')
   const sharedDecorationRemovalMainStateSelector = ref('')
@@ -10533,6 +10560,203 @@
     } catch (error) {
       fundActionMessage.value = error instanceof Error ? error.message : '记录共同基金高风险回执失败'
     }
+  }
+
+  const dialogItem = (id: string, label: string, value = ''): ConfirmDialogItem => ({
+    id,
+    label,
+    value,
+  })
+  const copperLabel = (value: number) => `${Math.max(0, Math.floor(Number(value) || 0))} 文`
+  const currentSharedFundBalance = () => Math.max(0, Math.floor(Number(cohabitationStore.fund?.balance) || 0))
+  const selectedContractRiskLabel = () =>
+    selectedContract.value?.title || selectedContract.value?.id || '当前共同庄园'
+  const warehouseHighValueItemLabel = (item: CohabitationWarehouseItem) =>
+    `${item.label || item.item_id} · ${qualityLabel(item.quality || 'normal')}`
+  const warehouseHighValueDraftItemLabel = (draft: CohabitationWarehouseHighValueWithdrawalDraft) =>
+    `${warehouseItemLabels[draft.item_id] || draft.item_id} · ${qualityLabel(draft.quality || 'normal')}`
+  const warehouseHighValueNeedLabel = (draft?: CohabitationWarehouseHighValueWithdrawalDraft) => {
+    if (!draft) {
+      return cohabitationStore.warehouse?.summary.high_value_withdrawal_confirmation_enabled
+        ? '需要成员确认后执行'
+        : '按仓库策略确认'
+    }
+    const pending = draft.confirmation_state.pending_member_usernames.length
+    if (draft.confirmation_state.all_members_confirmed || pending <= 0) return '已完成成员确认'
+    return pending === 1 ? '还需 1 位成员确认' : `还需 ${pending} 位成员确认`
+  }
+
+  const openCohabitationRiskConfirm = (state: CohabitationRiskConfirmState) => {
+    cohabitationRiskConfirm.value = state
+  }
+  const closeCohabitationRiskConfirm = () => {
+    if (cohabitationStore.actionLoading) return
+    cohabitationRiskConfirm.value = null
+  }
+
+  const cohabitationRiskConfirmOpen = computed(() => cohabitationRiskConfirm.value !== null)
+  const cohabitationRiskConfirmTitle = computed(() => {
+    const state = cohabitationRiskConfirm.value
+    if (!state) return ''
+    if (state.kind === 'fund-large-draft-create') return '确认创建大额基金草案'
+    if (state.kind === 'fund-large-draft-confirm') return '确认这笔共同基金草案'
+    if (state.kind === 'fund-large-draft-execute') return '确认执行共同基金扣款'
+    if (state.kind === 'fund-high-risk-receipt') return '确认记录高风险回执'
+    if (state.kind === 'warehouse-high-value-create') return '确认申请高价值取用'
+    if (state.kind === 'warehouse-high-value-confirm') return '确认高价值取用草案'
+    return '确认执行高价值取用'
+  })
+  const cohabitationRiskConfirmDescription = computed(() => {
+    const state = cohabitationRiskConfirm.value
+    if (!state) return ''
+    if (state.kind === 'fund-large-draft-create') return '本次只创建成员确认草案，不会立即扣共同基金或个人铜币。'
+    if (state.kind === 'fund-large-draft-confirm') return '本次记录你的成员确认，确认阶段不扣款。'
+    if (state.kind === 'fund-large-draft-execute') return '执行后会扣共同基金；高风险用途仍需用回执收口。'
+    if (state.kind === 'fund-high-risk-receipt') return '回执会收口已扣款草案，交付或退款结果会写入共同基金记录。'
+    if (state.kind === 'warehouse-high-value-create') return '本次会先冻结共同仓库物品，等待成员确认后才能真正取出。'
+    if (state.kind === 'warehouse-high-value-confirm') return '本次记录你的成员确认，不会把物品放入个人背包。'
+    return '执行后会把已确认的高价值物品从共同仓库取出到操作者个人背包。'
+  })
+  const cohabitationRiskConfirmImpactItems = computed<ConfirmDialogItem[]>(() => {
+    const state = cohabitationRiskConfirm.value
+    if (!state) return []
+    if (state.kind === 'fund-large-draft-create') {
+      const option = selectedFundLargeSpendOption.value
+      return [
+        dialogItem('contract', '共同庄园', selectedContractRiskLabel()),
+        dialogItem('purpose', '用途', option?.label || '未选择'),
+        dialogItem('target', '目标', fundLargeDraftTargetRef.value.trim() || '待填写'),
+        dialogItem('amount', '金额', copperLabel(normalizedFundLargeDraftAmount.value)),
+      ]
+    }
+    if (state.kind === 'fund-large-draft-confirm' || state.kind === 'fund-large-draft-execute') {
+      return [
+        dialogItem('draft', '草案', state.draft.id),
+        dialogItem('purpose', '用途', state.draft.purpose_label || largeFundSpendPurposeLabel(state.draft.purpose)),
+        dialogItem('target', '目标', state.draft.target_ref),
+        dialogItem('amount', '金额', copperLabel(state.draft.amount)),
+      ]
+    }
+    if (state.kind === 'fund-high-risk-receipt') {
+      const draft = selectedHighRiskReceiptDraft.value
+      if (!draft) return []
+      return [
+        dialogItem('draft', '草案', draft.id),
+        dialogItem('purpose', '用途', draft.purpose_label || largeFundSpendPurposeLabel(draft.purpose)),
+        dialogItem('outcome', '回执结果', fundHighRiskReceiptOutcome.value === 'refunded' ? '退款' : '交付'),
+        dialogItem('receipt', '回执编号', fundHighRiskReceiptRef.value.trim() || '待填写'),
+      ]
+    }
+    if (state.kind === 'warehouse-high-value-create') {
+      return [
+        dialogItem('item', '物品', warehouseHighValueItemLabel(state.item)),
+        dialogItem('quantity', '数量', '1 件'),
+        dialogItem('target', '目标用途', '取出到操作者个人背包'),
+        dialogItem('member-confirm', '成员确认', warehouseHighValueNeedLabel()),
+      ]
+    }
+    return [
+      dialogItem('draft', '草案', state.draft.id),
+      dialogItem('item', '物品', warehouseHighValueDraftItemLabel(state.draft)),
+      dialogItem('quantity', '数量', `${state.draft.quantity} 件`),
+      dialogItem('member-confirm', '成员确认', warehouseHighValueNeedLabel(state.draft)),
+    ]
+  })
+  const cohabitationRiskConfirmAssetChanges = computed<ConfirmDialogItem[]>(() => {
+    const state = cohabitationRiskConfirm.value
+    if (!state) return []
+    if (state.kind === 'fund-large-draft-create') {
+      return [
+        dialogItem('shared-fund', '共同基金', `暂不扣款，执行时才会扣 ${copperLabel(normalizedFundLargeDraftAmount.value)}`),
+        dialogItem('personal-money', '个人铜币', '不扣个人铜币'),
+        dialogItem('shared-warehouse', '共同仓库', selectedLargeFundSpendIsHighRisk.value ? '不直接改仓库，后续用交付 / 退款回执收口' : '不改共同仓库'),
+      ]
+    }
+    if (state.kind === 'fund-large-draft-confirm') {
+      const pendingAfterThis = Math.max(0, state.draft.pending_member_usernames.length - 1)
+      return [
+        dialogItem('shared-fund', '共同基金', '确认阶段不扣款'),
+        dialogItem('personal-money', '个人铜币', '不扣个人铜币'),
+        dialogItem('member-confirm', '成员确认', pendingAfterThis > 0 ? `本次后还需 ${pendingAfterThis} 位成员确认` : '本次后可执行扣款'),
+      ]
+    }
+    if (state.kind === 'fund-large-draft-execute') {
+      const projected = Math.max(0, currentSharedFundBalance() - Math.max(0, Number(state.draft.amount) || 0))
+      return [
+        dialogItem('shared-fund', '共同基金', `扣 ${copperLabel(state.draft.amount)}，预计余额 ${copperLabel(projected)}`),
+        dialogItem('personal-money', '个人铜币', '不扣个人铜币'),
+        dialogItem('shared-warehouse', '共同仓库', isHighRiskLargeFundSpendPurpose(state.draft.purpose) ? '不直接改仓库，需回执收口' : '不改共同仓库'),
+      ]
+    }
+    if (state.kind === 'fund-high-risk-receipt') {
+      const draft = selectedHighRiskReceiptDraft.value
+      const amount = draft ? copperLabel(draft.amount) : '待确认'
+      return [
+        dialogItem('shared-fund', '共同基金', fundHighRiskReceiptOutcome.value === 'refunded' ? `记录退款回执，按服务端结果退回 ${amount}` : `确认交付，既有扣款 ${amount} 保持收口`),
+        dialogItem('personal-money', '个人铜币', '不扣个人铜币'),
+        dialogItem('shared-warehouse', '共同仓库', '不直接改共同仓库'),
+      ]
+    }
+    if (state.kind === 'warehouse-high-value-create') {
+      return [
+        dialogItem('shared-warehouse', '共同仓库', `${warehouseHighValueItemLabel(state.item)} 冻结 1 件`),
+        dialogItem('personal-inventory', '个人背包', '暂不放入个人背包'),
+        dialogItem('shared-fund', '共同基金', '不扣共同基金'),
+      ]
+    }
+    if (state.kind === 'warehouse-high-value-confirm') {
+      return [
+        dialogItem('shared-warehouse', '共同仓库', `保持冻结 ${state.draft.frozen_quantity || state.draft.quantity} 件`),
+        dialogItem('personal-inventory', '个人背包', '确认阶段不放入个人背包'),
+        dialogItem('shared-fund', '共同基金', '不扣共同基金'),
+      ]
+    }
+    return [
+      dialogItem('shared-warehouse', '共同仓库', `扣除 ${warehouseHighValueDraftItemLabel(state.draft)} x${state.draft.quantity}`),
+      dialogItem('personal-inventory', '个人背包', '取出到操作者个人背包'),
+      dialogItem('shared-fund', '共同基金', '不扣共同基金'),
+    ]
+  })
+  const cohabitationRiskConfirmRequireText = computed(() => {
+    const kind = cohabitationRiskConfirm.value?.kind || ''
+    return kind.startsWith('fund') ? '确认消耗共同资产' : '确认取用共同资产'
+  })
+  const cohabitationRiskConfirmLabel = computed(() => {
+    const state = cohabitationRiskConfirm.value
+    if (!state) return '确认执行'
+    if (state.kind === 'fund-large-draft-create') return '确认创建草案'
+    if (state.kind === 'fund-large-draft-confirm' || state.kind === 'warehouse-high-value-confirm') return '确认草案'
+    if (state.kind === 'fund-high-risk-receipt') return '确认记录回执'
+    if (state.kind === 'warehouse-high-value-create') return '确认申请取用'
+    return '确认执行'
+  })
+  const cohabitationRiskConfirmIrreversible = computed(() => {
+    const kind = cohabitationRiskConfirm.value?.kind
+    return kind === 'fund-large-draft-execute' || kind === 'fund-high-risk-receipt' || kind === 'warehouse-high-value-execute'
+  })
+  const cohabitationRiskConfirmRecoveryHint = computed(() => {
+    const state = cohabitationRiskConfirm.value
+    if (!state) return ''
+    if (state.kind === 'fund-large-draft-create') return '草案可等待成员确认或过期；失败时保留当前表单，可重试。'
+    if (state.kind === 'fund-large-draft-confirm') return '如果草案信息有误，先取消，不会扣款。'
+    if (state.kind === 'fund-large-draft-execute') return '失败时不会清空草案；高风险用途需继续用回执交付或退款收口。'
+    if (state.kind === 'fund-high-risk-receipt') return '回执异常时按共同基金记录继续补偿或复核。'
+    if (state.kind === 'warehouse-high-value-create') return '失败时不会冻结物品；成功后可在草案区继续确认或撤销冻结。'
+    if (state.kind === 'warehouse-high-value-confirm') return '确认后若仍未全员通过，物品继续冻结等待；需要取消时走撤销冻结。'
+    return '执行异常时按仓库流水、补偿审计和回滚记录处理。'
+  })
+
+  const confirmCohabitationRiskAction = async () => {
+    const state = cohabitationRiskConfirm.value
+    if (!state) return
+    if (state.kind === 'fund-large-draft-create') await createLargeFundSpendDraft()
+    if (state.kind === 'fund-large-draft-confirm') await confirmLargeFundSpendDraft(state.draft)
+    if (state.kind === 'fund-large-draft-execute') await executeLargeFundSpendDraft(state.draft)
+    if (state.kind === 'fund-high-risk-receipt') await recordHighRiskReceipt()
+    if (state.kind === 'warehouse-high-value-create') await createHighValueWarehouseWithdrawalDraft(state.item)
+    if (state.kind === 'warehouse-high-value-confirm') await confirmHighValueWarehouseWithdrawalDraft(state.draft)
+    if (state.kind === 'warehouse-high-value-execute') await executeHighValueWarehouseWithdrawalDraft(state.draft)
+    cohabitationRiskConfirm.value = null
   }
 
   const executeSharedDecorationRemovalMainStateMutation = async (draft: CohabitationFundLargeSpendDraft) => {

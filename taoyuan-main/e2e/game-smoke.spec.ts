@@ -1309,6 +1309,183 @@ async function mockOnlineCohabitation(page: Page) {
     lotus_heart_cat_treat: 1
   }
   const sharedPetId = 'shared-pet-e2e'
+  const buildFundDraft = (overrides: Record<string, any>) => ({
+    id: 'fund-draft-e2e',
+    contract_id: contract.id,
+    state: 'pending_confirmation',
+    requested_by: 'tester',
+    requested_by_key: 'tester',
+    amount: 1500,
+    purpose: 'family_building',
+    purpose_label: '家族建筑',
+    spend_category: 'building',
+    target_ref: 'family_building:family_hall:build',
+    memo: '',
+    balance_snapshot: 5000,
+    projected_balance_after: 3500,
+    current_balance_snapshot: 5000,
+    projected_current_balance_after: 3500,
+    balance_sufficient: true,
+    required_member_usernames: ['tester', 'helper'],
+    confirmed_member_usernames: ['helper'],
+    pending_member_usernames: ['tester'],
+    confirmation_events: [],
+    confirmation_state: {
+      required_member_usernames: ['tester', 'helper'],
+      confirmed_member_usernames: ['helper'],
+      pending_member_usernames: ['tester'],
+      requester_auto_confirmed: false,
+      requires_all_members: true,
+      all_members_confirmed: false,
+      ready_for_execution_request: false,
+      last_confirmed_by: 'helper',
+      last_confirmed_at: 1,
+      can_execute_now: false,
+      execution_enabled: true,
+      policy: 'all_members'
+    },
+    created_at: 1,
+    expires_at: 9999999999,
+    ready_at: 0,
+    confirmed_at: 0,
+    executed_at: 0,
+    executed_by: '',
+    last_confirmed_by: 'helper',
+    last_confirmed_at: 1,
+    idempotency_key: 'fund-draft-e2e',
+    confirmation_required: true,
+    confirmation_status: 'pending',
+    execution_enabled: true,
+    final_spend_ledger_id: '',
+    final_building_ledger_id: '',
+    high_risk_receipt_id: '',
+    high_risk_receipt_status: '',
+    high_risk_receipt_outcome: '',
+    high_risk_receipt_ref: '',
+    high_risk_receipt_memo: '',
+    high_risk_receipt_idempotency_key: '',
+    high_risk_receipt_at: 0,
+    high_risk_receipt_by: '',
+    high_risk_receipt_by_display_name: '',
+    high_risk_refund_ledger_id: '',
+    compensation_policy: 'audit',
+    deferred_operations: [],
+    ...overrides
+  })
+  const fundLargeSpendDrafts = [
+    buildFundDraft({ id: 'fund-draft-confirm-e2e' }),
+    buildFundDraft({
+      id: 'fund-draft-execute-e2e',
+      state: 'ready_to_execute',
+      confirmation_status: 'confirmed',
+      confirmed_member_usernames: ['tester', 'helper'],
+      pending_member_usernames: [],
+      confirmation_state: {
+        required_member_usernames: ['tester', 'helper'],
+        confirmed_member_usernames: ['tester', 'helper'],
+        pending_member_usernames: [],
+        requester_auto_confirmed: true,
+        requires_all_members: true,
+        all_members_confirmed: true,
+        ready_for_execution_request: true,
+        last_confirmed_by: 'tester',
+        last_confirmed_at: 2,
+        can_execute_now: true,
+        execution_enabled: true,
+        policy: 'all_members'
+      },
+      amount: 1600,
+      projected_current_balance_after: 3400
+    }),
+    buildFundDraft({
+      id: 'fund-draft-receipt-e2e',
+      state: 'executed',
+      confirmation_status: 'confirmed',
+      amount: 1800,
+      purpose: 'rare_item_purchase',
+      purpose_label: '稀有物采购',
+      spend_category: 'purchase',
+      target_ref: 'rare_item:lotus_seed_rare',
+      final_spend_ledger_id: 'fund-ledger-high-risk-e2e',
+      high_risk_receipt_status: 'pending',
+      high_risk_receipt_ref: 'delivery:rare_item:lotus_seed_rare:receipt',
+      executed_at: 3
+    })
+  ]
+  const buildFund = () => ({
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: 'active',
+    balance: 5000,
+    ledger: [],
+    large_spend_drafts: fundLargeSpendDrafts,
+    summary: {
+      balance: 5000,
+      ledger_count: 0,
+      personal_money_merged: false,
+      contribution_enabled: true,
+      spend_enabled: true,
+      medium_spend_enabled: true,
+      large_spend_draft_enabled: true,
+      large_spend_execution_enabled: true,
+      medium_spend_max_amount: 1200,
+      idempotency_required: true,
+      large_spend_requires_both: true,
+      compensation_policy: 'audit',
+      allowed_large_spend_purposes: [
+        { id: 'family_building', label: '家族建筑', category: 'building', max_amount: 5000, confirmation_required: true },
+        { id: 'rare_item_purchase', label: '稀有物采购', category: 'purchase', max_amount: 5000, confirmation_required: true }
+      ]
+    },
+    permissions: { can_spend_large: true, can_spend_medium: true }
+  })
+  const buildWarehouseDraft = (overrides: Record<string, any>) => ({
+    id: 'warehouse-draft-e2e',
+    state: 'pending_confirmation',
+    item_id: 'lotus_heart_cat_treat',
+    quantity: 1,
+    quality: 'rare',
+    risk_level: 'rare',
+    requester_username: 'tester',
+    requester_display_name: '测试者',
+    requester_username_key: 'tester',
+    required_member_usernames: ['tester', 'helper'],
+    confirmation_events: [],
+    confirmation_state: {
+      required_member_usernames: ['tester', 'helper'],
+      confirmed_member_usernames: ['helper'],
+      pending_member_usernames: ['tester'],
+      all_members_confirmed: false,
+      last_confirmed_by: 'helper',
+      last_confirmed_at: 1
+    },
+    frozen_quantity: 1,
+    frozen_at: 1,
+    freeze_release_available: true,
+    freeze_policy: 'both_members',
+    compensation_hint: '按仓库流水补偿',
+    rollback_plan: '撤销冻结会释放共同仓库库存',
+    warehouse_ledger_ids: [],
+    created_at: 1,
+    executed_at: 0,
+    rolled_back_at: 0,
+    ...overrides
+  })
+  const warehouseHighValueDrafts = [
+    buildWarehouseDraft({ id: 'warehouse-draft-confirm-e2e' }),
+    buildWarehouseDraft({
+      id: 'warehouse-draft-execute-e2e',
+      state: 'ready_to_execute',
+      confirmation_state: {
+        required_member_usernames: ['tester', 'helper'],
+        confirmed_member_usernames: ['tester', 'helper'],
+        pending_member_usernames: [],
+        all_members_confirmed: true,
+        last_confirmed_by: 'tester',
+        last_confirmed_at: 2
+      }
+    })
+  ]
 
   const buildSharedWarehouse = () => ({
     contract_id: contract.id,
@@ -1342,18 +1519,30 @@ async function mockOnlineCohabitation(page: Page) {
           created_at: 2
         }]
       : [],
+    high_value_withdrawal_drafts: warehouseHighValueDrafts,
     summary: {
       item_count: Object.values(sharedWarehouseStock).filter(quantity => quantity > 0).length,
       total_quantity: Object.values(sharedWarehouseStock).reduce((sum, quantity) => sum + quantity, 0),
+      frozen_quantity: warehouseHighValueDrafts.length,
       ledger_count: sharedPetCareCount > 0 ? 1 : 0,
       personal_money_merged: false,
       deposit_enabled: true,
       withdraw_enabled: true,
+      high_value_withdrawal_confirmation_enabled: true,
+      high_value_withdrawal_draft_count: warehouseHighValueDrafts.length,
+      active_high_value_withdrawal_draft_count: warehouseHighValueDrafts.length,
       sell_enabled: true,
       idempotency_required: true,
       compensation_policy: 'audit'
     },
-    permissions: {}
+    permissions: {
+      can_create_high_value_withdrawal_draft: true,
+      can_withdraw_high_quality: true,
+      can_withdraw_rare: true,
+      can_withdraw_common: true,
+      can_sell_items: true,
+      can_deposit: true
+    }
   })
 
   const buildSharedPet = () => {
@@ -1643,8 +1832,125 @@ async function mockOnlineCohabitation(page: Page) {
   await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/warehouse', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ warehouse: buildSharedWarehouse() })) })
   })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/warehouse/high-value-withdrawal-drafts', async route => {
+    const payload = route.request().postDataJSON() as { item_id?: string; quantity?: number; quality?: string } | null
+    expect(payload?.item_id).toBe('lotus_heart_cat_treat')
+    expect(payload?.quantity).toBe(1)
+    const draft = buildWarehouseDraft({
+      id: 'warehouse-draft-created-e2e',
+      item_id: payload?.item_id || 'lotus_heart_cat_treat',
+      quality: payload?.quality || 'rare'
+    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ warehouse: buildSharedWarehouse(), draft })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/warehouse/high-value-withdrawal-drafts/warehouse-draft-confirm-e2e/confirm', async route => {
+    const payload = route.request().postDataJSON() as { confirmation_text?: string; freeze_acknowledged?: boolean; rollback_plan_acknowledged?: boolean } | null
+    expect(payload?.confirmation_text).toBe('确认高价值取出冻结与回滚方案')
+    expect(payload?.freeze_acknowledged).toBe(true)
+    expect(payload?.rollback_plan_acknowledged).toBe(true)
+    const draft = buildWarehouseDraft({
+      id: 'warehouse-draft-confirm-e2e',
+      state: 'ready_to_execute',
+      confirmation_state: {
+        required_member_usernames: ['tester', 'helper'],
+        confirmed_member_usernames: ['tester', 'helper'],
+        pending_member_usernames: [],
+        all_members_confirmed: true,
+        last_confirmed_by: 'tester',
+        last_confirmed_at: 4
+      }
+    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ warehouse: buildSharedWarehouse(), draft })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/warehouse/high-value-withdrawal-drafts/warehouse-draft-execute-e2e/execute', async route => {
+    const payload = route.request().postDataJSON() as { expected_state?: string; reason?: string } | null
+    expect(payload?.expected_state).toBe('ready_to_execute')
+    expect(payload?.reason).toContain('高价值取出')
+    const draft = buildWarehouseDraft({
+      id: 'warehouse-draft-execute-e2e',
+      state: 'executed',
+      executed_at: 5,
+      confirmation_state: {
+        required_member_usernames: ['tester', 'helper'],
+        confirmed_member_usernames: ['tester', 'helper'],
+        pending_member_usernames: [],
+        all_members_confirmed: true,
+        last_confirmed_by: 'tester',
+        last_confirmed_at: 2
+      }
+    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ warehouse: buildSharedWarehouse(), draft, personal_inventory: { total_quantity: 1 } })) })
+  })
   await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/fund', async route => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', balance: 300, ledger: [], large_spend_drafts: [], summary: { balance: 300, ledger_count: 0, personal_money_merged: false, contribution_enabled: true, spend_enabled: true, idempotency_required: true, large_spend_requires_both: true, compensation_policy: 'audit' }, permissions: {} } })) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: buildFund() })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/fund/large-spend-draft', async route => {
+    const payload = route.request().postDataJSON() as { amount?: number; purpose?: string; target_ref?: string } | null
+    expect(payload?.amount).toBeGreaterThanOrEqual(1201)
+    expect(payload?.purpose).toBeTruthy()
+    expect(payload?.target_ref).toBeTruthy()
+    const draft = buildFundDraft({
+      id: 'fund-draft-created-e2e',
+      amount: payload?.amount || 1500,
+      purpose: payload?.purpose || 'family_building',
+      target_ref: payload?.target_ref || 'family_building:family_hall:build'
+    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: buildFund(), draft, idempotent: false })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/fund/large-spend-drafts/fund-draft-confirm-e2e/confirm', async route => {
+    const payload = route.request().postDataJSON() as { memo?: string } | null
+    expect(payload?.memo).toContain('共同基金大额草案')
+    const draft = buildFundDraft({
+      id: 'fund-draft-confirm-e2e',
+      state: 'ready_to_execute',
+      confirmation_status: 'confirmed',
+      confirmed_member_usernames: ['tester', 'helper'],
+      pending_member_usernames: [],
+      confirmation_state: {
+        required_member_usernames: ['tester', 'helper'],
+        confirmed_member_usernames: ['tester', 'helper'],
+        pending_member_usernames: [],
+        requester_auto_confirmed: true,
+        requires_all_members: true,
+        all_members_confirmed: true,
+        ready_for_execution_request: true,
+        last_confirmed_by: 'tester',
+        last_confirmed_at: 4,
+        can_execute_now: true,
+        execution_enabled: true,
+        policy: 'all_members'
+      }
+    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: buildFund(), draft })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/fund/large-spend-drafts/fund-draft-execute-e2e/execute', async route => {
+    const payload = route.request().postDataJSON() as { memo?: string } | null
+    expect(payload?.memo).toContain('执行共同基金大额草案扣款')
+    const draft = buildFundDraft({
+      id: 'fund-draft-execute-e2e',
+      state: 'executed',
+      confirmation_status: 'confirmed',
+      final_spend_ledger_id: 'fund-ledger-executed-e2e',
+      amount: 1600,
+      executed_at: 5
+    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: { ...buildFund(), balance: 3400 }, draft })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/fund/large-spend-drafts/fund-draft-receipt-e2e/high-risk-receipt', async route => {
+    const payload = route.request().postDataJSON() as { outcome?: string; receipt_ref?: string } | null
+    expect(payload?.outcome).toBe('delivered')
+    expect(payload?.receipt_ref).toContain('delivery:')
+    const draft = buildFundDraft({
+      id: 'fund-draft-receipt-e2e',
+      state: 'executed',
+      purpose: 'rare_item_purchase',
+      purpose_label: '稀有物采购',
+      final_spend_ledger_id: 'fund-ledger-high-risk-e2e',
+      high_risk_receipt_status: 'delivered',
+      high_risk_receipt_outcome: 'delivered',
+      high_risk_receipt_ref: payload?.receipt_ref || 'delivery:rare_item:lotus_seed_rare:receipt'
+    })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: buildFund(), draft, shared_fund: { balance_after: 5000, refund_amount: 0 } })) })
   })
   await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/permissions', async route => {
     if (route.request().method() === 'POST') {
@@ -3565,6 +3871,79 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-cohabitation-overview-warehouse-card')).toBeVisible()
     await expect(page.getByTestId('online-cohabitation-overview-risk-card')).toBeVisible()
     await expect(page.getByTestId('online-cohabitation-overview-details')).not.toHaveAttribute('open', '')
+  })
+
+  test('online cohabitation fund and warehouse high risk actions require confirm dialog', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '高风险')
+    await mockOnlineCohabitation(page)
+
+    const confirmRiskDialog = async (phrase: string) => {
+      const dialog = page.getByTestId('online-confirm-action-dialog')
+      const confirmButton = page.getByTestId('online-confirm-action-dialog-confirm')
+      await expect(dialog).toBeVisible()
+      await expect(confirmButton).toBeDisabled()
+      await page.getByTestId('online-confirm-required-text').fill(phrase)
+      await expect(confirmButton).toBeEnabled()
+      await confirmButton.click()
+      await expect(dialog).toBeHidden()
+    }
+
+    await page.goto('/#/game/online/cohabitation')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+
+    await openCohabitationTab(page, 'fund')
+    await page.getByTestId('online-cohabitation-fund-large-draft-submit').click()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认创建大额基金草案')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('家族建筑')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('共同基金')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('个人铜币')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('共同仓库')
+    await confirmRiskDialog('确认消耗共同资产')
+    await expect(page.getByText('已创建 家族建筑 草案，等待成员确认')).toBeVisible()
+
+    await page.getByTestId('online-cohabitation-fund-large-draft-confirm-fund-draft-confirm-e2e').click()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认这笔共同基金草案')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('确认阶段不扣款')
+    await confirmRiskDialog('确认消耗共同资产')
+    await expect(page.getByText('草案已完成确认，可执行扣款')).toBeVisible()
+
+    await page.getByTestId('online-cohabitation-fund-large-draft-execute-fund-draft-execute-e2e').click()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认执行共同基金扣款')
+    await expect(page.getByTestId('online-confirm-irreversible')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('预计余额')
+    await confirmRiskDialog('确认消耗共同资产')
+    await expect(page.getByText('已扣款 1600 文，基金余额 3400 文')).toBeVisible()
+
+    await page.getByTestId('online-cohabitation-fund-large-draft-receipt-fund-draft-receipt-e2e').click()
+    await expect(page.getByTestId('online-cohabitation-fund-high-risk-receipt-form')).toBeVisible()
+    await page.getByTestId('online-cohabitation-fund-high-risk-receipt-submit').click()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认记录高风险回执')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('交付')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('既有扣款')
+    await confirmRiskDialog('确认消耗共同资产')
+    await expect(page.getByText('已记录交付回执，高风险草案收口')).toBeVisible()
+
+    await openCohabitationTab(page, 'warehouse')
+    await page.getByTestId('online-cohabitation-warehouse-high-value-draft-lotus_heart_cat_treat').click()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认申请高价值取用')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('目标用途')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('个人背包')
+    await confirmRiskDialog('确认取用共同资产')
+    await expect(page.getByText('已冻结 莲心桂花糕 x1，等待成员确认')).toBeVisible()
+
+    await page.getByTestId('online-cohabitation-warehouse-high-value-confirm-warehouse-draft-confirm-e2e').click()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认高价值取用草案')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('确认阶段不放入个人背包')
+    await confirmRiskDialog('确认取用共同资产')
+    await expect(page.getByText('双方已确认，草案可执行')).toBeVisible()
+
+    await page.getByTestId('online-cohabitation-warehouse-high-value-execute-warehouse-draft-execute-e2e').click()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认执行高价值取用')
+    await expect(page.getByTestId('online-confirm-irreversible')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('取出到操作者个人背包')
+    await confirmRiskDialog('确认取用共同资产')
+    await expect(page.getByText('已执行高价值取出，个人背包现有 1 个')).toBeVisible()
   })
 
   test('online cohabitation shared pet care uses shared warehouse feed', async ({ page }) => {
