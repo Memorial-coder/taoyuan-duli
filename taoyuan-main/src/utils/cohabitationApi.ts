@@ -3841,6 +3841,11 @@ export interface CohabitationFundHighRiskReceiptResponse extends CohabitationFun
   warehouse_ledger_entry?: CohabitationWarehouseLedgerEntry | null
   warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
   shared_decoration_state_entry?: Record<string, unknown> | null
+  shared_decoration_ledger_entry?: Record<string, unknown> | null
+  shared_decoration_origin_asset_changed?: boolean
+  shared_decoration_origin_asset_removed_count?: number
+  shared_decoration_origin_asset_ids?: string[]
+  shared_decoration_origin_assets?: Array<Record<string, unknown>>
   family_major_event_entry?: Record<string, unknown> | null
   shared_fund?: CohabitationFundLargeSpendDraftResponse['shared_fund'] & {
     refund_amount?: number

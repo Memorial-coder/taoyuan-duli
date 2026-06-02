@@ -14897,6 +14897,44 @@ const decorationRemovalDeliveredExecute = await runtime.executeCohabitationFundL
   idempotency_key: 'qa-shared-decoration-removal-delivered-execute',
 }, actor(decorationRemovalDeliveredOwner))
 assert.ok(decorationRemovalDeliveredExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed' && entry.detail?.required_permission_keys?.includes('construction.demolish_building')), 'delivered-path shared decoration removal execution should audit demolish permission')
+await mutateStoredContract(decorationRemovalDeliveredContractId, contract => {
+  const existingDecorations = Array.isArray(contract.origin_assets?.decorations) ? contract.origin_assets.decorations : []
+  contract.origin_assets = contract.origin_assets || {}
+  contract.origin_assets.decorations = [
+    {
+      id: 'qa-origin-decoration-stone-lantern',
+      decoration_id: 'stone_lantern',
+      decoration_kind: 'common',
+      quantity: 1,
+      origin_owner_id: `shared_fund:${contract.id}`,
+      origin_owner_username: 'shared_fund',
+      origin_owner_key: 'shared_fund',
+      origin_owner_display_name: 'shared fund purchase',
+      source_inventory: 'shared_decoration_state',
+      ledger_id: 'qa-origin-decoration-stone-lantern-purchase-ledger',
+      source_ledger_id: 'qa-origin-decoration-stone-lantern-purchase-ledger',
+      fund_ledger_id: decorationRemovalDeliveredExecute.ledger_entry.id,
+      draft_id: decorationRemovalDeliveredDraft.draft.id,
+      receipt_id: 'qa-existing-stone-lantern-delivery',
+      receipt_ref: 'limited_decoration_receipt:stone_lantern:seeded',
+      purchased_by_username: decorationRemovalDeliveredOwner,
+      purchased_by_display_name: decorationRemovalDeliveredOwner,
+      purchased_by_key: decorationRemovalDeliveredOwner,
+      purchased_at: decorationRemovalDeliveredExecute.ledger_entry.at,
+      placed_by_username: decorationRemovalDeliveredOwner,
+      placed_by_display_name: decorationRemovalDeliveredOwner,
+      placed_by_key: decorationRemovalDeliveredOwner,
+      placed_at: decorationRemovalDeliveredExecute.ledger_entry.at,
+      placement_ref: 'shared_decoration:stone_lantern:remove',
+      is_divisible: false,
+      split_policy: 'non_divisible_shared_fund_decoration_compensate_or_memorialize_on_separation',
+      return_policy: 'non_divisible_shared_fund_decoration_compensate_or_memorialize',
+      status: 'active',
+      idempotency_key: 'qa-existing-stone-lantern-delivery',
+    },
+    ...existingDecorations.filter(entry => entry.id !== 'qa-origin-decoration-stone-lantern'),
+  ]
+})
 const decorationRemovalDeliveredPendingPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
   reason: 'qa shared decoration removal delivered pending dispute freeze',
   idempotency_key: 'qa-shared-decoration-removal-delivered-pending-preview',
@@ -14963,10 +15001,32 @@ assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.f
 assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.receipt_id, decorationRemovalDeliveredReceipt.receipt.id, 'shared decoration removal ledger should reference receipt id')
 assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.shared_decoration_state_entry_id, decorationRemovalDeliveredReceipt.shared_decoration_state_entry?.id, 'shared decoration removal ledger should link state entry')
 assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.personal_home_mutated, false, 'shared decoration removal ledger should keep personal home boundary')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_origin_asset_changed, true, 'shared decoration removal receipt should mark traceable origin asset changed')
+assert.equal(decorationRemovalDeliveredReceipt.shared_decoration_origin_asset_removed_count, 1, 'shared decoration removal receipt should mark one traceable origin asset removed')
+assert.deepEqual(decorationRemovalDeliveredReceipt.shared_decoration_origin_asset_ids, ['qa-origin-decoration-stone-lantern'], 'shared decoration removal receipt should return removed origin asset id')
+const removedStoneLanternOrigin = decorationRemovalDeliveredReceipt.contract.origin_assets.decorations.find(entry => entry.id === 'qa-origin-decoration-stone-lantern')
+assert.equal(removedStoneLanternOrigin?.status, 'removed', 'shared decoration removal receipt should set origin asset status removed')
+assert.equal(removedStoneLanternOrigin?.fund_ledger_id, decorationRemovalDeliveredExecute.ledger_entry.id, 'removed origin asset should preserve original fund ledger trace')
+assert.equal(removedStoneLanternOrigin?.ledger_id, 'qa-origin-decoration-stone-lantern-purchase-ledger', 'removed origin asset should preserve original purchase ledger trace')
+assert.equal(removedStoneLanternOrigin?.removal_ledger_id, decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.id, 'removed origin asset should record removal decoration ledger')
+assert.equal(removedStoneLanternOrigin?.removal_fund_ledger_id, decorationRemovalDeliveredExecute.ledger_entry.id, 'removed origin asset should record removal fund ledger')
+assert.equal(removedStoneLanternOrigin?.removal_draft_id, decorationRemovalDeliveredDraft.draft.id, 'removed origin asset should record removal draft')
+assert.equal(removedStoneLanternOrigin?.removal_state_entry_id, decorationRemovalDeliveredReceipt.shared_decoration_state_entry?.id, 'removed origin asset should record removal state entry')
+assert.equal(removedStoneLanternOrigin?.removal_receipt_id, decorationRemovalDeliveredReceipt.receipt.id, 'removed origin asset should record removal receipt id')
+assert.equal(removedStoneLanternOrigin?.removal_receipt_ref, 'shared_decoration_removal_receipt:stone_lantern:done', 'removed origin asset should record removal receipt ref')
+assert.equal(removedStoneLanternOrigin?.removal_idempotency_key, 'qa-shared-decoration-removal-delivered-receipt', 'removed origin asset should record removal idempotency key')
 assert.equal(decorationRemovalDeliveredReceipt.family_major_event_entry, null, 'shared decoration removal should not write family event state')
 assert.equal(decorationRemovalDeliveredReceipt.contract.shared_decoration_state?.[0]?.receipt_id, decorationRemovalDeliveredReceipt.receipt.id, 'shared decoration removal state should be readable from contract shared decoration state')
 assert.equal(decorationRemovalDeliveredReceipt.contract.shared_decoration_ledger?.[0]?.id, decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.id, 'shared decoration removal ledger should be readable from public contract')
 assert.ok(decorationRemovalDeliveredReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.shared_decoration_ledger_id === decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.id), 'shared decoration removal audit should include decoration ledger id')
+assert.ok(decorationRemovalDeliveredReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.shared_decoration_origin_asset_removed_count === 1), 'shared decoration removal audit should include removed origin asset count')
+const duplicateDecorationRemovalDeliveredReceipt = await runtime.recordCohabitationFundHighRiskReceipt(decorationRemovalDeliveredContractId, decorationRemovalDeliveredDraft.draft.id, {
+  outcome: 'delivered',
+  receipt_ref: 'shared_decoration_removal_receipt:stone_lantern:done',
+  idempotency_key: 'qa-shared-decoration-removal-delivered-receipt',
+}, actor(decorationRemovalDeliveredOwner))
+assert.equal(duplicateDecorationRemovalDeliveredReceipt.idempotent, true, 'shared decoration removal delivered receipt should be idempotent')
+assert.equal(duplicateDecorationRemovalDeliveredReceipt.shared_decoration_origin_asset_removed_count, 1, 'duplicate shared decoration removal receipt should return removed origin asset evidence')
 const decorationRemovalDeliveredClearedPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
   reason: 'qa shared decoration removal delivered receipt clears dispute freeze',
   idempotency_key: 'qa-shared-decoration-removal-delivered-cleared-preview',
@@ -15697,6 +15757,44 @@ const offlineDecorationRemovalReceiptExecute = await runtime.executeCohabitation
   memo: 'qa execute offline shared decoration removal receipt',
   idempotency_key: 'qa-offline-shared-decoration-removal-receipt-execute',
 }, actor(offlineDecorationRemovalReceiptOwner))
+await mutateStoredContract(offlineDecorationRemovalReceiptContractId, contract => {
+  const existingDecorations = Array.isArray(contract.origin_assets?.decorations) ? contract.origin_assets.decorations : []
+  contract.origin_assets = contract.origin_assets || {}
+  contract.origin_assets.decorations = [
+    {
+      id: 'qa-origin-decoration-river-screen',
+      decoration_id: 'river_screen',
+      decoration_kind: 'common',
+      quantity: 1,
+      origin_owner_id: `shared_fund:${contract.id}`,
+      origin_owner_username: 'shared_fund',
+      origin_owner_key: 'shared_fund',
+      origin_owner_display_name: 'shared fund purchase',
+      source_inventory: 'shared_decoration_state',
+      ledger_id: 'qa-origin-decoration-river-screen-purchase-ledger',
+      source_ledger_id: 'qa-origin-decoration-river-screen-purchase-ledger',
+      fund_ledger_id: offlineDecorationRemovalReceiptExecute.ledger_entry.id,
+      draft_id: offlineDecorationRemovalReceiptDraft.draft.id,
+      receipt_id: 'qa-existing-river-screen-delivery',
+      receipt_ref: 'limited_decoration_receipt:river_screen:seeded',
+      purchased_by_username: offlineDecorationRemovalReceiptOwner,
+      purchased_by_display_name: offlineDecorationRemovalReceiptOwner,
+      purchased_by_key: offlineDecorationRemovalReceiptOwner,
+      purchased_at: offlineDecorationRemovalReceiptExecute.ledger_entry.at,
+      placed_by_username: offlineDecorationRemovalReceiptOwner,
+      placed_by_display_name: offlineDecorationRemovalReceiptOwner,
+      placed_by_key: offlineDecorationRemovalReceiptOwner,
+      placed_at: offlineDecorationRemovalReceiptExecute.ledger_entry.at,
+      placement_ref: 'shared_decoration:river_screen:remove',
+      is_divisible: false,
+      split_policy: 'non_divisible_shared_fund_decoration_compensate_or_memorialize_on_separation',
+      return_policy: 'non_divisible_shared_fund_decoration_compensate_or_memorialize',
+      status: 'active',
+      idempotency_key: 'qa-existing-river-screen-delivery',
+    },
+    ...existingDecorations.filter(entry => entry.id !== 'qa-origin-decoration-river-screen'),
+  ]
+})
 await runtime.updateCohabitationPermissions(offlineDecorationRemovalReceiptContractId, {
   target_username: offlineDecorationRemovalReceiptOwner,
   permissions: {
@@ -15768,11 +15866,21 @@ assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]
 assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_warehouse_changed, false, 'offline decoration removal receipt should not mutate shared warehouse')
 assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_ledger_count, 1, 'offline decoration removal receipt should report one decoration ledger')
 assert.ok(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_ledger_id, 'offline decoration removal receipt should return decoration ledger id')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_origin_asset_changed, true, 'offline decoration removal receipt should report origin asset status change')
+assert.equal(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_origin_asset_removed_count, 1, 'offline decoration removal receipt should report one removed origin asset')
+assert.deepEqual(offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_origin_asset_ids, ['qa-origin-decoration-river-screen'], 'offline decoration removal receipt should return removed origin asset id')
 assert.equal(offlineDecorationRemovalReceiptQueue.offline_conflict_resolution.shared_decoration_state_changed, true, 'offline conflict resolution should summarize removal receipt shared decoration state change')
 assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'river_screen')?.state, 'removed', 'offline decoration removal receipt should persist removed state')
 assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_state?.find(entry => entry.decoration_id === 'river_screen')?.fund_ledger_id, offlineDecorationRemovalReceiptExecute.ledger_entry.id, 'offline decoration removal receipt should retain original fund ledger trace')
 assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_decoration_ledger?.find(entry => entry.decoration_id === 'river_screen')?.id, offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_ledger_id, 'offline decoration removal receipt should persist decoration ledger')
+const removedRiverScreenOrigin = offlineDecorationRemovalReceiptQueue.contract.origin_assets.decorations.find(entry => entry.id === 'qa-origin-decoration-river-screen')
+assert.equal(removedRiverScreenOrigin?.status, 'removed', 'offline decoration removal receipt should mark origin asset removed')
+assert.equal(removedRiverScreenOrigin?.fund_ledger_id, offlineDecorationRemovalReceiptExecute.ledger_entry.id, 'offline removed origin asset should preserve original fund ledger trace')
+assert.equal(removedRiverScreenOrigin?.ledger_id, 'qa-origin-decoration-river-screen-purchase-ledger', 'offline removed origin asset should preserve original purchase ledger trace')
+assert.equal(removedRiverScreenOrigin?.removal_ledger_id, offlineDecorationRemovalReceiptQueue.offline_queue_merge.results[0]?.shared_decoration_ledger_id, 'offline removed origin asset should record removal decoration ledger')
+assert.equal(removedRiverScreenOrigin?.removal_receipt_ref, 'shared_decoration_removal_receipt:river_screen:offline-done', 'offline removed origin asset should record removal receipt ref')
 assert.ok(offlineDecorationRemovalReceiptQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-receipt-op'), 'offline decoration removal receipt should write high-risk receipt audit')
+assert.ok(offlineDecorationRemovalReceiptQueue.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-receipt-op' && entry.detail?.shared_decoration_origin_asset_removed_count === 1), 'offline decoration removal receipt should audit removed origin asset count')
 assert.ok(offlineDecorationRemovalReceiptQueue.contract.audit_log.find(entry => entry.action === 'offline_queue_merged' && entry.idempotency_key === 'qa-offline-shared-decoration-removal-receipt-queue' && entry.detail?.offline_conflict_resolution?.shared_decoration_state_changed === true), 'offline decoration removal receipt queue should write merge audit evidence')
 assert.equal(offlineDecorationRemovalReceiptQueue.contract.shared_fund.balance, offlineDecorationRemovalReceiptBalanceBeforeDraft - 1300, 'offline decoration removal receipt should keep executed fund deduction only')
 assert.equal(saveRuntime.loadUserSaveSlots(offlineDecorationRemovalReceiptOwner).slots[0].raw, offlineDecorationRemovalReceiptOwnerRawBefore, 'offline decoration removal receipt should not rewrite owner save')

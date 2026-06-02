@@ -12,6 +12,10 @@
 - 共同工坊配方下拉新增共同灶台水晶冻、金矿饺、虚空精华汤、虚空药剂、矿工荣光和深渊炖菜，以及共同酒坊暗影酿，可从共同仓库扣水晶矿、金矿、暗影矿、虚空矿、水晶虾、人参、蜂蜜、冬小麦、草药、木柴、鸡蛋和稻米，并把料理产物回存共同仓库。
 - 共同仓库策略版本升到 v40，四类高价值矿石、水晶虾和七类矿石系料理成品进入稀有目录；服务端在消费这些稀有材料前要求 `storage.withdraw_rare`，契约 QA 覆盖无权限阻断、授权后 consume / deposit 流水、稀有来源资产和个人 / 基金边界。
 
+### 0602 20.1 共同装修拆除来源资产状态同步
+- `shared_decoration_removal` 完成回执会在返回共同装饰 state / ledger 的同时读回来源装饰资产同步结果：可追溯 `origin_assets.decorations` 会标记为 `removed`，并保留原购买 ledger、拆除 ledger、回执、草案和幂等键证据。
+- 离线队列 `record_shared_decoration_removal_receipt` 同步返回 `shared_decoration_origin_asset_*` 证据，仍不改个人小屋、个人背包、共同仓库或共同基金二次扣款。
+
 ### 0602 20.1 共同基金稀有采购入仓保护
 - 共同基金 `rare_item_purchase` 高风险草案在 `delivered` 回执后会把稀有物交付到共同仓库，返回仓库快照、`warehouse_ledger_entry` 和 `warehouse_ledger_entries`，并把来源基金 ledger、`shared_fund_deliveries` 与来源资产串起来。
 - 稀有采购入仓后仍读回 `withdrawal_risk_level=rare` 与 `high_value_withdrawal_required=true`，在线 / 离线回执均不改个人背包或个人铜币；`qa:cohabitation-contract` 覆盖在线回执、离线队列、审计和高价值取出保护边界。
