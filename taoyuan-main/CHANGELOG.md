@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0602 在线节会房准备大厅接入
+- 在线节会房状态区新增 `online-festival-room-lobby-trigger`，主行动打开统一 `OnlineRoomLobbyDialog`；大厅接收节会房快照映射、当前用户视角、最近反馈和忙碌状态。
+- 开始准备、我已准备、取消准备、开始倒计时都从大厅事件回调既有 `festivalRoomStore` action；旧准备 / 倒计时 test id 保留在默认折叠的「备用房间操作」中，结构 QA 已补页面接入断言。
+
 ### 0602 在线房间按钮矩阵
 - `OnlineRoomLobbyDialog` 新增房主状态矩阵和成员状态矩阵，覆盖创建、准备检查、倒计时、运行中、结算中、已结算、已关闭、受邀、已加入、已准备、断线等状态；每个状态只保留一个推荐主行动，次行动和危险行动进入矩阵的 secondary / danger 分组。
 - 禁用动作会通过 `online-room-disabled-reason` 展示可见原因，结构 QA 新增矩阵覆盖、单 primary、capability 控制和页面承接事件断言；本轮不改后端房间状态机，也不替代后续结算 / 关闭确认弹窗任务。

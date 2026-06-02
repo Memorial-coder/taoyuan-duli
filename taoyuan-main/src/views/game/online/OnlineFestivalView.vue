@@ -308,13 +308,39 @@
                 >
                   <template #actions>
                     <Button
+                      class="online-action-btn online-action-btn--primary min-h-[44px] justify-center"
+                      data-testid="online-festival-room-lobby-trigger"
+                      :disabled="festivalRoomStore.actionRunning"
+                      @click="openFestivalRoomLobby"
+                    >
+                      <UsersRound :size="14" aria-hidden="true" />
+                      打开准备大厅
+                    </Button>
+                  </template>
+                </OnlineVisualRoomShell>
+                <OnlineTechnicalDetails
+                  v-if="festivalRoomStore.myRoom.can_disconnect"
+                  title="调试操作"
+                  summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
+                >
+                  <Button class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
+                    网络异常测试
+                  </Button>
+                </OnlineTechnicalDetails>
+                <OnlineTechnicalDetails
+                  v-if="festivalRoomBackupActionsVisible"
+                  title="备用房间操作"
+                  summary="旧准备、倒计时、结算和关闭入口保留为测试钩子；主流程请打开准备大厅。"
+                >
+                  <div class="grid gap-2 sm:grid-cols-2" data-testid="online-festival-room-lobby-backup-actions">
+                    <Button
                       v-if="festivalRoomStore.myRoom.can_host_ready_check"
                       class="online-action-btn online-action-btn--compact justify-center"
                       data-testid="online-festival-room-ready-check-submit"
                       :disabled="festivalRoomStore.actionRunning"
                       @click="startReadyCheck(festivalRoomStore.myRoom.id)"
                     >
-                      开准备
+                      开始准备
                     </Button>
                     <Button
                       v-if="festivalRoomStore.myRoom.can_ready"
@@ -335,7 +361,7 @@
                       :disabled="festivalRoomStore.actionRunning"
                       @click="startCountdown(festivalRoomStore.myRoom.id)"
                     >
-                      开倒计时
+                      开始倒计时
                     </Button>
                     <Button v-if="festivalRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="reconnectRoom(festivalRoomStore.myRoom.id)">
                       恢复连接
@@ -361,16 +387,7 @@
                     <Button v-if="festivalRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="leaveRoom(festivalRoomStore.myRoom.id)">
                       离开房间
                     </Button>
-                  </template>
-                </OnlineVisualRoomShell>
-                <OnlineTechnicalDetails
-                  v-if="festivalRoomStore.myRoom.can_disconnect"
-                  title="调试操作"
-                  summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
-                >
-                  <Button class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
-                    网络异常测试
-                  </Button>
+                  </div>
                 </OnlineTechnicalDetails>
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -1785,6 +1802,36 @@
       @close="closeFestivalInvitePanel"
     />
 
+    <OnlineRoomLobbyDialog
+      :open="showFestivalRoomLobby"
+      domain="festival"
+      :room="festivalLobbyRoom"
+      :current-user-id="festivalLobbyCurrentUserId"
+      :busy-action="festivalRoomStore.actionRunning"
+      :last-feedback="festivalLobbyLastFeedback"
+      @invite="openFestivalInvitePanel"
+      @ready="handleFestivalLobbyReady"
+      @unready="handleFestivalLobbyUnready"
+      @start-ready-check="handleFestivalLobbyStartReadyCheck"
+      @start-countdown="handleFestivalLobbyStartCountdown"
+      @settle="handleFestivalLobbySettle"
+      @cancel-room="handleFestivalLobbyCloseRoom"
+      @leave-room="handleFestivalLobbyLeaveRoom"
+      @accept-invite="handleFestivalLobbyAcceptInvite"
+      @reconnect="handleFestivalLobbyReconnect"
+      @view-countdown="openFestivalRoomLobby"
+      @enter-gameplay="closeFestivalRoomLobby"
+      @view-members="openFestivalRoomLobby"
+      @view-objective="closeFestivalRoomLobby"
+      @view-settlement="closeFestivalRoomLobby"
+      @view-record="closeFestivalRoomLobby"
+      @return-lobby="closeFestivalRoomLobby"
+      @notify-members="openFestivalInvitePanel"
+      @retry-settle="handleFestivalLobbySettle"
+      @rematch="openFestivalRoomWizard"
+      @close="closeFestivalRoomLobby"
+    />
+
     <OnlineInvitePanel
       :open="showExpeditionInvitePanel"
       domain="expedition"
@@ -1804,10 +1851,11 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { CalendarDays, Flag, Lamp, UserPlus } from 'lucide-vue-next'
+  import { CalendarDays, Flag, Lamp, UserPlus, UsersRound } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import OnlineInvitePanel, { type OnlineInviteResult } from '@/components/game/online/OnlineInvitePanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineRoomLobbyDialog, { type OnlineRoomLobbyRoom } from '@/components/game/online/OnlineRoomLobbyDialog.vue'
   import OnlineRoomWizard, { type OnlineRoomWizardDraft } from '@/components/game/online/OnlineRoomWizard.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import OnlineVisualRoomShell from '@/components/game/online/OnlineVisualRoomShell.vue'
@@ -1892,6 +1940,7 @@
 
   const activeTab = ref<FestivalTabKey>(normalizeTab(route.query.tab))
   const showFestivalRoomWizard = ref(false)
+  const showFestivalRoomLobby = ref(false)
   const showExpeditionRoomWizard = ref(false)
   const showFestivalInvitePanel = ref(false)
   const showExpeditionInvitePanel = ref(false)
@@ -2169,6 +2218,79 @@
       statusLabel: member.status_label,
       isHost: member.username === room.host_username,
     }))
+  })
+  const festivalLobbyIsHostUser = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return false
+    return room.can_host_ready_check || room.can_host_start_countdown || room.can_host_settle || room.can_host_close
+  })
+  const festivalLobbyCurrentMember = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return null
+    if (festivalLobbyIsHostUser.value) {
+      return room.members.find(member => member.username === room.host_username) ?? null
+    }
+    const nonHostWithMyStatus = room.members.find(member => member.username !== room.host_username && member.status === room.my_member_status)
+    if (nonHostWithMyStatus) return nonHostWithMyStatus
+    return room.members.find(member => member.status === room.my_member_status)
+      ?? room.members.find(member => member.username !== room.host_username)
+      ?? room.members[0]
+      ?? null
+  })
+  const festivalLobbyCurrentUserId = computed(() =>
+    festivalLobbyCurrentMember.value?.username || (festivalLobbyIsHostUser.value ? festivalRoomStore.myRoom?.host_username || '' : '')
+  )
+  const festivalLobbyRoom = computed<OnlineRoomLobbyRoom | null>(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return null
+    return {
+      id: room.id,
+      title: room.title,
+      template_label: room.template_label,
+      gameplay_template_label: room.gameplay.template_label,
+      state: room.state,
+      state_label: room.state_label,
+      host_username: room.host_username,
+      member_limit: room.member_limit,
+      members: room.members.map(member => ({
+        id: member.username,
+        username: member.username,
+        display_name: member.display_name,
+        role: member.username === room.host_username ? 'host' : member.role,
+        status: member.status,
+        status_label: member.status_label,
+        invited_at: member.invited_at,
+        joined_at: member.joined_at,
+        ready_at: member.ready_at,
+        disconnected_at: member.disconnected_at,
+        left_at: member.left_at,
+      })),
+      can_invite: festivalLobbyIsHostUser.value && !['settled', 'closed'].includes(room.state),
+      can_join: room.can_join,
+      can_ready: room.can_ready,
+      can_unready: room.can_unready,
+      can_leave: room.can_leave,
+      can_reconnect: room.can_reconnect,
+      can_host_ready_check: room.can_host_ready_check,
+      can_host_start_countdown: room.can_host_start_countdown,
+      can_host_settle: room.can_host_settle,
+      can_host_close: room.can_host_close,
+    }
+  })
+  const festivalLobbyLastFeedback = computed(() =>
+    festivalRoomActionFeedback.value || festivalRoomStore.errorMessage || festivalRoomStore.myFestivalState?.recent_feedback || ''
+  )
+  const festivalRoomBackupActionsVisible = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return false
+    return room.can_host_ready_check
+      || room.can_ready
+      || room.can_unready
+      || room.can_host_start_countdown
+      || room.can_reconnect
+      || room.can_host_settle
+      || room.can_host_close
+      || room.can_leave
   })
   const festivalInviteExistingMembers = computed(() => {
     const room = festivalRoomStore.myRoom
@@ -2572,6 +2694,12 @@
   const closeFestivalInvitePanel = () => {
     showFestivalInvitePanel.value = false
   }
+  const openFestivalRoomLobby = () => {
+    showFestivalRoomLobby.value = true
+  }
+  const closeFestivalRoomLobby = () => {
+    showFestivalRoomLobby.value = false
+  }
   const openExpeditionInvitePanel = () => {
     activeTab.value = 'expedition-room'
     showExpeditionInvitePanel.value = true
@@ -2702,6 +2830,38 @@
   }
   const reconnectRoom = async (roomId: string) => {
     await festivalRoomStore.reconnectRoomAction(roomId).catch(() => {})
+  }
+  const runFestivalLobbyRoomAction = async (action: (roomId: string) => Promise<void>) => {
+    const roomId = festivalRoomStore.myRoom?.id
+    if (!roomId) return
+    await action(roomId)
+  }
+  const handleFestivalLobbyStartReadyCheck = async () => {
+    await runFestivalLobbyRoomAction(startReadyCheck)
+  }
+  const handleFestivalLobbyReady = async () => {
+    await runFestivalLobbyRoomAction(readyRoom)
+  }
+  const handleFestivalLobbyUnready = async () => {
+    await runFestivalLobbyRoomAction(unreadyRoom)
+  }
+  const handleFestivalLobbyStartCountdown = async () => {
+    await runFestivalLobbyRoomAction(startCountdown)
+  }
+  const handleFestivalLobbySettle = async () => {
+    await runFestivalLobbyRoomAction(settleRoom)
+  }
+  const handleFestivalLobbyCloseRoom = async () => {
+    await runFestivalLobbyRoomAction(closeRoom)
+  }
+  const handleFestivalLobbyLeaveRoom = async () => {
+    await runFestivalLobbyRoomAction(leaveRoom)
+  }
+  const handleFestivalLobbyAcceptInvite = async () => {
+    await runFestivalLobbyRoomAction(joinRoom)
+  }
+  const handleFestivalLobbyReconnect = async () => {
+    await runFestivalLobbyRoomAction(reconnectRoom)
   }
   const playGameplayAction = async (roomId: string, actionId: string) => {
     await festivalRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})

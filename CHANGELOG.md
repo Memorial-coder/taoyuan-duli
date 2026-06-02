@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-02
+- 在线节会房准备大厅接入：节会房状态区主行动收口为「打开准备大厅」，统一 `OnlineRoomLobbyDialog` 承载开始准备、我已准备、取消准备和开始倒计时；旧准备 / 倒计时 test id 保留在默认折叠「备用房间操作」中，结构 QA 增加大厅接入和事件回调断言。
 - 在线房间按钮矩阵：`OnlineRoomLobbyDialog` 新增房主 / 成员显隐矩阵，覆盖创建、准备、倒计时、进行中、结算、关闭、邀请、准备、断线、奖励等状态；每个状态只突出一个主行动，禁用原因统一展示在 `online-room-disabled-reason`，结构 QA 增加矩阵覆盖和单 primary 断言。
 - 在线房间准备大厅组件：新增 `OnlineRoomLobbyDialog`，把房间摘要、成员准备状态、房主 / 成员主行动、最近反馈和禁用原因收进统一抽屉底座；结构 QA 已补 `online-room-lobby`、`online-room-member-list`、`online-room-primary-action` 等断言，后续节会 / 远征页面可接入准备流程。
 - 在线模块壳 tab 语义增强：`OnlineModuleShell` 新增主行动 / 状态 slot，模块 tab 增加 `tablist / tab / aria-selected / aria-controls` 与移动端 sticky 横向滚动；共同庄园、在线庄园、邻里、委托、村社内容区补 `tabpanel` 关联，移动端 smoke 改用稳定 `online-module-tab-*` 定位新 tab 语义。
