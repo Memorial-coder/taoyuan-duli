@@ -35,6 +35,7 @@ import {
   executeCohabitationWarehouseHighValueWithdrawalDraft,
   executeCohabitationSeparationAssetReturn,
   executeCohabitationFundLargeSpendDraft,
+  executeCohabitationSharedDecorationRemovalMainStateMutation,
   fetchCohabitationFamilyBuildings,
   fetchCohabitationFamilyFestivalSeats,
   fetchCohabitationFamilyOrders,
@@ -142,6 +143,7 @@ import {
   type CohabitationFundShopPurchasePayload,
   type CohabitationFundSnapshot,
   type CohabitationFundHighRiskReceiptPayload,
+  type CohabitationSharedDecorationRemovalMainStateMutationPayload,
   type CohabitationOfflineStatus,
   type CohabitationOfflineAutoIncomeCollectPayload,
   type CohabitationOfflineConflictAutoResolutionSummary,
@@ -905,6 +907,30 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '记录共同基金高风险回执失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const executeSharedDecorationRemovalMainStateMutation = async (payload: CohabitationSharedDecorationRemovalMainStateMutationPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.draft_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await executeCohabitationSharedDecorationRemovalMainStateMutation(activeContractId.value, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '执行共同装修拆除个人主状态写回失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -2514,6 +2540,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     confirmSharedFundLargeSpendDraft,
     executeSharedFundLargeSpendDraft,
     recordSharedFundHighRiskReceipt,
+    executeSharedDecorationRemovalMainStateMutation,
     createFamilyOrder,
     acceptFamilyOrder,
     deliverFamilyOrder,

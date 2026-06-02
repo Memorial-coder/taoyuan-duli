@@ -2152,7 +2152,7 @@
                   </span>
                 </div>
                 <p v-if="draft.final_spend_ledger_id" class="mt-2 text-[10px] leading-4 text-muted">基金流水：{{ draft.final_spend_ledger_id }}</p>
-                <div class="mt-2 grid gap-2 sm:grid-cols-3">
+                <div class="mt-2 grid gap-2 sm:grid-cols-4">
                   <button
                     type="button"
                     class="online-action-btn online-action-btn--compact justify-center"
@@ -2183,6 +2183,17 @@
                   >
                     <ShieldCheck :size="12" />
                     记录回执
+                  </button>
+                  <button
+                    v-if="isSharedDecorationRemovalMainStateMutationDraft(draft)"
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canOpenSharedDecorationRemovalMainStateMutationDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-shared-decoration-removal-main-state-mutation-${draft.id}`"
+                    @click="selectSharedDecorationRemovalMainStateMutationDraft(draft)"
+                  >
+                    <ShieldCheck :size="12" />
+                    主状态写回
                   </button>
                 </div>
                 <div
@@ -2237,6 +2248,60 @@
                     提交高风险回执
                   </button>
                 </div>
+                <div
+                  v-if="selectedSharedDecorationRemovalMainStateDraftId === draft.id"
+                  class="mt-2 border border-sky-300/20 bg-sky-500/10 p-2"
+                  data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-form"
+                >
+                  <div class="grid gap-2 sm:grid-cols-[0.8fr_1.2fr_1fr]">
+                    <select
+                      v-model="sharedDecorationRemovalMainStateCandidatePath"
+                      class="online-select text-xs"
+                      data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-path"
+                      @change="resetSharedDecorationRemovalMainStateSelector(draft)"
+                    >
+                      <option value="decoration.placed">decoration.placed</option>
+                      <option value="decoration.owned">decoration.owned</option>
+                      <option value="home.homeRenovationStates">home.homeRenovationStates</option>
+                      <option value="home.farmhouseLevel">home.farmhouseLevel</option>
+                      <option value="home.caveChoice">home.caveChoice</option>
+                      <option value="home.caveUnlocked">home.caveUnlocked</option>
+                      <option value="home.cellarSlots">home.cellarSlots</option>
+                      <option value="home.greenhouseUnlocked">home.greenhouseUnlocked</option>
+                    </select>
+                    <input
+                      v-model="sharedDecorationRemovalMainStateSelector"
+                      class="online-input text-xs"
+                      data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-selector"
+                      maxlength="120"
+                      :placeholder="sharedDecorationRemovalMainStateSelectorPlaceholder"
+                    >
+                    <input
+                      v-model="sharedDecorationRemovalMainStateTargetUsername"
+                      class="online-input text-xs"
+                      data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-username"
+                      maxlength="80"
+                      placeholder="目标成员"
+                    >
+                  </div>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact mt-2 w-full justify-center"
+                    :disabled="cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-submit"
+                    @click="executeSharedDecorationRemovalMainStateMutation(draft)"
+                  >
+                    <ShieldCheck :size="12" />
+                    确认写回主状态
+                  </button>
+                </div>
+                <p
+                  v-else-if="isSharedDecorationRemovalMainStateMutationDraft(draft) && sharedDecorationRemovalMainStateMutationState(draft) === 'personal_main_state_mutated'"
+                  class="mt-2 border border-emerald-300/20 bg-emerald-500/10 p-2 text-[10px] text-emerald-100"
+                  :data-testid="`online-cohabitation-shared-decoration-removal-main-state-mutated-${draft.id}`"
+                >
+                  个人主状态已写回，保留回执链路。
+                </p>
               </div>
             </div>
           </div>
@@ -3788,6 +3853,7 @@
     CohabitationSeparationOfflineTimeoutOverride,
     CohabitationSeparationPersonalFamilyMainStateMigrationSummary,
     CohabitationSeparationSharedFundConsumptionDeltaDisputeRow,
+    CohabitationSharedDecorationRemovalMainStateMutationTarget,
     CohabitationSharedWorkshopRecipe,
     CohabitationWarehouseCompensationAuditBundle,
     CohabitationWarehouseHighValueWithdrawalDraft,
@@ -3824,6 +3890,15 @@
   type FamilyBuildingMainStatePreviewRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number]
   type FamilyBuildingMainStateExactTargetRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_exact_target_manifest'][number]
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
+  type SharedDecorationRemovalMainStateCandidatePath =
+    | 'decoration.placed'
+    | 'decoration.owned'
+    | 'home.homeRenovationStates'
+    | 'home.farmhouseLevel'
+    | 'home.caveChoice'
+    | 'home.caveUnlocked'
+    | 'home.cellarSlots'
+    | 'home.greenhouseUnlocked'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
   type SharedAnimalPurchaseOption = { type: string; label: string; unitPrice: number }
   type SharedPetCareItemInfo = {
@@ -3875,6 +3950,8 @@
     placement_ref?: string
     target_ref?: string
     state?: string
+    shared_decoration_removal_main_state_mutation_state?: string
+    shared_decoration_removal_main_state_mutation_receipt_count?: number
   }
   type StitchedSharedFarmCell = {
     key: string
@@ -4326,6 +4403,10 @@
   const fundHighRiskReceiptRef = ref('')
   const fundHighRiskReceiptMemo = ref('')
   const fundHighRiskReceiptCompensationAcknowledged = ref(false)
+  const selectedSharedDecorationRemovalMainStateDraftId = ref('')
+  const sharedDecorationRemovalMainStateCandidatePath = ref<SharedDecorationRemovalMainStateCandidatePath>('decoration.placed')
+  const sharedDecorationRemovalMainStateSelector = ref('')
+  const sharedDecorationRemovalMainStateTargetUsername = ref('')
   const familyOrderActionMessage = ref('')
   const familyOrderActionOk = ref(false)
   const familyReputationActionMessage = ref('')
@@ -9272,6 +9353,58 @@
     fundHighRiskReceiptCompensationAcknowledged.value = false
   }
 
+  const parseSharedDecorationRemovalDraftDecorationId = (draft: CohabitationFundLargeSpendDraft) => {
+    const parts = String(draft.target_ref || '').split(':').map(part => part.trim()).filter(Boolean)
+    if (parts[0] === 'shared_decoration' && parts[1]) return parts[1]
+    return parts.find(part => !['shared_decoration', 'remove', 'removal'].includes(part)) || ''
+  }
+  const sharedDecorationRemovalStateEntryForDraft = (draft: CohabitationFundLargeSpendDraft) => {
+    const decorationId = parseSharedDecorationRemovalDraftDecorationId(draft)
+    return sharedDecorationStateEntries.value.find(entry =>
+      (decorationId && String(entry.decoration_id || '') === decorationId) ||
+      String(entry.target_ref || '') === draft.target_ref ||
+      String(entry.placement_ref || '') === draft.target_ref
+    ) ?? null
+  }
+  const sharedDecorationRemovalMainStateMutationState = (draft: CohabitationFundLargeSpendDraft) =>
+    String(sharedDecorationRemovalStateEntryForDraft(draft)?.shared_decoration_removal_main_state_mutation_state || '')
+  const isSharedDecorationRemovalMainStateMutationDraft = (draft: CohabitationFundLargeSpendDraft) =>
+    draft.purpose === 'shared_decoration_removal' &&
+    draft.state === 'executed' &&
+    draft.high_risk_receipt_status === 'delivered'
+  const canOpenSharedDecorationRemovalMainStateMutationDraft = (draft: CohabitationFundLargeSpendDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    isSharedDecorationRemovalMainStateMutationDraft(draft) &&
+    sharedDecorationRemovalMainStateMutationState(draft) !== 'personal_main_state_mutated'
+  const sharedDecorationRemovalMainStateDefaultSelector = (
+    draft: CohabitationFundLargeSpendDraft,
+    candidatePath: SharedDecorationRemovalMainStateCandidatePath = sharedDecorationRemovalMainStateCandidatePath.value,
+  ) => {
+    const decorationId = parseSharedDecorationRemovalDraftDecorationId(draft)
+    if (candidatePath === 'home.caveUnlocked' || candidatePath === 'home.greenhouseUnlocked') return `${candidatePath}.true`
+    if (candidatePath === 'home.farmhouseLevel') return `${candidatePath}.1`
+    if (candidatePath === 'home.cellarSlots') return `${candidatePath}.0`
+    if (candidatePath === 'home.caveChoice') return `${candidatePath}.mushroom`
+    return decorationId ? `${candidatePath}.${decorationId}` : candidatePath
+  }
+  const selectedSharedDecorationRemovalMainStateDraft = computed(() =>
+    fundLargeSpendDrafts.value.find(draft => draft.id === selectedSharedDecorationRemovalMainStateDraftId.value) ?? null
+  )
+  const sharedDecorationRemovalMainStateSelectorPlaceholder = computed(() =>
+    sharedDecorationRemovalMainStateDefaultSelector({
+      target_ref: selectedSharedDecorationRemovalMainStateDraft.value?.target_ref || largeFundSpendTargetRefs.shared_decoration_removal,
+    } as CohabitationFundLargeSpendDraft)
+  )
+  const resetSharedDecorationRemovalMainStateSelector = (draft: CohabitationFundLargeSpendDraft) => {
+    sharedDecorationRemovalMainStateSelector.value = sharedDecorationRemovalMainStateDefaultSelector(draft)
+  }
+  const selectSharedDecorationRemovalMainStateMutationDraft = (draft: CohabitationFundLargeSpendDraft) => {
+    selectedSharedDecorationRemovalMainStateDraftId.value = draft.id
+    sharedDecorationRemovalMainStateCandidatePath.value = 'decoration.placed'
+    resetSharedDecorationRemovalMainStateSelector(draft)
+    sharedDecorationRemovalMainStateTargetUsername.value = selectedContractActorMember.value?.username || cohabitationStore.currentAccount
+  }
+
   const familyBuildingLedgerTargetId = (entry: CohabitationFamilyBuildingLedgerEntry) => {
     if (entry.building_id) return entry.building_id
     if (entry.project_id) return entry.project_id
@@ -10179,6 +10312,53 @@
       fundHighRiskReceiptCompensationAcknowledged.value = false
     } catch (error) {
       fundActionMessage.value = error instanceof Error ? error.message : '记录共同基金高风险回执失败'
+    }
+  }
+
+  const executeSharedDecorationRemovalMainStateMutation = async (draft: CohabitationFundLargeSpendDraft) => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    const decorationId = parseSharedDecorationRemovalDraftDecorationId(draft)
+    const selector = sharedDecorationRemovalMainStateSelector.value.trim()
+    const username = sharedDecorationRemovalMainStateTargetUsername.value.trim()
+    if (!canOpenSharedDecorationRemovalMainStateMutationDraft(draft) || !decorationId || !selector || !username) {
+      fundActionMessage.value = '请选择已交付回执的共同装修拆除草案，并填写目标成员和删除 selector'
+      return
+    }
+    const stateEntry = sharedDecorationRemovalStateEntryForDraft(draft)
+    const targets: CohabitationSharedDecorationRemovalMainStateMutationTarget[] = [{
+      username,
+      candidate_path: sharedDecorationRemovalMainStateCandidatePath.value,
+      exact_target_ref: selector,
+      delete_selector: selector,
+      decoration_id: decorationId,
+    }]
+    try {
+      const result = await cohabitationStore.executeSharedDecorationRemovalMainStateMutation({
+        draft_id: draft.id,
+        fund_ledger_id: draft.final_spend_ledger_id,
+        shared_decoration_state_entry_id: stateEntry?.id ? String(stateEntry.id) : undefined,
+        receipt_id: draft.high_risk_receipt_id,
+        receipt_ref: draft.high_risk_receipt_ref || `shared_decoration_removal:${draft.target_ref}:receipt`,
+        target_ref: draft.target_ref,
+        expected_decoration_id: decorationId,
+        expected_execution_state: sharedDecorationRemovalMainStateMutationState(draft) || 'pending_main_state_mutation',
+        confirmation_text: '确认执行共同装修拆除主状态变更',
+        compensation_plan_acknowledged: true,
+        rollback_plan_acknowledged: true,
+        memo: `前端执行共同装修拆除个人主状态写回：${draft.target_ref}`,
+        idempotency_key: `ui-shared-decoration-removal-main-state-mutation-${draft.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        targets,
+      })
+      const receiptCount = result?.shared_decoration_removal_main_state_mutation?.receipt_count ?? 0
+      fundActionOk.value = true
+      fundActionMessage.value = result?.idempotent || result?.already_mutated
+        ? `已读回共同装修拆除主状态写回，凭据 ${receiptCount} 条`
+        : `已写回共同装修拆除个人主状态，凭据 ${receiptCount} 条；共同基金、仓库、背包和铜币未改`
+      selectedSharedDecorationRemovalMainStateDraftId.value = ''
+      sharedDecorationRemovalMainStateSelector.value = ''
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '执行共同装修拆除个人主状态写回失败'
     }
   }
 

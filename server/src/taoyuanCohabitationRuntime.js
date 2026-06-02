@@ -5365,6 +5365,47 @@ function normalizeSharedFundDeliveries(value = []) {
     : [];
 }
 
+function normalizePersonalMainStateMutationReceipt(entry = {}) {
+  if (!entry || typeof entry !== 'object') return null;
+  const username = normalizeUsername(entry.username);
+  const receiptId = sanitizeText(entry.receipt_id, 140);
+  if (!username || !receiptId) return null;
+  return {
+    already_written: entry.already_written === true,
+    contract_id: sanitizeText(entry.contract_id, 80),
+    draft_id: sanitizeText(entry.draft_id, 100),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    shared_decoration_ledger_id: sanitizeText(entry.shared_decoration_ledger_id, 100),
+    shared_decoration_state_entry_id: sanitizeText(entry.shared_decoration_state_entry_id, 100),
+    high_risk_receipt_id: sanitizeText(entry.high_risk_receipt_id || entry.receipt_ref_id, 100),
+    receipt_ref: sanitizeText(entry.receipt_ref, 120),
+    target_ref: sanitizeText(entry.target_ref, 160),
+    decoration_id: sanitizeText(entry.decoration_id, 100),
+    username,
+    username_key: normalizeUsernameKey(entry.username_key || username),
+    save_slot: normalizeSaveSlot(entry.save_slot),
+    save_id: normalizeSaveId(entry.save_id),
+    before_revision: Math.max(0, Math.floor(Number(entry.before_revision) || 0)),
+    after_revision: Math.max(0, Math.floor(Number(entry.after_revision) || 0)),
+    receipt_id: receiptId,
+    receipt_status: sanitizeText(entry.receipt_status, 40) || 'written',
+    delete_selector: sanitizeText(entry.delete_selector, 180),
+    target_kind: sanitizeText(entry.target_kind, 60),
+    target_id: sanitizeText(entry.target_id, 100),
+    before_value: entry.before_value,
+    after_value: entry.after_value,
+    mutation_result: sanitizeText(entry.mutation_result, 100),
+    personal_asset_boundary: sanitizeText(entry.personal_asset_boundary, 240),
+    memo: sanitizeText(entry.memo || entry.note, 180),
+    personal_save_changed: entry.personal_save_changed !== false,
+    shared_fund_changed: entry.shared_fund_changed === true,
+    shared_warehouse_changed: entry.shared_warehouse_changed === true,
+    personal_inventory_changed: entry.personal_inventory_changed === true,
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    written_at: Math.max(0, Math.floor(Number(entry.written_at) || 0)),
+  };
+}
+
 function normalizeSharedDecorationStateEntry(entry = {}) {
   const targetRef = sanitizeText(entry.target_ref || entry.target, 120);
   const decorationId = sanitizeText(entry.decoration_id || entry.item_id, 80);
@@ -5417,6 +5458,13 @@ function normalizeSharedDecorationStateEntry(entry = {}) {
     required_permission_keys: requiredPermissionKeys,
     shared_decoration_state_changed: entry.shared_decoration_state_changed !== false,
     personal_home_mutated: entry.personal_home_mutated === true,
+    personal_save_changed: entry.personal_save_changed === true,
+    shared_decoration_removal_main_state_mutation_idempotency_key: sanitizeText(entry.shared_decoration_removal_main_state_mutation_idempotency_key, 120),
+    shared_decoration_removal_main_state_mutation_state: sanitizeText(entry.shared_decoration_removal_main_state_mutation_state, 80),
+    shared_decoration_removal_main_state_mutated_at: Math.max(0, Math.floor(Number(entry.shared_decoration_removal_main_state_mutated_at) || 0)),
+    shared_decoration_removal_main_state_mutated_by_username: normalizeUsername(entry.shared_decoration_removal_main_state_mutated_by_username),
+    shared_decoration_removal_main_state_mutated_by_display_name: sanitizeText(entry.shared_decoration_removal_main_state_mutated_by_display_name || entry.shared_decoration_removal_main_state_mutated_by_username, 80),
+    shared_decoration_removal_main_state_mutation_receipt_count: Math.max(0, Math.floor(Number(entry.shared_decoration_removal_main_state_mutation_receipt_count) || 0)),
     shared_fund_changed: entry.shared_fund_changed === true,
   };
 }
@@ -5479,6 +5527,15 @@ function normalizeSharedDecorationLedgerEntry(entry = {}) {
     personal_save_changed: entry.personal_save_changed === true,
     shared_warehouse_changed: entry.shared_warehouse_changed === true,
     shared_fund_changed: entry.shared_fund_changed === true,
+    shared_decoration_removal_main_state_mutation_idempotency_key: sanitizeText(entry.shared_decoration_removal_main_state_mutation_idempotency_key, 120),
+    shared_decoration_removal_main_state_mutation_state: sanitizeText(entry.shared_decoration_removal_main_state_mutation_state, 80),
+    shared_decoration_removal_main_state_mutated_at: Math.max(0, Math.floor(Number(entry.shared_decoration_removal_main_state_mutated_at) || 0)),
+    shared_decoration_removal_main_state_mutated_by_username: normalizeUsername(entry.shared_decoration_removal_main_state_mutated_by_username),
+    shared_decoration_removal_main_state_mutated_by_display_name: sanitizeText(entry.shared_decoration_removal_main_state_mutated_by_display_name || entry.shared_decoration_removal_main_state_mutated_by_username, 80),
+    shared_decoration_removal_main_state_mutation_receipt_count: Math.max(0, Math.floor(Number(entry.shared_decoration_removal_main_state_mutation_receipt_count) || 0)),
+    shared_decoration_removal_main_state_mutation_receipts: Array.isArray(entry.shared_decoration_removal_main_state_mutation_receipts)
+      ? entry.shared_decoration_removal_main_state_mutation_receipts.map(normalizePersonalMainStateMutationReceipt).filter(Boolean).slice(0, 20)
+      : [],
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     operation_id: sanitizeText(entry.operation_id || entry.operationId, 120),
     memo: sanitizeText(entry.memo || entry.note, 180),
@@ -17031,6 +17088,54 @@ function normalizeFamilyBuildingRealDemolitionMainStateExactMutationAdapterPaylo
   };
 }
 
+function normalizeSharedDecorationRemovalMainStateMutationTarget(item = {}) {
+  const username = normalizeUsername(item?.username);
+  const usernameKey = normalizeUsernameKey(item?.username_key || username);
+  const candidatePath = sanitizeText(item?.candidate_path, 100);
+  const deleteSelector = sanitizeText(item?.delete_selector || item?.selector || item?.exact_target_ref || item?.target_ref, 180);
+  return {
+    username,
+    username_key: usernameKey,
+    save_slot: normalizeSaveSlot(item?.save_slot),
+    save_id: normalizeSaveId(item?.save_id),
+    candidate_path: candidatePath,
+    exact_target_ref: sanitizeText(item?.exact_target_ref || item?.target_ref || item?.delete_target_ref || deleteSelector, 180),
+    delete_selector: deleteSelector,
+    target_kind: sanitizeText(item?.target_kind || item?.kind, 40),
+    decoration_id: sanitizeText(item?.decoration_id || item?.item_id, 100),
+    binding_ref: sanitizeText(item?.binding_ref, 160),
+    snapshot_hash: sanitizeText(item?.snapshot_hash || item?.expected_snapshot_hash, 100),
+  };
+}
+
+function normalizeSharedDecorationRemovalMainStateMutationPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同装修拆除个人主状态变更需要 idempotency_key，以防断线或重试时重复写入');
+  const targets = Array.isArray(payload.targets || payload.exact_targets || payload.manifest)
+    ? (payload.targets || payload.exact_targets || payload.manifest)
+      .map(normalizeSharedDecorationRemovalMainStateMutationTarget)
+      .filter(target => target.username && target.username_key && target.candidate_path && target.delete_selector)
+      .slice(0, 12)
+    : [];
+  return {
+    idempotency_key: idempotencyKey,
+    draft_id: sanitizeText(payload.draft_id || payload.high_risk_draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id || payload.original_fund_ledger_id, 100),
+    shared_decoration_ledger_id: sanitizeText(payload.shared_decoration_ledger_id || payload.decoration_ledger_id || payload.ledger_id || payload.id, 100),
+    shared_decoration_state_entry_id: sanitizeText(payload.shared_decoration_state_entry_id || payload.state_entry_id, 100),
+    receipt_id: sanitizeText(payload.receipt_id || payload.high_risk_receipt_id, 100),
+    receipt_ref: sanitizeText(payload.receipt_ref || payload.removal_receipt_ref, 120),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 160),
+    expected_decoration_id: sanitizeText(payload.expected_decoration_id || payload.decoration_id || payload.item_id, 100),
+    expected_execution_state: sanitizeText(payload.expected_execution_state || payload.execution_state, 80),
+    confirmation_text: sanitizeText(payload.confirmation_text, 120),
+    compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true,
+    rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true,
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    targets,
+  };
+}
+
 function resolveSharedFundAutoPurchase(spend) {
   if (spend.auto_pay !== true) return null;
   const targetRef = sanitizeText(spend.target_ref, 120);
@@ -19924,6 +20029,221 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
   }
 
   throw createError('个人主状态变更适配器第一版只支持农舍等级、宅院改造状态、山洞用途、山洞开放态、酒窖陈酿槽、温室解锁态、已放置装饰和未放置装饰库存目标', 409);
+}
+
+function getSharedDecorationRemovalMainStateTargetChildId(target = {}) {
+  const candidatePath = sanitizeText(target.candidate_path, 100);
+  const selector = sanitizeText(target.delete_selector || target.exact_target_ref, 180);
+  const allowedCandidatePaths = [
+    'home.homeRenovationStates',
+    'home.farmhouseLevel',
+    'home.caveChoice',
+    'home.caveUnlocked',
+    'home.cellarSlots',
+    'home.greenhouseUnlocked',
+    'decoration.placed',
+    'decoration.owned',
+  ];
+  if (!allowedCandidatePaths.includes(candidatePath)) {
+    throw createError('共同装修拆除个人主状态变更只支持已验证的 home / decoration 窄 selector', 409);
+  }
+  if (!selector || !selector.startsWith(`${candidatePath}.`)) {
+    throw createError('共同装修拆除个人主状态 selector 必须位于已验证候选路径下', 409);
+  }
+  const childKey = selector.slice(candidatePath.length + 1);
+  if (!childKey || childKey.includes('.') || childKey.includes('[') || childKey.includes(']')) {
+    throw createError('共同装修拆除个人主状态变更只支持候选路径下一层具体目标', 409);
+  }
+  return sanitizeText(childKey, 100);
+}
+
+function makeSharedDecorationRemovalMainStateMutationReceiptId(decorationLedgerId = '', usernameKey = '', target = {}) {
+  const ledgerHash = crypto
+    .createHash('sha256')
+    .update(String(decorationLedgerId || 'shared_decoration_ledger'))
+    .digest('hex')
+    .slice(0, 10);
+  const hash = crypto
+    .createHash('sha256')
+    .update(`${decorationLedgerId}:${usernameKey}:${target.delete_selector}:${target.index}`)
+    .digest('hex')
+    .slice(0, 12);
+  return `shared_decoration_removal_main_state_${ledgerHash}_${sanitizeText(usernameKey, 40)}_${hash}`;
+}
+
+function applySharedDecorationRemovalMainStateMutationToPersonalSaves(contract = {}, decorationLedgerEntry = {}, stateEntry = {}, draft = {}, payload = {}) {
+  const targets = Array.isArray(payload.targets) ? payload.targets : [];
+  if (targets.length === 0) throw createError('缺少共同装修拆除个人主状态精确目标清单', 409);
+  const expectedDecorationId = sanitizeText(
+    payload.expected_decoration_id
+      || decorationLedgerEntry.decoration_id
+      || stateEntry.decoration_id
+      || parseSharedFundTargetSubject(draft.target_ref).subject_id,
+    100
+  );
+  if (!expectedDecorationId) throw createError('共同装修拆除个人主状态变更缺少可校验的装饰 ID', 409);
+  const writtenAt = nowSeconds();
+  const targetRef = sanitizeText(payload.target_ref || decorationLedgerEntry.target_ref || stateEntry.target_ref || draft.target_ref, 160);
+  const receiptRef = sanitizeText(payload.receipt_ref || decorationLedgerEntry.receipt_ref || stateEntry.receipt_ref || draft.high_risk_receipt_ref, 120);
+  const groups = new Map();
+  const seenTargets = new Set();
+
+  targets.forEach((target, index) => {
+    const username = normalizeUsername(target.username);
+    const usernameKey = normalizeUsernameKey(target.username_key || username);
+    if (!username || !usernameKey) throw createError('共同装修拆除个人主状态目标缺少成员信息', 409);
+    if (usernameKey !== normalizeUsernameKey(username)) {
+      throw createError('共同装修拆除个人主状态目标成员 username 与 username_key 不匹配', 409);
+    }
+    const member = getContractMember(contract, username);
+    if (!member || member.status !== 'accepted') {
+      throw createError('共同装修拆除个人主状态目标必须是当前契约已接受成员', 409);
+    }
+    const childKey = getSharedDecorationRemovalMainStateTargetChildId(target);
+    const candidatePath = sanitizeText(target.candidate_path, 100);
+    const targetDecorationId = sanitizeText(target.decoration_id || expectedDecorationId, 100);
+    if (targetDecorationId !== expectedDecorationId) {
+      throw createError('共同装修拆除个人主状态目标装饰 ID 与完成回执不一致', 409);
+    }
+    if (candidatePath.startsWith('decoration.') && childKey !== expectedDecorationId) {
+      throw createError('共同装修拆除个人装饰 selector 与完成回执装饰 ID 不一致', 409);
+    }
+    const duplicateKey = `${usernameKey}:${candidatePath}:${childKey}`;
+    if (seenTargets.has(duplicateKey)) {
+      throw createError('共同装修拆除个人主状态目标清单包含重复 selector', 409);
+    }
+    seenTargets.add(duplicateKey);
+    const normalizedTarget = {
+      ...target,
+      index,
+      username,
+      username_key: usernameKey,
+      decoration_id: targetDecorationId,
+      exact_target_ref: target.exact_target_ref || target.delete_selector,
+      delete_selector: target.delete_selector,
+    };
+    if (!groups.has(usernameKey)) {
+      groups.set(usernameKey, {
+        username,
+        username_key: usernameKey,
+        targets: [],
+      });
+    }
+    groups.get(usernameKey).targets.push(normalizedTarget);
+  });
+
+  const preparedGroups = [...groups.values()].map(group => {
+    const context = getActiveSaveContext(group.username, group.targets[0]?.save_slot ?? null, '共同装修拆除个人主状态变更目标账号没有可写入的桃源乡存档');
+    context.username = group.username;
+    const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
+    const beforeRevision = Math.max(0, Math.floor(Number(context.saves.slots[context.slot]?.revision) || 0));
+    const projectedData = JSON.parse(JSON.stringify(context.data || {}));
+    if (!projectedData.onlineCohabitation || typeof projectedData.onlineCohabitation !== 'object') {
+      projectedData.onlineCohabitation = {};
+    }
+    if (!Array.isArray(projectedData.onlineCohabitation.shared_decoration_removal_main_state_receipts)) {
+      projectedData.onlineCohabitation.shared_decoration_removal_main_state_receipts = [];
+    }
+    const groupReceipts = [];
+    let hasNewReceipt = false;
+    for (const target of group.targets) {
+      if (target.save_id && identitySaveId !== target.save_id) {
+        throw createError('共同装修拆除个人主状态目标 save_id 已漂移，请重新预览并解析目标', 409);
+      }
+      const receiptId = makeSharedDecorationRemovalMainStateMutationReceiptId(decorationLedgerEntry.id, group.username_key, target);
+      const existingReceipt = projectedData.onlineCohabitation.shared_decoration_removal_main_state_receipts.find(receipt =>
+        receipt?.receipt_id === receiptId || (
+          receipt?.contract_id === contract.id
+          && receipt?.shared_decoration_ledger_id === decorationLedgerEntry.id
+          && receipt?.draft_id === draft.id
+          && receipt?.idempotency_key === payload.idempotency_key
+          && receipt?.delete_selector === target.delete_selector
+        )
+      );
+      if (existingReceipt) {
+        const existingReceiptId = sanitizeText(existingReceipt.receipt_id, 140) || receiptId;
+        groupReceipts.push({
+          ...existingReceipt,
+          already_written: true,
+          username: group.username,
+          username_key: group.username_key,
+          save_slot: normalizeSaveSlot(context.slot),
+          save_id: identitySaveId,
+          before_revision: beforeRevision,
+          after_revision: Math.max(0, Math.floor(Number(existingReceipt.after_revision) || beforeRevision)),
+          receipt_id: existingReceiptId,
+          receipt_status: 'already_written',
+          idempotency_key: payload.idempotency_key,
+          written_at: Math.max(0, Math.floor(Number(existingReceipt.written_at) || writtenAt)),
+        });
+        continue;
+      }
+      const adapterTarget = resolveFamilyBuildingMainStateMutationTarget(projectedData, target);
+      if (target.candidate_path.startsWith('decoration.') && adapterTarget.target_id !== expectedDecorationId) {
+        throw createError('共同装修拆除个人主状态适配器解析出的装饰 ID 与完成回执不一致', 409);
+      }
+      const mutation = adapterTarget.apply();
+      const receipt = {
+        already_written: false,
+        receipt_id: receiptId,
+        type: 'cohabitation_shared_decoration_removal_main_state_mutation',
+        contract_id: contract.id,
+        draft_id: draft.id,
+        fund_ledger_id: sanitizeText(decorationLedgerEntry.fund_ledger_id || draft.final_spend_ledger_id, 100),
+        shared_decoration_ledger_id: decorationLedgerEntry.id,
+        shared_decoration_state_entry_id: stateEntry.id,
+        high_risk_receipt_id: sanitizeText(draft.high_risk_receipt_id || decorationLedgerEntry.receipt_id || stateEntry.receipt_id, 100),
+        receipt_ref: receiptRef,
+        target_ref: targetRef,
+        decoration_id: expectedDecorationId,
+        username: group.username,
+        username_key: group.username_key,
+        save_slot: normalizeSaveSlot(context.slot),
+        save_id: identitySaveId,
+        before_revision: beforeRevision,
+        after_revision: beforeRevision + 1,
+        receipt_status: 'written',
+        delete_selector: sanitizeText(target.delete_selector, 180),
+        target_kind: adapterTarget.target_kind,
+        target_id: adapterTarget.target_id,
+        before_value: adapterTarget.before_value,
+        after_value: mutation.after_value,
+        mutation_result: mutation.mutation_result,
+        personal_asset_boundary: '仅删除已确认拆除的个人 home / decoration 主状态窄目标；不改个人铜币、背包、农田、NPC、家庭或孩子状态。',
+        memo: payload.reason,
+        personal_save_changed: true,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+        personal_inventory_changed: false,
+        idempotency_key: payload.idempotency_key,
+        written_at: writtenAt,
+      };
+      projectedData.onlineCohabitation.shared_decoration_removal_main_state_receipts.unshift(receipt);
+      projectedData.onlineCohabitation.shared_decoration_removal_main_state_receipts =
+        projectedData.onlineCohabitation.shared_decoration_removal_main_state_receipts.slice(0, 20);
+      groupReceipts.push(receipt);
+      hasNewReceipt = true;
+    }
+    return {
+      context,
+      projectedData,
+      before_revision: beforeRevision,
+      has_new_receipt: hasNewReceipt,
+      receipts: groupReceipts,
+    };
+  });
+
+  return preparedGroups.flatMap(group => {
+    if (!group.has_new_receipt) return group.receipts;
+    assignGameplayDataToContext(group.context, group.projectedData);
+    const afterRevision = persistGameplayData(group.context);
+    return group.receipts.map(receipt => receipt.already_written
+      ? receipt
+      : {
+        ...receipt,
+        after_revision: afterRevision,
+      });
+  });
 }
 
 function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {}, buildingEntry = {}, payload = {}) {
@@ -32253,6 +32573,272 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   };
 }
 
+function findSharedDecorationRemovalLedgerForMainStateMutation(contract = {}, request = {}) {
+  const ledger = normalizeSharedDecorationLedger(contract.shared_decoration_ledger);
+  const hasLocator = Boolean(
+    request.shared_decoration_ledger_id
+    || request.draft_id
+    || request.fund_ledger_id
+    || request.receipt_id
+    || request.receipt_ref
+    || request.target_ref
+  );
+  if (!hasLocator) return null;
+  return ledger.find(entry => {
+    if (entry.action !== 'shared_decoration_removal') return false;
+    if (request.shared_decoration_ledger_id && entry.id !== request.shared_decoration_ledger_id) return false;
+    if (request.draft_id && entry.draft_id !== request.draft_id) return false;
+    if (request.fund_ledger_id && entry.fund_ledger_id !== request.fund_ledger_id) return false;
+    if (request.receipt_id && entry.receipt_id !== request.receipt_id) return false;
+    if (request.receipt_ref && entry.receipt_ref !== request.receipt_ref) return false;
+    if (request.target_ref && entry.target_ref !== request.target_ref && entry.placement_ref !== request.target_ref) return false;
+    return true;
+  }) || null;
+}
+
+function findSharedDecorationRemovalStateForMainStateMutation(contract = {}, ledgerEntry = {}, draft = {}, request = {}) {
+  const stateEntries = normalizeSharedDecorationState(contract.shared_decoration_state)
+    .filter(entry => entry.action === 'shared_decoration_removal' && entry.state === 'removed');
+  const requestedStateId = sanitizeText(request.shared_decoration_state_entry_id || ledgerEntry.shared_decoration_state_entry_id, 100);
+  if (requestedStateId) {
+    return stateEntries.find(entry => entry.id === requestedStateId) || null;
+  }
+  return stateEntries.find(entry => {
+    if (ledgerEntry.receipt_id && entry.receipt_id === ledgerEntry.receipt_id) return true;
+    if (draft.high_risk_receipt_id && entry.receipt_id === draft.high_risk_receipt_id) return true;
+    if (ledgerEntry.draft_id && entry.draft_id === ledgerEntry.draft_id) return true;
+    if (ledgerEntry.fund_ledger_id && entry.fund_ledger_id === ledgerEntry.fund_ledger_id) return true;
+    if (ledgerEntry.decoration_id && entry.decoration_id === ledgerEntry.decoration_id && entry.target_ref === ledgerEntry.target_ref) return true;
+    return false;
+  }) || null;
+}
+
+function buildSharedDecorationRemovalMainStateMutationResponse(contract, actorUsername, draft, ledgerEntry, stateEntry, mutation, flags = {}) {
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    draft,
+    shared_decoration_state_entry: stateEntry,
+    shared_decoration_ledger: contract.shared_decoration_ledger,
+    shared_decoration_ledger_entry: ledgerEntry,
+    idempotent: flags.idempotent === true,
+    already_mutated: flags.already_mutated === true,
+    shared_decoration_removal_main_state_mutation: {
+      receipts: Array.isArray(mutation?.receipts) ? mutation.receipts : [],
+      mutation_enabled: true,
+      personal_home_mutated: mutation?.personal_home_mutated === true,
+      personal_save_changed: mutation?.personal_save_changed === true,
+      shared_fund_changed: false,
+      shared_warehouse_changed: false,
+      personal_inventory_changed: false,
+      execution_state: sanitizeText(mutation?.execution_state, 80) || ledgerEntry.shared_decoration_removal_main_state_mutation_state,
+      receipt_count: Math.max(0, Math.floor(Number(mutation?.receipt_count) || 0)),
+    },
+  };
+}
+
+async function executeCohabitationSharedDecorationRemovalMainStateMutation(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeSharedDecorationRemovalMainStateMutationPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '执行共同装修拆除个人主状态变更');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.fund.spend_large !== true) throw createError('你没有执行共同装修拆除个人主状态变更的共同基金大额权限', 403);
+  if (actorPermissions.construction.demolish_building !== true) throw createError('你没有执行共同装修拆除个人主状态变更的拆除权限', 403);
+  if (actorPermissions.confirmations.demolish_requires_both !== true) {
+    throw createError('共同装修拆除个人主状态变更必须保留拆除双方确认安全阀', 409);
+  }
+  const confirmationTextOk = request.confirmation_text === '确认执行共同装修拆除主状态变更'
+    || request.confirmation_text === 'CONFIRM_SHARED_DECORATION_REMOVAL_MAIN_STATE_MUTATION';
+  if (!confirmationTextOk) {
+    throw createError('请先输入确认执行共同装修拆除主状态变更文案', 400);
+  }
+  if (!request.compensation_plan_acknowledged || !request.rollback_plan_acknowledged) {
+    throw createError('执行共同装修拆除个人主状态变更前必须确认补偿方案与回滚方案', 400);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_decoration_state = normalizeSharedDecorationState(contract.shared_decoration_state);
+  contract.shared_decoration_ledger = normalizeSharedDecorationLedger(contract.shared_decoration_ledger);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+
+  const previousMutationEntry = contract.shared_decoration_ledger.find(entry =>
+    entry.shared_decoration_removal_main_state_mutation_idempotency_key === request.idempotency_key
+  );
+  if (previousMutationEntry) {
+    const requestedEntry = findSharedDecorationRemovalLedgerForMainStateMutation(contract, request);
+    if (requestedEntry && requestedEntry.id !== previousMutationEntry.id) {
+      throw createError('该共同装修拆除个人主状态变更幂等键已用于其他装修流水，请更换 idempotency_key', 409);
+    }
+    const previousDraft = contract.fund_large_spend_drafts.find(entry => entry.id === previousMutationEntry.draft_id) || null;
+    const previousStateEntry = findSharedDecorationRemovalStateForMainStateMutation(contract, previousMutationEntry, previousDraft || {}, request);
+    return buildSharedDecorationRemovalMainStateMutationResponse(
+      contract,
+      actorUsername,
+      previousDraft,
+      previousMutationEntry,
+      previousStateEntry,
+      {
+        receipts: previousMutationEntry.shared_decoration_removal_main_state_mutation_receipts,
+        personal_home_mutated: previousMutationEntry.personal_home_mutated === true,
+        personal_save_changed: previousMutationEntry.personal_save_changed === true,
+        execution_state: previousMutationEntry.shared_decoration_removal_main_state_mutation_state,
+        receipt_count: previousMutationEntry.shared_decoration_removal_main_state_mutation_receipt_count,
+      },
+      { idempotent: true, already_mutated: true }
+    );
+  }
+
+  const targetEntry = findSharedDecorationRemovalLedgerForMainStateMutation(contract, request);
+  if (!targetEntry) throw createError('找不到可执行个人主状态变更的共同装修拆除流水', 404);
+  if (targetEntry.shared_decoration_removal_main_state_mutation_idempotency_key) {
+    throw createError('该共同装修拆除流水已执行个人主状态变更，不能用新幂等键重复执行', 409);
+  }
+  const currentExecutionState = targetEntry.shared_decoration_removal_main_state_mutation_state || 'pending_main_state_mutation';
+  if (request.expected_execution_state && request.expected_execution_state !== currentExecutionState) {
+    throw createError('共同装修拆除个人主状态变更状态已变化，请刷新后重试', 409);
+  }
+  const draft = contract.fund_large_spend_drafts.find(entry =>
+    entry.id === (request.draft_id || targetEntry.draft_id)
+  );
+  if (!draft || draft.purpose !== 'shared_decoration_removal') {
+    throw createError('共同装修拆除个人主状态变更缺少匹配的共同基金拆除草案', 409);
+  }
+  if (draft.state !== 'executed' || !draft.final_spend_ledger_id) {
+    throw createError('共同装修拆除个人主状态变更必须在大额草案执行扣款后进行', 409);
+  }
+  if (draft.high_risk_receipt_status !== 'delivered' || (draft.high_risk_receipt_outcome && draft.high_risk_receipt_outcome !== 'delivered')) {
+    throw createError('共同装修拆除个人主状态变更必须在拆除完成回执 delivered 后进行', 409);
+  }
+  const originalFundLedger = contract.shared_fund.ledger.find(entry =>
+    entry.id === draft.final_spend_ledger_id || entry.id === targetEntry.fund_ledger_id
+  );
+  if (!originalFundLedger || originalFundLedger.action !== 'spend' || originalFundLedger.spend_tier !== 'large') {
+    throw createError('共同装修拆除个人主状态变更缺少匹配的大额基金扣款流水，已中止避免误删除', 409);
+  }
+  if (targetEntry.draft_id && targetEntry.draft_id !== draft.id) {
+    throw createError('共同装修拆除流水与草案不匹配，已中止个人主状态变更', 409);
+  }
+  if (targetEntry.fund_ledger_id && targetEntry.fund_ledger_id !== originalFundLedger.id) {
+    throw createError('共同装修拆除流水与基金扣款流水不匹配，已中止个人主状态变更', 409);
+  }
+  if (targetEntry.receipt_id && draft.high_risk_receipt_id && targetEntry.receipt_id !== draft.high_risk_receipt_id) {
+    throw createError('共同装修拆除流水与完成回执不匹配，已中止个人主状态变更', 409);
+  }
+  const stateEntry = findSharedDecorationRemovalStateForMainStateMutation(contract, targetEntry, draft, request);
+  if (!stateEntry) throw createError('共同装修拆除个人主状态变更缺少 matching shared_decoration_state 记录', 409);
+  if (stateEntry.draft_id && stateEntry.draft_id !== draft.id) {
+    throw createError('共同装修拆除 state 与草案不匹配，已中止个人主状态变更', 409);
+  }
+  if (stateEntry.fund_ledger_id && stateEntry.fund_ledger_id !== originalFundLedger.id) {
+    throw createError('共同装修拆除 state 与基金流水不匹配，已中止个人主状态变更', 409);
+  }
+  if (targetEntry.shared_decoration_state_entry_id && targetEntry.shared_decoration_state_entry_id !== stateEntry.id) {
+    throw createError('共同装修拆除 ledger 与 state 反链不匹配，已中止个人主状态变更', 409);
+  }
+  const expectedDecorationId = sanitizeText(
+    request.expected_decoration_id
+      || targetEntry.decoration_id
+      || stateEntry.decoration_id
+      || parseSharedFundTargetSubject(draft.target_ref).subject_id,
+    100
+  );
+  if (!expectedDecorationId || targetEntry.decoration_id !== expectedDecorationId || stateEntry.decoration_id !== expectedDecorationId) {
+    throw createError('共同装修拆除个人主状态变更装饰 ID 与完成回执不一致', 409);
+  }
+
+  const receipts = applySharedDecorationRemovalMainStateMutationToPersonalSaves(contract, targetEntry, stateEntry, draft, {
+    ...request,
+    expected_decoration_id: expectedDecorationId,
+    fund_ledger_id: originalFundLedger.id,
+    target_ref: request.target_ref || targetEntry.target_ref || stateEntry.target_ref || draft.target_ref,
+    receipt_ref: request.receipt_ref || targetEntry.receipt_ref || stateEntry.receipt_ref || draft.high_risk_receipt_ref,
+  });
+  if (receipts.length === 0) throw createError('没有可写入共同装修拆除个人主状态变更的精确目标', 409);
+  const operatedAt = nowSeconds();
+  const actorDisplayName = actor.displayName || actor.display_name || member.display_name || member.username;
+  const nextStateEntry = normalizeSharedDecorationStateEntry({
+    ...stateEntry,
+    personal_home_mutated: true,
+    personal_save_changed: true,
+    shared_decoration_removal_main_state_mutation_idempotency_key: request.idempotency_key,
+    shared_decoration_removal_main_state_mutation_state: 'personal_main_state_mutated',
+    shared_decoration_removal_main_state_mutated_at: operatedAt,
+    shared_decoration_removal_main_state_mutated_by_username: member.username,
+    shared_decoration_removal_main_state_mutated_by_display_name: actorDisplayName,
+    shared_decoration_removal_main_state_mutation_receipt_count: receipts.length,
+    shared_fund_changed: false,
+  });
+  const nextLedgerEntry = normalizeSharedDecorationLedgerEntry({
+    ...targetEntry,
+    personal_home_mutated: true,
+    personal_save_changed: true,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    shared_decoration_removal_main_state_mutation_idempotency_key: request.idempotency_key,
+    shared_decoration_removal_main_state_mutation_state: 'personal_main_state_mutated',
+    shared_decoration_removal_main_state_mutated_at: operatedAt,
+    shared_decoration_removal_main_state_mutated_by_username: member.username,
+    shared_decoration_removal_main_state_mutated_by_display_name: actorDisplayName,
+    shared_decoration_removal_main_state_mutation_receipt_count: receipts.length,
+    shared_decoration_removal_main_state_mutation_receipts: receipts,
+    compensation_hint: 'shared decoration removal main-state adapter deleted only exact personal home / decoration selectors after delivered receipt; shared fund and shared warehouse stay unchanged.',
+  });
+  contract.shared_decoration_state = contract.shared_decoration_state.map(entry =>
+    entry.id === stateEntry.id ? nextStateEntry : entry
+  );
+  contract.shared_decoration_ledger = contract.shared_decoration_ledger.map(entry =>
+    entry.id === targetEntry.id ? nextLedgerEntry : entry
+  );
+  appendAudit(contract, 'shared_decoration_removal_main_state_mutation_applied', actor, {
+    draft_id: draft.id,
+    original_fund_ledger_id: originalFundLedger.id,
+    shared_decoration_ledger_id: nextLedgerEntry.id,
+    shared_decoration_state_entry_id: nextStateEntry.id,
+    receipt_id: draft.high_risk_receipt_id,
+    receipt_ref: draft.high_risk_receipt_ref,
+    target_ref: nextLedgerEntry.target_ref,
+    decoration_id: expectedDecorationId,
+    receipt_count: receipts.length,
+    receipt_usernames: receipts.map(receipt => receipt.username),
+    candidate_paths: receipts.map(receipt => receipt.delete_selector).filter(Boolean),
+    target_kinds: [...new Set(receipts.map(receipt => receipt.target_kind).filter(Boolean))],
+    required_permission_keys: ['fund.spend_large', 'construction.demolish_building', 'confirmations.demolish_requires_both'],
+    execution_state: nextLedgerEntry.shared_decoration_removal_main_state_mutation_state,
+    personal_home_mutated: true,
+    personal_save_changed: true,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+    personal_inventory_changed: false,
+    compensation_plan_acknowledged: request.compensation_plan_acknowledged,
+    rollback_plan_acknowledged: request.rollback_plan_acknowledged,
+  }, request.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return buildSharedDecorationRemovalMainStateMutationResponse(
+    contract,
+    actorUsername,
+    draft,
+    nextLedgerEntry,
+    nextStateEntry,
+    {
+      receipts,
+      personal_home_mutated: true,
+      personal_save_changed: true,
+      execution_state: nextLedgerEntry.shared_decoration_removal_main_state_mutation_state,
+      receipt_count: receipts.length,
+    },
+    { idempotent: false, already_mutated: false }
+  );
+}
+
 async function recordCohabitationFamilyChildCare(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
@@ -38807,6 +39393,7 @@ module.exports = {
   confirmCohabitationFundLargeSpendDraft,
   executeCohabitationFundLargeSpendDraft,
   recordCohabitationFundHighRiskReceipt,
+  executeCohabitationSharedDecorationRemovalMainStateMutation,
   recordCohabitationFamilyChildCare,
   submitCohabitationFamilyWish,
   applyCohabitationFamilyBuildingRealBuild,

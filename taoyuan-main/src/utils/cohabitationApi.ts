@@ -3876,6 +3876,96 @@ export interface CohabitationSharedDecorationMoveResponse extends CohabitationDe
   personal_home_mutated?: boolean
 }
 
+export interface CohabitationPersonalMainStateMutationReceipt {
+  already_written?: boolean
+  contract_id?: string
+  draft_id?: string
+  fund_ledger_id?: string
+  shared_decoration_ledger_id?: string
+  shared_decoration_state_entry_id?: string
+  high_risk_receipt_id?: string
+  receipt_ref?: string
+  target_ref?: string
+  decoration_id?: string
+  username: string
+  username_key: string
+  save_slot?: number | null
+  save_id?: number | string | null
+  before_revision?: number
+  after_revision?: number
+  receipt_id: string
+  receipt_status?: string
+  delete_selector?: string
+  target_kind?: string
+  target_id?: string
+  before_value?: unknown
+  after_value?: unknown
+  mutation_result?: string
+  personal_asset_boundary?: string
+  memo?: string
+  personal_save_changed?: boolean
+  shared_fund_changed?: boolean
+  shared_warehouse_changed?: boolean
+  personal_inventory_changed?: boolean
+  idempotency_key?: string
+  written_at?: number
+}
+
+export interface CohabitationSharedDecorationRemovalMainStateMutationTarget {
+  username: string
+  username_key?: string
+  save_slot?: number | null
+  save_id?: number | string | null
+  candidate_path: 'decoration.placed' | 'decoration.owned' | string
+  exact_target_ref?: string
+  delete_selector: string
+  target_kind?: string
+  decoration_id?: string
+  binding_ref?: string
+  snapshot_hash?: string
+}
+
+export interface CohabitationSharedDecorationRemovalMainStateMutationPayload {
+  idempotency_key: string
+  draft_id?: string
+  fund_ledger_id?: string
+  shared_decoration_ledger_id?: string
+  shared_decoration_state_entry_id?: string
+  receipt_id?: string
+  receipt_ref?: string
+  target_ref?: string
+  expected_decoration_id?: string
+  expected_execution_state?: string
+  confirmation_text: string
+  compensation_plan_acknowledged: boolean
+  rollback_plan_acknowledged: boolean
+  reason?: string
+  memo?: string
+  targets: CohabitationSharedDecorationRemovalMainStateMutationTarget[]
+}
+
+export interface CohabitationSharedDecorationRemovalMainStateMutationResponse extends CohabitationDetailResponse {
+  fund?: CohabitationFundSnapshot
+  warehouse?: CohabitationWarehouseSnapshot
+  draft?: CohabitationFundLargeSpendDraft | null
+  shared_decoration_state_entry?: Record<string, unknown> | null
+  shared_decoration_ledger?: Array<Record<string, unknown>>
+  shared_decoration_ledger_entry?: Record<string, unknown> | null
+  idempotent?: boolean
+  already_mutated?: boolean
+  shared_decoration_removal_main_state_mutation?: {
+    receipts?: CohabitationPersonalMainStateMutationReceipt[]
+    mutation_enabled?: boolean
+    personal_home_mutated?: boolean
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
+    personal_inventory_changed?: boolean
+    execution_state?: string
+    receipt_count?: number
+  }
+}
+
 export interface CohabitationFamilyOrderActionResponse extends CohabitationDetailResponse {
   family_orders_panel?: CohabitationFamilyOrdersPanel
   family_reputation_panel?: CohabitationFamilyReputationPanel
@@ -4473,6 +4563,14 @@ export const moveCohabitationSharedDecoration = async (contractId: string, paylo
     contractPath(contractId, '/shared-decorations/move'),
     payload as unknown as Record<string, unknown>,
     '绉诲姩鍏卞悓瑁呴グ澶辫触'
+  )
+}
+
+export const executeCohabitationSharedDecorationRemovalMainStateMutation = async (contractId: string, payload: CohabitationSharedDecorationRemovalMainStateMutationPayload) => {
+  return postCohabitationJson<CohabitationSharedDecorationRemovalMainStateMutationResponse>(
+    contractPath(contractId, '/shared-decorations/removal/main-state-mutation'),
+    payload as unknown as Record<string, unknown>,
+    '执行共同装修拆除个人主状态变更失败'
   )
 }
 
