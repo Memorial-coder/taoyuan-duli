@@ -211,7 +211,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 39;
+const WAREHOUSE_ITEM_POLICY_VERSION = 40;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -254,6 +254,8 @@ const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
   'rare_lotus_guard_elixir', 'jade_peach_spirit_elixir', 'snow_lotus_calm_elixir', 'dew_bloom_focus_elixir', 'star_lotus_calm_elixir',
   'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup',
   'sturgeon', 'dragonfish', 'food_moonlight_sashimi', 'food_sturgeon_stew', 'food_dragon_sashimi', 'food_collectors_banquet',
+  'crystal_ore', 'gold_ore', 'shadow_ore', 'void_ore', 'crystal_shrimp',
+  'food_crystal_jelly', 'food_gold_dumpling', 'food_void_essence_soup', 'food_shadow_brew', 'food_void_elixir', 'food_miners_glory', 'food_abyss_stew',
   'ley_crystal_shard', 'marsh_spore_sample', 'luminous_algae', 'wind_etched_core',
   'lotus_seed_rare', 'jade_peach', 'moon_pearl', 'jade_orchid',
 ]);
@@ -2278,6 +2280,102 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_iron_tonic',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_crystal_jelly: {
+    id: 'shared_crystal_jelly',
+    label: '共同灶台水晶冻',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'crystal_ore', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_crystal_jelly',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_gold_dumpling: {
+    id: 'shared_gold_dumpling',
+    label: '共同灶台金矿饺',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'gold_ore', quantity: 1, quality: 'normal' },
+      { item_id: 'winter_wheat', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_gold_dumpling',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_void_essence_soup: {
+    id: 'shared_void_essence_soup',
+    label: '共同灶台虚空精华汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'void_ore', quantity: 1, quality: 'normal' },
+      { item_id: 'ginseng', quantity: 1, quality: 'normal' },
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_void_essence_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_shadow_brew: {
+    id: 'shared_shadow_brew',
+    label: '共同酒坊暗影酿',
+    station: 'wine_workshop',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'shadow_ore', quantity: 1, quality: 'normal' },
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+      { item_id: 'firewood', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_shadow_brew',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_void_elixir: {
+    id: 'shared_void_elixir',
+    label: '共同灶台虚空药剂',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'void_ore', quantity: 1, quality: 'normal' },
+      { item_id: 'ginseng', quantity: 1, quality: 'normal' },
+      { item_id: 'shadow_ore', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_void_elixir',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_miners_glory: {
+    id: 'shared_miners_glory',
+    label: '共同灶台矿工荣光',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'gold_ore', quantity: 1, quality: 'normal' },
+      { item_id: 'egg', quantity: 2, quality: 'normal' },
+      { item_id: 'rice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_miners_glory',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_abyss_stew: {
+    id: 'shared_abyss_stew',
+    label: '共同灶台深渊炖菜',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'shadow_ore', quantity: 1, quality: 'normal' },
+      { item_id: 'crystal_shrimp', quantity: 1, quality: 'normal' },
+      { item_id: 'herb', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_abyss_stew',
     output_quantity: 1,
     output_quality: 'normal',
   },

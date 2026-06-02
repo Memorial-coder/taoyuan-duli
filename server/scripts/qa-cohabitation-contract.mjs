@@ -4504,7 +4504,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 39, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 40, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4598,6 +4598,13 @@ const recipePolicyHighValueFishDishItemIds = [
 ]
 for (const itemId of recipePolicyHighValueFishDishItemIds) {
   assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list high-value fish cooking item ${itemId} as rare items`)
+}
+const recipePolicyHighValueOreDishItemIds = [
+  'crystal_ore', 'gold_ore', 'shadow_ore', 'void_ore', 'crystal_shrimp',
+  'food_crystal_jelly', 'food_gold_dumpling', 'food_void_essence_soup', 'food_shadow_brew', 'food_void_elixir', 'food_miners_glory', 'food_abyss_stew',
+]
+for (const itemId of recipePolicyHighValueOreDishItemIds) {
+  assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list high-value ore cooking item ${itemId} as rare items`)
 }
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('jujube'), 'warehouse item policy should list jujube as common cooking input')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('chrysanthemum'), 'warehouse item policy should list chrysanthemum as common cooking input')
@@ -5710,6 +5717,13 @@ for (const recipeId of [
   'shared_sturgeon_stew',
   'shared_dragon_sashimi',
   'shared_collectors_banquet',
+  'shared_crystal_jelly',
+  'shared_gold_dumpling',
+  'shared_void_essence_soup',
+  'shared_shadow_brew',
+  'shared_void_elixir',
+  'shared_miners_glory',
+  'shared_abyss_stew',
 ]) {
   await assert.rejects(
     () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
@@ -5877,6 +5891,49 @@ await processRecipePolicyRareDish({
   outputItemId: 'food_collectors_banquet',
   inputs: [{ itemId: 'ginseng', quantity: 1 }, { itemId: 'sturgeon', quantity: 1 }, { itemId: 'pumpkin', quantity: 1 }, { itemId: 'rice', quantity: 2 }],
   rareInputItemIds: ['ginseng', 'sturgeon'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_crystal_jelly',
+  outputItemId: 'food_crystal_jelly',
+  inputs: [{ itemId: 'crystal_ore', quantity: 1 }, { itemId: 'honey', quantity: 1 }],
+  rareInputItemIds: ['crystal_ore'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_gold_dumpling',
+  outputItemId: 'food_gold_dumpling',
+  inputs: [{ itemId: 'gold_ore', quantity: 1 }, { itemId: 'winter_wheat', quantity: 2 }],
+  rareInputItemIds: ['gold_ore'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_void_essence_soup',
+  outputItemId: 'food_void_essence_soup',
+  inputs: [{ itemId: 'void_ore', quantity: 1 }, { itemId: 'ginseng', quantity: 1 }, { itemId: 'herb', quantity: 2 }],
+  rareInputItemIds: ['void_ore', 'ginseng'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_shadow_brew',
+  outputItemId: 'food_shadow_brew',
+  station: 'wine_workshop',
+  inputs: [{ itemId: 'shadow_ore', quantity: 1 }, { itemId: 'herb', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+  rareInputItemIds: ['shadow_ore'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_void_elixir',
+  outputItemId: 'food_void_elixir',
+  inputs: [{ itemId: 'void_ore', quantity: 1 }, { itemId: 'ginseng', quantity: 1 }, { itemId: 'shadow_ore', quantity: 1 }],
+  rareInputItemIds: ['void_ore', 'ginseng', 'shadow_ore'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_miners_glory',
+  outputItemId: 'food_miners_glory',
+  inputs: [{ itemId: 'gold_ore', quantity: 1 }, { itemId: 'egg', quantity: 2 }, { itemId: 'rice', quantity: 1 }],
+  rareInputItemIds: ['gold_ore'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_abyss_stew',
+  outputItemId: 'food_abyss_stew',
+  inputs: [{ itemId: 'shadow_ore', quantity: 1 }, { itemId: 'crystal_shrimp', quantity: 1 }, { itemId: 'herb', quantity: 1 }],
+  rareInputItemIds: ['shadow_ore', 'crystal_shrimp'],
 })
 await injectRecipePolicyStock('peach', 2, 'fine')
 await injectRecipePolicyStock('candied_peach', 1, 'fine')
