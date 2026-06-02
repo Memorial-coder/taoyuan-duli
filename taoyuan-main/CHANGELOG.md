@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0602 20.1 共同基金稀有采购入仓保护
+- 共同基金 `rare_item_purchase` 高风险草案在 `delivered` 回执后会把稀有物交付到共同仓库，返回仓库快照、`warehouse_ledger_entry` 和 `warehouse_ledger_entries`，并把来源基金 ledger、`shared_fund_deliveries` 与来源资产串起来。
+- 稀有采购入仓后仍读回 `withdrawal_risk_level=rare` 与 `high_value_withdrawal_required=true`，在线 / 离线回执均不改个人背包或个人铜币；`qa:cohabitation-contract` 覆盖在线回执、离线队列、审计和高价值取出保护边界。
+
 ### 0602 同居共同仓库 11.4 鲟鱼 / 龙鱼高价值鱼获料理
 - 共同工坊配方下拉新增共同灶台月下刺身、鲟鱼羹、龙鱼刺身和收藏家宴，可从共同仓库扣鲟鱼、龙鱼、生姜、草药、木柴、人参、南瓜和稻米，并把料理产物回存共同仓库。
 - 共同仓库策略版本升到 v39，鲟鱼、龙鱼和四类高价值鱼获料理成品进入稀有目录；服务端在消费鲟鱼、龙鱼或人参前要求 `storage.withdraw_rare`，契约 QA 覆盖无权限阻断、授权后 consume / deposit 流水、稀有来源资产和个人 / 基金边界。

@@ -3826,6 +3826,7 @@ export interface CohabitationFundLargeSpendDraftResponse extends CohabitationDet
 }
 
 export interface CohabitationFundHighRiskReceiptResponse extends CohabitationFundLargeSpendDraftResponse {
+  warehouse?: CohabitationWarehouseSnapshot
   receipt?: {
     id: string
     status: string
@@ -3837,6 +3838,8 @@ export interface CohabitationFundHighRiskReceiptResponse extends CohabitationFun
   refund_ledger_entry?: CohabitationFundLedgerEntry | null
   already_recorded?: boolean
   delivery_entry?: Record<string, unknown> | null
+  warehouse_ledger_entry?: CohabitationWarehouseLedgerEntry | null
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
   shared_decoration_state_entry?: Record<string, unknown> | null
   family_major_event_entry?: Record<string, unknown> | null
   shared_fund?: CohabitationFundLargeSpendDraftResponse['shared_fund'] & {

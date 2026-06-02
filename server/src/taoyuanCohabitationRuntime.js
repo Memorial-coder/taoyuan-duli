@@ -5129,15 +5129,21 @@ function normalizeSharedFundDeliveryEntry(entry = {}) {
   const targetRef = sanitizeText(entry.target_ref || entry.target, 120);
   const receiptId = sanitizeText(entry.receipt_id, 100);
   if (!targetRef && !receiptId) return null;
+  const itemId = normalizeWarehouseItemId(entry.item_id);
+  const quality = normalizeQuality(entry.quality);
+  const itemPolicy = itemId ? summarizeWarehouseItemPolicy(getWarehouseItemPolicy(itemId), quality) : null;
   return {
     id: sanitizeText(entry.id, 100) || makeId('shared_fund_delivery'),
     delivery_kind: sanitizeText(entry.delivery_kind || entry.purpose, 80),
     purpose: sanitizeText(entry.purpose || entry.delivery_kind, 80),
     target_ref: targetRef,
-    item_id: normalizeWarehouseItemId(entry.item_id),
+    item_id: itemId,
+    quantity: itemId ? normalizePositiveInt(entry.quantity, 1) : 0,
+    quality,
     decoration_id: sanitizeText(entry.decoration_id, 80),
     draft_id: sanitizeText(entry.draft_id, 100),
     fund_ledger_id: sanitizeText(entry.fund_ledger_id || entry.original_fund_ledger_id, 100),
+    warehouse_ledger_id: sanitizeText(entry.warehouse_ledger_id, 100),
     receipt_id: receiptId,
     receipt_ref: sanitizeText(entry.receipt_ref, 120),
     amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
@@ -5153,6 +5159,10 @@ function normalizeSharedFundDeliveryEntry(entry = {}) {
     personal_home_mutated: entry.personal_home_mutated === true,
     personal_family_state_mutated: entry.personal_family_state_mutated === true,
     shared_fund_changed: entry.shared_fund_changed === true,
+    shared_warehouse_changed: entry.shared_warehouse_changed === true,
+    withdrawal_risk_level: itemPolicy?.risk_level || '',
+    high_value_withdrawal_required: itemPolicy?.high_value_withdrawal_required === true,
+    item_policy: itemPolicy,
   };
 }
 
@@ -5444,13 +5454,16 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
       delivery_kind: draft.purpose,
       purpose: draft.purpose,
       item_id: draft.purpose === 'rare_item_purchase' ? targetSubject.subject_id : '',
+      quantity: draft.purpose === 'rare_item_purchase' ? 1 : 0,
+      quality: 'normal',
       decoration_id: draft.purpose === 'limited_decoration' ? decorationId : '',
       status: 'delivered',
-      delivered_to: draft.purpose === 'limited_decoration' ? 'shared_decoration_state' : 'contract_record',
+      delivered_to: draft.purpose === 'limited_decoration' ? 'shared_decoration_state' : 'shared_warehouse',
       contract_delivery_recorded: true,
       personal_inventory_mutated: false,
       personal_home_mutated: false,
       personal_family_state_mutated: false,
+      shared_warehouse_changed: draft.purpose === 'rare_item_purchase',
     })
     : null;
   const sharedDecorationStateEntry = draft.purpose === 'limited_decoration'
@@ -5513,6 +5526,51 @@ function buildHighRiskReceiptStateArtifacts(draft = {}, originalFundLedger = {},
     shared_decoration_state_entry: sharedDecorationStateEntry,
     family_major_event_entry: familyMajorEventEntry,
   };
+}
+
+function buildHighRiskRareItemWarehouseLedgerEntry(deliveryEntry = {}, draft = {}, originalFundLedger = {}, receiptRequest = {}, receiptMeta = {}) {
+  const normalizedDeliveryEntry = normalizeSharedFundDeliveryEntry(deliveryEntry);
+  if (!normalizedDeliveryEntry || normalizedDeliveryEntry.purpose !== 'rare_item_purchase') return null;
+  const itemId = normalizeWarehouseItemId(normalizedDeliveryEntry.item_id);
+  const quantity = normalizePositiveInt(normalizedDeliveryEntry.quantity, 1);
+  if (!itemId || quantity <= 0) return null;
+  const actorUsername = normalizeUsername(receiptMeta.actor_username || normalizedDeliveryEntry.recorded_by_username);
+  const amount = Math.max(0, Math.floor(Number(draft.amount || originalFundLedger.amount || normalizedDeliveryEntry.amount) || 0));
+  return normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'deposit',
+    item_id: itemId,
+    quality: normalizedDeliveryEntry.quality || 'normal',
+    quantity,
+    actor_username: actorUsername,
+    actor_display_name: sanitizeText(receiptMeta.actor_display_name || normalizedDeliveryEntry.recorded_by_display_name || actorUsername, 60),
+    actor_ip_address: receiptMeta.actor_ip_address,
+    actor_device_id: receiptMeta.actor_device_id,
+    actor_user_agent_hash: receiptMeta.actor_user_agent_hash,
+    actor_manor_role: receiptMeta.actor_manor_role,
+    actor_manor_role_label: receiptMeta.actor_manor_role_label,
+    source_owner_id: `shared_fund:${receiptMeta.contract_id || normalizedDeliveryEntry.contract_id || draft.contract_id || ''}`,
+    source_owner_username: 'shared_fund',
+    source_owner_display_name: 'shared fund rare purchase',
+    source_owner_key: 'shared_fund',
+    source_inventory: 'shared_fund.rare_item_purchase',
+    source_ledger_ids: [originalFundLedger.id || normalizedDeliveryEntry.fund_ledger_id].filter(Boolean),
+    target_owner_id: `shared_warehouse:${receiptMeta.contract_id || normalizedDeliveryEntry.contract_id || draft.contract_id || ''}`,
+    target_owner_username: 'shared_warehouse',
+    target_owner_display_name: 'shared warehouse',
+    target_owner_key: 'shared_warehouse',
+    target_inventory: 'shared_warehouse.items',
+    target_ref: `shared_fund_rare_purchase:${draft.target_ref || normalizedDeliveryEntry.target_ref || itemId}`,
+    unit_price: amount,
+    total_amount: amount,
+    fund_ledger_id: originalFundLedger.id || normalizedDeliveryEntry.fund_ledger_id,
+    at: receiptMeta.recorded_at,
+    idempotency_key: receiptRequest.idempotency_key,
+    operation_id: receiptMeta.receipt_id || receiptRequest.idempotency_key,
+    reversible: true,
+    compensation_hint: 'rare item purchased with shared fund is deposited into shared warehouse; later withdrawal must use high-value shared warehouse draft confirmation.',
+    status: 'committed',
+  });
 }
 
 function buildHighRiskReceiptSharedDecorationLedgerEntry(stateEntry = {}, draft = {}, originalFundLedger = {}, receiptRequest = {}, receiptMeta = {}) {
@@ -24691,6 +24749,7 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
     const decorationLedgerEntry = result.shared_decoration_ledger_entry || {};
     const deliveryEntry = result.delivery_entry || {};
     const familyEventEntry = result.family_major_event_entry || {};
+    const warehouseLedgerEntry = result.warehouse_ledger_entry || {};
     const originalFundLedger = result.original_fund_ledger_entry || {};
     const targetRef = draft.target_ref || stateEntry.target_ref || familyEventEntry.target_ref || sanitizeText(operation.payload?.target_ref || operation.payload?.receipt_ref, 120);
     const decorationId = stateEntry.decoration_id || sanitizeText(operation.payload?.decoration_id || operation.payload?.decorationId || operation.payload?.item_id || operation.payload?.id, 80);
@@ -24720,6 +24779,10 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       shared_decoration_state_entry_id: stateEntry.id || '',
       shared_decoration_ledger_id: decorationLedgerId,
       shared_decoration_ledger_count: decorationLedgerId ? 1 : 0,
+      warehouse_ledger_id: warehouseLedgerEntry.id || deliveryEntry.warehouse_ledger_id || '',
+      warehouse_ledger_ids: [warehouseLedgerEntry.id || deliveryEntry.warehouse_ledger_id].filter(Boolean),
+      warehouse_withdrawal_risk_level: warehouseLedgerEntry.withdrawal_risk_level || deliveryEntry.withdrawal_risk_level || '',
+      high_value_withdrawal_required: warehouseLedgerEntry.high_value_withdrawal_required === true || deliveryEntry.high_value_withdrawal_required === true,
       family_major_event_entry_id: familyEventEntry.id || '',
       family_major_event_entry: isFamilyMajorEventReceipt ? familyEventEntry : null,
       contract_family_state_changed: isFamilyMajorEventReceipt ? familyEventEntry.contract_family_state_changed !== false : false,
@@ -24733,15 +24796,15 @@ function buildCohabitationOfflineQueueResult(operation = {}, result = {}) {
       personal_family_state_mutated: false,
       personal_save_changed: false,
       personal_inventory_merged: false,
-      shared_warehouse_changed: false,
+      shared_warehouse_changed: isRareItemDelivery ? warehouseLedgerEntry.action === 'deposit' : false,
       shared_fund_changed: false,
       already_recorded: result.already_recorded === true,
-      ledger_id: decorationLedgerId || entry.ledger_id || '',
+      ledger_id: decorationLedgerId || warehouseLedgerEntry.id || entry.ledger_id || '',
       audit_action: 'fund_high_risk_receipt_recorded',
       compensation_hint: isFamilyMajorEventReceipt
         ? 'offline family major event receipt only closes an executed high-risk draft and records contract family_state.major_event_ledger; personal family state, personal home saves, shared warehouse, and shared fund remain unchanged.'
         : isRareItemDelivery
-        ? 'offline rare item delivery receipt only closes an executed high-risk draft and records contract shared_fund_deliveries; personal inventory, personal home saves, shared decoration state, shared warehouse, and shared fund remain unchanged.'
+        ? 'offline rare item delivery receipt closes an executed high-risk draft and deposits the purchased rare item into shared warehouse; later withdrawal must use high-value shared warehouse confirmation.'
         : isLimitedDecorationDelivery
         ? 'offline limited decoration delivery receipt only closes an executed high-risk draft and updates contract shared_fund_deliveries, shared_decoration_state, and shared_decoration_ledger; personal inventory, personal home saves, shared warehouse, and shared fund remain unchanged.'
         : 'offline shared decoration removal receipt only closes an executed high-risk draft and updates contract shared_decoration_state plus shared_decoration_ledger; personal home saves, shared warehouse, and shared fund remain unchanged.',
@@ -31502,6 +31565,10 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   const normalizedDraftId = sanitizeText(draftId || payload.draft_id || payload.id, 80);
   if (!normalizedDraftId) throw createError('请指定要记录回执的共同基金高风险草案');
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_fund_deliveries = normalizeSharedFundDeliveries(contract.shared_fund_deliveries);
+  contract.shared_decoration_state = normalizeSharedDecorationState(contract.shared_decoration_state);
+  contract.shared_decoration_ledger = normalizeSharedDecorationLedger(contract.shared_decoration_ledger);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
     ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
     : [];
@@ -31537,10 +31604,18 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   ) || null;
   const existingFamilyEventEntry = normalizeContractFamilyState(contract.family_state).major_event_ledger
     .find(entry => entry.receipt_id === draft.high_risk_receipt_id || entry.idempotency_key === draft.high_risk_receipt_idempotency_key) || null;
+  const existingWarehouseLedgerEntry = contract.shared_warehouse.ledger.find(entry =>
+    entry.action === 'deposit'
+    && (
+      entry.idempotency_key === draft.high_risk_receipt_idempotency_key
+      || (draft.final_spend_ledger_id && entry.fund_ledger_id === draft.final_spend_ledger_id && entry.target_ref === `shared_fund_rare_purchase:${draft.target_ref}`)
+    )
+  ) || null;
   if (draft.high_risk_receipt_idempotency_key === receiptRequest.idempotency_key && draft.high_risk_receipt_status !== 'pending') {
     return {
       contract: toPublicContract(contract),
       fund: buildSharedFundSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
       draft,
       receipt: {
         id: draft.high_risk_receipt_id,
@@ -31561,6 +31636,8 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
       shared_decoration_ledger: contract.shared_decoration_ledger,
       shared_decoration_ledger_entry: existingDecorationLedgerEntry,
       family_major_event_entry: existingFamilyEventEntry,
+      warehouse_ledger_entry: existingWarehouseLedgerEntry,
+      warehouse_ledger_entries: existingWarehouseLedgerEntry ? [existingWarehouseLedgerEntry] : [],
       required_permission_keys: receiptPermissionChecks.map(check => check.label),
       shared_fund: {
         refund_amount: 0,
@@ -31629,6 +31706,7 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     actor_key: member.username_key,
     actor_manor_role: actorManorRole,
     actor_manor_role_label: actorManorRoleLabel,
+    ...buildActorRiskLedgerFields(actor),
     required_permission_keys: receiptPermissionChecks.map(check => check.label),
     recorded_at: operatedAt,
   });
@@ -31636,12 +31714,46 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   let sharedDecorationStateEntry = null;
   let familyMajorEventEntry = null;
   let sharedDecorationLedgerEntry = null;
+  let warehouseLedgerEntry = null;
   let contractDeliveryRecorded = false;
   let sharedDecorationStateChanged = false;
   let sharedDecorationLedgerChanged = false;
+  let sharedWarehouseChanged = false;
   let contractFamilyStateChanged = false;
+  if (draft.purpose === 'rare_item_purchase' && receiptArtifacts.delivery_entry) {
+    warehouseLedgerEntry = buildHighRiskRareItemWarehouseLedgerEntry(receiptArtifacts.delivery_entry, draft, originalFundLedger, receiptRequest, {
+      contract_id: contract.id,
+      receipt_id: receiptId,
+      actor_username: member.username,
+      actor_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+      actor_manor_role: actorManorRole,
+      actor_manor_role_label: actorManorRoleLabel,
+      ...buildActorRiskLedgerFields(actor),
+      recorded_at: operatedAt,
+    });
+    if (!warehouseLedgerEntry) {
+      throw createError('稀有物采购回执无法生成共同仓库入仓流水，请刷新草案后重试', 409, 'rare_item_purchase_warehouse_deposit_required');
+    }
+    contract.shared_warehouse.ledger = [warehouseLedgerEntry, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+    contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+    contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+    contract.origin_assets.warehouse_items = [
+      buildWarehouseOriginAsset(warehouseLedgerEntry),
+      ...contract.origin_assets.warehouse_items,
+    ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+    sharedWarehouseChanged = true;
+  }
   if (receiptArtifacts.delivery_entry) {
-    const deliveryResult = prependSharedFundDeliveryEntry(contract.shared_fund_deliveries, receiptArtifacts.delivery_entry);
+    const deliveryResult = prependSharedFundDeliveryEntry(contract.shared_fund_deliveries, warehouseLedgerEntry
+      ? {
+        ...receiptArtifacts.delivery_entry,
+        warehouse_ledger_id: warehouseLedgerEntry.id,
+        delivered_to: 'shared_warehouse',
+        quantity: warehouseLedgerEntry.quantity,
+        quality: warehouseLedgerEntry.quality,
+        shared_warehouse_changed: true,
+      }
+      : receiptArtifacts.delivery_entry);
     contract.shared_fund_deliveries = deliveryResult.entries;
     deliveryEntry = deliveryResult.entry;
     contractDeliveryRecorded = deliveryResult.changed;
@@ -31726,6 +31838,13 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     shared_decoration_ledger_written: sharedDecorationLedgerChanged,
     shared_decoration_ledger_id: sharedDecorationLedgerEntry?.id || '',
     shared_decoration_ledger_count: sharedDecorationLedgerEntry ? 1 : 0,
+    shared_warehouse_changed: sharedWarehouseChanged,
+    shared_warehouse_ledger_id: warehouseLedgerEntry?.id || '',
+    shared_warehouse_ledger_count: warehouseLedgerEntry ? 1 : 0,
+    warehouse_item_id: warehouseLedgerEntry?.item_id || '',
+    warehouse_item_quantity: warehouseLedgerEntry?.quantity || 0,
+    warehouse_withdrawal_risk_level: warehouseLedgerEntry?.withdrawal_risk_level || '',
+    high_value_withdrawal_required: warehouseLedgerEntry?.high_value_withdrawal_required === true,
     contract_family_state_changed: contractFamilyStateChanged,
     personal_money_merged: false,
     personal_inventory_merged: false,
@@ -31739,6 +31858,7 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
   return {
     contract: toPublicContract(contract),
     fund: buildSharedFundSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
     draft: nextDraft,
     receipt: {
       id: nextDraft.high_risk_receipt_id,
@@ -31755,6 +31875,8 @@ async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payloa
     shared_decoration_ledger: contract.shared_decoration_ledger,
     shared_decoration_ledger_entry: sharedDecorationLedgerEntry,
     family_major_event_entry: familyMajorEventEntry,
+    warehouse_ledger_entry: warehouseLedgerEntry,
+    warehouse_ledger_entries: warehouseLedgerEntry ? [warehouseLedgerEntry] : [],
     required_permission_keys: receiptPermissionChecks.map(check => check.label),
     idempotent: false,
     already_recorded: false,
