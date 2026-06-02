@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0602 在线房间按钮矩阵
+- `OnlineRoomLobbyDialog` 新增房主状态矩阵和成员状态矩阵，覆盖创建、准备检查、倒计时、运行中、结算中、已结算、已关闭、受邀、已加入、已准备、断线等状态；每个状态只保留一个推荐主行动，次行动和危险行动进入矩阵的 secondary / danger 分组。
+- 禁用动作会通过 `online-room-disabled-reason` 展示可见原因，结构 QA 新增矩阵覆盖、单 primary、capability 控制和页面承接事件断言；本轮不改后端房间状态机，也不替代后续结算 / 关闭确认弹窗任务。
+
 ### 0602 在线房间准备大厅组件
 - 新增 `OnlineRoomLobbyDialog`，复用 `OnlineBottomSheet` 统一展示房间名、玩法、人数、状态、成员列表、最近反馈和主行动禁用原因；成员状态会区分房主、已准备、未准备、离线和被邀请。
 - 组件只发出 `invite`、`ready`、`unready`、`start-ready-check`、`start-countdown`、`settle`、`cancel-room`、`leave-room` 等事件，不直接调用 store；结构 QA 已补大厅 test id、事件和房主 / 成员能力判断断言，等待节会 / 远征页面接入准备流程。

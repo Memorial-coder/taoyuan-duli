@@ -93,6 +93,43 @@ const expectCountAtLeast = (relativePath, pattern, minCount, message) => {
   return count
 }
 
+const extractObjectBlock = (source, marker) => {
+  const markerIndex = source.indexOf(marker)
+  if (markerIndex < 0) return ''
+  const startIndex = source.indexOf('{', markerIndex)
+  if (startIndex < 0) return ''
+  let depth = 0
+  for (let index = startIndex; index < source.length; index += 1) {
+    const char = source[index]
+    if (char === '{') depth += 1
+    if (char === '}') {
+      depth -= 1
+      if (depth === 0) return source.slice(startIndex, index + 1)
+    }
+  }
+  return ''
+}
+
+const expectMatrixEntriesHaveSinglePrimary = (relativePath, matrixName, expectedEntries) => {
+  const matrixSource = extractObjectBlock(getFile(relativePath), matrixName)
+  if (!matrixSource) {
+    addFailure(relativePath, `${matrixName} 应定义显式动作矩阵`)
+    return
+  }
+
+  for (const entryName of expectedEntries) {
+    const entrySource = extractObjectBlock(matrixSource, `${entryName}:`)
+    if (!entrySource) {
+      addFailure(relativePath, `${matrixName} 应包含 ${entryName} 状态`)
+      continue
+    }
+    const primaryCount = entrySource.match(/\bprimary\s*:/g)?.length ?? 0
+    if (primaryCount !== 1) {
+      addFailure(relativePath, `${matrixName}.${entryName} 应且只应定义一个推荐主行动，当前 ${primaryCount}`)
+    }
+  }
+}
+
 const onlineModuleShellPanelPages = [
   'online/OnlineCohabitationView.vue',
   'online/OnlineNeighborView.vue',
@@ -1317,6 +1354,26 @@ expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'can_host_sta
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'can_ready', '房间准备大厅应保留成员准备能力判断')
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'can_unready', '房间准备大厅应保留成员取消准备能力判断')
 expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'lastFeedbackText', '房间准备大厅应展示最近成功或失败反馈')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'hostStateActionMatrix', '房间准备大厅应定义房主状态动作矩阵')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'memberStatusActionMatrix', '房间准备大厅应定义成员状态动作矩阵')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'activeLobbyMatrix', '房间准备大厅应按当前视角选择动作矩阵')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'enabledBy', '房间准备大厅动作矩阵应用 capability 控制按钮显隐 / 禁用')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', 'disabledActionReasons', '房间准备大厅应把禁用动作原因集中展示给玩家')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "'view-countdown': []", '房间准备大厅应提供查看倒计时事件给页面承接')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "'enter-gameplay': []", '房间准备大厅应提供进入玩法事件给页面承接')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "'view-settlement': []", '房间准备大厅应提供查看结算事件给页面承接')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "'retry-settle': []", '房间准备大厅应提供重试结算事件给页面承接')
+expectContains('components/game/online/OnlineRoomLobbyDialog.vue', "rematch: []", '房间准备大厅应提供再开一局事件给页面承接')
+expectMatrixEntriesHaveSinglePrimary(
+  'components/game/online/OnlineRoomLobbyDialog.vue',
+  'hostStateActionMatrix',
+  ['created', 'ready_check', 'countdown', 'running', 'settling', 'settled', 'closed', 'unknown']
+)
+expectMatrixEntriesHaveSinglePrimary(
+  'components/game/online/OnlineRoomLobbyDialog.vue',
+  'memberStatusActionMatrix',
+  ['invited', 'joined', 'ready', 'running', 'disconnected', 'settled', 'unknown']
+)
 expectContains('online/OnlineFestivalView.vue', 'import OnlineInvitePanel', '在线节会页应接入统一邀请面板')
 expectCountAtLeast('online/OnlineFestivalView.vue', /<OnlineInvitePanel/g, 2, '在线节会页应同时接入节会和远征邀请面板')
 expectContains('online/OnlineFestivalView.vue', 'data-testid="online-festival-room-invite-trigger"', '节会房主邀请主入口应改为邀请面板按钮')

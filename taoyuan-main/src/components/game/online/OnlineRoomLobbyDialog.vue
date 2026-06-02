@@ -62,8 +62,10 @@
         </div>
       </section>
 
-      <section v-if="primaryBlockedReason" class="border border-amber-300/20 bg-amber-500/10 p-2 text-[10px] leading-4 text-amber-100" data-testid="online-room-disabled-reason">
-        {{ primaryBlockedReason }}
+      <section v-if="disabledActionReasons.length > 0" class="space-y-1 border border-amber-300/20 bg-amber-500/10 p-2 text-[10px] leading-4 text-amber-100" data-testid="online-room-disabled-reason">
+        <p v-for="reason in disabledActionReasons" :key="reason">
+          {{ reason }}
+        </p>
       </section>
     </div>
 
@@ -112,7 +114,7 @@
 
 <script setup lang="ts">
   import { computed } from 'vue'
-  import { CheckCircle2, Clock3, LogOut, PlayCircle, UserPlus, XCircle } from 'lucide-vue-next'
+  import { CheckCircle2, Clock3, DoorOpen, Eye, Gift, LogOut, PlayCircle, Radio, RotateCcw, UserPlus, XCircle } from 'lucide-vue-next'
   import OnlineBottomSheet from './OnlineBottomSheet.vue'
 
   export type OnlineRoomLobbyDomain = 'festival' | 'expedition' | 'room'
@@ -151,9 +153,11 @@
     maxMemberLimit?: number
     members?: OnlineRoomLobbyMember[]
     can_invite?: boolean
+    can_join?: boolean
     can_ready?: boolean
     can_unready?: boolean
     can_leave?: boolean
+    can_reconnect?: boolean
     can_host_ready_check?: boolean
     can_host_start_countdown?: boolean
     can_host_settle?: boolean
@@ -175,14 +179,46 @@
     | 'cancel-room'
     | 'leave-room'
     | 'accept-invite'
+    | 'reconnect'
+    | 'view-countdown'
+    | 'enter-gameplay'
+    | 'view-members'
+    | 'view-objective'
+    | 'view-settlement'
+    | 'view-record'
+    | 'return-lobby'
+    | 'notify-members'
+    | 'retry-settle'
+    | 'rematch'
+
+  type HostRoomState = 'created' | 'ready_check' | 'countdown' | 'running' | 'settling' | 'settled' | 'closed' | 'unknown'
+  type MemberRoomStatus = 'invited' | 'joined' | 'ready' | 'running' | 'disconnected' | 'settled' | 'unknown'
+  type RoomCapability =
+    | 'can_invite'
+    | 'can_join'
+    | 'can_ready'
+    | 'can_unready'
+    | 'can_leave'
+    | 'can_reconnect'
+    | 'can_host_ready_check'
+    | 'can_host_start_countdown'
+    | 'can_host_settle'
+    | 'can_host_close'
 
   type LobbyAction = {
     key: LobbyActionKey
     label: string
     icon: unknown
     tone?: 'default' | 'danger'
+    enabledBy?: RoomCapability
     disabled?: boolean
     disabledReason?: string
+  }
+
+  type LobbyActionMatrix = {
+    primary: LobbyAction
+    secondary?: LobbyAction[]
+    danger?: LobbyAction[]
   }
 
   const props = withDefaults(defineProps<{
@@ -209,8 +245,92 @@
     'cancel-room': []
     'leave-room': []
     'accept-invite': []
+    reconnect: []
+    'view-countdown': []
+    'enter-gameplay': []
+    'view-members': []
+    'view-objective': []
+    'view-settlement': []
+    'view-record': []
+    'return-lobby': []
+    'notify-members': []
+    'retry-settle': []
+    rematch: []
     close: []
   }>()
+
+  const hostStateActionMatrix: Record<HostRoomState, LobbyActionMatrix> = {
+    created: {
+      primary: { key: 'invite', label: '邀请玩家', icon: UserPlus, enabledBy: 'can_invite', disabledReason: '当前房间暂时不能邀请玩家。' },
+      secondary: [{ key: 'start-ready-check', label: '开始准备', icon: PlayCircle, enabledBy: 'can_host_ready_check', disabledReason: '人数不足时不能开始准备。' }],
+      danger: [{ key: 'cancel-room', label: '取消房间', icon: XCircle, tone: 'danger', enabledBy: 'can_host_close' }],
+    },
+    ready_check: {
+      primary: { key: 'start-countdown', label: '开始倒计时', icon: Clock3, enabledBy: 'can_host_start_countdown', disabledReason: '还有成员未准备，暂时不能倒计时。' },
+      secondary: [{ key: 'invite', label: '继续邀请', icon: UserPlus, enabledBy: 'can_invite' }],
+      danger: [{ key: 'cancel-room', label: '取消房间', icon: XCircle, tone: 'danger', enabledBy: 'can_host_close' }],
+    },
+    countdown: {
+      primary: { key: 'view-countdown', label: '查看倒计时', icon: Clock3 },
+      secondary: [{ key: 'notify-members', label: '通知成员', icon: Radio }],
+      danger: [{ key: 'cancel-room', label: '取消房间', icon: XCircle, tone: 'danger', enabledBy: 'can_host_close' }],
+    },
+    running: {
+      primary: { key: 'enter-gameplay', label: '进入玩法', icon: DoorOpen },
+      secondary: [{ key: 'view-members', label: '查看成员', icon: Eye }],
+      danger: [{ key: 'cancel-room', label: '关闭房间', icon: XCircle, tone: 'danger', enabledBy: 'can_host_close', disabledReason: '玩法进行中时关闭需要确认成员影响。' }],
+    },
+    settling: {
+      primary: { key: 'view-settlement', label: '查看结算', icon: Gift },
+      secondary: [{ key: 'retry-settle', label: '重试结算', icon: RotateCcw, enabledBy: 'can_host_settle', disabledReason: '正在结算时不能重复提交。' }],
+      danger: [{ key: 'cancel-room', label: '关闭房间', icon: XCircle, tone: 'danger', enabledBy: 'can_host_close' }],
+    },
+    settled: {
+      primary: { key: 'view-settlement', label: '查看奖励', icon: Gift },
+      secondary: [{ key: 'rematch', label: '再开一局', icon: RotateCcw }],
+      danger: [{ key: 'cancel-room', label: '关闭房间', icon: XCircle, tone: 'danger', enabledBy: 'can_host_close' }],
+    },
+    closed: {
+      primary: { key: 'view-record', label: '查看记录', icon: Eye },
+      secondary: [{ key: 'return-lobby', label: '返回大厅', icon: DoorOpen }],
+    },
+    unknown: {
+      primary: { key: 'return-lobby', label: '刷新后继续', icon: RotateCcw, disabled: true, disabledReason: '房间状态暂时无法识别，请刷新后继续。' },
+    },
+  }
+
+  const memberStatusActionMatrix: Record<MemberRoomStatus, LobbyActionMatrix> = {
+    invited: {
+      primary: { key: 'accept-invite', label: '接受邀请', icon: CheckCircle2, enabledBy: 'can_join', disabledReason: '房间已满时不能加入。' },
+      secondary: [{ key: 'leave-room', label: '拒绝邀请', icon: LogOut, enabledBy: 'can_leave' }],
+    },
+    joined: {
+      primary: { key: 'ready', label: '我已准备', icon: CheckCircle2, enabledBy: 'can_ready', disabledReason: '房间状态变化后需要刷新。' },
+      secondary: [{ key: 'leave-room', label: '离开房间', icon: LogOut, enabledBy: 'can_leave' }],
+    },
+    ready: {
+      primary: { key: 'unready', label: '取消准备', icon: Clock3, enabledBy: 'can_unready', disabledReason: '倒计时开始后不能取消准备。' },
+      secondary: [{ key: 'view-members', label: '查看成员', icon: Eye }],
+      danger: [{ key: 'leave-room', label: '离开房间', icon: LogOut, tone: 'danger', enabledBy: 'can_leave' }],
+    },
+    running: {
+      primary: { key: 'enter-gameplay', label: '进入玩法', icon: DoorOpen },
+      secondary: [{ key: 'view-objective', label: '查看目标', icon: Eye }],
+      danger: [{ key: 'leave-room', label: '离开房间', icon: LogOut, tone: 'danger', enabledBy: 'can_leave', disabledReason: '当前阶段不允许离开。' }],
+    },
+    disconnected: {
+      primary: { key: 'reconnect', label: '重新连接', icon: RotateCcw, enabledBy: 'can_reconnect', disabledReason: '网络未恢复。' },
+      secondary: [{ key: 'view-objective', label: '查看说明', icon: Eye }],
+      danger: [{ key: 'leave-room', label: '离开房间', icon: LogOut, tone: 'danger', enabledBy: 'can_leave' }],
+    },
+    settled: {
+      primary: { key: 'view-settlement', label: '查看奖励', icon: Gift },
+      secondary: [{ key: 'return-lobby', label: '返回大厅', icon: DoorOpen }],
+    },
+    unknown: {
+      primary: { key: 'return-lobby', label: '刷新后继续', icon: RotateCcw, disabled: true, disabledReason: '成员状态暂时无法识别，请刷新后继续。' },
+    },
+  }
 
   const normalizeKey = (value = '') => value.trim().toLowerCase()
   const domainLabel = computed(() => props.domain === 'festival' ? '节会房' : props.domain === 'expedition' ? '远征队伍' : '房间')
@@ -278,67 +398,142 @@
     return badges
   }
 
+  const normalizeRoomState = (value = ''): HostRoomState => {
+    const key = normalizeKey(value).replace(/-/g, '_')
+    if (key === 'inviting') return 'created'
+    if (key === 'readycheck' || key === 'ready_check') return 'ready_check'
+    if (key === 'countdown') return 'countdown'
+    if (key === 'running' || key === 'paused') return 'running'
+    if (key === 'settling' || key === 'settlement') return 'settling'
+    if (key === 'settled' || key === 'finished' || key === 'completed') return 'settled'
+    if (key === 'closed' || key === 'aborted' || key === 'cancelled' || key === 'canceled') return 'closed'
+    if (key === 'created') return 'created'
+    return 'unknown'
+  }
+
+  const normalizeMemberStatus = (value = ''): MemberRoomStatus => {
+    const key = normalizeKey(value).replace(/-/g, '_')
+    if (key === 'invited' || key === 'pending') return 'invited'
+    if (key === 'joined' || key === 'accepted' || key === 'member') return 'joined'
+    if (key === 'ready') return 'ready'
+    if (key === 'running' || key === 'playing') return 'running'
+    if (key === 'disconnected' || key === 'offline') return 'disconnected'
+    if (key === 'settled' || key === 'rewarded' || key === 'completed') return 'settled'
+    return 'unknown'
+  }
+
+  const normalizedRoomState = computed<HostRoomState>(() => normalizeRoomState(props.room?.state || ''))
+  const normalizedMemberStatus = computed<MemberRoomStatus>(() => {
+    const member = currentMember.value
+    if (member && isMemberOffline(member)) return 'disconnected'
+    const explicitStatus = normalizeMemberStatus(currentMemberStatus.value)
+    if (explicitStatus === 'invited' || explicitStatus === 'disconnected') return explicitStatus
+    if (!member) return 'unknown'
+    if (normalizedRoomState.value === 'running' || normalizedRoomState.value === 'settling') return 'running'
+    if (normalizedRoomState.value === 'settled' || normalizedRoomState.value === 'closed') return 'settled'
+    if (explicitStatus !== 'unknown') return explicitStatus
+    return isMemberReady(member) ? 'ready' : 'joined'
+  })
+
+  const roomHasCapability = (capability?: RoomCapability) => {
+    if (!capability) return true
+    const value = props.room?.[capability]
+    return value !== false
+  }
+
+  const decorateAction = (action: LobbyAction): LobbyAction => {
+    const capabilityBlocked = !roomHasCapability(action.enabledBy)
+    const disabled = action.disabled || capabilityBlocked
+    return {
+      ...action,
+      disabled,
+      disabledReason: disabled ? action.disabledReason || '当前房间状态暂时不能执行此操作。' : action.disabledReason,
+    }
+  }
+
+  const activeLobbyMatrix = computed<LobbyActionMatrix | null>(() => {
+    if (!props.room) return null
+    return isHost.value ? hostStateActionMatrix[normalizedRoomState.value] : memberStatusActionMatrix[normalizedMemberStatus.value]
+  })
   const actionRunning = (key: LobbyActionKey) => isBusy.value || props.busyAction === key
   const actionDisabled = (action: LobbyAction) => action.disabled || actionRunning(action.key)
-
-  const hostPrimaryAction = computed<LobbyAction | null>(() => {
-    const room = props.room
-    if (!room) return null
-    if (room.can_invite && room.state === 'created') return { key: 'invite', label: '邀请玩家', icon: UserPlus }
-    if (room.can_host_start_countdown) return { key: 'start-countdown', label: '开始倒计时', icon: Clock3 }
-    if (room.can_host_ready_check) return { key: 'start-ready-check', label: '开始准备', icon: PlayCircle }
-    if (room.can_host_settle) return { key: 'settle', label: '查看结算', icon: CheckCircle2 }
-    return {
-      key: 'start-countdown',
-      label: '开始倒计时',
-      icon: Clock3,
-      disabled: true,
-      disabledReason: room.state === 'ready_check' ? '还有成员未准备，暂时不能倒计时。' : '当前房间状态没有可执行的房主主行动。',
-    }
-  })
-
-  const memberPrimaryAction = computed<LobbyAction | null>(() => {
-    const room = props.room
-    if (!room) return null
-    if (currentMemberStatus.value === 'invited') return { key: 'accept-invite', label: '接受邀请', icon: CheckCircle2 }
-    if (room.can_ready) return { key: 'ready', label: '我已准备', icon: CheckCircle2 }
-    if (room.can_unready) return { key: 'unready', label: '取消准备', icon: Clock3 }
-    return {
-      key: 'ready',
-      label: '我已准备',
-      icon: CheckCircle2,
-      disabled: true,
-      disabledReason: '当前房间状态暂时不能修改准备状态。',
-    }
-  })
-
-  const primaryAction = computed(() => isHost.value ? hostPrimaryAction.value : memberPrimaryAction.value)
+  const primaryAction = computed(() => activeLobbyMatrix.value ? decorateAction(activeLobbyMatrix.value.primary) : null)
   const primaryActionDisabled = computed(() => primaryAction.value ? actionDisabled(primaryAction.value) : true)
-  const primaryBlockedReason = computed(() => primaryAction.value?.disabledReason || '')
   const secondaryActions = computed<LobbyAction[]>(() => {
-    const room = props.room
-    if (!room) return []
-    const actions: LobbyAction[] = []
-    if (isHost.value) {
-      if (room.can_invite && primaryAction.value?.key !== 'invite') actions.push({ key: 'invite', label: '继续邀请', icon: UserPlus })
-      if (room.can_host_ready_check && primaryAction.value?.key !== 'start-ready-check') actions.push({ key: 'start-ready-check', label: '开始准备', icon: PlayCircle })
-      if (room.can_host_close) actions.push({ key: 'cancel-room', label: '取消房间', icon: XCircle, tone: 'danger' })
-      return actions
-    }
-    if (room.can_leave) actions.push({ key: 'leave-room', label: '离开房间', icon: LogOut, tone: 'danger' })
-    return actions
+    const matrix = activeLobbyMatrix.value
+    if (!matrix) return []
+    return [...(matrix.secondary ?? []), ...(matrix.danger ?? [])].map(decorateAction)
+  })
+  const disabledActionReasons = computed(() => {
+    const actionReasons = [primaryAction.value, ...secondaryActions.value]
+      .filter((action): action is LobbyAction => Boolean(action?.disabled && action.disabledReason))
+      .map(action => `${action.label}：${action.disabledReason}`)
+    return Array.from(new Set(actionReasons))
   })
 
   const executeAction = (action: LobbyAction) => {
     if (actionDisabled(action)) return
-    if (action.key === 'invite') emit('invite')
-    if (action.key === 'ready') emit('ready')
-    if (action.key === 'unready') emit('unready')
-    if (action.key === 'start-ready-check') emit('start-ready-check')
-    if (action.key === 'start-countdown') emit('start-countdown')
-    if (action.key === 'settle') emit('settle')
-    if (action.key === 'cancel-room') emit('cancel-room')
-    if (action.key === 'leave-room') emit('leave-room')
-    if (action.key === 'accept-invite') emit('accept-invite')
+    switch (action.key) {
+      case 'invite':
+        emit('invite')
+        break
+      case 'ready':
+        emit('ready')
+        break
+      case 'unready':
+        emit('unready')
+        break
+      case 'start-ready-check':
+        emit('start-ready-check')
+        break
+      case 'start-countdown':
+        emit('start-countdown')
+        break
+      case 'settle':
+        emit('settle')
+        break
+      case 'cancel-room':
+        emit('cancel-room')
+        break
+      case 'leave-room':
+        emit('leave-room')
+        break
+      case 'accept-invite':
+        emit('accept-invite')
+        break
+      case 'reconnect':
+        emit('reconnect')
+        break
+      case 'view-countdown':
+        emit('view-countdown')
+        break
+      case 'enter-gameplay':
+        emit('enter-gameplay')
+        break
+      case 'view-members':
+        emit('view-members')
+        break
+      case 'view-objective':
+        emit('view-objective')
+        break
+      case 'view-settlement':
+        emit('view-settlement')
+        break
+      case 'view-record':
+        emit('view-record')
+        break
+      case 'return-lobby':
+        emit('return-lobby')
+        break
+      case 'notify-members':
+        emit('notify-members')
+        break
+      case 'retry-settle':
+        emit('retry-settle')
+        break
+      case 'rematch':
+        emit('rematch')
+        break
+    }
   }
 </script>

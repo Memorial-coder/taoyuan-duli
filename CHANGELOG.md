@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-02
+- 在线房间按钮矩阵：`OnlineRoomLobbyDialog` 新增房主 / 成员显隐矩阵，覆盖创建、准备、倒计时、进行中、结算、关闭、邀请、准备、断线、奖励等状态；每个状态只突出一个主行动，禁用原因统一展示在 `online-room-disabled-reason`，结构 QA 增加矩阵覆盖和单 primary 断言。
 - 在线房间准备大厅组件：新增 `OnlineRoomLobbyDialog`，把房间摘要、成员准备状态、房主 / 成员主行动、最近反馈和禁用原因收进统一抽屉底座；结构 QA 已补 `online-room-lobby`、`online-room-member-list`、`online-room-primary-action` 等断言，后续节会 / 远征页面可接入准备流程。
 - 在线模块壳 tab 语义增强：`OnlineModuleShell` 新增主行动 / 状态 slot，模块 tab 增加 `tablist / tab / aria-selected / aria-controls` 与移动端 sticky 横向滚动；共同庄园、在线庄园、邻里、委托、村社内容区补 `tabpanel` 关联，移动端 smoke 改用稳定 `online-module-tab-*` 定位新 tab 语义。
 - 共同庄园审计详情浏览器保护：`game-smoke.spec.ts` 新增共同日志技术详情折叠测试，确认玩家摘要不暴露 `ledger / receipt / hash / idempotency / revision`，展开 `OnlineTechnicalDetails` 后仍可追踪原始 action、audit_id 和完整 detail 字段。
