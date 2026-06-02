@@ -337,9 +337,6 @@
                     >
                       开倒计时
                     </Button>
-                    <Button v-if="festivalRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
-                      模拟断线
-                    </Button>
                     <Button v-if="festivalRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="reconnectRoom(festivalRoomStore.myRoom.id)">
                       恢复连接
                     </Button>
@@ -366,6 +363,15 @@
                     </Button>
                   </template>
                 </OnlineVisualRoomShell>
+                <OnlineTechnicalDetails
+                  v-if="festivalRoomStore.myRoom.can_disconnect"
+                  title="调试操作"
+                  summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
+                >
+                  <Button class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
+                    网络异常测试
+                  </Button>
+                </OnlineTechnicalDetails>
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
@@ -573,25 +579,48 @@
                   </div>
                 </div>
 
-                <label class="block">
-                  <span class="text-[10px] text-muted">邀请玩家</span>
-                  <div class="online-action-row mt-1">
-                    <input
-                      v-model="festivalRoomStore.draftInviteUsername"
-                      class="online-input flex-1"
-                      data-testid="online-festival-room-invite-username-input"
-                      placeholder="输入用户名"
-                    />
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent">邀请玩家</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">打开邀请面板，可批量输入并查看每位玩家的邀请结果。</p>
+                    </div>
                     <Button
-                      class="online-action-btn online-action-btn--primary"
-                      data-testid="online-festival-room-invite-submit"
-                      :disabled="festivalRoomStore.actionRunning"
-                      @click="inviteMember(festivalRoomStore.myRoom.id)"
+                      class="online-action-btn online-action-btn--primary min-h-[44px] justify-center"
+                      data-testid="online-festival-room-invite-trigger"
+                      :disabled="festivalRoomStore.actionRunning || festivalInviteSubmitting"
+                      @click="openFestivalInvitePanel"
                     >
-                      邀请
+                      <UserPlus :size="14" aria-hidden="true" />
+                      邀请玩家
                     </Button>
                   </div>
-                </label>
+                </div>
+
+                <OnlineTechnicalDetails
+                  title="备用邀请表单"
+                  summary="保留旧单人邀请入口和测试钩子，主流程请优先使用邀请面板。"
+                >
+                  <label class="block">
+                    <span class="text-[10px] text-muted">邀请玩家</span>
+                    <div class="online-action-row mt-1">
+                      <input
+                        v-model="festivalRoomStore.draftInviteUsername"
+                        class="online-input flex-1"
+                        data-testid="online-festival-room-invite-username-input"
+                        placeholder="输入用户名"
+                      />
+                      <Button
+                        class="online-action-btn online-action-btn--primary"
+                        data-testid="online-festival-room-invite-submit"
+                        :disabled="festivalRoomStore.actionRunning"
+                        @click="inviteMember(festivalRoomStore.myRoom.id)"
+                      >
+                        邀请
+                      </Button>
+                    </div>
+                  </label>
+                </OnlineTechnicalDetails>
 
               </div>
               <p v-else class="mt-3 text-xs leading-5 text-muted">当前没有进行中的节会房间。可以先处理邀请，或创建自己的节会房间。</p>
@@ -620,12 +649,36 @@
           </div>
 
           <div class="space-y-3">
-            <div class="game-panel-muted p-3">
+            <div class="game-panel-muted p-3" data-testid="online-festival-room-create-entry">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">创建节会房间</p>
-                <span class="text-[10px] text-muted">房型与玩法</span>
+                <span class="text-[10px] text-muted">向导创建</span>
               </div>
               <div class="mt-3 space-y-3">
+                <Button
+                  class="online-action-btn online-action-btn--primary min-h-[44px] w-full justify-center"
+                  data-testid="online-room-create-trigger"
+                  :disabled="festivalRoomStore.actionRunning"
+                  @click="openFestivalRoomWizard"
+                >
+                  <Lamp :size="14" aria-hidden="true" />
+                  创建节会房间
+                </Button>
+                <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-5 text-muted">
+                  <p class="text-xs text-accent">当前草稿</p>
+                  <p class="mt-1">
+                    {{ festivalRoomStore.selectedTemplate?.label || '待选择房型' }} · {{ festivalRoomStore.selectedGameplayTemplate?.label || '待选择玩法' }} · {{ festivalRoomStore.normalizedDraftMemberLimit }} 人
+                  </p>
+                  <p v-if="festivalRoomStore.draftTitle.trim()" class="mt-1">标题：{{ festivalRoomStore.draftTitle }}</p>
+                </div>
+              </div>
+            </div>
+
+            <OnlineTechnicalDetails
+              title="备用创建表单"
+              summary="保留旧创建入口和测试钩子，主流程请优先使用创建向导。"
+            >
+              <div class="space-y-3" data-testid="online-festival-room-create-backup">
                 <div class="flex flex-wrap gap-2">
                   <Button class="online-action-btn online-action-btn--compact w-fit" :disabled="festivalRoomStore.actionRunning" @click="selectLanternFairDraft">
                     <Lamp :size="13" aria-hidden="true" />
@@ -794,7 +847,7 @@
                   创建房间
                 </Button>
               </div>
-            </div>
+            </OnlineTechnicalDetails>
 
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
@@ -937,7 +990,7 @@
                       :disabled="expeditionRoomStore.actionRunning"
                       @click="startExpeditionReadyCheck(expeditionRoomStore.myRoom.id)"
                     >
-                      开始 ready
+                      开始准备
                     </Button>
                     <Button
                       v-if="expeditionRoomStore.myRoom.can_ready"
@@ -964,14 +1017,6 @@
                       @click="startExpeditionCountdown(expeditionRoomStore.myRoom.id)"
                     >
                       开始倒计时
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_disconnect"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)"
-                    >
-                      模拟断线
                     </Button>
                     <Button
                       v-if="expeditionRoomStore.myRoom.can_reconnect"
@@ -1009,6 +1054,20 @@
                     </Button>
                   </template>
                 </OnlineVisualRoomShell>
+
+                <OnlineTechnicalDetails
+                  v-if="expeditionRoomStore.myRoom.can_disconnect"
+                  title="调试操作"
+                  summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
+                >
+                  <Button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="expeditionRoomStore.actionRunning"
+                    @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)"
+                  >
+                    网络异常测试
+                  </Button>
+                </OnlineTechnicalDetails>
 
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -1225,25 +1284,48 @@
                   </div>
                 </div>
 
-                <label class="block">
-                  <span class="text-[10px] text-muted">邀请玩家</span>
-                  <div class="online-action-row mt-1">
-                    <input
-                      v-model="expeditionRoomStore.draftInviteUsername"
-                      class="online-input flex-1"
-                      data-testid="online-expedition-room-invite-username-input"
-                      placeholder="输入用户名"
-                    />
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent">邀请玩家</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">打开邀请面板，可批量输入并查看每位玩家的邀请结果。</p>
+                    </div>
                     <Button
-                      class="online-action-btn online-action-btn--primary"
-                      data-testid="online-expedition-room-invite-submit"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="inviteExpeditionMember(expeditionRoomStore.myRoom.id)"
+                      class="online-action-btn online-action-btn--primary min-h-[44px] justify-center"
+                      data-testid="online-expedition-room-invite-trigger"
+                      :disabled="expeditionRoomStore.actionRunning || expeditionInviteSubmitting"
+                      @click="openExpeditionInvitePanel"
                     >
-                      邀请
+                      <UserPlus :size="14" aria-hidden="true" />
+                      邀请玩家
                     </Button>
                   </div>
-                </label>
+                </div>
+
+                <OnlineTechnicalDetails
+                  title="备用邀请表单"
+                  summary="保留旧远征单人邀请入口和测试钩子，主流程请优先使用邀请面板。"
+                >
+                  <label class="block">
+                    <span class="text-[10px] text-muted">邀请玩家</span>
+                    <div class="online-action-row mt-1">
+                      <input
+                        v-model="expeditionRoomStore.draftInviteUsername"
+                        class="online-input flex-1"
+                        data-testid="online-expedition-room-invite-username-input"
+                        placeholder="输入用户名"
+                      />
+                      <Button
+                        class="online-action-btn online-action-btn--primary"
+                        data-testid="online-expedition-room-invite-submit"
+                        :disabled="expeditionRoomStore.actionRunning"
+                        @click="inviteExpeditionMember(expeditionRoomStore.myRoom.id)"
+                      >
+                        邀请
+                      </Button>
+                    </div>
+                  </label>
+                </OnlineTechnicalDetails>
 
                 <div class="grid gap-2 sm:grid-cols-2">
                   <Button
@@ -1253,7 +1335,7 @@
                     :disabled="expeditionRoomStore.actionRunning"
                     @click="startExpeditionReadyCheck(expeditionRoomStore.myRoom.id)"
                   >
-                    开始 ready
+                    开始准备
                   </Button>
                   <Button
                     v-if="expeditionRoomStore.myRoom.can_ready"
@@ -1275,9 +1357,6 @@
                     @click="startExpeditionCountdown(expeditionRoomStore.myRoom.id)"
                   >
                     开始倒计时
-                  </Button>
-                  <Button v-if="expeditionRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
-                    模拟断线
                   </Button>
                   <Button v-if="expeditionRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="reconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
                     恢复连接
@@ -1304,6 +1383,15 @@
                     离开房间
                   </Button>
                 </div>
+                <OnlineTechnicalDetails
+                  v-if="expeditionRoomStore.myRoom.can_disconnect"
+                  title="调试操作"
+                  summary="网络异常测试入口默认收起，备用操作区仍保留原远征按钮。"
+                >
+                  <Button class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    网络异常测试
+                  </Button>
+                </OnlineTechnicalDetails>
               </div>
               <p v-else class="mt-3 text-xs leading-5 text-muted">当前没有进行中的远征房间。可以先处理邀请，或创建自己的远征房间。</p>
             </div>
@@ -1331,12 +1419,36 @@
           </div>
 
           <div class="space-y-3">
-            <div class="game-panel-muted p-3">
+            <div class="game-panel-muted p-3" data-testid="online-expedition-room-create-entry">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">创建远征房间</p>
-                <span class="text-[10px] text-muted">远征与玩法</span>
+                <span class="text-[10px] text-muted">向导创建</span>
               </div>
               <div class="mt-3 space-y-3">
+                <Button
+                  class="online-action-btn online-action-btn--primary min-h-[44px] w-full justify-center"
+                  data-testid="online-expedition-room-create-trigger"
+                  :disabled="expeditionRoomStore.actionRunning"
+                  @click="openExpeditionRoomWizard"
+                >
+                  <Flag :size="14" aria-hidden="true" />
+                  创建远征队伍
+                </Button>
+                <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-5 text-muted">
+                  <p class="text-xs text-accent">当前草稿</p>
+                  <p class="mt-1">
+                    {{ expeditionRoomStore.selectedTemplate?.label || '待选择路线' }} · {{ expeditionRoomStore.selectedGameplayTemplate?.label || '待选择玩法' }} · {{ expeditionRoomStore.normalizedDraftMemberLimit }} 人
+                  </p>
+                  <p v-if="expeditionRoomStore.draftTitle.trim()" class="mt-1">标题：{{ expeditionRoomStore.draftTitle }}</p>
+                </div>
+              </div>
+            </div>
+
+            <OnlineTechnicalDetails
+              title="备用创建表单"
+              summary="保留旧远征创建入口和测试钩子，主流程请优先使用创建向导。"
+            >
+              <div class="space-y-3" data-testid="online-expedition-room-create-backup">
                 <label class="block">
                   <span class="text-[10px] text-muted">远征模板</span>
                   <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="online-expedition-room-template-select">
@@ -1387,6 +1499,19 @@
                     placeholder="例如：高地补给接力"
                   />
                 </label>
+                <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="online-expedition-room-member-limit-group">
+                  <Button
+                    v-for="limit in expeditionRoomStore.memberLimitOptions"
+                    :key="limit"
+                    class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+                    :class="expeditionRoomStore.draftMemberLimit === limit ? 'online-action-btn--primary' : ''"
+                    :data-testid="`online-expedition-room-member-limit-${limit}`"
+                    :disabled="expeditionRoomStore.actionRunning"
+                    @click="expeditionRoomStore.draftMemberLimit = limit"
+                  >
+                    {{ limit }} 人
+                  </Button>
+                </div>
                 <Button
                   class="online-action-btn online-action-btn--primary w-full justify-center"
                   data-testid="online-expedition-room-create-submit"
@@ -1396,7 +1521,7 @@
                   创建远征房间
                 </Button>
               </div>
-            </div>
+            </OnlineTechnicalDetails>
 
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
@@ -1607,15 +1732,84 @@
         </div>
       </div>
     </section>
+
+    <OnlineRoomWizard
+      :open="showFestivalRoomWizard"
+      domain="festival"
+      :initial-template-id="festivalRoomStore.selectedTemplateId"
+      :initial-gameplay-id="festivalRoomStore.selectedGameplayTemplateId"
+      :initial-member-limit="festivalRoomStore.normalizedDraftMemberLimit"
+      :initial-title="festivalRoomStore.draftTitle"
+      initial-visibility="public"
+      :templates="festivalRoomStore.templates"
+      :gameplay-templates="festivalRoomStore.gameplayTemplates"
+      :member-limit-options="festivalRoomStore.memberLimitOptions"
+      :busy="festivalRoomStore.actionRunning"
+      :error-message="festivalRoomStore.errorMessage"
+      @submit="submitFestivalRoomWizard"
+      @cancel="closeFestivalRoomWizard"
+      @close="closeFestivalRoomWizard"
+      @draft-change="syncFestivalRoomWizardDraft"
+    />
+
+    <OnlineRoomWizard
+      :open="showExpeditionRoomWizard"
+      domain="expedition"
+      :initial-template-id="expeditionRoomStore.selectedTemplateId"
+      :initial-gameplay-id="expeditionRoomStore.selectedGameplayTemplateId"
+      :initial-member-limit="expeditionRoomStore.normalizedDraftMemberLimit"
+      :initial-title="expeditionRoomStore.draftTitle"
+      initial-visibility="public"
+      :templates="expeditionRoomStore.templates"
+      :gameplay-templates="expeditionRoomStore.gameplayTemplates"
+      :member-limit-options="expeditionRoomStore.memberLimitOptions"
+      :busy="expeditionRoomStore.actionRunning"
+      :error-message="expeditionRoomStore.errorMessage"
+      @submit="submitExpeditionRoomWizard"
+      @cancel="closeExpeditionRoomWizard"
+      @close="closeExpeditionRoomWizard"
+      @draft-change="syncExpeditionRoomWizardDraft"
+    />
+
+    <OnlineInvitePanel
+      :open="showFestivalInvitePanel"
+      domain="festival"
+      title="邀请玩家加入节会房"
+      description="可以一次输入多个玩家；发送后会逐项显示成功或失败。"
+      :existing-members="festivalInviteExistingMembers"
+      :results="festivalInviteResults"
+      :busy="festivalRoomStore.actionRunning || festivalInviteSubmitting"
+      @invite="submitFestivalInvites"
+      @retry="retryFestivalInvite"
+      @remove="removeFestivalInviteResult"
+      @close="closeFestivalInvitePanel"
+    />
+
+    <OnlineInvitePanel
+      :open="showExpeditionInvitePanel"
+      domain="expedition"
+      title="邀请玩家加入远征队伍"
+      description="可以一次输入多个玩家；发送后会逐项显示成功或失败。"
+      :existing-members="expeditionInviteExistingMembers"
+      :results="expeditionInviteResults"
+      :busy="expeditionRoomStore.actionRunning || expeditionInviteSubmitting"
+      @invite="submitExpeditionInvites"
+      @retry="retryExpeditionInvite"
+      @remove="removeExpeditionInviteResult"
+      @close="closeExpeditionInvitePanel"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { CalendarDays, Flag, Lamp } from 'lucide-vue-next'
+  import { CalendarDays, Flag, Lamp, UserPlus } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import OnlineInvitePanel, { type OnlineInviteResult } from '@/components/game/online/OnlineInvitePanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineRoomWizard, { type OnlineRoomWizardDraft } from '@/components/game/online/OnlineRoomWizard.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import OnlineVisualRoomShell from '@/components/game/online/OnlineVisualRoomShell.vue'
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
@@ -1697,6 +1891,14 @@
   }
 
   const activeTab = ref<FestivalTabKey>(normalizeTab(route.query.tab))
+  const showFestivalRoomWizard = ref(false)
+  const showExpeditionRoomWizard = ref(false)
+  const showFestivalInvitePanel = ref(false)
+  const showExpeditionInvitePanel = ref(false)
+  const festivalInviteSubmitting = ref(false)
+  const expeditionInviteSubmitting = ref(false)
+  const festivalInviteResults = ref<OnlineInviteResult[]>([])
+  const expeditionInviteResults = ref<OnlineInviteResult[]>([])
   const selectedFestivalVisualObjectId = ref('')
   const selectedFestivalVisualTrackId = ref('')
   const selectedFestivalVisualTrackCellId = ref('')
@@ -1934,8 +2136,8 @@
     if (showFestivalSceneBoard.value) return '节会现场物件作为主入口，点灯、解谜、秩序和留影都从场景热区提交。'
     return '当前房间没有可用场景或轨道热区，旧节会按钮作为主入口。'
   })
-  const festivalRoomFallbackEntryLabel = '旧节会按钮降级入口'
-  const festivalRoomFallbackEntryHint = '节会旧玩法动作面板继续保留在可视化内容下方，移动端与键盘用户可用它提交同一服务端节会行动；结算和关闭按钮仍在房间壳操作区。'
+  const festivalRoomFallbackEntryLabel = '旧节会按钮备用操作'
+  const festivalRoomFallbackEntryHint = '节会旧玩法动作面板继续保留在可视化内容下方，移动端与键盘用户可用它提交同一节会行动；结算和关闭按钮仍在房间壳操作区。'
   const selectedFestivalSceneObjectId = computed(() =>
     selectedFestivalVisualObjectId.value || festivalRoomStore.myRoom?.visual_state.selected_visual_id || ''
   )
@@ -1966,6 +2168,17 @@
       displayName: member.display_name,
       statusLabel: member.status_label,
       isHost: member.username === room.host_username,
+    }))
+  })
+  const festivalInviteExistingMembers = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    return room.members.map(member => ({
+      id: member.username,
+      username: member.username,
+      displayName: member.display_name,
+      status: member.status,
+      statusLabel: member.status_label,
     }))
   })
   const festivalRoomConnectionState = computed<'online' | 'disconnected' | 'reconnecting' | 'conflict'>(() => {
@@ -2016,7 +2229,7 @@
       : 'Tab 进入灯会物件后用 Enter 选择热区，再提交点灯、解谜、秩序或留影行动。'
     return [
       boardHint,
-      '旧节会按钮和结算入口仍在房间下方，移动端与键盘用户可继续从降级入口操作。',
+      '旧节会按钮和结算入口仍在房间下方，移动端与键盘用户可继续从备用操作进入。',
     ]
   })
   const festivalRoomRewardPreview = computed(() => {
@@ -2040,7 +2253,7 @@
       (rewardPayload?.reward_tickets ?? 0) > 0 ? `${rewardPayload?.reward_tickets} 张奖券` : '',
       rewardItems,
     ].filter(Boolean)
-    return rewardParts.length > 0 ? `服务端落账：${rewardParts.join('、')}` : ''
+    return rewardParts.length > 0 ? `奖励已记录：${rewardParts.join('、')}` : ''
   }
   const festivalRoomSettlementRecords = computed(() => {
     const room = festivalRoomStore.myRoom
@@ -2053,7 +2266,7 @@
         statusLabel: receipt.status_label,
         summary: receipt.summary,
         replayLabel: formatFestivalRoomShellReplay(receipt.route_replay),
-        rewardLabel: rewardLabel || '服务端凭证已生成，纪念或留影回看由房间记录读回。',
+        rewardLabel: rewardLabel || '结算记录已生成，纪念或留影回看由房间记录读回。',
       }
     })
   })
@@ -2120,6 +2333,17 @@
       isHost: member.username === room.host_username,
     }))
   })
+  const expeditionInviteExistingMembers = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    return room.members.map(member => ({
+      id: member.username,
+      username: member.username,
+      displayName: member.display_name,
+      status: member.status,
+      statusLabel: member.status_label,
+    }))
+  })
   const expeditionRoomConnectionState = computed<'online' | 'disconnected' | 'reconnecting' | 'conflict'>(() => {
     const room = expeditionRoomStore.myRoom
     if (!room) return 'online'
@@ -2169,7 +2393,7 @@
       : 'Tab 进入矿洞节点后用 Enter 选择节点，再提交探路、采集、支护或撤离。'
     return [
       boardHint,
-      '旧远征按钮和结算入口仍在房间下方，移动端与键盘用户可继续从降级入口操作。',
+      '旧远征按钮和结算入口仍在房间下方，移动端与键盘用户可继续从备用操作进入。',
     ]
   })
   const expeditionRoomRewardPreview = computed(() => {
@@ -2195,7 +2419,7 @@
         statusLabel: receipt.status_label,
         summary: receipt.summary,
         replayLabel: formatFestivalRoomShellReplay(receipt.route_replay),
-        rewardLabel: rewardLabel || '服务端凭证已生成，暂无额外物品落账。',
+        rewardLabel: rewardLabel || '结算记录已生成，暂无额外物品记录。',
       }
     })
   })
@@ -2251,8 +2475,8 @@
     if (showExpeditionMapBoard.value) return '矿洞节点地图作为主入口，撤离点、采集、支护和探路都从节点动作提交。'
     return '当前房间没有可用地图或轨道热区，旧远征按钮作为主入口。'
   })
-  const expeditionRoomFallbackEntryLabel = '旧远征按钮降级入口'
-  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一服务端远征行动；结算和关闭按钮仍在房间壳操作区。'
+  const expeditionRoomFallbackEntryLabel = '旧远征按钮备用操作'
+  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一远征行动；结算和关闭按钮仍在房间壳操作区。'
   const expeditionVisualActionLabels = computed<Record<string, string>>(() =>
     Object.fromEntries(Array.from(expeditionGameplayActionMap.value.values()).map(action => [action.id, action.label]))
   )
@@ -2292,6 +2516,21 @@
     if (sourceFeedback) festivalRoomStore.draftSourceFeedback = sourceFeedback
     if (sourceContextSummary) festivalRoomStore.draftSourceContextSummary = sourceContextSummary
   }
+  const applyExpeditionRoomRouteDraft = () => {
+    const usingExpeditionTab = normalizeTab(route.query.tab) === 'expedition-room'
+    const templateId = getRouteQueryText(route.query.expedition_template)
+      || getRouteQueryText(route.query.expedition_template_id)
+      || (usingExpeditionTab ? getRouteQueryText(route.query.template) || getRouteQueryText(route.query.template_id) : '')
+    const gameplayId = getRouteQueryText(route.query.expedition_gameplay)
+      || getRouteQueryText(route.query.expedition_gameplay_template_id)
+      || (usingExpeditionTab ? getRouteQueryText(route.query.gameplay) || getRouteQueryText(route.query.gameplay_template_id) : '')
+    const title = getRouteQueryText(route.query.expedition_title)
+      || (usingExpeditionTab ? getRouteQueryText(route.query.title) : '')
+    if (!templateId && !gameplayId && !title) return
+    if (templateId) expeditionRoomStore.selectedTemplateId = templateId
+    if (gameplayId) expeditionRoomStore.selectedGameplayTemplateId = gameplayId
+    if (title && !expeditionRoomStore.draftTitle.trim()) expeditionRoomStore.draftTitle = title
+  }
   const refreshFestivalModule = async () => {
     await Promise.all([
       worldEventStore.refreshOverview().catch(() => {}),
@@ -2306,6 +2545,87 @@
   const createRoom = async () => {
     await festivalRoomStore.createRoom().catch(() => {})
   }
+  const normalizeInviteRecipient = (recipient: string) => recipient.trim().toLowerCase()
+  const upsertInviteResult = (rows: OnlineInviteResult[], row: OnlineInviteResult) => {
+    const nextRows = rows.slice()
+    const rowKey = normalizeInviteRecipient(row.username)
+    const existingIndex = nextRows.findIndex(item => normalizeInviteRecipient(item.username) === rowKey)
+    if (existingIndex >= 0) {
+      nextRows[existingIndex] = { ...nextRows[existingIndex], ...row }
+      return nextRows
+    }
+    nextRows.push(row)
+    return nextRows
+  }
+  const removeInviteResult = (rows: OnlineInviteResult[], recipient: string) => {
+    const rowKey = normalizeInviteRecipient(recipient)
+    return rows.filter(row => normalizeInviteRecipient(row.username) !== rowKey)
+  }
+  const inviteFailureMessage = (error: unknown, fallback: string) => {
+    if (!(error instanceof Error) || !error.message.trim()) return fallback
+    if (error.message.includes('冲突')) return '房间信息有更新，请刷新后继续。'
+    return error.message
+  }
+  const openFestivalInvitePanel = () => {
+    showFestivalInvitePanel.value = true
+  }
+  const closeFestivalInvitePanel = () => {
+    showFestivalInvitePanel.value = false
+  }
+  const openExpeditionInvitePanel = () => {
+    activeTab.value = 'expedition-room'
+    showExpeditionInvitePanel.value = true
+  }
+  const closeExpeditionInvitePanel = () => {
+    showExpeditionInvitePanel.value = false
+  }
+  const openFestivalRoomWizard = () => {
+    showFestivalRoomWizard.value = true
+  }
+  const closeFestivalRoomWizard = () => {
+    showFestivalRoomWizard.value = false
+  }
+  const syncFestivalRoomWizardDraft = (draft: OnlineRoomWizardDraft) => {
+    if (draft.domain !== 'festival') return
+    festivalRoomStore.selectedTemplateId = draft.templateId
+    festivalRoomStore.selectedGameplayTemplateId = draft.gameplayId
+    festivalRoomStore.draftMemberLimit = draft.memberLimit
+    festivalRoomStore.draftTitle = draft.title
+  }
+  const submitFestivalRoomWizard = async (draft: OnlineRoomWizardDraft) => {
+    syncFestivalRoomWizardDraft(draft)
+    try {
+      await festivalRoomStore.createRoom()
+      await festivalRoomStore.refreshOverview({ silent: true }).catch(() => {})
+      closeFestivalRoomWizard()
+    } catch {
+      // Store errorMessage is passed back into the wizard so the draft stays visible.
+    }
+  }
+  const openExpeditionRoomWizard = () => {
+    activeTab.value = 'expedition-room'
+    showExpeditionRoomWizard.value = true
+  }
+  const closeExpeditionRoomWizard = () => {
+    showExpeditionRoomWizard.value = false
+  }
+  const syncExpeditionRoomWizardDraft = (draft: OnlineRoomWizardDraft) => {
+    if (draft.domain !== 'expedition') return
+    expeditionRoomStore.selectedTemplateId = draft.templateId
+    expeditionRoomStore.selectedGameplayTemplateId = draft.gameplayId
+    expeditionRoomStore.draftMemberLimit = draft.memberLimit
+    expeditionRoomStore.draftTitle = draft.title
+  }
+  const submitExpeditionRoomWizard = async (draft: OnlineRoomWizardDraft) => {
+    syncExpeditionRoomWizardDraft(draft)
+    try {
+      await expeditionRoomStore.createRoom()
+      await expeditionRoomStore.refreshOverview({ silent: true }).catch(() => {})
+      closeExpeditionRoomWizard()
+    } catch {
+      // Store errorMessage is passed back into the wizard so the draft stays visible.
+    }
+  }
   const selectLanternFairDraft = () => {
     festivalRoomStore.selectedTemplateId = 'lantern_fair'
     festivalRoomStore.selectedGameplayTemplateId = 'assembly'
@@ -2315,6 +2635,46 @@
     festivalRoomStore.selectedTemplateId = 'dragon_boat'
     festivalRoomStore.selectedGameplayTemplateId = 'squad_coop'
     if (!festivalRoomStore.draftTitle.trim()) festivalRoomStore.draftTitle = '端午赛舟演练'
+  }
+  const submitFestivalInvites = async (recipients: string[]) => {
+    const roomId = festivalRoomStore.myRoom?.id
+    if (!roomId || recipients.length === 0) return
+    festivalInviteSubmitting.value = true
+    try {
+      for (const recipient of recipients) {
+        festivalInviteResults.value = upsertInviteResult(festivalInviteResults.value, {
+          username: recipient,
+          status: 'inviting',
+          message: '正在发送邀请。',
+        })
+        festivalRoomStore.draftInviteUsername = recipient
+        festivalRoomStore.draftInviteSaveId = ''
+        try {
+          await festivalRoomStore.inviteMember(roomId)
+          festivalInviteResults.value = upsertInviteResult(festivalInviteResults.value, {
+            username: recipient,
+            status: 'invited',
+            message: '邀请已发送，等待对方加入。',
+          })
+        } catch (error) {
+          festivalInviteResults.value = upsertInviteResult(festivalInviteResults.value, {
+            username: recipient,
+            status: 'failed',
+            message: inviteFailureMessage(error, '邀请没有发出，可以稍后重试。'),
+          })
+        }
+      }
+    } finally {
+      festivalRoomStore.draftInviteUsername = ''
+      festivalRoomStore.draftInviteSaveId = ''
+      festivalInviteSubmitting.value = false
+    }
+  }
+  const retryFestivalInvite = async (recipient: string) => {
+    await submitFestivalInvites([recipient])
+  }
+  const removeFestivalInviteResult = (recipient: string) => {
+    festivalInviteResults.value = removeInviteResult(festivalInviteResults.value, recipient)
   }
   const inviteMember = async (roomId: string) => {
     await festivalRoomStore.inviteMember(roomId).catch(() => {})
@@ -2377,6 +2737,46 @@
   }
   const createExpeditionRoom = async () => {
     await expeditionRoomStore.createRoom().catch(() => {})
+  }
+  const submitExpeditionInvites = async (recipients: string[]) => {
+    const roomId = expeditionRoomStore.myRoom?.id
+    if (!roomId || recipients.length === 0) return
+    expeditionInviteSubmitting.value = true
+    try {
+      for (const recipient of recipients) {
+        expeditionInviteResults.value = upsertInviteResult(expeditionInviteResults.value, {
+          username: recipient,
+          status: 'inviting',
+          message: '正在发送邀请。',
+        })
+        expeditionRoomStore.draftInviteUsername = recipient
+        expeditionRoomStore.draftInviteSaveId = ''
+        try {
+          await expeditionRoomStore.inviteMember(roomId)
+          expeditionInviteResults.value = upsertInviteResult(expeditionInviteResults.value, {
+            username: recipient,
+            status: 'invited',
+            message: '邀请已发送，等待对方加入。',
+          })
+        } catch (error) {
+          expeditionInviteResults.value = upsertInviteResult(expeditionInviteResults.value, {
+            username: recipient,
+            status: 'failed',
+            message: inviteFailureMessage(error, '邀请没有发出，可以稍后重试。'),
+          })
+        }
+      }
+    } finally {
+      expeditionRoomStore.draftInviteUsername = ''
+      expeditionRoomStore.draftInviteSaveId = ''
+      expeditionInviteSubmitting.value = false
+    }
+  }
+  const retryExpeditionInvite = async (recipient: string) => {
+    await submitExpeditionInvites([recipient])
+  }
+  const removeExpeditionInviteResult = (recipient: string) => {
+    expeditionInviteResults.value = removeInviteResult(expeditionInviteResults.value, recipient)
   }
   const inviteExpeditionMember = async (roomId: string) => {
     await expeditionRoomStore.inviteMember(roomId).catch(() => {})
@@ -2475,10 +2875,29 @@
       applyFestivalRoomRouteDraft()
     }
   )
+  watch(
+    () => [
+      route.query.tab,
+      route.query.expedition_template,
+      route.query.expedition_template_id,
+      route.query.expedition_gameplay,
+      route.query.expedition_gameplay_template_id,
+      route.query.expedition_title,
+      route.query.template,
+      route.query.template_id,
+      route.query.gameplay,
+      route.query.gameplay_template_id,
+      route.query.title,
+    ],
+    () => {
+      applyExpeditionRoomRouteDraft()
+    }
+  )
 
   onMounted(() => {
     applyInviteRouteDraft()
     applyFestivalRoomRouteDraft()
+    applyExpeditionRoomRouteDraft()
     void refreshFestivalModule()
   })
 </script>

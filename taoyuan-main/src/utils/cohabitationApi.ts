@@ -1173,6 +1173,8 @@ export interface CohabitationPermissionsPanel {
   members: Array<CohabitationMember & {
     can_manage_permissions: boolean
     permissions: Record<string, Record<string, boolean>>
+    default_restore_available?: boolean
+    default_restore_changed_count?: number
   }>
   recent_permission_audits: CohabitationAuditEntry[]
 }
@@ -2427,29 +2429,6 @@ export interface CohabitationSeparationPersonalFamilyReceipt {
   personal_family_state_mutated?: boolean
   personal_child_state_mutated?: boolean
   personal_money_mutated?: boolean
-export interface CohabitationSeparationAssetDisputeSourceRow {
-  id?: string
-  category?: string
-  target_ref?: string
-  source_ref?: string
-  source_owner_username?: string
-  return_target_username?: string
-  item_id?: string
-  quality?: string
-  quantity?: number
-  amount?: number
-  draft_id?: string
-  ledger_ids?: string[]
-  evidence_refs?: string[]
-  status?: string
-  required_action?: string
-  requires_confirmation?: boolean
-  freeze_required?: boolean
-  no_personal_mutation?: boolean
-  note?: string
-  [key: string]: unknown
-}
-
   personal_inventory_mutated?: boolean
   personal_home_mutated?: boolean
   personal_npc_state_mutated?: boolean
@@ -2477,6 +2456,29 @@ export interface CohabitationSeparationAssetDisputeSourceRow {
   privacy_boundary?: string
   idempotency_key?: string
   written_at?: number
+  [key: string]: unknown
+}
+
+export interface CohabitationSeparationAssetDisputeSourceRow {
+  id?: string
+  category?: string
+  target_ref?: string
+  source_ref?: string
+  source_owner_username?: string
+  return_target_username?: string
+  item_id?: string
+  quality?: string
+  quantity?: number
+  amount?: number
+  draft_id?: string
+  ledger_ids?: string[]
+  evidence_refs?: string[]
+  status?: string
+  required_action?: string
+  requires_confirmation?: boolean
+  freeze_required?: boolean
+  no_personal_mutation?: boolean
+  note?: string
   [key: string]: unknown
 }
 
@@ -3552,6 +3554,37 @@ export interface CohabitationSharedAnimalActionResponse extends CohabitationDeta
   ledger_entry?: CohabitationSharedAnimalLedgerEntry | null
   fund_ledger_entry?: CohabitationFundLedgerEntry | null
   warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  idempotent?: boolean
+  already_fed?: boolean
+  already_bought?: boolean
+  already_purchased?: boolean
+  already_sold?: boolean
+  already_petted?: boolean
+  already_collected?: boolean
+  animal_action?: {
+    action: string
+    animal_id: string
+    animal_type?: string
+    animal_name?: string
+    feed_item_id?: string
+    product_item_id?: string
+    product_quantity?: number
+    product_quality?: string
+    fund_ledger_id?: string
+    unit_price?: number
+    total_amount?: number
+    balance_before?: number
+    balance_after?: number
+    warehouse_ledger_ids?: string[]
+    simultaneous_online_bonus?: Record<string, unknown>
+    before_animal_state?: Record<string, unknown>
+    after_animal_state?: Record<string, unknown>
+    personal_save_changed?: boolean
+    shared_warehouse_changed?: boolean
+    shared_fund_changed?: boolean
+  }
+}
+
 export interface CohabitationPermissionDefaultRestorePayload {
   target_username: string
   note?: string
@@ -3576,18 +3609,6 @@ export interface CohabitationContractSafeVersionRollbackPayload {
   idempotency_key: string
 }
 
-  idempotent?: boolean
-  already_fed?: boolean
-  already_bought?: boolean
-  already_purchased?: boolean
-  already_sold?: boolean
-  already_petted?: boolean
-  already_collected?: boolean
-  animal_action?: {
-    action: string
-    animal_id: string
-    animal_type?: string
-    animal_name?: string
 export interface CohabitationPermissionDefaultRestoreResponse extends CohabitationPermissionUpdateResponse {
   already_default?: boolean
 }
@@ -3603,25 +3624,6 @@ export interface CohabitationContractSafeVersionRollbackResponse extends Cohabit
   rollback?: Record<string, unknown> | null
   audit_entry?: CohabitationAuditEntry
   idempotent?: boolean
-}
-
-    feed_item_id?: string
-    product_item_id?: string
-    product_quantity?: number
-    product_quality?: string
-    fund_ledger_id?: string
-    unit_price?: number
-    total_amount?: number
-    balance_before?: number
-    balance_after?: number
-    warehouse_ledger_ids?: string[]
-    simultaneous_online_bonus?: Record<string, unknown>
-    before_animal_state?: Record<string, unknown>
-    after_animal_state?: Record<string, unknown>
-    personal_save_changed?: boolean
-    shared_warehouse_changed?: boolean
-    shared_fund_changed?: boolean
-  }
 }
 
 export interface CohabitationSharedPetCarePayload {

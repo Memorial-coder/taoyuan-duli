@@ -24,7 +24,13 @@
       </template>
     </OnlineModuleShell>
 
-    <section class="space-y-3">
+    <section
+      class="space-y-3"
+      role="tabpanel"
+      :id="`online-module-panel-${activeTab}`"
+      :aria-labelledby="`online-module-tab-${activeTab}`"
+      data-testid="online-module-tabpanel"
+    >
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
@@ -436,7 +442,7 @@
                       class="break-all leading-4"
                       data-testid="online-cohabitation-separation-shared-fund-unidentified-operating"
                     >
-                      未知经营贡献争议 hash：{{ separationSharedFundReadbackSummary.unidentified_operating_contribution_hash || '待锁定' }}；来源流水 {{ separationSharedFundReadbackSummary.unidentified_operating_ledger_ids.join('、') || '待补充' }}。
+                      未知经营贡献争议确认码：{{ separationSharedFundReadbackSummary.unidentified_operating_contribution_hash || '待锁定' }}；来源记录 {{ separationSharedFundReadbackSummary.unidentified_operating_ledger_ids.join('、') || '待补充' }}。
                     </p>
                     <div
                       v-if="separationSharedFundReadbackSummary.requires_unidentified_operating_confirmation"
@@ -462,7 +468,7 @@
                         class="md:col-span-2"
                         :class="separationSharedFundManualAllocationBalanced ? 'text-emerald-200' : 'text-amber-100'"
                       >
-                        人工分配合计 {{ separationSharedFundManualAllocationTotal }} / {{ separationSharedFundReadbackSummary.unidentified_operating_contribution_total }} 铜币；确认后会锁定分配 hash 并重算返还权重。
+                        人工分配合计 {{ separationSharedFundManualAllocationTotal }} / {{ separationSharedFundReadbackSummary.unidentified_operating_contribution_total }} 铜币；确认后会锁定分配确认码并重算返还权重。
                       </p>
                     </div>
                     <div class="grid gap-2 md:grid-cols-2">
@@ -533,7 +539,7 @@
                         <p class="text-accent">{{ dispute.target_ref || '未绑定目标' }}</p>
                         <p class="mt-1">金额：{{ dispute.amount }} · 状态：{{ dispute.status }}</p>
                         <p class="mt-1 break-all">草案：{{ dispute.draft_id || '未知' }}</p>
-                        <p class="mt-1 break-all">基金流水：{{ dispute.original_fund_ledger_id || '待写入' }}</p>
+                        <p class="mt-1 break-all">基金记录：{{ dispute.original_fund_ledger_id || '待写入' }}</p>
                       </div>
                     </div>
                   </div>
@@ -544,7 +550,7 @@
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <p class="text-accent">建筑 / 小屋主状态证据</p>
-                      <span>{{ separationBuildingSplitReceipt?.building_main_state_mutation_evidence_recorded ? 'mutation receipt' : 'record-only' }}</span>
+                      <span>{{ separationBuildingSplitReceipt?.building_main_state_mutation_evidence_recorded ? '变更回执已记录' : '仅记录本次结果' }}</span>
                     </div>
                     <div class="grid gap-2 md:grid-cols-2">
                       <p
@@ -558,7 +564,7 @@
                       </p>
                     </div>
                     <p class="leading-4">
-                      分居拆分会引用家族建筑真实拆除 / 精确主状态链路的既有回执；没有回执的建筑仍保留 hash 和 ledger，等待回滚、拆除或人工收口。
+                      分居拆分会引用家族建筑真实拆除 / 精确主状态链路的既有回执；没有回执的建筑仍保留凭证校验码和记录明细，等待回滚、拆除或人工收口。
                     </p>
                   </div>
                   <div
@@ -620,7 +626,7 @@
                       </div>
                     </div>
                     <p class="leading-4">
-                      只读契约记录：剧情 receipt 可写入成员存档，NPC、家庭和孩子主状态仍由后续剧情规则处理。
+                      只读契约记录：剧情回执可写入成员存档，NPC、家庭和孩子主状态仍由后续剧情规则处理。
                     </p>
                   </div>
                   <div
@@ -696,7 +702,7 @@
                       </p>
                     </div>
                     <p class="leading-4">
-                      该区只读展示个人剧情 receipt 的主状态清理证据；恋人、婚姻、知己可清理识别字段，结拜 / 合伙庄园保持契约记录-only。
+                      该区只读展示个人剧情回执的主状态清理证据；恋人、婚姻、知己可清理识别字段，结拜 / 合伙庄园保持契约只读记录。
                     </p>
                   </div>
                   <div
@@ -778,116 +784,6 @@
                       </button>
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
-
-          <div class="game-panel-muted p-3" data-testid="online-cohabitation-recovery-panel">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2 text-accent">
-                <ShieldCheck :size="13" />
-                <p class="text-sm">玩家申诉与恢复</p>
-              </div>
-              <span class="text-[10px] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
-            </div>
-            <div v-if="selectedContract" class="mt-3 grid gap-3 text-[10px] text-muted">
-              <div class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-safe-version-list">
-                <div
-                  v-for="version in contractSafeVersions.slice(0, 4)"
-                  :key="version.id"
-                  class="border border-accent/10 bg-black/10 p-2"
-                  :data-testid="`online-cohabitation-safe-version-${version.id}`"
-                >
-                  <div class="flex flex-wrap items-center justify-between gap-2">
-                    <p class="text-accent">{{ version.source_action || 'safe_version' }}</p>
-                    <span>{{ formatTime(version.created_at) }}</span>
-                  </div>
-                  <p class="mt-1 break-all">hash {{ version.snapshot_hash || '待生成' }}</p>
-                  <p class="mt-1">{{ contractSafeVersionSummaryLabel(version.summary) }}</p>
-                </div>
-                <p v-if="contractSafeVersions.length === 0" class="border border-accent/10 bg-black/10 p-2">暂无安全版本；下一次共同契约写入后会自动生成快照。</p>
-              </div>
-
-              <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-recovery-appeal-form">
-                <select v-model="recoveryAppealIssueType" class="online-select text-xs" data-testid="online-cohabitation-recovery-appeal-issue-type">
-                  <option v-for="option in recoveryAppealIssueOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-                </select>
-                <input
-                  v-model.trim="recoveryAppealTargetRef"
-                  class="online-input text-xs"
-                  maxlength="120"
-                  placeholder="目标引用、流水或草案 ID"
-                  data-testid="online-cohabitation-recovery-appeal-target"
-                />
-                <input
-                  v-model.trim="recoveryAppealNote"
-                  class="online-input text-xs md:col-span-2"
-                  maxlength="160"
-                  placeholder="说明发生了什么"
-                  data-testid="online-cohabitation-recovery-appeal-note"
-                />
-                <button
-                  type="button"
-                  class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
-                  :disabled="!canSubmitRecoveryAppeal || cohabitationStore.actionLoading"
-                  data-testid="online-cohabitation-recovery-appeal-submit"
-                  @click="submitContractRecoveryAppeal"
-                >
-                  <ShieldCheck :size="12" />
-                  提交申诉
-                </button>
-              </div>
-
-              <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-safe-version-rollback-form">
-                <select v-model="rollbackSafeVersionId" class="online-select text-xs" data-testid="online-cohabitation-safe-version-rollback-target">
-                  <option value="">最近安全版本</option>
-                  <option v-for="version in contractSafeVersions" :key="version.id" :value="version.id">
-                    {{ version.source_action || version.id }} · {{ formatTime(version.created_at) }}
-                  </option>
-                </select>
-                <input
-                  v-model.trim="rollbackSafeVersionReason"
-                  class="online-input text-xs"
-                  maxlength="120"
-                  placeholder="回滚原因"
-                  data-testid="online-cohabitation-safe-version-rollback-reason"
-                />
-                <input
-                  v-model.trim="rollbackSafeVersionConfirmationText"
-                  class="online-input text-xs md:col-span-2"
-                  maxlength="20"
-                  :placeholder="CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT"
-                  data-testid="online-cohabitation-safe-version-rollback-confirmation"
-                />
-                <button
-                  type="button"
-                  class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
-                  :disabled="!canRollbackContractSafeVersion || cohabitationStore.actionLoading"
-                  data-testid="online-cohabitation-safe-version-rollback-submit"
-                  @click="rollbackContractSafeVersion"
-                >
-                  <RotateCcw :size="12" />
-                  回滚安全版本
-                </button>
-              </div>
-
-              <div v-if="contractRecoveryAppeals.length" class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-recovery-appeal-list">
-                <div
-                  v-for="appeal in contractRecoveryAppeals.slice(0, 4)"
-                  :key="appeal.id"
-                  class="border border-accent/10 bg-black/10 p-2"
-                >
-                  <p class="text-accent">{{ recoveryAppealIssueLabel(appeal.issue_type) }} · {{ appeal.status }}</p>
-                  <p class="mt-1 break-all">目标 {{ appeal.target_ref || appeal.preview_id || appeal.safe_version_id || '未绑定' }}</p>
-                  <p class="mt-1">仓库流水 {{ appeal.warehouse_ledger_ids?.length ?? 0 }} · 审计 {{ appeal.audit_ids?.length ?? 0 }} · {{ formatTime(appeal.submitted_at) }}</p>
-                </div>
-              </div>
-              <p
-                v-if="recoveryActionMessage"
-                class="text-xs leading-5"
-                :class="recoveryActionOk ? 'text-emerald-200' : 'text-red-100'"
-              >
-                {{ recoveryActionMessage }}
-              </p>
-            </div>
-          </div>
                         type="button"
                         :disabled="!canRefundSeparationSharedFund || cohabitationStore.actionLoading"
                         data-testid="online-cohabitation-separation-shared-fund-refund"
@@ -970,6 +866,133 @@
                   </div>
                 </div>
               </div>
+
+              <div class="game-panel-muted p-3" data-testid="online-cohabitation-recovery-panel">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 text-accent">
+                    <ShieldCheck :size="13" />
+                    <p class="text-sm">玩家申诉与恢复</p>
+                  </div>
+                  <span class="text-[10px] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
+                </div>
+                <div class="mt-3 grid gap-3 text-[10px] text-muted">
+                  <div class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-safe-version-list">
+                    <div
+                      v-for="version in contractSafeVersions.slice(0, 4)"
+                      :key="version.id"
+                      class="border border-accent/10 bg-black/10 p-2"
+                      :data-testid="`online-cohabitation-safe-version-${version.id}`"
+                    >
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <p class="text-accent">{{ version.source_action || 'safe_version' }}</p>
+                        <span>{{ formatTime(version.created_at) }}</span>
+                      </div>
+                      <p class="mt-1 break-all">凭证校验码 {{ version.snapshot_hash || '待生成' }}</p>
+                      <p class="mt-1">{{ contractSafeVersionSummaryLabel(version.summary) }}</p>
+                      <OnlineTechnicalDetails
+                        class="mt-2"
+                        title="安全版本技术详情"
+                        summary="展开查看原始快照字段，用于 QA 核对和恢复追踪。"
+                        :copyable="version.snapshot_hash"
+                      >
+                        <dl class="grid gap-1" data-testid="online-cohabitation-safe-version-technical-detail">
+                          <div>
+                            <dt class="text-accent">snapshot_hash</dt>
+                            <dd class="break-all">{{ version.snapshot_hash || '待生成' }}</dd>
+                          </div>
+                          <div>
+                            <dt class="text-accent">source_action</dt>
+                            <dd class="break-all">{{ version.source_action || 'safe_version' }}</dd>
+                          </div>
+                        </dl>
+                      </OnlineTechnicalDetails>
+                    </div>
+                    <p v-if="contractSafeVersions.length === 0" class="border border-accent/10 bg-black/10 p-2">暂无安全版本；下一次共同契约写入后会自动生成快照。</p>
+                  </div>
+
+                  <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-recovery-appeal-form">
+                    <select v-model="recoveryAppealIssueType" class="online-select text-xs" data-testid="online-cohabitation-recovery-appeal-issue-type">
+                      <option v-for="option in recoveryAppealIssueOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+                    </select>
+                    <input
+                      v-model.trim="recoveryAppealTargetRef"
+                      class="online-input text-xs"
+                      maxlength="120"
+                      placeholder="目标引用、流水或草案 ID"
+                      data-testid="online-cohabitation-recovery-appeal-target"
+                    />
+                    <input
+                      v-model.trim="recoveryAppealNote"
+                      class="online-input text-xs md:col-span-2"
+                      maxlength="160"
+                      placeholder="说明发生了什么"
+                      data-testid="online-cohabitation-recovery-appeal-note"
+                    />
+                    <button
+                      type="button"
+                      class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
+                      :disabled="!canSubmitRecoveryAppeal || cohabitationStore.actionLoading"
+                      data-testid="online-cohabitation-recovery-appeal-submit"
+                      @click="submitContractRecoveryAppeal"
+                    >
+                      <ShieldCheck :size="12" />
+                      提交申诉
+                    </button>
+                  </div>
+
+                  <div class="grid gap-2 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" data-testid="online-cohabitation-safe-version-rollback-form">
+                    <select v-model="rollbackSafeVersionId" class="online-select text-xs" data-testid="online-cohabitation-safe-version-rollback-target">
+                      <option value="">最近安全版本</option>
+                      <option v-for="version in contractSafeVersions" :key="version.id" :value="version.id">
+                        {{ version.source_action || version.id }} · {{ formatTime(version.created_at) }}
+                      </option>
+                    </select>
+                    <input
+                      v-model.trim="rollbackSafeVersionReason"
+                      class="online-input text-xs"
+                      maxlength="120"
+                      placeholder="回滚原因"
+                      data-testid="online-cohabitation-safe-version-rollback-reason"
+                    />
+                    <input
+                      v-model.trim="rollbackSafeVersionConfirmationText"
+                      class="online-input text-xs md:col-span-2"
+                      maxlength="20"
+                      :placeholder="CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT"
+                      data-testid="online-cohabitation-safe-version-rollback-confirmation"
+                    />
+                    <button
+                      type="button"
+                      class="online-action-btn online-action-btn--compact justify-center md:col-span-2"
+                      :disabled="!canRollbackContractSafeVersion || cohabitationStore.actionLoading"
+                      data-testid="online-cohabitation-safe-version-rollback-submit"
+                      @click="rollbackContractSafeVersion"
+                    >
+                      <RotateCcw :size="12" />
+                      回滚安全版本
+                    </button>
+                  </div>
+
+                  <div v-if="contractRecoveryAppeals.length" class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-recovery-appeal-list">
+                    <div
+                      v-for="appeal in contractRecoveryAppeals.slice(0, 4)"
+                      :key="appeal.id"
+                      class="border border-accent/10 bg-black/10 p-2"
+                    >
+                      <p class="text-accent">{{ recoveryAppealIssueLabel(appeal.issue_type) }} · {{ appeal.status }}</p>
+                      <p class="mt-1 break-all">目标 {{ appeal.target_ref || appeal.preview_id || appeal.safe_version_id || '未绑定' }}</p>
+                      <p class="mt-1">仓库流水 {{ appeal.warehouse_ledger_ids?.length ?? 0 }} · 审计 {{ appeal.audit_ids?.length ?? 0 }} · {{ formatTime(appeal.submitted_at) }}</p>
+                    </div>
+                  </div>
+                  <p
+                    v-if="recoveryActionMessage"
+                    class="text-xs leading-5"
+                    :class="recoveryActionOk ? 'text-emerald-200' : 'text-red-100'"
+                  >
+                    {{ recoveryActionMessage }}
+                  </p>
+                </div>
+              </div>
             </div>
             <div v-else class="mt-3 text-xs leading-5 text-muted">
               刷新后会自动选中最近的共同庄园契约。
@@ -983,8 +1006,8 @@
             </div>
             <div class="mt-3 grid gap-2 text-xs md:grid-cols-2">
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">个人铜币不合并，共同基金单独显示。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，分居执行按预览 hash 分步写回。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted" data-testid="online-cohabitation-authoritative-warehouse-summary">普通仓库操作按权限开放，高价值取出走草案确认；农田 / 动物 / 宠物 / 工坊和离线自动收益入仓均由服务端落账。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，分居执行按预览确认码分步写回。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted" data-testid="online-cohabitation-authoritative-warehouse-summary">普通仓库操作按权限开放，高价值取出走草案确认；农田 / 动物 / 宠物 / 工坊和离线自动收益入仓均由系统记录入仓。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还由服务端分步执行，前端只提交确认过的返还意图。</p>
             </div>
           </div>
@@ -1699,7 +1722,7 @@
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-warehouse-compensation-audit-panel">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">补偿审计证据包</p>
-              <span class="text-[10px] text-muted">record-only</span>
+              <span class="text-[10px] text-muted">仅记录本次结果</span>
             </div>
             <div v-if="!warehouseCompensationAuditBundle" class="mt-3 text-xs leading-5 text-muted">暂无补偿审计证据包。</div>
             <div v-else class="mt-3 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-warehouse-compensation-audit-bundle">
@@ -1779,7 +1802,7 @@
                 class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] leading-4 text-emerald-100"
                 data-testid="online-cohabitation-warehouse-manual-appeal-resolution-recorded"
               >
-                人工申诉恢复已记录：{{ warehouseManualAppealResolutionActionLabel(String(warehouseCompensationAuditDraft['compensation_appeal_resolution_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_appeal_resolution_recorded_at'] || 0)) }} · record-only
+                人工申诉恢复已记录：{{ warehouseManualAppealResolutionActionLabel(String(warehouseCompensationAuditDraft['compensation_appeal_resolution_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_appeal_resolution_recorded_at'] || 0)) }} · 仅记录本次结果
               </p>
               <div
                 v-if="warehouseManualAppealResolutionVisible"
@@ -1836,7 +1859,7 @@
                 class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] leading-4 text-emerald-100"
                 data-testid="online-cohabitation-warehouse-operator-receipt-audit-recorded"
               >
-                操作回执审计复核已记录：{{ warehouseOperatorReceiptAuditActionLabel(String(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_recorded_at'] || 0)) }} · record-only
+                操作回执审计复核已记录：{{ warehouseOperatorReceiptAuditActionLabel(String(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_recorded_at'] || 0)) }} · 仅记录本次结果
               </p>
               <div
                 v-if="warehouseOperatorReceiptAuditEvidenceRows.length"
@@ -2171,9 +2194,6 @@
                     <select
                       v-model="fundHighRiskReceiptOutcome"
                       class="online-select text-xs"
-              <p class="mt-2 text-[10px] text-muted">
-                默认模板 {{ member.default_template || '契约默认' }} · 偏离 {{ member.default_restore_changed_count || 0 }} 项
-              </p>
                       data-testid="online-cohabitation-fund-high-risk-receipt-outcome"
                     >
                       <option value="delivered">交付回执</option>
@@ -2737,10 +2757,10 @@
                     回滚：{{ entry.reverted_by_display_name || entry.reverted_by_username || '已记录' }} · {{ formatTime(entry.reverted_at) }} · {{ entry.rollback_policy || entry.rollback_reason || '不自动退款或恢复建材' }}
                   </p>
                   <p v-if="entry.shared_fund_refunded || entry.fund_refund_ledger_id">
-                    基金退款：{{ entry.fund_refunded_by_display_name || entry.fund_refunded_by_username || '已记录' }} · {{ formatTime(entry.fund_refunded_at) }} · {{ entry.fund_refund_ledger_id || '无 ledger' }}
+                    基金退款：{{ entry.fund_refunded_by_display_name || entry.fund_refunded_by_username || '已记录' }} · {{ formatTime(entry.fund_refunded_at) }} · {{ entry.fund_refund_ledger_id || '无记录明细' }}
                   </p>
                   <p v-if="entry.shared_warehouse_materials_restored || entry.material_restore_ledger_ids?.length">
-                    建材恢复：{{ entry.materials_restored_by_display_name || entry.materials_restored_by_username || '已记录' }} · {{ formatTime(entry.materials_restored_at) }} · {{ entry.material_restore_ledger_ids?.length || 0 }} 条 ledger
+                    建材恢复：{{ entry.materials_restored_by_display_name || entry.materials_restored_by_username || '已记录' }} · {{ formatTime(entry.materials_restored_at) }} · {{ entry.material_restore_ledger_ids?.length || 0 }} 条记录明细
                   </p>
                   <p v-if="entry.compensation_replayed_at || entry.status === 'compensated'">
                     补偿收口：{{ entry.compensation_replayed_by_display_name || entry.compensation_replayed_by_username || '已记录' }} · {{ formatTime(entry.compensation_replayed_at) }} · {{ entry.real_build_demolished ? '已拆除真实建筑' : '未拆真实建筑' }}
@@ -2761,7 +2781,7 @@
                     存档写回：{{ entry.real_build_demolition_personal_save_written_by_display_name || entry.real_build_demolition_personal_save_written_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_personal_save_written_at) }} · {{ entry.real_build_demolition_personal_save_receipts?.length || 0 }} 份回执
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_previewed_at || entry.real_build_demolition_main_state_manifest_hash">
-                    主态预览：{{ entry.real_build_demolition_main_state_previewed_by_display_name || entry.real_build_demolition_main_state_previewed_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_main_state_previewed_at) }} · {{ entry.real_build_demolition_main_state_manifest?.length || 0 }} 人 · {{ entry.real_build_demolition_main_state_manifest_hash || '无 hash' }}
+                    主态预览：{{ entry.real_build_demolition_main_state_previewed_by_display_name || entry.real_build_demolition_main_state_previewed_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_main_state_previewed_at) }} · {{ entry.real_build_demolition_main_state_manifest?.length || 0 }} 人 · {{ entry.real_build_demolition_main_state_manifest_hash || '无校验码' }}
                   </p>
                   <div
                     v-if="entry.real_build_demolition_main_state_manifest?.length"
@@ -2781,13 +2801,13 @@
                     主态策略：{{ entry.real_build_demolition_main_state_policy }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_mapped_at || entry.real_build_demolition_main_state_mapping_manifest_hash">
-                    映射证明：{{ entry.real_build_demolition_main_state_mapped_by_display_name || entry.real_build_demolition_main_state_mapped_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_main_state_mapped_at) }} · {{ entry.real_build_demolition_main_state_mapping_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_mapping_manifest_hash || '无 hash' }}
+                    映射证明：{{ entry.real_build_demolition_main_state_mapped_by_display_name || entry.real_build_demolition_main_state_mapped_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_main_state_mapped_at) }} · {{ entry.real_build_demolition_main_state_mapping_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_mapping_manifest_hash || '无校验码' }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_mapping_policy">
                     映射策略：{{ entry.real_build_demolition_main_state_mapping_policy }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_guarded_at || entry.real_build_demolition_main_state_guard_manifest_hash">
-                    安全阀：{{ entry.real_build_demolition_main_state_guarded_by_display_name || entry.real_build_demolition_main_state_guarded_by_username || '已确认' }} · {{ formatTime(entry.real_build_demolition_main_state_guarded_at) }} · {{ entry.real_build_demolition_main_state_guard_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_guard_manifest_hash || '无 hash' }}
+                    安全阀：{{ entry.real_build_demolition_main_state_guarded_by_display_name || entry.real_build_demolition_main_state_guarded_by_username || '已确认' }} · {{ formatTime(entry.real_build_demolition_main_state_guarded_at) }} · {{ entry.real_build_demolition_main_state_guard_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_guard_manifest_hash || '无校验码' }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_guard_policy">
                     安全阀策略：{{ entry.real_build_demolition_main_state_guard_policy }}
@@ -2799,13 +2819,13 @@
                     执行策略：{{ entry.real_build_demolition_main_state_execute_policy }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_exact_target_bound_at || entry.real_build_demolition_main_state_exact_target_manifest_hash">
-                    精确目标：{{ entry.real_build_demolition_main_state_exact_target_bound_by_display_name || entry.real_build_demolition_main_state_exact_target_bound_by_username || '已绑定' }} · {{ formatTime(entry.real_build_demolition_main_state_exact_target_bound_at) }} · {{ entry.real_build_demolition_main_state_exact_target_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_exact_target_manifest_hash || '无 hash' }}
+                    精确目标：{{ entry.real_build_demolition_main_state_exact_target_bound_by_display_name || entry.real_build_demolition_main_state_exact_target_bound_by_username || '已绑定' }} · {{ formatTime(entry.real_build_demolition_main_state_exact_target_bound_at) }} · {{ entry.real_build_demolition_main_state_exact_target_manifest?.length || 0 }} 条 · {{ entry.real_build_demolition_main_state_exact_target_manifest_hash || '无校验码' }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_exact_target_policy">
                     精确目标策略：{{ entry.real_build_demolition_main_state_exact_target_policy }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_exact_target_resolution_idempotency_key || entry.real_build_demolition_main_state_exact_target_resolution_policy">
-                    目标解析：{{ entry.real_build_demolition_main_state_exact_target_resolved_by_display_name || entry.real_build_demolition_main_state_exact_target_resolved_by_username || '已解析' }} · {{ formatTime(entry.real_build_demolition_main_state_exact_target_resolved_at) }} · {{ entry.real_build_demolition_main_state_exact_target_manifest_hash || '无 hash' }}
+                    目标解析：{{ entry.real_build_demolition_main_state_exact_target_resolved_by_display_name || entry.real_build_demolition_main_state_exact_target_resolved_by_username || '已解析' }} · {{ formatTime(entry.real_build_demolition_main_state_exact_target_resolved_at) }} · {{ entry.real_build_demolition_main_state_exact_target_manifest_hash || '无校验码' }}
                   </p>
                   <p v-if="entry.real_build_demolition_main_state_exact_target_resolution_policy">
                     解析策略：{{ entry.real_build_demolition_main_state_exact_target_resolution_policy }}
@@ -3620,7 +3640,6 @@
               >
                 {{ offlineQueueActionMessage }}
               </p>
-    RotateCcw,
               <div
                 v-if="offlineQueueMergeRows.length || offlineConflictResolutionLabel || offlineConflictAutoResolutionLabel || offlineConflictPreflightLabel"
                 class="space-y-1 text-[10px] text-muted"
@@ -3673,6 +3692,27 @@
                   <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ sharedLogKindLabel(entry.action) }}</span>
                 </div>
                 <p v-if="sharedLogDetail(entry)" class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-audit-detail">{{ sharedLogDetail(entry) }}</p>
+                <OnlineTechnicalDetails
+                  class="mt-2"
+                  title="日志技术详情"
+                  summary="展开查看原始动作、记录编号和完整字段，默认不进入玩家主路径。"
+                  :copyable="[entry.id, entry.action, sharedLogTechnicalDetail(entry)]"
+                >
+                  <dl class="grid gap-1" data-testid="online-cohabitation-shared-audit-technical-detail">
+                    <div>
+                      <dt class="text-accent">action</dt>
+                      <dd class="break-all">{{ entry.action }}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-accent">audit_id</dt>
+                      <dd class="break-all">{{ entry.id }}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-accent">detail</dt>
+                      <dd class="break-all">{{ sharedLogTechnicalDetail(entry) }}</dd>
+                    </div>
+                  </dl>
+                </OnlineTechnicalDetails>
               </div>
             </div>
           </div>
@@ -3713,6 +3753,7 @@
     Network,
     Package,
     Play,
+    RotateCcw,
     Scissors,
     ShieldCheck,
     Sprout,
@@ -3721,6 +3762,7 @@
     XCircle,
   } from 'lucide-vue-next'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type {
     CohabitationAuditEntry,
@@ -3794,6 +3836,8 @@
     requiresConfirmation?: boolean
     confirmationPhrase?: string
     rollbackPlan?: string
+    compensationHint?: string
+  }
   type SeparationAssetDisputeSourceRow = {
     id: string
     category: string
@@ -3813,8 +3857,6 @@
     freeze_required: boolean
     no_personal_mutation: boolean
     note: string
-  }
-    compensationHint?: string
   }
   type SharedWorkshopRecipeOption = CohabitationSharedWorkshopRecipe
   type SharedAlchemyWeights = {
@@ -3890,14 +3932,14 @@
     id: string
     label: string
     targetLabel: string
+    savedLabel: string
+  }
   type RecoveryAppealIssueOption = {
     id: string
     label: string
   }
-    savedLabel: string
   const CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT = '确认回滚到安全版本'
   const SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT = '确认播放关系破裂剧情'
-  }
   type SeparationSharedDecorationRemovalDispute = {
     draft_id: string
     target_ref: string
@@ -4124,14 +4166,6 @@
     yak: { productId: 'yak_milk', produceDays: 2 },
     alpaca: { productId: 'alpaca_wool', produceDays: 3 },
     deer: { productId: 'antler_velvet', produceDays: 5 },
-  const recoveryActionMessage = ref('')
-  const recoveryActionOk = ref(false)
-  const recoveryAppealIssueType = ref('warehouse_misoperation')
-  const recoveryAppealTargetRef = ref('')
-  const recoveryAppealNote = ref('')
-  const rollbackSafeVersionId = ref('')
-  const rollbackSafeVersionReason = ref('')
-  const rollbackSafeVersionConfirmationText = ref('')
     donkey: { productId: 'donkey_milk', produceDays: 3 },
     camel: { productId: 'camel_milk', produceDays: 2 },
     ostrich: { productId: 'ostrich_egg', produceDays: 3 },
@@ -4158,13 +4192,6 @@
       effect: '高阶灵宠点心',
       friendshipGain: 10,
       moodGain: 16,
-  const recoveryAppealIssueOptions: RecoveryAppealIssueOption[] = [
-    { id: 'warehouse_misoperation', label: '仓库误操作' },
-    { id: 'separation_asset_dispute', label: '分居资产争议' },
-    { id: 'contract_exception', label: '契约异常' },
-    { id: 'relationship_story_review', label: '剧情回看' },
-  ]
-
       riskLevel: 'high_value_pet_treat',
       requiresConfirmation: true,
       confirmationPhrase: '确认消耗共同宠物高阶点心',
@@ -4189,6 +4216,20 @@
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
   const lastRefreshAttemptAt = ref(0)
+  const recoveryActionMessage = ref('')
+  const recoveryActionOk = ref(false)
+  const recoveryAppealIssueType = ref('warehouse_misoperation')
+  const recoveryAppealTargetRef = ref('')
+  const recoveryAppealNote = ref('')
+  const rollbackSafeVersionId = ref('')
+  const rollbackSafeVersionReason = ref('')
+  const rollbackSafeVersionConfirmationText = ref('')
+  const recoveryAppealIssueOptions: RecoveryAppealIssueOption[] = [
+    { id: 'warehouse_misoperation', label: '仓库误操作' },
+    { id: 'separation_asset_dispute', label: '分居资产争议' },
+    { id: 'contract_exception', label: '契约异常' },
+    { id: 'relationship_story_review', label: '剧情回看' },
+  ]
   const warehouseActionMessage = ref('')
   const warehouseActionOk = ref(false)
   const warehouseDepositItemId = ref('rice')
@@ -4841,8 +4882,6 @@
       next[member.username_key] = amount
     })
     separationSharedFundManualAllocation.value = next
-      { key: 'frontend_cinematic_confirmation_required', label: '播放确认', value: separationStoryFlagLabel(resolution.frontend_cinematic_confirmation_required, '已要求确认', '无需确认') },
-      { key: 'frontend_cinematic_confirmation_matched', label: '确认回执', value: separationStoryFlagLabel(resolution.frontend_cinematic_confirmation_matched, '确认文案匹配', '未确认') },
   }
   watch(
     () => [
@@ -5015,6 +5054,18 @@
       { key: 'asset_boundary', label: '资产边界', value: '不改孩子、铜币、背包、农田、房屋和家庭资产' },
     ]
   })
+  const canSubmitRecoveryAppeal = computed(() =>
+    Boolean(selectedContract.value && cohabitationStore.canOpenSelectedContract && selectedContractActorMember.value?.status === 'accepted')
+  )
+  const canRollbackContractSafeVersion = computed(() =>
+    Boolean(
+      selectedContract.value
+      && cohabitationStore.canOpenSelectedContract
+      && selectedContractActorMember.value?.role === 'owner'
+      && selectedRollbackSafeVersion.value?.rollback_available !== false
+      && rollbackSafeVersionConfirmationText.value.trim() === CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT
+    )
+  )
   const separationPersonalFamilyMainStateMigrationSummary = computed<CohabitationSeparationPersonalFamilyMainStateMigrationSummary | null>(() => {
     const request = separationExecutionRequest.value
     const requestSummary = request?.personal_family_main_state_migration_summary
@@ -5036,18 +5087,6 @@
     if (!raw) return null
     const summary = raw as CohabitationSeparationPersonalFamilyMainStateMigrationSummary
     return {
-  const canSubmitRecoveryAppeal = computed(() =>
-    Boolean(selectedContract.value && cohabitationStore.canOpenSelectedContract && selectedContractActorMember.value?.status === 'accepted')
-  )
-  const canRollbackContractSafeVersion = computed(() =>
-    Boolean(
-      selectedContract.value
-      && cohabitationStore.canOpenSelectedContract
-      && selectedContractActorMember.value?.role === 'owner'
-      && selectedRollbackSafeVersion.value?.rollback_available !== false
-      && rollbackSafeVersionConfirmationText.value.trim() === CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT
-    )
-  )
       migration_adapter: String(summary.migration_adapter ?? ''),
       mutation_adapter: String(summary.mutation_adapter ?? ''),
       arrangement_choice: String(summary.arrangement_choice ?? ''),
@@ -6390,6 +6429,7 @@
     food_sesame_tangyuan: '芝麻汤圆',
     food_lotus_sesame_calming_cake: '莲心芝麻安神糕',
     food_spicy_pumpkin_rice: '赛舟辣南瓜饭',
+    food_spicy_pumpkin_ration: '赛舟辣南瓜干粮',
     qingxin_lotus_elixir: '清心莲丹',
     partial_elixir_slurry: '偏丹膏',
     failed_elixir_ash: '废丹灰',
@@ -6512,6 +6552,9 @@
     food_pickled_radish_guard_soup: '腌萝卜护院汤',
     food_candied_peach_spirit_cake: '蜜桃灵果糕',
     warming_sweet_potato_pill: '温阳薯丸',
+    yam_foundation_elixir: '固元山药丹',
+    garlic_coldward_elixir: '蒜辛驱寒丹',
+    bitter_gourd_cooling_elixir: '苦瓜清暑丹',
     grain_breath_elixir: '谷气续行丹',
     sesame_courtesy_elixir: '芝香护礼丸',
     pumpkin_warmth_elixir: '南瓜聚火丹',
@@ -6620,6 +6663,9 @@
     shared_sesame_courtesy_elixir: { profile: 'sesame_careful', label: '芝香护礼', weights: { success: 78, partial: 17, failed: 3, rare: 2 } },
     shared_pumpkin_warmth_elixir: { profile: 'pumpkin_warm_fire', label: '南瓜温火', weights: { success: 76, partial: 16, failed: 5, rare: 3 } },
     shared_spicy_vitality_pill: { profile: 'spicy_high_flame', label: '辛火猛炉', weights: { success: 72, partial: 16, failed: 7, rare: 5 } },
+    shared_yam_foundation_elixir: { profile: 'yam_foundation_ginseng', label: '山药固元', weights: { success: 74, partial: 16, failed: 5, rare: 5 } },
+    shared_garlic_coldward_elixir: { profile: 'garlic_strong_heat', label: '蒜辛热炉', weights: { success: 76, partial: 15, failed: 6, rare: 3 } },
+    shared_bitter_gourd_cooling_elixir: { profile: 'bitter_gourd_gentle_clear', label: '苦瓜清火', weights: { success: 79, partial: 14, failed: 5, rare: 2 } },
     shared_osmanthus_focus_elixir: { profile: 'osmanthus_focus', label: '桂露凝神', weights: { success: 84, partial: 10, failed: 4, rare: 2 } },
     shared_tea_focus_elixir: { profile: 'tea_focus', label: '茶心凝神', weights: { success: 84, partial: 10, failed: 4, rare: 2 } },
     shared_stone_root_guard_pill: { profile: 'stone_guard', label: '石根护脉', weights: { success: 80, partial: 12, failed: 6, rare: 2 } },
@@ -6917,6 +6963,7 @@
     { id: 'shared_sesame_tangyuan', label: '共同灶台芝麻汤圆', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'sesame_paste', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_sesame_tangyuan', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_lotus_sesame_calming_cake', label: '共同灶台莲心芝麻安神糕', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'lotus_heart_powder', quantity: 1, quality: 'fine' }, { item_id: 'sesame_powder', quantity: 1, quality: 'fine' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'food_lotus_sesame_calming_cake', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_spicy_pumpkin_rice', label: '共同灶台赛舟辣南瓜饭', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' }, { item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }, { item_id: 'rice', quantity: 1, quality: 'normal' }], output_item_id: 'food_spicy_pumpkin_rice', output_quantity: 1, output_quality: 'normal' },
+    { id: 'shared_spicy_pumpkin_ration', label: '共同灶台赛舟辣南瓜干粮', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' }, { item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_spicy_pumpkin_ration', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_spicy_boat_rice_ball', label: '共同灶台辛火赛舟饭团', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pickled_chili', quantity: 1, quality: 'fine' }, { item_id: 'rice', quantity: 2, quality: 'normal' }, { item_id: 'sesame_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_spicy_boat_rice_ball', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_rapeseed_bamboo_rice_roll', label: '共同灶台菜油春笋米粉卷', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'rice_flour', quantity: 1, quality: 'fine' }, { item_id: 'bamboo_shoot', quantity: 1, quality: 'normal' }, { item_id: 'rapeseed_oil', quantity: 1, quality: 'fine' }], output_item_id: 'food_rapeseed_bamboo_rice_roll', output_quantity: 1, output_quality: 'normal' },
     { id: 'shared_pumpkin_harvest_cauldron', label: '共同灶台丰收南瓜大锅羹', station: 'stove', process_kind: 'cooking_dish', input_items: [{ item_id: 'pumpkin_preserve', quantity: 1, quality: 'fine' }, { item_id: 'sweet_potato', quantity: 1, quality: 'normal' }, { item_id: 'rice', quantity: 1, quality: 'normal' }, { item_id: 'firewood', quantity: 1, quality: 'normal' }], output_item_id: 'food_pumpkin_harvest_cauldron', output_quantity: 1, output_quality: 'normal' },
@@ -6931,6 +6978,18 @@
     { id: 'shared_warming_sweet_potato_partial', label: '共同丹炉温阳偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
     { id: 'shared_warming_sweet_potato_failed', label: '共同丹炉温阳废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
     { id: 'shared_warming_sweet_potato_rare', label: '共同丹炉温阳奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'sweet_potato', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_yam_foundation_elixir', label: '共同丹炉固元山药丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'yam', quantity: 2, quality: 'normal' }, { item_id: 'ginseng', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'yam_foundation_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_yam_foundation_partial', label: '共同丹炉固元偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'yam', quantity: 2, quality: 'normal' }, { item_id: 'ginseng', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_yam_foundation_failed', label: '共同丹炉固元废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'yam', quantity: 2, quality: 'normal' }, { item_id: 'ginseng', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_yam_foundation_rare', label: '共同丹炉固元奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'yam', quantity: 2, quality: 'normal' }, { item_id: 'ginseng', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_garlic_coldward_elixir', label: '共同丹炉蒜辛驱寒丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'garlic', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'garlic_coldward_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_garlic_coldward_partial', label: '共同丹炉蒜辛偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'garlic', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_garlic_coldward_failed', label: '共同丹炉蒜辛废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'garlic', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_garlic_coldward_rare', label: '共同丹炉蒜辛奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'garlic', quantity: 2, quality: 'normal' }, { item_id: 'ginger', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
+    { id: 'shared_bitter_gourd_cooling_elixir', label: '共同丹炉苦瓜清暑丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'bitter_gourd', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'bitter_gourd_cooling_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
+    { id: 'shared_bitter_gourd_cooling_partial', label: '共同丹炉苦瓜偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'bitter_gourd', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
+    { id: 'shared_bitter_gourd_cooling_failed', label: '共同丹炉苦瓜废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'bitter_gourd', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
+    { id: 'shared_bitter_gourd_cooling_rare', label: '共同丹炉苦瓜奇丹晶', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'bitter_gourd', quantity: 2, quality: 'normal' }, { item_id: 'tea', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'rare_elixir_crystal', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'rare' },
     { id: 'shared_grain_breath_elixir', label: '共同丹炉谷气续行丹', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'grain_breath_elixir', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'success' },
     { id: 'shared_grain_breath_partial', label: '共同丹炉谷气偏丹膏', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'partial_elixir_slurry', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'partial' },
     { id: 'shared_grain_breath_failed', label: '共同丹炉谷气废丹灰', station: 'alchemy_furnace', process_kind: 'alchemy_elixir', input_items: [{ item_id: 'rice', quantity: 3, quality: 'normal' }, { item_id: 'herb', quantity: 1, quality: 'normal' }, { item_id: 'honey', quantity: 1, quality: 'normal' }], output_item_id: 'failed_elixir_ash', output_quantity: 1, output_quality: 'normal', alchemy_result_kind: 'failed' },
@@ -8596,7 +8655,6 @@
         ? '已读回共同农田种植记录'
         : '共同农田已种植，共同仓库扣种流水已刷新'
     } catch (error) {
-        confirmation_text: resolution.frontend_cinematic_pending === true ? SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT : '',
       sharedFarmActionMessage.value = error instanceof Error ? error.message : '种植共同农田失败'
     }
   }
@@ -9019,6 +9077,7 @@
         animation_event_id: String(resolution.animation_event_id || ''),
         playback_state: resolution.frontend_cinematic_pending === true ? 'played' : 'record_only',
         memo: '前端已触发分居关系剧情演出；只记录共同契约回执，不改个人 NPC / 家庭主状态',
+        confirmation_text: resolution.frontend_cinematic_pending === true ? SEPARATION_STORY_CINEMATIC_CONFIRMATION_TEXT : '',
         idempotency_key: `ui-separation-story-cinematic-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
       separationActionOk.value = true
@@ -9273,7 +9332,7 @@
   const selectDecorationOwnedExactTargetKey = (
     decoration: NonNullable<NonNullable<FamilyBuildingMainStatePreviewRow['candidate_snapshot']>['decoration']> = {},
   ) => {
-    const placedByKey = new Map((decoration.placedEntries || []).map(item => [item.key, item.quantity]))
+    const placedByKey = new globalThis.Map((decoration.placedEntries || []).map(item => [item.key, item.quantity]))
     const surplusEntry = (decoration.ownedEntries || []).find(item => item.quantity > (placedByKey.get(item.key) || 0))
     if (surplusEntry?.key) return surplusEntry.key
     const placedKeys = new Set(decoration.placedKeys || [])
@@ -10392,8 +10451,6 @@
     }
   }
 
-  const guardFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
-    familyBuildingActionMessage.value = ''
   const restoreMemberDefaultPermissions = async (
     member: CohabitationMember & {
       default_restore_changed_count?: number
@@ -10472,6 +10529,32 @@
     }
   }
 
+  const recoveryAppealIssueLabel = (value: string) =>
+    recoveryAppealIssueOptions.find(option => option.id === value)?.label || value || '恢复申诉'
+
+  const separationAssetDisputeSourceCategoryLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      shared_warehouse_return_source: '仓库来源',
+      shared_warehouse_unidentified_dispute: '仓库未知来源',
+      shared_fund_unidentified_operating_dispute: '基金未知贡献',
+      shared_decoration_removal_dispute: '装修拆除争议',
+      warehouse_high_value_withdrawal_dispute: '高价值取出冻结',
+      shared_decoration_source: '装修来源',
+      family_building_source: '建筑来源',
+      relationship_story_review: '关系剧情回看',
+    }
+    return labels[value] || value || '分居来源'
+  }
+
+  const contractSafeVersionSummaryLabel = (summary: Record<string, unknown> | undefined) => {
+    const auditCount = Math.max(0, Math.floor(Number(summary?.audit_count) || 0))
+    const warehouseLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_warehouse_ledger_count) || 0))
+    const fundLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_fund_ledger_count) || 0))
+    return `审计 ${auditCount} · 仓库流水 ${warehouseLedgerCount} · 基金流水 ${fundLedgerCount}`
+  }
+
+  const guardFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
     familyBuildingActionOk.value = false
     const mappingManifest = entry.real_build_demolition_main_state_mapping_manifest || []
     if (!entry.real_build_demolition_main_state_mapping_manifest_hash || mappingManifest.length === 0) {
@@ -10513,30 +10596,6 @@
       const result = await cohabitationStore.executeFamilyBuildingRealDemolitionMainStateMutation({
         building_ledger_id: entry.id,
         guard_manifest_hash: entry.real_build_demolition_main_state_guard_manifest_hash,
-  const recoveryAppealIssueLabel = (value: string) =>
-    recoveryAppealIssueOptions.find(option => option.id === value)?.label || value || '恢复申诉'
-
-  const separationAssetDisputeSourceCategoryLabel = (value: string) => {
-    const labels: Record<string, string> = {
-      shared_warehouse_return_source: '仓库来源',
-      shared_warehouse_unidentified_dispute: '仓库未知来源',
-      shared_fund_unidentified_operating_dispute: '基金未知贡献',
-      shared_decoration_removal_dispute: '装修拆除争议',
-      warehouse_high_value_withdrawal_dispute: '高价值取出冻结',
-      shared_decoration_source: '装修来源',
-      family_building_source: '建筑来源',
-      relationship_story_review: '关系剧情回看',
-    }
-    return labels[value] || value || '分居来源'
-  }
-
-  const contractSafeVersionSummaryLabel = (summary: Record<string, unknown> | undefined) => {
-    const auditCount = Math.max(0, Math.floor(Number(summary?.audit_count) || 0))
-    const warehouseLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_warehouse_ledger_count) || 0))
-    const fundLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_fund_ledger_count) || 0))
-    return `审计 ${auditCount} · 仓库流水 ${warehouseLedgerCount} · 基金流水 ${fundLedgerCount}`
-  }
-
         memo: `前端执行家族建筑真实拆除个人主状态阻断：${entry.target_ref || entry.building_id || entry.project_id}`,
         idempotency_key: `ui-family-building-real-demolition-main-state-execute-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
@@ -10862,7 +10921,6 @@
       familyVisibilityActionMessage.value = result?.idempotent ? '已读回家族公开回滚记录' : '已回滚家族公开设置'
     } catch (error) {
       familyVisibilityActionMessage.value = error instanceof Error ? error.message : '回滚家族公开设置失败'
-      permissions_default_restored: '默认权限恢复',
     }
   }
   const reserveFamilyFestivalSeatsFromPanel = async () => {
@@ -10906,11 +10964,6 @@
     const template = firstAvailableFamilyFestivalTemplate.value
     if (!template) return
     familyFestivalSeatActionMessage.value = ''
-    if (entry.action === 'permissions_default_restored') {
-      const count = Number(detail.changed_field_count) || 0
-      const template = typeof detail.default_template === 'string' ? detail.default_template : '默认模板'
-      return target ? `${target} 恢复 ${template}，调整 ${count} 项权限` : `恢复 ${template}，调整 ${count} 项权限`
-    }
     familyFestivalSeatActionOk.value = false
     try {
       const result = await cohabitationStore.consumeFamilyFestivalSupplies({
@@ -11331,6 +11384,7 @@
       family_building_real_demolition_personal_save_written: '真实拆除存档写回',
       family_building_real_demolition_main_state_execution_blocked: '真实拆除主态执行阻断',
       permissions_updated: '权限更新',
+      permissions_default_restored: '默认权限恢复',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
       separation_preview_confirmed: '分居预览确认',
@@ -11363,6 +11417,24 @@
     return '日志'
   }
 
+  const sharedLogTechnicalDetail = (entry: CohabitationAuditEntry) => {
+    try {
+      return JSON.stringify(entry.detail || {}, null, 2)
+    } catch {
+      return String(entry.detail || '')
+    }
+  }
+
+  const sharedLogRequiredOperationLabel = (operation: string) => {
+    const labels: Record<string, string> = {
+      record_high_risk_receipt: '完成高风险回执收口',
+      confirm_high_risk_purchase_receipt: '确认高风险采购回执',
+      record_shared_decoration_removal_refund_receipt: '登记共同装修拆除退款回执',
+      record_family_major_event_refund_receipt: '登记家庭事件退款回执',
+    }
+    return labels[operation] || '完成对应回执收口'
+  }
+
   const sharedLogDetail = (entry: CohabitationAuditEntry) => {
     const detail = entry.detail || {}
     const target = typeof detail.target_display_name === 'string'
@@ -11373,6 +11445,11 @@
     if (entry.action === 'permissions_updated') {
       const count = Number(detail.changed_field_count) || 0
       return target ? `${target} 变更 ${count} 项权限` : `变更 ${count} 项权限`
+    }
+    if (entry.action === 'permissions_default_restored') {
+      const count = Number(detail.changed_field_count) || 0
+      const template = typeof detail.default_template === 'string' ? detail.default_template : '默认模板'
+      return target ? `${target} 恢复 ${template}，调整 ${count} 项权限` : `恢复 ${template}，调整 ${count} 项权限`
     }
     if (entry.action === 'family_role_updated') {
       const before = typeof detail.before_role_label === 'string' ? detail.before_role_label : ''
@@ -11406,7 +11483,7 @@
       const clientRevision = Math.max(0, Math.floor(Number(detail.client_queue_revision) || 0))
       const serverRevision = Math.max(0, Math.floor(Number(detail.server_queue_revision) || 0))
       const unsupportedCount = Array.isArray(detail.unsupported_actions) ? detail.unsupported_actions.length : 0
-      return `客户端 revision ${clientRevision} / 服务端 ${serverRevision}，${detail.client_queue_stale === true ? '需刷新后合并' : '可继续合并'}，不支持动作 ${unsupportedCount} 项`
+      return `本地版本 ${clientRevision} / 最新版本 ${serverRevision}，${detail.client_queue_stale === true ? '需刷新后合并' : '可继续合并'}，不支持动作 ${unsupportedCount} 项`
     }
     if (entry.action === 'offline_conflict_auto_resolved') {
       const accepted = Number(detail.accepted_count) || 0
@@ -11437,8 +11514,8 @@
       const idempotent = Number(resolution.idempotent_count) || 0
       const rejected = Number(resolution.rejected_count) || Number(detail.rejected_count) || 0
       const ledgerCount = Number(resolution.ledger_count) || (Array.isArray(detail.result_ledger_ids) ? detail.result_ledger_ids.length : 0)
-      const stale = resolution.client_queue_stale === true || detail.client_queue_stale === true ? '客户端基线过期，按服务端最新状态处理' : '客户端基线一致'
-      return `服务端权威队列合并：提交 ${committed}、幂等 ${idempotent}、拒绝 ${rejected}，流水 ${ledgerCount} 笔，${stale}`
+      const stale = resolution.client_queue_stale === true || detail.client_queue_stale === true ? '本地基线过期，按最新状态处理' : '本地基线一致'
+      return `离线队列合并：提交 ${committed}、重复提交保护 ${idempotent}、拒绝 ${rejected}，记录 ${ledgerCount} 笔，${stale}`
     }
     if (entry.action === 'fund_high_risk_receipt_recorded') {
       const purpose = typeof detail.purpose === 'string' ? detail.purpose : ''
@@ -11452,15 +11529,15 @@
       const refundLedgerId = typeof detail.refund_fund_ledger_id === 'string' ? detail.refund_fund_ledger_id : ''
       const originalLedgerId = typeof detail.original_fund_ledger_id === 'string' ? detail.original_fund_ledger_id : ''
       if (purpose === 'shared_decoration_removal') {
-        const suffix = refundLedgerId ? `，退款 ledger ${refundLedgerId}` : '，不改个人小屋或装修主状态'
-        return `${purposeLabel}已记录${outcome}，原基金 ledger ${originalLedgerId || '待核对'}，金额 ${amount} 文${suffix}`
+        const suffix = refundLedgerId ? `，退款记录 ${refundLedgerId}` : '，不改个人小屋或装修主状态'
+        return `${purposeLabel}已记录${outcome}，原基金记录 ${originalLedgerId || '待核对'}，金额 ${amount} 文${suffix}`
       }
       return `${purposeLabel}已记录${outcome}，金额 ${amount} 文，个人铜币不合并`
     }
     if (entry.action === 'fund_high_risk_execution_blocked') {
       const pendingCount = Number(detail.pending_receipt_count) || 0
       const requiredOperation = typeof detail.required_operation === 'string' ? detail.required_operation : 'record_high_risk_receipt'
-      return `仍有 ${pendingCount} 笔高风险扣款未收口，已阻断新的共同基金高风险执行；需先 ${requiredOperation}`
+      return `仍有 ${pendingCount} 笔高风险扣款未收口，已阻断新的共同基金高风险执行；需先${sharedLogRequiredOperationLabel(requiredOperation)}`
     }
     if (entry.action === 'separation_preview_created') {
       const version = Number(detail.preview_version) || 1
@@ -11512,8 +11589,8 @@
     if (entry.action === 'separation_family_story_resolved') {
       const needsPersonalStory = detail.personal_story_write_required === true
       const needsChildArrangement = detail.child_arrangement_required === true
-      if (needsChildArrangement) return '已记录剧情拆分，等待孩子安排和个人剧情 receipt'
-      return needsPersonalStory ? '已记录剧情拆分，等待个人剧情 receipt' : '已记录剧情拆分'
+      if (needsChildArrangement) return '已记录剧情拆分，等待孩子安排和个人剧情回执'
+      return needsPersonalStory ? '已记录剧情拆分，等待个人剧情回执' : '已记录剧情拆分'
     }
     if (entry.action === 'separation_story_cinematic_played') {
       const eventId = typeof detail.animation_event_id === 'string' && detail.animation_event_id
@@ -11529,7 +11606,7 @@
     }
     if (entry.action === 'separation_child_arrangement_resolved') {
       const count = Number(detail.child_count) || 0
-      return count > 0 ? `已记录 ${count} 名孩子的安排，个人家庭存档 receipt 仍暂缓` : '孩子安排已记录，个人家庭存档 receipt 仍暂缓'
+      return count > 0 ? `已记录 ${count} 名孩子的安排，个人家庭存档回执仍暂缓` : '孩子安排已记录，个人家庭存档回执仍暂缓'
     }
     if (entry.action === 'separation_personal_family_receipts_written') {
       const count = Number(detail.receipt_count) || 0

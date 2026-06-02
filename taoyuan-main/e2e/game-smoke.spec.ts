@@ -19,8 +19,8 @@ const emptyVisualState = {
 
 async function openHome(page: Page) {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '新的旅程' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: '新的旅程' })).toBeVisible({ timeout: 15_000 })
 }
 
 async function startNewJourney(page: Page, playerName: string) {
@@ -66,6 +66,14 @@ async function waitForExpeditionAction(page: Page) {
   }
 
   throw new Error('No expedition action became available in time')
+}
+
+async function openTechnicalDetailsForTestId(page: Page, testId: string) {
+  const target = page.getByTestId(testId)
+  if (await target.isVisible().catch(() => false)) return
+  const details = target.locator('xpath=ancestor::details[1]')
+  await details.getByTestId('online-technical-details-toggle').click()
+  await expect(target).toBeVisible()
 }
 
 function buildWorldEventOverview() {
@@ -190,6 +198,7 @@ function buildRoomSnapshot(room: {
 async function mockOnlineVisualRoom(page: Page, options: {
   domain: 'festival' | 'expedition'
   room: ReturnType<typeof buildRoomSnapshot>
+  inviteFailures?: Record<string, { msg: string; once?: boolean }>
   onAction?: (room: ReturnType<typeof buildRoomSnapshot>, actionId: string) => {
     room: ReturnType<typeof buildRoomSnapshot>
     recentReceipts?: unknown[]
@@ -202,6 +211,7 @@ async function mockOnlineVisualRoom(page: Page, options: {
   let currentRoom = options.room
   let currentFestivalRecentReceipts: unknown[] = []
   let currentExpeditionRecentReceipts: unknown[] = []
+  const inviteAttempts = new Map<string, number>()
   await page.unroute('**/api/me').catch(() => {})
   await page.route('**/api/me', async route => {
     await route.fulfill({
@@ -289,11 +299,38 @@ async function mockOnlineVisualRoom(page: Page, options: {
       body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
     })
   })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/invite', async route => {
+    let payload: { target_username?: string } = {}
+    try {
+      payload = route.request().postDataJSON() as { target_username?: string }
+    } catch {
+      payload = {}
+    }
+    const targetUsername = String(payload.target_username || '').trim()
+    const normalizedTarget = targetUsername.toLowerCase()
+    const nextAttempt = (inviteAttempts.get(normalizedTarget) || 0) + 1
+    inviteAttempts.set(normalizedTarget, nextAttempt)
+    const configuredFailure = options.inviteFailures?.[normalizedTarget]
+    if (configuredFailure && (!configuredFailure.once || nextAttempt === 1)) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, msg: configuredFailure.msg })
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
+    })
+  })
   await page.route('**/api/taoyuan/online/expedition/rooms', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildExpeditionOverview()) })
   })
   const isExpeditionActionUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/action(?:\?.*)?$/.test(url)
   const isExpeditionSettleUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/settle(?:\?.*)?$/.test(url)
+  const isExpeditionInviteUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/invite(?:\?.*)?$/.test(url)
   const fulfillExpeditionAction = async (route: Route) => {
     let payload: { action_id?: string } = {}
     try {
@@ -324,8 +361,35 @@ async function mockOnlineVisualRoom(page: Page, options: {
       body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
     })
   }
+  const fulfillExpeditionInvite = async (route: Route) => {
+    let payload: { target_username?: string } = {}
+    try {
+      payload = route.request().postDataJSON() as { target_username?: string }
+    } catch {
+      payload = {}
+    }
+    const targetUsername = String(payload.target_username || '').trim()
+    const normalizedTarget = targetUsername.toLowerCase()
+    const nextAttempt = (inviteAttempts.get(normalizedTarget) || 0) + 1
+    inviteAttempts.set(normalizedTarget, nextAttempt)
+    const configuredFailure = options.inviteFailures?.[normalizedTarget]
+    if (configuredFailure && (!configuredFailure.once || nextAttempt === 1)) {
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, msg: configuredFailure.msg })
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
+    })
+  }
   await page.route(isExpeditionActionUrl, fulfillExpeditionAction)
   await page.route(isExpeditionSettleUrl, fulfillExpeditionSettle)
+  await page.route(isExpeditionInviteUrl, fulfillExpeditionInvite)
 }
 
 function buildFestivalFriendMemorialOverview() {
@@ -1174,6 +1238,29 @@ async function mockOnlineCohabitation(page: Page) {
   const contract = buildCohabitationContract()
   let helperDepositEnabled = false
   let permissionAudits: any[] = []
+  const sharedAuditLog = [{
+    id: 'audit-shared-log-technical-e2e',
+    action: 'offline_queue_merged',
+    actor_username: 'tester',
+    actor_display_name: '测试者',
+    detail: {
+      offline_conflict_resolution: {
+        committed_count: 1,
+        idempotent_count: 1,
+        rejected_count: 0,
+        ledger_count: 2,
+        client_queue_stale: false
+      },
+      result_ledger_ids: ['ledger-shared-log-a', 'ledger-shared-log-b'],
+      receipt_id: 'receipt-shared-log-e2e',
+      receipt_hash: 'hash-shared-log-e2e',
+      client_queue_revision: 3,
+      server_queue_revision: 4,
+      idempotency_key: 'idempotency-shared-log-e2e'
+    },
+    idempotency_key: 'audit-shared-log-idempotency-e2e',
+    at: 3
+  }]
   let sharedPetCareCount = 0
   let sharedPetLastCareItemId = ''
   const sharedPetCareItems: Record<string, {
@@ -1561,7 +1648,7 @@ async function mockOnlineCohabitation(page: Page) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ role_panel: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, type: contract.type, type_label: contract.type_label, status: 'active', role_management_enabled: true, editable_by_actor: true, idempotency_required: true, max_members: 4, member_count: 2, role_options: [], constraints: {}, members: [], recent_role_audits: [], deferred_operations: [] } })) })
   })
   await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/offline-status', async route => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ offline_status: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', summary: { server_authoritative: true, member_online_required: false, offline_member_blocks_operations: false, independent_operations_enabled: true, personal_money_merged: false, shared_log_available: true, auto_offline_income_enabled: false, conflict_policy: 'server' }, members: [], actor_capabilities: {}, recent_shared_log: [], deferred_operations: [] } })) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ offline_status: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', summary: { server_authoritative: true, member_online_required: false, offline_member_blocks_operations: false, independent_operations_enabled: true, personal_money_merged: false, shared_log_available: true, auto_offline_income_enabled: false, conflict_policy: 'server' }, members: [], actor_capabilities: {}, recent_shared_log: sharedAuditLog, deferred_operations: [] } })) })
   })
   const readonlyPanelRoutes = [
     ['family-orders', 'family_orders_panel'],
@@ -2796,7 +2883,67 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('组合收益 1 条')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('提前撤离 · 提前撤离已确认')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('风险峰值：第 2 回合 · 测试者 · 确认撤离 · 撤离前确认风险峰值 3')
-    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('服务端落账：120 铜钱、1 张奖券、ore x2')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('奖励已记录：120 铜钱、1 张奖券、ore x2')
+  })
+
+  test('online festival room invite panel handles success failure and retry', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '邀请')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-invite-room',
+      title: '节会邀请 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.can_host_settle = false
+    room.can_host_ready_check = true
+    room.members = [{
+      username: 'tester',
+      display_name: '测试者',
+      role: 'host',
+      status: 'joined',
+      status_label: '房主',
+      invited_at: 0,
+      joined_at: 1,
+      ready_at: 0,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }] as any
+
+    await mockOnlineVisualRoom(page, {
+      domain: 'festival',
+      room,
+      inviteFailures: {
+        retry_friend: { msg: '服务端状态冲突', once: true }
+      }
+    })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await page.getByTestId('online-festival-room-invite-trigger').click()
+    await expect(page.getByTestId('online-invite-panel')).toBeVisible()
+
+    await page.getByTestId('online-invite-input').fill('tester friend_ok retry_friend')
+    await expect(page.getByTestId('online-invite-result-tester')).toContainText('已在房间')
+    await expect(page.getByTestId('online-invite-submit')).toContainText('发送邀请 2')
+    await page.getByTestId('online-invite-submit').click()
+
+    await expect(page.getByTestId('online-invite-result-friend_ok')).toContainText('已邀请')
+    const retryRow = page.getByTestId('online-invite-result-retry_friend')
+    await expect(retryRow).toContainText('邀请失败')
+    await expect(retryRow).toContainText('房间信息有更新，请刷新后继续。')
+    await retryRow.getByTestId('online-invite-retry').click()
+    await expect(retryRow).toContainText('已邀请')
   })
 
   test('online festival visual scene supports lantern object actions', async ({ page }) => {
@@ -3332,6 +3479,38 @@ test.describe('web game smoke', () => {
     await expect(page.getByText('帮手 的「仓库放入」已开启')).toBeVisible()
   })
 
+  test('online cohabitation shared audit details keep technical fields folded', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '共同日志')
+    await mockOnlineCohabitation(page)
+
+    await page.goto('/#/game/online/cohabitation')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    await page.getByTestId('online-module-tab-offline').click()
+
+    const auditSummary = page.getByTestId('online-cohabitation-shared-audit-detail').first()
+    await expect(auditSummary).toContainText('离线队列合并')
+    await expect(auditSummary).toContainText('重复提交保护')
+    await expect(auditSummary).not.toContainText('ledger')
+    await expect(auditSummary).not.toContainText('receipt')
+    await expect(auditSummary).not.toContainText('hash')
+    await expect(auditSummary).not.toContainText('idempotency')
+    await expect(auditSummary).not.toContainText('revision')
+
+    const technicalDetail = page.getByTestId('online-cohabitation-shared-audit-technical-detail').first()
+    await expect(technicalDetail).toBeHidden()
+    await page.getByTestId('online-technical-details-toggle').first().click()
+    await expect(technicalDetail).toBeVisible()
+    await expect(technicalDetail).toContainText('offline_queue_merged')
+    await expect(technicalDetail).toContainText('audit-shared-log-technical-e2e')
+    await expect(technicalDetail).toContainText('result_ledger_ids')
+    await expect(technicalDetail).toContainText('receipt-shared-log-e2e')
+    await expect(technicalDetail).toContainText('hash-shared-log-e2e')
+    await expect(technicalDetail).toContainText('idempotency-shared-log-e2e')
+    await expect(technicalDetail).toContainText('client_queue_revision')
+    await expect(technicalDetail).toContainText('server_queue_revision')
+  })
+
   test('online cohabitation shared pet care uses shared warehouse feed', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '宠物')
@@ -3539,6 +3718,7 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/festival?tab=festival-room')
     await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-member-limit-group')
     await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('2 人')
     await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('4 人')
     await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('6 人')
@@ -3571,7 +3751,7 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u8d5b\u9053\u540d\u6b21\uff1a\u7b2c 1 \u540d \u5317\u6e21\u9f99\u821f')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u8d5b\u821f\u5206 12')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u538b\u529b\u5cf0\u503c')
-    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u670d\u52a1\u7aef\u843d\u8d26\uff1a100 \u94dc\u94b1\u30012 \u5f20\u5956\u5238')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u5956\u52b1\u5df2\u8bb0\u5f55\uff1a100 \u94dc\u94b1\u30012 \u5f20\u5956\u5238')
   })
 
   test('online society async board supports bridge contribution actions', async ({ page }) => {

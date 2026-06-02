@@ -32,6 +32,8 @@ export interface ExpeditionRoomTemplate {
   label: string
   summary: string
   default_member_limit: number
+  min_member_limit?: number
+  max_member_limit?: number
   opening_title: string
   recommended_gameplay_template_ids: string[]
 }

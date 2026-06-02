@@ -470,9 +470,6 @@
             <Button v-if="festivalRoomStore.myRoom.can_host_start_countdown" :disabled="festivalRoomStore.actionRunning" @click="startCountdown(festivalRoomStore.myRoom.id)">
               开倒计时
             </Button>
-            <Button v-if="festivalRoomStore.myRoom.can_disconnect" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
-              模拟断线
-            </Button>
             <Button v-if="festivalRoomStore.myRoom.can_reconnect" :disabled="festivalRoomStore.actionRunning" @click="reconnectRoom(festivalRoomStore.myRoom.id)">
               恢复连接
             </Button>
@@ -486,6 +483,19 @@
               离开房间
             </Button>
           </div>
+          <OnlineTechnicalDetails
+            v-if="festivalRoomStore.myRoom.can_disconnect"
+            title="调试操作"
+            summary="用于 QA 复核网络异常恢复，默认不进入玩家主路径。"
+          >
+            <Button
+              :disabled="festivalRoomStore.actionRunning"
+              data-testid="festival-room-disconnect-submit"
+              @click="disconnectRoom(festivalRoomStore.myRoom.id)"
+            >
+              网络异常测试
+            </Button>
+          </OnlineTechnicalDetails>
         </div>
         <p v-else class="text-xs text-muted leading-5">当前没有进行中的节会房间。可以先创建自己的房间，或从下方待邀列表加入别人发来的节会邀请。</p>
       </div>
@@ -586,6 +596,7 @@
   import { onMounted, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { WorldEventOverview } from '@/utils/worldEventApi'

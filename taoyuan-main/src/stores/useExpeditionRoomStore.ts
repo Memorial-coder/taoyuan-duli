@@ -28,6 +28,7 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
   const overview = ref<ExpeditionRoomOverview | null>(null)
   const selectedTemplateId = ref('expedition_outpost')
   const selectedGameplayTemplateId = ref('expedition_roles')
+  const draftMemberLimit = ref(4)
   const draftTitle = ref('')
   const draftInviteUsername = ref('')
   const draftInviteSaveId = ref('')
@@ -42,6 +43,21 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
 
   const selectedTemplate = computed(() => templates.value.find(template => template.id === selectedTemplateId.value) ?? templates.value[0] ?? null)
   const selectedGameplayTemplate = computed(() => gameplayTemplates.value.find(template => template.id === selectedGameplayTemplateId.value) ?? gameplayTemplates.value[0] ?? null)
+  const memberLimitOptions = computed(() => {
+    const template = selectedTemplate.value
+    const minLimit = Math.max(2, Math.floor(template?.min_member_limit ?? 2))
+    const maxLimit = Math.max(minLimit, Math.floor(template?.max_member_limit ?? template?.default_member_limit ?? 4))
+    const defaultLimit = Math.max(minLimit, Math.min(maxLimit, Math.floor(template?.default_member_limit ?? minLimit)))
+    const rangeOptions = Array.from({ length: maxLimit - minLimit + 1 }, (_, index) => minLimit + index)
+    return [...new Set([...rangeOptions, defaultLimit])].sort((left, right) => left - right)
+  })
+  const normalizedDraftMemberLimit = computed(() => {
+    const options = memberLimitOptions.value
+    if (options.includes(draftMemberLimit.value)) return draftMemberLimit.value
+    return options.reduce((nearest, option) =>
+      Math.abs(option - draftMemberLimit.value) < Math.abs(nearest - draftMemberLimit.value) ? option : nearest,
+    options[0] ?? 2)
+  })
   const recommendedGameplayTemplates = computed(() => {
     const template = selectedTemplate.value
     if (!template) return gameplayTemplates.value
@@ -63,6 +79,9 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
       ?? 'expedition_roles'
     if (!nextGameplayTemplates.some(template => template.id === selectedGameplayTemplateId.value)) {
       selectedGameplayTemplateId.value = fallbackGameplayId
+    }
+    if (!memberLimitOptions.value.includes(draftMemberLimit.value)) {
+      draftMemberLimit.value = normalizedDraftMemberLimit.value
     }
   }
 
@@ -109,6 +128,7 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
         template_id: selectedTemplateId.value,
         gameplay_template_id: selectedGameplayTemplateId.value,
         title: draftTitle.value.trim() || undefined,
+        member_limit: normalizedDraftMemberLimit.value,
       })
       draftTitle.value = ''
       return applyActionResult(result)
@@ -179,6 +199,9 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
     selectedTemplate,
     selectedGameplayTemplateId,
     selectedGameplayTemplate,
+    draftMemberLimit,
+    memberLimitOptions,
+    normalizedDraftMemberLimit,
     draftTitle,
     draftInviteUsername,
     draftInviteSaveId,

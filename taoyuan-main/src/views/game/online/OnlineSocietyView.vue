@@ -18,13 +18,24 @@
         <ShieldCheck :size="16" />
       </template>
       <template #errors>
-        <div v-if="societyStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {{ societyStore.errorMessage }}
-        </div>
+        <OnlineStatusBanner
+          v-if="societyStore.errorMessage"
+          tone="danger"
+          title="村社信息暂时没有刷新成功"
+          :description="societyStore.errorMessage"
+          action-label="重试"
+          @action="refreshSocietyModule"
+        />
       </template>
     </OnlineModuleShell>
 
-    <section class="space-y-3">
+    <section
+      class="space-y-3"
+      role="tabpanel"
+      :id="`online-module-panel-${activeTab}`"
+      :aria-labelledby="`online-module-tab-${activeTab}`"
+      data-testid="online-module-tabpanel"
+    >
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
@@ -84,17 +95,14 @@
                 </div>
               </div>
             </div>
-            <div v-else class="mt-3 space-y-3">
-              <p class="text-xs leading-5 text-muted">当前还没有加入村社。可以先创建自己的村社，也可以从右侧公开村社申请加入。</p>
-              <div class="grid gap-2 md:grid-cols-3">
-                <button class="online-action-btn online-action-btn--primary w-fit" type="button" @click="focusCreateSociety">
-                  创建村社
-                </button>
-                <span class="text-[10px] leading-5 text-muted md:col-span-2">
-                  申请、邀请和创建都会走现有村社接口；失败时保留当前草稿和已加载列表。
-                </span>
-              </div>
-            </div>
+            <OnlineEmptyState
+              v-else
+              class="mt-3"
+              title="还没有加入村社"
+              description="可以先创建自己的村社，也可以从公开村社里申请加入；失败时会保留当前草稿和已加载列表。"
+              primary-label="创建村社"
+              @primary="focusCreateSociety"
+            />
           </div>
 
           <div v-if="currentSociety" class="game-panel-muted p-3">
@@ -258,7 +266,12 @@
             <p class="text-sm text-accent">公开村社</p>
             <span class="text-[10px] text-muted">{{ societyStore.visibleSocieties.length }} 个</span>
           </div>
-          <div v-if="societyStore.visibleSocieties.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有可公开查看的村社。</div>
+          <OnlineEmptyState
+            v-if="societyStore.visibleSocieties.length === 0"
+            class="mt-3"
+            title="还没有公开村社"
+            description="等有村社公开名片后，会在这里显示可申请加入的入口。"
+          />
           <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
             <div v-for="society in visibleSocietyPreview" :key="society.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex items-start justify-between gap-2">
@@ -296,7 +309,12 @@
             <p class="text-sm text-accent">成员与职位</p>
             <span class="text-[10px] text-muted">{{ memberCount }} 人</span>
           </div>
-          <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会在这里看到成员、职位和治理入口。</div>
+          <OnlineEmptyState
+            v-if="!currentSociety"
+            class="mt-3"
+            title="加入村社后显示成员"
+            description="成员、职位和治理入口会在加入后显示；现在可以回到总览创建村社或申请公开村社。"
+          />
           <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
             <div v-for="member in currentSociety.members" :key="`${currentSociety.id}-${member.username}`" class="border border-accent/10 bg-black/10 p-2" data-testid="online-society-member-entry">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -379,7 +397,12 @@
               <p class="text-sm text-accent">申请处理</p>
               <span class="text-[10px] text-muted">{{ societyStore.managedRequests.length }} 条</span>
             </div>
-            <div v-if="societyStore.managedRequests.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有待处理的入社申请或邀请。</div>
+            <OnlineEmptyState
+              v-if="societyStore.managedRequests.length === 0"
+              class="mt-3"
+              title="没有待处理申请"
+              description="新的入社申请或邀请结果会汇总到这里，管理员可以在这里集中处理。"
+            />
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
               <div v-for="request in societyStore.managedRequests" :key="request.id" class="border border-accent/10 bg-black/10 p-2" data-testid="online-society-managed-request-entry">
                 <p class="text-xs text-text">{{ request.display_name }} · {{ request.type_label }}</p>
@@ -412,7 +435,12 @@
             <p class="text-sm text-accent">仓库与福利</p>
             <span class="text-[10px] text-muted">{{ currentSociety?.level_title || '未加入' }}</span>
           </div>
-          <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会显示公共仓库和福利等级。</div>
+          <OnlineEmptyState
+            v-if="!currentSociety"
+            class="mt-3"
+            title="加入村社后显示仓库"
+            description="公共仓库、福利等级、专属节会和装饰解锁会在加入村社后显示。"
+          />
           <div v-else class="mt-3 space-y-3">
             <div class="border border-accent/10 bg-black/10 p-2">
               <p class="text-xs text-accent">福利等级</p>
@@ -575,7 +603,12 @@
           <p class="text-sm text-accent">公共建设</p>
           <span class="text-[10px] text-muted">{{ currentSociety?.public_projects.length || 0 }} 项</span>
         </div>
-        <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会显示公共建设摘要。</div>
+        <OnlineEmptyState
+          v-if="!currentSociety"
+          class="mt-3"
+          title="加入村社后显示公共建设"
+          description="公共建设进度、贡献入口和最近捐献记录会在这里集中展示。"
+        />
         <div v-else class="mt-3 space-y-3">
           <AsyncCommunityBoard
             v-if="asyncCommunityProjects.length > 0"
@@ -673,8 +706,18 @@
             <p class="text-sm text-accent">活跃提案</p>
             <span class="text-[10px] text-muted">{{ currentSociety?.active_proposals.length || 0 }} 条</span>
           </div>
-          <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会显示提案摘要。</div>
-          <div v-else-if="currentSociety.active_proposals.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有进行中的村社提案。</div>
+          <OnlineEmptyState
+            v-if="!currentSociety"
+            class="mt-3"
+            title="加入村社后显示提案"
+            description="活跃提案、投票入口和归档记录会在这里展示。"
+          />
+          <OnlineEmptyState
+            v-else-if="currentSociety.active_proposals.length === 0"
+            class="mt-3"
+            title="没有进行中的提案"
+            description="新的村社提案发起后，会在这里显示投票和归档进度。"
+          />
           <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
             <div v-for="proposal in currentSociety.active_proposals" :key="proposal.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex items-start justify-between gap-2">
@@ -891,7 +934,9 @@
   import { RouterLink, useRoute, useRouter } from 'vue-router'
   import { ShieldCheck } from 'lucide-vue-next'
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
+  import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import type { OnlineVisualAsyncProject } from '@/types/onlineVisual'
   import type {

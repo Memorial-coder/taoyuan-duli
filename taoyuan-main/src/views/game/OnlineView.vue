@@ -153,7 +153,7 @@
               :to="{ name: featureFlag.fallbackRouteName }"
               data-testid="online-visual-feature-flag-fallback-link"
             >
-              降级入口
+              备用操作
             </RouterLink>
           </article>
         </div>

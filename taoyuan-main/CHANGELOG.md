@@ -4,6 +4,43 @@
 
 ## [未发布]
 
+### 0602 在线模块壳 tab 语义增强
+- `OnlineModuleShell` 新增 `primaryAction` / `status` slot，tab 区提供 `online-module-tablist`、`role="tablist"`，各 tab 保留旧 `online-module-tab-*` test id 并补 `role="tab"`、`aria-selected`、`aria-controls` 和顺序焦点控制。
+- 共同庄园、在线庄园、邻里、委托、村社内容区补 `tabpanel` 关联；在线委托移动端 smoke 改用稳定 tab test id 适配新语义，`qa:mobile-ui-smoke` 已通过。
+
+### 0602 在线节会房邀请面板接入
+- 在线节会页的节会房与远征房状态区新增「邀请玩家」主入口，打开统一 `OnlineInvitePanel`；页面层会把批量名单逐项写入既有 `festivalRoomStore.inviteMember` / `expeditionRoomStore.inviteMember` action，并把邀请中、已邀请、失败反馈回传到面板结果列表。
+- 原页面内单人邀请输入收进 `OnlineTechnicalDetails` 的「备用邀请表单」，保留 `online-festival-room-invite-username-input`、`online-festival-room-invite-submit`、`online-expedition-room-invite-username-input`、`online-expedition-room-invite-submit`，结构 QA 同步覆盖新入口与旧 test id 兼容。
+
+### 0602 在线房间邀请面板与 E2E 迁移
+- 新增 `OnlineInvitePanel`，复用 `OnlineBottomSheet`，支持单人输入、空格 / 逗号 / 中文逗号 / 换行批量拆分、最近联机玩家快捷加入、已在房成员读回、失败项重试和单项移除；结构 QA 增加 `online-invite-panel`、`online-invite-input`、`online-invite-submit`、`online-invite-result-list` 等断言。
+- 浏览器 smoke 新增 `openTechnicalDetailsForTestId` 辅助，龙舟旧人数上限断言会先展开折叠后的备用创建表单；协作矿洞和龙舟结算回看断言同步改查玩家态「奖励已记录」。
+
+### 0602 在线远征房创建向导
+- 独立远征页和在线节会远征标签新增 `online-expedition-room-create-trigger` 主入口，打开统一 `OnlineRoomWizard` 配置路线模板、玩法模板、人数上限和队伍标题；提交仍写回既有 `expeditionRoomStore` 草稿并调用原 `createRoom` action，成功后刷新远征房概览。
+- 原页面内远征创建表单收进 `OnlineTechnicalDetails` 的「备用创建表单」，保留路线 / 玩法 / 标题 / 人数 / 创建旧 test id，结构 QA 同步覆盖独立远征页与在线节会远征标签。
+
+### 0602 在线玩家文案首批收口
+- `qa:online-player-copy` 改用 Vue SFC 解析完整模板并识别 `OnlineTechnicalDetails` 折叠区，避免内层 slot 模板漏扫；脚本先以 warn-only 报告剩余玩家可见技术词。
+- 在线中心、统一房间壳、独立远征页和在线节会页已把「降级入口 / 开始 ready / per-member receipt / 服务端落账」替换为玩家态文案，并把远征 / 节会网络异常测试入口移入默认折叠「调试操作」；结构 QA 同步改查「备用操作」和「奖励已记录」。
+- 首批文案和旧 `FestivalView.vue` 调试入口收口后，`qa:online-player-copy` 已切为严格阻断；当前严格扫描 59 个 Vue 文件、14 个 denylist 词和 1 条 `OnlineTechnicalDetails` allowlist 通过。
+
+### 0602 在线节会房创建向导
+- 在线节会页新增 `online-room-create-trigger` 首屏主入口，打开统一 `OnlineRoomWizard` 配置节会房型、玩法模板、人数上限和房间标题；提交仍写回既有 `festivalRoomStore` 草稿并调用原 `createRoom` action，成功后刷新房间概览。
+- 原页面内创建长表单收进 `OnlineTechnicalDetails` 的「备用创建表单」，保留 `online-festival-room-create-submit`、房型 / 玩法 / 人数选择等旧 test id，方便旧 QA 和 E2E 迁移。
+
+### 0602 在线 UI 通用空态与玩家文案扫描
+- 新增 `OnlineEmptyState` 与 `OnlineStatusBanner`，在线村社页、在线委托页、在线邻里页和在线庄园页先接入统一空态和错误状态条，未加入、无公开村社、无申请、无委托、无接单、无凭证 / 补偿、无公开名片、无邻里成员 / 动态 / 订阅、庄园无快照、无留言 / 来访 / 导览 / 照料记录等状态会提示下一步，并保留既有创建村社、刷新、发布、查看可接委托、补偿重试、邻里管理和庄园刷新动作。
+- 新增 `qa:online-player-copy` warn-only 脚本，扫描玩家可见模板文本中的开发态词并输出文件、行号和替换建议；结构 QA 同步增加通用空态、状态条与村社 / 委托 / 邻里 / 庄园页引用断言，并补齐庄园协作护理记录健康、风险和凭证读回钩子。
+
+### 0602 同居共同仓库 11.4 三条辅丹共同丹炉
+- 共同工坊配方下拉新增固元山药丹、蒜辛驱寒丹、苦瓜清暑丹及各自偏丹 / 废丹 / 奇丹分支，可从共同仓库扣山药 / 人参 / 大蒜 / 生姜 / 苦瓜 / 茶叶 / 蜂蜜并把丹炉结果回存共同仓库。
+- 共同仓库策略版本升到 v45；固元山药丹因人参输入按稀有物保护，蒜辛驱寒丹和苦瓜清暑丹进入普通目录但协作升品仍提示高价值保护。前端结构 QA 与服务端契约 QA 同步守住自动炼丹权重、roll 读回和当前料理 / 炼丹目录差集清零。
+
+### 0602 同居共同仓库 11.4 赛舟辣南瓜干粮普通料理
+- 共同工坊配方下拉新增共同灶台赛舟辣南瓜干粮，可从共同仓库扣优质南瓜酱、优质泡椒和优质芝麻油，并把料理产物回存共同仓库。
+- 共同仓库策略版本升到 v44，`food_spicy_pumpkin_ration` 进入普通目录；服务端契约 QA 覆盖 consume / deposit 流水、协作升品来源资产和个人 / 基金边界，个人料理目录已对齐。
+
 ### 0602 同居共同仓库 11.4 传说鱼 / 瀚海丝绸稀有料理
 - 共同工坊配方下拉新增共同灶台传说盛宴和丝路饺子，可从共同仓库扣玉龙、生姜、瀚海丝绸、稻米和西域香料，并把料理产物回存共同仓库。
 - 共同仓库策略版本升到 v43，玉龙、瀚海丝绸和两类料理成品进入稀有目录；服务端在消费玉龙或瀚海丝绸前要求 `storage.withdraw_rare`，契约 QA 覆盖无权限阻断、授权后 consume / deposit 流水、稀有来源资产和个人 / 基金边界。
@@ -5763,3 +5800,15 @@
 - `src/components/game/PlayerRecordCenterPanel.vue` 和 `src/components/game/DailyDigestSummaryDialog.vue` 把玩家侧内容拆成 `日结 / 见闻 / 线索 / 系统` 四个页签，长期记录和系统流水不再堆在一起。
 - `src/composables/useGameLog.ts` 新增了静默收集能力，夜间结算可以保留系统历史，但不会再把同一批内容连续炸成一串通知。
 - 本轮已通过 `npm run type-check` 和 `npm run build`。
+
+### 0602 联机共同庄园审计降噪
+
+- `src/views/game/online/OnlineCohabitationView.vue` 已把共同日志拆成玩家摘要和默认折叠技术详情，原始 action、记录编号和完整 detail JSON 仍可供 QA 展开追踪。
+- 共同庄园安全版本、分居证据、补偿审计和建筑明细的玩家可见文案已替换为确认码、记录明细、回执和仅记录本次结果等表达；同时修复模板中误显示的 `RotateCcw,` 文本。
+- `e2e/game-smoke.spec.ts` 新增共同日志技术详情浏览器断言：玩家摘要不显示 `ledger / receipt / hash / idempotency / revision`，展开默认折叠详情后可见原始 action、audit_id 和完整 detail 字段。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-player-copy` 已不再报告共同庄园命中；`npm --prefix taoyuan-main run check` 通过，剩余为既有 lint warning。
+
+### 0602 联机玩家文案扫描收口
+
+- `src/views/game/FestivalView.vue` 的断线调试按钮已移入默认折叠 `OnlineTechnicalDetails`，玩家主路径不再直接显示「模拟断线」，QA 仍可通过 `festival-room-disconnect-submit` 触发原 `disconnectRoom`。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-player-copy` 通过，当前 58 个 Vue 文件无 0.9 denylist 命中；`npm --prefix taoyuan-main run check` 通过，剩余为既有 lint warning。

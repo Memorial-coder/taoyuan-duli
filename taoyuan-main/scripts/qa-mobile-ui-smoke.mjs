@@ -1775,12 +1775,14 @@ async function prepareOnlineCenterMobile(page) {
 }
 
 async function prepareOnlineOrdersMobile(page) {
-  await expect(page.getByTestId('online-orders-page')).toBeVisible()
-  await expect(page.getByRole('button', { name: /^发布$/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^可接$/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /^凭证与补偿$/ })).toBeVisible()
+  const ordersTab = key => page.getByTestId(`online-module-tab-${key}`)
 
-  await page.getByRole('button', { name: /^可接$/ }).click()
+  await expect(page.getByTestId('online-orders-page')).toBeVisible()
+  await expect(ordersTab('publish')).toBeVisible()
+  await expect(ordersTab('available')).toBeVisible()
+  await expect(ordersTab('receipts')).toBeVisible()
+
+  await ordersTab('available').click()
   await expect(page.getByTestId('online-orders-board-filter-relay')).toBeVisible()
   await page.getByTestId('online-orders-board-filter-relay').click()
   await expect(page.getByTestId('online-orders-available-list')).toBeVisible()
@@ -1796,10 +1798,10 @@ async function prepareOnlineOrdersMobile(page) {
   await expect(page.getByTestId('async-community-project-detail')).toContainText('送到灯会')
   await expect(page.getByText('移动端烟测号已接下加工干菜这一段。')).toBeVisible()
 
-  await page.getByRole('button', { name: /^凭证与补偿$/ }).click()
-  await expect(page.getByText('当前没有结算凭证。')).toBeVisible()
-  await expect(page.getByRole('button', { name: /^发布$/ })).toBeVisible()
-  await page.getByRole('button', { name: /^发布$/ }).click()
+  await ordersTab('receipts').click()
+  await expect(page.getByText('还没有结算凭证')).toBeVisible()
+  await expect(ordersTab('publish')).toBeVisible()
+  await ordersTab('publish').click()
   await expect(page.getByPlaceholder('例如：缺一批冬菜备节')).toBeVisible()
   await expect(page.getByPlaceholder('写清楚当前缺什么、希望别人怎么帮、为什么这单值得接。')).toBeVisible()
 

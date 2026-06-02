@@ -17,13 +17,24 @@
         <Users :size="16" />
       </template>
       <template #errors>
-        <div v-if="socialStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {{ socialStore.errorMessage }}
-        </div>
+        <OnlineStatusBanner
+          v-if="socialStore.errorMessage"
+          tone="danger"
+          title="邻里信息暂时没有刷新成功"
+          :description="socialStore.errorMessage"
+          action-label="重试"
+          @action="refreshNeighborShell"
+        />
       </template>
     </OnlineModuleShell>
 
-    <section class="space-y-3">
+    <section
+      class="space-y-3"
+      role="tabpanel"
+      :id="`online-module-panel-${activeTab}`"
+      :aria-labelledby="`online-module-tab-${activeTab}`"
+      data-testid="online-module-tabpanel"
+    >
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
@@ -32,9 +43,13 @@
       </div>
 
       <div v-if="activeTab === 'profile'" class="space-y-3">
-        <div v-if="!socialStore.profile" class="game-panel-muted p-3 text-xs leading-5 text-muted">
-          暂未载入公开名片。刷新后会在这里显示名片摘要。
-        </div>
+        <OnlineEmptyState
+          v-if="!socialStore.profile"
+          title="还没有载入公开名片"
+          description="刷新后会在这里显示名片摘要、公开介绍、关系标签和展示档案。"
+          primary-label="刷新邻里"
+          @primary="refreshNeighborShell"
+        />
 
         <template v-else>
           <div class="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
@@ -239,12 +254,12 @@
                     已点亮 {{ unlockedChronicleCount }}/{{ socialStore.profile.player_chronicle?.milestones.length || 0 }}
                   </span>
                 </div>
-                <div
+                <OnlineEmptyState
                   v-if="!socialStore.profile.player_chronicle || socialStore.profile.player_chronicle.milestones.length === 0"
-                  class="mt-2 text-[10px] text-muted"
-                >
-                  当前还没有可回看的联机史册记录。
-                </div>
+                  class="mt-2"
+                  title="还没有联机史册记录"
+                  description="参与好友、邻里、委托或节庆协作后，关键里程碑会在这里回看。"
+                />
                 <div v-else class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
                   <div
                     v-for="entry in socialStore.profile.player_chronicle.milestones"
@@ -357,9 +372,11 @@
                     </div>
                     <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.detail || entry.summary }}</p>
                   </div>
-                  <div v-if="unlockedAchievementCardCount === 0" class="text-[10px] text-muted">
-                    当前还没有可展示的联机成就卡。
-                  </div>
+                  <OnlineEmptyState
+                    v-if="unlockedAchievementCardCount === 0"
+                    title="还没有可展示成就卡"
+                    description="点亮联机成就后，可以把代表性的成就卡放进公开名片里展示。"
+                  />
                 </div>
               </div>
             </div>
@@ -455,9 +472,12 @@
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
               <p class="text-[10px] text-muted">邻里排行</p>
-              <div v-if="neighborLeaderboard.length === 0" class="mt-2 text-[10px] leading-4 text-muted">
-                当前还没有可比较的公开邻里。
-              </div>
+              <OnlineEmptyState
+                v-if="neighborLeaderboard.length === 0"
+                class="mt-2"
+                title="还没有可比较的公开邻里"
+                description="等有公开邻里累积等级和成员后，这里会显示排行摘要。"
+              />
               <div v-else class="mt-2 space-y-1.5">
                 <div v-for="(group, index) in neighborLeaderboard" :key="group.id" class="border border-accent/10 px-2 py-1.5">
                   <div class="flex items-center justify-between gap-2">
@@ -534,9 +554,12 @@
                   <p class="text-sm text-accent">成员</p>
                   <span class="text-[10px] text-muted">{{ neighborMembers.length }} 人</span>
                 </div>
-                <div v-if="neighborMembers.length === 0" class="mt-2 text-xs text-muted">
-                  当前还没有成员信息。
-                </div>
+                <OnlineEmptyState
+                  v-if="neighborMembers.length === 0"
+                  class="mt-2"
+                  title="还没有成员信息"
+                  description="成员加入邻里后，会在这里显示身份、加入时间和可管理动作。"
+                />
                 <div v-else class="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
                   <div v-for="member in neighborMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
                     <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -563,9 +586,12 @@
 
               <div class="game-panel-muted p-3">
                 <p class="text-sm text-accent">邻里动态</p>
-                <div v-if="neighborActivityLog.length === 0" class="mt-2 text-xs text-muted">
-                  当前还没有新的邻里动态。
-                </div>
+                <OnlineEmptyState
+                  v-if="neighborActivityLog.length === 0"
+                  class="mt-2"
+                  title="还没有邻里动态"
+                  description="处理申请、邀请成员或组织委托协作后，这里会留下最近动态。"
+                />
                 <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                   <div v-for="entry in neighborActivityLog" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                     <div class="flex items-center justify-between gap-2">
@@ -628,9 +654,14 @@
                 <p class="text-sm text-accent">公开邻里</p>
                 <span class="text-[10px] text-muted">{{ socialStore.neighborPublicGroups.length }} 个</span>
               </div>
-              <div v-if="socialStore.neighborPublicGroups.length === 0" class="mt-2 text-xs text-muted">
-                当前还没有公开邻里。
-              </div>
+              <OnlineEmptyState
+                v-if="socialStore.neighborPublicGroups.length === 0"
+                class="mt-2"
+                title="还没有公开邻里"
+                description="公开邻里刷新后会显示可申请加入的组织；也可以先创建自己的邻里。"
+                primary-label="刷新邻里"
+                @primary="refreshNeighborSummary"
+              />
               <div v-else data-testid="online-neighbor-public-group-list" class="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
                 <div v-for="group in socialStore.neighborPublicGroups" :key="group.id" data-testid="online-neighbor-public-group-entry" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-start justify-between gap-2">
@@ -679,9 +710,12 @@
 
             <div class="game-panel-muted p-3">
               <p class="text-sm text-accent">申请与邀请</p>
-              <div v-if="neighborPendingRequests.length === 0" class="mt-2 text-xs text-muted">
-                当前没有新的邻里申请或邀请。
-              </div>
+              <OnlineEmptyState
+                v-if="neighborPendingRequests.length === 0"
+                class="mt-2"
+                title="没有新的申请或邀请"
+                description="收到邻里邀请、或成员申请加入你管理的邻里后，会在这里集中处理。"
+              />
               <div v-else data-testid="online-neighbor-request-list" class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
                 <div v-for="entry in neighborPendingRequests" :key="entry.id" data-testid="online-neighbor-request-entry" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-start justify-between gap-2">
@@ -739,9 +773,11 @@
             <p class="text-xs text-accent">{{ entry.label }}</p>
             <p class="mt-1 text-[10px] text-muted">{{ subscriptionTypeLabel(entry.target_type) }}</p>
           </div>
-          <div v-if="subscriptionPreview.length === 0" class="border border-accent/10 bg-black/10 p-3 text-xs text-muted">
-            当前还没有关注或订阅。
-          </div>
+          <OnlineEmptyState
+            v-if="subscriptionPreview.length === 0"
+            title="还没有关注或订阅"
+            description="关注庄园风格、玩法高手、邻里组织或节庆主题后，这里会显示最近提示。"
+          />
         </div>
       </div>
     </section>
@@ -751,7 +787,9 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
   import { ExternalLink, IdCard, RefreshCw, Save, Upload, Users } from 'lucide-vue-next'
+  import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import { useSocialStore } from '@/stores/useSocialStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { showFloat } from '@/composables/useGameLog'

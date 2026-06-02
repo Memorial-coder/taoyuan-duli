@@ -18,13 +18,24 @@
         <Handshake :size="16" />
       </template>
       <template #errors>
-        <div v-if="coopOrderStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {{ coopOrderStore.errorMessage }}
-        </div>
+        <OnlineStatusBanner
+          v-if="coopOrderStore.errorMessage"
+          tone="danger"
+          title="在线委托暂时没有刷新成功"
+          :description="coopOrderStore.errorMessage"
+          action-label="重试"
+          @action="refreshOrders"
+        />
       </template>
     </OnlineModuleShell>
 
-    <section class="space-y-3">
+    <section
+      class="space-y-3"
+      role="tabpanel"
+      :id="`online-module-panel-${activeTab}`"
+      :aria-labelledby="`online-module-tab-${activeTab}`"
+      data-testid="online-module-tabpanel"
+    >
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
@@ -143,9 +154,13 @@
               </button>
             </div>
 
-            <div v-if="coopOrderStore.stageDrafts.length === 0" class="border border-accent/10 bg-bg/40 px-3 py-2 text-[10px] text-muted">
-              当前还没有阶段，请至少补 2 个子目标。
-            </div>
+            <OnlineEmptyState
+              v-if="coopOrderStore.stageDrafts.length === 0"
+              title="还没有接力阶段"
+              description="多段接力单至少需要 2 个子目标；先补齐每段要做什么，再发布给不同玩家接力。"
+              primary-label="新增阶段"
+              @primary="coopOrderStore.addStageDraft()"
+            />
             <div
               v-for="(stage, index) in coopOrderStore.stageDrafts"
               :key="stage.id"
@@ -251,9 +266,16 @@
               </button>
             </div>
           </div>
-          <div v-if="availableOrderCards.length === 0" class="mt-3 text-xs text-muted">
-            当前筛选下没有可见在线求助单。
-          </div>
+          <OnlineEmptyState
+            v-if="availableOrderCards.length === 0"
+            class="mt-3"
+            title="没有符合筛选的求助单"
+            description="可以切回全部委托看看，也可以自己发布一张求助单，写清楚缺什么和希望别人怎么帮。"
+            primary-label="查看全部"
+            secondary-label="发布求助单"
+            @primary="orderBoardFilter = 'all'"
+            @secondary="setActiveTab('publish')"
+          />
           <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-available-list">
             <div v-for="order in availableOrderCards" :key="order.id" data-testid="online-orders-available-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -323,9 +345,11 @@
               </p>
 
               <div v-if="order.collaboration_mode === 'multi_stage'" class="mt-2 space-y-2">
-                <div v-if="coopOrderStore.getOpenStages(order).length === 0" class="border border-accent/10 bg-bg/40 px-3 py-2 text-[10px] text-muted">
-                  当前没有可接阶段，可能已经被接走或等待发布人确认。
-                </div>
+                <OnlineEmptyState
+                  v-if="coopOrderStore.getOpenStages(order).length === 0"
+                  title="当前没有可接阶段"
+                  description="这张接力单的开放阶段可能已经被接走，或者正在等发布人确认上一段交付。"
+                />
                 <div
                   v-for="stage in coopOrderStore.getOpenStages(order)"
                   :key="stage.id"
@@ -428,7 +452,11 @@
                   </p>
                 </div>
               </div>
-              <p v-else class="text-[10px] leading-5 text-muted">暂无公开订单结算凭证。</p>
+              <OnlineEmptyState
+                v-else
+                title="还没有公开结算凭证"
+                description="公开接力单完成并结算后，会在这里读回最近公开凭证和分账去向。"
+              />
             </div>
           </div>
 
@@ -457,9 +485,14 @@
           <p class="text-sm text-accent">我的发布</p>
           <span class="text-[10px] text-muted">{{ coopOrderStore.myOrders.length }} 张</span>
         </div>
-        <div v-if="coopOrderStore.myOrders.length === 0" class="mt-3 text-xs text-muted">
-          当前还没有自己发布的求助单。
-        </div>
+        <OnlineEmptyState
+          v-if="coopOrderStore.myOrders.length === 0"
+          class="mt-3"
+          title="还没有发布求助单"
+          description="发布后可以在这里确认交付、查看接力阶段和处理结算。"
+          primary-label="发布求助单"
+          @primary="setActiveTab('publish')"
+        />
         <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-mine-list">
           <div v-for="order in coopOrderStore.myOrders" :key="order.id" data-testid="online-orders-mine-entry" class="border border-accent/10 bg-black/10 p-2">
             <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -625,9 +658,14 @@
             <p class="text-sm text-accent">我的接单</p>
             <span class="text-[10px] text-muted">{{ coopOrderStore.myAcceptedOrders.length }} 张</span>
           </div>
-          <div v-if="coopOrderStore.myAcceptedOrders.length === 0" class="mt-3 text-xs text-muted">
-            当前还没有自己接下的求助单。
-          </div>
+          <OnlineEmptyState
+            v-if="coopOrderStore.myAcceptedOrders.length === 0"
+            class="mt-3"
+            title="还没有接下求助单"
+            description="接单后可以在这里提交交付、取消未交付的接单，或者处理自己占到的接力阶段。"
+            primary-label="查看可接委托"
+            @primary="setActiveTab('available')"
+          />
           <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-accepted-list">
             <div v-for="order in coopOrderStore.myAcceptedOrders" :key="order.id" data-testid="online-orders-accepted-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -729,9 +767,13 @@
                     </button>
                   </div>
                 </div>
-                <div v-if="coopOrderStore.getAssignedStages(order).length === 0" class="border border-accent/10 bg-bg/40 px-3 py-2 text-[10px] text-muted">
-                  当前接的是多段任务，但你还没有占到具体阶段；可以回到“可接”标签接某一段。
-                </div>
+                <OnlineEmptyState
+                  v-if="coopOrderStore.getAssignedStages(order).length === 0"
+                  title="还没有占到接力阶段"
+                  description="这张单是多段任务，可以回到可接列表选择其中一段来接。"
+                  primary-label="查看可接阶段"
+                  @primary="setActiveTab('available')"
+                />
               </div>
 
               <template v-else>
@@ -810,9 +852,12 @@
             <p class="text-sm text-accent">结算凭证</p>
             <span class="text-[10px] text-muted">{{ coopOrderStore.myReceipts.length }} 条</span>
           </div>
-          <div v-if="coopOrderStore.myReceipts.length === 0" class="mt-3 text-xs text-muted">
-            当前没有结算凭证。
-          </div>
+          <OnlineEmptyState
+            v-if="coopOrderStore.myReceipts.length === 0"
+            class="mt-3"
+            title="还没有结算凭证"
+            description="你发布或接下的委托完成结算后，会在这里显示交付资源、奖励去向和补偿状态。"
+          />
           <OnlineScrollArea v-else class="mt-3" max-height="36rem" data-testid="online-orders-receipt-list">
             <div v-for="receipt in coopOrderStore.myReceipts" :key="receipt.id" data-testid="online-orders-receipt-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -867,9 +912,12 @@
             <p class="text-sm text-accent">补偿重试</p>
             <span class="text-[10px] text-muted">{{ coopOrderStore.myCompensations.length }} 条</span>
           </div>
-          <div v-if="coopOrderStore.myCompensations.length === 0" class="mt-3 text-xs text-muted">
-            当前没有待处理补偿。
-          </div>
+          <OnlineEmptyState
+            v-if="coopOrderStore.myCompensations.length === 0"
+            class="mt-3"
+            title="没有待处理补偿"
+            description="如果结算需要补偿重试，会在这里显示原因、尝试次数和重试入口。"
+          />
           <OnlineScrollArea v-else class="mt-3" max-height="36rem" data-testid="online-orders-compensation-list">
             <div v-for="compensation in coopOrderStore.myCompensations" :key="compensation.id" data-testid="online-orders-compensation-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -887,9 +935,13 @@
               <p class="mt-1 text-[10px] text-muted">
                 原因：{{ compensation.reason || '未记录补偿原因。' }}
               </p>
-              <p v-if="compensation.last_error" class="mt-1 border border-danger/20 bg-danger/5 px-2 py-1 text-[10px] leading-4 text-danger">
-                最近失败：{{ compensation.last_error }}
-              </p>
+              <OnlineStatusBanner
+                v-if="compensation.last_error"
+                class="mt-2"
+                tone="warning"
+                title="最近一次补偿没有处理成功"
+                :description="compensation.last_error"
+              />
               <p class="mt-2 text-[10px] text-muted">
                 已尝试 {{ compensation.attempt_count }} 次 · 更新 {{ formatCoopTime(compensation.updated_at) }}
               </p>
@@ -917,9 +969,11 @@
   import { useRoute } from 'vue-router'
   import { ExternalLink, Handshake } from 'lucide-vue-next'
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
+  import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineOrderStoryFlowPanel from '@/components/game/online/OnlineOrderStoryFlowPanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineScrollArea from '@/components/game/online/OnlineScrollArea.vue'
+  import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'

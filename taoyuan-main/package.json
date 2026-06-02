@@ -18,6 +18,7 @@
     "test:e2e:headed": "node scripts/run-e2e.mjs --headed",
     "qa:mobile-ui-smoke": "node scripts/qa-mobile-ui-smoke.mjs",
     "qa:online-ui-structure": "node scripts/qa-online-ui-structure.mjs",
+    "qa:online-player-copy": "node scripts/qa-online-player-copy.mjs",
     "qa:online-visual-feature-flags": "node scripts/qa-online-visual-feature-flags.mjs",
     "qa:region-friend-panel-live-smoke": "node scripts/qa-region-friend-panel-live-smoke.mjs",
     "qa:online-regression-live-smoke": "node scripts/qa-online-regression-live-smoke.mjs",

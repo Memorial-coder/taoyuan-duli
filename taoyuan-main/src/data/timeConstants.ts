@@ -128,6 +128,14 @@ export const SHORT_REST_DAILY_STAMINA_CAP = 40
 /** 技能等级每级减免行动时间的比例 */
 export const SKILL_TIME_REDUCTION_PER_LEVEL = 0.02
 
+
+/** Tool-tier action time savings in minutes. */
+export const TOOL_TIME_SAVINGS = {
+  basic: 0,
+  iron: 5,
+  steel: 10,
+  iridium: 15
+} as const
 /** 行动最低时间（分钟） */
 export const MIN_ACTION_MINUTES = 10
 

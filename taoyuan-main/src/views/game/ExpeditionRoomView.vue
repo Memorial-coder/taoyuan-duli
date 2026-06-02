@@ -22,10 +22,32 @@
           <p class="text-sm text-accent">创建远征房间</p>
           <span class="text-[10px] text-muted">L80 第一轮</span>
         </div>
+        <div class="space-y-3" data-testid="expedition-room-create-entry">
+          <Button
+            class="online-action-btn online-action-btn--primary min-h-[44px] w-full justify-center"
+            data-testid="online-expedition-room-create-trigger"
+            :disabled="expeditionRoomStore.actionRunning"
+            @click="openExpeditionRoomWizard"
+          >
+            {{ '\u521b\u5efa\u8fdc\u5f81\u961f\u4f0d' }}
+          </Button>
+          <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10 text-[10px] leading-5 text-muted">
+            <p class="text-xs text-accent">{{ '\u5f53\u524d\u8349\u7a3f' }}</p>
+            <p class="mt-1">
+              {{ expeditionRoomStore.selectedTemplate?.label || '\u5f85\u9009\u62e9\u8def\u7ebf' }}{{ ' \u00b7 ' }}{{ expeditionRoomStore.selectedGameplayTemplate?.label || '\u5f85\u9009\u62e9\u73a9\u6cd5' }}{{ ' \u00b7 ' }}{{ expeditionRoomStore.normalizedDraftMemberLimit }} {{ '\u4eba' }}
+            </p>
+            <p v-if="expeditionRoomStore.draftTitle.trim()" class="mt-1">{{ '\u6807\u9898\uff1a' }}{{ expeditionRoomStore.draftTitle }}</p>
+          </div>
+        </div>
+
+        <OnlineTechnicalDetails
+          :title="'\u5907\u7528\u521b\u5efa\u8868\u5355'"
+          :summary="'\u4fdd\u7559\u65e7\u521b\u5efa\u5165\u53e3\u548c\u6d4b\u8bd5\u94a9\u5b50\uff0c\u4e3b\u6d41\u7a0b\u8bf7\u4f18\u5148\u4f7f\u7528\u521b\u5efa\u5411\u5bfc\u3002'"
+        >
         <div class="space-y-3">
           <label class="block">
             <span class="text-[10px] text-muted">远征模板</span>
-            <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1">
+            <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="expedition-room-template-select">
               <option v-for="template in expeditionRoomStore.templates" :key="template.id" :value="template.id">
                 {{ template.label }}
               </option>
@@ -38,7 +60,7 @@
           </div>
           <label class="block">
             <span class="text-[10px] text-muted">玩法模板</span>
-            <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1">
+            <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1" data-testid="expedition-room-gameplay-select">
               <option v-for="template in expeditionRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
                 {{ template.label }}
               </option>
@@ -55,13 +77,27 @@
               v-model="expeditionRoomStore.draftTitle"
               maxlength="30"
               class="online-input mt-1"
+              data-testid="expedition-room-title-input"
               placeholder="例如：高地补给接力"
             />
           </label>
-          <Button class="online-action-btn online-action-btn--primary w-full" :disabled="expeditionRoomStore.actionRunning" @click="createRoom">
+          <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="expedition-room-member-limit-group">
+            <Button
+              v-for="limit in expeditionRoomStore.memberLimitOptions"
+              :key="limit"
+              class="online-action-btn online-action-btn--compact min-h-[44px] justify-center"
+              :class="expeditionRoomStore.draftMemberLimit === limit ? 'online-action-btn--primary' : ''"
+              :disabled="expeditionRoomStore.actionRunning"
+              @click="expeditionRoomStore.draftMemberLimit = limit"
+            >
+              {{ limit }} {{ '\u4eba' }}
+            </Button>
+          </div>
+          <Button class="online-action-btn online-action-btn--primary w-full" data-testid="expedition-room-create-submit" :disabled="expeditionRoomStore.actionRunning" @click="createRoom">
             创建远征房间
           </Button>
         </div>
+        </OnlineTechnicalDetails>
       </div>
 
       <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
@@ -101,7 +137,7 @@
                 :disabled="expeditionRoomStore.actionRunning"
                 @click="startReadyCheck(expeditionRoomStore.myRoom.id)"
               >
-                开始 ready
+                开始准备
               </Button>
               <Button
                 v-if="expeditionRoomStore.myRoom.can_ready"
@@ -128,14 +164,6 @@
                 @click="startCountdown(expeditionRoomStore.myRoom.id)"
               >
                 开始倒计时
-              </Button>
-              <Button
-                v-if="expeditionRoomStore.myRoom.can_disconnect"
-                class="online-action-btn online-action-btn--compact justify-center"
-                :disabled="expeditionRoomStore.actionRunning"
-                @click="disconnectRoom(expeditionRoomStore.myRoom.id)"
-              >
-                模拟断线
               </Button>
               <Button
                 v-if="expeditionRoomStore.myRoom.can_reconnect"
@@ -173,6 +201,20 @@
               </Button>
             </template>
           </OnlineVisualRoomShell>
+          <OnlineTechnicalDetails
+            v-if="expeditionRoomStore.myRoom.can_disconnect"
+            title="调试操作"
+            summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
+          >
+            <Button
+              class="online-action-btn online-action-btn--compact justify-center"
+              data-testid="expedition-room-disconnect-submit"
+              :disabled="expeditionRoomStore.actionRunning"
+              @click="disconnectRoom(expeditionRoomStore.myRoom.id)"
+            >
+              网络异常测试
+            </Button>
+          </OnlineTechnicalDetails>
           <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
@@ -398,7 +440,7 @@
       <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
         <p class="text-sm text-accent mb-2">最近结算凭证</p>
         <div v-if="expeditionRoomStore.recentReceipts.length === 0" class="text-xs text-muted leading-5">
-          远征结算会优先写回铜钱和材料，这里先回看最近的 per-member receipt。
+          远征结算会优先写回铜钱和材料，这里先回看最近的成员结算记录。
         </div>
         <div v-else class="space-y-2">
           <div v-for="receipt in expeditionRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
@@ -449,6 +491,25 @@
         </div>
       </div>
     </div>
+
+    <OnlineRoomWizard
+      :open="showExpeditionRoomWizard"
+      domain="expedition"
+      :initial-template-id="expeditionRoomStore.selectedTemplateId"
+      :initial-gameplay-id="expeditionRoomStore.selectedGameplayTemplateId"
+      :initial-member-limit="expeditionRoomStore.normalizedDraftMemberLimit"
+      :initial-title="expeditionRoomStore.draftTitle"
+      initial-visibility="public"
+      :templates="expeditionRoomStore.templates"
+      :gameplay-templates="expeditionRoomStore.gameplayTemplates"
+      :member-limit-options="expeditionRoomStore.memberLimitOptions"
+      :busy="expeditionRoomStore.actionRunning"
+      :error-message="expeditionRoomStore.errorMessage"
+      @submit="submitExpeditionRoomWizard"
+      @cancel="closeExpeditionRoomWizard"
+      @close="closeExpeditionRoomWizard"
+      @draft-change="syncExpeditionRoomWizardDraft"
+    />
   </div>
 </template>
 
@@ -456,8 +517,10 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import OnlineVisualRoomShell from '@/components/game/online/OnlineVisualRoomShell.vue'
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
+  import OnlineRoomWizard, { type OnlineRoomWizardDraft } from '@/components/game/online/OnlineRoomWizard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import type { OnlineVisualNode, OnlineVisualTrack } from '@/types/onlineVisual'
@@ -468,6 +531,7 @@
   const selectedExpeditionVisualTrackId = ref('')
   const selectedExpeditionVisualTrackCellId = ref('')
 
+  const showExpeditionRoomWizard = ref(false)
   const getRouteQueryText = (value: unknown) => {
     const raw = Array.isArray(value) ? value[0] : value
     return typeof raw === 'string' ? raw.trim() : ''
@@ -698,8 +762,8 @@
     return '当前房间没有可用地图或轨道热区，旧玩法按钮作为主入口。'
   })
 
-  const expeditionRoomFallbackEntryLabel = '旧远征按钮降级入口'
-  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一服务端远征行动；结算和关闭按钮仍在房间壳操作区。'
+  const expeditionRoomFallbackEntryLabel = '旧远征按钮备用操作'
+  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一远征行动；结算和关闭按钮仍在房间壳操作区。'
 
   const expeditionVisualActionLabels = computed(() => {
     const room = expeditionRoomStore.myRoom
@@ -772,7 +836,7 @@
       : 'Tab 进入矿洞节点后用 Enter 选择节点，再触发探路、采集、支护或撤离。'
     return [
       boardHint,
-      '旧按钮面板仍保留在下方，键盘用户可以继续使用降级动作入口。',
+      '旧按钮面板仍保留在下方，键盘用户可以继续使用备用操作。',
     ]
   })
 
@@ -808,7 +872,7 @@
         statusLabel: receipt.status_label,
         summary: receipt.summary,
         replayLabel: formatExpeditionRoomShellReplay(routeReplay),
-        rewardLabel: rewardParts.length > 0 ? `服务端落账：${rewardParts.join('、')}` : '服务端凭证已生成，暂无额外物品落账。',
+        rewardLabel: rewardParts.length > 0 ? `奖励已记录：${rewardParts.join('、')}` : '结算记录已生成，暂无额外物品记录。',
       }
     })
   })
@@ -870,6 +934,32 @@
 
   const formatLockedComboIds = (comboIds: string[] = []) => comboIds.length > 0 ? comboIds.join('、') : '无新增组合'
 
+  const openExpeditionRoomWizard = () => {
+    showExpeditionRoomWizard.value = true
+  }
+
+  const closeExpeditionRoomWizard = () => {
+    showExpeditionRoomWizard.value = false
+  }
+
+  const syncExpeditionRoomWizardDraft = (draft: OnlineRoomWizardDraft) => {
+    if (draft.domain !== 'expedition') return
+    expeditionRoomStore.selectedTemplateId = draft.templateId
+    expeditionRoomStore.selectedGameplayTemplateId = draft.gameplayId
+    expeditionRoomStore.draftMemberLimit = draft.memberLimit
+    expeditionRoomStore.draftTitle = draft.title
+  }
+
+  const submitExpeditionRoomWizard = async (draft: OnlineRoomWizardDraft) => {
+    syncExpeditionRoomWizardDraft(draft)
+    try {
+      await expeditionRoomStore.createRoom()
+      await expeditionRoomStore.refreshOverview({ silent: true }).catch(() => {})
+      closeExpeditionRoomWizard()
+    } catch {
+      // Store errorMessage is passed back into the wizard so the draft stays visible.
+    }
+  }
   const cavernWithdrawalLockedComboLabel = (cavernState: NonNullable<typeof expeditionRoomStore.myRoom>['gameplay']['cavern_state']) => {
     const count = cavernState?.withdrawal_locked_combo_count || cavernState?.withdrawal_locked_combo_ids?.length || 0
     return `锁定组合 ${count} 条：${formatLockedComboIds(cavernState?.withdrawal_locked_combo_ids || [])}`

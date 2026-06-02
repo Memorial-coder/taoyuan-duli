@@ -17,13 +17,24 @@
         <Home :size="16" />
       </template>
       <template #errors>
-        <div v-if="manorStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {{ manorStore.errorMessage }}
-        </div>
+        <OnlineStatusBanner
+          v-if="manorStore.errorMessage"
+          tone="danger"
+          title="庄园快照没有刷新成功"
+          :description="manorStore.errorMessage"
+          action-label="重试"
+          @action="refreshSnapshot"
+        />
       </template>
     </OnlineModuleShell>
 
-    <section class="space-y-3">
+    <section
+      class="space-y-3"
+      role="tabpanel"
+      :id="`online-module-panel-${activeTab}`"
+      :aria-labelledby="`online-module-tab-${activeTab}`"
+      data-testid="online-module-tabpanel"
+    >
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
@@ -38,9 +49,13 @@
             :snapshot="snapshot"
             :favorite-overview="manorStore.favoriteOverview"
           />
-          <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
-            先刷新庄园快照，概览页会把庄园预览卡、主题、来访和收藏关注摘要集中到第一屏。
-          </div>
+          <OnlineEmptyState
+            v-else
+            title="先刷新庄园快照"
+            description="概览页会把庄园预览卡、主题、来访和收藏关注摘要集中到第一屏。"
+            primary-label="刷新庄园"
+            @primary="refreshSnapshot"
+          />
           <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
             <div v-for="stat in overviewStats" :key="stat.label" class="border border-accent/10 bg-black/10 p-2">
               <p class="truncate text-[10px] text-muted">{{ stat.label }}</p>
@@ -224,9 +239,13 @@
           </div>
         </div>
 
-        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
-          先刷新庄园快照，主题页会显示公开主题、模板预览、主图、推荐和官方精选。
-        </div>
+        <OnlineEmptyState
+          v-else
+          title="先刷新庄园快照"
+          description="主题页会显示公开主题、模板预览、主图、推荐和官方精选。"
+          primary-label="刷新庄园"
+          @primary="refreshSnapshot"
+        />
       </div>
 
       <div v-else-if="activeTab === 'guestbook'" class="space-y-3">
@@ -306,15 +325,30 @@
               <span class="shrink-0 text-[10px] text-accent">{{ guestbookEntries.length }} 条</span>
             </div>
 
-            <div v-if="manorStore.loading && guestbookEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
-              正在加载留言墙。
-            </div>
-            <div v-else-if="manorStore.errorMessage && guestbookEntries.length === 0" class="mt-3 border border-red-300/20 bg-red-500/10 p-3 text-xs text-red-100">
-              {{ manorStore.errorMessage }}
-            </div>
-            <div v-else-if="guestbookEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
-              当前还没有访客留言。
-            </div>
+            <OnlineStatusBanner
+              v-if="manorStore.loading && guestbookEntries.length === 0"
+              class="mt-3"
+              tone="loading"
+              title="正在加载留言墙"
+              description="会保留当前留言草稿，刷新完成后继续写。"
+            />
+            <OnlineStatusBanner
+              v-else-if="manorStore.errorMessage && guestbookEntries.length === 0"
+              class="mt-3"
+              tone="danger"
+              title="留言墙没有加载成功"
+              :description="manorStore.errorMessage"
+              action-label="重试"
+              @action="refreshSnapshot"
+            />
+            <OnlineEmptyState
+              v-else-if="guestbookEntries.length === 0"
+              class="mt-3"
+              title="还没有访客留言"
+              description="写下第一条问候，或稍后刷新看看新的来访回声。"
+              primary-label="写留言"
+              @primary="activeTab = 'guestbook'"
+            />
 
             <div v-else data-testid="online-manor-guestbook-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
               <div v-for="entry in guestbookEntries" :key="entry.id" data-testid="online-manor-guestbook-entry" class="border border-accent/10 bg-bg/30 p-3">
@@ -386,9 +420,13 @@
           </div>
         </div>
 
-        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
-          先刷新庄园快照，留言页会显示留言输入、快捷留言和独立留言列表。
-        </div>
+        <OnlineEmptyState
+          v-else
+          title="先刷新庄园快照"
+          description="留言页会显示留言输入、快捷留言和独立留言列表。"
+          primary-label="刷新庄园"
+          @primary="refreshSnapshot"
+        />
       </div>
 
       <div v-else-if="activeTab === 'visits'" class="space-y-3">
@@ -445,15 +483,30 @@
               <span class="shrink-0 text-[10px] text-accent">{{ visitEntries.length }} 次</span>
             </div>
 
-            <div v-if="manorStore.loading && visitEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
-              正在加载来访记录。
-            </div>
-            <div v-else-if="manorStore.errorMessage && visitEntries.length === 0" class="mt-3 border border-red-300/20 bg-red-500/10 p-3 text-xs text-red-100">
-              {{ manorStore.errorMessage }}
-            </div>
-            <div v-else-if="visitEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
-              当前还没有来访记录。
-            </div>
+            <OnlineStatusBanner
+              v-if="manorStore.loading && visitEntries.length === 0"
+              class="mt-3"
+              tone="loading"
+              title="正在加载来访记录"
+              description="来访行为和反馈会加载到独立列表。"
+            />
+            <OnlineStatusBanner
+              v-else-if="manorStore.errorMessage && visitEntries.length === 0"
+              class="mt-3"
+              tone="danger"
+              title="来访记录没有加载成功"
+              :description="manorStore.errorMessage"
+              action-label="重试"
+              @action="refreshSnapshot"
+            />
+            <OnlineEmptyState
+              v-else-if="visitEntries.length === 0"
+              class="mt-3"
+              title="还没有来访记录"
+              description="记录一次来访后，这里会保留目的、反馈和携带物。"
+              primary-label="记录来访"
+              @primary="activeTab = 'visits'"
+            />
 
             <div v-else data-testid="online-manor-visit-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
               <div v-for="entry in visitEntries" :key="entry.id" data-testid="online-manor-visit-entry" class="border border-accent/10 bg-bg/30 p-3">
@@ -503,14 +556,23 @@
                   <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.audit_note }}</p>
                 </div>
               </div>
-              <p v-else class="mt-2 text-[10px] leading-5 text-muted">暂无可回看的访客照料或轻采行为。</p>
+              <OnlineEmptyState
+                v-else
+                class="mt-2"
+                title="还没有访客行为记录"
+                description="照料、轻采或协作护理发生后，会在这里回看对象、动作和争议说明。"
+              />
             </div>
           </div>
         </div>
 
-        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
-          先刷新庄园快照，来访页会显示来访目的、记录输入和历史列表。
-        </div>
+        <OnlineEmptyState
+          v-else
+          title="先刷新庄园快照"
+          description="来访页会显示来访目的、记录输入和历史列表。"
+          primary-label="刷新庄园"
+          @primary="refreshSnapshot"
+        />
       </div>
 
       <div v-else-if="activeTab === 'guide'" class="space-y-3">
@@ -581,15 +643,30 @@
               <span class="shrink-0 text-[10px] text-accent">{{ guidePoints.length }} 个</span>
             </div>
 
-            <div v-if="manorStore.loading && guidePoints.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
-              正在加载导览点。
-            </div>
-            <div v-else-if="manorStore.errorMessage && guidePoints.length === 0" class="mt-3 border border-red-300/20 bg-red-500/10 p-3 text-xs text-red-100">
-              {{ manorStore.errorMessage }}
-            </div>
-            <div v-else-if="guidePoints.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
-              当前还没有导览点。
-            </div>
+            <OnlineStatusBanner
+              v-if="manorStore.loading && guidePoints.length === 0"
+              class="mt-3"
+              tone="loading"
+              title="正在加载导览点"
+              description="路线和参观点会在刷新后集中展示。"
+            />
+            <OnlineStatusBanner
+              v-else-if="manorStore.errorMessage && guidePoints.length === 0"
+              class="mt-3"
+              tone="danger"
+              title="导览点没有加载成功"
+              :description="manorStore.errorMessage"
+              action-label="重试"
+              @action="refreshSnapshot"
+            />
+            <OnlineEmptyState
+              v-else-if="guidePoints.length === 0"
+              class="mt-3"
+              title="还没有导览点"
+              description="新增第一个参观点后，访客就能按路线浏览庄园。"
+              primary-label="新增导览点"
+              @primary="activeTab = 'guide'"
+            />
 
             <div v-else data-testid="online-manor-guide-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
               <div v-for="point in guidePoints" :key="point.id" data-testid="online-manor-guide-point" class="border border-accent/10 bg-bg/30 p-3">
@@ -600,9 +677,13 @@
           </div>
         </div>
 
-        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
-          先刷新庄园快照，导览页会显示路线摘要、导览点新增和已设参观点。
-        </div>
+        <OnlineEmptyState
+          v-else
+          title="先刷新庄园快照"
+          description="导览页会显示路线摘要、导览点新增和已设参观点。"
+          primary-label="刷新庄园"
+          @primary="refreshSnapshot"
+        />
       </div>
 
       <div v-else-if="activeTab === 'care'" class="space-y-3">
@@ -666,9 +747,13 @@
               @trigger-action="submitCareVisualAction"
             />
 
-            <div v-else class="border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted">
-              这座庄园当前没有可视化照料对象；田地、果树、畜棚、鱼塘等对象会在庄园公开快照允许时显示。
-            </div>
+            <OnlineEmptyState
+              v-else
+              title="还没有可照料对象"
+              description="田地、果树、畜棚、鱼塘等对象会在庄园公开快照允许时显示。"
+              primary-label="刷新庄园"
+              @primary="refreshSnapshot"
+            />
 
             <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-manor-care-room-panel">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -777,9 +862,12 @@
                   </div>
                 </div>
               </div>
-              <p v-else class="mt-3 border border-accent/10 bg-bg/30 p-3 text-[10px] leading-5 text-muted">
-                当前没有进行中的协作护理房间。
-              </p>
+              <OnlineEmptyState
+                v-else
+                class="mt-3"
+                title="没有进行中的协作护理房间"
+                description="选择人数创建房间后，成员分工和结算进度会显示在这里。"
+              />
             </div>
           </div>
 
@@ -823,7 +911,12 @@
                   <p class="mt-1 text-[10px] leading-4 text-muted">给主人：{{ entry.owner_benefit }} · 访客：{{ entry.visitor_reward }}</p>
                 </div>
               </div>
-              <p v-else class="mt-2 text-[10px] leading-5 text-muted">今日还没有好友照料记录。</p>
+              <OnlineEmptyState
+                v-else
+                class="mt-2"
+                title="今日还没有好友照料记录"
+                description="好友完成浇水、喂食、除虫等动作后，会在这里显示收益和反馈。"
+              />
             </div>
 
             <div class="border border-accent/10 bg-black/10 p-3">
@@ -844,7 +937,12 @@
                   <p v-if="entry.note" class="mt-1 text-[10px] leading-4 text-muted">留言：{{ entry.note }}</p>
                 </div>
               </div>
-              <p v-else class="mt-2 text-[10px] leading-5 text-muted">今日还没有轻采记录。</p>
+              <OnlineEmptyState
+                v-else
+                class="mt-2"
+                title="今日还没有轻采记录"
+                description="访客完成轻采后，这里会显示主人补偿、访客奖励和凭证摘要。"
+              />
             </div>
 
             <div class="border border-accent/10 bg-black/10 p-3">
@@ -854,8 +952,14 @@
                   <p class="text-[10px] text-accent">健康度 {{ room.health_score }} · 风险 {{ room.risk_score }}</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">{{ room.summary }}</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">参与：{{ room.participants.map(participant => participant.display_name).join('、') }}</p>
+                  <p data-testid="online-manor-care-room-record-health" class="mt-1 text-[10px] leading-4 text-muted">
+                    {{ careRoomRecordHealthLabel(room) }}
+                  </p>
+                  <p data-testid="online-manor-care-room-record-risk" class="mt-1 text-[10px] leading-4 text-muted">
+                    {{ careRoomRecordRiskLabel(room) }}
+                  </p>
                   <p data-testid="online-manor-care-room-record-settlement" class="mt-1 text-[10px] leading-4 text-muted">
-                    凭证：{{ room.settlement_receipt_id || '未记录' }} · 结算：{{ careRoomSettledByLabel(room) }}
+                    凭证：{{ careRoomRecordReceiptLabel(room) }} · 结算：{{ careRoomSettledByLabel(room) }}
                   </p>
                   <div v-if="room.actions.length > 0" data-testid="online-manor-care-room-record-actions" class="mt-2 space-y-1">
                     <p v-for="action in room.actions" :key="action.id" class="text-[10px] leading-4 text-muted">
@@ -864,14 +968,23 @@
                   </div>
                 </div>
               </div>
-              <p v-else class="mt-2 text-[10px] leading-5 text-muted">暂无协作护理记录。</p>
+              <OnlineEmptyState
+                v-else
+                class="mt-2"
+                title="还没有协作护理记录"
+                description="护理房结算后，会在这里回看健康度、参与者和分工明细。"
+              />
             </div>
           </div>
         </div>
 
-        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
-          先刷新庄园快照，照料页会显示好友庄园中的可互动对象、次数限制和最近照料记录。
-        </div>
+        <OnlineEmptyState
+          v-else
+          title="先刷新庄园快照"
+          description="照料页会显示好友庄园中的可互动对象、次数限制和最近照料记录。"
+          primary-label="刷新庄园"
+          @primary="refreshSnapshot"
+        />
       </div>
 
       <div v-else class="game-panel-muted grid gap-2 p-3 md:grid-cols-2">
@@ -948,7 +1061,9 @@
     Upload,
   } from 'lucide-vue-next'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
+  import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
@@ -1046,7 +1161,7 @@
     const counts = visitorActivityKindCounts.value
     return [
       { id: 'visit', label: '普通来访', value: `${counts.visit} 条`, detail: '由来访页手动记录目的、行为和反馈。' },
-      { id: 'care', label: '好友照料', value: `${counts.care} 条`, detail: '可回看谁照料了哪个对象与服务端落账说明。' },
+      { id: 'care', label: '好友照料', value: `${counts.care} 条`, detail: '可回看谁照料了哪个对象与收益记录说明。' },
       { id: 'steal', label: '轻采记录', value: `${counts.steal} 条`, detail: '用于轻采收益、主人补偿和争议复核。' },
       { id: 'care_room', label: '护理房间', value: `${counts.care_room} 条`, detail: '记录多人护理结算与协作窗口结果。' },
     ]
@@ -1159,7 +1274,7 @@
   })
   const careReadableImpactSummary = computed(() => {
     const careState = snapshot.value?.care_state
-    if (!careState) return '刷新庄园快照后显示照料收益、服务端落账和审计规则。'
+    if (!careState) return '刷新庄园快照后显示照料收益、系统记录和审计规则。'
     const audit = careState.audit
     const objectLimit = audit.object_limit_enforced ? '单物件限次已启用' : '单物件限次未启用'
     return `${objectLimit} · ${audit.visitor_limit_enforced ? '访客日上限已启用' : '访客日上限未启用'} · ${audit.manor_limit_enforced ? '庄园日上限已启用' : '庄园日上限未启用'}`
@@ -1491,6 +1606,18 @@
     if (!room.settled_by) return room.settled_at ? formatVisitTime(room.settled_at) : '未结算'
     const settledAt = formatVisitTime(room.settled_at)
     return settledAt ? `${room.settled_by} · ${settledAt}` : room.settled_by
+  }
+
+  const careRoomRecordReceiptLabel = (room: OnlineManorCareRoom) => room.settlement_receipt_id || `${room.id} · 待补凭证`
+
+  const careRoomRecordHealthLabel = (room: OnlineManorCareRoom) => {
+    const completed = careRoomCompletedActionCount(room)
+    return `健康收口：${room.health_score || 0} · 分工 ${completed}/${careRoomActionTotal.value} · 成员 ${room.participants.length}/${room.member_limit}`
+  }
+
+  const careRoomRecordRiskLabel = (room: OnlineManorCareRoom) => {
+    const roleMismatch = room.actions.filter(action => !action.role_matched).length
+    return `风险回看：${careRoomRiskSummary(room)} · 角色偏差 ${roleMismatch} · ${careRoomWindowLabel(room)}`
   }
 
   const saveGuide = async () => {

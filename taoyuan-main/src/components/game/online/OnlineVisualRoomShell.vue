@@ -196,7 +196,7 @@
       class="space-y-3"
       data-testid="online-visual-room-content"
       role="group"
-      aria-label="房间可视化内容与降级入口"
+      aria-label="房间可视化内容与备用操作"
     >
       <slot />
     </div>
@@ -260,8 +260,8 @@
     ],
     focusGuideSummary: '可视化房间保留原按钮键盘操作，并把行动结果、失败原因和权限提示固定在房间顶部。',
     visualContentLabel: '可视化棋盘、场景或轨道作为主要入口；旧按钮面板继续作为兼容路径保留。',
-    fallbackEntryLabel: '旧按钮降级入口',
-    fallbackEntryHint: '当可视化入口关闭、缺失或没有可用热区动作时，玩家仍可使用旧按钮继续提交同一服务端行动意图。',
+    fallbackEntryLabel: '旧按钮备用操作',
+    fallbackEntryHint: '当可视化入口关闭、缺失或没有可用热区动作时，玩家仍可使用旧按钮继续提交同一行动。',
     fallbackEntryVisible: false,
     countdownSeconds: 0,
     countdownRemainingSeconds: 0,
@@ -359,7 +359,7 @@
     parts.push(`奖励预览 ${props.rewardPreview.length} 项`)
     if (props.settlementRecords.length > 0) parts.push(`结算回看 ${props.settlementRecords.length} 条`)
     parts.push(`入口 ${props.visualContentLabel}`)
-    parts.push(`${props.fallbackEntryLabel}${props.fallbackEntryVisible ? '当前可见' : '作为降级保留'}`)
+    parts.push(`${props.fallbackEntryLabel}${props.fallbackEntryVisible ? '当前可见' : '作为备用保留'}`)
     if (connectionLabel.value) parts.push(connectionLabel.value)
     if (props.actionFeedback) parts.push(`最近反馈：${props.actionFeedback}`)
     if (props.errorMessages.length > 0) parts.push(`错误 ${props.errorMessages.length} 条`)
