@@ -7,8 +7,7 @@
       refresh-label="刷新共同庄园"
       :refresh-running="cohabitationStore.loading || cohabitationStore.detailsLoading"
       :refresh-disabled="cohabitationStore.loading || cohabitationStore.detailsLoading"
-      :stats="summaryStats"
-      stats-grid-class="grid gap-2 text-xs md:grid-cols-3 xl:grid-cols-6"
+      :stats="[]"
       :tabs="cohabitationTabGroups"
       :active-tab="activeTabGroupKey"
       @refresh="refreshModule"
@@ -113,7 +112,48 @@
         </span>
       </div>
 
-      <div v-if="activeTab === 'overview'" class="grid gap-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
+      <div v-if="activeTab === 'overview'" class="space-y-3" data-testid="online-cohabitation-overview-summary">
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="online-cohabitation-overview-main-cards">
+          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-contract-card">
+            <div class="flex items-center gap-2 text-accent">
+              <HeartHandshake :size="13" />
+              <p class="text-sm">契约状态</p>
+            </div>
+            <p class="mt-3 text-lg text-text">{{ overviewContractStatusLabel }}</p>
+            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewContractDetailLabel }}</p>
+          </article>
+
+          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-fund-card">
+            <div class="flex items-center gap-2 text-accent">
+              <Wallet :size="13" />
+              <p class="text-sm">共同基金</p>
+            </div>
+            <p class="mt-3 text-lg text-text">{{ overviewFundBalanceLabel }}</p>
+            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewFundDetailLabel }}</p>
+          </article>
+
+          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-warehouse-card">
+            <div class="flex items-center gap-2 text-accent">
+              <Package :size="13" />
+              <p class="text-sm">共同仓库</p>
+            </div>
+            <p class="mt-3 text-lg text-text">{{ overviewWarehouseSummaryLabel }}</p>
+            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewWarehouseDetailLabel }}</p>
+          </article>
+
+          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-risk-card">
+            <div class="flex items-center gap-2 text-accent">
+              <ShieldCheck :size="13" />
+              <p class="text-sm">今日建议 / 风险待办</p>
+            </div>
+            <p class="mt-3 text-lg text-text">{{ overviewRiskTodoLabel }}</p>
+            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewRecommendationLabel }}</p>
+          </article>
+        </div>
+
+        <details class="game-panel-muted p-3" data-testid="online-cohabitation-overview-details">
+          <summary class="cursor-pointer text-sm text-accent">展开契约、照料、恢复和安全边界</summary>
+          <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">契约列表</p>
@@ -1084,6 +1124,8 @@
             </div>
           </div>
         </div>
+          </div>
+        </details>
       </div>
 
       <div v-else-if="activeTab === 'map'" class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -5744,14 +5786,56 @@
     })
     return `上次刷新 ${time}`
   })
-  const summaryStats = computed(() => [
-    { label: '契约', value: cohabitationStore.summary.total },
-    { label: '已生效', value: cohabitationStore.summary.active },
-    { label: '待接受', value: cohabitationStore.summary.pending },
-    { label: '分居预览', value: cohabitationStore.summary.separation_previews },
-    { label: '共同基金', value: cohabitationStore.fund?.balance ?? selectedContract.value?.shared_fund?.balance ?? 0 },
-    { label: '仓库物品', value: cohabitationStore.warehouse?.summary.item_count ?? selectedContract.value?.shared_warehouse?.items?.length ?? 0 },
-  ])
+  const overviewContractStatusLabel = computed(() => {
+    if (!selectedContract.value) return cohabitationStore.summary.total > 0 ? '请选择契约' : '暂无契约'
+    return `${selectedContract.value.type_label} · ${statusLabel(selectedContract.value.status)}`
+  })
+  const overviewContractDetailLabel = computed(() => {
+    if (!selectedContract.value) return '可以展开详情发起共同庄园，或等待好友邀请。'
+    const openLabel = cohabitationStore.canOpenSelectedContract ? '共同经营已开放' : '等待成员确认'
+    return `${selectedContract.value.members.length} 位成员 · ${contractMembersLabel(selectedContract.value)} · ${openLabel}`
+  })
+  const overviewFundBalanceLabel = computed(() => {
+    const balance = Math.max(0, Math.floor(Number(cohabitationStore.fund?.balance ?? selectedContract.value?.shared_fund?.balance) || 0))
+    return `${balance} 铜币`
+  })
+  const overviewFundDetailLabel = computed(() => {
+    const summary = cohabitationStore.fund?.summary
+    if (!summary) return '基金详情会在契约生效并同步后显示；个人铜币不合并。'
+    const contribution = summary.contribution_enabled ? '注资可用' : '注资暂缓'
+    const spend = summary.spend_enabled ? '支出可用' : '支出暂缓'
+    const highRisk = summary.large_spend_requires_both ? '大额支出需双方确认' : '大额支出未开放'
+    return `${contribution} · ${spend} · ${highRisk}`
+  })
+  const overviewWarehouseSummaryLabel = computed(() => {
+    const count = Math.max(0, Math.floor(Number(cohabitationStore.warehouse?.summary.item_count ?? selectedContract.value?.shared_warehouse?.items?.length) || 0))
+    return `${count} 类物品`
+  })
+  const overviewWarehouseDetailLabel = computed(() => {
+    const summary = cohabitationStore.warehouse?.summary
+    if (!summary) return '仓库详情会在契约生效并同步后显示；高价值取用走草案确认。'
+    const frozen = Math.max(0, Math.floor(Number(summary.frozen_quantity) || 0))
+    const draftCount = Math.max(0, Math.floor(Number(summary.active_high_value_withdrawal_draft_count) || 0))
+    return `冻结 ${frozen} 件 · 高价值草案 ${draftCount} 笔 · 普通物品按权限操作`
+  })
+  const overviewRiskTodoCount = computed(() => {
+    let count = 0
+    if (cohabitationStore.summary.pending > 0) count += 1
+    if (selectedContract.value && !cohabitationStore.canOpenSelectedContract) count += 1
+    if ((cohabitationStore.warehouse?.summary.active_high_value_withdrawal_draft_count ?? 0) > 0) count += 1
+    if (contractRecoveryAppeals.value.length > 0) count += 1
+    if (latestSeparationPreview.value) count += 1
+    return count
+  })
+  const overviewRiskTodoLabel = computed(() => overviewRiskTodoCount.value > 0 ? `${overviewRiskTodoCount.value} 项待处理` : '暂无风险待办')
+  const overviewRecommendationLabel = computed(() => {
+    if (!selectedContract.value) return '先发起或选择一份共同庄园契约，再进入地图、仓库或基金。'
+    if (canAcceptSelectedContract.value) return '优先接受契约；生效前不会开放共同资产操作。'
+    if (!cohabitationStore.canOpenSelectedContract) return '等待成员确认后，再开放共同地图、仓库、基金和治理入口。'
+    if ((cohabitationStore.warehouse?.summary.active_high_value_withdrawal_draft_count ?? 0) > 0) return '先处理高价值仓库草案，避免共同资产长时间冻结。'
+    if (latestSeparationPreview.value) return '已有分居预览，建议先核对返还与恢复细节。'
+    return '今日可先查看共同地图和仓库，再决定是否需要基金支出。'
+  })
   const mapStats = computed(() => [
     { label: '总地块', value: cohabitationStore.sharedMap?.summary.total_plots ?? 0 },
     { label: '可收获', value: cohabitationStore.sharedMap?.summary.harvestable_plots ?? 0 },

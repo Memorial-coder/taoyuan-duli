@@ -12,6 +12,14 @@
 - `OnlineRoomLobbyDialog` 新增房主状态矩阵和成员状态矩阵，覆盖创建、准备检查、倒计时、运行中、结算中、已结算、已关闭、受邀、已加入、已准备、断线等状态；每个状态只保留一个推荐主行动，次行动和危险行动进入矩阵的 secondary / danger 分组。
 - 禁用动作会通过 `online-room-disabled-reason` 展示可见原因，结构 QA 新增矩阵覆盖、单 primary、capability 控制和页面承接事件断言；本轮不改后端房间状态机，也不替代后续结算 / 关闭确认弹窗任务。
 
+### 0602 共同庄园标签分组
+- 共同庄园页改为五组导航：「总览」「共同经营」「家庭与节会」「资产与治理」「更多」；默认常用入口只显示总览、地图、仓库、基金、节会，其余权限、离线、建筑、关系、公开、订单、声望等入口收进折叠分组。
+- 旧 `online-module-tab-*` test id 保留在常用或折叠入口中，`festival/public/family/separation` 旧 query 会映射到当前真实 tab；共同庄园 E2E 补 `openCohabitationTab()` 和 query alias 回归。
+
+### 0602 共同庄园总览首屏降噪
+- 共同庄园总览移除模块头部旧 6 项统计条，首屏主摘要收口为契约状态、共同基金、共同仓库、今日建议 / 风险待办 4 张卡，并新增稳定 test id：`online-cohabitation-overview-main-cards`、`online-cohabitation-overview-*-card`。
+- 契约列表、发起契约、共同宠物照料、恢复申诉和安全边界进入默认折叠的 `online-cohabitation-overview-details`；旧宠物照料 E2E 会先展开详情再定位旧 `online-cohabitation-shared-pets-panel`，避免折叠降噪切断旧路径。
+
 ### 0602 在线房间准备大厅组件
 - 新增 `OnlineRoomLobbyDialog`，复用 `OnlineBottomSheet` 统一展示房间名、玩法、人数、状态、成员列表、最近反馈和主行动禁用原因；成员状态会区分房主、已准备、未准备、离线和被邀请。
 - 组件只发出 `invite`、`ready`、`unready`、`start-ready-check`、`start-countdown`、`settle`、`cancel-room`、`leave-room` 等事件，不直接调用 store；结构 QA 已补大厅 test id、事件和房主 / 成员能力判断断言，等待节会 / 远征页面接入准备流程。

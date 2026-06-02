@@ -87,6 +87,12 @@ async function openCohabitationTab(page: Page, tabKey: string) {
   await target.click()
 }
 
+async function openCohabitationOverviewDetails(page: Page) {
+  const details = page.getByTestId('online-cohabitation-overview-details')
+  const isOpen = await details.evaluate(node => (node as HTMLDetailsElement).open).catch(() => false)
+  if (!isOpen) await details.locator('summary').click()
+}
+
 function buildWorldEventOverview() {
   return {
     ok: true,
@@ -3540,6 +3546,22 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-module-tab-offline')).toHaveAttribute('aria-selected', 'true')
   })
 
+  test('online cohabitation overview keeps first screen to four main cards', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '总览')
+    await mockOnlineCohabitation(page)
+
+    await page.goto('/#/game/online/cohabitation')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    const mainCards = page.getByTestId('online-cohabitation-overview-main-cards').locator('article')
+    await expect(mainCards).toHaveCount(4)
+    await expect(page.getByTestId('online-cohabitation-overview-contract-card')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-overview-fund-card')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-overview-warehouse-card')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-overview-risk-card')).toBeVisible()
+    await expect(page.getByTestId('online-cohabitation-overview-details')).not.toHaveAttribute('open', '')
+  })
+
   test('online cohabitation shared pet care uses shared warehouse feed', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '宠物')
@@ -3547,6 +3569,7 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/cohabitation')
     await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    await openCohabitationOverviewDetails(page)
     await expect(page.getByTestId('online-cohabitation-shared-pets-panel')).toBeVisible()
 
     const sharedPet = page.getByTestId('online-cohabitation-shared-pet-shared-pet-e2e')
