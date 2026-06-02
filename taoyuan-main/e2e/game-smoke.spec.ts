@@ -3085,14 +3085,19 @@ test.describe('web game smoke', () => {
     await page.getByTestId('visual-scene-action-lock_piece').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-lock_piece')).toHaveCount(0)
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-settle-submit')
     await page.getByTestId('online-festival-room-settle-submit').click()
+    await expect(page.getByTestId('online-room-settle-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('灯会共建 smoke')
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u706f\u4f1a\u7eaa\u5ff5')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u70b9\u4eae\u4e3b\u706f\uff1a\u6d4b\u8bd5\u8005')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u89e3\u5f00\u706f\u8c1c\uff1a\u706f\u8c1c\u624b')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u7ef4\u6301\u79e9\u5e8f\uff1a\u5de1\u573a\u4eba')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u7559\u5f71\u6536\u53e3\uff1a\u5408\u5f71\u4eba')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u538b\u529b\u5cf0\u503c')
-    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u670d\u52a1\u7aef\u843d\u8d26\uff1a80 \u94dc\u94b1\u30011 \u5f20\u5956\u5238')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u5956\u52b1\u5df2\u8bb0\u5f55\uff1a80 \u94dc\u94b1\u30011 \u5f20\u5956\u5238')
   })
 
   test('online festival visual scene supports laba cookpot object actions', async ({ page }) => {
@@ -3797,7 +3802,12 @@ test.describe('web game smoke', () => {
     await page.getByTestId('visual-track-action-sync_oar').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-sync_oar')).toHaveCount(0)
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-settle-submit')
     await page.getByTestId('online-festival-room-settle-submit').click()
+    await expect(page.getByTestId('online-room-settle-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('龙舟赛道 smoke')
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u7ade\u901f\u89c4\u6a21\uff1a\u56db\u8239\u6269\u5c55')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u9f99\u821f\u6210\u7ee9\uff1a\u7b2c 4 \u540d')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('\u8d5b\u9053\u540d\u6b21\uff1a\u7b2c 1 \u540d \u5317\u6e21\u9f99\u821f')

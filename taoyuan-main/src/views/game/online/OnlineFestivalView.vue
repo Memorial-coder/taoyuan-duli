@@ -371,7 +371,7 @@
                       class="online-action-btn online-action-btn--compact justify-center"
                       data-testid="online-festival-room-settle-submit"
                       :disabled="festivalRoomStore.actionRunning"
-                      @click="settleRoom(festivalRoomStore.myRoom.id)"
+                      @click="openFestivalSettleConfirm"
                     >
                       进入结算
                     </Button>
@@ -380,7 +380,7 @@
                       class="online-action-btn online-action-btn--compact justify-center"
                       data-testid="online-festival-room-close-submit"
                       :disabled="festivalRoomStore.actionRunning"
-                      @click="closeRoom(festivalRoomStore.myRoom.id)"
+                      @click="openFestivalCloseConfirm"
                     >
                       {{ festivalRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
                     </Button>
@@ -1832,6 +1832,42 @@
       @close="closeFestivalRoomLobby"
     />
 
+    <div v-if="showFestivalSettleConfirm" class="contents" data-testid="online-room-settle-confirm">
+      <OnlineConfirmActionDialog
+        :open="showFestivalSettleConfirm"
+        title="确认节会结算"
+        :description="festivalSettleConfirmDescription"
+        :impact-items="festivalSettleImpactItems"
+        :asset-changes="festivalSettleAssetChanges"
+        confirm-label="确认结算"
+        cancel-label="返回房间"
+        :running="festivalRoomStore.actionRunning"
+        :recovery-hint="festivalSettleRecoveryHint"
+        @confirm="confirmFestivalSettle"
+        @cancel="closeFestivalConfirmDialog"
+        @close="closeFestivalConfirmDialog"
+      />
+    </div>
+
+    <div v-if="showFestivalCloseConfirm" class="contents" data-testid="online-room-close-confirm">
+      <OnlineConfirmActionDialog
+        :open="showFestivalCloseConfirm"
+        :title="festivalCloseConfirmTitle"
+        :description="festivalCloseConfirmDescription"
+        :impact-items="festivalCloseImpactItems"
+        :asset-changes="festivalCloseAssetChanges"
+        :irreversible="true"
+        :require-text="festivalCloseRequireText"
+        :confirm-label="festivalCloseConfirmLabel"
+        cancel-label="返回房间"
+        :running="festivalRoomStore.actionRunning"
+        :recovery-hint="festivalCloseRecoveryHint"
+        @confirm="confirmFestivalCloseRoom"
+        @cancel="closeFestivalConfirmDialog"
+        @close="closeFestivalConfirmDialog"
+      />
+    </div>
+
     <OnlineInvitePanel
       :open="showExpeditionInvitePanel"
       domain="expedition"
@@ -1853,6 +1889,7 @@
   import { useRoute } from 'vue-router'
   import { CalendarDays, Flag, Lamp, UserPlus, UsersRound } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineInvitePanel, { type OnlineInviteResult } from '@/components/game/online/OnlineInvitePanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineRoomLobbyDialog, { type OnlineRoomLobbyRoom } from '@/components/game/online/OnlineRoomLobbyDialog.vue'
@@ -1941,6 +1978,7 @@
   const activeTab = ref<FestivalTabKey>(normalizeTab(route.query.tab))
   const showFestivalRoomWizard = ref(false)
   const showFestivalRoomLobby = ref(false)
+  const festivalConfirmAction = ref<'settle' | 'close' | ''>('')
   const showExpeditionRoomWizard = ref(false)
   const showFestivalInvitePanel = ref(false)
   const showExpeditionInvitePanel = ref(false)
@@ -2292,6 +2330,112 @@
       || room.can_host_close
       || room.can_leave
   })
+  const showFestivalSettleConfirm = computed(() => festivalConfirmAction.value === 'settle')
+  const showFestivalCloseConfirm = computed(() => festivalConfirmAction.value === 'close')
+  const festivalSettleUnfinishedMembers = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    return room.members.filter(member => !['finished', 'settled', 'left', 'kicked'].includes(member.status))
+  })
+  const festivalSettleConfirmDescription = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return '结算会根据当前节会房间进度生成奖励记录。'
+    const unfinishedText = festivalSettleUnfinishedMembers.value.length > 0
+      ? `当前还有 ${festivalSettleUnfinishedMembers.value.length} 名成员未完成，系统会按现有进度结算。`
+      : '所有成员已完成或已有结果，适合进入结算。'
+    return `${room.title} 将按当前节会进度生成奖励记录和回看内容。${unfinishedText}`
+  })
+  const festivalSettleImpactItems = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    const unfinishedMembers = festivalSettleUnfinishedMembers.value
+      .map(member => member.display_name || member.username)
+      .slice(0, 3)
+      .join('、')
+    return [
+      { id: 'room', label: '节会房间', value: room.title },
+      { id: 'state', label: '当前状态', value: room.state_label },
+      { id: 'members', label: '参与成员', value: `${room.joined_member_count}/${room.member_limit} 人` },
+      {
+        id: 'unfinished-members',
+        label: '未完成成员',
+        value: unfinishedMembers || '无',
+      },
+    ]
+  })
+  const festivalSettleAssetChanges = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    const rewardItems = festivalRoomRewardPreview.value.slice(0, 3).map((label, index) => ({
+      id: `reward-${index}`,
+      label,
+      value: '',
+    }))
+    return rewardItems.length > 0
+      ? rewardItems
+      : [{
+        id: 'reward-preview-empty',
+        label: room.settlement_receipts.length > 0 ? '已有结算记录会继续保留。' : '奖励预览将在结算后生成。',
+        value: '',
+      }]
+  })
+  const festivalSettleRecoveryHint = computed(() =>
+    festivalRoomStore.errorMessage || '如果结算没有完成，房间会保留当前状态，可刷新后再次尝试。'
+  )
+  const festivalCloseConfirmTitle = computed(() => {
+    const state = festivalRoomStore.myRoom?.state
+    if (state === 'running') return '确认关闭进行中的节会房间'
+    if (state === 'settling') return '确认关闭节会房间'
+    return '确认取消节会房间'
+  })
+  const festivalCloseConfirmDescription = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return '关闭后成员需要返回大厅，未生成的新奖励不会补发。'
+    const runningText = room.state === 'running'
+      ? '房间正在进行中，关闭后成员会退出本轮节会，未完成进度不会继续推进。'
+      : '关闭后成员会回到大厅，后续需要重新创建房间。'
+    return `${room.title} 当前为「${room.state_label}」。${runningText}`
+  })
+  const festivalCloseImpactItems = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    const readyCount = room.members.filter(member => ['ready', 'countdown_locked', 'active', 'finished', 'settled'].includes(member.status)).length
+    return [
+      { id: 'room', label: '节会房间', value: room.title },
+      { id: 'state', label: '当前状态', value: room.state_label },
+      { id: 'members', label: '影响成员', value: `${room.members.length} 人` },
+      { id: 'ready-members', label: '已准备或已参与', value: `${readyCount} 人` },
+    ]
+  })
+  const festivalCloseAssetChanges = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    const existingRecords = room.settlement_receipts.length
+    return [
+      {
+        id: 'new-reward',
+        label: existingRecords > 0 ? '已有结算记录继续保留。' : '不会生成新的成员奖励。',
+        value: existingRecords > 0 ? `${existingRecords} 条` : '',
+      },
+      {
+        id: 'member-progress',
+        label: '未完成的节会进度会停止推进。',
+        value: '',
+      },
+    ]
+  })
+  const festivalCloseRequireText = computed(() =>
+    festivalRoomStore.myRoom?.state === 'running' ? '确认关闭房间' : ''
+  )
+  const festivalCloseConfirmLabel = computed(() => {
+    const state = festivalRoomStore.myRoom?.state
+    if (state === 'settling') return '正式关闭'
+    if (state === 'running') return '确认关闭房间'
+    return '确认取消房间'
+  })
+  const festivalCloseRecoveryHint = computed(() =>
+    festivalRoomStore.errorMessage || '如果关闭没有完成，房间会保留当前状态，可刷新后再次尝试。'
+  )
   const festivalInviteExistingMembers = computed(() => {
     const room = festivalRoomStore.myRoom
     if (!room) return []
@@ -2700,6 +2844,38 @@
   const closeFestivalRoomLobby = () => {
     showFestivalRoomLobby.value = false
   }
+  const openFestivalSettleConfirm = () => {
+    if (!festivalRoomStore.myRoom || festivalRoomStore.actionRunning) return
+    festivalConfirmAction.value = 'settle'
+  }
+  const openFestivalCloseConfirm = () => {
+    if (!festivalRoomStore.myRoom || festivalRoomStore.actionRunning) return
+    festivalConfirmAction.value = 'close'
+  }
+  const closeFestivalConfirmDialog = () => {
+    if (festivalRoomStore.actionRunning) return
+    festivalConfirmAction.value = ''
+  }
+  const confirmFestivalSettle = async () => {
+    const roomId = festivalRoomStore.myRoom?.id
+    if (!roomId) return
+    try {
+      await festivalRoomStore.settleRoomAction(roomId)
+      closeFestivalConfirmDialog()
+    } catch {
+      // Store errorMessage remains visible in the dialog so the host can retry.
+    }
+  }
+  const confirmFestivalCloseRoom = async () => {
+    const roomId = festivalRoomStore.myRoom?.id
+    if (!roomId) return
+    try {
+      await festivalRoomStore.closeRoomAction(roomId)
+      closeFestivalConfirmDialog()
+    } catch {
+      // Store errorMessage remains visible in the dialog so the host can retry.
+    }
+  }
   const openExpeditionInvitePanel = () => {
     activeTab.value = 'expedition-room'
     showExpeditionInvitePanel.value = true
@@ -2848,11 +3024,11 @@
   const handleFestivalLobbyStartCountdown = async () => {
     await runFestivalLobbyRoomAction(startCountdown)
   }
-  const handleFestivalLobbySettle = async () => {
-    await runFestivalLobbyRoomAction(settleRoom)
+  const handleFestivalLobbySettle = () => {
+    openFestivalSettleConfirm()
   }
-  const handleFestivalLobbyCloseRoom = async () => {
-    await runFestivalLobbyRoomAction(closeRoom)
+  const handleFestivalLobbyCloseRoom = () => {
+    openFestivalCloseConfirm()
   }
   const handleFestivalLobbyLeaveRoom = async () => {
     await runFestivalLobbyRoomAction(leaveRoom)
@@ -2885,12 +3061,6 @@
     const roomId = festivalRoomStore.myRoom?.id
     if (!roomId) return
     await playGameplayAction(roomId, payload.actionId)
-  }
-  const settleRoom = async (roomId: string) => {
-    await festivalRoomStore.settleRoomAction(roomId).catch(() => {})
-  }
-  const closeRoom = async (roomId: string) => {
-    await festivalRoomStore.closeRoomAction(roomId).catch(() => {})
   }
   const loadFriendMemorials = async () => {
     await festivalRoomStore.loadFriendMemorials().catch(() => {})

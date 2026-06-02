@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0602 在线节会房结算与关闭确认
+- 在线节会房接入 `OnlineConfirmActionDialog`，准备大厅的结算 / 取消房间事件和旧 `online-festival-room-settle-submit`、`online-festival-room-close-submit` 备用按钮都会先进入确认弹窗；弹窗展示房间状态、成员影响、奖励预览 / 结算记录和失败恢复提示。
+- 结算确认继续调用既有 `festivalRoomStore.settleRoomAction(roomId)`；关闭确认继续调用既有 `festivalRoomStore.closeRoomAction(roomId)`，运行中关闭要求输入「确认关闭房间」。结构 QA 已补确认弹窗、旧 test id、原 action 调用和浏览器 smoke 确认路径断言。
+
 ### 0602 在线节会房准备大厅接入
 - 在线节会房状态区新增 `online-festival-room-lobby-trigger`，主行动打开统一 `OnlineRoomLobbyDialog`；大厅接收节会房快照映射、当前用户视角、最近反馈和忙碌状态。
 - 开始准备、我已准备、取消准备、开始倒计时都从大厅事件回调既有 `festivalRoomStore` action；旧准备 / 倒计时 test id 保留在默认折叠的「备用房间操作」中，结构 QA 已补页面接入断言。
