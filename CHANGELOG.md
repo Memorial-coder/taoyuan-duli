@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-02
+- 20.1 共同装修拆除主状态写回 selector 扩展：`shared_decoration_removal` delivered 后的个人主状态写回从 `decoration.placed` / `decoration.owned` 扩展到 `home.homeRenovationStates`、`home.farmhouseLevel`、`home.caveChoice`、`home.caveUnlocked`、`home.cellarSlots` 与 `home.greenhouseUnlocked` 八类窄 selector；服务端沿用固定确认文案、补偿 / 回滚确认、幂等和个人 receipt 边界，专项 QA 覆盖 owner 装饰删除与 partner 宅院改造删除同链路，前端下拉与结构 QA 同步守护 home selector。
 - 20.1 共同装修拆除个人主状态适配器：新增 `shared-decorations/removal/main-state-mutation` 后端入口与前端 API 类型，`shared_decoration_removal` 完成回执 delivered 后才允许按 `decoration.placed.<id>` / `decoration.owned.<id>` 精确 selector 写回个人装修主状态；服务端要求大额基金 / 拆除 / 双方确认权限、确认文案、补偿 / 回滚确认和幂等键，写个人 receipt、共同装修 state / ledger 标记与审计，不再扣共同基金、不改共同仓库、个人铜币、背包、农田、NPC、家庭或孩子状态。
 - 20.1 共同装修拆除主状态写回前端入口：共同基金大额草案卡片会在 `shared_decoration_removal` 已执行且回执 delivered 后开放“主状态写回”，支持选择 `decoration.placed` / `decoration.owned` selector 与目标成员，提交固定确认文案、补偿 / 回滚确认、回执引用和幂等键；成功后刷新基金 / 仓库 / 契约详情并提示共同基金、仓库、背包、铜币不变。
 - 同居共同仓库 11.4 传说鱼 / 瀚海丝绸稀有料理批次：共同灶台新增传说盛宴和丝路饺子白名单；服务端在消费玉龙或瀚海丝绸前要求 `storage.withdraw_rare`，授权后从共同仓库扣玉龙、生姜、瀚海丝绸、稻米和西域香料，并把料理产物回存共同仓库 `deposit` ledger。`item_policy` 升到 v43，两类料理成品按稀有物保护，前端共同工坊下拉与结构 QA 同步读回这些配方，更多后续稀材料理仍留后续批次。

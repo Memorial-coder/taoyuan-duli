@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0602 20.1 共同装修拆除主状态写回 selector 扩展
+- 共同基金 `shared_decoration_removal` delivered 后的“主状态写回”表单新增 `home.homeRenovationStates`、`home.farmhouseLevel`、`home.caveChoice`、`home.caveUnlocked`、`home.cellarSlots` 与 `home.greenhouseUnlocked` 选项，默认 selector 会按 home 类型给出布尔、等级、下标或用途占位。
+- 后端写回链沿用固定确认文案、补偿 / 回滚确认、幂等键和个人 receipt 边界，专项 QA 覆盖 owner 装饰删除与 partner 宅院改造删除同链路；成功后仍只刷新基金 / 仓库 / 契约详情，不改共同基金、共同仓库、个人铜币、背包、农田、NPC、家庭或孩子状态。
+
 ### 0602 20.1 共同装修拆除个人主状态适配器
 - 新增共同装修拆除个人主状态变更 API 类型与调用方法，服务端完成回执 delivered 后才允许按 `decoration.placed.<id>` / `decoration.owned.<id>` 精确 selector 写回个人装修主状态。
 - 执行链要求大额基金 / 拆除 / 双方确认权限、确认文案、补偿 / 回滚确认和幂等键，并读回个人 receipt、共同装修 state / ledger 标记与审计；不再扣共同基金、不改共同仓库、个人铜币、背包、农田、NPC、家庭或孩子状态。

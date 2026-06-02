@@ -276,6 +276,8 @@ expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-la
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-high-risk-receipt-form', '共同基金前端应提供高风险回执表单')
 expectContains('online/OnlineCohabitationView.vue', 'shared_decoration_removal', '共同基金前端应开放共同装修拆除确认用途')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-decoration-removal-main-state-mutation', '共同基金前端应提供共同装修拆除主状态写回入口')
+expectContains('online/OnlineCohabitationView.vue', 'home.homeRenovationStates', '共同装修拆除主状态写回应支持宅院改造 selector')
+expectContains('online/OnlineCohabitationView.vue', 'home.greenhouseUnlocked', '共同装修拆除主状态写回应支持 home 窄 selector')
 expectContains('online/OnlineCohabitationView.vue', '确认执行共同装修拆除主状态变更', '共同装修拆除主状态写回应携带固定确认文案')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-decoration-removal-disputes', '分居预览应展示共同装修拆除争议冻结')
 expectContains('online/OnlineCohabitationView.vue', 'shared_decoration_removal_freeze_summary', '分居预览应读回共同装修拆除冻结摘要')

@@ -20034,15 +20034,25 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
 function getSharedDecorationRemovalMainStateTargetChildId(target = {}) {
   const candidatePath = sanitizeText(target.candidate_path, 100);
   const selector = sanitizeText(target.delete_selector || target.exact_target_ref, 180);
-  if (!['decoration.placed', 'decoration.owned'].includes(candidatePath)) {
-    throw createError('共同装修拆除个人主状态变更第一版只支持 decoration.placed / decoration.owned 精确目标', 409);
+  const allowedCandidatePaths = [
+    'home.homeRenovationStates',
+    'home.farmhouseLevel',
+    'home.caveChoice',
+    'home.caveUnlocked',
+    'home.cellarSlots',
+    'home.greenhouseUnlocked',
+    'decoration.placed',
+    'decoration.owned',
+  ];
+  if (!allowedCandidatePaths.includes(candidatePath)) {
+    throw createError('共同装修拆除个人主状态变更只支持已验证的 home / decoration 窄 selector', 409);
   }
   if (!selector || !selector.startsWith(`${candidatePath}.`)) {
-    throw createError('共同装修拆除个人主状态 selector 必须位于 decoration.placed / decoration.owned 候选路径下', 409);
+    throw createError('共同装修拆除个人主状态 selector 必须位于已验证候选路径下', 409);
   }
   const childKey = selector.slice(candidatePath.length + 1);
   if (!childKey || childKey.includes('.') || childKey.includes('[') || childKey.includes(']')) {
-    throw createError('共同装修拆除个人主状态变更第一版只支持候选路径下一层具体装饰 ID', 409);
+    throw createError('共同装修拆除个人主状态变更只支持候选路径下一层具体目标', 409);
   }
   return sanitizeText(childKey, 100);
 }
@@ -20090,11 +20100,15 @@ function applySharedDecorationRemovalMainStateMutationToPersonalSaves(contract =
       throw createError('共同装修拆除个人主状态目标必须是当前契约已接受成员', 409);
     }
     const childKey = getSharedDecorationRemovalMainStateTargetChildId(target);
-    const targetDecorationId = sanitizeText(target.decoration_id || childKey, 100);
-    if (targetDecorationId !== expectedDecorationId || childKey !== expectedDecorationId) {
+    const candidatePath = sanitizeText(target.candidate_path, 100);
+    const targetDecorationId = sanitizeText(target.decoration_id || expectedDecorationId, 100);
+    if (targetDecorationId !== expectedDecorationId) {
       throw createError('共同装修拆除个人主状态目标装饰 ID 与完成回执不一致', 409);
     }
-    const duplicateKey = `${usernameKey}:${target.candidate_path}:${childKey}`;
+    if (candidatePath.startsWith('decoration.') && childKey !== expectedDecorationId) {
+      throw createError('共同装修拆除个人装饰 selector 与完成回执装饰 ID 不一致', 409);
+    }
+    const duplicateKey = `${usernameKey}:${candidatePath}:${childKey}`;
     if (seenTargets.has(duplicateKey)) {
       throw createError('共同装修拆除个人主状态目标清单包含重复 selector', 409);
     }
@@ -20165,7 +20179,7 @@ function applySharedDecorationRemovalMainStateMutationToPersonalSaves(contract =
         continue;
       }
       const adapterTarget = resolveFamilyBuildingMainStateMutationTarget(projectedData, target);
-      if (adapterTarget.target_id !== expectedDecorationId) {
+      if (target.candidate_path.startsWith('decoration.') && adapterTarget.target_id !== expectedDecorationId) {
         throw createError('共同装修拆除个人主状态适配器解析出的装饰 ID 与完成回执不一致', 409);
       }
       const mutation = adapterTarget.apply();
@@ -20195,7 +20209,7 @@ function applySharedDecorationRemovalMainStateMutationToPersonalSaves(contract =
         before_value: adapterTarget.before_value,
         after_value: mutation.after_value,
         mutation_result: mutation.mutation_result,
-        personal_asset_boundary: '仅删除已确认拆除的个人 decoration 主状态窄目标；不改个人铜币、背包、农田、NPC、家庭或孩子状态。',
+        personal_asset_boundary: '仅删除已确认拆除的个人 home / decoration 主状态窄目标；不改个人铜币、背包、农田、NPC、家庭或孩子状态。',
         memo: payload.reason,
         personal_save_changed: true,
         shared_fund_changed: false,
@@ -32774,7 +32788,7 @@ async function executeCohabitationSharedDecorationRemovalMainStateMutation(contr
     shared_decoration_removal_main_state_mutated_by_display_name: actorDisplayName,
     shared_decoration_removal_main_state_mutation_receipt_count: receipts.length,
     shared_decoration_removal_main_state_mutation_receipts: receipts,
-    compensation_hint: 'shared decoration removal main-state adapter deleted only exact personal decoration selectors after delivered receipt; shared fund and shared warehouse stay unchanged.',
+    compensation_hint: 'shared decoration removal main-state adapter deleted only exact personal home / decoration selectors after delivered receipt; shared fund and shared warehouse stay unchanged.',
   });
   contract.shared_decoration_state = contract.shared_decoration_state.map(entry =>
     entry.id === stateEntry.id ? nextStateEntry : entry
@@ -32793,6 +32807,8 @@ async function executeCohabitationSharedDecorationRemovalMainStateMutation(contr
     decoration_id: expectedDecorationId,
     receipt_count: receipts.length,
     receipt_usernames: receipts.map(receipt => receipt.username),
+    candidate_paths: receipts.map(receipt => receipt.delete_selector).filter(Boolean),
+    target_kinds: [...new Set(receipts.map(receipt => receipt.target_kind).filter(Boolean))],
     required_permission_keys: ['fund.spend_large', 'construction.demolish_building', 'confirmations.demolish_requires_both'],
     execution_state: nextLedgerEntry.shared_decoration_removal_main_state_mutation_state,
     personal_home_mutated: true,

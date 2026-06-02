@@ -2238,13 +2238,19 @@
                     >
                       <option value="decoration.placed">decoration.placed</option>
                       <option value="decoration.owned">decoration.owned</option>
+                      <option value="home.homeRenovationStates">home.homeRenovationStates</option>
+                      <option value="home.farmhouseLevel">home.farmhouseLevel</option>
+                      <option value="home.caveChoice">home.caveChoice</option>
+                      <option value="home.caveUnlocked">home.caveUnlocked</option>
+                      <option value="home.cellarSlots">home.cellarSlots</option>
+                      <option value="home.greenhouseUnlocked">home.greenhouseUnlocked</option>
                     </select>
                     <input
                       v-model="sharedDecorationRemovalMainStateSelector"
                       class="online-input text-xs"
                       data-testid="online-cohabitation-shared-decoration-removal-main-state-mutation-selector"
                       maxlength="120"
-                      placeholder="decoration.placed.decoration_id"
+                      :placeholder="sharedDecorationRemovalMainStateSelectorPlaceholder"
                     >
                     <input
                       v-model="sharedDecorationRemovalMainStateTargetUsername"
@@ -3838,7 +3844,15 @@
   type FamilyBuildingMainStatePreviewRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number]
   type FamilyBuildingMainStateExactTargetRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_exact_target_manifest'][number]
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
-  type SharedDecorationRemovalMainStateCandidatePath = 'decoration.placed' | 'decoration.owned'
+  type SharedDecorationRemovalMainStateCandidatePath =
+    | 'decoration.placed'
+    | 'decoration.owned'
+    | 'home.homeRenovationStates'
+    | 'home.farmhouseLevel'
+    | 'home.caveChoice'
+    | 'home.caveUnlocked'
+    | 'home.cellarSlots'
+    | 'home.greenhouseUnlocked'
   type SharedAnimalProductInfo = { productId: string; produceDays: number }
   type SharedAnimalPurchaseOption = { type: string; label: string; unitPrice: number }
   type SharedPetCareItemInfo = {
@@ -9301,8 +9315,20 @@
     candidatePath: SharedDecorationRemovalMainStateCandidatePath = sharedDecorationRemovalMainStateCandidatePath.value,
   ) => {
     const decorationId = parseSharedDecorationRemovalDraftDecorationId(draft)
+    if (candidatePath === 'home.caveUnlocked' || candidatePath === 'home.greenhouseUnlocked') return `${candidatePath}.true`
+    if (candidatePath === 'home.farmhouseLevel') return `${candidatePath}.1`
+    if (candidatePath === 'home.cellarSlots') return `${candidatePath}.0`
+    if (candidatePath === 'home.caveChoice') return `${candidatePath}.mushroom`
     return decorationId ? `${candidatePath}.${decorationId}` : candidatePath
   }
+  const selectedSharedDecorationRemovalMainStateDraft = computed(() =>
+    fundLargeSpendDrafts.value.find(draft => draft.id === selectedSharedDecorationRemovalMainStateDraftId.value) ?? null
+  )
+  const sharedDecorationRemovalMainStateSelectorPlaceholder = computed(() =>
+    sharedDecorationRemovalMainStateDefaultSelector({
+      target_ref: selectedSharedDecorationRemovalMainStateDraft.value?.target_ref || largeFundSpendTargetRefs.shared_decoration_removal,
+    } as CohabitationFundLargeSpendDraft)
+  )
   const resetSharedDecorationRemovalMainStateSelector = (draft: CohabitationFundLargeSpendDraft) => {
     sharedDecorationRemovalMainStateSelector.value = sharedDecorationRemovalMainStateDefaultSelector(draft)
   }

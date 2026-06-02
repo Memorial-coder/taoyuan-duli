@@ -15091,6 +15091,14 @@ mutateGameplaySave(decorationRemovalDeliveredOwner, data => {
     paper_lantern: 2,
   }
 })
+mutateGameplaySave(decorationRemovalDeliveredPartner, data => {
+  data.home = data.home || {}
+  data.home.homeRenovationStates = {
+    ...(data.home.homeRenovationStates || {}),
+    stone_lantern: true,
+    tea_corner: true,
+  }
+})
 const decorationRemovalOwnerInventoryBeforeMainStateMutation = JSON.stringify(readGameplayData(decorationRemovalDeliveredOwner)?.inventory || {})
 const decorationRemovalPartnerInventoryBeforeMainStateMutation = JSON.stringify(readGameplayData(decorationRemovalDeliveredPartner)?.inventory || {})
 const decorationRemovalMainStateMutationPayload = {
@@ -15115,6 +15123,12 @@ const decorationRemovalMainStateMutationPayload = {
     exact_target_ref: 'decoration.placed.stone_lantern',
     delete_selector: 'decoration.placed.stone_lantern',
     decoration_id: 'stone_lantern',
+  }, {
+    username: decorationRemovalDeliveredPartner,
+    save_slot: 0,
+    candidate_path: 'home.homeRenovationStates',
+    exact_target_ref: 'home.homeRenovationStates.stone_lantern',
+    delete_selector: 'home.homeRenovationStates.stone_lantern',
   }],
 }
 const decorationRemovalMainStateMutation = await runtime.executeCohabitationSharedDecorationRemovalMainStateMutation(
@@ -15125,25 +15139,29 @@ const decorationRemovalMainStateMutation = await runtime.executeCohabitationShar
 assert.equal(decorationRemovalMainStateMutation.idempotent, false, 'shared decoration removal main state mutation should not be idempotent first time')
 assert.equal(decorationRemovalMainStateMutation.already_mutated, false, 'shared decoration removal main state mutation should execute first time')
 assert.equal(decorationRemovalMainStateMutation.fund.balance, decorationRemovalDeliveredBalanceBeforeDraft - 1300, 'main state mutation should not change shared fund balance')
-assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.receipts?.length, 1, 'main state mutation should write one personal receipt')
+assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.receipts?.length, 2, 'main state mutation should write owner decoration and partner home receipts')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.personal_save_changed, true, 'main state mutation should mark personal save changed')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.personal_home_mutated, true, 'main state mutation should mark personal home changed')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.shared_fund_changed, false, 'main state mutation should not change shared fund')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.shared_warehouse_changed, false, 'main state mutation should not change shared warehouse')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.personal_inventory_changed, false, 'main state mutation should not change personal inventory')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.execution_state, 'personal_main_state_mutated', 'main state mutation should close execution state')
-assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.receipts?.[0]?.delete_selector, 'decoration.placed.stone_lantern', 'main state mutation receipt should record exact selector')
-assert.equal(decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.receipts?.[0]?.mutation_result, 'decoration_placed_removed', 'main state mutation receipt should record placed decoration removal')
+const decorationRemovalMainStateReceipts = decorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.receipts || []
+assert.ok(decorationRemovalMainStateReceipts.find(receipt => receipt.delete_selector === 'decoration.placed.stone_lantern' && receipt.mutation_result === 'decoration_placed_removed'), 'main state mutation receipt should record placed decoration removal')
+assert.ok(decorationRemovalMainStateReceipts.find(receipt => receipt.delete_selector === 'home.homeRenovationStates.stone_lantern' && receipt.mutation_result === 'home_renovation_removed'), 'main state mutation receipt should record home renovation removal')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_ledger_entry?.personal_home_mutated, true, 'decoration ledger should mark personal home mutated')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_ledger_entry?.personal_save_changed, true, 'decoration ledger should mark personal save changed')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_ledger_entry?.shared_fund_changed, false, 'decoration ledger should keep shared fund boundary')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_ledger_entry?.shared_warehouse_changed, false, 'decoration ledger should keep shared warehouse boundary')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_ledger_entry?.shared_decoration_removal_main_state_mutation_state, 'personal_main_state_mutated', 'decoration ledger should read back mutation state')
-assert.equal(decorationRemovalMainStateMutation.shared_decoration_ledger_entry?.shared_decoration_removal_main_state_mutation_receipt_count, 1, 'decoration ledger should count personal mutation receipts')
+assert.equal(decorationRemovalMainStateMutation.shared_decoration_ledger_entry?.shared_decoration_removal_main_state_mutation_receipt_count, 2, 'decoration ledger should count personal mutation receipts')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_state_entry?.personal_home_mutated, true, 'decoration state should mark personal home mutated after adapter')
 assert.equal(decorationRemovalMainStateMutation.shared_decoration_state_entry?.shared_decoration_removal_main_state_mutation_state, 'personal_main_state_mutated', 'decoration state should read back mutation state')
+assert.equal(decorationRemovalMainStateMutation.shared_decoration_state_entry?.shared_decoration_removal_main_state_mutation_receipt_count, 2, 'decoration state should count personal mutation receipts')
 assert.equal(readGameplayData(decorationRemovalDeliveredOwner)?.decoration?.placed?.stone_lantern, undefined, 'shared decoration removal main state mutation should remove placed stone lantern from owner save')
 assert.equal(readGameplayData(decorationRemovalDeliveredOwner)?.decoration?.placed?.paper_lantern, 2, 'shared decoration removal main state mutation should keep unrelated placed decoration')
+assert.equal(readGameplayData(decorationRemovalDeliveredPartner)?.home?.homeRenovationStates?.stone_lantern, undefined, 'shared decoration removal main state mutation should remove partner home renovation state')
+assert.equal(readGameplayData(decorationRemovalDeliveredPartner)?.home?.homeRenovationStates?.tea_corner, true, 'shared decoration removal main state mutation should keep unrelated home renovation state')
 assert.equal(readGameplayData(decorationRemovalDeliveredOwner)?.player?.money, decorationRemovalDeliveredOwnerMoneyBeforeDraft, 'shared decoration removal main state mutation should not touch owner money')
 assert.equal(readGameplayData(decorationRemovalDeliveredPartner)?.player?.money, decorationRemovalDeliveredPartnerMoneyBeforeConfirm, 'shared decoration removal main state mutation should not touch partner money')
 assert.equal(JSON.stringify(readGameplayData(decorationRemovalDeliveredOwner)?.inventory || {}), decorationRemovalOwnerInventoryBeforeMainStateMutation, 'shared decoration removal main state mutation should not touch owner inventory')
@@ -15151,6 +15169,8 @@ assert.equal(JSON.stringify(readGameplayData(decorationRemovalDeliveredPartner)?
 const ownerDecorationRemovalMainStateReceipts = readGameplayData(decorationRemovalDeliveredOwner)?.onlineCohabitation?.shared_decoration_removal_main_state_receipts || []
 assert.equal(ownerDecorationRemovalMainStateReceipts.filter(receipt => receipt.idempotency_key === 'qa-shared-decoration-removal-main-state-mutation').length, 1, 'owner save should keep one shared decoration removal main state receipt')
 assert.equal(ownerDecorationRemovalMainStateReceipts[0]?.shared_decoration_ledger_id, decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.id, 'owner main state receipt should reference decoration ledger')
+const partnerDecorationRemovalMainStateReceipts = readGameplayData(decorationRemovalDeliveredPartner)?.onlineCohabitation?.shared_decoration_removal_main_state_receipts || []
+assert.equal(partnerDecorationRemovalMainStateReceipts.filter(receipt => receipt.idempotency_key === 'qa-shared-decoration-removal-main-state-mutation').length, 1, 'partner save should keep one shared decoration removal main state receipt')
 assert.ok(decorationRemovalMainStateMutation.contract.audit_log.find(entry => entry.action === 'shared_decoration_removal_main_state_mutation_applied' && entry.detail?.shared_decoration_ledger_id === decorationRemovalDeliveredReceipt.shared_decoration_ledger_entry?.id), 'main state mutation should write audit entry')
 const duplicateDecorationRemovalMainStateMutation = await runtime.executeCohabitationSharedDecorationRemovalMainStateMutation(
   decorationRemovalDeliveredContractId,
@@ -15159,9 +15179,10 @@ const duplicateDecorationRemovalMainStateMutation = await runtime.executeCohabit
 )
 assert.equal(duplicateDecorationRemovalMainStateMutation.idempotent, true, 'duplicate shared decoration removal main state mutation should replay idempotently')
 assert.equal(duplicateDecorationRemovalMainStateMutation.already_mutated, true, 'duplicate shared decoration removal main state mutation should report already mutated')
-assert.equal(duplicateDecorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.receipts?.length, 1, 'duplicate main state mutation should return original receipt evidence')
+assert.equal(duplicateDecorationRemovalMainStateMutation.shared_decoration_removal_main_state_mutation?.receipts?.length, 2, 'duplicate main state mutation should return original receipt evidence')
 assert.equal(readGameplayData(decorationRemovalDeliveredOwner)?.decoration?.placed?.stone_lantern, undefined, 'duplicate main state mutation should not restore or remove another decoration')
 assert.equal((readGameplayData(decorationRemovalDeliveredOwner)?.onlineCohabitation?.shared_decoration_removal_main_state_receipts || []).filter(receipt => receipt.idempotency_key === 'qa-shared-decoration-removal-main-state-mutation').length, 1, 'duplicate main state mutation should not duplicate owner receipt')
+assert.equal((readGameplayData(decorationRemovalDeliveredPartner)?.onlineCohabitation?.shared_decoration_removal_main_state_receipts || []).filter(receipt => receipt.idempotency_key === 'qa-shared-decoration-removal-main-state-mutation').length, 1, 'duplicate main state mutation should not duplicate partner receipt')
 const decorationRemovalDeliveredClearedPreview = await runtime.createSeparationPreview(decorationRemovalDeliveredContractId, {
   reason: 'qa shared decoration removal delivered receipt clears dispute freeze',
   idempotency_key: 'qa-shared-decoration-removal-delivered-cleared-preview',
