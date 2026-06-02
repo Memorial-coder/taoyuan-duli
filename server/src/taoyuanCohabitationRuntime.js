@@ -211,7 +211,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 42;
+const WAREHOUSE_ITEM_POLICY_VERSION = 43;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -253,10 +253,10 @@ const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
   'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill', 'marsh_luminous_cleansing_elixir', 'moon_pearl_calm_elixir', 'jade_orchid_focus_elixir',
   'rare_lotus_guard_elixir', 'jade_peach_spirit_elixir', 'snow_lotus_calm_elixir', 'dew_bloom_focus_elixir', 'star_lotus_calm_elixir',
   'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup', 'food_forest_tonic', 'food_spirit_herb_elixir',
-  'sturgeon', 'dragonfish', 'food_moonlight_sashimi', 'food_sturgeon_stew', 'food_dragon_sashimi', 'food_collectors_banquet',
+  'sturgeon', 'dragonfish', 'jade_dragon', 'food_moonlight_sashimi', 'food_sturgeon_stew', 'food_dragon_sashimi', 'food_collectors_banquet', 'food_legendary_feast',
   'crystal_ore', 'gold_ore', 'shadow_ore', 'void_ore', 'crystal_shrimp',
   'food_crystal_jelly', 'food_gold_dumpling', 'food_void_essence_soup', 'food_shadow_brew', 'food_void_elixir', 'food_miners_glory', 'food_abyss_stew',
-  'food_snow_plum_soup', 'food_desert_cactus_soup', 'food_date_cake',
+  'hanhai_silk', 'food_silk_dumpling_deluxe', 'food_snow_plum_soup', 'food_desert_cactus_soup', 'food_date_cake',
   'ley_crystal_shard', 'marsh_spore_sample', 'luminous_algae', 'wind_etched_core',
   'lotus_seed_rare', 'jade_peach', 'moon_pearl', 'jade_orchid',
 ]);
@@ -1845,6 +1845,20 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
     output_quantity: 1,
     output_quality: 'normal',
   },
+  shared_silk_dumpling_deluxe: {
+    id: 'shared_silk_dumpling_deluxe',
+    label: '共同灶台丝路饺子',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'hanhai_silk', quantity: 1, quality: 'normal' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+      { item_id: 'hanhai_spice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_silk_dumpling_deluxe',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
   shared_congee: {
     id: 'shared_congee',
     label: '共同灶台白粥',
@@ -1930,6 +1944,19 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'ginger', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_moonlight_sashimi',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_legendary_feast: {
+    id: 'shared_legendary_feast',
+    label: '共同灶台传说盛宴',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'jade_dragon', quantity: 1, quality: 'normal' },
+      { item_id: 'ginger', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_legendary_feast',
     output_quantity: 1,
     output_quality: 'normal',
   },
