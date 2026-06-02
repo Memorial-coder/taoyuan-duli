@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-02
+- 在线房间准备大厅组件：新增 `OnlineRoomLobbyDialog`，把房间摘要、成员准备状态、房主 / 成员主行动、最近反馈和禁用原因收进统一抽屉底座；结构 QA 已补 `online-room-lobby`、`online-room-member-list`、`online-room-primary-action` 等断言，后续节会 / 远征页面可接入准备流程。
 - 在线模块壳 tab 语义增强：`OnlineModuleShell` 新增主行动 / 状态 slot，模块 tab 增加 `tablist / tab / aria-selected / aria-controls` 与移动端 sticky 横向滚动；共同庄园、在线庄园、邻里、委托、村社内容区补 `tabpanel` 关联，移动端 smoke 改用稳定 `online-module-tab-*` 定位新 tab 语义。
 - 共同庄园审计详情浏览器保护：`game-smoke.spec.ts` 新增共同日志技术详情折叠测试，确认玩家摘要不暴露 `ledger / receipt / hash / idempotency / revision`，展开 `OnlineTechnicalDetails` 后仍可追踪原始 action、audit_id 和完整 detail 字段。
 - 在线节会房邀请面板接入：节会房和在线节会远征标签新增「邀请玩家」主按钮，打开统一 `OnlineInvitePanel` 承接批量邀请、已在房识别、逐项成功 / 失败反馈和失败重试；旧单人邀请输入与 `online-festival-room-invite-*`、`online-expedition-room-invite-*` test id 已移入默认折叠「备用邀请表单」。

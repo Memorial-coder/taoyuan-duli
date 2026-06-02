@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0602 在线房间准备大厅组件
+- 新增 `OnlineRoomLobbyDialog`，复用 `OnlineBottomSheet` 统一展示房间名、玩法、人数、状态、成员列表、最近反馈和主行动禁用原因；成员状态会区分房主、已准备、未准备、离线和被邀请。
+- 组件只发出 `invite`、`ready`、`unready`、`start-ready-check`、`start-countdown`、`settle`、`cancel-room`、`leave-room` 等事件，不直接调用 store；结构 QA 已补大厅 test id、事件和房主 / 成员能力判断断言，等待节会 / 远征页面接入准备流程。
+
 ### 0602 在线模块壳 tab 语义增强
 - `OnlineModuleShell` 新增 `primaryAction` / `status` slot，tab 区提供 `online-module-tablist`、`role="tablist"`，各 tab 保留旧 `online-module-tab-*` test id 并补 `role="tab"`、`aria-selected`、`aria-controls` 和顺序焦点控制。
 - 共同庄园、在线庄园、邻里、委托、村社内容区补 `tabpanel` 关联；在线委托移动端 smoke 改用稳定 tab test id 适配新语义，`qa:mobile-ui-smoke` 已通过。
