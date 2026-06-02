@@ -211,7 +211,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 40;
+const WAREHOUSE_ITEM_POLICY_VERSION = 41;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -256,6 +256,7 @@ const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
   'sturgeon', 'dragonfish', 'food_moonlight_sashimi', 'food_sturgeon_stew', 'food_dragon_sashimi', 'food_collectors_banquet',
   'crystal_ore', 'gold_ore', 'shadow_ore', 'void_ore', 'crystal_shrimp',
   'food_crystal_jelly', 'food_gold_dumpling', 'food_void_essence_soup', 'food_shadow_brew', 'food_void_elixir', 'food_miners_glory', 'food_abyss_stew',
+  'food_snow_plum_soup', 'food_desert_cactus_soup', 'food_date_cake',
   'ley_crystal_shard', 'marsh_spore_sample', 'luminous_algae', 'wind_etched_core',
   'lotus_seed_rare', 'jade_peach', 'moon_pearl', 'jade_orchid',
 ]);
@@ -2376,6 +2377,45 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'herb', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_abyss_stew',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_snow_plum_soup: {
+    id: 'shared_snow_plum_soup',
+    label: '共同灶台雪梅羹',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'snow_lotus', quantity: 1, quality: 'normal' },
+      { item_id: 'honey', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_snow_plum_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_desert_cactus_soup: {
+    id: 'shared_desert_cactus_soup',
+    label: '共同灶台仙人掌汤',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'hanhai_cactus', quantity: 2, quality: 'normal' },
+      { item_id: 'hanhai_spice', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_desert_cactus_soup',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_date_cake: {
+    id: 'shared_date_cake',
+    label: '共同灶台枣糕',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'hanhai_date', quantity: 3, quality: 'normal' },
+      { item_id: 'rice', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_date_cake',
     output_quantity: 1,
     output_quality: 'normal',
   },

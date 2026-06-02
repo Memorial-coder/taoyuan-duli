@@ -4504,7 +4504,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 40, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 41, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4565,6 +4565,12 @@ assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.incl
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('snow_lotus'), 'warehouse item policy should list valuable snow lotus base crop as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('hanhai_cactus'), 'warehouse item policy should list Hanhai cactus base crop as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('hanhai_date'), 'warehouse item policy should list Hanhai date base crop as rare items')
+const recipePolicyRareCropDishItemIds = [
+  'food_snow_plum_soup', 'food_desert_cactus_soup', 'food_date_cake',
+]
+for (const itemId of recipePolicyRareCropDishItemIds) {
+  assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list rare crop cooking item ${itemId} as rare items`)
+}
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('snow_lotus_calm_elixir'), 'warehouse item policy should list snow lotus elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('dew_bloom_focus_elixir'), 'warehouse item policy should list dew bloom elixir outputs as rare items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes('star_lotus_calm_elixir'), 'warehouse item policy should list star lotus elixir outputs as rare items')
@@ -4704,6 +4710,12 @@ const recipePolicyHanhaiCactusCatalog = recipePolicyWarehouseSnapshot.warehouse.
 assert.equal(recipePolicyHanhaiCactusCatalog?.classification, 'rare', 'warehouse item policy should classify Hanhai regional crops as rare')
 assert.equal(recipePolicyHanhaiCactusCatalog?.ordinary_flow_blocked, true, 'Hanhai regional crop policy should block ordinary warehouse flows')
 assert.equal(recipePolicyHanhaiCactusCatalog?.high_value_withdrawal_allowed, true, 'Hanhai regional crop policy should allow rare high-value drafts')
+for (const itemId of recipePolicyRareCropDishItemIds) {
+  const catalogEntry = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === itemId)
+  assert.equal(catalogEntry?.classification, 'rare', `warehouse item policy should classify rare crop dish ${itemId} as rare`)
+  assert.equal(catalogEntry?.ordinary_flow_blocked, true, `rare crop dish ${itemId} policy should block ordinary warehouse flows`)
+  assert.equal(catalogEntry?.high_value_withdrawal_allowed, true, `rare crop dish ${itemId} policy should allow rare high-value drafts`)
+}
 const recipePolicyWindJadeChestnutCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'wind_jade3_chestnut')
 assert.equal(recipePolicyWindJadeChestnutCatalog?.classification, 'rare', 'warehouse item policy should classify jade third-generation hybrid crops as rare')
 assert.equal(recipePolicyWindJadeChestnutCatalog?.ordinary_flow_blocked, true, 'jade third-generation hybrid crop policy should block ordinary warehouse flows')
@@ -5724,6 +5736,9 @@ for (const recipeId of [
   'shared_void_elixir',
   'shared_miners_glory',
   'shared_abyss_stew',
+  'shared_snow_plum_soup',
+  'shared_desert_cactus_soup',
+  'shared_date_cake',
 ]) {
   await assert.rejects(
     () => runtime.processCohabitationSharedWorkshopRecipe(recipePolicyContractId, {
@@ -5934,6 +5949,24 @@ await processRecipePolicyRareDish({
   outputItemId: 'food_abyss_stew',
   inputs: [{ itemId: 'shadow_ore', quantity: 1 }, { itemId: 'crystal_shrimp', quantity: 1 }, { itemId: 'herb', quantity: 1 }],
   rareInputItemIds: ['shadow_ore', 'crystal_shrimp'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_snow_plum_soup',
+  outputItemId: 'food_snow_plum_soup',
+  inputs: [{ itemId: 'snow_lotus', quantity: 1 }, { itemId: 'honey', quantity: 2 }],
+  rareInputItemIds: ['snow_lotus'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_desert_cactus_soup',
+  outputItemId: 'food_desert_cactus_soup',
+  inputs: [{ itemId: 'hanhai_cactus', quantity: 2 }, { itemId: 'hanhai_spice', quantity: 1 }],
+  rareInputItemIds: ['hanhai_cactus'],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_date_cake',
+  outputItemId: 'food_date_cake',
+  inputs: [{ itemId: 'hanhai_date', quantity: 3 }, { itemId: 'rice', quantity: 2 }],
+  rareInputItemIds: ['hanhai_date'],
 })
 await injectRecipePolicyStock('peach', 2, 'fine')
 await injectRecipePolicyStock('candied_peach', 1, 'fine')
