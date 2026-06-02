@@ -211,7 +211,7 @@ const SHARED_ALCHEMY_AUTO_RESULT_HEAT_PROFILES = Object.freeze({
 });
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_QUALITY_ORDER = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
-const WAREHOUSE_ITEM_POLICY_VERSION = 41;
+const WAREHOUSE_ITEM_POLICY_VERSION = 42;
 const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
   'rice', 'wheat', 'corn', 'tea', 'lotus', 'turnip', 'carrot', 'radish', 'sweet_potato', 'pumpkin', 'watermelon', 'sesame', 'peach', 'chili',
   'wood', 'stone', 'clay', 'coal', 'copper_ore', 'iron_ore', 'firewood', 'herb', 'honey', 'wild_berry', 'wild_mushroom', 'pine_cone', 'cabbage', 'lotus_seed', 'lotus_root', 'potato', 'ginger',
@@ -252,7 +252,7 @@ const WAREHOUSE_COMMON_ITEM_IDS = Object.freeze([
 const WAREHOUSE_RARE_MATERIAL_ITEM_IDS = Object.freeze([
   'rare_elixir_crystal', 'moon_herb', 'spirit_peach_elixir', 'ley_crystal_focus_elixir', 'wind_core_guard_pill', 'marsh_luminous_cleansing_elixir', 'moon_pearl_calm_elixir', 'jade_orchid_focus_elixir',
   'rare_lotus_guard_elixir', 'jade_peach_spirit_elixir', 'snow_lotus_calm_elixir', 'dew_bloom_focus_elixir', 'star_lotus_calm_elixir',
-  'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup',
+  'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup', 'food_forest_tonic', 'food_spirit_herb_elixir',
   'sturgeon', 'dragonfish', 'food_moonlight_sashimi', 'food_sturgeon_stew', 'food_dragon_sashimi', 'food_collectors_banquet',
   'crystal_ore', 'gold_ore', 'shadow_ore', 'void_ore', 'crystal_shrimp',
   'food_crystal_jelly', 'food_gold_dumpling', 'food_void_essence_soup', 'food_shadow_brew', 'food_void_elixir', 'food_miners_glory', 'food_abyss_stew',
@@ -2442,6 +2442,34 @@ const SHARED_WORKSHOP_RECIPE_CATALOG = Object.freeze({
       { item_id: 'firewood', quantity: 1, quality: 'normal' },
     ],
     output_item_id: 'food_mushroom_stew',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_forest_tonic: {
+    id: 'shared_forest_tonic',
+    label: '共同灶台林间补药',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'ginseng', quantity: 1, quality: 'normal' },
+      { item_id: 'wild_mushroom', quantity: 2, quality: 'normal' },
+      { item_id: 'herb', quantity: 2, quality: 'normal' },
+    ],
+    output_item_id: 'food_forest_tonic',
+    output_quantity: 1,
+    output_quality: 'normal',
+  },
+  shared_spirit_herb_elixir: {
+    id: 'shared_spirit_herb_elixir',
+    label: '共同灶台灵草秘药',
+    station: 'stove',
+    process_kind: 'cooking_dish',
+    input_items: [
+      { item_id: 'ginseng', quantity: 2, quality: 'normal' },
+      { item_id: 'herb', quantity: 3, quality: 'normal' },
+      { item_id: 'honey', quantity: 1, quality: 'normal' },
+    ],
+    output_item_id: 'food_spirit_herb_elixir',
     output_quantity: 1,
     output_quality: 'normal',
   },

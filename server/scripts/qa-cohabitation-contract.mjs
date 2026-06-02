@@ -4504,7 +4504,7 @@ await assert.rejects(
 await injectRecipePolicyStock('rice', 2)
 await injectRecipePolicyStock('wind_etched_core', 1)
 const recipePolicyWarehouseSnapshot = await runtime.getCohabitationWarehouse(recipePolicyContractId, actor(recipePolicyOwner))
-assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 41, 'warehouse snapshot should expose item policy version')
+assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.item_policy_version, 42, 'warehouse snapshot should expose item policy version')
 assert.equal(recipePolicyWarehouseSnapshot.warehouse.summary.unclassified_items_default_protected, true, 'warehouse snapshot should expose default protection for unclassified items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('rice'), 'warehouse item policy should list common items')
 assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.common_item_ids.includes('yam'), 'warehouse item policy should list base yam as common items')
@@ -4594,7 +4594,7 @@ for (const itemId of recipePolicyLateHybridCropIds) {
   assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list late hybrid crop ${itemId} as rare items`)
 }
 const recipePolicyGinsengRareDishItemIds = [
-  'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup',
+  'ginseng', 'food_ginseng_soup', 'food_herbal_pill', 'food_longevity_soup', 'food_scholars_porridge', 'food_antler_soup', 'food_forest_tonic', 'food_spirit_herb_elixir',
 ]
 for (const itemId of recipePolicyGinsengRareDishItemIds) {
   assert.ok(recipePolicyWarehouseSnapshot.warehouse.item_policy.rare_item_ids.includes(itemId), `warehouse item policy should list ginseng rare cooking item ${itemId} as rare items`)
@@ -4694,6 +4694,14 @@ const recipePolicyGinsengSoupCatalog = recipePolicyWarehouseSnapshot.warehouse.i
 assert.equal(recipePolicyGinsengSoupCatalog?.classification, 'rare', 'warehouse item policy should classify ginseng soup output as rare')
 assert.equal(recipePolicyGinsengSoupCatalog?.ordinary_flow_blocked, true, 'ginseng soup policy should block ordinary warehouse flows')
 assert.equal(recipePolicyGinsengSoupCatalog?.high_value_withdrawal_allowed, true, 'ginseng soup policy should allow rare high-value drafts')
+const recipePolicyForestTonicCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'food_forest_tonic')
+assert.equal(recipePolicyForestTonicCatalog?.classification, 'rare', 'warehouse item policy should classify forest tonic output as rare')
+assert.equal(recipePolicyForestTonicCatalog?.ordinary_flow_blocked, true, 'forest tonic policy should block ordinary warehouse flows')
+assert.equal(recipePolicyForestTonicCatalog?.high_value_withdrawal_allowed, true, 'forest tonic policy should allow rare high-value drafts')
+const recipePolicySpiritHerbElixirCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'food_spirit_herb_elixir')
+assert.equal(recipePolicySpiritHerbElixirCatalog?.classification, 'rare', 'warehouse item policy should classify spirit herb elixir output as rare')
+assert.equal(recipePolicySpiritHerbElixirCatalog?.ordinary_flow_blocked, true, 'spirit herb elixir policy should block ordinary warehouse flows')
+assert.equal(recipePolicySpiritHerbElixirCatalog?.high_value_withdrawal_allowed, true, 'spirit herb elixir policy should allow rare high-value drafts')
 const recipePolicySturgeonCatalog = recipePolicyWarehouseSnapshot.warehouse.item_policy.catalog_entries.find(item => item.item_id === 'sturgeon')
 assert.equal(recipePolicySturgeonCatalog?.classification, 'rare', 'warehouse item policy should classify sturgeon as a rare cooking material')
 assert.equal(recipePolicySturgeonCatalog?.ordinary_flow_blocked, true, 'sturgeon policy should block ordinary warehouse flows')
@@ -5721,6 +5729,8 @@ await assertRecipePolicyAlchemyResultBranches({
 
 for (const recipeId of [
   'shared_ginseng_soup',
+  'shared_forest_tonic',
+  'shared_spirit_herb_elixir',
   'shared_herbal_pill',
   'shared_longevity_soup',
   'shared_scholars_porridge',
@@ -5862,6 +5872,16 @@ await processRecipePolicyRareDish({
   recipeId: 'shared_ginseng_soup',
   outputItemId: 'food_ginseng_soup',
   inputs: [{ itemId: 'ginseng', quantity: 1 }, { itemId: 'herb', quantity: 2 }, { itemId: 'firewood', quantity: 1 }],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_forest_tonic',
+  outputItemId: 'food_forest_tonic',
+  inputs: [{ itemId: 'ginseng', quantity: 1 }, { itemId: 'wild_mushroom', quantity: 2 }, { itemId: 'herb', quantity: 2 }],
+})
+await processRecipePolicyRareDish({
+  recipeId: 'shared_spirit_herb_elixir',
+  outputItemId: 'food_spirit_herb_elixir',
+  inputs: [{ itemId: 'ginseng', quantity: 2 }, { itemId: 'herb', quantity: 3 }, { itemId: 'honey', quantity: 1 }],
 })
 await processRecipePolicyRareDish({
   recipeId: 'shared_herbal_pill',

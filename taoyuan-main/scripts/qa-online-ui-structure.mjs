@@ -447,6 +447,8 @@ expectContains('online/OnlineCohabitationView.vue', 'shared_abyss_stew', 'cohabi
 expectContains('online/OnlineCohabitationView.vue', 'shared_snow_plum_soup', 'cohabitation shared workshop should keep rare snow lotus soup in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_desert_cactus_soup', 'cohabitation shared workshop should keep Hanhai cactus soup in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_date_cake', 'cohabitation shared workshop should keep Hanhai date cake in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_forest_tonic', 'cohabitation shared workshop should keep rare forest tonic in the frontend catalog')
+expectContains('online/OnlineCohabitationView.vue', 'shared_spirit_herb_elixir', 'cohabitation shared workshop should keep rare spirit herb elixir in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_scrambled_egg_rice', 'cohabitation shared workshop should keep animal-product cooking recipes in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_camel_milk_tea', 'cohabitation shared workshop should keep animal-product tea recipes in the frontend catalog')
 expectContains('online/OnlineCohabitationView.vue', 'shared_pigeon_egg_herb_soup', 'cohabitation shared workshop should keep advanced animal-product soups in the frontend catalog')
