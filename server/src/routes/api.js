@@ -368,6 +368,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_shared_decoration_move',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-decorations\/removal\/main-state-mutation$/i,
+    action: 'cohabitation_shared_decoration_removal_main_state_mutation',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/contribute$/i,
     action: 'cohabitation_fund_contribute',
   },
@@ -3944,6 +3948,17 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-decoratio
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'move shared decoration failed' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-decorations/removal/main-state-mutation', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.executeCohabitationSharedDecorationRemovalMainStateMutation(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '执行共同装修拆除个人主状态变更失败' });
     }
   });
 });
