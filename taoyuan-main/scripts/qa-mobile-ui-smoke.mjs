@@ -1006,7 +1006,115 @@ function buildMobileSmokeWorldEventOverview() {
   }
 }
 
-function buildMobileSmokeFestivalRoomOverview() {
+function buildMobileSmokeFestivalGameplay() {
+  return {
+    template_id: 'assembly',
+    template_label: '灯会共建',
+    template_kind: 'scene',
+    template_summary: '共同布置灯会现场。',
+    objective_label: '布置现场',
+    progress_value: 5,
+    progress_target: 8,
+    progress_percent: 62,
+    progress_text: '5/8',
+    score_label: '热闹值',
+    score_value: 5,
+    phase: 'active',
+    phase_label: '进行中',
+    last_action_id: '',
+    last_action_summary: '移动端 smoke 房间等待房主处理。',
+    last_actor_username: '',
+    last_actor_display_name: '',
+    is_completed: false,
+    completed_at: 0,
+    contributions: [],
+    festival_state: null,
+    available_actions: []
+  }
+}
+
+function buildMobileSmokeFestivalRoomSnapshot() {
+  return {
+    id: 'mobile-smoke-festival-room',
+    title: '移动端节会房',
+    template_id: 'lantern_fair',
+    template_label: '上元灯会',
+    template_summary: '灯会共建和愿望签协作。',
+    gameplay_template_id: 'assembly',
+    host_username: 'mobile_smoke_owner',
+    host_display_name: '移动端烟测号',
+    state: 'running',
+    state_label: '进行中',
+    state_reason: '',
+    member_limit: 4,
+    countdown_seconds: 30,
+    reconnect_window_seconds: 180,
+    created_at: 1,
+    updated_at: 2,
+    ready_check_started_at: 0,
+    countdown_started_at: 0,
+    countdown_ends_at: 0,
+    running_started_at: 2,
+    settled_at: 0,
+    closed_at: 0,
+    aborted_at: 0,
+    settlement_version: 0,
+    members: [
+      {
+        username: 'mobile_smoke_owner',
+        display_name: '移动端烟测号',
+        role: 'host',
+        status: 'active',
+        status_label: '房主进行中',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 2,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'mobile_smoke_friend',
+        display_name: '协作好友',
+        role: 'member',
+        status: 'active',
+        status_label: '参与中',
+        invited_at: 1,
+        joined_at: 1,
+        ready_at: 2,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ],
+    invitations: [],
+    recent_events: [],
+    action_log: [],
+    settlement_receipts: [],
+    visual_state: emptyVisualState,
+    gameplay: buildMobileSmokeFestivalGameplay(),
+    opening_ceremony: null,
+    joined_member_count: 2,
+    ready_member_count: 2,
+    my_member_status: 'active',
+    invitation_id: '',
+    can_join: false,
+    can_leave: false,
+    can_ready: false,
+    can_unready: false,
+    can_disconnect: false,
+    can_reconnect: false,
+    can_host_ready_check: false,
+    can_host_start_countdown: false,
+    can_host_settle: true,
+    can_host_close: true
+  }
+}
+
+function buildMobileSmokeFestivalRoomOverview(roomState = 'empty') {
+  const myRoom = roomState === 'host-running' ? buildMobileSmokeFestivalRoomSnapshot() : null
   return {
     ok: true,
     bulletin: '移动端节会房 smoke',
@@ -1056,7 +1164,7 @@ function buildMobileSmokeFestivalRoomOverview() {
         action_options: []
       }
     ],
-    my_room: null,
+    my_room: myRoom,
     invited_rooms: [],
     visible_rooms: [],
     recent_memorials: [],
@@ -1427,6 +1535,7 @@ async function createPage(browser, viewport, options = {}) {
   const mockOrders = Boolean(options.mockOrders)
   const mockManor = Boolean(options.mockManor)
   const mockFestivalRoom = Boolean(options.mockFestivalRoom)
+  const mockFestivalRoomState = options.mockFestivalRoomState || 'empty'
   const context = await browser.newContext({
     viewport,
     locale: 'zh-CN',
@@ -1516,7 +1625,7 @@ async function createPage(browser, viewport, options = {}) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(buildMobileSmokeFestivalRoomOverview())
+        body: JSON.stringify(buildMobileSmokeFestivalRoomOverview(mockFestivalRoomState))
       })
     })
 
@@ -1715,9 +1824,10 @@ async function captureScenario({
   mockOrders = false,
   mockManor = false,
   mockFestivalRoom = false,
+  mockFestivalRoomState = 'empty',
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor, mockFestivalRoom })
+  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor, mockFestivalRoom, mockFestivalRoomState })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -1931,13 +2041,17 @@ async function prepareOnlineCenterMobile(page) {
   expect(layoutIssues.stickyPrimaryInViewport).toBe(true)
 }
 
-async function prepareOnlineFestivalRoomWizardMobile(page) {
+async function ensureOnlineFestivalRoomTab(page) {
   await expect(page.getByTestId('online-festival-page')).toBeVisible()
   const festivalRoomTab = page.getByTestId('online-module-tab-festival-room')
   await expect(festivalRoomTab).toBeVisible()
   if (await festivalRoomTab.getAttribute('aria-selected') !== 'true') {
     await festivalRoomTab.click()
   }
+}
+
+async function prepareOnlineFestivalRoomWizardMobile(page) {
+  await ensureOnlineFestivalRoomTab(page)
 
   const createTrigger = page.getByTestId('online-room-create-trigger')
   await expect(createTrigger).toBeVisible()
@@ -2021,6 +2135,175 @@ async function prepareOnlineFestivalRoomWizardMobile(page) {
   await createTrigger.click()
   await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
   await expect(page.getByTestId('online-room-wizard-next')).toBeVisible()
+}
+
+async function assertFestivalRoomLobbyMobileLayout(page) {
+  const layoutIssues = await page.evaluate(() => {
+    const overlay = document.querySelector('[data-testid="online-bottom-sheet"]')
+    const panel = overlay?.querySelector('.online-bottom-sheet__panel')
+    const footer = overlay?.querySelector('.online-bottom-sheet__footer')
+    const closeButton = document.querySelector('[data-testid="online-bottom-sheet-close"]')
+    const primaryAction = document.querySelector('[data-testid="online-room-primary-action"]')
+    const memberList = document.querySelector('[data-testid="online-room-member-list"]')
+    const visibleControls = Array.from(overlay?.querySelectorAll('button, input, select, textarea') ?? [])
+      .filter(element => {
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    const clippedControls = visibleControls
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.label)
+    const panelRect = panel?.getBoundingClientRect()
+    const footerRect = footer?.getBoundingClientRect()
+    const closeRect = closeButton?.getBoundingClientRect()
+    const primaryRect = primaryAction?.getBoundingClientRect()
+    const memberListRect = memberList?.getBoundingClientRect()
+
+    return {
+      bodyOverflow: document.body.style.overflow,
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clippedControls,
+      panelLeft: panelRect?.left ?? Number.NaN,
+      panelRight: panelRect?.right ?? Number.NaN,
+      panelTop: panelRect?.top ?? Number.NaN,
+      panelBottom: panelRect?.bottom ?? Number.NaN,
+      footerBottom: footerRect?.bottom ?? Number.NaN,
+      closeTop: closeRect?.top ?? Number.NaN,
+      closeRight: closeRect?.right ?? Number.NaN,
+      closeWidth: closeRect?.width ?? 0,
+      closeHeight: closeRect?.height ?? 0,
+      primaryTop: primaryRect?.top ?? Number.NaN,
+      primaryBottom: primaryRect?.bottom ?? Number.NaN,
+      primaryHeight: primaryRect?.height ?? 0,
+      memberListTop: memberListRect?.top ?? Number.NaN,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+
+  expect(layoutIssues.bodyOverflow).toBe('hidden')
+  expect(layoutIssues.docOverflow).toBeLessThanOrEqual(4)
+  expect(layoutIssues.clippedControls).toEqual([])
+  expect(layoutIssues.panelLeft).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelRight).toBeLessThanOrEqual(layoutIssues.viewportWidth + 1)
+  expect(layoutIssues.panelTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.footerBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.closeTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.closeRight).toBeLessThanOrEqual(layoutIssues.viewportWidth + 1)
+  expect(layoutIssues.closeWidth).toBeGreaterThanOrEqual(36)
+  expect(layoutIssues.closeHeight).toBeGreaterThanOrEqual(32)
+  expect(layoutIssues.primaryTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.primaryBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.primaryHeight).toBeGreaterThanOrEqual(44)
+  expect(layoutIssues.memberListTop).toBeLessThan(layoutIssues.viewportHeight)
+}
+
+async function prepareOnlineFestivalRoomLobbyMobile(page) {
+  await ensureOnlineFestivalRoomTab(page)
+  await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+  await expect(page.getByTestId('online-visual-room-title')).toContainText('移动端节会房')
+  await expect(page.getByText('进行中').first()).toBeVisible()
+
+  const lobbyTrigger = page.getByTestId('online-festival-room-lobby-trigger')
+  await expect(lobbyTrigger).toBeVisible()
+  await lobbyTrigger.click()
+
+  await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-room-lobby')).toBeVisible()
+  await expect(page.getByTestId('online-room-member-list')).toContainText('移动端烟测号')
+  await expect(page.getByTestId('online-room-member-list')).toContainText('协作好友')
+  await expect(page.getByTestId('online-room-primary-action')).toBeVisible()
+  await expect(page.getByTestId('online-room-primary-action')).toContainText('进入玩法')
+  await expect(page.getByTestId('online-room-action-cancel-room')).toBeVisible()
+
+  await assertFestivalRoomLobbyMobileLayout(page)
+}
+
+async function prepareOnlineFestivalRoomSettleConfirmMobile(page) {
+  await ensureOnlineFestivalRoomTab(page)
+  await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+
+  await page.getByTestId('online-technical-details-toggle').filter({ hasText: '备用房间操作' }).click()
+  await expect(page.getByTestId('online-festival-room-lobby-backup-actions')).toBeVisible()
+  await expect(page.getByTestId('online-festival-room-settle-submit')).toBeVisible()
+  await page.getByTestId('online-festival-room-settle-submit').click()
+
+  await expect(page.getByTestId('online-room-settle-confirm')).toHaveCount(1)
+  await expect(page.getByTestId('online-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('节会房间')
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('移动端节会房')
+  await expect(page.getByTestId('online-confirm-asset-list')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-recovery-hint')).toContainText('可刷新后再次尝试')
+  await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-action-dialog-cancel')).toBeVisible()
+
+  const layoutIssues = await page.evaluate(() => {
+    const overlay = document.querySelector('[data-testid="online-action-dialog"]')
+    const panel = overlay?.querySelector('[role="dialog"]')
+    const confirmButton = document.querySelector('[data-testid="online-confirm-action-dialog-confirm"]')
+    const cancelButton = document.querySelector('[data-testid="online-confirm-action-dialog-cancel"]')
+    const impactList = document.querySelector('[data-testid="online-confirm-impact-list"]')
+    const visibleControls = Array.from(overlay?.querySelectorAll('button, input, select, textarea') ?? [])
+      .filter(element => {
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    const clippedControls = visibleControls
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.label)
+    const panelRect = panel?.getBoundingClientRect()
+    const confirmRect = confirmButton?.getBoundingClientRect()
+    const cancelRect = cancelButton?.getBoundingClientRect()
+    const impactRect = impactList?.getBoundingClientRect()
+
+    return {
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clippedControls,
+      panelLeft: panelRect?.left ?? Number.NaN,
+      panelRight: panelRect?.right ?? Number.NaN,
+      panelTop: panelRect?.top ?? Number.NaN,
+      panelBottom: panelRect?.bottom ?? Number.NaN,
+      impactTop: impactRect?.top ?? Number.NaN,
+      confirmBottom: confirmRect?.bottom ?? Number.NaN,
+      confirmHeight: confirmRect?.height ?? 0,
+      cancelHeight: cancelRect?.height ?? 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+
+  expect(layoutIssues.docOverflow).toBeLessThanOrEqual(4)
+  expect(layoutIssues.clippedControls).toEqual([])
+  expect(layoutIssues.panelLeft).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelRight).toBeLessThanOrEqual(layoutIssues.viewportWidth + 1)
+  expect(layoutIssues.panelTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.impactTop).toBeLessThan(layoutIssues.viewportHeight)
+  expect(layoutIssues.confirmBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.confirmHeight).toBeGreaterThanOrEqual(32)
+  expect(layoutIssues.cancelHeight).toBeGreaterThanOrEqual(32)
 }
 
 async function prepareOnlineOrdersMobile(page) {
@@ -2478,6 +2761,26 @@ async function main() {
       })
       await captureScenario({
         browser,
+        label: '26-online-festival-room-lobby-mobile-390x844',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-bottom-sheet"]',
+        mockFestivalRoom: true,
+        mockFestivalRoomState: 'host-running',
+        prepare: prepareOnlineFestivalRoomLobbyMobile
+      })
+      await captureScenario({
+        browser,
+        label: '27-online-festival-room-settle-confirm-mobile-390x844',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-confirm-action-dialog"]',
+        mockFestivalRoom: true,
+        mockFestivalRoomState: 'host-running',
+        prepare: prepareOnlineFestivalRoomSettleConfirmMobile
+      })
+      await captureScenario({
+        browser,
         label: '25-online-orders-mobile-390x844',
         hash: '/#/game/online/orders',
         viewport: { width: 390, height: 844 },
@@ -2501,6 +2804,26 @@ async function main() {
         primarySelector: '[data-testid="online-bottom-sheet"]',
         mockFestivalRoom: true,
         prepare: prepareOnlineFestivalRoomWizardMobile
+      })
+      await captureScenario({
+        browser,
+        label: '28-online-festival-room-lobby-mobile-360x780',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-bottom-sheet"]',
+        mockFestivalRoom: true,
+        mockFestivalRoomState: 'host-running',
+        prepare: prepareOnlineFestivalRoomLobbyMobile
+      })
+      await captureScenario({
+        browser,
+        label: '29-online-festival-room-settle-confirm-mobile-360x780',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-confirm-action-dialog"]',
+        mockFestivalRoom: true,
+        mockFestivalRoomState: 'host-running',
+        prepare: prepareOnlineFestivalRoomSettleConfirmMobile
       })
       await captureScenario({
         browser,
@@ -2604,7 +2927,7 @@ async function main() {
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
         '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
-        '在线节会房场景使用 mock 登录态与房间模板数据，覆盖 390x844 与 360x780 视口下创建向导底部抽屉、footer 主按钮、关闭按钮、背景滚动锁定和横向溢出断言。',
+        '在线节会房场景使用 mock 登录态与房间模板数据，覆盖 390x844 与 360x780 视口下创建向导底部抽屉、运行中准备大厅主行动、结算确认弹窗、footer 主按钮、关闭按钮、背景滚动锁定和横向溢出断言。',
         '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、节庆筹备布景搭设、贡献后阶段反馈和移动端横向溢出断言。',
         '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]

@@ -74,7 +74,7 @@
         <button
           v-if="primaryAction"
           type="button"
-          class="online-action-btn online-action-btn--primary min-h-[44px] w-full justify-center"
+          class="online-action-btn online-action-btn--primary online-room-lobby__primary-action min-h-[44px] w-full justify-center"
           data-testid="online-room-primary-action"
           :disabled="primaryActionDisabled"
           @click="executeAction(primaryAction)"
@@ -537,3 +537,9 @@
     }
   }
 </script>
+
+<style scoped>
+  .online-room-lobby__primary-action {
+    min-height: 44px;
+  }
+</style>
