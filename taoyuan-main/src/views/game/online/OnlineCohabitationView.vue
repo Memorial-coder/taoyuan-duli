@@ -2209,145 +2209,34 @@
         </div>
       </CohabitationFundPanel>
 
-      <div v-else-if="activeTab === 'permissions'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div class="game-panel-muted p-3">
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-accent">
-              <ShieldCheck :size="13" />
-              <p class="text-sm">成员权限</p>
-            </div>
-            <span class="text-[10px] text-muted">{{ cohabitationStore.permissionsPanel?.editable_by_actor ? '可管理' : '只读' }}</span>
-          </div>
-          <div v-if="permissionMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有权限面板数据。</div>
-          <div v-else class="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pr-1">
-            <div v-for="member in permissionMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-3">
-              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div class="min-w-0">
-                  <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ member.role }} · {{ member.manor_role || '无家族职位' }}</p>
-                </div>
-                <div class="flex shrink-0 flex-col items-start gap-2 md:items-end">
-                  <span class="w-fit text-[10px] text-accent">{{ enabledPermissionCount(member.permissions) }} 项已开</span>
-                  <button
-                    v-if="canManagePermissionPanel"
-                    type="button"
-                    class="online-action-btn online-action-btn--compact inline-flex items-center justify-center gap-1"
-                    :disabled="cohabitationStore.actionLoading || member.default_restore_available !== true"
-                    :data-testid="`online-cohabitation-permission-default-restore-${member.username}`"
-                    title="按当前契约或家族职位恢复默认权限"
-                    @click="restoreMemberDefaultPermissions(member)"
-                  >
-                    <RotateCcw :size="12" />
-                    <span>恢复默认</span>
-                  </button>
-                </div>
-              </div>
-              <div class="mt-3 grid gap-2 md:grid-cols-2">
-                <div v-for="group in permissionGroups(member.permissions)" :key="`${member.username}-${group.id}`" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[10px] text-muted">{{ permissionGroupLabel(group.id) }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-accent">{{ group.enabled }}/{{ group.total }}</p>
-                </div>
-              </div>
-              <div
-                v-if="canManagePermissionPanel"
-                class="mt-3 grid gap-2"
-                data-testid="online-cohabitation-permission-grouped-toggles"
-              >
-                <div
-                  v-for="group in permissionToggleGroups(member.permissions)"
-                  :key="`${member.username}-toggle-group-${group.id}`"
-                  class="border border-accent/10 bg-bg/30 p-2"
-                  :data-testid="`online-cohabitation-permission-toggle-group-${group.id}`"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px] text-accent">{{ permissionGroupLabel(group.id) }}</p>
-                    <span class="text-[10px] text-muted">{{ group.enabled }}/{{ group.total }}</span>
-                  </div>
-                  <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                    <button
-                      v-for="option in group.options"
-                      :key="`${member.username}-${option.group}-${option.key}`"
-                      type="button"
-                      class="online-action-btn online-action-btn--compact justify-between"
-                      :disabled="cohabitationStore.actionLoading"
-                      :data-testid="`online-cohabitation-permission-${member.username}-${option.group}-${option.key}`"
-                      @click="toggleMemberPermission(member, option)"
-                    >
-                      <span>{{ option.label }}</span>
-                      <span>{{ member.permissions?.[option.group]?.[option.key] ? '开启' : '关闭' }}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <p v-if="permissionActionMessage" class="mt-2 text-[10px] leading-4" :class="permissionActionOk ? 'text-emerald-200' : 'text-red-100'">
-            {{ permissionActionMessage }}
-          </p>
-        </div>
-        <div class="space-y-3">
-          <div class="game-panel-muted p-3">
-            <p class="text-sm text-accent">强制安全阀</p>
-            <div class="mt-3 space-y-2">
-              <div
-                v-for="entry in safetyRailEntries"
-                :key="entry.key"
-                class="flex items-center justify-between gap-2 border border-accent/10 bg-black/10 p-2 text-xs"
-              >
-                <span class="text-muted">{{ safetyRailLabel(entry.key) }}</span>
-                <span :class="entry.enabled ? 'text-emerald-200' : 'text-muted'">{{ entry.enabled ? '开启' : '关闭' }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="game-panel-muted p-3">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-sm text-accent">家族职位</p>
-              <span class="text-[10px] text-muted">{{ cohabitationStore.rolePanel?.role_management_enabled ? (canManageRolePanel ? '可管理' : '只读') : '未启用' }}</span>
-            </div>
-            <div v-if="roleMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">当前契约没有家族职位面板。</div>
-            <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
-              <div v-for="member in roleMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
-                  </div>
-                  <span class="shrink-0 text-[10px] text-accent">{{ member.can_manage_roles ? '家主' : '成员' }}</span>
-                </div>
-                <p v-if="member.permission_focus?.length" class="mt-2 text-[10px] leading-4 text-muted">
-                  {{ member.permission_focus.map(familyRoleFocusLabel).join('、') }}
-                </p>
-                <div v-if="canManageRolePanel" class="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    v-for="option in roleOptions"
-                    :key="`${member.username}-${option.id}`"
-                    type="button"
-                    class="online-action-btn online-action-btn--compact justify-center"
-                    :disabled="cohabitationStore.actionLoading || member.manor_role === option.id"
-                    :data-testid="`online-cohabitation-role-${member.username}-${option.id}`"
-                    @click="changeMemberRole(member, option)"
-                  >
-                    {{ option.label }}
-                  </button>
-                </div>
-              </div>
-            </div>
-            <p v-if="roleActionMessage" class="mt-2 text-[10px] leading-4" :class="roleActionOk ? 'text-emerald-200' : 'text-red-100'">
-              {{ roleActionMessage }}
-            </p>
-          </div>
-          <div class="game-panel-muted p-3">
-            <p class="text-sm text-accent">权限审计</p>
-            <div v-if="permissionAudits.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无权限变更审计。</div>
-            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-              <div v-for="entry in permissionAudits" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-xs text-text">{{ entry.actor_display_name || entry.actor_username }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ entry.action }} · {{ formatTime(entry.at) }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <CohabitationGovernancePanel
+        v-else-if="activeTab === 'permissions'"
+        :editable-by-actor="cohabitationStore.permissionsPanel?.editable_by_actor"
+        :permission-members="permissionMembers"
+        :action-loading="cohabitationStore.actionLoading"
+        :can-manage-permission-panel="canManagePermissionPanel"
+        :permission-action-message="permissionActionMessage"
+        :permission-action-ok="permissionActionOk"
+        :enabled-permission-count="enabledPermissionCount"
+        :permission-groups="permissionGroups"
+        :permission-toggle-groups="permissionToggleGroups"
+        :permission-group-label="permissionGroupLabel"
+        :safety-rail-entries="safetyRailEntries"
+        :safety-rail-label="safetyRailLabel"
+        :role-management-enabled="cohabitationStore.rolePanel?.role_management_enabled"
+        :can-manage-role-panel="canManageRolePanel"
+        :role-members="roleMembers"
+        :role-options="roleOptions"
+        :family-role-label="familyRoleLabel"
+        :family-role-focus-label="familyRoleFocusLabel"
+        :role-action-message="roleActionMessage"
+        :role-action-ok="roleActionOk"
+        :permission-audits="permissionAudits"
+        :format-time="formatTime"
+        @restore-default="restoreMemberDefaultPermissions"
+        @toggle-permission="toggleMemberPermission"
+        @change-role="changeMemberRole"
+      />
 
       <div v-else-if="activeTab === 'orders'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
@@ -3600,6 +3489,7 @@
   } from 'lucide-vue-next'
   import CohabitationFamilyFestivalPanel from '@/components/game/online/cohabitation/CohabitationFamilyFestivalPanel.vue'
   import CohabitationFundPanel from '@/components/game/online/cohabitation/CohabitationFundPanel.vue'
+  import CohabitationGovernancePanel from '@/components/game/online/cohabitation/CohabitationGovernancePanel.vue'
   import CohabitationOverviewPanel from '@/components/game/online/cohabitation/CohabitationOverviewPanel.vue'
   import CohabitationSharedMapPanel from '@/components/game/online/cohabitation/CohabitationSharedMapPanel.vue'
   import CohabitationWarehousePanel from '@/components/game/online/cohabitation/CohabitationWarehousePanel.vue'

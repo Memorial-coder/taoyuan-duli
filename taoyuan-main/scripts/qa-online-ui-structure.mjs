@@ -69,6 +69,7 @@ utilitySources.set('components/game/online/OnlineStatusBanner.vue', await readFi
 utilitySources.set('components/game/online/OnlineVisualRoomShell.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineVisualRoomShell.vue'), 'utf8'))
 utilitySources.set('components/game/online/cohabitation/CohabitationSharedMapPanel.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'cohabitation', 'CohabitationSharedMapPanel.vue'), 'utf8'))
 utilitySources.set('components/game/online/cohabitation/CohabitationFundPanel.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'cohabitation', 'CohabitationFundPanel.vue'), 'utf8'))
+utilitySources.set('components/game/online/cohabitation/CohabitationGovernancePanel.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'cohabitation', 'CohabitationGovernancePanel.vue'), 'utf8'))
 utilitySources.set('components/game/online/OnlineOrderStoryFlowPanel.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineOrderStoryFlowPanel.vue'), 'utf8'))
 utilitySources.set('data/onlineFestivalSceneAssets.ts', await readFile(path.join(srcRoot, 'data', 'onlineFestivalSceneAssets.ts'), 'utf8'))
 utilitySources.set('data/onlineVisualFeatureFlags.ts', await readFile(path.join(srcRoot, 'data', 'onlineVisualFeatureFlags.ts'), 'utf8'))
@@ -728,8 +729,8 @@ expectContains('online/OnlineCohabitationView.vue', 'home.caveUnlocked', '共同
 expectContains('online/OnlineCohabitationView.vue', 'home.cellarSlots', '共同庄园建筑页应允许个人主状态精确变更执行酒窖陈酿槽窄 selector')
 expectContains('online/OnlineCohabitationView.vue', 'home.greenhouseUnlocked', '共同庄园建筑页应允许个人主状态精确变更执行温室解锁态窄 selector')
 expectContains('online/OnlineCohabitationView.vue', 'home.farmhouseLevel', '共同庄园建筑页应允许个人主状态精确变更执行农舍等级窄 selector')
-expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-permission-default-restore-', '共同庄园权限面板应提供默认权限恢复入口')
-expectContains('online/OnlineCohabitationView.vue', 'default_restore_changed_count', '共同庄园权限面板应展示与默认权限的偏离数量')
+expectContains('components/game/online/cohabitation/CohabitationGovernancePanel.vue', 'online-cohabitation-permission-default-restore-', '共同庄园权限面板应提供默认权限恢复入口')
+expectContains('components/game/online/cohabitation/CohabitationGovernancePanel.vue', 'default_restore_changed_count', '共同庄园权限面板应展示与默认权限的偏离数量')
 expectContains('online/OnlineCohabitationView.vue', 'restoreMemberDefaultPermissions', '共同庄园权限面板应调用默认权限恢复动作')
 expectContains('utils/cohabitationApi.ts', '/permissions/default-restore', '共同庄园 API 应接入默认权限恢复路由')
 expectContains('stores/useCohabitationStore.ts', 'restoreMemberDefaultPermissions', '共同庄园 store 应导出默认权限恢复动作')
@@ -830,10 +831,10 @@ expectContains('utils/cohabitationApi.ts', '/family-child-care', '共同孩子�
 expectContains('utils/cohabitationApi.ts', 'recordCohabitationFamilyChildCare', '共同孩子照料 API 应导出记录方法')
 expectContains('stores/useCohabitationStore.ts', 'recordFamilyChildCare', '共同庄园 store 应导出孩子照料记录动作')
 expectContains('online/OnlineCohabitationView.vue', 'spend_medium', '共同庄园权限面板应提供中额基金开关')
-expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-permission-grouped-toggles', '共同庄园权限面板应按权限组展示开关')
-expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-permission-toggle-group-', '共同庄园权限面板应给每个权限组稳定测试钩子')
-expectContains('online/OnlineCohabitationView.vue', 'permissionToggleGroups', '共同庄园权限面板不应把全部权限开关堆成长表')
-expectContains('online/OnlineCohabitationView.vue', 'sm:grid-cols-2', '共同庄园权限组内开关在移动端应保持可读网格')
+expectContains('components/game/online/cohabitation/CohabitationGovernancePanel.vue', 'online-cohabitation-permission-grouped-toggles', '共同庄园权限面板应按权限组展示开关')
+expectContains('components/game/online/cohabitation/CohabitationGovernancePanel.vue', 'online-cohabitation-permission-toggle-group-', '共同庄园权限面板应给每个权限组稳定测试钩子')
+expectContains('components/game/online/cohabitation/CohabitationGovernancePanel.vue', 'permissionToggleGroups', '共同庄园权限面板不应把全部权限开关堆成长表')
+expectContains('components/game/online/cohabitation/CohabitationGovernancePanel.vue', 'sm:grid-cols-2', '共同庄园权限组内开关在移动端应保持可读网格')
 const expectedCohabitationPermissionOptions = [
   ['farm', 'water'],
   ['farm', 'cure_pests'],

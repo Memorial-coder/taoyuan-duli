@@ -8,6 +8,10 @@
 - `qa-mobile-ui-smoke` 新增运行中节会房 mock，覆盖 390x844 / 360x780 下打开准备大厅、成员列表、主行动安全区和备用结算确认弹窗，并生成对应截图与 summary label。
 - `OnlineRoomLobbyDialog` 的 `online-room-primary-action` 增加组件内 44px 最小高度保护，避免全局紧凑按钮样式把移动端房间主行动压到 42px。
 
+### 0603 共同庄园治理权限面板拆分
+- 新增 `CohabitationGovernancePanel`，把成员权限、默认权限恢复、权限组开关、安全阀、家族职位和权限审计从 `OnlineCohabitationView.vue` 拆出。
+- 父页面继续持有权限 / 角色 helper 与既有 store action；`qa-online-ui-structure` 改为读取新组件并继续守护 `online-cohabitation-permission-*`、`online-cohabitation-role-*` 旧 test id。
+
 ### 0603 共同庄园基金主面板拆分
 - 新增 `CohabitationFundPanel`，把共同基金余额摘要、注资状态、白名单购买、中额预算和大额草案创建表单从 `OnlineCohabitationView.vue` 拆出。
 - 父页面继续通过 slot 持有大额草案列表、高风险回执、共同装修拆除主状态写回和基金流水；结构 QA 改为读取新组件并继续守护 `online-cohabitation-fund-large-draft-submit` 旧 test id。
