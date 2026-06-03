@@ -30,6 +30,7 @@ async function startNewJourney(page: Page, playerName: string) {
   await page.getByTestId('char-create-next-button').click()
   await page.getByTestId('farm-option-standard').click()
   await page.getByTestId('confirm-start-journey-button').click()
+  await expect(page.getByTestId('game-layout')).toBeVisible({ timeout: 15_000 })
 }
 
 async function loadBuiltInSample(page: Page, id: string) {
@@ -74,6 +75,20 @@ async function openTechnicalDetailsForTestId(page: Page, testId: string) {
   const details = target.locator('xpath=ancestor::details[1]')
   await details.getByTestId('online-technical-details-toggle').click()
   await expect(target).toBeVisible()
+}
+
+async function expectOnlineFestivalRoomLoaded(page: Page, title: string) {
+  await expect(page.getByTestId('online-festival-room-status-panel')).toContainText(title)
+  const legacyRoom = page.getByTestId('online-festival-room-my-room')
+  if (await legacyRoom.isVisible().catch(() => false)) return
+  await expect(page.getByTestId('online-festival-room-lobby-trigger')).toBeVisible()
+}
+
+async function expectOnlineExpeditionRoomLoaded(page: Page, title: string) {
+  await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText(title)
+  const legacyRoom = page.getByTestId('online-expedition-room-my-room')
+  if (await legacyRoom.isVisible().catch(() => false)) return
+  await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('已载入')
 }
 
 async function openCohabitationTab(page: Page, tabKey: string) {
@@ -195,6 +210,9 @@ function buildRoomSnapshot(room: {
     host_display_name: '测试者',
     joined_member_count: 1,
     member_limit: 4,
+    countdown_seconds: 0,
+    ready_member_count: 0,
+    my_member_status: 'joined',
     members: [],
     can_invite: false,
     can_join: false,
@@ -309,6 +327,85 @@ async function mockOnlineVisualRoom(page: Page, options: {
     if (settleResult) {
       currentRoom = settleResult.room
       currentFestivalRecentReceipts = settleResult.recentReceipts ?? currentFestivalRecentReceipts
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
+    })
+  })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/ready-check', async route => {
+    const readyMembers = (currentRoom.members as Array<Record<string, unknown>>).map(member => {
+      if (String(member.status || '') === 'invited') return member
+      return {
+        ...member,
+        status: 'ready',
+        status_label: member.username === currentRoom.host_username ? '房主已准备' : '已准备',
+        ready_at: Number(member.ready_at || 0) || 1760000200
+      }
+    })
+    currentRoom = {
+      ...currentRoom,
+      state: 'ready_check',
+      state_label: '准备确认',
+      state_reason: '房主已开始准备，请成员确认状态。',
+      opening_ceremony: null,
+      ready_member_count: readyMembers.filter(member => String(member.status || '') === 'ready').length,
+      members: readyMembers as typeof currentRoom.members,
+      can_invite: true,
+      can_ready: false,
+      can_unready: false,
+      can_host_ready_check: false,
+      can_host_start_countdown: true,
+      can_host_settle: false,
+      can_host_close: true,
+      gameplay: {
+        ...currentRoom.gameplay,
+        phase: 'ready_check',
+        phase_label: '准备确认',
+        last_action_summary: '房主已开始准备，请成员确认状态。'
+      }
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
+    })
+  })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/start', async route => {
+    const lockedMembers = (currentRoom.members as Array<Record<string, unknown>>).map(member => ({
+      ...member,
+      status: 'countdown_locked',
+      status_label: member.username === currentRoom.host_username ? '房主已锁定' : '倒计时锁定',
+      ready_at: Number(member.ready_at || 0) || 1760000200
+    }))
+    currentRoom = {
+      ...currentRoom,
+      state: 'countdown',
+      state_label: '倒计时',
+      state_reason: '开场倒计时已启动。',
+      opening_ceremony: {
+        stage: 'countdown',
+        title: '开场倒计时',
+        subtitle: '房主已发起倒计时，成员即将进入玩法。',
+        lines: ['确认成员状态', '锁定节会房间', '准备进入玩法'],
+        countdown_remaining_seconds: currentRoom.countdown_seconds || 30
+      },
+      ready_member_count: lockedMembers.length,
+      members: lockedMembers as typeof currentRoom.members,
+      can_invite: false,
+      can_ready: false,
+      can_unready: false,
+      can_host_ready_check: false,
+      can_host_start_countdown: false,
+      can_host_settle: false,
+      can_host_close: true,
+      gameplay: {
+        ...currentRoom.gameplay,
+        phase: 'countdown',
+        phase_label: '开场倒计时',
+        last_action_summary: '开场倒计时已启动。'
+      }
     }
     await route.fulfill({
       status: 200,
@@ -3359,7 +3456,7 @@ test.describe('web game smoke', () => {
     })
 
     await page.goto('/#/game/online/festival?tab=expedition-room')
-    await expect(page.getByTestId('online-expedition-room-my-room')).toBeVisible()
+    await expectOnlineExpeditionRoomLoaded(page, '协作矿洞 smoke')
     await expect(page.getByTestId('visual-map-board')).toBeVisible()
     await expect(page.getByText('路线采脉：路标先定').first()).toBeVisible()
 
@@ -3441,7 +3538,7 @@ test.describe('web game smoke', () => {
     })
 
     await page.goto('/#/game/online/festival?tab=festival-room')
-    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expectOnlineFestivalRoomLoaded(page, '节会邀请 smoke')
     await page.getByTestId('online-festival-room-invite-trigger').click()
     await expect(page.getByTestId('online-invite-panel')).toBeVisible()
 
@@ -3456,6 +3553,97 @@ test.describe('web game smoke', () => {
     await expect(retryRow).toContainText('房间信息有更新，请刷新后继续。')
     await retryRow.getByTestId('online-invite-retry').click()
     await expect(retryRow).toContainText('已邀请')
+  })
+
+  test('online festival room lobby starts ready check and countdown', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '倒计时')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-countdown-room',
+      title: '节会倒计时 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.countdown_seconds = 30
+    room.ready_member_count = 0
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'joined',
+        status_label: '房主',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'countdown_friend',
+        display_name: '协作成员',
+        role: 'member',
+        status: 'joined',
+        status_label: '未准备',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expectOnlineFestivalRoomLoaded(page, '节会倒计时 smoke')
+    await page.getByTestId('online-festival-room-lobby-trigger').click()
+    await expect(page.getByTestId('online-room-lobby')).toBeVisible()
+    await expect(page.getByTestId('online-room-member-list')).toContainText('协作成员')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('邀请玩家')
+
+    const readyCheckResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/ready-check')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-room-action-start-ready-check').click()
+    const readyCheckResponse = await readyCheckResponsePromise
+    expect(readyCheckResponse.url()).toContain('/ready-check')
+    await expect(page.getByTestId('online-room-lobby')).toContainText('准备确认')
+    await expect(page.getByTestId('online-room-member-list')).toContainText('已准备')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('开始倒计时')
+
+    const countdownResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/start')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-room-primary-action').click()
+    const countdownResponse = await countdownResponsePromise
+    expect(countdownResponse.url()).toContain('/start')
+    await expect(page.getByTestId('online-room-lobby')).toContainText('倒计时')
+    await expect(page.getByTestId('online-room-member-list')).toContainText('倒计时锁定')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('查看倒计时')
+    await expect(page.getByTestId('online-visual-room-countdown')).toContainText('倒计时 30 秒')
   })
 
   test('online festival room close confirm requires text escape focus and submits', async ({ page }) => {
@@ -3493,7 +3681,7 @@ test.describe('web game smoke', () => {
     await mockOnlineVisualRoom(page, { domain: 'festival', room })
 
     await page.goto('/#/game/online/festival?tab=festival-room')
-    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expectOnlineFestivalRoomLoaded(page, '节会关闭 smoke')
     await openTechnicalDetailsForTestId(page, 'online-festival-room-close-submit')
 
     const closeButton = page.getByTestId('online-festival-room-close-submit')
@@ -3635,7 +3823,7 @@ test.describe('web game smoke', () => {
     })
 
     await page.goto('/#/game/online/festival?tab=festival-room')
-    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expectOnlineFestivalRoomLoaded(page, '灯会共建 smoke')
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
 
     await page.getByTestId('visual-scene-object-lantern_blocked_queue').click()
@@ -3822,7 +4010,7 @@ test.describe('web game smoke', () => {
     })
 
     await page.goto('/#/game/online/festival?tab=festival-room')
-    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expectOnlineFestivalRoomLoaded(page, '腊八共灶 smoke')
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
     await expect(page.getByText('腊八大锅').first()).toBeVisible()
     await expect(page.getByText('灶台火候').first()).toBeVisible()
@@ -4465,7 +4653,7 @@ test.describe('web game smoke', () => {
     })
 
     await page.goto('/#/game/online/festival?tab=festival-room')
-    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expectOnlineFestivalRoomLoaded(page, '龙舟赛道 smoke')
     await openTechnicalDetailsForTestId(page, 'online-festival-room-member-limit-group')
     await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('2 人')
     await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('4 人')

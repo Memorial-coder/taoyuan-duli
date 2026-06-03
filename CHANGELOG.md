@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-03
+- 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房准备大厅「开始准备 → 开始倒计时」场景，mock `/ready-check` 与 `/start` 状态推进；同时 `startNewJourney` 等待 `game-layout`，消除全量 E2E 中房间用例被开局竞态拦回首页的问题。
 - 邻里邀请与申请抽屉化：`OnlineNeighborView.vue` 复用 `OnlineInvitePanel domain="neighbor"` 承接邻里批量邀请、已在邻里过滤、失败重试和备用单人邀请；申请 / 邀请接受拒绝迁入 `OnlineBottomSheet` 详情抽屉，旧邀请 test id 与原 `inviteNeighbor` / `acceptNeighbor` / `rejectNeighbor` store action 保留。
 - 节会房移动端邀请面板 smoke：`qa-mobile-ui-smoke` 新增运行中节会房邀请面板 390x844 / 360x780 场景，覆盖批量输入、已在房过滤、发送结果、横向溢出和 footer 44px 触控高度；`OnlineInvitePanel` footer 主 / 次按钮增加组件内最小高度保护。
 - 节会房移动端大厅与结算 smoke：`qa-mobile-ui-smoke` 新增运行中节会房 390x844 / 360x780 场景，打开准备大厅并覆盖成员列表、房间主行动 44px 触控高度、备用结算确认弹窗和截图 summary；`OnlineRoomLobbyDialog` 主行动增加组件内最小高度保护。

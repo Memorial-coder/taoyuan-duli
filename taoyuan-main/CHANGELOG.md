@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 房间流程浏览器 E2E 倒计时
+- `game-smoke.spec.ts` 新增节会房准备大厅浏览器场景，覆盖房主从 `online-room-action-start-ready-check` 发起准备检查，再通过 `online-room-primary-action` 开始倒计时，读回成员准备、倒计时锁定和房间壳倒计时提示。
+- `mockOnlineVisualRoom` 补齐节会房 `/ready-check` 与 `/start` 状态推进 mock；`startNewJourney` 统一等待 `game-layout`，避免全量 E2E 中房间用例被新旅程开局竞态拦回首页。
+- 本轮验证：目标房间 E2E grep 通过，`npm --prefix taoyuan-main run check` 通过；全量 `game-smoke.spec.ts` 仍有既有页面级失败，但新增倒计时与关闭确认场景不在失败目录中。
+
 ### 0603 联机邻里邀请与申请抽屉
 - `src/views/game/online/OnlineNeighborView.vue` 的邻里邀请成员入口改为 `OnlineInvitePanel domain="neighbor"`，支持批量输入、好友快捷选择、已在邻里过滤、失败保留与单项重试；原 `online-neighbor-invite-username-input`、`online-neighbor-invite-submit` 保留在备用折叠区。
 - 邻里申请 / 邀请列表只保留详情处理入口，接受 / 拒绝动作迁入 `OnlineBottomSheet` 详情抽屉；原 `socialStore.inviteNeighbor()`、`acceptNeighbor()`、`rejectNeighbor()` 调用语义不变。
