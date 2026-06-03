@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 联机邻里创建向导
+- `src/views/game/online/OnlineNeighborView.vue` 的创建邻里入口改为三步 `OnlineActionDialog` 向导，覆盖名称 / 简介、公开方式 / 加入门槛和确认创建；原创建输入与提交 test id 保留在弹窗内。
+- 创建失败时弹窗保持打开并显示错误提示，store 草稿不被清空；确认创建仍调用既有 `socialStore.submitNeighborGroup()`，不新增后端字段。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、`npm --prefix taoyuan-main run qa:mobile-ui-smoke` 通过；`qa:online-ui-structure` 仍被既有 / 并行移动端覆盖缺口阻断，未出现邻里新增断言失败。
+
 ### 0603 房间流程移动端 smoke 收束
 - `qa-mobile-ui-smoke` 新增共同庄园家族节会确认 mock，覆盖 390x844 / 360x780 下节会席位面板打开结算确认弹窗、影响对象、资产变化、恢复提示、确认文字门槛、禁用确认按钮和无横向溢出。
 - 本轮验证：`node --check taoyuan-main/scripts/qa-mobile-ui-smoke.mjs`、`npm --prefix taoyuan-main run qa:mobile-ui-smoke`、`npm --prefix taoyuan-main run check` 通过；`qa:online-ui-structure` 与指定 E2E 仍被既有 / 并行覆盖缺口阻断。

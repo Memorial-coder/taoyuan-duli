@@ -528,45 +528,22 @@
 
             <template v-else>
               <div class="game-panel-muted space-y-2 p-3">
-                <p class="text-sm text-accent">创建邻里</p>
-                <input
-                  v-model="socialStore.neighborNameDraft"
-                  data-testid="online-neighbor-create-name-input"
-                  maxlength="24"
-                  class="online-input w-full"
-                  placeholder="邻里名称"
-                />
-                <input
-                  v-model="socialStore.neighborSummaryDraft"
-                  data-testid="online-neighbor-create-summary-input"
-                  maxlength="120"
-                  class="online-input w-full"
-                  placeholder="一句简介，告诉别人你们这群人想过怎样的日子。"
-                />
-                <textarea
-                  v-model="socialStore.neighborNoticeDraft"
-                  data-testid="online-neighbor-create-notice-input"
-                  rows="2"
-                  maxlength="160"
-                  class="online-textarea w-full resize-none"
-                  placeholder="初始公告"
-                />
-                <select v-model="socialStore.neighborCapacityDraft" data-testid="online-neighbor-create-capacity-select" class="online-select w-full">
-                  <option :value="12">小型邻里（3-12）</option>
-                  <option :value="30">中型邻里（12-30）</option>
-                  <option :value="60">大型邻里（30+）</option>
-                </select>
-                <div class="flex justify-end">
-                  <button
-                    data-testid="online-neighbor-create-submit"
-                    class="online-action-btn online-action-btn--compact"
-                    type="button"
-                    :disabled="socialStore.neighborActionRunning || !socialStore.neighborNameDraft.trim()"
-                    @click="createNeighbor"
-                  >
-                    创建邻里
-                  </button>
+                <div>
+                  <p class="text-sm text-accent">创建邻里</p>
+                  <p class="mt-1 text-xs leading-5 text-muted">
+                    先用向导确定名称、简介、公开方式和加入门槛，确认后再创建自己的邻里组织。
+                  </p>
                 </div>
+                <button
+                  data-testid="online-neighbor-create-trigger"
+                  class="online-action-btn online-action-btn--primary w-full justify-center"
+                  type="button"
+                  :disabled="socialStore.neighborActionRunning"
+                  @click="openNeighborCreateDialog"
+                >
+                  <Users :size="12" />
+                  创建邻里
+                </button>
               </div>
             </template>
           </div>
@@ -843,12 +820,177 @@
         </footer>
       </template>
     </OnlineActionDialog>
+
+    <OnlineActionDialog
+      :open="neighborCreateOpen"
+      title="创建邻里"
+      description="按步骤确认名称、简介、公开方式和加入门槛；创建失败时，当前草稿会继续保留。"
+      :confirm-disabled="neighborCreateSubmitDisabled"
+      :running="socialStore.neighborActionRunning"
+      @confirm="createNeighbor"
+      @cancel="closeNeighborCreateDialog"
+      @close="closeNeighborCreateDialog"
+    >
+      <div class="space-y-3" data-testid="online-neighbor-create-dialog">
+        <div class="flex flex-wrap gap-1" role="list" aria-label="创建邻里步骤">
+          <span
+            v-for="step in neighborCreateSteps"
+            :key="step.key"
+            class="border px-2 py-1 text-[10px]"
+            :class="step.key === neighborCreateStep ? 'border-accent/40 bg-accent/5 text-accent' : 'border-accent/15 text-muted'"
+            role="listitem"
+          >
+            {{ step.label }}
+          </span>
+        </div>
+
+        <OnlineStatusBanner
+          v-if="neighborCreateError"
+          tone="danger"
+          title="邻里暂时没有创建成功"
+          :description="neighborCreateError"
+        />
+
+        <section v-if="neighborCreateStep === 'basic'" class="space-y-2" data-testid="online-neighbor-create-step-basic">
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            邻里名称
+            <input
+              v-model="socialStore.neighborNameDraft"
+              data-testid="online-neighbor-create-name-input"
+              maxlength="24"
+              class="online-input w-full"
+              placeholder="邻里名称"
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            一句简介
+            <input
+              v-model="socialStore.neighborSummaryDraft"
+              data-testid="online-neighbor-create-summary-input"
+              maxlength="120"
+              class="online-input w-full"
+              placeholder="一句简介，告诉别人你们这群人想过怎样的日子。"
+            />
+          </label>
+        </section>
+
+        <section v-else-if="neighborCreateStep === 'access'" class="space-y-2" data-testid="online-neighbor-create-step-access">
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            公开方式
+            <select v-model="neighborCreateVisibility" data-testid="online-neighbor-create-visibility-select" class="online-select w-full">
+              <option value="public">公开展示，允许玩家申请</option>
+              <option value="listed">公开展示，先看公告再申请</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            加入门槛
+            <select v-model="neighborCreateJoinCondition" data-testid="online-neighbor-create-join-condition-select" class="online-select w-full">
+              <option value="apply">需要申请，由管事确认</option>
+              <option value="intro">申请前先阅读公告</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            初始公告
+            <textarea
+              v-model="socialStore.neighborNoticeDraft"
+              data-testid="online-neighbor-create-notice-input"
+              rows="2"
+              maxlength="160"
+              class="online-textarea w-full resize-none"
+              placeholder="初始公告"
+            />
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            邻里规模
+            <select v-model="socialStore.neighborCapacityDraft" data-testid="online-neighbor-create-capacity-select" class="online-select w-full">
+              <option :value="12">小型邻里（3-12）</option>
+              <option :value="30">中型邻里（12-30）</option>
+              <option :value="60">大型邻里（30+）</option>
+            </select>
+          </label>
+        </section>
+
+        <section v-else class="space-y-2" data-testid="online-neighbor-create-step-review">
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">邻里名称</p>
+            <p class="mt-1 text-xs text-accent">{{ socialStore.neighborNameDraft.trim() || '未填写' }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">简介</p>
+            <p class="mt-1 text-xs leading-5 text-accent">{{ socialStore.neighborSummaryDraft.trim() || '创建后可以继续补充简介。' }}</p>
+          </div>
+          <div class="grid gap-2 text-xs md:grid-cols-2">
+            <div class="border border-accent/10 bg-black/10 p-2">
+              <p class="text-[10px] text-muted">公开方式</p>
+              <p class="mt-1 text-accent">{{ neighborCreateVisibilityLabel }}</p>
+            </div>
+            <div class="border border-accent/10 bg-black/10 p-2">
+              <p class="text-[10px] text-muted">加入门槛</p>
+              <p class="mt-1 text-accent">{{ neighborCreateJoinConditionLabel }}</p>
+            </div>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">初始公告</p>
+            <p class="mt-1 text-xs leading-5 text-accent">{{ socialStore.neighborNoticeDraft.trim() || '创建后可以再写公告。' }}</p>
+          </div>
+        </section>
+      </div>
+
+      <template #footer="{ confirmDisabled, confirm, cancel }">
+        <footer class="space-y-3 border-t border-accent/10 pt-3">
+          <p v-if="neighborCreateStep === 'basic' && !socialStore.neighborNameDraft.trim()" class="text-[10px] leading-4 text-muted">
+            先填写邻里名称，再继续下一步。
+          </p>
+          <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact justify-center"
+              :disabled="socialStore.neighborActionRunning"
+              @click="cancel"
+            >
+              稍后再说
+            </button>
+            <button
+              v-if="neighborCreateStep !== 'basic'"
+              type="button"
+              class="online-action-btn online-action-btn--compact justify-center"
+              :disabled="socialStore.neighborActionRunning"
+              @click="goPreviousNeighborCreateStep"
+            >
+              <ChevronLeft :size="12" />
+              上一步
+            </button>
+            <button
+              v-if="neighborCreateStep !== 'review'"
+              type="button"
+              class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+              data-testid="online-neighbor-create-next"
+              :disabled="neighborCreateNextDisabled"
+              @click="goNextNeighborCreateStep"
+            >
+              下一步
+              <ChevronRight :size="12" />
+            </button>
+            <button
+              v-else
+              data-testid="online-neighbor-create-submit"
+              class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+              type="button"
+              :disabled="confirmDisabled"
+              @click="confirm"
+            >
+              创建邻里
+            </button>
+          </div>
+        </footer>
+      </template>
+    </OnlineActionDialog>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
-  import { ExternalLink, IdCard, Pencil, RefreshCw, Save, Upload, Users } from 'lucide-vue-next'
+  import { ChevronLeft, ChevronRight, ExternalLink, IdCard, Pencil, RefreshCw, Save, Upload, Users } from 'lucide-vue-next'
   import OnlineActionDialog from '@/components/game/online/OnlineActionDialog.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
@@ -860,6 +1002,8 @@
 
   type NeighborTabKey = 'profile' | 'friends' | 'neighbor' | 'subscriptions'
   type NeighborTabMeta = { key: NeighborTabKey; label: string; summary: string }
+  type NeighborCreateStepKey = 'basic' | 'access' | 'review'
+  type NeighborCreateOption = { value: string; label: string }
 
   const socialStore = useSocialStore()
   const saveStore = useSaveStore()
@@ -867,6 +1011,11 @@
   const lastRefreshAttemptAt = ref(0)
   const profileEditorOpen = ref(false)
   const profileSaveError = ref('')
+  const neighborCreateOpen = ref(false)
+  const neighborCreateStep = ref<NeighborCreateStepKey>('basic')
+  const neighborCreateError = ref('')
+  const neighborCreateVisibility = ref('public')
+  const neighborCreateJoinCondition = ref('apply')
   const uploadingAvatar = ref(false)
   const avatarInputRef = ref<HTMLInputElement | null>(null)
   const tabs: NeighborTabMeta[] = [
@@ -876,6 +1025,19 @@
     { key: 'subscriptions', label: '订阅', summary: '关注项和订阅提示单独成区。' },
   ]
   const defaultTab = tabs[0]!
+  const neighborCreateSteps: Array<{ key: NeighborCreateStepKey; label: string }> = [
+    { key: 'basic', label: '名称与简介' },
+    { key: 'access', label: '公开与门槛' },
+    { key: 'review', label: '确认创建' },
+  ]
+  const neighborCreateVisibilityOptions: NeighborCreateOption[] = [
+    { value: 'public', label: '公开展示，允许玩家申请' },
+    { value: 'listed', label: '公开展示，先看公告再申请' },
+  ]
+  const neighborCreateJoinConditionOptions: NeighborCreateOption[] = [
+    { value: 'apply', label: '需要申请，由管事确认' },
+    { value: 'intro', label: '申请前先阅读公告' },
+  ]
 
   const refreshRunning = computed(() =>
     socialStore.loading ||
@@ -1015,6 +1177,22 @@
     }
   })
   const subscriptionPreview = computed(() => socialStore.subscriptions.slice(0, 3))
+  const neighborCreateStepIndex = computed(() =>
+    neighborCreateSteps.findIndex(step => step.key === neighborCreateStep.value)
+  )
+  const neighborCreateNextDisabled = computed(() =>
+    socialStore.neighborActionRunning ||
+    (neighborCreateStep.value === 'basic' && !socialStore.neighborNameDraft.trim())
+  )
+  const neighborCreateSubmitDisabled = computed(() =>
+    socialStore.neighborActionRunning || !socialStore.neighborNameDraft.trim()
+  )
+  const neighborCreateVisibilityLabel = computed(() =>
+    neighborCreateVisibilityOptions.find(option => option.value === neighborCreateVisibility.value)?.label || '公开展示'
+  )
+  const neighborCreateJoinConditionLabel = computed(() =>
+    neighborCreateJoinConditionOptions.find(option => option.value === neighborCreateJoinCondition.value)?.label || '需要申请'
+  )
 
   const formatChronicleDate = (timestamp: number) => {
     if (!timestamp) return ''
@@ -1079,6 +1257,28 @@
     socialStore.toggleSelectedTag(tagId)
   }
 
+  const openNeighborCreateDialog = () => {
+    neighborCreateError.value = ''
+    neighborCreateStep.value = 'basic'
+    neighborCreateOpen.value = true
+  }
+
+  const closeNeighborCreateDialog = () => {
+    if (socialStore.neighborActionRunning) return
+    neighborCreateOpen.value = false
+  }
+
+  const goNextNeighborCreateStep = () => {
+    if (neighborCreateNextDisabled.value) return
+    const nextStep = neighborCreateSteps[neighborCreateStepIndex.value + 1]
+    if (nextStep) neighborCreateStep.value = nextStep.key
+  }
+
+  const goPreviousNeighborCreateStep = () => {
+    const previousStep = neighborCreateSteps[neighborCreateStepIndex.value - 1]
+    if (previousStep) neighborCreateStep.value = previousStep.key
+  }
+
   const refreshFriendSummary = async () => {
     await socialStore.refreshRelationships().catch(() => {})
     lastRefreshAttemptAt.value = Date.now()
@@ -1098,7 +1298,16 @@
   }
 
   const createNeighbor = async () => {
-    await runNeighborAction(() => socialStore.submitNeighborGroup(), '创建邻里失败')
+    neighborCreateError.value = ''
+    try {
+      await socialStore.submitNeighborGroup()
+      lastRefreshAttemptAt.value = Date.now()
+      neighborCreateOpen.value = false
+      neighborCreateStep.value = 'basic'
+    } catch (error: any) {
+      showFloat(error?.message || '创建邻里失败', 'danger')
+      neighborCreateError.value = error?.message || socialStore.errorMessage || '创建邻里失败，请稍后再试。'
+    }
   }
 
   const applyNeighbor = async (groupId: string) => {
