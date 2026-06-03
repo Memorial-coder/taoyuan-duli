@@ -112,45 +112,17 @@
         </span>
       </div>
 
-      <div v-if="activeTab === 'overview'" class="space-y-3" data-testid="online-cohabitation-overview-summary">
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-testid="online-cohabitation-overview-main-cards">
-          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-contract-card">
-            <div class="flex items-center gap-2 text-accent">
-              <HeartHandshake :size="13" />
-              <p class="text-sm">契约状态</p>
-            </div>
-            <p class="mt-3 text-lg text-text">{{ overviewContractStatusLabel }}</p>
-            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewContractDetailLabel }}</p>
-          </article>
-
-          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-fund-card">
-            <div class="flex items-center gap-2 text-accent">
-              <Wallet :size="13" />
-              <p class="text-sm">共同基金</p>
-            </div>
-            <p class="mt-3 text-lg text-text">{{ overviewFundBalanceLabel }}</p>
-            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewFundDetailLabel }}</p>
-          </article>
-
-          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-warehouse-card">
-            <div class="flex items-center gap-2 text-accent">
-              <Package :size="13" />
-              <p class="text-sm">共同仓库</p>
-            </div>
-            <p class="mt-3 text-lg text-text">{{ overviewWarehouseSummaryLabel }}</p>
-            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewWarehouseDetailLabel }}</p>
-          </article>
-
-          <article class="game-panel-muted p-3" data-testid="online-cohabitation-overview-risk-card">
-            <div class="flex items-center gap-2 text-accent">
-              <ShieldCheck :size="13" />
-              <p class="text-sm">今日建议 / 风险待办</p>
-            </div>
-            <p class="mt-3 text-lg text-text">{{ overviewRiskTodoLabel }}</p>
-            <p class="mt-2 text-xs leading-5 text-muted">{{ overviewRecommendationLabel }}</p>
-          </article>
-        </div>
-
+      <CohabitationOverviewPanel
+        v-if="activeTab === 'overview'"
+        :contract-status-label="overviewContractStatusLabel"
+        :contract-detail-label="overviewContractDetailLabel"
+        :fund-balance-label="overviewFundBalanceLabel"
+        :fund-detail-label="overviewFundDetailLabel"
+        :warehouse-summary-label="overviewWarehouseSummaryLabel"
+        :warehouse-detail-label="overviewWarehouseDetailLabel"
+        :risk-todo-label="overviewRiskTodoLabel"
+        :recommendation-label="overviewRecommendationLabel"
+      >
         <details class="game-panel-muted p-3" data-testid="online-cohabitation-overview-details">
           <summary class="cursor-pointer text-sm text-accent">展开契约、照料、恢复和安全边界</summary>
           <div class="mt-3 grid gap-3 lg:grid-cols-[minmax(0,0.96fr)_minmax(0,1.04fr)]">
@@ -1126,7 +1098,7 @@
         </div>
           </div>
         </details>
-      </div>
+      </CohabitationOverviewPanel>
 
       <div v-else-if="activeTab === 'map'" class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
@@ -3837,6 +3809,7 @@
     XCircle,
   } from 'lucide-vue-next'
   import CohabitationFamilyFestivalPanel from '@/components/game/online/cohabitation/CohabitationFamilyFestivalPanel.vue'
+  import CohabitationOverviewPanel from '@/components/game/online/cohabitation/CohabitationOverviewPanel.vue'
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'

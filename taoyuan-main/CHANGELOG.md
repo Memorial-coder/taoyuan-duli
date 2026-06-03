@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 共同庄园总览摘要组件拆分
+- 新增 `CohabitationOverviewPanel`，先把共同庄园总览顶部契约状态、共同基金、共同仓库、今日建议 / 风险待办四张主卡从 `OnlineCohabitationView.vue` 拆出。
+- 父页面继续通过 slot 持有契约列表、发起契约、照料入口和安全边界动作；保留 `online-cohabitation-overview-*` 旧 test id，`npm --prefix taoyuan-main run check` 与玩家文案扫描通过。
+
 ### 0603 共同庄园家族节会面板拆分
 - 新增 `CohabitationFamilyFestivalPanel`，把家族节会席位、成员席位、结算护栏和暂缓能力区从 `OnlineCohabitationView.vue` 拆出，父页面只保留数据和确认事件接线。
 - 保留 `online-cohabitation-family-festival-*-confirm-trigger` 旧 test id 与原 store action 语义；家族节会高风险确认浏览器 smoke 继续覆盖拆分后的路径。
