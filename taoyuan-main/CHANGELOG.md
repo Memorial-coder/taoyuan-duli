@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 共同庄园家族节会面板拆分
+- 新增 `CohabitationFamilyFestivalPanel`，把家族节会席位、成员席位、结算护栏和暂缓能力区从 `OnlineCohabitationView.vue` 拆出，父页面只保留数据和确认事件接线。
+- 保留 `online-cohabitation-family-festival-*-confirm-trigger` 旧 test id 与原 store action 语义；家族节会高风险确认浏览器 smoke 继续覆盖拆分后的路径。
+
 ### 0603 在线弹窗键盘焦点保护
 - `OnlineActionDialog` 补齐全局 Esc 兜底、`open=true` 初始挂载监听和卸载焦点恢复，避免父级 `v-if` 直接创建弹窗时键盘关闭或焦点返回丢失。
 - `game-smoke.spec.ts` 新增节会房关闭确认浏览器场景，断言确认文字未填禁用、Esc 取消、焦点回到 `online-festival-room-close-submit`，填写「确认关闭房间」后提交既有关闭接口并读回关闭原因。
