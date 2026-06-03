@@ -1379,67 +1379,24 @@
         </div>
       </CohabitationSharedMapPanel>
 
-      <div v-else-if="activeTab === 'warehouse'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div class="game-panel-muted p-3">
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-accent">
-              <Package :size="13" />
-              <p class="text-sm">共同仓库</p>
-            </div>
-            <span class="text-[10px] text-muted">{{ cohabitationStore.warehouse?.summary.total_quantity ?? 0 }} 件</span>
-          </div>
-          <div v-if="warehouseItems.length === 0" class="mt-3 text-xs leading-5 text-muted">共同仓库当前没有可展示物品。</div>
-          <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
-            <div v-for="item in warehouseItems" :key="`${item.item_id}-${item.quality}`" class="border border-accent/10 bg-black/10 p-2">
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
-                  <p class="truncate text-xs text-text">{{ item.label || item.item_id }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ item.item_id }} · {{ item.quality || 'normal' }}</p>
-                  <p v-if="warehouseFrozenQuantity(item) > 0" class="mt-1 text-[10px] text-amber-100">
-                    &#20923;&#32467; {{ warehouseFrozenQuantity(item) }} / &#21487;&#29992; {{ warehouseAvailableQuantity(item) }}
-                  </p>
-                </div>
-                <span class="text-xs text-accent">x{{ item.quantity }}</span>
-              </div>
-              <div class="mt-2 flex items-center justify-between gap-2">
-                <span class="text-[10px] text-muted">卖价 {{ warehouseSellUnitPriceForItem(item) || '未配置' }} 文</span>
-                <div class="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    class="online-action-btn online-action-btn--compact"
-                    :disabled="isHighValueWarehouseItem(item) || !canWithdrawWarehouseItem(item) || cohabitationStore.actionLoading"
-                    :data-testid="`online-cohabitation-warehouse-withdraw-${item.item_id}`"
-                    @click="withdrawWarehouseItem(item)"
-                  >
-                    取出 1 个
-                  </button>
-                  <button
-                    v-if="isHighValueWarehouseItem(item)"
-                    type="button"
-                    class="online-action-btn online-action-btn--compact"
-                    :disabled="!canCreateHighValueWarehouseWithdrawalDraft(item) || cohabitationStore.actionLoading"
-                    :data-testid="`online-cohabitation-warehouse-high-value-draft-${item.item_id}`"
-                    @click="openCohabitationRiskConfirm({ kind: 'warehouse-high-value-create', item })"
-                  >
-                    申请取出
-                  </button>
-                  <button
-                    type="button"
-                    class="online-action-btn online-action-btn--compact"
-                    :disabled="!canSellWarehouseItem(item) || cohabitationStore.actionLoading"
-                    :data-testid="`online-cohabitation-warehouse-sell-${item.item_id}`"
-                    @click="sellWarehouseItem(item)"
-                  >
-                    卖出 1 个
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <p v-if="warehouseActionMessage" class="mt-2 text-[10px] leading-4" :class="warehouseActionOk ? 'text-emerald-200' : 'text-red-100'">
-            {{ warehouseActionMessage }}
-          </p>
-        </div>
+      <CohabitationWarehousePanel
+        v-else-if="activeTab === 'warehouse'"
+        :total-quantity="cohabitationStore.warehouse?.summary.total_quantity ?? 0"
+        :items="warehouseItems"
+        :action-loading="cohabitationStore.actionLoading"
+        :action-message="warehouseActionMessage"
+        :action-ok="warehouseActionOk"
+        :frozen-quantity="warehouseFrozenQuantity"
+        :available-quantity="warehouseAvailableQuantity"
+        :sell-unit-price-for-item="warehouseSellUnitPriceForItem"
+        :is-high-value-item="isHighValueWarehouseItem"
+        :can-withdraw-item="canWithdrawWarehouseItem"
+        :can-create-high-value-draft="canCreateHighValueWarehouseWithdrawalDraft"
+        :can-sell-item="canSellWarehouseItem"
+        @withdraw="withdrawWarehouseItem"
+        @create-high-value-draft="(item) => openCohabitationRiskConfirm({ kind: 'warehouse-high-value-create', item })"
+        @sell="sellWarehouseItem"
+      >
         <div class="space-y-3">
           <div class="game-panel-muted p-3">
             <p class="text-sm text-accent">仓库策略</p>
@@ -1966,7 +1923,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </CohabitationWarehousePanel>
 
       <div v-else-if="activeTab === 'fund'" class="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div class="game-panel-muted p-3">
@@ -3752,6 +3709,7 @@
   import CohabitationFamilyFestivalPanel from '@/components/game/online/cohabitation/CohabitationFamilyFestivalPanel.vue'
   import CohabitationOverviewPanel from '@/components/game/online/cohabitation/CohabitationOverviewPanel.vue'
   import CohabitationSharedMapPanel from '@/components/game/online/cohabitation/CohabitationSharedMapPanel.vue'
+  import CohabitationWarehousePanel from '@/components/game/online/cohabitation/CohabitationWarehousePanel.vue'
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'

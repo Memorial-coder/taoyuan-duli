@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 共同庄园仓库主列表拆分
+- 新增 `CohabitationWarehousePanel`，把共同仓库物品列表、冻结 / 可用数量、普通取出、高价值申请和卖出按钮从 `OnlineCohabitationView.vue` 拆出。
+- 父页面继续通过 slot 持有仓库策略、治理、放入普通物品、工坊、草案和补偿审计动作；保留 `online-cohabitation-warehouse-withdraw-*`、`online-cohabitation-warehouse-high-value-draft-*`、`online-cohabitation-warehouse-sell-*` 旧 test id。
+
 ### 0603 共同庄园共同地图主舞台拆分
 - 新增 `CohabitationSharedMapPanel`，把共同农田地图标题、统计卡、区域分页 tab、当前区域摘要和拼接地块网格从 `OnlineCohabitationView.vue` 拆出。
 - 父页面继续通过 slot 持有共同农田操作与共同动物照料动作；结构 QA 读取新组件并继续守护 `online-cohabitation-shared-map-*` 旧 test id。
