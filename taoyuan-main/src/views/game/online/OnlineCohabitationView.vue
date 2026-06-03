@@ -3478,32 +3478,36 @@
               <button
                 type="button"
                 class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="online-cohabitation-family-festival-reserve-confirm-trigger"
                 :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.seat_reservation_enabled"
-                @click="reserveFamilyFestivalSeatsFromPanel"
+                @click="openCohabitationRiskConfirm({ kind: 'family-festival-reserve' })"
               >
                 锁席
               </button>
               <button
                 type="button"
                 class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="online-cohabitation-family-festival-room-confirm-trigger"
                 :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.festival_room_binding_enabled"
-                @click="createFamilyFestivalRoomFromPanel"
+                @click="openCohabitationRiskConfirm({ kind: 'family-festival-room' })"
               >
                 开房
               </button>
               <button
                 type="button"
                 class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="online-cohabitation-family-festival-supplies-confirm-trigger"
                 :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.summary.shared_warehouse_consume_enabled"
-                @click="consumeFamilyFestivalSuppliesFromPanel"
+                @click="openCohabitationRiskConfirm({ kind: 'family-festival-supplies' })"
               >
                 供品
               </button>
               <button
                 type="button"
                 class="online-action-btn online-action-btn--compact justify-center"
+                data-testid="online-cohabitation-family-festival-settle-confirm-trigger"
                 :disabled="cohabitationStore.actionLoading || !familyFestivalSeatsPanel.summary.settlement_enabled"
-                @click="settleFamilyFestivalRewardsFromPanel"
+                @click="openCohabitationRiskConfirm({ kind: 'family-festival-settle' })"
               >
                 结算
               </button>
@@ -4021,6 +4025,7 @@
     maxAmount: number
     confirmationRequired: boolean
   }
+  type FamilyFestivalRiskConfirmKind = 'family-festival-reserve' | 'family-festival-room' | 'family-festival-supplies' | 'family-festival-settle'
   type FamilyBuildingMainStatePreviewRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number]
   type FamilyBuildingMainStateExactTargetRow = CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_exact_target_manifest'][number]
   type FundHighRiskReceiptOutcome = 'delivered' | 'refunded'
@@ -4033,6 +4038,7 @@
     | { kind: 'warehouse-high-value-create'; item: CohabitationWarehouseItem }
     | { kind: 'warehouse-high-value-confirm'; draft: CohabitationWarehouseHighValueWithdrawalDraft }
     | { kind: 'warehouse-high-value-execute'; draft: CohabitationWarehouseHighValueWithdrawalDraft }
+    | { kind: FamilyFestivalRiskConfirmKind }
   type SharedDecorationRemovalMainStateCandidatePath =
     | 'decoration.placed'
     | 'decoration.owned'
@@ -10571,6 +10577,72 @@
   const currentSharedFundBalance = () => Math.max(0, Math.floor(Number(cohabitationStore.fund?.balance) || 0))
   const selectedContractRiskLabel = () =>
     selectedContract.value?.title || selectedContract.value?.id || '当前共同庄园'
+  const familyFestivalSettlementRewardAmount = 120
+  const familyFestivalSettlementReputationPoints = 10
+  const isFamilyFestivalRiskConfirmKind = (kind: string): kind is FamilyFestivalRiskConfirmKind =>
+    kind === 'family-festival-reserve' ||
+    kind === 'family-festival-room' ||
+    kind === 'family-festival-supplies' ||
+    kind === 'family-festival-settle'
+  const familyFestivalTemplateLabel = () => {
+    const template = firstAvailableFamilyFestivalTemplate.value
+    if (!template) return '未找到可用模板'
+    return `${template.label || template.id}${template.available ? '' : '（暂不可用）'}`
+  }
+  const familyFestivalRiskBlockedReason = (kind: FamilyFestivalRiskConfirmKind) => {
+    const panel = familyFestivalSeatsPanel.value
+    const template = firstAvailableFamilyFestivalTemplate.value
+    if (!panel) return '缺少家族节会席位面板'
+    if (!template) return '缺少候选节会模板'
+    if (!template.available) return template.disabled_reason || '候选模板暂不可用'
+    if (kind === 'family-festival-reserve' && !panel.seat_reservation_enabled) {
+      return panel.summary.disabled_reason || '席位锁定暂未开放'
+    }
+    if (kind === 'family-festival-room' && !panel.festival_room_binding_enabled) {
+      return template.disabled_reason || panel.summary.disabled_reason || '节会房间创建暂未开放'
+    }
+    if (kind === 'family-festival-supplies' && !panel.summary.shared_warehouse_consume_enabled) {
+      return panel.summary.disabled_reason || '共同仓库供品消耗暂未开放'
+    }
+    if (kind === 'family-festival-settle' && !panel.summary.settlement_enabled) {
+      return panel.summary.disabled_reason || '节会奖励结算暂未开放'
+    }
+    return '当前无阻断；若模板、席位或成员状态变化，服务端会返回最新原因'
+  }
+  const familyFestivalRiskImpactItems = (kind: FamilyFestivalRiskConfirmKind): ConfirmDialogItem[] => [
+    dialogItem('contract', '共同庄园', selectedContractRiskLabel()),
+    dialogItem('template', '节会模板', familyFestivalTemplateLabel()),
+    dialogItem('seats', '影响席位', `${familyFestivalSeatMembers.value.length} 位成员`),
+    dialogItem('failure-guard', '失败原因', familyFestivalRiskBlockedReason(kind)),
+  ]
+  const familyFestivalRiskAssetChanges = (kind: FamilyFestivalRiskConfirmKind): ConfirmDialogItem[] => {
+    if (kind === 'family-festival-reserve') {
+      return [
+        dialogItem('festival-seats', '席位', '锁定当前成员节会席位'),
+        dialogItem('shared-warehouse', '共同仓库', '不扣供品'),
+        dialogItem('shared-fund', '共同基金', '不扣共同基金'),
+      ]
+    }
+    if (kind === 'family-festival-room') {
+      return [
+        dialogItem('festival-room', '节会房间', `用 ${familyFestivalTemplateLabel()} 预填创建`),
+        dialogItem('shared-warehouse', '共同仓库', '不扣供品'),
+        dialogItem('shared-fund', '共同基金', '不扣共同基金'),
+      ]
+    }
+    if (kind === 'family-festival-supplies') {
+      return [
+        dialogItem('shared-warehouse', '共同仓库', '按当前模板消耗节会供品'),
+        dialogItem('personal-inventory', '个人背包', '不扣个人背包'),
+        dialogItem('shared-fund', '共同基金', '不扣共同基金'),
+      ]
+    }
+    return [
+      dialogItem('shared-fund', '共同基金', `奖励入账 ${copperLabel(familyFestivalSettlementRewardAmount)}`),
+      dialogItem('family-reputation', '家族声望', `增加 ${familyFestivalSettlementReputationPoints} 点`),
+      dialogItem('personal-money', '个人铜币', '不扣个人铜币'),
+    ]
+  }
   const warehouseHighValueItemLabel = (item: CohabitationWarehouseItem) =>
     `${item.label || item.item_id} · ${qualityLabel(item.quality || 'normal')}`
   const warehouseHighValueDraftItemLabel = (draft: CohabitationWarehouseHighValueWithdrawalDraft) =>
@@ -10598,6 +10670,10 @@
   const cohabitationRiskConfirmTitle = computed(() => {
     const state = cohabitationRiskConfirm.value
     if (!state) return ''
+    if (state.kind === 'family-festival-reserve') return '确认锁定家族节会席位'
+    if (state.kind === 'family-festival-room') return '确认创建家族节会房间'
+    if (state.kind === 'family-festival-supplies') return '确认消耗节会供品'
+    if (state.kind === 'family-festival-settle') return '确认结算家族节会奖励'
     if (state.kind === 'fund-large-draft-create') return '确认创建大额基金草案'
     if (state.kind === 'fund-large-draft-confirm') return '确认这笔共同基金草案'
     if (state.kind === 'fund-large-draft-execute') return '确认执行共同基金扣款'
@@ -10609,6 +10685,10 @@
   const cohabitationRiskConfirmDescription = computed(() => {
     const state = cohabitationRiskConfirm.value
     if (!state) return ''
+    if (state.kind === 'family-festival-reserve') return '本次会锁定当前成员席位，后续开房、供品和结算会沿用这组席位。'
+    if (state.kind === 'family-festival-room') return '本次会用当前候选模板创建家族节会房间，并把席位信息作为预填上下文。'
+    if (state.kind === 'family-festival-supplies') return '本次会按当前模板消耗共同仓库里的节会供品。'
+    if (state.kind === 'family-festival-settle') return '本次会把家族节会奖励写入共同基金和家族声望记录。'
     if (state.kind === 'fund-large-draft-create') return '本次只创建成员确认草案，不会立即扣共同基金或个人铜币。'
     if (state.kind === 'fund-large-draft-confirm') return '本次记录你的成员确认，确认阶段不扣款。'
     if (state.kind === 'fund-large-draft-execute') return '执行后会扣共同基金；高风险用途仍需用回执收口。'
@@ -10620,6 +10700,7 @@
   const cohabitationRiskConfirmImpactItems = computed<ConfirmDialogItem[]>(() => {
     const state = cohabitationRiskConfirm.value
     if (!state) return []
+    if (isFamilyFestivalRiskConfirmKind(state.kind)) return familyFestivalRiskImpactItems(state.kind)
     if (state.kind === 'fund-large-draft-create') {
       const option = selectedFundLargeSpendOption.value
       return [
@@ -10655,16 +10736,20 @@
         dialogItem('member-confirm', '成员确认', warehouseHighValueNeedLabel()),
       ]
     }
-    return [
-      dialogItem('draft', '草案', state.draft.id),
-      dialogItem('item', '物品', warehouseHighValueDraftItemLabel(state.draft)),
-      dialogItem('quantity', '数量', `${state.draft.quantity} 件`),
-      dialogItem('member-confirm', '成员确认', warehouseHighValueNeedLabel(state.draft)),
-    ]
+    if (state.kind === 'warehouse-high-value-confirm' || state.kind === 'warehouse-high-value-execute') {
+      return [
+        dialogItem('draft', '草案', state.draft.id),
+        dialogItem('item', '物品', warehouseHighValueDraftItemLabel(state.draft)),
+        dialogItem('quantity', '数量', `${state.draft.quantity} 件`),
+        dialogItem('member-confirm', '成员确认', warehouseHighValueNeedLabel(state.draft)),
+      ]
+    }
+    return []
   })
   const cohabitationRiskConfirmAssetChanges = computed<ConfirmDialogItem[]>(() => {
     const state = cohabitationRiskConfirm.value
     if (!state) return []
+    if (isFamilyFestivalRiskConfirmKind(state.kind)) return familyFestivalRiskAssetChanges(state.kind)
     if (state.kind === 'fund-large-draft-create') {
       return [
         dialogItem('shared-fund', '共同基金', `暂不扣款，执行时才会扣 ${copperLabel(normalizedFundLargeDraftAmount.value)}`),
@@ -10711,19 +10796,27 @@
         dialogItem('shared-fund', '共同基金', '不扣共同基金'),
       ]
     }
-    return [
-      dialogItem('shared-warehouse', '共同仓库', `扣除 ${warehouseHighValueDraftItemLabel(state.draft)} x${state.draft.quantity}`),
-      dialogItem('personal-inventory', '个人背包', '取出到操作者个人背包'),
-      dialogItem('shared-fund', '共同基金', '不扣共同基金'),
-    ]
+    if (state.kind === 'warehouse-high-value-execute') {
+      return [
+        dialogItem('shared-warehouse', '共同仓库', `扣除 ${warehouseHighValueDraftItemLabel(state.draft)} x${state.draft.quantity}`),
+        dialogItem('personal-inventory', '个人背包', '取出到操作者个人背包'),
+        dialogItem('shared-fund', '共同基金', '不扣共同基金'),
+      ]
+    }
+    return []
   })
   const cohabitationRiskConfirmRequireText = computed(() => {
     const kind = cohabitationRiskConfirm.value?.kind || ''
+    if (isFamilyFestivalRiskConfirmKind(kind)) return '确认家族节会'
     return kind.startsWith('fund') ? '确认消耗共同资产' : '确认取用共同资产'
   })
   const cohabitationRiskConfirmLabel = computed(() => {
     const state = cohabitationRiskConfirm.value
     if (!state) return '确认执行'
+    if (state.kind === 'family-festival-reserve') return '确认锁席'
+    if (state.kind === 'family-festival-room') return '确认开房'
+    if (state.kind === 'family-festival-supplies') return '确认供品'
+    if (state.kind === 'family-festival-settle') return '确认结算'
     if (state.kind === 'fund-large-draft-create') return '确认创建草案'
     if (state.kind === 'fund-large-draft-confirm' || state.kind === 'warehouse-high-value-confirm') return '确认草案'
     if (state.kind === 'fund-high-risk-receipt') return '确认记录回执'
@@ -10732,11 +10825,16 @@
   })
   const cohabitationRiskConfirmIrreversible = computed(() => {
     const kind = cohabitationRiskConfirm.value?.kind
+    if (kind === 'family-festival-room' || kind === 'family-festival-supplies' || kind === 'family-festival-settle') return true
     return kind === 'fund-large-draft-execute' || kind === 'fund-high-risk-receipt' || kind === 'warehouse-high-value-execute'
   })
   const cohabitationRiskConfirmRecoveryHint = computed(() => {
     const state = cohabitationRiskConfirm.value
     if (!state) return ''
+    if (state.kind === 'family-festival-reserve') return '失败时不会锁定席位；成功后如需调整，按席位回滚或重新预排处理。'
+    if (state.kind === 'family-festival-room') return '创建失败时保留当前模板和席位，可刷新面板后重试。'
+    if (state.kind === 'family-festival-supplies') return '供品扣除异常时按共同仓库流水和补偿重放继续处理。'
+    if (state.kind === 'family-festival-settle') return '结算异常时按节会记录、共同基金流水和补偿重放继续处理。'
     if (state.kind === 'fund-large-draft-create') return '草案可等待成员确认或过期；失败时保留当前表单，可重试。'
     if (state.kind === 'fund-large-draft-confirm') return '如果草案信息有误，先取消，不会扣款。'
     if (state.kind === 'fund-large-draft-execute') return '失败时不会清空草案；高风险用途需继续用回执交付或退款收口。'
@@ -10749,6 +10847,10 @@
   const confirmCohabitationRiskAction = async () => {
     const state = cohabitationRiskConfirm.value
     if (!state) return
+    if (state.kind === 'family-festival-reserve') await reserveFamilyFestivalSeatsFromPanel()
+    if (state.kind === 'family-festival-room') await createFamilyFestivalRoomFromPanel()
+    if (state.kind === 'family-festival-supplies') await consumeFamilyFestivalSuppliesFromPanel()
+    if (state.kind === 'family-festival-settle') await settleFamilyFestivalRewardsFromPanel()
     if (state.kind === 'fund-large-draft-create') await createLargeFundSpendDraft()
     if (state.kind === 'fund-large-draft-confirm') await confirmLargeFundSpendDraft(state.draft)
     if (state.kind === 'fund-large-draft-execute') await executeLargeFundSpendDraft(state.draft)
@@ -11610,8 +11712,8 @@
     try {
       const result = await cohabitationStore.settleFamilyFestivalRewards({
         template_id: template.id,
-        amount: 120,
-        points: 10,
+        amount: familyFestivalSettlementRewardAmount,
+        points: familyFestivalSettlementReputationPoints,
         memo: '前端结算家族节会奖励',
         idempotency_key: makeFamilyActionIdempotencyKey('ui-family-festival-settle'),
       })

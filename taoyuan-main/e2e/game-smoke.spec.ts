@@ -1568,6 +1568,109 @@ async function mockOnlineCohabitation(page: Page) {
     }
   })
 
+  const buildFamilyFestivalSeatsPanel = () => ({
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: 'active',
+    readonly: false,
+    write_enabled: true,
+    writes_enabled: true,
+    festival_seats_enabled: true,
+    seat_reservation_enabled: true,
+    festival_room_binding_enabled: true,
+    generated_at: 1,
+    revision: 1,
+    summary: {
+      member_count: 2,
+      max_members: 4,
+      preview_seat_count: 2,
+      available_template_count: 1,
+      festival_room_create_enabled: true,
+      festival_room_invite_enabled: true,
+      settlement_enabled: true,
+      reward_enabled: true,
+      reputation_award_enabled: true,
+      shared_fund_spend_enabled: false,
+      shared_warehouse_consume_enabled: true,
+      festival_ticket_spend_enabled: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      disabled_reason: ''
+    },
+    actor: null,
+    members: contract.members.map((member, index) => ({
+      ...member,
+      username_key: member.username,
+      manor_role_label: index === 0 ? '家主' : '仓管',
+      seat_id: `festival-seat-${index + 1}`,
+      seat_index: index,
+      seat_label: index === 0 ? '主灯席' : '供品席',
+      festival_role: index === 0 ? 'host' : 'support',
+      seat_summary: index === 0 ? '负责开场与结算' : '负责供品与协作',
+      seat_state: 'ready',
+      seat_permissions: {
+        can_prepare_supplies_preview: true,
+        can_open_festival_room: true
+      }
+    })),
+    candidate_templates: [{
+      id: 'lantern_family_e2e',
+      label: '家族上元灯会',
+      visual_type: 'scene',
+      member_limit: 4,
+      family_compatible: true,
+      available: true,
+      binding_enabled: true,
+      room_create_enabled: true,
+      reward_enabled: true,
+      unlock_source: 'e2e',
+      recommended_roles: ['host', 'support'],
+      summary: '席位预填节会模板',
+      disabled_reason: ''
+    }],
+    reservations: {},
+    ledger: [],
+    active_template_id: 'lantern_family_e2e',
+    active_room_id: '',
+    last_settlement_id: '',
+    governance: {
+      server_authoritative: true,
+      seat_reservation_requires_idempotency: true,
+      disconnect_recovery_required: true
+    },
+    settlement: {
+      festival_receipt_required: true,
+      reward_to_shared_fund_enabled: true,
+      compensation_replay_required: true
+    },
+    visual_state_preview: {
+      board_type: 'scene',
+      board_id: 'family-festival-e2e',
+      revision: 1,
+      selected_visual_id: 'lantern_family_e2e',
+      recent_feedback: '家族节会席位已预排，可确认后执行。',
+      scene: null,
+      scene_objects: [
+        {
+          id: 'festival-stage-e2e',
+          label: '灯会主台',
+          kind: 'stage',
+          state: 'ready',
+          x: 50,
+          y: 42,
+          linked_template_ids: ['lantern_family_e2e'],
+          linked_role_ids: ['host'],
+          seat_count: 2,
+          available_action_ids: ['reserve_family_festival_seat', 'create_festival_room_from_family_seats']
+        }
+      ],
+      seats: []
+    },
+    deferred_operations: []
+  })
+
   const buildSharedPet = () => {
     const careItem = sharedPetCareItems[sharedPetLastCareItemId || 'vitality_feed'] ?? sharedPetCareItems.vitality_feed
     return {
@@ -1996,13 +2099,76 @@ async function mockOnlineCohabitation(page: Page) {
   await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/offline-status', async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ offline_status: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', summary: { server_authoritative: true, member_online_required: false, offline_member_blocks_operations: false, independent_operations_enabled: true, personal_money_merged: false, shared_log_available: true, auto_offline_income_enabled: false, conflict_policy: 'server' }, members: [], actor_capabilities: {}, recent_shared_log: sharedAuditLog, deferred_operations: [] } })) })
   })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/family-festival-seats', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ family_festival_seats_panel: buildFamilyFestivalSeatsPanel() })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/family-festival-seats/reserve', async route => {
+    const payload = route.request().postDataJSON() as { template_id?: string; seat_usernames?: string[]; memo?: string } | null
+    expect(payload?.template_id).toBe('lantern_family_e2e')
+    expect(payload?.seat_usernames).toEqual(['tester', 'helper'])
+    expect(payload?.memo).toContain('锁定家族节会席位')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({
+        family_festival_seats_panel: buildFamilyFestivalSeatsPanel(),
+        ledger_entry: { id: 'family-festival-reserve-e2e', seat_count: 2 },
+        idempotent: false
+      }))
+    })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/family-festival-seats/create-room', async route => {
+    const payload = route.request().postDataJSON() as { template_id?: string; title?: string; memo?: string } | null
+    expect(payload?.template_id).toBe('lantern_family_e2e')
+    expect(payload?.title).toContain('家族上元灯会')
+    expect(payload?.memo).toContain('创建家族节会房间')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({
+        family_festival_seats_panel: buildFamilyFestivalSeatsPanel(),
+        room_id: 'festival-room-family-e2e',
+        idempotent: false
+      }))
+    })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/family-festival-seats/consume-supplies', async route => {
+    const payload = route.request().postDataJSON() as { template_id?: string; memo?: string } | null
+    expect(payload?.template_id).toBe('lantern_family_e2e')
+    expect(payload?.memo).toContain('消耗家族节会供品')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({
+        family_festival_seats_panel: buildFamilyFestivalSeatsPanel(),
+        warehouse_ledger_entries: [{ id: 'family-festival-supplies-e2e' }],
+        idempotent: false
+      }))
+    })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/family-festival-seats/settle', async route => {
+    const payload = route.request().postDataJSON() as { template_id?: string; amount?: number; points?: number; memo?: string } | null
+    expect(payload?.template_id).toBe('lantern_family_e2e')
+    expect(payload?.amount).toBe(120)
+    expect(payload?.points).toBe(10)
+    expect(payload?.memo).toContain('结算家族节会奖励')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({
+        family_festival_seats_panel: buildFamilyFestivalSeatsPanel(),
+        fund_ledger_entry: { id: 'family-festival-settle-e2e', amount: 120 },
+        reputation_entry: { id: 'family-festival-reputation-e2e', points: 10 },
+        idempotent: false
+      }))
+    })
+  })
   const readonlyPanelRoutes = [
     ['family-orders', 'family_orders_panel'],
     ['family-reputation', 'family_reputation_panel'],
     ['family-buildings', 'family_buildings_panel'],
     ['family-relations', 'family_relations_panel'],
-    ['family-visibility', 'family_visibility_panel'],
-    ['family-festival-seats', 'family_festival_seats_panel']
+    ['family-visibility', 'family_visibility_panel']
   ]
   for (const [path, key] of readonlyPanelRoutes) {
     await page.route(`**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/${path}`, async route => {
@@ -3961,6 +4127,62 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-cohabitation-overview-warehouse-card')).toBeVisible()
     await expect(page.getByTestId('online-cohabitation-overview-risk-card')).toBeVisible()
     await expect(page.getByTestId('online-cohabitation-overview-details')).not.toHaveAttribute('open', '')
+  })
+
+  test('online cohabitation family festival actions require confirm dialog', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '家族节会')
+    await mockOnlineCohabitation(page)
+
+    const confirmPhrase = '确认家族节会'
+    const assertFamilyFestivalConfirm = async (triggerTestId: string, title: string, assetText: string) => {
+      await page.getByTestId(triggerTestId).click()
+      await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+      await expect(page.getByTestId('online-action-dialog-title')).toContainText(title)
+      await expect(page.getByTestId('online-confirm-impact-list')).toContainText('失败原因')
+      await expect(page.getByTestId('online-confirm-impact-list')).toContainText('家族上元灯会')
+      await expect(page.getByTestId('online-confirm-asset-list')).toContainText(assetText)
+      await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    }
+
+    await page.goto('/#/game/online/cohabitation?tab=festival')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    await expect(page.getByTestId('online-module-tab-festivalSeats')).toHaveAttribute('aria-selected', 'true')
+
+    await assertFamilyFestivalConfirm(
+      'online-cohabitation-family-festival-reserve-confirm-trigger',
+      '确认锁定家族节会席位',
+      '锁定当前成员节会席位'
+    )
+    await page.getByTestId('online-confirm-required-text').fill(confirmPhrase)
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeHidden()
+    await expect(page.getByText('已锁定节会席位 2 个')).toBeVisible()
+
+    await assertFamilyFestivalConfirm(
+      'online-cohabitation-family-festival-room-confirm-trigger',
+      '确认创建家族节会房间',
+      '预填创建'
+    )
+    await page.getByTestId('online-confirm-action-dialog-cancel').click()
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeHidden()
+
+    await assertFamilyFestivalConfirm(
+      'online-cohabitation-family-festival-supplies-confirm-trigger',
+      '确认消耗节会供品',
+      '按当前模板消耗节会供品'
+    )
+    await page.getByTestId('online-confirm-action-dialog-cancel').click()
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeHidden()
+
+    await assertFamilyFestivalConfirm(
+      'online-cohabitation-family-festival-settle-confirm-trigger',
+      '确认结算家族节会奖励',
+      '奖励入账 120 文'
+    )
+    await page.getByTestId('online-confirm-action-dialog-cancel').click()
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeHidden()
   })
 
   test('online cohabitation fund and warehouse high risk actions require confirm dialog', async ({ page }) => {
