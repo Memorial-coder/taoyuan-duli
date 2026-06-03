@@ -974,8 +974,47 @@ function buildMobileSmokePublishedOrder(title = '移动端烟测求助单') {
   }
 }
 
-function buildMobileSmokeCoopOrderOverview(accepted = false, publishedTitle = '') {
-  const orders = [buildMobileSmokeRelayOrder(accepted)]
+function buildMobileSmokeAcceptedOrder(delivered = false) {
+  return {
+    id: 'mobile-smoke-accepted-order',
+    owner_username: 'mobile_smoke_publisher',
+    owner_display_name: '移动端委托主',
+    title: '移动端待交付求助单',
+    description: '用于验证交付前的确认弹窗。',
+    order_type: 'material_help',
+    collaboration_mode: 'single',
+    scope: 'public',
+    target_save_id: 0,
+    target_save_slot: null,
+    target_username: '',
+    target_display_name: '',
+    deadline_at: 1893427200,
+    reward_type: 'money',
+    reward_value: 120,
+    reward_label: '铜钱回报',
+    status: 'open',
+    assignee_username: 'mobile_smoke_owner',
+    assignee_display_name: '移动端烟测号',
+    accepted_at: 3,
+    canceled_at: 0,
+    active_receipt_id: delivered ? 'mobile-smoke-delivery-receipt' : '',
+    delivery_status: delivered ? 'submitted' : 'none',
+    delivery_note: delivered ? '交付确认弹窗烟测说明。' : '',
+    delivered_items: delivered ? [{ item_id: 'smoke_wheat', quantity: 2 }] : [],
+    settlement_confirmed_at: 0,
+    compensation_id: '',
+    priority_score: 0,
+    priority_reasons: [],
+    stages: [],
+    visual_state: emptyVisualState,
+    relay_settlement_summary: null,
+    created_at: 3,
+    updated_at: delivered ? 5 : 3
+  }
+}
+
+function buildMobileSmokeCoopOrderOverview(accepted = false, publishedTitle = '', acceptedOrderDelivered = false) {
+  const orders = [buildMobileSmokeRelayOrder(accepted), buildMobileSmokeAcceptedOrder(acceptedOrderDelivered)]
   if (publishedTitle) {
     orders.unshift(buildMobileSmokePublishedOrder(publishedTitle))
   }
@@ -2081,6 +2120,7 @@ async function createPage(browser, viewport, options = {}) {
   if (mockOrders) {
     let orderAccepted = false
     let publishedOrderTitle = ''
+    let acceptedOrderDelivered = false
     await page.route('**/api/taoyuan/online/orders', async route => {
       if (route.request().method() === 'POST') {
         const payload = route.request().postDataJSON()
@@ -2097,7 +2137,15 @@ async function createPage(browser, viewport, options = {}) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(buildMobileSmokeCoopOrderOverview(orderAccepted, publishedOrderTitle))
+        body: JSON.stringify(buildMobileSmokeCoopOrderOverview(orderAccepted, publishedOrderTitle, acceptedOrderDelivered))
+      })
+    })
+    await page.route('**/api/taoyuan/online/orders/mobile-smoke-accepted-order/deliver', async route => {
+      acceptedOrderDelivered = true
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, order: buildMobileSmokeAcceptedOrder(true) })
       })
     })
     await page.route('**/api/taoyuan/online/orders/*/stages/*/accept', async route => {
@@ -2923,6 +2971,19 @@ async function prepareOnlineOrdersMobile(page) {
 
   await ordersTab('receipts').click()
   await expect(page.getByText('还没有结算凭证')).toBeVisible()
+  await ordersTab('accepted').click()
+  const acceptedEntry = page.getByTestId('online-orders-accepted-entry').filter({ hasText: '移动端待交付求助单' }).first()
+  await expect(acceptedEntry).toBeVisible()
+  await acceptedEntry.getByTestId('online-orders-delivery-item-input').fill('smoke_wheat')
+  await acceptedEntry.getByTestId('online-orders-delivery-quantity-input').fill('2')
+  await acceptedEntry.getByTestId('online-orders-delivery-note-input').fill('交付确认弹窗烟测说明。')
+  await acceptedEntry.getByTestId('online-orders-delivery-submit').click()
+  await expect(page.getByTestId('online-orders-action-confirm')).toBeVisible()
+  await expect(page.getByTestId('online-orders-action-confirm')).toContainText('移动端待交付求助单')
+  await expect(page.getByTestId('online-orders-action-confirm')).toContainText('smoke_wheat ×2')
+  await page.getByTestId('online-orders-action-confirm').getByTestId('online-confirm-action-dialog-confirm').click()
+  await expect(page.getByTestId('online-orders-action-confirm')).toHaveCount(0)
+  await expect(acceptedEntry).toContainText('待确认')
   await expect(ordersTab('publish')).toBeVisible()
   await ordersTab('publish').click()
   await expect(page.getByTestId('online-orders-publish-summary')).toBeVisible()

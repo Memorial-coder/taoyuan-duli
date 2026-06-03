@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 在线委托关键动作确认
+- `src/views/game/online/OnlineOrdersView.vue` 接入 `OnlineConfirmActionDialog`，接单、接力阶段接单、提交交付、确认结算、补偿重试和取消接单会先进入 `online-orders-action-confirm`，展示影响对象、回报 / 交付 / 结算变化和失败恢复提示，再调用原 store action。
+- 旧 `online-orders-accept-submit`、`online-orders-delivery-submit`、`online-orders-confirm-submit`、`online-orders-compensation-retry-submit` 保留；新增接力阶段确认入口 test id，并迁移 `qa-mobile-ui-smoke` 与 `qa-online-regression-live-smoke` 的确认点击。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、三个 `node --check` 通过；`qa:online-ui-structure` 仍被既有 / 并行覆盖缺口阻断但未出现本轮新增断言失败；`qa:mobile-ui-smoke` 当前在首个页面加载阶段超时，尚未进入委托场景。
+
 ### 0603 房间流程浏览器 E2E 远征创建
 - `e2e/game-smoke.spec.ts` 新增 `online expedition room wizard creates host room`，覆盖在线节会远征标签空闲状态打开 `OnlineRoomWizard`、选择 `expedition_outpost`、填写队伍标题、邀请名单进入确认页、展示撤离规则、提交创建 POST，并读回房主远征房状态、邀请入口和准备入口。
 - `mockOnlineVisualRoom` 新增 expedition rooms POST mock，复用 `startWithoutRoom` 空房起始态，创建后同一 overview 注入远征 `my_room`；旧 `online-expedition-room-my-room` / 旧准备 test id 和原 store action 语义保留。

@@ -1177,6 +1177,8 @@ async function main() {
       const mineEntry = page.getByTestId('online-orders-mine-entry').filter({ hasText: orderTitle }).first()
       await expect(mineEntry.getByTestId('online-orders-confirm-submit')).toBeVisible({ timeout: 10000 })
       await mineEntry.getByTestId('online-orders-confirm-submit').click()
+      await expect(page.getByTestId('online-orders-action-confirm')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-orders-action-confirm').getByTestId('online-confirm-action-dialog-confirm').click()
 
       let compensationId = ''
       await expect.poll(async () => {
@@ -1202,6 +1204,8 @@ async function main() {
       const compensationEntry = page.getByTestId('online-orders-compensation-entry').filter({ hasText: compensationId }).first()
       await expect(compensationEntry.getByTestId('online-orders-compensation-retry-submit')).toBeVisible({ timeout: 10000 })
       await compensationEntry.getByTestId('online-orders-compensation-retry-submit').click()
+      await expect(page.getByTestId('online-orders-action-confirm')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-orders-action-confirm').getByTestId('online-confirm-action-dialog-confirm').click()
 
       await expect.poll(async () => {
         const overview = await readCoopOrderOverview(owner)

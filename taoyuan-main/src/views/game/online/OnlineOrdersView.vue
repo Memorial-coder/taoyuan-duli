@@ -230,10 +230,11 @@
                   </p>
                   <div class="mt-2 flex justify-end">
                     <button
+                      data-testid="online-orders-stage-accept-submit"
                       class="online-action-btn online-action-btn--compact"
                       type="button"
                       :disabled="coopOrderStore.actionRunning"
-                      @click="acceptStageEntry(order.id, stage.id)"
+                      @click="openOrderActionConfirm({ kind: 'accept-stage', orderId: order.id, stageId: stage.id })"
                     >
                       接这一段
                     </button>
@@ -247,7 +248,7 @@
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="coopOrderStore.actionRunning || !canAcceptSingleOrder(order)"
-                  @click="acceptOrderEntry(order.id)"
+                  @click="openOrderActionConfirm({ kind: 'accept-order', orderId: order.id })"
                 >
                   {{ order.assignee_username ? '已有人接单' : '接这张单' }}
                 </button>
@@ -456,10 +457,11 @@
                   </div>
                   <div class="flex justify-end">
                     <button
+                      data-testid="online-orders-stage-confirm-submit"
                       class="online-action-btn online-action-btn--compact"
                       type="button"
                       :disabled="coopOrderStore.actionRunning || !canConfirmSettlement(order.id, stage.id)"
-                      @click="confirmStageDeliveryEntry(order.id, stage.id)"
+                      @click="openOrderActionConfirm({ kind: 'confirm-delivery', orderId: order.id, stageId: stage.id })"
                     >
                       确认这一段
                     </button>
@@ -505,7 +507,7 @@
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="coopOrderStore.actionRunning || !canConfirmSettlement(order.id)"
-                  @click="confirmDeliveryEntry(order.id)"
+                  @click="openOrderActionConfirm({ kind: 'confirm-delivery', orderId: order.id })"
                 >
                   确认结算
                 </button>
@@ -613,10 +615,11 @@
                   <div class="mt-2 flex flex-wrap justify-end gap-2">
                     <button
                       v-if="stage.delivery_status === 'none'"
+                      data-testid="online-orders-stage-delivery-submit"
                       class="online-action-btn online-action-btn--compact"
                       type="button"
                       :disabled="coopOrderStore.actionRunning"
-                      @click="submitStageDeliveryEntry(order.id, stage.id)"
+                      @click="openOrderActionConfirm({ kind: 'submit-delivery', orderId: order.id, stageId: stage.id })"
                     >
                       提交这一段
                     </button>
@@ -624,7 +627,7 @@
                       class="online-action-btn online-action-btn--danger online-action-btn--compact"
                       type="button"
                       :disabled="coopOrderStore.actionRunning || stage.delivery_status !== 'none'"
-                      @click="cancelStageEntry(order.id, stage.id)"
+                      @click="openOrderActionConfirm({ kind: 'cancel-stage', orderId: order.id, stageId: stage.id })"
                     >
                       取消这一段
                     </button>
@@ -672,7 +675,7 @@
                     class="online-action-btn online-action-btn--compact"
                     type="button"
                     :disabled="coopOrderStore.actionRunning"
-                    @click="submitDeliveryEntry(order.id)"
+                    @click="openOrderActionConfirm({ kind: 'submit-delivery', orderId: order.id })"
                   >
                     提交交付
                   </button>
@@ -680,7 +683,7 @@
                     class="online-action-btn online-action-btn--danger online-action-btn--compact"
                     type="button"
                     :disabled="coopOrderStore.actionRunning || order.status !== 'open' || order.delivery_status !== 'none'"
-                    @click="cancelOrderEntry(order.id)"
+                    @click="openOrderActionConfirm({ kind: 'cancel-order', orderId: order.id })"
                   >
                     取消接单
                   </button>
@@ -814,7 +817,7 @@
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="coopOrderStore.actionRunning"
-                  @click="retryCompensationEntry(compensation.id)"
+                  @click="openOrderActionConfirm({ kind: 'retry-compensation', compensationId: compensation.id })"
                 >
                   重试补偿
                 </button>
@@ -836,6 +839,23 @@
       @submit="submitOrderDraft"
       @close="closeOrderWizard"
     />
+
+    <div v-if="orderActionConfirmOpen" class="contents" data-testid="online-orders-action-confirm">
+      <OnlineConfirmActionDialog
+        :open="orderActionConfirmOpen"
+        :title="orderActionConfirmTitle"
+        :description="orderActionConfirmDescription"
+        :impact-items="orderActionConfirmImpactItems"
+        :asset-changes="orderActionConfirmAssetChanges"
+        :require-text="orderActionConfirmRequireText"
+        :confirm-label="orderActionConfirmLabel"
+        :running="coopOrderStore.actionRunning"
+        :recovery-hint="orderActionConfirmRecoveryHint"
+        @confirm="confirmOrderAction"
+        @cancel="closeOrderActionConfirm"
+        @close="closeOrderActionConfirm"
+      />
+    </div>
   </div>
 </template>
 
@@ -844,6 +864,7 @@
   import { useRoute } from 'vue-router'
   import { ExternalLink, Handshake, PlusCircle } from 'lucide-vue-next'
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
+  import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineOrderWizard from '@/components/game/online/OnlineOrderWizard.vue'
   import OnlineOrderStoryFlowPanel from '@/components/game/online/OnlineOrderStoryFlowPanel.vue'
@@ -853,16 +874,26 @@
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
-  import type { OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderType, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
+  import type { OnlineCoopCompensationEntry, OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderStageEntry, OnlineCoopOrderType, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
 
   type OrdersTabKey = 'publish' | 'available' | 'mine' | 'accepted' | 'receipts'
   type OrdersTabMeta = { key: OrdersTabKey; label: string; summary: string }
+  type OrderActionConfirm =
+    | { kind: 'accept-order'; orderId: string }
+    | { kind: 'accept-stage'; orderId: string; stageId: string }
+    | { kind: 'submit-delivery'; orderId: string; stageId?: string }
+    | { kind: 'confirm-delivery'; orderId: string; stageId?: string }
+    | { kind: 'cancel-order'; orderId: string }
+    | { kind: 'cancel-stage'; orderId: string; stageId: string }
+    | { kind: 'retry-compensation'; compensationId: string }
+  type ConfirmDialogItem = { id: string; label: string; value?: string }
 
   const route = useRoute()
   const coopOrderStore = useCoopOrderStore()
   const cohabitationStore = useCohabitationStore()
   const lastRefreshAttemptAt = ref(0)
   const orderWizardOpen = ref(false)
+  const orderActionConfirm = ref<OrderActionConfirm | null>(null)
   const orderBoardFilter = ref<'all' | 'single' | 'relay'>('all')
   const FAMILY_SHARED_FUND_TYPES = new Set(['oath_manor', 'business_partner'])
   const orderBoardFilterOptions: Array<{ id: 'all' | 'single' | 'relay'; label: string }> = [
@@ -1157,6 +1188,180 @@
     return targets.map(entry => `${entry.display_name || entry.username} ${entry.help_count} 次`).join('、')
   })
 
+  const getOrderById = (orderId: string) =>
+    (coopOrderStore.overview?.orders || []).find(order => order.id === orderId)
+  const getOrderStageById = (order: OnlineCoopOrderEntry | undefined, stageId = '') =>
+    (order?.stages || []).find(stage => stage.id === stageId)
+  const getCompensationById = (compensationId: string) =>
+    coopOrderStore.myCompensations.find(compensation => compensation.id === compensationId)
+  const getActionOrderId = (action: OrderActionConfirm | null) =>
+    action && 'orderId' in action ? action.orderId : ''
+  const getActionStageId = (action: OrderActionConfirm | null) =>
+    action && 'stageId' in action ? action.stageId : ''
+  const getOrderRewardSummary = (order: OnlineCoopOrderEntry | undefined) => {
+    if (!order) return '未找到回报'
+    return `${getCoopRewardTypeLabel(order.reward_type)} ${order.reward_value}${order.reward_label ? ` · ${order.reward_label}` : ''}`
+  }
+  const getCompensationRewardSummary = (compensation: OnlineCoopCompensationEntry | undefined) => {
+    if (!compensation) return '未找到回报'
+    return `${getCoopRewardTypeLabel(compensation.reward_type)} ${compensation.reward_value}${compensation.reward_label ? ` · ${compensation.reward_label}` : ''}`
+  }
+  const getStageDisplayLabel = (stage: OnlineCoopOrderStageEntry | undefined) =>
+    stage ? `阶段 ${stage.sequence} · ${stage.title}` : '整单'
+  const getDeliveryDraftSummary = (orderId: string, stageId = '') => {
+    const draft = coopOrderStore.ensureDeliveryDraft(orderId, stageId)
+    const item = draft.itemId.trim()
+      ? `${draft.itemId.trim()} ×${Math.max(1, Math.floor(Number(draft.quantity) || 1))}`
+      : '未登记资源'
+    const note = draft.note.trim() || '未填写说明'
+    return `${item} · ${note}`
+  }
+  const getSettlementRouteSummary = (orderId: string, stageId = '') => {
+    const draft = coopOrderStore.ensureSettlementDraft(orderId, stageId)
+    if (draft.rewardRoute !== 'shared_fund') return '接单人个人铜钱'
+    const contract = familySharedFundContracts.value.find(entry => entry.id === draft.cohabitationContractId)
+    return `共同基金 · ${contract ? getSettlementContractLabel(contract) : draft.cohabitationContractId || '未选择庄园'}`
+  }
+  const orderActionConfirmOpen = computed(() => Boolean(orderActionConfirm.value))
+  const orderActionConfirmCompensation = computed(() =>
+    orderActionConfirm.value?.kind === 'retry-compensation'
+      ? getCompensationById(orderActionConfirm.value.compensationId)
+      : undefined
+  )
+  const orderActionConfirmOrder = computed(() => {
+    if (orderActionConfirm.value?.kind === 'retry-compensation') {
+      const compensation = orderActionConfirmCompensation.value
+      return compensation ? getOrderById(compensation.order_id) : undefined
+    }
+    return getOrderById(getActionOrderId(orderActionConfirm.value))
+  })
+  const orderActionConfirmStage = computed(() =>
+    getOrderStageById(orderActionConfirmOrder.value, getActionStageId(orderActionConfirm.value))
+  )
+  const orderActionConfirmTitle = computed(() => {
+    const action = orderActionConfirm.value
+    if (!action) return '确认委托操作'
+    if (action.kind === 'accept-order') return '确认接下这张求助单'
+    if (action.kind === 'accept-stage') return '确认接下这一段'
+    if (action.kind === 'submit-delivery') return action.stageId ? '确认提交这一段交付' : '确认提交交付'
+    if (action.kind === 'confirm-delivery') return action.stageId ? '确认这一段结算' : '确认委托结算'
+    if (action.kind === 'cancel-order') return '确认取消接单'
+    if (action.kind === 'cancel-stage') return '确认取消这一段'
+    return '确认重试补偿'
+  })
+  const orderActionConfirmBaseDescription = computed(() => {
+    const action = orderActionConfirm.value
+    if (!action) return '请先选择一个委托操作。'
+    if (action.kind === 'accept-order' || action.kind === 'accept-stage') {
+      return '确认后会把这项求助加入“我的接单”，你需要在截止前提交交付。'
+    }
+    if (action.kind === 'submit-delivery') {
+      return '确认后发布人会看到你的交付内容；提交成功后，这份交付草稿会被清空。'
+    }
+    if (action.kind === 'confirm-delivery') {
+      return '确认后会按当前结算去向记录回报；如果入账没有成功，会留下补偿处理入口。'
+    }
+    if (action.kind === 'cancel-order' || action.kind === 'cancel-stage') {
+      return '确认后会释放这次接单，其他玩家可以继续接手。'
+    }
+    return '确认后会按补偿记录重新尝试发放回报。'
+  })
+  const orderActionConfirmDescription = computed(() =>
+    coopOrderStore.errorMessage && orderActionConfirm.value
+      ? `${orderActionConfirmBaseDescription.value} 最近失败原因：${coopOrderStore.errorMessage}`
+      : orderActionConfirmBaseDescription.value
+  )
+  const orderActionConfirmLabel = computed(() => {
+    const action = orderActionConfirm.value
+    if (!action) return '确认执行'
+    if (action.kind === 'accept-order' || action.kind === 'accept-stage') return '确认接单'
+    if (action.kind === 'submit-delivery') return '确认提交'
+    if (action.kind === 'confirm-delivery') return '确认结算'
+    if (action.kind === 'cancel-order' || action.kind === 'cancel-stage') return '确认取消'
+    return '确认重试'
+  })
+  const orderActionConfirmRequireText = computed(() => {
+    const action = orderActionConfirm.value
+    return action?.kind === 'cancel-order' || action?.kind === 'cancel-stage' ? '取消' : ''
+  })
+  const orderActionConfirmRecoveryHint = computed(() => {
+    const action = orderActionConfirm.value
+    if (!action) return ''
+    if (action.kind === 'accept-order' || action.kind === 'accept-stage') return '接单失败时不会占用这张单，可以刷新列表后再试。'
+    if (action.kind === 'submit-delivery') return '提交失败时会保留当前交付草稿，你可以修改资源、数量或说明后重试。'
+    if (action.kind === 'confirm-delivery') return '结算失败时仍会保留待确认记录，并在补偿页显示可处理的恢复入口。'
+    if (action.kind === 'cancel-order' || action.kind === 'cancel-stage') return '取消失败时接单状态不会变化，可以刷新后再次确认。'
+    return '补偿重试失败时会更新最近失败原因，便于稍后继续处理。'
+  })
+  const orderActionConfirmImpactItems = computed<ConfirmDialogItem[]>(() => {
+    const action = orderActionConfirm.value
+    if (!action) return []
+    if (action.kind === 'retry-compensation') {
+      const compensation = orderActionConfirmCompensation.value
+      if (!compensation) return []
+      return [
+        { id: 'compensation', label: '补偿记录', value: compensation.id },
+        { id: 'receipt', label: '结算凭证', value: compensation.receipt_id },
+        { id: 'order', label: '关联求助单', value: orderActionConfirmOrder.value?.title || compensation.order_id },
+      ]
+    }
+
+    const order = orderActionConfirmOrder.value
+    if (!order) return []
+    const stage = orderActionConfirmStage.value
+    const items: ConfirmDialogItem[] = [
+      { id: 'order', label: '求助单', value: order.title },
+      { id: 'owner', label: '发布人', value: order.owner_display_name || order.owner_username || '未知' },
+      { id: 'deadline', label: '截止时间', value: formatCoopTime(order.deadline_at) },
+    ]
+    if (stage) {
+      items.push({ id: 'stage', label: '接力阶段', value: getStageDisplayLabel(stage) })
+    }
+    const assignee = stage?.assignee_display_name || stage?.assignee_username || order.assignee_display_name || order.assignee_username
+    if (assignee && (action.kind === 'submit-delivery' || action.kind === 'confirm-delivery' || action.kind === 'cancel-order' || action.kind === 'cancel-stage')) {
+      items.push({ id: 'assignee', label: '接单人', value: assignee })
+    }
+    return items
+  })
+  const orderActionConfirmAssetChanges = computed<ConfirmDialogItem[]>(() => {
+    const action = orderActionConfirm.value
+    if (!action) return []
+    if (action.kind === 'retry-compensation') {
+      const compensation = orderActionConfirmCompensation.value
+      if (!compensation) return []
+      return [
+        { id: 'reward', label: '补偿回报', value: getCompensationRewardSummary(compensation) },
+        { id: 'attempt', label: '当前尝试次数', value: `${compensation.attempt_count} 次` },
+      ]
+    }
+
+    const order = orderActionConfirmOrder.value
+    if (!order) return []
+    const stageId = getActionStageId(action)
+    if (action.kind === 'accept-order' || action.kind === 'accept-stage') {
+      return [
+        { id: 'reward', label: '可获得回报', value: getOrderRewardSummary(order) },
+        { id: 'state', label: '接单状态', value: '进入“我的接单”' },
+      ]
+    }
+    if (action.kind === 'submit-delivery') {
+      return [
+        { id: 'delivery', label: '交付内容', value: getDeliveryDraftSummary(order.id, stageId) },
+        { id: 'state', label: '交付状态', value: '等待发布人确认' },
+      ]
+    }
+    if (action.kind === 'confirm-delivery') {
+      return [
+        { id: 'reward', label: '结算回报', value: getOrderRewardSummary(order) },
+        { id: 'route', label: '结算去向', value: getSettlementRouteSummary(order.id, stageId) },
+      ]
+    }
+    return [
+      { id: 'state', label: '接单状态', value: '释放给其他玩家' },
+      { id: 'draft', label: '交付草稿', value: '保留在本地输入框中' },
+    ]
+  })
+
   const refreshOrders = async () => {
     await coopOrderStore.refreshOverview().catch(() => {})
     lastRefreshAttemptAt.value = Date.now()
@@ -1180,29 +1385,58 @@
       orderWizardOpen.value = true
     }
   }
+
+  const openOrderActionConfirm = (action: OrderActionConfirm) => {
+    const orderId = getActionOrderId(action)
+    const stageId = getActionStageId(action)
+    if (action.kind === 'retry-compensation') {
+      if (!getCompensationById(action.compensationId)) return
+    } else {
+      const order = getOrderById(orderId)
+      if (!order) return
+      if (stageId && !getOrderStageById(order, stageId)) return
+    }
+    coopOrderStore.errorMessage = ''
+    orderActionConfirm.value = action
+  }
+
+  const closeOrderActionConfirm = () => {
+    if (coopOrderStore.actionRunning) return
+    orderActionConfirm.value = null
+  }
+
+  const runOrderStoreAction = async (action: () => Promise<void>) => {
+    try {
+      await action()
+      return !coopOrderStore.errorMessage
+    } catch {
+      return false
+    }
+  }
+
   const acceptOrderEntry = async (orderId: string) => {
-    await coopOrderStore.acceptOrder(orderId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.acceptOrder(orderId))
   }
   const acceptStageEntry = async (orderId: string, stageId: string) => {
-    await coopOrderStore.acceptStage(orderId, stageId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.acceptStage(orderId, stageId))
   }
   const cancelOrderEntry = async (orderId: string) => {
-    await coopOrderStore.cancelAcceptedOrder(orderId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.cancelAcceptedOrder(orderId))
   }
   const cancelStageEntry = async (orderId: string, stageId: string) => {
-    await coopOrderStore.cancelAcceptedStage(orderId, stageId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.cancelAcceptedStage(orderId, stageId))
   }
   const submitDeliveryEntry = async (orderId: string) => {
-    await coopOrderStore.submitDelivery(orderId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.submitDelivery(orderId))
   }
   const submitStageDeliveryEntry = async (orderId: string, stageId: string) => {
-    await coopOrderStore.submitDelivery(orderId, stageId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.submitDelivery(orderId, stageId))
   }
   const confirmDeliveryEntry = async (orderId: string) => {
-    await coopOrderStore.confirmDelivery(orderId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.confirmDelivery(orderId))
   }
   const confirmStageDeliveryEntry = async (orderId: string, stageId: string) => {
-    await coopOrderStore.confirmDelivery(orderId, stageId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.confirmDelivery(orderId, stageId))
   }
   const triggerOrderRelayAction = async (order: OnlineCoopOrderEntry, optionId: string) => {
     const [action, stageId] = optionId.split(':')
@@ -1224,7 +1458,34 @@
     }
   }
   const retryCompensationEntry = async (compensationId: string) => {
-    await coopOrderStore.retryCompensation(compensationId).catch(() => {})
+    return runOrderStoreAction(() => coopOrderStore.retryCompensation(compensationId))
+  }
+  const confirmOrderAction = async () => {
+    const action = orderActionConfirm.value
+    if (!action) return
+    let success = false
+    if (action.kind === 'accept-order') {
+      success = await acceptOrderEntry(action.orderId)
+    } else if (action.kind === 'accept-stage') {
+      success = await acceptStageEntry(action.orderId, action.stageId)
+    } else if (action.kind === 'submit-delivery') {
+      success = action.stageId
+        ? await submitStageDeliveryEntry(action.orderId, action.stageId)
+        : await submitDeliveryEntry(action.orderId)
+    } else if (action.kind === 'confirm-delivery') {
+      success = action.stageId
+        ? await confirmStageDeliveryEntry(action.orderId, action.stageId)
+        : await confirmDeliveryEntry(action.orderId)
+    } else if (action.kind === 'cancel-order') {
+      success = await cancelOrderEntry(action.orderId)
+    } else if (action.kind === 'cancel-stage') {
+      success = await cancelStageEntry(action.orderId, action.stageId)
+    } else {
+      success = await retryCompensationEntry(action.compensationId)
+    }
+    if (success) {
+      orderActionConfirm.value = null
+    }
   }
 
   onMounted(() => {
