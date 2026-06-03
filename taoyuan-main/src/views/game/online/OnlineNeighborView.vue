@@ -587,25 +587,46 @@
               </div>
             </div>
 
-            <div v-if="socialStore.neighborGroup && canManageNeighbor" class="game-panel-muted space-y-2 p-3">
-              <p class="text-sm text-accent">邀请成员</p>
-              <div class="online-action-row">
-                <input
-                  v-model="socialStore.neighborInviteUsernameDraft"
-                  data-testid="online-neighbor-invite-username-input"
-                  class="online-input min-w-0 flex-1"
-                  placeholder="输入玩家用户名"
-                />
+            <div v-if="socialStore.neighborGroup && canManageNeighbor" class="game-panel-muted space-y-3 p-3">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div class="min-w-0">
+                  <p class="text-sm text-accent">邀请成员</p>
+                  <p class="mt-1 text-xs leading-5 text-muted">
+                    批量输入玩家名，失败项会留在邀请结果里方便重试。
+                  </p>
+                </div>
                 <button
-                  data-testid="online-neighbor-invite-submit"
-                  class="online-action-btn online-action-btn--compact"
+                  data-testid="online-neighbor-invite-panel-trigger"
+                  class="online-action-btn online-action-btn--primary shrink-0 justify-center"
                   type="button"
-                  :disabled="socialStore.neighborActionRunning || !socialStore.neighborInviteUsernameDraft.trim()"
-                  @click="inviteNeighbor"
+                  :disabled="neighborInviteBusy"
+                  @click="openNeighborInvitePanel"
                 >
-                  发送邀请
+                  <UserPlus :size="12" />
+                  邀请成员
                 </button>
               </div>
+
+              <details class="border border-accent/10 bg-black/10 p-2">
+                <summary class="cursor-pointer text-[10px] text-muted">备用单人邀请</summary>
+                <div class="online-action-row mt-2">
+                  <input
+                    v-model="socialStore.neighborInviteUsernameDraft"
+                    data-testid="online-neighbor-invite-username-input"
+                    class="online-input min-w-0 flex-1"
+                    placeholder="输入玩家用户名"
+                  />
+                  <button
+                    data-testid="online-neighbor-invite-submit"
+                    class="online-action-btn online-action-btn--compact"
+                    type="button"
+                    :disabled="socialStore.neighborActionRunning || !socialStore.neighborInviteUsernameDraft.trim()"
+                    @click="inviteNeighbor"
+                  >
+                    发送邀请
+                  </button>
+                </div>
+              </details>
             </div>
 
             <div class="game-panel-muted p-3">
@@ -628,20 +649,13 @@
                     </div>
                     <div class="flex shrink-0 gap-2">
                       <button
+                        data-testid="online-neighbor-request-detail-trigger"
                         class="online-action-btn online-action-btn--compact"
                         type="button"
-                        :disabled="socialStore.neighborActionRunning || (entry.type === 'apply' && !canManageNeighbor)"
-                        @click="acceptNeighbor(entry.id)"
+                        :disabled="socialStore.neighborActionRunning"
+                        @click="openNeighborRequestDetail(entry)"
                       >
-                        接受
-                      </button>
-                      <button
-                        class="online-action-btn online-action-btn--compact"
-                        type="button"
-                        :disabled="socialStore.neighborActionRunning || (entry.type === 'apply' && !canManageNeighbor)"
-                        @click="rejectNeighbor(entry.id)"
-                      >
-                        拒绝
+                        查看处理
                       </button>
                     </div>
                   </div>
@@ -985,20 +999,112 @@
         </footer>
       </template>
     </OnlineActionDialog>
+
+    <OnlineInvitePanel
+      :open="neighborInvitePanelOpen"
+      domain="neighbor"
+      title="邀请邻里成员"
+      description="可一次输入多个玩家名；已在邻里的玩家会被跳过，失败项可单独重试。"
+      :recent-players="neighborInviteRecentPlayers"
+      :results="neighborInviteResults"
+      :busy="neighborInviteBusy"
+      @invite="inviteNeighborRecipients"
+      @retry="retryNeighborInvite"
+      @remove="removeNeighborInviteResult"
+      @close="closeNeighborInvitePanel"
+    />
+
+    <OnlineBottomSheet
+      :open="Boolean(selectedNeighborRequest)"
+      :title="selectedNeighborRequestTitle"
+      :description="selectedNeighborRequestDescription"
+      side="right"
+      :close-on-backdrop="!socialStore.neighborActionRunning"
+      @close="closeNeighborRequestDetail"
+    >
+      <div v-if="selectedNeighborRequest" class="space-y-3" data-testid="online-neighbor-request-detail-sheet">
+        <OnlineStatusBanner
+          v-if="neighborRequestActionError"
+          tone="danger"
+          title="请求暂时没有处理成功"
+          :description="neighborRequestActionError"
+        />
+
+        <div class="grid gap-2 text-xs">
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">请求类型</p>
+            <p class="mt-1 text-accent">{{ selectedNeighborRequest.type === 'apply' ? '加入申请' : '邻里邀请' }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">玩家</p>
+            <p class="mt-1 break-all text-accent">{{ selectedNeighborRequest.username }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">邻里</p>
+            <p class="mt-1 break-all text-accent">{{ selectedNeighborRequest.group_name || selectedNeighborRequest.group_id }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">提交时间</p>
+            <p class="mt-1 text-accent">{{ formatChronicleDate(selectedNeighborRequest.created_at) || '未记录' }}</p>
+          </div>
+          <div v-if="selectedNeighborRequest.invited_by" class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[10px] text-muted">邀请人</p>
+            <p class="mt-1 break-all text-accent">{{ selectedNeighborRequest.invited_by }}</p>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            :disabled="socialStore.neighborActionRunning"
+            @click="closeNeighborRequestDetail"
+          >
+            稍后处理
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-neighbor-request-reject"
+            :disabled="selectedNeighborRequestActionDisabled"
+            @click="rejectSelectedNeighborRequest"
+          >
+            拒绝
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+            data-testid="online-neighbor-request-accept"
+            :disabled="selectedNeighborRequestActionDisabled"
+            @click="acceptSelectedNeighborRequest"
+          >
+            接受
+          </button>
+        </div>
+      </template>
+    </OnlineBottomSheet>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
-  import { ChevronLeft, ChevronRight, ExternalLink, IdCard, Pencil, RefreshCw, Save, Upload, Users } from 'lucide-vue-next'
+  import { ChevronLeft, ChevronRight, ExternalLink, IdCard, Pencil, RefreshCw, Save, Upload, UserPlus, Users } from 'lucide-vue-next'
   import OnlineActionDialog from '@/components/game/online/OnlineActionDialog.vue'
+  import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
+  import OnlineInvitePanel, {
+    type OnlineInviteRecentPlayer,
+    type OnlineInviteResult,
+  } from '@/components/game/online/OnlineInvitePanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import { useSocialStore } from '@/stores/useSocialStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
+  import type { OnlineNeighborRequest } from '@/utils/onlineProfileApi'
 
   type NeighborTabKey = 'profile' | 'friends' | 'neighbor' | 'subscriptions'
   type NeighborTabMeta = { key: NeighborTabKey; label: string; summary: string }
@@ -1016,6 +1122,11 @@
   const neighborCreateError = ref('')
   const neighborCreateVisibility = ref('public')
   const neighborCreateJoinCondition = ref('apply')
+  const neighborInvitePanelOpen = ref(false)
+  const neighborInviteResults = ref<OnlineInviteResult[]>([])
+  const neighborInviteBatchRunning = ref(false)
+  const selectedNeighborRequest = ref<OnlineNeighborRequest | null>(null)
+  const neighborRequestActionError = ref('')
   const uploadingAvatar = ref(false)
   const avatarInputRef = ref<HTMLInputElement | null>(null)
   const tabs: NeighborTabMeta[] = [
@@ -1124,6 +1235,24 @@
     ...(canManageNeighbor.value ? socialStore.neighborManagedRequests : []),
     ...socialStore.neighborIncomingInvites,
   ])
+  const neighborMemberUsernameSet = computed(() => new Set(
+    neighborMembers.value.map(member => member.username.trim().toLowerCase()).filter(Boolean)
+  ))
+  const neighborInviteRecentPlayers = computed<OnlineInviteRecentPlayer[]>(() =>
+    socialStore.friends.slice(0, 8).map(entry => {
+      const username = entry.profile.username
+      const alreadyMember = neighborMemberUsernameSet.value.has(username.trim().toLowerCase())
+      return {
+        id: username,
+        username,
+        displayName: entry.profile.display_name || entry.profile.player_name || username,
+        subtitle: entry.profile.public_title || entry.profile.manor_name || '好友',
+        disabled: alreadyMember,
+        reason: alreadyMember ? '已在邻里' : undefined,
+      }
+    })
+  )
+  const neighborInviteBusy = computed(() => socialStore.neighborActionRunning || neighborInviteBatchRunning.value)
   const neighborLeaderboard = computed(() =>
     [...socialStore.neighborPublicGroups]
       .sort((left, right) => right.level - left.level || right.member_count - left.member_count || left.name.localeCompare(right.name, 'zh-CN'))
@@ -1193,6 +1322,24 @@
   const neighborCreateJoinConditionLabel = computed(() =>
     neighborCreateJoinConditionOptions.find(option => option.value === neighborCreateJoinCondition.value)?.label || '需要申请'
   )
+  const selectedNeighborRequestTitle = computed(() => {
+    const request = selectedNeighborRequest.value
+    if (!request) return '申请与邀请详情'
+    if (request.type === 'apply') return `${request.username} 申请加入邻里`
+    return `收到邻里邀请：${request.group_name || request.group_id}`
+  })
+  const selectedNeighborRequestDescription = computed(() => {
+    const request = selectedNeighborRequest.value
+    if (!request) return '查看申请来源、时间和可处理动作。'
+    if (request.type === 'apply') return canManageNeighbor.value
+      ? '确认后该玩家会加入你的邻里。'
+      : '只有邻里社长或管事可以处理成员申请。'
+    return '确认后你会加入这个邻里；拒绝后邀请会被关闭。'
+  })
+  const selectedNeighborRequestActionDisabled = computed(() => {
+    const request = selectedNeighborRequest.value
+    return socialStore.neighborActionRunning || Boolean(request && request.type === 'apply' && !canManageNeighbor.value)
+  })
 
   const formatChronicleDate = (timestamp: number) => {
     if (!timestamp) return ''
@@ -1288,8 +1435,10 @@
     try {
       await action()
       lastRefreshAttemptAt.value = Date.now()
+      return true
     } catch (error: any) {
       showFloat(error?.message || fallbackMessage, 'danger')
+      return false
     }
   }
 
@@ -1314,16 +1463,119 @@
     await runNeighborAction(() => socialStore.applyNeighbor(groupId), '申请加入邻里失败')
   }
 
+  const openNeighborInvitePanel = () => {
+    neighborInvitePanelOpen.value = true
+  }
+
+  const closeNeighborInvitePanel = () => {
+    if (neighborInviteBusy.value) return
+    neighborInvitePanelOpen.value = false
+  }
+
+  const upsertNeighborInviteResult = (row: OnlineInviteResult) => {
+    const key = row.username.trim().toLowerCase()
+    const nextRows = neighborInviteResults.value.filter(entry => entry.username.trim().toLowerCase() !== key)
+    neighborInviteResults.value = [...nextRows, row]
+  }
+
+  const removeNeighborInviteResult = (recipient: string) => {
+    const key = recipient.trim().toLowerCase()
+    neighborInviteResults.value = neighborInviteResults.value.filter(row => row.username.trim().toLowerCase() !== key)
+  }
+
+  const inviteNeighborRecipients = async (recipients: string[]) => {
+    if (neighborInviteBatchRunning.value) return
+    neighborInviteBatchRunning.value = true
+    try {
+      for (const recipient of recipients) {
+        const username = recipient.trim()
+        if (!username) continue
+        if (neighborMemberUsernameSet.value.has(username.toLowerCase())) {
+          upsertNeighborInviteResult({
+            username,
+            status: 'blocked',
+            message: '这位玩家已经在邻里里。',
+          })
+          continue
+        }
+
+        upsertNeighborInviteResult({
+          username,
+          status: 'inviting',
+          message: '正在发送邀请。',
+        })
+
+        try {
+          socialStore.neighborInviteUsernameDraft = username
+          await socialStore.inviteNeighbor()
+          upsertNeighborInviteResult({
+            username,
+            status: 'invited',
+            message: '邀请已发送。',
+          })
+          lastRefreshAttemptAt.value = Date.now()
+        } catch (error: any) {
+          upsertNeighborInviteResult({
+            username,
+            status: 'failed',
+            message: error?.message || socialStore.errorMessage || '邀请没有发送成功，可稍后重试。',
+          })
+        }
+      }
+    } finally {
+      neighborInviteBatchRunning.value = false
+    }
+  }
+
+  const retryNeighborInvite = async (recipient: string) => {
+    await inviteNeighborRecipients([recipient])
+  }
+
   const inviteNeighbor = async () => {
     await runNeighborAction(() => socialStore.inviteNeighbor(), '发送邻里邀请失败')
   }
 
   const acceptNeighbor = async (requestId: string) => {
-    await runNeighborAction(() => socialStore.acceptNeighbor(requestId), '接受邻里请求失败')
+    return runNeighborAction(() => socialStore.acceptNeighbor(requestId), '接受邻里请求失败')
   }
 
   const rejectNeighbor = async (requestId: string) => {
-    await runNeighborAction(() => socialStore.rejectNeighbor(requestId), '拒绝邻里请求失败')
+    return runNeighborAction(() => socialStore.rejectNeighbor(requestId), '拒绝邻里请求失败')
+  }
+
+  const openNeighborRequestDetail = (entry: OnlineNeighborRequest) => {
+    neighborRequestActionError.value = ''
+    selectedNeighborRequest.value = entry
+  }
+
+  const closeNeighborRequestDetail = () => {
+    if (socialStore.neighborActionRunning) return
+    selectedNeighborRequest.value = null
+    neighborRequestActionError.value = ''
+  }
+
+  const acceptSelectedNeighborRequest = async () => {
+    const request = selectedNeighborRequest.value
+    if (!request || selectedNeighborRequestActionDisabled.value) return
+    neighborRequestActionError.value = ''
+    const handled = await acceptNeighbor(request.id)
+    if (handled) {
+      closeNeighborRequestDetail()
+      return
+    }
+    neighborRequestActionError.value = socialStore.errorMessage || '邻里请求暂时没有处理成功。'
+  }
+
+  const rejectSelectedNeighborRequest = async () => {
+    const request = selectedNeighborRequest.value
+    if (!request || selectedNeighborRequestActionDisabled.value) return
+    neighborRequestActionError.value = ''
+    const handled = await rejectNeighbor(request.id)
+    if (handled) {
+      closeNeighborRequestDetail()
+      return
+    }
+    neighborRequestActionError.value = socialStore.errorMessage || '邻里请求暂时没有处理成功。'
   }
 
   const saveNeighborNotice = async () => {

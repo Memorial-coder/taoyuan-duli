@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 联机邻里邀请与申请抽屉
+- `src/views/game/online/OnlineNeighborView.vue` 的邻里邀请成员入口改为 `OnlineInvitePanel domain="neighbor"`，支持批量输入、好友快捷选择、已在邻里过滤、失败保留与单项重试；原 `online-neighbor-invite-username-input`、`online-neighbor-invite-submit` 保留在备用折叠区。
+- 邻里申请 / 邀请列表只保留详情处理入口，接受 / 拒绝动作迁入 `OnlineBottomSheet` 详情抽屉；原 `socialStore.inviteNeighbor()`、`acceptNeighbor()`、`rejectNeighbor()` 调用语义不变。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、`npm --prefix taoyuan-main run qa:mobile-ui-smoke`、`node --check taoyuan-main/scripts/qa-online-ui-structure.mjs` 通过；`qa:online-ui-structure` 仍被既有 / 并行移动端覆盖缺口阻断，未出现邻里新增断言失败。
+
 ### 0603 联机邻里创建向导
 - `src/views/game/online/OnlineNeighborView.vue` 的创建邻里入口改为三步 `OnlineActionDialog` 向导，覆盖名称 / 简介、公开方式 / 加入门槛和确认创建；原创建输入与提交 test id 保留在弹窗内。
 - 创建失败时弹窗保持打开并显示错误提示，store 草稿不被清空；确认创建仍调用既有 `socialStore.submitNeighborGroup()`，不新增后端字段。
