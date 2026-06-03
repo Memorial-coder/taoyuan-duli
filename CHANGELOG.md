@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-03
+- 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房创建向导完整路径，覆盖空闲状态打开 `OnlineRoomWizard`、选择灯会房型、填写标题、邀请名单进入确认页、提交创建 POST，并读回房主房间状态、准备大厅和邀请入口；`mockOnlineVisualRoom` 支持空房起始态与 festival rooms POST mock。
 - 在线委托发布向导：`OnlineOrdersView.vue` 的发布页首屏改为草稿摘要和 `online-orders-publish-wizard-trigger`，新增 `OnlineOrderWizard` 分步填写类型、需求、协作模式、回报和确认发布；旧发布输入 / 提交 test id 保留在向导内，提交仍调用原 `coopOrderStore.submitOrder()`，移动端 smoke 已覆盖发布后读回“我的发布”。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房准备大厅「开始准备 → 开始倒计时」场景，mock `/ready-check` 与 `/start` 状态推进；同时 `startNewJourney` 等待 `game-layout`，消除全量 E2E 中房间用例被开局竞态拦回首页的问题。
 - 邻里邀请与申请抽屉化：`OnlineNeighborView.vue` 复用 `OnlineInvitePanel domain="neighbor"` 承接邻里批量邀请、已在邻里过滤、失败重试和备用单人邀请；申请 / 邀请接受拒绝迁入 `OnlineBottomSheet` 详情抽屉，旧邀请 test id 与原 `inviteNeighbor` / `acceptNeighbor` / `rejectNeighbor` store action 保留。

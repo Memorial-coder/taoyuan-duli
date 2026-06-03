@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 房间流程浏览器 E2E 创建向导
+- `e2e/game-smoke.spec.ts` 新增 `online festival room wizard creates host room`，覆盖空闲节会房打开 `OnlineRoomWizard`、选择 `lantern_fair`、填写标题、邀请名单进入确认页、提交创建 POST，并读回房主房间状态、准备大厅和邀请入口。
+- `mockOnlineVisualRoom` 新增 `startWithoutRoom` 和 festival rooms POST mock，创建后同一 overview 注入 `my_room`；旧房间载入 helper 和既有 test id 保留。
+- 本轮验证：新增单场景 grep 与房间三场景组合 grep 返回 0，`npm --prefix taoyuan-main run check` 返回 0；全量 `game-smoke.spec.ts` 仍有启动 / 页面级失败，`qa:online-ui-structure` 与 `qa:mobile-ui-smoke` 仍被既有或并行移动端覆盖缺口 / 首页加载超时阻断。
+
 ### 0603 在线委托发布向导
 - `src/views/game/online/OnlineOrdersView.vue` 的发布 tab 不再直接铺长表单，首屏只保留草稿摘要和 `online-orders-publish-wizard-trigger` 主入口。
 - 新增 `src/components/game/online/OnlineOrderWizard.vue`，分步承接类型 / 范围、需求、协作模式、回报和确认发布；旧发布输入与 `online-orders-publish-submit` test id 保留在向导内，确认仍调用既有 `coopOrderStore.submitOrder()`。
