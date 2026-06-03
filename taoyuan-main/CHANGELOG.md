@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 房间流程浏览器 E2E 结算确认
+- `e2e/game-smoke.spec.ts` 新增 `online festival room settle confirm shows impacts and records receipt`，覆盖运行中节会房从备用 `online-festival-room-settle-submit` 打开 `online-room-settle-confirm` / `OnlineConfirmActionDialog`，断言房间与成员影响、奖励预览、恢复提示和确认按钮。
+- 提交后等待既有 `/settle` 接口，并读回 `online-festival-room-status-panel` 的已结算状态、`online-visual-room-settlement-replay` 的结算记录和 `90 铜钱、1 张奖券、lantern_token x2` 奖励；`openHome` 增加最多 3 次短重试，降低首页启动竞态。
+- 本轮验证：新增单场景 grep 与房间组合 grep 返回 0，`npm --prefix taoyuan-main run check` 返回 0；全量 `game-smoke.spec.ts` 与 `qa:online-ui-structure` 仍被既有 / 非 Agent A 页面级失败阻断，未出现本轮结算确认组合 grep 失败。
+
 ### 0603 房间流程浏览器 E2E 成员准备
 - `e2e/game-smoke.spec.ts` 新增 `online festival room member accepts invite and readies`，覆盖受邀成员打开 `OnlineRoomLobbyDialog`，从“接受邀请”调用 `/join`，再从“我已准备”调用 `/ready`，读回 `online-room-member-tester`、准备计数和主行动切换。
 - `mockOnlineVisualRoom` 新增 festival `/join` 与 `/ready` POST mock，只推进成员状态、`my_member_status`、准备能力和 `ready_member_count`；旧 `online-room-primary-action`、`online-room-member-list` 和原 store action 语义保留。

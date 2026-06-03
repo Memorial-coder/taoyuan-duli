@@ -18,7 +18,15 @@ const emptyVisualState = {
 }
 
 async function openHome(page: Page) {
-  await page.goto('/')
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 })
+      break
+    } catch (error) {
+      if (attempt === 2) throw error
+      await page.waitForTimeout(500)
+    }
+  }
   await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('button', { name: '新的旅程' })).toBeVisible({ timeout: 15_000 })
 }
@@ -4069,6 +4077,120 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-room-member-list')).toContainText('倒计时锁定')
     await expect(page.getByTestId('online-room-primary-action')).toContainText('查看倒计时')
     await expect(page.getByTestId('online-visual-room-countdown')).toContainText('倒计时 30 秒')
+  })
+
+  test('online festival room settle confirm shows impacts and records receipt', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '结算')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-settle-confirm-room',
+      title: '节会结算确认 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.state = 'running'
+    room.state_label = '进行中'
+    room.state_reason = '节会现场已完成关键行动，可以进入结算。'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.ready_member_count = 1
+    room.can_host_settle = true
+    room.can_host_close = true
+    room.gameplay.available_actions = []
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'active',
+        status_label: '进行中',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 2,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'settle_friend',
+        display_name: '结算成员',
+        role: 'member',
+        status: 'joined',
+        status_label: '未完成',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, {
+      domain: 'festival',
+      room,
+      onSettle: (currentRoom) => {
+        const receipt = {
+          id: 'receipt-festival-settle-confirm-e2e',
+          room_id: currentRoom.id,
+          room_title: currentRoom.title,
+          template_label: currentRoom.template_label,
+          target_username: 'tester',
+          target_display_name: '测试者',
+          target_slot: 0,
+          status: 'persisted',
+          status_label: '已结算',
+          reward_payload: { money: 90, reward_tickets: 1, items: [{ item_id: 'lantern_token', quantity: 2 }] },
+          summary: '节会结算确认 smoke 已生成奖励记录。',
+          route_replay: null,
+          created_at: 1760000300
+        }
+        currentRoom.state = 'settled'
+        currentRoom.state_label = '已结算'
+        currentRoom.state_reason = '节会结算确认 smoke 已完成，奖励已记录。'
+        currentRoom.can_host_settle = false
+        currentRoom.can_host_close = true
+        currentRoom.gameplay.phase = 'completed'
+        currentRoom.gameplay.phase_label = '已完成'
+        currentRoom.settlement_receipts = [receipt]
+        return { room: currentRoom, recentReceipts: [receipt] }
+      }
+    })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expectOnlineFestivalRoomLoaded(page, '节会结算确认 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-settle-submit')
+    await page.getByTestId('online-festival-room-settle-submit').click()
+    await expect(page.getByTestId('online-room-settle-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('节会结算确认 smoke')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('结算成员')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('奖励预览将在结算后生成')
+    await expect(page.getByTestId('online-confirm-recovery-hint')).toContainText('房间会保留当前状态')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toContainText('确认结算')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+
+    const settleResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/settle')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const settleResponse = await settleResponsePromise
+    expect(settleResponse.url()).toContain('/settle')
+    await expect(page.getByTestId('online-room-settle-confirm')).toHaveCount(0)
+    await expect(page.getByTestId('online-festival-room-status-panel')).toContainText('已结算')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('结算 / 回看凭证')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('节会结算确认 smoke 已生成奖励记录')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('奖励已记录：90 铜钱、1 张奖券、lantern_token x2')
   })
 
   test('online festival room close confirm requires text escape focus and submits', async ({ page }) => {
