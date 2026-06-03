@@ -4,6 +4,9 @@
 
 ## [未发布]
 
+### 0603 在线节会龙舟赛道名次结构
+- `VisualTrackBoard` 多队榜单新增 `visual-track-team-standings`、逐队 `visual-track-team-row-*` 和「第 N 名」现场名次展示；龙舟赛道浏览器 smoke 已能断言四船排名与完赛状态，旧玩法按钮折叠为备用操作后的轨道回归不再被名次 test id 缺口阻断。
+
 ### 0603 在线中心治理与模块降噪
 - 可视化功能开关、缺失配置、奖励与投放控制迁入 `OnlineTechnicalDetails` 默认折叠区，玩家路径只保留「备用入口」和下一步说明；旧 `online-visual-feature-flag-panel`、`online-visual-reward-control-panel` test id 仍保留在折叠区内。
 - 在线中心模块区降为 `online-center-module-entry-group` 的「常用入口」，桌面不再使用 `xl:grid-cols-6` 等权平铺；`OnlineModuleCard` 移除首屏 stats 网格，只保留标题、状态和一个入口。`qa:online-visual-feature-flags` 同步检查治理信息位于技术详情内。

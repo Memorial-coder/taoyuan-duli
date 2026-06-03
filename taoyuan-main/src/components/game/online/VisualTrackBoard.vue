@@ -139,15 +139,22 @@
         <span>选择赛道格</span>
       </div>
 
-      <div v-if="activeTrack && activeTrack.teams.length > 0" class="visual-track-board__teams" aria-label="队伍位置">
+      <div
+        v-if="activeTrack && activeTrack.teams.length > 0"
+        class="visual-track-board__teams"
+        aria-label="队伍位置"
+        data-testid="visual-track-team-standings"
+      >
         <div
-          v-for="team in sortedTeams"
+          v-for="(team, teamIndex) in sortedTeams"
           :key="team.team_id"
           class="visual-track-board__team"
+          :data-testid="`visual-track-team-row-${team.team_id}`"
         >
           <span class="visual-track-board__team-marker" :class="`visual-track-board__marker--${team.state}`">
             {{ team.marker || team.label.slice(0, 1) || team.team_id.slice(0, 1) }}
           </span>
+          <span class="visual-track-board__team-rank">第 {{ teamIndex + 1 }} 名</span>
           <span class="visual-track-board__team-name">{{ team.label || team.team_id }}</span>
           <span class="visual-track-board__team-state">
             {{ teamStateLabel(team.state) }} · {{ team.last_action_id ? actionLabel(team.last_action_id) : '未行动' }} · {{ team.position_index + 1 }} 格
@@ -631,6 +638,13 @@
     flex: 1;
     color: rgb(var(--color-text));
     font-size: 0.7rem;
+  }
+
+  .visual-track-board__team-rank {
+    flex-shrink: 0;
+    color: var(--color-accent);
+    font-size: 0.68rem;
+    line-height: 1.2;
   }
 
   @media (max-width: 760px) {
