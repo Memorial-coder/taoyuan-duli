@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 在线弹窗键盘焦点保护
+- `OnlineActionDialog` 补齐全局 Esc 兜底、`open=true` 初始挂载监听和卸载焦点恢复，避免父级 `v-if` 直接创建弹窗时键盘关闭或焦点返回丢失。
+- `game-smoke.spec.ts` 新增节会房关闭确认浏览器场景，断言确认文字未填禁用、Esc 取消、焦点回到 `online-festival-room-close-submit`，填写「确认关闭房间」后提交既有关闭接口并读回关闭原因。
+
 ### 0603 在线房间新流程回退保护
 - 暂不新增 `useNewOnlineRoomFlow` 局部开关；在线节会页与独立远征页继续通过 `OnlineTechnicalDetails` / 统一房间壳的备用操作区保留旧创建、邀请、准备、倒计时、结算和关闭入口。
 - `qa-online-ui-structure` 新增 OUI-003 静态守护，断言备用 test id 仍存在，旧按钮包装仍提交既有 `createRoom`、`inviteMember`、`startReadyCheck`、`readyRoomAction`、`unreadyRoomAction`、`startCountdown`、`settleRoomAction` 和 `closeRoomAction`。

@@ -93,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, nextTick, ref, useSlots, watch } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, ref, useSlots, watch } from 'vue'
 
   type DialogTone = 'default' | 'danger' | 'warning' | 'success'
 
@@ -186,16 +186,30 @@
     requestClose()
   }
 
+  const handleGlobalKeydown = (event: KeyboardEvent) => {
+    if (!props.open || event.key !== 'Escape') return
+    event.preventDefault()
+    handleEscape()
+  }
+
   watch(
     () => props.open,
     isOpen => {
       if (isOpen) {
         previousFocus.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
         requiredTextInput.value = ''
+        window.addEventListener('keydown', handleGlobalKeydown)
         void focusFirstControl()
         return
       }
+      window.removeEventListener('keydown', handleGlobalKeydown)
       void restoreFocus()
-    }
+    },
+    { immediate: true }
   )
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('keydown', handleGlobalKeydown)
+    void restoreFocus()
+  })
 </script>

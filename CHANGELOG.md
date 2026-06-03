@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-03
+- 在线弹窗键盘焦点保护：`OnlineActionDialog` 补齐 `open=true` 初始挂载时的焦点记录、全局 Esc 兜底和卸载清理；节会房关闭确认新增浏览器 smoke，覆盖确认文字禁用、Esc 取消、焦点返回触发按钮和既有关闭接口提交。
 - 在线房间新流程回退保护：暂不新增 `useNewOnlineRoomFlow` 局部开关，节会、在线节会远征和独立远征继续通过默认折叠的备用操作区保留旧创建、邀请、准备、倒计时、结算、关闭入口；结构 QA 新增 OUI-003 断言，守护备用 test id 与原 store action 调用。
 - 在线节会龙舟赛道名次结构：`VisualTrackBoard` 多队榜单新增 `visual-track-team-standings`、逐队 `visual-track-team-row-*` 和「第 N 名」现场名次展示，龙舟赛道浏览器 smoke 已能断言四船排名与完赛状态，解除旧玩法按钮备用操作的轨道 E2E 缺口。
 - 在线中心治理与模块降噪：在线中心可视化功能开关、缺失配置、奖励与投放控制迁入 `OnlineTechnicalDetails` 默认折叠区，玩家路径只保留可参加入口和备用入口说明；模块卡降为「常用入口」，移除首屏 stats 密集网格，`qa:online-visual-feature-flags` 同步要求治理信息在技术详情内可定位。

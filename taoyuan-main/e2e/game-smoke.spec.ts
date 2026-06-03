@@ -316,6 +316,29 @@ async function mockOnlineVisualRoom(page: Page, options: {
       body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
     })
   })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/close', async route => {
+    currentRoom = {
+      ...currentRoom,
+      state: 'closed',
+      state_label: '已关闭',
+      state_reason: '房主已关闭本轮房间。',
+      can_invite: false,
+      can_leave: false,
+      can_ready: false,
+      can_unready: false,
+      can_host_ready_check: false,
+      can_host_start_countdown: false,
+      can_host_settle: false,
+      can_host_close: false,
+      can_disconnect: false,
+      can_reconnect: false
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
+    })
+  })
   await page.route('**/api/taoyuan/online/festival/rooms/*/invite', async route => {
     let payload: { target_username?: string } = {}
     try {
@@ -3267,6 +3290,73 @@ test.describe('web game smoke', () => {
     await expect(retryRow).toContainText('房间信息有更新，请刷新后继续。')
     await retryRow.getByTestId('online-invite-retry').click()
     await expect(retryRow).toContainText('已邀请')
+  })
+
+  test('online festival room close confirm requires text escape focus and submits', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '关闭')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-close-room',
+      title: '节会关闭 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.members = [{
+      username: 'tester',
+      display_name: '测试者',
+      role: 'host',
+      status: 'active',
+      status_label: '进行中',
+      invited_at: 0,
+      joined_at: 1,
+      ready_at: 2,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-close-submit')
+
+    const closeButton = page.getByTestId('online-festival-room-close-submit')
+    await closeButton.click()
+    await expect(page.getByTestId('online-room-close-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('节会关闭 smoke')
+    await expect(page.getByTestId('online-confirm-irreversible')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await expect(page.getByTestId('online-confirm-disabled-reason')).toContainText('确认文字未填写')
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('online-room-close-confirm')).toHaveCount(0)
+    await expect(closeButton).toBeFocused()
+
+    await closeButton.click()
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认关闭房间')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+    const closeResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/close')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const closeResponse = await closeResponsePromise
+    expect(closeResponse.url()).toContain('/close')
+    await expect(page.getByTestId('online-room-close-confirm')).toHaveCount(0)
+    await expect(page.getByText('房主已关闭本轮房间。').first()).toBeVisible()
   })
 
   test('online festival visual scene supports lantern object actions', async ({ page }) => {
