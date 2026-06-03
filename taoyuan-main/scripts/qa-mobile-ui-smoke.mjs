@@ -1113,6 +1113,51 @@ function buildMobileSmokeFestivalRoomSnapshot() {
   }
 }
 
+function buildMobileSmokeFestivalInviteActionResponse(targetUsername = 'mobile_smoke_guest') {
+  const room = buildMobileSmokeFestivalRoomSnapshot()
+  const targetDisplayName = targetUsername === 'lantern_guest'
+    ? '灯会新友'
+    : targetUsername === 'wish_helper'
+      ? '愿望协作员'
+      : targetUsername
+  room.members = [
+    ...room.members,
+    {
+      username: targetUsername,
+      display_name: targetDisplayName,
+      role: 'member',
+      status: 'invited',
+      status_label: '已邀请',
+      invited_at: 3,
+      joined_at: 0,
+      ready_at: 0,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }
+  ]
+  room.invitations = [{
+    id: `mobile-smoke-invite-${targetUsername}`,
+    room_id: room.id,
+    target_username: targetUsername,
+    target_display_name: targetDisplayName,
+    status: 'pending',
+    status_label: '待处理',
+    invited_at: 3,
+    responded_at: 0
+  }]
+  return {
+    ok: true,
+    room,
+    overview: {
+      ...buildMobileSmokeFestivalRoomOverview('host-running'),
+      my_room: room
+    },
+    msg: '邀请已发送，等待对方加入。'
+  }
+}
+
 function buildMobileSmokeFestivalRoomOverview(roomState = 'empty') {
   const myRoom = roomState === 'host-running' ? buildMobileSmokeFestivalRoomSnapshot() : null
   return {
@@ -1626,6 +1671,18 @@ async function createPage(browser, viewport, options = {}) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildMobileSmokeFestivalRoomOverview(mockFestivalRoomState))
+      })
+    })
+
+    await page.route('**/api/taoyuan/online/festival/rooms/*/invite', async route => {
+      const payload = route.request().postDataJSON()
+      const targetUsername = typeof payload?.target_username === 'string' && payload.target_username.trim()
+        ? payload.target_username.trim()
+        : 'mobile_smoke_guest'
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeFestivalInviteActionResponse(targetUsername))
       })
     })
 
@@ -2230,6 +2287,97 @@ async function prepareOnlineFestivalRoomLobbyMobile(page) {
   await assertFestivalRoomLobbyMobileLayout(page)
 }
 
+async function prepareOnlineFestivalRoomInvitePanelMobile(page) {
+  await ensureOnlineFestivalRoomTab(page)
+  await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+  await expect(page.getByTestId('online-visual-room-title')).toContainText('移动端节会房')
+
+  const inviteTrigger = page.getByTestId('online-festival-room-invite-trigger')
+  await expect(inviteTrigger).toBeVisible()
+  await inviteTrigger.click()
+
+  await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-invite-panel')).toBeVisible()
+  await expect(page.getByTestId('online-invite-existing-list')).toContainText('移动端烟测号')
+  await expect(page.getByTestId('online-invite-existing-list')).toContainText('协作好友')
+
+  const inviteInput = page.getByTestId('online-invite-input')
+  await expect(inviteInput).toBeFocused()
+  await inviteInput.fill('lantern_guest，wish_helper 协作好友')
+  await expect(page.getByTestId('online-invite-draft-list')).toContainText('lantern_guest')
+  await expect(page.getByTestId('online-invite-draft-list')).toContainText('wish_helper')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('待发送')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('已在房间')
+  await expect(page.getByTestId('online-invite-submit')).toContainText('发送邀请 2')
+
+  const beforeSubmitLayout = await page.evaluate(() => {
+    const overlay = document.querySelector('[data-testid="online-bottom-sheet"]')
+    const panel = overlay?.querySelector('.online-bottom-sheet__panel')
+    const footer = overlay?.querySelector('.online-bottom-sheet__footer')
+    const submitButton = document.querySelector('[data-testid="online-invite-submit"]')
+    const input = document.querySelector('[data-testid="online-invite-input"]')
+    const resultList = document.querySelector('[data-testid="online-invite-result-list"]')
+    const visibleControls = Array.from(overlay?.querySelectorAll('button, input, select, textarea') ?? [])
+      .filter(element => {
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    const clippedControls = visibleControls
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.label)
+    const panelRect = panel?.getBoundingClientRect()
+    const footerRect = footer?.getBoundingClientRect()
+    const submitRect = submitButton?.getBoundingClientRect()
+    const inputRect = input?.getBoundingClientRect()
+    const resultRect = resultList?.getBoundingClientRect()
+
+    return {
+      bodyOverflow: document.body.style.overflow,
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clippedControls,
+      panelLeft: panelRect?.left ?? Number.NaN,
+      panelRight: panelRect?.right ?? Number.NaN,
+      panelTop: panelRect?.top ?? Number.NaN,
+      panelBottom: panelRect?.bottom ?? Number.NaN,
+      footerBottom: footerRect?.bottom ?? Number.NaN,
+      submitBottom: submitRect?.bottom ?? Number.NaN,
+      submitHeight: submitRect?.height ?? 0,
+      inputTop: inputRect?.top ?? Number.NaN,
+      resultTop: resultRect?.top ?? Number.NaN,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+
+  expect(beforeSubmitLayout.bodyOverflow).toBe('hidden')
+  expect(beforeSubmitLayout.docOverflow).toBeLessThanOrEqual(4)
+  expect(beforeSubmitLayout.clippedControls).toEqual([])
+  expect(beforeSubmitLayout.panelLeft).toBeGreaterThanOrEqual(-1)
+  expect(beforeSubmitLayout.panelRight).toBeLessThanOrEqual(beforeSubmitLayout.viewportWidth + 1)
+  expect(beforeSubmitLayout.panelTop).toBeGreaterThanOrEqual(-1)
+  expect(beforeSubmitLayout.panelBottom).toBeLessThanOrEqual(beforeSubmitLayout.viewportHeight + 1)
+  expect(beforeSubmitLayout.footerBottom).toBeLessThanOrEqual(beforeSubmitLayout.viewportHeight + 1)
+  expect(beforeSubmitLayout.submitBottom).toBeLessThanOrEqual(beforeSubmitLayout.viewportHeight + 1)
+  expect(beforeSubmitLayout.submitHeight).toBeGreaterThanOrEqual(44)
+  expect(beforeSubmitLayout.inputTop).toBeLessThan(beforeSubmitLayout.viewportHeight)
+  expect(beforeSubmitLayout.resultTop).toBeLessThan(beforeSubmitLayout.viewportHeight)
+
+  await page.getByTestId('online-invite-submit').click()
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('lantern_guest')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('wish_helper')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('已邀请')
+}
+
 async function prepareOnlineFestivalRoomSettleConfirmMobile(page) {
   await ensureOnlineFestivalRoomTab(page)
   await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
@@ -2771,6 +2919,16 @@ async function main() {
       })
       await captureScenario({
         browser,
+        label: '36-online-festival-room-invite-panel-mobile-390x844',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-bottom-sheet"]',
+        mockFestivalRoom: true,
+        mockFestivalRoomState: 'host-running',
+        prepare: prepareOnlineFestivalRoomInvitePanelMobile
+      })
+      await captureScenario({
+        browser,
         label: '27-online-festival-room-settle-confirm-mobile-390x844',
         hash: '/#/game/online/festival?tab=festival-room',
         viewport: { width: 390, height: 844 },
@@ -2814,6 +2972,16 @@ async function main() {
         mockFestivalRoom: true,
         mockFestivalRoomState: 'host-running',
         prepare: prepareOnlineFestivalRoomLobbyMobile
+      })
+      await captureScenario({
+        browser,
+        label: '37-online-festival-room-invite-panel-mobile-360x780',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-bottom-sheet"]',
+        mockFestivalRoom: true,
+        mockFestivalRoomState: 'host-running',
+        prepare: prepareOnlineFestivalRoomInvitePanelMobile
       })
       await captureScenario({
         browser,
@@ -2927,7 +3095,7 @@ async function main() {
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
         '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
-        '在线节会房场景使用 mock 登录态与房间模板数据，覆盖 390x844 与 360x780 视口下创建向导底部抽屉、运行中准备大厅主行动、结算确认弹窗、footer 主按钮、关闭按钮、背景滚动锁定和横向溢出断言。',
+        '在线节会房场景使用 mock 登录态与房间模板数据，覆盖 390x844 与 360x780 视口下创建向导底部抽屉、运行中准备大厅主行动、邀请面板批量发送、结算确认弹窗、footer 主按钮、关闭按钮、背景滚动锁定和横向溢出断言。',
         '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、节庆筹备布景搭设、贡献后阶段反馈和移动端横向溢出断言。',
         '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]

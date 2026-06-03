@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 节会房移动端邀请面板 smoke
+- `qa-mobile-ui-smoke` 新增运行中节会房邀请面板 mock，覆盖 390x844 / 360x780 下批量输入拆分、已在房成员过滤、发送结果列表和无横向溢出，并生成对应截图与 summary label。
+- `OnlineInvitePanel` 的 footer 主 / 次按钮增加组件内 44px 最小高度保护，避免全局紧凑按钮样式压低移动端邀请主行动。
+
 ### 0603 节会房移动端大厅与结算 smoke
 - `qa-mobile-ui-smoke` 新增运行中节会房 mock，覆盖 390x844 / 360x780 下打开准备大厅、成员列表、主行动安全区和备用结算确认弹窗，并生成对应截图与 summary label。
 - `OnlineRoomLobbyDialog` 的 `online-room-primary-action` 增加组件内 44px 最小高度保护，避免全局紧凑按钮样式把移动端房间主行动压到 42px。

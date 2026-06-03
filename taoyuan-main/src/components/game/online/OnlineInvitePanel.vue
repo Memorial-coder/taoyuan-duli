@@ -134,7 +134,7 @@
       <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button
           type="button"
-          class="online-action-btn online-action-btn--compact justify-center"
+          class="online-action-btn online-action-btn--compact online-invite-panel__footer-action min-h-[44px] justify-center"
           :disabled="busy"
           @click="emit('close')"
         >
@@ -142,7 +142,7 @@
         </button>
         <button
           type="button"
-          class="online-action-btn online-action-btn--primary online-action-btn--compact justify-center"
+          class="online-action-btn online-action-btn--primary online-action-btn--compact online-invite-panel__footer-action min-h-[44px] justify-center"
           data-testid="online-invite-submit"
           :disabled="busy || invitableRecipients.length === 0"
           @click="submitInvites"
@@ -310,3 +310,9 @@
     }
   )
 </script>
+
+<style scoped>
+  .online-invite-panel__footer-action {
+    min-height: 44px;
+  }
+</style>

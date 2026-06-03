@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-03
+- 节会房移动端邀请面板 smoke：`qa-mobile-ui-smoke` 新增运行中节会房邀请面板 390x844 / 360x780 场景，覆盖批量输入、已在房过滤、发送结果、横向溢出和 footer 44px 触控高度；`OnlineInvitePanel` footer 主 / 次按钮增加组件内最小高度保护。
 - 节会房移动端大厅与结算 smoke：`qa-mobile-ui-smoke` 新增运行中节会房 390x844 / 360x780 场景，打开准备大厅并覆盖成员列表、房间主行动 44px 触控高度、备用结算确认弹窗和截图 summary；`OnlineRoomLobbyDialog` 主行动增加组件内最小高度保护。
 - 共同庄园治理权限面板拆分：新增 `CohabitationGovernancePanel` 承接成员权限、默认权限恢复、权限组开关、安全阀、家族职位和权限审计；父页面继续持有权限 / 角色 store action 与 helper，原权限、角色 test id 保留，结构 QA 改为读取新组件。
 - 共同庄园基金主面板拆分：新增 `CohabitationFundPanel` 承接共同基金余额、注资、白名单购买、中额预算和大额草案创建表单；父页面继续持有草案列表、高风险回执、主状态写回和基金流水 slot，原基金按钮 test id 与 store action 接线保留。
