@@ -446,6 +446,74 @@ async function mockOnlineVisualRoom(page: Page, options: {
       body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
     })
   })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/join', async route => {
+    const joinedMembers = (currentRoom.members as Array<Record<string, unknown>>).map(member => {
+      if (String(member.username || '') !== 'tester') return member
+      return {
+        ...member,
+        status: 'joined',
+        status_label: '已加入',
+        joined_at: Number(member.joined_at || 0) || 1760000150,
+        ready_at: 0
+      }
+    })
+    const joinedCount = joinedMembers.filter(member => !['invited', 'left', 'kicked'].includes(String(member.status || ''))).length
+    currentRoom = {
+      ...currentRoom,
+      state_reason: '你已接受邀请，可以在准备大厅确认状态。',
+      joined_member_count: Math.max(currentRoom.joined_member_count, joinedCount),
+      ready_member_count: joinedMembers.filter(member => String(member.status || '') === 'ready').length,
+      my_member_status: 'joined',
+      members: joinedMembers as typeof currentRoom.members,
+      can_join: false,
+      can_leave: true,
+      can_ready: true,
+      can_unready: false,
+      can_host_ready_check: false,
+      can_host_start_countdown: false,
+      can_host_settle: false
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
+    })
+  })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/ready', async route => {
+    const readyMembers = (currentRoom.members as Array<Record<string, unknown>>).map(member => {
+      if (String(member.username || '') !== 'tester') return member
+      return {
+        ...member,
+        status: 'ready',
+        status_label: '已准备',
+        joined_at: Number(member.joined_at || 0) || 1760000150,
+        ready_at: Number(member.ready_at || 0) || 1760000200
+      }
+    })
+    currentRoom = {
+      ...currentRoom,
+      state_reason: '你已准备，等待房主开始倒计时。',
+      ready_member_count: readyMembers.filter(member => String(member.status || '') === 'ready').length,
+      my_member_status: 'ready',
+      members: readyMembers as typeof currentRoom.members,
+      can_join: false,
+      can_leave: true,
+      can_ready: false,
+      can_unready: true,
+      can_host_ready_check: false,
+      can_host_start_countdown: false,
+      can_host_settle: false,
+      gameplay: {
+        ...currentRoom.gameplay,
+        last_action_summary: '测试者已准备。'
+      }
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildFestivalOverview(), room: currentRoom })
+    })
+  })
   await page.route('**/api/taoyuan/online/festival/rooms/*/start', async route => {
     const lockedMembers = (currentRoom.members as Array<Record<string, unknown>>).map(member => ({
       ...member,
@@ -3810,6 +3878,106 @@ test.describe('web game smoke', () => {
     await expect(retryRow).toContainText('房间信息有更新，请刷新后继续。')
     await retryRow.getByTestId('online-invite-retry').click()
     await expect(retryRow).toContainText('已邀请')
+  })
+
+  test('online festival room member accepts invite and readies', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '准备')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-member-ready-room',
+      title: '节会成员准备 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.host_username = 'festival_host'
+    room.host_display_name = '节会房主'
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '房主邀请你加入节会房，接受后可以准备。'
+    room.joined_member_count = 1
+    room.member_limit = 4
+    room.ready_member_count = 0
+    room.my_member_status = 'invited'
+    room.can_join = true
+    room.can_leave = true
+    room.can_ready = false
+    room.can_unready = false
+    room.can_invite = false
+    room.can_host_ready_check = false
+    room.can_host_start_countdown = false
+    room.can_host_settle = false
+    room.can_host_close = false
+    room.members = [
+      {
+        username: 'festival_host',
+        display_name: '节会房主',
+        role: 'host',
+        status: 'joined',
+        status_label: '房主',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'member',
+        status: 'invited',
+        status_label: '待接受邀请',
+        invited_at: 1,
+        joined_at: 0,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expectOnlineFestivalRoomLoaded(page, '节会成员准备 smoke')
+    await page.getByTestId('online-festival-room-lobby-trigger').click()
+    await expect(page.getByTestId('online-room-lobby')).toBeVisible()
+    const memberRow = page.getByTestId('online-room-member-tester')
+    await expect(memberRow).toContainText('待接受邀请')
+    await expect(memberRow).toContainText('被邀请')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('接受邀请')
+
+    const joinResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/join')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-room-primary-action').click()
+    const joinResponse = await joinResponsePromise
+    expect(joinResponse.url()).toContain('/join')
+    await expect(memberRow).toContainText('已加入')
+    await expect(memberRow).toContainText('未准备')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('我已准备')
+
+    const readyResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/ready')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-room-primary-action').click()
+    const readyResponse = await readyResponsePromise
+    expect(readyResponse.url()).toContain('/ready')
+    await expect(memberRow).toContainText('已准备')
+    await expect(page.getByTestId('online-room-lobby')).toContainText('1/2 已准备')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('取消准备')
   })
 
   test('online festival room lobby starts ready check and countdown', async ({ page }) => {

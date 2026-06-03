@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 房间流程浏览器 E2E 成员准备
+- `e2e/game-smoke.spec.ts` 新增 `online festival room member accepts invite and readies`，覆盖受邀成员打开 `OnlineRoomLobbyDialog`，从“接受邀请”调用 `/join`，再从“我已准备”调用 `/ready`，读回 `online-room-member-tester`、准备计数和主行动切换。
+- `mockOnlineVisualRoom` 新增 festival `/join` 与 `/ready` POST mock，只推进成员状态、`my_member_status`、准备能力和 `ready_member_count`；旧 `online-room-primary-action`、`online-room-member-list` 和原 store action 语义保留。
+- 本轮验证：新增单场景 grep 与房间组合 grep 返回 0，`npm --prefix taoyuan-main run check` 返回 0；全量 `game-smoke.spec.ts` 仍有 23 个开局加载 / 页面级失败，`qa:online-ui-structure` 仍被非本轮覆盖缺口阻断。
+
 ### 0603 在线委托关键动作确认
 - `src/views/game/online/OnlineOrdersView.vue` 接入 `OnlineConfirmActionDialog`，接单、接力阶段接单、提交交付、确认结算、补偿重试和取消接单会先进入 `online-orders-action-confirm`，展示影响对象、回报 / 交付 / 结算变化和失败恢复提示，再调用原 store action。
 - 旧 `online-orders-accept-submit`、`online-orders-delivery-submit`、`online-orders-confirm-submit`、`online-orders-compensation-retry-submit` 保留；新增接力阶段确认入口 test id，并迁移 `qa-mobile-ui-smoke` 与 `qa-online-regression-live-smoke` 的确认点击。

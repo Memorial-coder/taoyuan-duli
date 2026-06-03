@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-03
+- 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房成员接受邀请并准备路径，覆盖受邀成员在准备大厅点击“接受邀请”调用 `/join`、再点击“我已准备”调用 `/ready`，并读回成员状态、准备计数和主行动切换。
 - 在线委托关键动作确认：`OnlineOrdersView.vue` 的接单、交付、确认结算、补偿重试和取消接单统一进入 `online-orders-action-confirm`，展示影响对象、回报 / 交付 / 结算变化和失败恢复提示；旧接单、交付、确认、补偿 test id 保留，移动端 smoke 与 live smoke 脚本已迁移到确认弹窗路径。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增远征房创建向导完整路径，覆盖在线节会远征标签空闲状态打开 `OnlineRoomWizard`、选择协作远征、填写队伍标题、邀请名单进入确认页、提交创建 POST，并读回房主远征房状态、邀请入口和准备入口。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房创建向导完整路径，覆盖空闲状态打开 `OnlineRoomWizard`、选择灯会房型、填写标题、邀请名单进入确认页、提交创建 POST，并读回房主房间状态、准备大厅和邀请入口；`mockOnlineVisualRoom` 支持空房起始态与 festival rooms POST mock。
