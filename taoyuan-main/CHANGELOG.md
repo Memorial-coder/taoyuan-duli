@@ -5910,3 +5910,9 @@
 
 - `src/views/game/FestivalView.vue` 的断线调试按钮已移入默认折叠 `OnlineTechnicalDetails`，玩家主路径不再直接显示「模拟断线」，QA 仍可通过 `festival-room-disconnect-submit` 触发原 `disconnectRoom`。
 - 本轮验证：`npm --prefix taoyuan-main run qa:online-player-copy` 通过，当前 58 个 Vue 文件无 0.9 denylist 命中；`npm --prefix taoyuan-main run check` 通过，剩余为既有 lint warning。
+
+### 0603 联机邻里名片弹窗化
+
+- `src/views/game/online/OnlineNeighborView.vue` 的公开名片首屏改为摘要和“编辑名片”入口，原编辑表单迁入 `OnlineActionDialog`，保留旧保存 / 输入 test id。
+- 保存公开名片失败时弹窗保持打开并显示错误提示，store 草稿不被清空；`scripts/qa-online-ui-structure.mjs` 已补邻里名片弹窗静态断言。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、`npm --prefix taoyuan-main run qa:mobile-ui-smoke` 通过；`qa:online-ui-structure` 仍被既有移动端 smoke 覆盖缺口阻断，未出现邻里新增断言失败。

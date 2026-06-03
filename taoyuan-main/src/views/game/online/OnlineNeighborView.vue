@@ -134,111 +134,34 @@
               </div>
             </div>
 
-            <div class="game-panel-muted space-y-3 p-3">
-              <div class="flex items-center justify-between gap-2">
+            <div class="game-panel-muted space-y-3 p-3" data-testid="online-neighbor-profile-summary-actions">
+              <div>
                 <p class="text-sm text-accent">名片设置</p>
-                <button
-                  data-testid="online-neighbor-profile-save"
-                  class="online-action-btn online-action-btn--compact"
-                  type="button"
-                  :disabled="!socialStore.hasDirtyDraft || socialStore.saving"
-                  @click="saveProfile"
-                >
-                  <Save :size="12" />
-                  {{ socialStore.saving ? '保存中' : '保存名片' }}
-                </button>
+                <p class="mt-1 text-xs leading-5 text-muted">
+                  当前展示公开摘要，资料修改会保留在草稿里，保存成功后同步给来访玩家。
+                </p>
               </div>
 
-              <div class="grid gap-2 md:grid-cols-2">
-                <label class="flex flex-col gap-1 text-[10px] text-muted">
-                  庄园名
-                  <input v-model="socialStore.draftManorName" data-testid="online-neighbor-profile-manor-input" maxlength="40" class="online-input" />
-                </label>
-                <label class="flex flex-col gap-1 text-[10px] text-muted">
-                  公开称号
-                  <input v-model="socialStore.draftPublicTitle" data-testid="online-neighbor-profile-title-input" maxlength="24" class="online-input" />
-                </label>
-                <label class="flex flex-col gap-1 text-[10px] text-muted">
-                  邻里身份
-                  <input v-model="socialStore.draftNeighborhoodRole" data-testid="online-neighbor-profile-role-input" maxlength="24" class="online-input" />
-                </label>
-                <label class="flex flex-col gap-1 text-[10px] text-muted">
-                  展示主题
-                  <input v-model="socialStore.draftShowcaseTheme" data-testid="online-neighbor-profile-theme-input" maxlength="24" class="online-input" />
-                </label>
-              </div>
-
-              <div class="border border-accent/10 bg-black/10 p-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">公开头像</p>
-                  <button
-                    class="online-action-btn online-action-btn--compact"
-                    type="button"
-                    :disabled="uploadingAvatar"
-                    @click="triggerAvatarUpload"
-                  >
-                    <Upload :size="12" />
-                    {{ uploadingAvatar ? '上传中' : '上传头像' }}
-                  </button>
+              <div class="grid gap-2 text-xs">
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-[10px] text-muted">公开范围</p>
+                  <p class="mt-1 text-accent">{{ profileVisibilityLabel }}</p>
                 </div>
-                <input
-                  ref="avatarInputRef"
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  class="hidden"
-                  @change="handleAvatarSelected"
-                />
-                <div v-if="socialStore.draftAvatarImageUrl" class="mt-2 space-y-2">
-                  <img
-                    :src="socialStore.draftAvatarImageUrl"
-                    :alt="socialStore.draftAvatarImageAlt || '名片头像'"
-                    class="mx-auto max-h-32 border border-accent/15 object-cover"
-                  />
-                  <input
-                    v-model="socialStore.draftAvatarImageAlt"
-                    maxlength="120"
-                    class="online-input w-full"
-                    placeholder="头像说明"
-                  />
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-[10px] text-muted">草稿状态</p>
+                  <p class="mt-1 text-accent">{{ socialStore.hasDirtyDraft ? '有未保存草稿' : '当前资料已同步' }}</p>
                 </div>
               </div>
 
-              <label class="flex flex-col gap-1 text-[10px] text-muted">
-                公开状态
-                <select v-model="socialStore.draftVisibility" data-testid="online-neighbor-profile-visibility-select" class="online-select">
-                  <option value="public">公开</option>
-                  <option value="friends_only">仅好友（当前视作未公开）</option>
-                  <option value="private">私密</option>
-                </select>
-              </label>
-
-              <label class="flex flex-col gap-1 text-[10px] text-muted">
-                一句公开介绍
-                <textarea
-                  v-model="socialStore.draftIntro"
-                  data-testid="online-neighbor-profile-intro-input"
-                  rows="3"
-                  maxlength="120"
-                  class="online-textarea resize-none"
-                  placeholder="例如：这周主打鱼塘与博物馆补展，欢迎来看看。"
-                />
-              </label>
-
-              <div class="space-y-2">
-                <p class="text-[10px] text-muted">手选标签（最多 3 个）</p>
-                <div class="flex flex-wrap gap-1">
-                  <button
-                    v-for="tag in socialStore.profile.available_tag_options"
-                    :key="tag.id"
-                    class="border px-1.5 py-0.5 text-[10px] transition-colors"
-                    :class="socialStore.draftSelectedTagIds.includes(tag.id) ? 'border-accent/40 bg-accent/5 text-accent' : 'border-accent/15 text-muted'"
-                    type="button"
-                    @click="toggleTag(tag.id)"
-                  >
-                    {{ tag.label }}
-                  </button>
-                </div>
-              </div>
+              <button
+                data-testid="online-neighbor-profile-edit-trigger"
+                class="online-action-btn online-action-btn--primary w-full justify-center"
+                type="button"
+                @click="openProfileEditor"
+              >
+                <Pencil :size="12" />
+                编辑名片
+              </button>
             </div>
           </div>
 
@@ -781,12 +704,152 @@
         </div>
       </div>
     </section>
+
+    <OnlineActionDialog
+      :open="profileEditorOpen"
+      title="编辑公开名片"
+      description="更新庄园名、头像、公开介绍和关系标签。保存失败时，当前草稿会继续保留。"
+      :confirm-disabled="!socialStore.hasDirtyDraft || uploadingAvatar"
+      :running="socialStore.saving"
+      @confirm="saveProfile"
+      @cancel="closeProfileEditor"
+      @close="closeProfileEditor"
+    >
+      <div v-if="socialStore.profile" class="space-y-3" data-testid="online-neighbor-profile-dialog">
+        <OnlineStatusBanner
+          v-if="profileSaveError"
+          tone="danger"
+          title="名片暂时没有保存成功"
+          :description="profileSaveError"
+        />
+
+        <div class="grid gap-2 md:grid-cols-2">
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            庄园名
+            <input v-model="socialStore.draftManorName" data-testid="online-neighbor-profile-manor-input" maxlength="40" class="online-input" />
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            公开称号
+            <input v-model="socialStore.draftPublicTitle" data-testid="online-neighbor-profile-title-input" maxlength="24" class="online-input" />
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            邻里身份
+            <input v-model="socialStore.draftNeighborhoodRole" data-testid="online-neighbor-profile-role-input" maxlength="24" class="online-input" />
+          </label>
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            展示主题
+            <input v-model="socialStore.draftShowcaseTheme" data-testid="online-neighbor-profile-theme-input" maxlength="24" class="online-input" />
+          </label>
+        </div>
+
+        <div class="border border-accent/10 bg-black/10 p-2">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">公开头像</p>
+            <button
+              class="online-action-btn online-action-btn--compact"
+              type="button"
+              :disabled="uploadingAvatar"
+              @click="triggerAvatarUpload"
+            >
+              <Upload :size="12" />
+              {{ uploadingAvatar ? '上传中' : '上传头像' }}
+            </button>
+          </div>
+          <input
+            ref="avatarInputRef"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            class="hidden"
+            @change="handleAvatarSelected"
+          />
+          <div v-if="socialStore.draftAvatarImageUrl" class="mt-2 space-y-2">
+            <img
+              :src="socialStore.draftAvatarImageUrl"
+              :alt="socialStore.draftAvatarImageAlt || '名片头像'"
+              class="mx-auto max-h-32 border border-accent/15 object-cover"
+            />
+            <input
+              v-model="socialStore.draftAvatarImageAlt"
+              maxlength="120"
+              class="online-input w-full"
+              placeholder="头像说明"
+            />
+          </div>
+        </div>
+
+        <label class="flex flex-col gap-1 text-[10px] text-muted">
+          公开状态
+          <select v-model="socialStore.draftVisibility" data-testid="online-neighbor-profile-visibility-select" class="online-select">
+            <option value="public">公开</option>
+            <option value="friends_only">仅好友（当前视作未公开）</option>
+            <option value="private">私密</option>
+          </select>
+        </label>
+
+        <label class="flex flex-col gap-1 text-[10px] text-muted">
+          一句公开介绍
+          <textarea
+            v-model="socialStore.draftIntro"
+            data-testid="online-neighbor-profile-intro-input"
+            rows="3"
+            maxlength="120"
+            class="online-textarea resize-none"
+            placeholder="例如：这周主打鱼塘与博物馆补展，欢迎来看看。"
+          />
+        </label>
+
+        <div class="space-y-2">
+          <p class="text-[10px] text-muted">手选标签（最多 3 个）</p>
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="tag in socialStore.profile.available_tag_options"
+              :key="tag.id"
+              class="border px-1.5 py-0.5 text-[10px] transition-colors"
+              :class="socialStore.draftSelectedTagIds.includes(tag.id) ? 'border-accent/40 bg-accent/5 text-accent' : 'border-accent/15 text-muted'"
+              type="button"
+              @click="toggleTag(tag.id)"
+            >
+              {{ tag.label }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <template #footer="{ confirmDisabled, confirm, cancel }">
+        <footer class="space-y-3 border-t border-accent/10 pt-3">
+          <p v-if="!socialStore.hasDirtyDraft" class="text-[10px] leading-4 text-muted">
+            当前没有需要保存的改动。
+          </p>
+          <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact justify-center"
+              :disabled="socialStore.saving"
+              @click="cancel"
+            >
+              稍后再说
+            </button>
+            <button
+              type="button"
+              class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+              data-testid="online-neighbor-profile-save"
+              :disabled="confirmDisabled"
+              @click="confirm"
+            >
+              <Save :size="12" />
+              {{ socialStore.saving ? '保存中' : '保存名片' }}
+            </button>
+          </div>
+        </footer>
+      </template>
+    </OnlineActionDialog>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
-  import { ExternalLink, IdCard, RefreshCw, Save, Upload, Users } from 'lucide-vue-next'
+  import { ExternalLink, IdCard, Pencil, RefreshCw, Save, Upload, Users } from 'lucide-vue-next'
+  import OnlineActionDialog from '@/components/game/online/OnlineActionDialog.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
@@ -802,6 +865,8 @@
   const saveStore = useSaveStore()
   const activeTab = ref<NeighborTabKey>('profile')
   const lastRefreshAttemptAt = ref(0)
+  const profileEditorOpen = ref(false)
+  const profileSaveError = ref('')
   const uploadingAvatar = ref(false)
   const avatarInputRef = ref<HTMLInputElement | null>(null)
   const tabs: NeighborTabMeta[] = [
@@ -969,8 +1034,24 @@
     return '节庆活动'
   }
 
+  const openProfileEditor = () => {
+    profileSaveError.value = ''
+    profileEditorOpen.value = true
+  }
+
+  const closeProfileEditor = () => {
+    if (socialStore.saving) return
+    profileEditorOpen.value = false
+  }
+
   const saveProfile = async () => {
-    await socialStore.saveProfile().catch(() => {})
+    profileSaveError.value = ''
+    try {
+      await socialStore.saveProfile()
+      profileEditorOpen.value = false
+    } catch (error: any) {
+      profileSaveError.value = error?.message || socialStore.errorMessage || '名片保存失败，请稍后再试。'
+    }
   }
 
   const triggerAvatarUpload = () => {
