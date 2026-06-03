@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 在线中心治理与模块降噪
+- 可视化功能开关、缺失配置、奖励与投放控制迁入 `OnlineTechnicalDetails` 默认折叠区，玩家路径只保留「备用入口」和下一步说明；旧 `online-visual-feature-flag-panel`、`online-visual-reward-control-panel` test id 仍保留在折叠区内。
+- 在线中心模块区降为 `online-center-module-entry-group` 的「常用入口」，桌面不再使用 `xl:grid-cols-6` 等权平铺；`OnlineModuleCard` 移除首屏 stats 网格，只保留标题、状态和一个入口。`qa:online-visual-feature-flags` 同步检查治理信息位于技术详情内。
+
 ### 0603 在线中心首屏行动区
 - 在线中心新增 `online-center-hero-actions`，把活动房间、村社待办和接力委托摘要放到首屏，并按继续当前房间、处理邀请、创建活动房间、查看村社待办、接力委托派生最多 3 个主行动。
 - 移动端接入 `OnlineStickyActionBar` 复用同一 action 模型；`qa-mobile-ui-smoke` 的在线中心 390x844 / 360x780 场景改为断言 hero action 和 sticky 主按钮在视口内。

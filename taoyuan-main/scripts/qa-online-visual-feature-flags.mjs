@@ -17,6 +17,22 @@ const activityScheduleSource = await readFile(
 )
 const packageJson = JSON.parse(await readFile(path.join(appRoot, 'package.json'), 'utf8'))
 
+const sourceBlockAfter = (needle, closingNeedle) => {
+  const start = onlineViewSource.indexOf(needle)
+  assert.notEqual(start, -1, `${needle} should be present in OnlineView.vue`)
+  const end = onlineViewSource.indexOf(closingNeedle, start)
+  assert.notEqual(end, -1, `${closingNeedle} should appear after ${needle}`)
+  return onlineViewSource.slice(start, end)
+}
+
+const isInsideTechnicalDetails = needle => {
+  const index = onlineViewSource.indexOf(needle)
+  assert.notEqual(index, -1, `${needle} should be present in OnlineView.vue`)
+  const lastTechnicalOpen = onlineViewSource.lastIndexOf('<OnlineTechnicalDetails', index)
+  const lastTechnicalClose = onlineViewSource.lastIndexOf('</OnlineTechnicalDetails>', index)
+  return lastTechnicalOpen !== -1 && lastTechnicalOpen > lastTechnicalClose
+}
+
 const requiredFlagKeys = [
   'visual_state',
   'expedition_cavern',
@@ -117,7 +133,7 @@ for (const key of ['crop_alchemy', 'crop_cooking', 'crop_processing', 'pet_feedi
 }
 assert.ok(
   onlineViewSource.includes('online-visual-feature-flag-safe-close'),
-  'online center should display active-room safe close policy',
+  'online center should keep active-room safe close policy in technical details',
 )
 assert.ok(
   onlineViewSource.includes('featureFlag.activeRoomClosePolicy'),
@@ -125,7 +141,7 @@ assert.ok(
 )
 assert.ok(
   onlineViewSource.includes('online-visual-feature-flag-missing-config'),
-  'online center should display missing-config fallback policy',
+  'online center should keep missing-config fallback policy in technical details',
 )
 assert.ok(
   onlineViewSource.includes('featureFlag.missingConfigFallback'),
@@ -158,6 +174,35 @@ assert.ok(
 assert.ok(
   onlineViewSource.includes('online-visual-schedule-fallback'),
   'visual schedules should display the fallback path readback',
+)
+assert.ok(
+  onlineViewSource.includes('OnlineTechnicalDetails'),
+  'online center should use OnlineTechnicalDetails for governance details',
+)
+const governanceDetailsBlock = sourceBlockAfter('data-testid="online-center-governance-details"', '</OnlineTechnicalDetails>')
+assert.ok(
+  governanceDetailsBlock.includes('online-visual-feature-flag-panel'),
+  'visual feature flag panel should be inside governance technical details',
+)
+assert.ok(
+  isInsideTechnicalDetails('data-testid="online-visual-feature-flag-panel"'),
+  'visual feature flag panel should be folded by OnlineTechnicalDetails',
+)
+assert.ok(
+  isInsideTechnicalDetails('data-testid="online-visual-reward-control-panel"'),
+  'reward control panel should be folded by OnlineTechnicalDetails',
+)
+assert.ok(
+  onlineViewSource.includes('可从备用入口参加。') && onlineViewSource.includes('备用入口可用：进入后按原页面继续操作。'),
+  'player-facing fallback copy should use player language',
+)
+assert.ok(
+  !onlineViewSource.includes('{{ activity.fallbackStatus }}：{{ activity.fallbackLabel }}'),
+  'visual activity cards should not expose raw fallback status and label in player path',
+)
+assert.ok(
+  !onlineViewSource.includes('{{ entry.fallbackStatus }}：{{ entry.fallbackLabel }}'),
+  'visual schedules should not expose raw fallback status and label in player path',
 )
 assert.equal(
   packageJson.scripts['qa:online-visual-feature-flags'],

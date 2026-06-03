@@ -89,19 +89,28 @@
       </nav>
     </section>
 
-    <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-      <OnlineModuleCard
-        v-for="module in modules"
-        :key="module.routeName"
-        :module-key="module.key"
-        :title="module.title"
-        :summary="module.summary"
-        :status="module.status"
-        :stats="module.stats"
-        :to="{ name: module.routeName }"
-        :icon="module.icon"
-        :error="module.error"
-      />
+    <section class="game-panel space-y-3" data-testid="online-center-module-entry-group">
+      <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+        <div class="min-w-0">
+          <h3 class="text-sm leading-5 text-accent">常用入口</h3>
+          <p class="mt-1 text-xs leading-5 text-muted">更多数字、凭证和细节进入各模块页面查看。</p>
+        </div>
+        <span class="text-[10px] leading-4 text-muted">{{ modules.length }} 个在线模块</span>
+      </div>
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <OnlineModuleCard
+          v-for="module in modules"
+          :key="module.routeName"
+          :module-key="module.key"
+          :title="module.title"
+          :summary="module.summary"
+          :status="module.status"
+          :stats="module.stats"
+          :to="{ name: module.routeName }"
+          :icon="module.icon"
+          :error="module.error"
+        />
+      </div>
     </section>
 
     <section class="game-panel-muted p-3" data-testid="online-visual-activity-group">
@@ -133,81 +142,90 @@
             </div>
             <p class="mt-2 text-[10px] leading-4 text-muted">{{ activity.summary }}</p>
             <p
-              v-if="activity.fallbackLabel"
+              v-if="!activity.enabled"
               class="mt-2 text-[10px] leading-4 text-muted"
               data-testid="online-visual-activity-fallback"
             >
-              {{ activity.fallbackStatus }}：{{ activity.fallbackLabel }}
+              备用入口可用：进入后按原页面继续操作。
             </p>
           </div>
-          <p class="mt-2 text-[10px] leading-4 text-accent">{{ activity.enabled ? activity.status : activity.fallbackStatus }}</p>
+          <p class="mt-2 text-[10px] leading-4 text-accent">{{ activity.enabled ? activity.status : '可从备用入口继续' }}</p>
         </RouterLink>
       </div>
-      <div class="mt-3 border border-accent/10 bg-black/10 p-3" data-testid="online-visual-feature-flag-panel">
-        <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-          <div class="min-w-0">
-            <p class="text-xs leading-4 text-accent">高风险功能开关</p>
-            <p class="mt-1 text-[10px] leading-4 text-muted">
-              {{ onlineVisualFeatureFlagSummary }}
-            </p>
-          </div>
-          <span class="text-[10px] leading-4 text-muted">关闭时保留旧入口、收尾或只读回看</span>
-        </div>
-        <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          <article
-            v-for="featureFlag in onlineVisualFeatureFlagItems"
-            :key="featureFlag.key"
-            class="border border-accent/10 bg-background/70 p-2"
-            :data-testid="featureFlag.fallbackTestId"
-          >
-            <div class="flex items-start justify-between gap-2">
-              <label class="flex min-w-0 items-start gap-2">
-                <input
-                  class="online-input mt-0.5 size-3 shrink-0"
-                  type="checkbox"
-                  :checked="featureFlag.enabled"
-                  disabled
-                  :aria-label="featureFlag.label"
-                />
-                <span class="min-w-0">
-                  <span class="block text-xs leading-4 text-text">{{ featureFlag.label }}</span>
-                  <span class="mt-1 block text-[10px] leading-4 text-muted">{{ featureFlag.summary }}</span>
-                </span>
-              </label>
-              <span class="shrink-0 text-[10px] leading-4 text-accent">
-                {{ featureFlag.enabled ? '开启' : '降级' }}
-              </span>
+      <OnlineTechnicalDetails
+        class="mt-3"
+        title="调试与治理信息"
+        summary="功能开关、备用路径和配置兜底默认折叠，供发布检查和 QA 定位。"
+        tone="warning"
+      >
+        <div class="space-y-3" data-testid="online-center-governance-details">
+          <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-visual-feature-flag-panel">
+            <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs leading-4 text-accent">高风险功能开关</p>
+                <p class="mt-1 text-[10px] leading-4 text-muted">
+                  {{ onlineVisualFeatureFlagSummary }}
+                </p>
+              </div>
+              <span class="text-[10px] leading-4 text-muted">关闭时保留旧入口、收尾或只读回看</span>
             </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-feature-flag-fallback">
-              {{ featureFlag.fallbackLabel }}
-            </p>
-            <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
-              <div data-testid="online-visual-feature-flag-safe-close">
-                <dt class="text-accent">收尾</dt>
-                <dd>{{ featureFlag.activeRoomClosePolicy }}</dd>
-              </div>
-              <div data-testid="online-visual-feature-flag-missing-config">
-                <dt class="text-accent">缺失</dt>
-                <dd>{{ featureFlag.missingConfigFallback }}</dd>
-              </div>
-            </dl>
-            <RouterLink
-              class="mt-2 inline-flex text-[10px] leading-4 text-accent hover:text-highlight"
-              :to="{ name: featureFlag.fallbackRouteName }"
-              data-testid="online-visual-feature-flag-fallback-link"
-            >
-              备用操作
-            </RouterLink>
-          </article>
+            <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <article
+                v-for="featureFlag in onlineVisualFeatureFlagItems"
+                :key="featureFlag.key"
+                class="border border-accent/10 bg-background/70 p-2"
+                :data-testid="featureFlag.fallbackTestId"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <label class="flex min-w-0 items-start gap-2">
+                    <input
+                      class="online-input mt-0.5 size-3 shrink-0"
+                      type="checkbox"
+                      :checked="featureFlag.enabled"
+                      disabled
+                      :aria-label="featureFlag.label"
+                    />
+                    <span class="min-w-0">
+                      <span class="block text-xs leading-4 text-text">{{ featureFlag.label }}</span>
+                      <span class="mt-1 block text-[10px] leading-4 text-muted">{{ featureFlag.summary }}</span>
+                    </span>
+                  </label>
+                  <span class="shrink-0 text-[10px] leading-4 text-accent">
+                    {{ featureFlag.enabled ? '开启' : '降级' }}
+                  </span>
+                </div>
+                <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-feature-flag-fallback">
+                  {{ featureFlag.fallbackLabel }}
+                </p>
+                <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+                  <div data-testid="online-visual-feature-flag-safe-close">
+                    <dt class="text-accent">收尾</dt>
+                    <dd>{{ featureFlag.activeRoomClosePolicy }}</dd>
+                  </div>
+                  <div data-testid="online-visual-feature-flag-missing-config">
+                    <dt class="text-accent">缺失</dt>
+                    <dd>{{ featureFlag.missingConfigFallback }}</dd>
+                  </div>
+                </dl>
+                <RouterLink
+                  class="mt-2 inline-flex text-[10px] leading-4 text-accent hover:text-highlight"
+                  :to="{ name: featureFlag.fallbackRouteName }"
+                  data-testid="online-visual-feature-flag-fallback-link"
+                >
+                  备用操作
+                </RouterLink>
+              </article>
+            </div>
+          </div>
         </div>
-      </div>
+      </OnlineTechnicalDetails>
       <div class="mt-3 border border-accent/10 bg-black/10 p-3" data-testid="online-visual-activity-schedule">
         <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div class="min-w-0">
             <p class="text-xs leading-4 text-accent">活动排期</p>
             <p class="mt-1 text-[10px] leading-4 text-muted">{{ onlineVisualScheduleSummary }}</p>
           </div>
-          <span class="text-[10px] leading-4 text-muted">过期后保留纪念或复刻入口</span>
+          <span class="text-[10px] leading-4 text-muted">只展示可参加入口和下一步</span>
         </div>
         <div class="mt-2 grid gap-2 lg:grid-cols-5" data-testid="online-visual-festival-calendar">
           <RouterLink
@@ -227,16 +245,16 @@
                 {{ entry.visualScene }}
               </p>
               <p
-                v-if="entry.fallbackLabel"
+                v-if="!entry.enabled"
                 class="mt-2 text-[10px] leading-4 text-muted"
                 data-testid="online-visual-schedule-fallback"
               >
-                {{ entry.fallbackStatus }}：{{ entry.fallbackLabel }}
+                可从备用入口参加。
               </p>
             </div>
             <div class="mt-2 space-y-1">
               <p class="text-[10px] leading-4 text-muted" data-testid="online-visual-schedule-reward-pool">
-                {{ entry.rewardPoolLabel }}
+                下一步：{{ entry.entryLabel }}
               </p>
               <p class="text-[10px] leading-4 text-accent" data-testid="online-visual-schedule-npc-line">
                 {{ entry.npcLine }}
@@ -255,9 +273,9 @@
               :to="entry.targetRoute"
             >
               <span class="block text-text">{{ entry.title }} · {{ entry.windowLabel }}</span>
-              <span class="mt-1 block">{{ entry.rewardSettlement }}</span>
-              <span v-if="entry.fallbackLabel" class="mt-1 block" data-testid="online-visual-schedule-fallback">
-                {{ entry.fallbackStatus }}：{{ entry.fallbackLabel }}
+              <span class="mt-1 block">{{ entry.entryLabel }}</span>
+              <span v-if="!entry.enabled" class="mt-1 block" data-testid="online-visual-schedule-fallback">
+                可从备用入口参加。
               </span>
             </RouterLink>
           </div>
@@ -271,9 +289,9 @@
               :to="entry.targetRoute"
             >
               <span class="block text-text">{{ entry.title }} · {{ entry.entryLabel }}</span>
-              <span class="mt-1 block">{{ entry.replayRetention }}</span>
-              <span v-if="entry.fallbackLabel" class="mt-1 block" data-testid="online-visual-schedule-fallback">
-                {{ entry.fallbackStatus }}：{{ entry.fallbackLabel }}
+              <span class="mt-1 block">{{ entry.visualScene }}</span>
+              <span v-if="!entry.enabled" class="mt-1 block" data-testid="online-visual-schedule-fallback">
+                可从备用入口参加。
               </span>
             </RouterLink>
           </div>
@@ -288,8 +306,8 @@
             >
               <span class="block text-text">{{ entry.title }} · {{ entry.windowLabel }}</span>
               <span class="mt-1 block">{{ entry.replayRetention }}</span>
-              <span v-if="entry.fallbackLabel" class="mt-1 block" data-testid="online-visual-schedule-fallback">
-                {{ entry.fallbackStatus }}：{{ entry.fallbackLabel }}
+              <span v-if="!entry.enabled" class="mt-1 block" data-testid="online-visual-schedule-fallback">
+                可从备用入口参加。
               </span>
             </RouterLink>
             <ul class="mt-2 space-y-1" data-testid="online-visual-expired-retention">
@@ -304,65 +322,72 @@
           </div>
         </div>
       </div>
-      <div class="mt-3 border border-accent/10 bg-black/10 p-3" data-testid="online-visual-reward-control-panel">
-        <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-          <div class="min-w-0">
-            <p class="text-xs leading-4 text-accent">奖励与投放控制</p>
-            <p class="mt-1 text-[10px] leading-4 text-muted">{{ onlineVisualRewardControlSummary }}</p>
-          </div>
-          <span class="text-[10px] leading-4 text-muted">服务端凭证优先 · 纪念优先</span>
-        </div>
-        <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <article
-            v-for="policy in onlineVisualRewardControlPolicies"
-            :key="policy.key"
-            class="border border-accent/10 bg-background/70 p-2"
-            :data-testid="policy.testId"
-          >
-            <div class="flex items-start justify-between gap-2">
-              <p class="text-xs leading-4 text-text">{{ policy.label }}</p>
-              <span class="shrink-0 text-[10px] leading-4 text-accent">限额</span>
+      <OnlineTechnicalDetails
+        class="mt-3"
+        title="调试与治理信息：奖励与投放"
+        summary="奖励口径、结算边界和投放限制默认折叠，玩家只在活动卡看到可参加入口。"
+        tone="warning"
+      >
+        <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-visual-reward-control-panel">
+          <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div class="min-w-0">
+              <p class="text-xs leading-4 text-accent">奖励与投放控制</p>
+              <p class="mt-1 text-[10px] leading-4 text-muted">{{ onlineVisualRewardControlSummary }}</p>
             </div>
-            <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
-              <div data-testid="online-visual-reward-base">
-                <dt class="text-accent">基础</dt>
-                <dd>{{ policy.baseReward }}</dd>
+            <span class="text-[10px] leading-4 text-muted">服务端凭证优先 · 纪念优先</span>
+          </div>
+          <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <article
+              v-for="policy in onlineVisualRewardControlPolicies"
+              :key="policy.key"
+              class="border border-accent/10 bg-background/70 p-2"
+              :data-testid="policy.testId"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-xs leading-4 text-text">{{ policy.label }}</p>
+                <span class="shrink-0 text-[10px] leading-4 text-accent">限额</span>
               </div>
-              <div data-testid="online-visual-reward-performance">
-                <dt class="text-accent">表现 / 协作</dt>
-                <dd>{{ policy.performanceReward }} {{ policy.collaborationReward }}</dd>
-              </div>
-              <div data-testid="online-visual-reward-memorial">
-                <dt class="text-accent">纪念</dt>
-                <dd>{{ policy.memorialReward }}</dd>
-              </div>
-              <div data-testid="online-visual-reward-authority">
-                <dt class="text-accent">结算边界</dt>
-                <dd>{{ policy.serverAuthority }}</dd>
-              </div>
-              <div data-testid="online-visual-reward-cap">
-                <dt class="text-accent">上限</dt>
-                <dd>{{ policy.capSummary }}</dd>
-              </div>
-            </dl>
-            <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-anti-inflation">
-              {{ policy.antiInflationRule }}
-            </p>
-            <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-solo-parity">
-              {{ policy.soloParityRule }}
-            </p>
-          </article>
+              <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+                <div data-testid="online-visual-reward-base">
+                  <dt class="text-accent">基础</dt>
+                  <dd>{{ policy.baseReward }}</dd>
+                </div>
+                <div data-testid="online-visual-reward-performance">
+                  <dt class="text-accent">表现 / 协作</dt>
+                  <dd>{{ policy.performanceReward }} {{ policy.collaborationReward }}</dd>
+                </div>
+                <div data-testid="online-visual-reward-memorial">
+                  <dt class="text-accent">纪念</dt>
+                  <dd>{{ policy.memorialReward }}</dd>
+                </div>
+                <div data-testid="online-visual-reward-authority">
+                  <dt class="text-accent">结算边界</dt>
+                  <dd>{{ policy.serverAuthority }}</dd>
+                </div>
+                <div data-testid="online-visual-reward-cap">
+                  <dt class="text-accent">上限</dt>
+                  <dd>{{ policy.capSummary }}</dd>
+                </div>
+              </dl>
+              <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-anti-inflation">
+                {{ policy.antiInflationRule }}
+              </p>
+              <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-solo-parity">
+                {{ policy.soloParityRule }}
+              </p>
+            </article>
+          </div>
+          <ul class="mt-3 grid gap-1 sm:grid-cols-2" data-testid="online-visual-reward-global-guardrails">
+            <li
+              v-for="guardrail in onlineVisualRewardGlobalGuardrails"
+              :key="guardrail"
+              class="border border-accent/10 bg-background/70 p-2 text-[10px] leading-4 text-muted"
+            >
+              {{ guardrail }}
+            </li>
+          </ul>
         </div>
-        <ul class="mt-3 grid gap-1 sm:grid-cols-2" data-testid="online-visual-reward-global-guardrails">
-          <li
-            v-for="guardrail in onlineVisualRewardGlobalGuardrails"
-            :key="guardrail"
-            class="border border-accent/10 bg-background/70 p-2 text-[10px] leading-4 text-muted"
-          >
-            {{ guardrail }}
-          </li>
-        </ul>
-      </div>
+      </OnlineTechnicalDetails>
     </section>
 
     <OnlineStickyActionBar
@@ -406,6 +431,7 @@
   import OnlineModuleCard from '@/components/game/online/OnlineModuleCard.vue'
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import OnlineStickyActionBar from '@/components/game/online/OnlineStickyActionBar.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import {
     ONLINE_VISUAL_FEATURE_FLAGS,
     createOnlineVisualFeatureFlagState,
