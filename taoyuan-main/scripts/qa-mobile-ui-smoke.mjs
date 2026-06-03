@@ -1729,6 +1729,12 @@ async function prepareRegionSocialFriendPanel(page) {
 
 async function prepareOnlineCenterMobile(page) {
   await expect(page.getByTestId('online-center')).toBeVisible()
+  await expect(page.getByTestId('online-center-hero-actions')).toBeVisible()
+  await expect(page.getByTestId('online-center-status-summary')).toBeVisible()
+  await expect(page.getByTestId('online-center-hero-action-list')).toBeVisible()
+  await expect(page.locator('[data-testid^="online-center-hero-action-"]').filter({ hasText: /创建活动房间|处理邀请|继续|村社待办|接力委托/ }).first()).toBeVisible()
+  await expect(page.getByTestId('online-sticky-action-bar')).toBeVisible()
+  await expect(page.getByTestId('online-sticky-primary-action')).toBeVisible()
   await expect(page.getByRole('heading', { name: '在线中心' })).toBeVisible()
   await expect(page.getByRole('button', { name: '刷新摘要' })).toBeVisible()
   await expect(page.getByRole('link', { name: '交流大厅' })).toBeVisible()
@@ -1740,8 +1746,10 @@ async function prepareOnlineCenterMobile(page) {
 
   const layoutIssues = await page.evaluate(() => {
     const viewportHeight = window.innerHeight
-    const firstCardLink = document.querySelector('[data-testid="online-module-manor-link"]')
-    const firstCardTop = firstCardLink?.closest('article')?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY
+    const heroActions = Array.from(document.querySelectorAll('[data-testid^="online-center-hero-action-"]'))
+      .filter(element => element.getAttribute('data-testid') !== 'online-center-hero-action-list')
+    const firstHeroActionTop = heroActions[0]?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY
+    const stickyPrimaryBox = document.querySelector('[data-testid="online-sticky-primary-action"]')?.getBoundingClientRect()
     const clippedModules = Array.from(document.querySelectorAll('[data-testid^="online-module-"]'))
       .map(element => {
         const rect = element.getBoundingClientRect()
@@ -1756,22 +1764,19 @@ async function prepareOnlineCenterMobile(page) {
       })
       .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
       .map(entry => entry.testId)
-    const quickLinksBelowFirstCard = Array.from(document.querySelectorAll('[data-testid$="-quick-link"]'))
-      .map(element => {
-        const rect = element.getBoundingClientRect()
-        return {
-          testId: element.getAttribute('data-testid') || '',
-          top: rect.top,
-          bottom: rect.bottom,
-        }
-      })
-      .filter(entry => entry.top > firstCardTop || entry.bottom > viewportHeight)
-      .map(entry => entry.testId)
-    return { clippedModules, quickLinksBelowFirstCard }
+    return {
+      clippedModules,
+      heroActionCount: heroActions.length,
+      firstHeroActionInViewport: firstHeroActionTop < viewportHeight,
+      stickyPrimaryInViewport: Boolean(stickyPrimaryBox && stickyPrimaryBox.top < viewportHeight && stickyPrimaryBox.bottom <= viewportHeight + 1),
+    }
   })
 
   expect(layoutIssues.clippedModules).toEqual([])
-  expect(layoutIssues.quickLinksBelowFirstCard).toEqual([])
+  expect(layoutIssues.heroActionCount).toBeGreaterThan(0)
+  expect(layoutIssues.heroActionCount).toBeLessThanOrEqual(3)
+  expect(layoutIssues.firstHeroActionInViewport).toBe(true)
+  expect(layoutIssues.stickyPrimaryInViewport).toBe(true)
 }
 
 async function prepareOnlineOrdersMobile(page) {
@@ -2215,7 +2220,7 @@ async function main() {
         label: '24-online-center-mobile-390x844',
         hash: '/#/game/online',
         viewport: { width: 390, height: 844 },
-        primarySelector: '[data-testid="online-center"]',
+        primarySelector: '[data-testid="online-center-hero-actions"]',
         prepare: prepareOnlineCenterMobile
       })
       await captureScenario({
@@ -2232,7 +2237,7 @@ async function main() {
         label: '26-online-center-mobile-360x780',
         hash: '/#/game/online',
         viewport: { width: 360, height: 780 },
-        primarySelector: '[data-testid="online-center"]',
+        primarySelector: '[data-testid="online-center-hero-actions"]',
         prepare: prepareOnlineCenterMobile
       })
       await captureScenario({

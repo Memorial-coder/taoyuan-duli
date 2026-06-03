@@ -1,38 +1,81 @@
 <template>
   <div class="space-y-3" data-testid="online-center">
-    <section class="game-panel space-y-3">
-      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div class="min-w-0">
+    <section class="game-panel space-y-3" data-testid="online-center-hero-actions">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div class="min-w-0 max-w-2xl">
           <div class="flex items-center gap-2 text-accent">
-            <Wifi :size="16" />
+            <Wifi :size="16" aria-hidden="true" />
             <h2 class="game-section-title">在线中心</h2>
           </div>
           <p class="mt-1 text-xs leading-5 text-muted">
-            联机玩法统一从这里分流，交流大厅仍保留在主菜单外入口。
+            先处理正在进行的房间、邀请和互助待办；技术治理信息留在各模块里展开查看。
           </p>
           <p class="mt-1 text-[10px] leading-4 text-muted">
             {{ lastRefreshedLabel }}
             <span v-if="errorCount > 0"> · {{ errorCount }} 个模块摘要暂不可用</span>
           </p>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2">
+        <div class="flex shrink-0 flex-wrap gap-2 lg:justify-end">
           <button
             class="online-action-btn online-action-btn--compact"
             type="button"
             :disabled="refreshing"
             @click="refreshOnlineSummary"
           >
-            <RefreshCw :size="12" :class="{ 'animate-spin': refreshing }" />
+            <RefreshCw :size="12" :class="{ 'animate-spin': refreshing }" aria-hidden="true" />
             {{ refreshing ? '刷新中' : '刷新摘要' }}
           </button>
           <RouterLink class="online-action-btn online-action-btn--compact" to="/hall">
-            <MessageCircle :size="12" />
+            <MessageCircle :size="12" aria-hidden="true" />
             交流大厅
           </RouterLink>
         </div>
       </div>
 
-      <nav class="grid grid-cols-3 gap-1 md:grid-cols-6" aria-label="在线模块快捷入口">
+      <div class="grid gap-3 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
+        <dl class="grid gap-2 sm:grid-cols-3" data-testid="online-center-status-summary">
+          <div
+            v-for="item in onlineCenterStatusCards"
+            :key="item.id"
+            class="min-w-0 border border-accent/10 bg-black/10 p-3"
+            :data-testid="`online-center-status-${item.id}`"
+          >
+            <dt class="text-[10px] leading-4 text-muted">{{ item.label }}</dt>
+            <dd class="mt-1 truncate text-sm leading-5 text-accent">{{ item.value }}</dd>
+            <p class="mt-1 text-[10px] leading-4 text-muted">{{ item.summary }}</p>
+          </div>
+        </dl>
+
+        <div class="grid gap-2 md:grid-cols-3" data-testid="online-center-hero-action-list">
+          <RouterLink
+            v-for="action in onlineCenterHeroActions"
+            :key="action.id"
+            class="group flex min-h-[116px] min-w-0 flex-col justify-between border border-accent/20 bg-accent/5 p-3 text-left transition-colors hover:border-accent/45 hover:bg-accent/10"
+            :data-testid="`online-center-hero-action-${action.id}`"
+            :to="action.to"
+          >
+            <span class="flex min-w-0 items-start justify-between gap-3">
+              <span class="min-w-0">
+                <span class="block truncate text-sm leading-5 text-text">{{ action.label }}</span>
+                <span class="mt-1 block text-[10px] leading-4 text-accent">{{ action.status }}</span>
+              </span>
+              <component :is="action.icon" class="shrink-0 text-accent" :size="16" aria-hidden="true" />
+            </span>
+            <span class="mt-2 line-clamp-2 text-[10px] leading-4 text-muted">{{ action.summary }}</span>
+          </RouterLink>
+        </div>
+      </div>
+
+      <OnlineStatusBanner
+        v-if="errorCount > 0"
+        tone="warning"
+        title="部分在线摘要暂不可用"
+        :description="`${errorCount} 个模块刷新失败，可以先进入对应页面继续处理。`"
+        action-label="重试"
+        @action="refreshOnlineSummary"
+      />
+
+      <nav class="grid grid-cols-3 gap-1 md:grid-cols-6" aria-label="在线模块快捷入口" data-testid="online-center-quick-links">
         <RouterLink
           v-for="module in modules"
           :key="`${module.key}-quick`"
@@ -40,7 +83,7 @@
           :data-testid="`online-module-${module.key}-quick-link`"
           :to="{ name: module.routeName }"
         >
-          <component :is="module.icon" :size="13" />
+          <component :is="module.icon" :size="13" aria-hidden="true" />
           <span class="truncate">{{ module.title }}</span>
         </RouterLink>
       </nav>
@@ -321,6 +364,14 @@
         </ul>
       </div>
     </section>
+
+    <OnlineStickyActionBar
+      :status-label="onlineCenterStickyStatus"
+      :primary-action="onlineCenterStickyPrimaryAction"
+      :secondary-actions="onlineCenterStickySecondaryActions"
+      @primary="handleOnlineCenterAction(onlineCenterPrimaryAction?.id)"
+      @secondary="handleOnlineCenterAction"
+    />
   </div>
 </template>
 
@@ -344,7 +395,7 @@
     Wifi
   } from 'lucide-vue-next'
   import type { Component } from 'vue'
-  import type { RouteLocationRaw } from 'vue-router'
+  import { useRouter, type RouteLocationRaw } from 'vue-router'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
@@ -353,6 +404,8 @@
   import { useSocialStore } from '@/stores/useSocialStore'
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import OnlineModuleCard from '@/components/game/online/OnlineModuleCard.vue'
+  import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
+  import OnlineStickyActionBar from '@/components/game/online/OnlineStickyActionBar.vue'
   import {
     ONLINE_VISUAL_FEATURE_FLAGS,
     createOnlineVisualFeatureFlagState,
@@ -386,6 +439,22 @@
     icon: Component
     error: string
   }
+  type OnlineCenterHeroActionId = 'continue-room' | 'handle-invites' | 'create-room' | 'society-todos' | 'relay-orders'
+  type OnlineCenterHeroAction = {
+    id: OnlineCenterHeroActionId
+    label: string
+    status: string
+    summary: string
+    to: RouteLocationRaw
+    icon: Component
+  }
+  type OnlineCenterStatusCard = { id: string; label: string; value: string; summary: string }
+  type OnlineCenterStickyAction = {
+    id: OnlineCenterHeroActionId
+    label: string
+    tone: 'primary' | 'default'
+    icon: Component
+  }
   type VisualActivityKey = 'cavern' | 'lantern' | 'dragon-boat' | 'society-projects' | 'relay-orders' | 'warehouse'
   type VisualActivityCard = {
     key: VisualActivityKey
@@ -414,6 +483,7 @@
     fallbackStatus: string
   }
 
+  const router = useRouter()
   const manorStore = useManorStore()
   const cohabitationStore = useCohabitationStore()
   const socialStore = useSocialStore()
@@ -483,6 +553,152 @@
   })
 
   const errorCount = computed(() => Object.values(moduleErrors.value).filter(Boolean).length)
+  const roomInviteCount = computed(() => festivalRoomStore.invitedRooms.length + expeditionRoomStore.invitedRooms.length)
+  const societyTodoCount = computed(() =>
+    societyStore.incomingInvites.length
+    + societyStore.managedRequests.length
+    + societyStore.myPendingRequests.length
+    + (societyStore.mySociety?.active_proposals.length ?? 0)
+  )
+  const relayOrderCount = computed(() =>
+    coopOrderStore.visibleOrders.filter(order => order.collaboration_mode === 'multi_stage').length
+  )
+  const activeRoomLabel = computed(() => {
+    if (festivalRoomStore.myRoom) return `节会房间：${festivalRoomStore.myRoom.state_label}`
+    if (expeditionRoomStore.myRoom) return `远征房间：${expeditionRoomStore.myRoom.state_label}`
+    if (roomInviteCount.value > 0) return `${roomInviteCount.value} 个房间邀请`
+    return '可创建活动房间'
+  })
+  const activeRoomSummary = computed(() => {
+    if (festivalRoomStore.myRoom) return festivalRoomStore.myRoom.title || festivalRoomStore.myRoom.template_label
+    if (expeditionRoomStore.myRoom) return expeditionRoomStore.myRoom.title || expeditionRoomStore.myRoom.template_label
+    if (roomInviteCount.value > 0) return '先处理邀请，再进入准备或玩法。'
+    return '可从节会房间或远征房间开始。'
+  })
+  const invitationTargetRoute = computed<RouteLocationRaw>(() => {
+    if (festivalRoomStore.invitedRooms.length > 0) return { name: 'online-festival', query: { tab: 'festival-room' } }
+    if (expeditionRoomStore.invitedRooms.length > 0) return { name: 'online-festival', query: { tab: 'expedition-room' } }
+    return { name: 'online-society', query: { tab: 'members' } }
+  })
+  const onlineCenterStatusCards = computed<OnlineCenterStatusCard[]>(() => [
+    {
+      id: 'activity',
+      label: '活动房间',
+      value: activeRoomLabel.value,
+      summary: activeRoomSummary.value,
+    },
+    {
+      id: 'society',
+      label: '村社待办',
+      value: societyTodoCount.value > 0 ? countLabel(societyTodoCount.value) : '暂无待办',
+      summary: societyStore.mySociety ? `${societyStore.mySociety.name} · ${societyStore.mySociety.my_role_label || '成员'}` : '可进入村社创建或申请加入。',
+    },
+    {
+      id: 'orders',
+      label: '接力委托',
+      value: relayOrderCount.value > 0 ? countLabel(relayOrderCount.value, '张') : '暂无接力',
+      summary: `${coopOrderStore.visibleOrders.length} 张可见委托，适合顺手帮忙。`,
+    },
+  ])
+  const createRoomAction = computed<OnlineCenterHeroAction>(() => ({
+    id: 'create-room',
+    label: '创建活动房间',
+    status: '节会或远征',
+    summary: '开一个节会房或远征队伍，把好友邀请进准备大厅。',
+    to: { name: 'online-festival', query: { tab: 'festival-room' } },
+    icon: CalendarDays,
+  }))
+  const continueRoomAction = computed<OnlineCenterHeroAction | null>(() => {
+    if (festivalRoomStore.myRoom) {
+      return {
+        id: 'continue-room',
+        label: '继续节会房间',
+        status: festivalRoomStore.myRoom.state_label,
+        summary: festivalRoomStore.myRoom.title || festivalRoomStore.myRoom.template_label,
+        to: { name: 'online-festival', query: { tab: 'festival-room' } },
+        icon: Lamp,
+      }
+    }
+    if (expeditionRoomStore.myRoom) {
+      return {
+        id: 'continue-room',
+        label: '继续远征房间',
+        status: expeditionRoomStore.myRoom.state_label,
+        summary: expeditionRoomStore.myRoom.title || expeditionRoomStore.myRoom.template_label,
+        to: { name: 'online-festival', query: { tab: 'expedition-room' } },
+        icon: Pickaxe,
+      }
+    }
+    return null
+  })
+  const inviteAction = computed<OnlineCenterHeroAction | null>(() => {
+    const totalInviteCount = roomInviteCount.value + societyStore.incomingInvites.length
+    if (totalInviteCount <= 0) return null
+    return {
+      id: 'handle-invites',
+      label: '处理邀请',
+      status: `${totalInviteCount} 个待处理`,
+      summary: roomInviteCount.value > 0 ? '先确认活动房邀请，再进入准备或玩法。' : '有村社邀请等待确认。',
+      to: invitationTargetRoute.value,
+      icon: Users,
+    }
+  })
+  const societyTodoAction = computed<OnlineCenterHeroAction | null>(() => {
+    if (societyTodoCount.value <= 0) return null
+    return {
+      id: 'society-todos',
+      label: '查看村社待办',
+      status: `${societyTodoCount.value} 项待处理`,
+      summary: '处理成员申请、提案或自己的加入进度。',
+      to: { name: 'online-society', query: { tab: societyStore.managedRequests.length > 0 ? 'members' : 'proposals' } },
+      icon: ShieldCheck,
+    }
+  })
+  const relayOrderAction = computed<OnlineCenterHeroAction | null>(() => {
+    if (relayOrderCount.value <= 0) return null
+    return {
+      id: 'relay-orders',
+      label: '接力委托',
+      status: `${relayOrderCount.value} 张可接`,
+      summary: '查看多段互助委托，接下适合当前材料和时间的一段。',
+      to: { name: 'online-orders', query: { tab: 'available' } },
+      icon: Handshake,
+    }
+  })
+  const onlineCenterHeroActions = computed<OnlineCenterHeroAction[]>(() => {
+    const current = continueRoomAction.value
+    const invites = inviteAction.value
+    const societyTodos = societyTodoAction.value
+    const relayOrders = relayOrderAction.value
+    const actions = current
+      ? [current, invites, societyTodos, relayOrders, createRoomAction.value]
+      : invites
+        ? [invites, createRoomAction.value, societyTodos, relayOrders]
+        : [createRoomAction.value, relayOrders, societyTodos]
+    return actions.filter((action): action is OnlineCenterHeroAction => Boolean(action)).slice(0, 3)
+  })
+  const onlineCenterPrimaryAction = computed(() => onlineCenterHeroActions.value[0] ?? null)
+  const onlineCenterStickyStatus = computed(() => {
+    if (errorCount.value > 0) return `${errorCount.value} 个摘要暂不可用`
+    return activeRoomLabel.value
+  })
+  const onlineCenterStickyPrimaryAction = computed<OnlineCenterStickyAction | null>(() => {
+    const action = onlineCenterPrimaryAction.value
+    return action ? { id: action.id, label: action.label, tone: 'primary', icon: action.icon } : null
+  })
+  const onlineCenterStickySecondaryActions = computed<OnlineCenterStickyAction[]>(() =>
+    onlineCenterHeroActions.value.slice(1, 3).map(action => ({
+      id: action.id,
+      label: action.label,
+      tone: 'default',
+      icon: action.icon,
+    }))
+  )
+  const handleOnlineCenterAction = (actionId?: string) => {
+    const action = onlineCenterHeroActions.value.find(item => item.id === actionId) ?? onlineCenterPrimaryAction.value
+    if (!action) return
+    void router.push(action.to)
+  }
 
   const routeForFeatureFallback = (featureFlagKey: OnlineVisualFeatureFlagKey): RouteLocationRaw | null => {
     const featureFlag = getOnlineVisualFeatureFlagConfig(featureFlagKey)
