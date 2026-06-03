@@ -935,15 +935,58 @@ function buildMobileSmokeRelayOrder(accepted = false) {
   }
 }
 
-function buildMobileSmokeCoopOrderOverview(accepted = false) {
+function buildMobileSmokePublishedOrder(title = '移动端烟测求助单') {
+  return {
+    id: 'mobile-smoke-published-order',
+    owner_username: 'mobile_smoke_owner',
+    owner_display_name: '移动端烟测号',
+    title,
+    description: '移动端向导发布的求助单。',
+    order_type: 'material_help',
+    collaboration_mode: 'single',
+    scope: 'public',
+    target_save_id: 0,
+    target_save_slot: null,
+    target_username: '',
+    target_display_name: '',
+    deadline_at: 1893427200,
+    reward_type: 'money',
+    reward_value: 180,
+    reward_label: '铜钱回报',
+    status: 'open',
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    canceled_at: 0,
+    active_receipt_id: '',
+    delivery_status: 'none',
+    delivery_note: '',
+    delivered_items: [],
+    settlement_confirmed_at: 0,
+    compensation_id: '',
+    priority_score: 0,
+    priority_reasons: [],
+    stages: [],
+    visual_state: emptyVisualState,
+    relay_settlement_summary: null,
+    created_at: 4,
+    updated_at: 4
+  }
+}
+
+function buildMobileSmokeCoopOrderOverview(accepted = false, publishedTitle = '') {
+  const orders = [buildMobileSmokeRelayOrder(accepted)]
+  if (publishedTitle) {
+    orders.unshift(buildMobileSmokePublishedOrder(publishedTitle))
+  }
   return {
     ok: true,
-    orders: [buildMobileSmokeRelayOrder(accepted)],
+    orders,
     receipts: [],
     compensations: [],
     board_summary: {
-      total_orders: 1,
-      open_orders: 1,
+      total_orders: orders.length,
+      open_orders: orders.filter(order => order.status === 'open').length,
       relay_orders: 1,
       open_relay_orders: 1
     },
@@ -2037,11 +2080,24 @@ async function createPage(browser, viewport, options = {}) {
 
   if (mockOrders) {
     let orderAccepted = false
+    let publishedOrderTitle = ''
     await page.route('**/api/taoyuan/online/orders', async route => {
+      if (route.request().method() === 'POST') {
+        const payload = route.request().postDataJSON()
+        publishedOrderTitle = typeof payload?.title === 'string' && payload.title.trim()
+          ? payload.title.trim()
+          : '移动端烟测求助单'
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, order: buildMobileSmokePublishedOrder(publishedOrderTitle) })
+        })
+        return
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(buildMobileSmokeCoopOrderOverview(orderAccepted))
+        body: JSON.stringify(buildMobileSmokeCoopOrderOverview(orderAccepted, publishedOrderTitle))
       })
     })
     await page.route('**/api/taoyuan/online/orders/*/stages/*/accept', async route => {
@@ -2869,8 +2925,25 @@ async function prepareOnlineOrdersMobile(page) {
   await expect(page.getByText('还没有结算凭证')).toBeVisible()
   await expect(ordersTab('publish')).toBeVisible()
   await ordersTab('publish').click()
-  await expect(page.getByPlaceholder('例如：缺一批冬菜备节')).toBeVisible()
-  await expect(page.getByPlaceholder('写清楚当前缺什么、希望别人怎么帮、为什么这单值得接。')).toBeVisible()
+  await expect(page.getByTestId('online-orders-publish-summary')).toBeVisible()
+  await expect(page.getByTestId('online-orders-publish-wizard-trigger')).toBeVisible()
+  await page.getByTestId('online-orders-publish-wizard-trigger').click()
+  await expect(page.getByTestId('online-order-wizard')).toBeVisible()
+  await expect(page.getByTestId('online-order-wizard-step-type')).toBeVisible()
+  await page.getByTestId('online-order-wizard-next').click()
+  await expect(page.getByTestId('online-order-wizard-step-need')).toBeVisible()
+  await page.getByTestId('online-orders-publish-title-input').fill('移动端烟测求助单')
+  await page.getByTestId('online-orders-publish-description-input').fill('用发布向导提交一张移动端烟测求助单。')
+  await page.getByTestId('online-order-wizard-next').click()
+  await expect(page.getByTestId('online-order-wizard-step-mode')).toBeVisible()
+  await page.getByTestId('online-order-wizard-next').click()
+  await expect(page.getByTestId('online-order-wizard-step-reward')).toBeVisible()
+  await page.getByTestId('online-orders-publish-reward-value-input').fill('180')
+  await page.getByTestId('online-order-wizard-next').click()
+  await expect(page.getByTestId('online-order-wizard-step-review')).toBeVisible()
+  await page.getByTestId('online-orders-publish-submit').click()
+  await expect(ordersTab('mine')).toBeVisible()
+  await expect(page.getByTestId('online-orders-mine-entry')).toContainText('移动端烟测求助单')
 
   const clippedControls = await page.evaluate(() => {
     const root = document.querySelector('[data-testid="online-orders-page"]')

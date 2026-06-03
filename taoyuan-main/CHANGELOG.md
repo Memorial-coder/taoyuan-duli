@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 在线委托发布向导
+- `src/views/game/online/OnlineOrdersView.vue` 的发布 tab 不再直接铺长表单，首屏只保留草稿摘要和 `online-orders-publish-wizard-trigger` 主入口。
+- 新增 `src/components/game/online/OnlineOrderWizard.vue`，分步承接类型 / 范围、需求、协作模式、回报和确认发布；旧发布输入与 `online-orders-publish-submit` test id 保留在向导内，确认仍调用既有 `coopOrderStore.submitOrder()`。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、`node --check taoyuan-main/scripts/qa-online-ui-structure.mjs`、`node --check taoyuan-main/scripts/qa-mobile-ui-smoke.mjs` 通过；`qa:mobile-ui-smoke` 已跑完委托 390x844 / 360x780 场景并生成 `docs/ui-smoke-2026-04-26/25-online-orders-mobile-390x844.png`、`docs/ui-smoke-2026-04-26/27-online-orders-mobile-360x780.png`，后续全量脚本卡在村社场景后端代理超时；`qa:online-ui-structure` 仍被既有 / 并行移动端覆盖缺口阻断，未出现委托发布向导新增断言失败。
+
 ### 0603 房间流程浏览器 E2E 倒计时
 - `game-smoke.spec.ts` 新增节会房准备大厅浏览器场景，覆盖房主从 `online-room-action-start-ready-check` 发起准备检查，再通过 `online-room-primary-action` 开始倒计时，读回成员准备、倒计时锁定和房间壳倒计时提示。
 - `mockOnlineVisualRoom` 补齐节会房 `/ready-check` 与 `/start` 状态推进 mock；`startNewJourney` 统一等待 `game-layout`，避免全量 E2E 中房间用例被新旅程开局竞态拦回首页。
