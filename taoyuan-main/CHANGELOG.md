@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 房间流程浏览器 E2E 键盘关闭
+- `e2e/game-smoke.spec.ts` 新增 `online festival room wizard escape closes dialog and restores focus`，覆盖 1280x720 桌面视口下节会房创建向导使用 `OnlineActionDialog` 普通弹窗承载，按 Esc 关闭后焦点回到 `online-room-create-trigger`。
+- 场景继续断言弹窗关闭后可再次打开到 `online-room-wizard-step-gameplay`；旧 `online-room-create-trigger`、`online-action-dialog`、`online-room-wizard` test id 保留。
+- 本轮验证：新增单场景 grep 与房间组合 grep 返回 0，`npm --prefix taoyuan-main run check` 返回 0；全量 `game-smoke.spec.ts` 与 `qa:online-ui-structure` 仍被既有 / 非 Agent A 页面级失败阻断，未出现本轮键盘场景或房间组合 grep 失败。
+
 ### 0603 房间流程浏览器 E2E 结算确认
 - `e2e/game-smoke.spec.ts` 新增 `online festival room settle confirm shows impacts and records receipt`，覆盖运行中节会房从备用 `online-festival-room-settle-submit` 打开 `online-room-settle-confirm` / `OnlineConfirmActionDialog`，断言房间与成员影响、奖励预览、恢复提示和确认按钮。
 - 提交后等待既有 `/settle` 接口，并读回 `online-festival-room-status-panel` 的已结算状态、`online-visual-room-settlement-replay` 的结算记录和 `90 铜钱、1 张奖券、lantern_token x2` 奖励；`openHome` 增加最多 3 次短重试，降低首页启动竞态。

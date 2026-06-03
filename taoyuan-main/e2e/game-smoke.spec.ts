@@ -3713,6 +3713,43 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('奖励已记录：120 铜钱、1 张奖券、ore x2')
   })
 
+  test('online festival room wizard escape closes dialog and restores focus', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await openHome(page)
+    await startNewJourney(page, '键盘')
+
+    const seedRoom = buildRoomSnapshot({
+      id: 'e2e-festival-wizard-escape-seed',
+      title: '节会键盘 seed',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room: seedRoom, startWithoutRoom: true })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expect(page.getByTestId('online-festival-room-create-entry')).toBeVisible()
+    const createTrigger = page.getByTestId('online-room-create-trigger')
+    await createTrigger.click()
+    await expect(page.getByTestId('online-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('创建节会房间')
+    await expect(page.getByTestId('online-room-wizard')).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('online-action-dialog')).toHaveCount(0)
+    await expect(page.getByTestId('online-room-wizard')).toHaveCount(0)
+    await expect(createTrigger).toBeFocused()
+
+    await createTrigger.click()
+    await expect(page.getByTestId('online-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-room-wizard-step-gameplay')).toBeVisible()
+  })
+
   test('online festival room wizard creates host room', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '创建')
