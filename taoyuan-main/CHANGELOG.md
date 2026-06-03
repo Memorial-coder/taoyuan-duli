@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 在线房间新流程回退保护
+- 暂不新增 `useNewOnlineRoomFlow` 局部开关；在线节会页与独立远征页继续通过 `OnlineTechnicalDetails` / 统一房间壳的备用操作区保留旧创建、邀请、准备、倒计时、结算和关闭入口。
+- `qa-online-ui-structure` 新增 OUI-003 静态守护，断言备用 test id 仍存在，旧按钮包装仍提交既有 `createRoom`、`inviteMember`、`startReadyCheck`、`readyRoomAction`、`unreadyRoomAction`、`startCountdown`、`settleRoomAction` 和 `closeRoomAction`。
+
 ### 0603 在线节会龙舟赛道名次结构
 - `VisualTrackBoard` 多队榜单新增 `visual-track-team-standings`、逐队 `visual-track-team-row-*` 和「第 N 名」现场名次展示；龙舟赛道浏览器 smoke 已能断言四船排名与完赛状态，旧玩法按钮折叠为备用操作后的轨道回归不再被名次 test id 缺口阻断。
 
