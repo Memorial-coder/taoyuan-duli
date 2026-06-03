@@ -976,6 +976,130 @@ function buildMobileSmokeCoopOrderOverview(accepted = false) {
   }
 }
 
+function buildMobileSmokeWorldEventOverview() {
+  return {
+    ok: true,
+    bulletin: '移动端节会 smoke',
+    current_season: 'spring',
+    current_season_label: '春季',
+    current_cycle_key: 'mobile-smoke',
+    current_event: null,
+    events: [],
+    world_events: [],
+    current_world_events: [],
+    public_goal: {
+      label: '节会移动端目标',
+      summary: '用于移动端房间向导 smoke 的公共目标。',
+      progress_value: 0,
+      target_progress: 100,
+      progress_percent: 0,
+      progress_text: '0/100',
+      phase_reward_label: '',
+      milestones: [],
+      division_awards: []
+    },
+    recent_annals: [],
+    recent_chronicles: [],
+    total_contribution_points: 0,
+    my_records: [],
+    seasonal_badges: []
+  }
+}
+
+function buildMobileSmokeFestivalRoomOverview() {
+  return {
+    ok: true,
+    bulletin: '移动端节会房 smoke',
+    templates: [
+      {
+        id: 'dragon_boat',
+        label: '端午赛舟',
+        summary: '2 人演练，4-8 人扩展多队竞速。',
+        default_member_limit: 4,
+        min_member_limit: 2,
+        max_member_limit: 8,
+        opening_title: '',
+        recommended_gameplay_template_ids: ['squad_coop']
+      },
+      {
+        id: 'lantern_fair',
+        label: '上元灯会',
+        summary: '灯会共建和愿望签协作。',
+        default_member_limit: 4,
+        min_member_limit: 2,
+        max_member_limit: 4,
+        opening_title: '',
+        recommended_gameplay_template_ids: ['assembly']
+      }
+    ],
+    gameplay_templates: [
+      {
+        id: 'squad_coop',
+        label: '龙舟协作',
+        kind: 'track',
+        summary: '一起推进赛舟进度。',
+        objective_label: '推进现场',
+        score_label: '协作值',
+        default_target: 8,
+        recommended_room_template_ids: ['dragon_boat'],
+        action_options: []
+      },
+      {
+        id: 'assembly',
+        label: '灯会共建',
+        kind: 'scene',
+        summary: '共同布置灯会现场。',
+        objective_label: '布置现场',
+        score_label: '热闹值',
+        default_target: 8,
+        recommended_room_template_ids: ['lantern_fair'],
+        action_options: []
+      }
+    ],
+    my_room: null,
+    invited_rooms: [],
+    visible_rooms: [],
+    recent_memorials: [],
+    recent_receipts: []
+  }
+}
+
+function buildMobileSmokeExpeditionRoomOverview() {
+  return {
+    ok: true,
+    bulletin: '移动端远征房 smoke',
+    templates: [
+      {
+        id: 'expedition_outpost',
+        label: '协作远征',
+        summary: '组队出发前的移动端占位数据。',
+        default_member_limit: 4,
+        min_member_limit: 2,
+        max_member_limit: 4,
+        opening_title: '',
+        recommended_gameplay_template_ids: ['expedition_cavern']
+      }
+    ],
+    gameplay_templates: [
+      {
+        id: 'expedition_cavern',
+        label: '协作矿洞',
+        kind: 'map',
+        summary: '一起探索矿洞路线。',
+        objective_label: '探索进度',
+        score_label: '补给值',
+        default_target: 8,
+        recommended_room_template_ids: ['expedition_outpost'],
+        action_options: []
+      }
+    ],
+    my_room: null,
+    invited_rooms: [],
+    visible_rooms: [],
+    recent_receipts: []
+  }
+}
+
 const mobileSmokeCareRoomActions = {
   room_irrigate: {
     role_id: 'irrigation',
@@ -1302,12 +1426,13 @@ async function createPage(browser, viewport, options = {}) {
   const mockSocietyProject = options.mockSocietyProject || 'lantern_wall'
   const mockOrders = Boolean(options.mockOrders)
   const mockManor = Boolean(options.mockManor)
+  const mockFestivalRoom = Boolean(options.mockFestivalRoom)
   const context = await browser.newContext({
     viewport,
     locale: 'zh-CN',
     reducedMotion: 'reduce'
   })
-  if (mockSociety || mockOrders || mockManor) {
+  if (mockSociety || mockOrders || mockManor || mockFestivalRoom) {
     await context.addInitScript(() => {
       window.localStorage.setItem('taoyuanxiang_current_account', 'mobile_smoke_owner')
     })
@@ -1318,7 +1443,7 @@ async function createPage(browser, viewport, options = {}) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mockSocial || mockSociety || mockOrders || mockManor
+      body: JSON.stringify(mockSocial || mockSociety || mockOrders || mockManor || mockFestivalRoom
         ? {
             ok: true,
             user: {
@@ -1377,6 +1502,32 @@ async function createPage(browser, viewport, options = {}) {
       })
     })
   })
+
+  if (mockFestivalRoom) {
+    await page.route('**/api/taoyuan/online/world-events', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeWorldEventOverview())
+      })
+    })
+
+    await page.route('**/api/taoyuan/online/festival/rooms', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeFestivalRoomOverview())
+      })
+    })
+
+    await page.route('**/api/taoyuan/online/expedition/rooms', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeExpeditionRoomOverview())
+      })
+    })
+  }
 
   if (mockSocial) {
     await page.route('**/api/taoyuan/online/social/relationships', async route => {
@@ -1563,9 +1714,10 @@ async function captureScenario({
   mockSocietyProject = 'lantern_wall',
   mockOrders = false,
   mockManor = false,
+  mockFestivalRoom = false,
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor })
+  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor, mockFestivalRoom })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -1777,6 +1929,98 @@ async function prepareOnlineCenterMobile(page) {
   expect(layoutIssues.heroActionCount).toBeLessThanOrEqual(3)
   expect(layoutIssues.firstHeroActionInViewport).toBe(true)
   expect(layoutIssues.stickyPrimaryInViewport).toBe(true)
+}
+
+async function prepareOnlineFestivalRoomWizardMobile(page) {
+  await expect(page.getByTestId('online-festival-page')).toBeVisible()
+  const festivalRoomTab = page.getByTestId('online-module-tab-festival-room')
+  await expect(festivalRoomTab).toBeVisible()
+  if (await festivalRoomTab.getAttribute('aria-selected') !== 'true') {
+    await festivalRoomTab.click()
+  }
+
+  const createTrigger = page.getByTestId('online-room-create-trigger')
+  await expect(createTrigger).toBeVisible()
+  await createTrigger.click()
+
+  await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-bottom-sheet-title')).toBeVisible()
+  await expect(page.getByTestId('online-bottom-sheet-close')).toBeVisible()
+  await expect(page.getByTestId('online-room-wizard')).toBeVisible()
+  await expect(page.getByTestId('online-room-wizard-step-gameplay')).toBeVisible()
+  await expect(page.getByTestId('online-room-wizard-next')).toBeVisible()
+
+  const layoutIssues = await page.evaluate(() => {
+    const overlay = document.querySelector('[data-testid="online-bottom-sheet"]')
+    const panel = overlay?.querySelector('.online-bottom-sheet__panel')
+    const footer = overlay?.querySelector('.online-bottom-sheet__footer')
+    const closeButton = document.querySelector('[data-testid="online-bottom-sheet-close"]')
+    const nextButton = document.querySelector('[data-testid="online-room-wizard-next"]')
+    const visibleControls = Array.from(overlay?.querySelectorAll('button, input, select, textarea') ?? [])
+      .filter(element => {
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    const clippedControls = visibleControls
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.label)
+    const panelRect = panel?.getBoundingClientRect()
+    const footerRect = footer?.getBoundingClientRect()
+    const closeRect = closeButton?.getBoundingClientRect()
+    const nextRect = nextButton?.getBoundingClientRect()
+
+    return {
+      bodyOverflow: document.body.style.overflow,
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clippedControls,
+      panelLeft: panelRect?.left ?? Number.NaN,
+      panelRight: panelRect?.right ?? Number.NaN,
+      panelTop: panelRect?.top ?? Number.NaN,
+      panelBottom: panelRect?.bottom ?? Number.NaN,
+      footerBottom: footerRect?.bottom ?? Number.NaN,
+      closeTop: closeRect?.top ?? Number.NaN,
+      closeRight: closeRect?.right ?? Number.NaN,
+      closeWidth: closeRect?.width ?? 0,
+      closeHeight: closeRect?.height ?? 0,
+      nextTop: nextRect?.top ?? Number.NaN,
+      nextBottom: nextRect?.bottom ?? Number.NaN,
+      nextHeight: nextRect?.height ?? 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+
+  expect(layoutIssues.bodyOverflow).toBe('hidden')
+  expect(layoutIssues.docOverflow).toBeLessThanOrEqual(4)
+  expect(layoutIssues.clippedControls).toEqual([])
+  expect(layoutIssues.panelLeft).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelRight).toBeLessThanOrEqual(layoutIssues.viewportWidth + 1)
+  expect(layoutIssues.panelTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.footerBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.closeTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.closeRight).toBeLessThanOrEqual(layoutIssues.viewportWidth + 1)
+  expect(layoutIssues.closeWidth).toBeGreaterThanOrEqual(36)
+  expect(layoutIssues.closeHeight).toBeGreaterThanOrEqual(32)
+  expect(layoutIssues.nextTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.nextBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.nextHeight).toBeGreaterThanOrEqual(32)
+
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
+  await createTrigger.click()
+  await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-room-wizard-next')).toBeVisible()
 }
 
 async function prepareOnlineOrdersMobile(page) {
@@ -2225,6 +2469,15 @@ async function main() {
       })
       await captureScenario({
         browser,
+        label: '25-online-festival-room-wizard-mobile-390x844',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-bottom-sheet"]',
+        mockFestivalRoom: true,
+        prepare: prepareOnlineFestivalRoomWizardMobile
+      })
+      await captureScenario({
+        browser,
         label: '25-online-orders-mobile-390x844',
         hash: '/#/game/online/orders',
         viewport: { width: 390, height: 844 },
@@ -2239,6 +2492,15 @@ async function main() {
         viewport: { width: 360, height: 780 },
         primarySelector: '[data-testid="online-center-hero-actions"]',
         prepare: prepareOnlineCenterMobile
+      })
+      await captureScenario({
+        browser,
+        label: '27-online-festival-room-wizard-mobile-360x780',
+        hash: '/#/game/online/festival?tab=festival-room',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-bottom-sheet"]',
+        mockFestivalRoom: true,
+        prepare: prepareOnlineFestivalRoomWizardMobile
       })
       await captureScenario({
         browser,
@@ -2342,6 +2604,7 @@ async function main() {
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
         '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
+        '在线节会房场景使用 mock 登录态与房间模板数据，覆盖 390x844 与 360x780 视口下创建向导底部抽屉、footer 主按钮、关闭按钮、背景滚动锁定和横向溢出断言。',
         '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、节庆筹备布景搭设、贡献后阶段反馈和移动端横向溢出断言。',
         '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]

@@ -12,6 +12,10 @@
 - 新增 `CohabitationFamilyFestivalPanel`，把家族节会席位、成员席位、结算护栏和暂缓能力区从 `OnlineCohabitationView.vue` 拆出，父页面只保留数据和确认事件接线。
 - 保留 `online-cohabitation-family-festival-*-confirm-trigger` 旧 test id 与原 store action 语义；家族节会高风险确认浏览器 smoke 继续覆盖拆分后的路径。
 
+### 0603 节会房移动端抽屉 smoke
+- `qa-mobile-ui-smoke` 新增节会房创建向导 390x844 / 360x780 场景，使用 mock 登录态、世界事件和节会 / 远征房间概览数据，打开 `OnlineRoomWizard` 的 `OnlineBottomSheet` 移动端抽屉。
+- 新场景断言 `online-bottom-sheet`、`online-room-wizard`、`online-room-wizard-next`、`online-bottom-sheet-close` 可见，footer 主按钮和关闭按钮位于 viewport 内，背景滚动锁定且无横向溢出；结构 QA 同步保护这些 smoke 覆盖点。
+
 ### 0603 在线弹窗键盘焦点保护
 - `OnlineActionDialog` 补齐全局 Esc 兜底、`open=true` 初始挂载监听和卸载焦点恢复，避免父级 `v-if` 直接创建弹窗时键盘关闭或焦点返回丢失。
 - `game-smoke.spec.ts` 新增节会房关闭确认浏览器场景，断言确认文字未填禁用、Esc 取消、焦点回到 `online-festival-room-close-submit`，填写「确认关闭房间」后提交既有关闭接口并读回关闭原因。

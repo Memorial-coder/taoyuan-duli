@@ -3,6 +3,7 @@
 最后整理：2026-06-03
 - 共同庄园总览摘要组件拆分：新增 `CohabitationOverviewPanel` 承接总览四张主摘要卡，父页面继续持有契约表单、照料入口和安全边界 slot；旧 `online-cohabitation-overview-*` test id 保留，`check` 与玩家文案扫描通过。
 - 共同庄园家族节会面板拆分：新增 `CohabitationFamilyFestivalPanel`，把家族节会席位、成员席位、结算护栏和暂缓能力从 `OnlineCohabitationView.vue` 拆出；旧确认按钮 test id 和原 store action 接线保留，家族节会确认浏览器 smoke 继续通过。
+- 节会房移动端抽屉 smoke：`qa-mobile-ui-smoke` 新增 390x844 / 360x780 节会房创建向导场景，mock 登录态与房间模板数据后打开 `OnlineRoomWizard` 底部抽屉，断言 footer 主按钮、关闭按钮、安全区、背景滚动锁定和横向溢出；`OUI-CMP-003` 已获得移动端截图证据。
 - 在线弹窗键盘焦点保护：`OnlineActionDialog` 补齐 `open=true` 初始挂载时的焦点记录、全局 Esc 兜底和卸载清理；节会房关闭确认新增浏览器 smoke，覆盖确认文字禁用、Esc 取消、焦点返回触发按钮和既有关闭接口提交。
 - 在线房间新流程回退保护：暂不新增 `useNewOnlineRoomFlow` 局部开关，节会、在线节会远征和独立远征继续通过默认折叠的备用操作区保留旧创建、邀请、准备、倒计时、结算、关闭入口；结构 QA 新增 OUI-003 断言，守护备用 test id 与原 store action 调用。
 - 在线节会龙舟赛道名次结构：`VisualTrackBoard` 多队榜单新增 `visual-track-team-standings`、逐队 `visual-track-team-row-*` 和「第 N 名」现场名次展示，龙舟赛道浏览器 smoke 已能断言四船排名与完赛状态，解除旧玩法按钮备用操作的轨道 E2E 缺口。
