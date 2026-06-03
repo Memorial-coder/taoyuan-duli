@@ -1925,155 +1925,47 @@
         </div>
       </CohabitationWarehousePanel>
 
-      <div v-else-if="activeTab === 'fund'" class="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <div class="game-panel-muted p-3">
-          <div class="flex items-center gap-2 text-accent">
-            <Wallet :size="13" />
-            <p class="text-sm">共同基金</p>
-          </div>
-          <p class="mt-3 text-3xl font-semibold text-accent">{{ cohabitationStore.fund?.balance ?? 0 }}</p>
-          <p class="mt-2 text-xs leading-5 text-muted">个人铜币不会在这里合并；余额只来自共同基金流水。</p>
-          <div class="mt-3 grid gap-2 text-xs">
-            <p class="border border-accent/10 bg-black/10 p-2 text-muted">注资：{{ cohabitationStore.fund?.summary.contribution_enabled ? '已开放' : '未开放' }}</p>
-            <p class="border border-accent/10 bg-black/10 p-2 text-muted">消费：{{ cohabitationStore.fund?.summary.spend_enabled ? '已开放' : '暂缓' }}</p>
-            <p class="border border-accent/10 bg-black/10 p-2 text-muted">中额支出：{{ cohabitationStore.fund?.summary.medium_spend_enabled ? '已开放' : '需权限' }}</p>
-            <p class="border border-accent/10 bg-black/10 p-2 text-muted">大额草案：{{ cohabitationStore.fund?.summary.large_spend_draft_enabled ? '已开放' : '需权限' }}</p>
-          </div>
-          <div class="mt-3 border border-accent/10 bg-black/10 p-2">
-            <p class="text-xs text-accent">个人注资</p>
-            <div class="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <input
-                v-model.number="fundContributionAmount"
-                type="number"
-                min="1"
-                step="1"
-                class="online-input text-xs"
-                data-testid="online-cohabitation-fund-contribution-input"
-              >
-              <button
-                type="button"
-                class="online-action-btn online-action-btn--compact justify-center"
-                :disabled="!canUseFundContribution || cohabitationStore.actionLoading"
-                data-testid="online-cohabitation-fund-contribution-submit"
-                @click="contributeToSharedFund"
-              >
-                注入共同基金
-              </button>
-            </div>
-          </div>
-          <div class="mt-3 border border-accent/10 bg-black/10 p-2">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-xs text-accent">自动购买</p>
-              <span class="text-[10px] text-muted">白名单</span>
-            </div>
-            <div class="mt-2 grid gap-2">
-              <button
-                v-for="option in fundPurchaseOptions"
-                :key="option.targetRef"
-                type="button"
-                class="online-action-btn online-action-btn--compact justify-between"
-                :disabled="!canUseFundPurchase(option) || cohabitationStore.actionLoading"
-                :data-testid="`online-cohabitation-fund-buy-${option.itemId}`"
-                @click="buyWithSharedFund(option)"
-              >
-                <span>{{ option.label }}</span>
-                <span>{{ option.amount }} 文</span>
-              </button>
-            </div>
-          </div>
-          <div class="mt-3 border border-accent/10 bg-black/10 p-2">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-xs text-accent">中额预算</p>
-              <span class="text-[10px] text-muted">{{ cohabitationStore.fund?.permissions.can_spend_medium ? '已授权' : '需授权' }}</span>
-            </div>
-            <div class="mt-2 grid gap-2">
-              <button
-                v-for="option in fundMediumSpendOptions"
-                :key="option.purpose"
-                type="button"
-                class="online-action-btn online-action-btn--compact justify-between"
-                :disabled="!canUseMediumFundSpend(option) || cohabitationStore.actionLoading"
-                :data-testid="`online-cohabitation-fund-medium-${option.purpose}`"
-                @click="spendMediumSharedFund(option)"
-              >
-                <span>{{ option.label }}</span>
-                <span>{{ option.amount }} 文</span>
-              </button>
-            </div>
-          </div>
-          <div class="mt-3 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-fund-large-draft-form">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-xs text-accent">大额草案</p>
-              <span class="text-[10px] text-muted">{{ cohabitationStore.fund?.summary.large_spend_requires_both ? '双方确认' : '安全阀关闭' }}</span>
-            </div>
-            <div class="mt-2 grid gap-2">
-              <select
-                v-model="fundLargeDraftPurpose"
-                class="online-select text-xs"
-                data-testid="online-cohabitation-fund-large-draft-purpose"
-                @change="handleLargeFundDraftPurposeChange"
-              >
-                <option
-                  v-for="option in fundLargeSpendOptions"
-                  :key="option.purpose"
-                  :value="option.purpose"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
-              <input
-                v-model.number="fundLargeDraftAmount"
-                type="number"
-                :min="fundLargeDraftMinAmount"
-                :max="selectedFundLargeSpendOption?.maxAmount"
-                step="1"
-                class="online-input text-xs"
-                data-testid="online-cohabitation-fund-large-draft-amount"
-                placeholder="金额"
-              >
-              <input
-                v-model="fundLargeDraftTargetRef"
-                class="online-input text-xs"
-                data-testid="online-cohabitation-fund-large-draft-target"
-                maxlength="80"
-                :placeholder="fundLargeDraftTargetPlaceholder"
-              >
-              <div
-                v-if="selectedFundLargeSpendOption"
-                class="grid gap-2 text-[10px] sm:grid-cols-2"
-                data-testid="online-cohabitation-fund-large-draft-risk-summary"
-              >
-                <span class="border border-accent/10 bg-bg/30 px-2 py-1 text-muted">
-                  {{ selectedFundLargeSpendOption.category }} · 上限 {{ selectedFundLargeSpendOption.maxAmount }}
-                </span>
-                <span class="border px-2 py-1" :class="selectedLargeFundSpendIsHighRisk ? 'border-amber-300/20 bg-amber-500/10 text-amber-100' : 'border-accent/10 bg-bg/30 text-muted'">
-                  {{ selectedLargeFundSpendPolicyLabel }}
-                </span>
-              </div>
-              <input
-                v-model="fundLargeDraftMemo"
-                class="online-input text-xs"
-                data-testid="online-cohabitation-fund-large-draft-memo"
-                maxlength="80"
-                placeholder="备注（可选）"
-              >
-              <button
-                type="button"
-                class="online-action-btn online-action-btn--compact justify-center"
-                :disabled="!canCreateLargeFundDraft || cohabitationStore.actionLoading"
-                data-testid="online-cohabitation-fund-large-draft-submit"
-                @click="openCohabitationRiskConfirm({ kind: 'fund-large-draft-create' })"
-              >
-                <ClipboardList :size="12" />
-                创建确认草案
-              </button>
-            </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted">{{ selectedLargeFundSpendExecutionSummary }}</p>
-          </div>
-          <p v-if="fundActionMessage" class="mt-3 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
-            {{ fundActionMessage }}
-          </p>
-        </div>
+      <CohabitationFundPanel
+        v-else-if="activeTab === 'fund'"
+        :balance="cohabitationStore.fund?.balance ?? 0"
+        :contribution-enabled="cohabitationStore.fund?.summary.contribution_enabled"
+        :spend-enabled="cohabitationStore.fund?.summary.spend_enabled"
+        :medium-spend-enabled="cohabitationStore.fund?.summary.medium_spend_enabled"
+        :large-spend-draft-enabled="cohabitationStore.fund?.summary.large_spend_draft_enabled"
+        :can-spend-medium="cohabitationStore.fund?.permissions.can_spend_medium"
+        :large-spend-requires-both="cohabitationStore.fund?.summary.large_spend_requires_both"
+        :action-loading="cohabitationStore.actionLoading"
+        :contribution-amount="fundContributionAmount"
+        :can-use-contribution="canUseFundContribution"
+        :purchase-options="fundPurchaseOptions"
+        :can-use-purchase="canUseFundPurchase"
+        :medium-spend-options="fundMediumSpendOptions"
+        :can-use-medium-spend="canUseMediumFundSpend"
+        :large-draft-purpose="fundLargeDraftPurpose"
+        :large-draft-amount="fundLargeDraftAmount"
+        :large-draft-target-ref="fundLargeDraftTargetRef"
+        :large-draft-memo="fundLargeDraftMemo"
+        :large-spend-options="fundLargeSpendOptions"
+        :large-draft-min-amount="fundLargeDraftMinAmount"
+        :selected-large-spend-option="selectedFundLargeSpendOption"
+        :selected-large-spend-is-high-risk="selectedLargeFundSpendIsHighRisk"
+        :large-spend-policy-label="selectedLargeFundSpendPolicyLabel"
+        :large-spend-execution-summary="selectedLargeFundSpendExecutionSummary"
+        :large-draft-target-placeholder="fundLargeDraftTargetPlaceholder"
+        :can-create-large-draft="canCreateLargeFundDraft"
+        :action-message="fundActionMessage"
+        :action-ok="fundActionOk"
+        @set-contribution-amount="fundContributionAmount = $event"
+        @contribute="contributeToSharedFund"
+        @buy="buyWithSharedFund"
+        @spend-medium="spendMediumSharedFund"
+        @set-large-draft-purpose="fundLargeDraftPurpose = $event"
+        @large-draft-purpose-change="handleLargeFundDraftPurposeChange"
+        @set-large-draft-amount="fundLargeDraftAmount = $event"
+        @set-large-draft-target-ref="fundLargeDraftTargetRef = $event"
+        @set-large-draft-memo="fundLargeDraftMemo = $event"
+        @create-large-draft="openCohabitationRiskConfirm({ kind: 'fund-large-draft-create' })"
+      >
         <div class="space-y-3">
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-fund-large-drafts">
             <div class="flex items-center justify-between gap-2">
@@ -2315,7 +2207,7 @@
           </div>
           </div>
         </div>
-      </div>
+      </CohabitationFundPanel>
 
       <div v-else-if="activeTab === 'permissions'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
@@ -3707,6 +3599,7 @@
     XCircle,
   } from 'lucide-vue-next'
   import CohabitationFamilyFestivalPanel from '@/components/game/online/cohabitation/CohabitationFamilyFestivalPanel.vue'
+  import CohabitationFundPanel from '@/components/game/online/cohabitation/CohabitationFundPanel.vue'
   import CohabitationOverviewPanel from '@/components/game/online/cohabitation/CohabitationOverviewPanel.vue'
   import CohabitationSharedMapPanel from '@/components/game/online/cohabitation/CohabitationSharedMapPanel.vue'
   import CohabitationWarehousePanel from '@/components/game/online/cohabitation/CohabitationWarehousePanel.vue'

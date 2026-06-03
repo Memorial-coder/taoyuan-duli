@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 共同庄园基金主面板拆分
+- 新增 `CohabitationFundPanel`，把共同基金余额摘要、注资状态、白名单购买、中额预算和大额草案创建表单从 `OnlineCohabitationView.vue` 拆出。
+- 父页面继续通过 slot 持有大额草案列表、高风险回执、共同装修拆除主状态写回和基金流水；结构 QA 改为读取新组件并继续守护 `online-cohabitation-fund-large-draft-submit` 旧 test id。
+
 ### 0603 共同庄园仓库主列表拆分
 - 新增 `CohabitationWarehousePanel`，把共同仓库物品列表、冻结 / 可用数量、普通取出、高价值申请和卖出按钮从 `OnlineCohabitationView.vue` 拆出。
 - 父页面继续通过 slot 持有仓库策略、治理、放入普通物品、工坊、草案和补偿审计动作；保留 `online-cohabitation-warehouse-withdraw-*`、`online-cohabitation-warehouse-high-value-draft-*`、`online-cohabitation-warehouse-sell-*` 旧 test id。
