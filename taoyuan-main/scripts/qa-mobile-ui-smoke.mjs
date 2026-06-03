@@ -1217,6 +1217,269 @@ function buildMobileSmokeFestivalRoomOverview(roomState = 'empty') {
   }
 }
 
+const mobileSmokeCohabitationContractId = 'mobile-smoke-cohabitation-contract'
+
+function buildMobileSmokeCohabitationMember({
+  username,
+  displayName,
+  role = 'member',
+  manorRole = 'farm_steward',
+  manorRoleLabel = '农务',
+  seatIndex = 1,
+  festivalRole = 'lantern_helper'
+}) {
+  return {
+    username,
+    username_key: username,
+    display_name: displayName,
+    role,
+    status: 'accepted',
+    manor_role: manorRole,
+    manor_role_label: manorRoleLabel,
+    save_id: seatIndex === 1 ? 123456789 : 234567890,
+    save_slot: seatIndex - 1,
+    accepted_at: 1_769_011_200_000,
+    last_active_at: 1_769_011_200_000,
+    last_action: '正在准备家族节会席位',
+    seat_id: `seat-${seatIndex}`,
+    seat_index: seatIndex,
+    seat_label: seatIndex === 1 ? '主灯席' : '协作席',
+    festival_role: festivalRole,
+    seat_summary: seatIndex === 1 ? '负责确认结算与共同基金入账。' : '负责供品复核与灯会协作。',
+    seat_state: 'ready',
+    seat_permissions: {
+      can_prepare_supplies_preview: true,
+      can_open_festival_room: true,
+      can_settle_rewards: true
+    }
+  }
+}
+
+const mobileSmokeCohabitationMembers = [
+  buildMobileSmokeCohabitationMember({
+    username: 'mobile_smoke_owner',
+    displayName: '移动端烟测号',
+    role: 'owner',
+    manorRole: 'family_head',
+    manorRoleLabel: '家主',
+    seatIndex: 1,
+    festivalRole: 'host'
+  }),
+  buildMobileSmokeCohabitationMember({
+    username: 'mobile_smoke_partner',
+    displayName: '节会协作者',
+    manorRole: 'storage_keeper',
+    manorRoleLabel: '管仓',
+    seatIndex: 2,
+    festivalRole: 'supply_keeper'
+  })
+]
+
+function buildMobileSmokeCohabitationContract() {
+  return {
+    id: mobileSmokeCohabitationContractId,
+    type: 'oath_manor',
+    type_label: '家族共同庄园',
+    title: '移动端家族节会庄园',
+    status: 'active',
+    shared_manor_id: 'mobile-smoke-shared-manor',
+    members: mobileSmokeCohabitationMembers,
+    shared_fund: {
+      balance: 1680,
+      ledger: []
+    },
+    shared_warehouse: {
+      items: [],
+      ledger: []
+    },
+    audit_log: [],
+    separation_previews: [],
+    shared_map: null,
+    created_at: 1_768_579_200_000,
+    updated_at: 1_769_011_200_000,
+    activated_at: 1_768_579_200_000
+  }
+}
+
+function buildMobileSmokeCohabitationOverview() {
+  return {
+    ok: true,
+    relation_options: [
+      {
+        id: 'oath_manor',
+        label: '家族共同庄园',
+        title: '家族共同庄园',
+        min_members: 2,
+        max_members: 4,
+        romance_only: false
+      }
+    ],
+    contracts: [buildMobileSmokeCohabitationContract()],
+    summary: {
+      total: 1,
+      pending: 0,
+      active: 1,
+      separation_previews: 0
+    }
+  }
+}
+
+function buildMobileSmokeCohabitationFamilyFestivalPanel() {
+  return {
+    contract_id: mobileSmokeCohabitationContractId,
+    shared_manor_id: 'mobile-smoke-shared-manor',
+    type: 'oath_manor',
+    type_label: '家族共同庄园',
+    status: 'active',
+    readonly: false,
+    write_enabled: true,
+    writes_enabled: true,
+    festival_seats_enabled: true,
+    seat_reservation_enabled: true,
+    festival_room_binding_enabled: true,
+    generated_at: 1_769_011_200_000,
+    revision: 3,
+    summary: {
+      member_count: 2,
+      max_members: 4,
+      preview_seat_count: 2,
+      available_template_count: 1,
+      festival_room_create_enabled: true,
+      festival_room_invite_enabled: true,
+      settlement_enabled: true,
+      reward_enabled: true,
+      reputation_award_enabled: true,
+      shared_fund_spend_enabled: false,
+      shared_warehouse_consume_enabled: true,
+      festival_ticket_spend_enabled: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      disabled_reason: ''
+    },
+    actor: mobileSmokeCohabitationMembers[0],
+    members: mobileSmokeCohabitationMembers,
+    candidate_templates: [
+      {
+        id: 'lantern_family_fair',
+        label: '家族上元灯会',
+        visual_type: 'lantern_scene',
+        member_limit: 4,
+        family_compatible: true,
+        available: true,
+        binding_enabled: true,
+        room_create_enabled: true,
+        reward_enabled: true,
+        unlock_source: 'family_oath',
+        recommended_roles: ['family_head', 'storage_keeper'],
+        summary: '适合家族成员共同锁席、开房、供品和奖励结算。',
+        disabled_reason: ''
+      }
+    ],
+    reservations: {},
+    ledger: [],
+    active_template_id: 'lantern_family_fair',
+    active_room_id: 'mobile-smoke-family-festival-room',
+    last_settlement_id: 'mobile-smoke-family-festival-settlement',
+    visual_state_preview: {
+      board_type: 'scene',
+      board_id: 'family-festival-mobile-smoke',
+      revision: 3,
+      selected_visual_id: 'lantern_family_fair',
+      recent_feedback: '家族节会席位已经预排完成，等待结算确认。',
+      scene: null,
+      scene_objects: [
+        {
+          id: 'main-lantern-table',
+          label: '主灯席',
+          kind: 'seat',
+          state: 'ready',
+          x: 36,
+          y: 42,
+          linked_template_ids: ['lantern_family_fair'],
+          linked_role_ids: ['family_head'],
+          seat_count: 1,
+          available_action_ids: ['settle_rewards']
+        },
+        {
+          id: 'supply-table',
+          label: '供品案',
+          kind: 'supplies',
+          state: 'ready',
+          x: 68,
+          y: 54,
+          linked_template_ids: ['lantern_family_fair'],
+          linked_role_ids: ['storage_keeper'],
+          seat_count: 1,
+          available_action_ids: ['consume_supplies']
+        }
+      ],
+      seats: mobileSmokeCohabitationMembers.map(member => ({
+        seat_id: member.seat_id,
+        seat_index: member.seat_index,
+        seat_label: member.seat_label,
+        username: member.username,
+        display_name: member.display_name,
+        manor_role: member.manor_role,
+        manor_role_label: member.manor_role_label,
+        festival_role: member.festival_role,
+        state: member.seat_state
+      }))
+    },
+    governance: {
+      server_authoritative: true,
+      seat_reservation_requires_idempotency: true,
+      disconnect_recovery_required: true
+    },
+    settlement: {
+      festival_receipt_required: true,
+      reward_to_shared_fund_enabled: true,
+      compensation_replay_required: true
+    },
+    recommended_flow: ['reserve', 'create-room', 'consume-supplies', 'settle-rewards'],
+    deferred_operations: ['offline_replay', 'compensation_replay']
+  }
+}
+
+function buildMobileSmokeCohabitationDetailResponse(pathname = '') {
+  const response = {
+    ok: true,
+    contract: buildMobileSmokeCohabitationContract()
+  }
+  if (pathname.endsWith('/family-festival-seats') || pathname.includes('/family-festival-seats/')) {
+    response.family_festival_seats_panel = buildMobileSmokeCohabitationFamilyFestivalPanel()
+  }
+  if (pathname.endsWith('/fund') || pathname.includes('/family-festival-seats/settle')) {
+    response.fund = {
+      contract_id: mobileSmokeCohabitationContractId,
+      shared_manor_id: 'mobile-smoke-shared-manor',
+      balance: 1680,
+      ledger: [],
+      summary: {
+        balance: 1680,
+        ledger_count: 0,
+        medium_spend_enabled: false,
+        large_spend_enabled: false
+      },
+      permissions: {}
+    }
+  }
+  if (pathname.endsWith('/warehouse') || pathname.includes('/family-festival-seats/consume-supplies')) {
+    response.warehouse = {
+      contract_id: mobileSmokeCohabitationContractId,
+      shared_manor_id: 'mobile-smoke-shared-manor',
+      items: [],
+      ledger: [],
+      summary: {
+        item_count: 0,
+        ledger_count: 0,
+        high_value_withdrawal_confirmation_enabled: false
+      },
+      permissions: {}
+    }
+  }
+  return response
+}
+
 function buildMobileSmokeExpeditionRoomOverview() {
   return {
     ok: true,
@@ -1581,12 +1844,13 @@ async function createPage(browser, viewport, options = {}) {
   const mockManor = Boolean(options.mockManor)
   const mockFestivalRoom = Boolean(options.mockFestivalRoom)
   const mockFestivalRoomState = options.mockFestivalRoomState || 'empty'
+  const mockCohabitation = Boolean(options.mockCohabitation)
   const context = await browser.newContext({
     viewport,
     locale: 'zh-CN',
     reducedMotion: 'reduce'
   })
-  if (mockSociety || mockOrders || mockManor || mockFestivalRoom) {
+  if (mockSociety || mockOrders || mockManor || mockFestivalRoom || mockCohabitation) {
     await context.addInitScript(() => {
       window.localStorage.setItem('taoyuanxiang_current_account', 'mobile_smoke_owner')
     })
@@ -1597,7 +1861,7 @@ async function createPage(browser, viewport, options = {}) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mockSocial || mockSociety || mockOrders || mockManor || mockFestivalRoom
+      body: JSON.stringify(mockSocial || mockSociety || mockOrders || mockManor || mockFestivalRoom || mockCohabitation
         ? {
             ok: true,
             user: {
@@ -1691,6 +1955,25 @@ async function createPage(browser, viewport, options = {}) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildMobileSmokeExpeditionRoomOverview())
+      })
+    })
+  }
+
+  if (mockCohabitation) {
+    await page.route('**/api/taoyuan/online/cohabitation/contracts', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeCohabitationOverview())
+      })
+    })
+
+    await page.route(/\/api\/taoyuan\/online\/cohabitation\/contracts\/[^/]+(?:\/.*)?$/, async route => {
+      const requestUrl = new URL(route.request().url())
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeCohabitationDetailResponse(requestUrl.pathname))
       })
     })
   }
@@ -1882,9 +2165,10 @@ async function captureScenario({
   mockManor = false,
   mockFestivalRoom = false,
   mockFestivalRoomState = 'empty',
+  mockCohabitation = false,
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor, mockFestivalRoom, mockFestivalRoomState })
+  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor, mockFestivalRoom, mockFestivalRoomState, mockCohabitation })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -2454,6 +2738,109 @@ async function prepareOnlineFestivalRoomSettleConfirmMobile(page) {
   expect(layoutIssues.cancelHeight).toBeGreaterThanOrEqual(32)
 }
 
+async function ensureOnlineCohabitationFestivalSeatsTab(page) {
+  await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+  const festivalSeatsTab = page.getByTestId('online-module-tab-festivalSeats')
+  await expect(festivalSeatsTab).toBeVisible()
+  if (await festivalSeatsTab.getAttribute('aria-selected') !== 'true') {
+    await festivalSeatsTab.click()
+  }
+}
+
+async function prepareOnlineCohabitationFamilyFestivalConfirmMobile(page) {
+  await ensureOnlineCohabitationFestivalSeatsTab(page)
+
+  const familyFestivalPanel = page.getByTestId('online-cohabitation-family-festival-panel')
+  await expect(familyFestivalPanel).toBeVisible()
+  await expect(familyFestivalPanel).toContainText('家族上元灯会')
+  await expect(familyFestivalPanel).toContainText('移动端烟测号')
+  await expect(familyFestivalPanel).toContainText('节会协作者')
+
+  const settleTrigger = page.getByTestId('online-cohabitation-family-festival-settle-confirm-trigger')
+  await expect(settleTrigger).toBeVisible()
+  await expect(settleTrigger).toBeEnabled()
+  await settleTrigger.scrollIntoViewIfNeeded()
+  await settleTrigger.click()
+
+  await expect(page.getByTestId('online-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认结算家族节会奖励')
+  await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('移动端家族节会庄园')
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('家族上元灯会')
+  await expect(page.getByTestId('online-confirm-asset-list')).toContainText('共同基金')
+  await expect(page.getByTestId('online-confirm-asset-list')).toContainText('家族声望')
+  await expect(page.getByTestId('online-confirm-irreversible')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-recovery-hint')).toContainText('补偿重放')
+  await expect(page.getByTestId('online-confirm-required-text')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-disabled-reason')).toContainText('确认文字未填写')
+  await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+  await expect(page.getByTestId('online-confirm-action-dialog-cancel')).toBeVisible()
+
+  const layoutIssues = await page.evaluate(() => {
+    const overlay = document.querySelector('[data-testid="online-action-dialog"]')
+    const panel = overlay?.querySelector('[role="dialog"]')
+    const confirmButton = document.querySelector('[data-testid="online-confirm-action-dialog-confirm"]')
+    const cancelButton = document.querySelector('[data-testid="online-confirm-action-dialog-cancel"]')
+    const requiredTextInput = document.querySelector('[data-testid="online-confirm-required-text"]')
+    const impactList = document.querySelector('[data-testid="online-confirm-impact-list"]')
+    const assetList = document.querySelector('[data-testid="online-confirm-asset-list"]')
+    const visibleControls = Array.from(overlay?.querySelectorAll('button, input, select, textarea') ?? [])
+      .filter(element => {
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    const clippedControls = visibleControls
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.label)
+    const panelRect = panel?.getBoundingClientRect()
+    const confirmRect = confirmButton?.getBoundingClientRect()
+    const cancelRect = cancelButton?.getBoundingClientRect()
+    const requiredTextRect = requiredTextInput?.getBoundingClientRect()
+    const impactRect = impactList?.getBoundingClientRect()
+    const assetRect = assetList?.getBoundingClientRect()
+
+    return {
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clippedControls,
+      panelLeft: panelRect?.left ?? Number.NaN,
+      panelRight: panelRect?.right ?? Number.NaN,
+      panelTop: panelRect?.top ?? Number.NaN,
+      panelBottom: panelRect?.bottom ?? Number.NaN,
+      impactTop: impactRect?.top ?? Number.NaN,
+      assetTop: assetRect?.top ?? Number.NaN,
+      requiredTextBottom: requiredTextRect?.bottom ?? Number.NaN,
+      confirmBottom: confirmRect?.bottom ?? Number.NaN,
+      confirmHeight: confirmRect?.height ?? 0,
+      cancelHeight: cancelRect?.height ?? 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+
+  expect(layoutIssues.docOverflow).toBeLessThanOrEqual(4)
+  expect(layoutIssues.clippedControls).toEqual([])
+  expect(layoutIssues.panelLeft).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelRight).toBeLessThanOrEqual(layoutIssues.viewportWidth + 1)
+  expect(layoutIssues.panelTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.impactTop).toBeLessThan(layoutIssues.viewportHeight)
+  expect(layoutIssues.assetTop).toBeLessThan(layoutIssues.viewportHeight)
+  expect(layoutIssues.requiredTextBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.confirmBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.confirmHeight).toBeGreaterThanOrEqual(32)
+  expect(layoutIssues.cancelHeight).toBeGreaterThanOrEqual(32)
+}
+
 async function prepareOnlineOrdersMobile(page) {
   const ordersTab = key => page.getByTestId(`online-module-tab-${key}`)
 
@@ -2939,6 +3326,15 @@ async function main() {
       })
       await captureScenario({
         browser,
+        label: '38-online-cohabitation-family-festival-confirm-mobile-390x844',
+        hash: '/#/game/online/cohabitation?tab=festivalSeats',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-confirm-action-dialog"]',
+        mockCohabitation: true,
+        prepare: prepareOnlineCohabitationFamilyFestivalConfirmMobile
+      })
+      await captureScenario({
+        browser,
         label: '25-online-orders-mobile-390x844',
         hash: '/#/game/online/orders',
         viewport: { width: 390, height: 844 },
@@ -2992,6 +3388,15 @@ async function main() {
         mockFestivalRoom: true,
         mockFestivalRoomState: 'host-running',
         prepare: prepareOnlineFestivalRoomSettleConfirmMobile
+      })
+      await captureScenario({
+        browser,
+        label: '39-online-cohabitation-family-festival-confirm-mobile-360x780',
+        hash: '/#/game/online/cohabitation?tab=festivalSeats',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-confirm-action-dialog"]',
+        mockCohabitation: true,
+        prepare: prepareOnlineCohabitationFamilyFestivalConfirmMobile
       })
       await captureScenario({
         browser,
@@ -3096,6 +3501,7 @@ async function main() {
         '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
         '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段、公共订单接力路线按钮点击、故事流转图和主要按钮布局。',
         '在线节会房场景使用 mock 登录态与房间模板数据，覆盖 390x844 与 360x780 视口下创建向导底部抽屉、运行中准备大厅主行动、邀请面板批量发送、结算确认弹窗、footer 主按钮、关闭按钮、背景滚动锁定和横向溢出断言。',
+        '共同庄园家族节会场景使用 mock 登录态与节会席位数据，覆盖 390x844 与 360x780 视口下结算确认弹窗、影响对象、资产变化、恢复提示、确认文字门槛和横向溢出断言。',
         '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、节庆筹备布景搭设、贡献后阶段反馈和移动端横向溢出断言。',
         '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]

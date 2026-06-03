@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0603 房间流程移动端 smoke 收束
+- `qa-mobile-ui-smoke` 新增共同庄园家族节会确认 mock，覆盖 390x844 / 360x780 下节会席位面板打开结算确认弹窗、影响对象、资产变化、恢复提示、确认文字门槛、禁用确认按钮和无横向溢出。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-mobile-ui-smoke.mjs`、`npm --prefix taoyuan-main run qa:mobile-ui-smoke`、`npm --prefix taoyuan-main run check` 通过；`qa:online-ui-structure` 与指定 E2E 仍被既有 / 并行覆盖缺口阻断。
+
 ### 0603 节会房移动端邀请面板 smoke
 - `qa-mobile-ui-smoke` 新增运行中节会房邀请面板 mock，覆盖 390x844 / 360x780 下批量输入拆分、已在房成员过滤、发送结果列表和无横向溢出，并生成对应截图与 summary label。
 - `OnlineInvitePanel` 的 footer 主 / 次按钮增加组件内 44px 最小高度保护，避免全局紧凑按钮样式压低移动端邀请主行动。
