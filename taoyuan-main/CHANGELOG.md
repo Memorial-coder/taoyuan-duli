@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0603 房间流程浏览器 E2E 远征创建
+- `e2e/game-smoke.spec.ts` 新增 `online expedition room wizard creates host room`，覆盖在线节会远征标签空闲状态打开 `OnlineRoomWizard`、选择 `expedition_outpost`、填写队伍标题、邀请名单进入确认页、展示撤离规则、提交创建 POST，并读回房主远征房状态、邀请入口和准备入口。
+- `mockOnlineVisualRoom` 新增 expedition rooms POST mock，复用 `startWithoutRoom` 空房起始态，创建后同一 overview 注入远征 `my_room`；旧 `online-expedition-room-my-room` / 旧准备 test id 和原 store action 语义保留。
+- 本轮验证：新增远征单场景 grep 与房间组合 grep 返回 0，`npm --prefix taoyuan-main run check` 返回 0；全量 `game-smoke.spec.ts` 仍有 9 个既有页面级失败，`qa:online-ui-structure` 仍被非本轮覆盖缺口阻断。
+
 ### 0603 房间流程浏览器 E2E 创建向导
 - `e2e/game-smoke.spec.ts` 新增 `online festival room wizard creates host room`，覆盖空闲节会房打开 `OnlineRoomWizard`、选择 `lantern_fair`、填写标题、邀请名单进入确认页、提交创建 POST，并读回房主房间状态、准备大厅和邀请入口。
 - `mockOnlineVisualRoom` 新增 `startWithoutRoom` 和 festival rooms POST mock，创建后同一 overview 注入 `my_room`；旧房间载入 helper 和既有 test id 保留。

@@ -274,6 +274,12 @@ async function mockOnlineVisualRoom(page: Page, options: {
     { id: 'squad_coop', label: '龙舟协作', kind: 'track', summary: '协作推进龙舟赛道。', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['dragon_boat'], action_options: [] },
     { id: 'assembly', label: '灯会共建', kind: 'scene', summary: '协作布置灯会现场。', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['lantern_fair'], action_options: [] }
   ]
+  const expeditionTemplates = [
+    { id: 'expedition_outpost', label: '协作远征', summary: '协作矿洞远征，房主创建后可邀请成员准备出发。', default_member_limit: 4, min_member_limit: 2, max_member_limit: 4, opening_title: '', recommended_gameplay_template_ids: ['expedition_cavern'] }
+  ]
+  const expeditionGameplayTemplates = [
+    { id: 'expedition_cavern', label: '协作矿洞', kind: 'map', summary: '按路线节点推进，控制风险并可提前撤离。', objective_label: '路线进度', score_label: '协作值', default_target: 8, recommended_room_template_ids: ['expedition_outpost'], action_options: [] }
+  ]
   const buildFestivalOverview = () => ({
     ok: true,
     bulletin: '节会测试',
@@ -288,8 +294,8 @@ async function mockOnlineVisualRoom(page: Page, options: {
   const buildExpeditionOverview = () => ({
     ok: true,
     bulletin: '远征测试',
-    templates: [{ id: 'expedition_outpost', label: '协作远征', summary: '', default_member_limit: 4, opening_title: '', recommended_gameplay_template_ids: ['expedition_cavern'] }],
-    gameplay_templates: [{ id: 'expedition_cavern', label: '协作矿洞', kind: 'map', summary: '', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['expedition_outpost'], action_options: [] }],
+    templates: expeditionTemplates,
+    gameplay_templates: expeditionGameplayTemplates,
     my_room: options.domain === 'expedition' && hasActiveRoom ? currentRoom : null,
     invited_rooms: [],
     visible_rooms: [],
@@ -531,6 +537,74 @@ async function mockOnlineVisualRoom(page: Page, options: {
     })
   })
   await page.route('**/api/taoyuan/online/expedition/rooms', async route => {
+    if (route.request().method() === 'POST') {
+      let payload: { template_id?: string; gameplay_template_id?: string; title?: string; member_limit?: number } = {}
+      try {
+        payload = route.request().postDataJSON() as typeof payload
+      } catch {
+        payload = {}
+      }
+      const template = expeditionTemplates.find(item => item.id === payload.template_id) ?? expeditionTemplates[0]!
+      const gameplay = expeditionGameplayTemplates.find(item => item.id === payload.gameplay_template_id)
+        ?? expeditionGameplayTemplates.find(item => template.recommended_gameplay_template_ids.includes(item.id))
+        ?? expeditionGameplayTemplates[0]!
+      const memberLimit = Math.max(2, Math.floor(Number(payload.member_limit || template.default_member_limit || 4)))
+      const createdRoom = buildRoomSnapshot({
+        id: 'e2e-created-expedition-room',
+        title: String(payload.title || `${template.label}队伍`),
+        templateId: template.id,
+        templateLabel: template.label,
+        gameplayId: gameplay.id,
+        gameplayLabel: gameplay.label,
+        actionId: 'split_mine',
+        actionLabel: '分采矿脉',
+        visualState: {
+          ...emptyVisualState,
+          board_type: 'map',
+          board_id: 'cavern_node_map'
+        }
+      })
+      currentRoom = {
+        ...createdRoom,
+        state: 'created',
+        state_label: '已创建',
+        state_reason: '远征队伍已创建，可以邀请成员或开始准备。',
+        joined_member_count: 1,
+        member_limit: memberLimit,
+        ready_member_count: 0,
+        can_invite: true,
+        can_host_ready_check: true,
+        can_host_settle: false,
+        can_host_close: true,
+        gameplay: {
+          ...createdRoom.gameplay,
+          phase: 'created',
+          phase_label: '等待准备',
+          available_actions: []
+        },
+        members: [{
+          username: 'tester',
+          display_name: '测试者',
+          role: 'host',
+          status: 'joined',
+          status_label: '房主',
+          invited_at: 0,
+          joined_at: 1760000100,
+          ready_at: 0,
+          disconnected_at: 0,
+          reconnected_at: 0,
+          left_at: 0,
+          active_receipt_id: ''
+        }] as typeof createdRoom.members
+      }
+      hasActiveRoom = true
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
+      })
+      return
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildExpeditionOverview()) })
   })
   const isExpeditionActionUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/action(?:\?.*)?$/.test(url)
@@ -3618,6 +3692,64 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-festival-room-status-panel')).toContainText('等待准备')
     await expect(page.getByTestId('online-festival-room-lobby-trigger')).toBeVisible()
     await expect(page.getByTestId('online-festival-room-invite-trigger')).toBeVisible()
+  })
+
+  test('online expedition room wizard creates host room', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '远征')
+
+    const seedRoom = buildRoomSnapshot({
+      id: 'e2e-expedition-create-seed',
+      title: '远征创建 seed',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: emptyVisualState
+    })
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room: seedRoom, startWithoutRoom: true })
+
+    await page.goto('/#/game/online/festival?tab=expedition-room')
+    await expect(page.getByTestId('online-expedition-room-create-entry')).toBeVisible()
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('空闲中')
+    await page.getByTestId('online-expedition-room-create-trigger').click()
+    await expect(page.getByTestId('online-room-wizard')).toBeVisible()
+
+    await page.getByTestId('online-room-wizard-template-expedition_outpost').click()
+    await page.getByTestId('online-room-wizard-next').click()
+    await page.getByTestId('online-room-wizard-title-input').fill('远征创建 smoke')
+    await page.getByTestId('online-room-wizard-member-limit-4').click()
+    await page.getByTestId('online-room-wizard-next').click()
+    await page.getByTestId('online-room-wizard-invite-input').fill('cavern_friend route_helper')
+    await page.getByTestId('online-room-wizard-invite-add').click()
+    await expect(page.getByTestId('online-room-wizard-invite-list')).toContainText('cavern_friend')
+    await expect(page.getByTestId('online-room-wizard-invite-list')).toContainText('route_helper')
+    await page.getByTestId('online-room-wizard-next').click()
+    await expect(page.getByTestId('online-room-wizard-review-summary')).toContainText('远征创建 smoke')
+    await expect(page.getByTestId('online-room-wizard-review-summary')).toContainText('邀请 2 人')
+    await expect(page.getByTestId('online-room-wizard-expedition-rules')).toContainText('撤离规则')
+
+    const createResponsePromise = page.waitForResponse(response =>
+      response.url().endsWith('/api/taoyuan/online/expedition/rooms')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-room-wizard-submit').click()
+    const createResponse = await createResponsePromise
+    const createPayload = createResponse.request().postData() || ''
+    expect(createPayload).toContain('expedition_outpost')
+    expect(createPayload).toContain('expedition_cavern')
+    expect(createPayload).toContain('远征创建 smoke')
+
+    await expect(page.getByTestId('online-room-wizard')).toHaveCount(0)
+    await expectOnlineExpeditionRoomLoaded(page, '远征创建 smoke')
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('已创建')
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('等待准备')
+    await expect(page.getByTestId('online-expedition-room-invite-trigger')).toBeVisible()
+    await expect(page.getByTestId('online-expedition-room-ready-check-submit')).toBeVisible()
   })
 
   test('online festival room invite panel handles success failure and retry', async ({ page }) => {
