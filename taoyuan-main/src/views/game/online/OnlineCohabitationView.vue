@@ -1100,83 +1100,24 @@
         </details>
       </CohabitationOverviewPanel>
 
-      <div v-else-if="activeTab === 'map'" class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div class="game-panel-muted p-3">
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-accent">
-              <Map :size="13" />
-              <p class="text-sm">共同农田地图</p>
-            </div>
-            <span class="text-[10px] text-muted">{{ mapRevisionLabel }}</span>
-          </div>
-          <div v-if="!cohabitationStore.sharedMap" class="mt-3 border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted">
-            选择一份已生效契约后会显示共同农田拼接地图。
-          </div>
-          <template v-else>
-            <div class="mt-3 grid gap-2 md:grid-cols-4">
-              <div v-for="stat in mapStats" :key="stat.label" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">{{ stat.label }}</p>
-                <p class="mt-1 text-xs text-accent">{{ stat.value }}</p>
-              </div>
-            </div>
-            <div
-              v-if="mapRegions.length > 0"
-              class="mt-3 space-y-2"
-              data-testid="online-cohabitation-shared-map-region-tabs"
-            >
-              <div class="overflow-x-auto pb-1">
-                <div class="flex min-w-max gap-2">
-                  <button
-                    v-for="region in mapRegions"
-                    :key="region.region_index"
-                    type="button"
-                    class="min-h-[2.75rem] border px-3 py-2 text-left text-[10px] leading-4 transition-colors"
-                    :class="activeSharedMapRegion?.region_index === region.region_index ? 'border-accent/60 bg-accent/10 text-accent' : 'border-accent/10 bg-black/10 text-muted hover:border-accent/30'"
-                    :data-testid="`online-cohabitation-shared-map-region-tab-${region.region_index}`"
-                    @click="setActiveSharedMapRegion(region.region_index)"
-                  >
-                    <span class="block text-xs">第 {{ region.region_index + 1 }} 区</span>
-                    <span class="block max-w-28 truncate">{{ region.member_display_name || region.member_username }}</span>
-                  </button>
-                </div>
-              </div>
-              <div
-                v-if="activeSharedMapRegion"
-                class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
-                data-testid="online-cohabitation-shared-map-region-page-summary"
-              >
-                当前显示第 {{ activeSharedMapRegion.region_index + 1 }} 区 ·
-                {{ activeSharedMapRegion.member_display_name || activeSharedMapRegion.member_username }} ·
-                {{ pagedSharedFarmPlots.length }} / {{ activeSharedMapRegion.field_plot_count }} 块 ·
-                {{ activeSharedMapRegion.permission_mode }}
-              </div>
-            </div>
-            <div class="mt-3 overflow-x-auto pb-1">
-              <div
-                class="grid min-w-max gap-1"
-                :style="stitchedMapGridStyle"
-                data-testid="online-cohabitation-shared-map-page-grid"
-              >
-                <template v-for="cell in stitchedSharedFarmCells" :key="cell.key">
-                  <button
-                    v-if="cell.plot"
-                    class="flex h-9 w-9 flex-col items-center justify-center border text-[9px] leading-3 transition-colors"
-                    :class="[plotClass(cell.plot), selectedSharedFarmPlot?.id === cell.plot.id ? 'ring-1 ring-accent/70' : '', cell.regionIndex === activeSharedMapRegion?.region_index ? 'outline outline-1 outline-accent/40' : '']"
-                    :title="plotTitle(cell.plot)"
-                    type="button"
-                    :data-testid="`online-cohabitation-shared-farm-plot-${cell.plot.id}`"
-                    @click="selectSharedFarmPlot(cell.plot)"
-                  >
-                    <span>{{ plotGlyph(cell.plot) }}</span>
-                    <span class="max-w-full truncate px-0.5">{{ cell.plot.plot_state.crop_id || plotStateLabel(cell.plot.plot_state.state) }}</span>
-                  </button>
-                  <span v-else class="h-9 w-9 border border-dashed border-accent/10 bg-black/5" aria-hidden="true" />
-                </template>
-              </div>
-            </div>
-          </template>
-        </div>
-
+      <CohabitationSharedMapPanel
+        v-else-if="activeTab === 'map'"
+        :has-map="Boolean(cohabitationStore.sharedMap)"
+        :revision-label="mapRevisionLabel"
+        :stats="mapStats"
+        :regions="mapRegions"
+        :active-region="activeSharedMapRegion"
+        :paged-plot-count="pagedSharedFarmPlots.length"
+        :cells="stitchedSharedFarmCells"
+        :grid-style="stitchedMapGridStyle"
+        :selected-plot-id="selectedSharedFarmPlot?.id || ''"
+        :plot-class="plotClass"
+        :plot-title="plotTitle"
+        :plot-glyph="plotGlyph"
+        :plot-state-label="plotStateLabel"
+        @select-region="setActiveSharedMapRegion"
+        @select-plot="selectSharedFarmPlot"
+      >
         <div class="space-y-3">
           <div class="game-panel-muted p-3">
             <p class="text-sm text-accent">成员区域</p>
@@ -1436,7 +1377,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </CohabitationSharedMapPanel>
 
       <div v-else-if="activeTab === 'warehouse'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div class="game-panel-muted p-3">
@@ -3810,6 +3751,7 @@
   } from 'lucide-vue-next'
   import CohabitationFamilyFestivalPanel from '@/components/game/online/cohabitation/CohabitationFamilyFestivalPanel.vue'
   import CohabitationOverviewPanel from '@/components/game/online/cohabitation/CohabitationOverviewPanel.vue'
+  import CohabitationSharedMapPanel from '@/components/game/online/cohabitation/CohabitationSharedMapPanel.vue'
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'

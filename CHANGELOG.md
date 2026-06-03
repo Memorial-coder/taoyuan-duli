@@ -1,6 +1,7 @@
 # 桃源乡独立版更新日志
 
 最后整理：2026-06-03
+- 共同庄园共同地图主舞台拆分：新增 `CohabitationSharedMapPanel`，承接共同农田地图标题、统计、区域分页和拼接地块网格；父页面继续持有农田 / 动物操作 slot，结构 QA 改为检查新组件内的地图 test id。
 - 共同庄园总览摘要组件拆分：新增 `CohabitationOverviewPanel` 承接总览四张主摘要卡，父页面继续持有契约表单、照料入口和安全边界 slot；旧 `online-cohabitation-overview-*` test id 保留，`check` 与玩家文案扫描通过。
 - 共同庄园家族节会面板拆分：新增 `CohabitationFamilyFestivalPanel`，把家族节会席位、成员席位、结算护栏和暂缓能力从 `OnlineCohabitationView.vue` 拆出；旧确认按钮 test id 和原 store action 接线保留，家族节会确认浏览器 smoke 继续通过。
 - 节会房移动端抽屉 smoke：`qa-mobile-ui-smoke` 新增 390x844 / 360x780 节会房创建向导场景，mock 登录态与房间模板数据后打开 `OnlineRoomWizard` 底部抽屉，断言 footer 主按钮、关闭按钮、安全区、背景滚动锁定和横向溢出；`OUI-CMP-003` 已获得移动端截图证据。
