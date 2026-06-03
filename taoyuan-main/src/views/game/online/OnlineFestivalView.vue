@@ -523,9 +523,13 @@
                   </div>
                 </div>
 
-                <div v-if="festivalRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
-                  <p class="text-[10px] text-muted">玩法动作</p>
-                  <div class="grid gap-2 md:grid-cols-2">
+                <OnlineTechnicalDetails
+                  v-if="festivalRoomFallbackActionsVisible"
+                  title="旧节会按钮备用操作"
+                  summary="当前没有可用的场景或赛道主行动，旧节会按钮保留为键盘和回归测试的备用操作。"
+                  :default-open="true"
+                >
+                  <div class="grid gap-2 md:grid-cols-2" data-testid="online-festival-room-gameplay-backup-actions">
                     <div
                       v-for="action in festivalRoomStore.myRoom.gameplay.available_actions"
                       :key="`${festivalRoomStore.myRoom.id}-${action.id}`"
@@ -560,7 +564,7 @@
                       <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[10px] text-muted">{{ action.disabled_reason }}</p>
                     </div>
                   </div>
-                </div>
+                </OnlineTechnicalDetails>
 
                 <div v-if="festivalRoomStore.myRoom.settlement_receipts.length > 0" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">本房结算凭证</p>
@@ -2213,8 +2217,12 @@
   })
   const showFestivalSceneBoard = computed(() => festivalSceneObjects.value.length > 0)
   const showFestivalTrackBoard = computed(() => festivalTracks.value.some(track => track.cells.length > 0))
+  const hasPrimaryFestivalVisualActions = computed(() =>
+    festivalSceneObjects.value.some(object => object.available_action_ids.length > 0)
+    || festivalTracks.value.some(track => track.cells.some(cell => cell.available_action_ids.length > 0))
+  )
   const festivalRoomFallbackActionsVisible = computed(() =>
-    (festivalRoomStore.myRoom?.gameplay.available_actions.length ?? 0) > 0
+    (festivalRoomStore.myRoom?.gameplay.available_actions.length ?? 0) > 0 && !hasPrimaryFestivalVisualActions.value
   )
   const festivalRoomVisualContentLabel = computed(() => {
     const room = festivalRoomStore.myRoom
@@ -2224,7 +2232,7 @@
     return '当前房间没有可用场景或轨道热区，旧节会按钮作为主入口。'
   })
   const festivalRoomFallbackEntryLabel = '旧节会按钮备用操作'
-  const festivalRoomFallbackEntryHint = '节会旧玩法动作面板继续保留在可视化内容下方，移动端与键盘用户可用它提交同一节会行动；结算和关闭按钮仍在房间壳操作区。'
+  const festivalRoomFallbackEntryHint = '当场景或赛道没有可用主行动时，旧节会按钮会在备用操作中展开；结算和关闭按钮仍在房间操作区。'
   const selectedFestivalSceneObjectId = computed(() =>
     selectedFestivalVisualObjectId.value || festivalRoomStore.myRoom?.visual_state.selected_visual_id || ''
   )
@@ -2495,7 +2503,7 @@
       : 'Tab 进入灯会物件后用 Enter 选择热区，再提交点灯、解谜、秩序或留影行动。'
     return [
       boardHint,
-      '旧节会按钮和结算入口仍在房间下方，移动端与键盘用户可继续从备用操作进入。',
+      '可视化行动不可用时，旧节会按钮会在备用操作中展开；结算入口仍在房间操作区。',
     ]
   })
   const festivalRoomRewardPreview = computed(() => {

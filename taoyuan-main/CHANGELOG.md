@@ -8,6 +8,10 @@
 - 在线中心新增 `online-center-hero-actions`，把活动房间、村社待办和接力委托摘要放到首屏，并按继续当前房间、处理邀请、创建活动房间、查看村社待办、接力委托派生最多 3 个主行动。
 - 移动端接入 `OnlineStickyActionBar` 复用同一 action 模型；`qa-mobile-ui-smoke` 的在线中心 390x844 / 360x780 场景改为断言 hero action 和 sticky 主按钮在视口内。
 
+### 0602 在线节会旧动作备用操作
+- 节会房可视化场景或赛道已有主行动时，旧玩法按钮堆不再与舞台同时展示；无可用视觉主行动但仍有旧 action 时，按钮进入 `OnlineTechnicalDetails` 的「旧节会按钮备用操作」。
+- 保留旧 `online-festival-room-gameplay-action-*` test id 与原 `playGameplayAction` 调用，结构 QA 增加备用操作折叠和可视化主行动隐藏断言。
+
 ### 0602 共同庄园基金与仓库高风险确认
 - 共同基金大额草案创建、成员确认、执行扣款和高风险回执提交接入 `OnlineConfirmActionDialog`，统一展示用途、目标、金额、共同基金、共同仓库和个人铜币影响，并要求输入「确认消耗共同资产」后才调用原 store action。
 - 共同仓库高价值取用申请、草案确认和执行接入同一确认弹窗，展示物品、数量、目标用途、成员确认状态、共同仓库冻结 / 扣除、个人背包与共同基金边界，并要求输入「确认取用共同资产」；`game-smoke.spec.ts` 新增基金 + 仓库高风险确认浏览器 smoke。
