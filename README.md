@@ -196,6 +196,9 @@ services:
       - "${HOST_PORT:-4014}:4013"
     volumes:
       - ./data:/app/data
+      # 如需像物品图标一样从宿主机热更新静态图，可打开下面两行
+      # - ./item:/opt/taoyuan/item:ro
+      # - ./npc:/opt/taoyuan/npc:ro
 ```
 
 启动或更新：

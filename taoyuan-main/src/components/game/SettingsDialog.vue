@@ -53,7 +53,7 @@
               <!-- 新手提示 -->
               <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1 mb-2">
                 <p class="text-xs text-muted mb-2">新手提示</p>
-                <p class="text-[10px] text-muted/50 mb-2">柳村长的晨间建议和面板引导文字</p>
+                <p class="text-[0.625rem] text-muted/50 mb-2">柳村长的晨间建议和面板引导文字</p>
                 <div class="flex items-center justify-center space-x-2">
                   <Button class="py-1 px-3" :class="{ '!bg-accent !text-bg': tutorialStore.enabled }" @click="tutorialStore.enabled = true">
                     开
@@ -74,14 +74,14 @@
                   <p class="text-xs text-muted">WebDAV 云同步</p>
                   <div class="flex space-x-1">
                     <Button
-                      class="py-0.5 px-2 text-[10px]"
+                      class="py-0.5 px-2 text-[0.625rem]"
                       :class="{ '!bg-accent !text-bg': webdavConfig.enabled }"
                       @click="setWebdavEnabled(true)"
                     >
                       开
                     </Button>
                     <Button
-                      class="py-0.5 px-2 text-[10px]"
+                      class="py-0.5 px-2 text-[0.625rem]"
                       :class="{ '!bg-accent !text-bg': !webdavConfig.enabled }"
                       @click="setWebdavEnabled(false)"
                     >
@@ -92,7 +92,7 @@
                 <template v-if="webdavConfig.enabled">
                   <div class="flex flex-col space-y-2">
                     <div>
-                      <label class="text-[10px] text-muted mb-0.5 block">服务器地址</label>
+                      <label class="text-[0.625rem] text-muted mb-0.5 block">服务器地址</label>
                       <input
                         v-model="webdavConfig.serverUrl"
                         placeholder="请输入WebDAV云同步服务器地址"
@@ -101,18 +101,18 @@
                       />
                     </div>
                     <div>
-                      <label class="text-[10px] text-muted mb-0.5 block">存储路径</label>
+                      <label class="text-[0.625rem] text-muted mb-0.5 block">存储路径</label>
                       <input
                         v-model="webdavConfig.path"
                         placeholder="如果没有路径需求的话可以为空"
                         class="w-full px-2 py-1.5 bg-bg border border-accent/30 rounded-xs text-xs text-text focus:border-accent outline-none placeholder:text-muted/40 transition-colors"
                         @change="saveWebdavConfig"
                       />
-                      <p class="text-[10px] text-muted/50 mt-0.5">填写网盘中已有的文件夹名，留空则存到根目录</p>
+                      <p class="text-[0.625rem] text-muted/50 mt-0.5">填写网盘中已有的文件夹名，留空则存到根目录</p>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                       <div>
-                        <label class="text-[10px] text-muted mb-0.5 block">用户名</label>
+                        <label class="text-[0.625rem] text-muted mb-0.5 block">用户名</label>
                         <input
                           v-model="webdavConfig.username"
                           placeholder="请输入用户名"
@@ -121,7 +121,7 @@
                         />
                       </div>
                       <div>
-                        <label class="text-[10px] text-muted mb-0.5 block">密码</label>
+                        <label class="text-[0.625rem] text-muted mb-0.5 block">密码</label>
                         <input
                           v-model="webdavConfig.password"
                           type="password"
@@ -144,15 +144,15 @@
                     </p>
                     <div v-if="webdavTraceLogs.length" class="border border-accent/20 rounded-xs p-2 bg-bg/40">
                       <div class="flex items-center justify-between mb-1">
-                        <p class="text-[10px] text-muted">请求流程日志</p>
-                        <button class="text-[10px] text-muted hover:text-text" @click="clearWebdavTrace">清空</button>
+                        <p class="text-[0.625rem] text-muted">请求流程日志</p>
+                        <button class="text-[0.625rem] text-muted hover:text-text" @click="clearWebdavTrace">清空</button>
                       </div>
                       <div class="max-h-28 overflow-y-auto text-left">
-                        <p v-for="(line, idx) in webdavTraceLogs" :key="idx" class="text-[10px] text-muted/80 leading-4 break-all">
+                        <p v-for="(line, idx) in webdavTraceLogs" :key="idx" class="text-[0.625rem] text-muted/80 leading-4 break-all">
                           {{ line }}
                         </p>
                       </div>
-                      <button class="webdav-log-copy text-[10px] text-muted hover:text-text">复制日志</button>
+                      <button class="webdav-log-copy text-[0.625rem] text-muted hover:text-text">复制日志</button>
                     </div>
                   </div>
                 </template>
@@ -193,7 +193,7 @@
                 <button
                   v-for="t in THEMES"
                   :key="t.key"
-                  class="settings-theme-swatch border rounded-xs flex items-center justify-center text-[10px] transition-colors"
+                  class="settings-theme-swatch border rounded-xs flex items-center justify-center text-[0.625rem] transition-colors"
                   :class="settingsStore.theme === t.key ? 'border-accent' : 'border-accent/20'"
                   :style="{ backgroundColor: t.bg, color: t.text }"
                   :title="t.name"
@@ -202,6 +202,29 @@
                 >
                   {{ t.name.charAt(0) }}
                 </button>
+              </div>
+            </div>
+
+            <!-- NPC 照片 -->
+            <div class="settings-dialog-card border border-accent/20 rounded-xs" data-testid="settings-npc-portraits-card">
+              <p class="text-xs text-muted mb-2">人物照片</p>
+              <div class="flex items-center justify-center space-x-2">
+                <Button
+                  class="py-1 px-3"
+                  :class="{ '!bg-accent !text-bg': settingsStore.npcPortraitsEnabled }"
+                  data-testid="settings-npc-portraits-on"
+                  @click="settingsStore.npcPortraitsEnabled = true"
+                >
+                  开
+                </Button>
+                <Button
+                  class="py-1 px-3"
+                  :class="{ '!bg-accent !text-bg': !settingsStore.npcPortraitsEnabled }"
+                  data-testid="settings-npc-portraits-off"
+                  @click="settingsStore.npcPortraitsEnabled = false"
+                >
+                  关
+                </Button>
               </div>
             </div>
           </template>
@@ -315,7 +338,7 @@
                     <Button
                       v-for="opt in WRAP_OPTIONS"
                       :key="opt.value"
-                      class="!text-[10px] py-0 px-1.5"
+                      class="!text-[0.625rem] py-0 px-1.5"
                       :class="settingsStore.qmsgLimitWidthWrap === opt.value ? '!bg-accent/20 !text-accent !border-accent' : ''"
                       @click="changeWrap(opt.value)"
                     >

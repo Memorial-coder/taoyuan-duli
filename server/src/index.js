@@ -82,6 +82,20 @@ const PORT = parseInt(process.env.PORT || '4013', 10);
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').trim().toLowerCase() === 'true';
 const COOKIE_SAME_SITE = String(process.env.COOKIE_SAME_SITE || '').trim().toLowerCase();
 const SESSION_STORE_FILE = path.join(DATA_DIR, 'sessions.json');
+const DEFAULT_ITEM_ICON_DIR = process.platform === 'win32'
+  ? path.join(__dirname, '../../taoyuan-main/public/item')
+  : '/opt/taoyuan/item';
+const CONFIGURED_ITEM_ICON_DIR = process.env.TAOYUAN_ITEM_ICON_DIR
+  ? path.resolve(process.env.TAOYUAN_ITEM_ICON_DIR)
+  : DEFAULT_ITEM_ICON_DIR;
+const LOCAL_ITEM_ICON_DIR = path.join(__dirname, '../../taoyuan-main/public/item');
+const DEFAULT_NPC_PORTRAIT_DIR = process.platform === 'win32'
+  ? path.join(__dirname, '../../taoyuan-main/public/npc')
+  : '/opt/taoyuan/npc';
+const CONFIGURED_NPC_PORTRAIT_DIR = process.env.TAOYUAN_NPC_PORTRAIT_DIR
+  ? path.resolve(process.env.TAOYUAN_NPC_PORTRAIT_DIR)
+  : DEFAULT_NPC_PORTRAIT_DIR;
+const LOCAL_NPC_PORTRAIT_DIR = path.join(__dirname, '../../taoyuan-main/public/npc');
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4013',
   'http://localhost:4013',
@@ -293,6 +307,38 @@ app.use('/taoyuan/hall/uploads', createHallUploadVisibilityGuard(), express.stat
     }
   },
 }));
+const itemIconDir = fs.existsSync(CONFIGURED_ITEM_ICON_DIR) ? CONFIGURED_ITEM_ICON_DIR : LOCAL_ITEM_ICON_DIR;
+if (fs.existsSync(itemIconDir)) {
+  app.use('/item', express.static(itemIconDir, {
+    index: false,
+    maxAge: '365d',
+    immutable: true,
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'item-icon-manifest.json') {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
+  console.log(`Item icons mounted at /item: ${itemIconDir}`);
+}
+const npcPortraitDir = fs.existsSync(CONFIGURED_NPC_PORTRAIT_DIR) ? CONFIGURED_NPC_PORTRAIT_DIR : LOCAL_NPC_PORTRAIT_DIR;
+if (fs.existsSync(npcPortraitDir)) {
+  app.use('/npc', express.static(npcPortraitDir, {
+    index: false,
+    maxAge: '365d',
+    immutable: true,
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'npc-portrait-manifest.json') {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
+  console.log(`NPC portraits mounted at /npc: ${npcPortraitDir}`);
+}
 app.use(session({
   name: 'taoyuan.sid',
   secret: process.env.SECRET_KEY,

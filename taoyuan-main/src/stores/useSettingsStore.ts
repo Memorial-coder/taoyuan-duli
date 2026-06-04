@@ -15,6 +15,7 @@ export const DEFAULT_FONT_SIZE = 16
 export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 24
 export const CROP_USE_TAG_SAVE_VERSION = 1
+export const DEFAULT_NPC_PORTRAITS_ENABLED = false
 const DEFAULT_THEME: ThemeKey = 'dark'
 const DEFAULT_QMSG_POSITION: QmsgPosition = 'top'
 const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
@@ -63,6 +64,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const qmsgShowClose = ref(false)
   const qmsgShowIcon = ref(false)
   const qmsgShowReverse = ref(false)
+  const npcPortraitsEnabled = ref(DEFAULT_NPC_PORTRAITS_ENABLED)
 
   /** 背包物品筛选：选中的分类（空数组 = 显示全部） */
   const inventoryFilter = ref<ItemCategory[]>([])
@@ -190,6 +192,7 @@ export const useSettingsStore = defineStore('settings', () => {
       qmsgShowClose: qmsgShowClose.value,
       qmsgShowIcon: qmsgShowIcon.value,
       qmsgShowReverse: qmsgShowReverse.value,
+      npcPortraitsEnabled: npcPortraitsEnabled.value,
       inventoryFilter: inventoryFilter.value,
       inventoryCropUseFilter: selectedCropUseTags,
       cropUseTagSaveVersion: CROP_USE_TAG_SAVE_VERSION,
@@ -219,6 +222,9 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowClose.value = data?.qmsgShowClose ?? false
     qmsgShowIcon.value = data?.qmsgShowIcon ?? false
     qmsgShowReverse.value = data?.qmsgShowReverse ?? false
+    npcPortraitsEnabled.value = typeof data?.npcPortraitsEnabled === 'boolean'
+      ? data.npcPortraitsEnabled
+      : DEFAULT_NPC_PORTRAITS_ENABLED
     inventoryFilter.value = data?.inventoryFilter ?? []
     const cropUseFilterState = normalizeCropUseFilterState(data)
     cropUseTagSaveVersion.value = cropUseFilterState.version
@@ -259,6 +265,7 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowClose,
     qmsgShowIcon,
     qmsgShowReverse,
+    npcPortraitsEnabled,
     inventoryFilter,
     inventoryCropUseFilter,
     cropUseTagSaveVersion,

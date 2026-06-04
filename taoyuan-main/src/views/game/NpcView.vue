@@ -33,11 +33,11 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <p class="text-xs text-accent">陪伴总览</p>
-            <p class="text-[10px] text-muted mt-0.5">婚后分工、家庭心愿与挚友协作已经接入统一关系线入口。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">婚后分工、家庭心愿与挚友协作已经接入统一关系线入口。</p>
           </div>
-          <span class="text-[10px] text-muted whitespace-nowrap">{{ relationshipDebugSnapshot.contentTier }}</span>
+          <span class="text-[0.625rem] text-muted whitespace-nowrap">{{ relationshipDebugSnapshot.contentTier }}</span>
         </div>
-        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[10px]">
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[0.625rem]">
           <div class="flex items-center justify-between">
             <span class="text-muted">当前家庭心愿</span>
             <span class="text-accent">{{ activeFamilyWishDef?.title ?? '未激活' }}</span>
@@ -55,7 +55,7 @@
             <span>{{ relationshipDebugSnapshot.childCount }}</span>
           </div>
         </div>
-        <p class="text-[10px] text-muted mt-2 leading-4">
+        <p class="text-[0.625rem] text-muted mt-2 leading-4">
           {{
             activeFamilyWishDef
               ? `当前进度：${familyWishOverview.state.progress}/${Math.max(1, familyWishOverview.state.targetValue)}，建议围绕 ${activeFamilyWishDef.title} 安排本周陪伴节奏。`
@@ -63,8 +63,8 @@
           }}
         </p>
         <div v-if="activeFamilyWishChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
-          <p class="text-[10px] text-muted mb-1">家庭事件链</p>
-          <div v-for="step in activeFamilyWishChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+          <p class="text-[0.625rem] text-muted mb-1">家庭事件链</p>
+          <div v-for="step in activeFamilyWishChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[0.625rem] mt-1 first:mt-0">
             <div class="min-w-0">
               <p class="text-accent">{{ step.title }}</p>
               <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
@@ -75,9 +75,9 @@
           </div>
         </div>
         <div v-if="activeZhijiProjectChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <p class="text-[10px] text-muted mb-1">知己协作链</p>
-          <p class="text-[10px] text-accent">{{ activeZhijiProjectChain.def.label }} · {{ activeZhijiProjectChain.progressLabel }}</p>
-          <div v-for="step in activeZhijiProjectChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+          <p class="text-[0.625rem] text-muted mb-1">知己协作链</p>
+          <p class="text-[0.625rem] text-accent">{{ activeZhijiProjectChain.def.label }} · {{ activeZhijiProjectChain.progressLabel }}</p>
+          <div v-for="step in activeZhijiProjectChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[0.625rem] mt-1 first:mt-0">
             <div class="min-w-0">
               <p class="text-accent">{{ step.title }}</p>
               <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
@@ -89,13 +89,13 @@
         </div>
         <div v-if="randomNpcBoard.relationshipMilestoneAudit.length > 0" class="border border-warning/20 rounded-xs p-2 mt-2 bg-warning/5" data-testid="random-npc-relationship-audit">
           <div class="flex items-center justify-between gap-2 mb-1">
-            <p class="text-[10px] text-warning">随机 NPC 关系审计</p>
-            <span class="text-[10px] text-muted">最近 {{ randomNpcBoard.relationshipMilestoneAudit.length }}/24 条 · 本地存档</span>
+            <p class="text-[0.625rem] text-warning">随机 NPC 关系审计</p>
+            <span class="text-[0.625rem] text-muted">最近 {{ randomNpcBoard.relationshipMilestoneAudit.length }}/24 条 · 本地存档</span>
           </div>
           <div
             v-for="entry in randomNpcBoard.relationshipMilestoneAudit.slice(-6).reverse()"
             :key="entry.id"
-            class="text-[10px] border-t border-warning/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
+            class="text-[0.625rem] border-t border-warning/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
             :data-testid="`random-npc-relationship-audit-${entry.action}`"
           >
             <div class="flex items-start justify-between gap-2">
@@ -110,13 +110,13 @@
 
       <div v-if="randomNpcBoard.generationAnomalyAudit.length > 0" class="border border-danger/20 rounded-xs p-2 mb-3 bg-danger/5" data-testid="random-npc-generation-anomaly-audit">
         <div class="flex items-center justify-between gap-2 mb-1">
-          <p class="text-[10px] text-danger">随机 NPC 生成审计</p>
-          <span class="text-[10px] text-muted">最近 {{ randomNpcBoard.generationAnomalyAudit.length }}/12 条 · 本地存档</span>
+          <p class="text-[0.625rem] text-danger">随机 NPC 生成审计</p>
+          <span class="text-[0.625rem] text-muted">最近 {{ randomNpcBoard.generationAnomalyAudit.length }}/12 条 · 本地存档</span>
         </div>
         <div
           v-for="entry in randomNpcBoard.generationAnomalyAudit.slice(-4).reverse()"
           :key="entry.id"
-          class="text-[10px] border-t border-danger/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
+          class="text-[0.625rem] border-t border-danger/10 py-1 first:border-t-0 first:pt-0 last:pb-0"
           :data-testid="`random-npc-generation-anomaly-${entry.action}`"
         >
           <div class="flex items-start justify-between gap-2">
@@ -132,9 +132,9 @@
         <div class="flex items-center justify-between gap-2 mb-1">
           <div>
             <p class="text-xs text-water">料理话题线索</p>
-            <p class="text-[10px] text-muted mt-0.5">最近做过的剧情料理可作为来访闲谈、送礼铺垫或家宴话题。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">最近做过的剧情料理可作为来访闲谈、送礼铺垫或家宴话题。</p>
           </div>
-          <span class="text-[10px] text-muted whitespace-nowrap">最近 {{ cookingStore.recentStoryTriggerRecords.length }}/8</span>
+          <span class="text-[0.625rem] text-muted whitespace-nowrap">最近 {{ cookingStore.recentStoryTriggerRecords.length }}/8</span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
           <div
@@ -145,11 +145,11 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent truncate">{{ record.recipeName }} ×{{ record.quantity }}</p>
-                <p class="text-[10px] text-muted mt-0.5 truncate">{{ record.categoryLabels.join('、') || '料理' }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5 truncate">{{ record.categoryLabels.join('、') || '料理' }}</p>
               </div>
-              <span class="text-[10px] text-water/80 whitespace-nowrap">{{ getCookingTopicUsageText(record.triggerLabels) }}</span>
+              <span class="text-[0.625rem] text-water/80 whitespace-nowrap">{{ getCookingTopicUsageText(record.triggerLabels) }}</span>
             </div>
-            <p class="text-[10px] text-muted leading-4 mt-1">{{ record.triggerLabels.join('、') }}</p>
+            <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ record.triggerLabels.join('、') }}</p>
           </div>
         </div>
       </div>
@@ -158,9 +158,9 @@
         <div class="flex items-center justify-between gap-2 mb-2">
           <div>
             <p class="text-xs text-accent">本周来访</p>
-            <p class="text-[10px] text-muted mt-0.5">短访人物只保留本周卡片和最近摘要；喜欢的人可记入熟人册长期回看。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">短访人物只保留本周卡片和最近摘要；喜欢的人可记入熟人册长期回看。</p>
           </div>
-          <span class="text-[10px] text-muted whitespace-nowrap">
+          <span class="text-[0.625rem] text-muted whitespace-nowrap">
             熟人 {{ randomNpcBoard.acquaintances.length }}/{{ randomNpcMaxAcquaintances }} · 旧档 {{ randomNpcBoard.recentSummaries.length }}/{{ randomNpcMaxRecentSummaries }} · 锁定 {{ randomNpcLockedArchiveCount }}/{{ randomNpcMaxLockedArchives }}
           </span>
         </div>
@@ -172,14 +172,23 @@
             :data-testid="`random-npc-visitor-${visitor.id}`"
           >
             <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
+              <NpcPortrait
+                class="shrink-0"
+                :id="visitor.id"
+                :name="visitor.name"
+                :display-name="visitor.occupation"
+                :template-id="visitor.templateId"
+                :fallback-text="visitor.name"
+                size="sm"
+              />
+              <div class="min-w-0 flex-1">
                 <p class="text-xs text-accent">
                   {{ visitor.name }}
-                  <span class="text-[10px] text-muted ml-1">{{ visitor.occupation }}</span>
+                  <span class="text-[0.625rem] text-muted ml-1">{{ visitor.occupation }}</span>
                 </p>
-                <p class="text-[10px] text-muted mt-0.5 truncate">{{ visitor.origin }} · {{ getRandomNpcAgeBandLabel(visitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(visitor.relationshipTag) }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5 truncate">{{ visitor.origin }} · {{ getRandomNpcAgeBandLabel(visitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(visitor.relationshipTag) }}</p>
               </div>
-              <span class="text-[10px]" :class="visitor.locked ? 'text-warning' : visitor.tier === 'short_visit' ? 'text-muted' : 'text-success'">
+              <span class="text-[0.625rem]" :class="visitor.locked ? 'text-warning' : visitor.tier === 'short_visit' ? 'text-muted' : 'text-success'">
                 {{ visitor.locked ? '锁定 · ' : '' }}{{ getRandomNpcVisitTierLabel(visitor.tier) }}
               </span>
             </div>
@@ -187,14 +196,14 @@
               <span
                 v-for="tag in visitor.personalityTags"
                 :key="`${visitor.id}-${tag}`"
-                class="text-[10px] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+                class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
               >
                 {{ tag }}
               </span>
-              <span class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ visitor.plotHook }}</span>
+              <span class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ visitor.plotHook }}</span>
             </div>
-            <p class="text-[10px] text-muted leading-4 mt-1">{{ visitor.dialogueOpening }}</p>
-            <div class="border border-accent/10 rounded-xs p-2 mt-2 text-[10px]">
+            <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ visitor.dialogueOpening }}</p>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2 text-[0.625rem]">
               <p class="text-muted">人物卡</p>
               <p class="text-accent/90 leading-4 mt-0.5">外貌：{{ visitor.appearanceKeywords.join('、') }}</p>
               <p class="text-muted leading-4 mt-0.5">来村目的：{{ visitor.villagePurpose }}</p>
@@ -203,7 +212,7 @@
                 <p class="text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(visitor.dialogueScenes) }}</p>
                 <p class="text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(visitor.preferences.bindings) }}</p>
             </div>
-            <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+            <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
               <div class="border border-accent/10 rounded-xs px-1.5 py-1">
                 <span class="text-muted/60">好感</span>
                 <p class="text-accent mt-0.5">{{ visitor.affinity }}/100</p>
@@ -214,13 +223,13 @@
               </div>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mt-2">
-              <p class="text-[10px] text-muted">关系方向</p>
-              <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(visitor.relationshipSignals) }}</p>
+              <p class="text-[0.625rem] text-muted">关系方向</p>
+              <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(visitor.relationshipSignals) }}</p>
               <div v-if="getRecentRandomNpcDialogueMemories(visitor.dialogueMemories).length > 0" class="mt-1 space-y-1">
                 <div
                   v-for="memory in getRecentRandomNpcDialogueMemories(visitor.dialogueMemories)"
                   :key="memory.id"
-                  class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   :data-testid="`random-npc-dialogue-memory-${visitor.id}-${memory.choiceId}`"
                 >
                   <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
@@ -230,12 +239,12 @@
               </div>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${visitor.id}`">
-              <p class="text-[10px] text-muted">自然成长</p>
+              <p class="text-[0.625rem] text-muted">自然成长</p>
               <div class="mt-1 space-y-1">
                 <div
                   v-for="beat in getRandomNpcVisitorGrowthPreview(visitor)"
                   :key="`${visitor.id}-${beat.id}`"
-                  class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                 >
                   <div class="flex items-center justify-between gap-2">
                     <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
@@ -248,15 +257,15 @@
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mt-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">短线恋爱</p>
-                <span class="text-[10px] text-accent">{{ getRandomNpcShortRomanceStatusText(visitor.shortRomance) }}</span>
+                <p class="text-[0.625rem] text-muted">短线恋爱</p>
+                <span class="text-[0.625rem] text-accent">{{ getRandomNpcShortRomanceStatusText(visitor.shortRomance) }}</span>
               </div>
-              <p class="text-[10px] text-muted leading-4 mt-1">{{ visitor.shortRomance.note }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ visitor.shortRomance.note }}</p>
               <div v-if="getRecentRandomNpcShortRomanceHistory(visitor.shortRomance).length > 0" class="mt-1 space-y-1">
                 <p
                   v-for="event in getRecentRandomNpcShortRomanceHistory(visitor.shortRomance)"
                   :key="event.id"
-                  class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                  class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                 >
                   {{ event.dayTag }} · {{ event.summary }}
                 </p>
@@ -280,19 +289,19 @@
               </div>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mt-2">
-              <p class="text-[10px] text-muted">小订单：{{ visitor.smallOrder.title }}</p>
-              <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ visitor.smallOrder.summary }}</p>
+              <p class="text-[0.625rem] text-muted">小订单：{{ visitor.smallOrder.title }}</p>
+              <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ visitor.smallOrder.summary }}</p>
               <div class="flex flex-wrap gap-1 mt-1">
                 <span
                   v-for="item in visitor.smallOrder.requestedItems"
                   :key="`${visitor.id}-${item.itemId}`"
-                  class="text-[10px] border border-accent/15 rounded-xs px-1 py-0.5"
+                  class="text-[0.625rem] border border-accent/15 rounded-xs px-1 py-0.5"
                 >
                   {{ getItemById(item.itemId)?.name ?? item.itemId }}×{{ item.quantity }}
                 </span>
               </div>
-              <p class="text-[10px] text-success/80 mt-1">{{ visitor.smallOrder.rewardSummary }}</p>
-              <p class="text-[10px] text-muted mt-1">
+              <p class="text-[0.625rem] text-success/80 mt-1">{{ visitor.smallOrder.rewardSummary }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">
                 {{ getRandomNpcSmallOrderProgressText(visitor.smallOrder) }}
               </p>
               <Button
@@ -319,7 +328,7 @@
               </Button>
             </div>
             <div class="flex items-center justify-between gap-2 mt-2">
-              <p class="text-[10px] text-muted leading-4" :data-testid="`random-npc-last-event-${visitor.id}`">
+              <p class="text-[0.625rem] text-muted leading-4" :data-testid="`random-npc-last-event-${visitor.id}`">
                 {{ getLastRandomNpcEvent(visitor) }}
               </p>
               <div class="flex shrink-0 items-center gap-1">
@@ -356,8 +365,8 @@
         </div>
         <div v-if="randomNpcBoard.acquaintances.length > 0" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
           <div class="flex items-center justify-between gap-2 mb-1">
-            <p class="text-[10px] text-success">熟人册</p>
-            <span class="text-[10px] text-muted">保留关系、偏好与关键事件</span>
+            <p class="text-[0.625rem] text-success">熟人册</p>
+            <span class="text-[0.625rem] text-muted">保留关系、偏好与关键事件</span>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div
@@ -366,28 +375,37 @@
               class="border border-success/15 rounded-xs p-2 bg-bg/10"
             >
               <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
+                <NpcPortrait
+                  class="shrink-0"
+                  :id="acquaintance.visitorId"
+                  :name="acquaintance.name"
+                  :display-name="acquaintance.occupation"
+                  :template-id="acquaintance.templateId"
+                  :fallback-text="acquaintance.name"
+                  size="sm"
+                />
+                <div class="min-w-0 flex-1">
                   <p class="text-xs text-accent">
                     {{ acquaintance.name }}
-                    <span class="text-[10px] text-muted ml-1">{{ acquaintance.occupation }}</span>
+                    <span class="text-[0.625rem] text-muted ml-1">{{ acquaintance.occupation }}</span>
                   </p>
-                  <p class="text-[10px] text-muted mt-0.5 truncate">
+                  <p class="text-[0.625rem] text-muted mt-0.5 truncate">
                     {{ acquaintance.origin }} · {{ getRandomNpcAgeBandLabel(acquaintance.ageBand) }} · {{ getRandomNpcRelationshipLabel(acquaintance.relationshipTag) }}
                   </p>
                 </div>
-                <span class="text-[10px] text-success whitespace-nowrap">好感 {{ acquaintance.affinity }}</span>
+                <span class="text-[0.625rem] text-success whitespace-nowrap">好感 {{ acquaintance.affinity }}</span>
               </div>
               <div class="flex flex-wrap gap-1 mt-1">
                 <span
                   v-for="tag in acquaintance.personalityTags"
                   :key="`${acquaintance.visitorId}-${tag}`"
-                  class="text-[10px] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+                  class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
                 >
                   {{ tag }}
                 </span>
-                <span class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ acquaintance.plotHook }}</span>
+                <span class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ acquaintance.plotHook }}</span>
               </div>
-              <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+              <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
                 <div class="border border-accent/10 rounded-xs px-1.5 py-1">
                   <span class="text-muted/60">初见</span>
                   <p class="text-muted mt-0.5">{{ acquaintance.firstMetDayTag || acquaintance.firstMetWeekId }}</p>
@@ -398,13 +416,13 @@
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[10px] text-muted">文游关键记录</p>
-                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(acquaintance.relationshipSignals) }}</p>
+                <p class="text-[0.625rem] text-muted">文游关键记录</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(acquaintance.relationshipSignals) }}</p>
                 <div v-if="getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories).length > 0" class="mt-1 space-y-1">
                   <div
                     v-for="memory in getRecentRandomNpcDialogueMemories(acquaintance.dialogueMemories)"
                     :key="memory.id"
-                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
                     <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }}</p>
                     <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
@@ -414,15 +432,15 @@
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">短线恋爱</p>
-                  <span class="text-[10px] text-accent">{{ getRandomNpcShortRomanceStatusText(acquaintance.shortRomance) }}</span>
+                  <p class="text-[0.625rem] text-muted">短线恋爱</p>
+                  <span class="text-[0.625rem] text-accent">{{ getRandomNpcShortRomanceStatusText(acquaintance.shortRomance) }}</span>
                 </div>
-                <p class="text-[10px] text-muted leading-4 mt-1">{{ acquaintance.shortRomance.note }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ acquaintance.shortRomance.note }}</p>
                 <div v-if="getRecentRandomNpcShortRomanceHistory(acquaintance.shortRomance).length > 0" class="mt-1 space-y-1">
                   <p
                     v-for="event in getRecentRandomNpcShortRomanceHistory(acquaintance.shortRomance)"
                     :key="event.id"
-                    class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
                     {{ event.dayTag }} · {{ event.summary }}
                   </p>
@@ -446,12 +464,12 @@
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${acquaintance.visitorId}`">
-                <p class="text-[10px] text-muted">自然成长</p>
+                <p class="text-[0.625rem] text-muted">自然成长</p>
                 <div class="mt-1 space-y-1">
                   <div
                     v-for="beat in getRandomNpcAcquaintanceGrowthPreview(acquaintance)"
                     :key="`${acquaintance.visitorId}-${beat.id}`"
-                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
                     <div class="flex items-center justify-between gap-2">
                       <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
@@ -463,24 +481,24 @@
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[10px] text-muted">人物卡</p>
-                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">外貌：{{ acquaintance.appearanceKeywords.join('、') }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">来村目的：{{ acquaintance.villagePurpose }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">恋爱观：{{ acquaintance.romanceView }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(acquaintance.developmentRoutes) }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(acquaintance.dialogueScenes) }}</p>
+                <p class="text-[0.625rem] text-muted">人物卡</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">外貌：{{ acquaintance.appearanceKeywords.join('、') }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">来村目的：{{ acquaintance.villagePurpose }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">恋爱观：{{ acquaintance.romanceView }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(acquaintance.developmentRoutes) }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(acquaintance.dialogueScenes) }}</p>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[10px] text-muted">偏好</p>
-                  <p class="text-[10px] text-accent/90 leading-4 mt-0.5">
+                <p class="text-[0.625rem] text-muted">偏好</p>
+                  <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">
                     最爱 {{ getRandomNpcPreferenceNames(acquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(acquaintance.preferences.liked) }}
                   </p>
-                  <p class="text-[10px] text-accent/90 leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(acquaintance.preferences.bindings) }}</p>
-                  <p class="text-[10px] text-muted leading-4 mt-0.5">家庭线索：{{ acquaintance.familySeed }}</p>
+                  <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(acquaintance.preferences.bindings) }}</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-0.5">家庭线索：{{ acquaintance.familySeed }}</p>
               </div>
-              <p class="text-[10px] text-muted leading-4 mt-2">{{ getLastRandomNpcAcquaintanceEvent(acquaintance) }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-2">{{ getLastRandomNpcAcquaintanceEvent(acquaintance) }}</p>
               <div class="flex items-center justify-between gap-2 mt-1">
-                <p class="text-[10px] text-success/80 min-w-0">小订单线索：{{ acquaintance.smallOrder.title }} · {{ acquaintance.smallOrder.rewardSummary }}</p>
+                <p class="text-[0.625rem] text-success/80 min-w-0">小订单线索：{{ acquaintance.smallOrder.title }} · {{ acquaintance.smallOrder.rewardSummary }}</p>
                 <Button
                   class="shrink-0 justify-center !px-2 !py-1"
                   :icon="Package"
@@ -504,8 +522,8 @@
         </div>
         <div v-if="randomNpcBoard.longStayResidents.length > 0" class="border border-accent/20 rounded-xs p-2 mt-2 bg-accent/5">
           <div class="flex items-center justify-between gap-2 mb-1">
-            <p class="text-[10px] text-accent">长住 NPC</p>
-            <span class="text-[10px] text-muted">长住 {{ randomNpcBoard.longStayResidents.length }}/{{ randomNpcMaxLongStayResidents }}</span>
+            <p class="text-[0.625rem] text-accent">长住 NPC</p>
+            <span class="text-[0.625rem] text-muted">长住 {{ randomNpcBoard.longStayResidents.length }}/{{ randomNpcMaxLongStayResidents }}</span>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div
@@ -514,19 +532,28 @@
               class="border border-accent/15 rounded-xs p-2 bg-bg/10"
             >
               <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0">
+                <NpcPortrait
+                  class="shrink-0"
+                  :id="resident.residentId"
+                  :name="resident.name"
+                  :display-name="resident.occupation"
+                  :template-id="resident.templateId"
+                  :fallback-text="resident.name"
+                  size="sm"
+                />
+                <div class="min-w-0 flex-1">
                   <p class="text-xs text-accent">
                     {{ resident.name }}
-                    <span class="text-[10px] text-muted ml-1">{{ resident.occupation }}</span>
+                    <span class="text-[0.625rem] text-muted ml-1">{{ resident.occupation }}</span>
                   </p>
-                  <p class="text-[10px] text-muted mt-0.5 truncate">
+                  <p class="text-[0.625rem] text-muted mt-0.5 truncate">
                     {{ getRandomNpcLongStayRouteLabel(resident.route) }} · {{ resident.origin }} · {{ getRandomNpcRelationshipLabel(resident.relationshipTag) }} · {{ resident.plotHook }}
                   </p>
                 </div>
-                <span class="text-[10px] text-success whitespace-nowrap">阶段 {{ resident.relationshipEventStage }}/3</span>
+                <span class="text-[0.625rem] text-success whitespace-nowrap">阶段 {{ resident.relationshipEventStage }}/3</span>
               </div>
-              <p class="text-[10px] text-muted leading-4 mt-1">{{ resident.residenceReason }}</p>
-              <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ resident.residenceReason }}</p>
+              <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
                 <div class="border border-accent/10 rounded-xs px-1.5 py-1">
                   <span class="text-muted/60">目标</span>
                   <p class="text-accent mt-0.5">{{ resident.lifeGoal }}</p>
@@ -536,27 +563,27 @@
                   <p class="text-muted mt-0.5">{{ resident.taboo }}</p>
                 </div>
               </div>
-              <p class="text-[10px] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
-              <p class="text-[10px] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[10px] text-muted">人物卡</p>
-                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">外貌：{{ resident.appearanceKeywords.join('、') }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">来村目的：{{ resident.villagePurpose }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">恋爱观：{{ resident.romanceView }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(resident.developmentRoutes) }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(resident.dialogueScenes) }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(resident.preferences.bindings) }}</p>
+                <p class="text-[0.625rem] text-muted">人物卡</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">外貌：{{ resident.appearanceKeywords.join('、') }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">来村目的：{{ resident.villagePurpose }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">恋爱观：{{ resident.romanceView }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">发展路线：{{ getRandomNpcDevelopmentRouteText(resident.developmentRoutes) }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">对话场景：{{ getRandomNpcDialogueSceneText(resident.dialogueScenes) }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">绑定偏好：{{ getRandomNpcBindingPreferenceText(resident.preferences.bindings) }}</p>
               </div>
               <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">家族节点</p>
-                  <span class="text-[10px] text-accent">本地 {{ resident.familyTies.length }}/4</span>
+                  <p class="text-[0.625rem] text-muted">家族节点</p>
+                  <span class="text-[0.625rem] text-accent">本地 {{ resident.familyTies.length }}/4</span>
                 </div>
                 <div class="mt-1 space-y-1">
                   <div
                     v-for="tie in resident.familyTies"
                     :key="`${resident.residentId}-${tie.id}`"
-                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
                     <p class="text-accent">{{ getRandomNpcFamilyTieKindLabel(tie.kind) }} · {{ tie.relation }} · {{ tie.name }}</p>
                     <p class="text-muted leading-4">{{ tie.summary }}（{{ getRandomNpcFamilyTieAttitudeLabel(tie.attitude) }}）</p>
@@ -565,10 +592,10 @@
               </div>
               <div v-if="resident.familyTies.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">见家人与家族评价</p>
-                  <span class="text-[10px] text-accent">评价 {{ resident.familyLine.reputation }}/100</span>
+                  <p class="text-[0.625rem] text-muted">见家人与家族评价</p>
+                  <span class="text-[0.625rem] text-accent">评价 {{ resident.familyLine.reputation }}/100</span>
                 </div>
-                <p class="text-[10px] text-accent/90 leading-4 mt-1">{{ resident.familyLine.lastReview }}</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-1">{{ resident.familyLine.lastReview }}</p>
                 <div class="grid grid-cols-2 gap-1 mt-2">
                   <Button
                     v-for="tie in resident.familyTies"
@@ -580,11 +607,11 @@
                     {{ getRandomNpcFamilyMeetingButtonText(resident, tie.id, tie.relation) }}
                   </Button>
                 </div>
-                <p class="text-[10px] text-muted leading-4 mt-1">
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">
                   每个家族节点最多推进 3 轮见面；同一节点每日只推进 1 轮，记录仍保留在本地随机 NPC 存档。
                 </p>
                 <div v-if="getSpecialFamilyTies(resident).length > 0" class="border-t border-accent/10 mt-2 pt-2">
-                  <p class="text-[10px] text-accent">核心家族深线</p>
+                  <p class="text-[0.625rem] text-accent">核心家族深线</p>
                   <div class="grid grid-cols-1 gap-1 mt-1">
                     <Button
                       v-for="tie in getSpecialFamilyTies(resident)"
@@ -601,24 +628,24 @@
                     <p
                       v-for="event in getRecentRandomNpcFamilySpecialEvents(resident)"
                       :key="event.id"
-                      class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                      class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                     >
                       {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}<span v-if="event.rewardSummary">（{{ event.rewardSummary }}）</span>
                     </p>
                   </div>
-                  <p class="text-[10px] text-muted leading-4 mt-1">
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">
                     核心家族节点各自最多 3 段，同一节点每日只推进 1 段；记录只保留最近 4 条。
                   </p>
                 </div>
                 <div v-if="getRandomNpcFamilyCommission(resident)" class="border-t border-accent/10 mt-2 pt-2">
                   <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px] text-accent">{{ getRandomNpcFamilyCommission(resident)?.title }}</p>
-                    <span class="text-[10px]" :class="isRandomNpcFamilyCommissionCompleted(resident) ? 'text-success' : 'text-muted'">
+                    <p class="text-[0.625rem] text-accent">{{ getRandomNpcFamilyCommission(resident)?.title }}</p>
+                    <span class="text-[0.625rem]" :class="isRandomNpcFamilyCommissionCompleted(resident) ? 'text-success' : 'text-muted'">
                       {{ isRandomNpcFamilyCommissionCompleted(resident) ? '已评价' : '待交付' }}
                     </span>
                   </div>
-                  <p class="text-[10px] text-muted leading-4 mt-1">{{ getRandomNpcFamilyCommission(resident)?.summary }}</p>
-                  <p class="text-[10px] text-muted mt-1">{{ getRandomNpcFamilyCommissionProgressText(resident) }}</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcFamilyCommission(resident)?.summary }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcFamilyCommissionProgressText(resident) }}</p>
                   <Button
                     class="w-full justify-center !px-2 !py-1 mt-2"
                     :icon="Package"
@@ -634,10 +661,10 @@
                   class="border-t border-accent/10 mt-2 pt-2"
                 >
                   <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px] text-accent">婚后家业线</p>
-                    <span class="text-[10px] text-muted">阶段 {{ resident.familyLine.familyBusinessStage }}/3</span>
+                    <p class="text-[0.625rem] text-accent">婚后家业线</p>
+                    <span class="text-[0.625rem] text-muted">阶段 {{ resident.familyLine.familyBusinessStage }}/3</span>
                   </div>
-                  <p class="text-[10px] text-muted leading-4 mt-1">{{ resident.familyLine.familyBusinessNote }}</p>
+                  <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ resident.familyLine.familyBusinessNote }}</p>
                   <Button
                     class="w-full justify-center !px-2 !py-1 mt-2"
                     :disabled="!canDevelopRandomNpcFamilyBusiness(resident).success"
@@ -646,7 +673,7 @@
                     推进婚后家业
                   </Button>
                   <div v-if="npcStore.children.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
-                    <p class="text-[10px] text-muted">孩子兴趣影响</p>
+                    <p class="text-[0.625rem] text-muted">孩子兴趣影响</p>
                     <div class="grid grid-cols-1 gap-1 mt-1">
                       <Button
                         v-for="child in npcStore.children"
@@ -677,12 +704,12 @@
                       <p
                         v-for="event in getRecentChildFamilyEvents(child, resident)"
                         :key="event.id"
-                        class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                        class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                       >
                         {{ child.name }} · {{ event.dayTag }} · {{ event.title }} {{ event.stage }}/3：{{ event.summary }}
                       </p>
                     </div>
-                    <p class="text-[10px] text-muted leading-4 mt-1">
+                    <p class="text-[0.625rem] text-muted leading-4 mt-1">
                       仅写入本地孩子训练记录；同一孩子、NPC 与兴趣方向最多 3 段，每日限推进 1 段，最近事件最多保留 4 条。
                     </p>
                   </div>
@@ -690,7 +717,7 @@
                     <p
                       v-for="entry in getRecentRandomNpcFamilyBusinessHistory(resident)"
                       :key="entry.id"
-                      class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                      class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                     >
                       {{ entry.dayTag }} · 阶段 {{ entry.stage }}/3：{{ entry.summary }}<span v-if="entry.rewardSummary">（{{ entry.rewardSummary }}）</span>（评价{{ entry.reputationDelta >= 0 ? '+' : '' }}{{ entry.reputationDelta }}）
                     </p>
@@ -700,20 +727,20 @@
                   <p
                     v-for="review in getRecentRandomNpcFamilyReviews(resident)"
                     :key="review.id"
-                    class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
                     {{ review.dayTag }} · {{ getRandomNpcFamilyReviewTypeLabel(review.type) }}：{{ review.summary }}（评价{{ review.reputationDelta >= 0 ? '+' : '' }}{{ review.reputationDelta }}）
                   </p>
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[10px] text-muted">长住文游记录</p>
-                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(resident.relationshipSignals) }}</p>
+                <p class="text-[0.625rem] text-muted">长住文游记录</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ getRandomNpcRelationshipSignalText(resident.relationshipSignals) }}</p>
                 <div v-if="getRecentRandomNpcDialogueMemories(resident.dialogueMemories).length > 0" class="mt-1 space-y-1">
                   <div
                     v-for="memory in getRecentRandomNpcDialogueMemories(resident.dialogueMemories)"
                     :key="memory.id"
-                    class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
                     <p class="text-accent">{{ memory.dayTag }} · {{ getRandomNpcRelationshipDirectionLabel(memory.direction) }} · 好感 {{ memory.affinityChange >= 0 ? '+' : '' }}{{ memory.affinityChange }}</p>
                     <p class="text-muted leading-4">{{ memory.choiceText }}：{{ memory.response }}</p>
@@ -723,30 +750,30 @@
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">关系线</p>
-                  <span class="text-[10px] text-accent">{{ getRandomNpcRelationLineLabel(resident.relationshipLine.kind) }}</span>
+                  <p class="text-[0.625rem] text-muted">关系线</p>
+                  <span class="text-[0.625rem] text-accent">{{ getRandomNpcRelationLineLabel(resident.relationshipLine.kind) }}</span>
                 </div>
-                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ resident.relationshipLine.note }}</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4 mt-0.5">{{ resident.relationshipLine.note }}</p>
                 <p
                   v-if="resident.relationshipLine.commitmentStatus !== 'none'"
-                  class="text-[10px] text-success/90 leading-4 mt-0.5"
+                  class="text-[0.625rem] text-success/90 leading-4 mt-0.5"
                 >
                   {{ getRandomNpcCommitmentStatusText(resident) }}
                 </p>
                 <p
                   v-if="resident.relationshipLine.commitmentStatus === 'married'"
-                  class="text-[10px] text-muted leading-4 mt-0.5"
+                  class="text-[0.625rem] text-muted leading-4 mt-0.5"
                 >
                   婚后日常：{{ resident.relationshipLine.homeLifeNote }}
                 </p>
-                <p class="text-[10px] text-muted leading-4 mt-0.5">{{ getRandomNpcRelationLineHint(resident) }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ getRandomNpcRelationLineHint(resident) }}</p>
                 <div class="border border-accent/10 rounded-xs p-2 mt-2" :data-testid="`random-npc-growth-preview-${resident.residentId}`">
-                  <p class="text-[10px] text-muted">日常长出关系线</p>
+                  <p class="text-[0.625rem] text-muted">日常长出关系线</p>
                   <div class="mt-1 space-y-1">
                     <div
                       v-for="beat in getRandomNpcResidentGrowthPreview(resident)"
                       :key="`${resident.residentId}-${beat.id}`"
-                      class="text-[10px] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                      class="text-[0.625rem] border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                     >
                       <div class="flex items-center justify-between gap-2">
                         <span :class="beat.ready ? 'text-success' : 'text-accent'">{{ beat.title }}</span>
@@ -761,7 +788,7 @@
                   <p
                     v-for="event in getRecentRandomNpcRelationLineHistory(resident)"
                     :key="event.id"
-                    class="text-[10px] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
+                    class="text-[0.625rem] text-muted border-t border-accent/10 pt-1 first:border-t-0 first:pt-0"
                   >
                     {{ event.dayTag }} · {{ getRandomNpcRelationLineLabel(event.kind) }}：{{ event.summary }}
                   </p>
@@ -813,13 +840,13 @@
               </div>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-accent">{{ resident.smallOrder.title }}</p>
-                  <span class="text-[10px]" :class="resident.smallOrderCompleted ? 'text-success' : 'text-muted'">
+                  <p class="text-[0.625rem] text-accent">{{ resident.smallOrder.title }}</p>
+                  <span class="text-[0.625rem]" :class="resident.smallOrderCompleted ? 'text-success' : 'text-muted'">
                     {{ resident.smallOrderCompleted ? '已交付' : '待交付' }}
                   </span>
                 </div>
-                <p class="text-[10px] text-muted leading-4 mt-1">{{ resident.smallOrder.summary }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ getRandomNpcSmallOrderProgressText(resident.smallOrder) }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ resident.smallOrder.summary }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ getRandomNpcSmallOrderProgressText(resident.smallOrder) }}</p>
                 <Button
                   class="w-full justify-center !px-2 !py-1 mt-2"
                   :icon="Package"
@@ -830,13 +857,13 @@
                   {{ resident.smallOrderCompleted ? '已交付' : '交付长住小订单' }}
                 </Button>
               </div>
-              <p class="text-[10px] text-success/80 mt-1">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
+              <p class="text-[0.625rem] text-success/80 mt-1">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
               <div class="border border-accent/10 rounded-xs p-2 mt-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-accent">今日节会同行</p>
-                  <span class="text-[10px] text-muted">{{ randomNpcFestivalReunionEventName }}</span>
+                  <p class="text-[0.625rem] text-accent">今日节会同行</p>
+                  <span class="text-[0.625rem] text-muted">{{ randomNpcFestivalReunionEventName }}</span>
                 </div>
-                <p class="text-[10px] text-muted leading-4 mt-1">{{ getRandomNpcFestivalCompanionHint(resident) }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcFestivalCompanionHint(resident) }}</p>
                 <Button
                   class="w-full justify-center !px-2 !py-1 mt-2"
                   :icon="Sparkles"
@@ -848,8 +875,8 @@
                 </Button>
               </div>
               <div v-if="getRandomNpcLongStayStoryEvent(resident)" class="border border-accent/10 rounded-xs p-2 mt-2">
-                <p class="text-[10px] text-accent">{{ getRandomNpcLongStayStoryEvent(resident)?.title }}</p>
-                <p class="text-[10px] text-muted leading-4 mt-1">{{ getRandomNpcLongStayStoryEvent(resident)?.opening }}</p>
+                <p class="text-[0.625rem] text-accent">{{ getRandomNpcLongStayStoryEvent(resident)?.title }}</p>
+                <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ getRandomNpcLongStayStoryEvent(resident)?.opening }}</p>
                 <div class="mt-2 space-y-1">
                   <Button
                     v-for="choice in getRandomNpcLongStayStoryChoices(resident)"
@@ -867,10 +894,10 @@
         </div>
         <div v-if="randomNpcBoard.recentSummaries.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
           <div class="flex items-center justify-between gap-2 mb-1">
-            <p class="text-[10px] text-muted">旧日来客摘要</p>
-            <span class="text-[10px] text-muted">最多 {{ randomNpcMaxRecentSummaries }} 条，锁定 {{ randomNpcMaxLockedArchives }} 条</span>
+            <p class="text-[0.625rem] text-muted">旧日来客摘要</p>
+            <span class="text-[0.625rem] text-muted">最多 {{ randomNpcMaxRecentSummaries }} 条，锁定 {{ randomNpcMaxLockedArchives }} 条</span>
           </div>
-          <div v-for="summary in randomNpcBoard.recentSummaries" :key="summary.visitorId" class="text-[10px] border-t border-accent/10 py-1 first:border-t-0 first:pt-0 last:pb-0">
+          <div v-for="summary in randomNpcBoard.recentSummaries" :key="summary.visitorId" class="text-[0.625rem] border-t border-accent/10 py-1 first:border-t-0 first:pt-0 last:pb-0">
             <div class="flex items-start justify-between gap-2">
               <p class="text-accent min-w-0">
                 {{ summary.name }} · {{ getRandomNpcRelationshipLabel(summary.relationshipTag) }} · {{ summary.affinity }}
@@ -928,7 +955,7 @@
 
             </div>
             <p class="text-muted leading-4">{{ summary.summary }}</p>
-            <p class="text-[10px] text-muted leading-4 mt-0.5">
+            <p class="text-[0.625rem] text-muted leading-4 mt-0.5">
               旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}；节会重逢需今日有节会（{{ randomNpcFestivalReunionEventName }}），仍受本周短访 / 长住名额上限约束。
             </p>
           </div>
@@ -946,13 +973,20 @@
         >
           <!-- 移动端：紧凑布局 -->
           <div class="md:hidden">
+            <NpcPortrait
+              class="mx-auto mb-1"
+              :id="npc.id"
+              :name="npc.name"
+              :fallback-text="npc.name"
+              size="xs"
+            />
             <p class="text-xs truncate" :class="levelColor(npcStore.getFriendshipLevel(npc.id))">
               {{ npc.name }}
             </p>
-            <p class="text-[10px] text-muted truncate">
+            <p class="text-[0.625rem] text-muted truncate">
               {{ npcStore.getRelationshipStageText(npc.id) }} · {{ npcStore.getScheduleStatus(npc.id).location }}
             </p>
-            <p class="text-[10px] flex items-center justify-center" :class="heartCount(npc.id) > 0 ? 'text-danger' : 'text-muted/30'">
+            <p class="text-[0.625rem] flex items-center justify-center" :class="heartCount(npc.id) > 0 ? 'text-danger' : 'text-muted/30'">
               {{ heartCount(npc.id) }}
               <Heart :size="10" :fill="heartCount(npc.id) > 0 ? 'currentColor' : 'none'" />
               <span class="text-muted/50 ml-0.5">{{ npcStore.getNpcState(npc.id)?.friendship ?? 0 }}</span>
@@ -968,13 +1002,20 @@
             </div>
           </div>
           <!-- 桌面端：显示更多信息 -->
-          <div class="hidden md:block">
+          <div class="hidden md:flex items-start gap-2">
+            <NpcPortrait
+              :id="npc.id"
+              :name="npc.name"
+              :fallback-text="npc.name"
+              size="sm"
+            />
+            <div class="min-w-0 flex-1">
             <div class="flex items-center justify-between">
               <span class="text-xs" :class="levelColor(npcStore.getFriendshipLevel(npc.id))">
                 {{ npc.name }}
-                <span v-if="npcStore.getNpcState(npc.id)?.married" class="text-danger text-[10px] ml-0.5">[伴侣]</span>
-                <span v-else-if="npcStore.getNpcState(npc.id)?.dating" class="text-danger/70 text-[10px] ml-0.5">[约会中]</span>
-                <span v-else-if="npcStore.getNpcState(npc.id)?.zhiji" class="text-accent text-[10px] ml-0.5">[知己]</span>
+                <span v-if="npcStore.getNpcState(npc.id)?.married" class="text-danger text-[0.625rem] ml-0.5">[伴侣]</span>
+                <span v-else-if="npcStore.getNpcState(npc.id)?.dating" class="text-danger/70 text-[0.625rem] ml-0.5">[约会中]</span>
+                <span v-else-if="npcStore.getNpcState(npc.id)?.zhiji" class="text-accent text-[0.625rem] ml-0.5">[知己]</span>
               </span>
               <div class="flex items-center space-x-1">
                 <MessageCircle :size="10" :class="npcStore.getNpcState(npc.id)?.talkedToday ? 'text-muted/20' : 'text-success'" />
@@ -985,8 +1026,8 @@
                 <Cake v-if="npcStore.isBirthday(npc.id)" :size="10" class="text-danger" />
               </div>
             </div>
-            <p class="text-[10px] text-muted truncate">{{ npc.role }}</p>
-            <p class="text-[10px] text-muted/70 truncate">
+            <p class="text-[0.625rem] text-muted truncate">{{ npc.role }}</p>
+            <p class="text-[0.625rem] text-muted/70 truncate">
               {{ npcStore.getRelationshipStageText(npc.id) }} · {{ npcStore.getScheduleStatus(npc.id).location }}
             </p>
             <div class="flex items-center justify-between mt-0.5">
@@ -1000,7 +1041,8 @@
                   :fill="(npcStore.getNpcState(npc.id)?.friendship ?? 0) >= h * 250 ? 'currentColor' : 'none'"
                 />
               </div>
-              <span class="text-[10px] text-muted/50">{{ npcStore.getNpcState(npc.id)?.friendship ?? 0 }}</span>
+              <span class="text-[0.625rem] text-muted/50">{{ npcStore.getNpcState(npc.id)?.friendship ?? 0 }}</span>
+            </div>
             </div>
           </div>
         </div>
@@ -1010,10 +1052,10 @@
         <div class="flex items-center justify-between mb-2">
           <div>
             <p class="text-xs text-accent">村庄建设</p>
-            <p class="text-[10px] text-muted mt-0.5">把获得的生活线索真正落成项目，让桃源村逐步有长期建设感。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">把获得的生活线索真正落成项目，让桃源村逐步有长期建设感。</p>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-[10px] text-muted">已完成 {{ villageProjectStore.villageProjectLevel }}/{{ villageProjectStore.projects.length }}</span>
+            <span class="text-[0.625rem] text-muted">已完成 {{ villageProjectStore.villageProjectLevel }}/{{ villageProjectStore.projects.length }}</span>
             <Button class="justify-center !px-2 !py-1" @click="void router.push({ name: 'village-projects' })">建设总览</Button>
           </div>
         </div>
@@ -1023,22 +1065,22 @@
             <div class="flex items-start justify-between gap-2">
               <div>
                 <p class="text-xs" :class="project.completed ? 'text-success' : 'text-accent'">{{ project.name }}</p>
-                <p class="text-[10px] text-muted mt-0.5 leading-4">{{ project.description }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ project.description }}</p>
               </div>
-              <span class="text-[10px] whitespace-nowrap" :class="project.completed ? 'text-success' : project.clueUnlocked ? 'text-accent' : 'text-muted'">
+              <span class="text-[0.625rem] whitespace-nowrap" :class="project.completed ? 'text-success' : project.clueUnlocked ? 'text-accent' : 'text-muted'">
                 {{ project.completed ? '已完成' : project.clueUnlocked ? '可建设' : '待线索' }}
               </span>
             </div>
 
-            <p class="text-[10px] text-success/90 mt-1 leading-4">效果：{{ project.benefitSummary }}</p>
-            <p v-if="!project.clueUnlocked && project.requiredClueText" class="text-[10px] text-warning mt-1 leading-4">{{ project.requiredClueText }}</p>
+            <p class="text-[0.625rem] text-success/90 mt-1 leading-4">效果：{{ project.benefitSummary }}</p>
+            <p v-if="!project.clueUnlocked && project.requiredClueText" class="text-[0.625rem] text-warning mt-1 leading-4">{{ project.requiredClueText }}</p>
 
             <div v-if="getVillageProjectRequirementProgress(project.id).length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
-              <p class="text-[10px] text-muted mb-1">专项进度</p>
+              <p class="text-[0.625rem] text-muted mb-1">专项进度</p>
               <div
                 v-for="requirement in getVillageProjectRequirementProgress(project.id)"
                 :key="`${project.id}-${requirement.type}`"
-                class="flex items-center justify-between text-[10px] mt-0.5"
+                class="flex items-center justify-between text-[0.625rem] mt-0.5"
               >
                 <span class="text-muted">{{ requirement.displayLabel }}</span>
                 <span :class="requirement.met ? 'text-success' : 'text-danger'">{{ requirement.current }}/{{ requirement.target }}</span>
@@ -1046,11 +1088,11 @@
             </div>
 
             <div class="border border-accent/10 rounded-xs p-2 mt-2">
-              <div class="flex items-center justify-between text-[10px]">
+              <div class="flex items-center justify-between text-[0.625rem]">
                 <span class="text-muted">铜钱</span>
                 <span :class="playerStore.money >= project.moneyCost ? 'text-success' : 'text-danger'">{{ playerStore.money }}/{{ project.moneyCost }}文</span>
               </div>
-              <div v-for="mat in project.materials" :key="mat.itemId" class="flex items-center justify-between text-[10px] mt-0.5">
+              <div v-for="mat in project.materials" :key="mat.itemId" class="flex items-center justify-between text-[0.625rem] mt-0.5">
                 <span class="text-muted">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
                 <span :class="getProjectItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
                   {{ getProjectItemCount(mat.itemId) }}/{{ mat.quantity }}
@@ -1061,24 +1103,24 @@
             <div v-if="project.completed && getVillageProjectMaintenanceSummary(project.id)" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
               <div class="flex items-center justify-between gap-2">
                 <div>
-                  <p class="text-[10px] text-accent">维护状态</p>
-                  <p class="text-[10px] text-muted mt-0.5">
+                  <p class="text-[0.625rem] text-accent">维护状态</p>
+                  <p class="text-[0.625rem] text-muted mt-0.5">
                     {{ getVillageProjectMaintenanceSummary(project.id)?.statusLabel }}
                     <span v-if="getVillageProjectMaintenanceSummary(project.id)?.state.nextDueDayTag">
                       · 下次维护日 {{ getVillageProjectMaintenanceSummary(project.id)?.state.nextDueDayTag }}
                     </span>
                   </p>
                 </div>
-                <span class="text-[10px]" :class="getVillageProjectMaintenanceSummary(project.id)?.active ? 'text-success' : getVillageProjectMaintenanceSummary(project.id)?.overdue ? 'text-warning' : 'text-muted'">
+                <span class="text-[0.625rem]" :class="getVillageProjectMaintenanceSummary(project.id)?.active ? 'text-success' : getVillageProjectMaintenanceSummary(project.id)?.overdue ? 'text-warning' : 'text-muted'">
                   {{ getVillageProjectMaintenanceSummary(project.id)?.active ? '增益生效中' : getVillageProjectMaintenanceSummary(project.id)?.overdue ? '增益暂停' : '待启用' }}
                 </span>
               </div>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ getVillageProjectMaintenanceSummary(project.id)?.plan.effectSummary }}</p>
-              <div class="flex items-center justify-between text-[10px] mt-1">
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ getVillageProjectMaintenanceSummary(project.id)?.plan.effectSummary }}</p>
+              <div class="flex items-center justify-between text-[0.625rem] mt-1">
                 <span class="text-muted">维护费</span>
                 <span class="text-accent">{{ getVillageProjectMaintenanceSummary(project.id)?.plan.costMoney }}文 / {{ getVillageProjectMaintenanceSummary(project.id)?.plan.cycleDays }}天</span>
               </div>
-              <div class="flex items-center justify-between text-[10px] mt-1">
+              <div class="flex items-center justify-between text-[0.625rem] mt-1">
                 <span class="text-muted">自动续费</span>
                 <Button class="!px-2 !py-1 justify-center" @click="handleToggleVillageProjectMaintenanceAutoRenew(project.id)">
                   {{ getVillageProjectMaintenanceSummary(project.id)?.state.autoRenew ? '已开启' : '未开启' }}
@@ -1098,7 +1140,7 @@
             </div>
 
             <div class="mt-2 flex items-center justify-between gap-2">
-              <p class="text-[10px] text-muted leading-4">{{ getVillageProjectHint(project.id) }}</p>
+              <p class="text-[0.625rem] text-muted leading-4">{{ getVillageProjectHint(project.id) }}</p>
               <Button
                 v-if="!project.completed"
                 class="shrink-0 justify-center"
@@ -1118,7 +1160,7 @@
     <div v-if="activeTab === 'spirit'">
       <div class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
         <p class="text-xs text-accent mb-1">仙灵指引</p>
-        <p class="text-[10px] text-muted/80 leading-4">
+        <p class="text-[0.625rem] text-muted/80 leading-4">
           仙灵通常按「传闻 → 惊鸿一瞥 → 初次相遇 → 愿意往来」推进。多留意对应的地点、时间、天气、技能等级和关键物品；
           显现后可通过互动、供奉、求缘、结缘逐步解锁能力与长期加成。
         </p>
@@ -1128,11 +1170,11 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <p class="text-xs text-accent">仙缘运营</p>
-            <p class="text-[10px] text-muted mt-0.5">共鸣、祝福与结缘记忆会在统一周切换节点推进。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">共鸣、祝福与结缘记忆会在统一周切换节点推进。</p>
           </div>
-          <span class="text-[10px] text-muted">已结缘 {{ spiritBondOverview.bondedCount }}</span>
+          <span class="text-[0.625rem] text-muted">已结缘 {{ spiritBondOverview.bondedCount }}</span>
         </div>
-        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[10px]">
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[0.625rem]">
           <div class="flex items-center justify-between">
             <span class="text-muted">已显现仙灵</span>
             <span>{{ spiritBondOverview.revealedNpcCount }}</span>
@@ -1151,27 +1193,27 @@
           </div>
         </div>
         <div v-if="selectedSpiritBlessingSummary" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <div class="flex items-center justify-between text-[10px]">
+          <div class="flex items-center justify-between text-[0.625rem]">
             <span class="text-muted">当前选中仙灵</span>
             <span class="text-accent">{{ selectedSpiritBlessingSummary.bondTier }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1 leading-4">
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">
             当前祝福：{{ selectedSpiritBlessingSummary.activeBlessing?.label ?? '未启用' }}
           </p>
           <div class="flex flex-wrap gap-1 mt-1">
             <span
               v-for="blessing in selectedSpiritBlessings"
               :key="blessing.id"
-              class="text-[10px] px-1 rounded-xs border border-accent/15 text-accent/80"
+              class="text-[0.625rem] px-1 rounded-xs border border-accent/15 text-accent/80"
             >
               {{ blessing.label }}
             </span>
           </div>
         </div>
         <div v-if="selectedSpiritMemoryChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
-          <p class="text-[10px] text-muted mb-1">结缘记忆链</p>
-          <p class="text-[10px] text-accent">{{ selectedSpiritMemoryChain.memoryReward.summary }} · {{ selectedSpiritMemoryChain.progressLabel }}</p>
-          <div v-for="step in selectedSpiritMemoryChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+          <p class="text-[0.625rem] text-muted mb-1">结缘记忆链</p>
+          <p class="text-[0.625rem] text-accent">{{ selectedSpiritMemoryChain.memoryReward.summary }} · {{ selectedSpiritMemoryChain.progressLabel }}</p>
+          <div v-for="step in selectedSpiritMemoryChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[0.625rem] mt-1 first:mt-0">
             <div class="min-w-0">
               <p class="text-accent">{{ step.title }}</p>
               <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
@@ -1203,9 +1245,17 @@
           >
             <!-- 移动端：紧凑布局 -->
             <div class="md:hidden">
+              <NpcPortrait
+                class="mx-auto mb-1"
+                :id="npc.id"
+                :name="npc.name"
+                :asset-base="`${npc.name}-${npc.trueName}`"
+                :fallback-text="npc.name"
+                size="xs"
+              />
               <p class="text-xs text-accent truncate">{{ npc.name }}</p>
               <p
-                class="text-[10px] flex items-center justify-center"
+                class="text-[0.625rem] flex items-center justify-center"
                 :class="hiddenHeartCount(npc.id) > 0 ? 'text-accent' : 'text-muted/30'"
               >
                 {{ hiddenHeartCount(npc.id) }}
@@ -1214,13 +1264,21 @@
               </p>
             </div>
             <!-- 桌面端：显示更多信息 -->
-            <div class="hidden md:block">
+            <div class="hidden md:flex items-start gap-2">
+              <NpcPortrait
+                :id="npc.id"
+                :name="npc.name"
+                :asset-base="`${npc.name}-${npc.trueName}`"
+                :fallback-text="npc.name"
+                size="sm"
+              />
+              <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between">
                 <span class="text-xs text-accent">{{ npc.name }}</span>
-                <span class="text-[10px] text-muted/50">{{ getSpiritStageLabel(npc.id) }}</span>
+                <span class="text-[0.625rem] text-muted/50">{{ getSpiritStageLabel(npc.id) }}</span>
               </div>
-              <p class="text-[10px] text-muted truncate">{{ npc.title }}</p>
-              <p class="text-[10px] text-success/80 truncate mt-0.5">
+              <p class="text-[0.625rem] text-muted truncate">{{ npc.title }}</p>
+              <p class="text-[0.625rem] text-success/80 truncate mt-0.5">
                 {{ getRevealedSpiritGuide(npc.id) }}
               </p>
               <div class="flex items-center justify-between mt-0.5">
@@ -1233,8 +1291,9 @@
                     :class="(hiddenNpcStore.getHiddenNpcState(npc.id)?.affinity ?? 0) >= d * 250 ? 'text-accent' : 'text-muted/20'"
                     :fill="(hiddenNpcStore.getHiddenNpcState(npc.id)?.affinity ?? 0) >= d * 250 ? 'currentColor' : 'none'"
                   />
-                </div>
-                <span class="text-[10px] text-muted/50">{{ hiddenNpcStore.getHiddenNpcState(npc.id)?.affinity ?? 0 }}</span>
+              </div>
+                <span class="text-[0.625rem] text-muted/50">{{ hiddenNpcStore.getHiddenNpcState(npc.id)?.affinity ?? 0 }}</span>
+              </div>
               </div>
             </div>
           </div>
@@ -1246,12 +1305,12 @@
         <h3 class="text-muted/60 text-sm mb-2">线索与踪迹</h3>
         <div class="flex flex-col space-y-1">
           <div v-for="npc in rumorHiddenNpcs" :key="npc.id"
-            class="border border-muted/10 rounded-xs px-2 py-1.5 text-[10px] text-muted/50 cursor-pointer hover:border-accent/30 hover:text-muted/80 transition-colors"
+            class="border border-muted/10 rounded-xs px-2 py-1.5 text-[0.625rem] text-muted/50 cursor-pointer hover:border-accent/30 hover:text-muted/80 transition-colors"
             @click="() => { const s = getLastDiscoveryStep(npc.id); if (s) reviewingRumorStep = { npcId: npc.id, step: s } }"
           >
             <div class="flex items-center justify-between gap-2">
               <span class="text-accent/80">{{ npc.name }}</span>
-              <span class="text-[10px] border border-accent/15 rounded-xs px-1 text-muted/70">{{ getSpiritStageLabel(npc.id) }}</span>
+              <span class="text-[0.625rem] border border-accent/15 rounded-xs px-1 text-muted/70">{{ getSpiritStageLabel(npc.id) }}</span>
             </div>
             <p class="mt-0.5 leading-4">
               <span v-if="hiddenNpcStore.getHiddenNpcState(npc.id)?.discoveryPhase === 'rumor'">
@@ -1269,7 +1328,7 @@
               <span
                 v-for="tag in getSpiritHintTags(npc.id)"
                 :key="tag"
-                class="text-[10px] px-1 rounded-xs border border-accent/15 text-accent/80"
+                class="text-[0.625rem] px-1 rounded-xs border border-accent/15 text-accent/80"
               >
                 {{ tag }}
               </span>
@@ -1285,7 +1344,7 @@
       >
         <Sparkles :size="32" class="mb-2" />
         <p class="text-xs">尚未发现任何仙灵的踪迹。</p>
-        <p class="text-[10px] text-muted/60 mt-1 max-w-60 text-center leading-4">
+        <p class="text-[0.625rem] text-muted/60 mt-1 max-w-60 text-center leading-4">
           可先提升农耕 / 采集 / 钓鱼 / 挖矿等级，并在竹林、瀑布、矿洞、村庄等地点留意特殊时间、天气与关键道具线索。
         </p>
       </div>
@@ -1310,27 +1369,53 @@
 
     <!-- NPC 交互弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="selectedNpc" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="selectedNpc = null">
+      <div v-if="selectedNpc" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="closeSelectedNpc">
         <div class="game-panel max-w-lg w-full max-h-[80vh] overflow-y-auto">
           <!-- 头部：名称 + 关闭 -->
           <div class="flex justify-between items-start mb-2">
-            <div>
-              <p class="text-sm text-accent">
-                {{ selectedNpcDef?.name }}
-                <span class="text-xs text-muted ml-0.5">{{ selectedNpcDef?.role }}</span>
-                <span v-if="selectedNpcState?.married" class="text-[10px] text-danger border border-danger/30 rounded-xs px-1 ml-1">
-                  伴侣
-                </span>
-                <span v-else-if="selectedNpcState?.dating" class="text-[10px] text-danger/70 border border-danger/20 rounded-xs px-1 ml-1">
-                  约会中
-                </span>
-                <span v-else-if="selectedNpcState?.zhiji" class="text-[10px] text-accent border border-accent/30 rounded-xs px-1 ml-1">
-                  知己
-                </span>
-              </p>
-              <p class="text-[10px] text-muted/60 mt-0.5">{{ selectedNpcDef?.personality }}</p>
+            <div class="flex items-start gap-2 min-w-0">
+              <div v-if="selectedNpcDef" class="relative shrink-0">
+                <button
+                  type="button"
+                  class="block rounded-md focus:outline-none focus:ring-1 focus:ring-accent/70"
+                  aria-label="choose npc portrait"
+                  @click.stop="showSelectedNpcPortraitPicker = !showSelectedNpcPortraitPicker"
+                >
+                  <NpcPortrait
+                    :id="selectedNpcDef.id"
+                    :name="selectedNpcDef.name"
+                    :fallback-text="selectedNpcDef.name"
+                    size="lg"
+                    :resolution="256"
+                  />
+                </button>
+                <NpcPortraitVariantPicker
+                  v-if="showSelectedNpcPortraitPicker"
+                  class="absolute left-0 top-full z-20 mt-2"
+                  :id="selectedNpcDef.id"
+                  :name="selectedNpcDef.name"
+                  :fallback-text="selectedNpcDef.name"
+                  @selected="showSelectedNpcPortraitPicker = false"
+                />
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm text-accent">
+                  {{ selectedNpcDef?.name }}
+                  <span class="text-xs text-muted ml-0.5">{{ selectedNpcDef?.role }}</span>
+                  <span v-if="selectedNpcState?.married" class="text-[0.625rem] text-danger border border-danger/30 rounded-xs px-1 ml-1">
+                    伴侣
+                  </span>
+                  <span v-else-if="selectedNpcState?.dating" class="text-[0.625rem] text-danger/70 border border-danger/20 rounded-xs px-1 ml-1">
+                    约会中
+                  </span>
+                  <span v-else-if="selectedNpcState?.zhiji" class="text-[0.625rem] text-accent border border-accent/30 rounded-xs px-1 ml-1">
+                    知己
+                  </span>
+                </p>
+                <p class="text-[0.625rem] text-muted/60 mt-0.5">{{ selectedNpcDef?.personality }}</p>
+              </div>
             </div>
-            <Button @click="selectedNpc = null">关闭</Button>
+            <Button @click="closeSelectedNpc">关闭</Button>
           </div>
 
           <!-- 好感度条 -->
@@ -1351,7 +1436,7 @@
                 <span class="text-muted/40">/{{ nextHeartThreshold }}</span>
               </span>
             </div>
-            <div class="mt-1.5 grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[10px]">
+            <div class="mt-1.5 grid grid-cols-1 md:grid-cols-2 gap-1.5 text-[0.625rem]">
               <div class="border border-accent/10 rounded-xs px-1.5 py-1">
                 <span class="text-muted/60">关系阶段</span>
                 <p class="text-accent mt-0.5">{{ npcStore.getRelationshipStageText(selectedNpc!) }}</p>
@@ -1365,24 +1450,24 @@
             <!-- 状态标签 -->
             <div class="flex items-center space-x-1.5 flex-wrap">
               <span
-                class="text-[10px] border rounded-xs px-1 flex items-center space-x-0.5"
+                class="text-[0.625rem] border rounded-xs px-1 flex items-center space-x-0.5"
                 :class="selectedNpcState?.talkedToday ? 'text-muted/40 border-muted/10' : 'text-success border-success/30'"
               >
                 <MessageCircle :size="10" />
                 <span>{{ selectedNpcState?.talkedToday ? '已聊天' : '可聊天' }}</span>
               </span>
-              <span class="text-[10px] border rounded-xs px-1 flex items-center space-x-0.5" :class="giftTagClass">
+              <span class="text-[0.625rem] border rounded-xs px-1 flex items-center space-x-0.5" :class="giftTagClass">
                 <Gift :size="10" />
                 <span>{{ giftTagText }}</span>
               </span>
               <span
                 v-if="selectedNpcDef?.birthday"
-                class="text-[10px] border border-muted/10 rounded-xs px-1 text-muted flex items-center space-x-0.5"
+                class="text-[0.625rem] border border-muted/10 rounded-xs px-1 text-muted flex items-center space-x-0.5"
               >
                 <Cake :size="10" />
                 <span>{{ SEASON_NAMES_MAP[selectedNpcDef.birthday.season] }}{{ selectedNpcDef.birthday.day }}日</span>
               </span>
-              <span v-if="npcStore.isBirthday(selectedNpc!)" class="text-[10px] text-danger border border-danger/30 rounded-xs px-1">
+              <span v-if="npcStore.isBirthday(selectedNpc!)" class="text-[0.625rem] text-danger border border-danger/30 rounded-xs px-1">
                 生日! 送礼×4
               </span>
             </div>
@@ -1392,22 +1477,22 @@
           <div v-if="selectedScheduleStatus" class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between mb-1">
               <p class="text-xs text-muted">今日行程</p>
-              <span class="text-[10px]" :class="selectedScheduleStatus.available ? 'text-success' : 'text-muted/50'">
+              <span class="text-[0.625rem]" :class="selectedScheduleStatus.available ? 'text-success' : 'text-muted/50'">
                 {{ selectedScheduleStatus.available ? '可遇见' : '暂时不在' }}
               </span>
             </div>
-            <p v-if="todayEvent" class="text-[10px] text-danger mb-1">今日节日：{{ todayEvent.name }}</p>
-            <p v-if="todayEvent?.variantNotes?.dialogueNotes?.[0]" class="text-[10px] text-warning mb-1">
+            <p v-if="todayEvent" class="text-[0.625rem] text-danger mb-1">今日节日：{{ todayEvent.name }}</p>
+            <p v-if="todayEvent?.variantNotes?.dialogueNotes?.[0]" class="text-[0.625rem] text-warning mb-1">
               台词变化提示：{{ todayEvent.variantNotes.dialogueNotes[0] }}
             </p>
             <p class="text-xs text-accent">{{ selectedScheduleStatus.location }}</p>
-            <p class="text-[10px] text-muted mt-0.5">{{ selectedScheduleStatus.summary }}</p>
-            <p v-if="selectedScheduleStatus.reason" class="text-[10px] text-warning mt-1">{{ selectedScheduleStatus.reason }}</p>
-            <p v-if="selectedScheduleStatus.specialDialogue" class="text-[10px] text-danger mt-1">节日台词：{{ selectedScheduleStatus.specialDialogue }}</p>
-            <p v-if="selectedNextScheduleText" class="text-[10px] text-accent/80 mt-1">下一步：{{ selectedNextScheduleText }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">{{ selectedScheduleStatus.summary }}</p>
+            <p v-if="selectedScheduleStatus.reason" class="text-[0.625rem] text-warning mt-1">{{ selectedScheduleStatus.reason }}</p>
+            <p v-if="selectedScheduleStatus.specialDialogue" class="text-[0.625rem] text-danger mt-1">节日台词：{{ selectedScheduleStatus.specialDialogue }}</p>
+            <p v-if="selectedNextScheduleText" class="text-[0.625rem] text-accent/80 mt-1">下一步：{{ selectedNextScheduleText }}</p>
 
             <div v-if="selectedScheduleTimeline.length > 0" class="mt-2 border-t border-accent/10 pt-2 space-y-1">
-              <p class="text-[10px] text-muted">今日时间线</p>
+              <p class="text-[0.625rem] text-muted">今日时间线</p>
               <div
                 v-for="entry in selectedScheduleTimeline"
                 :key="entry.key"
@@ -1415,15 +1500,15 @@
                 :class="entry.active ? 'border-success/30 bg-success/5' : 'border-accent/10'"
               >
                 <div class="flex items-center justify-between gap-2">
-                  <span class="text-[10px]" :class="entry.active ? 'text-success' : 'text-muted/70'">{{ entry.label }}</span>
+                  <span class="text-[0.625rem]" :class="entry.active ? 'text-success' : 'text-muted/70'">{{ entry.label }}</span>
                   <div v-if="entry.tags.length > 0" class="flex flex-wrap justify-end gap-1">
-                    <span v-for="tag in entry.tags" :key="tag" class="text-[10px] px-1 rounded-xs border border-accent/15 text-accent/80">
+                    <span v-for="tag in entry.tags" :key="tag" class="text-[0.625rem] px-1 rounded-xs border border-accent/15 text-accent/80">
                       {{ tag }}
                     </span>
                   </div>
                 </div>
-                <p class="text-[10px] text-accent mt-0.5">{{ entry.location }}</p>
-                <p class="text-[10px] text-muted/70 leading-4">{{ entry.summary }}</p>
+                <p class="text-[0.625rem] text-accent mt-0.5">{{ entry.location }}</p>
+                <p class="text-[0.625rem] text-muted/70 leading-4">{{ entry.summary }}</p>
               </div>
             </div>
           </div>
@@ -1432,12 +1517,12 @@
           <div v-if="selectedNpcCommerceFeedbackLines.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between gap-2 mb-1">
               <p class="text-xs text-muted">村中话题反馈</p>
-              <span class="text-[10px] text-accent">商圈 / 节庆 / 修复</span>
+              <span class="text-[0.625rem] text-accent">商圈 / 节庆 / 修复</span>
             </div>
             <p
               v-for="line in selectedNpcCommerceFeedbackLines"
               :key="`selected-npc-commerce-${line}`"
-              class="text-[10px] text-muted leading-4 mt-0.5"
+              class="text-[0.625rem] text-muted leading-4 mt-0.5"
             >
               - {{ line }}
             </p>
@@ -1447,31 +1532,31 @@
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">当前关系收益</p>
             <div v-if="selectedRelationshipFocusLabels.length > 0" class="mb-2">
-              <p class="text-[10px] text-muted mb-1">职业侧重</p>
+              <p class="text-[0.625rem] text-muted mb-1">职业侧重</p>
               <div class="flex flex-wrap gap-1">
                 <span
                   v-for="focus in selectedRelationshipFocusLabels"
                   :key="focus"
-                  class="text-[10px] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+                  class="text-[0.625rem] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
                 >
                   {{ focus }}
                 </span>
               </div>
             </div>
             <div v-if="selectedRelationshipBenefits.length > 0" class="flex flex-wrap gap-1">
-              <span v-for="benefit in selectedRelationshipBenefits" :key="benefit" class="text-[10px] border border-success/20 text-success rounded-xs px-1 py-0.5">
+              <span v-for="benefit in selectedRelationshipBenefits" :key="benefit" class="text-[0.625rem] border border-success/20 text-success rounded-xs px-1 py-0.5">
                 {{ benefit }}
               </span>
             </div>
-            <p v-else class="text-[10px] text-muted/60">继续互动后会解锁折扣、回礼、专属委托和线索。</p>
+            <p v-else class="text-[0.625rem] text-muted/60">继续互动后会解锁折扣、回礼、专属委托和线索。</p>
 
             <div v-if="selectedGiftReturnSummaries.length > 0" class="mt-2">
-              <p class="text-[10px] text-muted mb-1">可能回礼</p>
+              <p class="text-[0.625rem] text-muted mb-1">可能回礼</p>
               <div class="flex flex-wrap gap-1">
                 <span
                   v-for="giftSummary in selectedGiftReturnSummaries"
                   :key="giftSummary"
-                  class="text-[10px] border border-accent/20 text-accent rounded-xs px-1 py-0.5"
+                  class="text-[0.625rem] border border-accent/20 text-accent rounded-xs px-1 py-0.5"
                 >
                   {{ giftSummary }}
                 </span>
@@ -1479,12 +1564,12 @@
             </div>
 
             <div v-if="selectedNextRelationshipBenefits.length > 0" class="mt-2">
-              <p class="text-[10px] text-muted mb-1">下一阶段可解锁</p>
+              <p class="text-[0.625rem] text-muted mb-1">下一阶段可解锁</p>
               <div class="flex flex-wrap gap-1">
                 <span
                   v-for="benefit in selectedNextRelationshipBenefits"
                   :key="benefit"
-                  class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5"
+                  class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5"
                 >
                   {{ benefit }}
                 </span>
@@ -1496,9 +1581,9 @@
             <div class="flex items-start justify-between gap-2 mb-1">
               <div>
                 <p class="text-xs text-muted mb-1">已获得线索</p>
-                <p class="text-[10px] text-muted/70 mt-0.5">{{ selectedGiftKnowledgeStageText }}</p>
+                <p class="text-[0.625rem] text-muted/70 mt-0.5">{{ selectedGiftKnowledgeStageText }}</p>
               </div>
-              <div class="flex flex-wrap justify-end gap-1 text-[10px]">
+              <div class="flex flex-wrap justify-end gap-1 text-[0.625rem]">
                 <span class="border border-warning/20 text-warning rounded-xs px-1 py-0.5">模糊 {{ selectedGiftKnowledgeSummary.hintCount }}</span>
                 <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">明确 {{ selectedGiftKnowledgeSummary.exactCount }}</span>
                 <span class="border border-success/20 text-success rounded-xs px-1 py-0.5">验证 {{ selectedGiftKnowledgeSummary.confirmedCount }}</span>
@@ -1506,13 +1591,13 @@
             </div>
             <div class="space-y-1">
               <div v-for="clue in selectedRelationshipClues" :key="clue.clueId" class="border border-accent/10 rounded-xs px-2 py-1.5">
-                <div class="flex flex-wrap items-center gap-1 mb-1 text-[10px]">
+                <div class="flex flex-wrap items-center gap-1 mb-1 text-[0.625rem]">
                   <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">{{ CLUE_KIND_LABELS[clue.kind] }}</span>
                   <span class="border rounded-xs px-1 py-0.5" :class="CLUE_PRECISION_CLASS[clue.precision]">{{ CLUE_PRECISION_LABELS[clue.precision] }}</span>
                   <span class="text-muted/70">{{ CLUE_SOURCE_LABELS[clue.source] }}</span>
                   <span v-if="clue.discoveredDayTag" class="text-muted/50">{{ clue.discoveredDayTag }}</span>
                 </div>
-                <p class="text-[10px] text-accent/90 leading-4">{{ clue.text }}</p>
+                <p class="text-[0.625rem] text-accent/90 leading-4">{{ clue.text }}</p>
               </div>
             </div>
           </div>
@@ -1546,7 +1631,7 @@
             <Button v-if="selectedNpcState?.married" class="w-full text-danger border-danger/40" @click="showDivorceConfirm = true">
               休书
             </Button>
-            <p v-if="!canInteractWithSelectedNpc && unavailableInteractionReason" class="text-[10px] text-warning w-full">
+            <p v-if="!canInteractWithSelectedNpc && unavailableInteractionReason" class="text-[0.625rem] text-warning w-full">
               {{ unavailableInteractionReason }}
             </p>
           </div>
@@ -1566,14 +1651,14 @@
               <span>姻缘</span>
             </p>
             <template v-if="selectedNpcState?.zhiji">
-              <p class="text-[10px] text-muted/70 mb-1.5">你们当前是知己关系。若想发展婚缘，请先在下方知己面板中断缘，再回来赠帕开始约会。</p>
+              <p class="text-[0.625rem] text-muted/70 mb-1.5">你们当前是知己关系。若想发展婚缘，请先在下方知己面板中断缘，再回来赠帕开始约会。</p>
             </template>
             <template v-else-if="!selectedNpcState?.dating && !(npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc)">
-              <p v-if="npcStore.npcStates.some(s => s.married)" class="text-[10px] text-muted/50 mb-1">你已有伴侣，无法再赠帕。</p>
+              <p v-if="npcStore.npcStates.some(s => s.married)" class="text-[0.625rem] text-muted/50 mb-1">你已有伴侣，无法再赠帕。</p>
               <template v-else>
                 <div class="flex flex-col space-y-0.5 mb-1.5">
                   <span
-                    class="text-[10px] flex items-center space-x-1"
+                    class="text-[0.625rem] flex items-center space-x-1"
                     :class="(selectedNpcState?.friendship ?? 0) >= 2000 ? 'text-success' : 'text-muted/50'"
                   >
                     <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2000" :size="10" />
@@ -1582,7 +1667,7 @@
                     <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
                   </span>
                   <span
-                    class="text-[10px] flex items-center space-x-1"
+                    class="text-[0.625rem] flex items-center space-x-1"
                     :class="inventoryStore.hasItem('silk_ribbon') ? 'text-success' : 'text-muted/50'"
                   >
                     <CircleCheck v-if="inventoryStore.hasItem('silk_ribbon')" :size="10" />
@@ -1597,13 +1682,13 @@
               </template>
             </template>
             <template v-else-if="selectedNpcState?.dating">
-              <p class="text-[10px] text-danger/60 mb-1">
+              <p class="text-[0.625rem] text-danger/60 mb-1">
                 约会中
                 <Heart :size="10" class="inline" />
               </p>
               <div class="flex flex-col space-y-0.5 mb-1.5">
                 <span
-                  class="text-[10px] flex items-center space-x-0.5"
+                  class="text-[0.625rem] flex items-center space-x-0.5"
                   :class="(selectedNpcState?.friendship ?? 0) >= 2500 ? 'text-success' : 'text-muted/50'"
                 >
                   <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2500" :size="10" />
@@ -1612,7 +1697,7 @@
                   <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
                 </span>
                 <span
-                  class="text-[10px] flex items-center space-x-0.5"
+                  class="text-[0.625rem] flex items-center space-x-0.5"
                   :class="inventoryStore.hasItem('jade_ring') ? 'text-success' : 'text-muted/50'"
                 >
                   <CircleCheck v-if="inventoryStore.hasItem('jade_ring')" :size="10" />
@@ -1640,16 +1725,16 @@
               <span>知己</span>
             </p>
             <template v-if="selectedNpcState?.zhiji">
-              <p class="text-[10px] text-accent/60 mb-1">{{ selectedNpcDef.gender === 'male' ? '蓝颜知己' : '红颜知己' }} ♦</p>
+              <p class="text-[0.625rem] text-accent/60 mb-1">{{ selectedNpcDef.gender === 'male' ? '蓝颜知己' : '红颜知己' }} ♦</p>
               <Button class="w-full text-danger border-danger/40" @click="showZhijiDissolveConfirm = true">断缘</Button>
             </template>
             <template v-else-if="npcStore.npcStates.some(s => s.zhiji)">
-              <p class="text-[10px] text-muted/50">你已有知己，无法再结缘。</p>
+              <p class="text-[0.625rem] text-muted/50">你已有知己，无法再结缘。</p>
             </template>
             <template v-else>
               <div class="flex flex-col space-y-0.5 mb-1.5">
                 <span
-                  class="text-[10px] flex items-center space-x-0.5"
+                  class="text-[0.625rem] flex items-center space-x-0.5"
                   :class="(selectedNpcState?.friendship ?? 0) >= 2000 ? 'text-success' : 'text-muted/50'"
                 >
                   <CircleCheck v-if="(selectedNpcState?.friendship ?? 0) >= 2000" :size="10" />
@@ -1658,7 +1743,7 @@
                   <span class="text-muted/40">— 当前{{ selectedNpcState?.friendship ?? 0 }}</span>
                 </span>
                 <span
-                  class="text-[10px] flex items-center space-x-0.5"
+                  class="text-[0.625rem] flex items-center space-x-0.5"
                   :class="inventoryStore.hasItem('zhiji_jade') ? 'text-success' : 'text-muted/50'"
                 >
                   <CircleCheck v-if="inventoryStore.hasItem('zhiji_jade')" :size="10" />
@@ -1729,7 +1814,7 @@
                     </span>
                     <span
                       v-if="getGiftPreference(item.itemId) !== 'unknown'"
-                      class="text-[10px]"
+                      class="text-[0.625rem]"
                       :class="GIFT_PREF_CLASS[getGiftPreference(item.itemId)]"
                     >
                       {{ GIFT_PREF_LABELS[getGiftPreference(item.itemId)] }}
@@ -1857,6 +1942,8 @@
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import FamilyRelationGraph from '@/components/game/FamilyRelationGraph.vue'
+  import NpcPortrait from '@/components/game/NpcPortrait.vue'
+  import NpcPortraitVariantPicker from '@/components/game/NpcPortraitVariantPicker.vue'
   import HiddenNpcModal from '@/components/game/HiddenNpcModal.vue'
   import DiscoveryScene from '@/components/game/DiscoveryScene.vue'
   import type { DiscoveryStep } from '@/types/hiddenNpc'
@@ -2651,6 +2738,7 @@
 
   const selectedNpc = ref<string | null>(null)
   const dialogueText = ref<string | null>(null)
+  const showSelectedNpcPortraitPicker = ref(false)
   const showDivorceConfirm = ref(false)
   const showZhijiDissolveConfirm = ref(false)
   const activeGiftKey = ref<string | null>(null)
@@ -2722,8 +2810,14 @@
   const handleSelectNpc = (npcId: string) => {
     selectedNpc.value = npcId
     dialogueText.value = null
+    showSelectedNpcPortraitPicker.value = false
     showDivorceConfirm.value = false
     showZhijiDissolveConfirm.value = false
+  }
+
+  const closeSelectedNpc = () => {
+    showSelectedNpcPortraitPicker.value = false
+    selectedNpc.value = null
   }
 
   const heartCount = (npcId: string): number => {

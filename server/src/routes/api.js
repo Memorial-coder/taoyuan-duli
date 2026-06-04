@@ -47,6 +47,8 @@ const DATA_DIR = process.env.DB_STORAGE
   : path.join(__dirname, '../../../data');
 
 const TAOYUAN_EXCHANGE_LIMITS_FILE = path.join(DATA_DIR, 'taoyuan_exchange_limits.json');
+const TAOYUAN_ITEM_ICON_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_item_icon_preferences.json');
+const TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_npc_portrait_preferences.json');
 const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
 const PUBLIC_AI_ASK_MAX_REQUESTS = 8;
 const ONLINE_ACTION_RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -640,6 +642,72 @@ function normalizeUsername(username) {
 
 function normalizeUsernameKey(username) {
   return normalizeUsername(username).toLocaleLowerCase('zh-CN');
+}
+
+const ITEM_ICON_VARIANTS = new Set(['01', '02', '03']);
+const NPC_PORTRAIT_VARIANTS = new Set(['01', '02', '03', '04', '05']);
+
+function loadJsonObject(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return {};
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveJsonObject(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(value, null, 2), 'utf8');
+}
+
+function normalizeItemIconPreferences(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const normalized = {};
+  for (const [itemId, variant] of Object.entries(raw)) {
+    const key = String(itemId || '').trim();
+    if (!key || key.length > 120) continue;
+    if (ITEM_ICON_VARIANTS.has(variant)) normalized[key] = variant;
+  }
+  return normalized;
+}
+
+function normalizeNpcPortraitPreferences(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const normalized = {};
+  for (const [npcKey, variant] of Object.entries(raw)) {
+    const key = String(npcKey || '').trim();
+    if (!key || key.length > 180) continue;
+    if (NPC_PORTRAIT_VARIANTS.has(variant)) normalized[key] = variant;
+  }
+  return normalized;
+}
+
+function getUserItemIconPreferences(username) {
+  const store = loadJsonObject(TAOYUAN_ITEM_ICON_PREFERENCES_FILE);
+  return normalizeItemIconPreferences(store[normalizeUsernameKey(username)]);
+}
+
+function setUserItemIconPreferences(username, preferences) {
+  const store = loadJsonObject(TAOYUAN_ITEM_ICON_PREFERENCES_FILE);
+  const usernameKey = normalizeUsernameKey(username);
+  store[usernameKey] = normalizeItemIconPreferences(preferences);
+  saveJsonObject(TAOYUAN_ITEM_ICON_PREFERENCES_FILE, store);
+  return store[usernameKey];
+}
+
+function getUserNpcPortraitPreferences(username) {
+  const store = loadJsonObject(TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE);
+  return normalizeNpcPortraitPreferences(store[normalizeUsernameKey(username)]);
+}
+
+function setUserNpcPortraitPreferences(username, preferences) {
+  const store = loadJsonObject(TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE);
+  const usernameKey = normalizeUsernameKey(username);
+  store[usernameKey] = normalizeNpcPortraitPreferences(preferences);
+  saveJsonObject(TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE, store);
+  return store[usernameKey];
 }
 
 function normalizeActivitySaveId(value) {
@@ -2773,6 +2841,36 @@ router.get('/me', loginRequired, async (req, res) => {
       quota,
       dollars: quota != null ? parseFloat((quota / er).toFixed(4)) : 0,
     },
+  });
+});
+
+router.get('/taoyuan/item-icon-preferences', loginRequired, (req, res) => {
+  res.json({
+    ok: true,
+    preferences: getUserItemIconPreferences(req.session.username),
+  });
+});
+
+router.post('/taoyuan/item-icon-preferences', loginRequired, signRequired, (req, res) => {
+  const preferences = setUserItemIconPreferences(req.session.username, req.body?.preferences);
+  res.json({
+    ok: true,
+    preferences,
+  });
+});
+
+router.get('/taoyuan/npc-portrait-preferences', loginRequired, (req, res) => {
+  res.json({
+    ok: true,
+    preferences: getUserNpcPortraitPreferences(req.session.username),
+  });
+});
+
+router.post('/taoyuan/npc-portrait-preferences', loginRequired, signRequired, (req, res) => {
+  const preferences = setUserNpcPortraitPreferences(req.session.username, req.body?.preferences);
+  res.json({
+    ok: true,
+    preferences,
   });
 });
 

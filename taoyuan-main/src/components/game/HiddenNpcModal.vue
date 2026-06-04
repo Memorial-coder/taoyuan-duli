@@ -3,15 +3,43 @@
     <div class="game-panel max-w-lg w-full max-h-[80vh] overflow-y-auto">
       <!-- 头部 -->
       <div class="flex justify-between items-start mb-2">
-        <div>
-          <p class="text-sm text-accent">
-            {{ npcDef.name }}
-            <span class="text-xs text-muted ml-0.5">{{ npcDef.title }}</span>
-            <span v-if="state.bonded" class="text-[10px] text-accent border border-accent/30 rounded-xs px-1 ml-1">已结缘</span>
-            <span v-else-if="state.courting" class="text-[10px] text-accent/70 border border-accent/20 rounded-xs px-1 ml-1">求缘中</span>
-          </p>
-          <p class="text-[10px] text-muted/60 mt-0.5">{{ npcDef.personality }}</p>
-          <p v-if="showTrueName" class="text-[10px] text-accent/60 mt-0.5">真名：{{ npcDef.trueName }}</p>
+        <div class="flex items-start gap-2 min-w-0">
+          <div class="relative shrink-0">
+            <button
+              type="button"
+              class="block rounded-md focus:outline-none focus:ring-1 focus:ring-accent/70"
+              aria-label="choose npc portrait"
+              @click.stop="showPortraitPicker = !showPortraitPicker"
+            >
+              <NpcPortrait
+                :id="npcDef.id"
+                :name="npcDef.name"
+                :asset-base="`${npcDef.name}-${npcDef.trueName}`"
+                :fallback-text="npcDef.name"
+                size="lg"
+                :resolution="256"
+              />
+            </button>
+            <NpcPortraitVariantPicker
+              v-if="showPortraitPicker"
+              class="absolute left-0 top-full z-20 mt-2"
+              :id="npcDef.id"
+              :name="npcDef.name"
+              :asset-base="`${npcDef.name}-${npcDef.trueName}`"
+              :fallback-text="npcDef.name"
+              @selected="showPortraitPicker = false"
+            />
+          </div>
+          <div class="min-w-0">
+            <p class="text-sm text-accent">
+              {{ npcDef.name }}
+              <span class="text-xs text-muted ml-0.5">{{ npcDef.title }}</span>
+              <span v-if="state.bonded" class="text-[0.625rem] text-accent border border-accent/30 rounded-xs px-1 ml-1">已结缘</span>
+              <span v-else-if="state.courting" class="text-[0.625rem] text-accent/70 border border-accent/20 rounded-xs px-1 ml-1">求缘中</span>
+            </p>
+            <p class="text-[0.625rem] text-muted/60 mt-0.5">{{ npcDef.personality }}</p>
+            <p v-if="showTrueName" class="text-[0.625rem] text-accent/60 mt-0.5">真名：{{ npcDef.trueName }}</p>
+          </div>
         </div>
         <Button @click="emit('close')">关闭</Button>
       </div>
@@ -35,22 +63,22 @@
           </span>
         </div>
         <div class="flex items-center space-x-1.5 flex-wrap">
-          <span class="text-[10px] border rounded-xs px-1" :class="affinityLevelColor">
+          <span class="text-[0.625rem] border rounded-xs px-1" :class="affinityLevelColor">
             {{ AFFINITY_LEVEL_NAMES[hiddenNpcStore.getAffinityLevel(npcId)] }}
           </span>
           <span
-            class="text-[10px] border rounded-xs px-1 flex items-center space-x-0.5"
+            class="text-[0.625rem] border rounded-xs px-1 flex items-center space-x-0.5"
             :class="state.interactedToday ? 'text-muted/40 border-muted/10' : 'text-success border-success/30'"
           >
             <span>{{ state.interactedToday ? '今日已互动' : '可互动' }}</span>
           </span>
           <span
-            class="text-[10px] border rounded-xs px-1 flex items-center space-x-0.5"
+            class="text-[0.625rem] border rounded-xs px-1 flex items-center space-x-0.5"
             :class="state.offeredToday ? 'text-muted/40 border-muted/10' : 'text-accent border-accent/30'"
           >
             <span>供奉 {{ state.offersThisWeek }}/3</span>
           </span>
-          <span v-if="hiddenNpcStore.isManifestationDay(npcId)" class="text-[10px] text-accent border border-accent/30 rounded-xs px-1">
+          <span v-if="hiddenNpcStore.isManifestationDay(npcId)" class="text-[0.625rem] text-accent border border-accent/30 rounded-xs px-1">
             显灵日! 供奉×3
           </span>
         </div>
@@ -72,7 +100,7 @@
 
       <div class="border border-accent/10 rounded-xs p-2 mb-3 bg-accent/5">
         <p class="text-xs text-accent mb-1">如何推进这位仙灵</p>
-        <ul class="text-[10px] text-muted/80 leading-4 space-y-0.5 pl-4 list-disc">
+        <ul class="text-[0.625rem] text-muted/80 leading-4 space-y-0.5 pl-4 list-disc">
           <li>每天优先做 1 次互动，再决定是否供奉。</li>
           <li>供奉更适合冲缘分门槛；显灵日供奉收益会更高。</li>
           <li>达到求缘 / 结缘门槛后，需要额外准备对应信物。</li>
@@ -87,14 +115,14 @@
           <span>仙缘</span>
         </p>
         <template v-if="state.bonded">
-          <p class="text-[10px] text-accent/60 mb-1">永世仙缘 ◆</p>
+          <p class="text-[0.625rem] text-accent/60 mb-1">永世仙缘 ◆</p>
           <Button class="w-full text-danger border-danger/40" @click="showDissolveConfirm = true">断缘（10000文）</Button>
         </template>
         <template v-else-if="state.courting">
-          <p class="text-[10px] text-accent/60 mb-1">求缘中 ◇</p>
+          <p class="text-[0.625rem] text-accent/60 mb-1">求缘中 ◇</p>
           <div class="flex flex-col space-y-0.5 mb-1.5">
             <span
-              class="text-[10px] flex items-center space-x-0.5"
+              class="text-[0.625rem] flex items-center space-x-0.5"
               :class="state.affinity >= npcDef.bondThreshold ? 'text-success' : 'text-muted/50'"
             >
               <CircleCheck v-if="state.affinity >= npcDef.bondThreshold" :size="10" />
@@ -103,7 +131,7 @@
               <span class="text-muted/40">— 当前{{ state.affinity }}</span>
             </span>
             <span
-              class="text-[10px] flex items-center space-x-0.5"
+              class="text-[0.625rem] flex items-center space-x-0.5"
               :class="inventoryStore.hasItem(npcDef.bondItemId) ? 'text-success' : 'text-muted/50'"
             >
               <CircleCheck v-if="inventoryStore.hasItem(npcDef.bondItemId)" :size="10" />
@@ -117,7 +145,7 @@
         <template v-else>
           <div class="flex flex-col space-y-0.5 mb-1.5">
             <span
-              class="text-[10px] flex items-center space-x-0.5"
+              class="text-[0.625rem] flex items-center space-x-0.5"
               :class="state.affinity >= npcDef.courtshipThreshold ? 'text-success' : 'text-muted/50'"
             >
               <CircleCheck v-if="state.affinity >= npcDef.courtshipThreshold" :size="10" />
@@ -126,7 +154,7 @@
               <span class="text-muted/40">— 当前{{ state.affinity }}</span>
             </span>
             <span
-              class="text-[10px] flex items-center space-x-0.5"
+              class="text-[0.625rem] flex items-center space-x-0.5"
               :class="inventoryStore.hasItem(npcDef.courtshipItemId) ? 'text-success' : 'text-muted/50'"
             >
               <CircleCheck v-if="inventoryStore.hasItem(npcDef.courtshipItemId)" :size="10" />
@@ -155,7 +183,7 @@
           <div
             v-for="ability in npcDef.abilities"
             :key="ability.id"
-            class="text-[10px] border border-accent/10 rounded-xs px-2 py-0.5 flex items-center justify-between"
+            class="text-[0.625rem] border border-accent/10 rounded-xs px-2 py-0.5 flex items-center justify-between"
             :class="state.unlockedAbilities.includes(ability.id) ? 'text-accent' : 'text-muted/40'"
           >
             <span>{{ ability.name }} — {{ ability.description }}</span>
@@ -171,7 +199,7 @@
           <div
             v-for="(bonus, index) in npcDef.bondBonuses"
             :key="`${npcDef.id}_bond_${index}`"
-            class="text-[10px] border border-accent/10 rounded-xs px-2 py-0.5 flex items-center justify-between"
+            class="text-[0.625rem] border border-accent/10 rounded-xs px-2 py-0.5 flex items-center justify-between"
             :class="state.bonded ? 'text-accent' : 'text-muted/50'"
           >
             <span>{{ describeBondBonus(bonus) }}</span>
@@ -210,7 +238,7 @@
                 </span>
                 <span
                   v-if="getOfferingPreference(npcId, item.itemId) !== 'neutral'"
-                  class="text-[10px]"
+                  class="text-[0.625rem]"
                   :class="OFFERING_PREF_CLASS[getOfferingPreference(npcId, item.itemId)]"
                 >
                   {{ OFFERING_PREF_LABELS[getOfferingPreference(npcId, item.itemId)] }}
@@ -228,7 +256,7 @@
 
       <!-- 背景故事 -->
       <div class="mt-3 border-t border-accent/10 pt-2">
-        <p class="text-[10px] text-muted/50 leading-relaxed">{{ npcDef.origin }}</p>
+        <p class="text-[0.625rem] text-muted/50 leading-relaxed">{{ npcDef.origin }}</p>
       </div>
     </div>
   </div>
@@ -260,6 +288,8 @@
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import Button from '@/components/game/Button.vue'
+  import NpcPortrait from '@/components/game/NpcPortrait.vue'
+  import NpcPortraitVariantPicker from '@/components/game/NpcPortraitVariantPicker.vue'
 
   const props = defineProps<{
     npcId: string
@@ -303,6 +333,7 @@
   const showTrueName = computed(() => state.value.affinity >= 2500)
 
   const dialogueText = ref<string | null>(null)
+  const showPortraitPicker = ref(false)
 
   const showDissolveConfirm = ref(false)
 
