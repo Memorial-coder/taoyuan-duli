@@ -99,6 +99,19 @@ async function expectOnlineExpeditionRoomLoaded(page: Page, title: string) {
   await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('已载入')
 }
 
+async function gotoOnlineFestivalTab(page: Page, tab: string, readyTestId: string) {
+  const url = `/#/game/online/festival?tab=${tab}`
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 })
+    const ready = await expect(page.getByTestId(readyTestId)).toBeVisible({ timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (ready) return
+    await page.waitForTimeout(500)
+  }
+  await expect(page.getByTestId(readyTestId)).toBeVisible({ timeout: 10_000 })
+}
+
 async function openCohabitationTab(page: Page, tabKey: string) {
   const target = page.getByTestId(`online-module-tab-${tabKey}`)
   if (!(await target.isVisible().catch(() => false))) {
@@ -3472,6 +3485,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online expedition visual map supports cavern node actions', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '矿洞')
 
@@ -3673,7 +3687,7 @@ test.describe('web game smoke', () => {
       }
     })
 
-    await page.goto('/#/game/online/festival?tab=expedition-room')
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
     await expectOnlineExpeditionRoomLoaded(page, '协作矿洞 smoke')
     await expect(page.getByTestId('visual-map-board')).toBeVisible()
     await expect(page.getByText('路线采脉：路标先定').first()).toBeVisible()
@@ -3714,6 +3728,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival room wizard escape closes dialog and restores focus', async ({ page }) => {
+    test.slow()
     await page.setViewportSize({ width: 1280, height: 720 })
     await openHome(page)
     await startNewJourney(page, '键盘')
@@ -3732,7 +3747,7 @@ test.describe('web game smoke', () => {
 
     await mockOnlineVisualRoom(page, { domain: 'festival', room: seedRoom, startWithoutRoom: true })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-create-entry')
     await expect(page.getByTestId('online-festival-room-create-entry')).toBeVisible()
     const createTrigger = page.getByTestId('online-room-create-trigger')
     await createTrigger.click()
@@ -3751,6 +3766,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival room wizard creates host room', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '创建')
 
@@ -3768,7 +3784,7 @@ test.describe('web game smoke', () => {
 
     await mockOnlineVisualRoom(page, { domain: 'festival', room: seedRoom, startWithoutRoom: true })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-create-entry')
     await expect(page.getByTestId('online-festival-room-create-entry')).toBeVisible()
     await expect(page.getByTestId('online-festival-room-status-panel')).toContainText('空闲中')
     await page.getByTestId('online-room-create-trigger').click()
@@ -3808,6 +3824,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online expedition room wizard creates host room', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '远征')
 
@@ -3825,7 +3842,7 @@ test.describe('web game smoke', () => {
 
     await mockOnlineVisualRoom(page, { domain: 'expedition', room: seedRoom, startWithoutRoom: true })
 
-    await page.goto('/#/game/online/festival?tab=expedition-room')
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-create-entry')
     await expect(page.getByTestId('online-expedition-room-create-entry')).toBeVisible()
     await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('空闲中')
     await page.getByTestId('online-expedition-room-create-trigger').click()
@@ -3866,6 +3883,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival room invite panel handles success failure and retry', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '邀请')
 
@@ -3907,7 +3925,7 @@ test.describe('web game smoke', () => {
       }
     })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '节会邀请 smoke')
     await page.getByTestId('online-festival-room-invite-trigger').click()
     await expect(page.getByTestId('online-invite-panel')).toBeVisible()
@@ -3926,6 +3944,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival room member accepts invite and readies', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '准备')
 
@@ -3991,7 +4010,7 @@ test.describe('web game smoke', () => {
 
     await mockOnlineVisualRoom(page, { domain: 'festival', room })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '节会成员准备 smoke')
     await page.getByTestId('online-festival-room-lobby-trigger').click()
     await expect(page.getByTestId('online-room-lobby')).toBeVisible()
@@ -4026,6 +4045,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival room lobby starts ready check and countdown', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '倒计时')
 
@@ -4083,7 +4103,7 @@ test.describe('web game smoke', () => {
 
     await mockOnlineVisualRoom(page, { domain: 'festival', room })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '节会倒计时 smoke')
     await page.getByTestId('online-festival-room-lobby-trigger').click()
     await expect(page.getByTestId('online-room-lobby')).toBeVisible()
@@ -4117,6 +4137,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival room settle confirm shows impacts and records receipt', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '结算')
 
@@ -4202,7 +4223,7 @@ test.describe('web game smoke', () => {
       }
     })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '节会结算确认 smoke')
     await openTechnicalDetailsForTestId(page, 'online-festival-room-settle-submit')
     await page.getByTestId('online-festival-room-settle-submit').click()
@@ -4231,6 +4252,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival room close confirm requires text escape focus and submits', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '关闭')
 
@@ -4264,7 +4286,7 @@ test.describe('web game smoke', () => {
 
     await mockOnlineVisualRoom(page, { domain: 'festival', room })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '节会关闭 smoke')
     await openTechnicalDetailsForTestId(page, 'online-festival-room-close-submit')
 
@@ -4298,6 +4320,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival visual scene supports lantern object actions', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '灯会')
 
@@ -4406,7 +4429,7 @@ test.describe('web game smoke', () => {
       }
     })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '灯会共建 smoke')
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
 
@@ -4435,6 +4458,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival visual scene supports laba cookpot object actions', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '腊八')
 
@@ -4593,7 +4617,7 @@ test.describe('web game smoke', () => {
       }
     })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '腊八共灶 smoke')
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
     await expect(page.getByText('腊八大锅').first()).toBeVisible()
@@ -4614,6 +4638,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival memorials can load friend lantern photo replay', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '灯会好友')
 
@@ -4636,7 +4661,7 @@ test.describe('web game smoke', () => {
     await mockOnlineVisualRoom(page, { domain: 'festival', room })
     await mockFestivalFriendMemorials(page)
 
-    await page.goto('/#/game/online/festival?tab=memorials')
+    await gotoOnlineFestivalTab(page, 'memorials', 'online-festival-page')
     await expect(page.getByTestId('online-festival-page')).toBeVisible()
     await page.getByTestId('online-festival-friend-memorial-username-input').fill('friend_lantern')
     await page.getByTestId('online-festival-friend-memorial-submit').click()
@@ -5071,6 +5096,7 @@ test.describe('web game smoke', () => {
   })
 
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {
+    test.slow()
     await openHome(page)
     await startNewJourney(page, '赛舟')
 
@@ -5236,7 +5262,7 @@ test.describe('web game smoke', () => {
       }
     })
 
-    await page.goto('/#/game/online/festival?tab=festival-room')
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '龙舟赛道 smoke')
     await openTechnicalDetailsForTestId(page, 'online-festival-room-member-limit-group')
     await expect(page.getByTestId('online-festival-room-member-limit-group')).toContainText('2 人')

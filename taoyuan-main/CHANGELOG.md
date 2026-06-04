@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0604 房间流程 QA 收束
+- `e2e/game-smoke.spec.ts` 新增 `gotoOnlineFestivalTab()`，在线节会 / 远征房间和相邻节会视觉用例跳转后会等待目标 test id 并重试，相关用例加 `test.slow()` 降低全量并发下首页 / 田庄竞态误杀。
+- 本轮验证：房间组合 grep、节会 / 远征视觉相邻 grep、`node --check taoyuan-main/e2e/game-smoke.spec.ts` 与 `npm --prefix taoyuan-main run check` 通过；完整 `game-smoke.spec.ts` 仍返回 1，但剩余 11 个失败均非房间主流程。
+- 移动端过滤 smoke 复跑 `online-festival-room` 与 `online-cohabitation-family-festival-confirm`，重新生成节会房创建 / 邀请 / 大厅 / 结算和家族节会确认 390x844、360x780 截图；未过滤 mobile smoke 仍被在线委托公开接力凭证断言阻断。
+
 ### 0603 房间流程浏览器 E2E 键盘关闭
 - `e2e/game-smoke.spec.ts` 新增 `online festival room wizard escape closes dialog and restores focus`，覆盖 1280x720 桌面视口下节会房创建向导使用 `OnlineActionDialog` 普通弹窗承载，按 Esc 关闭后焦点回到 `online-room-create-trigger`。
 - 场景继续断言弹窗关闭后可再次打开到 `online-room-wizard-step-gameplay`；旧 `online-room-create-trigger`、`online-action-dialog`、`online-room-wizard` test id 保留。
