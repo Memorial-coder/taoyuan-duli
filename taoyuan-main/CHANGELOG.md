@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0604 高风险确认组件收束
+- `src/components/game/online/OnlineConfirmActionDialog.vue` 完成危险确认规格证据回填：默认危险语气、背景不可关闭、影响对象 / 资产变化展示、确认文字门槛和禁用原因均有结构守护。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-online-ui-structure.mjs` 与节会房关闭确认目标 E2E 通过；`check` 当前被 Agent B 范围 `OnlineSocietyView.vue` 未使用符号阻断，`qa:online-ui-structure` 仍剩非 Agent A 移动端覆盖缺口。
+
 ### 0604 移动端主操作安全区
 - `src/components/game/online/OnlineStickyActionBar.vue` 的底部 spacer 不再使用固定 `h-24`，改为通过 `ResizeObserver` 同步固定栏真实高度；`src/app.css` 新增 sticky fallback 高度变量，组件底部继续使用 `env(safe-area-inset-bottom)` 安全区 padding。
 - 本轮验证：`npm --prefix taoyuan-main run check` 通过；online-center-only `qa:mobile-ui-smoke` 通过并生成 390x844 / 360x780 sticky 截图，festival-room-only `qa:mobile-ui-smoke` 通过并重新生成节会房创建、邀请、大厅、结算 8 张截图；`qa:online-ui-structure` 仍被非 Agent A 覆盖缺口阻断。

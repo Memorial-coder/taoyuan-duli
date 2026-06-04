@@ -3,6 +3,7 @@
 最后整理：2026-06-04
 - 房间流程 QA 收束：`game-smoke.spec.ts` 新增在线节会 / 远征房间跳转稳定 helper，房间主流程与相邻节会 / 远征视觉 E2E 在目标 grep 下通过；移动端过滤 smoke 复跑节会房创建、邀请、大厅、结算和家族节会确认截图，完整 E2E / 结构 QA 剩余失败已归类为非房间页面级或 Agent B 覆盖缺口。
 - 移动端主操作安全区：`OnlineStickyActionBar` 的底部 spacer 改为跟随固定栏真实高度，并保留 `env(safe-area-inset-bottom)` 安全区 padding；在线中心 sticky 与节会房移动端过滤 smoke 已覆盖 390x844 / 360x780 截图。
+- 高风险确认组件收束：`OnlineConfirmActionDialog` 按危险语气、影响对象、资产变化、确认文字和背景不可关闭规格完成证据回填，节会房关闭确认 E2E 复跑通过。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房创建向导普通弹窗 Esc / 焦点返回场景，覆盖桌面 `OnlineRoomWizard` 由 `OnlineActionDialog` 承载时按 Esc 关闭、焦点返回 `online-room-create-trigger`，并可再次打开。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房结算确认路径，覆盖运行中房间从备用结算按钮进入 `OnlineConfirmActionDialog`、断言影响对象、奖励预览、恢复提示、`/settle` 提交和奖励读回；`openHome` 增加短重试以降低首页启动竞态。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房成员接受邀请并准备路径，覆盖受邀成员在准备大厅点击“接受邀请”调用 `/join`、再点击“我已准备”调用 `/ready`，并读回成员状态、准备计数和主行动切换。
