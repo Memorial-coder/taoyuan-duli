@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0604 移动端主操作安全区
+- `src/components/game/online/OnlineStickyActionBar.vue` 的底部 spacer 不再使用固定 `h-24`，改为通过 `ResizeObserver` 同步固定栏真实高度；`src/app.css` 新增 sticky fallback 高度变量，组件底部继续使用 `env(safe-area-inset-bottom)` 安全区 padding。
+- 本轮验证：`npm --prefix taoyuan-main run check` 通过；online-center-only `qa:mobile-ui-smoke` 通过并生成 390x844 / 360x780 sticky 截图，festival-room-only `qa:mobile-ui-smoke` 通过并重新生成节会房创建、邀请、大厅、结算 8 张截图；`qa:online-ui-structure` 仍被非 Agent A 覆盖缺口阻断。
+
 ### 0604 房间流程 QA 收束
 - `e2e/game-smoke.spec.ts` 新增 `gotoOnlineFestivalTab()`，在线节会 / 远征房间和相邻节会视觉用例跳转后会等待目标 test id 并重试，相关用例加 `test.slow()` 降低全量并发下首页 / 田庄竞态误杀。
 - 本轮验证：房间组合 grep、节会 / 远征视觉相邻 grep、`node --check taoyuan-main/e2e/game-smoke.spec.ts` 与 `npm --prefix taoyuan-main run check` 通过；完整 `game-smoke.spec.ts` 仍返回 1，但剩余 11 个失败均非房间主流程。

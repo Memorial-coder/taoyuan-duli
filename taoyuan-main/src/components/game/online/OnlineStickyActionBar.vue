@@ -1,10 +1,12 @@
 <template>
   <div
-    class="online-sticky-action-bar__spacer h-24 md:hidden"
+    class="online-sticky-action-bar__spacer md:hidden"
     data-testid="online-sticky-action-bar-spacer"
     aria-hidden="true"
+    :style="spacerStyle"
   />
   <aside
+    ref="stickyActionBarRef"
     class="online-sticky-action-bar fixed inset-x-0 bottom-0 z-40 border-t border-accent/20 bg-panel/95 px-3 pt-3 backdrop-blur md:static md:border md:bg-black/10 md:p-3 md:backdrop-blur-0"
     data-testid="online-sticky-action-bar"
   >
@@ -89,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref, type Component } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
   import { ArrowRight, MoreHorizontal } from 'lucide-vue-next'
 
   type OnlineActionTone = 'default' | 'primary' | 'danger'
@@ -123,13 +125,30 @@
   }>()
 
   const moreOpen = ref(false)
+  const stickyActionBarRef = ref<HTMLElement | null>(null)
+  const stickyActionBarHeight = ref(0)
+  let resizeObserver: ResizeObserver | null = null
+  let syncFrame = 0
 
   const primaryButtonClass = computed(() => buttonToneClass(props.primaryAction))
+  const spacerStyle = computed(() => stickyActionBarHeight.value > 0
+    ? { '--online-sticky-action-bar-spacer-height': `${stickyActionBarHeight.value}px` }
+    : undefined)
 
   const buttonToneClass = (action?: OnlineStickyAction | null) => ({
     'online-action-btn--primary': action?.tone === 'primary' || !action?.tone,
     'online-action-btn--danger': action?.tone === 'danger',
   })
+
+  const syncStickyActionBarHeight = () => {
+    if (typeof window === 'undefined') return
+    if (syncFrame) window.cancelAnimationFrame(syncFrame)
+    syncFrame = window.requestAnimationFrame(() => {
+      syncFrame = 0
+      const nextHeight = stickyActionBarRef.value?.getBoundingClientRect().height ?? 0
+      stickyActionBarHeight.value = Math.ceil(nextHeight)
+    })
+  }
 
   const emitPrimary = () => {
     if (!props.primaryAction || props.primaryAction.disabled || props.disabledReason) return
@@ -146,9 +165,46 @@
     moreOpen.value = false
     emit('more', action.id)
   }
+
+  watch(
+    () => [
+      props.statusLabel,
+      props.disabledReason,
+      props.primaryAction?.id,
+      props.primaryAction?.label,
+      props.primaryAction?.disabled,
+      props.secondaryActions.map(action => `${action.id}:${action.label}:${action.disabled}`).join('|'),
+      props.moreActions.map(action => `${action.id}:${action.label}:${action.disabled}`).join('|'),
+    ],
+    () => {
+      void nextTick(syncStickyActionBarHeight)
+    }
+  )
+
+  onMounted(() => {
+    syncStickyActionBarHeight()
+    if (typeof ResizeObserver !== 'undefined' && stickyActionBarRef.value) {
+      resizeObserver = new ResizeObserver(syncStickyActionBarHeight)
+      resizeObserver.observe(stickyActionBarRef.value)
+    }
+    window.addEventListener('resize', syncStickyActionBarHeight)
+  })
+
+  onBeforeUnmount(() => {
+    resizeObserver?.disconnect()
+    if (syncFrame) window.cancelAnimationFrame(syncFrame)
+    window.removeEventListener('resize', syncStickyActionBarHeight)
+  })
 </script>
 
 <style scoped>
+  .online-sticky-action-bar__spacer {
+    height: var(
+      --online-sticky-action-bar-spacer-height,
+      var(--online-sticky-action-bar-fallback-height, calc(6rem + env(safe-area-inset-bottom, 0px)))
+    );
+  }
+
   .online-sticky-action-bar {
     padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
   }
