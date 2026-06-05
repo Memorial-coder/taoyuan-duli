@@ -1,6 +1,10 @@
 # Local assistant settings
+.codex/
 .claude/
 .codex-temp/
+.agent/
+.agents/
+taoyuan-main/.vscode/
 CLAUDE.md
 CLAUDE.local.md
 
@@ -21,6 +25,11 @@ taoyuan-main/dist-electron/
 
 # Local runtime data
 /data/
+.vite/
+.tmp/
+/tmp/
+/output/
+server/.tmp-*/
 production/session-logs/
 production/session-state/active.md
 docs/consistency-failures.md
@@ -30,9 +39,74 @@ taoyuan-main/android/key
 
 # Local archives
 taoyuan-duli-latest.tar
+codex-skills-export-*.zip
 
 # Local logs
 *.log
+
+# Item source art is huge; Git should keep only runtime-compressed icons.
+images/item/**/*.png
+images/item/**/*.PNG
+images/item/**/*.jpg
+images/item/**/*.JPG
+images/item/**/*.jpeg
+images/item/**/*.JPEG
+images/item/**/*.webp
+images/item/**/*.WEBP
+images/item/**/*.gif
+images/item/**/*.GIF
+images/item/**/*.bmp
+images/item/**/*.BMP
+images/item/**/*.tif
+images/item/**/*.TIF
+images/item/**/*.tiff
+images/item/**/*.TIFF
+images/item/**/*.psd
+images/item/**/*.PSD
+images/item/**/*.psb
+images/item/**/*.PSB
+images/item/generation*.json
+images/item/generation*.log
+
+# NPC source portraits are huge; Git should keep only runtime-compressed portraits.
+images/npc/**/*.png
+images/npc/**/*.PNG
+images/npc/**/*.jpg
+images/npc/**/*.JPG
+images/npc/**/*.jpeg
+images/npc/**/*.JPEG
+images/npc/**/*.webp
+images/npc/**/*.WEBP
+images/npc/**/*.gif
+images/npc/**/*.GIF
+images/npc/**/*.bmp
+images/npc/**/*.BMP
+images/npc/**/*.tif
+images/npc/**/*.TIF
+images/npc/**/*.tiff
+images/npc/**/*.TIFF
+images/npc/**/*.psd
+images/npc/**/*.PSD
+images/npc/**/*.psb
+images/npc/**/*.PSB
+images/npc/_tmp/
+images/npc/generation*.json
+images/npc/generation*.log
+images/npc/npcgen*.log
+images/npc/script*.log
+images/generated/npc/**/*.png
+images/generated/npc/**/*.PNG
+images/generated/npc/**/*.jpg
+images/generated/npc/**/*.JPG
+images/generated/npc/**/*.jpeg
+images/generated/npc/**/*.JPEG
+images/generated/npc/**/*.webp
+images/generated/npc/**/*.WEBP
+taoyuan-main/public/npc/
+
+# Generated item icon assets are reproducible and too large for Git.
+taoyuan-main/public/item/
+taoyuan-main/public/item-icons-*.zip
 
 # Local review / audit artifacts not for GitHub
 QA测试报告-*.md
