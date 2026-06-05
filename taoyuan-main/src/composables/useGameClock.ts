@@ -11,6 +11,7 @@ const REAL_MS_PER_GAME_MINUTE = 700
 const TICK_MS = 200
 
 type PauseReason = 'manual' | 'modal' | 'navigation' | 'visibility' | 'endday' | 'settings' | 'hanhaiCasino'
+const NON_MANUAL_PAUSE_REASONS: PauseReason[] = ['modal', 'navigation', 'visibility', 'endday', 'settings', 'hanhaiCasino']
 
 // === 模块级单例状态 ===
 const gameSpeed = ref(1)
@@ -46,6 +47,22 @@ const removePauseReason = (reason: PauseReason) => {
   const next = new Set(pauseReasons.value)
   next.delete(reason)
   pauseReasons.value = next
+  syncPausedState()
+}
+
+const clearNonManualPauseReasons = () => {
+  if (pauseReasons.value.size === 0) {
+    wasRunningBeforeHidden = false
+    syncPausedState()
+    return
+  }
+
+  const next = new Set(pauseReasons.value)
+  for (const reason of NON_MANUAL_PAUSE_REASONS) {
+    next.delete(reason)
+  }
+  pauseReasons.value = next
+  wasRunningBeforeHidden = false
   syncPausedState()
 }
 
@@ -121,6 +138,7 @@ export const useGameClock = () => {
       clearInterval(timerId)
       timerId = null
     }
+    clearNonManualPauseReasons()
     syncPausedState()
   }
 
@@ -172,7 +190,8 @@ export const useGameClock = () => {
     togglePause,
     applySettingsPauseOnOpen,
     setSettingsPaused,
-    hasPauseReason
+    hasPauseReason,
+    clearNonManualPauseReasons
   }
 }
 

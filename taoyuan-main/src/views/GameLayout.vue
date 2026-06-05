@@ -479,6 +479,7 @@
   import { getNpcById, getItemById, getCropById } from '@/data'
   import { CHEST_DEFS } from '@/data/items'
   import { useGameClock } from '@/composables/useGameClock'
+  import { syncNavigationClockPauseForRoute } from '@/composables/useNavigation'
   import { useAudio } from '@/composables/useAudio'
   import type { Quality, RecordCenterTabId } from '@/types'
   import { Moon, X, Map, ArrowDown, ArrowDownToLine, Maximize2, Minimize2 } from 'lucide-vue-next'
@@ -1120,12 +1121,14 @@
   watch(
     () => route.name,
     async (newRouteName, oldRouteName) => {
+      syncNavigationClockPauseForRoute(newRouteName, { pauseClock, resumeClock })
       if (!newRouteName || !oldRouteName || newRouteName === oldRouteName) return
       await nextTick()
       requestAnimationFrame(() => {
         void scrollSceneIntoView()
       })
-    }
+    },
+    { immediate: true }
   )
 
   const openVoidQtyModal = (mode: 'withdraw' | 'deposit', chestId: string, itemId: string, quality: Quality, max: number) => {

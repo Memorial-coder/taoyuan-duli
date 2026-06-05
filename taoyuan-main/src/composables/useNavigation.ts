@@ -116,6 +116,45 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'region-map', label: '行旅图', icon: Map }
 ]
 
+type NavigationClockSync = Pick<ReturnType<typeof useGameClock>, 'pauseClock' | 'resumeClock'>
+
+const PAUSED_ROUTE_NAMES = new Set([
+  'online',
+  'online-manor',
+  'online-cohabitation',
+  'online-neighbor',
+  'online-orders',
+  'online-festival',
+  'online-society',
+  'expedition',
+  'expedition-room'
+])
+
+const ROUTE_PANEL_ALIASES: Record<string, PanelKey> = {
+  'village-projects': 'village',
+  npc: 'village',
+  processing: 'workshop'
+}
+
+export const isNavigationClockPausedRoute = (routeName: unknown): boolean => {
+  const normalizedRouteName = typeof routeName === 'string' ? routeName : ''
+  if (!normalizedRouteName) return true
+  if (PAUSED_ROUTE_NAMES.has(normalizedRouteName)) return true
+
+  const panelKey = ROUTE_PANEL_ALIASES[normalizedRouteName] ?? normalizedRouteName
+  const targetGroup = TAB_TO_LOCATION_GROUP[panelKey]
+  return targetGroup === null || targetGroup === undefined
+}
+
+export const syncNavigationClockPauseForRoute = (routeName: unknown, clock: NavigationClockSync = useGameClock()) => {
+  if (isNavigationClockPausedRoute(routeName)) {
+    clock.pauseClock('navigation')
+    return
+  }
+
+  clock.resumeClock('navigation')
+}
+
 export const navigateToPanel = (panelKey: PanelKey) => {
   const gameStore = useGameStore()
   const { startBgm } = useAudio()
@@ -172,13 +211,7 @@ export const navigateToPanel = (panelKey: PanelKey) => {
     processHiddenNpcDiscovery()
   })
 
-  const { pauseClock, resumeClock } = useGameClock()
-  const targetGroup = TAB_TO_LOCATION_GROUP[panelKey]
-  if (targetGroup === null || targetGroup === undefined) {
-    pauseClock('navigation')
-  } else {
-    resumeClock('navigation')
-  }
+  syncNavigationClockPauseForRoute(panelKey)
 
   return true
 }
