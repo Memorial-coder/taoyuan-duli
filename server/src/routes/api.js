@@ -5487,7 +5487,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/reconnect', createOnlineRele
     emitActivityRoomRealtimeEvent('festival', 'reconnect', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复节会房间失败' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复节会房间失败', code: error.code });
   }
 });
 
@@ -5499,10 +5499,12 @@ router.post('/taoyuan/online/festival/rooms/:roomId/action', createOnlineRelease
     });
     emitActivityRoomRealtimeEvent('festival', 'action', result, getSessionActor(req), [], {
       action_id: String(req.body?.action_id || ''),
+      idempotency_key: String(req.body?.idempotency_key || ''),
+      idempotency_replayed: result.idempotency_replayed === true,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交节会玩法动作失败' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交节会玩法动作失败', code: error.code });
   }
 });
 
@@ -5658,7 +5660,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/reconnect', createOnlineRe
     emitActivityRoomRealtimeEvent('expedition', 'reconnect', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复远征房间失败' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复远征房间失败', code: error.code });
   }
 });
 
@@ -5670,10 +5672,12 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/action', createOnlineRelea
     });
     emitActivityRoomRealtimeEvent('expedition', 'action', result, getSessionActor(req), [], {
       action_id: String(req.body?.action_id || ''),
+      idempotency_key: String(req.body?.idempotency_key || ''),
+      idempotency_replayed: result.idempotency_replayed === true,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交远征玩法动作失败' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交远征玩法动作失败', code: error.code });
   }
 });
 

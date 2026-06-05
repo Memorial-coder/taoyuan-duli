@@ -25,6 +25,7 @@ export type FestivalRoomMemberState =
   | 'settled'
   | 'left'
   | 'kicked'
+  | 'timeout'
 
 export interface FestivalRoomTemplate {
   id: string
@@ -361,6 +362,22 @@ export interface FestivalRoomReceiptPreview {
   created_at: number
 }
 
+export interface FestivalRoomActionReceipt {
+  idempotency_key: string
+  actor_username: string
+  actor_display_name: string
+  action_id: string
+  action_label: string
+  summary: string
+  room_progress_value: number
+  room_score_value: number
+  contribution_progress_value: number
+  contribution_score_value: number
+  contribution_action_count: number
+  completed: boolean
+  created_at: number
+}
+
 export interface FestivalRoomOpeningCeremony {
   stage: 'countdown' | 'running_intro'
   title: string
@@ -491,6 +508,9 @@ export interface FestivalRoomActionResponse {
   ok: boolean
   room: FestivalRoomSnapshot
   overview: FestivalRoomOverview
+  idempotency_replayed?: boolean
+  action_receipt?: FestivalRoomActionReceipt
+  code?: string
   msg?: string
 }
 
@@ -588,6 +608,11 @@ const buildSignedJsonInit = async (method: 'POST', body?: Record<string, unknown
   }
 }
 
+const createRoomActionIdempotencyKey = (roomId: string, actionId: string) => {
+  const nonce = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 12)
+  return `festival-room-action:${roomId}:${actionId}:${Date.now()}:${nonce}`.slice(0, 120)
+}
+
 const buildSignedInit = async (method: 'POST') => {
   const csrfToken = await ensureCurrentCsrfToken()
   return {
@@ -659,9 +684,13 @@ export const reconnectFestivalRoom = async (roomId: string): Promise<FestivalRoo
   return data as FestivalRoomActionResponse
 }
 
-export const submitFestivalRoomGameplayAction = async (roomId: string, actionId: string): Promise<FestivalRoomActionResponse> => {
+export const submitFestivalRoomGameplayAction = async (
+  roomId: string,
+  actionId: string,
+  idempotencyKey = createRoomActionIdempotencyKey(roomId, actionId)
+): Promise<FestivalRoomActionResponse> => {
   const data = await request<FestivalRoomActionResponse>(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(roomId)}/action`, () =>
-    buildSignedJsonInit('POST', { action_id: actionId })
+    buildSignedJsonInit('POST', { action_id: actionId, idempotency_key: idempotencyKey })
   )
   return data as FestivalRoomActionResponse
 }

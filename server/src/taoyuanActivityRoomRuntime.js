@@ -20,11 +20,12 @@ const TAOYUAN_ACTIVITY_ROOM_FILE = path.join(DATA_DIR, 'taoyuan_activity_rooms.j
 const ACTIVITY_ROOM_STORE_VERSION = 1;
 const ONLINE_VISUAL_STATE_VERSION = 1;
 const ROOM_STATES = Object.freeze(['created', 'inviting', 'ready_check', 'countdown', 'running', 'paused', 'settling', 'closed', 'aborted']);
-const MEMBER_STATES = Object.freeze(['invited', 'joined', 'ready', 'countdown_locked', 'active', 'disconnected', 'reconnecting', 'finished', 'settled', 'left', 'kicked']);
+const MEMBER_STATES = Object.freeze(['invited', 'joined', 'ready', 'countdown_locked', 'active', 'disconnected', 'reconnecting', 'finished', 'settled', 'left', 'kicked', 'timeout']);
 const INVITATION_STATES = Object.freeze(['pending', 'accepted', 'rejected']);
 const RECEIPT_STATES = Object.freeze(['created', 'persist_preview', 'pending_persist', 'persisted', 'compensation_pending']);
 const EVENT_LIMIT = 40;
 const ACTION_LOG_LIMIT = 80;
+const ACTION_RECEIPT_LIMIT = 200;
 const RECEIPT_LIMIT = 60;
 const DEFAULT_COUNTDOWN_SECONDS = 6;
 const DEFAULT_RECONNECT_WINDOW_SECONDS = 90;
@@ -1386,6 +1387,7 @@ const MEMBER_STATUS_LABELS = Object.freeze({
   settled: '已完成结算',
   left: '已离开',
   kicked: '已移出',
+  timeout: '重连超时',
 });
 
 function nowSeconds() {
@@ -1673,6 +1675,45 @@ function normalizeRoomActionLogEntry(entry) {
     summary: sanitizeText(entry?.summary, 180),
     created_at: createdAt,
   };
+}
+
+function normalizeRoomActionReceipt(entry) {
+  return {
+    idempotency_key: sanitizeText(entry?.idempotency_key, 120),
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    actor_display_name: sanitizeText(entry?.actor_display_name, 40),
+    action_id: sanitizeText(entry?.action_id, 60),
+    action_label: sanitizeText(entry?.action_label, 60),
+    summary: sanitizeText(entry?.summary, 180),
+    room_progress_value: Math.max(0, Math.floor(Number(entry?.room_progress_value) || 0)),
+    room_score_value: Math.max(0, Math.floor(Number(entry?.room_score_value) || 0)),
+    contribution_progress_value: Math.max(0, Math.floor(Number(entry?.contribution_progress_value) || 0)),
+    contribution_score_value: Math.max(0, Math.floor(Number(entry?.contribution_score_value) || 0)),
+    contribution_action_count: Math.max(0, Math.floor(Number(entry?.contribution_action_count) || 0)),
+    completed: entry?.completed === true,
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function findRoomActionReceipt(room, username, idempotencyKey) {
+  const normalizedUsername = sanitizeText(username, 40);
+  const normalizedKey = sanitizeText(idempotencyKey, 120);
+  if (!normalizedUsername || !normalizedKey) return null;
+  return (room.action_receipts || [])
+    .map(normalizeRoomActionReceipt)
+    .find(receipt => receipt.actor_username === normalizedUsername && receipt.idempotency_key === normalizedKey) || null;
+}
+
+function recordRoomActionReceipt(room, receipt) {
+  const normalizedReceipt = normalizeRoomActionReceipt(receipt);
+  if (!normalizedReceipt.idempotency_key || !normalizedReceipt.actor_username) return normalizedReceipt;
+  room.action_receipts = [
+    normalizedReceipt,
+    ...(room.action_receipts || [])
+      .map(normalizeRoomActionReceipt)
+      .filter(entry => !(entry.actor_username === normalizedReceipt.actor_username && entry.idempotency_key === normalizedReceipt.idempotency_key)),
+  ].slice(0, ACTION_RECEIPT_LIMIT);
+  return normalizedReceipt;
 }
 
 function normalizeRoomInvitation(entry) {
@@ -3714,6 +3755,9 @@ function normalizeRoom(entry) {
     invitations: Array.isArray(entry?.invitations) ? entry.invitations.map(normalizeRoomInvitation).filter(invite => invite.target_username) : [],
     events: Array.isArray(entry?.events) ? entry.events.map(normalizeRoomEvent).slice(0, EVENT_LIMIT) : [],
     action_log: Array.isArray(entry?.action_log) ? entry.action_log.map(normalizeRoomActionLogEntry).slice(0, ACTION_LOG_LIMIT) : [],
+    action_receipts: Array.isArray(entry?.action_receipts)
+      ? entry.action_receipts.map(normalizeRoomActionReceipt).filter(receipt => receipt.idempotency_key).slice(0, ACTION_RECEIPT_LIMIT)
+      : [],
     gameplay_state: normalizeGameplayState(entry?.gameplay_state, gameplayTemplate.id, template.id, activityDomain),
     visual_state: normalizeOnlineVisualState(entry?.visual_state, {
       activity_domain: activityDomain,
@@ -3919,6 +3963,91 @@ function materializeCountdownState(room) {
     displayName: room.host_display_name,
   }, `${getRoomTemplate(room.template_id).label} 已正式开场`);
   return true;
+}
+
+function getReconnectDeadline(room, member) {
+  const disconnectedAt = Math.max(0, Math.floor(Number(member?.disconnected_at) || 0));
+  if (!disconnectedAt) return 0;
+  const windowSeconds = Math.min(600, Math.max(10, Math.floor(Number(room?.reconnect_window_seconds) || DEFAULT_RECONNECT_WINDOW_SECONDS)));
+  return disconnectedAt + windowSeconds;
+}
+
+function isReconnectWindowExpired(room, member, currentTime = nowSeconds()) {
+  const deadline = getReconnectDeadline(room, member);
+  return deadline > 0 && currentTime >= deadline;
+}
+
+function materializeReconnectTimeouts(room, actor = {}) {
+  if (!['paused', 'running', 'countdown'].includes(room.state)) return false;
+  const currentTime = nowSeconds();
+  let changed = false;
+  const timedOutMembers = [];
+  room.members = (room.members || []).map(member => {
+    const normalized = normalizeRoomMember(member);
+    if (normalized.status === 'disconnected' && isReconnectWindowExpired(room, normalized, currentTime)) {
+      normalized.status = 'timeout';
+      normalized.left_at = currentTime;
+      normalized.resume_status = '';
+      normalized.last_seen_at = currentTime;
+      timedOutMembers.push(normalized);
+      changed = true;
+    }
+    return normalized;
+  });
+  if (!changed) return false;
+
+  for (const member of timedOutMembers) {
+    recordRoomEvent(room, 'room.reconnect.timeout', {
+      username: actor?.username || member.username,
+      displayName: actor?.displayName || member.display_name || member.username,
+    }, `${member.display_name || member.username} 重连窗口已超时，系统已释放该成员占用`, {
+      action_category: 'reconnect',
+      target_ref: `activity_room:${room.id}:member:${member.username}`,
+    });
+  }
+
+  const hasDisconnectedMembers = (room.members || []).some(member => normalizeRoomMember(member).status === 'disconnected');
+  if (room.state === 'paused' && !hasDisconnectedMembers) {
+    const activeMembers = getJoinedMembers(room);
+    if (activeMembers.length <= 0) {
+      room.aborted_at = currentTime;
+      updateRoomState(room, 'aborted', '所有成员重连窗口已超时，房间自动中止');
+    } else {
+      const nextState = room.paused_from_state === 'countdown' ? 'running' : (room.paused_from_state || 'running');
+      room.members = (room.members || []).map(member => {
+        const normalized = normalizeRoomMember(member);
+        if (nextState === 'running' && normalized.status === 'countdown_locked') {
+          normalized.status = 'active';
+          normalized.last_seen_at = currentTime;
+        }
+        return normalized;
+      });
+      updateRoomState(room, nextState, '断线成员重连窗口已超时，房间已恢复推进');
+      materializeGameplayPhase(room);
+    }
+    room.paused_from_state = '';
+  } else {
+    touchRoom(room);
+  }
+  return true;
+}
+
+function materializeRoomRuntimeState(room, actor = {}) {
+  let changed = false;
+  if (materializeCountdownState(room)) changed = true;
+  if (materializeReconnectTimeouts(room, actor)) changed = true;
+  if (materializeGameplayPhase(room)) changed = true;
+  return changed;
+}
+
+function materializeStoreRuntimeState(store, actor = {}) {
+  let changed = false;
+  store.rooms = (store.rooms || []).map(room => {
+    const normalized = normalizeRoom(room);
+    if (materializeRoomRuntimeState(normalized, actor)) changed = true;
+    return normalized;
+  });
+  return changed;
 }
 
 function ensureRoomNotFinished(room) {
@@ -5235,7 +5364,7 @@ function finalizeGameplayIfCompleted(room, actor) {
   return true;
 }
 
-function applyGameplayAction(room, actionId, actor) {
+function applyGameplayAction(room, actionId, actor, options = {}) {
   const template = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   materializeGameplayPhase(room);
   const gameplayState = ensureRoomGameplayState(room);
@@ -5247,10 +5376,11 @@ function applyGameplayAction(room, actionId, actor) {
   if (!status.can_use) throw createError(status.disabled_reason || '当前玩法动作不能执行');
 
   const contribution = ensureGameplayContribution(gameplayState, member);
+  const actionCreatedAt = nowSeconds();
   contribution.action_count += 1;
   contribution.last_action_id = actionOption.id;
   contribution.last_action_label = actionOption.label;
-  contribution.last_action_at = nowSeconds();
+  contribution.last_action_at = actionCreatedAt;
   const progressDelta = Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0));
   const scoreDelta = Math.max(0, Math.floor(Number(actionOption.score_delta) || 0));
   contribution.progress_value += progressDelta;
@@ -5306,8 +5436,30 @@ function applyGameplayAction(room, actionId, actor) {
     }
   }
   touchRoom(room);
-  recordRoomEvent(room, 'room.action', actor, gameplayState.last_action_summary);
-  finalizeGameplayIfCompleted(room, actor);
+  const actionSummary = gameplayState.last_action_summary;
+  recordRoomEvent(room, 'room.action', actor, actionSummary, {
+    action_category: 'gameplay',
+    gameplay_action_id: actionOption.id,
+    gameplay_action_label: actionOption.label,
+    idempotency_key: options.idempotency_key,
+    created_at: actionCreatedAt,
+  });
+  const completed = finalizeGameplayIfCompleted(room, actor);
+  return normalizeRoomActionReceipt({
+    idempotency_key: options.idempotency_key,
+    actor_username: actor.username,
+    actor_display_name: actor.displayName || actor.username,
+    action_id: actionOption.id,
+    action_label: actionOption.label,
+    summary: actionSummary,
+    room_progress_value: gameplayState.progress_value,
+    room_score_value: gameplayState.score_value,
+    contribution_progress_value: contribution.progress_value,
+    contribution_score_value: contribution.score_value,
+    contribution_action_count: contribution.action_count,
+    completed: completed || gameplayState.phase === 'completed',
+    created_at: actionCreatedAt,
+  });
 }
 
 function buildSettlementSummary(room) {
@@ -5857,8 +6009,7 @@ function applyFestivalReceiptReward(receipt, room) {
 }
 
 function buildRoomSnapshot(store, room, viewerUsername) {
-  materializeCountdownState(room);
-  materializeGameplayPhase(room);
+  materializeRoomRuntimeState(room, { username: viewerUsername, displayName: viewerUsername });
   const template = getRoomTemplateByDomain(room.activity_domain, room.template_id);
   const viewerMember = getRoomMember(room, viewerUsername);
   const viewerInvitation = getRoomInvitation(room, viewerUsername);
@@ -5964,8 +6115,7 @@ function buildOverview(store, viewerUsername, domain = DEFAULT_ACTIVITY_DOMAIN) 
   let changed = false;
   const rooms = (store.rooms || []).map(room => {
     const normalized = normalizeRoom(room);
-    if (materializeCountdownState(normalized)) changed = true;
-    if (materializeGameplayPhase(normalized)) changed = true;
+    if (materializeRoomRuntimeState(normalized, { username: normalizedViewer, displayName: normalizedViewer })) changed = true;
     return normalized;
   });
   if (changed) {
@@ -6027,6 +6177,7 @@ async function createFestivalRoom(payload = {}, actor = {}) {
   const displayName = sanitizeText(actor.displayName, 40) || username;
   if (!username) throw createError('未登录账号不能创建节会房间', 401);
   const store = loadStore();
+  if (materializeStoreRuntimeState(store, { username, displayName })) saveStore(store);
   ensureNoOtherActiveRoom(store, username);
   const template = getRoomTemplate(payload.template_id);
   const gameplayTemplate = getGameplayTemplate(payload.gameplay_template_id, template.id);
@@ -6085,7 +6236,10 @@ async function inviteFestivalRoomMember(roomId, payload = {}, actor = {}) {
   if (!targetUser) throw createError('目标玩家不存在或已失效');
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureHost(room, username);
   ensureRoomNotFinished(room);
   if (!['created', 'inviting', 'ready_check'].includes(room.state)) {
@@ -6147,9 +6301,10 @@ async function joinFestivalRoom(roomId, actor = {}) {
   const displayName = sanitizeText(actor.displayName, 40) || username;
   if (!username) throw createError('未登录账号不能加入节会房间', 401);
   const store = loadStore();
+  if (materializeStoreRuntimeState(store, { username, displayName })) saveStore(store);
   ensureNoOtherActiveRoom(store, username);
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  materializeRoomRuntimeState(room, { username, displayName });
   const invitation = getRoomInvitation(room, username);
   if (!invitation && room.host_username !== username) {
     throw createError('当前房间仅支持受邀成员加入', 403);
@@ -6194,9 +6349,13 @@ async function joinFestivalRoom(roomId, actor = {}) {
 
 async function leaveFestivalRoom(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
+  const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureViewerCanSeeRoom(room, username);
   const member = getRoomMember(room, username);
   if (!member) throw createError('你当前不在这个节会房间里');
@@ -6228,9 +6387,13 @@ async function leaveFestivalRoom(roomId, actor = {}) {
 
 async function startFestivalRoomReadyCheck(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
+  const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureHost(room, username);
   ensureRoomNotFinished(room);
   if (!canStartReadyCheck(room)) {
@@ -6257,7 +6420,10 @@ async function setFestivalRoomReady(roomId, ready, actor = {}) {
   const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureViewerCanSeeRoom(room, username);
   if (room.state !== 'ready_check') {
     throw createError('当前房间还没有进入准备确认阶段');
@@ -6280,9 +6446,13 @@ async function setFestivalRoomReady(roomId, ready, actor = {}) {
 
 async function startFestivalRoomCountdown(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
+  const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureHost(room, username);
   ensureRoomNotFinished(room);
   if (!canStartCountdown(room)) {
@@ -6313,7 +6483,7 @@ async function disconnectFestivalRoom(roomId, actor = {}) {
   const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  materializeRoomRuntimeState(room, { username, displayName });
   const member = getRoomMember(room, username);
   if (!member) throw createError('你当前不在这个节会房间里');
   if (!['countdown', 'running', 'paused'].includes(room.state) || !['countdown_locked', 'active', 'reconnecting'].includes(member.status)) {
@@ -6340,11 +6510,24 @@ async function reconnectFestivalRoom(roomId, actor = {}) {
   const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  const materialized = materializeRoomRuntimeState(room, { username, displayName });
   const member = getRoomMember(room, username);
   if (!member) throw createError('你当前不在这个节会房间里');
   if (member.status !== 'disconnected') {
+    if (materialized) {
+      replaceRoom(store, room);
+      saveStore(store);
+    }
+    if (member.status === 'timeout') {
+      throw createError('重连窗口已超时，房间状态已刷新，请重新进入活动房间列表', 409, 'TAOYUAN_ACTIVITY_ROOM_RECONNECT_EXPIRED');
+    }
     throw createError('当前成员不在断线恢复状态里');
+  }
+  if (isReconnectWindowExpired(room, member)) {
+    materializeReconnectTimeouts(room, { username, displayName });
+    replaceRoom(store, room);
+    saveStore(store);
+    throw createError('重连窗口已超时，房间状态已刷新，请重新进入活动房间列表', 409, 'TAOYUAN_ACTIVITY_ROOM_RECONNECT_EXPIRED');
   }
   member.status = member.resume_status === 'countdown_locked' ? 'countdown_locked' : 'active';
   member.reconnected_at = nowSeconds();
@@ -6369,10 +6552,13 @@ async function reconnectFestivalRoom(roomId, actor = {}) {
 
 async function settleFestivalRoom(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
+  const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
-  materializeGameplayPhase(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureHost(room, username);
   if ((room.settlement_receipt_ids || []).length > 0) {
     blockDuplicateRoomSettlement(store, room, actor);
@@ -6437,20 +6623,47 @@ async function submitFestivalRoomGameplayAction(roomId, payload = {}, actor = {}
   if (!username) throw createError('未登录账号不能提交节会玩法动作', 401);
   const actionId = sanitizeText(payload.action_id, 40);
   if (!actionId) throw createError('请先指定要执行的玩法动作');
+  const idempotencyKey = sanitizeText(payload.idempotency_key, 120);
+  if (!idempotencyKey) {
+    throw createError('玩法动作缺少幂等键，请刷新房间后重试', 400, 'TAOYUAN_ACTIVITY_ROOM_ACTION_IDEMPOTENCY_REQUIRED');
+  }
+  const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
-  materializeGameplayPhase(room);
+  const materialized = materializeRoomRuntimeState(room, { username, displayName });
+  if (materialized) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureViewerCanSeeRoom(room, username);
-  applyGameplayAction(room, actionId, {
+
+  const existingReceipt = findRoomActionReceipt(room, username, idempotencyKey);
+  if (existingReceipt) {
+    if (existingReceipt.action_id !== actionId) {
+      throw createError('同一幂等键不能用于不同玩法动作', 409, 'TAOYUAN_ACTIVITY_ROOM_ACTION_IDEMPOTENCY_CONFLICT');
+    }
+    return {
+      room: buildRoomSnapshot(store, room, username),
+      overview: buildOverview(store, username, room.activity_domain),
+      idempotency_replayed: true,
+      action_receipt: existingReceipt,
+    };
+  }
+
+  const actionReceipt = applyGameplayAction(room, actionId, {
     username,
-    displayName: sanitizeText(actor.displayName, 40) || username,
+    displayName,
+  }, {
+    idempotency_key: idempotencyKey,
   });
+  const storedActionReceipt = recordRoomActionReceipt(room, actionReceipt);
   replaceRoom(store, room);
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
     overview: buildOverview(store, username, room.activity_domain),
+    idempotency_replayed: false,
+    action_receipt: storedActionReceipt,
   };
 }
 
@@ -6506,7 +6719,7 @@ async function closeFestivalRoom(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  materializeRoomRuntimeState(room, actor);
   ensureHost(room, username);
   if (room.state === 'closed') {
     throw createError('当前房间已经关闭了');
@@ -6711,6 +6924,7 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
   const displayName = sanitizeText(actor.displayName, 40) || username;
   if (!username) throw createError('未登录账号不能创建活动房间', 401);
   const store = loadStore();
+  if (materializeStoreRuntimeState(store, { username, displayName })) saveStore(store);
   ensureNoOtherActiveRoom(store, username);
   const template = getRoomTemplateByDomain(normalizedDomain, payload.template_id);
   const gameplayTemplate = getGameplayTemplateByDomain(normalizedDomain, payload.gameplay_template_id, template.id);
@@ -6779,10 +6993,13 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
 
 async function settleActivityRoom(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
+  const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
-  materializeGameplayPhase(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureHost(room, username);
   if ((room.settlement_receipt_ids || []).length > 0) {
     blockDuplicateRoomSettlement(store, room, actor);
@@ -6855,9 +7072,13 @@ async function settleActivityRoom(roomId, actor = {}) {
 
 async function closeActivityRoom(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
+  const displayName = sanitizeText(actor.displayName, 40) || username;
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
-  materializeCountdownState(room);
+  if (materializeRoomRuntimeState(room, { username, displayName })) {
+    replaceRoom(store, room);
+    saveStore(store);
+  }
   ensureHost(room, username);
   if (room.state === 'closed') {
     throw createError('当前房间已经关闭');

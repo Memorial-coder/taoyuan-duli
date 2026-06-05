@@ -2428,6 +2428,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'sync_oar',
+        idempotency_key: 'qa-online-festival-primary-sync-oar',
       }),
     })
     assert(response.ok, `festival room gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -2443,6 +2444,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'sync_oar',
+        idempotency_key: 'qa-online-festival-secondary-sync-oar',
       }),
     })
     assert(response.ok, `festival room secondary gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -2464,6 +2466,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'steady_rudder',
+        idempotency_key: 'qa-online-festival-primary-steady-rudder',
       }),
     })
     assert(response.ok, `festival room primary bonus action returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -2483,6 +2486,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'sync_oar',
+        idempotency_key: 'qa-online-festival-primary-round-two-sync-oar',
       }),
     })
     assert(response.ok, `festival room primary round-two closeout action returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -2982,6 +2986,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'assign_scout',
+        idempotency_key: 'qa-online-expedition-primary-assign-scout',
       }),
     })
     assert(response.ok, `expedition room gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -2997,6 +3002,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'mark_route',
+        idempotency_key: 'qa-online-expedition-secondary-mark-route',
       }),
     })
     assert(response.ok, `expedition room secondary gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -3013,6 +3019,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'confirm_withdrawal',
+        idempotency_key: 'qa-online-expedition-primary-confirm-withdrawal',
       }),
     })
     assert(response.ok, `expedition room primary bonus action returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -3156,6 +3163,7 @@ try {
       },
       body: JSON.stringify({
         action_id: actionId,
+        idempotency_key: `qa-online-l81-action-${roomId}-${session.username}-${actionId}-${Date.now()}`,
       }),
     })
     assert(response.ok, `${label} returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -6053,6 +6061,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'deliver_bundle',
+        idempotency_key: 'qa-online-admin-retry-close-deliver-bundle',
       }),
     })
     assert(hostActionResponse.response.ok, `admin retry-close host action returned ${hostActionResponse.response.status}: ${hostActionResponse.data?.msg || 'unknown error'}`)
@@ -6064,6 +6073,7 @@ try {
       },
       body: JSON.stringify({
         action_id: 'sort_bundle',
+        idempotency_key: 'qa-online-admin-retry-close-sort-bundle',
       }),
     })
     assert(memberActionResponse.response.ok, `admin retry-close member action returned ${memberActionResponse.response.status}: ${memberActionResponse.data?.msg || 'unknown error'}`)

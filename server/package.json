@@ -9,6 +9,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "qa:online-smoke": "node scripts/qa-online-smoke.mjs",
+    "qa:activity-room-reconnect-idempotency": "node scripts/qa-activity-room-reconnect-idempotency.mjs",
     "qa:online-release-guard": "node scripts/qa-online-release-guard.mjs",
     "qa:server-node-check": "node scripts/qa-server-node-check.mjs",
     "qa:activity-room-visual-state": "node scripts/qa-activity-room-visual-state.mjs",

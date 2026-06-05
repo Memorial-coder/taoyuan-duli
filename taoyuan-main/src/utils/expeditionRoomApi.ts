@@ -25,6 +25,7 @@ export type ExpeditionRoomMemberState =
   | 'settled'
   | 'left'
   | 'kicked'
+  | 'timeout'
 
 export interface ExpeditionRoomTemplate {
   activity_domain?: string
@@ -289,6 +290,22 @@ export interface ExpeditionRoomReceiptPreview {
   created_at: number
 }
 
+export interface ExpeditionRoomActionReceipt {
+  idempotency_key: string
+  actor_username: string
+  actor_display_name: string
+  action_id: string
+  action_label: string
+  summary: string
+  room_progress_value: number
+  room_score_value: number
+  contribution_progress_value: number
+  contribution_score_value: number
+  contribution_action_count: number
+  completed: boolean
+  created_at: number
+}
+
 export interface ExpeditionRoomRouteReplayNode {
   id: string
   label: string
@@ -461,6 +478,9 @@ export interface ExpeditionRoomActionResponse {
   ok: boolean
   room: ExpeditionRoomSnapshot
   overview: ExpeditionRoomOverview
+  idempotency_replayed?: boolean
+  action_receipt?: ExpeditionRoomActionReceipt
+  code?: string
   msg?: string
 }
 
@@ -517,6 +537,11 @@ const buildSignedJsonInit = async (method: 'POST', body?: Record<string, unknown
   }
 }
 
+const createRoomActionIdempotencyKey = (roomId: string, actionId: string) => {
+  const nonce = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 12)
+  return `expedition-room-action:${roomId}:${actionId}:${Date.now()}:${nonce}`.slice(0, 120)
+}
+
 const buildSignedInit = async (method: 'POST') => {
   const csrfToken = await ensureCurrentCsrfToken()
   return {
@@ -565,9 +590,13 @@ export const disconnectExpeditionRoom = async (roomId: string): Promise<Expediti
 export const reconnectExpeditionRoom = async (roomId: string): Promise<ExpeditionRoomActionResponse> =>
   request<ExpeditionRoomActionResponse>(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/reconnect`, () => buildSignedInit('POST')) as Promise<ExpeditionRoomActionResponse>
 
-export const submitExpeditionRoomGameplayAction = async (roomId: string, actionId: string): Promise<ExpeditionRoomActionResponse> =>
+export const submitExpeditionRoomGameplayAction = async (
+  roomId: string,
+  actionId: string,
+  idempotencyKey = createRoomActionIdempotencyKey(roomId, actionId)
+): Promise<ExpeditionRoomActionResponse> =>
   request<ExpeditionRoomActionResponse>(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/action`, () =>
-    buildSignedJsonInit('POST', { action_id: actionId })
+    buildSignedJsonInit('POST', { action_id: actionId, idempotency_key: idempotencyKey })
   ) as Promise<ExpeditionRoomActionResponse>
 
 export const settleExpeditionRoom = async (roomId: string): Promise<ExpeditionRoomActionResponse> =>

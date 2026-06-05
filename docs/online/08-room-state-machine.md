@@ -121,6 +121,7 @@
 - `room.settle`
 - `room.close`
 - `room.reconnect`
+- `room.reconnect.timeout`
 - `room.snapshot`
 
 ### 5.2 玩法动作事件
@@ -131,6 +132,8 @@
 - `room.objective.complete`
 
 玩法特有细节可以继续放进 `payload`，但事件主名保持统一。
+
+玩法动作写请求必须携带 `idempotency_key`。服务端按 `roomId + member + idempotency_key` 持久化第一次动作结果；相同成员重放同一 key 直接返回首次结果，不再次累计进度、贡献、分数或结算奖励输入。
 
 ## 6. 成员状态
 
@@ -147,6 +150,7 @@
 - `settled`
 - `left`
 - `kicked`
+- `timeout`
 
 ## 7. 成员状态规则
 
@@ -161,6 +165,7 @@
 - `settled`：该成员结算凭证已生成。
 - `left`：主动离开。
 - `kicked`：被移出房间。
+- `timeout`：断线重连窗口已超时，成员不再占用活动房间名额或当前房间锁。
 
 ## 8. 结算流程
 
@@ -197,6 +202,8 @@
 - `countdown` 掉线：优先短时等待，超时则回退或中止。
 - `running` 掉线：成员先标记为 `disconnected`，保留重连窗口。
 - `settling` 掉线：客户端只需回读结果，不能重放动作。
+- 重连窗口到期必须在 overview、snapshot、reconnect、settle、close、countdown materialize 等入口物化：成员转为 `timeout`，`can_reconnect=false`，房间恢复推进或进入明确收尾状态，并释放玩家创建或加入其他房间的占用。
+- 超时后的 reconnect 必须返回明确错误，例如 `409 / TAOYUAN_ACTIVITY_ROOM_RECONNECT_EXPIRED`，客户端据此刷新房间快照。
 
 ## 11. 与结算凭证的关系
 
