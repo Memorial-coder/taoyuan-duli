@@ -160,10 +160,37 @@ installBrowserShims()
 
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
+const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
+const itemDataModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
+const inventoryUseRulesModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryUseRules.ts')).href)
 
 const freshInventoryStore = () => {
   setActivePinia(createPinia())
   return inventoryStoreModule.useInventoryStore()
+}
+
+const freshInventoryAndPlayerStores = () => {
+  setActivePinia(createPinia())
+  return {
+    inventoryStore: inventoryStoreModule.useInventoryStore(),
+    playerStore: playerStoreModule.usePlayerStore()
+  }
+}
+
+const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'normal' }) => {
+  const def = itemDataModule.getItemById(itemId)
+  return inventoryUseRulesModule.applyInventoryRecoveryItem({
+    def,
+    vitals: {
+      stamina: playerStore.stamina,
+      maxStamina: playerStore.maxStamina,
+      hp: playerStore.hp,
+      maxHp: playerStore.getMaxHp()
+    },
+    removeItem: () => inventoryStore.removeItem(itemId, 1, quality),
+    restoreStamina: amount => playerStore.restoreStamina(amount),
+    restoreHealth: amount => playerStore.restoreHealth(amount)
+  })
 }
 
 {
@@ -218,6 +245,79 @@ const freshInventoryStore = () => {
   assert(inventoryStore.moveAllFromTemp() === 999, '一键取回应返回真实移动件数。')
   assert(inventoryStore.items.length === 1 && inventoryStore.items[0]?.itemId === 'stone' && inventoryStore.items[0]?.quantity === 999, '一键取回应按实际顺序占用主背包空槽。')
   assert(inventoryStore.tempItems.length === 2 && inventoryStore.tempItems[1]?.quantity === 1, '一键取回后未能进入主背包的数量应留在临时背包。')
+}
+
+{
+  const { inventoryStore, playerStore } = freshInventoryAndPlayerStores()
+  const def = itemDataModule.getItemById('combat_tonic')
+  const maxHp = playerStore.getMaxHp()
+  playerStore.hp = maxHp - 40
+  playerStore.stamina = playerStore.maxStamina
+  inventoryStore.items = [{ itemId: 'combat_tonic', quantity: 1, quality: 'normal' }]
+
+  assert(inventoryUseRulesModule.hasItemRecovery(def), 'HP-only 战斗补剂应被普通背包识别为可食用恢复道具。')
+  assert(inventoryUseRulesModule.getItemRecoveryDisplayParts(def).includes('+30HP'), 'HP-only 战斗补剂恢复预览应显示 +30HP。')
+  const plan = inventoryUseRulesModule.getItemRecoveryPlan(def, {
+    stamina: playerStore.stamina,
+    maxStamina: playerStore.maxStamina,
+    hp: playerStore.hp,
+    maxHp
+  })
+  assert(plan.canUse === true && plan.actualHealthRestore === 30 && plan.actualStaminaRestore === 0, 'HP 未满、体力已满时 HP-only 道具应可用且只恢复 HP。')
+
+  const result = applyRecoveryItem({ inventoryStore, playerStore, itemId: 'combat_tonic' })
+  assert(result.success === true && result.consumed === true, 'HP-only 道具使用应成功并消耗。')
+  assert(playerStore.hp === maxHp - 10, 'HP-only 道具应实际增加 HP。')
+  assert(inventoryStore.getItemCount('combat_tonic') === 0, 'HP-only 道具使用后应消耗 1 个。')
+}
+
+{
+  const { inventoryStore, playerStore } = freshInventoryAndPlayerStores()
+  const def = itemDataModule.getItemById('combat_tonic')
+  playerStore.hp = playerStore.getMaxHp()
+  playerStore.stamina = playerStore.maxStamina
+  inventoryStore.items = [{ itemId: 'combat_tonic', quantity: 1, quality: 'normal' }]
+
+  const result = applyRecoveryItem({ inventoryStore, playerStore, itemId: 'combat_tonic' })
+  assert(result.success === false && result.consumed === false, 'HP 已满时 HP-only 道具不应被消耗。')
+  assert(result.message.includes('生命值已满'), 'HP 已满时 HP-only 道具应给出生命值已满提示。')
+  assert(inventoryStore.getItemCount('combat_tonic') === 1, 'HP 已满时 HP-only 道具数量应保持不变。')
+  assert(inventoryUseRulesModule.getItemRecoveryPlan(def, {
+    stamina: playerStore.stamina,
+    maxStamina: playerStore.maxStamina,
+    hp: playerStore.hp,
+    maxHp: playerStore.getMaxHp()
+  }).canUse === false, 'HP 已满时 HP-only 道具按钮应处于阻塞口径。')
+}
+
+{
+  const { inventoryStore, playerStore } = freshInventoryAndPlayerStores()
+  playerStore.hp = playerStore.getMaxHp() - 30
+  playerStore.stamina = playerStore.maxStamina
+  inventoryStore.items = [{ itemId: 'stamina_elixir', quantity: 1, quality: 'normal' }]
+
+  const blocked = applyRecoveryItem({ inventoryStore, playerStore, itemId: 'stamina_elixir' })
+  assert(blocked.success === false && blocked.message.includes('体力已满'), '体力-only 道具在体力已满时应阻塞，即使 HP 未满。')
+  assert(inventoryStore.getItemCount('stamina_elixir') === 1, '体力-only 道具被阻塞时不应消耗。')
+
+  playerStore.stamina = playerStore.maxStamina - 50
+  const used = applyRecoveryItem({ inventoryStore, playerStore, itemId: 'stamina_elixir' })
+  assert(used.success === true && playerStore.stamina === playerStore.maxStamina, '体力-only 道具在体力未满时应恢复体力。')
+  assert(inventoryStore.getItemCount('stamina_elixir') === 0, '体力-only 道具成功使用后应消耗。')
+}
+
+{
+  const { inventoryStore, playerStore } = freshInventoryAndPlayerStores()
+  const maxHp = playerStore.getMaxHp()
+  playerStore.hp = maxHp - 20
+  playerStore.stamina = playerStore.maxStamina
+  inventoryStore.items = [{ itemId: 'warriors_feast', quantity: 1, quality: 'normal' }]
+
+  const result = applyRecoveryItem({ inventoryStore, playerStore, itemId: 'warriors_feast' })
+  assert(result.success === true, '双恢复道具在体力已满但 HP 未满时仍应可用。')
+  assert(playerStore.hp === maxHp, '双恢复道具应恢复缺失 HP。')
+  assert(playerStore.stamina === playerStore.maxStamina, '双恢复道具不应让已满体力越界。')
+  assert(inventoryStore.getItemCount('warriors_feast') === 0, '双恢复道具成功使用后应消耗。')
 }
 
 if (errors.length > 0) {

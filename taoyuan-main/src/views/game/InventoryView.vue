@@ -545,12 +545,9 @@
               <span class="text-xs text-muted">售价</span>
               <span class="text-xs text-accent">{{ activeItemDef.sellPrice }}文</span>
             </div>
-            <div v-if="activeItemDef?.staminaRestore" class="flex items-center justify-between mt-0.5">
+            <div v-if="activeItemRecoveryParts.length > 0" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">恢复</span>
-              <span class="text-xs text-success">
-                +{{ activeItemDef.staminaRestore }}体力
-                <template v-if="activeItemDef.healthRestore">/ +{{ activeItemDef.healthRestore }}HP</template>
-              </span>
+              <span class="text-xs text-success">{{ activeItemRecoveryParts.join(' / ') }}</span>
             </div>
             <div v-if="activeItemBuff" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">增益</span>
@@ -619,6 +616,7 @@
               class="w-full justify-center"
               :icon="Apple"
               :icon-size="12"
+              :disabled="isEatBlocked(activeItem.itemId)"
               @click="handleEat(activeItem.itemId, activeItem.quality)"
             >
               食用
@@ -865,6 +863,7 @@
   import { getShoeById } from '@/data/shoes'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { applyInventoryRecoveryItem, getItemRecoveryDisplayParts, getItemRecoveryPlan, hasItemRecovery } from '@/utils/inventoryUseRules'
   import type { Quality, RingEffectType, ItemCategory } from '@/types'
 
   const inventoryStore = useInventoryStore()
@@ -1470,18 +1469,37 @@
 
   const activeItemElixirEffect = computed(() => activeItemElixirRecipe.value?.alchemy?.effect ?? null)
 
+  const activeItemRecoveryParts = computed(() => getItemRecoveryDisplayParts(activeItemDef.value))
+
+  const getRecoveryVitals = () => ({
+    stamina: playerStore.stamina,
+    maxStamina: playerStore.maxStamina,
+    hp: playerStore.hp,
+    maxHp: playerStore.getMaxHp()
+  })
+
+  const getInventoryRecoveryMultiplier = () =>
+    skillStore.getSkill('foraging').perk10 === 'alchemist' ? 1.5 : 1.0
+
+  const getEatRecoveryPlan = (itemId: string) =>
+    getItemRecoveryPlan(getItemById(itemId), getRecoveryVitals(), getInventoryRecoveryMultiplier())
+
   const isEdible = (itemId: string): boolean => {
     const def = getItemById(itemId)
-    return !!def?.edible && !!def.staminaRestore
+    return hasItemRecovery(def)
+  }
+
+  const isEatBlocked = (itemId: string): boolean => {
+    const plan = getEatRecoveryPlan(itemId)
+    return plan.hasRecovery && !plan.canUse
   }
 
   const handleEat = (itemId: string, quality: Quality) => {
     const def = getItemById(itemId)
-    if (!def?.edible || !def.staminaRestore) return
-    const staminaFull = playerStore.stamina >= playerStore.maxStamina
-    const hpFull = playerStore.hp >= playerStore.getMaxHp()
-    if (staminaFull && hpFull) {
-      addLog('体力和生命值都已满，不需要食用。')
+    if (!def || !hasItemRecovery(def)) return
+    const plan = getEatRecoveryPlan(itemId)
+    if (!plan.canUse) {
+      addLog(plan.blockedMessage)
       return
     }
 
@@ -1501,19 +1519,15 @@
       return
     }
 
-    if (!inventoryStore.removeItem(itemId, 1, quality)) return
-    // 炼金师专精：食物恢复+50%
-    const alchemistBonus = skillStore.getSkill('foraging').perk10 === 'alchemist' ? 1.5 : 1.0
-    const staminaRestore = Math.floor(def.staminaRestore * alchemistBonus)
-    playerStore.restoreStamina(staminaRestore)
-    let msg = `食用了${def.name}，恢复${staminaRestore}体力`
-    if (def.healthRestore) {
-      const healthRestore = Math.floor(def.healthRestore * alchemistBonus)
-      playerStore.restoreHealth(healthRestore)
-      msg += `、${healthRestore}生命值`
-    }
-    msg += '。'
-    addLog(msg)
+    const result = applyInventoryRecoveryItem({
+      def,
+      vitals: getRecoveryVitals(),
+      multiplier: getInventoryRecoveryMultiplier(),
+      removeItem: () => inventoryStore.removeItem(itemId, 1, quality),
+      restoreStamina: amount => playerStore.restoreStamina(amount),
+      restoreHealth: amount => playerStore.restoreHealth(amount)
+    })
+    addLog(result.message)
     // 物品消耗完则关闭弹窗
     if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
       activeItemIndex.value = null
