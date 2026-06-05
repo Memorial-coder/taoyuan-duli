@@ -94,10 +94,9 @@
       <div v-if="inventoryStore.tempItems.length > 0">
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-[0.625rem] text-muted">背包满时溢出的物品，请及时取回</span>
-          <Button v-if="!inventoryStore.isFull" class="py-0 px-1.5" @click="handleMoveAllFromTemp">全部取回</Button>
-        </div>
-        <div v-if="inventoryStore.isFull" class="mb-1.5">
-          <Button class="w-full py-0 px-1.5" @click="handleMoveAllFromTemp">全部取回</Button>
+          <Button class="py-0 px-1.5" :disabled="!canMoveAnyTempItem" @click="handleMoveAllFromTemp">
+            {{ tempMoveAllLabel }}
+          </Button>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
           <div
@@ -489,10 +488,10 @@
               :class="''"
               :icon="ArrowRight"
               :icon-size="12"
-              :disabled="false"
+              :disabled="activeTempMovableQuantity <= 0"
               @click="handleMoveFromTemp"
             >
-              放入背包
+              {{ activeTempMoveButtonLabel }}
             </Button>
             <Button class="w-full justify-center text-danger border-danger/40" @click="handleDiscardTemp">丢弃</Button>
           </div>
@@ -1359,21 +1358,57 @@
     return getItemById(activeTempItem.value.itemId) ?? null
   })
 
+  const totalTempItemQuantity = computed(() => inventoryStore.tempItems.reduce((sum, item) => sum + item.quantity, 0))
+  const movableTempItemCount = computed(() => inventoryStore.getMovableTempItemCount())
+  const canMoveAnyTempItem = computed(() => movableTempItemCount.value > 0)
+  const activeTempMovableQuantity = computed(() => {
+    if (activeTempIdx.value === null) return 0
+    return inventoryStore.getMovableTempItemCount(activeTempIdx.value)
+  })
+
+  const getTempMoveButtonLabel = (movableQuantity: number, totalQuantity: number, fullLabel: string) => {
+    if (movableQuantity <= 0) return '背包已满'
+    if (movableQuantity < totalQuantity) return `取回可合并部分（${movableQuantity}/${totalQuantity}）`
+    return fullLabel
+  }
+
+  const tempMoveAllLabel = computed(() =>
+    getTempMoveButtonLabel(movableTempItemCount.value, totalTempItemQuantity.value, '全部取回')
+  )
+  const activeTempMoveButtonLabel = computed(() =>
+    getTempMoveButtonLabel(activeTempMovableQuantity.value, activeTempItem.value?.quantity ?? 0, '放入背包')
+  )
+
   const handleMoveFromTemp = () => {
     if (activeTempIdx.value === null) return
+    const item = activeTempItem.value
+    if (!item) return
+    const movableQuantity = activeTempMovableQuantity.value
+    if (movableQuantity <= 0) {
+      addLog('背包已满，无法取回该物品。')
+      return
+    }
+    const beforeQuantity = item.quantity
     const success = inventoryStore.moveFromTemp(activeTempIdx.value)
+    const movedQuantity = Math.min(movableQuantity, beforeQuantity)
     if (success) {
-      addLog('物品已转移到背包。')
+      addLog(`已将${movedQuantity}件物品放入背包。`)
       activeTempIdx.value = null
     } else {
-      addLog('背包空间不足，部分物品仍在临时背包中。')
+      addLog(`已取回可合并的${movedQuantity}件，剩余物品仍在临时背包中。`)
     }
   }
 
   const handleMoveAllFromTemp = () => {
+    if (movableTempItemCount.value <= 0) {
+      addLog('背包已满，无法从临时背包取回物品。')
+      return
+    }
     const moved = inventoryStore.moveAllFromTemp()
     if (moved > 0) {
-      addLog(`已将${moved}项物品从临时背包转移到背包。`)
+      addLog(`已取回${moved}件临时背包物品。`)
+    } else {
+      addLog('背包已满，无法从临时背包取回物品。')
     }
     if (inventoryStore.tempItems.length > 0) {
       addLog('部分物品因空间不足仍在临时背包中。')

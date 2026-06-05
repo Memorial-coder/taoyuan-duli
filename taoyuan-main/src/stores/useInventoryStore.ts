@@ -543,9 +543,52 @@ export const useInventoryStore = defineStore('inventory', () => {
     return true
   }
 
+  const moveIntoMainSlotSnapshot = (mainSlots: InventorySnapshotSlot[], source: InventorySnapshotSlot): number => {
+    const requestedQuantity = Math.max(0, Math.floor(source.quantity))
+    let remaining = requestedQuantity
+
+    for (const slot of mainSlots) {
+      if (remaining <= 0) break
+      if (slot.itemId === source.itemId && slot.quality === source.quality && slot.quantity < MAX_STACK) {
+        const canAdd = Math.min(remaining, MAX_STACK - slot.quantity)
+        slot.quantity += canAdd
+        remaining -= canAdd
+      }
+    }
+
+    while (remaining > 0 && mainSlots.length < capacity.value) {
+      const batch = Math.min(remaining, MAX_STACK)
+      mainSlots.push({ itemId: source.itemId, quantity: batch, quality: source.quality })
+      remaining -= batch
+    }
+
+    return requestedQuantity - remaining
+  }
+
+  /** 计算临时背包指定格或一键取回时实际能移入主背包的数量 */
+  const getMovableTempItemCount = (index?: number): number => {
+    const mainSlots = cloneInventorySlots(items.value)
+    if (typeof index === 'number') {
+      if (index < 0 || index >= tempItems.value.length) return 0
+      return moveIntoMainSlotSnapshot(mainSlots, tempItems.value[index]!)
+    }
+
+    let totalMovable = 0
+    for (let i = tempItems.value.length - 1; i >= 0; i--) {
+      totalMovable += moveIntoMainSlotSnapshot(mainSlots, tempItems.value[i]!)
+    }
+    return totalMovable
+  }
+
+  /** 检查临时背包指定格是否至少有一件可移入主背包 */
+  const canMoveFromTemp = (index: number): boolean => {
+    return getMovableTempItemCount(index) > 0
+  }
+
   /** 将临时背包中的物品转移到主背包 */
   const moveFromTemp = (index: number): boolean => {
     if (index < 0 || index >= tempItems.value.length) return false
+    if (!canMoveFromTemp(index)) return false
     const tempSlot = tempItems.value[index]!
     const { itemId, quality } = tempSlot
     let remaining = tempSlot.quantity
@@ -574,19 +617,20 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   /** 一键将所有可转移的临时背包物品移入主背包 */
   const moveAllFromTemp = (): number => {
-    let movedCount = 0
+    let movedQuantity = 0
     for (let i = tempItems.value.length - 1; i >= 0; i--) {
       const beforeQuantity = tempItems.value[i]?.quantity ?? 0
+      if (beforeQuantity <= 0 || !canMoveFromTemp(i)) continue
       if (moveFromTemp(i)) {
-        movedCount++
+        movedQuantity += beforeQuantity
         continue
       }
       const afterQuantity = tempItems.value[i]?.quantity ?? 0
       if (afterQuantity < beforeQuantity) {
-        movedCount++
+        movedQuantity += beforeQuantity - afterQuantity
       }
     }
-    return movedCount
+    return movedQuantity
   }
 
   /** 丢弃临时背包中的物品 */
@@ -1323,6 +1367,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     expandCapacity,
     expandCapacityExtra,
     MAX_CAPACITY,
+    getMovableTempItemCount,
+    canMoveFromTemp,
     moveFromTemp,
     moveAllFromTemp,
     discardTempItem,

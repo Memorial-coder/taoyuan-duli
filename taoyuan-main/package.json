@@ -27,6 +27,7 @@
     "qa:account-context-guard": "node scripts/qa-account-context-guard.mjs",
     "qa:mailbox-account-reset": "node scripts/qa-mailbox-account-reset.mjs",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
+    "qa:inventory-guards": "node scripts/qa-inventory-guards.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",
     "qa:reward-delivery-control": "node scripts/qa-reward-delivery-control.mjs",
     "qa:random-npc-save-guard": "node scripts/qa-random-npc-save-guard.mjs",
