@@ -886,6 +886,9 @@
       }
       return
     }
+    const message = saveStore.lastLoadErrorMessage || `存档 ${slot + 1} 加载失败，请刷新存档列表后重试。`
+    showFloat(message, 'danger')
+    addLog(message)
     clearPendingPostLoadState()
   }
 

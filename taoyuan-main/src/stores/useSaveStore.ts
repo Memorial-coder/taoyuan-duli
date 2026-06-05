@@ -218,6 +218,29 @@ export interface SaveSlotInfo {
   readBlocked?: boolean
 }
 
+export type SaveLoadFailureCode =
+  | 'invalid_slot'
+  | 'pending_copy_blocked'
+  | 'empty_slot'
+  | 'decrypt_failed'
+  | 'json_parse_failed'
+  | 'migration_failed'
+  | 'incompatible_schema'
+  | 'apply_failed'
+  | 'server_read_failed'
+  | 'server_active_slot_failed'
+  | 'runtime_restore_failed'
+  | 'unexpected'
+
+export interface SaveLoadErrorState {
+  code: SaveLoadFailureCode
+  message: string
+  slot: number
+  mode: SaveMode
+  detail?: string
+  occurredAt: string
+}
+
 export interface BuiltInSampleSaveInfo {
   id: string
   label: string
@@ -629,6 +652,55 @@ const normalizeSaveEnvelope = (raw: Record<string, any>): SaveEnvelope | null =>
     data: migrateSavePayload(raw, saveVersion)
   }
 }
+const LOAD_FAILURE_MESSAGES: Record<SaveLoadFailureCode, string> = {
+  invalid_slot: '存档槽位无效，请刷新存档列表后重试。',
+  pending_copy_blocked: '该服务端存档还有未同步的本地副本，请先完成同步或刷新远端存档。',
+  empty_slot: '该存档槽位为空或暂时无法读取。',
+  decrypt_failed: '存档无法解密，可能已损坏或不是当前版本的桃源乡存档。',
+  json_parse_failed: '存档内容不是有效数据，可能已损坏或被手动修改。',
+  migration_failed: '存档迁移失败，当前版本暂时无法读取该存档。',
+  incompatible_schema: '存档缺少必要数据，可能来自不兼容版本或已损坏。',
+  apply_failed: '存档数据恢复失败，当前运行状态已保留。',
+  server_read_failed: '读取服务端存档失败，请检查网络或稍后重试。',
+  server_active_slot_failed: '服务端当前存档槽位切换失败，已保留原运行状态。',
+  runtime_restore_failed: '加载失败后恢复原运行状态失败，请刷新页面后再试。',
+  unexpected: '加载存档失败，请刷新存档列表后重试。'
+}
+
+const getErrorDetail = (error: unknown): string => {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string') return error
+  return ''
+}
+
+const parseSaveDataForLoad = (raw: string): {
+  ok: true
+  rawData: Record<string, any>
+  envelope: SaveEnvelope
+} | {
+  ok: false
+  code: SaveLoadFailureCode
+  detail?: string
+} => {
+  const decrypted = decrypt(raw)
+  if (!decrypted) return { ok: false, code: 'decrypt_failed' }
+
+  let rawData: Record<string, any>
+  try {
+    rawData = JSON.parse(decrypted) as Record<string, any>
+  } catch (error) {
+    return { ok: false, code: 'json_parse_failed', detail: getErrorDetail(error) }
+  }
+
+  try {
+    const envelope = normalizeSaveEnvelope(rawData)
+    if (!envelope) return { ok: false, code: 'incompatible_schema' }
+    return { ok: true, rawData, envelope }
+  } catch (error) {
+    return { ok: false, code: 'migration_failed', detail: getErrorDetail(error) }
+  }
+}
+
 export const useSaveStore = defineStore('save', () => {
   /** 当前活跃存档槽位，-1 表示未分配 */
   const activeSlot = ref(-1)
@@ -643,6 +715,8 @@ export const useSaveStore = defineStore('save', () => {
   })
   const storageMode = ref<SaveMode>(getStoredSaveMode())
   const lastSaveErrorMessage = ref('')
+  const lastLoadError = ref<SaveLoadErrorState | null>(null)
+  const lastLoadErrorMessage = computed(() => lastLoadError.value?.message || '')
   const serverSyncStatus = ref<ServerSaveSyncStatus>('idle')
   const pendingServerSlots = ref<number[]>(getPendingServerSlotNumbers())
   const lastServerSyncMessage = ref('')
@@ -680,6 +754,7 @@ export const useSaveStore = defineStore('save', () => {
     runtimeSessionSlot.value = -1
     runtimeSessionMode.value = null
     currentOnlineIdentity.value = null
+    lastLoadError.value = null
     lastIssuedServerRevisionBySlot.value = { 0: 0, 1: 0, 2: 0 }
     lastAuthoritativeServerRawBySlot.value = {}
     serverSlotsFetchState.value = storageMode.value === 'server' ? 'unknown' : 'available'
@@ -690,6 +765,27 @@ export const useSaveStore = defineStore('save', () => {
     lastSaveResultStatus.value = status
     lastSaveErrorMessage.value = errorMessage
     lastServerSyncMessage.value = syncMessage
+  }
+
+
+  const setLoadError = (
+    code: SaveLoadFailureCode,
+    slot: number,
+    mode: SaveMode,
+    detail = ''
+  ) => {
+    lastLoadError.value = {
+      code,
+      message: LOAD_FAILURE_MESSAGES[code] || LOAD_FAILURE_MESSAGES.unexpected,
+      slot,
+      mode,
+      detail,
+      occurredAt: new Date().toISOString()
+    }
+  }
+
+  const clearLoadError = () => {
+    lastLoadError.value = null
   }
 
   const queuePendingServerSave = (slot: number, raw: string) => {
@@ -1555,24 +1651,45 @@ export const useSaveStore = defineStore('save', () => {
 
   /** 浠庢寚瀹氭Ы浣嶅姞杞?*/
   const loadFromSlot = async (slot: number, options: LoadFromSlotOptions = {}): Promise<boolean> => {
+    const loadMode = options.mode ?? storageMode.value
+    clearLoadError()
+    if (!isValidSlot(slot)) {
+      setLoadError('invalid_slot', slot, loadMode)
+      return false
+    }
     try {
-      const loadMode = options.mode ?? storageMode.value
       const allowPendingServerCopy = options.allowPendingServerCopy !== false
       const hadPendingServerCopy = loadMode === 'server' && !!getPendingServerRaw(slot)
-      if (hadPendingServerCopy && !allowPendingServerCopy) return false
+      if (hadPendingServerCopy && !allowPendingServerCopy) {
+        setLoadError('pending_copy_blocked', slot, loadMode)
+        return false
+      }
       const raw = await getRawByMode(slot, loadMode, { allowPendingServerCopy })
-      if (!raw) return false
+      if (!raw) {
+        setLoadError('empty_slot', slot, loadMode)
+        return false
+      }
 
-      const data = parseSaveData(raw)
-      if (!data || !normalizeSaveEnvelope(data)) return false
+      const parsed = parseSaveDataForLoad(raw)
+      if (!parsed.ok) {
+        setLoadError(parsed.code, slot, loadMode, parsed.detail)
+        return false
+      }
+      if (!parsed.envelope.data.game || !parsed.envelope.data.player || !parsed.envelope.data.inventory || !parsed.envelope.data.farm) {
+        setLoadError('incompatible_schema', slot, loadMode)
+        return false
+      }
       const runtimeSnapshot = buildCurrentSaveData()
       const previousActiveSlot = activeSlot.value
       const previousActiveSlotMode = activeSlotMode.value
       const previousRuntimeSessionSlot = runtimeSessionSlot.value
       const previousRuntimeSessionMode = runtimeSessionMode.value
       const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
-      const applied = applySaveData(data, slot, loadMode)
-      if (!applied) return false
+      const applied = applySaveData(parsed.rawData, slot, loadMode)
+      if (!applied) {
+        setLoadError('apply_failed', slot, loadMode)
+        return false
+      }
       if (loadMode === 'server') {
         if (hadPendingServerCopy) {
           applyActiveSlotSelection(slot, 'server')
@@ -1582,13 +1699,14 @@ export const useSaveStore = defineStore('save', () => {
         }
         try {
           await setServerActiveSlot(slot)
-        } catch {
+        } catch (error) {
           const restored = applySaveData(
             runtimeSnapshot,
             previousRuntimeSessionSlot,
             previousRuntimeSessionMode ?? previousActiveSlotMode ?? loadMode
           )
           if (!restored) {
+            setLoadError('runtime_restore_failed', slot, loadMode, getErrorDetail(error))
             return false
           }
           activeSlot.value = previousActiveSlot
@@ -1596,11 +1714,13 @@ export const useSaveStore = defineStore('save', () => {
           runtimeSessionSlot.value = previousRuntimeSessionSlot
           runtimeSessionMode.value = previousRuntimeSessionMode
           activeSlotsByMode.value = { ...previousActiveSlotsByMode }
+          setLoadError('server_active_slot_failed', slot, loadMode, getErrorDetail(error))
           return false
         }
       }
       return true
-    } catch {
+    } catch (error) {
+      setLoadError(loadMode === 'server' ? 'server_read_failed' : 'unexpected', slot, loadMode, getErrorDetail(error))
       return false
     }
   }
@@ -1733,6 +1853,8 @@ export const useSaveStore = defineStore('save', () => {
     qaGovernanceStorageActionLocks,
     qaGovernanceTuning,
     lastSaveErrorMessage,
+    lastLoadError,
+    lastLoadErrorMessage,
     getSaveBlockReason,
     getSlotAllocationBlockReason,
     reloadAccountScopedState,
