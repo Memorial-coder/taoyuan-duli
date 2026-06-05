@@ -2,7 +2,7 @@
   <div class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
     <div class="game-panel flex max-h-[80vh] w-full max-w-lg flex-col border-accent/40">
       <div ref="contentEl" class="min-h-0 overflow-y-auto pr-1">
-        <p class="mb-1 text-center text-[10px] text-accent/50">{{ phaseLabel }}</p>
+        <p class="mb-1 text-center text-[0.625rem] text-accent/50">{{ phaseLabel }}</p>
         <h3 class="mb-3 text-sm text-accent">{{ stepTitle }}</h3>
 
         <div v-for="(scene, index) in playedScenes" :key="index" class="mb-3">

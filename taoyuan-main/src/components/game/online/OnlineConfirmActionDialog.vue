@@ -20,12 +20,12 @@
           <li
             v-for="item in normalizedImpactItems"
             :key="item.id"
-            class="flex min-w-0 justify-between gap-3 text-[10px] leading-4 text-muted"
+            class="flex min-w-0 justify-between gap-3 text-[0.625rem] leading-4 text-muted"
           >
             <span class="min-w-0 truncate">{{ item.label }}</span>
             <span v-if="item.value" class="shrink-0 text-accent">{{ item.value }}</span>
           </li>
-          <li v-if="normalizedImpactItems.length === 0" class="text-[10px] leading-4 text-danger">
+          <li v-if="normalizedImpactItems.length === 0" class="text-[0.625rem] leading-4 text-danger">
             缺少影响对象
           </li>
         </ul>
@@ -37,7 +37,7 @@
           <li
             v-for="item in normalizedAssetChanges"
             :key="item.id"
-            class="flex min-w-0 justify-between gap-3 text-[10px] leading-4 text-muted"
+            class="flex min-w-0 justify-between gap-3 text-[0.625rem] leading-4 text-muted"
           >
             <span class="min-w-0 truncate">{{ item.label }}</span>
             <span v-if="item.value" class="shrink-0 text-accent">{{ item.value }}</span>
@@ -45,16 +45,16 @@
         </ul>
       </section>
 
-      <p v-if="irreversible" class="border border-danger/25 bg-danger/10 p-2 text-[10px] leading-5 text-danger" data-testid="online-confirm-irreversible">
+      <p v-if="irreversible" class="border border-danger/25 bg-danger/10 p-2 text-[0.625rem] leading-5 text-danger" data-testid="online-confirm-irreversible">
         此操作不可撤销
       </p>
 
-      <p v-if="recoveryHint" class="text-[10px] leading-5 text-muted" data-testid="online-confirm-recovery-hint">
+      <p v-if="recoveryHint" class="text-[0.625rem] leading-5 text-muted" data-testid="online-confirm-recovery-hint">
         {{ recoveryHint }}
       </p>
 
       <label v-if="requireText" class="block">
-        <span class="text-[10px] leading-4 text-muted">输入「{{ requireText }}」后继续</span>
+        <span class="text-[0.625rem] leading-4 text-muted">输入「{{ requireText }}」后继续</span>
         <input
           v-model="requiredTextInput"
           class="online-input mt-1 w-full"
@@ -67,7 +67,7 @@
 
     <template #footer="{ confirm, cancel }">
       <footer class="space-y-3 border-t border-accent/10 pt-3">
-        <p v-if="confirmBlockedReason" class="text-[10px] leading-4 text-muted" data-testid="online-confirm-disabled-reason">
+        <p v-if="confirmBlockedReason" class="text-[0.625rem] leading-4 text-muted" data-testid="online-confirm-disabled-reason">
           {{ confirmBlockedReason }}
         </p>
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

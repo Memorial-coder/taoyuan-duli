@@ -2,7 +2,7 @@
   <div class="ai-admin-panel" :class="{ 'ai-admin-panel--scrollable': scrollable }">
     <div v-if="store.isLoadingAdmin" class="ai-admin-panel__loading">AI 管理配置加载中...</div>
     <template v-else>
-      <div v-if="store.adminConfig.officialManagedStatus" class="text-[11px] text-muted leading-5">
+      <div v-if="store.adminConfig.officialManagedStatus" class="text-[0.6875rem] text-muted leading-5">
         当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFieldsText }}
         <div v-if="store.adminConfig.officialManagedStatus.lastError" class="mt-1 text-warning">
           最近回退原因：{{ store.adminConfig.officialManagedStatus.lastError }}
@@ -104,7 +104,7 @@
       </div>
 
       <div class="ai-admin-panel__footer">
-        <p class="text-[11px] text-muted">若未配置 API 地址和模型名，系统会自动退回内置知识库回答。</p>
+        <p class="text-[0.6875rem] text-muted">若未配置 API 地址和模型名，系统会自动退回内置知识库回答。</p>
         <div class="ai-admin-panel__row !justify-end">
           <button class="btn" @click="openKnowledgeAdminPage">
             <BookOpen :size="12" />
@@ -208,7 +208,7 @@
     border: 1px solid rgba(200, 164, 92, 0.25);
     border-radius: 2px;
     outline: none;
-    font-size: 12px;
+    font-size: 0.75rem;
     box-sizing: border-box;
   }
 
@@ -229,7 +229,7 @@
   }
 
   .ai-admin-panel__label {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-text));
     opacity: 0.8;
   }
@@ -237,7 +237,7 @@
   .ai-admin-panel__loading {
     padding: 24px 0;
     text-align: center;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-text));
     opacity: 0.72;
   }

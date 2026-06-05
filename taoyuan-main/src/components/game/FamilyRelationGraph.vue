@@ -3,9 +3,9 @@
     <div class="flex items-start justify-between gap-2 mb-2">
       <div>
         <p class="text-xs text-accent">家族关系图谱</p>
-        <p class="text-[10px] text-muted mt-0.5">单机关系网回看：家庭、宠物、长住来客和村中固定关系都保留在本地存档。</p>
+        <p class="text-[0.625rem] text-muted mt-0.5">单机关系网回看：家庭、宠物、长住来客和村中固定关系都保留在本地存档。</p>
       </div>
-      <span class="text-[10px] text-muted whitespace-nowrap">节点 {{ graphNodes.length }} · 关系 {{ graphLinks.length }}</span>
+      <span class="text-[0.625rem] text-muted whitespace-nowrap">节点 {{ graphNodes.length }} · 关系 {{ graphLinks.length }}</span>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(220px,0.65fr)] gap-2">
@@ -28,7 +28,7 @@
             :x="((nodeById.get(link.from)?.x ?? 50) + (nodeById.get(link.to)?.x ?? 50)) / 2"
             :y="((nodeById.get(link.from)?.y ?? 38) + (nodeById.get(link.to)?.y ?? 38)) / 2 - 0.9"
             text-anchor="middle"
-            class="fill-muted text-[2.1px] pointer-events-none"
+            class="fill-muted text-[0.13125rem] pointer-events-none"
           >
             {{ link.label }}
           </text>
@@ -56,7 +56,7 @@
               :y="node.y + 0.55"
               text-anchor="middle"
               dominant-baseline="middle"
-              class="fill-bg text-[3px] font-bold pointer-events-none"
+              class="fill-bg text-[0.1875rem] font-bold pointer-events-none"
             >
               {{ node.shortLabel }}
             </text>
@@ -64,7 +64,7 @@
               :x="node.x"
               :y="node.y + 7.2"
               text-anchor="middle"
-              class="fill-current text-[2.6px] pointer-events-none"
+              class="fill-current text-[0.1625rem] pointer-events-none"
               :class="node.textClass"
             >
               {{ node.name }}
@@ -78,7 +78,7 @@
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="text-xs text-accent truncate">{{ selectedNode.name }}</p>
-              <p class="text-[10px] text-muted mt-0.5">{{ selectedNode.relationLabel }} · {{ selectedNode.groupLabel }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ selectedNode.relationLabel }} · {{ selectedNode.groupLabel }}</p>
             </div>
             <Button
               v-if="selectedNode.selectableNpcId"
@@ -88,7 +88,7 @@
               查看人物
             </Button>
           </div>
-          <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+          <div class="grid grid-cols-2 gap-1 mt-2 text-[0.625rem]">
             <div class="border border-accent/10 rounded-xs px-1.5 py-1">
               <span class="text-muted/60">关系值</span>
               <p class="text-accent mt-0.5">{{ selectedNode.metricLabel }}</p>
@@ -102,7 +102,7 @@
             <p
               v-for="line in selectedNode.detailLines"
               :key="`${selectedNode.id}-${line}`"
-              class="text-[10px] text-muted leading-4"
+              class="text-[0.625rem] text-muted leading-4"
             >
               {{ line }}
             </p>
@@ -111,7 +111,7 @@
             <span
               v-for="tag in selectedNode.tags"
               :key="`${selectedNode.id}-${tag}`"
-              class="text-[10px] border border-accent/15 text-accent rounded-xs px-1 py-0.5"
+              class="text-[0.625rem] border border-accent/15 text-accent rounded-xs px-1 py-0.5"
             >
               {{ tag }}
             </span>

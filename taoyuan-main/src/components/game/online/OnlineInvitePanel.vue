@@ -10,7 +10,7 @@
   >
     <div class="space-y-4" data-testid="online-invite-panel">
       <label class="block">
-        <span class="text-[10px] leading-4 text-muted">玩家名或存档 ID</span>
+        <span class="text-[0.625rem] leading-4 text-muted">玩家名或存档 ID</span>
         <textarea
           v-model="draftInput"
           class="online-textarea mt-1 min-h-[7rem] w-full"
@@ -21,12 +21,12 @@
       </label>
 
       <div v-if="draftRecipients.length > 0" class="space-y-2">
-        <p class="text-[10px] leading-4 text-muted">待邀请</p>
+        <p class="text-[0.625rem] leading-4 text-muted">待邀请</p>
         <div class="flex flex-wrap gap-2" data-testid="online-invite-draft-list">
           <span
             v-for="recipient in draftRecipients"
             :key="recipient"
-            class="inline-flex min-h-[32px] items-center gap-1 border border-accent/15 bg-black/10 px-2 py-1 text-[10px] leading-4 text-muted"
+            class="inline-flex min-h-[32px] items-center gap-1 border border-accent/15 bg-black/10 px-2 py-1 text-[0.625rem] leading-4 text-muted"
           >
             {{ recipient }}
             <button
@@ -43,7 +43,7 @@
       </div>
 
       <section v-if="recentPlayers.length > 0 || $slots['recent-players']" class="space-y-2" aria-labelledby="online-invite-recent-title">
-        <p id="online-invite-recent-title" class="text-[10px] leading-4 text-muted">最近联机</p>
+        <p id="online-invite-recent-title" class="text-[0.625rem] leading-4 text-muted">最近联机</p>
         <slot name="recent-players" :recent-players="recentPlayers" :add="addRecentPlayer">
           <div class="grid gap-2 sm:grid-cols-2" data-testid="online-invite-recent-list">
             <button
@@ -57,7 +57,7 @@
               @click="addRecentPlayer(player)"
             >
               <span class="block truncate text-xs leading-5 text-accent">{{ player.displayName || player.username }}</span>
-              <span class="mt-0.5 block truncate text-[10px] leading-4 text-muted">
+              <span class="mt-0.5 block truncate text-[0.625rem] leading-4 text-muted">
                 {{ player.reason || player.subtitle || player.username }}
               </span>
             </button>
@@ -66,7 +66,7 @@
       </section>
 
       <section v-if="existingMembers.length > 0" class="space-y-2" aria-labelledby="online-invite-existing-title">
-        <p id="online-invite-existing-title" class="text-[10px] leading-4 text-muted">房间成员</p>
+        <p id="online-invite-existing-title" class="text-[0.625rem] leading-4 text-muted">房间成员</p>
         <div class="grid gap-2 sm:grid-cols-2" data-testid="online-invite-existing-list">
           <div
             v-for="member in existingMembers"
@@ -75,15 +75,15 @@
             data-testid="online-invite-existing-member"
           >
             <p class="truncate text-xs leading-5 text-accent">{{ member.displayName || member.username || member.id }}</p>
-            <p class="mt-0.5 truncate text-[10px] leading-4 text-muted">{{ member.statusLabel || member.status || '已在房间' }}</p>
+            <p class="mt-0.5 truncate text-[0.625rem] leading-4 text-muted">{{ member.statusLabel || member.status || '已在房间' }}</p>
           </div>
         </div>
       </section>
 
       <section class="space-y-2" aria-labelledby="online-invite-result-title">
         <div class="flex items-center justify-between gap-2">
-          <p id="online-invite-result-title" class="text-[10px] leading-4 text-muted">邀请结果</p>
-          <span class="text-[10px] leading-4 text-muted">{{ resultRows.length }} 项</span>
+          <p id="online-invite-result-title" class="text-[0.625rem] leading-4 text-muted">邀请结果</p>
+          <span class="text-[0.625rem] leading-4 text-muted">{{ resultRows.length }} 项</span>
         </div>
 
         <div v-if="resultRows.length === 0" class="border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted" data-testid="online-invite-result-list">
@@ -100,10 +100,10 @@
           >
             <div class="min-w-0">
               <p class="truncate text-xs leading-5 text-accent">{{ row.displayName || row.username }}</p>
-              <p class="mt-0.5 truncate text-[10px] leading-4 text-muted">{{ row.message || inviteStatusLabel(row.status) }}</p>
+              <p class="mt-0.5 truncate text-[0.625rem] leading-4 text-muted">{{ row.message || inviteStatusLabel(row.status) }}</p>
             </div>
             <div class="flex shrink-0 flex-wrap gap-2">
-              <span class="border border-accent/15 px-2 py-1 text-[10px] leading-4 text-muted">{{ inviteStatusLabel(row.status) }}</span>
+              <span class="border border-accent/15 px-2 py-1 text-[0.625rem] leading-4 text-muted">{{ inviteStatusLabel(row.status) }}</span>
               <button
                 v-if="row.status === 'failed'"
                 type="button"

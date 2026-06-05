@@ -32,10 +32,10 @@
     <div v-if="dailyBlessingPreview" class="border border-accent/20 rounded-xs p-3 mb-4 bg-accent/5">
       <div class="flex items-center justify-between mb-1">
         <span class="text-sm text-accent">今日祝福</span>
-        <span class="text-[10px] text-muted">精通神像</span>
+        <span class="text-[0.625rem] text-muted">精通神像</span>
       </div>
       <p class="text-xs text-accent">{{ dailyBlessingPreview.label }}</p>
-      <p class="text-[10px] text-muted mt-1">{{ dailyBlessingPreview.sourceLabel }} · {{ dailyBlessingPreview.sourceSummary }}</p>
+      <p class="text-[0.625rem] text-muted mt-1">{{ dailyBlessingPreview.sourceLabel }} · {{ dailyBlessingPreview.sourceSummary }}</p>
       <p class="text-xs text-muted mt-1">{{ dailyBlessingPreview.summary }}</p>
     </div>
 
@@ -50,7 +50,7 @@
             <Users :size="14" class="inline" />
             同居 / 家庭 / 共同庄园
           </p>
-          <p class="text-[10px] text-muted leading-4 mt-1">
+          <p class="text-[0.625rem] text-muted leading-4 mt-1">
             从小屋直达共同庄园，查看共同农田、仓库、基金和家庭协作记录；个人铜币与个人背包仍保持独立。
           </p>
         </div>
@@ -58,7 +58,7 @@
           进入
         </Button>
       </div>
-      <div class="mt-2 grid grid-cols-3 gap-1 text-[10px] text-muted">
+      <div class="mt-2 grid grid-cols-3 gap-1 text-[0.625rem] text-muted">
         <span class="border border-accent/10 rounded-xs px-2 py-1 text-center">契约成员</span>
         <span class="border border-accent/10 rounded-xs px-2 py-1 text-center">共同农田</span>
         <span class="border border-accent/10 rounded-xs px-2 py-1 text-center">审计日志</span>
@@ -76,13 +76,13 @@
       <div class="border border-accent/10 rounded-xs p-2 mb-2">
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-xs text-accent">{{ spouseDef?.name }}</span>
-          <span class="text-[10px] text-danger">
+          <span class="text-[0.625rem] text-danger">
             <Heart :size="10" class="inline" />
             伴侣
           </span>
         </div>
         <div v-if="spouseDialogue" class="border border-accent/10 rounded-xs p-2 mb-1.5">
-          <p class="text-[10px] text-accent mb-0.5">「{{ spouseDef?.name }}」</p>
+          <p class="text-[0.625rem] text-accent mb-0.5">「{{ spouseDef?.name }}」</p>
           <p class="text-xs">{{ spouseDialogue }}</p>
         </div>
         <div class="flex space-x-1.5">
@@ -118,18 +118,18 @@
         <p class="text-xs text-success mb-2">{{ npcStore.pregnancy.kind === 'adoption' ? '迎接孩子回家' : '孕期' }} · {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_STAGE_LABELS[npcStore.pregnancy.stage] : PREGNANCY_STAGE_LABELS[npcStore.pregnancy.stage] }}</p>
         <!-- 阶段进度条 -->
         <div class="flex items-center space-x-1 mb-1.5">
-          <span class="text-[10px] text-muted w-8 shrink-0">进度</span>
+          <span class="text-[0.625rem] text-muted w-8 shrink-0">进度</span>
           <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
             <div
               class="h-full rounded-xs bg-success transition-all"
               :style="{ width: Math.floor((npcStore.pregnancy.daysInStage / npcStore.pregnancy.stageDays) * 100) + '%' }"
             />
           </div>
-          <span class="text-[10px] text-muted shrink-0">{{ npcStore.pregnancy.daysInStage }}/{{ npcStore.pregnancy.stageDays }}天</span>
+          <span class="text-[0.625rem] text-muted shrink-0">{{ npcStore.pregnancy.daysInStage }}/{{ npcStore.pregnancy.stageDays }}天</span>
         </div>
         <!-- 安产率条 -->
         <div class="flex items-center space-x-1 mb-2">
-          <span class="text-[10px] text-muted w-8 shrink-0">{{ npcStore.pregnancy.kind === 'adoption' ? '准备度' : '安产' }}</span>
+          <span class="text-[0.625rem] text-muted w-8 shrink-0">{{ npcStore.pregnancy.kind === 'adoption' ? '准备度' : '安产' }}</span>
           <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
             <div
               class="h-full rounded-xs transition-all"
@@ -137,31 +137,31 @@
               :style="{ width: npcStore.pregnancy.careScore + '%' }"
             />
           </div>
-          <span class="text-[10px] text-muted shrink-0">{{ npcStore.pregnancy.careScore }}%</span>
+          <span class="text-[0.625rem] text-muted shrink-0">{{ npcStore.pregnancy.careScore }}%</span>
         </div>
         <!-- 阶段提示 -->
-        <p class="text-[10px] text-muted/60 mb-2">{{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_STAGE_TIPS[npcStore.pregnancy.stage] : STAGE_TIPS[npcStore.pregnancy.stage] }}</p>
+        <p class="text-[0.625rem] text-muted/60 mb-2">{{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_STAGE_TIPS[npcStore.pregnancy.stage] : STAGE_TIPS[npcStore.pregnancy.stage] }}</p>
         <!-- 照料操作 -->
         <div class="grid grid-cols-2 gap-1 mb-1">
           <Button
-            class="py-0.5 px-1 text-[10px] justify-center"
+            class="py-0.5 px-1 text-[0.625rem] justify-center"
             :disabled="npcStore.pregnancy.caredToday || npcStore.pregnancy.giftedForPregnancy"
             @click="handlePregnancyCare('gift')"
           >
             {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.giftedForPregnancy ? '已准备心意' : '准备心意') : (npcStore.pregnancy.giftedForPregnancy ? '已送礼' : '送礼物') }}
           </Button>
           <Button
-            class="py-0.5 px-1 text-[10px] justify-center"
+            class="py-0.5 px-1 text-[0.625rem] justify-center"
             :disabled="npcStore.pregnancy.caredToday || npcStore.pregnancy.companionToday"
             @click="handlePregnancyCare('companion')"
           >
             {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.companionToday ? '已走访' : '一起走访') : (npcStore.pregnancy.companionToday ? '已陪伴' : '陪伴聊天') }}
           </Button>
-          <Button class="py-0.5 px-1 text-[10px] justify-center" :disabled="npcStore.pregnancy.caredToday" @click="handlePregnancyCare('supplement')">
+          <Button class="py-0.5 px-1 text-[0.625rem] justify-center" :disabled="npcStore.pregnancy.caredToday" @click="handlePregnancyCare('supplement')">
             {{ npcStore.pregnancy.kind === 'adoption' ? '置办用品' : '服用补品' }}
           </Button>
           <Button
-            class="py-0.5 px-1 text-[10px] justify-center"
+            class="py-0.5 px-1 text-[0.625rem] justify-center"
             :disabled="npcStore.pregnancy.caredToday"
             @click="handlePregnancyCare('rest')"
           >
@@ -170,19 +170,19 @@
         </div>
         <!-- 医疗方案（待产期） -->
         <div v-if="npcStore.pregnancy.stage === 'ready'" class="border border-accent/20 rounded-xs p-2 mt-2">
-          <p class="text-[10px] text-accent mb-1.5">{{ npcStore.pregnancy.kind === 'adoption' ? '选择迎接方案' : '选择接生方式' }}</p>
+          <p class="text-[0.625rem] text-accent mb-1.5">{{ npcStore.pregnancy.kind === 'adoption' ? '选择迎接方案' : '选择接生方式' }}</p>
           <div v-if="!npcStore.pregnancy.medicalPlan" class="flex flex-col space-y-1">
-            <Button class="py-0.5 px-1 text-[10px] w-full justify-center" :disabled="playerStore.money < 1000" @click="handleChooseMedical('normal')">
+            <Button class="py-0.5 px-1 text-[0.625rem] w-full justify-center" :disabled="playerStore.money < 1000" @click="handleChooseMedical('normal')">
               {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.normal : MEDICAL_LABELS.normal }}（1000文 · 80%安全）
             </Button>
-            <Button class="py-0.5 px-1 text-[10px] w-full justify-center" :disabled="playerStore.money < 5000" @click="handleChooseMedical('advanced')">
+            <Button class="py-0.5 px-1 text-[0.625rem] w-full justify-center" :disabled="playerStore.money < 5000" @click="handleChooseMedical('advanced')">
               {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.advanced : MEDICAL_LABELS.advanced }}（5000文 · 95%安全）
             </Button>
-            <Button class="py-0.5 px-1 text-[10px] w-full justify-center text-accent" :disabled="playerStore.money < 15000" @click="handleChooseMedical('luxury')">
+            <Button class="py-0.5 px-1 text-[0.625rem] w-full justify-center text-accent" :disabled="playerStore.money < 15000" @click="handleChooseMedical('luxury')">
               {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.luxury : MEDICAL_LABELS.luxury }}（15000文 · 100%安全）
             </Button>
           </div>
-          <p v-else class="text-[10px] text-success">已选择：{{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS[npcStore.pregnancy.medicalPlan] : MEDICAL_LABELS[npcStore.pregnancy.medicalPlan] }}</p>
+          <p v-else class="text-[0.625rem] text-success">已选择：{{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS[npcStore.pregnancy.medicalPlan] : MEDICAL_LABELS[npcStore.pregnancy.medicalPlan] }}</p>
         </div>
       </div>
 
@@ -200,9 +200,9 @@
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs text-accent">
               {{ child.name }}
-              <span v-if="child.origin !== 'adoption' && child.birthQuality === 'healthy'" class="text-[10px] text-success ml-0.5">[健康]</span>
-              <span v-else-if="child.origin !== 'adoption' && child.birthQuality === 'premature'" class="text-[10px] text-muted/60 ml-0.5">[早产]</span>
-              <span v-if="child.origin === 'adoption'" class="text-[10px] text-accent ml-0.5">[领养]</span>
+              <span v-if="child.origin !== 'adoption' && child.birthQuality === 'healthy'" class="text-[0.625rem] text-success ml-0.5">[健康]</span>
+              <span v-else-if="child.origin !== 'adoption' && child.birthQuality === 'premature'" class="text-[0.625rem] text-muted/60 ml-0.5">[早产]</span>
+              <span v-if="child.origin === 'adoption'" class="text-[0.625rem] text-accent ml-0.5">[领养]</span>
             </span>
             <div class="flex items-center space-x-1">
               <Button
@@ -218,7 +218,7 @@
               <Button class="py-0 px-1 text-danger" @click="releaseConfirmChildId = child.id">送走</Button>
             </div>
           </div>
-          <p class="text-[10px] text-muted mb-0.5">{{ CHILD_STAGE_NAMES[child.stage] }} · {{ child.daysOld }}天</p>
+          <p class="text-[0.625rem] text-muted mb-0.5">{{ CHILD_STAGE_NAMES[child.stage] }} · {{ child.daysOld }}天</p>
           <div v-if="child.stage !== 'baby'" class="flex items-center space-x-0.5">
             <Heart
               v-for="h in 10"
@@ -266,7 +266,7 @@
             <span class="text-xs text-muted ml-1">{{ npcStore.HELPER_TASK_NAMES[h.task] }}</span>
           </div>
           <div class="flex items-center space-x-1.5">
-            <span class="text-[10px] text-muted">{{ h.dailyWage }}文/天</span>
+            <span class="text-[0.625rem] text-muted">{{ h.dailyWage }}文/天</span>
             <Button class="py-0 px-1 btn-danger" :icon="X" :icon-size="10" @click="dismissConfirmNpcId = h.npcId" />
           </div>
         </div>
@@ -300,14 +300,14 @@
             <Button class="py-0 px-1" @click="removeAgingConfirmIdx = idx">取出</Button>
           </div>
           <div class="flex items-center space-x-1">
-            <span class="text-[10px] text-muted w-6">陈酿</span>
+            <span class="text-[0.625rem] text-muted w-6">陈酿</span>
             <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
               <div
                 class="h-full rounded-xs bg-accent transition-all"
                 :style="{ width: Math.min(100, Math.floor((slot.daysAging / 14) * 100)) + '%' }"
               />
             </div>
-            <span class="text-[10px] text-muted">{{ slot.daysAging }}/14天</span>
+            <span class="text-[0.625rem] text-muted">{{ slot.daysAging }}/14天</span>
           </div>
         </div>
       </div>
@@ -429,7 +429,7 @@
             <button
               v-for="s in SEASONS"
               :key="s"
-              class="text-[10px] px-2 py-0.5 border rounded-xs transition-colors"
+              class="text-[0.625rem] px-2 py-0.5 border rounded-xs transition-colors"
               :class="calendarSeason === s ? 'bg-accent/20 border-accent/40 text-accent' : 'border-accent/10 text-muted hover:text-text'"
               @click="handleSelectSeason(s)"
             >
@@ -440,7 +440,7 @@
           <!-- 28天网格 -->
           <div class="grid grid-cols-7 gap-px">
             <div v-for="wd in WEEKDAYS" :key="wd" class="text-center py-0.5">
-              <span class="text-[10px]" :class="wd === 'sat' || wd === 'sun' ? 'text-accent' : 'text-muted'">{{ WEEKDAY_NAMES[wd] }}</span>
+              <span class="text-[0.625rem]" :class="wd === 'sat' || wd === 'sun' ? 'text-accent' : 'text-muted'">{{ WEEKDAY_NAMES[wd] }}</span>
             </div>
             <div
               v-for="entry in calendarDays"
@@ -455,7 +455,7 @@
               ]"
               @click="handleSelectDay(entry)"
             >
-              <span class="text-[10px]" :class="entry.isToday ? 'text-accent' : 'text-muted'">
+              <span class="text-[0.625rem]" :class="entry.isToday ? 'text-accent' : 'text-muted'">
                 {{ entry.day }}
               </span>
               <div class="flex justify-center space-x-px mt-px min-h-1.5">
@@ -469,19 +469,19 @@
 
           <!-- 图例 -->
           <div class="flex items-center space-x-3 mt-1.5">
-            <span class="text-[10px] text-muted flex items-center space-x-0.5">
+            <span class="text-[0.625rem] text-muted flex items-center space-x-0.5">
               <span class="w-1.5 h-1.5 rounded-full bg-danger inline-block" />
               <span>节日</span>
             </span>
-            <span class="text-[10px] text-muted flex items-center space-x-0.5">
+            <span class="text-[0.625rem] text-muted flex items-center space-x-0.5">
               <span class="w-1.5 h-1.5 rounded-full bg-success inline-block" />
               <span>生日</span>
             </span>
-            <span class="text-[10px] text-muted flex items-center space-x-0.5">
+            <span class="text-[0.625rem] text-muted flex items-center space-x-0.5">
               <span class="w-1.5 h-1.5 rounded-full bg-accent inline-block" />
               <span>稀有来访</span>
             </span>
-            <span class="text-[10px] text-muted flex items-center space-x-0.5">
+            <span class="text-[0.625rem] text-muted flex items-center space-x-0.5">
               <span class="w-1.5 h-1.5 rounded-full bg-warning inline-block" />
               <span>短活动</span>
             </span>
@@ -492,67 +492,67 @@
             v-if="selectedDayEntry && (selectedDayEntry.festivals.length > 0 || selectedDayEntry.birthdays.length > 0 || selectedDayEntry.rareVisitors.length > 0 || selectedDayEntry.activities.length > 0)"
             class="border border-accent/10 rounded-xs p-2 mt-2"
           >
-            <p class="text-[10px] text-accent mb-1">
+            <p class="text-[0.625rem] text-accent mb-1">
               {{ SEASON_NAMES[calendarSeason] }}{{ selectedCalendarDay }}日
               <span v-if="selectedDayEntry.isToday" class="text-danger ml-1">(今天)</span>
             </p>
             <div v-for="f in selectedDayEntry.festivals" :key="f.name" class="mb-1">
-              <span class="text-[10px] text-danger">{{ f.name }}</span>
-              <span class="text-[10px] text-muted ml-1">{{ f.description }}</span>
-              <p v-if="f.variantNotes?.driverLabels?.length" class="text-[10px] text-muted mt-0.5 leading-4">
+              <span class="text-[0.625rem] text-danger">{{ f.name }}</span>
+              <span class="text-[0.625rem] text-muted ml-1">{{ f.description }}</span>
+              <p v-if="f.variantNotes?.driverLabels?.length" class="text-[0.625rem] text-muted mt-0.5 leading-4">
                 变化驱动：{{ f.variantNotes.driverLabels.join('、') }}
               </p>
-              <p v-if="f.variantNotes?.stallNotes?.length" class="text-[10px] text-accent mt-0.5 leading-4">
+              <p v-if="f.variantNotes?.stallNotes?.length" class="text-[0.625rem] text-accent mt-0.5 leading-4">
                 摊位变化：{{ f.variantNotes.stallNotes[0] }}
               </p>
-              <p v-if="f.variantNotes?.dialogueNotes?.length" class="text-[10px] text-muted mt-0.5 leading-4">
+              <p v-if="f.variantNotes?.dialogueNotes?.length" class="text-[0.625rem] text-muted mt-0.5 leading-4">
                 对话变化：{{ f.variantNotes.dialogueNotes[0] }}
               </p>
-              <p v-if="f.variantNotes?.prizePoolNotes?.length" class="text-[10px] text-warning mt-0.5 leading-4">
+              <p v-if="f.variantNotes?.prizePoolNotes?.length" class="text-[0.625rem] text-warning mt-0.5 leading-4">
                 奖池变化：{{ f.variantNotes.prizePoolNotes[0] }}
               </p>
-              <p v-if="f.variantNotes?.decorationNotes?.length" class="text-[10px] text-muted mt-0.5 leading-4">
+              <p v-if="f.variantNotes?.decorationNotes?.length" class="text-[0.625rem] text-muted mt-0.5 leading-4">
                 地图装点：{{ f.variantNotes.decorationNotes[0] }}
               </p>
-              <p v-if="f.prepChecklist.length > 0" class="text-[10px] text-warning mt-0.5 leading-4">
+              <p v-if="f.prepChecklist.length > 0" class="text-[0.625rem] text-warning mt-0.5 leading-4">
                 备货建议：{{ f.prepChecklist.slice(0, 2).join('；') }}
               </p>
             </div>
             <div v-for="b in selectedDayEntry.birthdays" :key="b.npcName" class="mb-0.5">
-              <span class="text-[10px] text-success">{{ b.npcName }}的生日</span>
+              <span class="text-[0.625rem] text-success">{{ b.npcName }}的生日</span>
             </div>
             <div v-for="visitor in selectedDayEntry.rareVisitors" :key="visitor.id" class="mb-1">
-              <span class="text-[10px] text-accent">{{ visitor.name }}</span>
-              <span class="text-[10px] text-muted ml-1">{{ visitor.description }}</span>
+              <span class="text-[0.625rem] text-accent">{{ visitor.name }}</span>
+              <span class="text-[0.625rem] text-muted ml-1">{{ visitor.description }}</span>
             </div>
             <div v-for="activity in selectedDayEntry.activities" :key="activity.id">
-              <span class="text-[10px] text-warning">{{ activity.name }}</span>
-              <span class="text-[10px] text-muted ml-1">{{ activity.description }}</span>
+              <span class="text-[0.625rem] text-warning">{{ activity.name }}</span>
+              <span class="text-[0.625rem] text-muted ml-1">{{ activity.description }}</span>
             </div>
           </div>
 
           <div class="grid gap-2 mt-2">
             <div class="border border-accent/10 rounded-xs p-2 bg-bg/10">
-              <p class="text-[10px] text-accent">今日事件</p>
-              <p v-for="line in calendarTodayLines" :key="`calendar-today-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+              <p class="text-[0.625rem] text-accent">今日事件</p>
+              <p v-for="line in calendarTodayLines" :key="`calendar-today-${line}`" class="text-[0.625rem] text-muted mt-1 leading-4">
                 {{ line }}
               </p>
             </div>
             <div class="border border-warning/10 rounded-xs p-2 bg-warning/5">
-              <p class="text-[10px] text-warning">近期准备</p>
-              <p v-for="line in calendarUpcomingPrepLines" :key="`calendar-prep-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+              <p class="text-[0.625rem] text-warning">近期准备</p>
+              <p v-for="line in calendarUpcomingPrepLines" :key="`calendar-prep-${line}`" class="text-[0.625rem] text-muted mt-1 leading-4">
                 {{ line }}
               </p>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 bg-accent/5">
-              <p class="text-[10px] text-accent">稀有来访</p>
-              <p v-for="line in calendarRareVisitorLines" :key="`calendar-visitor-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+              <p class="text-[0.625rem] text-accent">稀有来访</p>
+              <p v-for="line in calendarRareVisitorLines" :key="`calendar-visitor-${line}`" class="text-[0.625rem] text-muted mt-1 leading-4">
                 {{ line }}
               </p>
             </div>
             <div class="border border-success/10 rounded-xs p-2 bg-success/5">
-              <p class="text-[10px] text-success">长线提醒</p>
-              <p v-for="line in calendarLongReminderLines" :key="`calendar-long-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+              <p class="text-[0.625rem] text-success">长线提醒</p>
+              <p v-for="line in calendarLongReminderLines" :key="`calendar-long-${line}`" class="text-[0.625rem] text-muted mt-1 leading-4">
                 {{ line }}
               </p>
             </div>
@@ -586,7 +586,7 @@
                 </span>
                 <span
                   v-if="getSpouseGiftPref(item.itemId) !== 'neutral'"
-                  class="text-[10px]"
+                  class="text-[0.625rem]"
                   :class="GIFT_PREF_CLASS[getSpouseGiftPref(item.itemId)]"
                 >
                   {{ GIFT_PREF_LABELS[getSpouseGiftPref(item.itemId)] }}
@@ -633,7 +633,7 @@
               <span class="text-text">{{ npcStore.HELPER_TASK_NAMES[selectedHireTask] }}</span>
               吗？
             </p>
-            <p class="text-[10px] text-muted mb-2">日薪：{{ npcStore.HELPER_WAGES[selectedHireTask] }}文</p>
+            <p class="text-[0.625rem] text-muted mb-2">日薪：{{ npcStore.HELPER_WAGES[selectedHireTask] }}文</p>
             <div class="flex space-x-2">
               <Button class="py-0.5 px-2 text-xs" @click="handleHire(hireConfirmNpcId!)">确定</Button>
               <Button class="py-0.5 px-2 text-xs" @click="hireConfirmNpcId = null">取消</Button>
@@ -649,7 +649,7 @@
               @click="hireConfirmNpcId = npc.npcId"
             >
               <span class="text-xs">{{ npc.name }}</span>
-              <span class="text-[10px] text-muted">
+              <span class="text-[0.625rem] text-muted">
                 <Heart :size="10" class="inline" />
                 {{ Math.floor(npc.friendship / 250) }}心
               </span>

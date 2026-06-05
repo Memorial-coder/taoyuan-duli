@@ -6,20 +6,20 @@
           <CalendarDays :size="13" />
           <p class="text-sm">家族节会席位</p>
         </div>
-        <span class="text-[10px] text-muted">{{ panel?.festival_seats_enabled ? '已启用预览' : '未启用' }}</span>
+        <span class="text-[0.625rem] text-muted">{{ panel?.festival_seats_enabled ? '已启用预览' : '未启用' }}</span>
       </div>
       <div v-if="!panel" class="mt-3 text-xs leading-5 text-muted">当前没有家族节会席位预备面板数据。</div>
       <div v-else>
         <div class="mt-3 grid gap-2 md:grid-cols-4">
           <div v-for="item in summaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">{{ item.label }}</p>
+            <p class="text-[0.625rem] text-muted">{{ item.label }}</p>
             <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
           </div>
         </div>
-        <p v-if="panel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+        <p v-if="panel.summary.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
           {{ panel.summary.disabled_reason }}
         </p>
-        <p class="mt-3 text-[10px] leading-4 text-muted">{{ panel.visual_state_preview.recent_feedback }}</p>
+        <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ panel.visual_state_preview.recent_feedback }}</p>
         <div class="mt-3 grid gap-2 sm:grid-cols-4">
           <button
             type="button"
@@ -60,7 +60,7 @@
         </div>
         <p
           v-if="actionMessage"
-          class="mt-2 text-[10px] leading-4"
+          class="mt-2 text-[0.625rem] leading-4"
           :class="actionOk ? 'text-emerald-200' : 'text-red-100'"
         >
           {{ actionMessage }}
@@ -73,8 +73,8 @@
             :class="sceneObjectClass(object.kind, object.state)"
             :style="{ left: `${object.x}%`, top: `${object.y}%` }"
           >
-            <p class="truncate text-[10px] text-text">{{ object.label || object.id }}</p>
-            <p class="mt-0.5 truncate text-[9px] text-muted">{{ objectKindLabel(object.kind) }} · {{ seatStateLabel(object.state) }}</p>
+            <p class="truncate text-[0.625rem] text-text">{{ object.label || object.id }}</p>
+            <p class="mt-0.5 truncate text-[0.5625rem] text-muted">{{ objectKindLabel(object.kind) }} · {{ seatStateLabel(object.state) }}</p>
           </div>
         </div>
         <div class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
@@ -82,16 +82,16 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="truncate text-xs text-text">{{ template.label }}</p>
-                <p class="mt-1 text-[10px] leading-4 text-muted">{{ template.summary }}</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ template.summary }}</p>
               </div>
-              <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px]" :class="template.available ? 'text-accent' : 'text-muted'">
+              <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[0.625rem]" :class="template.available ? 'text-accent' : 'text-muted'">
                 {{ template.available ? '可预排' : '不适配' }}
               </span>
             </div>
-            <p class="mt-2 text-[10px] text-muted">
+            <p class="mt-2 text-[0.625rem] text-muted">
               {{ visualTypeLabel(template.visual_type) }} · 上限 {{ template.member_limit }} 人 · 推荐 {{ template.recommended_roles.map(familyRoleLabel).join('、') || '暂无' }}
             </p>
-            <p v-if="template.disabled_reason" class="mt-1 text-[10px] leading-4 text-muted">{{ template.disabled_reason }}</p>
+            <p v-if="template.disabled_reason" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ template.disabled_reason }}</p>
           </div>
         </div>
       </div>
@@ -105,12 +105,12 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="truncate text-xs text-text">{{ member.seat_label || '未分配席位' }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ member.display_name || member.username }} · {{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ member.display_name || member.username }} · {{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
               </div>
-              <span class="shrink-0 text-[10px] text-accent">{{ seatStateLabel(member.seat_state) }}</span>
+              <span class="shrink-0 text-[0.625rem] text-accent">{{ seatStateLabel(member.seat_state) }}</span>
             </div>
-            <p v-if="member.seat_summary" class="mt-2 text-[10px] leading-4 text-muted">{{ member.seat_summary }}</p>
-            <div class="mt-2 grid gap-2 text-[10px] text-muted">
+            <p v-if="member.seat_summary" class="mt-2 text-[0.625rem] leading-4 text-muted">{{ member.seat_summary }}</p>
+            <div class="mt-2 grid gap-2 text-[0.625rem] text-muted">
               <span>供给预览：{{ member.seat_permissions.can_prepare_supplies_preview ? '可看' : '不可用' }}</span>
               <span>开房：{{ member.seat_permissions.can_open_festival_room ? '开放' : '暂缓' }}</span>
             </div>
@@ -137,7 +137,7 @@
           <span
             v-for="item in deferredOperations"
             :key="item"
-            class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+            class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
           >
             {{ deferredOperationLabel(item) }}
           </span>

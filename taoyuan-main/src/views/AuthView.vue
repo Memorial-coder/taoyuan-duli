@@ -5,7 +5,7 @@
         <div class="logo" />
         <h1 class="text-accent text-2xl md:text-4xl tracking-widest">{{ pkg.title }}</h1>
       </div>
-      <p class="text-[11px] md:text-xs text-muted leading-6 max-w-md">登录后就能同步账号进度，在不同设备上继续你的田园生活。</p>
+      <p class="text-[0.6875rem] md:text-xs text-muted leading-6 max-w-md">登录后就能同步账号进度，在不同设备上继续你的田园生活。</p>
     </div>
 
     <div class="w-full max-w-3xl grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
@@ -20,7 +20,7 @@
             <div>
               <p class="text-xs text-accent">当前账号</p>
               <p class="text-sm mt-1">{{ currentUser.display_name || currentUser.username }}</p>
-              <p class="text-[11px] text-muted mt-1">用户名：{{ currentUser.username }}</p>
+              <p class="text-[0.6875rem] text-muted mt-1">用户名：{{ currentUser.username }}</p>
             </div>
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button class="justify-center" :icon="ArrowLeft" @click="goBack">返回主菜单</Button>
@@ -66,8 +66,8 @@
             </div>
 
             <div class="rounded-xs border border-accent/10 bg-bg/15 px-3 py-2">
-              <p class="text-[10px] text-accent">说明</p>
-              <p class="text-[11px] text-muted mt-1 leading-5">
+              <p class="text-[0.625rem] text-accent">说明</p>
+              <p class="text-[0.6875rem] text-muted mt-1 leading-5">
                 {{ authMode === 'login' ? '如果你已经注册过，直接输入账号和密码即可。' : '注册完成后会自动登录，方便你马上开始游戏。' }}
               </p>
             </div>
@@ -88,7 +88,7 @@
           <p class="game-section-desc">先登录或注册账号，再回到主菜单开始你的旅程。</p>
         </div>
 
-        <div class="game-panel-muted p-3 space-y-2 text-[11px] text-muted leading-5">
+        <div class="game-panel-muted p-3 space-y-2 text-[0.6875rem] text-muted leading-5">
           <p>1. 注册一个新账号后，下次可以直接用它登录。</p>
           <p>2. 登录成功后，会自动回到主菜单并同步当前账号。</p>
           <p>3. 想换成本地存档或账号存档，都可以回主菜单再切换。</p>

@@ -6,7 +6,7 @@
     @cancel="handleCancel"
   >
     <div class="space-y-3" data-testid="online-room-wizard">
-      <ol class="grid grid-cols-4 gap-1.5 text-[10px] leading-4" aria-label="创建房间步骤">
+      <ol class="grid grid-cols-4 gap-1.5 text-[0.625rem] leading-4" aria-label="创建房间步骤">
         <li
           v-for="(step, index) in steps"
           :key="step.id"
@@ -44,8 +44,8 @@
               <span class="truncate text-xs leading-5 text-accent">{{ template.label }}</span>
               <CheckCircle v-if="selectedTemplateId === template.id" :size="14" class="shrink-0 text-accent" />
             </span>
-            <span class="mt-1 block text-[10px] leading-4 text-muted">{{ template.summary }}</span>
-            <span class="mt-2 block text-[10px] leading-4 text-muted">
+            <span class="mt-1 block text-[0.625rem] leading-4 text-muted">{{ template.summary }}</span>
+            <span class="mt-2 block text-[0.625rem] leading-4 text-muted">
               {{ memberLimitText(template) }}
             </span>
           </button>
@@ -66,7 +66,7 @@
         </div>
 
         <label class="block">
-          <span class="text-[10px] leading-4 text-muted">{{ domainCopy.titleLabel }}</span>
+          <span class="text-[0.625rem] leading-4 text-muted">{{ domainCopy.titleLabel }}</span>
           <input
             v-model="draftTitle"
             class="online-input mt-1 w-full"
@@ -78,7 +78,7 @@
         </label>
 
         <label class="block">
-          <span class="text-[10px] leading-4 text-muted">{{ domainCopy.modeLabel }}</span>
+          <span class="text-[0.625rem] leading-4 text-muted">{{ domainCopy.modeLabel }}</span>
           <select
             v-model="selectedGameplayId"
             class="online-select mt-1 w-full"
@@ -92,7 +92,7 @@
         </label>
 
         <div class="space-y-1.5">
-          <p class="text-[10px] leading-4 text-muted">{{ domainCopy.memberLimitLabel }}</p>
+          <p class="text-[0.625rem] leading-4 text-muted">{{ domainCopy.memberLimitLabel }}</p>
           <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="online-room-wizard-member-limit-group">
             <button
               v-for="limit in currentMemberLimitOptions"
@@ -111,7 +111,7 @@
         </div>
 
         <div class="space-y-1.5">
-          <p class="text-[10px] leading-4 text-muted">{{ domainCopy.visibilityLabel }}</p>
+          <p class="text-[0.625rem] leading-4 text-muted">{{ domainCopy.visibilityLabel }}</p>
           <div class="grid grid-cols-2 gap-1.5" data-testid="online-room-wizard-visibility-group">
             <button
               type="button"
@@ -151,7 +151,7 @@
         </div>
 
         <label class="block">
-          <span class="text-[10px] leading-4 text-muted">玩家用户名</span>
+          <span class="text-[0.625rem] leading-4 text-muted">玩家用户名</span>
           <textarea
             v-model="inviteInput"
             class="online-textarea mt-1 w-full"
@@ -175,7 +175,7 @@
           <li
             v-for="name in inviteUsernames"
             :key="name"
-            class="flex min-w-0 items-center justify-between gap-2 border border-accent/10 bg-black/10 px-2 py-1.5 text-[10px] leading-4 text-muted"
+            class="flex min-w-0 items-center justify-between gap-2 border border-accent/10 bg-black/10 px-2 py-1.5 text-[0.625rem] leading-4 text-muted"
           >
             <span class="truncate">{{ name }}</span>
             <button
@@ -188,7 +188,7 @@
               移除
             </button>
           </li>
-          <li v-if="inviteUsernames.length === 0" class="border border-accent/10 bg-black/10 px-2 py-2 text-[10px] leading-4 text-muted">
+          <li v-if="inviteUsernames.length === 0" class="border border-accent/10 bg-black/10 px-2 py-2 text-[0.625rem] leading-4 text-muted">
             暂不邀请也可以继续创建。
           </li>
         </ul>
@@ -205,7 +205,7 @@
           <p class="mt-1 text-xs leading-5 text-muted">确认后开始创建，若没有成功，已填写内容会保留。</p>
         </div>
 
-        <dl class="grid gap-2 text-[10px] leading-4" data-testid="online-room-wizard-review-summary">
+        <dl class="grid gap-2 text-[0.625rem] leading-4" data-testid="online-room-wizard-review-summary">
           <div class="game-panel-muted p-2">
             <dt class="text-muted">{{ domainCopy.reviewRoomLabel }}</dt>
             <dd class="mt-1 text-xs text-accent">{{ submitDraft.title }}</dd>
@@ -224,11 +224,11 @@
           </div>
         </dl>
 
-        <div v-if="domain === 'expedition'" class="border border-warning/20 bg-warning/5 p-2 text-[10px] leading-5 text-muted" data-testid="online-room-wizard-expedition-rules">
+        <div v-if="domain === 'expedition'" class="border border-warning/20 bg-warning/5 p-2 text-[0.625rem] leading-5 text-muted" data-testid="online-room-wizard-expedition-rules">
           <p class="text-accent">撤离规则</p>
           <p class="mt-1">远征中途可按玩法规则提前收尾；奖励会按队伍进度、风险和撤离状态结算。</p>
         </div>
-        <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-5 text-muted" data-testid="online-room-wizard-reward-preview">
+        <div class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-5 text-muted" data-testid="online-room-wizard-reward-preview">
           <p class="text-accent">{{ domainCopy.rewardPreviewTitle }}</p>
           <p class="mt-1">{{ selectedGameplay?.summary || selectedTemplate?.summary || domainCopy.rewardPreviewSummary }}</p>
         </div>
@@ -237,7 +237,7 @@
 
     <template #footer>
       <div class="space-y-3">
-        <p v-if="stepError" class="text-[10px] leading-4 text-danger" data-testid="online-room-wizard-step-error">
+        <p v-if="stepError" class="text-[0.625rem] leading-4 text-danger" data-testid="online-room-wizard-step-error">
           {{ stepError }}
         </p>
         <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

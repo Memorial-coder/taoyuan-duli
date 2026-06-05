@@ -31,7 +31,7 @@
             {{ shortcut.label }}
           </button>
         </div>
-        <p class="text-[10px] text-muted/70 mt-1">图鉴看收录与缺口，百科查机制、条件和路线。</p>
+        <p class="text-[0.625rem] text-muted/70 mt-1">图鉴看收录与缺口，百科查机制、条件和路线。</p>
       </div>
 
       <div class="relative">
@@ -134,22 +134,22 @@
             <span class="text-xs" :class="milestone.reached ? 'text-success' : 'text-text'">
               {{ milestone.title }} · {{ milestone.count }}种
             </span>
-            <span class="text-[10px]" :class="milestone.reached ? 'text-success' : 'text-muted'">
+            <span class="text-[0.625rem]" :class="milestone.reached ? 'text-success' : 'text-muted'">
               {{ milestone.reached ? '已达成' : `还差${milestone.remaining}` }}
             </span>
           </div>
-          <p class="text-[10px] text-muted mt-0.5">{{ milestone.description }}</p>
+          <p class="text-[0.625rem] text-muted mt-0.5">{{ milestone.description }}</p>
           <div class="flex flex-wrap gap-1 mt-1">
             <template v-for="effect in milestone.effects" :key="effect.label">
               <button
                 v-if="effect.panel"
                 type="button"
-                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent transition-colors hover:bg-accent/5"
+                class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent transition-colors hover:bg-accent/5"
                 @click="navigateToPanel(effect.panel)"
               >
                 {{ effect.label }}
               </button>
-              <span v-else class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted">
+              <span v-else class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted">
                 {{ effect.label }}
               </span>
             </template>

@@ -42,7 +42,7 @@
         <!-- 摆动指针 -->
         <div class="absolute top-0 bottom-0 w-1 bg-accent" :style="{ left: `${aimPosition}%`, transition: 'none' }" />
         <!-- 区域标签 -->
-        <div class="absolute bottom-0 w-full flex text-center" style="font-size: 9px">
+        <div class="absolute bottom-0 w-full flex text-center" style="font-size: 0.5625rem">
           <span class="flex-1 text-danger/40">远</span>
           <span class="flex-1 text-success/40">近</span>
           <span class="flex-1 text-accent/60">中</span>

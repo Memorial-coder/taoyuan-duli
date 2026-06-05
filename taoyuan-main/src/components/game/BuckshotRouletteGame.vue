@@ -67,7 +67,7 @@
       <p
         v-for="(log, i) in actionLog"
         :key="i"
-        class="text-[10px] leading-relaxed"
+        class="text-[0.625rem] leading-relaxed"
         :class="i === actionLog.length - 1 ? 'text-text' : 'text-muted/60'"
       >
         {{ log }}

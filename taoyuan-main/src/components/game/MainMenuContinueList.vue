@@ -12,17 +12,17 @@
 
     <div v-if="loading" class="main-menu-empty-state game-panel-muted px-3 py-5 text-center">
       <p class="text-xs text-muted">正在读取存档...</p>
-      <p class="text-[10px] text-muted mt-1">首屏会先挂载，存档信息会在后台补齐。</p>
+      <p class="text-[0.625rem] text-muted mt-1">首屏会先挂载，存档信息会在后台补齐。</p>
     </div>
 
     <div v-else-if="slotReadBlocked" class="main-menu-empty-state rounded-xs border border-danger/30 bg-danger/10 px-3 py-5 text-center">
       <p class="text-xs text-danger">服务端存档暂时不可读取，当前无法确认云端槽位是否已有进度。</p>
-      <p class="text-[10px] text-danger/80 mt-1 leading-5">为避免把真实云档误当成空槽覆盖，本页已暂停把它们显示成“空存档”。</p>
+      <p class="text-[0.625rem] text-danger/80 mt-1 leading-5">为避免把真实云档误当成空槽覆盖，本页已暂停把它们显示成“空存档”。</p>
     </div>
 
     <div v-else-if="existingSlots.length === 0" class="main-menu-empty-state game-panel-muted px-3 py-5 text-center">
       <p class="text-xs text-muted">当前还没有可继续的旅程。</p>
-      <p class="text-[10px] text-muted mt-1">点击上方「新的旅程」，或导入已有存档。</p>
+      <p class="text-[0.625rem] text-muted mt-1">点击上方「新的旅程」，或导入已有存档。</p>
     </div>
 
     <div v-for="info in existingSlots" :key="info.slot" class="w-full">
@@ -31,9 +31,9 @@
           <span class="inline-flex min-w-0 items-center space-x-2">
             <FolderOpen :size="14" class="shrink-0" />
             <span class="truncate">存档 {{ info.slot + 1 }} · {{ info.playerName ?? '未命名' }}</span>
-            <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[10px] text-warning">待同步</span>
+            <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
           </span>
-          <span class="shrink-0 text-right text-[11px] text-muted md:text-xs">
+          <span class="shrink-0 text-right text-[0.6875rem] text-muted md:text-xs">
             第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{ info.day }}天
           </span>
         </button>

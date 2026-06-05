@@ -21,24 +21,24 @@
       </div>
       <!-- 天气/加成提示 -->
       <div class="flex flex-wrap space-x-3 mt-2">
-        <span v-if="weatherMod !== 1" class="text-[10px]" :class="weatherMod > 1 ? 'text-success' : 'text-danger'">
+        <span v-if="weatherMod !== 1" class="text-[0.625rem]" :class="weatherMod > 1 ? 'text-success' : 'text-danger'">
           {{ weatherModLabel }}
         </span>
-        <span v-if="hasHerbalistPerk" class="text-[10px] text-success">药师：概率+20%</span>
-        <span v-if="hasLumberjackPerk" class="text-[10px] text-success">
+        <span v-if="hasHerbalistPerk" class="text-[0.625rem] text-success">药师：概率+20%</span>
+        <span v-if="hasLumberjackPerk" class="text-[0.625rem] text-success">
           {{ foragingSkill.perk10 === 'forester' ? '伐木工：必得木材' : '樵夫：25%额外木材' }}
         </span>
-        <span v-if="foragingSkill.perk10 === 'tracker'" class="text-[10px] text-success">追踪者：额外+1物品</span>
-        <span v-if="cookingLuckBuff > 0" class="text-[10px] text-success">料理运气+{{ cookingLuckBuff }}%</span>
-        <span v-if="isForestFarm" class="text-[10px] text-success">森林农场：经验×1.25</span>
+        <span v-if="foragingSkill.perk10 === 'tracker'" class="text-[0.625rem] text-success">追踪者：额外+1物品</span>
+        <span v-if="cookingLuckBuff > 0" class="text-[0.625rem] text-success">料理运气+{{ cookingLuckBuff }}%</span>
+        <span v-if="isForestFarm" class="text-[0.625rem] text-success">森林农场：经验×1.25</span>
       </div>
       <div v-if="environmentWindow.forage.active" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/40">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] text-accent">{{ environmentWindow.forage.label }}</p>
-          <span class="text-[10px] text-success">采集 / 行旅</span>
+          <p class="text-[0.625rem] text-accent">{{ environmentWindow.forage.label }}</p>
+          <span class="text-[0.625rem] text-success">采集 / 行旅</span>
         </div>
-        <p class="text-[10px] text-muted leading-4 mt-1">{{ environmentWindow.forage.summary }}</p>
-        <p class="text-[10px] text-muted/80 leading-4 mt-1">{{ environmentWindow.forage.routeHint }}</p>
+        <p class="text-[0.625rem] text-muted leading-4 mt-1">{{ environmentWindow.forage.summary }}</p>
+        <p class="text-[0.625rem] text-muted/80 leading-4 mt-1">{{ environmentWindow.forage.routeHint }}</p>
       </div>
     </div>
 
@@ -130,7 +130,7 @@
         >
           <div>
             <span class="text-xs">{{ item.name }}</span>
-            <span class="text-[10px] text-muted ml-2">+{{ item.expReward }}经验</span>
+            <span class="text-[0.625rem] text-muted ml-2">+{{ item.expReward }}经验</span>
           </div>
           <span class="text-xs text-muted">{{ Math.round(item.chance * 100) }}%</span>
         </div>

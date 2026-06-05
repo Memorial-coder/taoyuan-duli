@@ -48,50 +48,50 @@
           <div class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">我的村社</p>
-              <span class="text-[10px] text-muted">{{ currentSociety?.my_role_label || '未加入' }}</span>
+              <span class="text-[0.625rem] text-muted">{{ currentSociety?.my_role_label || '未加入' }}</span>
             </div>
             <div v-if="currentSociety" class="mt-3 space-y-3">
               <div class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-accent">{{ currentSociety.name }}</p>
-                    <p class="mt-1 text-[10px] text-muted">
+                    <p class="mt-1 text-[0.625rem] text-muted">
                       {{ currentSociety.theme_label }} · {{ currentSociety.visibility_label }} · {{ currentSociety.member_count }}/{{ currentSociety.capacity }} 人
                     </p>
                   </div>
-                  <span class="w-fit shrink-0 text-[10px] text-accent">{{ currentSociety.emblem_label }}</span>
+                  <span class="w-fit shrink-0 text-[0.625rem] text-accent">{{ currentSociety.emblem_label }}</span>
                 </div>
-                <p class="mt-2 text-[10px] leading-4 text-muted">{{ currentSociety.summary || '这个村社还没写简介。' }}</p>
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ currentSociety.summary || '这个村社还没写简介。' }}</p>
               </div>
 
               <div class="grid gap-2 md:grid-cols-2">
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">我的身份</p>
+                  <p class="text-[0.625rem] text-muted">我的身份</p>
                   <p class="mt-1 text-xs text-accent">{{ currentSociety.my_role_label || '成员' }}</p>
-                  <p class="mt-1 text-[10px] text-muted">社长：{{ currentSociety.leader_display_name }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">社长：{{ currentSociety.leader_display_name }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">入社条件</p>
+                  <p class="text-[0.625rem] text-muted">入社条件</p>
                   <p class="mt-1 text-xs text-accent">{{ currentSociety.join_requirement_label }}</p>
-                  <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{{ currentSociety.join_requirement_note || currentSociety.join_requirement_summary }}</p>
+                  <p class="mt-1 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ currentSociety.join_requirement_note || currentSociety.join_requirement_summary }}</p>
                 </div>
               </div>
 
               <div class="grid gap-2 md:grid-cols-3">
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">福利等级</p>
+                  <p class="text-[0.625rem] text-muted">福利等级</p>
                   <p class="mt-1 text-xs text-accent">{{ currentSociety.level_title }}</p>
-                  <p class="mt-1 text-[10px] text-muted">等级 {{ currentSociety.level }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">等级 {{ currentSociety.level }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">公共建设</p>
+                  <p class="text-[0.625rem] text-muted">公共建设</p>
                   <p class="mt-1 text-xs text-accent">{{ currentSociety.public_projects.length }} 项</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ activeProjectCount }} 项推进中</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ activeProjectCount }} 项推进中</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">提案</p>
+                  <p class="text-[0.625rem] text-muted">提案</p>
                   <p class="mt-1 text-xs text-accent">{{ currentSociety.active_proposals.length }} 条</p>
-                  <p class="mt-1 text-[10px] text-muted">归档 {{ currentSociety.proposal_history.length }} 条</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">归档 {{ currentSociety.proposal_history.length }} 条</p>
                 </div>
               </div>
             </div>
@@ -108,7 +108,7 @@
           <div v-if="currentSociety" class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">村社公告</p>
-              <span class="text-[10px] text-muted">{{ currentSociety.can_manage_notice ? '可编辑' : '只读' }}</span>
+              <span class="text-[0.625rem] text-muted">{{ currentSociety.can_manage_notice ? '可编辑' : '只读' }}</span>
             </div>
             <template v-if="currentSociety.can_manage_notice">
               <textarea
@@ -135,11 +135,11 @@
           <div v-if="!currentSociety" ref="createPanelRef" class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">创建村社</p>
-              <span class="text-[10px] text-muted">组织底座</span>
+              <span class="text-[0.625rem] text-muted">组织底座</span>
             </div>
             <div class="mt-3 space-y-2">
               <label class="block">
-                <span class="text-[10px] text-muted">村社名称</span>
+                <span class="text-[0.625rem] text-muted">村社名称</span>
                 <input
                   v-model="societyStore.draftName"
                   maxlength="24"
@@ -149,7 +149,7 @@
                 />
               </label>
               <label class="block">
-                <span class="text-[10px] text-muted">一句简介</span>
+                <span class="text-[0.625rem] text-muted">一句简介</span>
                 <textarea
                   v-model="societyStore.draftSummary"
                   rows="3"
@@ -160,7 +160,7 @@
                 />
               </label>
               <label class="block">
-                <span class="text-[10px] text-muted">初始公告</span>
+                <span class="text-[0.625rem] text-muted">初始公告</span>
                 <textarea
                   v-model="societyStore.draftNotice"
                   rows="2"
@@ -172,7 +172,7 @@
               </label>
               <div class="grid gap-2 md:grid-cols-2">
                 <label class="block">
-                  <span class="text-[10px] text-muted">村社徽记</span>
+                  <span class="text-[0.625rem] text-muted">村社徽记</span>
                   <select v-model="societyStore.draftEmblem" class="online-select mt-1 w-full" data-testid="online-society-create-emblem-select">
                     <option v-for="entry in societyStore.emblemOptions" :key="entry.id" :value="entry.id">
                       {{ entry.label }}
@@ -180,7 +180,7 @@
                   </select>
                 </label>
                 <label class="block">
-                  <span class="text-[10px] text-muted">村社主题</span>
+                  <span class="text-[0.625rem] text-muted">村社主题</span>
                   <select v-model="societyStore.draftTheme" class="online-select mt-1 w-full" data-testid="online-society-create-theme-select">
                     <option v-for="entry in societyStore.themeOptions" :key="entry.id" :value="entry.id">
                       {{ entry.label }}
@@ -190,7 +190,7 @@
               </div>
               <div class="grid gap-2 md:grid-cols-2">
                 <label class="block">
-                  <span class="text-[10px] text-muted">公开范围</span>
+                  <span class="text-[0.625rem] text-muted">公开范围</span>
                   <select v-model="societyStore.draftVisibility" class="online-select mt-1 w-full" data-testid="online-society-create-visibility-select">
                     <option v-for="entry in societyStore.visibilityOptions" :key="entry.id" :value="entry.id">
                       {{ entry.label }}
@@ -198,7 +198,7 @@
                   </select>
                 </label>
                 <label class="block">
-                  <span class="text-[10px] text-muted">成员容量</span>
+                  <span class="text-[0.625rem] text-muted">成员容量</span>
                   <select v-model="societyStore.draftCapacity" class="online-select mt-1 w-full" data-testid="online-society-create-capacity-select">
                     <option v-for="entry in societyStore.capacityOptions" :key="entry.value" :value="entry.value">
                       {{ entry.label }}
@@ -207,7 +207,7 @@
                 </label>
               </div>
               <label class="block">
-                <span class="text-[10px] text-muted">入社条件</span>
+                <span class="text-[0.625rem] text-muted">入社条件</span>
                 <select v-model="societyStore.draftJoinRequirementId" class="online-select mt-1 w-full" data-testid="online-society-create-join-requirement-select">
                   <option v-for="entry in societyStore.joinRequirementOptions" :key="entry.id" :value="entry.id">
                     {{ entry.label }}
@@ -215,7 +215,7 @@
                 </select>
               </label>
               <label class="block">
-                <span class="text-[10px] text-muted">补充说明</span>
+                <span class="text-[0.625rem] text-muted">补充说明</span>
                 <input
                   v-model="societyStore.draftJoinRequirementNote"
                   maxlength="80"
@@ -241,8 +241,8 @@
             <div class="mt-3 space-y-2">
               <div v-for="request in societyStore.incomingInvites" :key="request.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs text-text">{{ request.society_name }}</p>
-                <p class="mt-1 text-[10px] text-muted">邀请人：{{ request.invited_by_display_name || request.invited_by }}</p>
-                <p v-if="request.target_save_id" class="mt-1 text-[10px] text-muted">受邀存档 ID：{{ request.target_save_id }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">邀请人：{{ request.invited_by_display_name || request.invited_by }}</p>
+                <p v-if="request.target_save_id" class="mt-1 text-[0.625rem] text-muted">受邀存档 ID：{{ request.target_save_id }}</p>
                 <div class="mt-2 flex flex-wrap gap-2">
                   <button class="online-action-btn online-action-btn--compact" type="button" :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">
                     接受
@@ -254,8 +254,8 @@
               </div>
               <div v-for="request in societyStore.myPendingRequests" :key="request.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs text-text">已申请：{{ request.society_name }}</p>
-                <p class="mt-1 text-[10px] text-muted">等待村社管理者处理。</p>
-                <p v-if="request.target_save_id" class="mt-1 text-[10px] text-muted">申请存档 ID：{{ request.target_save_id }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">等待村社管理者处理。</p>
+                <p v-if="request.target_save_id" class="mt-1 text-[0.625rem] text-muted">申请存档 ID：{{ request.target_save_id }}</p>
               </div>
             </div>
           </div>
@@ -264,7 +264,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">公开村社</p>
-            <span class="text-[10px] text-muted">{{ societyStore.visibleSocieties.length }} 个</span>
+            <span class="text-[0.625rem] text-muted">{{ societyStore.visibleSocieties.length }} 个</span>
           </div>
           <OnlineEmptyState
             v-if="societyStore.visibleSocieties.length === 0"
@@ -277,17 +277,17 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ society.name }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ society.theme_label }} · {{ society.visibility_label }} · {{ society.member_count }}/{{ society.capacity }} 人</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ society.theme_label }} · {{ society.visibility_label }} · {{ society.member_count }}/{{ society.capacity }} 人</p>
                 </div>
-                <span class="shrink-0 text-[10px]" :class="getSocietyJoinState(society).tone">
+                <span class="shrink-0 text-[0.625rem]" :class="getSocietyJoinState(society).tone">
                   {{ getSocietyJoinState(society).label }}
                 </span>
               </div>
-              <p class="mt-2 line-clamp-2 text-[10px] leading-4 text-muted">{{ society.summary || '这个村社还没写简介。' }}</p>
-              <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">公告：{{ society.notice || '暂无公告' }}</p>
-              <p class="mt-1 text-[10px] text-muted">入社条件：{{ society.join_requirement_label }}</p>
-              <p v-if="society.join_requirement_note" class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{{ society.join_requirement_note }}</p>
-              <p class="mt-1 text-[10px] text-muted">发起人：{{ society.leader_display_name }}</p>
+              <p class="mt-2 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ society.summary || '这个村社还没写简介。' }}</p>
+              <p class="mt-1 line-clamp-2 text-[0.625rem] leading-4 text-muted">公告：{{ society.notice || '暂无公告' }}</p>
+              <p class="mt-1 text-[0.625rem] text-muted">入社条件：{{ society.join_requirement_label }}</p>
+              <p v-if="society.join_requirement_note" class="mt-1 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ society.join_requirement_note }}</p>
+              <p class="mt-1 text-[0.625rem] text-muted">发起人：{{ society.leader_display_name }}</p>
               <div v-if="society.can_apply && !currentSociety && !pendingRequestBySocietyId.has(society.id)" class="mt-2 flex justify-end">
                 <button
                   class="online-action-btn online-action-btn--compact"
@@ -307,7 +307,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">成员与职位</p>
-            <span class="text-[10px] text-muted">{{ memberCount }} 人</span>
+            <span class="text-[0.625rem] text-muted">{{ memberCount }} 人</span>
           </div>
           <OnlineEmptyState
             v-if="!currentSociety"
@@ -320,8 +320,8 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ member.display_name }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ member.username }} · {{ member.role_label }}</p>
-                  <p v-if="member.save_id" class="mt-1 text-[10px] text-muted">存档 ID：{{ member.save_id }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ member.username }} · {{ member.role_label }}</p>
+                  <p v-if="member.save_id" class="mt-1 text-[0.625rem] text-muted">存档 ID：{{ member.save_id }}</p>
                 </div>
                 <div v-if="currentSociety.can_manage_roles && member.role !== 'president'" class="flex w-full shrink-0 flex-wrap items-center gap-2 md:w-auto">
                   <select v-model="memberRoleDrafts[member.username]" class="online-select min-w-32 flex-1 md:flex-none" :data-testid="`online-society-member-role-select-${member.username}`">
@@ -339,7 +339,7 @@
                     调整
                   </button>
                 </div>
-                <span v-else class="w-fit shrink-0 text-[10px] text-muted">{{ member.role === 'president' ? '社长职位不可在此调整' : '只读' }}</span>
+                <span v-else class="w-fit shrink-0 text-[0.625rem] text-muted">{{ member.role === 'president' ? '社长职位不可在此调整' : '只读' }}</span>
               </div>
             </div>
           </div>
@@ -350,15 +350,15 @@
             <p class="text-sm text-accent">成员治理</p>
             <div class="mt-3 grid gap-2 text-xs">
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">待处理申请 / 邀请</p>
+                <p class="text-[0.625rem] text-muted">待处理申请 / 邀请</p>
                 <p class="mt-1 text-accent">{{ societyStore.managedRequests.length }} 条</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">我收到的邀请</p>
+                <p class="text-[0.625rem] text-muted">我收到的邀请</p>
                 <p class="mt-1 text-accent">{{ societyStore.incomingInvites.length }} 条</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">我的待处理申请</p>
+                <p class="text-[0.625rem] text-muted">我的待处理申请</p>
                 <p class="mt-1 text-accent">{{ societyStore.myPendingRequests.length }} 条</p>
               </div>
             </div>
@@ -367,7 +367,7 @@
           <div v-if="currentSociety?.can_invite" class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">邀请玩家</p>
-              <span class="text-[10px] text-muted">可用用户名或存档 ID</span>
+              <span class="text-[0.625rem] text-muted">可用用户名或存档 ID</span>
             </div>
             <div class="mt-3 space-y-2">
               <input
@@ -395,7 +395,7 @@
           <div v-if="currentSociety?.can_review_requests" class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">申请处理</p>
-              <span class="text-[10px] text-muted">{{ societyStore.managedRequests.length }} 条</span>
+              <span class="text-[0.625rem] text-muted">{{ societyStore.managedRequests.length }} 条</span>
             </div>
             <OnlineEmptyState
               v-if="societyStore.managedRequests.length === 0"
@@ -406,8 +406,8 @@
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
               <div v-for="request in societyStore.managedRequests" :key="request.id" class="border border-accent/10 bg-black/10 p-2" data-testid="online-society-managed-request-entry">
                 <p class="text-xs text-text">{{ request.display_name }} · {{ request.type_label }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ request.society_name }}</p>
-                <p v-if="request.target_save_id" class="mt-1 text-[10px] text-muted">存档 ID：{{ request.target_save_id }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ request.society_name }}</p>
+                <p v-if="request.target_save_id" class="mt-1 text-[0.625rem] text-muted">存档 ID：{{ request.target_save_id }}</p>
                 <div class="mt-2 flex flex-wrap gap-2">
                   <button class="online-action-btn online-action-btn--compact" :data-testid="`online-society-managed-request-accept-${request.id}`" type="button" :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">
                     接受
@@ -433,7 +433,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">仓库与福利</p>
-            <span class="text-[10px] text-muted">{{ currentSociety?.level_title || '未加入' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ currentSociety?.level_title || '未加入' }}</span>
           </div>
           <OnlineEmptyState
             v-if="!currentSociety"
@@ -444,7 +444,7 @@
           <div v-else class="mt-3 space-y-3">
             <div class="border border-accent/10 bg-black/10 p-2">
               <p class="text-xs text-accent">福利等级</p>
-              <p class="mt-1 text-[10px] text-muted">
+              <p class="mt-1 text-[0.625rem] text-muted">
                 等级 {{ currentSociety.level }} · 福利经验 {{ currentSociety.welfare_xp }}/{{ currentWelfareProgressTotal }}
                 {{ currentSociety.welfare_xp_to_next_level > 0 ? `· 距下一级 ${currentSociety.welfare_xp_to_next_level}` : '· 已达当前最高级' }}
               </p>
@@ -456,7 +456,7 @@
             <div class="border border-accent/10 bg-black/10 p-2">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs text-accent">公共仓库</p>
-                <span class="text-[10px] text-muted">共用物资 {{ currentSociety.public_warehouse.funds }} 铜钱</span>
+                <span class="text-[0.625rem] text-muted">共用物资 {{ currentSociety.public_warehouse.funds }} 铜钱</span>
               </div>
               <div v-if="currentSociety.public_warehouse.deposit_options.length > 0" class="mt-3 grid gap-2 md:grid-cols-2">
                 <button
@@ -468,10 +468,10 @@
                   :disabled="societyStore.actionRunning"
                   @click="depositWarehouse(entry.id)"
                 >
-                  <p class="text-[10px] text-accent">{{ entry.label }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ entry.category_label }} · 本周 +{{ entry.weekly_points }} 分</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                  <p class="text-[0.625rem] text-accent">{{ entry.label }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ entry.category_label }} · 本周 +{{ entry.weekly_points }} 分</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
                 </button>
               </div>
               <div
@@ -480,8 +480,8 @@
                 data-testid="online-society-warehouse-consume-panel"
               >
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-warning">公共消耗</p>
-                  <span class="text-[10px] text-muted">只扣公共仓</span>
+                  <p class="text-[0.625rem] text-warning">公共消耗</p>
+                  <span class="text-[0.625rem] text-muted">只扣公共仓</span>
                 </div>
                 <div class="mt-2 grid gap-2 md:grid-cols-2">
                   <button
@@ -493,11 +493,11 @@
                     :disabled="societyStore.actionRunning"
                     @click="consumeWarehouse(entry)"
                   >
-                    <p class="text-[10px] text-warning">{{ entry.label }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
-                    <p class="mt-1 text-[10px] text-muted">消耗：{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
-                    <p v-if="entry.room_preload_hint" class="mt-1 text-[10px] leading-4 text-warning">{{ entry.room_preload_hint }}</p>
-                    <p v-if="entry.asset_boundary" class="mt-1 text-[10px] leading-4 text-muted">{{ entry.asset_boundary }}</p>
+                    <p class="text-[0.625rem] text-warning">{{ entry.label }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">消耗：{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                    <p v-if="entry.room_preload_hint" class="mt-1 text-[0.625rem] leading-4 text-warning">{{ entry.room_preload_hint }}</p>
+                    <p v-if="entry.asset_boundary" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.asset_boundary }}</p>
                   </button>
                 </div>
               </div>
@@ -507,10 +507,10 @@
                 data-testid="online-society-warehouse-weekly-settlement"
               >
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-accent">本周村社仓廪</p>
-                  <span class="text-[10px] text-muted">{{ currentSociety.public_warehouse.weekly_settlement.status_label }}</span>
+                  <p class="text-[0.625rem] text-accent">本周村社仓廪</p>
+                  <span class="text-[0.625rem] text-muted">{{ currentSociety.public_warehouse.weekly_settlement.status_label }}</span>
                 </div>
-                <p class="mt-1 text-[10px] leading-4 text-muted">
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                   {{ currentSociety.public_warehouse.weekly_settlement.total_points }} 分 ·
                   {{ currentSociety.public_warehouse.weekly_settlement.contributor_count }} 人 ·
                   {{ currentSociety.public_warehouse.weekly_settlement.covered_category_count }}/5 类齐备
@@ -519,7 +519,7 @@
                   <div
                     v-for="category in currentSociety.public_warehouse.weekly_settlement.categories"
                     :key="category.id"
-                    class="border border-accent/10 px-1.5 py-1 text-[10px] text-muted"
+                    class="border border-accent/10 px-1.5 py-1 text-[0.625rem] text-muted"
                   >
                     <p class="text-accent">{{ category.label }}</p>
                     <p>{{ category.points }} 分 / {{ category.count }} 次</p>
@@ -529,7 +529,7 @@
                   <div
                     v-for="effect in warehouseWeeklyEffects"
                     :key="effect.label"
-                    class="border border-accent/10 px-2 py-1.5 text-[10px] leading-4 text-muted"
+                    class="border border-accent/10 px-2 py-1.5 text-[0.625rem] leading-4 text-muted"
                     :class="effect.active ? 'bg-success/10 text-success' : 'bg-black/10'"
                   >
                     <p>{{ effect.label }}</p>
@@ -538,14 +538,14 @@
                 </div>
               </div>
               <div v-if="currentSociety.public_warehouse.items.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                <span v-for="entry in currentSociety.public_warehouse.items" :key="entry.item_id" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                <span v-for="entry in currentSociety.public_warehouse.items" :key="entry.item_id" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                   {{ entry.label }}
                 </span>
               </div>
               <div v-if="currentSociety.public_warehouse.logs.length > 0" class="mt-3 border-t border-accent/10 pt-2">
-                <p class="text-[10px] text-accent">最近仓廪记录</p>
+                <p class="text-[0.625rem] text-accent">最近仓廪记录</p>
                 <div class="mt-1 max-h-28 space-y-1 overflow-y-auto pr-1">
-                  <div v-for="entry in currentSociety.public_warehouse.logs.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
+                  <div v-for="entry in currentSociety.public_warehouse.logs.slice(0, 6)" :key="entry.id" class="text-[0.625rem] leading-4 text-muted">
                     {{ warehouseLogText(entry) }}
                   </div>
                 </div>
@@ -555,8 +555,8 @@
             <div class="grid gap-2 md:grid-cols-2">
               <div v-for="welfare in currentSociety.welfare_unlocks" :key="welfare.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs" :class="welfare.unlocked ? 'text-success' : 'text-muted'">{{ welfare.label }}</p>
-                <p class="mt-1 text-[10px] leading-4 text-muted">{{ welfare.summary }}</p>
-                <p class="mt-1 text-[10px] text-muted">解锁等级：{{ welfare.unlock_level }}</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ welfare.summary }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">解锁等级：{{ welfare.unlock_level }}</p>
               </div>
             </div>
           </div>
@@ -570,15 +570,15 @@
               <p class="text-xs" :class="currentSociety.exclusive_festival.unlocked ? 'text-success' : 'text-muted'">
                 {{ currentSociety.exclusive_festival.label }}
               </p>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ currentSociety.exclusive_festival.summary }}</p>
-              <p class="mt-1 text-[10px] text-muted">解锁等级：{{ currentSociety.exclusive_festival.unlock_level }}</p>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ currentSociety.exclusive_festival.perk_summary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ currentSociety.exclusive_festival.summary }}</p>
+              <p class="mt-1 text-[0.625rem] text-muted">解锁等级：{{ currentSociety.exclusive_festival.unlock_level }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ currentSociety.exclusive_festival.perk_summary }}</p>
             </div>
             <div class="max-h-64 space-y-2 overflow-y-auto pr-1">
               <div v-for="entry in currentSociety.exclusive_decors" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs" :class="entry.unlocked ? 'text-success' : 'text-muted'">{{ entry.label }}</p>
-                <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
-                <p class="mt-1 text-[10px] text-muted">解锁等级：{{ entry.unlock_level }}</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">解锁等级：{{ entry.unlock_level }}</p>
               </div>
             </div>
             <div class="border-t border-accent/10 pt-3">
@@ -587,10 +587,10 @@
                 <div v-for="entry in currentSociety.exclusive_tasks" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-start justify-between gap-2">
                     <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
-                    <span class="text-[10px] text-muted">{{ entry.status_label }}</span>
+                    <span class="text-[0.625rem] text-muted">{{ entry.status_label }}</span>
                   </div>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">解锁等级：{{ entry.unlock_level }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">解锁等级：{{ entry.unlock_level }}</p>
                 </div>
               </div>
             </div>
@@ -601,7 +601,7 @@
       <div v-else-if="activeTab === 'projects'" class="game-panel-muted p-3">
         <div class="flex items-center justify-between gap-2">
           <p class="text-sm text-accent">公共建设</p>
-          <span class="text-[10px] text-muted">{{ currentSociety?.public_projects.length || 0 }} 项</span>
+          <span class="text-[0.625rem] text-muted">{{ currentSociety?.public_projects.length || 0 }} 项</span>
         </div>
         <OnlineEmptyState
           v-if="!currentSociety"
@@ -626,21 +626,21 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="truncate text-xs text-text">{{ project.label }}</p>
-                <p class="mt-1 text-[10px] text-muted">
+                <p class="mt-1 text-[0.625rem] text-muted">
                   {{ project.status_label }} · {{ project.progress }}/{{ project.target_progress }} · 已贡献 {{ project.my_contribution_count }} 次
                 </p>
               </div>
-              <span class="shrink-0 text-[10px]" :class="project.status === 'completed' ? 'text-success' : 'text-accent'">{{ project.progress_percent }}%</span>
+              <span class="shrink-0 text-[0.625rem]" :class="project.status === 'completed' ? 'text-success' : 'text-accent'">{{ project.progress_percent }}%</span>
             </div>
             <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
               <div class="h-full bg-accent/70 transition-all" :style="{ width: `${project.progress_percent}%` }" />
             </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted">{{ project.summary }}</p>
-            <p v-if="project.progress_note" class="mt-1 text-[10px] leading-4 text-muted">{{ project.progress_note }}</p>
-            <p v-if="project.status === 'completed'" class="mt-1 text-[10px] leading-4 text-success">{{ project.world_feedback || project.completion_feedback }}</p>
+            <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ project.summary }}</p>
+            <p v-if="project.progress_note" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ project.progress_note }}</p>
+            <p v-if="project.status === 'completed'" class="mt-1 text-[0.625rem] leading-4 text-success">{{ project.world_feedback || project.completion_feedback }}</p>
             <RouterLink
               v-if="project.completion_room_launch"
-              class="mt-2 flex items-center justify-between gap-2 border border-accent/20 bg-accent/10 px-2 py-2 text-[10px] text-accent"
+              class="mt-2 flex items-center justify-between gap-2 border border-accent/20 bg-accent/10 px-2 py-2 text-[0.625rem] text-accent"
               :to="{
                 name: 'online-festival',
                 query: {
@@ -657,7 +657,7 @@
               </span>
               <span class="shrink-0">创建房间</span>
             </RouterLink>
-            <div v-if="(project.completion_rewards || []).length > 0" class="mt-2 space-y-1 text-[10px] leading-4 text-muted">
+            <div v-if="(project.completion_rewards || []).length > 0" class="mt-2 space-y-1 text-[0.625rem] leading-4 text-muted">
               <p class="text-accent">完工效果</p>
               <p
                 v-for="reward in project.completion_rewards || []"
@@ -678,9 +678,9 @@
                 :disabled="societyStore.actionRunning"
                 @click="contributeProject(project.id, entry.id)"
               >
-                <p class="text-[10px] text-accent">{{ entry.label }} · +{{ entry.progress_gain }} 进度</p>
-                <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
-                <p class="mt-1 text-[10px] text-muted">
+                <p class="text-[0.625rem] text-accent">{{ entry.label }} · +{{ entry.progress_gain }} 进度</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">
                   {{ packageCostText(entry) }}
                   <span v-if="packageLimitText(entry)"> · {{ packageLimitText(entry) }}</span>
                 </p>
@@ -688,9 +688,9 @@
             </div>
 
             <div v-if="project.recent_contributions.length > 0" class="mt-3 border-t border-accent/10 pt-2">
-              <p class="text-[10px] text-accent">最近捐献</p>
+              <p class="text-[0.625rem] text-accent">最近捐献</p>
               <div class="mt-1 space-y-1">
-                <div v-for="entry in project.recent_contributions" :key="entry.id" class="text-[10px] leading-4 text-muted">
+                <div v-for="entry in project.recent_contributions" :key="entry.id" class="text-[0.625rem] leading-4 text-muted">
                   {{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · {{ costListText(entry.costs) }}
                 </div>
               </div>
@@ -704,7 +704,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">活跃提案</p>
-            <span class="text-[10px] text-muted">{{ currentSociety?.active_proposals.length || 0 }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ currentSociety?.active_proposals.length || 0 }} 条</span>
           </div>
           <OnlineEmptyState
             v-if="!currentSociety"
@@ -723,12 +723,12 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ proposal.title }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ proposal.kind_label }} · {{ proposal.status_label }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ proposal.kind_label }} · {{ proposal.status_label }}</p>
                 </div>
-                <span class="shrink-0 text-[10px] text-accent">{{ proposal.total_vote_count }} 票</span>
+                <span class="shrink-0 text-[0.625rem] text-accent">{{ proposal.total_vote_count }} 票</span>
               </div>
-              <p class="mt-2 text-[10px] leading-4 text-muted">{{ proposal.summary }}</p>
-              <p class="mt-2 text-[10px] text-muted">
+              <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ proposal.summary }}</p>
+              <p class="mt-2 text-[0.625rem] text-muted">
                 赞成 {{ proposal.vote_counts.support }} / 反对 {{ proposal.vote_counts.reject }} / 暂缓 {{ proposal.vote_counts.abstain }}
               </p>
               <div v-if="proposal.can_vote" class="mt-2 flex flex-wrap gap-2">
@@ -744,7 +744,7 @@
                   {{ choice.label }}
                 </button>
               </div>
-              <p v-if="proposal.my_vote_choice" class="mt-2 text-[10px] text-success">我的当前票：{{ getProposalVoteLabel(proposal) }}</p>
+              <p v-if="proposal.my_vote_choice" class="mt-2 text-[0.625rem] text-success">我的当前票：{{ getProposalVoteLabel(proposal) }}</p>
               <div v-if="proposal.can_close" class="mt-2 space-y-2">
                 <input
                   v-model="proposalResolutionNotes[proposal.id]"
@@ -771,7 +771,7 @@
           <div class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">发起提案</p>
-              <span class="text-[10px] text-muted">{{ currentSociety?.can_create_proposal ? '可发起' : '只读' }}</span>
+              <span class="text-[0.625rem] text-muted">{{ currentSociety?.can_create_proposal ? '可发起' : '只读' }}</span>
             </div>
             <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后可以查看是否具备发起提案权限。</div>
             <div v-else-if="!currentSociety.can_create_proposal" class="mt-3 text-xs leading-5 text-muted">当前身份没有发起提案权限。</div>
@@ -817,12 +817,12 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ proposal.title }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ proposal.kind_label }} · {{ proposal.result_label }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ proposal.kind_label }} · {{ proposal.result_label }}</p>
                   </div>
-                  <span class="shrink-0 text-[10px] text-muted">{{ proposal.total_vote_count }} 票</span>
+                  <span class="shrink-0 text-[0.625rem] text-muted">{{ proposal.total_vote_count }} 票</span>
                 </div>
-                <p class="mt-2 text-[10px] leading-4 text-muted">{{ proposal.summary }}</p>
-                <p v-if="proposal.resolution_note" class="mt-1 text-[10px] leading-4 text-muted">归档备注：{{ proposal.resolution_note }}</p>
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ proposal.summary }}</p>
+                <p v-if="proposal.resolution_note" class="mt-1 text-[0.625rem] leading-4 text-muted">归档备注：{{ proposal.resolution_note }}</p>
               </div>
             </div>
           </div>
@@ -833,29 +833,29 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">村社史册</p>
-            <span class="text-[10px] text-muted">{{ currentSociety?.chronicle.founded_date_label || '未加入' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ currentSociety?.chronicle.founded_date_label || '未加入' }}</span>
           </div>
           <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会显示史册摘要。</div>
           <div v-else class="mt-3 space-y-3">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">年度摘要</p>
+              <p class="text-[0.625rem] text-muted">年度摘要</p>
               <p class="mt-1 text-xs leading-5 text-accent">{{ currentSociety.chronicle.annual_summary }}</p>
             </div>
             <div class="grid gap-2 md:grid-cols-2">
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">成立日期</p>
+                <p class="text-[0.625rem] text-muted">成立日期</p>
                 <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.founded_date_label || '待记录' }}</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">历任职位</p>
+                <p class="text-[0.625rem] text-muted">历任职位</p>
                 <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.role_history.length }} 条</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">公共建设</p>
+                <p class="text-[0.625rem] text-muted">公共建设</p>
                 <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.public_projects.length }} 项</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">节会参与</p>
+                <p class="text-[0.625rem] text-muted">节会参与</p>
                 <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.festival_participations.length }} 条</p>
               </div>
             </div>
@@ -864,9 +864,9 @@
               <div v-for="entry in currentSociety.chronicle.role_history" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="truncate text-xs text-text">{{ entry.display_name }}</p>
-                  <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                  <span class="shrink-0 text-[0.625rem] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
                 </div>
-                <p class="mt-1 text-[10px] text-muted">{{ entry.role_label }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ entry.role_label }}</p>
               </div>
             </div>
             <div class="max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -874,15 +874,15 @@
               <div v-for="entry in currentSociety.chronicle.public_projects" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="truncate text-xs text-text">{{ entry.label }}</p>
-                  <span class="shrink-0 text-[10px]" :class="entry.status === 'completed' ? 'text-success' : 'text-muted'">{{ entry.status_label }}</span>
+                  <span class="shrink-0 text-[0.625rem]" :class="entry.status === 'completed' ? 'text-success' : 'text-muted'">{{ entry.status_label }}</span>
                 </div>
-                <p class="mt-1 text-[10px] text-muted">
+                <p class="mt-1 text-[0.625rem] text-muted">
                   {{ entry.progress }}/{{ entry.target_progress }} · 共 {{ entry.contribution_count }} 条贡献
                   <template v-if="entry.completed_at && entry.completed_by_display_name">
                     · {{ entry.completed_by_display_name }} 完工
                   </template>
                 </p>
-                <p v-if="activeCompletionRewardText(entry.completion_rewards)" class="mt-1 text-[10px] leading-4 text-success">
+                <p v-if="activeCompletionRewardText(entry.completion_rewards)" class="mt-1 text-[0.625rem] leading-4 text-success">
                   落成效果：{{ activeCompletionRewardText(entry.completion_rewards) }}
                 </p>
               </div>
@@ -892,10 +892,10 @@
               <div v-for="entry in currentSociety.chronicle.festival_participations" :key="entry.memorial_id" class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="truncate text-xs text-text">{{ entry.template_label }}</p>
-                  <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.awarded_at) }}</span>
+                  <span class="shrink-0 text-[0.625rem] text-muted">{{ formatChronicleDate(entry.awarded_at) }}</span>
                 </div>
-                <p class="mt-1 text-[10px] text-muted">{{ entry.gameplay_template_label }} · {{ entry.participant_count }} 名社员参与</p>
-                <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{{ entry.participant_display_names.join('、') }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ entry.gameplay_template_label }} · {{ entry.participant_count }} 名社员参与</p>
+                <p class="mt-1 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ entry.participant_display_names.join('、') }}</p>
               </div>
             </div>
             <div v-if="currentSociety.chronicle.timeline.length > 0" class="max-h-72 space-y-2 overflow-y-auto pr-1">
@@ -903,9 +903,9 @@
               <div v-for="entry in currentSociety.chronicle.timeline" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="truncate text-xs text-text">{{ entry.label }}</p>
-                  <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                  <span class="shrink-0 text-[0.625rem] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
                 </div>
-                <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
               </div>
             </div>
           </div>
@@ -918,9 +918,9 @@
             <div v-for="entry in currentSociety.chronicle.top_contributors" :key="entry.username" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex items-center justify-between gap-2">
                 <p class="truncate text-xs text-text">{{ entry.display_name }}</p>
-                <span class="shrink-0 text-[10px] text-accent">{{ entry.contribution_count }} 次</span>
+                <span class="shrink-0 text-[0.625rem] text-accent">{{ entry.contribution_count }} 次</span>
               </div>
-              <p class="mt-1 text-[10px] text-muted">{{ entry.project_count }} 项建设 · +{{ entry.total_progress_gain }} 进度</p>
+              <p class="mt-1 text-[0.625rem] text-muted">{{ entry.project_count }} 项建设 · +{{ entry.total_progress_gain }} 进度</p>
             </div>
           </div>
         </div>

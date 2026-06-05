@@ -38,34 +38,34 @@
           <div class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">当前季节大事件</p>
-              <span class="text-[10px] text-muted">{{ worldEventStore.currentEvent?.state_label || '未开放' }}</span>
+              <span class="text-[0.625rem] text-muted">{{ worldEventStore.currentEvent?.state_label || '未开放' }}</span>
             </div>
             <div v-if="worldEventStore.currentEvent" class="mt-3 space-y-3">
               <div class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-accent">{{ worldEventStore.currentEvent.label }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ worldEventStore.currentEvent.scope_label }} · {{ worldEventStore.currentEvent.season_label }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ worldEventStore.currentEvent.scope_label }} · {{ worldEventStore.currentEvent.season_label }}</p>
                   </div>
-                  <span class="w-fit shrink-0 text-[10px] text-muted">{{ worldEventStore.currentEvent.progress_text }}</span>
+                  <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ worldEventStore.currentEvent.progress_text }}</span>
                 </div>
-                <p class="mt-2 text-[10px] leading-4 text-muted">{{ worldEventStore.currentEvent.summary }}</p>
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ worldEventStore.currentEvent.summary }}</p>
                 <div class="mt-2 h-2 overflow-hidden border border-accent/10 bg-bg">
                   <div class="h-full bg-accent/70 transition-all" :style="{ width: `${worldEventStore.currentEvent.progress_percent}%` }" />
                 </div>
-                <p class="mt-2 text-[10px] text-muted">
+                <p class="mt-2 text-[0.625rem] text-muted">
                   {{ worldEventStore.currentEvent.objective_label }} · {{ worldEventStore.currentEvent.progress_text }} · 基础回礼 {{ worldEventStore.currentEvent.reward_money_hint }} 铜钱起
                 </p>
-                <p v-if="worldEventStore.currentEvent.locked_reason" class="mt-1 text-[10px] leading-4 text-warning">
+                <p v-if="worldEventStore.currentEvent.locked_reason" class="mt-1 text-[0.625rem] leading-4 text-warning">
                   {{ worldEventStore.currentEvent.locked_reason }}
                 </p>
-                <p v-else-if="worldEventStore.currentEvent.completion_text" class="mt-1 text-[10px] leading-4 text-success">
+                <p v-else-if="worldEventStore.currentEvent.completion_text" class="mt-1 text-[0.625rem] leading-4 text-success">
                   {{ worldEventStore.currentEvent.completion_text }}
                 </p>
               </div>
 
               <div v-if="worldEventStore.currentEvent.contribution_actions.length > 0" class="space-y-2">
-                <p class="text-[10px] text-muted">可提交贡献</p>
+                <p class="text-[0.625rem] text-muted">可提交贡献</p>
                 <div class="grid gap-2 md:grid-cols-2">
                   <div
                     v-for="action in worldEventStore.currentEvent.contribution_actions"
@@ -81,10 +81,10 @@
                       >
                         {{ action.label }}
                       </Button>
-                      <p class="text-[10px] leading-4 text-muted">{{ action.summary }}</p>
+                      <p class="text-[0.625rem] leading-4 text-muted">{{ action.summary }}</p>
                     </div>
-                    <p class="mt-2 text-[10px] text-muted">工钱 {{ action.cost_money }} 铜钱 · 推进 {{ action.progress_delta }} 点</p>
-                    <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[10px] text-muted">{{ action.disabled_reason }}</p>
+                    <p class="mt-2 text-[0.625rem] text-muted">工钱 {{ action.cost_money }} 铜钱 · 推进 {{ action.progress_delta }} 点</p>
+                    <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[0.625rem] text-muted">{{ action.disabled_reason }}</p>
                   </div>
                 </div>
               </div>
@@ -92,9 +92,9 @@
               <div class="grid gap-3 md:grid-cols-2">
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">当前贡献榜</p>
-                  <div v-if="worldEventStore.currentEvent.contributors.length === 0" class="mt-2 text-[10px] text-muted">当前还没有人提交季节贡献。</div>
+                  <div v-if="worldEventStore.currentEvent.contributors.length === 0" class="mt-2 text-[0.625rem] text-muted">当前还没有人提交季节贡献。</div>
                   <div v-else class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
-                    <p v-for="contributor in worldEventStore.currentEvent.contributors" :key="`${worldEventStore.currentEvent.id}-${contributor.username}`" class="text-[10px] leading-4 text-muted">
+                    <p v-for="contributor in worldEventStore.currentEvent.contributors" :key="`${worldEventStore.currentEvent.id}-${contributor.username}`" class="text-[0.625rem] leading-4 text-muted">
                       {{ contributor.rank }}. {{ contributor.display_name }} · {{ contributor.progress_value }} 点 · {{ contributor.action_count }} 次
                     </p>
                   </div>
@@ -102,12 +102,12 @@
 
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">我的季节记录</p>
-                  <div v-if="!worldEventStore.currentEvent.my_contribution" class="mt-2 text-[10px] text-muted">你本季还没有提交贡献。</div>
+                  <div v-if="!worldEventStore.currentEvent.my_contribution" class="mt-2 text-[0.625rem] text-muted">你本季还没有提交贡献。</div>
                   <div v-else class="mt-2 space-y-1.5">
-                    <p class="text-[10px] text-muted">当前排名：第 {{ worldEventStore.currentEvent.my_contribution.rank }} 名</p>
-                    <p class="text-[10px] text-muted">累计贡献：{{ worldEventStore.currentEvent.my_contribution.progress_value }} 点</p>
-                    <p class="text-[10px] text-muted">提交次数：{{ worldEventStore.currentEvent.my_contribution.action_count }} 次</p>
-                    <p v-if="worldEventStore.currentEvent.my_contribution.last_action_label" class="text-[10px] text-muted">
+                    <p class="text-[0.625rem] text-muted">当前排名：第 {{ worldEventStore.currentEvent.my_contribution.rank }} 名</p>
+                    <p class="text-[0.625rem] text-muted">累计贡献：{{ worldEventStore.currentEvent.my_contribution.progress_value }} 点</p>
+                    <p class="text-[0.625rem] text-muted">提交次数：{{ worldEventStore.currentEvent.my_contribution.action_count }} 次</p>
+                    <p v-if="worldEventStore.currentEvent.my_contribution.last_action_label" class="text-[0.625rem] text-muted">
                       最近动作：{{ worldEventStore.currentEvent.my_contribution.last_action_label }}
                     </p>
                   </div>
@@ -120,13 +120,13 @@
           <div class="space-y-3">
             <div v-if="worldEventStore.publicGoal" class="game-panel-muted p-3">
               <p class="text-sm text-accent">公共目标</p>
-              <p class="mt-2 text-[10px] leading-5 text-muted">{{ worldEventStore.publicGoal.summary }}</p>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ worldEventStore.publicGoal.summary }}</p>
               <div class="mt-2 flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="text-xs text-text">{{ worldEventStore.publicGoal.label }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ worldEventStore.publicGoal.progress_text }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ worldEventStore.publicGoal.progress_text }}</p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px] text-accent">{{ worldEventStore.publicGoal.phase_reward_label }}</span>
+                <span class="w-fit shrink-0 text-[0.625rem] text-accent">{{ worldEventStore.publicGoal.phase_reward_label }}</span>
               </div>
               <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
                 <div class="h-full bg-accent/70 transition-all" :style="{ width: `${worldEventStore.publicGoal.progress_percent}%` }" />
@@ -134,29 +134,29 @@
               <div v-if="worldEventStore.publicGoal.milestones.length > 0" class="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
                 <div v-for="milestone in worldEventStore.publicGoal.milestones" :key="milestone.id" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px] text-text">{{ milestone.label }}</p>
-                    <span class="text-[10px]" :class="milestone.reached ? 'text-success' : 'text-muted'">{{ milestone.progress_text }}</span>
+                    <p class="text-[0.625rem] text-text">{{ milestone.label }}</p>
+                    <span class="text-[0.625rem]" :class="milestone.reached ? 'text-success' : 'text-muted'">{{ milestone.progress_text }}</span>
                   </div>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ milestone.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">阶段奖励：{{ milestone.reward_label }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ milestone.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">阶段奖励：{{ milestone.reward_label }}</p>
                 </div>
               </div>
             </div>
 
             <div class="game-panel-muted p-3">
               <p class="text-sm text-accent">我的世界贡献</p>
-              <p class="mt-2 text-[10px] text-muted">累计贡献：{{ worldEventStore.overview?.total_contribution_points || 0 }} 点</p>
+              <p class="mt-2 text-[0.625rem] text-muted">累计贡献：{{ worldEventStore.overview?.total_contribution_points || 0 }} 点</p>
               <div v-if="worldEventStore.myRecords.length === 0" class="mt-2 text-xs leading-5 text-muted">当前账号还没有完成过四季大事件结算。</div>
               <div v-else class="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
                 <div v-for="record in worldEventStore.myRecords.slice(0, 4)" :key="record.record_id" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-text">{{ record.event_label }}</p>
-                      <p class="mt-1 text-[10px] text-muted">{{ record.season_label }} · 第 {{ record.rank }} 名</p>
+                      <p class="mt-1 text-[0.625rem] text-muted">{{ record.season_label }} · 第 {{ record.rank }} 名</p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-success">+{{ record.reward_money }} 铜钱</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-success">+{{ record.reward_money }} 铜钱</span>
                   </div>
-                  <p class="mt-2 text-[10px] leading-4 text-muted">{{ record.reward_summary }}</p>
+                  <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ record.reward_summary }}</p>
                 </div>
               </div>
             </div>
@@ -167,9 +167,9 @@
           <div class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">世界事件列表</p>
-              <span class="text-[10px] text-muted">{{ worldEventStore.worldEvents.length }} 条</span>
+              <span class="text-[0.625rem] text-muted">{{ worldEventStore.worldEvents.length }} 条</span>
             </div>
-            <p v-if="worldEventStore.worldEvents.length > 0" class="mt-2 text-[10px] text-muted">
+            <p v-if="worldEventStore.worldEvents.length > 0" class="mt-2 text-[0.625rem] text-muted">
               当前可推进 {{ worldEventStore.currentWorldEvents.length }} 条作用域事件。
             </p>
             <div v-if="worldEventStore.worldEvents.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有载入其它世界事件。</div>
@@ -178,12 +178,12 @@
                 <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ event.label }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ event.scope_label }} · {{ event.state_label }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ event.scope_label }} · {{ event.state_label }}</p>
                   </div>
-                  <span class="w-fit shrink-0 text-[10px] text-accent">{{ event.progress_text }}</span>
+                  <span class="w-fit shrink-0 text-[0.625rem] text-accent">{{ event.progress_text }}</span>
                 </div>
-                <p class="mt-2 text-[10px] leading-4 text-muted">{{ event.summary }}</p>
-                <p class="mt-1 text-[10px] text-muted">范围：{{ event.scope_value || event.scope_label }}</p>
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ event.summary }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">范围：{{ event.scope_value || event.scope_label }}</p>
                 <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
                   <div class="h-full bg-accent/70 transition-all" :style="{ width: `${event.progress_percent}%` }" />
                 </div>
@@ -198,7 +198,7 @@
                     {{ action.label }}
                   </Button>
                 </div>
-                <p v-if="event.locked_reason" class="mt-2 text-[10px] leading-4 text-muted">{{ event.locked_reason }}</p>
+                <p v-if="event.locked_reason" class="mt-2 text-[0.625rem] leading-4 text-muted">{{ event.locked_reason }}</p>
               </div>
             </div>
           </div>
@@ -207,7 +207,7 @@
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">最近史册</p>
-                <span class="text-[10px] text-muted">{{ worldEventStore.recentAnnals.length }} 条</span>
+                <span class="text-[0.625rem] text-muted">{{ worldEventStore.recentAnnals.length }} 条</span>
               </div>
               <div v-if="worldEventStore.recentAnnals.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有完成并归档的四季大事件。</div>
               <div v-else class="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
@@ -215,12 +215,12 @@
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-text">{{ annal.event_label }}</p>
-                      <p class="mt-1 text-[10px] text-muted">{{ annal.season_label }} · {{ annal.cycle_key }}</p>
+                      <p class="mt-1 text-[0.625rem] text-muted">{{ annal.season_label }} · {{ annal.cycle_key }}</p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-accent">{{ annal.contributor_count }} 人</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-accent">{{ annal.contributor_count }} 人</span>
                   </div>
-                  <p class="mt-2 text-[10px] leading-4 text-muted">{{ annal.summary }}</p>
-                  <p v-if="annal.top_contributor_display_name" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ annal.summary }}</p>
+                  <p v-if="annal.top_contributor_display_name" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     领头贡献：{{ annal.top_contributor_display_name }}
                   </p>
                 </div>
@@ -230,7 +230,7 @@
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">世界纪年</p>
-                <span class="text-[10px] text-muted">{{ worldEventStore.recentChronicles.length }} 条</span>
+                <span class="text-[0.625rem] text-muted">{{ worldEventStore.recentChronicles.length }} 条</span>
               </div>
               <div v-if="worldEventStore.recentChronicles.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有生成世界纪年摘要。</div>
               <div v-else class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -238,22 +238,22 @@
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-text">{{ chronicle.year }} 年 · {{ chronicle.cycle_key }}</p>
-                      <p class="mt-1 text-[10px] text-muted">
+                      <p class="mt-1 text-[0.625rem] text-muted">
                         公共进度 {{ chronicle.public_goal_progress }} / {{ chronicle.public_goal_target }} · 已完成事件 {{ chronicle.total_completed_events }}
                       </p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-accent">{{ chronicle.total_contribution_points }} 点</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-accent">{{ chronicle.total_contribution_points }} 点</span>
                   </div>
-                  <p v-if="chronicle.annual_society_champion" class="mt-2 text-[10px] leading-4 text-muted">
+                  <p v-if="chronicle.annual_society_champion" class="mt-2 text-[0.625rem] leading-4 text-muted">
                     年度冠军村社：{{ chronicle.annual_society_champion.society_name }} · 贡献 {{ chronicle.annual_society_champion.contribution_score }}
                   </p>
-                  <p v-if="chronicle.annal_summaries.length > 0" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p v-if="chronicle.annal_summaries.length > 0" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     世界史册：{{ chronicle.annal_summaries[0] }}
                   </p>
-                  <p v-if="hasDivisionFirstCompletions(chronicle)" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p v-if="hasDivisionFirstCompletions(chronicle)" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     分区首个完成者：{{ formatChronicleDivisionFirsts(chronicle) }}
                   </p>
-                  <p v-if="chronicle.famous_manors.length > 0" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p v-if="chronicle.famous_manors.length > 0" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     著名庄园：{{ formatChronicleFamousManors(chronicle) }}
                   </p>
                 </div>
@@ -270,7 +270,7 @@
               <p class="text-sm text-accent">节会房间</p>
               <p class="mt-1 text-xs leading-5 text-muted">{{ festivalRoomStore.overview?.bulletin || '先从房间底座把创建、邀请、准备、倒计时和结算流程跑通。' }}</p>
             </div>
-            <span class="shrink-0 text-[10px] text-muted">{{ festivalRoomStore.loading ? '正在刷新' : '已载入房间摘要' }}</span>
+            <span class="shrink-0 text-[0.625rem] text-muted">{{ festivalRoomStore.loading ? '正在刷新' : '已载入房间摘要' }}</span>
           </div>
         </div>
 
@@ -279,7 +279,7 @@
             <div class="game-panel-muted p-3" data-testid="online-festival-room-status-panel">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">我的节会状态</p>
-                <span class="text-[10px] text-muted">{{ festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : '空闲中' }}</span>
+                <span class="text-[0.625rem] text-muted">{{ festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : '空闲中' }}</span>
               </div>
               <div v-if="festivalRoomStore.myRoom" class="mt-3 space-y-3" data-testid="online-festival-room-my-room">
                 <OnlineVisualRoomShell
@@ -393,14 +393,14 @@
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ festivalRoomStore.myRoom.title }}</p>
-                      <p class="mt-1 text-[10px] text-muted">
+                      <p class="mt-1 text-[0.625rem] text-muted">
                         {{ festivalRoomStore.myRoom.template_label }} · {{ festivalRoomStore.myRoom.gameplay.template_label }} · {{ festivalRoomStore.myRoom.joined_member_count }}/{{ festivalRoomStore.myRoom.member_limit }} 人
                       </p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ festivalRoomStore.myRoom.state_label }}</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ festivalRoomStore.myRoom.state_label }}</span>
                   </div>
-                  <p v-if="festivalRoomStore.myRoom.state_reason" class="mt-1 text-[10px] leading-4 text-warning">{{ festivalRoomStore.myRoom.state_reason }}</p>
-                  <p v-if="festivalRoomStore.myRoom.opening_ceremony" class="mt-1 text-[10px] leading-4 text-success">
+                  <p v-if="festivalRoomStore.myRoom.state_reason" class="mt-1 text-[0.625rem] leading-4 text-warning">{{ festivalRoomStore.myRoom.state_reason }}</p>
+                  <p v-if="festivalRoomStore.myRoom.opening_ceremony" class="mt-1 text-[0.625rem] leading-4 text-success">
                     {{ festivalRoomStore.myRoom.opening_ceremony.subtitle }}
                   </p>
                 </div>
@@ -409,24 +409,24 @@
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ festivalRoomStore.myRoom.gameplay.template_label }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myRoom.gameplay.template_summary }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ festivalRoomStore.myRoom.gameplay.template_summary }}</p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ festivalRoomStore.myRoom.gameplay.phase_label }}</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ festivalRoomStore.myRoom.gameplay.phase_label }}</span>
                   </div>
-                  <p class="mt-2 text-[10px] text-muted">
+                  <p class="mt-2 text-[0.625rem] text-muted">
                     {{ festivalRoomStore.myRoom.gameplay.progress_text }} · {{ festivalRoomStore.myRoom.gameplay.score_label }} {{ festivalRoomStore.myRoom.gameplay.score_value }}
                   </p>
                   <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
                     <div class="h-full bg-accent/70 transition-all" :style="{ width: `${festivalRoomStore.myRoom.gameplay.progress_percent}%` }" />
                   </div>
-                  <p v-if="festivalRoomStore.myRoom.gameplay.last_action_summary" class="mt-2 text-[10px] leading-4 text-success">
+                  <p v-if="festivalRoomStore.myRoom.gameplay.last_action_summary" class="mt-2 text-[0.625rem] leading-4 text-success">
                     {{ festivalRoomStore.myRoom.gameplay.last_action_summary }}
                   </p>
                   <div v-if="festivalRoomStore.myRoom.gameplay.contributions.length > 0" class="mt-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
                     <span
                       v-for="contribution in festivalRoomStore.myRoom.gameplay.contributions"
                       :key="`${festivalRoomStore.myRoom.id}-${contribution.username}-gameplay`"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ contribution.display_name }} · {{ contribution.action_count }} 次 · {{ contribution.progress_value }} 贡献
                     </span>
@@ -437,31 +437,31 @@
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ festivalRoomStore.myFestivalState.round_text }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.summary }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.summary }}</p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-muted">压力 {{ festivalRoomStore.myFestivalState.pressure_text }}</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-muted">压力 {{ festivalRoomStore.myFestivalState.pressure_text }}</span>
                   </div>
                   <div class="grid gap-2 md:grid-cols-2">
                     <div class="border border-accent/10 bg-black/10 p-2">
-                      <p class="text-[10px] text-muted">当前事件</p>
+                      <p class="text-[0.625rem] text-muted">当前事件</p>
                       <p class="mt-1 text-xs text-text">{{ festivalRoomStore.myFestivalState.current_event.label }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.pressure_hint }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.resource_hint }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.pressure_hint }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.resource_hint }}</p>
                     </div>
                     <div class="border border-accent/10 bg-black/10 p-2">
-                      <p class="text-[10px] text-muted">我的职责</p>
+                      <p class="text-[0.625rem] text-muted">我的职责</p>
                       <template v-if="festivalRoomStore.myFestivalState.my_role">
                         <p class="mt-1 text-xs text-text">{{ festivalRoomStore.myFestivalState.my_role.role_label }}</p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.my_role.role_summary }}</p>
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.my_role.role_summary }}</p>
                       </template>
-                      <p v-else class="mt-1 text-[10px] text-muted">加入房间后会显示本局职责。</p>
+                      <p v-else class="mt-1 text-[0.625rem] text-muted">加入房间后会显示本局职责。</p>
                     </div>
                   </div>
                   <div class="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto pr-1">
                     <span
                       v-for="resource in festivalRoomStore.myFestivalState.team_resources"
                       :key="`${festivalRoomStore.myRoom.id}-${resource.id}`"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ resource.text }}
                     </span>
@@ -470,21 +470,21 @@
                     <span
                       v-for="role in festivalRoomStore.myFestivalState.role_assignments"
                       :key="`${festivalRoomStore.myRoom.id}-${role.username}-festival-role`"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ role.display_name }} · {{ role.role_label }}
                     </span>
                   </div>
-                  <p v-if="festivalRoomStore.myFestivalState.recent_feedback" class="text-[10px] leading-4 text-success">
+                  <p v-if="festivalRoomStore.myFestivalState.recent_feedback" class="text-[0.625rem] leading-4 text-success">
                     {{ festivalRoomStore.myFestivalState.recent_feedback }}
                   </p>
                   <div v-if="festivalRoomStore.myFestivalState.round_log.length > 0" class="space-y-1">
-                    <p class="text-[10px] text-muted">回合记录</p>
+                    <p class="text-[0.625rem] text-muted">回合记录</p>
                     <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
                       <p
                         v-for="entry in festivalRoomStore.myFestivalState.round_log.slice(0, 6)"
                         :key="entry.id"
-                        class="text-[10px] leading-4 text-muted"
+                        class="text-[0.625rem] leading-4 text-muted"
                       >
                         - {{ entry.summary }}
                       </p>
@@ -517,7 +517,7 @@
                 <div v-if="festivalVisualHighlights.length > 0" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">本局高光</p>
                   <div class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
-                    <p v-for="highlight in festivalVisualHighlights" :key="highlight.id" class="text-[10px] leading-4 text-muted">
+                    <p v-for="highlight in festivalVisualHighlights" :key="highlight.id" class="text-[0.625rem] leading-4 text-muted">
                       {{ highlight.label }} · {{ highlight.summary }}
                     </p>
                   </div>
@@ -544,24 +544,24 @@
                         >
                           {{ action.label }}
                         </Button>
-                        <p class="text-[10px] leading-4 text-muted">{{ action.summary }}</p>
+                        <p class="text-[0.625rem] leading-4 text-muted">{{ action.summary }}</p>
                       </div>
                       <div class="mt-2 flex flex-wrap gap-1.5">
-                        <span v-if="action.required_role_label" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.required_role_label" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           {{ action.required_role_label }}
                         </span>
-                        <span v-if="action.once_per_round" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.once_per_round" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           每回合一次
                         </span>
-                        <span v-if="action.pressure_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.pressure_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           {{ action.pressure_delta_text }}
                         </span>
-                        <span v-if="action.resource_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.resource_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           {{ action.resource_delta_text }}
                         </span>
                       </div>
-                      <p v-if="action.round_effect" class="mt-2 text-[10px] leading-4 text-muted">{{ action.round_effect }}</p>
-                      <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[10px] text-muted">{{ action.disabled_reason }}</p>
+                      <p v-if="action.round_effect" class="mt-2 text-[0.625rem] leading-4 text-muted">{{ action.round_effect }}</p>
+                      <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[0.625rem] text-muted">{{ action.disabled_reason }}</p>
                     </div>
                   </div>
                 </OnlineTechnicalDetails>
@@ -572,7 +572,7 @@
                     <div
                       v-for="receipt in festivalRoomStore.myRoom.settlement_receipts"
                       :key="receipt.id"
-                      class="text-[10px] leading-4 text-muted"
+                      class="text-[0.625rem] leading-4 text-muted"
                     >
                       <p>{{ receipt.target_display_name }} · {{ receipt.status_label }} · {{ receipt.summary }}</p>
                       <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-1 space-y-1 border-l border-accent/20 pl-2">
@@ -604,7 +604,7 @@
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div class="min-w-0">
                       <p class="text-xs text-accent">邀请玩家</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">打开邀请面板，可批量输入并查看每位玩家的邀请结果。</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">打开邀请面板，可批量输入并查看每位玩家的邀请结果。</p>
                     </div>
                     <Button
                       class="online-action-btn online-action-btn--primary min-h-[44px] justify-center"
@@ -623,7 +623,7 @@
                   summary="保留旧单人邀请入口和测试钩子，主流程请优先使用邀请面板。"
                 >
                   <label class="block">
-                    <span class="text-[10px] text-muted">邀请玩家</span>
+                    <span class="text-[0.625rem] text-muted">邀请玩家</span>
                     <div class="online-action-row mt-1">
                       <input
                         v-model="festivalRoomStore.draftInviteUsername"
@@ -650,7 +650,7 @@
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">待处理邀请</p>
-                <span class="text-[10px] text-muted">{{ festivalRoomStore.invitedRooms.length }} 条</span>
+                <span class="text-[0.625rem] text-muted">{{ festivalRoomStore.invitedRooms.length }} 条</span>
               </div>
               <div v-if="festivalRoomStore.invitedRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有待处理的节会邀请。</div>
               <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
@@ -658,7 +658,7 @@
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-text">{{ room.title }}</p>
-                      <p class="mt-1 text-[10px] text-muted">{{ room.template_label }} · {{ room.gameplay.template_label }} · 房主 {{ room.host_display_name }}</p>
+                      <p class="mt-1 text-[0.625rem] text-muted">{{ room.template_label }} · {{ room.gameplay.template_label }} · 房主 {{ room.host_display_name }}</p>
                     </div>
                     <Button class="online-action-btn online-action-btn--compact shrink-0" :disabled="festivalRoomStore.actionRunning || !room.can_join" @click="joinRoom(room.id)">
                       加入
@@ -673,7 +673,7 @@
             <div class="game-panel-muted p-3" data-testid="online-festival-room-create-entry">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">创建节会房间</p>
-                <span class="text-[10px] text-muted">向导创建</span>
+                <span class="text-[0.625rem] text-muted">向导创建</span>
               </div>
               <div class="mt-3 space-y-3">
                 <Button
@@ -685,7 +685,7 @@
                   <Lamp :size="14" aria-hidden="true" />
                   创建节会房间
                 </Button>
-                <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-5 text-muted">
+                <div class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-5 text-muted">
                   <p class="text-xs text-accent">当前草稿</p>
                   <p class="mt-1">
                     {{ festivalRoomStore.selectedTemplate?.label || '待选择房型' }} · {{ festivalRoomStore.selectedGameplayTemplate?.label || '待选择玩法' }} · {{ festivalRoomStore.normalizedDraftMemberLimit }} 人
@@ -711,7 +711,7 @@
                   </Button>
                 </div>
                 <label class="block">
-                  <span class="text-[10px] text-muted">节会房型</span>
+                  <span class="text-[0.625rem] text-muted">节会房型</span>
                   <select v-model="festivalRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="online-festival-room-template-select">
                     <option v-for="template in festivalRoomStore.templates" :key="template.id" :value="template.id">
                       {{ template.label }}
@@ -720,11 +720,11 @@
                 </label>
                 <div v-if="festivalRoomStore.selectedTemplate" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">{{ festivalRoomStore.selectedTemplate.label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.selectedTemplate.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ festivalRoomStore.selectedTemplate.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">
                     人数范围：{{ festivalRoomStore.selectedTemplate.min_member_limit }}-{{ festivalRoomStore.selectedTemplate.max_member_limit }} 人
                   </p>
-                  <p v-if="festivalRoomStore.recommendedGameplayTemplates.length > 0" class="mt-1 text-[10px] text-muted">
+                  <p v-if="festivalRoomStore.recommendedGameplayTemplates.length > 0" class="mt-1 text-[0.625rem] text-muted">
                     推荐玩法：{{ festivalRoomStore.recommendedGameplayTemplates.map(template => template.label).join(' / ') }}
                   </p>
                 </div>
@@ -736,23 +736,23 @@
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="text-xs text-accent">{{ selectedFestivalSceneAssetSpec.label }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ selectedFestivalSceneAssetSpec.firstScreenSignal }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ selectedFestivalSceneAssetSpec.firstScreenSignal }}</p>
                     </div>
-                    <span class="shrink-0 text-[10px] text-warning">现场素材</span>
+                    <span class="shrink-0 text-[0.625rem] text-warning">现场素材</span>
                   </div>
                   <div class="mt-2 grid gap-1.5 sm:grid-cols-2" data-testid="online-festival-scene-clickable-assets">
                     <p
                       v-for="asset in selectedFestivalSceneClickableAssets"
                       :key="asset.id"
-                      class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] leading-4 text-muted"
+                      class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] leading-4 text-muted"
                     >
                       <span class="text-text">{{ asset.label }}</span> · {{ asset.summary }}
                     </p>
                   </div>
-                  <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-collaboration-goal">
+                  <p class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-scene-collaboration-goal">
                     协作目标：{{ selectedFestivalSceneAssetSpec.collaborationGoal }}
                   </p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-solo-fallback">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-scene-solo-fallback">
                     单人保底：{{ selectedFestivalSceneAssetSpec.soloFallbackGoal }}
                   </p>
                 </div>
@@ -760,11 +760,11 @@
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="text-xs text-accent">节会现场总览</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                         每个节会都先展示首屏现场、可点击物件、协作目标和单人保底，未接入房型只作为素材预备。
                       </p>
                     </div>
-                    <span class="shrink-0 text-[10px] text-warning">19.4</span>
+                    <span class="shrink-0 text-[0.625rem] text-warning">19.4</span>
                   </div>
                   <div class="mt-2 grid gap-2 lg:grid-cols-2">
                     <article
@@ -776,12 +776,12 @@
                       <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
                           <p class="text-xs text-text">{{ sceneSpec.label }}</p>
-                          <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-first-screen">
+                          <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-scene-first-screen">
                             {{ sceneSpec.firstScreenSignal }}
                           </p>
                         </div>
                         <span
-                          class="shrink-0 border border-accent/10 px-1.5 py-0.5 text-[10px] text-muted"
+                          class="shrink-0 border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted"
                           data-testid="online-festival-scene-template-status"
                         >
                           {{ isFestivalSceneLiveTemplate(sceneSpec.templateId) ? '已接入房型' : '素材预备' }}
@@ -791,25 +791,25 @@
                         <span
                           v-for="asset in festivalSceneFirstScreenAssets(sceneSpec)"
                           :key="asset.id"
-                          class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                          class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
                         >
                           {{ asset.label }}
                         </span>
                       </div>
-                      <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-clickable-count">
+                      <p class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-scene-clickable-count">
                         可点击物件：{{ festivalSceneClickableCount(sceneSpec) }} 个
                       </p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-catalog-collaboration">
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-scene-catalog-collaboration">
                         协作目标：{{ sceneSpec.collaborationGoal }}
                       </p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-scene-catalog-solo">
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-scene-catalog-solo">
                         单人保底：{{ sceneSpec.soloFallbackGoal }}
                       </p>
                     </article>
                   </div>
                 </div>
                 <div class="block">
-                  <span class="text-[10px] text-muted">人数上限</span>
+                  <span class="text-[0.625rem] text-muted">人数上限</span>
                   <div class="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="online-festival-room-member-limit-group">
                     <button
                       v-for="limit in festivalRoomStore.memberLimitOptions"
@@ -826,7 +826,7 @@
                   </div>
                 </div>
                 <label class="block">
-                  <span class="text-[10px] text-muted">玩法模板</span>
+                  <span class="text-[0.625rem] text-muted">玩法模板</span>
                   <select v-model="festivalRoomStore.selectedGameplayTemplateId" class="online-select mt-1" data-testid="online-festival-room-gameplay-select">
                     <option v-for="template in festivalRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
                       {{ template.label }}
@@ -835,22 +835,22 @@
                 </label>
                 <div v-if="festivalRoomStore.selectedGameplayTemplate" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">{{ festivalRoomStore.selectedGameplayTemplate.label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.selectedGameplayTemplate.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ festivalRoomStore.selectedGameplayTemplate.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">
                     {{ festivalRoomStore.selectedGameplayTemplate.objective_label }} · 目标 {{ festivalRoomStore.selectedGameplayTemplate.default_target }}
                   </p>
                   <div v-if="festivalRoomStore.selectedGameplayTemplate.action_options.length > 0" class="mt-2 flex flex-wrap gap-1.5">
                     <span
                       v-for="action in festivalRoomStore.selectedGameplayTemplate.action_options"
                       :key="action.id"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ action.label }}
                     </span>
                   </div>
                 </div>
                 <label class="block">
-                  <span class="text-[10px] text-muted">房间标题</span>
+                  <span class="text-[0.625rem] text-muted">房间标题</span>
                   <input
                     v-model="festivalRoomStore.draftTitle"
                     maxlength="30"
@@ -873,7 +873,7 @@
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">可见房间</p>
-                <span class="text-[10px] text-muted">{{ festivalRoomStore.visibleRooms.length }} 间</span>
+                <span class="text-[0.625rem] text-muted">{{ festivalRoomStore.visibleRooms.length }} 间</span>
               </div>
               <div v-if="festivalRoomStore.visibleRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有你能查看的节会房间。</div>
               <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
@@ -881,18 +881,18 @@
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ room.title }}</p>
-                      <p class="mt-1 text-[10px] text-muted">
+                      <p class="mt-1 text-[0.625rem] text-muted">
                         {{ room.template_label }} · {{ room.gameplay.template_label }} · {{ room.state_label }} · {{ room.joined_member_count }}/{{ room.member_limit }} 人
                       </p>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
-                      <span class="text-[10px] text-muted">{{ room.ready_member_count }} 已准备</span>
+                      <span class="text-[0.625rem] text-muted">{{ room.ready_member_count }} 已准备</span>
                       <Button v-if="room.can_join" class="online-action-btn online-action-btn--compact" :disabled="festivalRoomStore.actionRunning" @click="joinRoom(room.id)">
                         加入
                       </Button>
                     </div>
                   </div>
-                  <p class="mt-2 text-[10px] text-muted">{{ room.gameplay.progress_text }} · {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
+                  <p class="mt-2 text-[0.625rem] text-muted">{{ room.gameplay.progress_text }} · {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
                   <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
                     <div class="h-full bg-accent/70 transition-all" :style="{ width: `${room.gameplay.progress_percent}%` }" />
                   </div>
@@ -900,13 +900,13 @@
                     <span
                       v-for="member in room.members"
                       :key="`${room.id}-${member.username}`"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ member.display_name }} · {{ member.status_label }}
                     </span>
                   </div>
                   <div v-if="room.recent_events.length > 0" class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
-                    <p v-for="event in room.recent_events.slice(0, 4)" :key="event.id" class="text-[10px] leading-4 text-muted">
+                    <p v-for="event in room.recent_events.slice(0, 4)" :key="event.id" class="text-[0.625rem] leading-4 text-muted">
                       - {{ event.summary }}
                     </p>
                   </div>
@@ -919,7 +919,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">最近结算凭证</p>
-            <span class="text-[10px] text-muted">{{ festivalRoomStore.recentReceipts.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ festivalRoomStore.recentReceipts.length }} 条</span>
           </div>
           <div v-if="festivalRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有节会房间结算凭证。</div>
           <div v-else class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -927,12 +927,12 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ receipt.room_title }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px] text-accent">{{ receipt.status_label }}</span>
+                <span class="w-fit shrink-0 text-[0.625rem] text-accent">{{ receipt.status_label }}</span>
               </div>
-              <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
-              <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+              <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ receipt.summary }}</p>
+              <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[0.625rem] leading-4 text-muted">
                 <p class="text-accent">{{ receipt.route_replay.title }}</p>
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
@@ -967,7 +967,7 @@
                 {{ expeditionRoomStore.overview?.bulletin || '这一页承接远征房间、协作矿洞、组队采集、护送抵运和海域共探的最小闭环。' }}
               </p>
             </div>
-            <span class="shrink-0 text-[10px] text-muted">{{ expeditionRoomStore.loading ? '正在刷新' : '已载入远征摘要' }}</span>
+            <span class="shrink-0 text-[0.625rem] text-muted">{{ expeditionRoomStore.loading ? '正在刷新' : '已载入远征摘要' }}</span>
           </div>
         </div>
 
@@ -976,7 +976,7 @@
             <div class="game-panel-muted p-3" data-testid="online-expedition-room-status-panel">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">我的远征状态</p>
-                <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</span>
+                <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</span>
               </div>
               <div v-if="expeditionRoomStore.myRoom" class="mt-3 space-y-3" data-testid="online-expedition-room-my-room">
                 <OnlineVisualRoomShell
@@ -1094,14 +1094,14 @@
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ expeditionRoomStore.myRoom.title }}</p>
-                      <p class="mt-1 text-[10px] text-muted">
+                      <p class="mt-1 text-[0.625rem] text-muted">
                         {{ expeditionRoomStore.myRoom.template_label }} · {{ expeditionRoomStore.myRoom.gameplay.template_label }} · {{ expeditionRoomStore.myRoom.joined_member_count }}/{{ expeditionRoomStore.myRoom.member_limit }} 人
                       </p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ expeditionRoomStore.myRoom.state_label }}</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ expeditionRoomStore.myRoom.state_label }}</span>
                   </div>
-                  <p v-if="expeditionRoomStore.myRoom.state_reason" class="mt-1 text-[10px] leading-4 text-warning">{{ expeditionRoomStore.myRoom.state_reason }}</p>
-                  <p v-if="expeditionRoomStore.myRoom.opening_ceremony" class="mt-1 text-[10px] leading-4 text-success">
+                  <p v-if="expeditionRoomStore.myRoom.state_reason" class="mt-1 text-[0.625rem] leading-4 text-warning">{{ expeditionRoomStore.myRoom.state_reason }}</p>
+                  <p v-if="expeditionRoomStore.myRoom.opening_ceremony" class="mt-1 text-[0.625rem] leading-4 text-success">
                     {{ expeditionRoomStore.myRoom.opening_ceremony.subtitle }}
                   </p>
                 </div>
@@ -1110,24 +1110,24 @@
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ expeditionRoomStore.myRoom.gameplay.template_label }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.template_summary }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.template_summary }}</p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ expeditionRoomStore.myRoom.gameplay.phase_label }}</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ expeditionRoomStore.myRoom.gameplay.phase_label }}</span>
                   </div>
-                  <p class="mt-2 text-[10px] text-muted">
+                  <p class="mt-2 text-[0.625rem] text-muted">
                     {{ expeditionRoomStore.myRoom.gameplay.progress_text }} · {{ expeditionRoomStore.myRoom.gameplay.score_label }} {{ expeditionRoomStore.myRoom.gameplay.score_value }}
                   </p>
                   <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
                     <div class="h-full bg-accent/70 transition-all" :style="{ width: `${expeditionRoomStore.myRoom.gameplay.progress_percent}%` }" />
                   </div>
-                  <p v-if="expeditionRoomStore.myRoom.gameplay.last_action_summary" class="mt-2 text-[10px] leading-4 text-success">
+                  <p v-if="expeditionRoomStore.myRoom.gameplay.last_action_summary" class="mt-2 text-[0.625rem] leading-4 text-success">
                     {{ expeditionRoomStore.myRoom.gameplay.last_action_summary }}
                   </p>
                   <div v-if="expeditionRoomStore.myRoom.gameplay.contributions.length > 0" class="mt-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
                     <span
                       v-for="contribution in expeditionRoomStore.myRoom.gameplay.contributions"
                       :key="`${expeditionRoomStore.myRoom.id}-${contribution.username}-expedition-gameplay`"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ contribution.display_name }} · {{ contribution.action_count }} 次 · {{ contribution.progress_value }} 贡献
                     </span>
@@ -1164,27 +1164,27 @@
                     <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                       <div class="min-w-0">
                         <p class="truncate text-xs text-accent">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.round_text }}</p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.summary }}</p>
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.summary }}</p>
                       </div>
-                      <span class="w-fit shrink-0 text-[10px] text-warning">风险 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.risk_text }}</span>
+                      <span class="w-fit shrink-0 text-[0.625rem] text-warning">风险 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.risk_text }}</span>
                     </div>
                     <div class="mt-2 grid gap-2 md:grid-cols-2">
                       <div class="border border-accent/10 bg-black/10 p-2">
-                        <p class="text-[10px] text-muted">事件卡</p>
+                        <p class="text-[0.625rem] text-muted">事件卡</p>
                         <p class="mt-1 text-xs text-text">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.label }}</p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.risk_hint }}</p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.resource_hint }}</p>
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.risk_hint }}</p>
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.resource_hint }}</p>
                       </div>
                       <div class="border border-accent/10 bg-black/10 p-2">
-                        <p class="text-[10px] text-muted">我的职责</p>
+                        <p class="text-[0.625rem] text-muted">我的职责</p>
                         <template v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.my_role">
                           <p class="mt-1 text-xs text-text">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_label }}</p>
-                          <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_summary }}</p>
+                          <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_summary }}</p>
                         </template>
-                        <p v-else class="mt-1 text-[10px] text-muted">加入房间后会显示本局职责。</p>
+                        <p v-else class="mt-1 text-[0.625rem] text-muted">加入房间后会显示本局职责。</p>
                       </div>
                     </div>
-                    <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="mt-2 text-[10px] leading-4 text-success">
+                    <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="mt-2 text-[0.625rem] leading-4 text-success">
                       {{ expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback }}
                     </p>
                     <div
@@ -1192,24 +1192,24 @@
                       class="mt-2 grid gap-2 md:grid-cols-2"
                     >
                       <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" data-testid="online-festival-expedition-cavern-combo-summary" class="border border-success/20 bg-success/5 p-2">
-                        <p class="text-[10px] text-success">节点组合收益</p>
+                        <p class="text-[0.625rem] text-success">节点组合收益</p>
                         <p
                           v-for="combo in expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records"
                           :key="`${expeditionRoomStore.myRoom.id}-${combo.combo_id}`"
-                          class="mt-1 text-[10px] leading-4 text-muted"
+                          class="mt-1 text-[0.625rem] leading-4 text-muted"
                         >
                           {{ combo.label }}：{{ combo.summary }} · 采集值 +{{ combo.score_delta }} · 风险 {{ formatSignedCavernDelta(combo.risk_delta) }}{{ combo.resource_delta_text ? ` · ${combo.resource_delta_text}` : '' }}
                         </p>
                       </div>
                       <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" data-testid="online-festival-expedition-cavern-withdrawal-summary" class="border border-warning/20 bg-warning/5 p-2">
-                        <p class="text-[10px] text-warning">提前收尾</p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">
+                        <p class="text-[0.625rem] text-warning">提前收尾</p>
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                           {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
                         </p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-expedition-cavern-withdrawal-locked-combos">
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-expedition-cavern-withdrawal-locked-combos">
                           {{ cavernWithdrawalLockedComboLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                         </p>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                           {{ cavernWithdrawalActorLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                         </p>
                       </div>
@@ -1221,19 +1221,19 @@
                       <p class="text-xs text-accent">队伍资源</p>
                       <div class="mt-2 grid max-h-36 grid-cols-2 gap-2 overflow-y-auto pr-1">
                         <div v-for="resource in expeditionRoomStore.myRoom.gameplay.cavern_state.team_resources" :key="resource.id" class="border border-accent/10 bg-black/10 p-2">
-                          <p class="text-[10px] text-accent">{{ resource.label }}</p>
+                          <p class="text-[0.625rem] text-accent">{{ resource.label }}</p>
                           <p class="mt-1 text-xs text-text">{{ resource.value }} / {{ resource.max_value }}</p>
-                          <p class="mt-1 text-[10px] text-muted">{{ resource.text }}</p>
+                          <p class="mt-1 text-[0.625rem] text-muted">{{ resource.text }}</p>
                         </div>
                       </div>
                     </div>
                     <div class="border border-accent/10 bg-black/10 p-2">
                       <p class="text-xs text-accent">职责分工</p>
-                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.role_assignments.length === 0" class="mt-2 text-[10px] text-muted">当前还没有完成队伍分工。</div>
+                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.role_assignments.length === 0" class="mt-2 text-[0.625rem] text-muted">当前还没有完成队伍分工。</div>
                       <div v-else class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
                         <div v-for="role in expeditionRoomStore.myRoom.gameplay.cavern_state.role_assignments" :key="`${expeditionRoomStore.myRoom.id}-${role.username}-role`" class="flex items-start justify-between gap-2">
-                          <span class="min-w-0 truncate text-[10px] text-text">{{ role.display_name }}</span>
-                          <span class="shrink-0 text-[10px] text-accent">{{ role.role_label }}</span>
+                          <span class="min-w-0 truncate text-[0.625rem] text-text">{{ role.display_name }}</span>
+                          <span class="shrink-0 text-[0.625rem] text-accent">{{ role.role_label }}</span>
                         </div>
                       </div>
                     </div>
@@ -1244,17 +1244,17 @@
                     <div class="mt-2 max-h-52 space-y-2 overflow-y-auto pr-1">
                       <div v-for="entry in expeditionRoomStore.myRoom.gameplay.cavern_state.round_log.slice(0, 8)" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                         <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                          <p class="min-w-0 truncate text-[10px] text-accent">第 {{ entry.round_number }} 回合 · {{ entry.action_label }}</p>
-                          <span v-if="entry.role_label" class="shrink-0 text-[10px] text-muted">{{ entry.role_label }}</span>
+                          <p class="min-w-0 truncate text-[0.625rem] text-accent">第 {{ entry.round_number }} 回合 · {{ entry.action_label }}</p>
+                          <span v-if="entry.role_label" class="shrink-0 text-[0.625rem] text-muted">{{ entry.role_label }}</span>
                         </div>
-                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                        <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div v-if="showExpeditionFallbackActions" class="space-y-2">
-                  <p class="text-[10px] text-muted">玩法动作</p>
+                  <p class="text-[0.625rem] text-muted">玩法动作</p>
                   <div class="grid gap-2 md:grid-cols-2">
                     <div
                       v-for="action in expeditionRoomStore.myRoom.gameplay.available_actions"
@@ -1270,24 +1270,24 @@
                         >
                           {{ action.label }}
                         </Button>
-                        <p class="text-[10px] leading-4 text-muted">{{ action.summary }}</p>
+                        <p class="text-[0.625rem] leading-4 text-muted">{{ action.summary }}</p>
                       </div>
                       <div class="mt-2 flex flex-wrap gap-1.5">
-                        <span v-if="action.required_role_label" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.required_role_label" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           {{ action.required_role_label }}
                         </span>
-                        <span v-if="action.once_per_round" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.once_per_round" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           每回合一次
                         </span>
-                        <span v-if="action.risk_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.risk_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           {{ action.risk_delta_text }}
                         </span>
-                        <span v-if="action.resource_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                        <span v-if="action.resource_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted">
                           {{ action.resource_delta_text }}
                         </span>
                       </div>
-                      <p v-if="action.round_effect" class="mt-2 text-[10px] leading-4 text-muted">{{ action.round_effect }}</p>
-                      <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[10px] text-muted">{{ action.disabled_reason }}</p>
+                      <p v-if="action.round_effect" class="mt-2 text-[0.625rem] leading-4 text-muted">{{ action.round_effect }}</p>
+                      <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[0.625rem] text-muted">{{ action.disabled_reason }}</p>
                     </div>
                   </div>
                 </div>
@@ -1298,7 +1298,7 @@
                     <p
                       v-for="receipt in expeditionRoomStore.myRoom.settlement_receipts"
                       :key="receipt.id"
-                      class="text-[10px] leading-4 text-muted"
+                      class="text-[0.625rem] leading-4 text-muted"
                     >
                       {{ receipt.target_display_name }} · {{ receipt.status_label }} · {{ receipt.summary }}
                     </p>
@@ -1309,7 +1309,7 @@
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div class="min-w-0">
                       <p class="text-xs text-accent">邀请玩家</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">打开邀请面板，可批量输入并查看每位玩家的邀请结果。</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">打开邀请面板，可批量输入并查看每位玩家的邀请结果。</p>
                     </div>
                     <Button
                       class="online-action-btn online-action-btn--primary min-h-[44px] justify-center"
@@ -1328,7 +1328,7 @@
                   summary="保留旧远征单人邀请入口和测试钩子，主流程请优先使用邀请面板。"
                 >
                   <label class="block">
-                    <span class="text-[10px] text-muted">邀请玩家</span>
+                    <span class="text-[0.625rem] text-muted">邀请玩家</span>
                     <div class="online-action-row mt-1">
                       <input
                         v-model="expeditionRoomStore.draftInviteUsername"
@@ -1420,7 +1420,7 @@
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">待处理邀请</p>
-                <span class="text-[10px] text-muted">{{ expeditionRoomStore.invitedRooms.length }} 条</span>
+                <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.invitedRooms.length }} 条</span>
               </div>
               <div v-if="expeditionRoomStore.invitedRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有待处理的远征邀请。</div>
               <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
@@ -1428,7 +1428,7 @@
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-text">{{ room.title }}</p>
-                      <p class="mt-1 text-[10px] text-muted">{{ room.template_label }} · {{ room.gameplay.template_label }} · 房主 {{ room.host_display_name }}</p>
+                      <p class="mt-1 text-[0.625rem] text-muted">{{ room.template_label }} · {{ room.gameplay.template_label }} · 房主 {{ room.host_display_name }}</p>
                     </div>
                     <Button class="online-action-btn online-action-btn--compact shrink-0" :disabled="expeditionRoomStore.actionRunning || !room.can_join" @click="joinExpeditionRoom(room.id)">
                       加入
@@ -1443,7 +1443,7 @@
             <div class="game-panel-muted p-3" data-testid="online-expedition-room-create-entry">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">创建远征房间</p>
-                <span class="text-[10px] text-muted">向导创建</span>
+                <span class="text-[0.625rem] text-muted">向导创建</span>
               </div>
               <div class="mt-3 space-y-3">
                 <Button
@@ -1455,7 +1455,7 @@
                   <Flag :size="14" aria-hidden="true" />
                   创建远征队伍
                 </Button>
-                <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-5 text-muted">
+                <div class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-5 text-muted">
                   <p class="text-xs text-accent">当前草稿</p>
                   <p class="mt-1">
                     {{ expeditionRoomStore.selectedTemplate?.label || '待选择路线' }} · {{ expeditionRoomStore.selectedGameplayTemplate?.label || '待选择玩法' }} · {{ expeditionRoomStore.normalizedDraftMemberLimit }} 人
@@ -1471,7 +1471,7 @@
             >
               <div class="space-y-3" data-testid="online-expedition-room-create-backup">
                 <label class="block">
-                  <span class="text-[10px] text-muted">远征模板</span>
+                  <span class="text-[0.625rem] text-muted">远征模板</span>
                   <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="online-expedition-room-template-select">
                     <option v-for="template in expeditionRoomStore.templates" :key="template.id" :value="template.id">
                       {{ template.label }}
@@ -1480,14 +1480,14 @@
                 </label>
                 <div v-if="expeditionRoomStore.selectedTemplate" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">{{ expeditionRoomStore.selectedTemplate.label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.selectedTemplate.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">默认人数上限：{{ expeditionRoomStore.selectedTemplate.default_member_limit }} 人</p>
-                  <p v-if="expeditionRoomStore.recommendedGameplayTemplates.length > 0" class="mt-1 text-[10px] text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ expeditionRoomStore.selectedTemplate.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">默认人数上限：{{ expeditionRoomStore.selectedTemplate.default_member_limit }} 人</p>
+                  <p v-if="expeditionRoomStore.recommendedGameplayTemplates.length > 0" class="mt-1 text-[0.625rem] text-muted">
                     推荐玩法：{{ expeditionRoomStore.recommendedGameplayTemplates.map(template => template.label).join(' / ') }}
                   </p>
                 </div>
                 <label class="block">
-                  <span class="text-[10px] text-muted">玩法模板</span>
+                  <span class="text-[0.625rem] text-muted">玩法模板</span>
                   <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1" data-testid="online-expedition-room-gameplay-select">
                     <option v-for="template in expeditionRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
                       {{ template.label }}
@@ -1496,22 +1496,22 @@
                 </label>
                 <div v-if="expeditionRoomStore.selectedGameplayTemplate" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">{{ expeditionRoomStore.selectedGameplayTemplate.label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.selectedGameplayTemplate.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ expeditionRoomStore.selectedGameplayTemplate.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">
                     {{ expeditionRoomStore.selectedGameplayTemplate.objective_label }} · 目标 {{ expeditionRoomStore.selectedGameplayTemplate.default_target }}
                   </p>
                   <div v-if="expeditionRoomStore.selectedGameplayTemplate.action_options.length > 0" class="mt-2 flex flex-wrap gap-1.5">
                     <span
                       v-for="action in expeditionRoomStore.selectedGameplayTemplate.action_options"
                       :key="action.id"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ action.label }}
                     </span>
                   </div>
                 </div>
                 <label class="block">
-                  <span class="text-[10px] text-muted">房间标题</span>
+                  <span class="text-[0.625rem] text-muted">房间标题</span>
                   <input
                     v-model="expeditionRoomStore.draftTitle"
                     maxlength="30"
@@ -1547,7 +1547,7 @@
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">可见房间</p>
-                <span class="text-[10px] text-muted">{{ expeditionRoomStore.visibleRooms.length }} 间</span>
+                <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.visibleRooms.length }} 间</span>
               </div>
               <div v-if="expeditionRoomStore.visibleRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有你能查看的远征房间。</div>
               <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
@@ -1555,18 +1555,18 @@
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ room.title }}</p>
-                      <p class="mt-1 text-[10px] text-muted">
+                      <p class="mt-1 text-[0.625rem] text-muted">
                         {{ room.template_label }} · {{ room.gameplay.template_label }} · {{ room.state_label }} · {{ room.joined_member_count }}/{{ room.member_limit }} 人
                       </p>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
-                      <span class="text-[10px] text-muted">{{ room.ready_member_count }} 已准备</span>
+                      <span class="text-[0.625rem] text-muted">{{ room.ready_member_count }} 已准备</span>
                       <Button v-if="room.can_join" class="online-action-btn online-action-btn--compact" :disabled="expeditionRoomStore.actionRunning" @click="joinExpeditionRoom(room.id)">
                         加入
                       </Button>
                     </div>
                   </div>
-                  <p class="mt-2 text-[10px] text-muted">{{ room.gameplay.progress_text }} · {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
+                  <p class="mt-2 text-[0.625rem] text-muted">{{ room.gameplay.progress_text }} · {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
                   <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
                     <div class="h-full bg-accent/70 transition-all" :style="{ width: `${room.gameplay.progress_percent}%` }" />
                   </div>
@@ -1574,13 +1574,13 @@
                     <span
                       v-for="member in room.members"
                       :key="`${room.id}-${member.username}`"
-                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-muted"
                     >
                       {{ member.display_name }} · {{ member.status_label }}
                     </span>
                   </div>
                   <div v-if="room.recent_events.length > 0" class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
-                    <p v-for="event in room.recent_events.slice(0, 4)" :key="event.id" class="text-[10px] leading-4 text-muted">
+                    <p v-for="event in room.recent_events.slice(0, 4)" :key="event.id" class="text-[0.625rem] leading-4 text-muted">
                       - {{ event.summary }}
                     </p>
                   </div>
@@ -1593,7 +1593,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">最近结算凭证</p>
-            <span class="text-[10px] text-muted">{{ expeditionRoomStore.recentReceipts.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.recentReceipts.length }} 条</span>
           </div>
           <div v-if="expeditionRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有远征房间结算凭证。</div>
           <div v-else class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -1601,12 +1601,12 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ receipt.room_title }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px] text-accent">{{ receipt.status_label }}</span>
+                <span class="w-fit shrink-0 text-[0.625rem] text-accent">{{ receipt.status_label }}</span>
               </div>
-              <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
-              <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+              <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ receipt.summary }}</p>
+              <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[0.625rem] leading-4 text-muted">
                 <p class="text-accent">{{ receipt.route_replay.title }}</p>
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
@@ -1631,7 +1631,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">节会纪念</p>
-            <span class="text-[10px] text-muted">{{ festivalRoomStore.recentMemorials.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ festivalRoomStore.recentMemorials.length }} 条</span>
           </div>
           <div v-if="festivalRoomStore.recentMemorials.length === 0" class="mt-3 text-xs text-muted">当前没有节会纪念记录。</div>
           <div v-else class="mt-3 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
@@ -1642,11 +1642,11 @@
               :data-testid="`online-festival-memorial-card-${memorial.memorial_id}`"
             >
               <p class="truncate text-xs text-accent">{{ memorial.label }}</p>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
-              <p class="mt-1 text-[10px] text-muted">{{ memorial.reward_summary }}</p>
-              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-memorial-photo-line">纪念留影：{{ memorial.photo_line }}</p>
-              <p v-if="festivalMemorySummaryText(memorial.memory_record_summary)" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-lantern-memory-summary">灯会回看摘要：{{ festivalMemorySummaryText(memorial.memory_record_summary) }}</p>
-              <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-lantern-memorial-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
+              <p class="mt-1 text-[0.625rem] text-muted">{{ memorial.reward_summary }}</p>
+              <p v-if="memorial.photo_line" class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-memorial-photo-line">纪念留影：{{ memorial.photo_line }}</p>
+              <p v-if="festivalMemorySummaryText(memorial.memory_record_summary)" class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-lantern-memory-summary">灯会回看摘要：{{ festivalMemorySummaryText(memorial.memory_record_summary) }}</p>
+              <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-lantern-memorial-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[0.625rem] leading-4 text-muted">
                 <p
                   v-for="record in festivalMemoryRecords(memorial.memory_records)"
                   :key="`${memorial.memorial_id}-${record.type}`"
@@ -1662,7 +1662,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">好友灯会回看</p>
-            <span class="text-[10px] text-muted">{{ festivalRoomStore.friendMemorials.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ festivalRoomStore.friendMemorials.length }} 条</span>
           </div>
           <div class="online-action-row mt-3">
             <input
@@ -1680,10 +1680,10 @@
               查看
             </Button>
           </div>
-          <p v-if="festivalRoomStore.friendMemorialOverview" class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-memorial-overview">
+          <p v-if="festivalRoomStore.friendMemorialOverview" class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-friend-memorial-overview">
             {{ festivalRoomStore.friendMemorialOverview.target_display_name || festivalRoomStore.friendMemorialOverview.target_username }} · {{ festivalRoomStore.friendMemorialOverview.is_self ? '自己的纪念册' : '好友纪念册' }}
           </p>
-          <p v-if="festivalRoomStore.friendMemorialOverview?.friend_replay_summary?.summary" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-replay-summary">
+          <p v-if="festivalRoomStore.friendMemorialOverview?.friend_replay_summary?.summary" class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-friend-replay-summary">
             好友回看摘要：{{ formatFestivalFriendReplaySummary(festivalRoomStore.friendMemorialOverview.friend_replay_summary) }}
           </p>
           <div v-if="festivalRoomStore.friendMemorials.length === 0" class="mt-3 text-xs text-muted">当前没有可回看的好友灯会纪念。</div>
@@ -1695,10 +1695,10 @@
               :data-testid="`online-festival-friend-memorial-card-${memorial.memorial_id}`"
             >
               <p class="truncate text-xs text-accent">{{ memorial.label }}</p>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
-              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-photo-line">纪念留影：{{ memorial.photo_line }}</p>
-              <p v-if="festivalMemorySummaryText(memorial.memory_record_summary)" class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-festival-friend-memory-summary">灯会回看摘要：{{ festivalMemorySummaryText(memorial.memory_record_summary) }}</p>
-              <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-friend-lantern-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
+              <p v-if="memorial.photo_line" class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-friend-photo-line">纪念留影：{{ memorial.photo_line }}</p>
+              <p v-if="festivalMemorySummaryText(memorial.memory_record_summary)" class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-friend-memory-summary">灯会回看摘要：{{ festivalMemorySummaryText(memorial.memory_record_summary) }}</p>
+              <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-friend-lantern-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[0.625rem] leading-4 text-muted">
                 <p
                   v-for="record in festivalMemoryRecords(memorial.memory_records)"
                   :key="`friend-${memorial.memorial_id}-${record.type}`"
@@ -1714,7 +1714,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">最近结算凭证</p>
-            <span class="text-[10px] text-muted">{{ recentReceiptCards.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ recentReceiptCards.length }} 条</span>
           </div>
           <div v-if="recentReceiptCards.length === 0" class="mt-3 text-xs text-muted">当前没有节会或远征结算凭证。</div>
           <div v-else class="mt-3 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
@@ -1722,12 +1722,12 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ receipt.roomTitle }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ receipt.domainLabel }} · {{ receipt.templateLabel }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ receipt.domainLabel }} · {{ receipt.templateLabel }}</p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px] text-muted">{{ receipt.statusLabel }}</span>
+                <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ receipt.statusLabel }}</span>
               </div>
-              <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
-              <div v-if="hasRouteReplay(receipt.routeReplay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+              <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ receipt.summary }}</p>
+              <div v-if="hasRouteReplay(receipt.routeReplay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[0.625rem] leading-4 text-muted">
                 <p class="text-accent">{{ receipt.routeReplay.title }}</p>
                 <p>{{ receipt.routeReplay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.routeReplay)">路线：{{ routeReplayRouteText(receipt.routeReplay) }}</p>

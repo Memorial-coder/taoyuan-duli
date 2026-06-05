@@ -210,12 +210,12 @@
               <div class="flex items-center justify-between mb-1">
                 <div class="flex items-center space-x-1.5">
                   <span class="text-xs text-quality-supreme">{{ vc.label }}</span>
-                  <span v-if="vc.voidRole === 'input'" class="text-[10px] px-1 border border-accent/30 rounded-xs text-accent">原料箱</span>
-                  <span v-if="vc.voidRole === 'output'" class="text-[10px] px-1 border border-accent/30 rounded-xs text-accent">
+                  <span v-if="vc.voidRole === 'input'" class="text-[0.625rem] px-1 border border-accent/30 rounded-xs text-accent">原料箱</span>
+                  <span v-if="vc.voidRole === 'output'" class="text-[0.625rem] px-1 border border-accent/30 rounded-xs text-accent">
                     成品箱
                   </span>
                 </div>
-                <span class="text-[10px] text-muted">{{ vc.items.length }}/{{ voidChestCapacity }}</span>
+                <span class="text-[0.625rem] text-muted">{{ vc.items.length }}/{{ voidChestCapacity }}</span>
               </div>
 
               <!-- 展开的物品列表 -->
@@ -227,13 +227,13 @@
                     class="flex items-center justify-between px-2 py-0.5 border border-accent/5 rounded-xs mr-1"
                     @click.stop="voidItemDetail = { itemId: item.itemId, quality: item.quality, quantity: item.quantity }"
                   >
-                    <span class="text-[10px] truncate mr-2 cursor-pointer hover:underline" :class="voidQualityClass(item.quality)">
+                    <span class="text-[0.625rem] truncate mr-2 cursor-pointer hover:underline" :class="voidQualityClass(item.quality)">
                       {{ getItemName(item.itemId) }}
-                      <span class="text-[10px] text-muted">&times;{{ item.quantity }}</span>
+                      <span class="text-[0.625rem] text-muted">&times;{{ item.quantity }}</span>
                     </span>
                     <div class="flex items-center space-x-1">
                       <Button
-                        class="py-0 px-1 text-[10px]"
+                        class="py-0 px-1 text-[0.625rem]"
                         @click.stop="openVoidQtyModal('withdraw', vc.id, item.itemId, item.quality, item.quantity)"
                       >
                         取出
@@ -243,12 +243,12 @@
                 </div>
                 <div v-else class="flex flex-col items-center justify-center py-4">
                   <Archive :size="28" class="text-accent/20 mb-1.5" />
-                  <p class="text-[10px] text-muted">箱子是空的</p>
-                  <p class="text-[10px] text-muted/50 mt-0.5">点击下方「存入」添加</p>
+                  <p class="text-[0.625rem] text-muted">箱子是空的</p>
+                  <p class="text-[0.625rem] text-muted/50 mt-0.5">点击下方「存入」添加</p>
                 </div>
                 <Button
                   v-if="voidDuplicateDepositItems.length > 0"
-                  class="w-full text-[10px] mb-1"
+                  class="w-full text-[0.625rem] mb-1"
                   :icon="ArrowDownToLine"
                   :icon-size="10"
                   @click.stop="handleVoidDepositDuplicates"
@@ -257,7 +257,7 @@
                 </Button>
                 <Button
                   v-if="voidDepositableItems.length > 0"
-                  class="w-full text-[10px]"
+                  class="w-full text-[0.625rem]"
                   :icon="ArrowDown"
                   :icon-size="10"
                   @click.stop="openVoidDeposit(vc.id)"
@@ -270,7 +270,7 @@
           <div v-if="voidChests.length === 0" class="flex flex-col items-center justify-center py-8">
             <Archive :size="40" class="text-accent/20 mb-2" />
             <p class="text-xs text-muted">还没有虚空箱</p>
-            <p class="text-[10px] text-muted/50 mt-0.5">在仓库中制作虚空箱后即可远程存取</p>
+            <p class="text-[0.625rem] text-muted/50 mt-0.5">在仓库中制作虚空箱后即可远程存取</p>
           </div>
         </div>
       </div>
@@ -297,7 +297,7 @@
             >
               <span class="text-xs truncate mr-2" :class="voidQualityClass(item.quality)">
                 {{ getItemName(item.itemId) }}
-                <span v-if="item.quality !== 'normal'" class="text-[10px]">({{ VOID_QUALITY_LABEL[item.quality] }})</span>
+                <span v-if="item.quality !== 'normal'" class="text-[0.625rem]">({{ VOID_QUALITY_LABEL[item.quality] }})</span>
               </span>
               <span class="text-xs text-muted">&times;{{ item.quantity }}</span>
             </div>
@@ -320,7 +320,7 @@
           </div>
           <p class="text-xs mb-2" :class="voidQualityClass(voidQtyModal.quality)">
             {{ getItemName(voidQtyModal.itemId) }}
-            <span v-if="voidQtyModal.quality !== 'normal'" class="text-[10px]">({{ VOID_QUALITY_LABEL[voidQtyModal.quality] }})</span>
+            <span v-if="voidQtyModal.quality !== 'normal'" class="text-[0.625rem]">({{ VOID_QUALITY_LABEL[voidQtyModal.quality] }})</span>
           </p>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between mb-1.5">
@@ -1281,7 +1281,7 @@
     border-radius: 999px;
     background: #ef4444;
     color: #fff;
-    font-size: 10px;
+    font-size: 0.625rem;
     line-height: 18px;
     text-align: center;
     border: 1px solid rgba(15, 18, 30, 0.8);

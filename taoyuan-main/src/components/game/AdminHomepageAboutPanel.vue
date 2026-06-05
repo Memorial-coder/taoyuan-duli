@@ -14,7 +14,7 @@
       </div>
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
-      <div v-if="officialManagedStatus" class="text-[11px] text-muted leading-5">
+      <div v-if="officialManagedStatus" class="text-[0.6875rem] text-muted leading-5">
         当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFieldsText }}
         <div v-if="officialManagedStatus.lastError" class="mt-1 text-warning">
           最近回退原因：{{ officialManagedStatus.lastError }}
@@ -46,9 +46,9 @@
       <div class="admin-label">
         <div class="flex items-center justify-between gap-3">
           <span>内容正文（图文块）</span>
-          <span class="text-[11px] text-muted">共 {{ aboutBlocks.length }} 段</span>
+          <span class="text-[0.6875rem] text-muted">共 {{ aboutBlocks.length }} 段</span>
         </div>
-        <p class="text-[11px] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内支持标题、列表、链接等 Markdown，也支持大部分富文本 HTML 与常见样式，如 <code>&lt;div style="text-align:center;color:#fff"&gt;</code>、<code>&lt;table&gt;</code>、<code>&lt;a&gt;</code>、<code>&lt;img&gt;</code>。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内支持标题、列表、链接等 Markdown，也支持大部分富文本 HTML 与常见样式，如 <code>&lt;div style="text-align:center;color:#fff"&gt;</code>、<code>&lt;table&gt;</code>、<code>&lt;a&gt;</code>、<code>&lt;img&gt;</code>。</p>
 
         <div class="space-y-3">
           <div
@@ -92,7 +92,7 @@
 
             <div v-else class="space-y-2">
               <img :src="block.url" :alt="block.alt || '插图'" class="admin-editor-image" />
-              <div class="text-[11px] text-muted break-all">{{ block.alt || '图片' }}</div>
+              <div class="text-[0.6875rem] text-muted break-all">{{ block.alt || '图片' }}</div>
             </div>
           </div>
         </div>
@@ -126,7 +126,7 @@
           <p class="text-xs text-muted mt-1">按首页弹窗样式近似渲染。</p>
         </div>
         <div class="admin-preview-card">
-          <p class="text-[11px] text-accent mb-2">按钮文案：{{ form.aboutButtonText || '关于游戏' }}</p>
+          <p class="text-[0.6875rem] text-accent mb-2">按钮文案：{{ form.aboutButtonText || '关于游戏' }}</p>
           <div class="admin-preview-body">
             <h3 class="text-sm text-accent mb-3">{{ form.aboutDialogTitle || '关于桃源乡' }}</h3>
             <div class="admin-markdown-preview" v-html="previewHtml" />
@@ -145,7 +145,7 @@
             <div class="flex items-start justify-between gap-3">
               <div>
                 <div class="text-text">{{ revision.title || '未命名版本' }}</div>
-                <div class="text-[11px] text-muted mt-1">#{{ revision.id }} · {{ revision.action }}</div>
+                <div class="text-[0.6875rem] text-muted mt-1">#{{ revision.id }} · {{ revision.action }}</div>
               </div>
               <span class="admin-status" :class="revision.published ? 'admin-status--sent' : 'admin-status--draft'">
                 {{ revision.published ? '已发布' : '草稿' }}
@@ -474,7 +474,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-muted));
   }
 
@@ -487,7 +487,7 @@
     border-radius: 2px;
     color: rgb(var(--color-text));
     outline: none;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .admin-textarea {
@@ -512,7 +512,7 @@
   }
 
   .admin-markdown-preview {
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.75;
     color: rgb(var(--color-text));
     word-break: break-word;
@@ -554,7 +554,7 @@
 
   .admin-markdown-preview :deep(figcaption) {
     margin-top: 6px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: rgb(var(--color-muted));
     text-align: center;
   }
@@ -619,7 +619,7 @@
     justify-content: center;
     border-radius: 999px;
     padding: 2px 10px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     border: 1px solid transparent;
     white-space: nowrap;
   }

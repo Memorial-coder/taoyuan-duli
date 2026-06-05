@@ -137,28 +137,28 @@
       <div class="game-panel">
         <div class="flex items-center justify-between gap-3 mb-3">
           <p class="text-sm text-accent">本周路线摘要</p>
-          <span class="text-[11px] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
+          <span class="text-[0.6875rem] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
         </div>
         <div class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
           <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
-            <p class="text-[10px] text-muted">本周主路线</p>
+            <p class="text-[0.625rem] text-muted">本周主路线</p>
             <p class="mt-1 text-xs text-accent">{{ weeklyPlanSnapshot.primaryRouteLabel }}</p>
-            <p class="mt-1 text-[10px] text-muted leading-4">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
+            <p class="mt-1 text-[0.625rem] text-muted leading-4">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
           </div>
           <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
-            <p class="text-[10px] text-muted">辅助路线</p>
+            <p class="text-[0.625rem] text-muted">辅助路线</p>
             <p class="mt-1 text-xs text-accent">{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') || '当前优先跟主路线。' }}</p>
-            <p class="mt-1 text-[10px] text-muted leading-4">{{ weeklyPlanSnapshot.secondaryRouteSummaries[0] || '如果主路线推进顺利，再补这条副线即可。' }}</p>
+            <p class="mt-1 text-[0.625rem] text-muted leading-4">{{ weeklyPlanSnapshot.secondaryRouteSummaries[0] || '如果主路线推进顺利，再补这条副线即可。' }}</p>
           </div>
           <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
-            <p class="text-[10px] text-muted">当前可领取</p>
+            <p class="text-[0.625rem] text-muted">当前可领取</p>
             <p class="mt-1 text-xs text-accent">{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') || '当前没有额外领奖点。' }}</p>
-            <p class="mt-1 text-[10px] text-muted leading-4">大厅更适合用来发周中求助帖、补充领奖路径和展示收尾成果。</p>
+            <p class="mt-1 text-[0.625rem] text-muted leading-4">大厅更适合用来发周中求助帖、补充领奖路径和展示收尾成果。</p>
           </div>
           <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
-            <p class="text-[10px] text-muted">下周准备</p>
-            <p class="mt-1 text-[10px] text-muted leading-4">{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
-            <p v-if="latestWeeklyChronicle" class="mt-1 text-[10px] text-accent/80">最近周纪行：{{ latestWeeklyChronicle.weekId }}</p>
+            <p class="text-[0.625rem] text-muted">下周准备</p>
+            <p class="mt-1 text-[0.625rem] text-muted leading-4">{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
+            <p v-if="latestWeeklyChronicle" class="mt-1 text-[0.625rem] text-accent/80">最近周纪行：{{ latestWeeklyChronicle.weekId }}</p>
           </div>
         </div>
       </div>
@@ -175,7 +175,7 @@
         <div v-else-if="!adminReports.length" class="text-xs text-muted">当前没有举报记录。</div>
         <div v-else class="space-y-2 max-h-[32vh] overflow-y-auto pr-1">
           <div v-for="report in adminReports" :key="report.id" class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
-            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted">
               <span>类型：{{ report.type === 'post' ? '帖子' : '回复' }}</span>
               <span>举报人：{{ report.reporter_display_name }}</span>
               <span>时间：{{ formatTime(report.created_at) }}</span>
@@ -224,7 +224,7 @@
         <div v-if="!adminImageReports.length" class="text-xs text-muted">当前没有图片举报记录。</div>
         <div v-else class="space-y-2 max-h-[28vh] overflow-y-auto pr-1">
           <div v-for="report in adminImageReports" :key="report.id" class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
-            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted">
               <span>上传者：{{ report.target_display_name || report.target_username }}</span>
               <span>举报人：{{ report.reporter_display_name }}</span>
               <span>用途：{{ report.usage }}</span>
@@ -272,7 +272,7 @@
         <div v-if="!adminImageAssets.length" class="text-xs text-muted">当前没有可管理的图片资产。</div>
         <div v-else class="space-y-2 max-h-[24vh] overflow-y-auto pr-1">
           <div v-for="asset in adminImageAssets" :key="asset.id" class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
-            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted">
               <span>上传者：{{ asset.uploader_display_name || asset.uploader_username }}</span>
               <span>用途：{{ asset.usage }}</span>
               <span>状态：{{ asset.status === 'hidden' ? '已隐藏' : '可见' }}</span>
@@ -313,7 +313,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p class="text-xs text-danger">{{ entry.display_name || entry.username }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ entry.reason || '管理员已限制该账号上传图片。' }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ entry.reason || '管理员已限制该账号上传图片。' }}</p>
               </div>
               <button class="btn !px-2 !py-1" @click="setHallImageBlacklist(entry.username, false).then(loadAdminReports)" :disabled="processingReportId === entry.username">
                 解除限制
@@ -330,7 +330,7 @@
             <span class="text-xs text-muted">共 {{ totalPosts }} 条</span>
           </div>
 
-          <div class="flex items-center justify-between gap-3 mb-3 text-[11px] text-muted">
+          <div class="flex items-center justify-between gap-3 mb-3 text-[0.6875rem] text-muted">
             <span>第 {{ currentPage }} / {{ totalPages }} 页</span>
             <span>每页 {{ pageSize }} 条</span>
           </div>
@@ -368,13 +368,13 @@
                     <span v-if="post.is_mine" class="hall-tag hall-tag--mine">我的</span>
                   </div>
                   <p class="text-xs text-muted leading-6 hall-preview">{{ post.preview }}</p>
-                  <p v-if="post.related_route_labels?.length" class="text-[11px] text-accent/80 mt-1">关联路线：{{ post.related_route_labels.join('、') }}</p>
-                  <p v-if="post.primary_route_label" class="text-[11px] text-warning mt-1">主路线：{{ post.primary_route_label }}</p>
-                  <p v-if="post.weekly_chronicle_week_id" class="text-[11px] text-muted mt-1">周纪行：{{ post.weekly_chronicle_week_id }}</p>
+                  <p v-if="post.related_route_labels?.length" class="text-[0.6875rem] text-accent/80 mt-1">关联路线：{{ post.related_route_labels.join('、') }}</p>
+                  <p v-if="post.primary_route_label" class="text-[0.6875rem] text-warning mt-1">主路线：{{ post.primary_route_label }}</p>
+                  <p v-if="post.weekly_chronicle_week_id" class="text-[0.6875rem] text-muted mt-1">周纪行：{{ post.weekly_chronicle_week_id }}</p>
                 </div>
                 <span class="text-xs text-muted shrink-0">{{ post.reply_count }} 回复</span>
               </div>
-              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted">
                 <span>作者：{{ post.author_display_name }}</span>
                 <span>活跃：{{ formatTime(post.last_activity_at) }}</span>
               </div>
@@ -448,20 +448,20 @@
                   <span>最后活跃：{{ formatTime(selectedPost.last_activity_at) }}</span>
                   <span v-if="selectedPost.reward_enabled && selectedPost.reward_amount > 0">悬赏状态：{{ rewardStatusText(selectedPost.reward_status) }}</span>
                 </div>
-                <p v-if="selectedPost.related_route_labels?.length" class="text-[11px] text-accent/80 mt-1">
+                <p v-if="selectedPost.related_route_labels?.length" class="text-[0.6875rem] text-accent/80 mt-1">
                   关联路线：{{ selectedPost.related_route_labels.join('、') }}
                 </p>
-                <p v-if="selectedPost.primary_route_label" class="text-[11px] text-warning mt-1">
+                <p v-if="selectedPost.primary_route_label" class="text-[0.6875rem] text-warning mt-1">
                   本周主路线：{{ selectedPost.primary_route_label }}
                   <span v-if="selectedPost.secondary_route_labels?.length"> · 辅助：{{ selectedPost.secondary_route_labels.join('、') }}</span>
                 </p>
-                <p v-if="selectedPost.claimable_node_labels?.length" class="text-[11px] text-muted mt-1">
+                <p v-if="selectedPost.claimable_node_labels?.length" class="text-[0.6875rem] text-muted mt-1">
                   当前可领：{{ selectedPost.claimable_node_labels.join('、') }}
                 </p>
-                <p v-if="selectedPost.next_week_prep_summary" class="text-[11px] text-muted mt-1">
+                <p v-if="selectedPost.next_week_prep_summary" class="text-[0.6875rem] text-muted mt-1">
                   下周准备：{{ selectedPost.next_week_prep_summary }}
                 </p>
-                <p v-if="selectedPost.weekly_chronicle_week_id" class="text-[11px] text-accent/80 mt-1">
+                <p v-if="selectedPost.weekly_chronicle_week_id" class="text-[0.6875rem] text-accent/80 mt-1">
                   周纪行来源：{{ selectedPost.weekly_chronicle_week_id }}
                   <span v-if="selectedPost.chronicle_source_labels?.length"> · {{ selectedPost.chronicle_source_labels.join('、') }}</span>
                 </p>
@@ -485,7 +485,7 @@
                     {{ block.text }}
                   </div>
                   <div v-else class="space-y-2">
-                    <div v-if="block.is_hidden || !block.url" class="rounded-xs border border-danger/20 bg-danger/5 px-3 py-3 text-[11px] text-danger">
+                    <div v-if="block.is_hidden || !block.url" class="rounded-xs border border-danger/20 bg-danger/5 px-3 py-3 text-[0.6875rem] text-danger">
                       {{ block.hidden_reason || '这张图片已被管理员隐藏。' }}
                     </div>
                     <template v-else>
@@ -495,7 +495,7 @@
                         class="hall-image"
                         @click="openImage(block.url)"
                       />
-                      <p v-if="block.alt" class="text-[11px] text-muted">{{ block.alt }}</p>
+                      <p v-if="block.alt" class="text-[0.6875rem] text-muted">{{ block.alt }}</p>
                       <div v-if="viewer.loggedIn && !selectedPost.viewer_is_author" class="flex justify-end">
                         <button class="btn !px-2 !py-1" @click="reportImage(block.id)">
                           <span>举报图片</span>
@@ -541,13 +541,13 @@
 
               <div v-else class="space-y-3 max-h-[34vh] overflow-y-auto pr-1">
                 <div v-for="reply in orderedReplies" :key="reply.id" class="border border-accent/15 rounded-xs px-3 py-3 bg-bg/15">
-                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted mb-2">
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted mb-2">
                     <span>{{ reply.author_display_name }}</span>
                     <span>{{ formatTime(reply.created_at) }}</span>
                     <span v-if="reply.is_mine" class="text-accent">我的回复</span>
                     <span v-if="reply.is_best" class="text-warning">最佳回复</span>
                   </div>
-                  <div v-if="reply.reply_to_excerpt" class="mb-2 rounded-xs border border-accent/10 bg-black/10 px-2 py-1 text-[11px] text-muted">
+                  <div v-if="reply.reply_to_excerpt" class="mb-2 rounded-xs border border-accent/10 bg-black/10 px-2 py-1 text-[0.6875rem] text-muted">
                     回复 @{{ reply.reply_to_author_display_name || '匿名' }}：{{ reply.reply_to_excerpt }}
                   </div>
                   <div class="hall-content text-sm leading-7">{{ reply.content }}</div>
@@ -676,7 +676,7 @@
                 />
                 <span class="text-xs text-muted shrink-0">文</span>
               </div>
-              <p class="text-[11px] text-muted mt-1">适合帖子量较大时吸引更多人优先帮助你。</p>
+              <p class="text-[0.6875rem] text-muted mt-1">适合帖子量较大时吸引更多人优先帮助你。</p>
             </div>
 
             <div>
@@ -723,7 +723,7 @@
 
                   <div v-else class="space-y-2">
                     <img :src="block.url" :alt="block.alt || '插图'" class="hall-image" />
-                    <div class="text-[11px] text-muted break-all">{{ block.alt || '图片' }}</div>
+                    <div class="text-[0.6875rem] text-muted break-all">{{ block.alt || '图片' }}</div>
                   </div>
                 </div>
               </div>
@@ -1863,7 +1863,7 @@
     border-radius: 2px;
     background: rgba(43, 45, 60, 0.65);
     color: rgb(var(--color-text));
-    font-size: 12px;
+    font-size: 0.75rem;
     white-space: nowrap;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -1905,7 +1905,7 @@
     align-items: center;
     padding: 2px 6px;
     border-radius: 2px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     line-height: 1.4;
     border: 1px solid transparent;
   }
@@ -2000,7 +2000,7 @@
     outline: none;
     border: none;
     color: rgb(var(--color-text));
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .hall-toolbar__filters {
@@ -2025,7 +2025,7 @@
   }
 
   .hall-select-wrap__label {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-muted));
     white-space: nowrap;
   }
@@ -2040,7 +2040,7 @@
     outline: none;
     background: transparent;
     color: rgb(var(--color-text));
-    font-size: 12px;
+    font-size: 0.75rem;
     cursor: pointer;
   }
 
@@ -2070,7 +2070,7 @@
     border: none;
     background: transparent;
     color: rgb(var(--color-text));
-    font-size: 13px;
+    font-size: 0.8125rem;
     text-align: left;
     cursor: pointer;
   }
@@ -2104,7 +2104,7 @@
     border: 1px solid rgba(200, 164, 92, 0.25);
     border-radius: 2px;
     color: rgb(var(--color-text));
-    font-size: 13px;
+    font-size: 0.8125rem;
     outline: none;
   }
 

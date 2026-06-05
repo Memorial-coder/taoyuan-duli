@@ -58,7 +58,7 @@
           />
           <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
             <div v-for="stat in overviewStats" :key="stat.label" class="border border-accent/10 bg-black/10 p-2">
-              <p class="truncate text-[10px] text-muted">{{ stat.label }}</p>
+              <p class="truncate text-[0.625rem] text-muted">{{ stat.label }}</p>
               <p class="mt-1 truncate text-xs text-accent">{{ stat.value }}</p>
             </div>
           </div>
@@ -80,7 +80,7 @@
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
                   <p class="text-xs text-accent">庄园主图</p>
-                  <p class="mt-1 text-[10px] leading-5 text-muted">上传后的主图会跟随主题周保存，并出现在公开展示里。</p>
+                  <p class="mt-1 text-[0.625rem] leading-5 text-muted">上传后的主图会跟随主题周保存，并出现在公开展示里。</p>
                 </div>
                 <button
                   class="online-action-btn online-action-btn--compact shrink-0"
@@ -100,7 +100,7 @@
                   :alt="coverImageAlt"
                   class="h-36 w-full object-cover"
                 />
-                <div v-else class="flex h-36 items-center justify-center gap-2 px-3 text-[10px] text-muted">
+                <div v-else class="flex h-36 items-center justify-center gap-2 px-3 text-[0.625rem] text-muted">
                   <ImageIcon :size="14" />
                   暂无庄园主图
                 </div>
@@ -116,7 +116,7 @@
 
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">保存主题</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">主题名、模板和主图会作为同一次主题周快照保存。</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">主题名、模板和主图会作为同一次主题周快照保存。</p>
               <input
                 v-model="manorStore.themeLabelDraft"
                 data-testid="online-manor-theme-label-input"
@@ -139,14 +139,14 @@
 
           <div v-else class="border border-accent/10 bg-black/10 p-3">
             <p class="text-xs text-accent">主题展示</p>
-            <p class="mt-1 text-[10px] leading-5 text-muted">访客模式只展示庄园主人公开的主题、主图、模板与推荐信息，不提供编辑控件。</p>
+            <p class="mt-1 text-[0.625rem] leading-5 text-muted">访客模式只展示庄园主人公开的主题、主图、模板与推荐信息，不提供编辑控件。</p>
           </div>
 
           <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
             <div class="border border-accent/10 bg-black/10 p-3">
-              <p class="text-[10px] text-muted">当前主题</p>
+              <p class="text-[0.625rem] text-muted">当前主题</p>
               <p class="mt-1 text-sm text-accent">{{ currentTheme }}</p>
-              <div class="mt-2 grid gap-1 text-[10px] leading-5 text-muted">
+              <div class="mt-2 grid gap-1 text-[0.625rem] leading-5 text-muted">
                 <p>来源：{{ activeThemeSource }}</p>
                 <p>主题分：{{ themeScoreLabel }}</p>
                 <p>展示模板：{{ selectedTemplateOption?.label || '暂无模板' }}</p>
@@ -162,11 +162,11 @@
                 <p class="text-xs">模板预览</p>
               </div>
               <p class="mt-2 text-sm text-accent">{{ selectedTemplateOption?.label || '默认展示' }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">{{ selectedTemplateOption?.summary || '当前主题暂无模板说明。' }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ selectedTemplateOption?.summary || '当前主题暂无模板说明。' }}</p>
               <div class="mt-3 border border-accent/10 bg-bg/30 p-2">
-                <p class="text-[10px] text-muted">预览摘要</p>
+                <p class="text-[0.625rem] text-muted">预览摘要</p>
                 <p class="mt-1 text-xs text-accent">{{ currentTheme }}</p>
-                <p class="mt-1 text-[10px] leading-5 text-muted">{{ coverImageAlt || '庄园公开展示会按所选模板整理主图、主题和互动摘要。' }}</p>
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ coverImageAlt || '庄园公开展示会按所选模板整理主图、主题和互动摘要。' }}</p>
               </div>
             </div>
           </div>
@@ -175,7 +175,7 @@
             <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div class="min-w-0">
                 <p class="text-xs text-accent">展示模板</p>
-                <p class="mt-1 text-[10px] leading-5 text-muted">
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">
                   {{ isOwner ? '选择公开庄园的展示方式，保存主题后会同步到庄园快照。' : '这是庄园主人当前公开使用的模板。' }}
                 </p>
               </div>
@@ -196,7 +196,7 @@
                   v-for="option in templateOptions"
                   :key="option.id"
                   type="button"
-                  class="border px-3 py-2 text-left text-[10px] transition-colors"
+                  class="border px-3 py-2 text-left text-[0.625rem] transition-colors"
                   :class="manorStore.templateIdDraft === option.id ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
                   @click="manorStore.templateIdDraft = option.id"
                 >
@@ -208,7 +208,7 @@
                 <div
                   v-for="option in templateOptions"
                   :key="option.id"
-                  class="border px-3 py-2 text-[10px]"
+                  class="border px-3 py-2 text-[0.625rem]"
                   :class="selectedTemplateOption?.id === option.id ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/10 text-muted'"
                 >
                   <span class="block text-xs">{{ option.label }}</span>
@@ -225,16 +225,16 @@
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">主题推荐</p>
               <div class="mt-2 flex flex-wrap gap-1">
-                <span v-for="item in themeRecommendations" :key="item" class="border border-accent/15 px-2 py-1 text-[10px] text-muted">
+                <span v-for="item in themeRecommendations" :key="item" class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted">
                   {{ item }}
                 </span>
-                <span v-if="themeRecommendations.length === 0" class="text-[10px] text-muted">当前没有额外推荐。</span>
+                <span v-if="themeRecommendations.length === 0" class="text-[0.625rem] text-muted">当前没有额外推荐。</span>
               </div>
             </div>
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">官方精选</p>
               <p class="mt-2 text-xs text-accent">{{ officialPickLabel }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">{{ officialPickReason }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ officialPickReason }}</p>
             </div>
           </div>
         </div>
@@ -261,7 +261,7 @@
                   v-for="option in guestbookKindOptions"
                   :key="option.id"
                   type="button"
-                  class="border px-3 py-2 text-left text-[10px] transition-colors"
+                  class="border px-3 py-2 text-left text-[0.625rem] transition-colors"
                   :class="manorStore.guestbookKindDraft === option.id ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
                   @click="manorStore.setGuestbookKind(option.id)"
                 >
@@ -272,16 +272,16 @@
 
             <div class="border border-accent/10 bg-black/10 p-3">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">当前留言模式</p>
-                <span class="text-[10px] text-accent">{{ currentGuestbookKind.label }}</span>
+                <p class="text-[0.625rem] text-muted">当前留言模式</p>
+                <span class="text-[0.625rem] text-accent">{{ currentGuestbookKind.label }}</span>
               </div>
-              <p class="mt-1 text-[10px] leading-5 text-muted">{{ currentGuestbookKind.helper }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ currentGuestbookKind.helper }}</p>
               <div class="mt-3 flex flex-wrap gap-1">
                 <button
                   v-for="pick in manorStore.guestbookQuickPicks"
                   :key="pick"
                   type="button"
-                  class="border border-accent/15 px-2 py-1 text-[10px] text-muted transition-colors hover:border-accent/30 hover:text-accent"
+                  class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted transition-colors hover:border-accent/30 hover:text-accent"
                   @click="manorStore.applyGuestbookQuickPick(pick)"
                 >
                   {{ pick }}
@@ -299,7 +299,7 @@
                 :placeholder="manorStore.guestbookPlaceholder"
               />
               <div class="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <p class="text-[10px] leading-5 text-muted">
+                <p class="text-[0.625rem] leading-5 text-muted">
                   将以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。{{ guestbookDraftLength }}/160
                 </p>
                 <button
@@ -320,9 +320,9 @@
             <div class="flex items-center justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent">留言列表</p>
-                <p class="mt-1 text-[10px] leading-5 text-muted">留言在独立滚动区域内展示，回复和置顶只对庄园主人开放。</p>
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">留言在独立滚动区域内展示，回复和置顶只对庄园主人开放。</p>
               </div>
-              <span class="shrink-0 text-[10px] text-accent">{{ guestbookEntries.length }} 条</span>
+              <span class="shrink-0 text-[0.625rem] text-accent">{{ guestbookEntries.length }} 条</span>
             </div>
 
             <OnlineStatusBanner
@@ -356,13 +356,13 @@
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
                       <p class="text-xs text-accent">{{ entry.author_display_name }}</p>
-                      <span class="border px-2 py-0.5 text-[10px]" :class="guestbookKindBadgeClass(entry.kind)">
+                      <span class="border px-2 py-0.5 text-[0.625rem]" :class="guestbookKindBadgeClass(entry.kind)">
                         {{ guestbookKindLabel(entry.kind) }}
                       </span>
-                      <span v-if="entry.pinned" class="border border-accent/20 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
+                      <span v-if="entry.pinned" class="border border-accent/20 bg-accent/10 px-2 py-0.5 text-[0.625rem] text-accent">
                         置顶
                       </span>
-                      <span class="text-[10px] text-muted">{{ formatGuestbookTime(entry.created_at) }}</span>
+                      <span class="text-[0.625rem] text-muted">{{ formatGuestbookTime(entry.created_at) }}</span>
                     </div>
                     <div class="mt-2">
                       <div
@@ -374,7 +374,7 @@
                       <p v-else-if="entry.kind === 'signature'" class="text-right text-xs italic text-fuchsia-100">
                         —— {{ entry.content }}
                       </p>
-                      <p v-else class="text-[10px] leading-5 text-muted">
+                      <p v-else class="text-[0.625rem] leading-5 text-muted">
                         {{ entry.content }}
                       </p>
                     </div>
@@ -393,8 +393,8 @@
                 </div>
 
                 <div v-if="entry.reply_text" class="mt-3 border border-accent/10 bg-black/10 px-3 py-2">
-                  <p class="text-[10px] text-muted">{{ entry.reply_author_display_name || '庄园主人' }} 回复：</p>
-                  <p class="mt-1 text-[10px] leading-5">{{ entry.reply_text }}</p>
+                  <p class="text-[0.625rem] text-muted">{{ entry.reply_author_display_name || '庄园主人' }} 回复：</p>
+                  <p class="mt-1 text-[0.625rem] leading-5">{{ entry.reply_text }}</p>
                 </div>
                 <div v-else-if="isOwner" class="online-action-row mt-3">
                   <input
@@ -458,7 +458,7 @@
               />
             </div>
             <div class="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <p class="text-[10px] leading-5 text-muted">
+              <p class="text-[0.625rem] leading-5 text-muted">
                 行为 {{ visitSummaryLength }}/160 · 反馈 {{ visitFeedbackLength }}/160
               </p>
               <button
@@ -478,9 +478,9 @@
             <div class="flex items-center justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent">来访记录</p>
-                <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.today_visit_summary || '今日暂无来访摘要' }}</p>
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ snapshot.today_visit_summary || '今日暂无来访摘要' }}</p>
               </div>
-              <span class="shrink-0 text-[10px] text-accent">{{ visitEntries.length }} 次</span>
+              <span class="shrink-0 text-[0.625rem] text-accent">{{ visitEntries.length }} 次</span>
             </div>
 
             <OnlineStatusBanner
@@ -512,11 +512,11 @@
               <div v-for="entry in visitEntries" :key="entry.id" data-testid="online-manor-visit-entry" class="border border-accent/10 bg-bg/30 p-3">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <p class="text-xs text-accent">{{ entry.visitor_display_name }} · {{ visitPurposeLabel(entry.purpose) }}</p>
-                  <span class="text-[10px] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
+                  <span class="text-[0.625rem] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
                 </div>
-                <p class="mt-2 text-[10px] leading-5 text-muted">来访行为：{{ entry.summary || '前来参观庄园' }}</p>
-                <p v-if="entry.feedback" class="mt-1 text-[10px] leading-5 text-muted">来访反馈：{{ entry.feedback }}</p>
-                <p v-if="entry.carried_items.length > 0" class="mt-1 text-[10px] leading-5 text-muted">
+                <p class="mt-2 text-[0.625rem] leading-5 text-muted">来访行为：{{ entry.summary || '前来参观庄园' }}</p>
+                <p v-if="entry.feedback" class="mt-1 text-[0.625rem] leading-5 text-muted">来访反馈：{{ entry.feedback }}</p>
+                <p v-if="entry.carried_items.length > 0" class="mt-1 text-[0.625rem] leading-5 text-muted">
                   带走委托：{{ entry.carried_items.map(item => `${item.itemId} x${item.quantity}`).join('、') }}
                 </p>
               </div>
@@ -525,35 +525,35 @@
             <div class="mt-3 border-t border-accent/10 pt-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs text-accent">访客行为审计</p>
-                <span class="text-[10px] text-muted">{{ visitorActivityEntries.length }} 条</span>
+                <span class="text-[0.625rem] text-muted">{{ visitorActivityEntries.length }} 条</span>
               </div>
               <div data-testid="online-manor-visitor-activity-summary" class="mt-2 grid gap-2 md:grid-cols-4">
                 <div v-for="row in visitorActivitySummaryRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[10px] text-accent">{{ row.label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.value }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.detail }}</p>
+                  <p class="text-[0.625rem] text-accent">{{ row.label }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.value }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.detail }}</p>
                 </div>
               </div>
-              <p data-testid="online-manor-visitor-dispute-summary" class="mt-2 text-[10px] leading-5 text-muted">
+              <p data-testid="online-manor-visitor-dispute-summary" class="mt-2 text-[0.625rem] leading-5 text-muted">
                 争议回看：{{ visitorActivityDisputeSummary }}
               </p>
               <div v-if="visitorActivityEntries.length > 0" data-testid="online-manor-visitor-activity-log" class="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
                 <div v-for="entry in visitorActivityEntries" :key="entry.id" data-testid="online-manor-visitor-activity-entry" class="border border-accent/10 bg-bg/30 p-2">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="flex min-w-0 flex-wrap items-center gap-2">
-                      <p class="text-[10px] text-accent">{{ entry.visitor_display_name }}</p>
-                      <span class="border px-2 py-0.5 text-[10px]" :class="visitorActivityKindBadgeClass(entry.kind)">
+                      <p class="text-[0.625rem] text-accent">{{ entry.visitor_display_name }}</p>
+                      <span class="border px-2 py-0.5 text-[0.625rem]" :class="visitorActivityKindBadgeClass(entry.kind)">
                         {{ entry.kind_label }}
                       </span>
                     </div>
-                    <span class="text-[10px] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
+                    <span class="text-[0.625rem] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
                   </div>
-                  <p class="mt-1 text-[10px] leading-4 text-accent">{{ entry.title || visitorActivityFallbackTitle(entry.kind) }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
-                  <p v-if="entry.object_label || entry.action_label" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-accent">{{ entry.title || visitorActivityFallbackTitle(entry.kind) }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
+                  <p v-if="entry.object_label || entry.action_label" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     对象：{{ entry.object_label || '未记录对象' }} · 动作：{{ entry.action_label || '未记录动作' }}
                   </p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.audit_note }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.audit_note }}</p>
                 </div>
               </div>
               <OnlineEmptyState
@@ -600,7 +600,7 @@
                 />
               </div>
               <div class="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <p class="text-[10px] leading-5 text-muted">
+                <p class="text-[0.625rem] leading-5 text-muted">
                   标题 {{ guideTitleLength }}/30 · 说明 {{ guideSummaryLength }}/120
                 </p>
                 <button
@@ -618,7 +618,7 @@
 
             <div v-else class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">访客导览</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">访客可以查看庄园主人公开的路线和参观点，不显示导览维护表单。</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">访客可以查看庄园主人公开的路线和参观点，不显示导览维护表单。</p>
             </div>
 
             <div class="border border-accent/10 bg-black/10 p-3">
@@ -627,10 +627,10 @@
                 <p class="text-xs">路线摘要</p>
               </div>
               <p class="mt-2 text-xs text-accent">{{ currentGuideRoute?.title || '还没设置主题路线' }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">
                 {{ currentGuideRoute?.summary || '保存第一个参观点后，会自动整理出一条基础参观路线。' }}
               </p>
-              <p class="mt-2 text-[10px] leading-5 text-muted">今日来访：{{ snapshot.today_visit_summary || '暂无来访' }}</p>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">今日来访：{{ snapshot.today_visit_summary || '暂无来访' }}</p>
             </div>
           </div>
 
@@ -638,9 +638,9 @@
             <div class="flex items-center justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent">已设参观点</p>
-                <p class="mt-1 text-[10px] leading-5 text-muted">导览点在独立列表里维护，不再夹在庄园长页中间。</p>
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">导览点在独立列表里维护，不再夹在庄园长页中间。</p>
               </div>
-              <span class="shrink-0 text-[10px] text-accent">{{ guidePoints.length }} 个</span>
+              <span class="shrink-0 text-[0.625rem] text-accent">{{ guidePoints.length }} 个</span>
             </div>
 
             <OnlineStatusBanner
@@ -671,7 +671,7 @@
             <div v-else data-testid="online-manor-guide-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
               <div v-for="point in guidePoints" :key="point.id" data-testid="online-manor-guide-point" class="border border-accent/10 bg-bg/30 p-3">
                 <p class="text-xs text-accent">{{ point.order }}. {{ point.title }}</p>
-                <p class="mt-1 text-[10px] leading-5 text-muted">{{ point.summary }}</p>
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ point.summary }}</p>
               </div>
             </div>
           </div>
@@ -695,42 +695,42 @@
                   <Sprout :size="13" />
                   <p class="text-xs">好友庄园照料</p>
                 </div>
-                <p class="mt-2 text-[10px] leading-5 text-muted">
+                <p class="mt-2 text-[0.625rem] leading-5 text-muted">
                   今日访客剩余 {{ careRemainingLabel }} · 庄园剩余 {{ manorCareRemainingLabel }} · 权限 {{ carePermissionLabel }}
                 </p>
-                <p class="mt-1 text-[10px] leading-5 text-muted">
+                <p class="mt-1 text-[0.625rem] leading-5 text-muted">
                   轻采剩余 {{ stealRemainingLabel }} · 庄园轻采 {{ manorStealRemainingLabel }} · 权限 {{ stealPermissionLabel }}
                 </p>
-                <p v-if="!snapshot.care_state.can_care" class="mt-1 text-[10px] leading-5 text-amber-200">
+                <p v-if="!snapshot.care_state.can_care" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
                   {{ snapshot.care_state.care_denied_reason || '当前庄园暂未开放照料。' }}
                 </p>
-                <p v-if="!snapshot.steal_state.can_steal" class="mt-1 text-[10px] leading-5 text-amber-200">
+                <p v-if="!snapshot.steal_state.can_steal" class="mt-1 text-[0.625rem] leading-5 text-amber-200">
                   {{ snapshot.steal_state.steal_denied_reason || '当前庄园暂未开放轻采。' }}
                 </p>
                 <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-care-readable-limits">
                   <div v-for="row in careReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
-                    <p class="text-[10px] text-accent">{{ row.label }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.value }}</p>
-                    <p v-if="row.detail" class="mt-1 text-[10px] leading-4 text-muted">{{ row.detail }}</p>
+                    <p class="text-[0.625rem] text-accent">{{ row.label }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.value }}</p>
+                    <p v-if="row.detail" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.detail }}</p>
                   </div>
                 </div>
-                <p v-if="careFailureReason" data-testid="online-manor-care-failure-reason" class="mt-2 text-[10px] leading-5 text-amber-200">
+                <p v-if="careFailureReason" data-testid="online-manor-care-failure-reason" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
                   照料失败原因：{{ careFailureReason }}
                 </p>
-                <p data-testid="online-manor-care-anti-abuse-summary" class="mt-1 text-[10px] leading-5 text-muted">
+                <p data-testid="online-manor-care-anti-abuse-summary" class="mt-1 text-[0.625rem] leading-5 text-muted">
                   照料审计：{{ careAntiAbuseSummary }}
                 </p>
                 <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-steal-readable-limits">
                   <div v-for="row in stealReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
-                    <p class="text-[10px] text-accent">{{ row.label }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.value }}</p>
-                    <p v-if="row.detail" class="mt-1 text-[10px] leading-4 text-muted">{{ row.detail }}</p>
+                    <p class="text-[0.625rem] text-accent">{{ row.label }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.value }}</p>
+                    <p v-if="row.detail" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ row.detail }}</p>
                   </div>
                 </div>
-                <p v-if="stealFailureReason" data-testid="online-manor-steal-failure-reason" class="mt-2 text-[10px] leading-5 text-amber-200">
+                <p v-if="stealFailureReason" data-testid="online-manor-steal-failure-reason" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
                   轻采失败原因：{{ stealFailureReason }}
                 </p>
-                <p data-testid="online-manor-steal-anti-abuse-summary" class="mt-1 text-[10px] leading-5 text-muted">
+                <p data-testid="online-manor-steal-anti-abuse-summary" class="mt-1 text-[0.625rem] leading-5 text-muted">
                   反刷审计：{{ stealAntiAbuseSummary }}
                 </p>
               </div>
@@ -759,7 +759,7 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="text-xs text-accent">协作护理房间</p>
-                  <p class="mt-1 text-[10px] leading-5 text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-5 text-muted">
                     {{ careRoomSummary }}
                   </p>
                 </div>
@@ -778,7 +778,7 @@
                   </button>
                 </div>
               </div>
-              <p v-if="careRoomState && !careRoomState.can_create_room" class="mt-2 text-[10px] leading-5 text-amber-200">
+              <p v-if="careRoomState && !careRoomState.can_create_room" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
                 {{ careRoomState.create_denied_reason || '当前庄园暂未开放协作护理房间。' }}
               </p>
 
@@ -791,35 +791,35 @@
                 >
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <p class="text-xs text-accent">{{ careRoomStatusLabel(room.status) }} · {{ room.participants.length }}/{{ room.member_limit }}</p>
-                    <span class="text-[10px] text-muted">{{ careRoomWindowLabel(room) }}</span>
+                    <span class="text-[0.625rem] text-muted">{{ careRoomWindowLabel(room) }}</span>
                   </div>
-                  <p class="mt-2 text-[10px] leading-5 text-muted">{{ room.summary || '等待护理分工推进。' }}</p>
-                  <div data-testid="online-manor-care-room-progress-summary" class="mt-2 grid gap-2 text-[10px] leading-4 text-muted md:grid-cols-3">
+                  <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ room.summary || '等待护理分工推进。' }}</p>
+                  <div data-testid="online-manor-care-room-progress-summary" class="mt-2 grid gap-2 text-[0.625rem] leading-4 text-muted md:grid-cols-3">
                     <p><span class="text-accent">分工进度</span><br>{{ careRoomProgressSummary(room) }}</p>
                     <p><span class="text-accent">结算条件</span><br>{{ careRoomSettlementHint(room) }}</p>
                     <p data-testid="online-manor-care-room-risk-summary"><span class="text-accent">风险回看</span><br>{{ careRoomRiskSummary(room) }}</p>
                   </div>
-                  <p class="mt-2 text-[10px] leading-5 text-muted">
+                  <p class="mt-2 text-[0.625rem] leading-5 text-muted">
                     待完成：{{ careRoomPendingActionLabels(room) }}
                   </p>
                   <div class="mt-2 flex flex-wrap gap-1">
                     <span
                       v-for="participant in room.participants"
                       :key="`${room.id}-${participant.username}`"
-                      class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                      class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
                     >
                       {{ participant.display_name }} · {{ participant.role_label }}
                     </span>
                   </div>
                   <div v-if="room.actions.length > 0" data-testid="online-manor-care-room-action-ledger" class="mt-2 space-y-2 border-l border-accent/20 pl-2">
                     <div v-for="action in room.actions" :key="action.id">
-                      <p class="text-[10px] text-accent">
+                      <p class="text-[0.625rem] text-accent">
                         {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }}
                       </p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                         {{ action.object_label }} · 预期第 {{ action.expected_order }} 步 · {{ action.role_label }}{{ action.role_matched ? '匹配' : '未匹配' }}
                       </p>
-                      <p class="text-[10px] leading-4 text-muted">
+                      <p class="text-[0.625rem] leading-4 text-muted">
                         健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 顺序风险 +${action.risk_delta}` : ' · 顺序正常' }}
                       </p>
                     </div>
@@ -874,30 +874,30 @@
           <div class="space-y-3">
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">照料效果</p>
-              <p class="mt-2 text-[10px] leading-5 text-muted">{{ careReadableImpactSummary }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.care_state.audit.reward_cap_summary }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.care_state.audit.settlement_summary }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.care_state.audit.risk_flags) }}</p>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ careReadableImpactSummary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ snapshot.care_state.audit.reward_cap_summary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ snapshot.care_state.audit.settlement_summary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.care_state.audit.risk_flags) }}</p>
               <div class="mt-2 space-y-2">
                 <div v-for="effect in careEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[10px] text-accent">{{ effect.label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">给主人：{{ effect.ownerBenefit }}</p>
-                  <p class="text-[10px] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
+                  <p class="text-[0.625rem] text-accent">{{ effect.label }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">给主人：{{ effect.ownerBenefit }}</p>
+                  <p class="text-[0.625rem] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
                 </div>
               </div>
             </div>
 
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">轻采规则</p>
-              <p class="mt-2 text-[10px] leading-5 text-muted">{{ stealReadableImpactSummary }}</p>
-              <p class="mt-2 text-[10px] leading-5 text-muted">{{ snapshot.steal_state.audit.reward_cap_summary }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.steal_state.audit.settlement_summary }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ stealReadableImpactSummary }}</p>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ snapshot.steal_state.audit.reward_cap_summary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ snapshot.steal_state.audit.settlement_summary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
               <div class="mt-2 space-y-2">
                 <div v-for="effect in stealEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[10px] text-accent">{{ effect.label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">主人：{{ effect.ownerCompensation }}</p>
-                  <p class="text-[10px] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
+                  <p class="text-[0.625rem] text-accent">{{ effect.label }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">主人：{{ effect.ownerCompensation }}</p>
+                  <p class="text-[0.625rem] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
                 </div>
               </div>
             </div>
@@ -906,9 +906,9 @@
               <p class="text-xs text-accent">最近照料记录</p>
               <div v-if="recentCareEntries.length > 0" data-testid="online-manor-care-log" class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
                 <div v-for="entry in recentCareEntries" :key="entry.id" data-testid="online-manor-care-entry" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[10px] text-accent">{{ entry.visitor_display_name }} · {{ entry.action_label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary || `${entry.object_label} 已被照料` }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">给主人：{{ entry.owner_benefit }} · 访客：{{ entry.visitor_reward }}</p>
+                  <p class="text-[0.625rem] text-accent">{{ entry.visitor_display_name }} · {{ entry.action_label }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary || `${entry.object_label} 已被照料` }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">给主人：{{ entry.owner_benefit }} · 访客：{{ entry.visitor_reward }}</p>
                 </div>
               </div>
               <OnlineEmptyState
@@ -923,18 +923,18 @@
               <p class="text-xs text-accent">最近轻采记录</p>
               <div v-if="recentStealEntries.length > 0" data-testid="online-manor-steal-log" class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
                 <div v-for="entry in recentStealEntries" :key="entry.id" data-testid="online-manor-steal-entry" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[10px] text-accent">{{ entry.visitor_display_name }} · {{ entry.action_label }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary || `${entry.object_label} 已有轻采记录` }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="text-[0.625rem] text-accent">{{ entry.visitor_display_name }} · {{ entry.action_label }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary || `${entry.object_label} 已有轻采记录` }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                     主人：{{ entry.owner_compensation }} · 访客：{{ entry.visitor_reward }} · 单次 {{ entry.visitor_reward_quantity || entry.quantity || 1 }}
                   </p>
-                  <p data-testid="online-manor-steal-receipt-guard" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p data-testid="online-manor-steal-receipt-guard" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     凭证：{{ stealEntryReceiptLabel(entry) }} · 主人保留 {{ stealEntryOwnerReservedPercent(entry) }} · 访客日上限 {{ entry.reward_daily_cap || snapshot.steal_state.limits.visitor_daily_limit }}
                   </p>
-                  <p data-testid="online-manor-steal-use-summary" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p data-testid="online-manor-steal-use-summary" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     用途：{{ stealEntryUseSummary(entry) }}
                   </p>
-                  <p v-if="entry.note" class="mt-1 text-[10px] leading-4 text-muted">留言：{{ entry.note }}</p>
+                  <p v-if="entry.note" class="mt-1 text-[0.625rem] leading-4 text-muted">留言：{{ entry.note }}</p>
                 </div>
               </div>
               <OnlineEmptyState
@@ -949,20 +949,20 @@
               <p class="text-xs text-accent">协作护理记录</p>
               <div v-if="recentCareRoomRecords.length > 0" data-testid="online-manor-care-room-records" class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
                 <div v-for="room in recentCareRoomRecords" :key="room.id" data-testid="online-manor-care-room-record" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[10px] text-accent">健康度 {{ room.health_score }} · 风险 {{ room.risk_score }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ room.summary }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">参与：{{ room.participants.map(participant => participant.display_name).join('、') }}</p>
-                  <p data-testid="online-manor-care-room-record-health" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="text-[0.625rem] text-accent">健康度 {{ room.health_score }} · 风险 {{ room.risk_score }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ room.summary }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">参与：{{ room.participants.map(participant => participant.display_name).join('、') }}</p>
+                  <p data-testid="online-manor-care-room-record-health" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     {{ careRoomRecordHealthLabel(room) }}
                   </p>
-                  <p data-testid="online-manor-care-room-record-risk" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p data-testid="online-manor-care-room-record-risk" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     {{ careRoomRecordRiskLabel(room) }}
                   </p>
-                  <p data-testid="online-manor-care-room-record-settlement" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p data-testid="online-manor-care-room-record-settlement" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     凭证：{{ careRoomRecordReceiptLabel(room) }} · 结算：{{ careRoomSettledByLabel(room) }}
                   </p>
                   <div v-if="room.actions.length > 0" data-testid="online-manor-care-room-record-actions" class="mt-2 space-y-1">
-                    <p v-for="action in room.actions" :key="action.id" class="text-[10px] leading-4 text-muted">
+                    <p v-for="action in room.actions" :key="action.id" class="text-[0.625rem] leading-4 text-muted">
                       {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }} · 健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 顺序风险 +${action.risk_delta}` : '' }}
                     </p>
                   </div>
@@ -991,9 +991,9 @@
         <div class="border border-accent/10 bg-black/10 p-3">
           <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div class="min-w-0">
-              <p class="text-[10px] text-muted">{{ isOwner ? '我的收藏' : '收藏与关注' }}</p>
+              <p class="text-[0.625rem] text-muted">{{ isOwner ? '我的收藏' : '收藏与关注' }}</p>
               <p class="mt-1 text-sm text-accent">{{ favoriteOverviewLabel }}</p>
-              <p class="mt-2 text-[10px] leading-5 text-muted">
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">
                 {{ isOwner ? '这是你自己的庄园，收藏和关注列表会展示其他玩家与热门庄园。' : '访客模式可以把当前庄园加入收藏或关注更新，刷新后概览会同步状态。' }}
               </p>
             </div>
@@ -1028,14 +1028,14 @@
               class="border border-accent/10 bg-bg/30 p-2"
             >
               <p class="text-xs text-accent">{{ entry.snapshot.display_name || entry.manor_username }}</p>
-              <p class="mt-1 text-[10px] leading-5 text-muted">主题：{{ entry.theme || entry.snapshot.showcase_theme || '未设置主题' }}</p>
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">主题：{{ entry.theme || entry.snapshot.showcase_theme || '未设置主题' }}</p>
             </div>
           </div>
         </div>
         <div class="border border-accent/10 bg-black/10 p-3">
-          <p class="text-[10px] text-muted">热门庄园</p>
+          <p class="text-[0.625rem] text-muted">热门庄园</p>
           <p class="mt-1 text-sm text-accent">{{ manorStore.favoriteOverview?.hot_manors.length ?? 0 }} 座</p>
-          <p class="mt-2 text-[10px] leading-5 text-muted">后续收藏页会承接热门庄园和同主题收藏列表。</p>
+          <p class="mt-2 text-[0.625rem] leading-5 text-muted">后续收藏页会承接热门庄园和同主题收藏列表。</p>
         </div>
       </div>
     </section>

@@ -34,11 +34,11 @@
         <div class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">祠堂主题</p>
           <p class="text-xs text-accent">{{ activeShrineThemeName }}</p>
-          <p class="text-[10px] text-muted mt-0.5">已解锁 {{ museumStore.unlockedShrineThemeCount }} 个主题，可持续影响展示评分与访客热度。</p>
+          <p class="text-[0.625rem] text-muted mt-0.5">已解锁 {{ museumStore.unlockedShrineThemeCount }} 个主题，可持续影响展示评分与访客热度。</p>
         </div>
         <div class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">馆区推进</p>
-          <div v-for="hall in featuredHallOverview" :key="hall.progress.hallZoneId" class="flex items-center justify-between text-[10px] mt-0.5">
+          <div v-for="hall in featuredHallOverview" :key="hall.progress.hallZoneId" class="flex items-center justify-between text-[0.625rem] mt-0.5">
             <span>{{ getHallLabel(hall.progress.hallZoneId) }}</span>
             <span class="text-accent">Lv.{{ hall.progress.level }} / 槽位{{ hall.unlockedSlotCount }}</span>
           </div>
@@ -46,10 +46,10 @@
         <div v-if="featuredCommissionOverview.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">学者委托</p>
           <div v-for="commission in featuredCommissionOverview" :key="commission.id" class="border border-accent/10 rounded-xs px-2 py-1 mt-1">
-            <div class="flex items-center justify-between text-[10px] gap-2">
+            <div class="flex items-center justify-between text-[0.625rem] gap-2">
               <div class="min-w-0 flex-1">
                 <p class="truncate">{{ commission.title }}</p>
-                <p class="text-[10px] text-muted mt-0.5 truncate">{{ getHallLabel(commission.hallZoneId) }} · {{ commission.summary }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5 truncate">{{ getHallLabel(commission.hallZoneId) }} · {{ commission.summary }}</p>
               </div>
               <Button
                 v-if="commission.isRewardPending"
@@ -75,16 +75,16 @@
         <div v-if="museumStore.crossSystemOverview.recommendedActions.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">经营联动</p>
           <p class="text-xs text-accent">{{ museumStore.crossSystemOverview.themeWeekFocus?.name ?? '常规展陈周' }}</p>
-          <p class="text-[10px] text-muted mt-0.5">{{ museumStore.crossSystemOverview.questBoardBiasProfile.boardHint || '当前展陈会轻度影响告示板和经营准备方向。' }}</p>
+          <p class="text-[0.625rem] text-muted mt-0.5">{{ museumStore.crossSystemOverview.questBoardBiasProfile.boardHint || '当前展陈会轻度影响告示板和经营准备方向。' }}</p>
           <div class="mt-1 space-y-1">
-            <p v-for="action in museumStore.crossSystemOverview.recommendedActions.slice(0, 3)" :key="action" class="text-[10px] text-muted">
+            <p v-for="action in museumStore.crossSystemOverview.recommendedActions.slice(0, 3)" :key="action" class="text-[0.625rem] text-muted">
               · {{ action }}
             </p>
           </div>
         </div>
         <div v-if="museumStore.crossSystemOverview.supportNpcOverview.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">馆务协力</p>
-          <div v-for="npc in museumStore.crossSystemOverview.supportNpcOverview.slice(0, 3)" :key="npc.npcId" class="flex items-center justify-between text-[10px] mt-0.5">
+          <div v-for="npc in museumStore.crossSystemOverview.supportNpcOverview.slice(0, 3)" :key="npc.npcId" class="flex items-center justify-between text-[0.625rem] mt-0.5">
             <span>{{ npc.name }}</span>
             <span class="text-accent">{{ npc.friendshipLabel }}</span>
           </div>

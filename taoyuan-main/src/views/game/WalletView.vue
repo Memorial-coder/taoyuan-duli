@@ -13,11 +13,11 @@
     <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="wallet-primary-action-card">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-[0.625rem] tracking-[0.24em] text-accent/70">当前推荐动作</p>
           <p class="text-sm text-accent mt-1">{{ walletPrimaryActionCard.title }}</p>
           <p class="text-xs text-muted mt-2 leading-5">{{ walletPrimaryActionCard.summary }}</p>
         </div>
-        <span class="text-[10px] shrink-0" :class="walletPrimaryActionCard.statusToneClass">{{ walletPrimaryActionCard.statusLabel }}</span>
+        <span class="text-[0.625rem] shrink-0" :class="walletPrimaryActionCard.statusToneClass">{{ walletPrimaryActionCard.statusLabel }}</span>
       </div>
       <div v-if="walletPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
         <p v-for="line in walletPrimaryActionCard.detailLines" :key="`wallet-primary-action-${line}`" class="text-xs text-muted leading-5">
@@ -45,7 +45,7 @@
     <div v-if="cloudHighlandWalletPrep" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-accent">云岚高地战备</p>
-        <span class="text-[10px] text-muted">行旅图 -> 高阶准备</span>
+        <span class="text-[0.625rem] text-muted">行旅图 -> 高阶准备</span>
       </div>
       <p class="text-xs text-muted mt-1 leading-5">
         当前灵脉结晶库存 {{ cloudHighlandWalletPrep.leyQty }} 份，建设券 {{ cloudHighlandWalletPrep.constructionTickets }}，后勤券 {{ cloudHighlandWalletPrep.guildLogisticsTickets }}。
@@ -54,8 +54,8 @@
         建议先确认高地巡路和首领前的预算、票券和背包余量，再继续冲下一轮高地战备。
       </p>
       <div class="mt-2 flex flex-wrap gap-2">
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('region-map')">去行旅图</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('guild')">去公会</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('region-map')">去行旅图</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('guild')">去公会</button>
       </div>
     </div>
 
@@ -78,14 +78,14 @@
 
       <div class="grid grid-cols-2 gap-2 mb-2">
         <div v-for="metric in economyMetricCards" :key="metric.label" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/20">
-          <p class="text-[10px] text-muted">{{ metric.label }}</p>
+          <p class="text-[0.625rem] text-muted">{{ metric.label }}</p>
           <p class="text-sm text-accent mt-0.5">{{ metric.value }}</p>
-          <p class="text-[10px] text-muted mt-1">{{ metric.hint }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ metric.hint }}</p>
         </div>
       </div>
 
       <div v-if="economyOverview.latestRiskReport?.summary" class="border rounded-xs px-2 py-2 mb-2" :class="economyRiskPanelClass">
-        <div class="flex items-center gap-1 text-[10px] mb-1" :class="economyRiskClass">
+        <div class="flex items-center gap-1 text-[0.625rem] mb-1" :class="economyRiskClass">
           <AlertTriangle :size="12" />
           <span>风险提示</span>
         </div>
@@ -93,21 +93,21 @@
       </div>
 
       <div class="border border-accent/10 rounded-xs p-2">
-        <p class="text-[10px] text-accent mb-1">推荐资金去向</p>
+        <p class="text-[0.625rem] text-accent mb-1">推荐资金去向</p>
         <div class="space-y-1.5">
           <div v-for="sink in economyRecommendedSinks" :key="sink.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-text">{{ sink.name }}</p>
-              <span class="text-[10px] text-accent">{{ sink.priceBandLabel }}</span>
+              <span class="text-[0.625rem] text-accent">{{ sink.priceBandLabel }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-1">{{ sink.showcaseHook }}</p>
-            <p class="text-[10px] text-muted/80 mt-1">联动：{{ sink.linkedSystemsLabel }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ sink.showcaseHook }}</p>
+            <p class="text-[0.625rem] text-muted/80 mt-1">联动：{{ sink.linkedSystemsLabel }}</p>
           </div>
         </div>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusWalletSection('weekly-budget', '看周预算')">看周预算</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="openShopPromptTarget('recommended-consumption', '去商圈推荐区')">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusWalletSection('weekly-budget', '看周预算')">看周预算</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="openShopPromptTarget('recommended-consumption', '去商圈推荐区')">
           去商圈推荐区
         </button>
       </div>
@@ -134,41 +134,41 @@
 
       <div class="grid grid-cols-2 gap-2 mb-2">
         <div v-for="metric in walletCatalogMetricCards" :key="metric.label" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/20">
-          <p class="text-[10px] text-muted">{{ metric.label }}</p>
+          <p class="text-[0.625rem] text-muted">{{ metric.label }}</p>
           <p class="text-sm text-accent mt-0.5">{{ metric.value }}</p>
-          <p class="text-[10px] text-muted mt-1">{{ metric.hint }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ metric.hint }}</p>
         </div>
       </div>
 
       <div v-if="shopStore.weeklySurpriseOffer" class="border border-warning/20 rounded-xs p-2 mb-2 bg-warning/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-warning">本周精选提醒</p>
-          <span class="text-[10px] text-warning">{{ shopStore.weeklyCatalogRefreshText }}</span>
+          <span class="text-[0.625rem] text-warning">{{ shopStore.weeklyCatalogRefreshText }}</span>
         </div>
         <p class="text-xs text-text mt-1">{{ shopStore.weeklySurpriseOffer.name }}</p>
-        <p class="text-[10px] text-muted mt-0.5">{{ shopStore.weeklySurpriseOffer.description }}</p>
-        <p class="text-[10px] text-success mt-1">{{ walletCatalogFeaturedReason }}</p>
+        <p class="text-[0.625rem] text-muted mt-0.5">{{ shopStore.weeklySurpriseOffer.description }}</p>
+        <p class="text-[0.625rem] text-success mt-1">{{ walletCatalogFeaturedReason }}</p>
       </div>
 
       <div class="border border-accent/10 rounded-xs p-2 bg-bg/10">
-        <p class="text-[10px] text-accent mb-1">与你当前路线更契合的货架</p>
+        <p class="text-[0.625rem] text-accent mb-1">与你当前路线更契合的货架</p>
         <div class="space-y-1.5">
           <div v-for="offer in walletCatalogRecommendedOffers" :key="offer.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-text">{{ offer.name }}</p>
-              <span class="text-[10px] text-accent">{{ shopStore.applyDiscount(offer.price) }}文</span>
+              <span class="text-[0.625rem] text-accent">{{ shopStore.applyDiscount(offer.price) }}文</span>
             </div>
-            <p class="text-[10px] text-muted mt-0.5">{{ offer.description }}</p>
-            <p class="text-[10px] text-success mt-1">{{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">{{ offer.description }}</p>
+            <p class="text-[0.625rem] text-success mt-1">{{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}</p>
           </div>
-          <p v-if="walletCatalogRecommendedOffers.length === 0" class="text-[10px] text-muted">当前暂无额外推荐，先完成图鉴、主题周或流派节点解锁可获得更明确的商店路线提示。</p>
+          <p v-if="walletCatalogRecommendedOffers.length === 0" class="text-[0.625rem] text-muted">当前暂无额外推荐，先完成图鉴、主题周或流派节点解锁可获得更明确的商店路线提示。</p>
         </div>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="openShopPromptTarget('recommended-consumption', '去万物铺推荐区')">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="openShopPromptTarget('recommended-consumption', '去万物铺推荐区')">
           去万物铺推荐区
         </button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusWalletSection('weekly-budget', '回看周预算')">回看周预算</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusWalletSection('weekly-budget', '回看周预算')">回看周预算</button>
       </div>
     </div>
     </template>
@@ -195,7 +195,7 @@
         </div>
         <div class="mt-1">
           <p class="text-xs text-muted">本周票券累计</p>
-          <p class="text-[10px] text-muted/80 mt-0.5">{{ weeklyBudgetTicketSummary }}</p>
+          <p class="text-[0.625rem] text-muted/80 mt-0.5">{{ weeklyBudgetTicketSummary }}</p>
         </div>
       </div>
 
@@ -204,9 +204,9 @@
           <div class="flex items-center justify-between gap-2">
             <div>
               <p class="text-xs text-text">{{ entry.channel.label }}</p>
-              <p class="text-[10px] text-muted mt-0.5">{{ entry.channel.description }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.channel.description }}</p>
             </div>
-            <span class="text-[10px]" :class="entry.selection ? 'text-success' : 'text-muted'">
+            <span class="text-[0.625rem]" :class="entry.selection ? 'text-success' : 'text-muted'">
               {{ entry.selection ? `已投入 · ${entry.selection.tierLabel}` : '本周未投入' }}
             </span>
           </div>
@@ -214,9 +214,9 @@
           <div v-if="entry.selection" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-success">{{ entry.selection.tierLabel }}</p>
-              <span class="text-[10px] text-success">{{ entry.selection.costMoney }}文</span>
+              <span class="text-[0.625rem] text-success">{{ entry.selection.costMoney }}文</span>
             </div>
-            <p class="text-[10px] text-muted mt-1">{{ entry.selection.effect.summary }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ entry.selection.effect.summary }}</p>
           </div>
 
           <div v-else class="grid grid-cols-1 gap-2 mt-2">
@@ -228,10 +228,10 @@
             >
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs text-accent">{{ tier.label }}</p>
-                <span class="text-[10px] text-accent">{{ tier.costMoney }}文</span>
+                <span class="text-[0.625rem] text-accent">{{ tier.costMoney }}文</span>
               </div>
-              <p class="text-[10px] text-muted mt-1">{{ tier.effect.summary }}</p>
-              <p class="text-[10px] text-muted/70 mt-1">预计周回报参考：{{ tier.projectedValue }}文</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ tier.effect.summary }}</p>
+              <p class="text-[0.625rem] text-muted/70 mt-1">预计周回报参考：{{ tier.projectedValue }}文</p>
             </button>
           </div>
         </div>
@@ -268,14 +268,14 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <p class="text-xs text-accent">奖券命名与兑奖入口</p>
-            <p class="text-[10px] text-muted mt-0.5">
+            <p class="text-[0.625rem] text-muted mt-0.5">
               入账按「{{ rewardTicketPrizeNaming.intakeLabel }}」记，日常兑换走「{{ rewardTicketPrizeNaming.exchangeLabel }}」，高阶段奖励会并入「{{ rewardTicketPrizeNaming.highTierLabel }}」。
             </p>
           </div>
-          <span class="text-[10px] text-success">累计 {{ rewardTicketLifetimeTotal }} 张</span>
+          <span class="text-[0.625rem] text-success">累计 {{ rewardTicketLifetimeTotal }} 张</span>
         </div>
         <div class="mt-2 space-y-1">
-          <p v-for="line in rewardTicketPrizeNaming.summaryLines" :key="line" class="text-[10px] text-muted leading-4">
+          <p v-for="line in rewardTicketPrizeNaming.summaryLines" :key="line" class="text-[0.625rem] text-muted leading-4">
             {{ line }}
           </p>
         </div>
@@ -285,9 +285,9 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <p class="text-xs text-accent">阶段奖池预览</p>
-            <p class="text-[10px] text-muted mt-0.5">当前主阶段：{{ activeRewardTicketPrizeStage.label }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">当前主阶段：{{ activeRewardTicketPrizeStage.label }}</p>
           </div>
-          <span class="text-[10px]" :class="rewardTicketLifetimeTotal > 0 ? 'text-success' : 'text-muted'">
+          <span class="text-[0.625rem]" :class="rewardTicketLifetimeTotal > 0 ? 'text-success' : 'text-muted'">
             {{ activeRewardTicketPrizeStage.summary }}
           </span>
         </div>
@@ -295,13 +295,13 @@
           <div v-for="stage in rewardTicketPrizeStageEntries" :key="stage.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-text'">{{ stage.label }}</p>
-              <span class="text-[10px]" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-muted'">
+              <span class="text-[0.625rem]" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-muted'">
                 {{ stage.unlocked ? (stage.active ? '当前阶段' : '已见过') : `累计 ${stage.unlockLifetimeTickets} 张解锁` }}
               </span>
             </div>
-            <p class="text-[10px] text-muted mt-1">{{ stage.spotlightRewards.join('、') }}</p>
-            <p class="text-[10px] text-muted/80 mt-1">{{ stage.notes[0] }}</p>
-            <p v-if="stage.nextStageLabel && stage.active" class="text-[10px] text-success mt-1">
+            <p class="text-[0.625rem] text-muted mt-1">{{ stage.spotlightRewards.join('、') }}</p>
+            <p class="text-[0.625rem] text-muted/80 mt-1">{{ stage.notes[0] }}</p>
+            <p v-if="stage.nextStageLabel && stage.active" class="text-[0.625rem] text-success mt-1">
               距离下一档「{{ stage.nextStageLabel }}」还差 {{ Math.max(0, stage.progressGoal - stage.progressValue) }} 张累计奖券。
             </p>
           </div>
@@ -317,7 +317,7 @@
           <div class="flex items-center justify-between gap-2">
             <div>
               <p class="text-xs text-text">{{ entry.label }}</p>
-              <p class="text-[10px] text-muted mt-0.5">{{ entry.description }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.description }}</p>
             </div>
             <span class="text-xs" :class="entry.balance > 0 ? 'text-success' : 'text-muted'">{{ entry.balance }}</span>
           </div>
@@ -333,20 +333,20 @@
           <div class="flex items-center justify-between gap-2">
             <div>
               <p class="text-xs text-accent">{{ offer.label }}</p>
-              <p class="text-[10px] text-muted mt-0.5">{{ offer.description }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ offer.description }}</p>
             </div>
-            <span class="text-[10px] text-muted">{{ offer.balance }}/{{ offer.costTickets }}</span>
+            <span class="text-[0.625rem] text-muted">{{ offer.balance }}/{{ offer.costTickets }}</span>
           </div>
-          <p v-if="offer.counterLabel || offer.poolStageLabel" class="text-[10px] text-success mt-1">
+          <p v-if="offer.counterLabel || offer.poolStageLabel" class="text-[0.625rem] text-success mt-1">
             {{ [offer.counterLabel, offer.poolStageLabel].filter(Boolean).join(' · ') }}
           </p>
-          <p v-if="offer.poolTagsLabel" class="text-[10px] text-muted/80 mt-0.5">奖池标签：{{ offer.poolTagsLabel }}</p>
-          <p class="text-[10px] text-muted mt-1">
+          <p v-if="offer.poolTagsLabel" class="text-[0.625rem] text-muted/80 mt-0.5">奖池标签：{{ offer.poolTagsLabel }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">
             兑换内容：{{ offer.rewardSummary || offer.mysteryBoxSummary || '按赏格发放' }}
           </p>
-          <p v-if="offer.mysteryBoxSummary" class="text-[10px] text-accent mt-0.5">附带密匣：{{ offer.mysteryBoxSummary }}</p>
+          <p v-if="offer.mysteryBoxSummary" class="text-[0.625rem] text-accent mt-0.5">附带密匣：{{ offer.mysteryBoxSummary }}</p>
           <button
-            class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
+            class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] transition-colors"
             :class="offer.affordable ? 'text-accent hover:bg-accent/5' : 'text-muted opacity-50 cursor-not-allowed'"
             :disabled="!offer.affordable"
             @click="handleRedeemRewardTicketOffer(offer.id)"
@@ -360,23 +360,23 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <p class="text-xs text-accent">密匣 / 遗箱</p>
-            <p class="text-[10px] text-muted mt-0.5">统一开启入口：祠后开匣案</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">统一开启入口：祠后开匣案</p>
           </div>
-          <span class="text-[10px] text-muted">{{ mysteryBoxEntries.filter(entry => entry.count > 0).length }}/{{ mysteryBoxEntries.length }} 已入账</span>
+          <span class="text-[0.625rem] text-muted">{{ mysteryBoxEntries.filter(entry => entry.count > 0).length }}/{{ mysteryBoxEntries.length }} 已入账</span>
         </div>
         <div class="mt-2 space-y-1">
-          <p v-for="line in mysteryBoxNaming.summaryLines" :key="line" class="text-[10px] text-muted leading-4">{{ line }}</p>
+          <p v-for="line in mysteryBoxNaming.summaryLines" :key="line" class="text-[0.625rem] text-muted leading-4">{{ line }}</p>
         </div>
         <div class="mt-2 space-y-2">
           <div v-for="entry in mysteryBoxEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">{{ entry.label }}</p>
-              <span class="text-[10px]" :class="entry.count > 0 ? 'text-success' : 'text-muted'">{{ entry.count }}</span>
+              <span class="text-[0.625rem]" :class="entry.count > 0 ? 'text-success' : 'text-muted'">{{ entry.count }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-0.5">{{ entry.aliasLabel }} · 来源：{{ entry.sourceHints.join('、') }}</p>
-            <p class="text-[10px] text-muted mt-1">{{ entry.rewardPreview }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.aliasLabel }} · 来源：{{ entry.sourceHints.join('、') }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ entry.rewardPreview }}</p>
             <button
-              class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
+              class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] transition-colors"
               :class="entry.count > 0 ? 'text-accent hover:bg-accent/5' : 'text-muted opacity-50 cursor-not-allowed'"
               :disabled="entry.count <= 0"
               @click="handleOpenMysteryBox(entry.id)"
@@ -450,11 +450,11 @@
           class="w-full px-2 py-1.5 bg-bg border border-accent/30 rounded-xs text-xs text-text focus:border-accent outline-none"
           placeholder="请输入要兑换的铜钱数量"
         />
-        <p class="text-[10px] text-muted mt-1">{{ exchangePreviewLabel }}</p>
-        <p v-if="!hasServerExchangeSession" class="text-[10px] text-warning mt-1">
+        <p class="text-[0.625rem] text-muted mt-1">{{ exchangePreviewLabel }}</p>
+        <p v-if="!hasServerExchangeSession" class="text-[0.625rem] text-warning mt-1">
           {{ exchangeSessionHint }}
         </p>
-        <p v-if="importLimitReached || exportLimitReached" class="text-[10px] text-warning mt-1">
+        <p v-if="importLimitReached || exportLimitReached" class="text-[0.625rem] text-warning mt-1">
           {{ importLimitReached ? '今日转入额度已达上限。' : '' }}{{ exportLimitReached ? '今日提现额度已达上限。' : '' }}
         </p>
       </div>
@@ -517,50 +517,50 @@
           <div class="flex items-center justify-between gap-2">
             <div>
               <p class="text-sm" :class="walletStore.currentArchetypeId === archetype.id ? 'text-accent' : ''">{{ archetype.name }}</p>
-              <p class="text-[10px] text-muted mt-0.5">{{ archetype.title }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ archetype.title }}</p>
             </div>
-            <span class="text-[10px]" :class="walletStore.canUnlockArchetype(archetype.id) ? 'text-success' : 'text-warning'">
+            <span class="text-[0.625rem]" :class="walletStore.canUnlockArchetype(archetype.id) ? 'text-success' : 'text-warning'">
               {{ walletStore.canUnlockArchetype(archetype.id) ? (walletStore.currentArchetypeId === archetype.id ? '使用中' : '可选择') : '未解锁' }}
             </span>
           </div>
           <p class="text-xs text-muted mt-1">{{ archetype.description }}</p>
-          <p class="text-[10px] text-muted mt-1">{{ walletStore.getArchetypeUnlockHint(archetype.id) }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ walletStore.getArchetypeUnlockHint(archetype.id) }}</p>
         </button>
       </div>
 
       <div v-if="walletStore.currentArchetype" class="border border-accent/10 rounded-xs p-2 mb-2">
         <div class="flex items-center justify-between gap-2 mb-1">
           <p class="text-xs text-accent">{{ walletStore.currentArchetype.name }} · 当前效果</p>
-          <button class="text-[10px] text-warning hover:text-warning/80" @click="openResetArchetypeConfirm">重置流派</button>
+          <button class="text-[0.625rem] text-warning hover:text-warning/80" @click="openResetArchetypeConfirm">重置流派</button>
         </div>
         <p class="text-xs text-muted">{{ walletStore.getArchetypeDescriptionText(walletStore.currentArchetype.id) }}</p>
         <div class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/20">
-          <p class="text-[10px] text-accent mb-1">主效果</p>
+          <p class="text-[0.625rem] text-accent mb-1">主效果</p>
           <p class="text-xs text-muted">{{ walletStore.currentArchetypeMainEffectText }}</p>
           <ul v-if="walletStore.currentArchetypeMainEffectSummary.length > 0" class="mt-2 space-y-1">
-            <li v-for="summary in walletStore.currentArchetypeMainEffectSummary" :key="summary" class="text-[10px] text-muted">• {{ summary }}</li>
+            <li v-for="summary in walletStore.currentArchetypeMainEffectSummary" :key="summary" class="text-[0.625rem] text-muted">• {{ summary }}</li>
           </ul>
         </div>
         <div v-if="walletStore.currentArchetypeNodeEffects.length > 0" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
-          <p class="text-[10px] text-success mb-1">已激活节点效果</p>
+          <p class="text-[0.625rem] text-success mb-1">已激活节点效果</p>
           <div class="space-y-1.5">
             <div v-for="nodeEffect in walletStore.currentArchetypeNodeEffects" :key="nodeEffect.id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-text">{{ nodeEffect.name }}</p>
+                <p class="text-[0.625rem] text-text">{{ nodeEffect.name }}</p>
                 <div class="flex flex-wrap gap-1 justify-end">
-                  <span v-for="label in nodeEffect.moduleLabels" :key="`${nodeEffect.id}-${label}`" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+                  <span v-for="label in nodeEffect.moduleLabels" :key="`${nodeEffect.id}-${label}`" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
                     {{ label }}
                   </span>
                 </div>
               </div>
               <ul v-if="nodeEffect.summaries.length > 0" class="mt-1 space-y-1">
-                <li v-for="summary in nodeEffect.summaries" :key="`${nodeEffect.id}-${summary}`" class="text-[10px] text-muted">• {{ summary }}</li>
+                <li v-for="summary in nodeEffect.summaries" :key="`${nodeEffect.id}-${summary}`" class="text-[0.625rem] text-muted">• {{ summary }}</li>
               </ul>
             </div>
           </div>
         </div>
         <ul class="mt-2 space-y-1">
-          <li v-for="summary in walletStore.getCurrentArchetypeSummary()" :key="summary" class="text-[10px] text-muted">• {{ summary }}</li>
+          <li v-for="summary in walletStore.getCurrentArchetypeSummary()" :key="summary" class="text-[0.625rem] text-muted">• {{ summary }}</li>
         </ul>
       </div>
 
@@ -575,19 +575,19 @@
           <div class="flex items-center justify-between gap-2">
             <div>
               <p class="text-xs">{{ node.name }}</p>
-              <p class="text-[10px] text-muted mt-0.5">{{ node.description }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ node.description }}</p>
               <div class="flex flex-wrap gap-1 mt-1">
                 <span
                   v-for="label in walletStore.getNodeModuleLabels(node.id)"
                   :key="`${node.id}-${label}`"
-                  class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent"
+                  class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent"
                 >
                   {{ label }}
                 </span>
               </div>
             </div>
             <button
-              class="btn !px-2 !py-1 text-[10px]"
+              class="btn !px-2 !py-1 text-[0.625rem]"
               :class="walletStore.canUnlockNode(node.id) ? '' : 'opacity-50 cursor-not-allowed'"
               :disabled="walletStore.isNodeUnlocked(node.id) || !walletStore.canUnlockNode(node.id)"
               @click="handleUnlockNode(node.id)"
@@ -596,9 +596,9 @@
             </button>
           </div>
           <ul v-if="walletStore.getNodeEffectSummary(node.id).length > 0" class="mt-1 space-y-1">
-            <li v-for="summary in walletStore.getNodeEffectSummary(node.id)" :key="`${node.id}-${summary}`" class="text-[10px] text-muted">• {{ summary }}</li>
+            <li v-for="summary in walletStore.getNodeEffectSummary(node.id)" :key="`${node.id}-${summary}`" class="text-[0.625rem] text-muted">• {{ summary }}</li>
           </ul>
-          <p class="text-[10px] text-muted mt-1">条件：{{ walletStore.getNodeUnlockHint(node.id) }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">条件：{{ walletStore.getNodeUnlockHint(node.id) }}</p>
         </div>
       </div>
       </template>
@@ -674,7 +674,7 @@
           </p>
           <div class="border border-warning/20 rounded-xs p-2 mb-3 bg-warning/5">
             <p class="text-xs text-warning">{{ walletStore.currentArchetype?.name ?? '当前流派' }}</p>
-            <p class="text-[10px] text-muted mt-1">已解锁节点 {{ unlockedArchetypeNodeCount }} 个</p>
+            <p class="text-[0.625rem] text-muted mt-1">已解锁节点 {{ unlockedArchetypeNodeCount }} 个</p>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <button class="btn text-xs justify-center" @click="showResetArchetypeConfirm = false">取消</button>
@@ -699,7 +699,7 @@
           </p>
           <div class="border border-warning/20 rounded-xs p-2 mb-3 bg-warning/5">
             <p class="text-xs text-warning">当前已解锁节点 {{ unlockedArchetypeNodeCount }} 个</p>
-            <p class="text-[10px] text-muted mt-1">该操作不会影响旧钱袋被动，只会重置当前流派路线。</p>
+            <p class="text-[0.625rem] text-muted mt-1">该操作不会影响旧钱袋被动，只会重置当前流派路线。</p>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <button class="btn text-xs justify-center" @click="cancelSwitchArchetype">取消</button>

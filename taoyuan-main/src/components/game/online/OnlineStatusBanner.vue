@@ -9,7 +9,7 @@
       <component :is="toneIcon" class="mt-0.5 shrink-0" :size="14" aria-hidden="true" />
       <div class="min-w-0 flex-1">
         <p class="text-xs leading-5 text-current">{{ title }}</p>
-        <p v-if="description" class="mt-1 text-[10px] leading-4 opacity-80">{{ description }}</p>
+        <p v-if="description" class="mt-1 text-[0.625rem] leading-4 opacity-80">{{ description }}</p>
       </div>
       <div v-if="actionLabel || dismissible" class="flex shrink-0 items-center gap-1">
         <button

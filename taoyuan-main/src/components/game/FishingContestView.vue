@@ -70,8 +70,8 @@
             :style="{ height: `${tensionPct}%` }"
           />
           <!-- 标签 -->
-          <span class="absolute text-center w-full" style="bottom: 65%; font-size: 8px; color: var(--color-success)">佳</span>
-          <span class="absolute text-center w-full" style="bottom: 88%; font-size: 8px; color: var(--color-danger)">断</span>
+          <span class="absolute text-center w-full" style="bottom: 65%; font-size: 0.5rem; color: var(--color-success)">佳</span>
+          <span class="absolute text-center w-full" style="bottom: 88%; font-size: 0.5rem; color: var(--color-danger)">断</span>
         </div>
 
         <!-- 水域 (鱼移动区) -->
@@ -81,7 +81,7 @@
           <div class="absolute transition-none" :style="{ top: `${fishVisualY}%`, left: `${fishVisualX}%` }">
             <Fish :size="18" class="text-accent fish-thrash" />
           </div>
-          <span class="absolute bottom-0.5 right-1 text-muted" style="font-size: 9px">第{{ currentRound }}轮</span>
+          <span class="absolute bottom-0.5 right-1 text-muted" style="font-size: 0.5625rem">第{{ currentRound }}轮</span>
         </div>
       </div>
 

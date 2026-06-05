@@ -16,11 +16,11 @@
     <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="guild-primary-action-card">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-[0.625rem] tracking-[0.24em] text-accent/70">当前推荐动作</p>
           <p class="text-sm text-accent mt-1">{{ guildPrimaryActionCard.title }}</p>
           <p class="text-xs text-muted mt-2 leading-5">{{ guildPrimaryActionCard.summary }}</p>
         </div>
-        <span class="text-[10px] shrink-0" :class="guildPrimaryActionCard.statusToneClass">{{ guildPrimaryActionCard.statusLabel }}</span>
+        <span class="text-[0.625rem] shrink-0" :class="guildPrimaryActionCard.statusToneClass">{{ guildPrimaryActionCard.statusLabel }}</span>
       </div>
       <div v-if="guildPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
         <p v-for="line in guildPrimaryActionCard.detailLines" :key="`guild-primary-action-${line}`" class="text-xs text-muted leading-5">
@@ -52,7 +52,7 @@
     <div v-if="cloudHighlandGuildHandoff" class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-accent">云岚高地承接</p>
-        <span class="text-[10px] text-muted">行旅图 -> 公会</span>
+        <span class="text-[0.625rem] text-muted">行旅图 -> 公会</span>
       </div>
       <p class="text-xs text-muted mt-1 leading-5">
         高地已完成 {{ cloudHighlandGuildHandoff.completedRoutes }} 条节点，当前灵脉结晶库存 {{ cloudHighlandGuildHandoff.leyQty }} 份。
@@ -97,12 +97,12 @@
           <p class="text-xs text-muted mb-1">本阶段活动</p>
           <div v-for="activity in activeSeasonActivities" :key="activity.id" class="mt-1 first:mt-0">
             <p class="text-xs text-accent">{{ activity.title }}</p>
-            <p class="text-[10px] text-muted leading-4 mt-0.5">{{ activity.summary }}</p>
+            <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ activity.summary }}</p>
           </div>
         </div>
         <div v-if="hasActiveSeason && activeMilestones.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">阶段里程碑</p>
-          <div v-for="milestone in activeMilestones" :key="milestone.id" class="flex items-center justify-between text-[10px] mt-0.5">
+          <div v-for="milestone in activeMilestones" :key="milestone.id" class="flex items-center justify-between text-[0.625rem] mt-0.5">
             <span>{{ milestone.label }}</span>
             <span class="text-accent">{{ milestone.requiredAsyncScore }}分</span>
           </div>
@@ -110,7 +110,7 @@
         <div v-if="hasActiveSeason && activeRewardPool" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">赛季奖励池</p>
           <p class="text-xs text-accent">{{ activeRewardPool.label }}</p>
-          <p class="text-[10px] text-muted leading-4 mt-0.5">{{ activeRewardPool.summary }}</p>
+          <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ activeRewardPool.summary }}</p>
         </div>
         <div
           v-if="guildStore.crossSystemOverview.themeWeekFocus || guildStore.crossSystemOverview.questBoardBiasProfile.boardHint || guildStore.crossSystemOverview.recommendedActions.length > 0"
@@ -120,18 +120,18 @@
           <p v-if="guildStore.crossSystemOverview.themeWeekFocus" class="text-xs text-accent">
             当前主题周：{{ guildStore.crossSystemOverview.themeWeekFocus.summaryLabel }}
           </p>
-          <p v-if="guildStore.crossSystemOverview.questBoardBiasProfile.boardHint" class="text-[10px] text-muted leading-4 mt-0.5">
+          <p v-if="guildStore.crossSystemOverview.questBoardBiasProfile.boardHint" class="text-[0.625rem] text-muted leading-4 mt-0.5">
             {{ guildStore.crossSystemOverview.questBoardBiasProfile.boardHint }}
           </p>
-          <p v-if="guildStore.crossSystemOverview.questBoardBiasProfile.specialOrderHint" class="text-[10px] text-muted leading-4 mt-0.5">
+          <p v-if="guildStore.crossSystemOverview.questBoardBiasProfile.specialOrderHint" class="text-[0.625rem] text-muted leading-4 mt-0.5">
             {{ guildStore.crossSystemOverview.questBoardBiasProfile.specialOrderHint }}
           </p>
           <div v-if="guildStore.crossSystemOverview.recommendedActions.length > 0" class="mt-1.5 space-y-1">
-            <p class="text-[10px] text-muted">推荐动作</p>
+            <p class="text-[0.625rem] text-muted">推荐动作</p>
             <p
               v-for="action in guildStore.crossSystemOverview.recommendedActions"
               :key="action"
-              class="text-[10px] text-text/90 leading-4"
+              class="text-[0.625rem] text-text/90 leading-4"
             >
               - {{ action }}
             </p>
@@ -142,7 +142,7 @@
           <p class="text-xs text-accent">
             公会讨伐成就 {{ guildStore.guildAchievementProgress.current }}/21
           </p>
-          <p class="text-[10px] text-muted leading-4 mt-0.5">
+          <p class="text-[0.625rem] text-muted leading-4 mt-0.5">
             {{
               guildStore.guildAchievementProgress.completedLegendThreshold
                 ? '已达成全部公会讨伐成就，可继续冲刺赛季荣誉与展示收官。'
@@ -644,7 +644,7 @@
             <div v-for="(drop, idx) in getEquipDrops(selectedMonster)" :key="idx" class="flex items-center justify-between mt-0.5">
               <span class="text-xs">
                 {{ drop.name }}
-                <span v-if="drop.firstKill" class="text-[10px] text-accent">（首杀）</span>
+                <span v-if="drop.firstKill" class="text-[0.625rem] text-accent">（首杀）</span>
               </span>
               <span v-if="drop.chance !== null" class="text-xs text-muted">{{ Math.round(drop.chance * 100) }}%</span>
               <span v-else class="text-xs text-success">必得</span>

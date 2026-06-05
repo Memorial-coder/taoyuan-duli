@@ -15,7 +15,7 @@
         <p v-if="statusLabel" class="truncate text-accent" data-testid="online-sticky-status-label">
           {{ statusLabel }}
         </p>
-        <p v-if="disabledReason" class="text-[10px] leading-4 text-muted" data-testid="online-sticky-disabled-reason">
+        <p v-if="disabledReason" class="text-[0.625rem] leading-4 text-muted" data-testid="online-sticky-disabled-reason">
           {{ disabledReason }}
         </p>
       </div>

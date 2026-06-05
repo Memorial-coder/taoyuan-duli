@@ -3,7 +3,7 @@
     <div class="game-panel w-full max-w-4xl max-h-[86vh] overflow-y-auto">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[11px] tracking-[0.24em] text-accent/70">睡后摘要</p>
+          <p class="text-[0.6875rem] tracking-[0.24em] text-accent/70">睡后摘要</p>
           <p class="mt-1 text-lg text-accent">{{ digest.title }}</p>
           <p class="mt-1 text-xs text-muted">{{ formatDayTag(digest.dayTag) }}</p>
         </div>
@@ -13,7 +13,7 @@
       </div>
 
       <div v-if="digest.alerts.length > 0" class="mt-4 space-y-2 rounded-xs border border-warning/20 bg-warning/5 px-4 py-3">
-        <div class="flex items-center gap-2 text-[11px] text-warning">
+        <div class="flex items-center gap-2 text-[0.6875rem] text-warning">
           <AlertTriangle :size="13" />
           <span>风险与异常</span>
         </div>
@@ -35,8 +35,8 @@
           :class="getToneShellClass(section.tone)"
         >
           <div class="flex items-start justify-between gap-3">
-            <p class="text-[11px]" :class="getToneTextClass(section.tone)">{{ section.title }}</p>
-            <span class="text-[10px] text-muted">本次摘要</span>
+            <p class="text-[0.6875rem]" :class="getToneTextClass(section.tone)">{{ section.title }}</p>
+            <span class="text-[0.625rem] text-muted">本次摘要</span>
           </div>
           <p class="mt-2 text-sm text-text leading-6">{{ section.headline }}</p>
           <div v-if="section.detailLines.length > 0" class="mt-3 space-y-1">
@@ -99,7 +99,7 @@
     min-height: 42px;
     padding: 10px 18px;
     border-width: 1px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);

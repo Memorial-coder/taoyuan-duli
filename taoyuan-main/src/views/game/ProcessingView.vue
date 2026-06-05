@@ -10,7 +10,7 @@
         @click="activeTab = 'process'"
       >
         加工区
-        <span class="text-[10px] ml-0.5 opacity-70">{{ processingStore.machineCount }}/{{ processingStore.maxMachines }}</span>
+        <span class="text-[0.625rem] ml-0.5 opacity-70">{{ processingStore.machineCount }}/{{ processingStore.maxMachines }}</span>
       </Button>
       <Button
         class="flex-1 justify-center"
@@ -29,11 +29,11 @@
         <div class="flex items-center space-x-1.5 text-sm text-accent">
           <Boxes :size="14" />
           <span>加工区</span>
-          <span class="text-[10px] text-muted font-normal">{{ processingStore.machineCount }}/{{ processingStore.maxMachines }}</span>
+          <span class="text-[0.625rem] text-muted font-normal">{{ processingStore.machineCount }}/{{ processingStore.maxMachines }}</span>
         </div>
         <button
           v-if="nextUpgrade || processingStore.workshopLevel > 0"
-          class="text-[10px] px-2 py-0.5 border rounded-xs"
+          class="text-[0.625rem] px-2 py-0.5 border rounded-xs"
           :class="nextUpgrade ? 'border-accent/30 text-accent hover:bg-accent/5 cursor-pointer' : 'border-accent/10 text-muted'"
           @click="showUpgradeModal = true"
         >
@@ -45,22 +45,22 @@
       <!-- 只显示可加工 -->
       <label class="flex items-center space-x-1 mb-2 cursor-pointer select-none">
         <input type="checkbox" v-model="onlyAvailable" class="accent-accent" />
-        <span class="text-[10px] text-muted">只显示有材料的配方</span>
+        <span class="text-[0.625rem] text-muted">只显示有材料的配方</span>
       </label>
 
       <div v-if="cookingStore.activeElixir" class="border border-water/20 rounded-xs px-2 py-1.5 mb-2">
-        <p class="text-[10px] text-water">
+        <p class="text-[0.625rem] text-water">
           <FlaskConical :size="12" class="inline mr-0.5" />
           今日丹药：{{ cookingStore.activeElixir.name }}
         </p>
-        <p class="text-[10px] text-muted leading-snug mt-0.5">{{ cookingStore.activeElixir.description }}</p>
+        <p class="text-[0.625rem] text-muted leading-snug mt-0.5">{{ cookingStore.activeElixir.description }}</p>
       </div>
 
       <!-- 空状态 -->
       <div v-if="processingStore.machines.length === 0" class="flex flex-col items-center justify-center py-8">
         <Boxes :size="36" class="text-accent/20 mb-2" />
         <p class="text-xs text-muted">还没有机器</p>
-        <p class="text-[10px] text-muted/50 mt-0.5">切换到「制造」标签制造一台加工机器吧</p>
+        <p class="text-[0.625rem] text-muted/50 mt-0.5">切换到「制造」标签制造一台加工机器吧</p>
       </div>
 
       <!-- 机器列表（按类型分组） -->
@@ -78,18 +78,18 @@
           >
             <div class="flex items-center space-x-1">
               <span class="text-xs text-accent">{{ group.name }}</span>
-              <span class="text-[10px] text-muted">×{{ group.slots.length }}</span>
-              <span v-if="group.hasReady" class="text-[10px] text-success">
+              <span class="text-[0.625rem] text-muted">×{{ group.slots.length }}</span>
+              <span v-if="group.hasReady" class="text-[0.625rem] text-success">
                 ({{ group.readyCount }}可收取)
               </span>
             </div>
-            <span class="text-[10px] text-muted">{{ collapsedGroups.has(group.machineType) ? '▸' : '▾' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ collapsedGroups.has(group.machineType) ? '▸' : '▾' }}</span>
           </div>
 
           <div v-if="!collapsedGroups.has(group.machineType)" class="flex flex-wrap gap-1 px-2 pb-2">
             <Button
               v-if="group.idleCount > 0"
-              class="text-[10px]"
+              class="text-[0.625rem]"
               :icon="Boxes"
               :icon-size="10"
               @click.stop="openBatchProcessModal(group.machineType)"
@@ -98,7 +98,7 @@
             </Button>
             <Button
               v-if="group.readyCount > 0"
-              class="text-[10px] !bg-accent !text-bg"
+              class="text-[0.625rem] !bg-accent !text-bg"
               :icon="Package"
               :icon-size="10"
               @click.stop="handleCollectGroup(group.machineType)"
@@ -107,7 +107,7 @@
             </Button>
             <Button
               v-if="group.processingCount > 0"
-              class="text-[10px]"
+              class="text-[0.625rem]"
               :icon="X"
               :icon-size="10"
               @click.stop="handleCancelGroup(group.machineType)"
@@ -122,7 +122,7 @@
               v-if="group.recommendationOptions.length > 0"
               class="rounded-xs border border-accent/15 bg-accent/5 px-2 py-1.5"
             >
-              <p class="text-[10px] text-accent mb-1">用途推荐</p>
+              <p class="text-[0.625rem] text-accent mb-1">用途推荐</p>
               <div
                 v-for="option in group.recommendationOptions"
                 :key="`recommend-${option.key}`"
@@ -130,9 +130,9 @@
               >
                 <div class="min-w-0">
                   <p class="text-xs text-text truncate">{{ option.displayName }}</p>
-                  <p class="text-[10px] text-muted leading-snug">{{ option.recommendationText }}</p>
+                  <p class="text-[0.625rem] text-muted leading-snug">{{ option.recommendationText }}</p>
                 </div>
-                <span class="text-[10px] text-accent/80 shrink-0">{{ !option.disabled ? '可开工' : option.alchemyBlocked ? '今日已满' : '缺材料' }}</span>
+                <span class="text-[0.625rem] text-accent/80 shrink-0">{{ !option.disabled ? '可开工' : option.alchemyBlocked ? '今日已满' : '缺材料' }}</span>
               </div>
             </div>
             <div
@@ -233,7 +233,7 @@
               <div v-else>
                 <div
                   v-if="slot.alchemyResult"
-                  class="mb-1.5 rounded-xs border border-accent/20 bg-accent/5 px-2 py-1 text-[10px] text-muted"
+                  class="mb-1.5 rounded-xs border border-accent/20 bg-accent/5 px-2 py-1 text-[0.625rem] text-muted"
                 >
                   <div class="flex items-center justify-between gap-2">
                     <span class="text-accent">{{ slot.alchemyResult.label }}</span>
@@ -368,7 +368,7 @@
             </div>
           </template>
 
-          <p v-else class="text-[10px] text-muted text-center">工坊已达到最高等级。</p>
+          <p v-else class="text-[0.625rem] text-muted text-center">工坊已达到最高等级。</p>
         </div>
       </div>
     </Transition>
@@ -549,9 +549,9 @@
             </div>
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs">{{ currentBatchRecipe.name }}{{ batchQualityLabel }}</span>
-              <span class="text-[10px] text-muted">{{ currentBatchRecipe.processingDays }}天/台</span>
+              <span class="text-[0.625rem] text-muted">{{ currentBatchRecipe.processingDays }}天/台</span>
             </div>
-            <div v-if="currentBatchOption?.alchemyLimitText" class="text-[10px] text-muted mb-1.5">
+            <div v-if="currentBatchOption?.alchemyLimitText" class="text-[0.625rem] text-muted mb-1.5">
               {{ [currentBatchOption.alchemyLimitText, currentBatchOption.alchemyMetaText, currentBatchOption.cropUseText, currentBatchOption.substitutionText].filter(Boolean).join(' · ') }}
             </div>
             <div class="flex items-center space-x-1 mb-1.5">

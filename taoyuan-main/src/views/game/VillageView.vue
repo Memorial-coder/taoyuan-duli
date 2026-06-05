@@ -3,7 +3,7 @@
     <div class="flex items-start justify-between gap-3">
       <div>
         <p class="text-sm text-accent">村庄建设总览</p>
-        <p class="text-[11px] text-muted mt-1">
+        <p class="text-[0.6875rem] text-muted mt-1">
           独立查看建设树、维护、捐赠、预算承接与繁荣度，不再只挂在村民页里。
         </p>
       </div>
@@ -16,15 +16,15 @@
     <section v-if="cloudHighlandVillageHandoff" class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">云岚高地承接</p>
-        <span class="text-[10px] text-muted">行旅图 -> 村庄建设</span>
+        <span class="text-[0.625rem] text-muted">行旅图 -> 村庄建设</span>
       </div>
-      <p class="text-[10px] text-muted leading-4">
+      <p class="text-[0.625rem] text-muted leading-4">
         高地已完成 {{ cloudHighlandVillageHandoff.completedRoutes }} 条节点，当前灵脉结晶库存 {{ cloudHighlandVillageHandoff.leyQty }} 份。
       </p>
-      <p class="text-[10px] text-muted mt-1 leading-4">
+      <p class="text-[0.625rem] text-muted mt-1 leading-4">
         这批收益更适合优先投入前哨、补给棚和山路开辟类建设，让高地首领和下轮巡路都有更稳的承接口。
       </p>
-      <p v-if="cloudHighlandVillageHandoff.projectNames.length > 0" class="text-[10px] text-accent mt-1">
+      <p v-if="cloudHighlandVillageHandoff.projectNames.length > 0" class="text-[0.625rem] text-accent mt-1">
         当前可接建设：{{ cloudHighlandVillageHandoff.projectNames.join('、') }}
       </p>
       <div class="mt-2 flex flex-wrap gap-2">
@@ -38,9 +38,9 @@
       <section class="game-panel-muted px-3 py-3">
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-xs text-accent">建设概览</p>
-          <span class="text-[10px] text-muted">{{ phaseLabel }} / {{ segmentLabel }}</span>
+          <span class="text-[0.625rem] text-muted">{{ phaseLabel }} / {{ segmentLabel }}</span>
         </div>
-        <div class="grid grid-cols-2 gap-2 text-[11px]">
+        <div class="grid grid-cols-2 gap-2 text-[0.6875rem]">
           <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <p class="text-muted">已完成</p>
             <p class="text-accent mt-1">{{ overview.completedProjects }}/{{ overview.totalProjects }}</p>
@@ -63,22 +63,22 @@
       <section class="game-panel-muted px-3 py-3">
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-xs text-accent">终局繁荣度</p>
-          <span class="text-[10px] text-muted">{{ prosperity.tier }}</span>
+          <span class="text-[0.625rem] text-muted">{{ prosperity.tier }}</span>
         </div>
         <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[11px] text-muted">总分</p>
+            <p class="text-[0.6875rem] text-muted">总分</p>
             <span class="text-accent">{{ prosperity.total }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1">当前作为只读综合评价，汇总建设、维护、捐赠、博物馆、瀚海、公会、生产展示与家庭陪伴成果。</p>
+          <p class="text-[0.625rem] text-muted mt-1">当前作为只读综合评价，汇总建设、维护、捐赠、博物馆、瀚海、公会、生产展示与家庭陪伴成果。</p>
         </div>
         <div class="space-y-1.5 mt-2">
           <div v-for="entry in prosperity.entries" :key="entry.sourceId" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[11px] text-text">{{ entry.sourceLabel }}</span>
-              <span class="text-[10px] text-accent">{{ entry.score }}</span>
+              <span class="text-[0.6875rem] text-text">{{ entry.sourceLabel }}</span>
+              <span class="text-[0.625rem] text-accent">{{ entry.score }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-1">{{ entry.description }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ entry.description }}</p>
           </div>
         </div>
       </section>
@@ -87,16 +87,16 @@
     <section v-if="budgetRecommendations.length > 0" class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">预算承接建议</p>
-        <span class="text-[10px] text-muted">VILL-040</span>
+        <span class="text-[0.625rem] text-muted">VILL-040</span>
       </div>
       <div class="space-y-2">
         <div v-for="entry in budgetRecommendations" :key="entry.channelId" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[11px] text-text">{{ entry.channelLabel }}</p>
-            <span class="text-[10px] text-accent">{{ entry.projects.length }} 项承接</span>
+            <p class="text-[0.6875rem] text-text">{{ entry.channelLabel }}</p>
+            <span class="text-[0.625rem] text-accent">{{ entry.projects.length }} 项承接</span>
           </div>
-          <p class="text-[10px] text-muted mt-1">{{ entry.summary }}</p>
-          <p class="text-[10px] text-accent/80 mt-1" v-if="entry.projects.length > 0">
+          <p class="text-[0.625rem] text-muted mt-1">{{ entry.summary }}</p>
+          <p class="text-[0.625rem] text-accent/80 mt-1" v-if="entry.projects.length > 0">
             推荐项目：{{ entry.projects.map(project => project.name).join('、') }}
           </p>
         </div>
@@ -106,7 +106,7 @@
     <section v-if="bundleProjectMappings.length > 0" class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">祠堂 -> 建设映射</p>
-        <span class="text-[10px] text-muted">{{ bundleProjectMappings.length }} 组承接</span>
+        <span class="text-[0.625rem] text-muted">{{ bundleProjectMappings.length }} 组承接</span>
       </div>
       <div class="space-y-2">
         <div
@@ -116,14 +116,14 @@
         >
           <div class="flex items-start justify-between gap-2">
             <div>
-              <p class="text-[11px] text-accent">{{ entry.bundleName }} -> {{ entry.projectName }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+              <p class="text-[0.6875rem] text-accent">{{ entry.bundleName }} -> {{ entry.projectName }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
             </div>
-            <span class="text-[10px] whitespace-nowrap" :class="entry.completedProject ? 'text-success' : entry.completedBundle ? 'text-warning' : 'text-muted'">
+            <span class="text-[0.625rem] whitespace-nowrap" :class="entry.completedProject ? 'text-success' : entry.completedBundle ? 'text-warning' : 'text-muted'">
               {{ entry.completedProject ? '已落地' : entry.completedBundle ? '可转建设' : '待祠堂推进' }}
             </span>
           </div>
-          <p class="text-[10px] text-accent/80 mt-1">偏向：{{ restorationFocusLabels[entry.focus] }}</p>
+          <p class="text-[0.625rem] text-accent/80 mt-1">偏向：{{ restorationFocusLabels[entry.focus] }}</p>
         </div>
       </div>
     </section>
@@ -131,22 +131,22 @@
     <section v-if="restorationMilestones.length > 0" class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">世界变化总览</p>
-        <span class="text-[10px] text-muted">{{ unlockedRestorationCount }}/{{ totalRestorationCount }} 项已生效</span>
+        <span class="text-[0.625rem] text-muted">{{ unlockedRestorationCount }}/{{ totalRestorationCount }} 项已生效</span>
       </div>
-      <div class="grid grid-cols-2 gap-2 text-[11px]">
+      <div class="grid grid-cols-2 gap-2 text-[0.6875rem]">
         <div v-for="entry in restorationTypeOverview" :key="entry.type" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
           <div class="flex items-center justify-between gap-2">
             <span class="text-muted">{{ entry.label }}</span>
             <span class="text-accent">{{ entry.unlocked }}/{{ entry.total }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
         </div>
       </div>
       <div v-if="worldShortcutUnlocks.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
-        <p class="text-[10px] text-accent mb-1">已恢复的路线 / 捷径</p>
+        <p class="text-[0.625rem] text-accent mb-1">已恢复的路线 / 捷径</p>
         <div v-for="entry in worldShortcutUnlocks" :key="entry.id" class="mt-1 first:mt-0">
-          <p class="text-[10px] text-text">{{ entry.projectName }} · {{ entry.title }}</p>
-          <p class="text-[10px] text-muted leading-4">{{ entry.summary }}</p>
+          <p class="text-[0.625rem] text-text">{{ entry.projectName }} · {{ entry.title }}</p>
+          <p class="text-[0.625rem] text-muted leading-4">{{ entry.summary }}</p>
         </div>
       </div>
     </section>
@@ -154,25 +154,25 @@
     <section class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">新住户与驻村线</p>
-        <span class="text-[10px] text-muted">
+        <span class="text-[0.625rem] text-muted">
           {{ unlockedVillageResidentSummaries.length }}/{{ villageResidentSummaries.length }} 已落地
         </span>
       </div>
-      <p class="text-[10px] text-muted leading-4">
+      <p class="text-[0.625rem] text-muted leading-4">
         这些住户当前会先带来货架风向、对话群、线索传闻和节庆回响，再逐步接回更完整的村庄生活层。
       </p>
       <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] text-accent">村民商业回响</p>
-          <span class="text-[10px] text-muted">{{ commerceEcho.hasRecentSales ? '已形成话题' : '等待出货样本' }}</span>
+          <p class="text-[0.625rem] text-accent">村民商业回响</p>
+          <span class="text-[0.625rem] text-muted">{{ commerceEcho.hasRecentSales ? '已形成话题' : '等待出货样本' }}</span>
         </div>
-        <p class="text-[11px] text-text mt-1">{{ commerceEcho.headline }}</p>
-        <p class="text-[10px] text-muted mt-1">{{ commerceEcho.trendLine }}</p>
-        <p class="text-[10px] text-accent/80 mt-1">{{ commerceEcho.longTermLine }}</p>
+        <p class="text-[0.6875rem] text-text mt-1">{{ commerceEcho.headline }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ commerceEcho.trendLine }}</p>
+        <p class="text-[0.625rem] text-accent/80 mt-1">{{ commerceEcho.longTermLine }}</p>
         <p
           v-for="line in commerceEcho.villagerFeedbackLines.slice(0, 2)"
           :key="`village-commerce-feedback-${line}`"
-          class="text-[10px] text-muted leading-4 mt-0.5"
+          class="text-[0.625rem] text-muted leading-4 mt-0.5"
         >
           - {{ line }}
         </p>
@@ -182,11 +182,11 @@
             :key="`village-commerce-card-${card.id}`"
             class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
           >
-            <p class="text-[10px] text-accent mb-1">{{ card.label }}</p>
+            <p class="text-[0.625rem] text-accent mb-1">{{ card.label }}</p>
             <p
               v-for="line in card.lines.slice(0, 2)"
               :key="`village-commerce-card-line-${card.id}-${line}`"
-              class="text-[10px] text-muted leading-4 mt-0.5"
+              class="text-[0.625rem] text-muted leading-4 mt-0.5"
             >
               - {{ line }}
             </p>
@@ -202,37 +202,37 @@
         >
           <div class="flex items-start justify-between gap-2">
             <div>
-              <p class="text-[11px]" :class="resident.unlocked ? 'text-success' : 'text-accent'">
+              <p class="text-[0.6875rem]" :class="resident.unlocked ? 'text-success' : 'text-accent'">
                 {{ resident.routeLabel }} · {{ resident.name }}
               </p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.summary }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ resident.summary }}</p>
             </div>
-            <span class="text-[10px] whitespace-nowrap" :class="resident.unlocked ? 'text-success' : 'text-muted'">
+            <span class="text-[0.625rem] whitespace-nowrap" :class="resident.unlocked ? 'text-success' : 'text-muted'">
               {{ resident.statusLabel }}
             </span>
           </div>
 
           <div class="grid gap-2 md:grid-cols-2 mt-2">
             <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-              <p class="text-[10px] text-accent">{{ resident.shelfLabel }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.shelfSummary }}</p>
+              <p class="text-[0.625rem] text-accent">{{ resident.shelfLabel }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ resident.shelfSummary }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-              <p class="text-[10px] text-accent">{{ resident.dialogueGroupLabel }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.dialogueSummary }}</p>
+              <p class="text-[0.625rem] text-accent">{{ resident.dialogueGroupLabel }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ resident.dialogueSummary }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-              <p class="text-[10px] text-accent">{{ resident.cluePoolLabel }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.clueSummary }}</p>
+              <p class="text-[0.625rem] text-accent">{{ resident.cluePoolLabel }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ resident.clueSummary }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-              <p class="text-[10px] text-accent">节庆回响</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.festivalComment }}</p>
+              <p class="text-[0.625rem] text-accent">节庆回响</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ resident.festivalComment }}</p>
             </div>
           </div>
 
-          <p v-if="resident.unlocked" class="text-[10px] text-accent/80 mt-2">驻村小事：{{ resident.smallEventSummary }}</p>
-          <p v-else class="text-[10px] text-muted mt-2">解锁条件：{{ resident.statusLabel }}</p>
+          <p v-if="resident.unlocked" class="text-[0.625rem] text-accent/80 mt-2">驻村小事：{{ resident.smallEventSummary }}</p>
+          <p v-else class="text-[0.625rem] text-muted mt-2">解锁条件：{{ resident.statusLabel }}</p>
         </div>
       </div>
     </section>
@@ -240,58 +240,58 @@
     <section class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">建设树</p>
-        <span class="text-[10px] text-muted">按阶段分组</span>
+        <span class="text-[0.625rem] text-muted">按阶段分组</span>
       </div>
       <div class="space-y-3">
         <div v-for="group in phaseGroups" :key="group.id">
-          <p class="text-[11px] text-accent mb-2">{{ group.label }} · {{ group.projects.length }} 项</p>
+          <p class="text-[0.6875rem] text-accent mb-2">{{ group.label }} · {{ group.projects.length }} 项</p>
           <div class="space-y-2">
             <div v-for="project in group.projects" :key="project.id" class="border rounded-xs px-3 py-2" :class="project.completed ? 'border-success/30 bg-success/5' : 'border-accent/10'">
               <div class="flex items-start justify-between gap-2">
                 <div>
                   <p class="text-xs" :class="project.completed ? 'text-success' : 'text-accent'">{{ project.name }}</p>
-                  <p class="text-[10px] text-muted mt-0.5 leading-4">
+                  <p class="text-[0.625rem] text-muted mt-0.5 leading-4">
                     {{ project.contentTier }} · {{ project.buildMode }} · {{ project.linkedSystems.join(' / ') || '无联动' }}
                   </p>
                 </div>
-                <span class="text-[10px] whitespace-nowrap" :class="project.completed ? 'text-success' : project.clueUnlocked ? 'text-accent' : 'text-muted'">
+                <span class="text-[0.625rem] whitespace-nowrap" :class="project.completed ? 'text-success' : project.clueUnlocked ? 'text-accent' : 'text-muted'">
                   {{ project.completed ? '已完成' : project.clueUnlocked ? '可建设' : '待线索' }}
                 </span>
               </div>
 
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ project.blockedReason ?? '当前条件已满足，可直接推进。' }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ project.blockedReason ?? '当前条件已满足，可直接推进。' }}</p>
 
               <div v-if="project.restoration" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-accent">{{ project.restoration.milestoneLabel }}</p>
-                  <span class="text-[10px]" :class="project.completed ? 'text-success' : 'text-muted'">
+                  <p class="text-[0.625rem] text-accent">{{ project.restoration.milestoneLabel }}</p>
+                  <span class="text-[0.625rem]" :class="project.completed ? 'text-success' : 'text-muted'">
                     祠堂承接 {{ project.restoration.completedBundleCount }}/{{ project.restoration.totalBundleCount }}
                   </span>
                 </div>
-                <p v-if="project.restoration.bundleIds.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+                <p v-if="project.restoration.bundleIds.length > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
                   关联祠堂：{{ getRestorationBundleNames(project.restoration.bundleIds).join('、') }}
                 </p>
                 <div v-if="!project.completed && project.restoration.preRumors.length > 0" class="mt-2">
-                  <p class="text-[10px] text-muted mb-1">前置传闻</p>
-                  <p v-for="(line, index) in project.restoration.preRumors" :key="`${project.id}-rumor-${index}`" class="text-[10px] text-muted leading-4 mt-0.5">
+                  <p class="text-[0.625rem] text-muted mb-1">前置传闻</p>
+                  <p v-for="(line, index) in project.restoration.preRumors" :key="`${project.id}-rumor-${index}`" class="text-[0.625rem] text-muted leading-4 mt-0.5">
                     - {{ line }}
                   </p>
                 </div>
                 <div v-if="project.completed" class="mt-2">
-                  <p class="text-[10px] text-muted mb-1">修完后世界变化</p>
+                  <p class="text-[0.625rem] text-muted mb-1">修完后世界变化</p>
                   <div v-for="change in project.restoration.worldChanges" :key="change.id" class="mt-1 first:mt-0">
-                    <p class="text-[10px] text-text">{{ worldChangeTypeLabels[change.type] }} · {{ change.title }}</p>
-                    <p class="text-[10px] text-muted leading-4">{{ change.summary }}</p>
+                    <p class="text-[0.625rem] text-text">{{ worldChangeTypeLabels[change.type] }} · {{ change.title }}</p>
+                    <p class="text-[0.625rem] text-muted leading-4">{{ change.summary }}</p>
                   </div>
                   <div v-if="project.restoration.postComments.length > 0" class="mt-2">
-                    <p class="text-[10px] text-muted mb-1">村里反应</p>
-                    <p v-for="(line, index) in project.restoration.postComments" :key="`${project.id}-comment-${index}`" class="text-[10px] text-muted leading-4 mt-0.5">
+                    <p class="text-[0.625rem] text-muted mb-1">村里反应</p>
+                    <p v-for="(line, index) in project.restoration.postComments" :key="`${project.id}-comment-${index}`" class="text-[0.625rem] text-muted leading-4 mt-0.5">
                       - {{ line }}
                     </p>
                   </div>
                   <div v-if="project.restoration.crossEntryFeedback.length > 0" class="mt-2">
-                    <p class="text-[10px] text-muted mb-1">其他入口反馈</p>
-                    <p v-for="(line, index) in project.restoration.crossEntryFeedback" :key="`${project.id}-feedback-${index}`" class="text-[10px] text-muted leading-4 mt-0.5">
+                    <p class="text-[0.625rem] text-muted mb-1">其他入口反馈</p>
+                    <p v-for="(line, index) in project.restoration.crossEntryFeedback" :key="`${project.id}-feedback-${index}`" class="text-[0.625rem] text-muted leading-4 mt-0.5">
                       - {{ line }}
                     </p>
                   </div>
@@ -299,21 +299,21 @@
               </div>
 
               <div v-if="project.requirementProgresses.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
-                <p class="text-[10px] text-muted mb-1">跨系统门槛</p>
-                <div v-for="requirement in project.requirementProgresses" :key="`${project.id}-${requirement.type}`" class="flex items-center justify-between text-[10px] mt-0.5">
+                <p class="text-[0.625rem] text-muted mb-1">跨系统门槛</p>
+                <div v-for="requirement in project.requirementProgresses" :key="`${project.id}-${requirement.type}`" class="flex items-center justify-between text-[0.625rem] mt-0.5">
                   <span class="text-muted">{{ requirement.displayLabel }}</span>
                   <span :class="requirement.met ? 'text-success' : 'text-warning'">{{ requirement.current }}/{{ requirement.target }}</span>
                 </div>
               </div>
 
               <div v-if="!project.completed" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
-                <div class="flex items-center justify-between text-[10px]">
+                <div class="flex items-center justify-between text-[0.625rem]">
                   <span class="text-muted">铜钱</span>
                   <span :class="playerStore.money >= getVillageProjectMoneyCost(project.id) ? 'text-success' : 'text-danger'">
                     {{ playerStore.money }}/{{ getVillageProjectMoneyCost(project.id) }}文
                   </span>
                 </div>
-                <div v-for="material in getVillageProjectMaterials(project.id)" :key="material.itemId" class="flex items-center justify-between text-[10px] mt-0.5">
+                <div v-for="material in getVillageProjectMaterials(project.id)" :key="material.itemId" class="flex items-center justify-between text-[0.625rem] mt-0.5">
                   <span class="text-muted">{{ getItemName(material.itemId) }}</span>
                   <span :class="getCombinedItemCount(material.itemId) >= material.quantity ? 'text-success' : 'text-danger'">
                     {{ getCombinedItemCount(material.itemId) }}/{{ material.quantity }}
@@ -323,13 +323,13 @@
 
               <div v-if="project.maintenance" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-accent">维护状态</p>
-                  <span class="text-[10px]" :class="project.maintenance.active ? 'text-success' : project.maintenance.overdue ? 'text-warning' : 'text-muted'">
+                  <p class="text-[0.625rem] text-accent">维护状态</p>
+                  <span class="text-[0.625rem]" :class="project.maintenance.active ? 'text-success' : project.maintenance.overdue ? 'text-warning' : 'text-muted'">
                     {{ project.maintenance.statusLabel }}
                   </span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">{{ project.maintenance.plan.effectSummary }}</p>
-                <div class="flex items-center justify-between text-[10px] mt-1">
+                <p class="text-[0.625rem] text-muted mt-1">{{ project.maintenance.plan.effectSummary }}</p>
+                <div class="flex items-center justify-between text-[0.625rem] mt-1">
                   <span class="text-muted">维护费</span>
                   <span class="text-accent">{{ project.maintenance.plan.costMoney }}文 / {{ project.maintenance.plan.cycleDays }}天</span>
                 </div>
@@ -345,11 +345,11 @@
 
               <div v-if="project.donation" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-accent">捐赠计划</p>
-                  <span class="text-[10px] text-accent">{{ Math.round(project.donation.progressRate * 100) }}%</span>
+                  <p class="text-[0.625rem] text-accent">捐赠计划</p>
+                  <span class="text-[0.625rem] text-accent">{{ Math.round(project.donation.progressRate * 100) }}%</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">{{ project.donation.plan.label }}</p>
-                <p v-if="project.donation.acceptedItems.length > 0" class="text-[10px] text-muted mt-1">
+                <p class="text-[0.625rem] text-muted mt-1">{{ project.donation.plan.label }}</p>
+                <p v-if="project.donation.acceptedItems.length > 0" class="text-[0.625rem] text-muted mt-1">
                   接收：{{ project.donation.acceptedItems.map(item => `${item.itemName} x${getCombinedItemCount(item.itemId)}`).join('、') }}
                 </p>
                 <div class="flex flex-wrap gap-2 mt-2">
@@ -363,7 +363,7 @@
               </div>
 
               <div class="flex items-center justify-between gap-2 mt-2">
-                <p class="text-[10px] text-success/90 leading-4">{{ getVillageProjectHint(project.id) }}</p>
+                <p class="text-[0.625rem] text-success/90 leading-4">{{ getVillageProjectHint(project.id) }}</p>
                 <Button v-if="!project.completed" class="shrink-0 justify-center" :disabled="!project.canBuildNow" @click="completeProject(project.id)">
                   建设
                 </Button>
@@ -377,18 +377,18 @@
     <section class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">最近建设日志</p>
-        <span class="text-[10px] text-muted">VILL-044</span>
+        <span class="text-[0.625rem] text-muted">VILL-044</span>
       </div>
       <div v-if="recentVillageLogs.length > 0" class="space-y-1.5">
         <div v-for="(entry, index) in recentVillageLogs" :key="`village-log-${index}`" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] text-accent">{{ entry.dayLabel || '未标记日期' }}</span>
-            <span class="text-[10px] text-muted">{{ entry.tags?.join(' · ') }}</span>
+            <span class="text-[0.625rem] text-accent">{{ entry.dayLabel || '未标记日期' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ entry.tags?.join(' · ') }}</span>
           </div>
-          <p class="text-[11px] mt-1">{{ entry.msg }}</p>
+          <p class="text-[0.6875rem] mt-1">{{ entry.msg }}</p>
         </div>
       </div>
-      <p v-else class="text-[11px] text-muted">暂无建设日志，推进项目后会在这里沉淀阶段记录。</p>
+      <p v-else class="text-[0.6875rem] text-muted">暂无建设日志，推进项目后会在这里沉淀阶段记录。</p>
     </section>
   </div>
 </template>

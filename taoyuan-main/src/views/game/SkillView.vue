@@ -15,10 +15,10 @@
             <span class="text-sm">{{ SKILL_NAMES[skill.type] }}</span>
             <span class="text-xs text-accent">Lv.{{ skill.level }}</span>
           </div>
-          <p v-if="expInfo(skill.type)" class="text-[10px] text-muted">
+          <p v-if="expInfo(skill.type)" class="text-[0.625rem] text-muted">
             {{ expInfo(skill.type)!.current }}/{{ expInfo(skill.type)!.required }}
           </p>
-          <span v-else class="text-[10px] text-accent border border-accent/30 rounded-xs px-1">MAX</span>
+          <span v-else class="text-[0.625rem] text-accent border border-accent/30 rounded-xs px-1">MAX</span>
         </div>
 
         <!-- 经验条 -->
@@ -28,94 +28,94 @@
 
         <!-- 介绍 + 每级加成 -->
         <div class="border border-accent/20 rounded-xs px-2 py-1.5 mb-2">
-          <p class="text-[10px] text-muted leading-relaxed">{{ SKILL_DESCS[skill.type] }}</p>
-          <p class="text-[10px] text-muted mt-0.5">每级：体力消耗-1%，{{ SKILL_LEVEL_BONUS[skill.type] }}</p>
+          <p class="text-[0.625rem] text-muted leading-relaxed">{{ SKILL_DESCS[skill.type] }}</p>
+          <p class="text-[0.625rem] text-muted mt-0.5">每级：体力消耗-1%，{{ SKILL_LEVEL_BONUS[skill.type] }}</p>
         </div>
 
         <!-- 天赋 -->
         <div v-if="skill.perk5 || skill.perk10 || skill.perk15 || skill.perk20" class="flex flex-col space-y-1">
           <div v-if="skill.perk5" class="flex items-center space-x-1.5 border border-water rounded-xs px-2 py-1">
-            <span class="text-[10px] text-water shrink-0">Lv5</span>
+            <span class="text-[0.625rem] text-water shrink-0">Lv5</span>
             <span class="text-xs text-water shrink-0">{{ PERK_NAMES[skill.perk5] }}</span>
-            <span class="text-[10px] text-muted">{{ PERK_DESCS[skill.perk5] }}</span>
+            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk5] }}</span>
           </div>
           <div v-if="skill.perk10" class="flex items-center space-x-1.5 border border-water rounded-xs px-2 py-1">
-            <span class="text-[10px] text-water shrink-0">Lv10</span>
+            <span class="text-[0.625rem] text-water shrink-0">Lv10</span>
             <span class="text-xs text-water shrink-0">{{ PERK_NAMES[skill.perk10] }}</span>
-            <span class="text-[10px] text-muted">{{ PERK_DESCS[skill.perk10] }}</span>
+            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk10] }}</span>
           </div>
           <div v-if="skill.perk15" class="flex items-center space-x-1.5 border border-accent rounded-xs px-2 py-1">
-            <span class="text-[10px] text-accent shrink-0">Lv15</span>
+            <span class="text-[0.625rem] text-accent shrink-0">Lv15</span>
             <span class="text-xs text-accent shrink-0">{{ PERK_NAMES[skill.perk15] }}</span>
-            <span class="text-[10px] text-muted">{{ PERK_DESCS[skill.perk15] }}</span>
+            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk15] }}</span>
           </div>
           <div v-if="skill.perk20" class="flex items-center space-x-1.5 border border-accent rounded-xs px-2 py-1">
-            <span class="text-[10px] text-accent shrink-0">Lv20</span>
+            <span class="text-[0.625rem] text-accent shrink-0">Lv20</span>
             <span class="text-xs text-accent shrink-0">{{ PERK_NAMES[skill.perk20] }}</span>
-            <span class="text-[10px] text-muted">{{ PERK_DESCS[skill.perk20] }}</span>
+            <span class="text-[0.625rem] text-muted">{{ PERK_DESCS[skill.perk20] }}</span>
           </div>
         </div>
-        <p v-else-if="skill.level < 5" class="text-[10px] text-muted">Lv5 / Lv10 / Lv15 / Lv20 时可选择专精天赋</p>
-        <p v-else class="text-[10px] text-muted">升级到 Lv{{ !skill.perk5 ? 5 : !skill.perk10 ? 10 : !skill.perk15 ? 15 : 20 }} 后可选择天赋</p>
+        <p v-else-if="skill.level < 5" class="text-[0.625rem] text-muted">Lv5 / Lv10 / Lv15 / Lv20 时可选择专精天赋</p>
+        <p v-else class="text-[0.625rem] text-muted">升级到 Lv{{ !skill.perk5 ? 5 : !skill.perk10 ? 10 : !skill.perk15 ? 15 : 20 }} 后可选择天赋</p>
       </div>
 
       <div class="game-panel">
         <div class="flex items-center justify-between mb-2">
           <div>
             <p class="text-sm text-accent">终局精通</p>
-            <p class="text-[10px] text-muted mt-0.5">把五系技能练满后，开始解锁真正跨系统的长期成长。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">把五系技能练满后，开始解锁真正跨系统的长期成长。</p>
           </div>
           <span class="text-xs text-accent">精通点 {{ skillStore.masteryPoints }}</span>
         </div>
 
         <div class="border border-accent/20 rounded-xs px-2 py-2 mb-2">
-          <p class="text-[10px] text-muted mb-1">主技能精通</p>
+          <p class="text-[0.625rem] text-muted mb-1">主技能精通</p>
           <div class="space-y-1">
             <div v-for="entry in skillStore.primaryMasteries" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-text'">{{ entry.label }}</p>
-                <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                <span class="text-[0.625rem]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
                   {{ entry.unlocked ? '已解锁' : `Lv.${entry.level}/${entry.requirementLevel}` }}
                 </span>
               </div>
-              <p class="text-[10px] text-muted mt-0.5">{{ entry.rewardSummary }}</p>
-              <p class="text-[10px] text-muted/80 mt-0.5">{{ entry.flavor }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.rewardSummary }}</p>
+              <p class="text-[0.625rem] text-muted/80 mt-0.5">{{ entry.flavor }}</p>
             </div>
           </div>
         </div>
 
         <div class="border border-accent/20 rounded-xs px-2 py-2">
-          <p class="text-[10px] text-muted mb-1">混合精通</p>
+          <p class="text-[0.625rem] text-muted mb-1">混合精通</p>
           <div class="space-y-1">
             <div v-for="entry in skillStore.hybridMasteries" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-text'">{{ entry.label }}</p>
-                <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">{{ entry.unlocked ? '已解锁' : '未完成' }}</span>
+                <span class="text-[0.625rem]" :class="entry.unlocked ? 'text-success' : 'text-muted'">{{ entry.unlocked ? '已解锁' : '未完成' }}</span>
               </div>
-              <p class="text-[10px] text-muted mt-0.5">{{ entry.rewardSummary }}</p>
-              <p class="text-[10px] text-muted/80 mt-0.5">{{ entry.flavor }}</p>
-              <p class="text-[10px] text-muted mt-1">{{ entry.progressLines.join(' · ') }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.rewardSummary }}</p>
+              <p class="text-[0.625rem] text-muted/80 mt-0.5">{{ entry.flavor }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ entry.progressLines.join(' · ') }}</p>
             </div>
           </div>
         </div>
 
         <div class="border border-accent/20 rounded-xs px-2 py-2 mt-2">
-          <p class="text-[10px] text-muted mb-1">功能性精通奖励</p>
+          <p class="text-[0.625rem] text-muted mb-1">功能性精通奖励</p>
           <div class="space-y-1">
             <div v-for="reward in skillStore.masteryRewards" :key="reward.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs" :class="reward.unlocked ? 'text-accent' : 'text-text'">{{ reward.label }}</p>
-                <span class="text-[10px]" :class="reward.unlocked ? 'text-success' : 'text-muted'">{{ reward.unlocked ? '已解锁' : '待解锁' }}</span>
+                <span class="text-[0.625rem]" :class="reward.unlocked ? 'text-success' : 'text-muted'">{{ reward.unlocked ? '已解锁' : '待解锁' }}</span>
               </div>
-              <p class="text-[10px] text-muted mt-0.5">{{ reward.summary }}</p>
-              <p class="text-[10px] text-muted/80 mt-0.5">挂接页：{{ reward.panelHint }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5">{{ reward.summary }}</p>
+              <p class="text-[0.625rem] text-muted/80 mt-0.5">挂接页：{{ reward.panelHint }}</p>
             </div>
           </div>
           <div v-if="skillStore.dailyBlessingPreview" class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-accent/5">
-            <p class="text-[10px] text-muted">今日祝福预告</p>
+            <p class="text-[0.625rem] text-muted">今日祝福预告</p>
             <p class="text-xs text-accent mt-0.5">{{ skillStore.dailyBlessingPreview.label }}</p>
-            <p class="text-[10px] text-muted mt-0.5">{{ skillStore.dailyBlessingPreview.sourceLabel }} · {{ skillStore.dailyBlessingPreview.sourceSummary }}</p>
-            <p class="text-[10px] text-muted mt-0.5">{{ skillStore.dailyBlessingPreview.summary }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">{{ skillStore.dailyBlessingPreview.sourceLabel }} · {{ skillStore.dailyBlessingPreview.sourceSummary }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">{{ skillStore.dailyBlessingPreview.summary }}</p>
           </div>
         </div>
       </div>

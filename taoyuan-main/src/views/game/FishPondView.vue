@@ -12,11 +12,11 @@
     <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="fishpond-primary-action-card">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-[0.625rem] tracking-[0.24em] text-accent/70">当前推荐动作</p>
           <p class="text-sm text-accent mt-1">{{ fishPondPrimaryActionCard.title }}</p>
           <p class="text-xs text-muted mt-2 leading-5">{{ fishPondPrimaryActionCard.summary }}</p>
         </div>
-        <span class="text-[10px] shrink-0" :class="fishPondPrimaryActionCard.statusToneClass">{{ fishPondPrimaryActionCard.statusLabel }}</span>
+        <span class="text-[0.625rem] shrink-0" :class="fishPondPrimaryActionCard.statusToneClass">{{ fishPondPrimaryActionCard.statusLabel }}</span>
       </div>
       <div v-if="fishPondPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
         <p v-for="line in fishPondPrimaryActionCard.detailLines" :key="`fishpond-primary-action-${line}`" class="text-xs text-muted leading-5">
@@ -125,16 +125,16 @@
             <div class="flex items-center justify-between gap-2">
               <div>
                 <p class="text-xs text-accent">本周鱼塘周赛</p>
-                <p class="text-[10px] text-muted mt-0.5">{{ fishPondStore.currentPondContestDef.label }} · {{ fishPondStore.currentPondContestDef.description }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5">{{ fishPondStore.currentPondContestDef.label }} · {{ fishPondStore.currentPondContestDef.description }}</p>
               </div>
-              <span class="text-[10px] text-muted">已报名 {{ fishPondStore.pondContestState.registeredFishIds.length }}</span>
+              <span class="text-[0.625rem] text-muted">已报名 {{ fishPondStore.pondContestState.registeredFishIds.length }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-2">
+            <p class="text-[0.625rem] text-muted mt-2">
               评分维度：{{ pondContestScoringMetricLabel }} ·
               {{ fishPondStore.currentPondContestDef.requireMature ? '需成熟' : '不要求成熟' }} ·
               {{ fishPondStore.currentPondContestDef.requireHealthy ? '需健康' : '不要求健康' }}
             </p>
-            <p v-if="fishPondStore.lastPondContestSettlement?.weekId" class="text-[10px] text-accent mt-1">
+            <p v-if="fishPondStore.lastPondContestSettlement?.weekId" class="text-[0.625rem] text-accent mt-1">
               上周结算：{{ lastPondContestWeekLabel }} · 冠军 {{ fishPondStore.lastPondContestSettlement.winner?.fishName ?? '无' }}
             </p>
           </div>
@@ -142,26 +142,26 @@
           <div v-if="fishPondStore.currentThemeWeekPondFocus" class="border border-success/20 rounded-xs px-3 py-2 mt-2 bg-success/5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-success">主题周承接</p>
-              <span class="text-[10px] text-muted">{{ fishPondStore.currentThemeWeekPondFocus.name }}</span>
+              <span class="text-[0.625rem] text-muted">{{ fishPondStore.currentThemeWeekPondFocus.name }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-1">{{ fishPondStore.currentThemeWeekPondFocus.summary }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ fishPondStore.currentThemeWeekPondFocus.summary }}</p>
           </div>
 
           <div v-if="mirageMarshFishPondHandoff" class="border border-accent/20 rounded-xs px-3 py-2 mt-2 bg-accent/5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">蜃潮泽地承接</p>
-              <span class="text-[10px] text-muted">行旅图 -> 鱼塘</span>
+              <span class="text-[0.625rem] text-muted">行旅图 -> 鱼塘</span>
             </div>
-            <p class="text-[10px] text-muted mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">
               泽地已完成 {{ mirageMarshFishPondHandoff.completedRoutes }} 条节点，当前生态样本库存 {{ mirageMarshFishPondHandoff.specimenQty }} 份。
             </p>
-            <p class="text-[10px] text-muted mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">
               这批样本最适合先转成展示池高光、周赛报名和馆务研究，不要只停留在背包里。
             </p>
             <div class="mt-2 flex flex-wrap gap-2">
-              <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('museum')">去博物馆</button>
-              <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('mail')">去邮箱</button>
-              <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('region-map')">看行旅图</button>
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('museum')">去博物馆</button>
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('mail')">去邮箱</button>
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('region-map')">看行旅图</button>
             </div>
           </div>
 
@@ -169,11 +169,11 @@
             <div class="flex items-center justify-between gap-2">
               <div>
                 <p class="text-xs text-accent">高阶养护</p>
-                <p class="text-[10px] text-muted mt-0.5">高评分样鱼会额外消耗水质承压，观赏饲料会直接影响观赏向周赛与展示表现，高级净水剂则缓解高阶养护压力。</p>
+                <p class="text-[0.625rem] text-muted mt-0.5">高评分样鱼会额外消耗水质承压，观赏饲料会直接影响观赏向周赛与展示表现，高级净水剂则缓解高阶养护压力。</p>
               </div>
-              <span class="text-[10px] text-muted">高阶样鱼 {{ fishPondStore.highTierFishRatings.length }}</span>
+              <span class="text-[0.625rem] text-muted">高阶样鱼 {{ fishPondStore.highTierFishRatings.length }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-2">
+            <p class="text-[0.625rem] text-muted mt-2">
               观赏饲料：{{ fishPondStore.maintenanceState.ornamentalFeedBuffDays > 0 ? '生效中' : '未启用' }}
               <template v-if="fishPondStore.displayOverview.contestBonus > 0">（观赏向周赛 +{{ fishPondStore.displayOverview.contestBonus }}）</template>
               <span class="text-accent/60"> · </span>
@@ -189,37 +189,37 @@
             <div class="flex items-center justify-between gap-2">
               <div>
                 <p class="text-xs text-accent">展示池 / 观赏缸</p>
-                <p class="text-[10px] text-muted mt-0.5">展示池记录镜像快照，不移动原鱼对象；展示中的样鱼会反向抬高周赛与博物馆展陈收益。</p>
+                <p class="text-[0.625rem] text-muted mt-0.5">展示池记录镜像快照，不移动原鱼对象；展示中的样鱼会反向抬高周赛与博物馆展陈收益。</p>
               </div>
-              <span class="text-[10px] text-muted">{{ fishPondStore.displayOverview.entryCount }}/{{ fishPondStore.displayOverview.slotLimit }}</span>
+              <span class="text-[0.625rem] text-muted">{{ fishPondStore.displayOverview.entryCount }}/{{ fishPondStore.displayOverview.slotLimit }}</span>
             </div>
-            <p class="text-[10px] text-success mt-2">
+            <p class="text-[0.625rem] text-success mt-2">
               博物馆展陈加分 {{ fishPondStore.displayOverview.museumDisplayBonus }} · 展示总观赏值 {{ fishPondStore.displayOverview.totalShowValue }}
             </p>
             <div v-if="fishPondStore.displayEntries.length > 0" class="space-y-1 mt-2">
               <div v-for="entry in fishPondStore.displayEntries" :key="`display-${entry.pondFishId}`" class="border border-accent/10 rounded-xs px-2 py-1.5 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
                   <span class="text-xs text-text">{{ entry.fishName }}</span>
-                  <span class="text-[10px] text-accent">观赏 {{ entry.snapshotShowValue }} / 总评 {{ entry.snapshotScore }}</span>
+                  <span class="text-[0.625rem] text-accent">观赏 {{ entry.snapshotShowValue }} / 总评 {{ entry.snapshotScore }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">快照代数 {{ entry.snapshotGeneration }} · 录入于 {{ entry.assignedAtDayTag || '当日' }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">快照代数 {{ entry.snapshotGeneration }} · 录入于 {{ entry.assignedAtDayTag || '当日' }}</p>
               </div>
             </div>
-            <p v-else class="text-[10px] text-muted mt-2">还没有放入展示池的样鱼，可在鱼详情中把高评分成熟样鱼挂上展示。</p>
+            <p v-else class="text-[0.625rem] text-muted mt-2">还没有放入展示池的样鱼，可在鱼详情中把高评分成熟样鱼挂上展示。</p>
           </div>
 
           <div v-if="pondEligibilityCards.length > 0" class="border border-accent/20 rounded-xs px-3 py-2 mt-2">
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs text-accent">经营评级 / 资格快照</span>
-              <span class="text-[10px] text-muted">按当前鱼塘个体自动汇总</span>
+              <span class="text-[0.625rem] text-muted">按当前鱼塘个体自动汇总</span>
             </div>
             <div class="space-y-1.5">
               <div v-for="entry in pondEligibilityCards" :key="`eligibility-${entry.fishId}`" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
                   <span class="text-xs text-text">{{ entry.fishName }}</span>
-                  <span class="text-[10px] text-accent">最高 {{ entry.bestTotalScore }}</span>
+                  <span class="text-[0.625rem] text-accent">最高 {{ entry.bestTotalScore }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">
+                <p class="text-[0.625rem] text-muted mt-1">
                   成熟/健康 {{ entry.matureCount }}/{{ entry.healthyCount }} · 可直接交付 {{ entry.matureHealthyCount }} · 观赏 {{ entry.bestShowValue }} · 食用 {{ entry.bestFoodValue }}
                 </p>
               </div>
@@ -261,15 +261,15 @@
                   <span class="text-xs" :class="fish.sick ? 'text-danger' : fish.mature ? 'text-text' : 'text-muted'">
                     {{ fish.name }}
                   </span>
-                  <span v-if="fish.sick" class="text-[10px] text-danger">[病]</span>
-                  <span v-if="!fish.mature" class="text-[10px] text-muted">[幼]</span>
+                  <span v-if="fish.sick" class="text-[0.625rem] text-danger">[病]</span>
+                  <span v-if="!fish.mature" class="text-[0.625rem] text-muted">[幼]</span>
                 </div>
                 <div class="flex items-center space-x-2">
-                  <span class="text-[10px] text-accent flex items-center space-x-px">
+                  <span class="text-[0.625rem] text-accent flex items-center space-x-px">
                     <Star v-for="n in fishPondStore.getGeneticStarRating(fish.genetics)" :key="n" :size="10" />
                   </span>
-                  <span class="text-[10px] text-accent/80">总评 {{ getFishRating(fish)?.totalScore ?? 0 }}</span>
-                  <span class="text-[10px] text-muted">{{ fish.daysInPond }}天</span>
+                  <span class="text-[0.625rem] text-accent/80">总评 {{ getFishRating(fish)?.totalScore ?? 0 }}</span>
+                  <span class="text-[0.625rem] text-muted">{{ fish.daysInPond }}天</span>
                 </div>
               </div>
             </div>
@@ -314,7 +314,7 @@
             <div class="h-1 bg-bg rounded-xs border border-accent/10">
               <div class="h-full rounded-xs bg-accent transition-all" :style="{ width: breedingProgress + '%' }" />
             </div>
-            <p class="text-[10px] text-muted mt-1">品种：{{ getPondableFishName(fishPondStore.pond.breeding.fishId) }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">品种：{{ getPondableFishName(fishPondStore.pond.breeding.fishId) }}</p>
           </div>
           <!-- 已选择一条 -->
           <div v-else-if="selectedBreedingFish" class="border border-accent/20 rounded-xs px-3 py-2">
@@ -330,7 +330,7 @@
               </div>
               <Button @click="selectedBreedingFish = null">取消</Button>
             </div>
-            <p class="text-[10px] text-muted">请从鱼列表中点击同种成熟鱼进行配对</p>
+            <p class="text-[0.625rem] text-muted">请从鱼列表中点击同种成熟鱼进行配对</p>
           </div>
           <!-- 空状态 -->
           <div v-else class="border border-accent/10 rounded-xs py-6 flex flex-col items-center space-y-2">
@@ -434,14 +434,14 @@
           <div v-if="detailFishRating" class="border border-accent/10 rounded-xs p-2 mb-3 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">统一评级</p>
-              <span class="text-[10px] text-muted">总评 {{ detailFishRating.totalScore }}</span>
+              <span class="text-[0.625rem] text-muted">总评 {{ detailFishRating.totalScore }}</span>
             </div>
             <div class="grid grid-cols-2 gap-2 mt-2">
-              <div class="text-[10px] text-muted">世代：<span class="text-accent">{{ detailFishRating.generation }}</span></div>
-              <div class="text-[10px] text-muted">稳定：<span class="text-accent">{{ detailFishRating.stabilityScore }}</span></div>
-              <div class="text-[10px] text-muted">观赏：<span class="text-accent">{{ detailFishRating.showValue }}</span></div>
-              <div class="text-[10px] text-muted">食用：<span class="text-accent">{{ detailFishRating.foodValue }}</span></div>
-              <div class="text-[10px] text-muted col-span-2">健康：<span class="text-accent">{{ detailFishRating.healthScore }}</span></div>
+              <div class="text-[0.625rem] text-muted">世代：<span class="text-accent">{{ detailFishRating.generation }}</span></div>
+              <div class="text-[0.625rem] text-muted">稳定：<span class="text-accent">{{ detailFishRating.stabilityScore }}</span></div>
+              <div class="text-[0.625rem] text-muted">观赏：<span class="text-accent">{{ detailFishRating.showValue }}</span></div>
+              <div class="text-[0.625rem] text-muted">食用：<span class="text-accent">{{ detailFishRating.foodValue }}</span></div>
+              <div class="text-[0.625rem] text-muted col-span-2">健康：<span class="text-accent">{{ detailFishRating.healthScore }}</span></div>
             </div>
           </div>
 

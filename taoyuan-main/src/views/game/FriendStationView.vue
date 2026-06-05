@@ -7,7 +7,7 @@
             <Users :size="14" />
             <p class="text-xs">好友驿站</p>
           </div>
-          <p class="text-[10px] text-muted mt-1 leading-4">
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">
             存档身份：<span class="text-accent break-all">{{ ownSaveIdLabel }}</span>
             <template v-if="saveStore.currentOnlineIdentity?.save_slot !== null && saveStore.currentOnlineIdentity?.save_slot !== undefined">
               · 槽位 {{ Number(saveStore.currentOnlineIdentity.save_slot) + 1 }}
@@ -38,19 +38,19 @@
 
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3 text-xs">
         <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
-          <p class="text-[10px] text-muted">好友</p>
+          <p class="text-[0.625rem] text-muted">好友</p>
           <p class="text-accent mt-1">{{ socialStore.friends.length }}</p>
         </div>
         <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
-          <p class="text-[10px] text-muted">收到申请</p>
+          <p class="text-[0.625rem] text-muted">收到申请</p>
           <p class="text-accent mt-1">{{ socialStore.incomingRequests.length }}</p>
         </div>
         <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
-          <p class="text-[10px] text-muted">发出申请</p>
+          <p class="text-[0.625rem] text-muted">发出申请</p>
           <p class="text-accent mt-1">{{ socialStore.outgoingRequests.length }}</p>
         </div>
         <div class="border border-accent/10 rounded-xs px-2 py-2 min-w-0">
-          <p class="text-[10px] text-muted">已拉黑</p>
+          <p class="text-[0.625rem] text-muted">已拉黑</p>
           <p class="text-accent mt-1">{{ socialStore.blockedUsers.length }}</p>
         </div>
       </div>
@@ -58,7 +58,7 @@
       <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.45fr)] gap-3 mt-3">
         <div class="space-y-2 min-w-0">
           <div class="border border-accent/10 rounded-xs p-2">
-            <p class="text-[10px] text-muted mb-2">存档 ID 搜索</p>
+            <p class="text-[0.625rem] text-muted mb-2">存档 ID 搜索</p>
             <div class="flex gap-2">
               <input
                 v-model="socialStore.friendSaveIdDraft"
@@ -83,11 +83,11 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="text-xs text-accent truncate">{{ searchedPlayer.profile.display_name }}</p>
-                  <p class="text-[10px] text-muted mt-1 break-all">ID {{ searchedPlayer.identity.save_id }} · {{ searchedPlayer.identity.account_username }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1 break-all">ID {{ searchedPlayer.identity.save_id }} · {{ searchedPlayer.identity.account_username }}</p>
                 </div>
-                <span class="text-[10px] text-muted shrink-0">槽位 {{ Number(searchedPlayer.identity.save_slot ?? 0) + 1 }}</span>
+                <span class="text-[0.625rem] text-muted shrink-0">槽位 {{ Number(searchedPlayer.identity.save_slot ?? 0) + 1 }}</span>
               </div>
-              <p class="text-[10px] text-muted mt-2 leading-4">{{ searchedPlayer.profile.recent_activity || '暂无近期动态' }}</p>
+              <p class="text-[0.625rem] text-muted mt-2 leading-4">{{ searchedPlayer.profile.recent_activity || '暂无近期动态' }}</p>
               <div class="flex flex-wrap gap-2 mt-2">
                 <button
                   class="online-action-btn online-action-btn--compact"
@@ -111,13 +111,13 @@
                 </button>
               </div>
             </div>
-            <p v-else-if="socialStore.errorMessage" class="text-[10px] text-danger mt-2 leading-4">{{ socialStore.errorMessage }}</p>
+            <p v-else-if="socialStore.errorMessage" class="text-[0.625rem] text-danger mt-2 leading-4">{{ socialStore.errorMessage }}</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-2">
             <div class="border border-accent/10 rounded-xs p-2">
-              <p class="text-[10px] text-muted mb-1">收到的申请</p>
-              <p v-if="socialStore.incomingRequests.length === 0" class="text-[10px] text-muted leading-4">当前没有新的好友申请。</p>
+              <p class="text-[0.625rem] text-muted mb-1">收到的申请</p>
+              <p v-if="socialStore.incomingRequests.length === 0" class="text-[0.625rem] text-muted leading-4">当前没有新的好友申请。</p>
               <div
                 v-for="entry in socialStore.incomingRequests.slice(0, 3)"
                 :key="entry.request_id"
@@ -125,7 +125,7 @@
                 :data-testid="`region-social-incoming-${entry.request_id || 'missing'}`"
               >
                 <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
-                <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'incoming') }}</p>
+                <p class="text-[0.625rem] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'incoming') }}</p>
                 <div class="flex flex-wrap gap-2 mt-2">
                   <button class="online-action-btn online-action-btn--compact" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-accept-${entry.request_id || 'missing'}`" @click="acceptRequest(entry.request_id!)">接受</button>
                   <button class="online-action-btn online-action-btn--compact" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-reject-${entry.request_id || 'missing'}`" @click="rejectRequest(entry.request_id!)">拒绝</button>
@@ -134,12 +134,12 @@
             </div>
 
             <div class="border border-accent/10 rounded-xs p-2">
-              <p class="text-[10px] text-muted mb-1">发出的申请</p>
-              <p v-if="socialStore.outgoingRequests.length === 0" class="text-[10px] text-muted leading-4">当前没有待处理的外发申请。</p>
+              <p class="text-[0.625rem] text-muted mb-1">发出的申请</p>
+              <p v-if="socialStore.outgoingRequests.length === 0" class="text-[0.625rem] text-muted leading-4">当前没有待处理的外发申请。</p>
               <div v-for="entry in socialStore.outgoingRequests.slice(0, 3)" :key="entry.request_id" class="border border-accent/10 rounded-xs p-2 mb-1.5" :data-testid="`region-social-outgoing-${entry.request_id || 'missing'}`">
                 <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
-                <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'outgoing') }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ formatSocialTime(entry.created_at, '待处理') }}</p>
+                <p class="text-[0.625rem] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'outgoing') }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ formatSocialTime(entry.created_at, '待处理') }}</p>
               </div>
             </div>
           </div>
@@ -148,20 +148,20 @@
         <div class="space-y-2 min-w-0">
           <div class="border border-accent/10 rounded-xs p-2">
             <div class="flex items-center justify-between gap-2">
-              <p class="text-[10px] text-muted">好友列表</p>
-              <span class="text-[10px] text-accent">{{ socialStore.friends.length }} 人</span>
+              <p class="text-[0.625rem] text-muted">好友列表</p>
+              <span class="text-[0.625rem] text-accent">{{ socialStore.friends.length }} 人</span>
             </div>
-            <p v-if="socialStore.friends.length === 0" class="text-[10px] text-muted mt-2 leading-4">当前还没有好友。</p>
+            <p v-if="socialStore.friends.length === 0" class="text-[0.625rem] text-muted mt-2 leading-4">当前还没有好友。</p>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
               <div v-for="entry in socialStore.friends.slice(0, 4)" :key="entry.friendship_id" class="border border-accent/10 rounded-xs p-2 min-w-0 bg-bg/60" :data-testid="`region-social-friend-${entry.friendship_id || 'missing'}`">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
-                    <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'friend') }}</p>
+                    <p class="text-[0.625rem] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'friend') }}</p>
                   </div>
-                  <span class="text-[10px] text-muted shrink-0">{{ formatSocialTime(entry.last_interaction_at ?? entry.friends_since, '未互动') }}</span>
+                  <span class="text-[0.625rem] text-muted shrink-0">{{ formatSocialTime(entry.last_interaction_at ?? entry.friends_since, '未互动') }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-2 leading-4">{{ entry.profile.recent_activity || entry.profile.primary_route_label }}</p>
+                <p class="text-[0.625rem] text-muted mt-2 leading-4">{{ entry.profile.recent_activity || entry.profile.primary_route_label }}</p>
                 <div class="flex flex-wrap gap-2 mt-2">
                   <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-manor-${entry.friendship_id || 'missing'}`" @click="openFriendManor(entry)">
                     <Map :size="11" />
@@ -208,22 +208,22 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div class="border border-accent/10 rounded-xs p-2">
-              <p class="text-[10px] text-muted mb-1">最近互动</p>
-              <p v-if="recentFriendInteractions.length === 0" class="text-[10px] text-muted leading-4">暂无好友互动记录。</p>
+              <p class="text-[0.625rem] text-muted mb-1">最近互动</p>
+              <p v-if="recentFriendInteractions.length === 0" class="text-[0.625rem] text-muted leading-4">暂无好友互动记录。</p>
               <div v-for="entry in recentFriendInteractions" :key="`recent-${entry.friendship_id}`" class="flex items-center justify-between gap-2 border border-accent/10 rounded-xs px-2 py-1.5 mb-1">
-                <span class="text-[10px] text-accent truncate">{{ entry.profile.display_name }}</span>
-                <span class="text-[10px] text-muted shrink-0">{{ formatSocialTime(entry.last_interaction_at ?? entry.friends_since, '未互动') }}</span>
+                <span class="text-[0.625rem] text-accent truncate">{{ entry.profile.display_name }}</span>
+                <span class="text-[0.625rem] text-muted shrink-0">{{ formatSocialTime(entry.last_interaction_at ?? entry.friends_since, '未互动') }}</span>
               </div>
             </div>
 
             <div class="border border-accent/10 rounded-xs p-2">
-              <p class="text-[10px] text-muted mb-1">已拉黑</p>
-              <p v-if="socialStore.blockedUsers.length === 0" class="text-[10px] text-muted leading-4">当前没有拉黑玩家。</p>
+              <p class="text-[0.625rem] text-muted mb-1">已拉黑</p>
+              <p v-if="socialStore.blockedUsers.length === 0" class="text-[0.625rem] text-muted leading-4">当前没有拉黑玩家。</p>
               <div v-for="entry in socialStore.blockedUsers.slice(0, 4)" :key="entry.block_id" class="border border-accent/10 rounded-xs p-2 mb-1.5" :data-testid="`region-social-blocked-${entry.block_id || 'missing'}`">
                 <div class="flex items-center justify-between gap-2">
                   <div class="min-w-0">
                     <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
-                    <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'blocked') }}</p>
+                    <p class="text-[0.625rem] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'blocked') }}</p>
                   </div>
                   <button class="online-action-btn online-action-btn--compact shrink-0" :disabled="socialStore.relationshipActionRunning" :data-testid="`region-social-blocked-unblock-${entry.block_id || 'missing'}`" @click="unblockRelation(entry)">解除</button>
                 </div>

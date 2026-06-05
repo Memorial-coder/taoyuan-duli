@@ -35,7 +35,7 @@
           <button class="flex w-full items-start justify-between gap-3 text-left" @click="toggleDailyDigest(digest.dayTag)">
             <div class="min-w-0">
               <p class="text-sm text-accent">{{ digest.title }}</p>
-              <p class="mt-1 text-[11px] text-muted">{{ formatDayTag(digest.dayTag) }}</p>
+              <p class="mt-1 text-[0.6875rem] text-muted">{{ formatDayTag(digest.dayTag) }}</p>
             </div>
             <span class="shrink-0 pt-0.5 text-muted">
               <ChevronDown v-if="isDailyDigestExpanded(digest.dayTag)" :size="14" />
@@ -45,7 +45,7 @@
 
           <div v-if="isDailyDigestExpanded(digest.dayTag)" class="mt-3 space-y-3">
             <div v-if="digest.alerts.length > 0" class="space-y-2 rounded-xs border border-warning/20 bg-warning/5 px-3 py-3">
-              <div class="flex items-center gap-2 text-[11px] text-warning">
+              <div class="flex items-center gap-2 text-[0.6875rem] text-warning">
                 <AlertTriangle :size="13" />
                 <span>风险与异常</span>
               </div>
@@ -67,8 +67,8 @@
                 :class="getToneShellClass(section.tone)"
               >
                 <div class="flex items-start justify-between gap-2">
-                  <p class="text-[11px]" :class="getToneTextClass(section.tone)">{{ section.title }}</p>
-                  <span class="text-[10px] text-muted">摘要</span>
+                  <p class="text-[0.6875rem]" :class="getToneTextClass(section.tone)">{{ section.title }}</p>
+                  <span class="text-[0.625rem] text-muted">摘要</span>
                 </div>
                 <p class="mt-2 text-sm text-text">{{ section.headline }}</p>
                 <div v-if="section.detailLines.length > 0" class="mt-2 space-y-1">
@@ -88,7 +88,7 @@
 
       <section v-else-if="activeTab === 'chronicle'" class="space-y-4">
         <div class="space-y-2 rounded-xs border border-accent/10 bg-bg/60 px-3 py-3">
-          <div class="flex items-center gap-2 text-[11px] text-muted">
+          <div class="flex items-center gap-2 text-[0.6875rem] text-muted">
             <Filter :size="12" />
             <span>筛选</span>
           </div>
@@ -96,7 +96,7 @@
             <button
               v-for="option in chronicleTypeOptions"
               :key="`chronicle-type-${option.value}`"
-              class="rounded-xs border px-2.5 py-1.5 text-[11px] transition-colors"
+              class="rounded-xs border px-2.5 py-1.5 text-[0.6875rem] transition-colors"
               :class="selectedChronicleType === option.value ? 'border-accent bg-accent/10 text-accent' : 'border-accent/10 text-muted hover:bg-accent/5'"
               @click="selectedChronicleType = option.value"
             >
@@ -107,7 +107,7 @@
             <button
               v-for="option in chronicleRegionOptions"
               :key="`chronicle-region-${option.value}`"
-              class="rounded-xs border px-2.5 py-1.5 text-[11px] transition-colors"
+              class="rounded-xs border px-2.5 py-1.5 text-[0.6875rem] transition-colors"
               :class="selectedChronicleRegion === option.value ? 'border-accent bg-accent/10 text-accent' : 'border-accent/10 text-muted hover:bg-accent/5'"
               @click="selectedChronicleRegion = option.value"
             >
@@ -128,13 +128,13 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <div class="flex flex-wrap gap-1.5">
-                <span class="rounded-xs border border-accent/15 px-1.5 py-0.5 text-[10px] text-accent">{{ getChronicleTypeLabel(entry.type) }}</span>
-                <span v-if="entry.regionId" class="rounded-xs border border-accent/10 px-1.5 py-0.5 text-[10px] text-muted">{{ getChronicleRegionLabel(entry.regionId) }}</span>
+                <span class="rounded-xs border border-accent/15 px-1.5 py-0.5 text-[0.625rem] text-accent">{{ getChronicleTypeLabel(entry.type) }}</span>
+                <span v-if="entry.regionId" class="rounded-xs border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted">{{ getChronicleRegionLabel(entry.regionId) }}</span>
               </div>
               <p class="mt-2 text-sm text-text">{{ entry.title }}</p>
               <p class="mt-1 text-xs text-muted leading-5">{{ entry.summary }}</p>
             </div>
-            <span class="shrink-0 text-[10px] text-muted">{{ formatDayTag(entry.lastRecordedDayTag) }}</span>
+            <span class="shrink-0 text-[0.625rem] text-muted">{{ formatDayTag(entry.lastRecordedDayTag) }}</span>
           </div>
           <div v-if="entry.detailLines.length > 0" class="mt-3 space-y-1">
             <p v-for="line in entry.detailLines.slice(0, 3)" :key="`chronicle-line-${entry.id}-${line}`" class="text-xs text-muted leading-5">
@@ -145,7 +145,7 @@
             <span
               v-for="tag in entry.tags.slice(0, 4)"
               :key="`chronicle-tag-${entry.id}-${tag}`"
-              class="rounded-xs border border-accent/10 px-1.5 py-0.5 text-[10px] text-muted"
+              class="rounded-xs border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted"
             >
               {{ tag }}
             </span>
@@ -164,7 +164,7 @@
               <p class="text-sm text-accent">{{ group.title }}</p>
               <p class="mt-1 text-xs text-muted leading-5">{{ group.summary }}</p>
             </div>
-            <span class="shrink-0 text-[10px] text-muted">{{ group.entries.length }} 条</span>
+            <span class="shrink-0 text-[0.625rem] text-muted">{{ group.entries.length }} 条</span>
           </div>
 
           <div v-if="group.entries.length <= 0" class="mt-3 rounded-xs border border-accent/10 bg-bg/40 px-3 py-3 text-xs text-muted">
@@ -179,12 +179,12 @@
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <div class="flex flex-wrap gap-1.5">
-                    <span class="rounded-xs border border-accent/10 px-1.5 py-0.5 text-[10px] text-muted">{{ entry.sourceLabel }}</span>
+                    <span class="rounded-xs border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted">{{ entry.sourceLabel }}</span>
                   </div>
                   <p class="mt-2 text-sm text-text">{{ entry.title }}</p>
                   <p class="mt-1 text-xs text-muted leading-5">{{ entry.summary }}</p>
                 </div>
-                <span class="shrink-0 text-[10px] text-muted">{{ entry.dayLabel }}</span>
+                <span class="shrink-0 text-[0.625rem] text-muted">{{ entry.dayLabel }}</span>
               </div>
             </div>
           </div>
@@ -199,7 +199,7 @@
           </div>
           <button
             v-if="systemLogGroups.length > 0"
-            class="rounded-xs border border-danger/20 px-3 py-2 text-[11px] text-danger transition-colors hover:bg-danger/5"
+            class="rounded-xs border border-danger/20 px-3 py-2 text-[0.6875rem] text-danger transition-colors hover:bg-danger/5"
             @click="requestClearLogs(null)"
           >
                   <Trash2 :size="12" class="mr-1 inline" />
@@ -218,14 +218,14 @@
         >
           <div class="flex items-center justify-between gap-3">
             <p class="text-sm text-accent">{{ group.label }}</p>
-            <span class="text-[10px] text-muted">{{ group.totalCount }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ group.totalCount }} 条</span>
           </div>
 
           <div class="mt-3 space-y-3">
             <div v-for="dayGroup in group.dayGroups" :key="`system-day-${group.id}-${dayGroup.dayLabel}`" class="rounded-xs border border-accent/10 bg-bg/50 px-3 py-3">
               <div class="flex items-center justify-between gap-3">
                 <p class="text-xs text-accent">{{ dayGroup.dayLabel || '未标记日期' }}</p>
-                  <button class="text-[10px] text-muted transition-colors hover:text-danger" @click="requestClearLogs(dayGroup.dayLabel)">
+                  <button class="text-[0.625rem] text-muted transition-colors hover:text-danger" @click="requestClearLogs(dayGroup.dayLabel)">
                   清空这天
                 </button>
               </div>

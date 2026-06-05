@@ -16,7 +16,7 @@
           :style="{ width: Math.min(100, Math.floor(decorationStore.beautyScore / 2)) + '%' }"
         />
       </div>
-      <div class="grid grid-cols-3 gap-1 text-[10px] text-muted">
+      <div class="grid grid-cols-3 gap-1 text-[0.625rem] text-muted">
         <span :class="decorationStore.beautyScore >= 50 ? 'text-success' : ''">50: NPC好感+1/天</span>
         <span :class="decorationStore.beautyScore >= 100 ? 'text-success' : ''">100: 好感上限+250</span>
         <span :class="decorationStore.beautyScore >= 200 ? 'text-success' : ''">200: 商店折扣5%</span>
@@ -40,8 +40,8 @@
         >
           <div class="min-w-0">
             <span class="text-xs">{{ item.def.name }}</span>
-            <span class="text-[10px] text-muted ml-1">x{{ item.placedCount }}</span>
-            <span class="text-[10px] text-accent ml-1">美观+{{ item.def.beautyScore * item.placedCount }}</span>
+            <span class="text-[0.625rem] text-muted ml-1">x{{ item.placedCount }}</span>
+            <span class="text-[0.625rem] text-accent ml-1">美观+{{ item.def.beautyScore * item.placedCount }}</span>
           </div>
           <Button :icon="Minus" :icon-size="10" @click="handleRemove(item.def.id)" />
         </div>
@@ -58,7 +58,7 @@
           <button
             v-for="cat in categories"
             :key="cat.value"
-            class="text-[10px] px-1.5 py-0.5 rounded-xs border transition-colors"
+            class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border transition-colors"
             :class="activeCategory === cat.value ? 'border-accent text-accent' : 'border-accent/20 text-muted hover:border-accent/50'"
             @click="activeCategory = cat.value"
           >
@@ -77,14 +77,14 @@
           <div class="flex items-center justify-between">
             <div class="min-w-0">
               <p class="text-xs">{{ def.name }}</p>
-              <p class="text-[10px] text-muted truncate">{{ def.description }}</p>
+              <p class="text-[0.625rem] text-muted truncate">{{ def.description }}</p>
               <div class="flex gap-2 mt-0.5 flex-wrap">
-                <span class="text-[10px] text-accent">美观+{{ def.beautyScore }}</span>
-                <span class="text-[10px] text-muted">最多{{ def.maxCount }}个</span>
-                <span v-if="isCatalogDecoration(def)" class="text-[10px] text-muted">目录限定</span>
-                <span v-else-if="def.unlockBeauty > 0 && isLocked(def)" class="text-[10px] text-muted">需美观度{{ def.unlockBeauty }}</span>
-                <span v-if="hasReachedMaxCount(def.id)" class="text-[10px] text-muted">已达上限</span>
-                <span v-if="getOwnedCount(def.id) > 0" class="text-[10px] text-muted">已购{{ getOwnedCount(def.id) }}个</span>
+                <span class="text-[0.625rem] text-accent">美观+{{ def.beautyScore }}</span>
+                <span class="text-[0.625rem] text-muted">最多{{ def.maxCount }}个</span>
+                <span v-if="isCatalogDecoration(def)" class="text-[0.625rem] text-muted">目录限定</span>
+                <span v-else-if="def.unlockBeauty > 0 && isLocked(def)" class="text-[0.625rem] text-muted">需美观度{{ def.unlockBeauty }}</span>
+                <span v-if="hasReachedMaxCount(def.id)" class="text-[0.625rem] text-muted">已达上限</span>
+                <span v-if="getOwnedCount(def.id) > 0" class="text-[0.625rem] text-muted">已购{{ getOwnedCount(def.id) }}个</span>
               </div>
             </div>
             <div class="flex flex-col items-end gap-1 ml-2 shrink-0">
@@ -95,7 +95,7 @@
               >
                 {{ def.price }}文
               </Button>
-              <span v-else-if="getOwnedCount(def.id) === 0" class="text-[10px] text-muted">需从商店目录购买</span>
+              <span v-else-if="getOwnedCount(def.id) === 0" class="text-[0.625rem] text-muted">需从商店目录购买</span>
               <Button
                 v-if="getOwnedCount(def.id) > decorationStore.getPlacedCount(def.id)"
                 :icon="Plus"

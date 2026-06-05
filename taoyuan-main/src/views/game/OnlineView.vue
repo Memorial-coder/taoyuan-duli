@@ -10,7 +10,7 @@
           <p class="mt-1 text-xs leading-5 text-muted">
             先处理正在进行的房间、邀请和互助待办；技术治理信息留在各模块里展开查看。
           </p>
-          <p class="mt-1 text-[10px] leading-4 text-muted">
+          <p class="mt-1 text-[0.625rem] leading-4 text-muted">
             {{ lastRefreshedLabel }}
             <span v-if="errorCount > 0"> · {{ errorCount }} 个模块摘要暂不可用</span>
           </p>
@@ -40,9 +40,9 @@
             class="min-w-0 border border-accent/10 bg-black/10 p-3"
             :data-testid="`online-center-status-${item.id}`"
           >
-            <dt class="text-[10px] leading-4 text-muted">{{ item.label }}</dt>
+            <dt class="text-[0.625rem] leading-4 text-muted">{{ item.label }}</dt>
             <dd class="mt-1 truncate text-sm leading-5 text-accent">{{ item.value }}</dd>
-            <p class="mt-1 text-[10px] leading-4 text-muted">{{ item.summary }}</p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ item.summary }}</p>
           </div>
         </dl>
 
@@ -57,11 +57,11 @@
             <span class="flex min-w-0 items-start justify-between gap-3">
               <span class="min-w-0">
                 <span class="block truncate text-sm leading-5 text-text">{{ action.label }}</span>
-                <span class="mt-1 block text-[10px] leading-4 text-accent">{{ action.status }}</span>
+                <span class="mt-1 block text-[0.625rem] leading-4 text-accent">{{ action.status }}</span>
               </span>
               <component :is="action.icon" class="shrink-0 text-accent" :size="16" aria-hidden="true" />
             </span>
-            <span class="mt-2 line-clamp-2 text-[10px] leading-4 text-muted">{{ action.summary }}</span>
+            <span class="mt-2 line-clamp-2 text-[0.625rem] leading-4 text-muted">{{ action.summary }}</span>
           </RouterLink>
         </div>
       </div>
@@ -79,7 +79,7 @@
         <RouterLink
           v-for="module in modules"
           :key="`${module.key}-quick`"
-          class="flex min-w-0 flex-col items-center gap-1 border border-accent/15 bg-black/10 px-1 py-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+          class="flex min-w-0 flex-col items-center gap-1 border border-accent/15 bg-black/10 px-1 py-2 text-[0.625rem] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
           :data-testid="`online-module-${module.key}-quick-link`"
           :to="{ name: module.routeName }"
         >
@@ -95,7 +95,7 @@
           <h3 class="text-sm leading-5 text-accent">常用入口</h3>
           <p class="mt-1 text-xs leading-5 text-muted">更多数字、凭证和细节进入各模块页面查看。</p>
         </div>
-        <span class="text-[10px] leading-4 text-muted">{{ modules.length }} 个在线模块</span>
+        <span class="text-[0.625rem] leading-4 text-muted">{{ modules.length }} 个在线模块</span>
       </div>
       <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <OnlineModuleCard
@@ -122,7 +122,7 @@
           </div>
           <p class="mt-1 text-xs leading-5 text-muted">地图、场景、轨道和异步工程入口集中在这里。</p>
         </div>
-        <span class="text-[10px] leading-4 text-muted">{{ visualActivitySummary }}</span>
+        <span class="text-[0.625rem] leading-4 text-muted">{{ visualActivitySummary }}</span>
       </div>
       <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <RouterLink
@@ -138,18 +138,18 @@
                 <component :is="activity.icon" :size="14" />
                 <p class="truncate text-xs leading-4">{{ activity.title }}</p>
               </div>
-              <span class="shrink-0 text-[10px] leading-4 text-muted">{{ activity.boardType }}</span>
+              <span class="shrink-0 text-[0.625rem] leading-4 text-muted">{{ activity.boardType }}</span>
             </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted">{{ activity.summary }}</p>
+            <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ activity.summary }}</p>
             <p
               v-if="!activity.enabled"
-              class="mt-2 text-[10px] leading-4 text-muted"
+              class="mt-2 text-[0.625rem] leading-4 text-muted"
               data-testid="online-visual-activity-fallback"
             >
               备用入口可用：进入后按原页面继续操作。
             </p>
           </div>
-          <p class="mt-2 text-[10px] leading-4 text-accent">{{ activity.enabled ? activity.status : '可从备用入口继续' }}</p>
+          <p class="mt-2 text-[0.625rem] leading-4 text-accent">{{ activity.enabled ? activity.status : '可从备用入口继续' }}</p>
         </RouterLink>
       </div>
       <OnlineTechnicalDetails
@@ -163,11 +163,11 @@
             <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
               <div class="min-w-0">
                 <p class="text-xs leading-4 text-accent">高风险功能开关</p>
-                <p class="mt-1 text-[10px] leading-4 text-muted">
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                   {{ onlineVisualFeatureFlagSummary }}
                 </p>
               </div>
-              <span class="text-[10px] leading-4 text-muted">关闭时保留旧入口、收尾或只读回看</span>
+              <span class="text-[0.625rem] leading-4 text-muted">关闭时保留旧入口、收尾或只读回看</span>
             </div>
             <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               <article
@@ -187,17 +187,17 @@
                     />
                     <span class="min-w-0">
                       <span class="block text-xs leading-4 text-text">{{ featureFlag.label }}</span>
-                      <span class="mt-1 block text-[10px] leading-4 text-muted">{{ featureFlag.summary }}</span>
+                      <span class="mt-1 block text-[0.625rem] leading-4 text-muted">{{ featureFlag.summary }}</span>
                     </span>
                   </label>
-                  <span class="shrink-0 text-[10px] leading-4 text-accent">
+                  <span class="shrink-0 text-[0.625rem] leading-4 text-accent">
                     {{ featureFlag.enabled ? '开启' : '降级' }}
                   </span>
                 </div>
-                <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-feature-flag-fallback">
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-feature-flag-fallback">
                   {{ featureFlag.fallbackLabel }}
                 </p>
-                <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+                <dl class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted">
                   <div data-testid="online-visual-feature-flag-safe-close">
                     <dt class="text-accent">收尾</dt>
                     <dd>{{ featureFlag.activeRoomClosePolicy }}</dd>
@@ -208,7 +208,7 @@
                   </div>
                 </dl>
                 <RouterLink
-                  class="mt-2 inline-flex text-[10px] leading-4 text-accent hover:text-highlight"
+                  class="mt-2 inline-flex text-[0.625rem] leading-4 text-accent hover:text-highlight"
                   :to="{ name: featureFlag.fallbackRouteName }"
                   data-testid="online-visual-feature-flag-fallback-link"
                 >
@@ -223,9 +223,9 @@
         <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div class="min-w-0">
             <p class="text-xs leading-4 text-accent">活动排期</p>
-            <p class="mt-1 text-[10px] leading-4 text-muted">{{ onlineVisualScheduleSummary }}</p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ onlineVisualScheduleSummary }}</p>
           </div>
-          <span class="text-[10px] leading-4 text-muted">只展示可参加入口和下一步</span>
+          <span class="text-[0.625rem] leading-4 text-muted">只展示可参加入口和下一步</span>
         </div>
         <div class="mt-2 grid gap-2 lg:grid-cols-5" data-testid="online-visual-festival-calendar">
           <RouterLink
@@ -238,25 +238,25 @@
             <div class="min-w-0">
               <div class="flex items-start justify-between gap-2">
                 <p class="text-xs leading-4 text-text">{{ entry.title }}</p>
-                <span class="shrink-0 text-[10px] leading-4 text-accent">{{ entry.windowLabel }}</span>
+                <span class="shrink-0 text-[0.625rem] leading-4 text-accent">{{ entry.windowLabel }}</span>
               </div>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.entryLabel }}</p>
-              <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-schedule-scene">
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.entryLabel }}</p>
+              <p class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-schedule-scene">
                 {{ entry.visualScene }}
               </p>
               <p
                 v-if="!entry.enabled"
-                class="mt-2 text-[10px] leading-4 text-muted"
+                class="mt-2 text-[0.625rem] leading-4 text-muted"
                 data-testid="online-visual-schedule-fallback"
               >
                 可从备用入口参加。
               </p>
             </div>
             <div class="mt-2 space-y-1">
-              <p class="text-[10px] leading-4 text-muted" data-testid="online-visual-schedule-reward-pool">
+              <p class="text-[0.625rem] leading-4 text-muted" data-testid="online-visual-schedule-reward-pool">
                 下一步：{{ entry.entryLabel }}
               </p>
-              <p class="text-[10px] leading-4 text-accent" data-testid="online-visual-schedule-npc-line">
+              <p class="text-[0.625rem] leading-4 text-accent" data-testid="online-visual-schedule-npc-line">
                 {{ entry.npcLine }}
               </p>
             </div>
@@ -268,7 +268,7 @@
             <RouterLink
               v-for="entry in onlineVisualDailyRotation"
               :key="entry.id"
-              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
               :data-testid="entry.testId"
               :to="entry.targetRoute"
             >
@@ -284,7 +284,7 @@
             <RouterLink
               v-for="entry in onlineVisualWeeklyRotation"
               :key="entry.id"
-              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
               :data-testid="entry.testId"
               :to="entry.targetRoute"
             >
@@ -300,7 +300,7 @@
             <RouterLink
               v-for="entry in onlineVisualSeasonalRotation"
               :key="entry.id"
-              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+              class="mt-2 block border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
               :data-testid="entry.testId"
               :to="entry.targetRoute"
             >
@@ -314,7 +314,7 @@
               <li
                 v-for="retention in onlineVisualExpiredRetention"
                 :key="retention"
-                class="text-[10px] leading-4 text-muted"
+                class="text-[0.625rem] leading-4 text-muted"
               >
                 {{ retention }}
               </li>
@@ -332,9 +332,9 @@
           <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
             <div class="min-w-0">
               <p class="text-xs leading-4 text-accent">奖励与投放控制</p>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ onlineVisualRewardControlSummary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ onlineVisualRewardControlSummary }}</p>
             </div>
-            <span class="text-[10px] leading-4 text-muted">服务端凭证优先 · 纪念优先</span>
+            <span class="text-[0.625rem] leading-4 text-muted">服务端凭证优先 · 纪念优先</span>
           </div>
           <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             <article
@@ -345,9 +345,9 @@
             >
               <div class="flex items-start justify-between gap-2">
                 <p class="text-xs leading-4 text-text">{{ policy.label }}</p>
-                <span class="shrink-0 text-[10px] leading-4 text-accent">限额</span>
+                <span class="shrink-0 text-[0.625rem] leading-4 text-accent">限额</span>
               </div>
-              <dl class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+              <dl class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted">
                 <div data-testid="online-visual-reward-base">
                   <dt class="text-accent">基础</dt>
                   <dd>{{ policy.baseReward }}</dd>
@@ -369,10 +369,10 @@
                   <dd>{{ policy.capSummary }}</dd>
                 </div>
               </dl>
-              <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-anti-inflation">
+              <p class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-reward-anti-inflation">
                 {{ policy.antiInflationRule }}
               </p>
-              <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="online-visual-reward-solo-parity">
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-reward-solo-parity">
                 {{ policy.soloParityRule }}
               </p>
             </article>
@@ -381,7 +381,7 @@
             <li
               v-for="guardrail in onlineVisualRewardGlobalGuardrails"
               :key="guardrail"
-              class="border border-accent/10 bg-background/70 p-2 text-[10px] leading-4 text-muted"
+              class="border border-accent/10 bg-background/70 p-2 text-[0.625rem] leading-4 text-muted"
             >
               {{ guardrail }}
             </li>

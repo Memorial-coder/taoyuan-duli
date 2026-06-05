@@ -33,7 +33,7 @@
               <Warehouse :size="14" class="inline" />
               共同庄园切换
             </p>
-            <p class="text-[10px] text-muted leading-4 mt-1">
+            <p class="text-[0.625rem] text-muted leading-4 mt-1">
               从个人田庄切到共同庄园，只读查看共同农田、协作护理和共同仓库；个人田庄批量操作继续保留在本页。
             </p>
           </div>
@@ -41,7 +41,7 @@
             查看共同农田
           </Button>
         </div>
-        <div class="mt-2 flex flex-wrap gap-1 text-[10px] text-muted">
+        <div class="mt-2 flex flex-wrap gap-1 text-[0.625rem] text-muted">
           <span class="border border-accent/10 rounded-xs px-2 py-1">共同农田地图</span>
           <span class="border border-accent/10 rounded-xs px-2 py-1">仓库 / 基金边界</span>
           <span class="border border-accent/10 rounded-xs px-2 py-1">服务端审计</span>
@@ -85,7 +85,7 @@
         >
           <div>
             <p class="text-xs text-accent">溪流鱼获</p>
-            <p class="text-[10px] text-muted">溪流中捕获了{{ gameStore.creekCatch.length }}条鱼</p>
+            <p class="text-[0.625rem] text-muted">溪流中捕获了{{ gameStore.creekCatch.length }}条鱼</p>
           </div>
           <span class="text-xs text-success">收取</span>
         </div>
@@ -98,7 +98,7 @@
         >
           <div>
             <p class="text-xs text-accent">地表矿脉</p>
-            <p class="text-[10px] text-muted">发现{{ surfaceOreName }}&times;{{ gameStore.surfaceOrePatch.quantity }}</p>
+            <p class="text-[0.625rem] text-muted">发现{{ surfaceOreName }}&times;{{ gameStore.surfaceOrePatch.quantity }}</p>
           </div>
           <span class="text-xs text-success">开采（-5体力）</span>
         </div>
@@ -204,7 +204,7 @@
           >
             <div class="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center">
               <component :is="getPlotDisplay(plot).icon" :size="14" />
-              <span v-if="plot.cropId" class="text-[10px] opacity-60 truncate max-w-full px-0.5 mt-1">{{ getCropName(plot.cropId) }}</span>
+              <span v-if="plot.cropId" class="text-[0.625rem] opacity-60 truncate max-w-full px-0.5 mt-1">{{ getCropName(plot.cropId) }}</span>
               <!-- 角标 -->
               <Droplets
                 v-if="(plot.state === 'planted' || plot.state === 'growing') && !plot.watered"
@@ -376,7 +376,7 @@
                 <Sprout :size="32" class="text-muted/30" />
                 <p class="text-xs text-muted mt-2">背包中没有当季可种植的种子</p>
                 <Button v-if="isWanwupuOpen" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
-                <p v-else class="text-[10px] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
+                <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
               </div>
               <div v-if="activePlot.state === 'tilled' && hasSprinkler(activePlot.id)" class="text-xs text-water border border-water/20 rounded-xs p-2">
                 该地块已放置洒水器，当前不可种植作物。
@@ -456,7 +456,7 @@
                 <Sprout :size="32" class="text-muted/30" />
                 <p class="text-xs text-muted mt-2">没有当季可种植的种子</p>
                 <Button v-if="isWanwupuOpen" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
-                <p v-else class="text-[10px] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
+                <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
               </div>
             </div>
           </div>
@@ -649,7 +649,7 @@
           <div v-for="tree in farmStore.fruitTrees" :key="tree.id" class="border border-accent/10 rounded-xs px-3 py-2">
             <div class="flex items-center justify-between mb-1">
               <span class="text-xs font-bold" :class="tree.mature ? 'text-accent' : 'text-muted'">{{ getTreeName(tree.type) }}</span>
-              <span v-if="tree.mature" class="text-[10px] text-muted">{{ tree.yearAge }}年</span>
+              <span v-if="tree.mature" class="text-[0.625rem] text-muted">{{ tree.yearAge }}年</span>
             </div>
             <template v-if="!tree.mature">
               <div class="flex items-center space-x-2 mb-1.5">
@@ -659,7 +659,7 @@
                     :style="{ width: Math.min(100, Math.floor((tree.growthDays / 28) * 100)) + '%' }"
                   />
                 </div>
-                <span class="text-[10px] text-muted whitespace-nowrap">{{ tree.growthDays }}/28天</span>
+                <span class="text-[0.625rem] text-muted whitespace-nowrap">{{ tree.growthDays }}/28天</span>
               </div>
               <div class="flex justify-end">
                 <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type }">砍伐</Button>
@@ -667,8 +667,8 @@
             </template>
             <template v-else>
               <div class="flex items-center justify-between">
-                <span v-if="tree.todayFruit" class="text-[10px] text-accent">今日已结果</span>
-                <span v-else class="text-[10px] text-success">{{ getTreeFruitSeason(tree.type) }}产果</span>
+                <span v-if="tree.todayFruit" class="text-[0.625rem] text-accent">今日已结果</span>
+                <span v-else class="text-[0.625rem] text-success">{{ getTreeFruitSeason(tree.type) }}产果</span>
                 <Button :icon-size="12" :icon="Axe" @click.stop="chopFruitTreeTarget = { id: tree.id, type: tree.type }">砍伐</Button>
               </div>
             </template>
@@ -677,7 +677,7 @@
         <div v-else class="flex flex-col items-center justify-center py-4 text-muted mb-2">
           <TreeDeciduous :size="32" class="text-muted/30" />
           <p class="text-xs mt-2">暂无果树</p>
-          <p class="text-[10px] text-muted/60 mt-0.5">可在商店购买树苗种植</p>
+          <p class="text-[0.625rem] text-muted/60 mt-0.5">可在商店购买树苗种植</p>
         </div>
         <div v-if="plantableSaplings.length > 0 && farmStore.fruitTrees.length < MAX_FRUIT_TREES" class="flex space-x-1.5 flex-wrap">
           <Button v-for="s in plantableSaplings" :key="s.saplingId" :icon-size="12" :icon="TreePine" @click="handlePlantTree(s.type)">
@@ -762,12 +762,12 @@
             <div class="flex items-center justify-between mb-1">
               <div class="flex items-center space-x-1.5">
                 <span class="text-xs font-bold" :class="tree.mature ? 'text-accent' : 'text-muted'">{{ getWildTreeName(tree.type) }}</span>
-                <span v-if="tree.chopCount > 0" class="text-[10px] text-danger">伐{{ tree.chopCount }}/3</span>
+                <span v-if="tree.chopCount > 0" class="text-[0.625rem] text-danger">伐{{ tree.chopCount }}/3</span>
               </div>
-              <span v-if="!tree.mature" class="text-[10px] text-muted">生长中</span>
-              <span v-else-if="tree.hasTapper && tree.tapReady" class="text-[10px] text-accent">可收取</span>
-              <span v-else-if="tree.hasTapper" class="text-[10px] text-muted">采脂中</span>
-              <span v-else class="text-[10px] text-success">已成熟</span>
+              <span v-if="!tree.mature" class="text-[0.625rem] text-muted">生长中</span>
+              <span v-else-if="tree.hasTapper && tree.tapReady" class="text-[0.625rem] text-accent">可收取</span>
+              <span v-else-if="tree.hasTapper" class="text-[0.625rem] text-muted">采脂中</span>
+              <span v-else class="text-[0.625rem] text-success">已成熟</span>
             </div>
             <!-- 第二行：进度/详情 + 操作按钮 -->
             <template v-if="!tree.mature">
@@ -780,7 +780,7 @@
                     }"
                   />
                 </div>
-                <span class="text-[10px] text-muted whitespace-nowrap">
+                <span class="text-[0.625rem] text-muted whitespace-nowrap">
                   {{ tree.growthDays }}/{{ getWildTreeDef(tree.type)?.growthDays ?? '?' }}天
                 </span>
               </div>
@@ -798,7 +798,7 @@
                     }"
                   />
                 </div>
-                <span class="text-[10px] text-muted whitespace-nowrap">
+                <span class="text-[0.625rem] text-muted whitespace-nowrap">
                   {{ tree.tapReady ? '已完成' : `${tree.tapDaysElapsed}/${getWildTreeDef(tree.type)?.tapCycleDays ?? '?'}天` }}
                 </span>
               </div>
@@ -821,7 +821,7 @@
               >
                 装采脂器
               </Button>
-              <span v-if="tree.mature && !tree.hasTapper && !hasTapper" class="text-[10px] text-muted">需制造采脂器</span>
+              <span v-if="tree.mature && !tree.hasTapper && !hasTapper" class="text-[0.625rem] text-muted">需制造采脂器</span>
               <Button v-if="tree.mature" :icon-size="12" :icon="Axe" @click.stop="handleChopTree(tree.id)">伐木</Button>
             </div>
           </div>
@@ -829,7 +829,7 @@
         <div v-else class="flex flex-col items-center justify-center py-4 text-muted mb-2">
           <TreePine :size="32" class="text-muted/30" />
           <p class="text-xs mt-2">暂无野树</p>
-          <p class="text-[10px] text-muted/60 mt-0.5">可使用野树种子种植</p>
+          <p class="text-[0.625rem] text-muted/60 mt-0.5">可使用野树种子种植</p>
         </div>
         <div v-if="plantableWildSeeds.length > 0 && farmStore.wildTrees.length < MAX_WILD_TREES" class="flex space-x-1.5 flex-wrap">
           <Button v-for="s in plantableWildSeeds" :key="s.type" :icon-size="12" :icon="TreePine" @click="handlePlantWildTree(s.type)">
@@ -893,7 +893,7 @@
               @click="activeGhPlotId = plot.id"
             >
               <component :is="getPlotDisplay(plot).icon" :size="14" />
-              <span v-if="plot.cropId" class="text-[10px] opacity-70 truncate max-w-full px-0.5">{{ getCropName(plot.cropId) }}</span>
+              <span v-if="plot.cropId" class="text-[0.625rem] opacity-70 truncate max-w-full px-0.5">{{ getCropName(plot.cropId) }}</span>
             </button>
           </div>
         </div>
@@ -1063,7 +1063,7 @@
               <Sprout :size="32" class="text-muted/30" />
               <p class="text-xs text-muted mt-2">背包中没有种子</p>
               <Button v-if="isWanwupuOpen" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
-              <p v-else class="text-[10px] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
+              <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
             </div>
 
             <!-- 可收获 → 收获 -->

@@ -2,17 +2,17 @@
   <div v-if="shouldRender" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/20">
     <div class="flex items-start justify-between gap-3 mb-2">
       <div class="min-w-0">
-        <p class="text-[10px] text-muted">{{ titleText }}</p>
+        <p class="text-[0.625rem] text-muted">{{ titleText }}</p>
         <p class="text-xs text-accent mt-1 leading-5">{{ primaryHeadline }}</p>
       </div>
       <div class="shrink-0 text-right">
         <span
-          class="inline-flex items-center rounded-xs border px-1.5 py-0.5 text-[10px]"
+          class="inline-flex items-center rounded-xs border px-1.5 py-0.5 text-[0.625rem]"
           :class="snapshot.hasFreshContent ? 'border-accent/30 text-accent' : 'border-success/20 text-success'"
         >
           {{ guidanceTierLabel }}
         </span>
-        <p class="text-[10px] text-muted mt-1">{{ snapshotStatusText }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ snapshotStatusText }}</p>
       </div>
     </div>
 
@@ -20,7 +20,7 @@
       <p
         v-for="line in primarySummary.detailLines"
         :key="line"
-        class="text-[10px] text-muted leading-4"
+        class="text-[0.625rem] text-muted leading-4"
       >
         · {{ line }}
       </p>
@@ -35,18 +35,18 @@
         @click="handleAdoptRoute(route.id, route.targetSurfaceId)"
       >
         <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] text-accent">{{ route.label }}</p>
-          <span class="text-[10px]" :class="route.status === 'adopted' ? 'text-success' : 'text-muted'">
+          <p class="text-[0.625rem] text-accent">{{ route.label }}</p>
+          <span class="text-[0.625rem]" :class="route.status === 'adopted' ? 'text-success' : 'text-muted'">
             {{ route.status === 'adopted' ? '已采纳' : '记下路线' }}
           </span>
         </div>
-        <p class="text-[10px] text-muted mt-0.5 leading-4">{{ route.summary }}</p>
+        <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ route.summary }}</p>
       </button>
     </div>
 
     <div v-if="primarySummary" class="flex flex-wrap gap-2">
       <button
-        class="border border-success/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
+        class="border border-success/20 rounded-xs px-2 py-1 text-[0.625rem] transition-colors"
         :class="primarySummary.status === 'adopted' ? 'text-success bg-success/5 cursor-default' : 'text-success hover:bg-success/5'"
         :disabled="primarySummary.status === 'adopted'"
         @click="handleAdoptSummary(primarySummary.id)"
@@ -54,7 +54,7 @@
         {{ primarySummary.status === 'adopted' ? '已记下要点' : '记下要点' }}
       </button>
       <button
-        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
+        class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] transition-colors"
         :class="primarySummary.status === 'dismissed' ? 'text-muted bg-bg/30 cursor-default' : 'text-muted hover:bg-accent/5'"
         :disabled="primarySummary.status === 'dismissed'"
         @click="handleDismissSummary(primarySummary.id)"

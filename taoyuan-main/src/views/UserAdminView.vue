@@ -416,12 +416,12 @@
                           <div v-else-if="!gameplayLogs.length" class="text-xs text-muted">当前筛选下没有长期保存的游戏日志。</div>
                           <div v-else class="space-y-2 max-h-[42vh] overflow-y-auto pr-1">
                             <div v-for="log in gameplayLogs" :key="log.id" class="admin-log-card">
-                              <div class="flex items-center justify-between gap-3 text-[11px] text-muted">
+                              <div class="flex items-center justify-between gap-3 text-[0.6875rem] text-muted">
                                 <span class="text-accent">{{ log.category || 'system' }}</span>
                                 <span>{{ formatTime(log.created_at) }}</span>
                               </div>
                               <div class="text-xs text-text leading-6 break-all mt-1">{{ log.message }}</div>
-                              <div class="text-[11px] text-muted mt-1">
+                              <div class="text-[0.6875rem] text-muted mt-1">
                                 {{ formatGameplaySlotLabel(log.save_slot) }} · {{ log.day_label ? `${log.day_label} · ` : '' }}{{ log.route_name || '未记录页面' }}
                                 <template v-if="log.tags?.length"> · 标签：{{ log.tags.join('、') }}</template>
                               </div>
@@ -1032,7 +1032,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-muted));
   }
 
@@ -1045,7 +1045,7 @@
     border-radius: 2px;
     color: rgb(var(--color-text));
     outline: none;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .admin-input:focus,
@@ -1067,7 +1067,7 @@
     border-radius: 2px;
     padding: 4px 8px;
     background: rgba(200, 164, 92, 0.08);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-text));
   }
 
@@ -1112,12 +1112,12 @@
 
   .admin-user-cell__primary {
     color: rgb(var(--color-text));
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .admin-user-cell__secondary {
     color: rgb(var(--color-muted));
-    font-size: 11px;
+    font-size: 0.6875rem;
     line-height: 1.5;
   }
 
@@ -1161,7 +1161,7 @@
     padding: 10px 14px;
     background: rgba(200, 164, 92, 0.08);
     border-bottom: 1px solid rgba(200, 164, 92, 0.14);
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: rgb(var(--color-muted));
   }
 
@@ -1201,7 +1201,7 @@
   }
 
   .admin-user-line__value {
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: rgb(var(--color-text));
     line-height: 1.6;
     word-break: break-word;
@@ -1209,7 +1209,7 @@
 
   .admin-user-line__hint {
     margin-top: 4px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: rgb(var(--color-muted));
     line-height: 1.5;
   }
@@ -1293,7 +1293,7 @@
       content: attr(data-label);
       display: block;
       margin-bottom: 4px;
-      font-size: 10px;
+      font-size: 0.625rem;
       color: rgb(var(--color-muted));
       letter-spacing: 0.02em;
     }
@@ -1343,7 +1343,7 @@
 
     .admin-user-line::before {
       margin-bottom: 6px;
-      font-size: 10px;
+      font-size: 0.625rem;
       letter-spacing: 0.08em;
     }
 
@@ -1362,23 +1362,23 @@
     }
 
     .admin-user-cell__primary {
-      font-size: 16px;
+      font-size: 1rem;
       font-weight: 600;
       line-height: 1.4;
     }
 
     .admin-user-cell__secondary {
-      font-size: 12px;
+      font-size: 0.75rem;
     }
 
     .admin-user-line__value {
-      font-size: 15px;
+      font-size: 0.9375rem;
       line-height: 1.5;
     }
 
     .admin-user-line__hint {
       margin-top: 3px;
-      font-size: 12px;
+      font-size: 0.75rem;
       line-height: 1.45;
     }
 
@@ -1417,7 +1417,7 @@
     justify-content: center;
     border-radius: 999px;
     padding: 2px 10px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     border: 1px solid transparent;
     white-space: nowrap;
   }

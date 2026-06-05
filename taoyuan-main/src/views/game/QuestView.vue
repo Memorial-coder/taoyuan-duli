@@ -21,11 +21,11 @@
     <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="quest-primary-action-card">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-[0.625rem] tracking-[0.24em] text-accent/70">当前推荐动作</p>
           <p class="text-sm text-accent mt-1">{{ mobileQuestPrimaryActionCard.title }}</p>
           <p class="text-xs text-muted mt-2 leading-5">{{ mobileQuestPrimaryActionCard.summary }}</p>
         </div>
-        <span class="text-[10px] shrink-0" :class="mobileQuestPrimaryActionCard.statusToneClass">{{ mobileQuestPrimaryActionCard.statusLabel }}</span>
+        <span class="text-[0.625rem] shrink-0" :class="mobileQuestPrimaryActionCard.statusToneClass">{{ mobileQuestPrimaryActionCard.statusLabel }}</span>
       </div>
       <div v-if="mobileQuestPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
         <p
@@ -55,56 +55,56 @@
       <div class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">本周主路线</p>
-          <span class="text-[10px] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
+          <span class="text-[0.625rem] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
         </div>
-        <p class="text-[10px] text-accent mt-1">{{ weeklyPlanSnapshot.primaryRouteLabel }}</p>
-        <p class="text-[10px] text-muted mt-1">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
-        <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="text-[10px] text-success mt-1">
+        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanSnapshot.primaryRouteLabel }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
+        <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="text-[0.625rem] text-success mt-1">
           辅助路线：{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') }}
         </p>
       </div>
       <div v-if="goalStore.currentEventCampaign" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">活动编排</p>
-          <span class="text-[10px] text-muted">{{ goalStore.currentEventCampaign.cadence }}</span>
+          <span class="text-[0.625rem] text-muted">{{ goalStore.currentEventCampaign.cadence }}</span>
         </div>
-        <p class="text-[10px] text-muted mt-1">{{ goalStore.currentEventCampaign.description }}</p>
-        <p class="text-[10px] text-accent mt-1">结算模板：{{ goalStore.eventMailTemplateRefs.filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id)).map(template => template.title).join('、') }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ goalStore.currentEventCampaign.description }}</p>
+        <p class="text-[0.625rem] text-accent mt-1">结算模板：{{ goalStore.eventMailTemplateRefs.filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id)).map(template => template.title).join('、') }}</p>
       </div>
       <div v-if="questStore.currentLimitedTimeQuestCampaign" class="border border-warning/20 rounded-xs px-3 py-2 mb-2 bg-warning/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-warning">当前可领取 / 限时窗口</p>
-          <span class="text-[10px] text-muted">剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天</span>
+          <span class="text-[0.625rem] text-muted">剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天</span>
         </div>
-        <p class="text-[10px] text-muted mt-1">{{ questStore.currentLimitedTimeQuestCampaign.description }}</p>
-        <p class="text-[10px] text-accent mt-1">{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') || '当前没有额外领奖点。' }}</p>
-        <p class="text-[10px] text-success mt-1">活动来源：{{ questStore.currentLimitedTimeQuestCampaign.activitySourceLabel }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ questStore.currentLimitedTimeQuestCampaign.description }}</p>
+        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') || '当前没有额外领奖点。' }}</p>
+        <p class="text-[0.625rem] text-success mt-1">活动来源：{{ questStore.currentLimitedTimeQuestCampaign.activitySourceLabel }}</p>
       </div>
       <div v-if="goalStore.currentThemeWeek" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">下周准备 / 主题预告</p>
-          <span class="text-[10px] text-muted">{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日</span>
+          <span class="text-[0.625rem] text-muted">{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日</span>
         </div>
-        <p class="text-[10px] text-accent mt-1">{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
-        <p class="text-[10px] text-muted mt-1">{{ goalStore.currentThemeWeek.description }}</p>
+        <p class="text-[0.625rem] text-accent mt-1">{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ goalStore.currentThemeWeek.description }}</p>
       </div>
       <div v-if="questStore.specialOrder" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">特殊订单风向</p>
-          <span class="text-[10px] text-muted">剩余 {{ questStore.specialOrder.daysRemaining }} 天</span>
+          <span class="text-[0.625rem] text-muted">剩余 {{ questStore.specialOrder.daysRemaining }} 天</span>
         </div>
-        <p class="text-[10px] text-muted mt-1">{{ questStore.specialOrder.demandHint || '本期特殊订单会优先消耗高价值经营产出。' }}</p>
-        <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[10px] text-success mt-1">
+        <p class="text-[0.625rem] text-muted mt-1">{{ questStore.specialOrder.demandHint || '本期特殊订单会优先消耗高价值经营产出。' }}</p>
+        <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[0.625rem] text-success mt-1">
           推荐关注：{{ questStore.specialOrder.recommendedHybridIds.map(getHybridName).join('、') }}
         </p>
       </div>
       <div v-if="questStore.marketQuestBiasProfile.relationshipFocusLabels?.length" class="border border-accent/10 rounded-xs px-3 py-2 mb-2">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">家庭 / 仙缘风向</p>
-          <span class="text-[10px] text-muted">关系联动</span>
+          <span class="text-[0.625rem] text-muted">关系联动</span>
         </div>
-        <p class="text-[10px] text-muted mt-1">{{ questStore.marketQuestBiasProfile.boardHint }}</p>
-        <p v-if="questStore.marketQuestBiasProfile.specialOrderHint" class="text-[10px] text-accent mt-1">
+        <p class="text-[0.625rem] text-muted mt-1">{{ questStore.marketQuestBiasProfile.boardHint }}</p>
+        <p v-if="questStore.marketQuestBiasProfile.specialOrderHint" class="text-[0.625rem] text-accent mt-1">
           {{ questStore.marketQuestBiasProfile.specialOrderHint }}
         </p>
       </div>
@@ -113,19 +113,19 @@
         <div v-for="goal in goalStore.dailyGoals" :key="goal.id" class="border border-accent/10 rounded-xs px-3 py-2">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs">{{ goal.title }}</p>
-            <span class="text-[10px]" :class="goal.completed ? 'text-success' : 'text-accent'">{{ goalStore.getGoalSourceText(goal) }}</span>
+            <span class="text-[0.625rem]" :class="goal.completed ? 'text-success' : 'text-accent'">{{ goalStore.getGoalSourceText(goal) }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1">{{ goal.description }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ goal.description }}</p>
         </div>
       </div>
       <div class="mt-3 flex flex-wrap gap-2">
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('main-quest', '看主线')">看主线</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('board-quests', '看委托')">看委托</button>
-        <button v-if="questStore.specialOrder" class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('special-order', '看特殊订单')">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('main-quest', '看主线')">看主线</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('board-quests', '看委托')">看委托</button>
+        <button v-if="questStore.specialOrder" class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('special-order', '看特殊订单')">
           看特殊订单
         </button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('active-quests', '看进行中任务')">看进行中任务</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('village-route', '看村庄路线')">看村庄路线</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('active-quests', '看进行中任务')">看进行中任务</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusQuestSection('village-route', '看村庄路线')">看村庄路线</button>
       </div>
     </div>
 
@@ -136,7 +136,7 @@
     >
       <div class="flex items-center justify-between mb-2">
         <p class="text-xs text-muted">村庄建设线路</p>
-        <span class="text-[10px] text-muted">{{ villagePhaseLabel }}</span>
+        <span class="text-[0.625rem] text-muted">{{ villagePhaseLabel }}</span>
       </div>
       <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-2">
         <div class="flex items-center justify-between">
@@ -160,11 +160,11 @@
         <div v-for="project in villageQuestProjects" :key="project.id" class="border border-accent/10 rounded-xs px-3 py-2">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs text-accent truncate">{{ project.name }}</p>
-            <span class="text-[10px]" :class="project.canBuildNow ? 'text-success' : 'text-muted'">
+            <span class="text-[0.625rem]" :class="project.canBuildNow ? 'text-success' : 'text-muted'">
               {{ project.canBuildNow ? '可推进' : '待前置' }}
             </span>
           </div>
-          <p class="text-[10px] text-muted mt-1 leading-4">{{ project.blockedReason ?? '完成后会继续强化委托收益、任务容量或相关板块入口。' }}</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ project.blockedReason ?? '完成后会继续强化委托收益、任务容量或相关板块入口。' }}</p>
         </div>
       </div>
       <div v-else class="text-xs text-muted">当前暂无与委托/订单直接联动的建设项目。</div>
@@ -205,9 +205,9 @@
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div class="min-w-0">
           <p class="text-xs text-muted">在线委托</p>
-          <p class="text-[10px] text-muted mt-1 leading-4">在线求助单、接单、交付、凭证与补偿已经迁入在线中心；这里继续保留单人任务板。</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">在线求助单、接单、交付、凭证与补偿已经迁入在线中心；这里继续保留单人任务板。</p>
         </div>
-        <RouterLink class="btn !px-3 !py-1.5 text-[10px] shrink-0" :to="{ name: 'online-orders', query: route.query }">
+        <RouterLink class="btn !px-3 !py-1.5 text-[0.625rem] shrink-0" :to="{ name: 'online-orders', query: route.query }">
           前往在线委托
         </RouterLink>
       </div>
@@ -237,28 +237,28 @@
           <div class="min-w-0">
             <p class="text-xs truncate min-w-0" :class="quest.isUrgent ? 'text-red-400' : ''">{{ quest.description }}</p>
             <div class="flex flex-wrap gap-1 mt-0.5">
-              <span v-if="questStore.hasCompletedQuestHistory(quest)" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+              <span v-if="questStore.hasCompletedQuestHistory(quest)" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
                 做过同类
               </span>
-              <span v-if="quest.variantLabel" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+              <span v-if="quest.variantLabel" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
                 {{ quest.variantLabel }}
               </span>
-              <span v-if="quest.rumorTask" class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning">
+              <span v-if="quest.rumorTask" class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning">
                 传闻轻任务
               </span>
-              <span v-if="quest.isUrgent" class="text-[10px] px-1 rounded-xs border border-red-500/40 text-red-400">
+              <span v-if="quest.isUrgent" class="text-[0.625rem] px-1 rounded-xs border border-red-500/40 text-red-400">
                 紧急 · 仅剩1天
               </span>
-              <span v-if="quest.sourceCategory" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+              <span v-if="quest.sourceCategory" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
                 村民委托 · {{ getCategoryLabel(quest.sourceCategory) }}
               </span>
-              <span v-if="quest.relationshipStageRequired" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+              <span v-if="quest.relationshipStageRequired" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
                 需{{ getStageLabel(quest.relationshipStageRequired) }}
               </span>
             </div>
-            <p v-if="quest.sourceLabel" class="text-[10px] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
-            <p v-if="getQuestRewardPreview(quest)" class="text-[10px] text-muted/70 mt-0.5 truncate">{{ getQuestRewardPreview(quest) }}</p>
-            <p v-if="getQuestRelationshipPreview(quest)" class="text-[10px] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
+            <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
+            <p v-if="getQuestRewardPreview(quest)" class="text-[0.625rem] text-muted/70 mt-0.5 truncate">{{ getQuestRewardPreview(quest) }}</p>
+            <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
           </div>
           <span class="text-xs whitespace-nowrap ml-2" :class="quest.isUrgent ? 'text-red-400' : 'text-accent'">{{ quest.moneyReward }}文</span>
         </div>
@@ -283,18 +283,18 @@
         <div class="min-w-0">
           <p class="text-xs truncate">{{ questStore.specialOrder.description }}</p>
               <div class="flex flex-wrap gap-1 mt-0.5" v-if="questStore.specialOrder.themeTag || questStore.specialOrder.preferredSeasons?.length || questStore.specialOrder.activitySourceLabel || questStore.specialOrder.orderScoreRule">
-                <span class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent" v-if="questStore.specialOrder.themeTag">{{ getThemeLabel(questStore.specialOrder.themeTag) }}</span>
-                <span class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning" v-if="questStore.specialOrder.activitySourceLabel">
+                <span class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent" v-if="questStore.specialOrder.themeTag">{{ getThemeLabel(questStore.specialOrder.themeTag) }}</span>
+                <span class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning" v-if="questStore.specialOrder.activitySourceLabel">
                   {{ questStore.specialOrder.activitySourceLabel }}
                 </span>
-                <span class="text-[10px] px-1 rounded-xs border border-success/20 text-success" v-if="questStore.specialOrder.orderScoreRule">
+                <span class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success" v-if="questStore.specialOrder.orderScoreRule">
                   {{ getOrderStageTypeLabel(questStore.specialOrder.orderStageType) }}
                 </span>
-                <span class="text-[10px] px-1 rounded-xs border border-success/20 text-success" v-if="questStore.specialOrder.preferredSeasons?.length">
+                <span class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success" v-if="questStore.specialOrder.preferredSeasons?.length">
                   {{ questStore.specialOrder.preferredSeasons.map(getSeasonLabel).join(' / ') }}偏好
                 </span>
               </div>
-              <p v-if="questStore.specialOrder.demandHint" class="text-[10px] text-muted/70 mt-0.5 truncate">{{ questStore.specialOrder.demandHint }}</p>
+              <p v-if="questStore.specialOrder.demandHint" class="text-[0.625rem] text-muted/70 mt-0.5 truncate">{{ questStore.specialOrder.demandHint }}</p>
         </div>
         <span class="text-xs text-accent whitespace-nowrap ml-2">{{ questStore.specialOrder.moneyReward }}文</span>
       </div>
@@ -304,14 +304,14 @@
       <div class="flex items-center justify-between gap-2 mb-2">
         <div>
           <p class="text-xs text-muted">奖券与阶段赏格</p>
-          <p class="text-[10px] text-muted mt-0.5">
+          <p class="text-[0.625rem] text-muted mt-0.5">
             委托入账按「{{ rewardTicketPrizeNaming.intakeLabel }}」记，兑换统一走「{{ rewardTicketPrizeNaming.exchangeLabel }}」。
           </p>
         </div>
-        <span class="text-[10px] text-accent">{{ activeRewardTicketPrizeStage.label }}</span>
+        <span class="text-[0.625rem] text-accent">{{ activeRewardTicketPrizeStage.label }}</span>
       </div>
       <div class="space-y-1.5 mb-2">
-        <p v-for="line in rewardTicketSourceHints" :key="line" class="text-[10px] text-muted leading-4">
+        <p v-for="line in rewardTicketSourceHints" :key="line" class="text-[0.625rem] text-muted leading-4">
           {{ line }}
         </p>
       </div>
@@ -319,12 +319,12 @@
         <div v-for="stage in rewardTicketPrizeStageEntries" :key="stage.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-text'">{{ stage.label }}</p>
-            <span class="text-[10px]" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-muted'">
+            <span class="text-[0.625rem]" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-muted'">
               {{ stage.active ? '当前奖池' : stage.unlocked ? '已解锁' : `累计 ${stage.unlockLifetimeTickets} 张` }}
             </span>
           </div>
-          <p class="text-[10px] text-muted mt-1">{{ stage.spotlightRewards.join('、') }}</p>
-          <p class="text-[10px] text-muted/80 mt-0.5">{{ stage.notes[0] }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ stage.spotlightRewards.join('、') }}</p>
+          <p class="text-[0.625rem] text-muted/80 mt-0.5">{{ stage.notes[0] }}</p>
         </div>
       </div>
     </div>
@@ -355,33 +355,33 @@
             <div class="min-w-0">
               <p class="text-xs truncate min-w-0">{{ quest.description }}</p>
               <div class="flex flex-wrap gap-1 mt-0.5" v-if="quest.isUrgent || quest.sourceCategory || quest.relationshipStageRequired || quest.themeTag || quest.bonusSummary?.length || quest.activitySourceLabel || quest.orderScoreRule">
-                <span v-if="quest.variantLabel" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                <span v-if="quest.variantLabel" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
                   {{ quest.variantLabel }}
                 </span>
-                <span v-if="quest.rumorTask" class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning">
+                <span v-if="quest.rumorTask" class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning">
                   传闻轻任务
                 </span>
-                <span v-if="quest.isUrgent" class="text-[10px] px-1 rounded-xs border border-red-500/40 text-red-400">
+                <span v-if="quest.isUrgent" class="text-[0.625rem] px-1 rounded-xs border border-red-500/40 text-red-400">
                   紧急委托
                 </span>
-                <span v-if="quest.themeTag" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                <span v-if="quest.themeTag" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
                   {{ getThemeLabel(quest.themeTag) }}
                 </span>
-                <span v-if="quest.activitySourceLabel" class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning">
+                <span v-if="quest.activitySourceLabel" class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning">
                   {{ quest.activitySourceLabel }}
                 </span>
-                <span v-if="quest.orderScoreRule" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+                <span v-if="quest.orderScoreRule" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
                   {{ getOrderStageTypeLabel(quest.orderStageType) }}
                 </span>
-                <span v-if="quest.sourceCategory" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+                <span v-if="quest.sourceCategory" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
                   {{ getCategoryLabel(quest.sourceCategory) }}
                 </span>
-                <span v-if="quest.relationshipStageRequired" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                <span v-if="quest.relationshipStageRequired" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
                   {{ getStageLabel(quest.relationshipStageRequired) }}
                 </span>
               </div>
-              <p v-if="quest.sourceLabel" class="text-[10px] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
-              <p v-if="getQuestRelationshipPreview(quest)" class="text-[10px] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
+              <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
+              <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
             </div>
             <span class="text-xs whitespace-nowrap ml-2" :class="canSubmit(quest) ? 'text-success' : 'text-muted'">
               {{ canSubmit(quest) ? '可提交' : `剩${quest.daysRemaining}天` }}
@@ -413,19 +413,19 @@
     <div class="border border-accent/10 rounded-xs p-3 mt-3">
       <div class="flex items-center justify-between mb-2">
         <p class="text-xs text-muted">订单历史</p>
-        <span class="text-[10px] text-accent">{{ questStore.completedQuestHistory.length }} 条</span>
+        <span class="text-[0.625rem] text-accent">{{ questStore.completedQuestHistory.length }} 条</span>
       </div>
-      <div v-if="questStore.completedQuestHistory.length === 0" class="text-[10px] text-muted">还没有已完成订单记录。</div>
+      <div v-if="questStore.completedQuestHistory.length === 0" class="text-[0.625rem] text-muted">还没有已完成订单记录。</div>
       <div v-else class="space-y-1.5">
         <div v-for="entry in questStore.completedQuestHistory.slice(0, 6)" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs text-accent truncate">{{ entry.npcName }}：{{ entry.description }}</p>
-            <span class="text-[10px]" :class="entry.isSpecialOrder ? 'text-warning' : 'text-muted'">
+            <span class="text-[0.625rem]" :class="entry.isSpecialOrder ? 'text-warning' : 'text-muted'">
               {{ entry.isSpecialOrder ? '特单' : '委托' }}
             </span>
           </div>
-          <p class="text-[10px] text-muted mt-0.5">{{ entry.completedDayTag }} / {{ entry.rewardSummary }}</p>
-          <p v-if="entry.activitySourceLabel || entry.themeTag" class="text-[10px] text-muted/70 mt-0.5">
+          <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.completedDayTag }} / {{ entry.rewardSummary }}</p>
+          <p v-if="entry.activitySourceLabel || entry.themeTag" class="text-[0.625rem] text-muted/70 mt-0.5">
             {{ [entry.activitySourceLabel, getHistoryThemeLabel(entry.themeTag)].filter(Boolean).join(' / ') }}
           </p>
         </div>
@@ -503,7 +503,7 @@
               <p
                 v-for="line in getQuestRelationshipImpactLines(selectedBoardQuest)"
                 :key="line"
-                class="text-[10px] leading-4"
+                class="text-[0.625rem] leading-4"
               >
                 {{ line }}
               </p>
@@ -515,10 +515,10 @@
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
               <p class="text-xs text-muted mb-1">奖励</p>
               <p class="text-xs">{{ selectedBoardQuest.moneyReward }}文 + 好感{{ selectedBoardQuest.friendshipReward }}</p>
-              <p v-if="getQuestRewardDetails(selectedBoardQuest).length > 0" class="text-[10px] text-accent mt-1 leading-4">
+              <p v-if="getQuestRewardDetails(selectedBoardQuest).length > 0" class="text-[0.625rem] text-accent mt-1 leading-4">
                 {{ getQuestRewardDetails(selectedBoardQuest).join('；') }}
               </p>
-              <p v-if="selectedBoardQuest.bonusSummary?.length" class="text-[10px] text-success mt-1">
+              <p v-if="selectedBoardQuest.bonusSummary?.length" class="text-[0.625rem] text-success mt-1">
                 {{ selectedBoardQuest.bonusSummary.join('；') }}
               </p>
             </div>
@@ -537,13 +537,13 @@
           <template v-if="questModal.type === 'special' && questStore.specialOrder">
             <p class="text-accent text-sm mb-2">
               特殊订单
-              <span v-if="questStore.specialOrder.tierLabel" class="text-[10px] text-muted border border-accent/20 rounded-xs px-1 ml-1">
+              <span v-if="questStore.specialOrder.tierLabel" class="text-[0.625rem] text-muted border border-accent/20 rounded-xs px-1 ml-1">
                 {{ questStore.specialOrder.tierLabel }}
               </span>
-              <span v-if="questStore.specialOrder.themeTag" class="text-[10px] text-accent border border-accent/20 rounded-xs px-1 ml-1">
+              <span v-if="questStore.specialOrder.themeTag" class="text-[0.625rem] text-accent border border-accent/20 rounded-xs px-1 ml-1">
                 {{ getThemeLabel(questStore.specialOrder.themeTag) }}
               </span>
-              <span v-if="questStore.specialOrder.activitySourceLabel" class="text-[10px] text-warning border border-warning/20 rounded-xs px-1 ml-1">
+              <span v-if="questStore.specialOrder.activitySourceLabel" class="text-[0.625rem] text-warning border border-warning/20 rounded-xs px-1 ml-1">
                 {{ questStore.specialOrder.activitySourceLabel }}
               </span>
             </p>
@@ -555,34 +555,34 @@
             <div class="border border-accent/10 rounded-xs p-2 mb-2" v-if="questStore.specialOrder.demandHint || questStore.specialOrder.recommendedHybridIds?.length || questStore.specialOrder.preferredSeasons?.length">
               <p class="text-xs text-muted mb-1">需求提示</p>
               <p v-if="questStore.specialOrder.demandHint" class="text-xs text-accent/80 leading-relaxed">{{ questStore.specialOrder.demandHint }}</p>
-              <p v-if="questStore.specialOrder.preferredSeasons?.length" class="text-[10px] text-muted mt-1">
+              <p v-if="questStore.specialOrder.preferredSeasons?.length" class="text-[0.625rem] text-muted mt-1">
                 更常见于：{{ questStore.specialOrder.preferredSeasons.map(getSeasonLabel).join(' / ') }}
               </p>
-              <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[10px] text-success mt-1">
+              <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[0.625rem] text-success mt-1">
                 推荐杂交：{{ questStore.specialOrder.recommendedHybridIds.map(getHybridName).join('、') }}
               </p>
             </div>
             <div v-if="getSpecialOrderRuleLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">订单规则</p>
-              <p v-for="line in getSpecialOrderRuleLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4">
+              <p v-for="line in getSpecialOrderRuleLines(questStore.specialOrder)" :key="line" class="text-[0.625rem] leading-4">
                 {{ line }}
               </p>
             </div>
             <div v-if="getSpecialOrderScoreHintLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">评分提示</p>
-              <p v-for="line in getSpecialOrderScoreHintLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4 text-success/90">
+              <p v-for="line in getSpecialOrderScoreHintLines(questStore.specialOrder)" :key="line" class="text-[0.625rem] leading-4 text-success/90">
                 {{ line }}
               </p>
             </div>
             <div v-if="getSpecialOrderDeliverySourceLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">交付来源</p>
-              <p v-for="line in getSpecialOrderDeliverySourceLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4 text-warning/90">
+              <p v-for="line in getSpecialOrderDeliverySourceLines(questStore.specialOrder)" :key="line" class="text-[0.625rem] leading-4 text-warning/90">
                 {{ line }}
               </p>
             </div>
             <div v-if="getSpecialOrderStageLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">阶段 / 交付结构</p>
-              <p v-for="line in getSpecialOrderStageLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4">
+              <p v-for="line in getSpecialOrderStageLines(questStore.specialOrder)" :key="line" class="text-[0.625rem] leading-4">
                 {{ line }}
               </p>
             </div>
@@ -594,7 +594,7 @@
                   + {{ questStore.specialOrder.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
                 </template>
               </p>
-              <p v-if="getQuestRewardDetails(questStore.specialOrder).length > 0" class="text-[10px] text-accent mt-1 leading-4">
+              <p v-if="getQuestRewardDetails(questStore.specialOrder).length > 0" class="text-[0.625rem] text-accent mt-1 leading-4">
                 {{ getQuestRewardDetails(questStore.specialOrder).join('；') }}
               </p>
             </div>
@@ -630,25 +630,25 @@
             </div>
             <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderRuleLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">订单规则</p>
-              <p v-for="line in getSpecialOrderRuleLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4">
+              <p v-for="line in getSpecialOrderRuleLines(selectedActiveQuest)" :key="line" class="text-[0.625rem] leading-4">
                 {{ line }}
               </p>
             </div>
             <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderScoreHintLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">评分提示</p>
-              <p v-for="line in getSpecialOrderScoreHintLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4 text-success/90">
+              <p v-for="line in getSpecialOrderScoreHintLines(selectedActiveQuest)" :key="line" class="text-[0.625rem] leading-4 text-success/90">
                 {{ line }}
               </p>
             </div>
             <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderDeliverySourceLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">交付来源</p>
-              <p v-for="line in getSpecialOrderDeliverySourceLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4 text-warning/90">
+              <p v-for="line in getSpecialOrderDeliverySourceLines(selectedActiveQuest)" :key="line" class="text-[0.625rem] leading-4 text-warning/90">
                 {{ line }}
               </p>
             </div>
             <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderStageLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">阶段 / 交付结构</p>
-              <p v-for="line in getSpecialOrderStageLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4">
+              <p v-for="line in getSpecialOrderStageLines(selectedActiveQuest)" :key="line" class="text-[0.625rem] leading-4">
                 {{ line }}
               </p>
             </div>
@@ -657,7 +657,7 @@
               <p
                 v-for="line in getQuestRelationshipImpactLines(selectedActiveQuest)"
                 :key="line"
-                class="text-[10px] leading-4"
+                class="text-[0.625rem] leading-4"
               >
                 {{ line }}
               </p>
@@ -693,10 +693,10 @@
                   + {{ selectedActiveQuest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
                 </template>
               </p>
-              <p v-if="getQuestRewardDetails(selectedActiveQuest).length > 0" class="text-[10px] text-accent mt-1 leading-4">
+              <p v-if="getQuestRewardDetails(selectedActiveQuest).length > 0" class="text-[0.625rem] text-accent mt-1 leading-4">
                 {{ getQuestRewardDetails(selectedActiveQuest).join('；') }}
               </p>
-              <p v-if="selectedActiveQuest.bonusSummary?.length" class="text-[10px] text-success mt-1">
+              <p v-if="selectedActiveQuest.bonusSummary?.length" class="text-[0.625rem] text-success mt-1">
                 {{ selectedActiveQuest.bonusSummary.join('；') }}
               </p>
             </div>

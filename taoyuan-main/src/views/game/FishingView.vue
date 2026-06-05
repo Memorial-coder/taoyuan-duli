@@ -31,7 +31,7 @@
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
         <p class="text-sm text-accent">天气窗口</p>
-        <span class="text-[10px]" :class="fishingStore.environmentWindow.fishing.active ? 'text-success' : 'text-muted'">
+        <span class="text-[0.625rem]" :class="fishingStore.environmentWindow.fishing.active ? 'text-success' : 'text-muted'">
           {{ fishingStore.environmentWindow.fishing.label }}
         </span>
       </div>
@@ -40,7 +40,7 @@
         <span
           v-for="line in fishingStore.environmentWindow.fishing.detailLines"
           :key="line"
-          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[10px] text-muted"
+          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[0.625rem] text-muted"
         >
           {{ line }}
         </span>
@@ -50,16 +50,16 @@
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
         <p class="text-sm text-accent">陪伴 / 仙缘提示</p>
-        <span class="text-[10px] text-muted">{{ fishingStore.companionshipFishingFocus.bondedSpiritId ? '仙缘联动' : '家庭联动' }}</span>
+        <span class="text-[0.625rem] text-muted">{{ fishingStore.companionshipFishingFocus.bondedSpiritId ? '仙缘联动' : '家庭联动' }}</span>
       </div>
       <p class="text-xs text-muted leading-4">{{ fishingStore.companionshipFishingFocus.summary }}</p>
-      <p v-if="fishingStore.companionshipFishingFocus.activeFamilyWish" class="text-[10px] text-accent mt-1">
+      <p v-if="fishingStore.companionshipFishingFocus.activeFamilyWish" class="text-[0.625rem] text-accent mt-1">
         当前心愿：{{ fishingStore.companionshipFishingFocus.activeFamilyWish.title }}
       </p>
-      <p v-if="fishingStore.companionshipFishingFocus.spiritBlessing" class="text-[10px] text-success mt-1">
+      <p v-if="fishingStore.companionshipFishingFocus.spiritBlessing" class="text-[0.625rem] text-success mt-1">
         当前祝福：{{ fishingStore.companionshipFishingFocus.spiritBlessing.label }}
       </p>
-      <p class="text-[10px] text-muted mt-1">
+      <p class="text-[0.625rem] text-muted mt-1">
         推荐钓点：{{ fishingStore.companionshipFishingFocus.recommendedLocations.join('、') }}
       </p>
     </div>
@@ -149,7 +149,7 @@
           @click="selectedFish = f"
         >
           <span class="text-xs" :class="DIFFICULTY_COLORS[f.difficulty]">{{ f.name }}</span>
-          <span class="text-[10px]" :class="DIFFICULTY_COLORS[f.difficulty]">
+          <span class="text-[0.625rem]" :class="DIFFICULTY_COLORS[f.difficulty]">
             {{ DIFFICULTY_NAMES[f.difficulty] }}
           </span>
         </div>
@@ -178,7 +178,7 @@
               <Button class="py-0 px-1" @click="handleRemoveCrabPot(loc.id)">回收</Button>
             </div>
           </div>
-          <p class="text-[10px] text-muted">{{ loc.total }}个 · {{ loc.baited }}个已装饵</p>
+          <p class="text-[0.625rem] text-muted">{{ loc.total }}个 · {{ loc.baited }}个已装饵</p>
         </div>
       </div>
       <div v-else-if="!hasCrabPotInBag" class="flex flex-col items-center justify-center py-6 text-muted mb-2">
@@ -234,7 +234,7 @@
           <p class="text-sm text-accent mb-2">鱼饵</p>
           <!-- 当前装备 -->
           <div v-if="fishingStore.equippedBait" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-[10px] text-muted mb-1">当前装备</p>
+            <p class="text-[0.625rem] text-muted mb-1">当前装备</p>
             <div class="flex items-center justify-between">
               <span class="text-xs text-accent">{{ getBaitName(fishingStore.equippedBait) }}</span>
               <Button class="py-0 px-1" @click="handleUnequipBait">卸下</Button>
@@ -242,7 +242,7 @@
           </div>
           <!-- 可用鱼饵列表 -->
           <div v-if="availableBaits.length > 0" class="border border-accent/10 rounded-xs p-2">
-            <p class="text-[10px] text-muted mb-1">背包中的鱼饵</p>
+            <p class="text-[0.625rem] text-muted mb-1">背包中的鱼饵</p>
             <div class="flex flex-col space-y-1">
               <div
                 v-for="b in availableBaits"
@@ -258,7 +258,7 @@
           <div v-else-if="!fishingStore.equippedBait" class="flex flex-col items-center justify-center py-4 text-muted">
             <Target :size="28" class="text-muted/30 mb-2" />
             <p class="text-xs">背包中没有鱼饵</p>
-            <p class="text-[10px] text-muted/60 mt-0.5">可在商店购买或加工制造</p>
+            <p class="text-[0.625rem] text-muted/60 mt-0.5">可在商店购买或加工制造</p>
           </div>
         </div>
       </div>
@@ -278,18 +278,18 @@
           <p class="text-sm text-accent mb-2">浮漂</p>
           <!-- 当前装备 -->
           <div v-if="fishingStore.equippedTackle" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-[10px] text-muted mb-1">当前装备</p>
+            <p class="text-[0.625rem] text-muted mb-1">当前装备</p>
             <div class="flex items-center justify-between">
               <span class="text-xs text-accent">{{ getTackleName(fishingStore.equippedTackle) }}</span>
               <div class="flex items-center space-x-2">
-                <span class="text-[10px] text-muted">耐久 {{ fishingStore.tackleDurability }}</span>
+                <span class="text-[0.625rem] text-muted">耐久 {{ fishingStore.tackleDurability }}</span>
                 <Button class="py-0 px-1" @click="handleUnequipTackle">卸下</Button>
               </div>
             </div>
           </div>
           <!-- 可用浮漂列表 -->
           <div v-if="availableTackles.length > 0" class="border border-accent/10 rounded-xs p-2">
-            <p class="text-[10px] text-muted mb-1">背包中的浮漂</p>
+            <p class="text-[0.625rem] text-muted mb-1">背包中的浮漂</p>
             <div class="flex flex-col space-y-1">
               <div
                 v-for="t in availableTackles"
@@ -305,7 +305,7 @@
           <div v-else-if="!fishingStore.equippedTackle" class="flex flex-col items-center justify-center py-4 text-muted">
             <MapPin :size="28" class="text-muted/30 mb-2" />
             <p class="text-xs">背包中没有浮漂</p>
-            <p class="text-[10px] text-muted/60 mt-0.5">可在商店购买或加工制造</p>
+            <p class="text-[0.625rem] text-muted/60 mt-0.5">可在商店购买或加工制造</p>
           </div>
         </div>
       </div>

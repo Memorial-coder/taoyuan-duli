@@ -54,7 +54,7 @@
                 @click="exportLocalSave(slot.slot)"
               >
                 <span>导出存档 {{ slot.slot + 1 }}</span>
-                <span class="text-[11px] text-muted">
+                <span class="text-[0.6875rem] text-muted">
                   {{ slot.playerName ?? '未命名' }} · 第{{ slot.year }}年 {{ slot.season ?? '' }} 第{{ slot.day }}天
                 </span>
               </button>

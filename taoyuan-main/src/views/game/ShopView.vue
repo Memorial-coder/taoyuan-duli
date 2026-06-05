@@ -19,21 +19,21 @@
     <div v-if="ancientRoadShopHandoff" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-accent">古驿荒道承接</p>
-        <span class="text-[10px] text-muted">行旅图 -> 商圈</span>
+        <span class="text-[0.625rem] text-muted">行旅图 -> 商圈</span>
       </div>
-      <p class="text-[10px] text-muted mt-1 leading-4">
+      <p class="text-[0.625rem] text-muted mt-1 leading-4">
         荒道已完成 {{ ancientRoadShopHandoff.completedRoutes }} 条节点，当前古迹残卷库存 {{ ancientRoadShopHandoff.archiveQty }} 份。
       </p>
-      <p class="text-[10px] text-muted mt-1 leading-4">
+      <p class="text-[0.625rem] text-muted mt-1 leading-4">
         这批收益更适合先在商圈补齐护送和档案整理消耗，再继续回任务板或瀚海承接。
       </p>
-      <p v-if="ancientRoadShopHandoff.offerNames.length > 0" class="text-[10px] text-accent mt-1">
+      <p v-if="ancientRoadShopHandoff.offerNames.length > 0" class="text-[0.625rem] text-accent mt-1">
         补给推荐：{{ ancientRoadShopHandoff.offerNames.join('、') }}
       </p>
       <div class="mt-2 flex flex-wrap gap-2">
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('quest')">去任务板</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('hanhai')">去瀚海</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('region-map')">看行旅图</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('quest')">去任务板</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('hanhai')">去瀚海</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('region-map')">看行旅图</button>
       </div>
     </div>
     </template>
@@ -50,11 +50,11 @@
     >
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-[0.625rem] tracking-[0.24em] text-accent/70">当前推荐动作</p>
           <p class="text-sm text-accent mt-1">{{ shopPrimaryActionCard.title }}</p>
           <p class="text-xs text-muted mt-2 leading-5">{{ shopPrimaryActionCard.summary }}</p>
         </div>
-        <span class="text-[10px] shrink-0" :class="shopPrimaryActionCard.statusToneClass">{{ shopPrimaryActionCard.statusLabel }}</span>
+        <span class="text-[0.625rem] shrink-0" :class="shopPrimaryActionCard.statusToneClass">{{ shopPrimaryActionCard.statusLabel }}</span>
       </div>
       <div v-if="shopPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
         <p
@@ -96,8 +96,8 @@
         <!-- 折扣提示 -->
         <p v-if="hasDiscount" class="text-success text-xs mb-3">{{ discountHint }}</p>
         <div v-if="shopStore.currentShopId && currentShopRelationshipHint" class="border border-accent/10 rounded-xs px-2 py-1.5 mb-3">
-          <p class="text-[10px] text-accent">{{ currentShopRelationshipHint }}</p>
-          <p v-if="currentShopNextBenefitHint" class="text-[10px] text-muted/70 mt-0.5">{{ currentShopNextBenefitHint }}</p>
+          <p class="text-[0.625rem] text-accent">{{ currentShopRelationshipHint }}</p>
+          <p v-if="currentShopNextBenefitHint" class="text-[0.625rem] text-muted/70 mt-0.5">{{ currentShopNextBenefitHint }}</p>
         </div>
 
         <template v-if="!isCompactMobile || shopPreludeExpanded || shopPreludeForceOpen">
@@ -120,47 +120,47 @@
 
           <div class="grid grid-cols-2 gap-2 mb-2">
             <div v-for="metric in economyShopMetricCards" :key="metric.label" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/20">
-              <p class="text-[10px] text-muted">{{ metric.label }}</p>
+              <p class="text-[0.625rem] text-muted">{{ metric.label }}</p>
               <p class="text-sm text-accent mt-0.5">{{ metric.value }}</p>
-              <p class="text-[10px] text-muted mt-1">{{ metric.hint }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ metric.hint }}</p>
             </div>
           </div>
 
           <div v-if="economyOverview.latestRiskReport?.summary" class="border rounded-xs px-2 py-2 mb-2" :class="economyRiskPanelClass">
-            <p class="text-[10px] mb-1" :class="economyRiskClass">风险提示</p>
+            <p class="text-[0.625rem] mb-1" :class="economyRiskClass">风险提示</p>
             <p class="text-xs text-muted">{{ economyOverview.latestRiskReport.summary }}</p>
           </div>
 
           <div class="border border-accent/10 rounded-xs p-2">
-            <p class="text-[10px] text-accent mb-1">本期推荐消费池</p>
+            <p class="text-[0.625rem] text-accent mb-1">本期推荐消费池</p>
             <div class="space-y-1.5">
               <div v-for="sink in economyShopRecommendedSinks" :key="sink.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-xs text-text">{{ sink.name }}</p>
-                  <span class="text-[10px] text-accent">{{ sink.priceBandLabel }}</span>
+                  <span class="text-[0.625rem] text-accent">{{ sink.priceBandLabel }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">{{ sink.showcaseHook }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ sink.showcaseHook }}</p>
               </div>
             </div>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('market-overview', '看市场看板')">看市场看板</button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('market-overview', '看市场看板')">看市场看板</button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
               看推荐货架
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
               看每周交换站
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('festival-stall', '看节庆摊位')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('festival-stall', '看节庆摊位')">
               看节庆摊位
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('market-governance', '看官方调控')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('market-governance', '看官方调控')">
               看官方调控
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('exchange-ledger', '看交换记录')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('exchange-ledger', '看交换记录')">
               看交换记录
             </button>
           </div>
@@ -183,72 +183,72 @@
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
             <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
-              <p class="text-[10px] text-muted">本周热点</p>
+              <p class="text-[0.625rem] text-muted">本周热点</p>
               <p class="text-xs text-warning mt-0.5">
                 {{ marketOverview.hotspotCategoryLabels.length > 0 ? marketOverview.hotspotCategoryLabels.slice(0, 3).join('、') : '等待热点刷新' }}
               </p>
-              <p class="text-[10px] text-muted mt-1">当前热点 {{ marketOverview.hotspotCount }} 项</p>
+              <p class="text-[0.625rem] text-muted mt-1">当前热点 {{ marketOverview.hotspotCount }} 项</p>
             </div>
             <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
-              <p class="text-[10px] text-muted">地区收购</p>
+              <p class="text-[0.625rem] text-muted">地区收购</p>
               <p class="text-xs text-text mt-0.5">
                 {{ marketRegionalProcurementCards.length > 0 ? marketRegionalProcurementCards.map(item => item.districtLabel).join('、') : '本周暂无地区收购' }}
               </p>
-              <p class="text-[10px] text-muted mt-1">活跃合同 {{ marketOverview.regionalProcurementCount }} 份</p>
+              <p class="text-[0.625rem] text-muted mt-1">活跃合同 {{ marketOverview.regionalProcurementCount }} 份</p>
             </div>
             <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
-              <p class="text-[10px] text-muted">路线建议</p>
+              <p class="text-[0.625rem] text-muted">路线建议</p>
               <p class="text-xs text-success mt-0.5">
                 {{ marketRecommendedRouteCards.length > 0 ? marketRecommendedRouteCards.map(route => route.label).join('、') : '先观察热点后再切换出货方向' }}
               </p>
-              <p class="text-[10px] text-muted mt-1">过剩压制 {{ marketOverview.overflowPenaltyCount }} 项</p>
+              <p class="text-[0.625rem] text-muted mt-1">过剩压制 {{ marketOverview.overflowPenaltyCount }} 项</p>
             </div>
           </div>
 
           <div class="border border-accent/20 rounded-xs px-2 py-2 mb-2 bg-accent/5">
             <div class="flex items-center justify-between gap-2">
-              <p class="text-[10px] text-accent">出货回响与村民反馈</p>
-              <span class="text-[10px] text-muted">{{ commerceEcho.hasRecentSales ? '近7天样本' : '等待样本' }}</span>
+              <p class="text-[0.625rem] text-accent">出货回响与村民反馈</p>
+              <span class="text-[0.625rem] text-muted">{{ commerceEcho.hasRecentSales ? '近7天样本' : '等待样本' }}</span>
             </div>
             <p class="text-xs text-text mt-1">{{ commerceEcho.headline }}</p>
-            <p class="text-[10px] text-muted mt-1">{{ commerceEcho.trendLine }}</p>
-            <p class="text-[10px] text-accent/80 mt-1">{{ commerceEcho.longTermLine }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ commerceEcho.trendLine }}</p>
+            <p class="text-[0.625rem] text-accent/80 mt-1">{{ commerceEcho.longTermLine }}</p>
             <div v-if="commerceEcho.recentItems.length > 0" class="flex flex-wrap gap-1.5 mt-2">
               <span
                 v-for="item in commerceEcho.recentItems.slice(0, 4)"
                 :key="`commerce-echo-item-${item.itemId}`"
-                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent"
+                class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent"
               >
                 {{ item.name }} ×{{ item.quantity }} · {{ item.trendLabel }}
               </span>
             </div>
             <div class="grid gap-2 md:grid-cols-3 mt-2">
               <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-                <p class="text-[10px] text-accent mb-1">村民怎么说</p>
+                <p class="text-[0.625rem] text-accent mb-1">村民怎么说</p>
                 <p
                   v-for="line in commerceEcho.villagerFeedbackLines.slice(0, 3)"
                   :key="`commerce-feedback-${line}`"
-                  class="text-[10px] text-muted leading-4 mt-0.5"
+                  class="text-[0.625rem] text-muted leading-4 mt-0.5"
                 >
                   - {{ line }}
                 </p>
               </div>
               <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-                <p class="text-[10px] text-accent mb-1">掌柜会提到</p>
+                <p class="text-[0.625rem] text-accent mb-1">掌柜会提到</p>
                 <p
                   v-for="line in commerceEcho.shopkeeperMentionLines.slice(0, 3)"
                   :key="`commerce-shopkeeper-${line}`"
-                  class="text-[10px] text-muted leading-4 mt-0.5"
+                  class="text-[0.625rem] text-muted leading-4 mt-0.5"
                 >
                   - {{ line }}
                 </p>
               </div>
               <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-                <p class="text-[10px] text-accent mb-1">货架为什么变</p>
+                <p class="text-[0.625rem] text-accent mb-1">货架为什么变</p>
                 <p
                   v-for="line in commerceEcho.shelfInfluenceLines.slice(0, 4)"
                   :key="`commerce-shelf-${line}`"
-                  class="text-[10px] text-muted leading-4 mt-0.5"
+                  class="text-[0.625rem] text-muted leading-4 mt-0.5"
                 >
                   - {{ line }}
                 </p>
@@ -260,11 +260,11 @@
                 :key="`commerce-npc-card-${card.id}`"
                 class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
               >
-                <p class="text-[10px] text-accent mb-1">NPC 反馈 · {{ card.label }}</p>
+                <p class="text-[0.625rem] text-accent mb-1">NPC 反馈 · {{ card.label }}</p>
                 <p
                   v-for="line in card.lines.slice(0, 2)"
                   :key="`commerce-npc-card-line-${card.id}-${line}`"
-                  class="text-[10px] text-muted leading-4 mt-0.5"
+                  class="text-[0.625rem] text-muted leading-4 mt-0.5"
                 >
                   - {{ line }}
                 </p>
@@ -274,79 +274,79 @@
 
           <div v-if="marketThemeEncouragementSummary" class="border border-success/20 rounded-xs px-2 py-2 mb-2 bg-success/5">
             <div class="flex items-center justify-between gap-2">
-              <p class="text-[10px] text-success">主题承接</p>
-              <span class="text-[10px] text-muted">×{{ marketThemeEncouragementSummary.rewardMultiplier.toFixed(2) }}</span>
+              <p class="text-[0.625rem] text-success">主题承接</p>
+              <span class="text-[0.625rem] text-muted">×{{ marketThemeEncouragementSummary.rewardMultiplier.toFixed(2) }}</span>
             </div>
             <p class="text-xs text-muted mt-1">
               {{ marketThemeEncouragementSummary.categories.length > 0 ? marketThemeEncouragementSummary.categories.join('、') : '综合品类' }}
             </p>
-            <p v-if="marketThemeEncouragementSummary.tags.length > 0" class="text-[10px] text-success/80 mt-1">
+            <p v-if="marketThemeEncouragementSummary.tags.length > 0" class="text-[0.625rem] text-success/80 mt-1">
               推荐标签：{{ marketThemeEncouragementSummary.tags.slice(0, 4).join('、') }}
             </p>
           </div>
 
           <div v-if="marketPositiveHighlights.length > 0" class="border border-success/20 rounded-xs px-2 py-2 mb-2 bg-success/5">
-            <p class="text-[10px] text-success mb-1">上涨机会</p>
+            <p class="text-[0.625rem] text-success mb-1">上涨机会</p>
             <div class="flex flex-wrap gap-1.5">
-              <span v-for="info in marketPositiveHighlights" :key="`positive-${info.category}`" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-success/20 text-success">
+              <span v-for="info in marketPositiveHighlights" :key="`positive-${info.category}`" class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-success/20 text-success">
                 {{ MARKET_CATEGORY_NAMES[info.category] }} · {{ TREND_NAMES[info.trend] }} ×{{ info.multiplier.toFixed(2) }}
               </span>
             </div>
           </div>
 
           <div v-if="marketRegionalProcurementCards.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2 bg-bg/10">
-            <p class="text-[10px] text-accent mb-1">地区收购详情</p>
+            <p class="text-[0.625rem] text-accent mb-1">地区收购详情</p>
             <div class="space-y-1.5">
               <div v-for="entry in marketRegionalProcurementCards" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-xs text-text">{{ entry.districtLabel }}</p>
-                  <span class="text-[10px] text-accent">×{{ entry.rewardMultiplier.toFixed(2) }}</span>
+                  <span class="text-[0.625rem] text-accent">×{{ entry.rewardMultiplier.toFixed(2) }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">需求：{{ entry.targetCategoryLabels.join(' / ') }}</p>
-                <p class="text-[10px] text-muted/70 mt-0.5">截至：{{ entry.expiresDayKey }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">需求：{{ entry.targetCategoryLabels.join(' / ') }}</p>
+                <p class="text-[0.625rem] text-muted/70 mt-0.5">截至：{{ entry.expiresDayKey }}</p>
               </div>
             </div>
           </div>
 
           <div v-if="marketOverflowPenaltyCards.length > 0" class="border border-warning/20 rounded-xs p-2 mb-2 bg-warning/5">
-            <p class="text-[10px] text-warning mb-1">过剩压制提醒</p>
+            <p class="text-[0.625rem] text-warning mb-1">过剩压制提醒</p>
             <div class="space-y-1.5">
               <div v-for="entry in marketOverflowPenaltyCards" :key="entry.category" class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-xs text-text">{{ entry.categoryLabel }}</p>
-                  <span class="text-[10px] text-warning">×{{ entry.appliedMultiplier.toFixed(2) }}</span>
+                  <span class="text-[0.625rem] text-warning">×{{ entry.appliedMultiplier.toFixed(2) }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">压制档位：{{ entry.currentBandId }} · 连续 {{ entry.streakDays }} 天</p>
+                <p class="text-[0.625rem] text-muted mt-1">压制档位：{{ entry.currentBandId }} · 连续 {{ entry.streakDays }} 天</p>
               </div>
             </div>
           </div>
 
           <div v-if="marketRiskHighlights.length > 0" class="border border-danger/20 rounded-xs px-2 py-2">
-            <p class="text-[10px] text-danger mb-1">下跌风险</p>
+            <p class="text-[0.625rem] text-danger mb-1">下跌风险</p>
             <div class="flex flex-wrap gap-1.5">
-              <span v-for="info in marketRiskHighlights" :key="`risk-${info.category}`" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-danger/20 text-danger">
+              <span v-for="info in marketRiskHighlights" :key="`risk-${info.category}`" class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-danger/20 text-danger">
                 {{ MARKET_CATEGORY_NAMES[info.category] }} · {{ TREND_NAMES[info.trend] }} ×{{ info.multiplier.toFixed(2) }}
               </span>
             </div>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('economy-overview', '回经营看板')">回经营看板</button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('economy-overview', '回经营看板')">回经营看板</button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
               看推荐货架
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
               看每周交换站
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('festival-stall', '看节庆摊位')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('festival-stall', '看节庆摊位')">
               看节庆摊位
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('market-governance', '看官方调控')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('market-governance', '看官方调控')">
               看官方调控
             </button>
-            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('exchange-ledger', '看交换记录')">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="focusShopSection('exchange-ledger', '看交换记录')">
               看交换记录
             </button>
           </div>
@@ -500,7 +500,7 @@
                 <div class="min-w-0">
                   <p class="text-sm">{{ book.name }}</p>
                   <p class="text-muted text-xs">{{ bookTypeLabel(book.type) }} · {{ book.description }}</p>
-                  <p class="text-[10px] text-accent mt-1">{{ book.effectSummary }}</p>
+                  <p class="text-[0.625rem] text-accent mt-1">{{ book.effectSummary }}</p>
                 </div>
                 <span class="text-xs text-accent whitespace-nowrap">
                   {{ book.quantity > 0 ? `${book.price}文` : '已藏' }}
@@ -524,10 +524,10 @@
                   <div class="min-w-0">
                     <p class="text-sm text-text">{{ visitor.name }} · {{ visitor.stallName }}</p>
                     <p class="text-muted text-xs mt-0.5">{{ visitor.teaser }}</p>
-                    <p class="text-[10px] text-muted mt-1">{{ visitor.prepHints.slice(0, 2).join(' / ') }}</p>
+                    <p class="text-[0.625rem] text-muted mt-1">{{ visitor.prepHints.slice(0, 2).join(' / ') }}</p>
                   </div>
                   <Button
-                    class="shrink-0 px-2 py-1 text-[10px]"
+                    class="shrink-0 px-2 py-1 text-[0.625rem]"
                     :disabled="hasRecordedRareVisitor(visitor.id)"
                     @click="handleRecordRareVisitor(visitor.id, visitor.name)"
                   >
@@ -550,7 +550,7 @@
               <div>
                 <span class="text-sm">{{ shop.name }}</span>
                 <span class="text-muted text-xs ml-2">{{ shop.npcName }}</span>
-                <span v-if="shopRelationshipDiscountPercent(shop.id) > 0" class="text-success text-[10px] ml-2">
+                <span v-if="shopRelationshipDiscountPercent(shop.id) > 0" class="text-success text-[0.625rem] ml-2">
                   熟客价 -{{ shopRelationshipDiscountPercent(shop.id) }}%
                 </span>
                 <span v-if="!isOpen(shop)" class="text-danger text-xs ml-2">{{ closedReason(shop) }}</span>
@@ -578,49 +578,49 @@
 
             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
               <div v-for="metric in catalogSummaryCards" :key="metric.label" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/20">
-                <p class="text-[10px] text-muted">{{ metric.label }}</p>
+                <p class="text-[0.625rem] text-muted">{{ metric.label }}</p>
                 <p class="text-sm text-accent mt-0.5">{{ metric.value }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ metric.hint }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ metric.hint }}</p>
               </div>
             </div>
 
             <div class="border border-accent/10 rounded-xs p-2 bg-bg/10">
-              <p class="text-[10px] text-accent mb-1">当前货架摘要</p>
+              <p class="text-[0.625rem] text-accent mb-1">当前货架摘要</p>
               <p class="text-xs text-muted">{{ currentCatalogPoolSummary }}</p>
-              <p class="text-[10px] text-muted/80 mt-1">{{ catalogRefreshHint }}</p>
-              <p class="text-[10px] text-accent/80 mt-1">{{ commerceEcho.shelfInfluenceLines.slice(0, 2).join(' ') }}</p>
+              <p class="text-[0.625rem] text-muted/80 mt-1">{{ catalogRefreshHint }}</p>
+              <p class="text-[0.625rem] text-accent/80 mt-1">{{ commerceEcho.shelfInfluenceLines.slice(0, 2).join(' ') }}</p>
             </div>
 
             <div v-if="unlockedVillageResidentShelfNotes.length > 0" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
               <div class="flex items-center justify-between gap-2 mb-1">
-                <p class="text-[10px] text-success">驻村回响</p>
-                <span class="text-[10px] text-muted">{{ unlockedVillageResidentShelfNotes.length }} 组可追踪</span>
+                <p class="text-[0.625rem] text-success">驻村回响</p>
+                <span class="text-[0.625rem] text-muted">{{ unlockedVillageResidentShelfNotes.length }} 组可追踪</span>
               </div>
               <div class="space-y-1.5">
                 <div v-for="entry in unlockedVillageResidentShelfNotes" :key="entry.id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
                   <div class="flex items-center justify-between gap-2">
                     <p class="text-xs text-text">{{ entry.routeLabel }} · {{ entry.shelfLabel }}</p>
-                    <span class="text-[10px] text-success">{{ entry.name }}</span>
+                    <span class="text-[0.625rem] text-success">{{ entry.name }}</span>
                   </div>
-                  <p class="text-[10px] text-muted mt-1">{{ entry.shelfSummary }}</p>
-                  <p class="text-[10px] text-success/80 mt-0.5">{{ entry.cluePoolLabel }}风声：{{ entry.clueSummary }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1">{{ entry.shelfSummary }}</p>
+                  <p class="text-[0.625rem] text-success/80 mt-0.5">{{ entry.cluePoolLabel }}风声：{{ entry.clueSummary }}</p>
                 </div>
               </div>
             </div>
 
           <div v-if="activeServiceContracts.length > 0" class="border border-warning/20 rounded-xs p-2 mt-2 bg-warning/5">
             <div class="flex items-center justify-between gap-2 mb-1">
-              <p class="text-[10px] text-warning">已启用服务合同</p>
-              <span class="text-[10px] text-muted">{{ activeServiceContracts.length }} 项</span>
+              <p class="text-[0.625rem] text-warning">已启用服务合同</p>
+              <span class="text-[0.625rem] text-muted">{{ activeServiceContracts.length }} 项</span>
             </div>
             <div class="space-y-1.5">
               <div v-for="contract in activeServiceContracts" :key="contract.offerId" class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-xs text-text">{{ contract.name }}</p>
-                  <span class="text-[10px] text-warning">至 {{ contract.expiresDayKey }}</span>
+                  <span class="text-[0.625rem] text-warning">至 {{ contract.expiresDayKey }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">{{ contract.effectSummary }}</p>
-                <p class="text-[10px] text-warning/80 mt-0.5">周续费 {{ contract.weeklyFee }}文 · 已续费 {{ contract.renewCount }} 次</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ contract.effectSummary }}</p>
+                <p class="text-[0.625rem] text-warning/80 mt-0.5">周续费 {{ contract.weeklyFee }}文 · 已续费 {{ contract.renewCount }} 次</p>
               </div>
             </div>
           </div>
@@ -642,14 +642,14 @@
                   <p class="text-sm">{{ shopStore.weeklySurpriseOffer.name }}</p>
                   <span
                     v-if="shopStore.getCatalogOfferBadge(shopStore.weeklySurpriseOffer.id)"
-                    class="text-[10px] px-1 rounded-xs border border-warning/30 text-warning"
+                    class="text-[0.625rem] px-1 rounded-xs border border-warning/30 text-warning"
                   >
                     {{ shopStore.getCatalogOfferBadge(shopStore.weeklySurpriseOffer.id) }}
                   </span>
                 </div>
                 <p class="text-muted text-xs">{{ shopStore.weeklySurpriseOffer.description }}</p>
-                <p class="text-[10px] text-warning mt-0.5">{{ catalogOfferSubtitle(shopStore.weeklySurpriseOffer) }}</p>
-                <p v-if="catalogOfferEffectPreview(shopStore.weeklySurpriseOffer)" class="text-[10px] text-muted/70 mt-0.5">
+                <p class="text-[0.625rem] text-warning mt-0.5">{{ catalogOfferSubtitle(shopStore.weeklySurpriseOffer) }}</p>
+                <p v-if="catalogOfferEffectPreview(shopStore.weeklySurpriseOffer)" class="text-[0.625rem] text-muted/70 mt-0.5">
                   {{ catalogOfferEffectPreview(shopStore.weeklySurpriseOffer) }}
                 </p>
               </div>
@@ -675,14 +675,14 @@
                     <p class="text-sm">{{ offer.name }}</p>
                     <span
                       v-if="shopStore.getCatalogOfferBadge(offer.id)"
-                      class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent"
+                      class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent"
                     >
                       {{ shopStore.getCatalogOfferBadge(offer.id) }}
                     </span>
                   </div>
                   <p class="text-muted text-xs">{{ offer.description }}</p>
-                  <p v-if="catalogOfferEffectPreview(offer)" class="text-[10px] text-accent/80 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
-                  <p class="text-[10px] text-accent mt-0.5">主题周奖励池推荐承接</p>
+                  <p v-if="catalogOfferEffectPreview(offer)" class="text-[0.625rem] text-accent/80 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
+                  <p class="text-[0.625rem] text-accent mt-0.5">主题周奖励池推荐承接</p>
                 </div>
                 <span class="text-xs text-accent whitespace-nowrap">{{ discounted(offer.price) }}文</span>
               </div>
@@ -707,14 +707,14 @@
                     <p class="text-sm">{{ offer.name }}</p>
                     <span
                       v-if="shopStore.getCatalogOfferBadge(offer.id)"
-                      class="text-[10px] px-1 rounded-xs border border-success/30 text-success"
+                      class="text-[0.625rem] px-1 rounded-xs border border-success/30 text-success"
                     >
                       {{ shopStore.getCatalogOfferBadge(offer.id) }}
                     </span>
                   </div>
                   <p class="text-muted text-xs">{{ offer.description }}</p>
-                  <p v-if="catalogOfferEffectPreview(offer)" class="text-[10px] text-muted/70 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
-                  <p class="text-[10px] text-success mt-0.5">{{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}</p>
+                  <p v-if="catalogOfferEffectPreview(offer)" class="text-[0.625rem] text-muted/70 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
+                  <p class="text-[0.625rem] text-success mt-0.5">{{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}</p>
                 </div>
                 <span class="text-xs text-accent whitespace-nowrap">{{ discounted(offer.price) }}文</span>
               </div>
@@ -735,10 +735,10 @@
               :class="{ '!bg-accent !text-bg': featuredPool === pool.id }"
               @click="selectCatalogPool(pool.id)"
             >
-              {{ pool.label }}<span v-if="pool.id === 'weekly' && hasNewWeekly" class="ml-1 text-[10px] text-danger font-bold">NEW</span>
+              {{ pool.label }}<span v-if="pool.id === 'weekly' && hasNewWeekly" class="ml-1 text-[0.625rem] text-danger font-bold">NEW</span>
             </Button>
           </div>
-          <p v-if="featuredPool === 'weekly'" class="text-[10px] text-muted mb-2">{{ shopStore.weeklyCatalogRefreshText }}</p>
+          <p v-if="featuredPool === 'weekly'" class="text-[0.625rem] text-muted mb-2">{{ shopStore.weeklyCatalogRefreshText }}</p>
           <div class="flex flex-col space-y-2 mb-4">
             <div
               v-for="offer in currentCatalogOffers"
@@ -753,20 +753,20 @@
               <div>
                 <p class="text-sm flex items-center gap-1.5 flex-wrap">
                   {{ offer.name }}
-                  <span v-if="shopStore.getCatalogOfferBadge(offer.id)" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                  <span v-if="shopStore.getCatalogOfferBadge(offer.id)" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
                     {{ shopStore.getCatalogOfferBadge(offer.id) }}
                   </span>
                   <span v-if="offer.onceOnly && shopStore.isCatalogOwned(offer.id)" class="text-success text-xs ml-1">已拥有</span>
                   <span v-else-if="isCatalogOfferLocked(offer)" class="text-warning text-xs ml-1">图鉴未解锁</span>
                 </p>
                 <p class="text-muted text-xs">{{ offer.description }}</p>
-                <p class="text-[10px] text-muted/70 mt-0.5">{{ catalogOfferSubtitle(offer) }}</p>
-                <p v-if="catalogOfferEffectPreview(offer)" class="text-[10px] text-accent/80 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
-                <p v-if="shopStore.getCatalogOfferPreferenceReason(offer.id)" class="text-[10px] text-success mt-0.5">
+                <p class="text-[0.625rem] text-muted/70 mt-0.5">{{ catalogOfferSubtitle(offer) }}</p>
+                <p v-if="catalogOfferEffectPreview(offer)" class="text-[0.625rem] text-accent/80 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
+                <p v-if="shopStore.getCatalogOfferPreferenceReason(offer.id)" class="text-[0.625rem] text-success mt-0.5">
                   {{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}
                 </p>
-                <p v-if="catalogOfferUnlockHint(offer)" class="text-[10px] text-warning mt-0.5">🔒 {{ catalogOfferUnlockHint(offer) }}</p>
-                <p v-if="catalogOfferLimitHint(offer)" class="text-[10px] text-warning mt-0.5">⚠ {{ catalogOfferLimitHint(offer) }}</p>
+                <p v-if="catalogOfferUnlockHint(offer)" class="text-[0.625rem] text-warning mt-0.5">🔒 {{ catalogOfferUnlockHint(offer) }}</p>
+                <p v-if="catalogOfferLimitHint(offer)" class="text-[0.625rem] text-warning mt-0.5">⚠ {{ catalogOfferLimitHint(offer) }}</p>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(offer.price) }}文</span>
             </div>
@@ -1459,9 +1459,9 @@
 
         <!-- 今日行情 -->
         <div class="border border-accent/30 rounded-xs p-2 mb-3">
-          <p class="text-[10px] text-muted mb-1">今日行情</p>
+          <p class="text-[0.625rem] text-muted mb-1">今日行情</p>
           <div class="grid grid-cols-4">
-            <span v-for="m in todayMarket" :key="m.category" class="text-[10px] whitespace-nowrap mt-2">
+            <span v-for="m in todayMarket" :key="m.category" class="text-[0.625rem] whitespace-nowrap mt-2">
               <span class="text-muted">{{ MARKET_CATEGORY_NAMES[m.category] }}</span>
               <span v-if="m.trend === 'stable'" class="text-muted/40 ml-0.5">—</span>
               <span v-else class="ml-0.5" :class="trendColor(m.trend)">
@@ -1483,12 +1483,12 @@
             </div>
             <div class="flex items-center space-x-1">
               <span class="text-xs text-accent whitespace-nowrap">{{ shopStore.calculateSellPrice(item.itemId, 1, item.quality) }}文</span>
-              <span v-if="getItemTrend(item.itemId) === 'rising' || getItemTrend(item.itemId) === 'boom'" class="text-[10px] text-success">
+              <span v-if="getItemTrend(item.itemId) === 'rising' || getItemTrend(item.itemId) === 'boom'" class="text-[0.625rem] text-success">
                 ↑{{ Math.round((getItemMultiplier(item.itemId) - 1) * 100) }}%
               </span>
               <span
                 v-else-if="getItemTrend(item.itemId) === 'falling' || getItemTrend(item.itemId) === 'crash'"
-                class="text-[10px]"
+                class="text-[0.625rem]"
                 :class="getItemTrend(item.itemId) === 'crash' ? 'text-danger' : 'text-warning'"
               >
                 ↓{{ Math.round((1 - getItemMultiplier(item.itemId)) * 100) }}%
@@ -1515,7 +1515,7 @@
             <X :size="14" />
           </button>
           <p class="text-sm text-accent mb-2">出售筛选</p>
-          <p class="text-[10px] text-muted mb-2">选择要显示的分类，不选则显示全部</p>
+          <p class="text-[0.625rem] text-muted mb-2">选择要显示的分类，不选则显示全部</p>
           <div class="grid grid-cols-3 gap-1.5 mb-3">
             <div
               v-for="cat in SELL_FILTER_CATEGORIES"
@@ -1704,7 +1704,7 @@
           </div>
 
           <div v-if="sellUnitBreakdown" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-[10px] text-accent mb-1">售价明细</p>
+            <p class="text-[0.625rem] text-accent mb-1">售价明细</p>
             <div
               v-for="entry in sellUnitBreakdown.entries"
               :key="entry.stepId"
@@ -1718,7 +1718,7 @@
                   {{ formatPriceAmount(entry.subtotal) }}文
                 </span>
               </div>
-              <p v-if="entry.description" class="text-[10px] text-muted/70 mt-0.5">{{ entry.description }}</p>
+              <p v-if="entry.description" class="text-[0.625rem] text-muted/70 mt-0.5">{{ entry.description }}</p>
             </div>
           </div>
 

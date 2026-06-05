@@ -63,7 +63,7 @@
               @keydown="handleKeydown"
             />
             <div class="ai-panel__input-actions">
-              <p class="text-[11px] text-muted">支持玩法问答、资源获取、任务推进和攻略建议。</p>
+              <p class="text-[0.6875rem] text-muted">支持玩法问答、资源获取、任务推进和攻略建议。</p>
               <button class="btn" :disabled="store.isAsking || !draft.trim()" @click="void submitQuestion()">
                 <Send :size="12" />
                 <span>{{ store.isAsking ? '发送中...' : '提问' }}</span>
@@ -282,12 +282,12 @@
     align-items: center;
     gap: 6px;
     color: var(--color-accent);
-    font-size: 14px;
+    font-size: 0.875rem;
   }
 
   .ai-panel__subtitle {
     margin: 0;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: rgb(var(--color-text));
     opacity: 0.72;
     line-height: 1.6;
@@ -343,12 +343,12 @@
     margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.8;
   }
 
   .ai-msg__markdown {
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.8;
     color: rgb(var(--color-text));
     word-break: break-word;
@@ -429,7 +429,7 @@
     padding: 4px 8px;
     border: 1px solid rgba(200, 164, 92, 0.22);
     border-radius: 999px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: rgb(var(--color-text));
     background: rgba(255, 255, 255, 0.02);
   }
@@ -471,7 +471,7 @@
     border: 1px solid rgba(200, 164, 92, 0.25);
     border-radius: 2px;
     outline: none;
-    font-size: 12px;
+    font-size: 0.75rem;
     box-sizing: border-box;
     resize: vertical;
     min-height: 76px;

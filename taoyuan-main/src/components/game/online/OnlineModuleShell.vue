@@ -7,7 +7,7 @@
           <h2 class="game-section-title">{{ title }}</h2>
         </div>
         <p class="mt-1 text-xs leading-5 text-muted">{{ summary }}</p>
-        <p v-if="meta" class="mt-1 text-[10px] leading-4 text-muted">{{ meta }}</p>
+        <p v-if="meta" class="mt-1 text-[0.625rem] leading-4 text-muted">{{ meta }}</p>
       </div>
       <div class="flex shrink-0 flex-wrap gap-2">
         <div v-if="$slots.primaryAction" class="contents" data-testid="online-module-primary-action">
@@ -38,7 +38,7 @@
 
     <div v-if="stats.length > 0" :class="statsGridClass || 'grid gap-2 text-xs md:grid-cols-4'">
       <div v-for="stat in stats" :key="stat.label" class="game-panel-muted px-2 py-2">
-        <p class="truncate text-[10px] text-muted">{{ stat.label }}</p>
+        <p class="truncate text-[0.625rem] text-muted">{{ stat.label }}</p>
         <p class="mt-1 truncate text-xs text-accent">{{ stat.value }}</p>
       </div>
     </div>

@@ -152,7 +152,7 @@
         <button
           v-for="(stage, index) in stageDefs"
           :key="stage.key"
-          class="border rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
+          class="border rounded-xs px-2 py-1 text-[0.625rem] hover:bg-accent/5"
           :class="[compactMode ? 'min-h-[44px]' : '', stageIndex === index ? 'border-accent text-accent' : 'border-accent/10 text-muted']"
           @click="openStage(index)"
         >
@@ -162,7 +162,7 @@
       <div class="flex justify-end">
         <button
           v-if="stageIndex < stageDefs.length - 1"
-          class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+          class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
           :class="compactMode ? 'w-full' : ''"
           data-testid="journey-settlement-next"
           @click="nextStage"
@@ -179,7 +179,7 @@
           :key="`compact-stage-snapshot-${card.key}`"
           class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/60"
         >
-          <p class="text-[10px] text-muted">{{ card.label }}</p>
+          <p class="text-[0.625rem] text-muted">{{ card.label }}</p>
           <p class="mt-1 text-xs" :class="card.toneClass">{{ card.value }}</p>
         </div>
       </div>
@@ -188,7 +188,7 @@
         <span
           v-for="label in compactCompletedStages"
           :key="`compact-stage-${label}`"
-          class="border border-accent/10 rounded-xs px-2 py-1 text-[10px] text-muted bg-bg/60"
+          class="border border-accent/10 rounded-xs px-2 py-1 text-[0.625rem] text-muted bg-bg/60"
         >
           {{ label }} · 已看
         </span>
@@ -201,14 +201,14 @@
         :data-testid="`journey-settlement-stage-${currentStage.key}`"
       >
         <div class="flex items-center justify-between gap-2 mb-2">
-          <p class="text-[10px] text-muted">{{ currentStage.label }}</p>
-          <span class="text-[10px] text-accent">当前揭示 · {{ compactStageProgressLabel }}</span>
+          <p class="text-[0.625rem] text-muted">{{ currentStage.label }}</p>
+          <span class="text-[0.625rem] text-accent">当前揭示 · {{ compactStageProgressLabel }}</span>
         </div>
         <div class="space-y-1">
           <p
             v-for="line in visibleCurrentLines"
             :key="`${currentStage.key}-${line}`"
-            class="text-[11px] leading-5"
+            class="text-[0.6875rem] leading-5"
             :class="currentStage.key === 'reward' && (line.includes('物品') || line.includes('资源') || line.includes('发放') || line.includes('返还')) ? 'text-success' : 'text-muted'"
           >
             - {{ line }}
@@ -216,10 +216,10 @@
         </div>
         <div v-if="nextStagePreview" class="mt-3 border border-accent/10 rounded-xs px-2 py-2 bg-bg/60">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[10px] text-muted">下一步</p>
-            <span class="text-[10px] text-accent">{{ nextStagePreview.label }}</span>
+            <p class="text-[0.625rem] text-muted">下一步</p>
+            <span class="text-[0.625rem] text-accent">{{ nextStagePreview.label }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1 leading-4">
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">
             {{ nextStagePreview.lines[0] ?? `继续揭示 ${nextStagePreview.label}。` }}
           </p>
         </div>
@@ -232,10 +232,10 @@
           class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
         >
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[10px] text-muted">{{ stage.label }}</p>
-            <span class="text-[10px] text-success">已看</span>
+            <p class="text-[0.625rem] text-muted">{{ stage.label }}</p>
+            <span class="text-[0.625rem] text-success">已看</span>
           </div>
-          <p class="text-[10px] text-muted mt-1 leading-4">{{ stage.preview }}</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ stage.preview }}</p>
         </div>
       </div>
 
@@ -249,8 +249,8 @@
           :data-testid="`journey-settlement-stage-${stage.key}`"
         >
           <div class="flex items-center justify-between gap-2 mb-2">
-            <p class="text-[10px] text-muted">{{ stage.label }}</p>
-            <span class="text-[10px]" :class="stageIndex === index ? 'text-accent' : 'text-muted'">
+            <p class="text-[0.625rem] text-muted">{{ stage.label }}</p>
+            <span class="text-[0.625rem]" :class="stageIndex === index ? 'text-accent' : 'text-muted'">
               {{ stageIndex === index ? '当前揭示' : '已展开' }}
             </span>
           </div>
@@ -258,7 +258,7 @@
             <p
               v-for="line in stageIndex === index ? visibleCurrentLines : stage.lines"
               :key="`${stage.key}-${line}`"
-              class="text-[11px] leading-5"
+              class="text-[0.6875rem] leading-5"
               :class="stage.key === 'reward' && (line.includes('物品') || line.includes('资源') || line.includes('发放') || line.includes('返还')) ? 'text-success' : 'text-muted'"
             >
               - {{ line }}
@@ -268,21 +268,21 @@
       </div>
 
       <div v-if="stageIndex >= 2 && handoffBoard" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
-        <p class="text-[10px] text-muted">回城办事入口</p>
+        <p class="text-[0.625rem] text-muted">回城办事入口</p>
         <p class="text-xs text-accent mt-1">{{ handoffBoard.headline }}</p>
 
         <div :class="compactMode ? 'grid grid-cols-1 gap-3 mt-3' : 'grid grid-cols-1 md:grid-cols-3 gap-3 mt-3'">
           <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
-            <p class="text-[10px] text-muted mb-2">资源去向</p>
+            <p class="text-[0.625rem] text-muted mb-2">资源去向</p>
             <div class="space-y-1">
-              <p v-for="line in handoffBoard.resourceLines" :key="`handoff-resource-${line}`" class="text-[10px] text-muted leading-4">
+              <p v-for="line in handoffBoard.resourceLines" :key="`handoff-resource-${line}`" class="text-[0.625rem] text-muted leading-4">
                 - {{ line }}
               </p>
             </div>
           </div>
 
           <div class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
-            <p class="text-[10px] text-muted mb-2">推荐动作</p>
+            <p class="text-[0.625rem] text-muted mb-2">推荐动作</p>
             <div class="space-y-2">
               <div
                 v-for="action in handoffBoard.actionCards"
@@ -292,14 +292,14 @@
                 <div :class="compactMode ? 'flex flex-col gap-3' : 'flex items-start justify-between gap-3'">
                   <div class="min-w-0">
                     <div class="flex items-center justify-between gap-2">
-                      <p class="text-[10px] text-accent">去{{ action.label }}</p>
-                      <span class="text-[10px] shrink-0" :class="action.statusToneClass">{{ action.statusLabel }}</span>
+                      <p class="text-[0.625rem] text-accent">去{{ action.label }}</p>
+                      <span class="text-[0.625rem] shrink-0" :class="action.statusToneClass">{{ action.statusLabel }}</span>
                     </div>
-                    <p class="text-[10px] text-muted mt-1 leading-4">{{ action.summary }}</p>
-                    <p class="text-[10px] text-accent/80 mt-1 leading-4">为什么现在去：{{ action.reason }}</p>
+                    <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ action.summary }}</p>
+                    <p class="text-[0.625rem] text-accent/80 mt-1 leading-4">为什么现在去：{{ action.reason }}</p>
                   </div>
                   <button
-                    class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+                    class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5 shrink-0"
                     :class="compactMode ? 'w-full' : ''"
                     @click="emit('navigate', action.key)"
                   >
@@ -311,9 +311,9 @@
           </div>
 
           <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
-            <p class="text-[10px] text-muted mb-2">为什么现在去</p>
+            <p class="text-[0.625rem] text-muted mb-2">为什么现在去</p>
             <div class="space-y-1">
-              <p v-for="line in handoffBoard.whyNowLines" :key="`handoff-why-${line}`" class="text-[10px] text-muted leading-4">
+              <p v-for="line in handoffBoard.whyNowLines" :key="`handoff-why-${line}`" class="text-[0.625rem] text-muted leading-4">
                 - {{ line }}
               </p>
             </div>
@@ -332,17 +332,17 @@
               class="flex w-full items-center justify-between gap-2 py-1 text-left"
               @click="activeReceiptSectionIndex = activeReceiptSectionIndex === index ? -1 : index"
             >
-              <p class="text-[10px] text-muted">{{ section.title }}</p>
-              <span class="text-[10px] shrink-0" :class="section.statusToneClass">
+              <p class="text-[0.625rem] text-muted">{{ section.title }}</p>
+              <span class="text-[0.625rem] shrink-0" :class="section.statusToneClass">
                 {{ activeReceiptSectionIndex === index ? '当前展开' : section.statusLabel }}
               </span>
             </button>
             <div v-else class="flex items-center justify-between gap-2 mb-2">
-              <p class="text-[10px] text-muted">{{ section.title }}</p>
-              <span class="text-[10px] shrink-0" :class="section.statusToneClass">{{ section.statusLabel }}</span>
+              <p class="text-[0.625rem] text-muted">{{ section.title }}</p>
+              <span class="text-[0.625rem] shrink-0" :class="section.statusToneClass">{{ section.statusLabel }}</span>
             </div>
             <div v-if="!compactMode || activeReceiptSectionIndex === index" class="space-y-1" :class="compactMode ? 'mt-2' : ''">
-              <p v-for="line in section.lines" :key="`handoff-receipt-line-${section.title}-${line}`" class="text-[10px] text-muted leading-4">
+              <p v-for="line in section.lines" :key="`handoff-receipt-line-${section.title}-${line}`" class="text-[0.625rem] text-muted leading-4">
                 - {{ line }}
               </p>
             </div>
@@ -354,7 +354,7 @@
         <button
           v-for="action in actions"
           :key="`settlement-action-${action.key}`"
-          class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+          class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-accent hover:bg-accent/5"
           :class="compactMode ? 'w-full' : ''"
           @click="emit('navigate', action.key)"
         >
@@ -366,7 +366,7 @@
     <div class="mt-4 flex flex-wrap justify-between gap-2">
       <button
         v-if="stageIndex < stageDefs.length - 1"
-        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5"
+        class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-muted hover:bg-accent/5"
         :class="compactMode ? 'w-full' : ''"
         @click="openStage(stageDefs.length - 1)"
       >
@@ -374,7 +374,7 @@
       </button>
       <button
         v-else
-        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5"
+        class="border border-accent/20 rounded-xs px-2 py-1 text-[0.625rem] text-muted hover:bg-accent/5"
         :class="compactMode ? 'w-full' : ''"
         @click="emit('close')"
       >

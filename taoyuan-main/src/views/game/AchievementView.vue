@@ -20,7 +20,7 @@
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'glossary' }" @click="openGlossaryTab">百科</Button>
     </div>
 
-    <p class="text-[10px] text-muted mb-3">{{ currentTabHint }}</p>
+    <p class="text-[0.625rem] text-muted mb-3">{{ currentTabHint }}</p>
 
     <!-- 收集大奖章 -->
     <template v-if="tab === 'medals'">
@@ -28,7 +28,7 @@
         <div class="flex items-center justify-between gap-3 mb-2">
           <div>
             <p class="text-sm text-accent">桃源大奖章</p>
-            <p class="text-[10px] text-muted mt-0.5">把长期收集、秘藏验证、精通成长和特殊事件收进同一张补完账。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">把长期收集、秘藏验证、精通成长和特殊事件收进同一张补完账。</p>
           </div>
           <span class="text-xs text-accent whitespace-nowrap">{{ grandMedalOverallPercent }}%</span>
         </div>
@@ -37,7 +37,7 @@
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
           <div v-for="line in grandMedalSummaryLines" :key="line.label" class="border border-accent/10 rounded-xs px-2 py-1.5">
-            <p class="text-[10px] text-muted">{{ line.label }}</p>
+            <p class="text-[0.625rem] text-muted">{{ line.label }}</p>
             <p class="text-xs text-text mt-0.5">{{ line.value }}</p>
           </div>
         </div>
@@ -54,7 +54,7 @@
           <div class="flex items-start justify-between gap-3 mb-2">
             <div class="min-w-0">
               <p class="text-sm" :class="track.toneClass">{{ track.label }}</p>
-              <p class="text-[10px] text-muted mt-0.5 leading-4">{{ track.summary }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ track.summary }}</p>
             </div>
             <span class="text-xs whitespace-nowrap" :class="track.toneClass">{{ track.current }}/{{ track.target }}</span>
           </div>
@@ -62,19 +62,19 @@
             <div class="h-full rounded-xs transition-all" :class="track.barClass" :style="{ width: track.percent + '%' }" />
           </div>
           <div class="space-y-1">
-            <p v-for="line in track.focusLines" :key="`${track.id}-${line}`" class="text-[10px] text-muted leading-4">- {{ line }}</p>
+            <p v-for="line in track.focusLines" :key="`${track.id}-${line}`" class="text-[0.625rem] text-muted leading-4">- {{ line }}</p>
           </div>
-          <p class="text-[10px] text-accent mt-2 leading-4">{{ track.rewardHint }}</p>
+          <p class="text-[0.625rem] text-accent mt-2 leading-4">{{ track.rewardHint }}</p>
         </button>
       </div>
 
       <div class="border border-accent/10 rounded-xs p-3 mt-3">
         <div class="flex items-center justify-between gap-3">
           <p class="text-xs text-accent">下一枚会改变什么</p>
-          <span class="text-[10px]" :class="nextGrandMedalFocus.toneClass">{{ nextGrandMedalFocus.label }}</span>
+          <span class="text-[0.625rem]" :class="nextGrandMedalFocus.toneClass">{{ nextGrandMedalFocus.label }}</span>
         </div>
-        <p class="text-[10px] text-muted mt-1 leading-4">{{ nextGrandMedalFocus.hint }}</p>
-        <p class="text-[10px] text-muted mt-1 leading-4">奖励保持为回看、标签、入口提示和轻功能反馈，不额外堆叠爆炸数值。</p>
+        <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ nextGrandMedalFocus.hint }}</p>
+        <p class="text-[0.625rem] text-muted mt-1 leading-4">奖励保持为回看、标签、入口提示和轻功能反馈，不额外堆叠爆炸数值。</p>
       </div>
     </template>
 
@@ -249,7 +249,7 @@
             <p class="text-xs text-muted mb-1">推荐承接建设</p>
             <div v-for="entry in getBundleVillageProjectLinks(activeBundle)" :key="`${activeBundle.id}-${entry.projectId}`" class="mt-1 first:mt-0">
               <p class="text-xs text-accent">{{ entry.projectName }}</p>
-              <p class="text-[10px] text-muted leading-4">{{ entry.summary }}</p>
+              <p class="text-[0.625rem] text-muted leading-4">{{ entry.summary }}</p>
             </div>
           </div>
 
@@ -402,17 +402,17 @@
               <span class="text-xs" :class="NOTE_STATUS_CLASS[activeNotePreview.status]">{{ NOTE_STATUS_LABELS[activeNotePreview.status] }}</span>
             </div>
             <p class="text-xs text-accent mt-1">{{ activeNotePreview.summary }}</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">
               {{ activeNotePreview.readable ? activeNotePreview.hint : activeNotePreview.readableReason }}
             </p>
             <div v-if="activeNotePreview.unmetConditions.length > 0" class="mt-2 flex flex-wrap gap-1">
-              <span v-for="condition in activeNotePreview.unmetConditions" :key="condition" class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5">
+              <span v-for="condition in activeNotePreview.unmetConditions" :key="condition" class="text-[0.625rem] border border-warning/20 text-warning rounded-xs px-1 py-0.5">
                 {{ condition }}
               </span>
             </div>
-            <p v-if="activeNotePreview.resolvedDayTag" class="text-[10px] text-success mt-2">已于 {{ activeNotePreview.resolvedDayTag }} 验证</p>
+            <p v-if="activeNotePreview.resolvedDayTag" class="text-[0.625rem] text-success mt-2">已于 {{ activeNotePreview.resolvedDayTag }} 验证</p>
             <div v-if="activeNotePreview.recordText" class="mt-2 border border-success/20 rounded-xs p-2 bg-success/5">
-              <p class="text-[10px] text-success">见闻记录</p>
+              <p class="text-[0.625rem] text-success">见闻记录</p>
               <p class="text-xs text-text mt-1 leading-4">{{ activeNotePreview.recordText }}</p>
             </div>
           </div>
@@ -427,7 +427,7 @@
               <CircleCheck :size="12" class="text-success" />
               <span class="text-xs text-success">已验证</span>
             </div>
-            <p v-if="activeNotePreview.recordText" class="text-[10px] text-muted mt-2 leading-4">{{ activeNotePreview.recordText }}</p>
+            <p v-if="activeNotePreview.recordText" class="text-[0.625rem] text-muted mt-2 leading-4">{{ activeNotePreview.recordText }}</p>
           </div>
         </div>
       </div>
@@ -491,39 +491,39 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-xs text-accent">{{ entry.title }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
             </div>
-            <span class="text-[10px] text-muted shrink-0">{{ entry.lastRecordedDayTag || '未标记日期' }}</span>
+            <span class="text-[0.625rem] text-muted shrink-0">{{ entry.lastRecordedDayTag || '未标记日期' }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-2 leading-4">
+          <p class="text-[0.625rem] text-muted mt-2 leading-4">
             {{ getChronicleRegionLabel(entry.regionId) }} / {{ getChronicleTypeLabel(entry.type) }} /
             {{ entry.season ? SEASON_LABELS[entry.season] : '无季节' }}
             <template v-if="entry.weather"> / {{ WEATHER_LABELS[entry.weather] }}</template>
             <template v-if="entry.companionName"> / {{ entry.companionName }}</template>
           </p>
           <div v-if="entry.detailLines.length > 0" class="space-y-1 mt-2">
-            <p v-for="line in entry.detailLines" :key="`${entry.id}-${line}`" class="text-[10px] text-muted leading-4">- {{ line }}</p>
+            <p v-for="line in entry.detailLines" :key="`${entry.id}-${line}`" class="text-[0.625rem] text-muted leading-4">- {{ line }}</p>
           </div>
-          <p v-if="entry.discoverCount > 1" class="text-[10px] text-warning mt-2">同源条目已合并 {{ entry.discoverCount }} 次，保留首次与最近一次记录。</p>
+          <p v-if="entry.discoverCount > 1" class="text-[0.625rem] text-warning mt-2">同源条目已合并 {{ entry.discoverCount }} 次，保留首次与最近一次记录。</p>
         </div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
         <div class="border border-accent/10 rounded-xs px-3 py-2">
-          <p class="text-[10px] text-muted mb-2">最近传闻回执</p>
-          <div v-if="chronicleOverview.recentRumorReceipts.length === 0" class="text-[10px] text-muted">还没有传闻被兑现。</div>
+          <p class="text-[0.625rem] text-muted mb-2">最近传闻回执</p>
+          <div v-if="chronicleOverview.recentRumorReceipts.length === 0" class="text-[0.625rem] text-muted">还没有传闻被兑现。</div>
           <div v-else class="space-y-1">
-            <p v-for="receipt in chronicleOverview.recentRumorReceipts" :key="receipt.id" class="text-[10px] text-muted leading-4">
+            <p v-for="receipt in chronicleOverview.recentRumorReceipts" :key="receipt.id" class="text-[0.625rem] text-muted leading-4">
               {{ receipt.title }} / {{ receipt.sourceNpcName }} / {{ receipt.resolvedDayTag || '未标记' }}
             </p>
           </div>
         </div>
 
         <div class="border border-accent/10 rounded-xs px-3 py-2">
-          <p class="text-[10px] text-muted mb-2">留影卡</p>
-          <div v-if="chronicleOverview.recentPhotoMoments.length === 0" class="text-[10px] text-muted">留影卡会随着见闻沉淀一起生成。</div>
+          <p class="text-[0.625rem] text-muted mb-2">留影卡</p>
+          <div v-if="chronicleOverview.recentPhotoMoments.length === 0" class="text-[0.625rem] text-muted">留影卡会随着见闻沉淀一起生成。</div>
           <div v-else class="space-y-1">
-            <p v-for="moment in chronicleOverview.recentPhotoMoments" :key="moment.id" class="text-[10px] text-muted leading-4">
+            <p v-for="moment in chronicleOverview.recentPhotoMoments" :key="moment.id" class="text-[0.625rem] text-muted leading-4">
               {{ moment.label }} / {{ moment.frameHint }} / {{ moment.capturedDayTag || '未标记' }}
             </p>
           </div>

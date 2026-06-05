@@ -3,7 +3,7 @@
     <div class="border border-accent/20 rounded-xs p-3 bg-bg/20">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="text-[10px] tracking-[0.24em] text-accent/70">联机远征房间</p>
+          <p class="text-[0.625rem] tracking-[0.24em] text-accent/70">联机远征房间</p>
           <p class="text-sm text-accent mt-1">先组队，再分工，再补给，再结算</p>
           <p class="text-xs text-muted mt-2 leading-5">
             {{ expeditionRoomStore.overview?.bulletin || '这一页先承接远征房间、协作矿洞、组队采集、护送抵运和海域共探的最小闭环。' }}
@@ -20,7 +20,7 @@
       <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-sm text-accent">创建远征房间</p>
-          <span class="text-[10px] text-muted">L80 第一轮</span>
+          <span class="text-[0.625rem] text-muted">L80 第一轮</span>
         </div>
         <div class="space-y-3" data-testid="expedition-room-create-entry">
           <Button
@@ -31,7 +31,7 @@
           >
             {{ '\u521b\u5efa\u8fdc\u5f81\u961f\u4f0d' }}
           </Button>
-          <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10 text-[10px] leading-5 text-muted">
+          <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10 text-[0.625rem] leading-5 text-muted">
             <p class="text-xs text-accent">{{ '\u5f53\u524d\u8349\u7a3f' }}</p>
             <p class="mt-1">
               {{ expeditionRoomStore.selectedTemplate?.label || '\u5f85\u9009\u62e9\u8def\u7ebf' }}{{ ' \u00b7 ' }}{{ expeditionRoomStore.selectedGameplayTemplate?.label || '\u5f85\u9009\u62e9\u73a9\u6cd5' }}{{ ' \u00b7 ' }}{{ expeditionRoomStore.normalizedDraftMemberLimit }} {{ '\u4eba' }}
@@ -46,7 +46,7 @@
         >
         <div class="space-y-3">
           <label class="block">
-            <span class="text-[10px] text-muted">远征模板</span>
+            <span class="text-[0.625rem] text-muted">远征模板</span>
             <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="expedition-room-template-select">
               <option v-for="template in expeditionRoomStore.templates" :key="template.id" :value="template.id">
                 {{ template.label }}
@@ -55,11 +55,11 @@
           </label>
           <div v-if="expeditionRoomStore.selectedTemplate" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <p class="text-xs text-accent">{{ expeditionRoomStore.selectedTemplate.label }}</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">{{ expeditionRoomStore.selectedTemplate.summary }}</p>
-            <p class="text-[10px] text-muted mt-1">默认人数上限：{{ expeditionRoomStore.selectedTemplate.default_member_limit }} 人</p>
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ expeditionRoomStore.selectedTemplate.summary }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">默认人数上限：{{ expeditionRoomStore.selectedTemplate.default_member_limit }} 人</p>
           </div>
           <label class="block">
-            <span class="text-[10px] text-muted">玩法模板</span>
+            <span class="text-[0.625rem] text-muted">玩法模板</span>
             <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1" data-testid="expedition-room-gameplay-select">
               <option v-for="template in expeditionRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
                 {{ template.label }}
@@ -68,11 +68,11 @@
           </label>
           <div v-if="expeditionRoomStore.selectedGameplayTemplate" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <p class="text-xs text-accent">{{ expeditionRoomStore.selectedGameplayTemplate.label }}</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">{{ expeditionRoomStore.selectedGameplayTemplate.summary }}</p>
-            <p class="text-[10px] text-muted mt-1">{{ expeditionRoomStore.selectedGameplayTemplate.objective_label }} 目标 {{ expeditionRoomStore.selectedGameplayTemplate.default_target }}</p>
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ expeditionRoomStore.selectedGameplayTemplate.summary }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ expeditionRoomStore.selectedGameplayTemplate.objective_label }} 目标 {{ expeditionRoomStore.selectedGameplayTemplate.default_target }}</p>
           </div>
           <label class="block">
-            <span class="text-[10px] text-muted">房间标题</span>
+            <span class="text-[0.625rem] text-muted">房间标题</span>
             <input
               v-model="expeditionRoomStore.draftTitle"
               maxlength="30"
@@ -103,7 +103,7 @@
       <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-sm text-accent">我的远征状态</p>
-          <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</span>
+          <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</span>
         </div>
         <div v-if="expeditionRoomStore.myRoom" class="space-y-2">
           <OnlineVisualRoomShell
@@ -219,23 +219,23 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent">{{ expeditionRoomStore.myRoom.title }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ expeditionRoomStore.myRoom.template_label }} / {{ expeditionRoomStore.myRoom.gameplay.template_label }} / {{ expeditionRoomStore.myRoom.joined_member_count }}/{{ expeditionRoomStore.myRoom.member_limit }} 人</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ expeditionRoomStore.myRoom.template_label }} / {{ expeditionRoomStore.myRoom.gameplay.template_label }} / {{ expeditionRoomStore.myRoom.joined_member_count }}/{{ expeditionRoomStore.myRoom.member_limit }} 人</p>
               </div>
-              <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom.state_label }}</span>
+              <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.myRoom.state_label }}</span>
             </div>
-            <p v-if="expeditionRoomStore.myRoom.state_reason" class="text-[10px] text-warning mt-1">{{ expeditionRoomStore.myRoom.state_reason }}</p>
+            <p v-if="expeditionRoomStore.myRoom.state_reason" class="text-[0.625rem] text-warning mt-1">{{ expeditionRoomStore.myRoom.state_reason }}</p>
           </div>
 
           <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent">{{ expeditionRoomStore.myRoom.gameplay.template_label }}</p>
-                <p class="text-[10px] text-muted mt-1 leading-4">{{ expeditionRoomStore.myRoom.gameplay.template_summary }}</p>
+                <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ expeditionRoomStore.myRoom.gameplay.template_summary }}</p>
               </div>
-              <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom.gameplay.phase_label }}</span>
+              <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.myRoom.gameplay.phase_label }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-2">{{ expeditionRoomStore.myRoom.gameplay.progress_text }} / {{ expeditionRoomStore.myRoom.gameplay.score_label }} {{ expeditionRoomStore.myRoom.gameplay.score_value }}</p>
-            <p v-if="expeditionRoomStore.myRoom.gameplay.last_action_summary" class="text-[10px] text-success mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted mt-2">{{ expeditionRoomStore.myRoom.gameplay.progress_text }} / {{ expeditionRoomStore.myRoom.gameplay.score_label }} {{ expeditionRoomStore.myRoom.gameplay.score_value }}</p>
+            <p v-if="expeditionRoomStore.myRoom.gameplay.last_action_summary" class="text-[0.625rem] text-success mt-1 leading-4">
               {{ expeditionRoomStore.myRoom.gameplay.last_action_summary }}
             </p>
           </div>
@@ -270,15 +270,15 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="text-xs text-accent">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.round_text }}</p>
-                  <p class="text-[10px] text-text mt-1 leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.summary }}</p>
+                  <p class="text-[0.625rem] text-text mt-1 leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.summary }}</p>
                 </div>
-                <span class="shrink-0 text-[10px] text-warning">风险 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.risk_text }}</span>
+                <span class="shrink-0 text-[0.625rem] text-warning">风险 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.risk_text }}</span>
               </div>
               <div class="grid gap-2 sm:grid-cols-2 mt-2">
-                <p class="text-[10px] text-muted leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.risk_hint }}</p>
-                <p class="text-[10px] text-muted leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.resource_hint }}</p>
+                <p class="text-[0.625rem] text-muted leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.risk_hint }}</p>
+                <p class="text-[0.625rem] text-muted leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.resource_hint }}</p>
               </div>
-              <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="text-[10px] text-success mt-2 leading-4">
+              <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="text-[0.625rem] text-success mt-2 leading-4">
                 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback }}
               </p>
               <div
@@ -286,26 +286,26 @@
                 class="mt-2 grid gap-2 sm:grid-cols-2"
               >
                 <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" data-testid="expedition-cavern-combo-summary" class="border border-success/20 rounded-xs bg-success/5 px-2 py-2">
-                  <p class="text-[10px] text-success">节点组合收益</p>
+                  <p class="text-[0.625rem] text-success">节点组合收益</p>
                   <div class="mt-1 space-y-1">
                     <p
                       v-for="combo in expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records"
                       :key="`${expeditionRoomStore.myRoom.id}-${combo.combo_id}`"
-                      class="text-[10px] leading-4 text-muted"
+                      class="text-[0.625rem] leading-4 text-muted"
                     >
                       {{ combo.label }}：{{ combo.summary }} · 采集值 +{{ combo.score_delta }} · 风险 {{ formatSignedCavernDelta(combo.risk_delta) }}{{ combo.resource_delta_text ? ` · ${combo.resource_delta_text}` : '' }}
                     </p>
                   </div>
                 </div>
                 <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" data-testid="expedition-cavern-withdrawal-summary" class="border border-warning/20 rounded-xs bg-warning/5 px-2 py-2">
-                  <p class="text-[10px] text-warning">提前收尾</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="text-[0.625rem] text-warning">提前收尾</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                     {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
                   </p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted" data-testid="expedition-cavern-withdrawal-locked-combos">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="expedition-cavern-withdrawal-locked-combos">
                     {{ cavernWithdrawalLockedComboLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                   </p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                     {{ cavernWithdrawalActorLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                   </p>
                 </div>
@@ -314,23 +314,23 @@
 
             <div class="grid gap-2 sm:grid-cols-2">
               <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-                <p class="text-[10px] text-muted mb-2">队伍资源</p>
+                <p class="text-[0.625rem] text-muted mb-2">队伍资源</p>
                 <div class="grid grid-cols-2 gap-2">
                   <div v-for="resource in expeditionRoomStore.myRoom.gameplay.cavern_state.team_resources" :key="resource.id" class="border border-accent/10 rounded-xs px-2 py-1">
-                    <p class="text-[10px] text-accent">{{ resource.label }}</p>
+                    <p class="text-[0.625rem] text-accent">{{ resource.label }}</p>
                     <p class="text-xs text-text mt-1">{{ resource.value }} / {{ resource.max_value }}</p>
                   </div>
                 </div>
               </div>
               <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-                <p class="text-[10px] text-muted mb-2">职责分工</p>
+                <p class="text-[0.625rem] text-muted mb-2">职责分工</p>
                 <div class="space-y-1">
                   <div v-for="role in expeditionRoomStore.myRoom.gameplay.cavern_state.role_assignments" :key="role.username" class="flex items-start justify-between gap-2">
-                    <span class="min-w-0 text-[10px] text-text truncate">{{ role.display_name }}</span>
-                    <span class="shrink-0 text-[10px] text-accent">{{ role.role_label }}</span>
+                    <span class="min-w-0 text-[0.625rem] text-text truncate">{{ role.display_name }}</span>
+                    <span class="shrink-0 text-[0.625rem] text-accent">{{ role.role_label }}</span>
                   </div>
                 </div>
-                <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.my_role" class="text-[10px] text-muted mt-2 leading-4">
+                <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.my_role" class="text-[0.625rem] text-muted mt-2 leading-4">
                   我的职责：{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_label }}，{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_summary }}
                 </p>
               </div>
@@ -338,7 +338,7 @@
           </div>
 
           <label class="block">
-            <span class="text-[10px] text-muted">邀请玩家</span>
+            <span class="text-[0.625rem] text-muted">邀请玩家</span>
             <div class="online-action-row mt-1">
               <input
                 v-model="expeditionRoomStore.draftInviteUsername"
@@ -355,7 +355,7 @@
             v-if="showExpeditionFallbackActions"
             class="space-y-2"
           >
-            <p class="text-[10px] text-muted">降级玩法动作</p>
+            <p class="text-[0.625rem] text-muted">降级玩法动作</p>
             <div
               v-for="action in expeditionRoomStore.myRoom.gameplay.available_actions"
               :key="`${expeditionRoomStore.myRoom.id}-${action.id}`"
@@ -366,28 +366,28 @@
                   {{ action.label }}
                 </Button>
                 <div class="min-w-0">
-                  <p class="text-[10px] text-muted leading-4">{{ action.summary }}</p>
-                  <p v-if="action.round_effect" class="text-[10px] text-accent mt-1 leading-4">{{ action.round_effect }}</p>
-                  <p v-if="action.required_role_label || action.risk_delta_text || action.resource_delta_text" class="text-[10px] text-muted mt-1 leading-4">
+                  <p class="text-[0.625rem] text-muted leading-4">{{ action.summary }}</p>
+                  <p v-if="action.round_effect" class="text-[0.625rem] text-accent mt-1 leading-4">{{ action.round_effect }}</p>
+                  <p v-if="action.required_role_label || action.risk_delta_text || action.resource_delta_text" class="text-[0.625rem] text-muted mt-1 leading-4">
                     <span v-if="action.required_role_label">职责 {{ action.required_role_label }}</span>
                     <span v-if="action.risk_delta_text"> / {{ action.risk_delta_text }}</span>
                     <span v-if="action.resource_delta_text"> / {{ action.resource_delta_text }}</span>
                   </p>
                 </div>
               </div>
-              <p v-if="!action.can_use && action.disabled_reason" class="text-[10px] text-muted mt-1">{{ action.disabled_reason }}</p>
+              <p v-if="!action.can_use && action.disabled_reason" class="text-[0.625rem] text-muted mt-1">{{ action.disabled_reason }}</p>
             </div>
           </div>
 
           <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state?.round_log.length" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-            <p class="text-[10px] text-muted mb-2">回合日志</p>
+            <p class="text-[0.625rem] text-muted mb-2">回合日志</p>
             <div class="space-y-2">
               <div v-for="entry in expeditionRoomStore.myRoom.gameplay.cavern_state.round_log.slice(0, 5)" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1">
                 <div class="flex items-start justify-between gap-2">
-                  <p class="min-w-0 text-[10px] text-accent">第 {{ entry.round_number }} 回合 · {{ entry.action_label }}</p>
-                  <span v-if="entry.role_label" class="shrink-0 text-[10px] text-muted">{{ entry.role_label }}</span>
+                  <p class="min-w-0 text-[0.625rem] text-accent">第 {{ entry.round_number }} 回合 · {{ entry.action_label }}</p>
+                  <span v-if="entry.role_label" class="shrink-0 text-[0.625rem] text-muted">{{ entry.role_label }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
               </div>
             </div>
           </div>
@@ -409,7 +409,7 @@
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="text-xs text-text">{{ room.title }}</p>
-              <p class="text-[10px] text-muted mt-1">{{ room.template_label }} / {{ room.gameplay.template_label }} / 房主 {{ room.host_display_name }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ room.template_label }} / {{ room.gameplay.template_label }} / 房主 {{ room.host_display_name }}</p>
             </div>
             <Button :disabled="expeditionRoomStore.actionRunning || !room.can_join" @click="joinRoom(room.id)">
               加入
@@ -428,11 +428,11 @@
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-xs text-accent">{{ room.title }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ room.template_label }} / {{ room.gameplay.template_label }} / {{ room.state_label }} / {{ room.joined_member_count }}/{{ room.member_limit }} 人</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ room.template_label }} / {{ room.gameplay.template_label }} / {{ room.state_label }} / {{ room.joined_member_count }}/{{ room.member_limit }} 人</p>
               </div>
-              <span class="text-[10px] text-muted">{{ room.ready_member_count }} 已准备</span>
+              <span class="text-[0.625rem] text-muted">{{ room.ready_member_count }} 已准备</span>
             </div>
-            <p class="text-[10px] text-muted mt-2">{{ room.gameplay.progress_text }} / {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
+            <p class="text-[0.625rem] text-muted mt-2">{{ room.gameplay.progress_text }} / {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
           </div>
         </div>
       </div>
@@ -447,22 +447,22 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-text">{{ receipt.room_title }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ receipt.template_label }} / 槽位 {{ receipt.target_slot + 1 }}</p>
+                <p class="text-[0.625rem] text-muted mt-1">{{ receipt.template_label }} / 槽位 {{ receipt.target_slot + 1 }}</p>
               </div>
-              <span class="text-[10px] text-accent">{{ receipt.status_label }}</span>
+              <span class="text-[0.625rem] text-accent">{{ receipt.status_label }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-2 leading-4">{{ receipt.summary }}</p>
+            <p class="text-[0.625rem] text-muted mt-2 leading-4">{{ receipt.summary }}</p>
             <div v-if="receipt.route_replay?.kind" class="mt-2 border border-accent/10 bg-bg/20 px-2 py-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-accent">{{ receipt.route_replay.title }}</p>
-                <span class="text-[10px] text-warning">风险峰值 {{ receipt.route_replay.risk_peak.value }}</span>
+                <p class="text-[0.625rem] text-accent">{{ receipt.route_replay.title }}</p>
+                <span class="text-[0.625rem] text-warning">风险峰值 {{ receipt.route_replay.risk_peak.value }}</span>
               </div>
-              <p class="mt-1 text-[10px] text-text leading-4">
+              <p class="mt-1 text-[0.625rem] text-text leading-4">
                 {{ receipt.route_replay.route_nodes.map(node => node.label).join(' -> ') }}
               </p>
-              <p class="mt-1 text-[10px] text-muted leading-4">{{ receipt.route_replay.summary }}</p>
+              <p class="mt-1 text-[0.625rem] text-muted leading-4">{{ receipt.route_replay.summary }}</p>
               <div v-if="receipt.route_replay.highlight_nodes.length > 0" class="mt-2 space-y-1">
-                <p v-for="highlight in receipt.route_replay.highlight_nodes.slice(0, 2)" :key="`${receipt.id}-${highlight.node_id}-${highlight.label}`" class="text-[10px] text-muted leading-4">
+                <p v-for="highlight in receipt.route_replay.highlight_nodes.slice(0, 2)" :key="`${receipt.id}-${highlight.node_id}-${highlight.label}`" class="text-[0.625rem] text-muted leading-4">
                   {{ highlight.label }}：{{ highlight.summary }}
                 </p>
               </div>
@@ -470,20 +470,20 @@
                 <span
                   v-for="contribution in receipt.route_replay.member_contributions.slice(0, 4)"
                   :key="`${receipt.id}-${contribution.username}`"
-                  class="border border-accent/10 px-1.5 py-0.5 text-[10px] text-muted"
+                  class="border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted"
                 >
                   {{ contribution.display_name }} {{ contribution.role_label || '队员' }} · {{ contribution.action_count }} 次
                 </span>
               </div>
               <div v-if="receipt.route_replay.combo_records.length > 0" data-testid="expedition-cavern-receipt-combos" class="mt-2 space-y-1 border-l border-success/30 pl-2">
-                <p v-for="combo in receipt.route_replay.combo_records" :key="`${receipt.id}-${combo.combo_id}`" class="text-[10px] text-muted leading-4">
+                <p v-for="combo in receipt.route_replay.combo_records" :key="`${receipt.id}-${combo.combo_id}`" class="text-[0.625rem] text-muted leading-4">
                   {{ combo.label }}：采集值 +{{ combo.score_delta }} · 风险 {{ formatSignedCavernDelta(combo.risk_delta) }}{{ combo.resource_delta_text ? ` · ${combo.resource_delta_text}` : '' }}
                 </p>
               </div>
-              <p v-if="receipt.route_replay.withdrawal_state === 'confirmed'" data-testid="expedition-cavern-receipt-withdrawal" class="mt-2 text-[10px] text-muted leading-4">
+              <p v-if="receipt.route_replay.withdrawal_state === 'confirmed'" data-testid="expedition-cavern-receipt-withdrawal" class="mt-2 text-[0.625rem] text-muted leading-4">
                 提前收尾：{{ receipt.route_replay.withdrawal_summary || '撤离点已确认。' }} · {{ routeReplayWithdrawalLockedComboLabel(receipt.route_replay) }} · {{ routeReplayWithdrawalActorLabel(receipt.route_replay) }}
               </p>
-              <p v-if="routeReplayCargoIntegrityText(receipt.route_replay)" data-testid="expedition-escort-receipt-cargo-integrity" class="mt-2 text-[10px] text-muted leading-4">
+              <p v-if="routeReplayCargoIntegrityText(receipt.route_replay)" data-testid="expedition-escort-receipt-cargo-integrity" class="mt-2 text-[0.625rem] text-muted leading-4">
                 货物完整度：{{ routeReplayCargoIntegrityText(receipt.route_replay) }}
               </p>
             </div>

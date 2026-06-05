@@ -37,7 +37,7 @@
         <div class="flex items-center justify-between mb-1.5">
           <div>
             <p class="text-xs text-accent">育种台</p>
-            <p class="text-[10px] text-muted mt-0.5">先选择空闲育种台，再放入两颗种子开始培育。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">先选择空闲育种台，再放入两颗种子开始培育。</p>
           </div>
           <Button v-if="breedingStore.stationCount < MAX_BREEDING_STATIONS" :icon="Plus" :icon-size="12" @click="showCraftModal = true">
             建造
@@ -99,11 +99,11 @@
         <div class="flex items-center justify-between mb-1.5">
           <div>
             <p class="text-xs text-accent">种子箱</p>
-            <p class="text-[10px] text-muted mt-0.5">优先用排序和筛选缩小范围，再查看种子详情与谱系。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">优先用排序和筛选缩小范围，再查看种子详情与谱系。</p>
           </div>
           <button
             v-if="nextSeedBoxUpgrade || breedingStore.seedBoxLevel > 0"
-            class="text-[10px] px-2 py-0.5 border rounded-xs"
+            class="text-[0.625rem] px-2 py-0.5 border rounded-xs"
             :class="nextSeedBoxUpgrade ? 'border-accent/30 text-accent hover:bg-accent/5 cursor-pointer' : 'border-accent/10 text-muted'"
             @click="showSeedBoxUpgradeModal = true"
           >
@@ -122,7 +122,7 @@
             <button
               v-for="opt in SEED_SORT_OPTIONS"
               :key="opt.value"
-              class="text-[10px] px-2 py-0.5 border rounded-xs"
+              class="text-[0.625rem] px-2 py-0.5 border rounded-xs"
               :class="breedingStore.seedSortKey === opt.value ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted hover:bg-accent/5'"
               @click="breedingStore.setSeedSortKey(opt.value)"
             >
@@ -133,7 +133,7 @@
             <button
               v-for="opt in SEED_FILTER_OPTIONS"
               :key="opt.value"
-              class="text-[10px] px-2 py-0.5 border rounded-xs"
+              class="text-[0.625rem] px-2 py-0.5 border rounded-xs"
               :class="breedingStore.seedFilterKey === opt.value ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted hover:bg-accent/5'"
               @click="breedingStore.setSeedFilterKey(opt.value)"
             >
@@ -166,9 +166,9 @@
       <div v-if="breedingStore.unlocked" class="mt-3 border border-accent/20 rounded-xs p-2">
         <div class="flex items-center justify-between mb-1">
           <p class="text-xs text-accent">育种研究</p>
-          <span class="text-[10px] text-muted">Lv.{{ breedingStore.researchLevel }}</span>
+          <span class="text-[0.625rem] text-muted">Lv.{{ breedingStore.researchLevel }}</span>
         </div>
-        <div class="flex flex-col space-y-0.5 text-[10px] text-muted mb-2">
+        <div class="flex flex-col space-y-0.5 text-[0.625rem] text-muted mb-2">
           <p>· 接近可成识别范围：甜度/产量各差 ≤ {{ breedingStore.researchLevel >= 1 ? 20 : 15 }}</p>
           <p>· 高代速育门槛：最低世代 ≥ {{ breedingStore.researchLevel >= 2 ? 8 : 10 }} 时，育种耗时缩短 1 天</p>
           <p>· 失败杂交属性损耗：{{ breedingStore.researchLevel >= 2 ? 3 : 5 }} 点</p>
@@ -178,17 +178,17 @@
         <div v-if="nextResearchUpgrade" class="border border-accent/10 rounded-xs p-2 mb-2">
           <div class="flex items-center justify-between">
             <span class="text-xs text-accent">下一阶段：{{ nextResearchUpgrade.name }}</span>
-            <span class="text-[10px] text-muted">Lv.{{ nextResearchUpgrade.level }}</span>
+            <span class="text-[0.625rem] text-muted">Lv.{{ nextResearchUpgrade.level }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1">{{ nextResearchUpgrade.description }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ nextResearchUpgrade.description }}</p>
           <div class="mt-1.5 flex flex-col space-y-0.5">
-            <div v-for="mat in nextResearchUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between text-[10px]">
+            <div v-for="mat in nextResearchUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between text-[0.625rem]">
               <span class="text-muted">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
               <span :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
                 {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
               </span>
             </div>
-            <div class="flex items-center justify-between text-[10px]">
+            <div class="flex items-center justify-between text-[0.625rem]">
               <span class="text-muted">铜钱</span>
               <span :class="playerStore.money >= nextResearchUpgrade.cost ? 'text-success' : 'text-danger'">
                 {{ playerStore.money }}/{{ nextResearchUpgrade.cost }}文
@@ -196,7 +196,7 @@
             </div>
           </div>
         </div>
-        <div v-else class="text-[10px] text-success mb-2">育种研究已完成全部阶段。</div>
+        <div v-else class="text-[0.625rem] text-success mb-2">育种研究已完成全部阶段。</div>
 
         <Button
           v-if="nextResearchUpgrade"
@@ -215,10 +215,10 @@
           <div class="flex flex-col space-y-1">
             <div v-for="perk in breedingStore.breedingMasteryPerks" :key="perk.id" class="flex items-start justify-between gap-2">
               <div>
-                <p class="text-[10px]" :class="perk.unlocked ? 'text-accent' : 'text-muted'">{{ perk.name }}</p>
-                <p class="text-[10px] text-muted/80 leading-relaxed">{{ perk.description }}</p>
+                <p class="text-[0.625rem]" :class="perk.unlocked ? 'text-accent' : 'text-muted'">{{ perk.name }}</p>
+                <p class="text-[0.625rem] text-muted/80 leading-relaxed">{{ perk.description }}</p>
               </div>
-              <span class="text-[10px] whitespace-nowrap" :class="perk.unlocked ? 'text-success' : 'text-muted'">
+              <span class="text-[0.625rem] whitespace-nowrap" :class="perk.unlocked ? 'text-success' : 'text-muted'">
                 {{ perk.unlocked ? '已解锁' : '未解锁' }}
               </span>
             </div>
@@ -233,11 +233,11 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <p class="text-xs text-accent">本周育种周赛</p>
-            <p class="text-[10px] text-muted mt-0.5">{{ breedingStore.currentBreedingContestDef.label }} · {{ breedingStore.currentBreedingContestDef.description }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">{{ breedingStore.currentBreedingContestDef.label }} · {{ breedingStore.currentBreedingContestDef.description }}</p>
           </div>
-          <span class="text-[10px] text-muted">已报名 {{ breedingStore.breedingContestState.registeredSeedIds.length }}</span>
+          <span class="text-[0.625rem] text-muted">已报名 {{ breedingStore.breedingContestState.registeredSeedIds.length }}</span>
         </div>
-        <p v-if="breedingStore.lastBreedingContestSettlement?.weekId" class="text-[10px] text-accent mt-1">
+        <p v-if="breedingStore.lastBreedingContestSettlement?.weekId" class="text-[0.625rem] text-accent mt-1">
           上周结算：{{ lastBreedingContestWeekLabel }} · 冠军 {{ breedingStore.lastBreedingContestSettlement.winner?.label ?? '无' }}
         </p>
       </div>
@@ -246,22 +246,22 @@
         <div class="flex items-center justify-between mb-1">
           <div>
             <p class="text-xs text-accent">育种规划器 2.0</p>
-            <p class="text-[10px] text-muted mt-0.5">把本周订单、下周主题周和图鉴缺口合在一起看，先决定该养哪条线。</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">把本周订单、下周主题周和图鉴缺口合在一起看，先决定该养哪条线。</p>
           </div>
-          <span class="text-[10px] text-muted">建议 {{ planningSuggestions.length }}</span>
+          <span class="text-[0.625rem] text-muted">建议 {{ planningSuggestions.length }}</span>
         </div>
-        <p class="text-[10px] text-muted leading-4">
+        <p class="text-[0.625rem] text-muted leading-4">
           本周：{{ goalStore.currentThemeWeek?.name ?? '常规周' }}
           <span class="text-accent/70"> · </span>
           下周：{{ goalStore.nextThemeWeekPreview?.name ?? '待刷新' }}
         </p>
-        <p v-if="goalStore.nextThemeWeekPreview?.breedingFocusHybridIds?.length" class="text-[10px] text-success mt-1">
+        <p v-if="goalStore.nextThemeWeekPreview?.breedingFocusHybridIds?.length" class="text-[0.625rem] text-success mt-1">
           下周重点：{{ goalStore.nextThemeWeekPreview.breedingFocusHybridIds.map(getCropName).join('、') }}
         </p>
-        <p v-if="breedingStore.lastFailureSalvage?.summary" class="text-[10px] text-warning mt-1 leading-4">
+        <p v-if="breedingStore.lastFailureSalvage?.summary" class="text-[0.625rem] text-warning mt-1 leading-4">
           最近失败回收：{{ breedingStore.lastFailureSalvage.summary }}
         </p>
-        <div v-if="planningSuggestions.length === 0" class="text-[10px] text-muted mt-2">
+        <div v-if="planningSuggestions.length === 0" class="text-[0.625rem] text-muted mt-2">
           暂时没有明确的高优先目标，先继续补齐亲本种子和基础图鉴。
         </div>
         <div v-else class="space-y-2 mt-2">
@@ -269,23 +269,23 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs text-text">{{ suggestion.targetLabel }}</span>
               <span
-                class="text-[10px]"
+                class="text-[0.625rem]"
                 :class="suggestion.readiness === 'ready' ? 'text-success' : suggestion.readiness === 'near' ? 'text-accent' : 'text-muted'"
               >
                 {{ suggestion.readiness === 'ready' ? '可直接推进' : suggestion.readiness === 'near' ? '接近可成' : '先补亲本' }}
               </span>
             </div>
-            <p class="text-[10px] text-muted mt-1 leading-4">{{ suggestion.currentGapSummary }}</p>
-            <p v-if="suggestion.reasonLines.length" class="text-[10px] text-accent mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ suggestion.currentGapSummary }}</p>
+            <p v-if="suggestion.reasonLines.length" class="text-[0.625rem] text-accent mt-1 leading-4">
               为什么做：{{ suggestion.reasonLines.join('；') }}
             </p>
-            <p v-if="suggestion.expectedUseLines.length" class="text-[10px] text-success mt-1 leading-4">
+            <p v-if="suggestion.expectedUseLines.length" class="text-[0.625rem] text-success mt-1 leading-4">
               预计用途：{{ suggestion.expectedUseLines.join('；') }}
             </p>
-            <p v-if="suggestion.parentLines.length" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-if="suggestion.parentLines.length" class="text-[0.625rem] text-muted mt-1 leading-4">
               推荐亲本：{{ suggestion.parentLines.join('；') }}
             </p>
-            <p v-if="suggestion.logisticsNeeds.length" class="text-[10px] text-warning mt-1 leading-4">
+            <p v-if="suggestion.logisticsNeeds.length" class="text-[0.625rem] text-warning mt-1 leading-4">
               物流补材：
               {{ suggestion.logisticsNeeds.map(need => `${need.itemName} ${need.owned}/${need.quantity}`).join('、') }}
             </p>
@@ -296,35 +296,35 @@
       <div class="border border-accent/10 rounded-xs p-2 mb-2 game-panel-muted" v-if="goalStore.currentThemeWeek?.breedingFocusLabel || currentSpecialOrder">
         <div class="flex items-center justify-between mb-1">
           <p class="text-xs text-accent">经营型育种提醒</p>
-          <span class="text-[10px] text-muted">订单 / 主题周</span>
+          <span class="text-[0.625rem] text-muted">订单 / 主题周</span>
         </div>
         <p v-if="goalStore.currentThemeWeek?.breedingFocusLabel" class="text-xs text-accent/90">
           {{ goalStore.currentThemeWeek.breedingFocusLabel }}
         </p>
-        <p v-if="goalStore.currentThemeWeek?.breedingFocusDescription" class="text-[10px] text-muted mt-1 leading-4">
+        <p v-if="goalStore.currentThemeWeek?.breedingFocusDescription" class="text-[0.625rem] text-muted mt-1 leading-4">
           {{ goalStore.currentThemeWeek.breedingFocusDescription }}
         </p>
-        <p v-if="goalStore.currentThemeWeek?.breedingFocusHybridIds?.length" class="text-[10px] text-success mt-1">
+        <p v-if="goalStore.currentThemeWeek?.breedingFocusHybridIds?.length" class="text-[0.625rem] text-success mt-1">
           本周建议：{{ goalStore.currentThemeWeek.breedingFocusHybridIds.map(getCropName).join('、') }}
         </p>
-        <p v-if="currentSpecialOrder" class="text-[10px] text-muted mt-2 leading-4">
+        <p v-if="currentSpecialOrder" class="text-[0.625rem] text-muted mt-2 leading-4">
           当前特殊订单：{{ currentSpecialOrder.targetItemName }} × {{ currentSpecialOrder.targetQuantity }}
           <span v-if="currentSpecialOrder.demandHint"> · {{ currentSpecialOrder.demandHint }}</span>
         </p>
-        <p v-if="currentSpecialOrder?.recommendedHybridIds?.length" class="text-[10px] text-accent mt-1">
+        <p v-if="currentSpecialOrder?.recommendedHybridIds?.length" class="text-[0.625rem] text-accent mt-1">
           订单建议：{{ currentSpecialOrder.recommendedHybridIds.map(getCropName).join('、') }}
         </p>
       </div>
       <div class="border border-accent/10 rounded-xs p-2 mb-2 game-panel-muted">
         <div class="flex items-center justify-between mb-1">
           <p class="text-xs text-accent">陪伴承接建议</p>
-          <span class="text-[10px] text-muted">家庭 / 挚友</span>
+          <span class="text-[0.625rem] text-muted">家庭 / 挚友</span>
         </div>
-        <p class="text-[10px] text-muted leading-4">{{ breedingStore.companionshipBreedingFocus.summary }}</p>
-        <p v-if="breedingStore.companionshipBreedingFocus.activeFamilyWish" class="text-[10px] text-accent mt-1">
+        <p class="text-[0.625rem] text-muted leading-4">{{ breedingStore.companionshipBreedingFocus.summary }}</p>
+        <p v-if="breedingStore.companionshipBreedingFocus.activeFamilyWish" class="text-[0.625rem] text-accent mt-1">
           当前心愿：{{ breedingStore.companionshipBreedingFocus.activeFamilyWish.title }}
         </p>
-        <p v-if="breedingStore.companionshipBreedingFocus.recommendedHybridIds.length" class="text-[10px] text-success mt-1">
+        <p v-if="breedingStore.companionshipBreedingFocus.recommendedHybridIds.length" class="text-[0.625rem] text-success mt-1">
           陪伴建议：{{ breedingStore.companionshipBreedingFocus.recommendedHybridIds.map(getCropName).join('、') }}
         </p>
       </div>
@@ -373,7 +373,7 @@
       <div class="border border-accent/10 rounded-xs p-2 mb-2 game-panel-muted">
         <div class="flex items-center justify-between mb-1">
           <p class="text-xs text-accent">当前推荐目标</p>
-          <span class="text-[10px] text-muted">优先展示最接近达成的 {{ recommendedTargetLimit }} 个目标</span>
+          <span class="text-[0.625rem] text-muted">优先展示最接近达成的 {{ recommendedTargetLimit }} 个目标</span>
         </div>
         <div v-if="recommendedHybridEntries.length === 0" class="text-xs text-muted">
           暂无可推荐目标。先多收集不同作物的育种种子，或继续培育已有亲本。
@@ -387,14 +387,14 @@
           >
             <div class="flex items-center justify-between">
               <span class="text-xs" :class="tierColor(entry.hybrid.id)">{{ entry.hybrid.name }}</span>
-              <span class="text-[10px]" :class="entry.availability.status === 'discoverable' ? 'text-success' : entry.availability.status === 'near' ? 'text-accent' : 'text-muted'">
+              <span class="text-[0.625rem]" :class="entry.availability.status === 'discoverable' ? 'text-success' : entry.availability.status === 'near' ? 'text-accent' : 'text-muted'">
                 {{ entry.availability.status === 'discoverable' ? '可杂交' : entry.availability.status === 'near' ? '接近达成' : '待培育' }}
               </span>
             </div>
-            <p class="text-[10px] text-muted mt-0.5">
+            <p class="text-[0.625rem] text-muted mt-0.5">
               {{ getCropName(entry.hybrid.parentCropA) }} × {{ getCropName(entry.hybrid.parentCropB) }}
             </p>
-            <p class="text-[10px] text-muted mt-0.5">{{ entry.availability.recommendation }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5">{{ entry.availability.recommendation }}</p>
           </button>
         </div>
       </div>
@@ -442,7 +442,7 @@
           <template v-else>
             <Lock :size="12" class="mx-auto text-muted/30" />
             <!-- C: 悬停线索提示 -->
-            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex bg-bg border border-accent/20 rounded-xs px-1.5 py-1 text-[10px] text-muted whitespace-nowrap z-10 flex-col items-center space-y-0.5 pointer-events-none">
+            <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex bg-bg border border-accent/20 rounded-xs px-1.5 py-1 text-[0.625rem] text-muted whitespace-nowrap z-10 flex-col items-center space-y-0.5 pointer-events-none">
               <span>{{ getCropName(hybrid.parentCropA) }}</span>
               <span class="text-accent/50">×</span>
               <span>{{ getCropName(hybrid.parentCropB) }}</span>
@@ -550,9 +550,9 @@
             <p class="text-xs text-muted mb-1">亲本溯源</p>
             <div class="flex flex-col space-y-0.5">
               <div v-for="ancestor in getAncestorChain(detailSeed.genetics)" :key="ancestor.id" class="flex items-center space-x-1" :style="{ paddingLeft: ancestor.depth * 10 + 'px' }">
-                <span class="text-muted/40 text-[10px] shrink-0">{{ ancestor.depth > 0 ? '└' : '' }}</span>
-                <span class="text-[10px]" :class="seedStarColor(ancestor)">{{ getCropName(ancestor.cropId) }} G{{ ancestor.generation }}</span>
-                <span class="text-[10px] text-muted">（{{ ancestor.lineageTotal ?? getTotalStats(ancestor) }}）</span>
+                <span class="text-muted/40 text-[0.625rem] shrink-0">{{ ancestor.depth > 0 ? '└' : '' }}</span>
+                <span class="text-[0.625rem]" :class="seedStarColor(ancestor)">{{ getCropName(ancestor.cropId) }} G{{ ancestor.generation }}</span>
+                <span class="text-[0.625rem] text-muted">（{{ ancestor.lineageTotal ?? getTotalStats(ancestor) }}）</span>
               </div>
             </div>
           </div>
@@ -560,24 +560,24 @@
           <div v-if="detailSeedScoreBreakdown" class="border border-accent/10 rounded-xs p-2 mb-3 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">统一评分</p>
-              <span class="text-[10px] text-muted">总分 {{ detailSeedScoreBreakdown.totalScore }} · {{ breedingStabilityRankLabel }}</span>
+              <span class="text-[0.625rem] text-muted">总分 {{ detailSeedScoreBreakdown.totalScore }} · {{ breedingStabilityRankLabel }}</span>
             </div>
             <div v-if="detailSeedScoreBreakdown.commercialTags.length > 0" class="flex flex-wrap gap-1 mt-2">
-              <span v-for="tag in detailSeedScoreBreakdown.commercialTags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
+              <span v-for="tag in detailSeedScoreBreakdown.commercialTags" :key="tag" class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
                 {{ breedingCommercialTagLabels[tag] ?? tag }}
               </span>
             </div>
             <div class="space-y-1 mt-2">
-              <div v-for="entry in detailSeedScoreBreakdown.entries" :key="entry.key" class="flex items-center justify-between text-[10px]">
+              <div v-for="entry in detailSeedScoreBreakdown.entries" :key="entry.key" class="flex items-center justify-between text-[0.625rem]">
                 <span class="text-muted">{{ entry.label }}</span>
                 <span class="text-accent">{{ entry.value }} · 权重 {{ Math.round(entry.weight * 100) }}%</span>
               </div>
             </div>
-            <div class="mt-2 text-[10px] text-muted">
+            <div class="mt-2 text-[0.625rem] text-muted">
               展陈价值：<span class="text-accent">{{ detailSeedScoreBreakdown.exhibitWorth }}</span>
             </div>
             <div v-if="detailSeedScoreBreakdown.showcaseTags.length > 0" class="flex flex-wrap gap-1 mt-2">
-              <span v-for="tag in detailSeedScoreBreakdown.showcaseTags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-success/20 text-success">
+              <span v-for="tag in detailSeedScoreBreakdown.showcaseTags" :key="tag" class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-success/20 text-success">
                 {{ breedingShowcaseTagLabels[tag] ?? tag }}
               </span>
             </div>
@@ -751,7 +751,7 @@
             </div>
           </template>
 
-          <p v-else class="text-[10px] text-muted text-center">种子箱已达到最高等级。</p>
+          <p v-else class="text-[0.625rem] text-muted text-center">种子箱已达到最高等级。</p>
         </div>
       </div>
     </Transition>

@@ -22,7 +22,7 @@
         </slot>
       </div>
 
-      <div v-if="copyValue" class="game-panel-muted p-2 text-[10px] leading-4 text-muted">
+      <div v-if="copyValue" class="game-panel-muted p-2 text-[0.625rem] leading-4 text-muted">
         <p class="truncate" data-testid="online-technical-details-copy-preview">{{ copyPreview }}</p>
         <button
           type="button"
@@ -38,7 +38,7 @@
         </p>
       </div>
 
-      <div class="text-[10px] leading-5 text-muted" data-testid="online-technical-details-content">
+      <div class="text-[0.625rem] leading-5 text-muted" data-testid="online-technical-details-content">
         <slot />
       </div>
 

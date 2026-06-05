@@ -170,7 +170,7 @@
               <div v-for="user in recipientSearchResults" :key="user.username" class="recipient-search-item recipient-search-item--block">
                 <div>
                   <div class="text-sm text-text">{{ user.display_name || user.username }}</div>
-                  <div class="text-[11px] text-muted">@{{ user.username }}</div>
+                  <div class="text-[0.6875rem] text-muted">@{{ user.username }}</div>
                 </div>
                 <div class="recipient-slot-actions">
                   <button
@@ -219,7 +219,7 @@
               <div v-for="user in recipientSearchResults" :key="user.username" class="recipient-search-item recipient-search-item--block">
                 <div>
                   <div class="text-sm text-text">{{ user.display_name || user.username }}</div>
-                  <div class="text-[11px] text-muted">@{{ user.username }}</div>
+                  <div class="text-[0.6875rem] text-muted">@{{ user.username }}</div>
                 </div>
                 <div class="recipient-slot-actions">
                   <button
@@ -403,7 +403,7 @@
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <div class="text-sm text-text break-all">{{ campaign.title }}</div>
-                  <div class="text-[11px] text-muted mt-1">#{{ campaign.id }}</div>
+                  <div class="text-[0.6875rem] text-muted mt-1">#{{ campaign.id }}</div>
                 </div>
                 <span class="admin-status" :class="`admin-status--${campaign.status}`">{{ formatCampaignStatus(campaign.status) }}</span>
               </div>
@@ -487,7 +487,7 @@
                   <tr v-for="delivery in detail.deliveries" :key="delivery.id">
                     <td>
                       {{ delivery.recipient_display_name || delivery.username }}
-                      <span class="block text-[11px] text-muted mt-1">{{ formatTargetSlot(delivery.target_slot) }}</span>
+                      <span class="block text-[0.6875rem] text-muted mt-1">{{ formatTargetSlot(delivery.target_slot) }}</span>
                     </td>
                     <td>{{ formatClaimStatus(delivery.claim_status) }}</td>
                     <td>{{ formatTime(delivery.read_at) }}</td>
@@ -510,7 +510,7 @@
                   <span class="admin-delivery-card__label">玩家</span>
                   <div class="admin-delivery-card__value">
                     <div>{{ delivery.recipient_display_name || delivery.username }}</div>
-                    <div class="text-[11px] text-muted mt-1">{{ formatTargetSlot(delivery.target_slot) }}</div>
+                    <div class="text-[0.6875rem] text-muted mt-1">{{ formatTargetSlot(delivery.target_slot) }}</div>
                   </div>
                 </div>
                 <div class="admin-delivery-card__row">
@@ -597,7 +597,7 @@
             <div class="space-y-3">
               <div class="rounded-xs border border-accent/15 bg-bg/15 p-3 space-y-2">
                 <p class="text-xs text-accent">入口说明</p>
-                <p class="text-[11px] text-muted leading-5">
+                <p class="text-[0.6875rem] text-muted leading-5">
                   进入后可直接载入主样例或回归样例，验证周切换、育种周赛、鱼塘周赛和主题周刷新边界。
                 </p>
                 <div class="flex flex-wrap gap-2">
@@ -612,8 +612,8 @@
                 <p class="text-xs text-accent">主样例</p>
                 <div class="grid gap-2 md:grid-cols-2">
                   <div v-for="sample in lateGameDebugFlagshipSamples" :key="sample.id" class="rounded-xs border border-accent/10 px-3 py-2 bg-bg/10">
-                    <div class="text-[11px] text-text">{{ sample.label }}</div>
-                    <div class="text-[10px] text-muted mt-1">推荐落点：{{ lateGameDebugRouteLabel(sample.recommendedRouteName) }}</div>
+                    <div class="text-[0.6875rem] text-text">{{ sample.label }}</div>
+                    <div class="text-[0.625rem] text-muted mt-1">推荐落点：{{ lateGameDebugRouteLabel(sample.recommendedRouteName) }}</div>
                   </div>
                 </div>
               </div>
@@ -623,8 +623,8 @@
               <p class="text-xs text-accent">回归样例</p>
               <div class="space-y-2">
                 <div v-for="sample in lateGameDebugRegressionSamples" :key="sample.id" class="rounded-xs border border-accent/10 px-3 py-2 bg-bg/10">
-                  <div class="text-[11px] text-text">{{ sample.label }}</div>
-                  <div class="text-[10px] text-muted mt-1">{{ sample.smokeChecks[0]?.label || sample.description }}</div>
+                  <div class="text-[0.6875rem] text-text">{{ sample.label }}</div>
+                  <div class="text-[0.625rem] text-muted mt-1">{{ sample.smokeChecks[0]?.label || sample.description }}</div>
                 </div>
               </div>
             </div>
@@ -1599,7 +1599,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-muted));
   }
 
@@ -1613,7 +1613,7 @@
     border-radius: 2px;
     color: rgb(var(--color-text));
     outline: none;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .admin-input:focus,
@@ -1718,7 +1718,7 @@
     border: 1px solid rgba(200, 164, 92, 0.2);
     border-radius: 999px;
     background: rgba(200, 164, 92, 0.08);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-text));
   }
 
@@ -1733,7 +1733,7 @@
     cursor: pointer;
     padding: 0;
     line-height: 1;
-    font-size: 14px;
+    font-size: 0.875rem;
   }
 
   .recipient-chip-remove:hover {
@@ -1761,7 +1761,7 @@
     justify-content: center;
     border-radius: 999px;
     padding: 2px 10px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     border: 1px solid transparent;
     white-space: nowrap;
   }
@@ -1797,7 +1797,7 @@
     border-radius: 2px;
     padding: 4px 8px;
     background: rgba(200, 164, 92, 0.08);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-text));
   }
 
@@ -1805,7 +1805,7 @@
     width: 100%;
     border-collapse: collapse;
     min-width: 720px;
-    font-size: 12px;
+    font-size: 0.75rem;
   }
 
   .admin-table th,
@@ -1854,12 +1854,12 @@
   }
 
   .admin-delivery-card__label {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: rgb(var(--color-muted));
   }
 
   .admin-delivery-card__value {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-text));
     line-height: 1.6;
     word-break: break-word;

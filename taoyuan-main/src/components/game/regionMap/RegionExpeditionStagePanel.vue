@@ -406,12 +406,12 @@
           <div class="min-w-0">
             <p class="text-xs text-accent">远征推进中</p>
             <p class="text-sm text-text mt-1">{{ session.targetName }}</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">
               {{ regionLabel }} / {{ session.mode === 'boss' ? '首领远征' : '路线远征' }} / {{ statusLabel }}
             </p>
           </div>
           <div class="shrink-0 text-right">
-            <p class="text-[10px] text-muted">进度</p>
+            <p class="text-[0.625rem] text-muted">进度</p>
             <p class="text-sm text-accent">{{ session.progressStep }}/{{ session.totalSteps }}</p>
           </div>
         </div>
@@ -423,27 +423,27 @@
         <div v-if="compactMode" class="mt-4 space-y-3 pb-28">
           <div class="grid grid-cols-2 gap-2">
             <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[10px] text-muted">生命</p>
+              <p class="text-[0.625rem] text-muted">生命</p>
               <p class="text-sm mt-1">{{ playerHp }}/{{ playerMaxHp }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[10px] text-muted">士气</p>
+              <p class="text-[0.625rem] text-muted">士气</p>
               <p class="text-sm mt-1">{{ session.morale }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[10px] text-muted">风险</p>
+              <p class="text-[0.625rem] text-muted">风险</p>
               <p class="text-sm mt-1">{{ session.danger }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
-              <p class="text-[10px] text-muted">推进</p>
+              <p class="text-[0.625rem] text-muted">推进</p>
               <p class="text-sm mt-1 text-accent">{{ session.progressStep }}/{{ session.totalSteps }}</p>
             </div>
           </div>
 
           <div v-if="visibleSignalLines.length > 0" class="border border-warning/20 rounded-xs px-3 py-3 bg-warning/5">
-            <p class="text-[10px] text-muted">本次主线信号</p>
+            <p class="text-[0.625rem] text-muted">本次主线信号</p>
             <div class="space-y-1 mt-2">
-              <p v-for="line in visibleSignalLines" :key="`compact-signal-${line}`" class="text-[10px] text-warning leading-4">
+              <p v-for="line in visibleSignalLines" :key="`compact-signal-${line}`" class="text-[0.625rem] text-warning leading-4">
                 ! {{ line }}
               </p>
             </div>
@@ -451,15 +451,15 @@
 
           <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
             <div class="flex items-center justify-between gap-2">
-              <p class="text-[10px] text-muted">节点足迹</p>
-              <span class="text-[10px] text-accent">{{ nodeTrail.length }} 段</span>
+              <p class="text-[0.625rem] text-muted">节点足迹</p>
+              <span class="text-[0.625rem] text-accent">{{ nodeTrail.length }} 段</span>
             </div>
             <div class="region-map-scroll-rail overflow-x-auto pt-2">
               <div class="region-map-scroll-track flex flex-nowrap gap-2 min-w-max">
                 <span
                   v-for="entry in nodeTrail"
                   :key="`compact-node-${entry.id}`"
-                  class="region-map-scroll-card border rounded-xs px-2 py-1 text-[10px] whitespace-nowrap"
+                  class="region-map-scroll-card border rounded-xs px-2 py-1 text-[0.625rem] whitespace-nowrap"
                   :class="entry.id === session.nodeHistory[session.nodeHistory.length - 1]?.id ? 'border-accent/40 text-accent bg-accent/10' : 'border-accent/10 text-muted bg-bg/70'"
                 >
                   {{ entry.step > 0 ? `第${entry.step}步` : '出发' }} · {{ entry.label }}
@@ -478,11 +478,11 @@
               <div>
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <p class="text-[10px]" :class="getPhaseToneClass(revealState.phase)">{{ getPhaseLabel(revealState.phase) }}</p>
+                    <p class="text-[0.625rem]" :class="getPhaseToneClass(revealState.phase)">{{ getPhaseLabel(revealState.phase) }}</p>
                     <p class="text-base text-text mt-1">{{ sceneTitle }}</p>
-                    <p class="text-[11px] text-muted mt-2 leading-5">{{ sceneSummary }}</p>
+                    <p class="text-[0.6875rem] text-muted mt-2 leading-5">{{ sceneSummary }}</p>
                   </div>
-                  <span class="text-[10px] shrink-0" :class="getPhaseToneClass(revealState.phase)">
+                  <span class="text-[0.625rem] shrink-0" :class="getPhaseToneClass(revealState.phase)">
                     {{ getPhaseLabel(revealState.phase) }}
                   </span>
                 </div>
@@ -491,7 +491,7 @@
                   <p
                     v-for="line in visibleSceneLines"
                     :key="`${revealState.phase}-${line}`"
-                    class="text-[11px] leading-5"
+                    class="text-[0.6875rem] leading-5"
                     :class="revealState.phase === 'encounter_reveal' || revealState.phase === 'encounter_result' ? 'text-warning' : revealState.phase === 'camp_reveal' || revealState.phase === 'camp_result' ? 'text-success' : 'text-muted'"
                   >
                     - {{ line }}
@@ -502,15 +502,15 @@
               <div class="mt-5">
                 <button
                   v-if="primaryActionMode === 'waiting'"
-                  class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[11px] text-accent/80 bg-bg/70 cursor-default"
+                  class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[0.6875rem] text-accent/80 bg-bg/70 cursor-default"
                   disabled
                 >
                   {{ revealState.phase === 'intro' ? '正在校准出发信息…' : revealState.phase === 'node_reveal' ? '正在揭示下一段路线…' : revealState.phase === 'encounter_reveal' ? '遭遇正在浮现…' : '营地场景正在落定…' }}
                 </button>
-                <p v-else-if="primaryActionMode === 'settlement'" class="text-[10px] text-success leading-4">
+                <p v-else-if="primaryActionMode === 'settlement'" class="text-[0.625rem] text-success leading-4">
                   已进入回城阶段，底部动作坞会负责最后的收束操作。
                 </p>
-                <p v-else class="text-[10px] text-muted leading-4">
+                <p v-else class="text-[0.625rem] text-muted leading-4">
                   当前合法操作已经移到底部动作坞，主场景只保留这一步最关键的反馈。
                 </p>
               </div>
@@ -520,13 +520,13 @@
           <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
             <button class="flex w-full items-center justify-between gap-3 text-left" @click="compactFrontlineExpanded = !compactFrontlineExpanded">
               <div class="min-w-0">
-                <p class="text-[10px] text-muted">前线状态</p>
-                <p class="text-[10px] text-accent mt-1">HP / 士气 / 风险 / 准备度放这里集中看。</p>
+                <p class="text-[0.625rem] text-muted">前线状态</p>
+                <p class="text-[0.625rem] text-accent mt-1">HP / 士气 / 风险 / 准备度放这里集中看。</p>
               </div>
-              <span class="text-[10px] text-accent shrink-0">{{ compactFrontlineExpanded ? '收起' : '展开' }}</span>
+              <span class="text-[0.625rem] text-accent shrink-0">{{ compactFrontlineExpanded ? '收起' : '展开' }}</span>
             </button>
             <div v-if="compactFrontlineExpanded" class="mt-3 space-y-3">
-              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.625rem]">
                 <div class="flex items-center justify-between"><span class="text-muted">视野</span><span>{{ session.visibility }}</span></div>
                 <div class="flex items-center justify-between"><span class="text-muted">负重</span><span>{{ session.carryLoad }}/{{ session.maxCarryLoad }}</span></div>
                 <div class="flex items-center justify-between"><span class="text-muted">发现</span><span>{{ session.findings }}</span></div>
@@ -538,11 +538,11 @@
               </div>
               <div v-if="shortcutSummary" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">熟路态势</p>
-                  <span class="text-[10px]" :class="shortcutSummary.toneClass">{{ shortcutSummary.label }}</span>
+                  <p class="text-[0.625rem] text-muted">熟路态势</p>
+                  <span class="text-[0.625rem]" :class="shortcutSummary.toneClass">{{ shortcutSummary.label }}</span>
                 </div>
-                <p class="text-[10px] mt-2 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-accent'">{{ shortcutSummary.headline }}</p>
-                <p class="text-[10px] mt-1 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-success'">{{ shortcutSummary.benefitSummary }}</p>
+                <p class="text-[0.625rem] mt-2 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-accent'">{{ shortcutSummary.headline }}</p>
+                <p class="text-[0.625rem] mt-1 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-success'">{{ shortcutSummary.benefitSummary }}</p>
               </div>
             </div>
           </div>
@@ -550,10 +550,10 @@
           <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
             <button class="flex w-full items-center justify-between gap-3 text-left" @click="compactNotesExpanded = !compactNotesExpanded">
               <div class="min-w-0">
-                <p class="text-[10px] text-muted">近况与足迹</p>
-                <p class="text-[10px] text-accent mt-1">最近 2 条日志、遭遇留痕和携带清单放这里回看。</p>
+                <p class="text-[0.625rem] text-muted">近况与足迹</p>
+                <p class="text-[0.625rem] text-accent mt-1">最近 2 条日志、遭遇留痕和携带清单放这里回看。</p>
               </div>
-              <span class="text-[10px] text-accent shrink-0">{{ compactNotesExpanded ? '收起' : '展开' }}</span>
+              <span class="text-[0.625rem] text-accent shrink-0">{{ compactNotesExpanded ? '收起' : '展开' }}</span>
             </button>
             <div v-if="compactNotesExpanded" class="mt-3 space-y-3">
               <div class="space-y-2">
@@ -564,19 +564,19 @@
                   :class="entry.tone === 'danger' ? 'border-danger/20 bg-danger/5' : entry.tone === 'success' ? 'border-success/20 bg-success/5' : 'border-accent/10 bg-bg/70'"
                 >
                   <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
+                    <p class="text-[0.625rem]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
                       {{ entry.title }}
                     </p>
-                    <span class="text-[10px] text-muted">{{ entry.step > 0 ? `第${entry.step}步` : '出发' }}</span>
+                    <span class="text-[0.625rem] text-muted">{{ entry.step > 0 ? `第${entry.step}步` : '出发' }}</span>
                   </div>
-                  <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
                 </div>
               </div>
 
               <div v-if="compactEncounterTrail.length > 0" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
-                <p class="text-[10px] text-muted mb-2">事件留痕</p>
+                <p class="text-[0.625rem] text-muted mb-2">事件留痕</p>
                 <div class="space-y-1">
-                  <p v-for="entry in compactEncounterTrail" :key="`compact-trail-${entry.id}`" class="text-[10px] text-muted leading-4">
+                  <p v-for="entry in compactEncounterTrail" :key="`compact-trail-${entry.id}`" class="text-[0.625rem] text-muted leading-4">
                     {{ getEncounterKindLabel(entry.kind) }} · {{ entry.summary }}
                   </p>
                 </div>
@@ -584,13 +584,13 @@
 
               <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">携带清单</p>
-                  <span class="text-[10px]" :class="carryPreviewLines.length > 0 ? 'text-accent' : 'text-muted'">{{ session.carryItems.length }} 项</span>
+                  <p class="text-[0.625rem] text-muted">携带清单</p>
+                  <span class="text-[0.625rem]" :class="carryPreviewLines.length > 0 ? 'text-accent' : 'text-muted'">{{ session.carryItems.length }} 项</span>
                 </div>
                 <div v-if="carryPreviewLines.length > 0" class="space-y-1 mt-2">
-                  <p v-for="line in carryPreviewLines.slice(0, 3)" :key="`compact-carry-${line}`" class="text-[10px] text-muted leading-4">{{ line }}</p>
+                  <p v-for="line in carryPreviewLines.slice(0, 3)" :key="`compact-carry-${line}`" class="text-[0.625rem] text-muted leading-4">{{ line }}</p>
                 </div>
-                <p v-else class="text-[10px] text-muted mt-2 leading-4">当前没有额外的途中携带物。</p>
+                <p v-else class="text-[0.625rem] text-muted mt-2 leading-4">当前没有额外的途中携带物。</p>
               </div>
             </div>
           </div>
@@ -611,10 +611,10 @@
                   @click="triggerWithLock(() => emit('advance', choice.id))"
                 >
                   <div class="flex items-center justify-between gap-3">
-                    <p class="text-[10px]" :class="getNodeLaneToneClass(choice.lane)">{{ choice.label }}</p>
-                    <span class="text-[10px] text-muted shrink-0">{{ getNodeLaneLabel(choice.lane) }}</span>
+                    <p class="text-[0.625rem]" :class="getNodeLaneToneClass(choice.lane)">{{ choice.label }}</p>
+                    <span class="text-[0.625rem] text-muted shrink-0">{{ getNodeLaneLabel(choice.lane) }}</span>
                   </div>
-                  <p class="text-[10px] text-muted mt-1 leading-4">{{ choice.summary }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ choice.summary }}</p>
                 </button>
               </div>
 
@@ -628,10 +628,10 @@
                   :data-testid="`region-expedition-encounter-${option.id}`"
                   @click="triggerWithLock(() => emit('resolveEncounter', option.id))"
                 >
-                  <p class="text-[10px]" :class="option.tone === 'danger' ? 'text-danger' : option.tone === 'success' ? 'text-success' : 'text-accent'">
+                  <p class="text-[0.625rem]" :class="option.tone === 'danger' ? 'text-danger' : option.tone === 'success' ? 'text-success' : 'text-accent'">
                     {{ option.label }}
                   </p>
-                  <p class="text-[10px] text-muted mt-1 leading-4">{{ option.summary }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ option.summary }}</p>
                 </button>
               </div>
 
@@ -645,14 +645,14 @@
                   :data-testid="`region-expedition-camp-${actionId}`"
                   @click="triggerWithLock(() => emit('resolveCamp', actionId))"
                 >
-                  <p class="text-[10px]" :class="CAMP_ACTION_META[actionId].toneClass">{{ CAMP_ACTION_META[actionId].label }}</p>
-                  <p class="text-[10px] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId].summary }}</p>
+                  <p class="text-[0.625rem]" :class="CAMP_ACTION_META[actionId].toneClass">{{ CAMP_ACTION_META[actionId].label }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId].summary }}</p>
                 </button>
               </div>
 
               <div v-else-if="primaryActionMode === 'settlement'" class="flex flex-col gap-2">
                 <button
-                  class="w-full border border-success/20 rounded-xs px-3 py-3 text-[11px] text-success hover:bg-success/5 disabled:opacity-60"
+                  class="w-full border border-success/20 rounded-xs px-3 py-3 text-[0.6875rem] text-success hover:bg-success/5 disabled:opacity-60"
                   :disabled="revealState.actionLocked"
                   data-testid="region-expedition-settle"
                   @click="triggerWithLock(() => emit('settle'))"
@@ -662,7 +662,7 @@
               </div>
 
               <div v-else class="flex flex-col gap-2">
-                <button class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[11px] text-accent/80 bg-bg/70 cursor-default" disabled>
+                <button class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[0.6875rem] text-accent/80 bg-bg/70 cursor-default" disabled>
                   {{ revealState.phase === 'intro' ? '正在校准出发信息…' : revealState.phase === 'node_reveal' ? '正在揭示下一段路线…' : revealState.phase === 'encounter_reveal' ? '遭遇正在浮现…' : '营地场景正在落定…' }}
                 </button>
               </div>
@@ -672,7 +672,7 @@
                 class="grid grid-cols-1 gap-2"
               >
                 <button
-                  class="w-full border border-success/20 rounded-xs px-3 py-2 text-[11px] text-success hover:bg-success/5 disabled:opacity-60"
+                  class="w-full border border-success/20 rounded-xs px-3 py-2 text-[0.6875rem] text-success hover:bg-success/5 disabled:opacity-60"
                   :disabled="revealState.actionLocked || session.campUsed"
                   data-testid="region-expedition-open-camp"
                   @click="triggerWithLock(() => emit('camp'))"
@@ -680,7 +680,7 @@
                   搭前线营地
                 </button>
                 <button
-                  class="w-full border border-danger/20 rounded-xs px-3 py-2 text-[11px] text-danger hover:bg-danger/5 disabled:opacity-60"
+                  class="w-full border border-danger/20 rounded-xs px-3 py-2 text-[0.6875rem] text-danger hover:bg-danger/5 disabled:opacity-60"
                   :disabled="revealState.actionLocked"
                   data-testid="region-expedition-retreat"
                   @click="triggerWithLock(() => emit('retreat'))"
@@ -695,7 +695,7 @@
         <div v-else class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_260px]">
           <section class="space-y-3">
             <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
-              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.625rem]">
                 <div class="flex items-center justify-between"><span class="text-muted">生命</span><span>{{ playerHp }}/{{ playerMaxHp }}</span></div>
                 <div class="flex items-center justify-between"><span class="text-muted">士气</span><span>{{ session.morale }}</span></div>
                 <div class="flex items-center justify-between"><span class="text-muted">风险</span><span>{{ session.danger }}</span></div>
@@ -709,10 +709,10 @@
 
             <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">前线态势</p>
-                <span class="text-[10px] text-accent">准备 {{ session.frontlinePrep }}</span>
+                <p class="text-[0.625rem] text-muted">前线态势</p>
+                <span class="text-[0.625rem] text-accent">准备 {{ session.frontlinePrep }}</span>
               </div>
-              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] mt-2">
+              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[0.625rem] mt-2">
                 <div class="flex items-center justify-between"><span class="text-muted">天气</span><span>{{ getWeatherLabel(session.riskState.weather) }}</span></div>
                 <div class="flex items-center justify-between"><span class="text-muted">污染</span><span>{{ session.riskState.pollution }}</span></div>
                 <div class="flex items-center justify-between"><span class="text-muted">警戒</span><span>{{ session.riskState.alertness }}</span></div>
@@ -721,9 +721,9 @@
             </div>
 
             <div v-if="visibleSignalLines.length > 0" class="border border-warning/20 rounded-xs px-3 py-3 bg-warning/5">
-              <p class="text-[10px] text-muted">本次主线信号</p>
+              <p class="text-[0.625rem] text-muted">本次主线信号</p>
               <div class="space-y-1 mt-2">
-                <p v-for="line in visibleSignalLines" :key="line" class="text-[10px] text-warning leading-4">
+                <p v-for="line in visibleSignalLines" :key="line" class="text-[0.625rem] text-warning leading-4">
                   ! {{ line }}
                 </p>
               </div>
@@ -731,13 +731,13 @@
 
             <div v-if="shortcutSummary" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">熟路态势</p>
-                <span class="text-[10px]" :class="shortcutSummary.toneClass">{{ shortcutSummary.label }}</span>
+                <p class="text-[0.625rem] text-muted">熟路态势</p>
+                <span class="text-[0.625rem]" :class="shortcutSummary.toneClass">{{ shortcutSummary.label }}</span>
               </div>
-              <p class="text-[10px] mt-2 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-accent'">
+              <p class="text-[0.625rem] mt-2 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-accent'">
                 {{ shortcutSummary.headline }}
               </p>
-              <p class="text-[10px] mt-1 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-success'">
+              <p class="text-[0.625rem] mt-1 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-success'">
                 {{ shortcutSummary.benefitSummary }}
               </p>
             </div>
@@ -749,7 +749,7 @@
                 <span
                   v-for="entry in nodeTrail"
                   :key="entry.id"
-                  class="border rounded-xs px-2 py-1 text-[10px] transition-all"
+                  class="border rounded-xs px-2 py-1 text-[0.625rem] transition-all"
                   :class="entry.id === session.nodeHistory[session.nodeHistory.length - 1]?.id ? 'border-accent/40 text-accent bg-accent/10' : 'border-accent/10 text-muted bg-bg/70'"
                 >
                   {{ entry.step > 0 ? `第${entry.step}步` : '出发' }} · {{ entry.label }}
@@ -767,11 +767,11 @@
                 <div>
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
-                      <p class="text-[10px]" :class="getPhaseToneClass(revealState.phase)">{{ getPhaseLabel(revealState.phase) }}</p>
+                      <p class="text-[0.625rem]" :class="getPhaseToneClass(revealState.phase)">{{ getPhaseLabel(revealState.phase) }}</p>
                       <p class="text-lg text-text mt-1">{{ sceneTitle }}</p>
-                      <p class="text-[11px] text-muted mt-2 leading-5">{{ sceneSummary }}</p>
+                      <p class="text-[0.6875rem] text-muted mt-2 leading-5">{{ sceneSummary }}</p>
                     </div>
-                    <span class="text-[10px] shrink-0" :class="getPhaseToneClass(revealState.phase)">
+                    <span class="text-[0.625rem] shrink-0" :class="getPhaseToneClass(revealState.phase)">
                       {{ getPhaseLabel(revealState.phase) }}
                     </span>
                   </div>
@@ -780,7 +780,7 @@
                     <p
                       v-for="line in visibleSceneLines"
                       :key="`${revealState.phase}-${line}`"
-                      class="text-[11px] leading-5"
+                      class="text-[0.6875rem] leading-5"
                       :class="revealState.phase === 'encounter_reveal' || revealState.phase === 'encounter_result' ? 'text-warning' : revealState.phase === 'camp_reveal' || revealState.phase === 'camp_result' ? 'text-success' : 'text-muted'"
                     >
                       - {{ line }}
@@ -800,10 +800,10 @@
                       @click="triggerWithLock(() => emit('advance', choice.id))"
                     >
                       <div class="flex items-center justify-between gap-3">
-                        <p class="text-[10px]" :class="getNodeLaneToneClass(choice.lane)">{{ choice.label }}</p>
-                        <span class="text-[10px] text-muted shrink-0">{{ getNodeLaneLabel(choice.lane) }}</span>
+                        <p class="text-[0.625rem]" :class="getNodeLaneToneClass(choice.lane)">{{ choice.label }}</p>
+                        <span class="text-[0.625rem] text-muted shrink-0">{{ getNodeLaneLabel(choice.lane) }}</span>
                       </div>
-                      <p class="text-[10px] text-muted mt-1 leading-4">{{ choice.summary }}</p>
+                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ choice.summary }}</p>
                     </button>
                   </div>
 
@@ -817,10 +817,10 @@
                       :data-testid="`region-expedition-encounter-${option.id}`"
                       @click="triggerWithLock(() => emit('resolveEncounter', option.id))"
                     >
-                      <p class="text-[10px]" :class="option.tone === 'danger' ? 'text-danger' : option.tone === 'success' ? 'text-success' : 'text-accent'">
+                      <p class="text-[0.625rem]" :class="option.tone === 'danger' ? 'text-danger' : option.tone === 'success' ? 'text-success' : 'text-accent'">
                         {{ option.label }}
                       </p>
-                      <p class="text-[10px] text-muted mt-1 leading-4">{{ option.summary }}</p>
+                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ option.summary }}</p>
                     </button>
                   </div>
 
@@ -834,14 +834,14 @@
                       :data-testid="`region-expedition-camp-${actionId}`"
                       @click="triggerWithLock(() => emit('resolveCamp', actionId))"
                     >
-                      <p class="text-[10px]" :class="CAMP_ACTION_META[actionId].toneClass">{{ CAMP_ACTION_META[actionId].label }}</p>
-                      <p class="text-[10px] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId].summary }}</p>
+                      <p class="text-[0.625rem]" :class="CAMP_ACTION_META[actionId].toneClass">{{ CAMP_ACTION_META[actionId].label }}</p>
+                      <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId].summary }}</p>
                     </button>
                   </div>
 
                   <div v-else-if="primaryActionMode === 'settlement'" class="flex flex-wrap gap-2">
                     <button
-                      class="border border-success/20 rounded-xs px-3 py-2 text-[11px] text-success hover:bg-success/5 disabled:opacity-60"
+                      class="border border-success/20 rounded-xs px-3 py-2 text-[0.6875rem] text-success hover:bg-success/5 disabled:opacity-60"
                       :disabled="revealState.actionLocked"
                       data-testid="region-expedition-settle"
                       @click="triggerWithLock(() => emit('settle'))"
@@ -851,7 +851,7 @@
                   </div>
 
                   <div v-else class="flex flex-wrap gap-2">
-                    <button class="border border-accent/20 rounded-xs px-3 py-2 text-[11px] text-accent/80 bg-bg/70 cursor-default" disabled>
+                    <button class="border border-accent/20 rounded-xs px-3 py-2 text-[0.6875rem] text-accent/80 bg-bg/70 cursor-default" disabled>
                       {{ revealState.phase === 'intro' ? '正在校准出发信息…' : revealState.phase === 'node_reveal' ? '正在揭示下一段路线…' : revealState.phase === 'encounter_reveal' ? '遭遇正在浮现…' : '营地场景正在落定…' }}
                     </button>
                   </div>
@@ -861,7 +861,7 @@
                     class="flex flex-wrap gap-2"
                   >
                     <button
-                      class="border border-success/20 rounded-xs px-3 py-2 text-[11px] text-success hover:bg-success/5 disabled:opacity-60"
+                      class="border border-success/20 rounded-xs px-3 py-2 text-[0.6875rem] text-success hover:bg-success/5 disabled:opacity-60"
                       :disabled="revealState.actionLocked || session.campUsed"
                       data-testid="region-expedition-open-camp"
                       @click="triggerWithLock(() => emit('camp'))"
@@ -869,7 +869,7 @@
                       搭前线营地
                     </button>
                     <button
-                      class="border border-danger/20 rounded-xs px-3 py-2 text-[11px] text-danger hover:bg-danger/5 disabled:opacity-60"
+                      class="border border-danger/20 rounded-xs px-3 py-2 text-[0.6875rem] text-danger hover:bg-danger/5 disabled:opacity-60"
                       :disabled="revealState.actionLocked"
                       data-testid="region-expedition-retreat"
                       @click="triggerWithLock(() => emit('retreat'))"
@@ -885,8 +885,8 @@
           <section class="space-y-3">
             <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">近况滚动</p>
-                <span class="text-[10px] text-accent">{{ recentJournal.length }} 条</span>
+                <p class="text-[0.625rem] text-muted">近况滚动</p>
+                <span class="text-[0.625rem] text-accent">{{ recentJournal.length }} 条</span>
               </div>
               <div v-if="recentJournal.length > 0" class="space-y-2 mt-2">
                 <div
@@ -896,41 +896,41 @@
                   :class="entry.tone === 'danger' ? 'border-danger/20 bg-danger/5' : entry.tone === 'success' ? 'border-success/20 bg-success/5' : 'border-accent/10 bg-bg/70'"
                 >
                   <div class="flex items-center justify-between gap-2">
-                    <p class="text-[10px]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
+                    <p class="text-[0.625rem]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
                       {{ entry.title }}
                     </p>
-                    <span class="text-[10px] text-muted">{{ entry.step > 0 ? `第${entry.step}步` : '出发' }}</span>
+                    <span class="text-[0.625rem] text-muted">{{ entry.step > 0 ? `第${entry.step}步` : '出发' }}</span>
                   </div>
-                  <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
                 </div>
               </div>
-              <p v-else class="text-[10px] text-muted mt-2 leading-4">这趟远征还没有形成新的日志。</p>
+              <p v-else class="text-[0.625rem] text-muted mt-2 leading-4">这趟远征还没有形成新的日志。</p>
             </div>
 
             <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">事件留痕</p>
-                <span class="text-[10px]" :class="session.queuedEncounterKind ? 'text-warning' : 'text-muted'">
+                <p class="text-[0.625rem] text-muted">事件留痕</p>
+                <span class="text-[0.625rem]" :class="session.queuedEncounterKind ? 'text-warning' : 'text-muted'">
                   {{ session.queuedEncounterKind ? `后续 ${getEncounterKindLabel(session.queuedEncounterKind)}` : '暂无强制后续' }}
                 </span>
               </div>
               <div v-if="encounterTrail.length > 0" class="space-y-1 mt-2">
-                <p v-for="entry in encounterTrail" :key="entry.id" class="text-[10px] text-muted leading-4">
+                <p v-for="entry in encounterTrail" :key="entry.id" class="text-[0.625rem] text-muted leading-4">
                   {{ getEncounterKindLabel(entry.kind) }} · {{ entry.summary }}
                 </p>
               </div>
-              <p v-else class="text-[10px] text-muted mt-2 leading-4">当前还没有形成可追踪的遭遇链。</p>
+              <p v-else class="text-[0.625rem] text-muted mt-2 leading-4">当前还没有形成可追踪的遭遇链。</p>
             </div>
 
             <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">携带清单</p>
-                <span class="text-[10px]" :class="carryPreviewLines.length > 0 ? 'text-accent' : 'text-muted'">{{ session.carryItems.length }} 项</span>
+                <p class="text-[0.625rem] text-muted">携带清单</p>
+                <span class="text-[0.625rem]" :class="carryPreviewLines.length > 0 ? 'text-accent' : 'text-muted'">{{ session.carryItems.length }} 项</span>
               </div>
               <div v-if="carryPreviewLines.length > 0" class="space-y-1 mt-2">
-                <p v-for="line in carryPreviewLines" :key="line" class="text-[10px] text-muted leading-4">{{ line }}</p>
+                <p v-for="line in carryPreviewLines" :key="line" class="text-[0.625rem] text-muted leading-4">{{ line }}</p>
               </div>
-              <p v-else class="text-[10px] text-muted mt-2 leading-4">当前没有额外的途中携带物。</p>
+              <p v-else class="text-[0.625rem] text-muted mt-2 leading-4">当前没有额外的途中携带物。</p>
             </div>
           </section>
         </div>

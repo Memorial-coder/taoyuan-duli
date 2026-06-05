@@ -5,7 +5,7 @@
         <div class="flex-1 space-y-2">
           <div>
             <p class="text-xs text-muted">百科用于查机制、送礼、解锁条件和跨系统资料。</p>
-            <p class="text-[10px] text-muted/70 mt-0.5">图鉴看收录与缺口，百科看答案与路线。</p>
+            <p class="text-[0.625rem] text-muted/70 mt-0.5">图鉴看收录与缺口，百科看答案与路线。</p>
           </div>
 
           <div class="relative">
@@ -24,7 +24,7 @@
 
         <div class="flex items-center gap-2">
           <div class="border border-accent/10 rounded-xs px-2 py-1">
-            <p class="text-[10px] text-muted">当前结果</p>
+            <p class="text-[0.625rem] text-muted">当前结果</p>
             <p class="text-xs text-accent">{{ filteredEntries.length }} 条</p>
           </div>
           <button
@@ -38,7 +38,7 @@
       </div>
 
       <div>
-        <p class="text-[10px] text-muted mb-1">按问题查</p>
+        <p class="text-[0.625rem] text-muted mb-1">按问题查</p>
         <div class="flex flex-wrap gap-1">
           <button
             v-for="intent in intents"
@@ -53,7 +53,7 @@
       </div>
 
       <div>
-        <p class="text-[10px] text-muted mb-1">按分类看</p>
+        <p class="text-[0.625rem] text-muted mb-1">按分类看</p>
         <div class="flex flex-wrap gap-1">
           <button
             v-for="cat in categories"
@@ -83,7 +83,7 @@
       <div class="border border-accent/10 rounded-xs p-2">
         <div class="flex items-center justify-between mb-2">
           <p class="text-xs text-muted">词条列表</p>
-          <span class="text-[10px] text-muted/70">{{ filteredEntries.length }} / {{ derived.visibleEntryCount }}</span>
+          <span class="text-[0.625rem] text-muted/70">{{ filteredEntries.length }} / {{ derived.visibleEntryCount }}</span>
         </div>
 
         <div ref="listRef" class="max-h-[30rem] overflow-y-auto pr-1" @scroll="onListScroll">
@@ -100,20 +100,20 @@
                   <div class="min-w-0">
                     <p class="text-xs font-medium break-words" :class="getCategoryColor(entry.category)" v-html="highlightText(entry.name)" />
                     <div class="flex flex-wrap items-center gap-1 mt-0.5">
-                      <span class="text-[10px] text-muted/70">{{ entry.categoryLabel }}</span>
-                      <span v-if="entry.spoiler" class="text-[10px] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘</span>
+                      <span class="text-[0.625rem] text-muted/70">{{ entry.categoryLabel }}</span>
+                      <span v-if="entry.spoiler" class="text-[0.625rem] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘</span>
                     </div>
                   </div>
-                  <span class="text-[10px] text-muted shrink-0">{{ entry.relatedPanels.length > 0 ? `${entry.relatedPanels.length} 个入口` : '资料' }}</span>
+                  <span class="text-[0.625rem] text-muted shrink-0">{{ entry.relatedPanels.length > 0 ? `${entry.relatedPanels.length} 个入口` : '资料' }}</span>
                 </div>
 
-                <p class="text-[10px] text-muted mt-1 leading-relaxed line-clamp-2">{{ getPreviewText(entry) }}</p>
+                <p class="text-[0.625rem] text-muted mt-1 leading-relaxed line-clamp-2">{{ getPreviewText(entry) }}</p>
 
                 <div class="flex flex-wrap gap-1 mt-1.5">
                   <span
                     v-for="tag in getIntentTags(entry)"
                     :key="`${entry.id}_${tag}`"
-                    class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
+                    class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
                   >
                     {{ tag }}
                   </span>
@@ -125,7 +125,7 @@
           <div v-else class="flex flex-col items-center justify-center py-10 space-y-2">
             <BookOpen :size="36" class="text-accent/20" />
             <p class="text-xs text-muted">没有找到匹配的词条</p>
-            <p class="text-[10px] text-muted/70">可以换个问题入口，或清空筛选后再看。</p>
+            <p class="text-[0.625rem] text-muted/70">可以换个问题入口，或清空筛选后再看。</p>
           </div>
         </div>
       </div>
@@ -136,12 +136,12 @@
             <div>
               <p class="text-sm" :class="getCategoryColor(selectedEntry.category)">{{ selectedEntry.name }}</p>
               <div class="flex flex-wrap items-center gap-1 mt-0.5">
-                <span class="text-[10px] text-muted">{{ selectedEntry.categoryLabel }}</span>
-                <span v-if="selectedEntry.spoiler" class="text-[10px] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘词条</span>
+                <span class="text-[0.625rem] text-muted">{{ selectedEntry.categoryLabel }}</span>
+                <span v-if="selectedEntry.spoiler" class="text-[0.625rem] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘词条</span>
               </div>
             </div>
             <div class="text-right">
-              <p class="text-[10px] text-muted">相关系统</p>
+              <p class="text-[0.625rem] text-muted">相关系统</p>
               <p class="text-xs text-accent">{{ selectedEntry.relatedPanels.length }} 个</p>
             </div>
           </div>

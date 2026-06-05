@@ -19,19 +19,19 @@
 
       <div class="grid gap-2 md:grid-cols-4">
         <div class="game-panel-muted p-3">
-          <p class="text-[10px] text-muted">当前状态</p>
+          <p class="text-[0.625rem] text-muted">当前状态</p>
           <p class="mt-1 text-xs text-accent">{{ gameStore.isGameStarted ? '已载入游戏态' : '未进入游戏态' }}</p>
         </div>
         <div class="game-panel-muted p-3">
-          <p class="text-[10px] text-muted">当前日期</p>
+          <p class="text-[0.625rem] text-muted">当前日期</p>
           <p class="mt-1 text-xs text-accent">第{{ gameStore.year }}年{{ SEASON_NAMES[gameStore.season] }}第{{ gameStore.day }}天 {{ gameStore.timeDisplay }}</p>
         </div>
         <div class="game-panel-muted p-3">
-          <p class="text-[10px] text-muted">当前主题周</p>
+          <p class="text-[0.625rem] text-muted">当前主题周</p>
           <p class="mt-1 text-xs text-accent">{{ goalStore.currentThemeWeek?.name ?? '未激活' }}</p>
         </div>
         <div class="game-panel-muted p-3">
-          <p class="text-[10px] text-muted">经济分层</p>
+          <p class="text-[0.625rem] text-muted">经济分层</p>
           <p class="mt-1 text-xs text-accent">{{ economyOverview.currentSegment?.label ?? '未判定' }}</p>
         </div>
       </div>
@@ -60,14 +60,14 @@
             class="w-full pl-9 pr-3 py-2 bg-bg border border-accent/20 rounded-xs text-xs outline-none"
           />
         </div>
-        <div class="text-[11px] text-muted self-center">
+        <div class="text-[0.6875rem] text-muted self-center">
           {{ activeSampleTag ? `当前标签：${activeSampleTag}` : '当前显示全部标签' }}
         </div>
       </div>
 
       <div class="flex flex-wrap gap-2">
         <button
-          class="px-2 py-1 text-[10px] rounded-xs border transition-colors"
+          class="px-2 py-1 text-[0.625rem] rounded-xs border transition-colors"
           :class="!activeSampleTag ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted hover:border-accent/40'"
           @click="activeSampleTag = ''"
         >
@@ -76,7 +76,7 @@
         <button
           v-for="tag in sampleTags"
           :key="tag"
-          class="px-2 py-1 text-[10px] rounded-xs border transition-colors"
+          class="px-2 py-1 text-[0.625rem] rounded-xs border transition-colors"
           :class="activeSampleTag === tag ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted hover:border-accent/40'"
           @click="activeSampleTag = activeSampleTag === tag ? '' : tag"
         >
@@ -89,7 +89,7 @@
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="space-y-1">
               <p class="text-xs text-accent">{{ group.title }}</p>
-              <p class="text-[11px] text-muted leading-5">{{ group.description }}</p>
+              <p class="text-[0.6875rem] text-muted leading-5">{{ group.description }}</p>
             </div>
             <span class="game-chip">{{ group.items.length }} 套</span>
           </div>
@@ -99,28 +99,28 @@
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 space-y-1">
                   <p class="text-xs text-accent">{{ sample.label }}</p>
-                  <p class="text-[11px] text-muted leading-5">{{ sample.description }}</p>
+                  <p class="text-[0.6875rem] text-muted leading-5">{{ sample.description }}</p>
                 </div>
-                <span class="text-[10px] px-2 py-1 rounded-xs border border-accent/20 text-accent whitespace-nowrap">
+                <span class="text-[0.625rem] px-2 py-1 rounded-xs border border-accent/20 text-accent whitespace-nowrap">
                   推荐：{{ routeNameLabels[sample.recommendedRouteName] ?? sample.recommendedRouteName }}
                 </span>
               </div>
 
               <div class="flex flex-wrap gap-1">
-                <span v-for="tag in sample.tags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
+                <span v-for="tag in sample.tags" :key="tag" class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
                   {{ tag }}
                 </span>
               </div>
 
               <div class="space-y-1">
-                <p class="text-[10px] text-muted">覆盖系统</p>
-                <p class="text-[11px] leading-5 text-text">{{ sample.focusAreas.join(' · ') }}</p>
+                <p class="text-[0.625rem] text-muted">覆盖系统</p>
+                <p class="text-[0.6875rem] leading-5 text-text">{{ sample.focusAreas.join(' · ') }}</p>
               </div>
 
               <div class="space-y-1">
-                <p class="text-[10px] text-muted">推荐 smoke 动作</p>
+                <p class="text-[0.625rem] text-muted">推荐 smoke 动作</p>
                 <ul class="space-y-1">
-                  <li v-for="check in sample.smokeChecks" :key="check.id" class="text-[11px] text-muted leading-5">
+                  <li v-for="check in sample.smokeChecks" :key="check.id" class="text-[0.6875rem] text-muted leading-5">
                     · {{ check.label }}
                   </li>
                 </ul>
@@ -215,19 +215,19 @@
 
         <div class="grid gap-3 md:grid-cols-2">
           <div class="game-panel-muted p-3 space-y-1">
-            <p class="text-[10px] text-muted">通胀压力</p>
+            <p class="text-[0.625rem] text-muted">通胀压力</p>
             <p class="text-xs text-accent">{{ economyOverview.inflationPressure.toFixed(2) }}</p>
           </div>
           <div class="game-panel-muted p-3 space-y-1">
-            <p class="text-[10px] text-muted">消耗满足度</p>
+            <p class="text-[0.625rem] text-muted">消耗满足度</p>
             <p class="text-xs text-accent">{{ (economyOverview.sinkSatisfaction * 100).toFixed(1) }}%</p>
           </div>
           <div class="game-panel-muted p-3 space-y-1">
-            <p class="text-[10px] text-muted">循环多样度</p>
+            <p class="text-[0.625rem] text-muted">循环多样度</p>
             <p class="text-xs text-accent">{{ economyOverview.loopDiversity }}</p>
           </div>
           <div class="game-panel-muted p-3 space-y-1">
-            <p class="text-[10px] text-muted">单系统收入占比</p>
+            <p class="text-[0.625rem] text-muted">单系统收入占比</p>
             <p class="text-xs text-accent">{{ (economyOverview.dominantIncomeShare * 100).toFixed(1) }}%</p>
           </div>
         </div>
@@ -235,27 +235,27 @@
         <div class="game-panel-muted p-3 space-y-2">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs text-accent">最近周快照</p>
-            <span class="text-[10px] text-muted">{{ currentWeekInfo.seasonWeekId }}</span>
+            <span class="text-[0.625rem] text-muted">{{ currentWeekInfo.seasonWeekId }}</span>
           </div>
           <div v-if="latestSnapshot" class="grid gap-2 md:grid-cols-2">
-            <div class="text-[11px] text-muted">净收入：<span class="text-accent">{{ latestSnapshot.netIncome }}</span></div>
-            <div class="text-[11px] text-muted">周收支：<span class="text-accent">{{ latestSnapshot.totalIncome }} / {{ latestSnapshot.totalExpense }}</span></div>
-            <div class="text-[11px] text-muted">Sink：<span class="text-accent">{{ latestSnapshot.sinkSpend }}</span></div>
-            <div class="text-[11px] text-muted">博物馆展陈：<span class="text-accent">{{ latestSnapshot.museumExhibitLevel }}</span></div>
-            <div class="text-[11px] text-muted">鱼塘周赛代理值：<span class="text-accent">{{ latestSnapshot.fishPondContestScore }}</span></div>
-            <div class="text-[11px] text-muted">社交参与：<span class="text-accent">{{ latestSnapshot.socialParticipationScore }}</span></div>
-            <div class="text-[11px] text-muted md:col-span-2">
+            <div class="text-[0.6875rem] text-muted">净收入：<span class="text-accent">{{ latestSnapshot.netIncome }}</span></div>
+            <div class="text-[0.6875rem] text-muted">周收支：<span class="text-accent">{{ latestSnapshot.totalIncome }} / {{ latestSnapshot.totalExpense }}</span></div>
+            <div class="text-[0.6875rem] text-muted">Sink：<span class="text-accent">{{ latestSnapshot.sinkSpend }}</span></div>
+            <div class="text-[0.6875rem] text-muted">博物馆展陈：<span class="text-accent">{{ latestSnapshot.museumExhibitLevel }}</span></div>
+            <div class="text-[0.6875rem] text-muted">鱼塘周赛代理值：<span class="text-accent">{{ latestSnapshot.fishPondContestScore }}</span></div>
+            <div class="text-[0.6875rem] text-muted">社交参与：<span class="text-accent">{{ latestSnapshot.socialParticipationScore }}</span></div>
+            <div class="text-[0.6875rem] text-muted md:col-span-2">
               票券快照：
               <span class="text-accent">{{ formatTicketBalances(latestSnapshot.ticketBalances) }}</span>
             </div>
           </div>
-          <p v-else class="text-[11px] text-muted">当前尚无周快照，可点击左侧“生成当前周快照”。</p>
+          <p v-else class="text-[0.6875rem] text-muted">当前尚无周快照，可点击左侧“生成当前周快照”。</p>
         </div>
 
         <div class="game-panel-muted p-3 space-y-2">
           <p class="text-xs text-accent">快照归档</p>
           <div v-if="archiveSnapshots.length > 0" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-            <div v-for="snapshot in archiveSnapshots" :key="snapshot.weekId" class="border border-accent/10 rounded-xs px-2 py-1.5 text-[11px]">
+            <div v-for="snapshot in archiveSnapshots" :key="snapshot.weekId" class="border border-accent/10 rounded-xs px-2 py-1.5 text-[0.6875rem]">
               <div class="flex items-center justify-between gap-3">
                 <span class="text-accent">{{ snapshot.weekId }}</span>
                 <span class="text-muted">净收入 {{ snapshot.netIncome }}</span>
@@ -263,7 +263,7 @@
               <p class="mt-1 text-muted">主题周 {{ snapshot.activeThemeWeekId ?? '无' }} · 繁荣度 {{ snapshot.villageProsperityScore }} · 快照样本 {{ snapshot.sourceSnapshotCount }}</p>
             </div>
           </div>
-          <p v-else class="text-[11px] text-muted">暂无归档。</p>
+          <p v-else class="text-[0.6875rem] text-muted">暂无归档。</p>
         </div>
 
         <div class="game-panel-muted p-3 space-y-2">
@@ -271,102 +271,102 @@
           <div v-if="recentStructuredLogs.length > 0" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
             <div v-for="(entry, index) in recentStructuredLogs" :key="`${entry.dayLabel}-${index}`" class="border border-accent/10 rounded-xs px-2 py-1.5">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-[10px] text-accent">{{ entry.category ?? 'system' }}</span>
-                <span class="text-[10px] text-muted">{{ entry.dayLabel || '未标记日期' }}</span>
+                <span class="text-[0.625rem] text-accent">{{ entry.category ?? 'system' }}</span>
+                <span class="text-[0.625rem] text-muted">{{ entry.dayLabel || '未标记日期' }}</span>
               </div>
-              <p class="mt-1 text-[11px]">{{ entry.msg }}</p>
-              <p v-if="entry.tags?.length" class="mt-1 text-[10px] text-success">{{ entry.tags.join(' · ') }}</p>
-              <p v-if="entry.meta && Object.keys(entry.meta).length" class="mt-1 text-[10px] text-muted break-all">{{ formatMeta(entry.meta) }}</p>
+              <p class="mt-1 text-[0.6875rem]">{{ entry.msg }}</p>
+              <p v-if="entry.tags?.length" class="mt-1 text-[0.625rem] text-success">{{ entry.tags.join(' · ') }}</p>
+              <p v-if="entry.meta && Object.keys(entry.meta).length" class="mt-1 text-[0.625rem] text-muted break-all">{{ formatMeta(entry.meta) }}</p>
             </div>
           </div>
-          <p v-else class="text-[11px] text-muted">暂无结构化日志。</p>
+          <p v-else class="text-[0.6875rem] text-muted">暂无结构化日志。</p>
         </div>
 
         <div class="game-panel-muted p-3 space-y-2">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs text-accent">最近一次高阶订单生成 Trace</p>
-            <span class="text-[10px] text-muted">{{ latestSpecialOrderTrace?.weekId ?? latestSpecialOrderTrace?.mode ?? '未生成' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ latestSpecialOrderTrace?.weekId ?? latestSpecialOrderTrace?.mode ?? '未生成' }}</span>
           </div>
           <div v-if="latestSpecialOrderTrace" class="space-y-2">
             <div class="grid gap-2 md:grid-cols-2">
-              <div class="text-[11px] text-muted">模式：<span class="text-accent">{{ latestSpecialOrderTrace.mode }}</span></div>
-              <div class="text-[11px] text-muted">季节 / Tier：<span class="text-accent">{{ latestSpecialOrderTrace.season }} / {{ latestSpecialOrderTrace.tier }}</span></div>
-              <div class="text-[11px] text-muted">周标识：<span class="text-accent">{{ latestSpecialOrderTrace.weekId ?? 'legacy' }}</span></div>
-              <div class="text-[11px] text-muted">尝试次数：<span class="text-accent">{{ latestSpecialOrderTrace.attempts }}</span></div>
+              <div class="text-[0.6875rem] text-muted">模式：<span class="text-accent">{{ latestSpecialOrderTrace.mode }}</span></div>
+              <div class="text-[0.6875rem] text-muted">季节 / Tier：<span class="text-accent">{{ latestSpecialOrderTrace.season }} / {{ latestSpecialOrderTrace.tier }}</span></div>
+              <div class="text-[0.6875rem] text-muted">周标识：<span class="text-accent">{{ latestSpecialOrderTrace.weekId ?? 'legacy' }}</span></div>
+              <div class="text-[0.6875rem] text-muted">尝试次数：<span class="text-accent">{{ latestSpecialOrderTrace.attempts }}</span></div>
             </div>
             <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-              <p class="text-[11px] text-accent">最终命中</p>
-              <p class="text-[10px] text-muted mt-1">订单 {{ latestSpecialOrderTrace.selectedOrderId ?? '未生成' }} · 模板 {{ latestSpecialOrderTrace.selectedTemplateName ?? '未命中' }} · 目标 {{ latestSpecialOrderTrace.selectedTargetItemId ?? '无' }}</p>
-              <p class="text-[10px] text-muted mt-1">{{ latestSpecialOrderTrace.selectedReason }}</p>
+              <p class="text-[0.6875rem] text-accent">最终命中</p>
+              <p class="text-[0.625rem] text-muted mt-1">订单 {{ latestSpecialOrderTrace.selectedOrderId ?? '未生成' }} · 模板 {{ latestSpecialOrderTrace.selectedTemplateName ?? '未命中' }} · 目标 {{ latestSpecialOrderTrace.selectedTargetItemId ?? '无' }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ latestSpecialOrderTrace.selectedReason }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-              <p class="text-[11px] text-accent">偏置来源</p>
-              <p class="text-[10px] text-muted mt-1">主题偏好：{{ latestSpecialOrderTrace.preferredThemeTag ?? '无' }}</p>
-              <p class="text-[10px] text-muted mt-1">杂交偏好：{{ latestSpecialOrderTrace.preferredHybridIds?.length ? latestSpecialOrderTrace.preferredHybridIds.join(' · ') : '无' }}</p>
-              <p class="text-[10px] text-muted mt-1">偏好类目：{{ latestSpecialOrderTrace.preferredMarketCategories?.length ? latestSpecialOrderTrace.preferredMarketCategories.join(' · ') : '无' }}</p>
-              <p class="text-[10px] text-muted mt-1">抑制类目：{{ latestSpecialOrderTrace.discouragedMarketCategories?.length ? latestSpecialOrderTrace.discouragedMarketCategories.join(' · ') : '无' }}</p>
+              <p class="text-[0.6875rem] text-accent">偏置来源</p>
+              <p class="text-[0.625rem] text-muted mt-1">主题偏好：{{ latestSpecialOrderTrace.preferredThemeTag ?? '无' }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">杂交偏好：{{ latestSpecialOrderTrace.preferredHybridIds?.length ? latestSpecialOrderTrace.preferredHybridIds.join(' · ') : '无' }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">偏好类目：{{ latestSpecialOrderTrace.preferredMarketCategories?.length ? latestSpecialOrderTrace.preferredMarketCategories.join(' · ') : '无' }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">抑制类目：{{ latestSpecialOrderTrace.discouragedMarketCategories?.length ? latestSpecialOrderTrace.discouragedMarketCategories.join(' · ') : '无' }}</p>
             </div>
             <div class="space-y-1.5 max-h-72 overflow-y-auto pr-1">
               <div v-for="attempt in latestSpecialOrderTrace.attemptsDetail" :key="`trace-attempt-${attempt.attempt}`" class="border border-accent/10 rounded-xs px-2 py-2">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[11px] text-accent">Attempt {{ attempt.attempt }}</p>
-                  <span class="text-[10px] text-muted">{{ formatTraceAttemptSummary(attempt) }}</span>
+                  <p class="text-[0.6875rem] text-accent">Attempt {{ attempt.attempt }}</p>
+                  <span class="text-[0.625rem] text-muted">{{ formatTraceAttemptSummary(attempt) }}</span>
                 </div>
-                <p v-if="attempt.blockReason" class="text-[10px] text-warning mt-1">{{ attempt.blockReason }}</p>
+                <p v-if="attempt.blockReason" class="text-[0.625rem] text-warning mt-1">{{ attempt.blockReason }}</p>
                 <div class="space-y-1 mt-2">
                   <div v-for="candidate in attempt.candidates" :key="`${attempt.attempt}-${candidate.templateName}-${candidate.targetItemId}`" class="rounded-xs border border-accent/10 px-2 py-2 bg-bg/10">
                     <div class="flex items-center justify-between gap-2">
-                      <span class="text-[10px] text-text">{{ candidate.templateName }} · {{ candidate.targetItemId }}</span>
-                      <span class="text-[10px] text-accent">权重 {{ candidate.finalWeight.toFixed(2) }}</span>
+                      <span class="text-[0.625rem] text-text">{{ candidate.templateName }} · {{ candidate.targetItemId }}</span>
+                      <span class="text-[0.625rem] text-accent">权重 {{ candidate.finalWeight.toFixed(2) }}</span>
                     </div>
-                    <p class="text-[10px] text-muted mt-1">{{ formatTraceCandidateSummary(candidate) }}</p>
-                    <p v-if="candidate.weightReasons?.length" class="text-[10px] text-success mt-1">{{ candidate.weightReasons.join('；') }}</p>
-                    <p v-if="candidate.blockedByAntiRepeat" class="text-[10px] text-warning mt-1">anti-repeat 阻断：{{ candidate.blockedTags?.join('、') || '是' }}{{ candidate.cooldownWeeks ? ` · 冷却 ${candidate.cooldownWeeks} 周` : '' }}</p>
+                    <p class="text-[0.625rem] text-muted mt-1">{{ formatTraceCandidateSummary(candidate) }}</p>
+                    <p v-if="candidate.weightReasons?.length" class="text-[0.625rem] text-success mt-1">{{ candidate.weightReasons.join('；') }}</p>
+                    <p v-if="candidate.blockedByAntiRepeat" class="text-[0.625rem] text-warning mt-1">anti-repeat 阻断：{{ candidate.blockedTags?.join('、') || '是' }}{{ candidate.cooldownWeeks ? ` · 冷却 ${candidate.cooldownWeeks} 周` : '' }}</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <p v-else class="text-[11px] text-muted">尚未生成高阶订单 trace，可先投放测试订单。</p>
+          <p v-else class="text-[0.6875rem] text-muted">尚未生成高阶订单 trace，可先投放测试订单。</p>
         </div>
 
         <div class="game-panel-muted p-3 space-y-2">
           <div class="flex items-center justify-between gap-3">
             <p class="text-xs text-accent">最近一次周目标结算</p>
-            <span class="text-[10px] text-muted">{{ latestWeeklyGoalSettlement?.weekId ?? '未结算' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ latestWeeklyGoalSettlement?.weekId ?? '未结算' }}</span>
           </div>
           <div v-if="latestWeeklyGoalSettlement" class="space-y-2">
             <div class="grid gap-2 md:grid-cols-2">
-              <div class="text-[11px] text-muted">周次：<span class="text-accent">{{ latestWeeklyGoalSettlement.weekId }}</span></div>
-              <div class="text-[11px] text-muted">完成：<span class="text-accent">{{ latestWeeklyGoalSettlement.completedGoalCount }}/{{ latestWeeklyGoalSettlement.totalGoalCount }}</span></div>
-              <div class="text-[11px] text-muted">主题周：<span class="text-accent">{{ latestWeeklyGoalSettlement.linkedThemeWeekId ?? '无' }}</span></div>
-              <div class="text-[11px] text-muted">结算日：<span class="text-accent">{{ latestWeeklyGoalSettlement.settledAtDayTag }}</span></div>
+              <div class="text-[0.6875rem] text-muted">周次：<span class="text-accent">{{ latestWeeklyGoalSettlement.weekId }}</span></div>
+              <div class="text-[0.6875rem] text-muted">完成：<span class="text-accent">{{ latestWeeklyGoalSettlement.completedGoalCount }}/{{ latestWeeklyGoalSettlement.totalGoalCount }}</span></div>
+              <div class="text-[0.6875rem] text-muted">主题周：<span class="text-accent">{{ latestWeeklyGoalSettlement.linkedThemeWeekId ?? '无' }}</span></div>
+              <div class="text-[0.6875rem] text-muted">结算日：<span class="text-accent">{{ latestWeeklyGoalSettlement.settledAtDayTag }}</span></div>
             </div>
             <div v-if="latestWeeklyGoalSettlement.rewardHighlights.length > 0" class="border border-success/20 rounded-xs px-2 py-2 bg-success/5">
-              <p class="text-[11px] text-success">奖励摘要</p>
-              <p class="text-[10px] text-muted mt-1">{{ latestWeeklyGoalSettlement.rewardHighlights.join('；') }}</p>
+              <p class="text-[0.6875rem] text-success">奖励摘要</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ latestWeeklyGoalSettlement.rewardHighlights.join('；') }}</p>
             </div>
             <div v-if="latestWeeklyGoalSettlement.failureHighlights.length > 0" class="border border-warning/20 rounded-xs px-2 py-2 bg-warning/5">
-              <p class="text-[11px] text-warning">失败留痕</p>
-              <p class="text-[10px] text-muted mt-1">{{ latestWeeklyGoalSettlement.failureHighlights.join('；') }}</p>
+              <p class="text-[0.6875rem] text-warning">失败留痕</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ latestWeeklyGoalSettlement.failureHighlights.join('；') }}</p>
             </div>
             <div v-if="latestWeeklyGoalSettlement.compensationRewardSummaries.length > 0" class="border border-accent/20 rounded-xs px-2 py-2 bg-accent/5">
-              <p class="text-[11px] text-accent">柔性补偿</p>
-              <p class="text-[10px] text-muted mt-1">{{ latestWeeklyGoalSettlement.compensationRewardSummaries.join('；') }}</p>
+              <p class="text-[0.6875rem] text-accent">柔性补偿</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ latestWeeklyGoalSettlement.compensationRewardSummaries.join('；') }}</p>
             </div>
             <div class="space-y-1 max-h-56 overflow-y-auto pr-1">
               <div v-for="item in latestWeeklyGoalSettlement.items" :key="`settlement-${item.goalId}`" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                 <div class="flex items-center justify-between gap-2">
-                  <span class="text-[10px] text-text">{{ item.title }}</span>
-                  <span :class="item.completed ? 'text-success' : 'text-warning'" class="text-[10px]">{{ item.progressValue }}/{{ item.targetValue }}</span>
+                  <span class="text-[0.625rem] text-text">{{ item.title }}</span>
+                  <span :class="item.completed ? 'text-success' : 'text-warning'" class="text-[0.625rem]">{{ item.progressValue }}/{{ item.targetValue }}</span>
                 </div>
-                <p v-if="item.rewardSummary" class="text-[10px] text-success mt-1">奖励：{{ item.rewardSummary }}</p>
-                <p v-if="item.compensationSummary" class="text-[10px] text-accent mt-1">补偿：{{ item.compensationSummary }}</p>
-                <p v-if="item.failureCompensationReason" class="text-[10px] text-muted mt-1">{{ item.failureCompensationReason }}</p>
+                <p v-if="item.rewardSummary" class="text-[0.625rem] text-success mt-1">奖励：{{ item.rewardSummary }}</p>
+                <p v-if="item.compensationSummary" class="text-[0.625rem] text-accent mt-1">补偿：{{ item.compensationSummary }}</p>
+                <p v-if="item.failureCompensationReason" class="text-[0.625rem] text-muted mt-1">{{ item.failureCompensationReason }}</p>
               </div>
             </div>
           </div>
-          <p v-else class="text-[11px] text-muted">尚无周目标结算记录，先推进到下周即可生成。</p>
+          <p v-else class="text-[0.6875rem] text-muted">尚无周目标结算记录，先推进到下周即可生成。</p>
         </div>
       </section>
     </div>
@@ -376,15 +376,15 @@
         <div class="space-y-1">
           <p class="game-section-title">后期特性开关</p>
           <p class="game-section-desc">复用 CORE-001 的 feature flag 底座，验证开发态覆盖是否工作。</p>
-          <p v-if="!canEditFeatureFlags" class="text-[11px] text-warning">当前不是开发环境，以下开关为只读展示，按钮不会生效。</p>
+          <p v-if="!canEditFeatureFlags" class="text-[0.6875rem] text-warning">当前不是开发环境，以下开关为只读展示，按钮不会生效。</p>
         </div>
         <div class="space-y-2">
           <div v-for="flag in settingsStore.lateGameFeatureConfigs" :key="flag.id" class="game-panel-muted p-3">
             <div class="flex items-start justify-between gap-3">
               <div class="space-y-1 min-w-0">
                 <p class="text-xs text-accent">{{ flag.label }}</p>
-                <p class="text-[11px] text-muted leading-5">{{ flag.description }}</p>
-                <p class="text-[10px] text-muted">
+                <p class="text-[0.6875rem] text-muted leading-5">{{ flag.description }}</p>
+                <p class="text-[0.625rem] text-muted">
                   当前：{{ featureState[flag.id] ? '开启' : '关闭' }}
                   <span v-if="settingsStore.lateGameFeatureOverrides[flag.id] !== undefined"> · 已覆盖</span>
                 </p>
@@ -422,7 +422,7 @@
           <Button class="justify-center" :icon="Settings2" @click="applyBalancePreset({ ticketRewardRate: 1.5 })">票券产出 ×1.5</Button>
           <Button class="justify-center" :icon="Settings2" @click="applyBalancePreset({ casinoCashExpectationMultiplier: 0.65 })">赌坊现金期望 65%</Button>
         </div>
-        <div class="game-panel-muted p-3 space-y-1 text-[11px] text-muted">
+        <div class="game-panel-muted p-3 space-y-1 text-[0.6875rem] text-muted">
           <p>maintenanceMultiplier：<span class="text-accent">{{ balanceConfig.maintenanceMultiplier }}</span></p>
           <p>ticketRewardRate：<span class="text-accent">{{ balanceConfig.ticketRewardRate }}</span></p>
           <p>highValueOrderCashRatio：<span class="text-accent">{{ balanceConfig.highValueOrderCashRatio }}</span></p>

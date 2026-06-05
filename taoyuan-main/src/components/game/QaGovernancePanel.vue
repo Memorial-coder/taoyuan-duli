@@ -2,63 +2,63 @@
   <div v-if="showPanel" class="border border-warning/20 rounded-xs p-3 mb-3 bg-warning/5">
     <div class="flex items-start justify-between gap-3 mb-2">
       <div class="min-w-0">
-        <p class="text-[10px] text-muted">{{ panelTitle }}</p>
+        <p class="text-[0.625rem] text-muted">{{ panelTitle }}</p>
         <p class="text-xs text-warning mt-1 leading-5">{{ activeTier.label }}</p>
-        <p class="text-[10px] text-muted mt-1 leading-4">{{ activeTier.summary }}</p>
+        <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ activeTier.summary }}</p>
       </div>
       <div class="shrink-0 text-right">
-        <p class="text-[10px] text-muted">存档模式</p>
-        <p class="text-[10px] text-accent mt-0.5">{{ saveOverview.storageMode }}</p>
-        <p class="text-[10px] text-muted mt-1">灰度通道</p>
-        <p class="text-[10px] text-warning mt-0.5">{{ playerOverview.runtimeState.activeGrayReleaseChannel }}</p>
+        <p class="text-[0.625rem] text-muted">存档模式</p>
+        <p class="text-[0.625rem] text-accent mt-0.5">{{ saveOverview.storageMode }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">灰度通道</p>
+        <p class="text-[0.625rem] text-warning mt-0.5">{{ playerOverview.runtimeState.activeGrayReleaseChannel }}</p>
       </div>
     </div>
 
     <div class="grid grid-cols-2 gap-2 mb-2">
       <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
-        <p class="text-[10px] text-muted">下次周巡检</p>
+        <p class="text-[0.625rem] text-muted">下次周巡检</p>
         <p class="text-xs text-warning mt-0.5">{{ weeklyCountdownLabel }}</p>
-        <p class="text-[10px] text-muted mt-1">迁移方案：{{ migrationProfileLabel }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">迁移方案：{{ migrationProfileLabel }}</p>
       </div>
       <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
-        <p class="text-[10px] text-muted">回滚 / 热修</p>
+        <p class="text-[0.625rem] text-muted">回滚 / 热修</p>
         <p class="text-xs text-warning mt-0.5">{{ rollbackHotfixLabel }}</p>
-        <p class="text-[10px] text-muted mt-1">回归套件 {{ playerOverview.regressionSuiteCount }} 组</p>
+        <p class="text-[0.625rem] text-muted mt-1">回归套件 {{ playerOverview.regressionSuiteCount }} 组</p>
       </div>
     </div>
 
     <div class="border border-warning/10 rounded-xs p-2 mb-2 bg-bg/10">
-      <p class="text-[10px] text-warning mb-1">需求摘要</p>
-      <p class="text-[10px] text-muted leading-4">{{ requirementSummary }}</p>
+      <p class="text-[0.625rem] text-warning mb-1">需求摘要</p>
+      <p class="text-[0.625rem] text-muted leading-4">{{ requirementSummary }}</p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
       <div class="border border-warning/10 rounded-xs p-2 bg-bg/10">
-        <p class="text-[10px] text-warning mb-1">花费拆解</p>
-        <p class="text-[10px] text-muted leading-4">{{ costBreakdown }}</p>
+        <p class="text-[0.625rem] text-warning mb-1">花费拆解</p>
+        <p class="text-[0.625rem] text-muted leading-4">{{ costBreakdown }}</p>
       </div>
       <div class="border border-warning/10 rounded-xs p-2 bg-bg/10">
-        <p class="text-[10px] text-warning mb-1">收益预览</p>
-        <p class="text-[10px] text-muted leading-4">{{ rewardPreview }}</p>
+        <p class="text-[0.625rem] text-warning mb-1">收益预览</p>
+        <p class="text-[0.625rem] text-muted leading-4">{{ rewardPreview }}</p>
       </div>
     </div>
 
     <div class="border border-warning/10 rounded-xs p-2 mb-2 bg-bg/10">
-      <p class="text-[10px] text-warning mb-1">推荐理由</p>
-      <p class="text-[10px] text-muted leading-4">{{ recommendationReason }}</p>
+      <p class="text-[0.625rem] text-warning mb-1">推荐理由</p>
+      <p class="text-[0.625rem] text-muted leading-4">{{ recommendationReason }}</p>
     </div>
 
     <div class="border border-danger/20 rounded-xs p-2 mb-2 bg-danger/5">
-      <p class="text-[10px] text-danger mb-1">风险说明</p>
-      <p class="text-[10px] text-muted leading-4">{{ riskExplanation }}</p>
+      <p class="text-[0.625rem] text-danger mb-1">风险说明</p>
+      <p class="text-[0.625rem] text-muted leading-4">{{ riskExplanation }}</p>
     </div>
 
     <div v-if="crossSystemLoopLines.length > 0" class="border border-warning/10 rounded-xs p-2 mb-2 bg-bg/10">
-      <p class="text-[10px] text-warning mb-1">跨系统闭环</p>
+      <p class="text-[0.625rem] text-warning mb-1">跨系统闭环</p>
       <p
         v-for="line in crossSystemLoopLines"
         :key="line"
-        class="text-[10px] text-muted leading-4"
+        class="text-[0.625rem] text-muted leading-4"
       >
         · {{ line }}
       </p>

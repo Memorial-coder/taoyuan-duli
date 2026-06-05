@@ -13,7 +13,7 @@
           村庄建设
         </p>
         <div class="flex items-center gap-2">
-          <span class="text-[10px] text-muted">{{ villagePhaseLabel }} / {{ villageSegmentLabel }}</span>
+          <span class="text-[0.625rem] text-muted">{{ villagePhaseLabel }} / {{ villageSegmentLabel }}</span>
           <Button class="justify-center !px-2 !py-1" @click="void router.push({ name: 'village-projects' })">建设总览</Button>
         </div>
       </div>
@@ -43,9 +43,9 @@
           <div v-for="project in villageAvailableProjects" :key="project.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent truncate">{{ project.name }}</p>
-              <span class="text-[10px] text-muted whitespace-nowrap">{{ project.contentTier }} · {{ project.fundingPhase }}</span>
+              <span class="text-[0.625rem] text-muted whitespace-nowrap">{{ project.contentTier }} · {{ project.fundingPhase }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-0.5 leading-4">{{ project.blockedReason ?? '材料和铜钱都够了，现在就能动工。' }}</p>
+            <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ project.blockedReason ?? '材料和铜钱都够了，现在就能动工。' }}</p>
           </div>
         </div>
       </div>
@@ -56,15 +56,15 @@
     <div v-if="villageWorldChangeHighlights.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
         <p class="text-xs text-muted mb-1">世界变化</p>
         <div v-for="entry in villageWorldChangeHighlights" :key="entry.id" class="mt-1 first:mt-0">
-          <p class="text-[10px] text-accent">{{ entry.projectName }} · {{ entry.title }}</p>
-          <p class="text-[10px] text-muted leading-4">{{ entry.summary }}</p>
+          <p class="text-[0.625rem] text-accent">{{ entry.projectName }} · {{ entry.title }}</p>
+          <p class="text-[0.625rem] text-muted leading-4">{{ entry.summary }}</p>
         </div>
       </div>
 
       <div class="grid grid-cols-1 gap-2">
         <div v-if="villageMaintenanceHighlights.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">维护提醒</p>
-          <div v-for="summary in villageMaintenanceHighlights" :key="summary.projectId" class="flex items-center justify-between text-[10px] mt-0.5">
+          <div v-for="summary in villageMaintenanceHighlights" :key="summary.projectId" class="flex items-center justify-between text-[0.625rem] mt-0.5">
             <span>{{ getVillageProjectName(summary.projectId) }}</span>
             <span :class="summary.overdue ? 'text-danger' : 'text-accent'">{{ summary.statusLabel }}</span>
           </div>
@@ -72,11 +72,11 @@
         <div v-if="villageDonationHighlights.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">捐赠推进</p>
           <div v-for="summary in villageDonationHighlights" :key="summary.projectId" class="border border-accent/10 rounded-xs px-2 py-2 mt-1 first:mt-0">
-            <div class="flex items-center justify-between text-[10px]">
+            <div class="flex items-center justify-between text-[0.625rem]">
               <span>{{ summary.plan.label }}</span>
               <span class="text-accent">{{ Math.round(summary.progressRate * 100) }}%</span>
             </div>
-            <p v-if="summary.acceptedItems.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-if="summary.acceptedItems.length > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
               当前可捐：{{ summary.acceptedItems.map(item => `${item.itemName} x${getCombinedItemCount(item.itemId)}`).join('、') }}
             </p>
             <div class="flex flex-wrap gap-2 mt-2">
@@ -103,23 +103,23 @@
     <div class="border border-accent/20 rounded-xs p-3 mb-4" v-if="advancedWorkbenchReward">
       <div class="flex items-center justify-between mb-1">
         <p class="text-sm text-accent">精通设施</p>
-        <span class="text-[10px]" :class="advancedWorkbenchReward.unlocked ? 'text-success' : 'text-muted'">
+        <span class="text-[0.625rem]" :class="advancedWorkbenchReward.unlocked ? 'text-success' : 'text-muted'">
           {{ advancedWorkbenchReward.unlocked ? '已解锁' : '待解锁' }}
         </span>
       </div>
       <p class="text-xs text-accent">{{ advancedWorkbenchReward.label }}</p>
       <p class="text-xs text-muted mt-1">{{ advancedWorkbenchReward.summary }}</p>
-      <p class="text-[10px] text-muted/80 mt-1">现在会出现在：{{ advancedWorkbenchReward.panelHint }}</p>
+      <p class="text-[0.625rem] text-muted/80 mt-1">现在会出现在：{{ advancedWorkbenchReward.panelHint }}</p>
     </div>
 
     <div v-if="animalStore.pets.length > 0" class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-1">
         <p class="text-sm text-accent">宠物角</p>
-        <span class="text-[10px] text-muted">{{ animalStore.pets.length }}/{{ animalStore.petCapacity }}</span>
+        <span class="text-[0.625rem] text-muted">{{ animalStore.pets.length }}/{{ animalStore.petCapacity }}</span>
       </div>
       <p class="text-xs text-muted mb-2">家里越住越舒坦，宠物角也会慢慢完善；继续扩建农舍，就能陆续开放新的照料位置。</p>
       <div class="space-y-1">
-        <div v-for="slot in animalStore.petCareSlots" :key="slot.id" class="flex items-center justify-between text-[10px] border border-accent/10 rounded-xs px-2 py-1.5">
+        <div v-for="slot in animalStore.petCareSlots" :key="slot.id" class="flex items-center justify-between text-[0.625rem] border border-accent/10 rounded-xs px-2 py-1.5">
           <span>{{ slot.label }}</span>
           <span :class="slot.unlocked ? 'text-success' : 'text-muted'">{{ slot.unlocked ? '已开放' : slot.requirement }}</span>
         </div>
@@ -129,21 +129,21 @@
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
         <p class="text-sm text-accent">房屋扩建</p>
-        <span class="text-[10px] text-muted">农舍 {{ homeStore.farmhouseLevel }} 级</span>
+        <span class="text-[0.625rem] text-muted">农舍 {{ homeStore.farmhouseLevel }} 级</span>
       </div>
       <div class="space-y-2">
         <div v-for="entry in homeStore.homeRenovationSummaries" :key="entry.id" class="border border-accent/10 rounded-xs p-2">
           <div class="flex items-center justify-between gap-2">
             <div class="min-w-0">
               <p class="text-xs text-accent">{{ entry.name }}</p>
-              <p class="text-[10px] text-muted mt-0.5 leading-4">{{ entry.description }}</p>
+              <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ entry.description }}</p>
             </div>
-            <span :class="entry.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ entry.unlocked ? '已完成' : `需 ${entry.cost} 文` }}</span>
+            <span :class="entry.unlocked ? 'text-success text-[0.625rem]' : 'text-muted text-[0.625rem]'">{{ entry.unlocked ? '已完成' : `需 ${entry.cost} 文` }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1">解锁：{{ entry.featureLabels.join(' / ') }}</p>
-          <p class="text-[10px] text-muted mt-1">材料：{{ getHomeRenovationMaterialText(entry.materialCost) }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">解锁：{{ entry.featureLabels.join(' / ') }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">材料：{{ getHomeRenovationMaterialText(entry.materialCost) }}</p>
           <div class="flex items-center justify-between gap-2 mt-2">
-            <p class="text-[10px]" :class="entry.available ? 'text-success' : 'text-muted'">
+            <p class="text-[0.625rem]" :class="entry.available ? 'text-success' : 'text-muted'">
               {{ entry.unlocked ? '这处扩建已经收拾妥当，平时会一直陪着你用。' : entry.blockedReason || '材料和铜钱都够了，现在就能开工。' }}
             </p>
             <Button v-if="!entry.unlocked" class="justify-center !px-2 !py-1" :disabled="!entry.available" @click="handleUnlockHomeRenovation(entry.id)">
@@ -157,15 +157,15 @@
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
         <p class="text-sm text-accent">功能性家居</p>
-        <span class="text-[10px] text-muted">展示与生活并进</span>
+        <span class="text-[0.625rem] text-muted">展示与生活并进</span>
       </div>
       <div class="space-y-1.5">
         <div v-for="entry in functionalFurnitureEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs text-accent">{{ entry.label }}</p>
-            <span :class="entry.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ entry.unlocked ? '已启用' : entry.requirement }}</span>
+            <span :class="entry.unlocked ? 'text-success text-[0.625rem]' : 'text-muted text-[0.625rem]'">{{ entry.unlocked ? '已启用' : entry.requirement }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ entry.summary }}</p>
         </div>
       </div>
     </div>
@@ -177,7 +177,7 @@
           <Building :size="14" class="inline" />
           家庭 / 陪伴
         </p>
-        <span class="text-[10px] text-muted">{{ relationshipDebugSnapshot.contentTier }}</span>
+        <span class="text-[0.625rem] text-muted">{{ relationshipDebugSnapshot.contentTier }}</span>
       </div>
 
       <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-2">
@@ -201,10 +201,10 @@
 
       <div class="border border-accent/10 rounded-xs p-2">
         <p class="text-xs text-muted mb-1">家庭心愿进度</p>
-        <p class="text-[10px] text-accent">
+        <p class="text-[0.625rem] text-accent">
           {{ familyWishOverview.state.progress }}/{{ Math.max(1, familyWishOverview.state.targetValue) }}
         </p>
-        <p class="text-[10px] text-muted mt-1 leading-4">
+        <p class="text-[0.625rem] text-muted mt-1 leading-4">
           {{
             activeFamilyWish
               ? `${activeFamilyWish.title}：${activeFamilyWish.rewardSummary}`
@@ -227,12 +227,12 @@
             登记知己协作：{{ nextZhijiProject.project.label }}
           </Button>
         </div>
-        <p v-if="nextZhijiProject" class="text-[10px] text-muted/80 mt-2 leading-4">
+        <p v-if="nextZhijiProject" class="text-[0.625rem] text-muted/80 mt-2 leading-4">
           推荐为 {{ nextZhijiProject.npcName }} 推进「{{ nextZhijiProject.project.label }}」：{{ nextZhijiProject.project.rewardSummary }}
         </p>
         <div v-if="activeFamilyWishChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
-          <p class="text-[10px] text-muted mb-1">家庭事件链</p>
-          <div v-for="step in activeFamilyWishChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+          <p class="text-[0.625rem] text-muted mb-1">家庭事件链</p>
+          <div v-for="step in activeFamilyWishChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[0.625rem] mt-1 first:mt-0">
             <div class="min-w-0">
               <p class="text-accent">{{ step.title }}</p>
               <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
@@ -243,9 +243,9 @@
           </div>
         </div>
         <div v-if="nextZhijiProjectChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <p class="text-[10px] text-muted mb-1">知己协作链</p>
-          <p class="text-[10px] text-accent">{{ nextZhijiProjectChain.def.label }} · {{ nextZhijiProjectChain.progressLabel }}</p>
-          <div v-for="step in nextZhijiProjectChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+          <p class="text-[0.625rem] text-muted mb-1">知己协作链</p>
+          <p class="text-[0.625rem] text-accent">{{ nextZhijiProjectChain.def.label }} · {{ nextZhijiProjectChain.progressLabel }}</p>
+          <div v-for="step in nextZhijiProjectChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[0.625rem] mt-1 first:mt-0">
             <div class="min-w-0">
               <p class="text-accent">{{ step.title }}</p>
               <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
@@ -351,7 +351,7 @@
             <div class="flex items-center justify-between">
               <div class="flex items-center space-x-1.5">
                 <span
-                  class="text-[10px] px-1 rounded-xs border border-accent/30"
+                  class="text-[0.625rem] px-1 rounded-xs border border-accent/30"
                   :class="chest.tier === 'void' ? 'text-quality-supreme' : 'text-accent'"
                 >
                   {{ CHEST_DEFS[chest.tier].name }}
@@ -375,7 +375,7 @@
                 </button>
               </div>
               <div class="flex items-center space-x-1.5">
-                <span class="text-[10px] text-muted">{{ chest.items.length }}/{{ CHEST_DEFS[chest.tier].capacity }}</span>
+                <span class="text-[0.625rem] text-muted">{{ chest.items.length }}/{{ CHEST_DEFS[chest.tier].capacity }}</span>
                 <button class="text-muted hover:text-danger" @click.stop="openDismantleConfirm(chest.id)">
                   <Trash2 :size="10" />
                 </button>
@@ -387,7 +387,7 @@
                 <button
                   v-for="role in VOID_ROLES"
                   :key="role.value"
-                  class="text-[10px] px-1 rounded-xs border"
+                  class="text-[0.625rem] px-1 rounded-xs border"
                   :class="chest.voidRole === role.value ? 'border-accent text-accent' : 'border-accent/20 text-muted'"
                   @click.stop="handleSetVoidRole(chest.id, role.value)"
                 >
@@ -517,13 +517,13 @@
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center space-x-1.5">
               <span
-                class="text-[10px] px-1 rounded-xs border border-accent/30"
+                class="text-[0.625rem] px-1 rounded-xs border border-accent/30"
                 :class="currentOpenChest.tier === 'void' ? 'text-quality-supreme' : 'text-accent'"
               >
                 {{ CHEST_DEFS[currentOpenChest.tier].name }}
               </span>
               <p class="text-sm text-accent">{{ currentOpenChest.label }}</p>
-              <span class="text-[10px] text-muted">
+              <span class="text-[0.625rem] text-muted">
                 {{ currentOpenChest.items.length }}/{{ CHEST_DEFS[currentOpenChest.tier].capacity }}
               </span>
             </div>
@@ -555,7 +555,7 @@
           <div v-else class="flex flex-col items-center justify-center py-6 mb-2">
             <Warehouse :size="36" class="text-accent/20 mb-2" />
             <p class="text-xs text-muted">箱子是空的</p>
-            <p class="text-[10px] text-muted/50 mt-0.5">点击下方「存入物品」添加</p>
+            <p class="text-[0.625rem] text-muted/50 mt-0.5">点击下方「存入物品」添加</p>
           </div>
 
           <!-- 一键存入重复物品 -->
@@ -597,7 +597,7 @@
             >
               <span class="text-xs truncate mr-2" :class="qualityTextClass(item.quality)">
                 {{ getItemName(item.itemId) }}
-                <span v-if="item.quality !== 'normal'" class="text-[10px]">({{ QUALITY_LABEL[item.quality] }})</span>
+                <span v-if="item.quality !== 'normal'" class="text-[0.625rem]">({{ QUALITY_LABEL[item.quality] }})</span>
               </span>
               <span class="text-xs text-muted">&times;{{ item.quantity }}</span>
             </div>
@@ -620,7 +620,7 @@
           </div>
           <p class="text-xs mb-2" :class="qualityTextClass(chestQtyModal.quality)">
             {{ getItemName(chestQtyModal.itemId) }}
-            <span v-if="chestQtyModal.quality !== 'normal'" class="text-[10px]">({{ QUALITY_LABEL[chestQtyModal.quality] }})</span>
+            <span v-if="chestQtyModal.quality !== 'normal'" class="text-[0.625rem]">({{ QUALITY_LABEL[chestQtyModal.quality] }})</span>
           </p>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between mb-1.5">
@@ -674,12 +674,12 @@
               </span>
             </p>
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
-              <p class="text-[10px] text-muted mb-1">返还材料（50%）</p>
+              <p class="text-[0.625rem] text-muted mb-1">返还材料（50%）</p>
               <div class="flex flex-wrap gap-x-3 gap-y-0.5">
-                <span v-for="mat in dismantleChestInfo.refund" :key="mat.itemId" class="text-[10px] text-success">
+                <span v-for="mat in dismantleChestInfo.refund" :key="mat.itemId" class="text-[0.625rem] text-success">
                   {{ getItemName(mat.itemId) }} ×{{ mat.quantity }}
                 </span>
-                <span v-if="dismantleChestInfo.refund.length === 0" class="text-[10px] text-muted">无</span>
+                <span v-if="dismantleChestInfo.refund.length === 0" class="text-[0.625rem] text-muted">无</span>
               </div>
             </div>
             <div class="flex space-x-3 justify-center">
@@ -752,7 +752,7 @@
                   <span class="text-xs font-bold" :class="tier === 'void' ? 'text-quality-supreme' : 'text-accent'">
                     {{ CHEST_DEFS[tier].name }}
                   </span>
-                  <span class="text-[10px] text-muted">{{ CHEST_DEFS[tier].capacity }}格</span>
+                  <span class="text-[0.625rem] text-muted">{{ CHEST_DEFS[tier].capacity }}格</span>
                 </div>
                 <Button
                   class="py-0 px-1.5"
@@ -763,17 +763,17 @@
                   制作
                 </Button>
               </div>
-              <p class="text-[10px] text-muted mb-1">{{ CHEST_DEFS[tier].description }}</p>
+              <p class="text-[0.625rem] text-muted mb-1">{{ CHEST_DEFS[tier].description }}</p>
               <div class="flex flex-wrap gap-x-3 gap-y-0.5">
                 <span
                   v-for="mat in CHEST_DEFS[tier].craftCost"
                   :key="mat.itemId"
-                  class="text-[10px]"
+                  class="text-[0.625rem]"
                   :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-muted' : 'text-danger'"
                 >
                   {{ getItemName(mat.itemId) }} {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
                 </span>
-                <span class="text-[10px]" :class="playerStore.money >= CHEST_DEFS[tier].craftMoney ? 'text-muted' : 'text-danger'">
+                <span class="text-[0.625rem]" :class="playerStore.money >= CHEST_DEFS[tier].craftMoney ? 'text-muted' : 'text-danger'">
                   {{ CHEST_DEFS[tier].craftMoney }}文
                 </span>
               </div>

@@ -57,7 +57,7 @@
         />
         <div class="absolute top-0 bottom-0 w-1 bg-accent/40" :style="{ left: `${targetPosition}%` }" />
         <!-- 目标标签 -->
-        <span class="absolute -top-3.5 text-success" style="font-size: 8px" :style="{ left: `calc(${targetPosition}% - 6px)` }">目标</span>
+        <span class="absolute -top-3.5 text-success" style="font-size: 0.5rem" :style="{ left: `calc(${targetPosition}% - 6px)` }">目标</span>
         <!-- 填充 -->
         <div
           class="absolute top-0 bottom-0 left-0 transition-none"
@@ -67,7 +67,7 @@
         <!-- 当前位置指针 -->
         <div class="absolute top-0 bottom-0 w-0.5 bg-text" :style="{ left: `${fillPct}%`, transition: 'none' }" />
         <!-- 区域标签 -->
-        <div class="absolute bottom-0 left-1 right-1 flex justify-between" style="font-size: 8px">
+        <div class="absolute bottom-0 left-1 right-1 flex justify-between" style="font-size: 0.5rem">
           <span class="text-muted">{{ currentStepDef.lowLabel }}</span>
           <span class="text-muted">{{ currentStepDef.highLabel }}</span>
         </div>

@@ -41,7 +41,7 @@
           <slot />
         </div>
 
-        <div v-if="hasDetailsSlot" class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted" data-testid="online-action-dialog-details">
+        <div v-if="hasDetailsSlot" class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted" data-testid="online-action-dialog-details">
           <slot name="details" />
         </div>
 
@@ -55,7 +55,7 @@
 
         <footer v-else class="space-y-3 border-t border-accent/10 pt-3">
           <label v-if="requireText" class="block">
-            <span class="text-[10px] leading-4 text-muted">输入「{{ requireText }}」后继续</span>
+            <span class="text-[0.625rem] leading-4 text-muted">输入「{{ requireText }}」后继续</span>
             <input
               v-model="requiredTextInput"
               class="online-input mt-1 w-full"

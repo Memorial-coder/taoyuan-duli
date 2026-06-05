@@ -6,7 +6,7 @@
           <MapIcon :size="13" />
           <p class="text-sm">共同农田地图</p>
         </div>
-        <span class="text-[10px] text-muted">{{ revisionLabel }}</span>
+        <span class="text-[0.625rem] text-muted">{{ revisionLabel }}</span>
       </div>
       <div v-if="!hasMap" class="mt-3 border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted">
         选择一份已生效契约后会显示共同农田拼接地图。
@@ -14,7 +14,7 @@
       <template v-else>
         <div class="mt-3 grid gap-2 md:grid-cols-4">
           <div v-for="stat in stats" :key="stat.label" class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">{{ stat.label }}</p>
+            <p class="text-[0.625rem] text-muted">{{ stat.label }}</p>
             <p class="mt-1 text-xs text-accent">{{ stat.value }}</p>
           </div>
         </div>
@@ -29,7 +29,7 @@
                 v-for="region in regions"
                 :key="region.region_index"
                 type="button"
-                class="min-h-[2.75rem] border px-3 py-2 text-left text-[10px] leading-4 transition-colors"
+                class="min-h-[2.75rem] border px-3 py-2 text-left text-[0.625rem] leading-4 transition-colors"
                 :class="activeRegion?.region_index === region.region_index ? 'border-accent/60 bg-accent/10 text-accent' : 'border-accent/10 bg-black/10 text-muted hover:border-accent/30'"
                 :data-testid="`online-cohabitation-shared-map-region-tab-${region.region_index}`"
                 @click="emit('select-region', region.region_index)"
@@ -41,7 +41,7 @@
           </div>
           <div
             v-if="activeRegion"
-            class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
+            class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted"
             data-testid="online-cohabitation-shared-map-region-page-summary"
           >
             当前显示第 {{ activeRegion.region_index + 1 }} 区 ·
@@ -59,7 +59,7 @@
             <template v-for="cell in cells" :key="cell.key">
               <button
                 v-if="cell.plot"
-                class="flex h-9 w-9 flex-col items-center justify-center border text-[9px] leading-3 transition-colors"
+                class="flex h-9 w-9 flex-col items-center justify-center border text-[0.5625rem] leading-3 transition-colors"
                 :class="[plotClass(cell.plot), selectedPlotId === cell.plot.id ? 'ring-1 ring-accent/70' : '', cell.regionIndex === activeRegion?.region_index ? 'outline outline-1 outline-accent/40' : '']"
                 :title="plotTitle(cell.plot)"
                 type="button"

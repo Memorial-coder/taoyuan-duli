@@ -74,11 +74,11 @@
                         {{ socialStore.profile.display_name }} · {{ socialStore.profile.honorific }}
                       </p>
                     </div>
-                    <span class="w-fit shrink-0 border border-accent/20 px-2 py-1 text-[10px] text-accent">
+                    <span class="w-fit shrink-0 border border-accent/20 px-2 py-1 text-[0.625rem] text-accent">
                       {{ profileVisibilityLabel }}
                     </span>
                   </div>
-                  <p v-if="socialStore.profile.avatar_image_alt" class="mt-2 text-[10px] leading-4 text-muted">
+                  <p v-if="socialStore.profile.avatar_image_alt" class="mt-2 text-[0.625rem] leading-4 text-muted">
                     {{ socialStore.profile.avatar_image_alt }}
                   </p>
                   <p class="mt-3 text-xs leading-5">
@@ -89,45 +89,45 @@
 
               <div class="grid gap-2 text-xs md:grid-cols-2">
                 <div class="border border-accent/10 bg-black/10 p-2 md:col-span-2">
-                  <p class="text-[10px] text-muted">当前存档 ID</p>
+                  <p class="text-[0.625rem] text-muted">当前存档 ID</p>
                   <p class="mt-1 break-all text-accent">{{ currentSaveIdentityLabel }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">庄园名</p>
+                  <p class="text-[0.625rem] text-muted">庄园名</p>
                   <p class="mt-1 text-accent">{{ socialStore.profile.manor_name || '未填写' }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ socialStore.profile.public_title || '未设置称号' }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ socialStore.profile.public_title || '未设置称号' }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">季节进度</p>
+                  <p class="text-[0.625rem] text-muted">季节进度</p>
                   <p class="mt-1 text-accent">{{ socialStore.profile.season_progress || '未同步' }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ socialStore.profile.showcase_theme || '未设置主题' }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ socialStore.profile.showcase_theme || '未设置主题' }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">主营方向</p>
+                  <p class="text-[0.625rem] text-muted">主营方向</p>
                   <p class="mt-1 text-accent">{{ socialStore.profile.primary_route_label || '未设置' }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">邻里身份</p>
+                  <p class="text-[0.625rem] text-muted">邻里身份</p>
                   <p class="mt-1 text-accent">{{ socialStore.profile.neighborhood_role || '未设置' }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2 md:col-span-2">
-                  <p class="text-[10px] text-muted">最近活跃</p>
+                  <p class="text-[0.625rem] text-muted">最近活跃</p>
                   <p class="mt-1 text-accent">{{ socialStore.profile.recent_activity || '暂无记录' }}</p>
                 </div>
               </div>
 
               <div class="border border-accent/10 bg-black/10 p-2 text-xs">
-                <p class="text-[10px] text-muted">关系标签</p>
+                <p class="text-[0.625rem] text-muted">关系标签</p>
                 <div class="mt-2 flex flex-wrap gap-1">
                   <span
                     v-for="tag in socialStore.profile.public_tags"
                     :key="tag.id"
-                    class="border px-1.5 py-0.5 text-[10px]"
+                    class="border px-1.5 py-0.5 text-[0.625rem]"
                     :class="tag.source === 'selected' ? 'border-accent/40 bg-accent/5 text-accent' : 'border-accent/15 text-muted'"
                   >
                     {{ tag.label }}
                   </span>
-                  <span v-if="socialStore.profile.public_tags.length === 0" class="text-[10px] text-muted">
+                  <span v-if="socialStore.profile.public_tags.length === 0" class="text-[0.625rem] text-muted">
                     当前还没有公开标签。
                   </span>
                 </div>
@@ -144,11 +144,11 @@
 
               <div class="grid gap-2 text-xs">
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">公开范围</p>
+                  <p class="text-[0.625rem] text-muted">公开范围</p>
                   <p class="mt-1 text-accent">{{ profileVisibilityLabel }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">草稿状态</p>
+                  <p class="text-[0.625rem] text-muted">草稿状态</p>
                   <p class="mt-1 text-accent">{{ socialStore.hasDirtyDraft ? '有未保存草稿' : '当前资料已同步' }}</p>
                 </div>
               </div>
@@ -172,8 +172,8 @@
             <div class="mt-3 grid gap-3 lg:grid-cols-2">
               <div class="border border-accent/10 bg-black/10 p-2 text-xs">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">玩家史册</p>
-                  <span class="text-[10px] text-muted">
+                  <p class="text-[0.625rem] text-muted">玩家史册</p>
+                  <span class="text-[0.625rem] text-muted">
                     已点亮 {{ unlockedChronicleCount }}/{{ socialStore.profile.player_chronicle?.milestones.length || 0 }}
                   </span>
                 </div>
@@ -192,11 +192,11 @@
                   >
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
-                      <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                      <span class="text-[0.625rem]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
                         {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未达成' }}
                       </span>
                     </div>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                       {{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}
                     </p>
                   </div>
@@ -205,8 +205,8 @@
 
               <div class="border border-accent/10 bg-black/10 p-2 text-xs">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">荣誉系统</p>
-                  <span class="text-[10px] text-muted">
+                  <p class="text-[0.625rem] text-muted">荣誉系统</p>
+                  <span class="text-[0.625rem] text-muted">
                     已解锁 {{ unlockedHonorCount }}/{{ socialStore.profile.award_showcase.honors.length }}
                   </span>
                 </div>
@@ -219,11 +219,11 @@
                   >
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
-                      <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                      <span class="text-[0.625rem]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
                         {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未达成' }}
                       </span>
                     </div>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                       {{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}
                     </p>
                   </div>
@@ -232,8 +232,8 @@
 
               <div class="border border-accent/10 bg-black/10 p-2 text-xs">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">纪念品与称号</p>
-                  <span class="text-[10px] text-muted">
+                  <p class="text-[0.625rem] text-muted">纪念品与称号</p>
+                  <span class="text-[0.625rem] text-muted">
                     纪念 {{ unlockedCommemorativeCount }}/{{ socialStore.profile.award_showcase.commemoratives.length }} · 称号 {{ unlockedTitleCount }}/{{ socialStore.profile.award_showcase.titles.length }}
                   </span>
                 </div>
@@ -246,11 +246,11 @@
                   >
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
-                      <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                      <span class="text-[0.625rem]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
                         {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未收录' }}
                       </span>
                     </div>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                       {{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}
                     </p>
                   </div>
@@ -263,13 +263,13 @@
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-xs" :class="entry.unlocked ? 'text-success' : 'text-muted'">
                         {{ entry.label }}
-                        <span v-if="entry.active" class="ml-1 text-[10px] text-accent">当前展示</span>
+                        <span v-if="entry.active" class="ml-1 text-[0.625rem] text-accent">当前展示</span>
                       </p>
-                      <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                      <span class="text-[0.625rem]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
                         {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未收录' }}
                       </span>
                     </div>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                       {{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}
                     </p>
                   </div>
@@ -278,8 +278,8 @@
 
               <div class="border border-accent/10 bg-black/10 p-2 text-xs">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] text-muted">可展示成就卡</p>
-                  <span class="text-[10px] text-muted">
+                  <p class="text-[0.625rem] text-muted">可展示成就卡</p>
+                  <span class="text-[0.625rem] text-muted">
                     已点亮 {{ unlockedAchievementCardCount }}/{{ socialStore.profile.award_showcase.achievement_cards.length }}
                   </span>
                 </div>
@@ -291,9 +291,9 @@
                   >
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-xs text-accent">{{ entry.label }}</p>
-                      <span class="text-[10px] text-success">{{ formatChronicleDate(entry.recorded_at) }}</span>
+                      <span class="text-[0.625rem] text-success">{{ formatChronicleDate(entry.recorded_at) }}</span>
                     </div>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.detail || entry.summary }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.detail || entry.summary }}</p>
                   </div>
                   <OnlineEmptyState
                     v-if="unlockedAchievementCardCount === 0"
@@ -332,19 +332,19 @@
           </div>
           <div class="grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">好友</p>
+              <p class="text-[0.625rem] text-muted">好友</p>
               <p class="mt-1 text-accent">{{ socialStore.friends.length }} 位</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">收到申请</p>
+              <p class="text-[0.625rem] text-muted">收到申请</p>
               <p class="mt-1 text-accent">{{ socialStore.incomingRequests.length }} 条</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">发出申请</p>
+              <p class="text-[0.625rem] text-muted">发出申请</p>
               <p class="mt-1 text-accent">{{ socialStore.outgoingRequests.length }} 条</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">已拉黑</p>
+              <p class="text-[0.625rem] text-muted">已拉黑</p>
               <p class="mt-1 text-accent">{{ socialStore.blockedUsers.length }} 位</p>
             </div>
           </div>
@@ -380,21 +380,21 @@
           <div class="grid gap-2 text-xs md:grid-cols-3">
             <div class="border border-accent/10 bg-black/10 p-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">邻里任务</p>
+                <p class="text-[0.625rem] text-muted">邻里任务</p>
                 <RouterLink class="online-action-btn online-action-btn--compact" :to="{ name: 'quest', query: { scope: 'neighbor' } }">
                   去看委托
                 </RouterLink>
               </div>
               <p class="mt-2 text-xs text-accent">{{ neighborTaskCard.title }}</p>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ neighborTaskCard.summary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ neighborTaskCard.summary }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">邻里进度</p>
+              <p class="text-[0.625rem] text-muted">邻里进度</p>
               <p class="mt-2 text-xs text-accent">{{ neighborProgressCard.title }}</p>
-              <p class="mt-1 text-[10px] leading-4 text-muted">{{ neighborProgressCard.summary }}</p>
+              <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ neighborProgressCard.summary }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">邻里排行</p>
+              <p class="text-[0.625rem] text-muted">邻里排行</p>
               <OnlineEmptyState
                 v-if="neighborLeaderboard.length === 0"
                 class="mt-2"
@@ -404,10 +404,10 @@
               <div v-else class="mt-2 space-y-1.5">
                 <div v-for="(group, index) in neighborLeaderboard" :key="group.id" class="border border-accent/10 px-2 py-1.5">
                   <div class="flex items-center justify-between gap-2">
-                    <p class="truncate text-[10px] text-accent">{{ index + 1 }}. {{ group.name }}</p>
-                    <span class="shrink-0 text-[10px] text-muted">Lv.{{ group.level }}</span>
+                    <p class="truncate text-[0.625rem] text-accent">{{ index + 1 }}. {{ group.name }}</p>
+                    <span class="shrink-0 text-[0.625rem] text-muted">Lv.{{ group.level }}</span>
                   </div>
-                  <p class="mt-1 text-[10px] text-muted">{{ group.member_count }}/{{ group.capacity }} 人</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ group.member_count }}/{{ group.capacity }} 人</p>
                 </div>
               </div>
             </div>
@@ -425,27 +425,27 @@
                       {{ socialStore.neighborGroup.summary || '这个邻里还没写简介。' }}
                     </p>
                   </div>
-                  <span class="w-fit shrink-0 border border-accent/20 px-2 py-1 text-[10px] text-muted">
+                  <span class="w-fit shrink-0 border border-accent/20 px-2 py-1 text-[0.625rem] text-muted">
                     Lv.{{ socialStore.neighborGroup.level }} · {{ socialStore.neighborGroup.member_count }}/{{ socialStore.neighborGroup.capacity }}
                   </span>
                 </div>
                 <div class="grid gap-2 text-xs md:grid-cols-3">
                   <div class="border border-accent/10 bg-black/10 p-2">
-                    <p class="text-[10px] text-muted">我的身份</p>
+                    <p class="text-[0.625rem] text-muted">我的身份</p>
                     <p class="mt-1 text-accent">{{ neighborRoleLabel(ownNeighborRole) }}</p>
                   </div>
                   <div class="border border-accent/10 bg-black/10 p-2">
-                    <p class="text-[10px] text-muted">成员</p>
+                    <p class="text-[0.625rem] text-muted">成员</p>
                     <p class="mt-1 text-accent">{{ socialStore.neighborGroup.member_count }} 人</p>
                   </div>
                   <div class="border border-accent/10 bg-black/10 p-2">
-                    <p class="text-[10px] text-muted">待处理</p>
+                    <p class="text-[0.625rem] text-muted">待处理</p>
                     <p class="mt-1 text-accent">{{ socialStore.neighborManagedRequests.length }} 条</p>
                   </div>
                 </div>
 
                 <div v-if="canManageNeighbor" class="space-y-2">
-                  <label class="flex flex-col gap-1 text-[10px] text-muted">
+                  <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
                     邻里公告
                     <textarea
                       v-model="socialStore.neighborNoticeDraft"
@@ -467,7 +467,7 @@
                   </div>
                 </div>
                 <div v-else class="border border-accent/10 bg-black/10 p-2 text-xs">
-                  <p class="text-[10px] text-muted">邻里公告</p>
+                  <p class="text-[0.625rem] text-muted">邻里公告</p>
                   <p class="mt-1 leading-5">{{ socialStore.neighborGroup.notice || '暂无公告' }}</p>
                 </div>
               </div>
@@ -475,7 +475,7 @@
               <div class="game-panel-muted p-3">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-sm text-accent">成员</p>
-                  <span class="text-[10px] text-muted">{{ neighborMembers.length }} 人</span>
+                  <span class="text-[0.625rem] text-muted">{{ neighborMembers.length }} 人</span>
                 </div>
                 <OnlineEmptyState
                   v-if="neighborMembers.length === 0"
@@ -488,10 +488,10 @@
                     <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div class="min-w-0">
                         <p class="truncate text-xs text-accent">{{ member.username }}</p>
-                        <p class="mt-1 text-[10px] text-muted">{{ formatChronicleDate(member.joined_at) || '加入时间未记录' }}</p>
+                        <p class="mt-1 text-[0.625rem] text-muted">{{ formatChronicleDate(member.joined_at) || '加入时间未记录' }}</p>
                       </div>
                       <div class="flex flex-wrap items-center gap-2">
-                        <span class="text-[10px] text-muted">{{ neighborRoleLabel(member.role) }}</span>
+                        <span class="text-[0.625rem] text-muted">{{ neighborRoleLabel(member.role) }}</span>
                         <button
                           v-if="canChangeNeighborRoles && member.role !== 'leader'"
                           class="online-action-btn online-action-btn--compact"
@@ -519,7 +519,7 @@
                   <div v-for="entry in neighborActivityLog" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-xs">{{ entry.message }}</p>
-                      <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                      <span class="shrink-0 text-[0.625rem] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
                     </div>
                   </div>
                 </div>
@@ -552,7 +552,7 @@
             <div class="game-panel-muted p-3">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">公开邻里</p>
-                <span class="text-[10px] text-muted">{{ socialStore.neighborPublicGroups.length }} 个</span>
+                <span class="text-[0.625rem] text-muted">{{ socialStore.neighborPublicGroups.length }} 个</span>
               </div>
               <OnlineEmptyState
                 v-if="socialStore.neighborPublicGroups.length === 0"
@@ -567,11 +567,11 @@
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ group.name }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ group.summary || '这个邻里还没写简介。' }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ group.summary || '这个邻里还没写简介。' }}</p>
                     </div>
-                    <span class="shrink-0 text-[10px] text-muted">Lv.{{ group.level }} · {{ group.member_count }}/{{ group.capacity }}</span>
+                    <span class="shrink-0 text-[0.625rem] text-muted">Lv.{{ group.level }} · {{ group.member_count }}/{{ group.capacity }}</span>
                   </div>
-                  <p class="mt-2 text-[10px] leading-4 text-muted">公告：{{ group.notice || '暂无公告' }}</p>
+                  <p class="mt-2 text-[0.625rem] leading-4 text-muted">公告：{{ group.notice || '暂无公告' }}</p>
                   <div v-if="!socialStore.neighborGroup && group.can_apply" class="mt-2 flex justify-end">
                     <button
                       data-testid="online-neighbor-apply-button"
@@ -608,7 +608,7 @@
               </div>
 
               <details class="border border-accent/10 bg-black/10 p-2">
-                <summary class="cursor-pointer text-[10px] text-muted">备用单人邀请</summary>
+                <summary class="cursor-pointer text-[0.625rem] text-muted">备用单人邀请</summary>
                 <div class="online-action-row mt-2">
                   <input
                     v-model="socialStore.neighborInviteUsernameDraft"
@@ -645,7 +645,7 @@
                         <template v-if="entry.type === 'apply'">{{ entry.username }} 申请加入</template>
                         <template v-else>收到邻里邀请：{{ entry.group_name || entry.group_id }}</template>
                       </p>
-                      <p class="mt-1 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</p>
+                      <p class="mt-1 text-[0.625rem] text-muted">{{ formatChronicleDate(entry.created_at) }}</p>
                     </div>
                     <div class="flex shrink-0 gap-2">
                       <button
@@ -670,11 +670,11 @@
         <div class="space-y-3">
           <div class="grid gap-2 text-xs md:grid-cols-2">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">当前订阅</p>
+              <p class="text-[0.625rem] text-muted">当前订阅</p>
               <p class="mt-1 text-accent">{{ socialStore.subscriptions.length }} 项</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">订阅提示</p>
+              <p class="text-[0.625rem] text-muted">订阅提示</p>
               <p class="mt-1 text-accent">{{ socialStore.subscriptionNotices.length }} 条</p>
             </div>
           </div>
@@ -685,7 +685,7 @@
         <div class="space-y-2">
           <div v-for="entry in subscriptionPreview" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
             <p class="text-xs text-accent">{{ entry.label }}</p>
-            <p class="mt-1 text-[10px] text-muted">{{ subscriptionTypeLabel(entry.target_type) }}</p>
+            <p class="mt-1 text-[0.625rem] text-muted">{{ subscriptionTypeLabel(entry.target_type) }}</p>
           </div>
           <OnlineEmptyState
             v-if="subscriptionPreview.length === 0"
@@ -715,19 +715,19 @@
         />
 
         <div class="grid gap-2 md:grid-cols-2">
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             庄园名
             <input v-model="socialStore.draftManorName" data-testid="online-neighbor-profile-manor-input" maxlength="40" class="online-input" />
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             公开称号
             <input v-model="socialStore.draftPublicTitle" data-testid="online-neighbor-profile-title-input" maxlength="24" class="online-input" />
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             邻里身份
             <input v-model="socialStore.draftNeighborhoodRole" data-testid="online-neighbor-profile-role-input" maxlength="24" class="online-input" />
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             展示主题
             <input v-model="socialStore.draftShowcaseTheme" data-testid="online-neighbor-profile-theme-input" maxlength="24" class="online-input" />
           </label>
@@ -735,7 +735,7 @@
 
         <div class="border border-accent/10 bg-black/10 p-2">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[10px] text-muted">公开头像</p>
+            <p class="text-[0.625rem] text-muted">公开头像</p>
             <button
               class="online-action-btn online-action-btn--compact"
               type="button"
@@ -768,7 +768,7 @@
           </div>
         </div>
 
-        <label class="flex flex-col gap-1 text-[10px] text-muted">
+        <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
           公开状态
           <select v-model="socialStore.draftVisibility" data-testid="online-neighbor-profile-visibility-select" class="online-select">
             <option value="public">公开</option>
@@ -777,7 +777,7 @@
           </select>
         </label>
 
-        <label class="flex flex-col gap-1 text-[10px] text-muted">
+        <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
           一句公开介绍
           <textarea
             v-model="socialStore.draftIntro"
@@ -790,12 +790,12 @@
         </label>
 
         <div class="space-y-2">
-          <p class="text-[10px] text-muted">手选标签（最多 3 个）</p>
+          <p class="text-[0.625rem] text-muted">手选标签（最多 3 个）</p>
           <div class="flex flex-wrap gap-1">
             <button
               v-for="tag in socialStore.profile.available_tag_options"
               :key="tag.id"
-              class="border px-1.5 py-0.5 text-[10px] transition-colors"
+              class="border px-1.5 py-0.5 text-[0.625rem] transition-colors"
               :class="socialStore.draftSelectedTagIds.includes(tag.id) ? 'border-accent/40 bg-accent/5 text-accent' : 'border-accent/15 text-muted'"
               type="button"
               @click="toggleTag(tag.id)"
@@ -808,7 +808,7 @@
 
       <template #footer="{ confirmDisabled, confirm, cancel }">
         <footer class="space-y-3 border-t border-accent/10 pt-3">
-          <p v-if="!socialStore.hasDirtyDraft" class="text-[10px] leading-4 text-muted">
+          <p v-if="!socialStore.hasDirtyDraft" class="text-[0.625rem] leading-4 text-muted">
             当前没有需要保存的改动。
           </p>
           <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -850,7 +850,7 @@
           <span
             v-for="step in neighborCreateSteps"
             :key="step.key"
-            class="border px-2 py-1 text-[10px]"
+            class="border px-2 py-1 text-[0.625rem]"
             :class="step.key === neighborCreateStep ? 'border-accent/40 bg-accent/5 text-accent' : 'border-accent/15 text-muted'"
             role="listitem"
           >
@@ -866,7 +866,7 @@
         />
 
         <section v-if="neighborCreateStep === 'basic'" class="space-y-2" data-testid="online-neighbor-create-step-basic">
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             邻里名称
             <input
               v-model="socialStore.neighborNameDraft"
@@ -876,7 +876,7 @@
               placeholder="邻里名称"
             />
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             一句简介
             <input
               v-model="socialStore.neighborSummaryDraft"
@@ -889,21 +889,21 @@
         </section>
 
         <section v-else-if="neighborCreateStep === 'access'" class="space-y-2" data-testid="online-neighbor-create-step-access">
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             公开方式
             <select v-model="neighborCreateVisibility" data-testid="online-neighbor-create-visibility-select" class="online-select w-full">
               <option value="public">公开展示，允许玩家申请</option>
               <option value="listed">公开展示，先看公告再申请</option>
             </select>
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             加入门槛
             <select v-model="neighborCreateJoinCondition" data-testid="online-neighbor-create-join-condition-select" class="online-select w-full">
               <option value="apply">需要申请，由管事确认</option>
               <option value="intro">申请前先阅读公告</option>
             </select>
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             初始公告
             <textarea
               v-model="socialStore.neighborNoticeDraft"
@@ -914,7 +914,7 @@
               placeholder="初始公告"
             />
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             邻里规模
             <select v-model="socialStore.neighborCapacityDraft" data-testid="online-neighbor-create-capacity-select" class="online-select w-full">
               <option :value="12">小型邻里（3-12）</option>
@@ -926,25 +926,25 @@
 
         <section v-else class="space-y-2" data-testid="online-neighbor-create-step-review">
           <div class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">邻里名称</p>
+            <p class="text-[0.625rem] text-muted">邻里名称</p>
             <p class="mt-1 text-xs text-accent">{{ socialStore.neighborNameDraft.trim() || '未填写' }}</p>
           </div>
           <div class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">简介</p>
+            <p class="text-[0.625rem] text-muted">简介</p>
             <p class="mt-1 text-xs leading-5 text-accent">{{ socialStore.neighborSummaryDraft.trim() || '创建后可以继续补充简介。' }}</p>
           </div>
           <div class="grid gap-2 text-xs md:grid-cols-2">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">公开方式</p>
+              <p class="text-[0.625rem] text-muted">公开方式</p>
               <p class="mt-1 text-accent">{{ neighborCreateVisibilityLabel }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">加入门槛</p>
+              <p class="text-[0.625rem] text-muted">加入门槛</p>
               <p class="mt-1 text-accent">{{ neighborCreateJoinConditionLabel }}</p>
             </div>
           </div>
           <div class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">初始公告</p>
+            <p class="text-[0.625rem] text-muted">初始公告</p>
             <p class="mt-1 text-xs leading-5 text-accent">{{ socialStore.neighborNoticeDraft.trim() || '创建后可以再写公告。' }}</p>
           </div>
         </section>
@@ -952,7 +952,7 @@
 
       <template #footer="{ confirmDisabled, confirm, cancel }">
         <footer class="space-y-3 border-t border-accent/10 pt-3">
-          <p v-if="neighborCreateStep === 'basic' && !socialStore.neighborNameDraft.trim()" class="text-[10px] leading-4 text-muted">
+          <p v-if="neighborCreateStep === 'basic' && !socialStore.neighborNameDraft.trim()" class="text-[0.625rem] leading-4 text-muted">
             先填写邻里名称，再继续下一步。
           </p>
           <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -1032,23 +1032,23 @@
 
         <div class="grid gap-2 text-xs">
           <div class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">请求类型</p>
+            <p class="text-[0.625rem] text-muted">请求类型</p>
             <p class="mt-1 text-accent">{{ selectedNeighborRequest.type === 'apply' ? '加入申请' : '邻里邀请' }}</p>
           </div>
           <div class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">玩家</p>
+            <p class="text-[0.625rem] text-muted">玩家</p>
             <p class="mt-1 break-all text-accent">{{ selectedNeighborRequest.username }}</p>
           </div>
           <div class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">邻里</p>
+            <p class="text-[0.625rem] text-muted">邻里</p>
             <p class="mt-1 break-all text-accent">{{ selectedNeighborRequest.group_name || selectedNeighborRequest.group_id }}</p>
           </div>
           <div class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">提交时间</p>
+            <p class="text-[0.625rem] text-muted">提交时间</p>
             <p class="mt-1 text-accent">{{ formatChronicleDate(selectedNeighborRequest.created_at) || '未记录' }}</p>
           </div>
           <div v-if="selectedNeighborRequest.invited_by" class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-[10px] text-muted">邀请人</p>
+            <p class="text-[0.625rem] text-muted">邀请人</p>
             <p class="mt-1 break-all text-accent">{{ selectedNeighborRequest.invited_by }}</p>
           </div>
         </div>

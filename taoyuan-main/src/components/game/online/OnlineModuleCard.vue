@@ -6,7 +6,7 @@
         <h3 class="truncate text-sm leading-5">{{ title }}</h3>
       </div>
       <p
-        class="mt-3 min-h-[32px] text-[10px] leading-4"
+        class="mt-3 min-h-[32px] text-[0.625rem] leading-4"
         :class="error ? 'text-red-200' : 'text-muted'"
         :data-testid="`online-module-${moduleKey}-status`"
       >

@@ -3,9 +3,9 @@
     <div class="flex items-center justify-between gap-2">
       <div>
         <p class="text-sm text-accent">{{ manorStore.snapshot && !manorStore.snapshot.viewer_is_owner ? `${manorStore.snapshot.display_name}的公开庄园` : '公开庄园' }}</p>
-        <p class="text-[10px] text-muted mt-1">{{ routeTargetHelperText }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ routeTargetHelperText }}</p>
       </div>
-      <Button class="text-[10px]" :disabled="manorStore.loading" @click="refreshSnapshot">
+      <Button class="text-[0.625rem]" :disabled="manorStore.loading" @click="refreshSnapshot">
         {{ manorStore.loading ? '加载中…' : '刷新庄园快照' }}
       </Button>
     </div>
@@ -20,13 +20,13 @@
       <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-xs text-accent">庄园互助照料</p>
-          <p class="mt-1 text-[10px] text-muted">
+          <p class="mt-1 text-[0.625rem] text-muted">
             今日 {{ manorStore.snapshot.care_state.manor_daily_count }}/{{ manorStore.snapshot.care_state.limits.manor_daily_limit }} ·
             照料剩余 {{ manorStore.snapshot.care_state.remaining_care_count }} ·
             偷菜 {{ manorStore.snapshot.steal_state.manor_daily_count }}/{{ manorStore.snapshot.steal_state.limits.manor_daily_limit }}
           </p>
         </div>
-        <div class="flex flex-col items-start gap-1 text-[10px] text-muted md:items-end">
+        <div class="flex flex-col items-start gap-1 text-[0.625rem] text-muted md:items-end">
           <span class="w-fit shrink-0">
             {{ manorStore.snapshot.care_state.can_care ? '可照料' : manorStore.snapshot.care_state.care_denied_reason }}
           </span>
@@ -38,7 +38,7 @@
 
       <div v-if="manorStore.snapshot.viewer_is_owner" class="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
         <label class="block">
-          <span class="text-[10px] text-muted">访问权限</span>
+          <span class="text-[0.625rem] text-muted">访问权限</span>
           <select v-model="manorStore.accessVisitModeDraft" class="mt-1 w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
             <option v-for="option in manorStore.snapshot.access_policy.options" :key="`visit-${option.id}`" :value="option.id">
               {{ option.label }}
@@ -46,7 +46,7 @@
           </select>
         </label>
         <label class="block">
-          <span class="text-[10px] text-muted">照料权限</span>
+          <span class="text-[0.625rem] text-muted">照料权限</span>
           <select v-model="manorStore.accessCareModeDraft" class="mt-1 w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
             <option v-for="option in manorStore.snapshot.access_policy.options" :key="`care-${option.id}`" :value="option.id">
               {{ option.label }}
@@ -54,7 +54,7 @@
           </select>
         </label>
         <label class="block">
-          <span class="text-[10px] text-muted">偷菜权限</span>
+          <span class="text-[0.625rem] text-muted">偷菜权限</span>
           <select v-model="manorStore.accessStealModeDraft" class="mt-1 w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
             <option v-for="option in manorStore.snapshot.access_policy.options" :key="`steal-${option.id}`" :value="option.id">
               {{ option.label }}
@@ -79,32 +79,32 @@
         @trigger-action="submitManorSceneAction"
       />
 
-      <p v-if="manorStore.snapshot.steal_state.whitelist_summary" class="text-[10px] leading-4 text-muted">
+      <p v-if="manorStore.snapshot.steal_state.whitelist_summary" class="text-[0.625rem] leading-4 text-muted">
         {{ manorStore.snapshot.steal_state.whitelist_summary }}
       </p>
       <div v-if="Object.keys(manorStore.snapshot.steal_state.target_use_hints || {}).length > 0" class="flex flex-wrap gap-1">
         <span
           v-for="hint in Object.values(manorStore.snapshot.steal_state.target_use_hints).slice(0, 4)"
           :key="hint.item_id"
-          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[10px] text-muted"
+          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[0.625rem] text-muted"
         >
           {{ hint.label }} · {{ hint.use_summary }}
         </span>
       </div>
 
       <div v-if="manorStore.snapshot.care_entries.length > 0" class="border border-accent/10 rounded-xs p-2">
-        <p class="text-[10px] text-muted mb-1">最近照料</p>
+        <p class="text-[0.625rem] text-muted mb-1">最近照料</p>
         <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
-          <p v-for="entry in manorStore.snapshot.care_entries.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
+          <p v-for="entry in manorStore.snapshot.care_entries.slice(0, 6)" :key="entry.id" class="text-[0.625rem] leading-4 text-muted">
             {{ entry.visitor_display_name }} · {{ entry.object_label }} · {{ entry.action_label }} · {{ entry.owner_benefit }}
           </p>
         </div>
       </div>
 
       <div v-if="manorStore.snapshot.steal_entries.length > 0" class="border border-accent/10 rounded-xs p-2">
-        <p class="text-[10px] text-muted mb-1">最近轻采</p>
+        <p class="text-[0.625rem] text-muted mb-1">最近轻采</p>
         <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
-          <p v-for="entry in manorStore.snapshot.steal_entries.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
+          <p v-for="entry in manorStore.snapshot.steal_entries.slice(0, 6)" :key="entry.id" class="text-[0.625rem] leading-4 text-muted">
             {{ entry.visitor_display_name }} · {{ entry.object_label }} · {{ entry.target_label }} · {{ entry.use_summary || entry.owner_compensation }}
           </p>
         </div>
@@ -114,18 +114,18 @@
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">收藏与关注</p>
       <div v-if="!manorStore.snapshot.viewer_is_owner" class="flex gap-2">
-        <Button class="text-[10px]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_favorited_by_viewer" @click="favoriteManor">
+        <Button class="text-[0.625rem]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_favorited_by_viewer" @click="favoriteManor">
           {{ manorStore.snapshot.is_favorited_by_viewer ? '已收藏' : '收藏庄园' }}
         </Button>
-        <Button class="text-[10px]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_followed_by_viewer" @click="followManor">
+        <Button class="text-[0.625rem]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_followed_by_viewer" @click="followManor">
           {{ manorStore.snapshot.is_followed_by_viewer ? '已关注更新' : '关注庄园更新' }}
         </Button>
       </div>
-      <p v-else class="text-[10px] text-muted">这是你自己的庄园，收藏和关注列表会展示其他玩家与热门庄园。</p>
+      <p v-else class="text-[0.625rem] text-muted">这是你自己的庄园，收藏和关注列表会展示其他玩家与热门庄园。</p>
       <div v-if="manorStore.favoriteOverview" class="grid gap-2 md:grid-cols-2">
         <div class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">同主题收藏</p>
-          <div v-if="manorStore.favoriteOverview.same_theme_favorites.length === 0" class="text-[10px] text-muted">当前还没有同主题收藏列表。</div>
+          <p class="text-[0.625rem] text-muted mb-1">同主题收藏</p>
+          <div v-if="manorStore.favoriteOverview.same_theme_favorites.length === 0" class="text-[0.625rem] text-muted">当前还没有同主题收藏列表。</div>
           <div
             v-for="(group, index) in manorStore.favoriteOverview.same_theme_favorites"
             :key="index"
@@ -135,14 +135,14 @@
           </div>
         </div>
         <div class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">热门庄园榜</p>
-          <div v-if="manorStore.favoriteOverview.hot_manors.length === 0" class="text-[10px] text-muted">当前还没有热门庄园榜。</div>
+          <p class="text-[0.625rem] text-muted mb-1">热门庄园榜</p>
+          <div v-if="manorStore.favoriteOverview.hot_manors.length === 0" class="text-[0.625rem] text-muted">当前还没有热门庄园榜。</div>
           <div v-for="entry in manorStore.favoriteOverview.hot_manors" :key="entry.manor_username" class="border border-accent/10 rounded-xs p-2 mb-1.5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">{{ entry.manor_username }}</p>
-              <span class="text-[10px] text-muted">收藏 {{ entry.favorite_count }}</span>
+              <span class="text-[0.625rem] text-muted">收藏 {{ entry.favorite_count }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-1">{{ entry.theme || '未分类主题' }}</p>
+            <p class="text-[0.625rem] text-muted mt-1">{{ entry.theme || '未分类主题' }}</p>
           </div>
         </div>
       </div>
@@ -152,8 +152,8 @@
       <p class="text-xs text-accent">庄园主题周</p>
       <div v-if="manorStore.snapshot.viewer_is_owner" class="border border-accent/10 rounded-xs p-2 bg-bg/10 space-y-2">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] text-muted">庄园主图</p>
-          <Button class="text-[10px]" :disabled="uploadingCover" @click="triggerCoverUpload">
+          <p class="text-[0.625rem] text-muted">庄园主图</p>
+          <Button class="text-[0.625rem]" :disabled="uploadingCover" @click="triggerCoverUpload">
             {{ uploadingCover ? '上传中…' : '上传主图' }}
           </Button>
         </div>
@@ -170,7 +170,7 @@
       </div>
       <div v-if="manorStore.snapshot.viewer_is_owner" class="grid gap-2 md:grid-cols-2">
         <div class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">展示模板</p>
+          <p class="text-[0.625rem] text-muted mb-1">展示模板</p>
           <select
             v-model="manorStore.templateIdDraft"
             class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
@@ -183,18 +183,18 @@
               {{ option.label }}
             </option>
           </select>
-          <p class="text-[10px] text-muted mt-2">
+          <p class="text-[0.625rem] text-muted mt-2">
             {{ manorStore.snapshot.theme_week.template_options.find(item => item.id === manorStore.templateIdDraft)?.summary || '选择一种公开展示方式。' }}
           </p>
         </div>
         <div class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">模板速览</p>
+          <p class="text-[0.625rem] text-muted mb-1">模板速览</p>
           <div class="grid gap-1">
             <button
               v-for="option in manorStore.snapshot.theme_week.template_options"
               :key="option.id"
               type="button"
-              class="text-left text-[10px] px-2 py-1 rounded-xs border transition-colors"
+              class="text-left text-[0.625rem] px-2 py-1 rounded-xs border transition-colors"
               :class="manorStore.templateIdDraft === option.id ? 'border-accent/40 text-accent bg-accent/5' : 'border-accent/15 text-muted'"
               @click="manorStore.templateIdDraft = option.id"
             >
@@ -206,24 +206,24 @@
       </div>
       <div class="grid gap-2 md:grid-cols-2">
         <div class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">当前主题</p>
+          <p class="text-[0.625rem] text-muted mb-1">当前主题</p>
           <p class="text-xs text-accent">{{ manorStore.snapshot.theme_week.active_theme }}</p>
-          <p class="text-[10px] text-muted mt-1">来源：{{ manorStore.snapshot.theme_week.active_theme_source }}</p>
-          <p class="text-[10px] text-muted mt-2">主题分：{{ manorStore.snapshot.theme_week.score }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">来源：{{ manorStore.snapshot.theme_week.active_theme_source }}</p>
+          <p class="text-[0.625rem] text-muted mt-2">主题分：{{ manorStore.snapshot.theme_week.score }}</p>
         </div>
         <div class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">官方精选</p>
+          <p class="text-[0.625rem] text-muted mb-1">官方精选</p>
           <p class="text-xs text-accent">{{ manorStore.snapshot.theme_week.official_pick?.label || '暂无官方精选' }}</p>
-          <p class="text-[10px] text-muted mt-1">{{ manorStore.snapshot.theme_week.official_pick?.reason || '当前主题分尚未达到精选门槛。' }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ manorStore.snapshot.theme_week.official_pick?.reason || '当前主题分尚未达到精选门槛。' }}</p>
         </div>
       </div>
       <div class="border border-accent/10 rounded-xs p-2">
-        <p class="text-[10px] text-muted mb-1">主题推荐</p>
+        <p class="text-[0.625rem] text-muted mb-1">主题推荐</p>
         <div class="flex flex-wrap gap-1">
-          <span v-for="item in manorStore.snapshot.theme_week.recommendations" :key="item" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted">
+          <span v-for="item in manorStore.snapshot.theme_week.recommendations" :key="item" class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted">
             {{ item }}
           </span>
-          <span v-if="manorStore.snapshot.theme_week.recommendations.length === 0" class="text-[10px] text-muted">当前没有额外推荐。</span>
+          <span v-if="manorStore.snapshot.theme_week.recommendations.length === 0" class="text-[0.625rem] text-muted">当前没有额外推荐。</span>
         </div>
       </div>
       <div v-if="manorStore.snapshot.viewer_is_owner" class="online-action-row">
@@ -246,7 +246,7 @@
           v-for="option in guestbookKindOptions"
           :key="option.id"
           type="button"
-          class="text-left text-[10px] px-2 py-1.5 rounded-xs border transition-colors"
+          class="text-left text-[0.625rem] px-2 py-1.5 rounded-xs border transition-colors"
           :class="manorStore.guestbookKindDraft === option.id ? 'border-accent/40 text-accent bg-accent/5' : 'border-accent/15 text-muted'"
           @click="manorStore.setGuestbookKind(option.id)"
         >
@@ -255,16 +255,16 @@
       </div>
       <div class="border border-accent/10 rounded-xs p-2">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-[10px] text-muted">当前留言模式</p>
-          <span class="text-[10px] text-accent">{{ currentGuestbookKind.label }}</span>
+          <p class="text-[0.625rem] text-muted">当前留言模式</p>
+          <span class="text-[0.625rem] text-accent">{{ currentGuestbookKind.label }}</span>
         </div>
-        <p class="text-[10px] text-muted mt-1">{{ currentGuestbookKind.helper }}</p>
+        <p class="text-[0.625rem] text-muted mt-1">{{ currentGuestbookKind.helper }}</p>
         <div class="flex flex-wrap gap-1 mt-2">
           <button
             v-for="pick in manorStore.guestbookQuickPicks"
             :key="pick"
             type="button"
-            class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted hover:border-accent/30 hover:text-accent"
+            class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted hover:border-accent/30 hover:text-accent"
             @click="manorStore.applyGuestbookQuickPick(pick)"
           >
             {{ pick }}
@@ -279,23 +279,23 @@
         :placeholder="manorStore.guestbookPlaceholder"
       />
       <div class="flex items-center justify-between gap-2">
-        <p class="text-[10px] text-muted">当前会以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。</p>
-        <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook">
+        <p class="text-[0.625rem] text-muted">当前会以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。</p>
+        <Button class="text-[0.625rem]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook">
           {{ manorStore.guestbookActionRunning ? '提交中…' : manorStore.guestbookSubmitLabel }}
         </Button>
       </div>
 
       <div class="space-y-2">
-        <div v-if="manorStore.snapshot.guestbook_entries.length === 0" class="text-[10px] text-muted">当前还没有访客留言。</div>
+        <div v-if="manorStore.snapshot.guestbook_entries.length === 0" class="text-[0.625rem] text-muted">当前还没有访客留言。</div>
         <div v-for="entry in manorStore.snapshot.guestbook_entries" :key="entry.id" class="border border-accent/10 rounded-xs p-2">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2 flex-wrap">
                 <p class="text-xs text-accent">{{ entry.author_display_name }}</p>
-                <span class="text-[10px] px-1.5 py-0.5 rounded-xs border" :class="guestbookKindBadgeClass(entry.kind)">
+                <span class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border" :class="guestbookKindBadgeClass(entry.kind)">
                   {{ guestbookKindLabel(entry.kind) }}
                 </span>
-                <span v-if="entry.pinned" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent bg-accent/5">
+                <span v-if="entry.pinned" class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent bg-accent/5">
                   置顶
                 </span>
               </div>
@@ -309,14 +309,14 @@
                 <p v-else-if="entry.kind === 'signature'" class="text-xs text-right italic text-fuchsia-100">
                   —— {{ entry.content }}
                 </p>
-                <p v-else class="text-[10px] text-muted mt-1">
+                <p v-else class="text-[0.625rem] text-muted mt-1">
                   {{ entry.content }}
                 </p>
               </div>
             </div>
             <Button
               v-if="manorStore.snapshot.viewer_is_owner"
-              class="text-[10px]"
+              class="text-[0.625rem]"
               :disabled="manorStore.guestbookActionRunning"
               @click="togglePinned(entry.id, !entry.pinned)"
             >
@@ -324,8 +324,8 @@
             </Button>
           </div>
           <div v-if="entry.reply_text" class="border border-accent/10 rounded-xs px-2 py-1.5 mt-2 bg-bg/10">
-            <p class="text-[10px] text-muted">{{ entry.reply_author_display_name || '庄园主人' }} 回复：</p>
-            <p class="text-[10px] mt-1">{{ entry.reply_text }}</p>
+            <p class="text-[0.625rem] text-muted">{{ entry.reply_author_display_name || '庄园主人' }} 回复：</p>
+            <p class="text-[0.625rem] mt-1">{{ entry.reply_text }}</p>
           </div>
           <div v-else-if="manorStore.snapshot.viewer_is_owner" class="mt-2 flex gap-2">
             <input
@@ -334,7 +334,7 @@
               class="flex-1 bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
               placeholder="回复这条留言"
             />
-            <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="replyGuestbook(entry.id)">
+            <Button class="text-[0.625rem]" :disabled="manorStore.guestbookActionRunning" @click="replyGuestbook(entry.id)">
               回复
             </Button>
           </div>
@@ -366,21 +366,21 @@
         />
       </div>
       <div class="flex justify-end">
-        <Button class="text-[10px]" :disabled="manorStore.visitActionRunning" @click="recordVisit">
+        <Button class="text-[0.625rem]" :disabled="manorStore.visitActionRunning" @click="recordVisit">
           {{ manorStore.visitActionRunning ? '记录中…' : '记录这次来访' }}
         </Button>
       </div>
 
       <div class="space-y-2">
-        <div v-if="manorStore.snapshot.visit_entries.length === 0" class="text-[10px] text-muted">当前还没有访客记录。</div>
+        <div v-if="manorStore.snapshot.visit_entries.length === 0" class="text-[0.625rem] text-muted">当前还没有访客记录。</div>
         <div v-for="entry in manorStore.snapshot.visit_entries" :key="entry.id" class="border border-accent/10 rounded-xs p-2">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs text-accent">{{ entry.visitor_display_name }} · {{ visitPurposeLabel(entry.purpose) }}</p>
-            <span class="text-[10px] text-muted">{{ new Date(entry.created_at * 1000).toLocaleString('zh-CN', { hour12: false }) }}</span>
+            <span class="text-[0.625rem] text-muted">{{ new Date(entry.created_at * 1000).toLocaleString('zh-CN', { hour12: false }) }}</span>
           </div>
-          <p class="text-[10px] text-muted mt-1">来访行为：{{ entry.summary }}</p>
-          <p v-if="entry.feedback" class="text-[10px] text-muted mt-1">来访反馈：{{ entry.feedback }}</p>
-          <p v-if="entry.carried_items.length > 0" class="text-[10px] text-muted mt-1">
+          <p class="text-[0.625rem] text-muted mt-1">来访行为：{{ entry.summary }}</p>
+          <p v-if="entry.feedback" class="text-[0.625rem] text-muted mt-1">来访反馈：{{ entry.feedback }}</p>
+          <p v-if="entry.carried_items.length > 0" class="text-[0.625rem] text-muted mt-1">
             带走委托：{{ entry.carried_items.map(item => `${item.itemId} x${item.quantity}`).join('、') }}
           </p>
         </div>
@@ -391,7 +391,7 @@
       <p class="text-xs text-accent">庄园导览</p>
       <div class="grid gap-2 md:grid-cols-2">
         <div v-if="manorStore.snapshot.viewer_is_owner" class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">推荐参观点</p>
+          <p class="text-[0.625rem] text-muted mb-1">推荐参观点</p>
           <input
             v-model="manorStore.guidePointTitleDraft"
             maxlength="30"
@@ -405,30 +405,30 @@
             placeholder="告诉访客为什么值得看"
           />
           <div class="flex justify-end mt-2">
-            <Button class="text-[10px]" :disabled="manorStore.guideActionRunning" @click="saveGuide">
+            <Button class="text-[0.625rem]" :disabled="manorStore.guideActionRunning" @click="saveGuide">
               {{ manorStore.guideActionRunning ? '保存中…' : '加入导览点' }}
             </Button>
           </div>
         </div>
 
         <div class="border border-accent/10 rounded-xs p-2">
-          <p class="text-[10px] text-muted mb-1">今日来访摘要</p>
+          <p class="text-[0.625rem] text-muted mb-1">今日来访摘要</p>
           <p class="text-xs text-accent">{{ manorStore.snapshot.today_visit_summary }}</p>
-          <p class="text-[10px] text-muted mt-2">
+          <p class="text-[0.625rem] text-muted mt-2">
             当前主题路线：{{ manorStore.snapshot.guide_routes[0]?.title || '还没设置主题路线' }}
           </p>
-          <p class="text-[10px] text-muted mt-1">
+          <p class="text-[0.625rem] text-muted mt-1">
             {{ manorStore.snapshot.guide_routes[0]?.summary || '保存第一个参观点后，会自动整理出一条基础参观路线。' }}
           </p>
         </div>
       </div>
 
       <div class="border border-accent/10 rounded-xs p-2">
-        <p class="text-[10px] text-muted mb-1">已设置参观点</p>
-        <div v-if="manorStore.snapshot.guide_points.length === 0" class="text-[10px] text-muted">当前还没有推荐参观点。</div>
+        <p class="text-[0.625rem] text-muted mb-1">已设置参观点</p>
+        <div v-if="manorStore.snapshot.guide_points.length === 0" class="text-[0.625rem] text-muted">当前还没有推荐参观点。</div>
         <div v-for="point in manorStore.snapshot.guide_points" :key="point.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
           <p class="text-xs text-accent">{{ point.order }}. {{ point.title }}</p>
-          <p class="text-[10px] text-muted mt-1">{{ point.summary }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">{{ point.summary }}</p>
         </div>
       </div>
     </div>
@@ -437,13 +437,13 @@
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="text-xs text-accent">求助单入口</p>
-          <p class="text-[10px] text-muted mt-1 leading-5">想把访客来意、缺货需求或临时补货转成真正的联机协作，可以直接去委托面板发布或接单。</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-5">想把访客来意、缺货需求或临时补货转成真正的联机协作，可以直接去委托面板发布或接单。</p>
         </div>
-        <Button class="text-[10px] shrink-0" @click="openQuestBoard">前往委托</Button>
+        <Button class="text-[0.625rem] shrink-0" @click="openQuestBoard">前往委托</Button>
       </div>
     </div>
 
-    <div class="game-panel border border-accent/10 rounded-xs p-3 text-[10px] text-muted space-y-1">
+    <div class="game-panel border border-accent/10 rounded-xs p-3 text-[0.625rem] text-muted space-y-1">
       <p>当前庄园公开页已经串起快照、留言、来访、导览、收藏、主题周与展示模板，公开庄园开始更像一个可持续经营的线上门面。</p>
       <p>模板切换会跟随主题周一起保存，并直接驱动上方预览卡切换为展示类、经营类、节庆类、收藏类或故事类布局。</p>
     </div>

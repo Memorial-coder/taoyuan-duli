@@ -172,7 +172,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-muted));
   }
 
@@ -185,7 +185,7 @@
     border-radius: 2px;
     color: rgb(var(--color-text));
     outline: none;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .admin-textarea {

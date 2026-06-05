@@ -12,12 +12,12 @@
     <p v-if="showSource" :class="sourceClass">{{ getGoalSourceText(goal) }}</p>
 
     <div v-if="showInlineAction" class="mt-1 flex items-end gap-3">
-      <p class="min-w-0 flex-1 text-[11px] text-muted leading-5">{{ goal.description }}</p>
-      <span class="shrink-0 whitespace-nowrap text-[10px] text-accent">{{ action!.label }} -></span>
+      <p class="min-w-0 flex-1 text-[0.6875rem] text-muted leading-5">{{ goal.description }}</p>
+      <span class="shrink-0 whitespace-nowrap text-[0.625rem] text-accent">{{ action!.label }} -></span>
     </div>
-    <p v-else class="mt-1 text-[11px] text-muted leading-5">{{ goal.description }}</p>
+    <p v-else class="mt-1 text-[0.6875rem] text-muted leading-5">{{ goal.description }}</p>
 
-    <div v-if="showTrailingAction" class="mt-2 flex justify-end text-[10px]">
+    <div v-if="showTrailingAction" class="mt-2 flex justify-end text-[0.625rem]">
       <span class="text-accent">{{ action!.label }} -></span>
     </div>
   </component>
@@ -68,7 +68,7 @@
     return classes.join(' ')
   })
 
-  const sourceClass = computed(() => (props.tone === 'success' ? 'mt-1 text-[10px] text-success/80' : 'mt-1 text-[10px] text-accent/80'))
+  const sourceClass = computed(() => (props.tone === 'success' ? 'mt-1 text-[0.625rem] text-success/80' : 'mt-1 text-[0.625rem] text-accent/80'))
 
   const titleClass = computed(() => (props.strikeCompleted && props.goal.completed ? 'line-through text-muted' : ''))
 

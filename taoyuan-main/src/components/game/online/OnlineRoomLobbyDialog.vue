@@ -11,19 +11,19 @@
     <div class="space-y-4" data-testid="online-room-lobby">
       <section class="grid gap-2 text-xs sm:grid-cols-2" aria-label="房间摘要">
         <div class="border border-accent/10 bg-black/10 p-2">
-          <p class="text-[10px] leading-4 text-muted">房间状态</p>
+          <p class="text-[0.625rem] leading-4 text-muted">房间状态</p>
           <p class="mt-1 text-sm leading-5 text-accent">{{ roomStateLabel }}</p>
         </div>
         <div class="border border-accent/10 bg-black/10 p-2">
-          <p class="text-[10px] leading-4 text-muted">成员</p>
+          <p class="text-[0.625rem] leading-4 text-muted">成员</p>
           <p class="mt-1 text-sm leading-5 text-accent">{{ memberCountLabel }}</p>
         </div>
         <div class="border border-accent/10 bg-black/10 p-2">
-          <p class="text-[10px] leading-4 text-muted">玩法</p>
+          <p class="text-[0.625rem] leading-4 text-muted">玩法</p>
           <p class="mt-1 text-sm leading-5 text-accent">{{ gameplayLabel }}</p>
         </div>
         <div class="border border-accent/10 bg-black/10 p-2">
-          <p class="text-[10px] leading-4 text-muted">我的身份</p>
+          <p class="text-[0.625rem] leading-4 text-muted">我的身份</p>
           <p class="mt-1 text-sm leading-5 text-accent">{{ currentRoleLabel }}</p>
         </div>
       </section>
@@ -35,7 +35,7 @@
       <section class="space-y-2" aria-labelledby="online-room-lobby-member-title">
         <div class="flex items-center justify-between gap-2">
           <p id="online-room-lobby-member-title" class="text-xs leading-5 text-accent">成员状态</p>
-          <span class="text-[10px] leading-4 text-muted">{{ readyCountLabel }}</span>
+          <span class="text-[0.625rem] leading-4 text-muted">{{ readyCountLabel }}</span>
         </div>
 
         <div v-if="members.length === 0" class="border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted" data-testid="online-room-member-list">
@@ -51,10 +51,10 @@
           >
             <div class="min-w-0">
               <p class="truncate text-xs leading-5 text-accent">{{ memberDisplayName(member) }}</p>
-              <p class="mt-0.5 truncate text-[10px] leading-4 text-muted">{{ memberSubLabel(member) }}</p>
+              <p class="mt-0.5 truncate text-[0.625rem] leading-4 text-muted">{{ memberSubLabel(member) }}</p>
             </div>
             <div class="flex shrink-0 flex-wrap gap-1.5">
-              <span v-for="badge in memberBadges(member)" :key="badge" class="border border-accent/15 px-2 py-1 text-[10px] leading-4 text-muted">
+              <span v-for="badge in memberBadges(member)" :key="badge" class="border border-accent/15 px-2 py-1 text-[0.625rem] leading-4 text-muted">
                 {{ badge }}
               </span>
             </div>
@@ -62,7 +62,7 @@
         </div>
       </section>
 
-      <section v-if="disabledActionReasons.length > 0" class="space-y-1 border border-amber-300/20 bg-amber-500/10 p-2 text-[10px] leading-4 text-amber-100" data-testid="online-room-disabled-reason">
+      <section v-if="disabledActionReasons.length > 0" class="space-y-1 border border-amber-300/20 bg-amber-500/10 p-2 text-[0.625rem] leading-4 text-amber-100" data-testid="online-room-disabled-reason">
         <p v-for="reason in disabledActionReasons" :key="reason">
           {{ reason }}
         </p>

@@ -29,7 +29,7 @@
           <p class="text-sm text-accent">{{ activeTabGroupMeta.label }}</p>
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabGroupMeta.summary }}</p>
         </div>
-        <span class="w-fit shrink-0 border border-accent/15 px-2 py-1 text-[10px] text-muted">
+        <span class="w-fit shrink-0 border border-accent/15 px-2 py-1 text-[0.625rem] text-muted">
           {{ activeTabMeta.label }}
         </span>
       </div>
@@ -71,7 +71,7 @@
             class="space-y-2"
             :data-testid="`online-cohabitation-tab-group-${group.key}`"
           >
-            <p class="text-[10px] text-muted">{{ group.label }}</p>
+            <p class="text-[0.625rem] text-muted">{{ group.label }}</p>
             <div class="flex flex-wrap gap-2">
               <button
                 v-for="tab in group.tabs"
@@ -107,7 +107,7 @@
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.summary }}</p>
         </div>
-        <span v-if="selectedContract" class="w-fit shrink-0 border border-accent/15 px-2 py-1 text-[10px] text-muted">
+        <span v-if="selectedContract" class="w-fit shrink-0 border border-accent/15 px-2 py-1 text-[0.625rem] text-muted">
           {{ selectedContract.type_label }} · {{ statusLabel(selectedContract.status) }}
         </span>
       </div>
@@ -129,7 +129,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">契约列表</p>
-            <span class="text-[10px] text-muted">{{ cohabitationStore.contracts.length }} 份</span>
+            <span class="text-[0.625rem] text-muted">{{ cohabitationStore.contracts.length }} 份</span>
           </div>
           <div v-if="cohabitationStore.contracts.length === 0" class="mt-3 border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted">
             当前账号还没有可切换的共同庄园契约。
@@ -147,16 +147,16 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ contract.title || contract.type_label }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ contract.shared_manor_id }} · {{ contract.members.length }} 人</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ contract.shared_manor_id }} · {{ contract.members.length }} 人</p>
                 </div>
-                <span class="w-fit shrink-0 border px-2 py-0.5 text-[10px]" :class="statusBadgeClass(contract.status)">
+                <span class="w-fit shrink-0 border px-2 py-0.5 text-[0.625rem]" :class="statusBadgeClass(contract.status)">
                   {{ statusLabel(contract.status) }}
                 </span>
               </div>
-              <p class="mt-2 line-clamp-2 text-[10px] leading-4 text-muted">
+              <p class="mt-2 line-clamp-2 text-[0.625rem] leading-4 text-muted">
                 {{ contractMembersLabel(contract) }}
               </p>
-              <div class="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+              <div class="mt-2 grid grid-cols-3 gap-2 text-[0.625rem]">
                 <span class="border border-accent/10 px-2 py-1 text-muted">基金 {{ contract.shared_fund?.balance ?? 0 }}</span>
                 <span class="border border-accent/10 px-2 py-1 text-muted">仓库 {{ contract.shared_warehouse?.items?.length ?? 0 }}</span>
                 <span class="border border-accent/10 px-2 py-1 text-muted">审计 {{ contract.audit_log?.length ?? 0 }}</span>
@@ -172,12 +172,12 @@
                 <HeartHandshake :size="13" />
                 <p class="text-sm">发起契约</p>
               </div>
-              <span class="text-[10px] text-muted">{{ contractDraftMemberRangeLabel }}</span>
+              <span class="text-[0.625rem] text-muted">{{ contractDraftMemberRangeLabel }}</span>
             </div>
             <div class="mt-3 grid gap-2">
               <div class="grid gap-2 md:grid-cols-2">
                 <label class="block">
-                  <span class="text-[10px] text-muted">关系类型</span>
+                  <span class="text-[0.625rem] text-muted">关系类型</span>
                   <select
                     v-model="contractDraftType"
                     class="online-select mt-1 text-xs"
@@ -193,7 +193,7 @@
                   </select>
                 </label>
                 <label class="block">
-                  <span class="text-[10px] text-muted">标题</span>
+                  <span class="text-[0.625rem] text-muted">标题</span>
                   <input
                     v-model="contractDraftTitle"
                     class="online-input mt-1 text-xs"
@@ -204,7 +204,7 @@
                 </label>
               </div>
               <label class="block">
-                <span class="text-[10px] text-muted">邀请好友</span>
+                <span class="text-[0.625rem] text-muted">邀请好友</span>
                 <input
                   v-model="contractDraftTargetUsernames"
                   class="online-input mt-1 text-xs"
@@ -235,7 +235,7 @@
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-shared-pets-panel">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">共同宠物照料</p>
-              <span class="text-[10px] text-muted">{{ cohabitationStore.sharedPets?.summary.pet_count ?? 0 }} 只 · {{ cohabitationStore.sharedPets?.summary.cared_count ?? 0 }} 已照料</span>
+              <span class="text-[0.625rem] text-muted">{{ cohabitationStore.sharedPets?.summary.pet_count ?? 0 }} 只 · {{ cohabitationStore.sharedPets?.summary.cared_count ?? 0 }} 已照料</span>
             </div>
             <div v-if="sharedPets.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有可照料的共同宠物。</div>
             <div v-else class="mt-3 space-y-3">
@@ -250,12 +250,12 @@
                   @click="selectSharedPet(pet)"
                 >
                   <p class="truncate text-xs text-text">{{ pet.name || pet.type }}</p>
-                  <p class="mt-1 text-[10px] text-muted">
+                  <p class="mt-1 text-[0.625rem] text-muted">
                     {{ pet.origin_owner_display_name || pet.origin_owner_username }} · {{ pet.permission_mode }} · 照料 {{ pet.pet_state.care_count }} 次 · 心情 {{ pet.pet_state.mood }}
                   </p>
                 </button>
               </div>
-              <div v-if="selectedSharedPet" class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+              <div v-if="selectedSharedPet" class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted">
                 <p class="truncate text-xs text-text">{{ selectedSharedPet.name || selectedSharedPet.type }}</p>
                 <p class="mt-1">来源：{{ selectedSharedPet.origin_owner_display_name || selectedSharedPet.origin_owner_username }}</p>
                 <p class="mt-1">照料：{{ selectedSharedPet.current_caregiver_display_name || selectedSharedPet.current_caregiver_username || '未记录' }}</p>
@@ -264,7 +264,7 @@
                   同时在线加成：{{ sharedPetCoopBonusLabel(selectedSharedPet) }}
                 </p>
               </div>
-              <label class="block text-[10px] leading-4 text-muted">
+              <label class="block text-[0.625rem] leading-4 text-muted">
                 <span>照料用品</span>
                 <select
                   v-model="selectedSharedPetCareItemId"
@@ -276,12 +276,12 @@
                   </option>
                 </select>
               </label>
-              <p v-if="selectedSharedPetCareItem" class="text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-pet-care-item-stock">
+              <p v-if="selectedSharedPetCareItem" class="text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-shared-pet-care-item-stock">
                 {{ selectedSharedPetCareItem.label }} · {{ selectedSharedPetCareItem.effect }} · 共同仓库 {{ selectedSharedPetCareItem.quantity }} 个
               </p>
               <div
                 v-if="selectedSharedPetCareItem?.requiresConfirmation"
-                class="space-y-2 border border-amber-300/30 bg-amber-950/20 p-2 text-[10px] leading-4 text-amber-100"
+                class="space-y-2 border border-amber-300/30 bg-amber-950/20 p-2 text-[0.625rem] leading-4 text-amber-100"
                 data-testid="online-cohabitation-shared-pet-care-risk-panel"
               >
                 <p data-testid="online-cohabitation-shared-pet-care-risk-label">
@@ -315,7 +315,7 @@
                 <Heart :size="12" />
                 {{ selectedSharedPetCareItem?.label || '用品' }}照料
               </button>
-              <p v-if="sharedPetActionMessage" class="text-[10px] leading-4" :class="sharedPetActionOk ? 'text-emerald-200' : 'text-red-100'">
+              <p v-if="sharedPetActionMessage" class="text-[0.625rem] leading-4" :class="sharedPetActionOk ? 'text-emerald-200' : 'text-red-100'">
                 {{ sharedPetActionMessage }}
               </p>
             </div>
@@ -329,25 +329,25 @@
             <div v-if="selectedContract" class="mt-3 space-y-3">
               <div class="grid gap-2 md:grid-cols-3">
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">关系类型</p>
+                  <p class="text-[0.625rem] text-muted">关系类型</p>
                   <p class="mt-1 text-xs text-accent">{{ selectedContract.type_label }}</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">成员</p>
+                  <p class="text-[0.625rem] text-muted">成员</p>
                   <p class="mt-1 text-xs text-accent">{{ selectedContract.members.length }} 人</p>
                 </div>
                 <div class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-[10px] text-muted">共同基金</p>
+                  <p class="text-[0.625rem] text-muted">共同基金</p>
                   <p class="mt-1 text-xs text-accent">{{ selectedContract.shared_fund?.balance ?? 0 }}</p>
                 </div>
               </div>
               <div class="border border-accent/10 bg-black/10 p-3">
-                <p class="text-[10px] text-muted">成员边界</p>
+                <p class="text-[0.625rem] text-muted">成员边界</p>
                 <div class="mt-2 flex flex-wrap gap-1">
                   <span
                     v-for="member in selectedContract.members"
                     :key="member.username"
-                    class="border border-accent/15 px-2 py-1 text-[10px] text-muted"
+                    class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted"
                   >
                     {{ member.display_name || member.username }} · {{ member.status === 'accepted' ? '已接受' : statusLabel(member.status) }}
                   </span>
@@ -396,7 +396,7 @@
               <div v-if="cohabitationStore.canOpenSelectedContract || latestSeparationPreview" class="border border-accent/10 bg-black/10 p-3">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-xs text-accent">分居返还预览</p>
-                  <span class="text-[10px] text-muted">
+                  <span class="text-[0.625rem] text-muted">
                     {{ latestSeparationPreview ? `v${latestSeparationPreview.version}` : '未生成' }}
                   </span>
                 </div>
@@ -421,14 +421,14 @@
                 </div>
                 <p
                   v-if="separationActionMessage"
-                  class="mt-2 text-[10px] leading-4"
+                  class="mt-2 text-[0.625rem] leading-4"
                   :class="separationActionOk ? 'text-emerald-200' : 'text-red-100'"
                 >
                   {{ separationActionMessage }}
                 </p>
                 <div v-if="latestSeparationPreview" class="mt-3 space-y-2">
-                  <p class="text-[10px] leading-4 text-muted">{{ latestSeparationPreview.summary }}</p>
-                  <div class="grid gap-2 text-[10px] md:grid-cols-3">
+                  <p class="text-[0.625rem] leading-4 text-muted">{{ latestSeparationPreview.summary }}</p>
+                  <div class="grid gap-2 text-[0.625rem] md:grid-cols-3">
                     <p class="border border-accent/10 bg-bg/30 p-2 text-muted">创建：{{ formatTime(latestSeparationPreview.created_at) }}</p>
                     <p class="border border-accent/10 bg-bg/30 p-2 text-muted">可确认：{{ formatTime(latestSeparationPreview.confirm_after_at) }}</p>
                     <p class="border border-accent/10 bg-bg/30 p-2 text-muted">过期：{{ formatTime(latestSeparationPreview.expires_at) }}</p>
@@ -437,14 +437,14 @@
                     <span
                       v-for="item in separationPreviewDeferredOperations"
                       :key="item"
-                      class="border border-accent/15 px-2 py-1 text-[10px] text-muted"
+                      class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted"
                     >
                       {{ deferredOperationLabel(item) }}
                     </span>
                   </div>
                   <div
                     v-if="separationPreviewOfflineTimeoutRows.length || separationPreviewOfflineTimeoutOverrideApplied"
-                    class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-offline-timeout-readback"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -477,7 +477,7 @@
                   </div>
                   <div
                     v-if="separationSharedFundReadbackRows.length"
-                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-shared-fund-dispute-readback"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -570,7 +570,7 @@
                   </div>
                   <div
                     v-if="separationAssetDisputeSourceRows.length"
-                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-asset-dispute-source-list"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -602,7 +602,7 @@
                   </div>
                   <div
                     v-if="separationSharedDecorationRemovalDisputes.length"
-                    class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-amber-300/20 bg-amber-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-shared-decoration-removal-disputes"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -629,7 +629,7 @@
                   </div>
                   <div
                     v-if="separationBuildingMainStateReadbackRows.length"
-                    class="space-y-2 border border-cyan-300/20 bg-cyan-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-cyan-300/20 bg-cyan-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-building-main-state-readback"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -653,7 +653,7 @@
                   </div>
                   <div
                     v-if="separationStoryCinematicReadbackRows.length"
-                    class="space-y-2 border border-fuchsia-300/20 bg-fuchsia-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-fuchsia-300/20 bg-fuchsia-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-story-cinematic-readback"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -715,7 +715,7 @@
                   </div>
                   <div
                     v-if="separationManorExitHandoverRecord"
-                    class="space-y-2 border border-emerald-300/20 bg-emerald-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-emerald-300/20 bg-emerald-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-manor-exit-handover-readback"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -767,7 +767,7 @@
                   </div>
                   <div
                     v-if="separationPersonalRelationshipMutationReadbackRows.length"
-                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-sky-300/20 bg-sky-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-personal-relationship-mutation-readback"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -791,7 +791,7 @@
                   </div>
                   <div
                     v-if="separationPersonalFamilyMainStateMigrationReadbackRows.length"
-                    class="space-y-2 border border-emerald-300/20 bg-emerald-500/5 p-2 text-[10px] text-muted"
+                    class="space-y-2 border border-emerald-300/20 bg-emerald-500/5 p-2 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-separation-personal-family-main-state-readback"
                   >
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -813,7 +813,7 @@
                       {{ separationPersonalFamilyMainStateMigrationSummary?.privacy_boundary || '仅记录分居孩子安排、抚养安排摘要和个人家庭回执；真实孩子 / 家庭主状态迁移仍等待独立个人存档接口。' }}
                     </p>
                   </div>
-                  <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[10px] text-muted">
+                  <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[0.625rem] text-muted">
                     <p>{{ separationPreviewConfirmationLabel }}</p>
                     <div class="flex flex-wrap gap-2">
                       <button
@@ -957,9 +957,9 @@
                     <ShieldCheck :size="13" />
                     <p class="text-sm">玩家申诉与恢复</p>
                   </div>
-                  <span class="text-[10px] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
+                  <span class="text-[0.625rem] text-muted">安全版本 {{ contractSafeVersions.length }} · 申诉 {{ contractRecoveryAppeals.length }}</span>
                 </div>
-                <div class="mt-3 grid gap-3 text-[10px] text-muted">
+                <div class="mt-3 grid gap-3 text-[0.625rem] text-muted">
                   <div class="grid gap-2 md:grid-cols-2" data-testid="online-cohabitation-safe-version-list">
                     <div
                       v-for="version in contractSafeVersions.slice(0, 4)"
@@ -1133,10 +1133,10 @@
                 @click="setActiveSharedMapRegion(region.region_index)"
               >
                 <p class="truncate text-xs text-text">{{ region.member_display_name || region.member_username }}</p>
-                <p class="mt-1 text-[10px] text-muted">
+                <p class="mt-1 text-[0.625rem] text-muted">
                   第 {{ region.region_index + 1 }} 区 · {{ region.field_plot_count }} 块 · {{ region.permission_mode }}
                 </p>
-                <p class="mt-1 text-[10px] text-muted">来源：{{ region.origin_owner_id }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">来源：{{ region.origin_owner_id }}</p>
               </button>
             </div>
           </div>
@@ -1144,13 +1144,13 @@
           <div class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">共同农田操作</p>
-              <span class="text-[10px] text-muted">{{ selectedSharedFarmPlot ? selectedSharedFarmPlot.source_area : '未选地块' }}</span>
+              <span class="text-[0.625rem] text-muted">{{ selectedSharedFarmPlot ? selectedSharedFarmPlot.source_area : '未选地块' }}</span>
             </div>
             <div v-if="!selectedSharedFarmPlot" class="mt-3 text-xs leading-5 text-muted">
               点选左侧地块后，可按服务端权限执行浇水、种植或收获。
             </div>
             <div v-else class="mt-3 space-y-3">
-              <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+              <div class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted">
                 <p class="truncate text-xs text-text">{{ selectedSharedFarmPlot.origin_owner_display_name || selectedSharedFarmPlot.origin_owner_username }}</p>
                 <p class="mt-1">地块：{{ selectedSharedFarmPlot.source_plot_id }} · {{ selectedSharedFarmPlot.permission_mode }}</p>
                 <p class="mt-1">状态：{{ plotStateLabel(selectedSharedFarmPlot.plot_state.state) }} · {{ selectedSharedFarmPlot.plot_state.crop_id || '无作物' }}</p>
@@ -1159,7 +1159,7 @@
                 <p class="mt-1" data-testid="online-cohabitation-shared-farm-coop-bonus">{{ sharedFarmCoopBonusLabel(selectedSharedFarmPlot) }}</p>
               </div>
               <label class="block">
-                <span class="text-[10px] text-muted">&#31181;&#23376;</span>
+                <span class="text-[0.625rem] text-muted">&#31181;&#23376;</span>
                 <select
                   v-model="sharedFarmSeedItemId"
                   class="online-select mt-1 text-xs"
@@ -1171,7 +1171,7 @@
                 </select>
               </label>
               <label class="block">
-                <span class="text-[10px] text-muted">&#32933;&#26009;</span>
+                <span class="text-[0.625rem] text-muted">&#32933;&#26009;</span>
                 <select
                   v-model="selectedSharedFarmFertilizerItemId"
                   class="online-select mt-1 text-xs"
@@ -1254,7 +1254,7 @@
                   收获入仓
                 </button>
               </div>
-              <p v-if="sharedFarmActionMessage" class="text-[10px] leading-4" :class="sharedFarmActionOk ? 'text-emerald-200' : 'text-red-100'">
+              <p v-if="sharedFarmActionMessage" class="text-[0.625rem] leading-4" :class="sharedFarmActionOk ? 'text-emerald-200' : 'text-red-100'">
                 {{ sharedFarmActionMessage }}
               </p>
             </div>
@@ -1263,9 +1263,9 @@
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-shared-animals-panel">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">共同动物照料</p>
-              <span class="text-[10px] text-muted">{{ cohabitationStore.sharedAnimals?.summary.animal_count ?? 0 }} 只 · {{ cohabitationStore.sharedAnimals?.summary.product_ready_count ?? 0 }} 待收</span>
+              <span class="text-[0.625rem] text-muted">{{ cohabitationStore.sharedAnimals?.summary.animal_count ?? 0 }} 只 · {{ cohabitationStore.sharedAnimals?.summary.product_ready_count ?? 0 }} 待收</span>
             </div>
-            <div class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-testid="online-cohabitation-shared-animal-buy-panel">
+            <div class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-testid="online-cohabitation-shared-animal-buy-panel">
               <label class="block">
                 <span>购买动物</span>
                 <select v-model="selectedSharedAnimalBuyType" class="online-select mt-1 w-full" data-testid="online-cohabitation-shared-animal-buy-type">
@@ -1302,12 +1302,12 @@
                   @click="selectSharedAnimal(animal)"
                 >
                   <p class="truncate text-xs text-text">{{ animal.name || animal.type }}</p>
-                  <p class="mt-1 text-[10px] text-muted">
+                  <p class="mt-1 text-[0.625rem] text-muted">
                     {{ animal.origin_owner_display_name || animal.origin_owner_username }} · {{ animal.permission_mode }} · {{ animal.animal_state.was_fed ? '已喂' : '待喂' }} · {{ animal.animal_state.was_petted ? '已摸' : '待摸' }} · {{ sharedAnimalProductStatus(animal) }}
                   </p>
                 </button>
               </div>
-              <div v-if="selectedSharedAnimal" class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+              <div v-if="selectedSharedAnimal" class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted">
                 <p class="truncate text-xs text-text">{{ selectedSharedAnimal.name || selectedSharedAnimal.type }}</p>
                 <p class="mt-1">来源：{{ selectedSharedAnimal.origin_owner_display_name || selectedSharedAnimal.origin_owner_username }}</p>
                 <p class="mt-1">照料：{{ selectedSharedAnimal.current_keeper_display_name || selectedSharedAnimal.current_keeper_username || '未记录' }}</p>
@@ -1359,7 +1359,7 @@
                 </button>
               </div>
             </div>
-            <p v-if="sharedAnimalActionMessage" class="mt-2 text-[10px] leading-4" :class="sharedAnimalActionOk ? 'text-emerald-200' : 'text-red-100'">
+            <p v-if="sharedAnimalActionMessage" class="mt-2 text-[0.625rem] leading-4" :class="sharedAnimalActionOk ? 'text-emerald-200' : 'text-red-100'">
               {{ sharedAnimalActionMessage }}
             </p>
           </div>
@@ -1370,7 +1370,7 @@
               <span
                 v-for="entry in cohabitationStore.sharedMap?.summary.deferred_writes ?? []"
                 :key="entry"
-                class="border border-accent/15 px-2 py-1 text-[10px] text-muted"
+                class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted"
               >
                 {{ deferredOperationLabel(entry) }}
               </span>
@@ -1419,23 +1419,23 @@
             >
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs text-accent">高频治理</p>
-                <span class="text-[10px]" :class="warehouseGovernanceNeedsRecovery ? 'text-red-100' : 'text-muted'">
+                <span class="text-[0.625rem]" :class="warehouseGovernanceNeedsRecovery ? 'text-red-100' : 'text-muted'">
                   {{ warehouseGovernanceStatusLabel }}
                 </span>
               </div>
-              <div class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2">
+              <div class="mt-2 grid gap-2 text-[0.625rem] text-muted sm:grid-cols-2">
                 <p class="border border-accent/10 px-2 py-1">入仓 {{ warehouseGovernance.actor_window.inbound_action_count }}/{{ warehouseGovernance.inbound_action_limit }}</p>
                 <p class="border border-accent/10 px-2 py-1">出仓 {{ warehouseGovernance.actor_window.outbound_action_count }}/{{ warehouseGovernance.outbound_action_limit }}</p>
               </div>
-              <p v-if="warehouseGovernanceBlocking?.reason" class="mt-2 text-[10px] leading-4 text-red-100">
+              <p v-if="warehouseGovernanceBlocking?.reason" class="mt-2 text-[0.625rem] leading-4 text-red-100">
                 {{ warehouseGovernanceBlocking.reason }}
               </p>
-              <p v-else-if="warehouseGovernanceActiveRecovery" class="mt-2 text-[10px] leading-4 text-muted">
+              <p v-else-if="warehouseGovernanceActiveRecovery" class="mt-2 text-[0.625rem] leading-4 text-muted">
                 已恢复 {{ warehouseGovernanceActiveRecovery.direction }}，至 {{ formatTime(warehouseGovernanceActiveRecovery.expires_at) }}
               </p>
               <p
                 v-else-if="warehouseGovernanceLastAppeal"
-                class="mt-2 text-[10px] leading-4 text-muted"
+                class="mt-2 text-[0.625rem] leading-4 text-muted"
                 data-testid="online-cohabitation-warehouse-governance-appeal-last"
               >
                 最近申诉：{{ warehouseGovernanceLastAppeal.state }} · {{ formatTime(warehouseGovernanceLastAppeal.created_at) }}
@@ -1447,7 +1447,7 @@
                 >
                   <p
                     v-if="warehouseGovernancePendingAppeal"
-                    class="text-[10px] leading-4 text-muted"
+                    class="text-[0.625rem] leading-4 text-muted"
                     data-testid="online-cohabitation-warehouse-governance-appeal-pending"
                   >
                     申诉已提交：{{ warehouseGovernancePendingAppeal.id }} · {{ formatTime(warehouseGovernancePendingAppeal.created_at) }}
@@ -1533,7 +1533,7 @@
             >
               <div class="flex items-center justify-between gap-2">
                 <p class="text-xs text-accent">共同工坊</p>
-                <span class="text-[10px] text-muted">共享仓库进出</span>
+                <span class="text-[0.625rem] text-muted">共享仓库进出</span>
               </div>
               <div class="mt-2 grid gap-2">
                 <select
@@ -1545,7 +1545,7 @@
                     {{ recipe.label }}
                   </option>
                 </select>
-                <div v-if="selectedSharedWorkshopRecipe" class="grid gap-2 text-[10px] text-muted">
+                <div v-if="selectedSharedWorkshopRecipe" class="grid gap-2 text-[0.625rem] text-muted">
                   <div class="grid gap-2 sm:grid-cols-2">
                     <p class="border border-accent/10 bg-bg/30 px-2 py-1">
                       {{ sharedWorkshopStationLabel(selectedSharedWorkshopRecipe.station) }} · {{ sharedWorkshopProcessKindLabel(selectedSharedWorkshopRecipe.process_kind) }}
@@ -1565,10 +1565,10 @@
                       <span>库存 {{ row.available }}</span>
                     </p>
                   </div>
-                  <p v-if="selectedSharedWorkshopRecipe.alchemy_result_kind" class="text-[10px] leading-4 text-muted">
+                  <p v-if="selectedSharedWorkshopRecipe.alchemy_result_kind" class="text-[0.625rem] leading-4 text-muted">
                     炼丹结果：{{ sharedWorkshopAlchemyResultLabel(selectedSharedWorkshopRecipe.alchemy_result_kind) }}
                   </p>
-                  <label v-if="selectedSharedWorkshopRecipe.process_kind === 'alchemy_elixir'" class="grid gap-1 text-[10px] leading-4 text-muted">
+                  <label v-if="selectedSharedWorkshopRecipe.process_kind === 'alchemy_elixir'" class="grid gap-1 text-[0.625rem] leading-4 text-muted">
                     <span>结果模式</span>
                     <select
                       v-model="sharedWorkshopAlchemyResultMode"
@@ -1582,7 +1582,7 @@
                   </label>
                   <label
                     v-if="sharedWorkshopAlchemyResultMode === 'auto' && selectedSharedWorkshopSupportsAlchemyAuto"
-                    class="grid gap-1 text-[10px] leading-4 text-muted"
+                    class="grid gap-1 text-[0.625rem] leading-4 text-muted"
                   >
                     <span>火候</span>
                     <select
@@ -1597,12 +1597,12 @@
                   </label>
                   <p
                     v-if="sharedWorkshopAlchemyResultMode === 'auto' && sharedWorkshopAlchemyWeightPreviewLabel"
-                    class="text-[10px] leading-4 text-muted"
+                    class="text-[0.625rem] leading-4 text-muted"
                     data-testid="online-cohabitation-shared-workshop-alchemy-weight-preview"
                   >
                     自动权重：{{ sharedWorkshopAlchemyWeightPreviewLabel }}
                   </p>
-                  <p class="text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-workshop-medium-budget">
+                  <p class="text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-shared-workshop-medium-budget">
                     中额预算：{{ sharedWorkshopMediumBudgetLedger ? sharedWorkshopMediumBudgetLedger.id : '未绑定' }}
                   </p>
                   <button
@@ -1617,14 +1617,14 @@
                   </button>
                   <p
                     v-if="sharedWorkshopActionMessage"
-                    class="text-[10px] leading-4"
+                    class="text-[0.625rem] leading-4"
                     :class="sharedWorkshopActionOk ? 'text-emerald-200' : 'text-red-100'"
                   >
                     {{ sharedWorkshopActionMessage }}
                   </p>
                   <div
                     v-if="sharedWorkshopLastResultRows.length"
-                    class="grid gap-1 text-[10px] text-muted"
+                    class="grid gap-1 text-[0.625rem] text-muted"
                     data-testid="online-cohabitation-shared-workshop-readback"
                   >
                     <p
@@ -1645,8 +1645,8 @@
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
               <div v-for="draft in warehouseHighValueWithdrawalDrafts" :key="draft.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="truncate text-xs text-text">{{ warehouseItemLabels[draft.item_id] || draft.item_id }} x{{ draft.quantity }} · {{ highValueDraftStateLabel(draft.state) }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ draft.quality }} · {{ highValueDraftRiskLabel(draft.risk_level) }} · 已确认 {{ draft.confirmation_state.confirmed_member_usernames.length }}/{{ draft.confirmation_state.required_member_usernames.length }}</p>
-                <p class="mt-1 text-[10px] text-muted">冻结 {{ draft.frozen_quantity }} 件 · {{ draft.freeze_policy }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ draft.quality }} · {{ highValueDraftRiskLabel(draft.risk_level) }} · 已确认 {{ draft.confirmation_state.confirmed_member_usernames.length }}/{{ draft.confirmation_state.required_member_usernames.length }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">冻结 {{ draft.frozen_quantity }} 件 · {{ draft.freeze_policy }}</p>
                 <div class="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1688,14 +1688,14 @@
                 </div>
                 <p
                   v-if="draft.compensation_execution_status === 'recorded'"
-                  class="mt-2 text-[10px] text-emerald-200"
+                  class="mt-2 text-[0.625rem] text-emerald-200"
                   :data-testid="`online-cohabitation-warehouse-compensation-execution-recorded-${draft.id}`"
                 >
                   补偿回执已记录：{{ draft.compensation_execution_action || 'manual' }} · {{ formatTime(draft.compensation_execution_recorded_at || 0) }}
                 </p>
                 <p
                   v-if="draft.compensation_appeal_resolution_status === 'recorded'"
-                  class="mt-1 text-[10px] text-emerald-200"
+                  class="mt-1 text-[0.625rem] text-emerald-200"
                   :data-testid="`online-cohabitation-warehouse-manual-appeal-resolution-recorded-${draft.id}`"
                 >
                   申诉恢复已记录：{{ warehouseManualAppealResolutionActionLabel(draft.compensation_appeal_resolution_action || 'audit_only') }} · {{ formatTime(draft.compensation_appeal_resolution_recorded_at || 0) }}
@@ -1706,47 +1706,47 @@
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-warehouse-compensation-audit-panel">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">补偿审计证据包</p>
-              <span class="text-[10px] text-muted">仅记录本次结果</span>
+              <span class="text-[0.625rem] text-muted">仅记录本次结果</span>
             </div>
             <div v-if="!warehouseCompensationAuditBundle" class="mt-3 text-xs leading-5 text-muted">暂无补偿审计证据包。</div>
             <div v-else class="mt-3 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-warehouse-compensation-audit-bundle">
               <p class="truncate text-xs text-text" data-testid="online-cohabitation-warehouse-compensation-audit-summary">
                 草案 {{ warehouseCompensationAuditBundle.draft_id }} · {{ warehouseCompensationAuditBundle.appeal_packet.timeline_complete ? '时间线完整' : '证据待补' }}
               </p>
-              <div class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-evidence">
+              <div class="mt-2 grid gap-2 text-[0.625rem] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-evidence">
                 <p v-for="row in warehouseCompensationAuditBundleRows" :key="row.label" class="border border-accent/10 px-2 py-1">
                   {{ row.label }} {{ row.value }}
                 </p>
               </div>
-              <p class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-missing">
+              <p class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-missing">
                 缺失证据：{{ warehouseCompensationAuditMissingEvidenceLabel }}
               </p>
-              <div class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-target-save">
+              <div class="mt-2 grid gap-2 text-[0.625rem] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-target-save">
                 <p v-for="row in warehouseCompensationAuditTargetRows" :key="row.label" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
-              <div v-if="warehouseCompensationAuditTargetSlotRows.length" class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-target-slots">
+              <div v-if="warehouseCompensationAuditTargetSlotRows.length" class="mt-2 grid gap-2 text-[0.625rem] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-target-slots">
                 <p v-for="row in warehouseCompensationAuditTargetSlotRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
-              <div class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-ledger-ids">
+              <div class="mt-2 grid gap-2 text-[0.625rem] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-ledger-ids">
                 <p v-if="warehouseCompensationAuditLedgerRows.length === 0" class="border border-accent/10 px-2 py-1">暂无流水证据。</p>
                 <p v-for="row in warehouseCompensationAuditLedgerRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
-              <div class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-timeline">
+              <div class="mt-2 grid gap-2 text-[0.625rem] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-timeline">
                 <p v-if="warehouseCompensationAuditTimelineRows.length === 0" class="border border-accent/10 px-2 py-1">暂无审计时间线。</p>
                 <p v-for="row in warehouseCompensationAuditTimelineRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
-              <div v-if="warehouseCompensationRollbackAuditRows.length" class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-rollback-evidence">
+              <div v-if="warehouseCompensationRollbackAuditRows.length" class="mt-2 grid gap-2 text-[0.625rem] text-muted sm:grid-cols-2" data-testid="online-cohabitation-warehouse-compensation-audit-rollback-evidence">
                 <p v-for="row in warehouseCompensationRollbackAuditRows" :key="row.label" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
-              <div class="mt-2 flex flex-wrap gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-appeal-actions">
+              <div class="mt-2 flex flex-wrap gap-2 text-[0.625rem] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-appeal-actions">
                 <span v-if="warehouseCompensationAuditAppealActionRows.length === 0" class="border border-accent/10 px-2 py-1">无后续动作</span>
                 <span v-for="row in warehouseCompensationAuditAppealActionRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}</span>
               </div>
-              <div class="mt-2 grid gap-2 text-[10px] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-asset-boundary">
+              <div class="mt-2 grid gap-2 text-[0.625rem] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-asset-boundary">
                 <p v-for="row in warehouseCompensationAuditAssetRows" :key="row.label" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
               <div class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-warehouse-compensation-execution-form">
-                <p class="text-[10px] leading-4 text-muted">补偿执行只记录人工回执，不自动扣个人背包、不恢复共同仓库。</p>
+                <p class="text-[0.625rem] leading-4 text-muted">补偿执行只记录人工回执，不自动扣个人背包、不恢复共同仓库。</p>
                 <input
                   v-model.trim="warehouseCompensationExecutionReceipt"
                   class="online-input text-xs"
@@ -1761,7 +1761,7 @@
                   placeholder="回执说明"
                   data-testid="online-cohabitation-warehouse-compensation-execution-note"
                 />
-                <label class="flex items-center gap-2 text-[10px] text-muted">
+                <label class="flex items-center gap-2 text-[0.625rem] text-muted">
                   <input
                     v-model="warehouseCompensationExecutionConfirmed"
                     class="online-input size-3 accent-[var(--ty-accent)]"
@@ -1783,7 +1783,7 @@
               </div>
               <p
                 v-if="warehouseManualAppealResolutionAlreadyRecorded"
-                class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] leading-4 text-emerald-100"
+                class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[0.625rem] leading-4 text-emerald-100"
                 data-testid="online-cohabitation-warehouse-manual-appeal-resolution-recorded"
               >
                 人工申诉恢复已记录：{{ warehouseManualAppealResolutionActionLabel(String(warehouseCompensationAuditDraft['compensation_appeal_resolution_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_appeal_resolution_recorded_at'] || 0)) }} · 仅记录本次结果
@@ -1793,7 +1793,7 @@
                 class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2"
                 data-testid="online-cohabitation-warehouse-manual-appeal-resolution-form"
               >
-                <p class="text-[10px] leading-4 text-muted">人工申诉恢复只登记处理结论与执行审计引用，不自动还仓、不改个人背包。</p>
+                <p class="text-[0.625rem] leading-4 text-muted">人工申诉恢复只登记处理结论与执行审计引用，不自动还仓、不改个人背包。</p>
                 <select
                   v-model="warehouseManualAppealResolutionAction"
                   class="online-select text-xs"
@@ -1818,7 +1818,7 @@
                   placeholder="处理说明"
                   data-testid="online-cohabitation-warehouse-manual-appeal-resolution-note"
                 />
-                <label class="flex items-center gap-2 text-[10px] text-muted">
+                <label class="flex items-center gap-2 text-[0.625rem] text-muted">
                   <input
                     v-model="warehouseManualAppealResolutionConfirmed"
                     class="online-input size-3 accent-[var(--ty-accent)]"
@@ -1840,14 +1840,14 @@
               </div>
               <p
                 v-if="warehouseOperatorReceiptAuditAlreadyRecorded"
-                class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] leading-4 text-emerald-100"
+                class="mt-3 border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[0.625rem] leading-4 text-emerald-100"
                 data-testid="online-cohabitation-warehouse-operator-receipt-audit-recorded"
               >
                 操作回执审计复核已记录：{{ warehouseOperatorReceiptAuditActionLabel(String(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_action'] || 'audit_only')) }} · {{ formatTime(Number(warehouseCompensationAuditDraft['compensation_operator_receipt_audit_recorded_at'] || 0)) }} · 仅记录本次结果
               </p>
               <div
                 v-if="warehouseOperatorReceiptAuditEvidenceRows.length"
-                class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2"
+                class="mt-2 grid gap-2 text-[0.625rem] text-muted sm:grid-cols-2"
                 data-testid="online-cohabitation-warehouse-operator-receipt-audit-evidence"
               >
                 <p v-for="row in warehouseOperatorReceiptAuditEvidenceRows" :key="row.label" class="border border-accent/10 px-2 py-1">
@@ -1859,7 +1859,7 @@
                 class="mt-3 grid gap-2 border border-accent/10 bg-black/10 p-2"
                 data-testid="online-cohabitation-warehouse-operator-receipt-audit-form"
               >
-                <p class="text-[10px] leading-4 text-muted">操作回执审计复核只登记人工核验结论，引用补偿执行审计和可选申诉恢复审计，不改个人存档或共同仓库。</p>
+                <p class="text-[0.625rem] leading-4 text-muted">操作回执审计复核只登记人工核验结论，引用补偿执行审计和可选申诉恢复审计，不改个人存档或共同仓库。</p>
                 <select
                   v-model="warehouseOperatorReceiptAuditAction"
                   class="online-select text-xs"
@@ -1883,7 +1883,7 @@
                   placeholder="复核说明"
                   data-testid="online-cohabitation-warehouse-operator-receipt-audit-note"
                 />
-                <label class="flex items-center gap-2 text-[10px] text-muted">
+                <label class="flex items-center gap-2 text-[0.625rem] text-muted">
                   <input
                     v-model="warehouseOperatorReceiptAuditConfirmed"
                     class="online-input size-3 accent-[var(--ty-accent)]"
@@ -1911,10 +1911,10 @@
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
               <div v-for="entry in warehouseLedger" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ entry.action }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ entry.item_id }} x{{ entry.quantity }} · {{ formatTime(entry.created_at) }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ entry.item_id }} x{{ entry.quantity }} · {{ formatTime(entry.created_at) }}</p>
                 <p
                   v-if="entry.withdrawal_risk_level || entry.item_policy"
-                  class="mt-1 text-[10px] text-muted"
+                  class="mt-1 text-[0.625rem] text-muted"
                   data-testid="online-cohabitation-warehouse-ledger-policy-evidence"
                 >
                   分级：{{ warehouseLedgerRiskLabel(entry) }} · {{ entry.high_value_withdrawal_required ? '需高价值取出确认' : '普通流可用' }}
@@ -1970,7 +1970,7 @@
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-fund-large-drafts">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">大额草案</p>
-              <span class="text-[10px] text-muted">{{ fundLargeSpendDrafts.length }} 份</span>
+              <span class="text-[0.625rem] text-muted">{{ fundLargeSpendDrafts.length }} 份</span>
             </div>
             <div v-if="fundLargeSpendDrafts.length === 0" class="mt-3 text-xs leading-5 text-muted">还没有大额确认草案。</div>
             <div v-else class="mt-3 max-h-[20rem] space-y-2 overflow-y-auto pr-1">
@@ -1983,13 +1983,13 @@
                 <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ draft.purpose_label || largeFundSpendPurposeLabel(draft.purpose) }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ draft.target_ref }} · {{ formatTime(draft.created_at) }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ draft.target_ref }} · {{ formatTime(draft.created_at) }}</p>
                   </div>
-                  <span class="w-fit shrink-0 border px-2 py-0.5 text-[10px]" :class="largeFundDraftStateClass(draft.state)">
+                  <span class="w-fit shrink-0 border px-2 py-0.5 text-[0.625rem]" :class="largeFundDraftStateClass(draft.state)">
                     {{ largeFundDraftStateLabel(draft.state) }}
                   </span>
                 </div>
-                <div class="mt-2 grid gap-2 text-[10px] md:grid-cols-4">
+                <div class="mt-2 grid gap-2 text-[0.625rem] md:grid-cols-4">
                   <p class="border border-accent/10 bg-bg/30 p-2 text-muted">金额 {{ draft.amount }}</p>
                   <p class="border border-accent/10 bg-bg/30 p-2 text-muted">余额 {{ draft.current_balance_snapshot || draft.balance_snapshot }}</p>
                   <p class="border border-accent/10 bg-bg/30 p-2 text-muted">已确认 {{ draft.confirmed_member_usernames.length }}/{{ draft.required_member_usernames.length }}</p>
@@ -1998,7 +1998,7 @@
                 <div v-if="isHighRiskLargeFundSpendPurpose(draft.purpose) || draft.deferred_operations.length > 0" class="mt-2 flex flex-wrap gap-1">
                   <span
                     v-if="isHighRiskLargeFundSpendPurpose(draft.purpose) && draft.high_risk_receipt_status"
-                    class="border px-2 py-1 text-[10px]"
+                    class="border px-2 py-1 text-[0.625rem]"
                     :class="highRiskReceiptStateClass(draft.high_risk_receipt_status)"
                   >
                     回执 {{ highRiskReceiptStatusLabel(draft.high_risk_receipt_status) }}
@@ -2006,7 +2006,7 @@
                   <span
                     v-for="item in draft.deferred_operations.slice(0, 4)"
                     :key="`${draft.id}-deferred-${item}`"
-                    class="border border-accent/10 bg-bg/30 px-2 py-1 text-[10px] text-muted"
+                    class="border border-accent/10 bg-bg/30 px-2 py-1 text-[0.625rem] text-muted"
                   >
                     {{ deferredOperationLabel(item) }}
                   </span>
@@ -2015,19 +2015,19 @@
                   <span
                     v-for="username in draft.pending_member_usernames"
                     :key="`${draft.id}-${username}`"
-                    class="border border-amber-300/20 px-2 py-1 text-[10px] text-amber-100"
+                    class="border border-amber-300/20 px-2 py-1 text-[0.625rem] text-amber-100"
                   >
                     待 {{ largeFundDraftMemberLabel(username) }}
                   </span>
                   <span
                     v-for="username in draft.confirmed_member_usernames"
                     :key="`${draft.id}-${username}-confirmed`"
-                    class="border border-emerald-300/20 px-2 py-1 text-[10px] text-emerald-100"
+                    class="border border-emerald-300/20 px-2 py-1 text-[0.625rem] text-emerald-100"
                   >
                     已 {{ largeFundDraftMemberLabel(username) }}
                   </span>
                 </div>
-                <p v-if="draft.final_spend_ledger_id" class="mt-2 text-[10px] leading-4 text-muted">基金流水：{{ draft.final_spend_ledger_id }}</p>
+                <p v-if="draft.final_spend_ledger_id" class="mt-2 text-[0.625rem] leading-4 text-muted">基金流水：{{ draft.final_spend_ledger_id }}</p>
                 <div class="mt-2 grid gap-2 sm:grid-cols-4">
                   <button
                     type="button"
@@ -2103,7 +2103,7 @@
                   </div>
                   <label
                     v-if="fundHighRiskReceiptOutcome === 'refunded'"
-                    class="mt-2 flex items-center gap-2 text-[10px] text-amber-100"
+                    class="mt-2 flex items-center gap-2 text-[0.625rem] text-amber-100"
                     data-testid="online-cohabitation-fund-high-risk-receipt-ack"
                   >
                     <input
@@ -2173,7 +2173,7 @@
                 </div>
                 <p
                   v-else-if="isSharedDecorationRemovalMainStateMutationDraft(draft) && sharedDecorationRemovalMainStateMutationState(draft) === 'personal_main_state_mutated'"
-                  class="mt-2 border border-emerald-300/20 bg-emerald-500/10 p-2 text-[10px] text-emerald-100"
+                  class="mt-2 border border-emerald-300/20 bg-emerald-500/10 p-2 text-[0.625rem] text-emerald-100"
                   :data-testid="`online-cohabitation-shared-decoration-removal-main-state-mutated-${draft.id}`"
                 >
                   个人主状态已写回，保留回执链路。
@@ -2184,7 +2184,7 @@
           <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">基金流水</p>
-            <span class="text-[10px] text-muted">{{ fundLedger.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ fundLedger.length }} 条</span>
           </div>
           <div v-if="fundLedger.length === 0" class="mt-3 text-xs leading-5 text-muted">还没有共同基金流水。</div>
           <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
@@ -2192,10 +2192,10 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ entry.action }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ fundLedgerPurposeLabel(entry) }} · {{ formatTime(entry.created_at) }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ fundLedgerPurposeLabel(entry) }} · {{ formatTime(entry.created_at) }}</p>
                   <p
                     v-if="hasSimultaneousOnlineBonus(entry.simultaneous_online_bonus)"
-                    class="mt-1 text-[10px] leading-4 text-emerald-100"
+                    class="mt-1 text-[0.625rem] leading-4 text-emerald-100"
                     :data-testid="`online-cohabitation-fund-ledger-bonus-${entry.id}`"
                   >
                     同时在线加成：{{ simultaneousOnlineBonusLabel(entry.simultaneous_online_bonus) }} · {{ simultaneousOnlineBonusEvidenceLabel(entry.simultaneous_online_bonus) }}
@@ -2245,20 +2245,20 @@
               <ClipboardList :size="13" />
               <p class="text-sm">家族订单预备路线</p>
             </div>
-            <span class="text-[10px] text-muted">{{ familyOrdersPanel?.family_orders_enabled ? '已启用预览' : '未启用' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ familyOrdersPanel?.family_orders_enabled ? '已启用预览' : '未启用' }}</span>
           </div>
           <div v-if="!familyOrdersPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族订单预备面板数据。</div>
           <div v-else>
             <div class="mt-3 grid gap-2 md:grid-cols-4">
               <div v-for="item in familyOrderSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="text-[0.625rem] text-muted">{{ item.label }}</p>
                 <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
             </div>
-            <p v-if="familyOrdersPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+            <p v-if="familyOrdersPanel.summary.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
               {{ familyOrdersPanel.summary.disabled_reason }}
             </p>
-            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyOrdersPanel.visual_state_preview.recent_feedback }}</p>
+            <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ familyOrdersPanel.visual_state_preview.recent_feedback }}</p>
             <div class="mt-3 grid gap-2 sm:grid-cols-4">
               <button
                 type="button"
@@ -2295,7 +2295,7 @@
             </div>
             <p
               v-if="familyOrderActionMessage"
-              class="mt-2 text-[10px] leading-4"
+              class="mt-2 text-[0.625rem] leading-4"
               :class="familyOrderActionOk ? 'text-emerald-200' : 'text-red-100'"
             >
               {{ familyOrderActionMessage }}
@@ -2305,11 +2305,11 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ stage.sequence }}. {{ stage.title }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ stage.description }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ stage.description }}</p>
                   </div>
-                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ familyOrderStageStateLabel(stage.state) }}</span>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[0.625rem] text-muted">{{ familyOrderStageStateLabel(stage.state) }}</span>
                 </div>
-                <p class="mt-2 text-[10px] leading-4 text-muted">
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted">
                   推荐职位：{{ stage.preferred_roles.map(familyRoleLabel).join('、') || '不限' }}
                 </p>
               </div>
@@ -2325,11 +2325,11 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
                   </div>
-                  <span class="shrink-0 text-[10px] text-accent">{{ enabledOrderPermissionCount(member.order_permissions) }} 项预览</span>
+                  <span class="shrink-0 text-[0.625rem] text-accent">{{ enabledOrderPermissionCount(member.order_permissions) }} 项预览</span>
                 </div>
-                <p v-if="member.permission_focus?.length" class="mt-2 text-[10px] leading-4 text-muted">
+                <p v-if="member.permission_focus?.length" class="mt-2 text-[0.625rem] leading-4 text-muted">
                   {{ member.permission_focus.map(familyRoleFocusLabel).join('、') }}
                 </p>
               </div>
@@ -2355,7 +2355,7 @@
               <span
                 v-for="item in familyOrderDeferredOperations"
                 :key="item"
-                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
               >
                 {{ deferredOperationLabel(item) }}
               </span>
@@ -2371,17 +2371,17 @@
               <Trophy :size="13" />
               <p class="text-sm">家族声望预览</p>
             </div>
-            <span class="text-[10px] text-muted">{{ familyReputationPanel?.reputation_enabled ? '已启用预览' : '未启用' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ familyReputationPanel?.reputation_enabled ? '已启用预览' : '未启用' }}</span>
           </div>
           <div v-if="!familyReputationPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族声望预备面板数据。</div>
           <div v-else>
             <div class="mt-3 grid gap-2 md:grid-cols-4">
               <div v-for="item in familyReputationSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="text-[0.625rem] text-muted">{{ item.label }}</p>
                 <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
             </div>
-            <p v-if="familyReputationPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+            <p v-if="familyReputationPanel.summary.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
               {{ familyReputationPanel.summary.disabled_reason }}
             </p>
             <div class="mt-3 border border-accent/10 bg-black/10 p-3">
@@ -2413,7 +2413,7 @@
             </div>
             <p
               v-if="familyReputationActionMessage"
-              class="mt-2 text-[10px] leading-4"
+              class="mt-2 text-[0.625rem] leading-4"
               :class="familyReputationActionOk ? 'text-emerald-200' : 'text-red-100'"
             >
               {{ familyReputationActionMessage }}
@@ -2423,11 +2423,11 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ source.label }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ source.evidence_count }} 条证据 · {{ source.audit_required ? '需审计' : '无审计要求' }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ source.evidence_count }} 条证据 · {{ source.audit_required ? '需审计' : '无审计要求' }}</p>
                   </div>
                   <span class="shrink-0 text-xs text-accent">{{ source.preview_points }} 分</span>
                 </div>
-                <p v-if="source.deferred_operation" class="mt-2 text-[10px] leading-4 text-muted">
+                <p v-if="source.deferred_operation" class="mt-2 text-[0.625rem] leading-4 text-muted">
                   暂缓：{{ deferredOperationLabel(source.deferred_operation) }}
                 </p>
               </div>
@@ -2443,11 +2443,11 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
                   </div>
                   <span class="shrink-0 text-xs text-accent">{{ member.preview_points }} 分</span>
                 </div>
-                <p class="mt-2 text-[10px] leading-4 text-muted">
+                <p class="mt-2 text-[0.625rem] leading-4 text-muted">
                   仓库 {{ member.warehouse_deposit_count }} 次 / 基金 {{ member.fund_contribution_count }} 次 / 治理 {{ member.governance_action_count }} 次
                 </p>
               </div>
@@ -2473,7 +2473,7 @@
               <span
                 v-for="item in familyReputationDeferredOperations"
                 :key="item"
-                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
               >
                 {{ deferredOperationLabel(item) }}
               </span>
@@ -2489,23 +2489,23 @@
               <Building2 :size="13" />
               <p class="text-sm">家族建筑蓝图</p>
             </div>
-            <span class="text-[10px] text-muted">{{ familyBuildingsPanel?.family_buildings_enabled ? '已启用预览' : '未启用' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ familyBuildingsPanel?.family_buildings_enabled ? '已启用预览' : '未启用' }}</span>
           </div>
           <div v-if="!familyBuildingsPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族建筑预备面板数据。</div>
           <div v-else>
             <div class="mt-3 grid gap-2 md:grid-cols-4">
               <div v-for="item in familyBuildingSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="text-[0.625rem] text-muted">{{ item.label }}</p>
                 <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
             </div>
-            <p v-if="familyBuildingsPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+            <p v-if="familyBuildingsPanel.summary.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
               {{ familyBuildingsPanel.summary.disabled_reason }}
             </p>
-            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyBuildingsPanel.visual_state_preview.recent_feedback }}</p>
+            <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ familyBuildingsPanel.visual_state_preview.recent_feedback }}</p>
             <p
               v-if="familyBuildingActionMessage"
-              class="mt-3 text-[10px] leading-4"
+              class="mt-3 text-[0.625rem] leading-4"
               :class="familyBuildingActionOk ? 'text-emerald-200' : 'text-red-100'"
             >
               {{ familyBuildingActionMessage }}
@@ -2515,21 +2515,21 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ building.label }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ building.summary }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ building.summary }}</p>
                   </div>
-                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ familyBuildingStateLabel(building.planning_state) }}</span>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[0.625rem] text-muted">{{ familyBuildingStateLabel(building.planning_state) }}</span>
                 </div>
                 <div class="mt-2 grid gap-2 md:grid-cols-2">
                   <div class="border border-accent/10 bg-bg/30 p-2">
-                    <p class="text-[10px] text-muted">基金预览</p>
+                    <p class="text-[0.625rem] text-muted">基金预览</p>
                     <p class="mt-1 text-xs text-accent">{{ building.shared_fund_cost }} / {{ building.shared_fund_balance_preview }}</p>
                   </div>
                   <div class="border border-accent/10 bg-bg/30 p-2">
-                    <p class="text-[10px] text-muted">材料</p>
+                    <p class="text-[0.625rem] text-muted">材料</p>
                     <p class="mt-1 text-xs text-accent">{{ readyMaterialCount(building.material_plan) }}/{{ building.material_plan.length }}</p>
                   </div>
                 </div>
-                <p v-if="building.missing_roles.length" class="mt-2 text-[10px] leading-4 text-muted">
+                <p v-if="building.missing_roles.length" class="mt-2 text-[0.625rem] leading-4 text-muted">
                   缺职位：{{ building.missing_roles.map(familyRoleLabel).join('、') }}
                 </p>
               </div>
@@ -2544,16 +2544,16 @@
               <div v-for="object in familyBuildingSceneObjects" :key="String(object.id)" class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex items-start justify-between gap-2">
                   <p class="truncate text-xs text-text">{{ object.label || object.id }}</p>
-                  <span class="shrink-0 text-[10px] text-accent">{{ familyBuildingStateLabel(String(object.state || '')) }}</span>
+                  <span class="shrink-0 text-[0.625rem] text-accent">{{ familyBuildingStateLabel(String(object.state || '')) }}</span>
                 </div>
-                <p class="mt-1 text-[10px] text-muted">{{ object.kind || 'scene_object' }} · {{ object.x ?? 0 }}, {{ object.y ?? 0 }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">{{ object.kind || 'scene_object' }} · {{ object.x ?? 0 }}, {{ object.y ?? 0 }}</p>
               </div>
             </div>
           </div>
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-building-ledger">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">建筑流水</p>
-              <span class="text-[10px] text-muted">{{ familyBuildingLedgerEntries.length }} 条</span>
+              <span class="text-[0.625rem] text-muted">{{ familyBuildingLedgerEntries.length }} 条</span>
             </div>
             <div v-if="familyBuildingLedgerEntries.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无建筑流水。</div>
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
@@ -2561,13 +2561,13 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ familyBuildingLedgerActionLabel(entry.action) }} · {{ entry.purpose_label || entry.purpose }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                       {{ entry.target_ref || entry.building_id || entry.project_id || '未绑定目标' }} · {{ entry.actor_display_name || entry.actor_username }}
                     </p>
                   </div>
                   <span class="shrink-0 text-xs text-accent">{{ entry.amount }}</span>
                 </div>
-                <div class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+                <div class="mt-2 grid gap-1 text-[0.625rem] leading-4 text-muted">
                   <p>基金流水：{{ entry.fund_ledger_id || '无' }} · 草案：{{ entry.draft_id || '无' }}</p>
                   <p v-if="entry.medium_fund_budget_ledger_id || entry.medium_fund_budget_linked">中额预算：{{ entry.medium_fund_budget_ledger_id || '已绑定' }}</p>
                   <p>状态：{{ familyBuildingLedgerStatusLabel(entry.status) }} · {{ formatTime(entry.at || entry.created_at) }}</p>
@@ -2623,8 +2623,8 @@
                       :key="`${entry.id}-${row.username_key}-candidate-snapshot`"
                       class="border border-accent/10 bg-black/10 p-2"
                     >
-                      <p class="truncate text-[10px] text-text">{{ row.username || row.username_key }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ formatFamilyBuildingMainStateCandidateSnapshot(row) }}</p>
+                      <p class="truncate text-[0.625rem] text-text">{{ row.username || row.username_key }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ formatFamilyBuildingMainStateCandidateSnapshot(row) }}</p>
                     </div>
                   </div>
                   <p v-if="entry.real_build_demolition_main_state_policy">
@@ -2888,7 +2888,7 @@
               <span
                 v-for="item in familyBuildingDeferredOperations"
                 :key="item"
-                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
               >
                 {{ deferredOperationLabel(item) }}
               </span>
@@ -2904,20 +2904,20 @@
               <Network :size="13" />
               <p class="text-sm">家族关系图</p>
             </div>
-            <span class="text-[10px] text-muted">{{ familyRelationsPanel?.family_relations_enabled ? '已启用预览' : '未启用' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ familyRelationsPanel?.family_relations_enabled ? '已启用预览' : '未启用' }}</span>
           </div>
           <div v-if="!familyRelationsPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族关系图预备面板数据。</div>
           <div v-else>
             <div class="mt-3 grid gap-2 md:grid-cols-4">
               <div v-for="item in familyRelationSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="text-[0.625rem] text-muted">{{ item.label }}</p>
                 <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
             </div>
-            <p v-if="familyRelationsPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+            <p v-if="familyRelationsPanel.summary.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
               {{ familyRelationsPanel.summary.disabled_reason }}
             </p>
-            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyRelationsPanel.visual_state_preview.recent_feedback }}</p>
+            <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ familyRelationsPanel.visual_state_preview.recent_feedback }}</p>
             <div class="relative mt-3 h-72 overflow-hidden border border-accent/10 bg-black/10">
               <div
                 v-for="node in familyRelationGraphNodes"
@@ -2926,14 +2926,14 @@
                 :class="familyRelationNodeClass(node.node_type)"
                 :style="{ left: `${node.x}%`, top: `${node.y}%` }"
               >
-                <p class="truncate text-[10px] text-text">{{ node.label }}</p>
-                <p class="mt-0.5 truncate text-[9px] text-muted">{{ familyRelationKindLabel(node.kind) }}</p>
+                <p class="truncate text-[0.625rem] text-text">{{ node.label }}</p>
+                <p class="mt-0.5 truncate text-[0.5625rem] text-muted">{{ familyRelationKindLabel(node.kind) }}</p>
               </div>
             </div>
             <div class="mt-3 grid gap-2 md:grid-cols-2">
               <div v-for="link in familyRelationLinks.slice(0, 8)" :key="link.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="truncate text-xs text-text">{{ link.label || familyRelationKindLabel(link.kind) }}</p>
-                <p class="mt-1 truncate text-[10px] text-muted">{{ link.from }} -> {{ link.to }}</p>
+                <p class="mt-1 truncate text-[0.625rem] text-muted">{{ link.from }} -> {{ link.to }}</p>
               </div>
             </div>
           </div>
@@ -2947,9 +2947,9 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ member.relation_label }} · {{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ member.relation_label }} · {{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
                   </div>
-                  <span class="shrink-0 text-[10px] text-accent">{{ member.status === 'accepted' ? '已接受' : '待确认' }}</span>
+                  <span class="shrink-0 text-[0.625rem] text-accent">{{ member.status === 'accepted' ? '已接受' : '待确认' }}</span>
                 </div>
               </div>
             </div>
@@ -2974,7 +2974,7 @@
               <span
                 v-for="item in familyRelationDeferredOperations"
                 :key="item"
-                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
               >
                 {{ deferredOperationLabel(item) }}
               </span>
@@ -2990,20 +2990,20 @@
               <Lock :size="13" />
               <p class="text-sm">关系公开设置</p>
             </div>
-            <span class="text-[10px] text-muted">{{ familyVisibilityPanel?.visibility_settings_enabled ? '契约内可见' : '未启用' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ familyVisibilityPanel?.visibility_settings_enabled ? '契约内可见' : '未启用' }}</span>
           </div>
           <div v-if="!familyVisibilityPanel" class="mt-3 text-xs leading-5 text-muted">当前没有关系公开设置预备面板数据。</div>
           <div v-else>
             <div class="mt-3 grid gap-2 md:grid-cols-4">
               <div v-for="item in familyVisibilitySummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="text-[0.625rem] text-muted">{{ item.label }}</p>
                 <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
             </div>
-            <p v-if="familyVisibilityPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+            <p v-if="familyVisibilityPanel.summary.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
               {{ familyVisibilityPanel.summary.disabled_reason }}
             </p>
-            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyVisibilityPanel.governance.current_policy || '当前没有公开策略说明。' }}</p>
+            <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ familyVisibilityPanel.governance.current_policy || '当前没有公开策略说明。' }}</p>
             <div class="mt-3 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
@@ -3024,7 +3024,7 @@
             </div>
             <p
               v-if="familyVisibilityActionMessage"
-              class="mt-2 text-[10px] leading-4"
+              class="mt-2 text-[0.625rem] leading-4"
               :class="familyVisibilityActionOk ? 'text-emerald-200' : 'text-red-100'"
             >
               {{ familyVisibilityActionMessage }}
@@ -3034,9 +3034,9 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ scope.label }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ scope.summary }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ scope.summary }}</p>
                   </div>
-                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px]" :class="scope.enabled ? 'text-accent' : 'text-muted'">
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[0.625rem]" :class="scope.enabled ? 'text-accent' : 'text-muted'">
                     {{ scope.enabled ? '可见' : '关闭' }}
                   </span>
                 </div>
@@ -3047,13 +3047,13 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ category.label }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ familyVisibilitySourceLabel(category.source) }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ familyVisibilitySourceLabel(category.source) }}</p>
                   </div>
-                  <span class="shrink-0 text-[10px]" :class="category.online_visible ? 'text-accent' : 'text-muted'">
+                  <span class="shrink-0 text-[0.625rem]" :class="category.online_visible ? 'text-accent' : 'text-muted'">
                     {{ category.online_visible ? '契约可见' : '私密' }}
                   </span>
                 </div>
-                <p class="mt-1 text-[10px] text-muted">公开档案：{{ category.publication_allowed ? '未来可申请' : '禁止' }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">公开档案：{{ category.publication_allowed ? '未来可申请' : '禁止' }}</p>
               </div>
             </div>
           </div>
@@ -3067,11 +3067,11 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
                   </div>
-                  <span class="shrink-0 text-[10px] text-accent">{{ member.visibility_permissions.consent_status === 'not_requested' ? '未请求' : member.visibility_permissions.consent_status }}</span>
+                  <span class="shrink-0 text-[0.625rem] text-accent">{{ member.visibility_permissions.consent_status === 'not_requested' ? '未请求' : member.visibility_permissions.consent_status }}</span>
                 </div>
-                <p class="mt-2 text-[10px] text-muted">管理预览：{{ member.visibility_permissions.can_manage_visibility_preview === true ? '可看' : '不可用' }}</p>
+                <p class="mt-2 text-[0.625rem] text-muted">管理预览：{{ member.visibility_permissions.can_manage_visibility_preview === true ? '可看' : '不可用' }}</p>
               </div>
             </div>
           </div>
@@ -3095,7 +3095,7 @@
               <span
                 v-for="item in familyVisibilityDeferredOperations"
                 :key="item"
-                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
               >
                 {{ deferredOperationLabel(item) }}
               </span>
@@ -3135,7 +3135,7 @@
               <Clock3 :size="13" />
               <p class="text-sm">离线经营状态</p>
             </div>
-            <span class="text-[10px] text-muted">{{ cohabitationStore.offlineStatus?.summary.member_online_required ? '需全员在线' : '可独立经营' }}</span>
+            <span class="text-[0.625rem] text-muted">{{ cohabitationStore.offlineStatus?.summary.member_online_required ? '需全员在线' : '可独立经营' }}</span>
           </div>
           <div v-if="offlineMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有离线经营状态数据。</div>
           <div v-else>
@@ -3145,7 +3145,7 @@
                 :key="item.label"
                 class="border border-accent/10 bg-black/10 p-2"
               >
-                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="text-[0.625rem] text-muted">{{ item.label }}</p>
                 <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
             </div>
@@ -3154,14 +3154,14 @@
                 <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ member.last_action || '暂无最近行动' }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ member.last_action || '暂无最近行动' }}</p>
                   </div>
-                  <span class="w-fit shrink-0 border px-2 py-0.5 text-[10px]" :class="member.online_state === 'recently_active' ? 'border-emerald-400/30 text-emerald-200' : 'border-accent/10 text-muted'">
+                  <span class="w-fit shrink-0 border px-2 py-0.5 text-[0.625rem]" :class="member.online_state === 'recently_active' ? 'border-emerald-400/30 text-emerald-200' : 'border-accent/10 text-muted'">
                     {{ member.online_state === 'recently_active' ? '近期活跃' : '离线或空闲' }}
                   </span>
                 </div>
-                <p class="mt-2 text-[10px] text-muted">离线时长：{{ formatDuration(member.offline_seconds) }}</p>
-                <p class="mt-1 text-[10px] text-muted">独立经营：{{ member.can_operate_independently ? '允许' : '不可用' }}</p>
+                <p class="mt-2 text-[0.625rem] text-muted">离线时长：{{ formatDuration(member.offline_seconds) }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">独立经营：{{ member.can_operate_independently ? '允许' : '不可用' }}</p>
               </div>
             </div>
           </div>
@@ -3184,9 +3184,9 @@
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-offline-queue-panel">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">离线队列合并</p>
-              <span class="text-[10px] text-muted">{{ offlineQueueSupportedActionCount }} 项</span>
+              <span class="text-[0.625rem] text-muted">{{ offlineQueueSupportedActionCount }} 项</span>
             </div>
-            <div class="mt-3 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-offline-auto-income-summary">
+            <div class="mt-3 border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-offline-auto-income-summary">
               <div class="flex items-center justify-between gap-2">
                 <span>自动收益待领：{{ offlineAutoIncomePendingCount }} 项</span>
                 <button
@@ -3203,7 +3203,7 @@
               <p class="mt-1">{{ offlineAutoIncomePolicyText }}</p>
             </div>
             <div class="mt-3 space-y-3">
-              <label class="block text-[10px] leading-4 text-muted">
+              <label class="block text-[0.625rem] leading-4 text-muted">
                 <span>待合并操作</span>
                 <select
                   v-model="selectedOfflineQueueActionId"
@@ -3215,7 +3215,7 @@
                   </option>
                 </select>
               </label>
-              <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted">
+              <div class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted">
                 <p class="truncate text-xs text-text" data-testid="online-cohabitation-offline-queue-selected-label">
                   {{ selectedOfflineQueueActionOption?.label || '未选择操作' }}
                 </p>
@@ -3228,13 +3228,13 @@
               </div>
               <label
                 v-if="selectedOfflineQueueActionId === 'record_rare_item_refund_receipt' || selectedOfflineQueueActionId === 'record_family_major_event_refund_receipt' || selectedOfflineQueueActionId === 'record_limited_decoration_refund_receipt' || selectedOfflineQueueActionId === 'record_shared_decoration_removal_refund_receipt'"
-                class="flex items-start gap-2 border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted"
+                class="flex items-start gap-2 border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted"
                 data-testid="online-cohabitation-offline-refund-ack"
               >
                 <input v-model="offlineQueueRefundAcknowledged" class="online-input mt-0.5 h-4 w-4 min-w-4 accent-accent" type="checkbox" />
                 <span>确认补偿方案，退款只退回共同基金，不改个人小屋、背包或共同仓库。</span>
               </label>
-              <div class="border border-accent/10 bg-black/10 p-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-offline-local-queue">
+              <div class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-offline-local-queue">
                 <div class="flex items-center justify-between gap-2">
                   <span>{{ offlineQueueDraftSummaryLabel }}</span>
                   <span>{{ offlineQueueDraftStorageLabel }}</span>
@@ -3337,7 +3337,7 @@
               </button>
               <p
                 v-if="dailySettleActionMessage"
-                class="text-[10px] leading-4"
+                class="text-[0.625rem] leading-4"
                 :class="dailySettleActionOk ? 'text-emerald-200' : 'text-red-100'"
                 data-testid="online-cohabitation-daily-settle-message"
               >
@@ -3345,7 +3345,7 @@
               </p>
               <p
                 v-if="offlineQueueActionMessage"
-                class="text-[10px] leading-4"
+                class="text-[0.625rem] leading-4"
                 :class="offlineQueueActionOk ? 'text-emerald-200' : 'text-red-100'"
                 data-testid="online-cohabitation-offline-queue-message"
               >
@@ -3353,7 +3353,7 @@
               </p>
               <div
                 v-if="offlineQueueMergeRows.length || offlineConflictResolutionLabel || offlineConflictAutoResolutionLabel || offlineConflictPreflightLabel"
-                class="space-y-1 text-[10px] text-muted"
+                class="space-y-1 text-[0.625rem] text-muted"
                 data-testid="online-cohabitation-offline-queue-results"
               >
                 <p class="border border-accent/10 bg-black/10 p-2 leading-4" data-testid="online-cohabitation-offline-queue-revision-state">
@@ -3398,11 +3398,11 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="truncate text-xs text-text">{{ sharedLogActionLabel(entry.action) }}</p>
-                    <p class="mt-1 text-[10px] text-muted">{{ entry.actor_display_name || entry.actor_username }} · {{ formatTime(entry.at) }}</p>
+                    <p class="mt-1 text-[0.625rem] text-muted">{{ entry.actor_display_name || entry.actor_username }} · {{ formatTime(entry.at) }}</p>
                   </div>
-                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ sharedLogKindLabel(entry.action) }}</span>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[0.625rem] text-muted">{{ sharedLogKindLabel(entry.action) }}</span>
                 </div>
-                <p v-if="sharedLogDetail(entry)" class="mt-2 text-[10px] leading-4 text-muted" data-testid="online-cohabitation-shared-audit-detail">{{ sharedLogDetail(entry) }}</p>
+                <p v-if="sharedLogDetail(entry)" class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-cohabitation-shared-audit-detail">{{ sharedLogDetail(entry) }}</p>
                 <OnlineTechnicalDetails
                   class="mt-2"
                   title="日志技术详情"
@@ -3434,7 +3434,7 @@
               <span
                 v-for="item in offlineDeferredOperations"
                 :key="item"
-                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[0.625rem] text-muted"
               >
                 {{ deferredOperationLabel(item) }}
               </span>

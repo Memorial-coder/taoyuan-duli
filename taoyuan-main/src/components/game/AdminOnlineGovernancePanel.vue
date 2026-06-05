@@ -14,7 +14,7 @@
 
     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <div v-for="card in summaryCards" :key="card.label" class="admin-summary-card">
-        <p class="text-[10px] text-muted">{{ card.label }}</p>
+        <p class="text-[0.625rem] text-muted">{{ card.label }}</p>
         <p class="mt-2 text-lg text-accent">{{ card.value }}</p>
       </div>
     </div>

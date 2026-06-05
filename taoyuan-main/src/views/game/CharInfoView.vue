@@ -20,7 +20,7 @@
         <span
           v-for="t in achievementStore.unlockedTitles"
           :key="t"
-          class="text-[10px] px-1.5 py-0.5 border border-warning/40 rounded-xs text-warning bg-warning/5"
+          class="text-[0.625rem] px-1.5 py-0.5 border border-warning/40 rounded-xs text-warning bg-warning/5"
         >{{ t }}</span>
       </div>
 
@@ -65,14 +65,14 @@
           class="border border-accent/10 rounded-xs px-2 py-1 text-center cursor-pointer hover:bg-accent/5"
           @click="activeSlot = 'weapon'"
         >
-          <p class="text-[10px] text-muted">武器</p>
+          <p class="text-[0.625rem] text-muted">武器</p>
           <p class="text-xs text-accent truncate">{{ equippedWeaponName }}</p>
         </div>
         <div
           class="border border-accent/10 rounded-xs px-2 py-1 text-center cursor-pointer hover:bg-accent/5"
           @click="activeSlot = 'ring1'"
         >
-          <p class="text-[10px] text-muted">戒指1</p>
+          <p class="text-[0.625rem] text-muted">戒指1</p>
           <p class="text-xs truncate" :class="equippedRing1 ? 'text-accent' : 'text-muted/40'">
             {{ equippedRing1?.name ?? '空' }}
           </p>
@@ -81,7 +81,7 @@
           class="border border-accent/10 rounded-xs px-2 py-1 text-center cursor-pointer hover:bg-accent/5"
           @click="activeSlot = 'ring2'"
         >
-          <p class="text-[10px] text-muted">戒指2</p>
+          <p class="text-[0.625rem] text-muted">戒指2</p>
           <p class="text-xs truncate" :class="equippedRing2 ? 'text-accent' : 'text-muted/40'">
             {{ equippedRing2?.name ?? '空' }}
           </p>
@@ -89,13 +89,13 @@
       </div>
       <div class="grid grid-cols-2 gap-1">
         <div class="border border-accent/10 rounded-xs px-2 py-1 text-center cursor-pointer hover:bg-accent/5" @click="activeSlot = 'hat'">
-          <p class="text-[10px] text-muted">帽子</p>
+          <p class="text-[0.625rem] text-muted">帽子</p>
           <p class="text-xs truncate" :class="equippedHatName ? 'text-accent' : 'text-muted/40'">
             {{ equippedHatName ?? '空' }}
           </p>
         </div>
         <div class="border border-accent/10 rounded-xs px-2 py-1 text-center cursor-pointer hover:bg-accent/5" @click="activeSlot = 'shoe'">
-          <p class="text-[10px] text-muted">鞋子</p>
+          <p class="text-[0.625rem] text-muted">鞋子</p>
           <p class="text-xs truncate" :class="equippedShoeName ? 'text-accent' : 'text-muted/40'">
             {{ equippedShoeName ?? '空' }}
           </p>
@@ -106,7 +106,7 @@
         :class="trinketReward?.unlocked ? 'bg-accent/5 cursor-pointer hover:bg-accent/10' : ''"
         @click="trinketReward?.unlocked && (activeSlot = 'trinket')"
       >
-        <p class="text-[10px] text-muted">护符 / 饰物位</p>
+        <p class="text-[0.625rem] text-muted">护符 / 饰物位</p>
         <p class="text-xs" :class="trinketReward?.unlocked ? 'text-accent' : 'text-muted/40'">
           {{ trinketReward?.unlocked ? equippedTrinketName ?? '已解锁，选择饰物' : '需战斗精通' }}
         </p>
@@ -136,12 +136,12 @@
                   <span class="text-xs" :class="index === inventoryStore.equippedWeaponIndex ? 'text-accent' : ''">
                     {{ getWeaponDisplayName(weapon.defId, weapon.enchantmentId) }}
                   </span>
-                  <p class="text-[10px] text-muted truncate">
+                  <p class="text-[0.625rem] text-muted truncate">
                     攻{{ getWeaponStats(weapon).attack }} · 暴击{{ Math.round(getWeaponStats(weapon).critRate * 100) }}%
                     <template v-if="weapon.enchantmentId">· {{ getEnchantName(weapon.enchantmentId) }}</template>
                   </p>
                 </div>
-                <span v-if="index === inventoryStore.equippedWeaponIndex" class="text-[10px] text-accent shrink-0 ml-1">当前</span>
+                <span v-if="index === inventoryStore.equippedWeaponIndex" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
               </div>
             </div>
           </template>
@@ -169,10 +169,10 @@
                 >
                   <div class="min-w-0">
                     <span class="text-xs" :class="isRingInCurrentSlot(idx) ? 'text-accent' : ''">{{ ring.name }}</span>
-                    <p class="text-[10px] text-muted truncate">{{ ring.effectText }}</p>
+                    <p class="text-[0.625rem] text-muted truncate">{{ ring.effectText }}</p>
                   </div>
-                  <span v-if="isRingInCurrentSlot(idx)" class="text-[10px] text-accent shrink-0 ml-1">当前</span>
-                  <span v-else-if="isRingInOtherSlot(idx)" class="text-[10px] text-muted shrink-0 ml-1">
+                  <span v-if="isRingInCurrentSlot(idx)" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
+                  <span v-else-if="isRingInOtherSlot(idx)" class="text-[0.625rem] text-muted shrink-0 ml-1">
                     在{{ activeSlot === 'ring1' ? '槽2' : '槽1' }}
                   </span>
                 </div>
@@ -202,9 +202,9 @@
                 >
                   <div class="min-w-0">
                     <span class="text-xs" :class="hat.index === inventoryStore.equippedHatIndex ? 'text-accent' : ''">{{ hat.name }}</span>
-                    <p class="text-[10px] text-muted truncate">{{ hat.effectText }}</p>
+                    <p class="text-[0.625rem] text-muted truncate">{{ hat.effectText }}</p>
                   </div>
-                  <span v-if="hat.index === inventoryStore.equippedHatIndex" class="text-[10px] text-accent shrink-0 ml-1">当前</span>
+                  <span v-if="hat.index === inventoryStore.equippedHatIndex" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
                 </div>
               </template>
               <p v-else class="text-xs text-muted/40 text-center py-2">暂无帽子</p>
@@ -234,9 +234,9 @@
                     <span class="text-xs" :class="shoe.index === inventoryStore.equippedShoeIndex ? 'text-accent' : ''">
                       {{ shoe.name }}
                     </span>
-                    <p class="text-[10px] text-muted truncate">{{ shoe.effectText }}</p>
+                    <p class="text-[0.625rem] text-muted truncate">{{ shoe.effectText }}</p>
                   </div>
-                  <span v-if="shoe.index === inventoryStore.equippedShoeIndex" class="text-[10px] text-accent shrink-0 ml-1">当前</span>
+                  <span v-if="shoe.index === inventoryStore.equippedShoeIndex" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
                 </div>
               </template>
               <p v-else class="text-xs text-muted/40 text-center py-2">暂无鞋子</p>
@@ -263,10 +263,10 @@
                 >
                   <div class="min-w-0">
                     <span class="text-xs" :class="trinket.id === inventoryStore.equippedTrinketId ? 'text-accent' : ''">{{ trinket.name }}</span>
-                    <p class="text-[10px] text-muted truncate">{{ formatEquipEffects(trinket.effects) }}</p>
-                    <p class="text-[10px] text-muted/80 truncate">{{ trinket.sourceSummary }}</p>
+                    <p class="text-[0.625rem] text-muted truncate">{{ formatEquipEffects(trinket.effects) }}</p>
+                    <p class="text-[0.625rem] text-muted/80 truncate">{{ trinket.sourceSummary }}</p>
                   </div>
-                  <span v-if="trinket.id === inventoryStore.equippedTrinketId" class="text-[10px] text-accent shrink-0 ml-1">当前</span>
+                  <span v-if="trinket.id === inventoryStore.equippedTrinketId" class="text-[0.625rem] text-accent shrink-0 ml-1">当前</span>
                 </div>
               </template>
               <p v-else class="text-xs text-muted/40 text-center py-2">还没有解锁可装备的饰物</p>
@@ -292,7 +292,7 @@
             <span class="text-xs">{{ TOOL_NAMES[tool.type] }}</span>
             <span class="text-xs text-muted ml-1">{{ TIER_NAMES[tool.tier] }}</span>
           </div>
-          <span class="text-[10px] text-muted">-{{ Math.round((1 - inventoryStore.getToolStaminaMultiplier(tool.type)) * 100) }}%体力</span>
+          <span class="text-[0.625rem] text-muted">-{{ Math.round((1 - inventoryStore.getToolStaminaMultiplier(tool.type)) * 100) }}%体力</span>
         </div>
       </div>
     </div>
@@ -308,8 +308,8 @@
           <span class="text-xs text-muted">{{ SKILL_NAMES[skill.type] }}</span>
           <div class="flex items-center space-x-1.5">
             <span class="text-xs text-accent">Lv.{{ skill.level }}</span>
-            <span v-if="skill.perk5" class="text-[10px] text-success">{{ PERK_NAMES[skill.perk5] }}</span>
-            <span v-if="skill.perk10" class="text-[10px] text-success">{{ PERK_NAMES[skill.perk10] }}</span>
+            <span v-if="skill.perk5" class="text-[0.625rem] text-success">{{ PERK_NAMES[skill.perk5] }}</span>
+            <span v-if="skill.perk10" class="text-[0.625rem] text-success">{{ PERK_NAMES[skill.perk10] }}</span>
           </div>
         </div>
       </div>

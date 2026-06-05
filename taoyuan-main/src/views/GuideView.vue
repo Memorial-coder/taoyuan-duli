@@ -37,7 +37,7 @@
       <section class="game-panel space-y-3">
         <Divider title label="今天值不值得看地图" />
         <div class="game-panel-muted p-3 space-y-2">
-          <p class="text-[11px] text-muted leading-5">
+          <p class="text-[0.6875rem] text-muted leading-5">
             现在的行旅图不只是远征入口，也会顺手告诉你今天有没有季节变体、稀有来访、节庆装点、修复设施落点和短活动窗口。
           </p>
           <div class="space-y-1 text-xs leading-5">
@@ -56,7 +56,7 @@
         <div class="grid gap-3 md:grid-cols-2">
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">账号</p>
-            <p class="text-[11px] text-muted leading-5">认真玩一档的话，先登录再开。主菜单现在已经写得很直白了：不登录直接开始，存档是留不住的。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">认真玩一档的话，先登录再开。主菜单现在已经写得很直白了：不登录直接开始，存档是留不住的。</p>
             <div class="space-y-1 text-xs leading-5">
               <p>准备长期玩：先注册 / 登录</p>
               <p>想用交流大厅、邮箱、额度兑换：必须先登录</p>
@@ -65,7 +65,7 @@
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">存档方式</p>
-            <p class="text-[11px] text-muted leading-5">这里其实就是在问你：这档是随便看看，还是准备认真养。只是体验一下，本地档够用；真要长期玩，优先服务端持久化。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">这里其实就是在问你：这档是随便看看，还是准备认真养。只是体验一下，本地档够用；真要长期玩，优先服务端持久化。</p>
             <div class="space-y-1 text-xs leading-5">
               <p>本地存储：偏当前设备</p>
               <p>服务端持久化：按账号读取，更适合长期游玩</p>
@@ -75,7 +75,7 @@
         </div>
         <div class="game-panel-muted p-3 space-y-2">
           <p class="text-xs text-accent">这些入口先知道，但不用一开始全研究</p>
-          <p class="text-[11px] text-muted leading-5">交流大厅、邮箱、AI 助手这些入口你先认得就行。第一把最重要的，还是把主线、告示板和基础经营节奏跑顺。</p>
+          <p class="text-[0.6875rem] text-muted leading-5">交流大厅、邮箱、AI 助手这些入口你先认得就行。第一把最重要的，还是把主线、告示板和基础经营节奏跑顺。</p>
           <div class="flex flex-wrap gap-2">
             <Button class="justify-center !px-3 !py-2" :icon="BookMarked" @click="goGuideBookHash('start-and-save')">开始前与存档</Button>
             <Button class="justify-center !px-3 !py-2" :icon="MessagesSquare" @click="goGuideBookHash('online')">在线功能</Button>
@@ -104,19 +104,19 @@
         <div class="grid gap-3 md:grid-cols-2">
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">桃源田庄</p>
-            <p class="text-[11px] text-muted leading-5">最稳，也最适合第一次玩。你会更容易把主线、种田、商圈和告示板这些基本盘跑顺。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">最稳，也最适合第一次玩。你会更容易把主线、种田、商圈和告示板这些基本盘跑顺。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">草甸田庄</p>
-            <p class="text-[11px] text-muted leading-5">适合你就是想早点养鸡养牛。不过也别忘了，选了它就得更早开始管喂养和产物节奏。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">适合你就是想早点养鸡养牛。不过也别忘了，选了它就得更早开始管喂养和产物节奏。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">溪流田庄</p>
-            <p class="text-[11px] text-muted leading-5">适合想靠钓鱼更早拉现金流的人。来钱会更快一点，但你也得开始注意天气、时间和钓点。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">适合想靠钓鱼更早拉现金流的人。来钱会更快一点，但你也得开始注意天气、时间和钓点。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">竹林 / 山丘 / 荒野</p>
-            <p class="text-[11px] text-muted leading-5">这些更像“带着想法开第二轮”的图。你已经知道自己偏采集、下矿或战斗时再选，会更舒服。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">这些更像“带着想法开第二轮”的图。你已经知道自己偏采集、下矿或战斗时再选，会更舒服。</p>
           </section>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -166,27 +166,27 @@
         <div class="grid gap-3 xl:grid-cols-3">
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">1. 看任务页 / 告示板</p>
-            <p class="text-[11px] text-muted leading-5">主线、日常委托、特殊订单、限时活动会告诉你今天最值的方向。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">主线、日常委托、特殊订单、限时活动会告诉你今天最值的方向。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">2. 看目标规划</p>
-            <p class="text-[11px] text-muted leading-5">主题周、市场轮换、今日目标、活动，会决定这周最值得承接什么。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">主题周、市场轮换、今日目标、活动，会决定这周最值得承接什么。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">3. 去对应系统出货</p>
-            <p class="text-[11px] text-muted leading-5">农场、商圈、钓鱼、矿洞、牧场、加工，把“方向”变成资源和钱。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">农场、商圈、钓鱼、矿洞、牧场、加工，把“方向”变成资源和钱。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">4. 把收益回流</p>
-            <p class="text-[11px] text-muted leading-5">工具、仓储、设施、预算和高价投入，决定你下周能承接多高一级的循环。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">工具、仓储、设施、预算和高价投入，决定你下周能承接多高一级的循环。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">5. 周结算后开新线</p>
-            <p class="text-[11px] text-muted leading-5">基础线稳定后，再去接鱼塘、育种、博物馆、公会、瀚海这些长线系统。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">基础线稳定后，再去接鱼塘、育种、博物馆、公会、瀚海这些长线系统。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">迷路时的默认答案</p>
-            <p class="text-[11px] text-muted leading-5">真要是突然不知道今天干嘛了，就先看任务页，再看目标规划和引导面板，通常答案就在那儿。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">真要是突然不知道今天干嘛了，就先看任务页，再看目标规划和引导面板，通常答案就在那儿。</p>
           </section>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -199,19 +199,19 @@
         <div class="grid gap-3 md:grid-cols-2">
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">钓鱼 / 采集</p>
-            <p class="text-[11px] text-muted leading-5">最适合第一条副线。前期缺现金流、缺任务材料时都很实用。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">最适合第一条副线。前期缺现金流、缺任务材料时都很实用。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">矿洞</p>
-            <p class="text-[11px] text-muted leading-5">开始明显缺矿石、工具材料和装备成长时就能开，但不建议第一周完全压重心。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">开始明显缺矿石、工具材料和装备成长时就能开，但不建议第一周完全压重心。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">牧场 / 鱼塘</p>
-            <p class="text-[11px] text-muted leading-5">牧场可以较早接；鱼塘现在有周赛、高阶养护和展示池，更适合中期再认真开。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">牧场可以较早接；鱼塘现在有周赛、高阶养护和展示池，更适合中期再认真开。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">育种 / 博物馆 / 公会 / 瀚海 / 钱袋</p>
-            <p class="text-[11px] text-muted leading-5">它们都已经是完整长线内容，适合你能稳定赚钱和推进周目标后再投入。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">它们都已经是完整长线内容，适合你能稳定赚钱和推进周目标后再投入。</p>
           </section>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -228,19 +228,19 @@
         <div class="grid gap-3 md:grid-cols-2">
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">我不知道今天该做什么</p>
-            <p class="text-[11px] text-muted leading-5">先开任务页 / 告示板，再看目标规划和引导面板。当前版本默认就是让它们告诉你下一步。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">先开任务页 / 告示板，再看目标规划和引导面板。当前版本默认就是让它们告诉你下一步。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">我总觉得钱不够</p>
-            <p class="text-[11px] text-muted leading-5">先确保种田保底没断，再用钓鱼 / 采集补钱，不要一上来就把钱砸进多个长线系统。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">先确保种田保底没断，再用钓鱼 / 采集补钱，不要一上来就把钱砸进多个长线系统。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">材料总是不够用</p>
-            <p class="text-[11px] text-muted leading-5">现在任务、加工、育种、鱼塘都会吃材料，别把所有东西都卖光。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">现在任务、加工、育种、鱼塘都会吃材料，别把所有东西都卖光。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-2">
             <p class="text-xs text-accent">我是不是该立刻去看百科</p>
-            <p class="text-[11px] text-muted leading-5">不用先整页通读。新手页先看完，碰到具体问题时再去百科按主题查更有效。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">不用先整页通读。新手页先看完，碰到具体问题时再去百科按主题查更有效。</p>
           </section>
         </div>
       </section>
@@ -266,19 +266,19 @@
         <div class="space-y-3">
           <section class="game-panel-muted p-3 space-y-1">
             <p class="text-xs text-accent">Q1：我不登录也能直接玩吗？</p>
-            <p class="text-[11px] text-muted leading-5">能进入流程，但当前主菜单已经明确提示：未登录直接开始旅程时，存档无法保存。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">能进入流程，但当前主菜单已经明确提示：未登录直接开始旅程时，存档无法保存。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-1">
             <p class="text-xs text-accent">Q2：第一周最重要的成果是什么？</p>
-            <p class="text-[11px] text-muted leading-5">有稳定收入、主线没断、知道下一步该去哪一个页面。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">有稳定收入、主线没断、知道下一步该去哪一个页面。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-1">
             <p class="text-xs text-accent">Q3：什么时候开始碰鱼塘和育种？</p>
-            <p class="text-[11px] text-muted leading-5">鱼塘通常是中期；育种更偏中后期。两者现在都带周赛、评级和联动，不适合第一周硬开。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">鱼塘通常是中期；育种更偏中后期。两者现在都带周赛、评级和联动，不适合第一周硬开。</p>
           </section>
           <section class="game-panel-muted p-3 space-y-1">
             <p class="text-xs text-accent">Q4：我需要现在就把百科全书整页看完吗？</p>
-            <p class="text-[11px] text-muted leading-5">不需要。先把这页看完，再按问题跳去百科查具体机制，效率更高。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">不需要。先把这页看完，再按问题跳去百科查具体机制，效率更高。</p>
           </section>
         </div>
         <div class="flex flex-wrap gap-2">

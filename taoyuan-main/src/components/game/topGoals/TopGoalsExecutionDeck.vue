@@ -3,7 +3,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p class="text-xs text-accent">目标计划</p>
-        <p class="mt-1 text-[10px] text-muted">每日、本周、本季合并到同一栏里，按当前节奏切换查看。</p>
+        <p class="mt-1 text-[0.625rem] text-muted">每日、本周、本季合并到同一栏里，按当前节奏切换查看。</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <button
@@ -30,7 +30,7 @@
     >
       <div class="flex items-center justify-between gap-3">
         <p class="text-xs text-accent">今日目标</p>
-        <span class="text-[11px] text-muted">{{ currentDayLabel }}</span>
+        <span class="text-[0.6875rem] text-muted">{{ currentDayLabel }}</span>
       </div>
       <div v-if="dailyGoals.length > 0" class="space-y-2">
         <TopGoalsGoalCard
@@ -53,7 +53,7 @@
     >
       <div class="flex items-center justify-between gap-3">
         <p class="text-xs text-accent">本周目标</p>
-        <span class="text-[11px] text-muted">{{ themeWeekGoals.length }} 项</span>
+        <span class="text-[0.6875rem] text-muted">{{ themeWeekGoals.length }} 项</span>
       </div>
       <div v-if="themeWeekGoals.length > 0" class="space-y-2">
         <TopGoalsGoalCard
@@ -73,7 +73,7 @@
           v-for="cta in themeWeekGoalCtas"
           :key="cta.id"
           type="button"
-          class="btn !px-2 !py-1 text-[10px]"
+          class="btn !px-2 !py-1 text-[0.625rem]"
           @click="emit('selectCta', cta)"
         >
           {{ cta.label }}
@@ -89,9 +89,9 @@
       <div class="flex items-center justify-between gap-3">
         <div>
           <p class="text-xs text-accent">本季目标</p>
-          <p class="mt-1 text-[10px] text-muted">{{ currentSeasonLabel }}</p>
+          <p class="mt-1 text-[0.625rem] text-muted">{{ currentSeasonLabel }}</p>
         </div>
-        <span class="text-[11px] text-muted">{{ seasonCompletedCount }} / {{ seasonTotalCount }}</span>
+        <span class="text-[0.6875rem] text-muted">{{ seasonCompletedCount }} / {{ seasonTotalCount }}</span>
       </div>
       <div v-if="seasonGoals.length > 0" class="space-y-2">
         <TopGoalsGoalCard

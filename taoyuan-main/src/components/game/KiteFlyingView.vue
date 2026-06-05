@@ -49,7 +49,7 @@
           <span class="text-lg" :class="inSafeZone ? 'kite-float' : 'kite-shake'">🪁</span>
         </div>
         <!-- 区域标签 -->
-        <div class="absolute bottom-0 w-full flex text-center" style="font-size: 9px">
+        <div class="absolute bottom-0 w-full flex text-center" style="font-size: 0.5625rem">
           <span class="flex-32 text-danger/40">危险</span>
           <span class="flex-36 text-success/40">安全</span>
           <span class="flex-32 text-danger/40">危险</span>

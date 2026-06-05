@@ -39,7 +39,7 @@
       <div class="mt-3 border border-accent/10 bg-black/10 p-2">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">自动购买</p>
-          <span class="text-[10px] text-muted">白名单</span>
+          <span class="text-[0.625rem] text-muted">白名单</span>
         </div>
         <div class="mt-2 grid gap-2">
           <button
@@ -59,7 +59,7 @@
       <div class="mt-3 border border-accent/10 bg-black/10 p-2">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">中额预算</p>
-          <span class="text-[10px] text-muted">{{ canSpendMedium ? '已授权' : '需授权' }}</span>
+          <span class="text-[0.625rem] text-muted">{{ canSpendMedium ? '已授权' : '需授权' }}</span>
         </div>
         <div class="mt-2 grid gap-2">
           <button
@@ -79,7 +79,7 @@
       <div class="mt-3 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-fund-large-draft-form">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">大额草案</p>
-          <span class="text-[10px] text-muted">{{ largeSpendRequiresBoth ? '双方确认' : '安全阀关闭' }}</span>
+          <span class="text-[0.625rem] text-muted">{{ largeSpendRequiresBoth ? '双方确认' : '安全阀关闭' }}</span>
         </div>
         <div class="mt-2 grid gap-2">
           <select
@@ -117,7 +117,7 @@
           >
           <div
             v-if="selectedLargeSpendOption"
-            class="grid gap-2 text-[10px] sm:grid-cols-2"
+            class="grid gap-2 text-[0.625rem] sm:grid-cols-2"
             data-testid="online-cohabitation-fund-large-draft-risk-summary"
           >
             <span class="border border-accent/10 bg-bg/30 px-2 py-1 text-muted">
@@ -146,9 +146,9 @@
             创建确认草案
           </button>
         </div>
-        <p class="mt-2 text-[10px] leading-4 text-muted">{{ largeSpendExecutionSummary }}</p>
+        <p class="mt-2 text-[0.625rem] leading-4 text-muted">{{ largeSpendExecutionSummary }}</p>
       </div>
-      <p v-if="actionMessage" class="mt-3 text-[10px] leading-4" :class="actionOk ? 'text-emerald-200' : 'text-red-100'">
+      <p v-if="actionMessage" class="mt-3 text-[0.625rem] leading-4" :class="actionOk ? 'text-emerald-200' : 'text-red-100'">
         {{ actionMessage }}
       </p>
     </div>

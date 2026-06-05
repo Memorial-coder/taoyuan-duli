@@ -12,7 +12,7 @@
         <span class="text-muted">{{ WEATHER_NAMES[gameStore.weather] }}</span>
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
-        <button class="border border-accent/30 rounded-xs px-1.5 py-0.5 text-[10px] md:text-xs text-accent hover:bg-accent/10" @click="handleQuickSave">
+        <button class="border border-accent/30 rounded-xs px-1.5 py-0.5 text-[0.625rem] md:text-xs text-accent hover:bg-accent/10" @click="handleQuickSave">
           保存
         </button>
         <span class="text-accent shrink-0">
@@ -23,7 +23,7 @@
     </div>
 
     <!-- 第二行：市场行情摘要（仅显示异常行情） -->
-    <div v-if="notableMarket.length > 0" class="status-market-strip flex items-center space-x-2 text-[10px] md:text-xs overflow-x-auto whitespace-nowrap">
+    <div v-if="notableMarket.length > 0" class="status-market-strip flex items-center space-x-2 text-[0.625rem] md:text-xs overflow-x-auto whitespace-nowrap">
       <span class="text-muted shrink-0">今日行情</span>
       <span v-for="m in notableMarket" :key="m.category" class="shrink-0" :class="{
         'text-danger': m.trend === 'boom' || m.trend === 'crash',

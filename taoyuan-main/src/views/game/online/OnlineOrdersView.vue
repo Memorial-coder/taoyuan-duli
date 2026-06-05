@@ -74,20 +74,20 @@
 
           <div class="grid gap-2 text-xs md:grid-cols-3" data-testid="online-orders-publish-summary">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">草稿标题</p>
+              <p class="text-[0.625rem] text-muted">草稿标题</p>
               <p class="mt-1 truncate text-accent">{{ coopOrderStore.titleDraft.trim() || '尚未填写' }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">协作模式</p>
+              <p class="text-[0.625rem] text-muted">协作模式</p>
               <p class="mt-1 text-accent">{{ coopOrderStore.collaborationModeDraft === 'multi_stage' ? `接力单 · ${coopOrderStore.stageDrafts.length} 段` : '单阶段委托' }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">回报</p>
+              <p class="text-[0.625rem] text-muted">回报</p>
               <p class="mt-1 truncate text-accent">{{ getCoopRewardTypeLabel(coopOrderStore.rewardTypeDraft) }} {{ coopOrderStore.rewardValueDraft }}{{ coopOrderStore.rewardLabelDraft ? ` · ${coopOrderStore.rewardLabelDraft}` : '' }}</p>
             </div>
           </div>
 
-          <p class="text-[10px] leading-4 text-muted">
+          <p class="text-[0.625rem] leading-4 text-muted">
             单阶段会整单结算；多段接力单会把总回报按阶段拆分，并允许不同人各自完成擅长的一段。
           </p>
         </div>
@@ -95,11 +95,11 @@
           <p class="text-sm text-accent">互助声望</p>
           <div class="mt-3 grid gap-2 text-xs">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">信任等级</p>
+              <p class="text-[0.625rem] text-muted">信任等级</p>
               <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.trust_level.label }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">累计互助</p>
+              <p class="text-[0.625rem] text-muted">累计互助</p>
               <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.completed_count }} 次</p>
             </div>
           </div>
@@ -111,7 +111,7 @@
           <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div class="min-w-0">
               <p class="text-sm text-accent">当前可见委托</p>
-              <p class="mt-1 text-[10px] text-muted">
+              <p class="mt-1 text-[0.625rem] text-muted">
                 {{ orderBoardFilterLabel }} · {{ availableOrderCards.length }}/{{ coopOrderStore.visibleOrders.length }} 张
               </p>
             </div>
@@ -145,26 +145,26 @@
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-1">
                     <p class="truncate text-xs text-accent">{{ order.title }}</p>
-                    <span v-if="isRelayOrder(order)" class="border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] text-warning">
+                    <span v-if="isRelayOrder(order)" class="border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[0.625rem] text-warning">
                       接力单
                     </span>
                   </div>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                     {{ order.owner_display_name }} 发布 · {{ getCoopOrderScopeLabel(order.scope) }} · {{ order.description || '无描述' }}
                   </p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">
+                <span class="w-fit shrink-0 text-[0.625rem]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">
                   {{ order.status === 'open' ? (isOrderAcceptable(order) ? '可接' : '处理中') : getCoopOrderStatusLabel(order.status) }}
                 </span>
               </div>
-              <p class="mt-2 text-[10px] text-muted">
+              <p class="mt-2 text-[0.625rem] text-muted">
                 {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopTime(order.deadline_at) }}
               </p>
-              <p class="mt-1 text-[10px] text-accent">
+              <p class="mt-1 text-[0.625rem] text-accent">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
               </p>
               <div v-if="isRelayOrder(order)" class="mt-2 border border-warning/20 bg-warning/5 p-2">
-                <div class="flex items-center justify-between gap-2 text-[10px] text-muted">
+                <div class="flex items-center justify-between gap-2 text-[0.625rem] text-muted">
                   <span>{{ getRelayStageProgressLabel(order) }}</span>
                   <span>{{ getRelayStageProgressPercent(order) }}%</span>
                 </div>
@@ -186,7 +186,7 @@
                 :story-flow="order.visual_state.story_flow"
               />
               <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
-                <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-1 text-[0.625rem] text-muted sm:flex-row sm:items-center sm:justify-between">
                   <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
                   <span>已落账 {{ order.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ order.relay_settlement_summary.pending_reward_value }}</span>
                 </div>
@@ -194,16 +194,16 @@
                   <p
                     v-for="share in order.relay_settlement_summary.shares"
                     :key="share.stage_id"
-                    class="truncate text-[10px] text-muted"
+                    class="truncate text-[0.625rem] text-muted"
                   >
                     {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }}
                   </p>
                 </div>
               </div>
-              <p v-if="order.priority_reasons?.length" class="mt-1 text-[10px] text-warning">
+              <p v-if="order.priority_reasons?.length" class="mt-1 text-[0.625rem] text-warning">
                 推荐理由：{{ order.priority_reasons.join('；') }}
               </p>
-              <p v-if="order.assignee_username" class="mt-1 text-[10px] text-success">
+              <p v-if="order.assignee_username" class="mt-1 text-[0.625rem] text-success">
                 当前接单人：{{ order.assignee_display_name || order.assignee_username }}
               </p>
 
@@ -221,11 +221,11 @@
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                       <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-success">可接力</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-success">可接力</span>
                   </div>
-                  <p class="mt-2 text-[10px] text-muted">
+                  <p class="mt-2 text-[0.625rem] text-muted">
                     {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
                   </p>
                   <div class="mt-2 flex justify-end">
@@ -261,57 +261,57 @@
           <div class="game-panel-muted p-3" data-testid="online-orders-society-board">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">村社公共订单板</p>
-              <span class="text-[10px] text-muted">公开接力</span>
+              <span class="text-[0.625rem] text-muted">公开接力</span>
             </div>
             <div class="mt-3 grid gap-2 text-xs">
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">公开订单</p>
+                <p class="text-[0.625rem] text-muted">公开订单</p>
                 <p class="mt-1 text-accent">{{ societyOrderBoard.public_orders }} 张</p>
-                <p class="mt-1 text-[10px] text-muted">开放 {{ societyOrderBoard.open_public_orders }} 张</p>
+                <p class="mt-1 text-[0.625rem] text-muted">开放 {{ societyOrderBoard.open_public_orders }} 张</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">公开接力</p>
+                <p class="text-[0.625rem] text-muted">公开接力</p>
                 <p class="mt-1 text-accent">{{ societyOrderBoard.public_relay_orders }} 张</p>
-                <p class="mt-1 text-[10px] text-muted">可接 {{ societyOrderBoard.open_public_relay_orders }} 张</p>
+                <p class="mt-1 text-[0.625rem] text-muted">可接 {{ societyOrderBoard.open_public_relay_orders }} 张</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">分账池</p>
+                <p class="text-[0.625rem] text-muted">分账池</p>
                 <p class="mt-1 text-accent">{{ societyOrderBoard.reward_pool_value }}</p>
-                <p class="mt-1 text-[10px] text-muted">已落账 {{ societyOrderBoard.confirmed_reward_value }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">已落账 {{ societyOrderBoard.confirmed_reward_value }}</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">补偿风险</p>
+                <p class="text-[0.625rem] text-muted">补偿风险</p>
                 <p class="mt-1 text-accent">{{ societyOrderBoard.compensation_count }} 条</p>
-                <p class="mt-1 text-[10px] text-muted">补偿中 {{ societyOrderBoard.compensation_pending_reward_value }}</p>
+                <p class="mt-1 text-[0.625rem] text-muted">补偿中 {{ societyOrderBoard.compensation_pending_reward_value }}</p>
               </div>
             </div>
             <div data-testid="online-orders-society-board-settlement" class="mt-3 border border-warning/20 bg-warning/5 p-2">
-              <p class="text-[10px] leading-5 text-muted">{{ societyOrderBoardSettlementSummary }}</p>
+              <p class="text-[0.625rem] leading-5 text-muted">{{ societyOrderBoardSettlementSummary }}</p>
               <div class="mt-2 grid gap-1 sm:grid-cols-2">
-                <p v-for="row in societyOrderBoardStatusRows" :key="row.id" class="text-[10px] text-muted">
+                <p v-for="row in societyOrderBoardStatusRows" :key="row.id" class="text-[0.625rem] text-muted">
                   {{ row.label }}：{{ row.value }}
                 </p>
               </div>
             </div>
             <div data-testid="online-orders-society-board-receipts" class="mt-3 space-y-2">
-              <p class="text-[10px] text-muted">最近公开凭证</p>
+              <p class="text-[0.625rem] text-muted">最近公开凭证</p>
               <div v-if="societyOrderBoard.recent_receipts.length > 0" class="max-h-40 space-y-2 overflow-y-auto pr-1">
                 <div v-for="receipt in societyOrderBoard.recent_receipts" :key="receipt.receipt_id" class="border border-accent/10 bg-black/10 p-2">
-                  <p class="truncate text-[10px] text-accent">{{ receipt.order_title || '公共订单' }} · {{ receipt.stage_title || '整单' }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="truncate text-[0.625rem] text-accent">{{ receipt.order_title || '公共订单' }} · {{ receipt.stage_title || '整单' }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                     {{ receipt.assignee_display_name || '未署名成员' }} · {{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }} · {{ getRelaySettlementRouteLabel(receipt.reward_route) }}
                   </p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                     凭证 {{ receipt.receipt_id }} · {{ getCoopReceiptStatusLabel(receipt.status) }}
                   </p>
                   <p
                     v-if="receipt.relay_story_summary"
                     data-testid="online-orders-society-board-receipt-story"
-                    class="mt-1 text-[10px] leading-4 text-muted"
+                    class="mt-1 text-[0.625rem] leading-4 text-muted"
                   >
                     {{ receipt.relay_story_chapter_title || '\u63a5\u529b\u6545\u4e8b' }}: {{ receipt.relay_story_summary }}
                   </p>
-                  <p v-if="receipt.relay_story_settlement_summary" class="mt-1 text-[10px] leading-4 text-muted">
+                  <p v-if="receipt.relay_story_settlement_summary" class="mt-1 text-[0.625rem] leading-4 text-muted">
                     {{ receipt.relay_story_settlement_summary }}
                   </p>
                 </div>
@@ -328,15 +328,15 @@
             <p class="text-sm text-accent">互助声望</p>
             <div class="mt-3 grid gap-2 text-xs">
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">信任等级</p>
+                <p class="text-[0.625rem] text-muted">信任等级</p>
                 <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.trust_level.label }}</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">总帮助声望</p>
+                <p class="text-[0.625rem] text-muted">总帮助声望</p>
                 <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.total }}</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">已完成互助</p>
+                <p class="text-[0.625rem] text-muted">已完成互助</p>
                 <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.completed_count }} 次</p>
               </div>
             </div>
@@ -347,7 +347,7 @@
       <div v-else-if="activeTab === 'mine'" class="game-panel-muted p-3">
         <div class="flex items-center justify-between gap-2">
           <p class="text-sm text-accent">我的发布</p>
-          <span class="text-[10px] text-muted">{{ coopOrderStore.myOrders.length }} 张</span>
+          <span class="text-[0.625rem] text-muted">{{ coopOrderStore.myOrders.length }} 张</span>
         </div>
         <OnlineEmptyState
           v-if="coopOrderStore.myOrders.length === 0"
@@ -362,16 +362,16 @@
             <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div class="min-w-0">
                 <p class="truncate text-xs text-accent">{{ order.title }}</p>
-                <p class="mt-1 text-[10px] leading-4 text-muted">{{ order.description || '无描述' }}</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ order.description || '无描述' }}</p>
               </div>
-              <span class="w-fit shrink-0 text-[10px]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">
+              <span class="w-fit shrink-0 text-[0.625rem]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">
                 {{ getCoopOrderStatusLabel(order.status) }}
               </span>
             </div>
-            <p class="mt-2 text-[10px] text-muted">
+            <p class="mt-2 text-[0.625rem] text-muted">
               {{ getCoopOrderTypeLabel(order.order_type) }} · {{ getCoopOrderScopeLabel(order.scope) }} · 截止 {{ formatCoopTime(order.deadline_at) }}
             </p>
-            <p class="mt-1 text-[10px] text-accent">
+            <p class="mt-1 text-[0.625rem] text-accent">
               回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
             </p>
             <AsyncCommunityBoard
@@ -388,7 +388,7 @@
               :story-flow="order.visual_state.story_flow"
             />
             <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
-              <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-col gap-1 text-[0.625rem] text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
                 <span>已落账 {{ order.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ order.relay_settlement_summary.pending_reward_value }}</span>
               </div>
@@ -396,16 +396,16 @@
                 <p
                   v-for="share in order.relay_settlement_summary.shares"
                   :key="share.stage_id"
-                  class="truncate text-[10px] text-muted"
+                  class="truncate text-[0.625rem] text-muted"
                 >
                   {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }}
                 </p>
               </div>
             </div>
-            <p v-if="order.assignee_username" class="mt-1 text-[10px] text-success">
+            <p v-if="order.assignee_username" class="mt-1 text-[0.625rem] text-success">
               当前接单人：{{ order.assignee_display_name || order.assignee_username }}
             </p>
-            <p v-if="order.collaboration_mode !== 'multi_stage' && order.delivery_status !== 'none'" class="mt-1 text-[10px] text-accent">
+            <p v-if="order.collaboration_mode !== 'multi_stage' && order.delivery_status !== 'none'" class="mt-1 text-[0.625rem] text-accent">
               交付状态：{{ getCoopDeliveryStatusLabel(order.delivery_status) }}
             </p>
 
@@ -414,20 +414,20 @@
                 <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                   <div class="min-w-0">
                     <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
                   </div>
-                  <span class="w-fit shrink-0 text-[10px] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
+                  <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
                 </div>
-                <p class="mt-2 text-[10px] text-muted">
+                <p class="mt-2 text-[0.625rem] text-muted">
                   {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
                 </p>
-                <p v-if="stage.assignee_username" class="mt-1 text-[10px] text-success">
+                <p v-if="stage.assignee_username" class="mt-1 text-[0.625rem] text-success">
                   当前阶段接单人：{{ stage.assignee_display_name || stage.assignee_username }}
                 </p>
                 <div v-if="stage.delivery_status === 'submitted'" class="mt-2 space-y-2">
                   <div v-if="canShowSettlementControls(order.reward_type)" class="border border-accent/10 bg-black/10 p-2">
                     <div class="grid gap-2 md:grid-cols-2">
-                      <label class="flex flex-col gap-1 text-[10px] text-muted">
+                      <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
                         结算去向
                         <select
                           v-model="coopOrderStore.ensureSettlementDraft(order.id, stage.id).rewardRoute"
@@ -439,7 +439,7 @@
                           <option value="shared_fund" :disabled="familySharedFundContracts.length === 0">家族 / 合伙共同基金</option>
                         </select>
                       </label>
-                      <label v-if="isSharedFundSettlementSelected(order.id, stage.id)" class="flex flex-col gap-1 text-[10px] text-muted">
+                      <label v-if="isSharedFundSettlementSelected(order.id, stage.id)" class="flex flex-col gap-1 text-[0.625rem] text-muted">
                         共同庄园
                         <select
                           v-model="coopOrderStore.ensureSettlementDraft(order.id, stage.id).cohabitationContractId"
@@ -453,7 +453,7 @@
                         </select>
                       </label>
                     </div>
-                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ getSettlementHint(order.id, stage.id) }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ getSettlementHint(order.id, stage.id) }}</p>
                   </div>
                   <div class="flex justify-end">
                     <button
@@ -473,7 +473,7 @@
             <div v-else-if="order.delivery_status === 'submitted'" class="mt-2 space-y-2">
               <div v-if="canShowSettlementControls(order.reward_type)" class="border border-accent/10 bg-black/10 p-2">
                 <div class="grid gap-2 md:grid-cols-2">
-                  <label class="flex flex-col gap-1 text-[10px] text-muted">
+                  <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
                     结算去向
                     <select
                       v-model="coopOrderStore.ensureSettlementDraft(order.id).rewardRoute"
@@ -485,7 +485,7 @@
                       <option value="shared_fund" :disabled="familySharedFundContracts.length === 0">家族 / 合伙共同基金</option>
                     </select>
                   </label>
-                  <label v-if="isSharedFundSettlementSelected(order.id)" class="flex flex-col gap-1 text-[10px] text-muted">
+                  <label v-if="isSharedFundSettlementSelected(order.id)" class="flex flex-col gap-1 text-[0.625rem] text-muted">
                     共同庄园
                     <select
                       v-model="coopOrderStore.ensureSettlementDraft(order.id).cohabitationContractId"
@@ -499,7 +499,7 @@
                     </select>
                   </label>
                 </div>
-                <p class="mt-1 text-[10px] leading-4 text-muted">{{ getSettlementHint(order.id) }}</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ getSettlementHint(order.id) }}</p>
               </div>
               <div class="flex justify-end">
                 <button
@@ -521,7 +521,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">我的接单</p>
-            <span class="text-[10px] text-muted">{{ coopOrderStore.myAcceptedOrders.length }} 张</span>
+            <span class="text-[0.625rem] text-muted">{{ coopOrderStore.myAcceptedOrders.length }} 张</span>
           </div>
           <OnlineEmptyState
             v-if="coopOrderStore.myAcceptedOrders.length === 0"
@@ -536,13 +536,13 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ order.title }}</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ order.owner_display_name }} 发布 · {{ order.description || '无描述' }}</p>
+                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ order.owner_display_name }} 发布 · {{ order.description || '无描述' }}</p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px] text-muted">
+                <span class="w-fit shrink-0 text-[0.625rem] text-muted">
                   {{ order.collaboration_mode === 'multi_stage' ? `已接 ${coopOrderStore.getAssignedStages(order).length} 段` : getCoopDeliveryStatusLabel(order.delivery_status) }}
                 </span>
               </div>
-              <p class="mt-2 text-[10px] text-muted">
+              <p class="mt-2 text-[0.625rem] text-muted">
                 {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopTime(order.deadline_at) }}
               </p>
               <AsyncCommunityBoard
@@ -559,7 +559,7 @@
                 :story-flow="order.visual_state.story_flow"
               />
               <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
-                <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-1 text-[0.625rem] text-muted sm:flex-row sm:items-center sm:justify-between">
                   <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
                   <span>已落账 {{ order.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ order.relay_settlement_summary.pending_reward_value }}</span>
                 </div>
@@ -567,7 +567,7 @@
                   <p
                     v-for="share in order.relay_settlement_summary.shares"
                     :key="share.stage_id"
-                    class="truncate text-[10px] text-muted"
+                    class="truncate text-[0.625rem] text-muted"
                   >
                     {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }}
                   </p>
@@ -583,11 +583,11 @@
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
                       <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
-                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
+                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
                     </div>
-                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
+                    <span class="w-fit shrink-0 text-[0.625rem] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
                   </div>
-                  <p class="mt-2 text-[10px] text-muted">
+                  <p class="mt-2 text-[0.625rem] text-muted">
                     {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
                   </p>
                   <div v-if="stage.delivery_status === 'none'" class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_100px]">
@@ -697,15 +697,15 @@
           <p class="text-sm text-accent">互助声望</p>
           <div class="mt-3 grid gap-2 text-xs">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">信任等级</p>
+              <p class="text-[0.625rem] text-muted">信任等级</p>
               <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.trust_level.label }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">专业方向</p>
+              <p class="text-[0.625rem] text-muted">专业方向</p>
               <p class="mt-1 text-accent">{{ reputationSpecialtySummary }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">我常帮的人</p>
+              <p class="text-[0.625rem] text-muted">我常帮的人</p>
               <p class="mt-1 text-accent">{{ helpedTargetSummary }}</p>
             </div>
           </div>
@@ -716,7 +716,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">结算凭证</p>
-            <span class="text-[10px] text-muted">{{ coopOrderStore.myReceipts.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ coopOrderStore.myReceipts.length }} 条</span>
           </div>
           <OnlineEmptyState
             v-if="coopOrderStore.myReceipts.length === 0"
@@ -729,44 +729,44 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ receipt.stage_title || `委托 ${receipt.order_id}` }}</p>
-                  <p class="mt-1 text-[10px] text-muted">凭证 {{ receipt.id }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">凭证 {{ receipt.id }}</p>
                 </div>
-                <span class="w-fit shrink-0 text-[10px]" :class="receipt.status === 'confirmed' ? 'text-success' : receipt.status === 'compensation_pending' ? 'text-warning' : 'text-muted'">
+                <span class="w-fit shrink-0 text-[0.625rem]" :class="receipt.status === 'confirmed' ? 'text-success' : receipt.status === 'compensation_pending' ? 'text-warning' : 'text-muted'">
                   {{ getCoopReceiptStatusLabel(receipt.status) }}
                 </span>
               </div>
-              <p class="mt-2 text-[10px] text-muted">
+              <p class="mt-2 text-[0.625rem] text-muted">
                 发布人：{{ receipt.owner_display_name || receipt.owner_username }} · 接单人：{{ receipt.assignee_display_name || receipt.assignee_username }}
               </p>
-              <p class="mt-1 text-[10px] text-accent">
+              <p class="mt-1 text-[0.625rem] text-accent">
                 回报：{{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }} {{ receipt.reward_label ? `· ${receipt.reward_label}` : '' }}
               </p>
-              <p class="mt-1 text-[10px] text-muted">
+              <p class="mt-1 text-[0.625rem] text-muted">
                 交付资源：{{ formatDeliveredItems(receipt.delivered_items) }}
               </p>
-              <p class="mt-1 text-[10px] text-muted">
+              <p class="mt-1 text-[0.625rem] text-muted">
                 交付说明：{{ receipt.result_note || '未填写额外交付说明。' }}
               </p>
-              <p v-if="receipt.help_reputation_delta > 0 || receipt.specialty_reputation_delta > 0" class="mt-1 text-[10px] text-success">
+              <p v-if="receipt.help_reputation_delta > 0 || receipt.specialty_reputation_delta > 0" class="mt-1 text-[0.625rem] text-success">
                 互助声望 +{{ receipt.help_reputation_delta }} · 专业 +{{ receipt.specialty_reputation_delta }} · {{ receipt.trust_level_label || '信赖已更新' }}
               </p>
-              <p v-if="receipt.reward_result" class="mt-1 text-[10px] text-success">
+              <p v-if="receipt.reward_result" class="mt-1 text-[0.625rem] text-success">
                 {{ receipt.reward_result }}
               </p>
-              <p v-if="receipt.reward_route === 'shared_fund'" class="mt-1 text-[10px] text-success">
+              <p v-if="receipt.reward_route === 'shared_fund'" class="mt-1 text-[0.625rem] text-success">
                 结算去向：共同基金 · 契约 {{ receipt.cohabitation_contract_id }}{{ receipt.shared_fund_ledger_id ? ` · 流水 ${receipt.shared_fund_ledger_id}` : '' }}
               </p>
               <p
                 v-if="receipt.shared_order_efficiency_bonus_applied"
-                class="mt-1 text-[10px] text-success"
+                class="mt-1 text-[0.625rem] text-success"
                 data-testid="online-orders-receipt-efficiency-bonus"
               >
                 同接效率：原始 {{ formatCoopDuration(receipt.order_original_duration_seconds) }} · 减免 {{ formatCoopDuration(receipt.order_efficiency_bonus_seconds) }} · 有效 {{ formatCoopDuration(receipt.order_effective_duration_seconds) }}
               </p>
-              <p v-if="receipt.compensation_id" class="mt-1 text-[10px] text-warning">
+              <p v-if="receipt.compensation_id" class="mt-1 text-[0.625rem] text-warning">
                 关联补偿：{{ receipt.compensation_id }}
               </p>
-              <p class="mt-2 text-[10px] text-muted">
+              <p class="mt-2 text-[0.625rem] text-muted">
                 创建 {{ formatCoopTime(receipt.created_at) }} · 更新 {{ formatCoopTime(receipt.updated_at) }}
               </p>
             </div>
@@ -776,7 +776,7 @@
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">补偿重试</p>
-            <span class="text-[10px] text-muted">{{ coopOrderStore.myCompensations.length }} 条</span>
+            <span class="text-[0.625rem] text-muted">{{ coopOrderStore.myCompensations.length }} 条</span>
           </div>
           <OnlineEmptyState
             v-if="coopOrderStore.myCompensations.length === 0"
@@ -789,16 +789,16 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ compensation.reason || `委托 ${compensation.order_id}` }}</p>
-                  <p class="mt-1 text-[10px] text-muted">补偿 {{ compensation.id }} · 凭证 {{ compensation.receipt_id }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">补偿 {{ compensation.id }} · 凭证 {{ compensation.receipt_id }}</p>
                 </div>
-                <span class="shrink-0 text-[10px]" :class="compensation.status === 'pending' ? 'text-warning' : 'text-success'">
+                <span class="shrink-0 text-[0.625rem]" :class="compensation.status === 'pending' ? 'text-warning' : 'text-success'">
                   {{ getCompensationStatusLabel(compensation.status) }}
                 </span>
               </div>
-              <p class="mt-2 text-[10px] text-accent">
+              <p class="mt-2 text-[0.625rem] text-accent">
                 回报：{{ getCoopRewardTypeLabel(compensation.reward_type) }} {{ compensation.reward_value }} {{ compensation.reward_label ? `· ${compensation.reward_label}` : '' }}
               </p>
-              <p class="mt-1 text-[10px] text-muted">
+              <p class="mt-1 text-[0.625rem] text-muted">
                 原因：{{ compensation.reason || '未记录补偿原因。' }}
               </p>
               <OnlineStatusBanner
@@ -808,7 +808,7 @@
                 title="最近一次补偿没有处理成功"
                 :description="compensation.last_error"
               />
-              <p class="mt-2 text-[10px] text-muted">
+              <p class="mt-2 text-[0.625rem] text-muted">
                 已尝试 {{ compensation.attempt_count }} 次 · 更新 {{ formatCoopTime(compensation.updated_at) }}
               </p>
               <div v-if="compensation.status === 'pending'" class="mt-2 flex justify-end">

@@ -16,7 +16,7 @@
       </div>
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
-      <div v-if="runtimeManagedStatus" class="text-[11px] text-muted leading-5">
+      <div v-if="runtimeManagedStatus" class="text-[0.6875rem] text-muted leading-5">
         当前生效来源：{{ runtimeSourceLabel }} · 托管字段：{{ runtimeReadonlyManagedFieldsText }}
         <div v-if="runtimeManagedStatus.lastError" class="mt-1 text-warning">
           最近回退原因：{{ runtimeManagedStatus.lastError }}
@@ -28,7 +28,7 @@
           当前状态：{{ status?.secondAuthVerified ? '已通过云控二次验证' : '等待云控二次密码' }}
           <span v-if="status?.profileId"> · {{ status.profileId }}</span>
         </div>
-        <div class="text-[11px] text-muted leading-5">
+        <div class="text-[0.6875rem] text-muted leading-5">
           先通过现有管理员口令，再通过这里的二次密码，才可发布官方配置和管理保留的实例授权。
         </div>
       </div>
@@ -109,7 +109,7 @@
             <button class="btn btn-primary" :disabled="publishing" @click="publishCurrentConfig">
               <span>{{ publishing ? '发布中...' : '发布新版本' }}</span>
             </button>
-            <span class="text-[11px] text-muted leading-6" v-if="currentRelease">
+            <span class="text-[0.6875rem] text-muted leading-6" v-if="currentRelease">
               当前生效：v{{ currentRelease.version }} · {{ formatTime(currentRelease.createdAt) }}
             </span>
           </div>
@@ -127,7 +127,7 @@
               <div class="flex items-start justify-between gap-3">
                 <div>
                   <div class="text-text">v{{ release.version }}</div>
-                  <div class="text-[11px] text-muted mt-1">{{ formatTime(release.createdAt) }}</div>
+                  <div class="text-[0.6875rem] text-muted mt-1">{{ formatTime(release.createdAt) }}</div>
                 </div>
                 <span class="game-chip">{{ release.operatorName || release.operatorRole || '系统' }}</span>
               </div>
@@ -566,7 +566,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-muted));
   }
 
@@ -579,7 +579,7 @@
     border-radius: 2px;
     color: rgb(var(--color-text));
     outline: none;
-    font-size: 13px;
+    font-size: 0.8125rem;
     box-sizing: border-box;
   }
 

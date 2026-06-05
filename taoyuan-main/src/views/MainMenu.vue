@@ -12,7 +12,7 @@
       <div class="logo" />
       <h1 class="text-accent text-2xl md:text-4xl tracking-widest">{{ pkg.title }}</h1>
       </div>
-      <p class="text-[11px] md:text-xs text-muted leading-6 max-w-md">
+      <p class="text-[0.6875rem] md:text-xs text-muted leading-6 max-w-md">
         开始前先选好账号和存档方式，这样以后继续游戏会更方便。
       </p>
     </div>
@@ -42,8 +42,8 @@
           </div>
 
           <div v-if="!currentUser" class="space-y-3 border border-accent/15 rounded-xs p-3 bg-bg/15">
-            <p class="text-[11px] text-muted leading-5">登录与注册已拆分为独立页面，支持中文用户名与唯一校验。</p>
-            <p class="text-[11px] leading-5 text-danger/90">未登录直接开始旅程时，存档无法保存，建议先注册账号后再游玩。</p>
+            <p class="text-[0.6875rem] text-muted leading-5">登录与注册已拆分为独立页面，支持中文用户名与唯一校验。</p>
+            <p class="text-[0.6875rem] leading-5 text-danger/90">未登录直接开始旅程时，存档无法保存，建议先注册账号后再游玩。</p>
             <div class="main-menu-auth-actions grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Button class="justify-center py-2 text-xs" :icon="LogIn" @click="openAuth('login')">
                 前往登录页
@@ -59,7 +59,7 @@
           <template v-if="isDesktopMenu">
             <div class="space-y-1">
               <p class="text-xs text-accent">存档方式</p>
-              <p class="text-[11px] text-muted leading-5">默认本地存储；切换后将按当前登录账号读取对应存档。</p>
+              <p class="text-[0.6875rem] text-muted leading-5">默认本地存储；切换后将按当前登录账号读取对应存档。</p>
             </div>
             <div class="grid grid-cols-1 gap-2">
               <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
@@ -70,16 +70,16 @@
               </Button>
             </div>
             <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2">
-              <p class="text-[10px] text-accent">当前模式</p>
+              <p class="text-[0.625rem] text-accent">当前模式</p>
               <p class="text-xs mt-1">{{ storageModeText }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageIdentityHint }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-5">{{ storageIdentityHint }}</p>
             </div>
           </template>
           <template v-else>
             <div class="space-y-1">
               <p class="text-xs text-accent">存档与继续旅程</p>
-              <p class="text-[11px] text-muted leading-5">先选好存档方式，再直接查看这次要继续哪一档，会比来回滚动更方便。</p>
+              <p class="text-[0.6875rem] text-muted leading-5">先选好存档方式，再直接查看这次要继续哪一档，会比来回滚动更方便。</p>
             </div>
             <div class="grid grid-cols-1 gap-2">
               <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
@@ -90,10 +90,10 @@
               </Button>
             </div>
             <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2">
-              <p class="text-[10px] text-accent">当前模式</p>
+              <p class="text-[0.625rem] text-accent">当前模式</p>
               <p class="text-xs mt-1">{{ storageModeText }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageIdentityHint }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-5">{{ storageIdentityHint }}</p>
             </div>
             <div class="border-t border-accent/15 pt-3">
               <MainMenuContinueList
@@ -155,7 +155,7 @@
           <div class="flex flex-wrap items-start justify-between gap-2">
             <div class="space-y-1">
               <p class="text-xs text-accent">联机世界</p>
-              <p class="text-[11px] text-muted leading-5">
+              <p class="text-[0.6875rem] text-muted leading-5">
                 带着已有旅程直接进入邻里、庄园、节会、村社与委托。
                 <template v-if="!currentUser">未登录时，在线内容会受限。</template>
               </p>
@@ -1084,7 +1084,7 @@
 
   .main-menu-about-markdown :deep(figcaption) {
     margin-top: 6px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: rgb(var(--color-muted));
     text-align: center;
   }
@@ -1135,14 +1135,14 @@
 
   .main-menu-online-entry-title {
     color: rgb(var(--color-accent));
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.45;
   }
 
   .main-menu-online-entry-summary {
     margin-top: 6px;
     color: rgb(var(--color-muted));
-    font-size: 10px;
+    font-size: 0.625rem;
     line-height: 1.6;
   }
 
@@ -1153,7 +1153,7 @@
     padding: 2px 6px;
     color: rgb(var(--color-accent));
     background: rgba(200, 164, 92, 0.06);
-    font-size: 10px;
+    font-size: 0.625rem;
   }
 
   @media (min-width: 1280px) {

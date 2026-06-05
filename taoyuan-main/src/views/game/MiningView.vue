@@ -73,7 +73,7 @@
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
         <p class="text-sm text-accent">矿洞天气窗口</p>
-        <span class="text-[10px]" :class="miningStore.environmentWindow.mining.active ? 'text-success' : 'text-muted'">
+        <span class="text-[0.625rem]" :class="miningStore.environmentWindow.mining.active ? 'text-success' : 'text-muted'">
           {{ miningStore.environmentWindow.mining.label }}
         </span>
       </div>
@@ -82,7 +82,7 @@
         <span
           v-for="line in miningStore.environmentWindow.mining.detailLines"
           :key="line"
-          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[10px] text-muted"
+          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[0.625rem] text-muted"
         >
           {{ line }}
         </span>
@@ -195,7 +195,7 @@
           <!-- 电梯楼层（按区域分组网格） -->
           <div v-if="elevatorZones.length > 0" class="max-h-48 overflow-y-auto mb-2">
             <div v-for="zone in elevatorZones" :key="zone.name" class="mb-2 last:mb-0">
-              <p class="text-[10px] text-muted mb-1">{{ zone.name }}</p>
+              <p class="text-[0.625rem] text-muted mb-1">{{ zone.name }}</p>
               <div class="flex flex-wrap space-x-1">
                 <Button v-for="sp in zone.floors" :key="sp" class="py-0.5 px-0 min-w-9 justify-center" @click="handleEnterMine(sp)">
                   {{ sp + 1 }}
@@ -381,24 +381,24 @@
                   :style="{ width: `${playerStore.getHpPercent()}%` }"
                 />
               </div>
-              <p class="text-[10px]" :class="playerStore.getIsLowHp() ? 'text-danger' : 'text-muted'">
+              <p class="text-[0.625rem]" :class="playerStore.getIsLowHp() ? 'text-danger' : 'text-muted'">
                 {{ playerStore.hp }}/{{ playerStore.getMaxHp() }}
               </p>
               <span
                 v-if="playerFloat"
                 :key="playerFloat.key"
-                class="absolute -top-1 right-0 text-danger text-[11px] font-bold anim-float-up pointer-events-none"
+                class="absolute -top-1 right-0 text-danger text-[0.6875rem] font-bold anim-float-up pointer-events-none"
               >
                 {{ playerFloat.text }}
               </span>
             </div>
             <!-- VS -->
-            <span class="text-[10px] text-muted/40">VS</span>
+            <span class="text-[0.625rem] text-muted/40">VS</span>
             <!-- 怪物 -->
             <div class="border border-danger/20 rounded-xs p-2 relative" :class="monsterAnim">
               <p class="text-xs text-center text-danger mb-1.5 truncate">
                 {{ miningStore.combatMonster?.name }}
-                <span v-if="miningStore.combatIsBoss" class="text-[10px]">[BOSS]</span>
+                <span v-if="miningStore.combatIsBoss" class="text-[0.625rem]">[BOSS]</span>
               </p>
               <div class="bg-bg rounded-xs h-1.5 mb-1">
                 <div
@@ -408,11 +408,11 @@
                   }"
                 />
               </div>
-              <p class="text-[10px] text-muted">{{ miningStore.combatMonsterHp }}/{{ miningStore.combatMonster?.hp }}</p>
+              <p class="text-[0.625rem] text-muted">{{ miningStore.combatMonsterHp }}/{{ miningStore.combatMonster?.hp }}</p>
               <span
                 v-if="monsterFloat"
                 :key="monsterFloat.key"
-                class="absolute -top-1 right-0 text-accent text-[11px] font-bold anim-float-up pointer-events-none"
+                class="absolute -top-1 right-0 text-accent text-[0.6875rem] font-bold anim-float-up pointer-events-none"
               >
                 {{ monsterFloat.text }}
               </span>
@@ -432,7 +432,7 @@
                   <Swords :size="12" class="inline" />
                   攻击
                 </span>
-                <span class="text-[10px] text-muted">{{ weaponAttack }}攻击力</span>
+                <span class="text-[0.625rem] text-muted">{{ weaponAttack }}攻击力</span>
               </div>
               <div
                 class="flex flex-col items-center border border-accent/20 rounded-xs py-1.5"
@@ -443,7 +443,7 @@
                   <Shield :size="12" class="inline" />
                   防御
                 </span>
-                <span class="text-[10px] text-muted">减免伤害</span>
+                <span class="text-[0.625rem] text-muted">减免伤害</span>
               </div>
               <div
                 class="flex flex-col items-center border rounded-xs py-1.5"
@@ -458,7 +458,7 @@
                   <MoveRight :size="12" class="inline" />
                   {{ miningStore.combatIsBoss ? '无法' : '逃跑' }}
                 </span>
-                <span v-if="miningStore.combatIsBoss" class="text-[10px] text-muted/40">BOSS战</span>
+                <span v-if="miningStore.combatIsBoss" class="text-[0.625rem] text-muted/40">BOSS战</span>
               </div>
             </div>
             <!-- 使用道具 -->
@@ -483,7 +483,7 @@
                 <BookMarked :size="12" class="inline" />
                 切换装备方案
               </span>
-              <span v-if="inventoryStore.activePresetId" class="text-[10px] text-muted">
+              <span v-if="inventoryStore.activePresetId" class="text-[0.625rem] text-muted">
                 {{ inventoryStore.equipmentPresets.find(p => p.id === inventoryStore.activePresetId)?.name ?? '' }}
               </span>
             </div>
@@ -527,7 +527,7 @@
             >
               <div class="flex flex-col">
                 <span class="text-xs">{{ item.name }}</span>
-                <span class="text-[10px] text-muted">{{ item.desc }}</span>
+                <span class="text-[0.625rem] text-muted">{{ item.desc }}</span>
               </div>
               <span class="text-xs text-muted">&times;{{ item.count }}</span>
             </div>
@@ -613,24 +613,24 @@
             >
               <div class="flex items-center justify-between mb-1">
                 <p class="text-xs text-accent truncate">{{ preset.name }}</p>
-                <span v-if="inventoryStore.activePresetId === preset.id" class="text-[10px] text-success shrink-0 ml-1">使用中</span>
+                <span v-if="inventoryStore.activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
               <div class="grid grid-cols-2 gap-1">
                 <Button
-                  class="py-0 px-1.5 text-[10px]"
+                  class="py-0 px-1.5 text-[0.625rem]"
                   :disabled="inventoryStore.activePresetId === preset.id"
                   @click="quickApplyPreset(preset.id)"
                 >
                   使用
                 </Button>
-                <Button class="py-0 px-1.5 text-[10px]" @click="viewPresetDetail(preset.id)">查看</Button>
+                <Button class="py-0 px-1.5 text-[0.625rem]" @click="viewPresetDetail(preset.id)">查看</Button>
               </div>
             </div>
           </div>
           <div v-else class="flex flex-col items-center justify-center py-6">
             <BookMarked :size="24" class="text-muted/30" />
             <p class="text-xs text-muted mt-1">暂无方案</p>
-            <p class="text-[10px] text-muted/60 mt-0.5">前往背包装备页创建方案</p>
+            <p class="text-[0.625rem] text-muted/60 mt-0.5">前往背包装备页创建方案</p>
           </div>
         </div>
       </div>
@@ -715,7 +715,7 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showEquipPropertyModal = false">
             <X :size="14" />
           </button>
-          <p class="text-[10px] text-muted mb-0.5">{{ equipPropertyInfo.category }}</p>
+          <p class="text-[0.625rem] text-muted mb-0.5">{{ equipPropertyInfo.category }}</p>
           <p class="text-sm text-accent mb-1">{{ equipPropertyInfo.name }}</p>
           <p class="text-xs text-muted mb-2">{{ equipPropertyInfo.description }}</p>
           <div v-if="equipPropertyInfo.effects.length > 0" class="flex flex-col space-y-1">

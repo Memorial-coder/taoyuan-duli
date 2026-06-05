@@ -15,23 +15,23 @@
       <div class="flex items-center justify-between mb-2">
         <p class="text-xs text-muted">宠物</p>
         <div class="flex items-center gap-2">
-          <span class="text-[10px] text-muted">{{ petRoster.length }}/{{ animalStore.petCapacity }}</span>
+          <span class="text-[0.625rem] text-muted">{{ petRoster.length }}/{{ animalStore.petCapacity }}</span>
           <Button v-if="petRoster.length > 0 && animalStore.canAdoptAdditionalPet" class="py-0 px-1" @click="showPetAdoptionModal = true">收养新宠</Button>
         </div>
       </div>
       <template v-if="petRoster.length > 0">
         <div class="border border-accent/10 rounded-xs p-2 mb-2 bg-bg/10">
-          <p class="text-[10px] text-muted mb-1">宠物扩展</p>
+          <p class="text-[0.625rem] text-muted mb-1">宠物扩展</p>
           <div class="space-y-1">
-            <div v-for="route in animalStore.petRouteProgress" :key="route.label" class="flex items-center justify-between text-[10px]">
+            <div v-for="route in animalStore.petRouteProgress" :key="route.label" class="flex items-center justify-between text-[0.625rem]">
               <span>{{ route.label }}</span>
               <span :class="route.unlocked ? 'text-success' : 'text-muted'">{{ route.unlocked ? '已开放' : route.requirement }}</span>
             </div>
           </div>
         </div>
         <div class="border border-accent/10 rounded-xs p-2 mb-2">
-          <p class="text-[10px] text-muted mb-1">宠物角</p>
-          <p class="text-[10px] text-muted/80 mb-2 leading-4">点开每个位置，可以看看它现在能做什么、还差什么，以及下一步该去哪里。</p>
+          <p class="text-[0.625rem] text-muted mb-1">宠物角</p>
+          <p class="text-[0.625rem] text-muted/80 mb-2 leading-4">点开每个位置，可以看看它现在能做什么、还差什么，以及下一步该去哪里。</p>
           <div class="space-y-1">
             <div
               v-for="slot in animalStore.petCareSlots"
@@ -43,11 +43,11 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <span class="text-xs text-accent">{{ slot.label }}</span>
-                    <p class="text-[10px] text-muted mt-0.5 leading-4">{{ slot.summary }}</p>
+                    <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ slot.summary }}</p>
                   </div>
                   <div class="shrink-0 text-right">
-                    <span :class="slot.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ slot.unlocked ? '已开放' : slot.requirement }}</span>
-                    <p class="text-[10px] text-accent/80 mt-1">{{ expandedPetCareSlotId === slot.id ? '收起说明' : '查看说明' }}</p>
+                    <span :class="slot.unlocked ? 'text-success text-[0.625rem]' : 'text-muted text-[0.625rem]'">{{ slot.unlocked ? '已开放' : slot.requirement }}</span>
+                    <p class="text-[0.625rem] text-accent/80 mt-1">{{ expandedPetCareSlotId === slot.id ? '收起说明' : '查看说明' }}</p>
                   </div>
                 </div>
               </button>
@@ -55,7 +55,7 @@
                 <p
                   v-for="line in getPetCareSlotGuide(slot).detailLines"
                   :key="`${slot.id}-${line}`"
-                  class="text-[10px] text-muted leading-4"
+                  class="text-[0.625rem] text-muted leading-4"
                 >
                   · {{ line }}
                 </p>
@@ -105,24 +105,24 @@
               </Button>
             </div>
             <div class="flex items-center space-x-1">
-              <span class="text-[10px] text-muted w-6">好感</span>
+              <span class="text-[0.625rem] text-muted w-6">好感</span>
               <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
                 <div class="h-full rounded-xs bg-danger transition-all" :style="{ width: Math.floor(companion.friendship / 10) + '%' }" />
               </div>
-              <span class="text-[10px] text-muted">{{ companion.friendship }}/1000</span>
+              <span class="text-[0.625rem] text-muted">{{ companion.friendship }}/1000</span>
             </div>
-            <p class="text-[10px] text-muted mt-1 leading-4">{{ getPetCompanionHint(companion) }}</p>
+            <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ getPetCompanionHint(companion) }}</p>
             <div class="mt-2 border-t border-accent/10 pt-2">
               <div class="flex items-center justify-between gap-2 mb-1">
-                <span class="text-[10px] text-muted" :data-testid="`pet-special-feed-status-${companion.id}`">
+                <span class="text-[0.625rem] text-muted" :data-testid="`pet-special-feed-status-${companion.id}`">
                   {{ getPetFeedStatusText(companion) }}
                 </span>
-                <span class="text-[10px] text-accent/80 shrink-0">{{ getPetPreferenceText(companion) }}</span>
+                <span class="text-[0.625rem] text-accent/80 shrink-0">{{ getPetPreferenceText(companion) }}</span>
               </div>
               <div v-if="petSpecialFeedOptions.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-1">
                 <div v-for="feed in petSpecialFeedOptions" :key="`${companion.id}-${feed.id}`" class="min-w-0">
                   <Button
-                    class="w-full justify-center py-0 px-1 text-[10px]"
+                    class="w-full justify-center py-0 px-1 text-[0.625rem]"
                     :disabled="isPetSpecialFedToday(companion)"
                     :data-testid="`pet-special-feed-${companion.id}-${feed.id}`"
                     :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)"
@@ -130,15 +130,15 @@
                   >
                     {{ feed.shortLabel }}×{{ feed.count }}
                   </Button>
-                  <p class="mt-0.5 truncate text-[9px] leading-3 text-muted/70" :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)">
+                  <p class="mt-0.5 truncate text-[0.5625rem] leading-3 text-muted/70" :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)">
                     {{ getPetSpecialFeedUseText(feed.itemId) }}
                   </p>
-                  <p class="mt-0.5 truncate text-[9px] leading-3 text-accent/70" :title="getPetSpecialFeedTargetText(feed)">
+                  <p class="mt-0.5 truncate text-[0.5625rem] leading-3 text-accent/70" :title="getPetSpecialFeedTargetText(feed)">
                     {{ getPetSpecialFeedTargetText(feed) }}
                   </p>
                 </div>
               </div>
-              <p v-else class="text-[10px] text-muted/70 leading-4">暂无可喂的宠物食材</p>
+              <p v-else class="text-[0.625rem] text-muted/70 leading-4">暂无可喂的宠物食材</p>
             </div>
           </div>
         </div>
@@ -146,7 +146,7 @@
       <div v-else class="flex flex-col items-center justify-center py-6 text-muted">
         <Home :size="32" class="mb-2" />
         <p class="text-xs">暂无宠物</p>
-        <p class="text-[10px] mt-1">入住后第7天会有小动物来访。</p>
+        <p class="text-[0.625rem] mt-1">入住后第7天会有小动物来访。</p>
       </div>
     </div>
 
@@ -162,7 +162,7 @@
       </div>
 
       <template v-if="isBuildingBuilt(bDef.type)">
-        <p v-if="animalStore.hasAutoPetter(bDef.type)" class="text-[10px] text-success mb-2">自动抚摸机运行中 — 每日自动抚摸所有动物</p>
+        <p v-if="animalStore.hasAutoPetter(bDef.type)" class="text-[0.625rem] text-success mb-2">自动抚摸机运行中 — 每日自动抚摸所有动物</p>
         <!-- 鸡舍孵化器（鸡舍2级以上） -->
         <div v-if="bDef.type === 'coop' && getBuildingLevel('coop') >= 2" class="mb-3 p-2 border border-accent/10 rounded-xs">
           <p class="text-xs text-accent mb-1">
@@ -253,13 +253,13 @@
             </div>
             <div class="space-y-0.5">
               <div class="flex items-center space-x-1">
-                <span class="text-[10px] text-muted w-6">好感</span>
+                <span class="text-[0.625rem] text-muted w-6">好感</span>
                 <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
                   <div class="h-full rounded-xs bg-danger transition-all" :style="{ width: Math.floor(animal.friendship / 10) + '%' }" />
                 </div>
               </div>
               <div class="flex items-center space-x-1">
-                <span class="text-[10px] text-muted w-6">心情</span>
+                <span class="text-[0.625rem] text-muted w-6">心情</span>
                 <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
                   <div
                     class="h-full rounded-xs transition-all"
@@ -267,18 +267,18 @@
                     :style="{ width: Math.floor((animal.mood / 255) * 100) + '%' }"
                   />
                 </div>
-                <span class="text-[10px] text-muted w-6">{{ getMoodText(animal.mood) }}</span>
+                <span class="text-[0.625rem] text-muted w-6">{{ getMoodText(animal.mood) }}</span>
               </div>
               <div v-if="animal.hunger > 0" class="flex items-center space-x-1">
-                <span class="text-[10px] text-muted w-6">饥饿</span>
+                <span class="text-[0.625rem] text-muted w-6">饥饿</span>
                 <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
                   <div class="h-full rounded-xs bg-danger transition-all" :style="{ width: Math.floor((animal.hunger / 7) * 100) + '%' }" />
                 </div>
-                <span class="text-[10px] text-danger w-6">{{ animal.hunger }}天</span>
+                <span class="text-[0.625rem] text-danger w-6">{{ animal.hunger }}天</span>
               </div>
             </div>
             <div v-if="animal.sick" class="flex items-center justify-between mt-0.5">
-              <p class="text-[10px] text-danger">生病中({{ animal.sickDays }}/5天)</p>
+              <p class="text-[0.625rem] text-danger">生病中({{ animal.sickDays }}/5天)</p>
               <Button class="py-0 px-1" :icon="Syringe" :disabled="medicineCount <= 0" @click="handleHealAnimal(animal.id, animal.name)">
                 治疗
               </Button>
@@ -288,7 +288,7 @@
         <div v-else class="flex flex-col items-center justify-center py-6">
           <Home :size="36" class="text-accent/20 mb-2" />
           <p class="text-xs text-muted">暂无动物</p>
-          <p class="text-[10px] text-muted/50 mt-0.5">在商店购买幼崽来饲养吧</p>
+          <p class="text-[0.625rem] text-muted/50 mt-0.5">在商店购买幼崽来饲养吧</p>
         </div>
       </template>
       <template v-else>
@@ -356,7 +356,7 @@
           </div>
           <div class="space-y-0.5">
             <div class="flex items-center space-x-1">
-              <span class="text-[10px] text-muted w-6">好感</span>
+              <span class="text-[0.625rem] text-muted w-6">好感</span>
               <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
                 <div
                   class="h-full rounded-xs bg-danger transition-all"
@@ -365,7 +365,7 @@
               </div>
             </div>
             <div class="flex items-center space-x-1">
-              <span class="text-[10px] text-muted w-6">心情</span>
+              <span class="text-[0.625rem] text-muted w-6">心情</span>
               <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
                 <div
                   class="h-full rounded-xs transition-all"
@@ -373,21 +373,21 @@
                   :style="{ width: Math.floor((animalStore.getHorse.mood / 255) * 100) + '%' }"
                 />
               </div>
-              <span class="text-[10px] text-muted w-6">{{ getMoodText(animalStore.getHorse.mood) }}</span>
+              <span class="text-[0.625rem] text-muted w-6">{{ getMoodText(animalStore.getHorse.mood) }}</span>
             </div>
             <div v-if="animalStore.getHorse.hunger > 0" class="flex items-center space-x-1">
-              <span class="text-[10px] text-muted w-6">饥饿</span>
+              <span class="text-[0.625rem] text-muted w-6">饥饿</span>
               <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
                 <div
                   class="h-full rounded-xs bg-danger transition-all"
                   :style="{ width: Math.floor((animalStore.getHorse.hunger / 7) * 100) + '%' }"
                 />
               </div>
-              <span class="text-[10px] text-danger w-6">{{ animalStore.getHorse.hunger }}天</span>
+              <span class="text-[0.625rem] text-danger w-6">{{ animalStore.getHorse.hunger }}天</span>
             </div>
           </div>
           <div v-if="animalStore.getHorse.sick" class="flex items-center justify-between mt-0.5">
-            <p class="text-[10px] text-danger">生病中({{ animalStore.getHorse.sickDays }}/5天)</p>
+            <p class="text-[0.625rem] text-danger">生病中({{ animalStore.getHorse.sickDays }}/5天)</p>
             <Button
               class="py-0 px-1"
               :icon="Syringe"
@@ -453,9 +453,9 @@
             <div class="min-w-0">
               <div class="flex items-center space-x-2">
                 <span class="text-xs" :class="selectedFeed === feed.id ? 'text-accent' : ''">{{ feed.name }}</span>
-                <span class="text-[10px] text-muted">{{ feed.description }}</span>
+                <span class="text-[0.625rem] text-muted">{{ feed.description }}</span>
               </div>
-              <p class="mt-0.5 text-[10px] text-muted/70 truncate" :title="getAnimalFeedTargetHint(feed.id)">
+              <p class="mt-0.5 text-[0.625rem] text-muted/70 truncate" :title="getAnimalFeedTargetHint(feed.id)">
                 {{ getAnimalFeedTargetHint(feed.id) }}
               </p>
             </div>
@@ -470,7 +470,7 @@
           <p class="text-xs text-muted">喂食</p>
           <span class="text-xs text-muted">{{ selectedFeedName }}库存：{{ selectedFeedCount }}</span>
         </div>
-        <p class="mb-1 text-[10px] text-accent/80 leading-4">{{ selectedFeedTargetHint }}</p>
+        <p class="mb-1 text-[0.625rem] text-accent/80 leading-4">{{ selectedFeedTargetHint }}</p>
         <div class="flex flex-col space-y-1">
           <div
             class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5"

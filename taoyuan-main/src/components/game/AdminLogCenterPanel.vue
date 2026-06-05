@@ -42,7 +42,7 @@
             <div class="flex items-start justify-between gap-3">
               <div>
                 <div class="text-text">{{ revision.title || revision.content_key }}</div>
-                <div class="text-[11px] text-muted mt-1">#{{ revision.id }} · {{ revision.action }}</div>
+                <div class="text-[0.6875rem] text-muted mt-1">#{{ revision.id }} · {{ revision.action }}</div>
               </div>
               <span class="admin-status" :class="revision.published ? 'admin-status--sent' : 'admin-status--draft'">
                 {{ revision.published ? '已发布' : '草稿' }}
@@ -66,7 +66,7 @@
             <div class="flex items-start justify-between gap-3">
               <div>
                 <div class="text-text break-all">{{ log.message }}</div>
-                <div class="text-[11px] text-muted mt-1">{{ log.username || 'guest' }} · {{ log.category }}</div>
+                <div class="text-[0.6875rem] text-muted mt-1">{{ log.username || 'guest' }} · {{ log.category }}</div>
               </div>
               <span class="admin-chip">{{ log.day_label || '未标记日期' }}</span>
             </div>
@@ -228,7 +228,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-muted));
   }
 
@@ -240,7 +240,7 @@
     border-radius: 2px;
     color: rgb(var(--color-text));
     outline: none;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .admin-record-card {
@@ -257,7 +257,7 @@
     border-radius: 2px;
     padding: 4px 8px;
     background: rgba(200, 164, 92, 0.08);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: rgb(var(--color-text));
   }
 
@@ -267,7 +267,7 @@
     justify-content: center;
     border-radius: 999px;
     padding: 2px 10px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     border: 1px solid transparent;
     white-space: nowrap;
   }

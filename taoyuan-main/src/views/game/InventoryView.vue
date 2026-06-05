@@ -40,7 +40,7 @@
         <Button class="py-0 px-1.5" :icon="ArrowDown01" :icon-size="12" @click="inventoryStore.sortItems()">整理</Button>
       </div>
       <div v-if="cropUseRecommendations.length > 0" class="border border-accent/20 rounded-xs px-2 py-1.5 mb-2">
-        <p class="text-[10px] text-accent mb-1">库存用途建议</p>
+        <p class="text-[0.625rem] text-accent mb-1">库存用途建议</p>
         <div
           v-for="entry in cropUseRecommendations"
           :key="entry.itemId"
@@ -48,9 +48,9 @@
         >
           <div class="min-w-0">
             <p class="text-xs text-text truncate">{{ entry.name }} ×{{ entry.quantity }}</p>
-            <p class="text-[10px] text-muted leading-snug">{{ entry.text }}</p>
+            <p class="text-[0.625rem] text-muted leading-snug">{{ entry.text }}</p>
           </div>
-          <button class="text-[10px] text-accent/80 shrink-0" @click="openInventoryItem(entry.itemId)">查看</button>
+          <button class="text-[0.625rem] text-accent/80 shrink-0" @click="openInventoryItem(entry.itemId)">查看</button>
         </div>
       </div>
       <div v-if="filteredItems.length > 0" class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
@@ -93,7 +93,7 @@
     <template v-if="tab === 'temp'">
       <div v-if="inventoryStore.tempItems.length > 0">
         <div class="flex items-center justify-between mb-1.5">
-          <span class="text-[10px] text-muted">背包满时溢出的物品，请及时取回</span>
+          <span class="text-[0.625rem] text-muted">背包满时溢出的物品，请及时取回</span>
           <Button v-if="!inventoryStore.isFull" class="py-0 px-1.5" @click="handleMoveAllFromTemp">全部取回</Button>
         </div>
         <div v-if="inventoryStore.isFull" class="mb-1.5">
@@ -139,7 +139,7 @@
     <template v-if="tab === 'tools'">
       <!-- 方案按钮 -->
       <div class="flex items-center justify-end mb-1.5 space-x-1.5">
-        <span v-if="activePresetName" class="text-[10px] text-success truncate">{{ activePresetName }}</span>
+        <span v-if="activePresetName" class="text-[0.625rem] text-success truncate">{{ activePresetName }}</span>
         <Button class="py-0 px-1.5" :icon="BookMarked" :icon-size="12" @click="showPresetModal = true">方案</Button>
       </div>
 
@@ -169,7 +169,7 @@
         <div v-if="inventoryStore.ownedHats.length > 0" class="flex flex-col space-y-1">
           <!-- 槽位 -->
           <div class="border border-accent/10 rounded-xs px-2 py-1 text-center mb-1">
-            <p class="text-[10px] text-muted">装备中</p>
+            <p class="text-[0.625rem] text-muted">装备中</p>
             <p class="text-xs" :class="equippedHatName ? 'text-accent' : 'text-muted/40'">
               {{ equippedHatName ?? '空' }}
             </p>
@@ -187,7 +187,7 @@
                 <span class="text-xs" :class="inventoryStore.equippedHatIndex === idx ? 'text-accent' : ''">
                   {{ getHatById(hat.defId)?.name ?? hat.defId }}
                 </span>
-                <p class="text-[10px] text-muted truncate">{{ getHatById(hat.defId)?.description }}</p>
+                <p class="text-[0.625rem] text-muted truncate">{{ getHatById(hat.defId)?.description }}</p>
               </div>
               <Button
                 class="py-0 px-1.5 shrink-0 ml-2"
@@ -208,7 +208,7 @@
         <div v-if="inventoryStore.ownedShoes.length > 0" class="flex flex-col space-y-1">
           <!-- 槽位 -->
           <div class="border border-accent/10 rounded-xs px-2 py-1 text-center mb-1">
-            <p class="text-[10px] text-muted">装备中</p>
+            <p class="text-[0.625rem] text-muted">装备中</p>
             <p class="text-xs" :class="equippedShoeName ? 'text-accent' : 'text-muted/40'">
               {{ equippedShoeName ?? '空' }}
             </p>
@@ -226,7 +226,7 @@
                 <span class="text-xs" :class="inventoryStore.equippedShoeIndex === idx ? 'text-accent' : ''">
                   {{ getShoeById(shoe.defId)?.name ?? shoe.defId }}
                 </span>
-                <p class="text-[10px] text-muted truncate">{{ getShoeById(shoe.defId)?.description }}</p>
+                <p class="text-[0.625rem] text-muted truncate">{{ getShoeById(shoe.defId)?.description }}</p>
               </div>
               <Button
                 class="py-0 px-1.5 shrink-0 ml-2"
@@ -248,13 +248,13 @@
           <!-- 槽位 -->
           <div class="flex space-x-1 mb-1">
             <div class="flex-1 border border-accent/10 rounded-xs px-2 py-1 text-center">
-              <p class="text-[10px] text-muted">槽位1</p>
+              <p class="text-[0.625rem] text-muted">槽位1</p>
               <p class="text-xs" :class="equippedRing1Name ? 'text-accent' : 'text-muted/40'">
                 {{ equippedRing1Name ?? '空' }}
               </p>
             </div>
             <div class="flex-1 border border-accent/10 rounded-xs px-2 py-1 text-center">
-              <p class="text-[10px] text-muted">槽位2</p>
+              <p class="text-[0.625rem] text-muted">槽位2</p>
               <p class="text-xs" :class="equippedRing2Name ? 'text-accent' : 'text-muted/40'">
                 {{ equippedRing2Name ?? '空' }}
               </p>
@@ -273,7 +273,7 @@
                 <span class="text-xs" :class="isRingEquipped(idx) ? 'text-accent' : ''">
                   {{ getRingById(ring.defId)?.name ?? ring.defId }}
                 </span>
-                <p class="text-[10px] text-muted truncate">{{ getRingById(ring.defId)?.description }}</p>
+                <p class="text-[0.625rem] text-muted truncate">{{ getRingById(ring.defId)?.description }}</p>
               </div>
               <div class="flex space-x-1 shrink-0 ml-2">
                 <Button
@@ -319,7 +319,7 @@
             <span class="text-xs text-accent">{{ set.name }}</span>
             <span class="text-xs text-muted">{{ set.equippedCount }}/3</span>
           </div>
-          <div v-for="bonus in set.bonuses" :key="bonus.count" class="text-[10px]" :class="bonus.active ? 'text-success' : 'text-muted/40'">
+          <div v-for="bonus in set.bonuses" :key="bonus.count" class="text-[0.625rem]" :class="bonus.active ? 'text-success' : 'text-muted/40'">
             ({{ bonus.count }}件) {{ bonus.description }}
           </div>
         </div>
@@ -357,7 +357,7 @@
                 <template v-else>
                   <span class="text-xs text-accent truncate">{{ preset.name }}</span>
                 </template>
-                <span v-if="activePresetId === preset.id" class="text-[10px] text-success shrink-0 ml-1">使用中</span>
+                <span v-if="activePresetId === preset.id" class="text-[0.625rem] text-success shrink-0 ml-1">使用中</span>
               </div>
               <div class="flex space-x-1">
                 <Button
@@ -378,7 +378,7 @@
           <div v-else class="flex flex-col items-center justify-center py-6 mb-3">
             <BookMarked :size="24" class="text-muted/30" />
             <p class="text-xs text-muted mt-1">暂无方案</p>
-            <p class="text-[10px] text-muted/60 mt-0.5">创建方案后可快速切换装备配置</p>
+            <p class="text-[0.625rem] text-muted/60 mt-0.5">创建方案后可快速切换装备配置</p>
           </div>
           <Button
             class="w-full justify-center"
@@ -403,7 +403,7 @@
             <X :size="14" />
           </button>
           <p class="text-sm text-accent mb-2">物品筛选</p>
-          <p class="text-[10px] text-muted mb-2">选择要显示的分类或作物用途，不选则显示全部</p>
+          <p class="text-[0.625rem] text-muted mb-2">选择要显示的分类或作物用途，不选则显示全部</p>
           <p class="text-xs text-muted mb-1">分类</p>
           <div class="grid grid-cols-3 gap-1.5 mb-3">
             <div
@@ -427,7 +427,7 @@
               @click="toggleCropUseTag(tag)"
             >
               <span class="block">{{ CROP_USE_TAG_LABELS[tag] }}</span>
-              <span class="block truncate text-[9px] opacity-70">{{ CROP_USE_TAG_FILTER_HINTS[tag] }}</span>
+              <span class="block truncate text-[0.5625rem] opacity-70">{{ CROP_USE_TAG_FILTER_HINTS[tag] }}</span>
             </div>
           </div>
           <div class="flex space-x-1.5">
@@ -577,7 +577,7 @@
               <span
                 v-for="label in activeCropUseTagLabels"
                 :key="label"
-                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent"
+                class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent"
               >
                 {{ label }}
               </span>
@@ -710,7 +710,7 @@
             >
               卖出 · {{ activeWeaponPrice }}文
             </Button>
-            <p v-if="activeWeaponIdx === inventoryStore.equippedWeaponIndex" class="text-[10px] text-muted text-center">
+            <p v-if="activeWeaponIdx === inventoryStore.equippedWeaponIndex" class="text-[0.625rem] text-muted text-center">
               当前装备中，请先切换其他武器再卖出
             </p>
           </div>

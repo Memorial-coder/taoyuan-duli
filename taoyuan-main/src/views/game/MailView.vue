@@ -6,13 +6,13 @@
       <section class="panel-box" :class="!isDesktop && activeMail ? 'hidden' : ''">
         <div class="flex items-center justify-between mb-2">
           <Divider label="邮箱" />
-          <span class="text-[10px] text-muted">未读 {{ mailboxStore.unreadCount }}</span>
+          <span class="text-[0.625rem] text-muted">未读 {{ mailboxStore.unreadCount }}</span>
         </div>
         <div v-if="mailArrivalNoticeText" class="detail-card mb-3 border border-warning/20 bg-warning/5">
           <div class="flex items-start justify-between gap-2">
             <div>
               <p class="text-xs text-accent">邮件抵达提醒</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ mailArrivalNoticeText }}</p>
+              <p class="text-[0.625rem] text-muted mt-1 leading-4">{{ mailArrivalNoticeText }}</p>
             </div>
             <Button class="justify-center shrink-0" :disabled="!mailboxStore.arrivalDigest.first_mail_id" @click="jumpToNewestArrival">
               去查看
@@ -22,60 +22,60 @@
         <div class="detail-card mb-3">
           <div class="flex items-center justify-between mb-1">
             <p class="text-xs text-accent">周路线 / 邮件摘要</p>
-            <span class="text-[10px] text-muted">可领 {{ claimableMailCount }}</span>
+            <span class="text-[0.625rem] text-muted">可领 {{ claimableMailCount }}</span>
           </div>
-          <p class="text-[10px] text-muted leading-4">
+          <p class="text-[0.625rem] text-muted leading-4">
             {{ goalStore.currentEventCampaign ? `当前活动：${goalStore.currentEventCampaign.label}` : `当前主路线：${weeklyPlanSnapshot.primaryRouteLabel}` }}
           </p>
-          <p class="text-[10px] text-accent mt-1">
+          <p class="text-[0.625rem] text-accent mt-1">
             活动邮件 {{ activityMailCount }} 封 · 周纪行 {{ latestWeeklyChronicle ? latestWeeklyChronicle.weekId : '待生成' }}
           </p>
           <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
-            <p class="text-[10px] text-muted">本周主路线</p>
-            <p class="text-[10px] text-accent mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted">本周主路线</p>
+            <p class="text-[0.625rem] text-accent mt-1 leading-4">
               {{ weeklyPlanSnapshot.primaryRouteLabel }}：{{ weeklyPlanSnapshot.primaryRouteSummary }}
             </p>
-            <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
               辅助路线：{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') }}
             </p>
-            <p v-if="currentEventMailTemplateTitles.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-if="currentEventMailTemplateTitles.length > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
               本周邮件节奏：{{ currentEventMailTemplateTitles.join('、') }}
             </p>
           </div>
           <div class="border border-success/10 rounded-xs px-2 py-2 mt-2 bg-success/5">
-            <p class="text-[10px] text-muted">当前可领奖点</p>
-            <p class="text-[10px] text-accent mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted">当前可领奖点</p>
+            <p class="text-[0.625rem] text-accent mt-1 leading-4">
               {{ weeklyPlanSnapshot.claimableNodeLabels.length > 0 ? weeklyPlanSnapshot.claimableNodeLabels.join('、') : '当前没有待领取的路线节点，可优先推进本周主路线。' }}
             </p>
-            <p v-if="claimableActivityMailCount > 0" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-if="claimableActivityMailCount > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
               当前有 {{ claimableActivityMailCount }} 封活动奖励邮件可领取。
             </p>
-            <p v-if="questStore.currentLimitedTimeQuestCampaign" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-if="questStore.currentLimitedTimeQuestCampaign" class="text-[0.625rem] text-muted mt-1 leading-4">
               限时任务：{{ questStore.currentLimitedTimeQuestCampaign.label }} · 剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天
             </p>
           </div>
           <div class="border border-warning/10 rounded-xs px-2 py-2 mt-2 bg-warning/5">
-            <p class="text-[10px] text-muted">下周准备</p>
-            <p class="text-[10px] text-accent mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted">下周准备</p>
+            <p class="text-[0.625rem] text-accent mt-1 leading-4">
               {{ weeklyPlanSnapshot.nextWeekPrepSummary }}
             </p>
-            <p v-if="previewMailTemplateTitles.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-if="previewMailTemplateTitles.length > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
               预计邮件：{{ previewMailTemplateTitles.join('、') }}
             </p>
           </div>
           <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
-            <p class="text-[10px] text-muted">本周日历提醒</p>
-            <p v-for="line in calendarPrepDigestLines" :key="`mail-calendar-${line}`" class="text-[10px] text-accent mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted">本周日历提醒</p>
+            <p v-for="line in calendarPrepDigestLines" :key="`mail-calendar-${line}`" class="text-[0.625rem] text-accent mt-1 leading-4">
               {{ line }}
             </p>
-            <p v-for="line in rareVisitorDigestLines" :key="`mail-visitor-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+            <p v-for="line in rareVisitorDigestLines" :key="`mail-visitor-${line}`" class="text-[0.625rem] text-muted mt-1 leading-4">
               {{ line }}
             </p>
           </div>
           <div v-if="latestWeeklyChronicle" class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
-            <p class="text-[10px] text-muted">最近周纪行</p>
-            <p class="text-[10px] text-accent mt-1 leading-4">{{ latestWeeklyChronicle.settlementSummary }}</p>
-            <p v-if="latestWeeklyChronicle.highlightSummaries.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+            <p class="text-[0.625rem] text-muted">最近周纪行</p>
+            <p class="text-[0.625rem] text-accent mt-1 leading-4">{{ latestWeeklyChronicle.settlementSummary }}</p>
+            <p v-if="latestWeeklyChronicle.highlightSummaries.length > 0" class="text-[0.625rem] text-muted mt-1 leading-4">
               本周高光：{{ latestWeeklyChronicle.highlightSummaries.join('、') }}
             </p>
           </div>
@@ -95,7 +95,7 @@
         <div class="detail-card mb-3">
           <div class="flex items-center justify-between gap-2 mb-2">
             <p class="text-xs text-accent">纪念册</p>
-            <span class="text-[10px] text-muted">L44 第一轮</span>
+            <span class="text-[0.625rem] text-muted">L44 第一轮</span>
           </div>
           <div class="flex flex-wrap gap-2 mb-2">
             <Button class="justify-center shrink-0" :disabled="memorialTab === 'inbox'" @click="memorialTab = 'inbox'">
@@ -114,14 +114,14 @@
             <Button class="justify-center shrink-0" :disabled="memorialFilter === 'friend'" @click="memorialFilter = 'friend'">好友</Button>
             <Button class="justify-center shrink-0" :disabled="memorialFilter === 'neighbor'" @click="memorialFilter = 'neighbor'">村社</Button>
           </div>
-          <div v-if="visibleMemorialEntries.length === 0" class="text-[10px] text-muted">
+          <div v-if="visibleMemorialEntries.length === 0" class="text-[0.625rem] text-muted">
             当前分组里还没有可回看的信件。
           </div>
           <div v-for="entry in visibleMemorialEntries" :key="`${memorialTab}-${entry.id}`" class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent truncate">{{ entry.title }}</p>
-                <p class="text-[10px] text-muted mt-1">
+                <p class="text-[0.625rem] text-muted mt-1">
                   {{ entry.counterpartLabel }} · {{ formatTime(entry.sentAt) }}
                 </p>
               </div>
@@ -134,18 +134,18 @@
                 {{ entry.isSaved ? '已存入' : '存入纪念册' }}
               </Button>
             </div>
-            <p v-if="entry.preview" class="text-[10px] text-muted mt-1 line-clamp-2">{{ entry.preview }}</p>
-            <p v-if="entry.tags.length > 0" class="text-[10px] text-muted mt-1">标签：{{ entry.tags.join('、') }}</p>
+            <p v-if="entry.preview" class="text-[0.625rem] text-muted mt-1 line-clamp-2">{{ entry.preview }}</p>
+            <p v-if="entry.tags.length > 0" class="text-[0.625rem] text-muted mt-1">标签：{{ entry.tags.join('、') }}</p>
           </div>
         </div>
 
         <div class="detail-card mb-3">
           <div class="flex items-center justify-between mb-2">
             <p class="text-xs text-accent">玩家书信</p>
-            <span class="text-[10px] text-muted">L40 / L42</span>
+            <span class="text-[0.625rem] text-muted">L40 / L42</span>
           </div>
           <div class="space-y-2">
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               收件人用户名
               <input
                 v-model="mailboxStore.letterTargetDraft"
@@ -154,7 +154,7 @@
                 placeholder="输入要寄信的玩家用户名"
               />
             </label>
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               书信模板
               <select
                 v-model="mailboxStore.letterTemplateTypeDraft"
@@ -173,13 +173,13 @@
                 v-for="preset in mailboxStore.letterTemplatePresets"
                 :key="preset.id"
                 type="button"
-                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted hover:border-accent/30 hover:text-accent"
+                class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted hover:border-accent/30 hover:text-accent"
                 @click="applyLetterPreset(preset.id)"
               >
                 {{ preset.label }}
               </button>
             </div>
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               书信标题
               <input
                 v-model="mailboxStore.letterTitleDraft"
@@ -188,7 +188,7 @@
                 placeholder="给这封信起一个标题"
               />
             </label>
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               正文
               <textarea
                 v-model="mailboxStore.letterContentDraft"
@@ -200,7 +200,7 @@
             </label>
             <div class="space-y-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">合照附信</p>
+                <p class="text-[0.625rem] text-muted">合照附信</p>
                 <Button class="justify-center shrink-0" :icon="Mail" :icon-size="12" :disabled="uploadingLetterPhoto" @click="triggerLetterPhotoUpload">
                   {{ uploadingLetterPhoto ? '上传中…' : '上传附图' }}
                 </Button>
@@ -225,10 +225,10 @@
         <div class="detail-card mb-3">
           <div class="flex items-center justify-between mb-2">
             <p class="text-xs text-accent">礼物包裹</p>
-            <span class="text-[10px] text-muted">L41</span>
+            <span class="text-[0.625rem] text-muted">L41</span>
           </div>
           <div class="space-y-2">
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               收件人用户名
               <input
                 v-model="mailboxStore.giftPackageTargetDraft"
@@ -237,7 +237,7 @@
                 placeholder="输入要寄送礼物包裹的玩家用户名"
               />
             </label>
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               包裹类型
               <select
                 v-model="mailboxStore.giftPackageTemplateTypeDraft"
@@ -249,8 +249,8 @@
                 </option>
               </select>
             </label>
-            <p class="text-[10px] text-muted">{{ currentGiftPackageTypeOption?.summary }}</p>
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <p class="text-[0.625rem] text-muted">{{ currentGiftPackageTypeOption?.summary }}</p>
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               包裹标题
               <input
                 v-model="mailboxStore.giftPackageTitleDraft"
@@ -259,7 +259,7 @@
                 placeholder="给包裹起一个标题"
               />
             </label>
-            <label class="flex flex-col gap-1 text-[10px] text-muted">
+            <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
               附言
               <textarea
                 v-model="mailboxStore.giftPackageContentDraft"
@@ -271,7 +271,7 @@
             </label>
             <div class="space-y-2">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-[10px] text-muted">包裹内容</p>
+                <p class="text-[0.625rem] text-muted">包裹内容</p>
                 <Button class="justify-center shrink-0" :disabled="mailboxStore.sendLetterRunning" @click="addGiftRewardRow">
                   新增一项
                 </Button>
@@ -337,11 +337,11 @@
                 <span v-if="mail.unread" class="text-accent">[新]</span>
                 {{ mail.title }}
               </p>
-              <p class="text-[10px] text-muted line-clamp-2">{{ mail.preview }}</p>
+              <p class="text-[0.625rem] text-muted line-clamp-2">{{ mail.preview }}</p>
             </div>
             <span class="status-badge" :class="statusClass(mail.claim_status)">{{ statusLabel(mail.claim_status, !!mail.sender_display_name) }}</span>
           </div>
-          <div class="mt-1 flex items-center justify-between text-[10px] text-muted">
+          <div class="mt-1 flex items-center justify-between text-[0.625rem] text-muted">
             <span>{{ formatTime(mail.sent_at) }}</span>
             <span v-if="mail.has_rewards">奖励 {{ mail.reward_count }}</span>
             <span v-else>{{ mail.sender_display_name ? `来信 · ${mail.sender_display_name}` : '公告' }}</span>
@@ -368,7 +368,7 @@
           <div class="flex items-start justify-between gap-2 mb-3">
             <div class="min-w-0">
               <p class="text-sm text-accent truncate">{{ activeMail.title }}</p>
-              <p v-if="activeMail.sender_display_name" class="text-[10px] text-muted mt-1">寄信人：{{ activeMail.sender_display_name }}</p>
+              <p v-if="activeMail.sender_display_name" class="text-[0.625rem] text-muted mt-1">寄信人：{{ activeMail.sender_display_name }}</p>
               <div class="flex flex-wrap gap-1 mt-1">
                 <span class="status-badge" :class="statusClass(activeMail.claim_status)">{{ statusLabel(activeMail.claim_status, !!activeMail.sender_display_name) }}</span>
                 <span v-if="activeMail.is_pinned" class="status-badge badge-pinned">置顶</span>
@@ -378,7 +378,7 @@
                 <span v-if="activeMail.template_type" class="status-badge badge-muted">{{ templateLabel(activeMail.template_type) }}</span>
               </div>
             </div>
-            <span class="text-[10px] text-muted text-right">
+            <span class="text-[0.625rem] text-muted text-right">
               <span class="block">发送 {{ formatTime(activeMail.sent_at) }}</span>
               <span v-if="activeMail.expires_at" class="block">到期 {{ formatTime(activeMail.expires_at) }}</span>
             </span>
@@ -389,13 +389,13 @@
           <div v-if="activeMail.photo_url" class="detail-card mb-3">
             <p class="text-xs text-accent mb-2">附图</p>
             <img :src="activeMail.photo_url" :alt="activeMail.photo_alt || '书信附图'" class="letter-photo-preview" />
-            <p v-if="activeMail.photo_alt" class="text-[10px] text-muted mt-2">{{ activeMail.photo_alt }}</p>
+            <p v-if="activeMail.photo_alt" class="text-[0.625rem] text-muted mt-2">{{ activeMail.photo_alt }}</p>
           </div>
 
           <div class="detail-card mb-3">
             <div class="flex items-center justify-between mb-2">
               <p class="text-xs text-accent">奖励内容</p>
-              <span v-if="activeMail.duplicate_compensation_money > 0" class="text-[10px] text-muted">
+              <span v-if="activeMail.duplicate_compensation_money > 0" class="text-[0.625rem] text-muted">
                 重复装备补偿 {{ activeMail.duplicate_compensation_money }} 文
               </span>
             </div>
@@ -409,11 +409,11 @@
 
           <div v-if="activeMail.claim_result" class="detail-card mb-3">
             <p class="text-xs text-accent mb-2">领取记录</p>
-            <p class="text-[11px] text-muted mb-1">已入账 {{ activeMail.claim_result.money_added }} 文</p>
-            <p v-if="activeMail.claim_result.applied_rewards.length > 0" class="text-[11px] text-muted mb-1">
+            <p class="text-[0.6875rem] text-muted mb-1">已入账 {{ activeMail.claim_result.money_added }} 文</p>
+            <p v-if="activeMail.claim_result.applied_rewards.length > 0" class="text-[0.6875rem] text-muted mb-1">
               发放 {{ activeMail.claim_result.applied_rewards.length }} 条
             </p>
-            <p v-if="activeMail.claim_result.skipped_rewards.length > 0" class="text-[11px] text-warning">
+            <p v-if="activeMail.claim_result.skipped_rewards.length > 0" class="text-[0.6875rem] text-warning">
               跳过 {{ activeMail.claim_result.skipped_rewards.length }} 条重复装备
             </p>
           </div>
@@ -448,20 +448,20 @@
           <div v-if="mailboxStore.receipts.length > 0" class="detail-card mt-3">
             <div class="flex items-center justify-between gap-2 mb-2">
               <p class="text-xs text-accent">结算凭证回看</p>
-              <span class="text-[10px] text-muted">最近 {{ mailboxStore.receipts.length }} 条</span>
+              <span class="text-[0.625rem] text-muted">最近 {{ mailboxStore.receipts.length }} 条</span>
             </div>
             <div class="space-y-2">
               <div v-for="receipt in mailboxStore.receipts" :key="receipt.id" class="border border-accent/10 rounded-xs p-2">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="text-xs text-accent truncate">{{ receipt.mail_title }}</p>
-                    <p class="text-[10px] text-muted mt-1">
+                    <p class="text-[0.625rem] text-muted mt-1">
                       {{ receipt.sender_display_name ? `来自 ${receipt.sender_display_name}` : '系统结算' }} · {{ receipt.save_slot === null ? '未写入槽位' : `槽位${receipt.save_slot + 1}` }}
                     </p>
                   </div>
-                  <span class="text-[10px] text-muted shrink-0">{{ formatTime(receipt.claimed_at) }}</span>
+                  <span class="text-[0.625rem] text-muted shrink-0">{{ formatTime(receipt.claimed_at) }}</span>
                 </div>
-                <p class="text-[10px] text-muted mt-1">
+                <p class="text-[0.625rem] text-muted mt-1">
                   入账 {{ receipt.money_added }} 文 · 发放 {{ receipt.applied_rewards.length }} 条 · 跳过 {{ receipt.skipped_rewards.length }} 条
                 </p>
               </div>
@@ -1241,7 +1241,7 @@
     height: 18px;
     padding: 0 6px;
     border-radius: 999px;
-    font-size: 10px;
+    font-size: 0.625rem;
     line-height: 1;
     white-space: nowrap;
     word-break: keep-all;

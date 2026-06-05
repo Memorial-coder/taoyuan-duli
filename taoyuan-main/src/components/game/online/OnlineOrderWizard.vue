@@ -9,7 +9,7 @@
     @cancel="requestClose"
   >
     <div class="space-y-3" data-testid="online-order-wizard">
-      <ol class="grid grid-cols-5 gap-1 text-[10px] leading-4" aria-label="发布委托步骤">
+      <ol class="grid grid-cols-5 gap-1 text-[0.625rem] leading-4" aria-label="发布委托步骤">
         <li
           v-for="(step, index) in steps"
           :key="step.id"
@@ -43,7 +43,7 @@
         </div>
 
         <div class="grid gap-2 md:grid-cols-2">
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             求助类别
             <select v-model="coopOrderStore.orderTypeDraft" data-testid="online-orders-publish-type-select" class="online-select" :disabled="running">
               <option v-for="option in orderTypeOptions" :key="option.id" :value="option.id">
@@ -51,7 +51,7 @@
               </option>
             </select>
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             可见范围
             <select v-model="coopOrderStore.scopeDraft" data-testid="online-orders-publish-scope-select" class="online-select" :disabled="running">
               <option v-for="option in scopeOptions" :key="option.id" :value="option.id">
@@ -73,7 +73,7 @@
           <p class="mt-1 text-xs leading-5 text-muted">标题、截止时间和说明会帮助别人快速判断要帮什么、需要多少。</p>
         </div>
 
-        <label class="flex flex-col gap-1 text-[10px] text-muted">
+        <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
           求助标题
           <input
             v-model="coopOrderStore.titleDraft"
@@ -85,7 +85,7 @@
           />
         </label>
 
-        <label class="flex flex-col gap-1 text-[10px] text-muted">
+        <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
           截止时间
           <input
             v-model="coopOrderStore.deadlineAtDraft"
@@ -96,7 +96,7 @@
           />
         </label>
 
-        <label class="flex flex-col gap-1 text-[10px] text-muted">
+        <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
           求助内容
           <textarea
             v-model="coopOrderStore.descriptionDraft"
@@ -121,7 +121,7 @@
           <p class="mt-1 text-xs leading-5 text-muted">单阶段适合一人完成；接力单可以把目标数量拆给不同玩家。</p>
         </div>
 
-        <label class="flex flex-col gap-1 text-[10px] text-muted">
+        <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
           协作模式
           <select v-model="coopOrderStore.collaborationModeDraft" data-testid="online-orders-publish-mode-select" class="online-select" :disabled="running">
             <option value="single">单阶段委托</option>
@@ -133,7 +133,7 @@
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div class="min-w-0">
               <p class="text-xs text-accent">接力阶段</p>
-              <p class="mt-1 text-[10px] text-muted">至少补齐 2 个子目标；每段都可以写目标资源和数量。</p>
+              <p class="mt-1 text-[0.625rem] text-muted">至少补齐 2 个子目标；每段都可以写目标资源和数量。</p>
             </div>
             <button
               class="online-action-btn online-action-btn--compact shrink-0 justify-center"
@@ -223,7 +223,7 @@
         </div>
 
         <div class="grid gap-2 md:grid-cols-2">
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             回报类型
             <select v-model="coopOrderStore.rewardTypeDraft" data-testid="online-orders-publish-reward-type-select" class="online-select" :disabled="running">
               <option v-for="option in rewardTypeOptions" :key="option.id" :value="option.id">
@@ -231,7 +231,7 @@
               </option>
             </select>
           </label>
-          <label class="flex flex-col gap-1 text-[10px] text-muted">
+          <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
             回报数值
             <input
               v-model.number="coopOrderStore.rewardValueDraft"
@@ -244,7 +244,7 @@
           </label>
         </div>
 
-        <label class="flex flex-col gap-1 text-[10px] text-muted">
+        <label class="flex flex-col gap-1 text-[0.625rem] text-muted">
           回报说明
           <input
             v-model="coopOrderStore.rewardLabelDraft"
@@ -268,7 +268,7 @@
           <p class="mt-1 text-xs leading-5 text-muted">确认后开始发布；如果没有成功，弹窗会保持打开并保留草稿。</p>
         </div>
 
-        <dl class="grid gap-2 text-[10px] leading-4" data-testid="online-order-wizard-review-summary">
+        <dl class="grid gap-2 text-[0.625rem] leading-4" data-testid="online-order-wizard-review-summary">
           <div class="game-panel-muted p-2">
             <dt class="text-muted">求助单</dt>
             <dd class="mt-1 text-xs text-accent">{{ titleSummary }}</dd>
@@ -296,7 +296,7 @@
     <template #footer>
       <footer class="space-y-3 border-t border-accent/10 pt-3">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-[10px] leading-4 text-muted">
+          <p class="text-[0.625rem] leading-4 text-muted">
             {{ activeStepIndexLabel }} · {{ activeStep.summary }}
           </p>
           <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

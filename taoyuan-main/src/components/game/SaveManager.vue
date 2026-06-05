@@ -14,10 +14,10 @@
         </Button>
       </div>
       <div class="mb-3 space-y-2 text-left">
-        <p v-if="props.saveIntent === 'save' || props.saveIntent === 'save-return'" class="text-[11px] text-muted leading-5 text-center">
+        <p v-if="props.saveIntent === 'save' || props.saveIntent === 'save-return'" class="text-[0.6875rem] text-muted leading-5 text-center">
           请选择存储方式后再保存。不同方式各有优点，你可以按自己的使用习惯选择。
         </p>
-        <div class="grid grid-cols-1 gap-2 text-[10px] text-muted">
+        <div class="grid grid-cols-1 gap-2 text-[0.625rem] text-muted">
           <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2">
             <p class="text-text mb-1">本地存储</p>
             <p>优点：保存速度快、无需联网、离线也能用，适合单设备游玩。</p>
@@ -30,17 +30,17 @@
       </div>
       <div
         v-if="saveStore.storageMode === 'server' && saveStore.pendingServerSlots.length > 0"
-        class="mb-3 rounded-xs border border-warning/30 bg-warning/10 px-3 py-2 text-left text-[10px] text-warning"
+        class="mb-3 rounded-xs border border-warning/30 bg-warning/10 px-3 py-2 text-left text-[0.625rem] text-warning"
       >
         当前账号有 {{ saveStore.pendingServerSlots.length }} 个待同步服务端存档，服务恢复后会自动补传。
       </div>
-      <div class="mb-3 rounded-xs border border-accent/15 bg-accent/5 px-3 py-2 text-left text-[10px] leading-5">
+      <div class="mb-3 rounded-xs border border-accent/15 bg-accent/5 px-3 py-2 text-left text-[0.625rem] leading-5">
         <p class="text-accent">联机存档身份</p>
         <p class="mt-1 text-muted">{{ saveIdentityHint }}</p>
       </div>
       <div
         v-if="slotReadBlocked"
-        class="mb-3 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-left text-[10px] leading-5 text-danger"
+        class="mb-3 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-left text-[0.625rem] leading-5 text-danger"
       >
         服务端槽位暂时不可读取，当前无法确认云端是否已有真实存档。为避免误覆盖，这些槽位不会再显示成“空槽位”。
       </div>
@@ -62,7 +62,7 @@
               <span class="inline-flex items-center space-x-1">
                 <FolderOpen :size="12" />
                 <span>存档 {{ info.slot + 1 }}</span>
-                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[10px] text-warning">待同步</span>
+                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
               </span>
               <span class="text-muted text-xs">
                 {{ info.playerName ?? '未命名' }} · 第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{
@@ -74,7 +74,7 @@
               <span class="inline-flex items-center space-x-1">
                 <FolderOpen :size="12" />
                 <span>存档 {{ info.slot + 1 }}</span>
-                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[10px] text-warning">待同步</span>
+                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[0.625rem] text-warning">待同步</span>
               </span>
               <span class="text-muted text-xs">
                 {{ info.playerName ?? '未命名' }} · 第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{

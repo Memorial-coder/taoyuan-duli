@@ -6,7 +6,7 @@
           <div class="min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
               <p class="text-sm text-accent">目标规划</p>
-              <span class="text-[10px] text-muted">{{ compactStatusLabel }}</span>
+              <span class="text-[0.625rem] text-muted">{{ compactStatusLabel }}</span>
             </div>
             <p class="mt-1.5 text-sm text-text">{{ compactHeadline }}</p>
             <p class="mt-1 text-xs text-muted leading-5 compact-clamp-2">{{ mobileCompactSummary }}</p>
@@ -32,13 +32,13 @@
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="text-sm text-accent">目标规划</p>
-          <p class="mt-1 text-[11px] text-muted">
+          <p class="mt-1 text-[0.6875rem] text-muted">
             <template v-if="goalStore.currentMainQuest">
               当前里程碑：第{{ goalStore.currentMainQuest.id }}阶段 · {{ goalStore.currentMainQuest.title }}
             </template>
             <template v-else>当前里程碑：已完成全部经营阶段</template>
           </p>
-          <p v-if="goalStore.currentThemeWeek" class="mt-1 text-[11px] text-accent/80">
+          <p v-if="goalStore.currentThemeWeek" class="mt-1 text-[0.6875rem] text-accent/80">
             本周主题：{{ goalStore.currentThemeWeek.name }}（{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日）
           </p>
         </div>
@@ -65,7 +65,7 @@
       >
         <div class="flex items-center justify-between gap-3">
           <p class="text-xs text-accent">今日聚焦</p>
-          <span class="text-[10px] text-muted">{{ compactStatusLabel }}</span>
+          <span class="text-[0.625rem] text-muted">{{ compactStatusLabel }}</span>
         </div>
         <p class="mt-2 text-sm text-text">{{ compactHeadline }}</p>
         <p class="mt-1 text-xs text-muted leading-5">{{ compactSummary }}</p>
@@ -87,7 +87,7 @@
     <div v-if="!collapsed && decisionLoopActions.length > 0" class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3">
       <div class="mb-2 flex items-center justify-between gap-2">
         <p class="text-xs text-accent">本周承接路线</p>
-        <span class="text-[10px] text-muted">{{ decisionLoopActions.length }} 条</span>
+        <span class="text-[0.625rem] text-muted">{{ decisionLoopActions.length }} 条</span>
       </div>
       <div class="grid grid-cols-1 gap-2 xl:grid-cols-3">
         <button
@@ -98,13 +98,13 @@
           @click="handleOpenDecisionAction(action)"
         >
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10px] text-accent">{{ getDecisionActionPath(action) }}</span>
-            <span class="text-[10px]" :class="action.adopted ? 'text-success' : 'text-muted'">
+            <span class="text-[0.625rem] text-accent">{{ getDecisionActionPath(action) }}</span>
+            <span class="text-[0.625rem]" :class="action.adopted ? 'text-success' : 'text-muted'">
               {{ action.adopted ? '已采纳' : getSurfaceCtaLabel(action.targetSurfaceId) }}
             </span>
           </div>
           <p class="mt-1 text-xs text-text">{{ action.label }}</p>
-          <p class="mt-1 text-[10px] text-muted leading-4">{{ action.summary }}</p>
+          <p class="mt-1 text-[0.625rem] text-muted leading-4">{{ action.summary }}</p>
         </button>
       </div>
     </div>

@@ -62,7 +62,7 @@
         <div class="grid grid-cols-1 gap-2">
           <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-xs text-muted mb-1">商路投资</p>
-            <div v-for="route in visibleRouteInvestments" :key="route.id" class="flex items-center justify-between text-[10px] mt-0.5 gap-2">
+            <div v-for="route in visibleRouteInvestments" :key="route.id" class="flex items-center justify-between text-[0.625rem] mt-0.5 gap-2">
               <div class="min-w-0">
                 <p>{{ route.label }}</p>
                 <p class="text-muted">投入 {{ route.costMoney }} 文</p>
@@ -82,14 +82,14 @@
           <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-xs text-muted mb-1">商路合同</p>
             <div v-for="contract in visibleContracts" :key="contract.id" class="mt-1 first:mt-0">
-              <p class="text-[10px] text-accent">{{ contract.label }}</p>
-              <p class="text-[10px] text-muted leading-4 mt-0.5">{{ contract.rewardSummary }}</p>
+              <p class="text-[0.625rem] text-accent">{{ contract.label }}</p>
+              <p class="text-[0.625rem] text-muted leading-4 mt-0.5">{{ contract.rewardSummary }}</p>
             </div>
           </div>
           <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-xs text-muted mb-1">遗迹套组 / 轮换货架</p>
-            <p class="text-[10px] text-muted leading-4">当前可关注套组：{{ visibleRelicSets.map(setDef => setDef.label).join('、') || '暂无' }}</p>
-            <p class="text-[10px] text-accent mt-1">本档货架：{{ currentShopRotation?.label ?? '暂无轮换' }}</p>
+            <p class="text-[0.625rem] text-muted leading-4">当前可关注套组：{{ visibleRelicSets.map(setDef => setDef.label).join('、') || '暂无' }}</p>
+            <p class="text-[0.625rem] text-accent mt-1">本档货架：{{ currentShopRotation?.label ?? '暂无轮换' }}</p>
           </div>
         </div>
       </div>
@@ -97,14 +97,14 @@
       <div class="border border-accent/20 rounded-xs p-2 mb-3">
         <div class="flex items-center justify-between mb-1">
           <p class="text-xs text-muted">经营联动</p>
-          <span v-if="hanhaiStore.crossSystemOverview.themeWeekFocus" class="text-[10px] text-accent">
+          <span v-if="hanhaiStore.crossSystemOverview.themeWeekFocus" class="text-[0.625rem] text-accent">
             {{ hanhaiStore.crossSystemOverview.themeWeekFocus.summaryLabel }}
           </span>
         </div>
 
         <p
           v-if="hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint"
-          class="text-[10px] text-muted leading-4"
+          class="text-[0.625rem] text-muted leading-4"
         >
           {{ hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint }}
         </p>
@@ -113,8 +113,8 @@
           v-if="hanhaiStore.crossSystemOverview.themeWeekFocus"
           class="border border-accent/10 rounded-xs p-2 mt-2"
         >
-          <p class="text-[10px] text-muted mb-1">主题周焦点</p>
-          <p class="text-[10px] text-accent leading-4">
+          <p class="text-[0.625rem] text-muted mb-1">主题周焦点</p>
+          <p class="text-[0.625rem] text-accent leading-4">
             {{ [
               ...(hanhaiStore.crossSystemOverview.themeWeekFocus.routeLabels ?? []),
               ...(hanhaiStore.crossSystemOverview.themeWeekFocus.relicSiteLabels ?? []),
@@ -124,11 +124,11 @@
         </div>
 
         <div v-if="hanhaiStore.crossSystemOverview.linkedVillageProjects.length" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <p class="text-[10px] text-muted mb-1">联动建设</p>
+          <p class="text-[0.625rem] text-muted mb-1">联动建设</p>
           <div
             v-for="project in hanhaiStore.crossSystemOverview.linkedVillageProjects.slice(0, 2)"
             :key="project.id"
-            class="flex items-center justify-between text-[10px] mt-0.5 first:mt-0"
+            class="flex items-center justify-between text-[0.625rem] mt-0.5 first:mt-0"
           >
             <span>{{ project.name }}</span>
             <span class="text-accent">{{ project.completed ? '已完成' : project.available ? '可推进' : '未解锁' }}</span>
@@ -136,11 +136,11 @@
         </div>
 
         <div v-if="hanhaiStore.crossSystemOverview.recommendedCatalogOffers.length" class="border border-accent/10 rounded-xs p-2 mt-2">
-          <p class="text-[10px] text-muted mb-1">目录承接</p>
+          <p class="text-[0.625rem] text-muted mb-1">目录承接</p>
           <div
             v-for="offer in hanhaiStore.crossSystemOverview.recommendedCatalogOffers"
             :key="offer.id"
-            class="flex items-center justify-between text-[10px] mt-0.5 first:mt-0"
+            class="flex items-center justify-between text-[0.625rem] mt-0.5 first:mt-0"
           >
             <span>{{ offer.name }}</span>
             <span class="text-accent">{{ offer.price }}文</span>
@@ -148,12 +148,12 @@
         </div>
 
         <div v-if="hanhaiStore.crossSystemOverview.recommendedActions.length" class="mt-2">
-          <p class="text-[10px] text-muted mb-1">推荐动作</p>
+          <p class="text-[0.625rem] text-muted mb-1">推荐动作</p>
           <ul class="space-y-1">
             <li
               v-for="(action, index) in hanhaiStore.crossSystemOverview.recommendedActions"
               :key="`${index}-${action}`"
-              class="text-[10px] text-muted leading-4"
+              class="text-[0.625rem] text-muted leading-4"
             >
               - {{ action }}
             </li>
@@ -178,12 +178,12 @@
               <span class="text-xs text-accent">{{ item.price }}文</span>
               <span
                 v-if="item.weeklyLimit"
-                class="text-[10px]"
+                class="text-[0.625rem]"
                 :class="hanhaiStore.getWeeklyRemaining(item.itemId) > 0 ? 'text-muted' : 'text-danger'"
               >
                 限购 {{ hanhaiStore.getWeeklyRemaining(item.itemId) }}/{{ item.weeklyLimit }}
               </span>
-              <span v-if="!inventoryStore.canAddItem(item.itemId, 1)" class="text-[10px] text-danger">背包不足</span>
+              <span v-if="!inventoryStore.canAddItem(item.itemId, 1)" class="text-[0.625rem] text-danger">背包不足</span>
             </div>
           </div>
         </div>
@@ -206,7 +206,7 @@
               <span>{{ hanhaiStore.relicSites.length }}</span>
             </div>
           </div>
-          <p class="text-[10px] text-muted mt-2 leading-4">遗迹勘探会消耗一笔探索费用，但能稳定带回商路遗物、异域素材与藏宝图线索。</p>
+          <p class="text-[0.625rem] text-muted mt-2 leading-4">遗迹勘探会消耗一笔探索费用，但能稳定带回商路遗物、异域素材与藏宝图线索。</p>
         </div>
 
         <div class="flex flex-col space-y-2 max-h-80 overflow-y-auto pr-1">
@@ -214,14 +214,14 @@
             <div class="flex items-start justify-between gap-2">
               <div>
                 <p class="text-xs text-accent">{{ site.name }}</p>
-                <p class="text-[10px] text-muted mt-0.5 leading-4">{{ site.description }}</p>
+                <p class="text-[0.625rem] text-muted mt-0.5 leading-4">{{ site.description }}</p>
               </div>
-              <span class="text-[10px] whitespace-nowrap" :class="hanhaiStore.getRelicRemaining(site.id) > 0 ? 'text-accent' : 'text-danger'">
+              <span class="text-[0.625rem] whitespace-nowrap" :class="hanhaiStore.getRelicRemaining(site.id) > 0 ? 'text-accent' : 'text-danger'">
                 剩余 {{ hanhaiStore.getRelicRemaining(site.id) }}/{{ site.weeklyLimit }}
               </span>
             </div>
 
-            <div class="border border-accent/10 rounded-xs p-2 mt-2 text-[10px]">
+            <div class="border border-accent/10 rounded-xs p-2 mt-2 text-[0.625rem]">
               <div class="flex items-center justify-between">
                 <span class="text-muted">探索费用</span>
                 <span :class="playerStore.money >= site.unlockCost ? 'text-success' : 'text-danger'">{{ site.unlockCost }}文</span>
@@ -234,7 +234,7 @@
             </div>
 
             <div class="mt-2 flex items-center justify-between gap-2">
-              <p class="text-[10px] text-muted leading-4">{{ getRelicHint(site.id) }}</p>
+              <p class="text-[0.625rem] text-muted leading-4">{{ getRelicHint(site.id) }}</p>
               <div class="flex gap-1 shrink-0">
                 <Button
                   class="justify-center"

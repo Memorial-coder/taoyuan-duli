@@ -6,7 +6,7 @@
     <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
       <div>
         <p class="text-xs text-accent">长期目标</p>
-        <p class="mt-1 text-[10px] text-muted">把想做的大事分开看看，挑一类慢慢推进就好。</p>
+        <p class="mt-1 text-[0.625rem] text-muted">把想做的大事分开看看，挑一类慢慢推进就好。</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <span class="rounded-xs border border-accent/20 bg-bg/10 px-2 py-1 text-xs text-accent">

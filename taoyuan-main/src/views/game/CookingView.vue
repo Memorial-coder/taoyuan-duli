@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-accent text-sm">灶台</h3>
       <button
-        class="text-[10px] px-2 py-0.5 border rounded-xs"
+        class="text-[0.625rem] px-2 py-0.5 border rounded-xs"
         :class="showOnlyMakeable ? 'border-accent text-accent' : 'border-accent/20 text-muted'"
         @click="showOnlyMakeable = !showOnlyMakeable"
       >
@@ -14,7 +14,7 @@
 
     <!-- 当前增益 -->
     <div v-if="cookingStore.activeBuff" class="border border-water/20 rounded-xs px-3 py-1.5 mb-3">
-      <p class="text-[10px] text-water">
+      <p class="text-[0.625rem] text-water">
         <Zap :size="12" class="inline mr-0.5" />
         当前增益：{{ cookingStore.activeBuff.description }}
       </p>
@@ -22,7 +22,7 @@
 
     <!-- 最近料理线索 -->
     <div v-if="cookingStore.recentStoryTriggerRecords.length > 0" class="border border-water/20 rounded-xs px-3 py-1.5 mb-3">
-      <p class="text-[10px] text-water mb-1">最近料理线索</p>
+      <p class="text-[0.625rem] text-water mb-1">最近料理线索</p>
       <div
         v-for="record in cookingStore.recentStoryTriggerRecords.slice(0, 3)"
         :key="record.id"
@@ -30,17 +30,17 @@
       >
         <div class="min-w-0">
           <p class="text-xs text-text truncate">{{ record.recipeName }} ×{{ record.quantity }}</p>
-          <p class="text-[10px] text-muted leading-snug">
+          <p class="text-[0.625rem] text-muted leading-snug">
             {{ record.categoryLabels.join('、') || '料理' }} · {{ record.triggerLabels.join('、') }}
           </p>
         </div>
-        <span class="text-[10px] text-water/70 whitespace-nowrap">可回看</span>
+        <span class="text-[0.625rem] text-water/70 whitespace-nowrap">可回看</span>
       </div>
     </div>
 
     <!-- 用途推荐 -->
     <div v-if="cookingRecommendations.length > 0" class="border border-accent/20 rounded-xs px-3 py-1.5 mb-3">
-      <p class="text-[10px] text-accent mb-1">用途推荐</p>
+      <p class="text-[0.625rem] text-accent mb-1">用途推荐</p>
       <div
         v-for="info in cookingRecommendations"
         :key="`recommend-${info.recipe.id}`"
@@ -48,9 +48,9 @@
       >
         <div class="min-w-0">
           <p class="text-xs text-text truncate">{{ info.recipe.name }}</p>
-          <p class="text-[10px] text-muted leading-snug">{{ info.recommendationText }}</p>
+          <p class="text-[0.625rem] text-muted leading-snug">{{ info.recommendationText }}</p>
         </div>
-        <button class="text-[10px] text-accent/80 shrink-0" @click="openModal(info.recipe.id)">查看</button>
+        <button class="text-[0.625rem] text-accent/80 shrink-0" @click="openModal(info.recipe.id)">查看</button>
       </div>
     </div>
 
@@ -65,29 +65,29 @@
         <div class="flex items-center justify-between">
           <span class="text-xs" :class="info.canCook ? 'text-text' : 'text-muted'">
             {{ info.recipe.name }}
-            <span v-if="info.canCook && info.quality !== 'normal'" class="text-[10px] ml-0.5" :class="qualityTextClass(info.quality)">
+            <span v-if="info.canCook && info.quality !== 'normal'" class="text-[0.625rem] ml-0.5" :class="qualityTextClass(info.quality)">
               [{{ QUALITY_NAMES[info.quality] }}]
             </span>
           </span>
-          <span class="text-[10px] whitespace-nowrap ml-2" :class="info.canCook ? 'text-success' : 'text-muted/50'">
+          <span class="text-[0.625rem] whitespace-nowrap ml-2" :class="info.canCook ? 'text-success' : 'text-muted/50'">
             +{{ info.recipe.effect.staminaRestore }}体力
             <span v-if="info.recipe.effect.healthRestore">+{{ info.recipe.effect.healthRestore }}生命</span>
           </span>
         </div>
-        <p v-if="info.categoryText" class="text-[10px] text-accent/80 mt-0.5">{{ info.categoryText }}</p>
-        <p v-if="info.storyTriggerText" class="text-[10px] text-water/90 mt-0.5">{{ info.storyTriggerText }}</p>
-        <p v-if="info.recipe.effect.buff" class="text-[10px] text-water mt-0.5">{{ info.recipe.effect.buff.description }}</p>
-        <p v-if="info.cropUseText" class="text-[10px] text-muted mt-0.5">{{ info.cropUseText }}</p>
-        <p v-if="info.substitutionText" class="text-[10px] text-accent/80 mt-0.5">{{ info.substitutionText }}</p>
-        <p v-if="info.recommendationText" class="text-[10px] text-accent/80 mt-0.5">{{ info.recommendationText }}</p>
+        <p v-if="info.categoryText" class="text-[0.625rem] text-accent/80 mt-0.5">{{ info.categoryText }}</p>
+        <p v-if="info.storyTriggerText" class="text-[0.625rem] text-water/90 mt-0.5">{{ info.storyTriggerText }}</p>
+        <p v-if="info.recipe.effect.buff" class="text-[0.625rem] text-water mt-0.5">{{ info.recipe.effect.buff.description }}</p>
+        <p v-if="info.cropUseText" class="text-[0.625rem] text-muted mt-0.5">{{ info.cropUseText }}</p>
+        <p v-if="info.substitutionText" class="text-[0.625rem] text-accent/80 mt-0.5">{{ info.substitutionText }}</p>
+        <p v-if="info.recommendationText" class="text-[0.625rem] text-accent/80 mt-0.5">{{ info.recommendationText }}</p>
       </div>
     </div>
     <div v-else class="flex flex-col items-center justify-center py-8 mb-4">
       <UtensilsCrossed :size="36" class="text-accent/20 mb-2" />
       <p v-if="showOnlyMakeable" class="text-xs text-muted">没有可制作的食谱</p>
       <p v-else-if="cookingStore.recipes.length === 0" class="text-xs text-muted">还没有食谱</p>
-      <p v-if="showOnlyMakeable" class="text-[10px] text-muted/50 mt-0.5">取消筛选或收集更多食材</p>
-      <p v-else-if="cookingStore.recipes.length === 0" class="text-[10px] text-muted/50 mt-0.5">与村民交好或观看电视可学习食谱</p>
+      <p v-if="showOnlyMakeable" class="text-[0.625rem] text-muted/50 mt-0.5">取消筛选或收集更多食材</p>
+      <p v-else-if="cookingStore.recipes.length === 0" class="text-[0.625rem] text-muted/50 mt-0.5">与村民交好或观看电视可学习食谱</p>
     </div>
 
     <!-- 烹饪弹窗 -->
@@ -102,7 +102,7 @@
             {{ modalInfo.recipe.name }}
             <span
               v-if="modalInfo.canCook && modalInfo.quality !== 'normal'"
-              class="text-[10px] ml-0.5"
+              class="text-[0.625rem] ml-0.5"
               :class="qualityTextClass(modalInfo.quality)"
             >
               [{{ QUALITY_NAMES[modalInfo.quality] }}]
@@ -135,8 +135,8 @@
                 <span class="text-xs text-muted">{{ ing.name }}</span>
                 <span class="text-xs" :class="ing.enough ? '' : 'text-danger'">{{ ing.available }}/{{ ing.quantity }}</span>
               </div>
-              <p v-if="ing.cropUseText" class="text-[10px] text-muted/80 leading-snug">{{ ing.cropUseText }}</p>
-              <p v-if="ing.substitutionText" class="text-[10px] text-accent/80 leading-snug">{{ ing.substitutionText }}</p>
+              <p v-if="ing.cropUseText" class="text-[0.625rem] text-muted/80 leading-snug">{{ ing.cropUseText }}</p>
+              <p v-if="ing.substitutionText" class="text-[0.625rem] text-accent/80 leading-snug">{{ ing.substitutionText }}</p>
             </div>
           </div>
 
