@@ -427,6 +427,58 @@ export const useMiningStore = defineStore('mining', () => {
     return { success: true, message: '' }
   }
 
+  const normalizeMainMineStartSafePoint = (startFromSafePoint?: number): number => {
+    if (startFromSafePoint === undefined) return safePointFloor.value
+    const requested = Math.floor(Number(startFromSafePoint))
+    if (!Number.isFinite(requested) || requested < 0 || requested > safePointFloor.value || requested % 5 !== 0) {
+      return safePointFloor.value
+    }
+    return requested
+  }
+
+  const getMainMineEntryFloor = (startFromSafePoint?: number): number => {
+    return Math.min(normalizeMainMineStartSafePoint(startFromSafePoint) + 1, MAX_MINE_FLOOR)
+  }
+
+  const normalizeSkullCavernStartSafePoint = (startFromSafePoint?: number): number => {
+    if (startFromSafePoint === undefined) return skullSafePointFloor.value
+    const requested = Math.floor(Number(startFromSafePoint))
+    if (!Number.isFinite(requested) || requested < 0 || requested > skullSafePointFloor.value || requested % 10 !== 0) {
+      return skullSafePointFloor.value
+    }
+    return requested
+  }
+
+  const getSkullCavernEntryFloor = (startFromSafePoint?: number): number => {
+    return normalizeSkullCavernStartSafePoint(startFromSafePoint) + 1
+  }
+
+  const canRecordMainMineSafePoint = (floor: MineFloorDef | undefined): floor is MineFloorDef => {
+    if (!floor?.isSafePoint) return false
+    if (floor.specialType !== 'boss') return true
+    return stairsUsable.value && !hasPendingMainMineBossRewards(floor.floor)
+  }
+
+  const recordMainMineSafePoint = (floor = getActiveFloorData()): boolean => {
+    if (isInSkullCavern.value || !canRecordMainMineSafePoint(floor)) return false
+    if (floor.floor <= safePointFloor.value) return false
+    safePointFloor.value = floor.floor
+    return true
+  }
+
+  const canRecordSkullCavernSafePoint = (floor: SkullCavernFloorDef | null | undefined): floor is SkullCavernFloorDef => {
+    if (!floor?.isSafePoint) return false
+    if (floor.specialType !== 'boss') return true
+    return stairsUsable.value
+  }
+
+  const recordSkullCavernSafePoint = (floor = cachedSkullFloorData.value): boolean => {
+    if (!isInSkullCavern.value || !canRecordSkullCavernSafePoint(floor)) return false
+    if (floor.floor <= skullSafePointFloor.value) return false
+    skullSafePointFloor.value = floor.floor
+    return true
+  }
+
   /** 生成并缓存骷髅矿穴当前层数据 */
   const cacheSkullFloor = (floor: number) => {
     cachedSkullFloorData.value = generateSkullCavernFloor(floor)
@@ -978,8 +1030,7 @@ export const useMiningStore = defineStore('mining', () => {
   const enterMine = (startFromSafePoint?: number): string => {
     isExploring.value = true
     isInSkullCavern.value = false
-    const baseFloor = startFromSafePoint ?? safePointFloor.value
-    currentFloor.value = baseFloor + 1
+    currentFloor.value = getMainMineEntryFloor(startFromSafePoint)
     sessionLoot.value = []
 
     _generateGrid()
@@ -995,8 +1046,7 @@ export const useMiningStore = defineStore('mining', () => {
     if (!isSkullCavernUnlocked()) return '需要先击败60层BOSS才能进入骷髅矿穴。'
     isExploring.value = true
     isInSkullCavern.value = true
-    const baseFloor = startFromSafePoint ?? skullSafePointFloor.value
-    skullCavernFloor.value = baseFloor + 1
+    skullCavernFloor.value = getSkullCavernEntryFloor(startFromSafePoint)
     cacheSkullFloor(skullCavernFloor.value)
     sessionLoot.value = []
 
@@ -1365,6 +1415,12 @@ export const useMiningStore = defineStore('mining', () => {
       // 感染层清除奖励
       if (floor?.specialType === 'infested') {
         msg += grantInfestedClearRewards(getActiveFloorNum()).message
+      } else if (floor?.specialType === 'boss') {
+        if (isInSkullCavern.value) {
+          recordSkullCavernSafePoint()
+        } else {
+          recordMainMineSafePoint(floor)
+        }
       }
     } else if (floor?.specialType === 'infested') {
       const remaining = totalMonstersOnFloor.value - monstersDefeatedCount.value
@@ -1462,17 +1518,18 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     if (isInSkullCavern.value) {
+      recordSkullCavernSafePoint()
+    } else {
+      recordMainMineSafePoint()
+    }
+
+    if (isInSkullCavern.value) {
       // 骷髅矿穴：无上限，每10层安全点
       skullCavernFloor.value++
       cacheSkullFloor(skullCavernFloor.value)
       if (skullCavernFloor.value > skullCavernBestFloor.value) {
         skullCavernBestFloor.value = skullCavernFloor.value
         useAchievementStore().recordSkullCavernFloor(skullCavernFloor.value)
-      }
-      // 到达新安全点时保存
-      const skullFloor = cachedSkullFloorData.value
-      if (skullFloor?.isSafePoint && skullFloor.specialType !== 'boss' && skullCavernFloor.value > skullSafePointFloor.value) {
-        skullSafePointFloor.value = skullCavernFloor.value
       }
     } else {
       // 主矿洞：最多 120 层
@@ -1490,16 +1547,15 @@ export const useMiningStore = defineStore('mining', () => {
 
       currentFloor.value++
       useAchievementStore().recordMineFloor(currentFloor.value)
-
-      // 到达新的安全点时保存（只在到达更高层时更新，避免电梯返回低层后覆盖进度）
-      const newFloorData = getFloor(currentFloor.value)
-      if (newFloorData?.isSafePoint && newFloorData.specialType !== 'boss' && currentFloor.value > safePointFloor.value) {
-        safePointFloor.value = currentFloor.value
-      }
     }
 
     // 生成新层格子
     _generateGrid()
+    if (isInSkullCavern.value) {
+      recordSkullCavernSafePoint()
+    } else {
+      recordMainMineSafePoint()
+    }
 
     const activeFloorNum = getActiveFloorNum()
     const newFloor = getActiveFloorData()
@@ -1526,17 +1582,11 @@ export const useMiningStore = defineStore('mining', () => {
 
     // 离开前保存安全点（防止玩家到达安全点楼层后直接离开）
     if (!isInSkullCavern.value) {
-      const floor = getActiveFloorData()
-      if (floor?.isSafePoint && floor.specialType !== 'boss' && currentFloor.value > safePointFloor.value) {
-        safePointFloor.value = currentFloor.value
-      }
+      recordMainMineSafePoint()
     }
     // 骷髅矿穴：离开前保存安全点
     if (isInSkullCavern.value) {
-      const skullFloor = cachedSkullFloorData.value
-      if (skullFloor?.isSafePoint && skullFloor.specialType !== 'boss' && skullCavernFloor.value > skullSafePointFloor.value) {
-        skullSafePointFloor.value = skullCavernFloor.value
-      }
+      recordSkullCavernSafePoint()
     }
     isExploring.value = false
     combatIsBoss.value = false
@@ -1844,6 +1894,8 @@ export const useMiningStore = defineStore('mining', () => {
     // 方法
     isSkullCavernUnlocked,
     getActiveFloorData,
+    getMainMineEntryFloor,
+    getSkullCavernEntryFloor,
     getUnlockedSafePoints,
     getUnlockedSkullSafePoints,
     canRevealTile,

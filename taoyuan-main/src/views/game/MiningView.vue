@@ -98,7 +98,7 @@
         <Pickaxe :size="14" class="text-accent" />
         <span class="text-sm text-accent">探索</span>
       </div>
-      <span class="text-xs text-muted">第{{ miningStore.safePointFloor + 1 }}层</span>
+      <span class="text-xs text-muted">第{{ miningStore.getMainMineEntryFloor() }}层</span>
     </div>
 
     <!-- 已击败BOSS -->
@@ -189,7 +189,7 @@
             @click="handleEnterMine(undefined)"
           >
             <span class="text-xs text-accent">进入矿洞</span>
-            <span class="text-xs text-muted">第{{ miningStore.safePointFloor + 1 }}层</span>
+            <span class="text-xs text-muted">第{{ miningStore.getMainMineEntryFloor() }}层</span>
           </div>
 
           <!-- 电梯楼层（按区域分组网格） -->
@@ -198,7 +198,7 @@
               <p class="text-[0.625rem] text-muted mb-1">{{ zone.name }}</p>
               <div class="flex flex-wrap space-x-1">
                 <Button v-for="sp in zone.floors" :key="sp" class="py-0.5 px-0 min-w-9 justify-center" @click="handleEnterMine(sp)">
-                  {{ sp + 1 }}
+                  {{ miningStore.getMainMineEntryFloor(sp) }}
                 </Button>
               </div>
             </div>
@@ -214,7 +214,7 @@
                 <Skull :size="12" class="inline" />
                 进入骷髅矿穴
               </span>
-              <span class="text-xs text-muted">第{{ miningStore.skullSafePointFloor + 1 }}层</span>
+              <span class="text-xs text-muted">第{{ miningStore.getSkullCavernEntryFloor() }}层</span>
             </div>
             <!-- 骷髅矿穴安全点楼层 -->
             <div v-if="skullElevatorFloors.length > 0" class="flex flex-wrap space-x-1 mt-1.5">
@@ -224,7 +224,7 @@
                 class="py-0.5 px-0 min-w-9 justify-center !border-danger/30 !text-danger"
                 @click="handleEnterSkullCavern(sp)"
               >
-                {{ sp + 1 }}
+                {{ miningStore.getSkullCavernEntryFloor(sp) }}
               </Button>
             </div>
           </div>
@@ -762,7 +762,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
-  import { ZONE_NAMES, getFloor, BOSS_MONSTERS } from '@/data'
+  import { ZONE_NAMES, getFloor, BOSS_MONSTERS, MAX_MINE_FLOOR } from '@/data'
   import { getWeaponById, getEnchantmentById, getWeaponDisplayName, WEAPON_TYPE_NAMES } from '@/data/weapons'
   import { getRingById, getHatById, getShoeById } from '@/data'
   import type { EquipmentEffectType } from '@/types'
@@ -1037,12 +1037,20 @@
 
   /** 离开矿洞提示文案 */
   const leaveHint = computed(() => {
+    const floorData = miningStore.getActiveFloorData()
     if (miningStore.isInSkullCavern) {
-      const floorData = miningStore.getActiveFloorData()
-      if (floorData?.isSafePoint) return `当前为安全点，进度将保存至第${miningStore.skullCavernFloor}层。`
+      if (floorData?.isSafePoint && (floorData.specialType !== 'boss' || miningStore.stairsUsable)) {
+        return `当前为安全点，下次将从第${miningStore.skullCavernFloor + 1}层开始。`
+      }
+      if (floorData?.specialType === 'boss' && floorData.isSafePoint && !miningStore.stairsUsable) return 'BOSS层需击败后才会成为安全点。'
       const lastSafe = miningStore.skullSafePointFloor
       return lastSafe > 0 ? `下次将从第${lastSafe + 1}层开始。` : '当前进度不会保留。'
     }
+    if (floorData?.isSafePoint && (floorData.specialType !== 'boss' || miningStore.stairsUsable)) {
+      return `当前为安全点，下次将从第${Math.min(miningStore.currentFloor + 1, MAX_MINE_FLOOR)}层开始。`
+    }
+    if (floorData?.specialType === 'boss' && floorData.isSafePoint && !miningStore.stairsUsable) return 'BOSS层需击败后才会成为安全点。'
+    if (miningStore.safePointFloor > 0) return `下次将从第${miningStore.getMainMineEntryFloor()}层开始。`
     return '当前进度不会保留。'
   })
 
