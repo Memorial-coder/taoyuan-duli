@@ -654,7 +654,7 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
   },
   { id: 'chun_lan_quest_unlock', npcId: 'chun_lan', minStage: 'familiar', type: 'quest_unlock', summary: '春兰开始请你帮忙采集茶材和节庆筹备。' },
   { id: 'chun_lan_discount_1', npcId: 'chun_lan', minStage: 'friend', type: 'shop_discount', value: 0.04, summary: '茶庄熟客价 -4%' },
-  { id: 'chun_lan_item', npcId: 'chun_lan', minStage: 'bestie', type: 'item', itemReward: { itemId: 'osmanthus_tea', quantity: 1 }, summary: '春兰送来一份她亲手窨制的桂花茶。' },
+  { id: 'chun_lan_item', npcId: 'chun_lan', minStage: 'bestie', type: 'item', itemReward: { itemId: 'processed_osmanthus_tea', quantity: 1 }, summary: '春兰送来一份她亲手窨制的桂花茶。' },
   { id: 'xue_qin_quest_unlock', npcId: 'xue_qin', minStage: 'familiar', type: 'quest_unlock', summary: '雪琴开始请你帮忙跑腿和节庆布置。' },
   {
     id: 'xue_qin_clue',

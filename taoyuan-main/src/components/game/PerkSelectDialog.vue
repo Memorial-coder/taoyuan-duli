@@ -120,7 +120,7 @@
         { id: 'brute', name: '蛮力者', description: '攻击伤害+25%' }
       ],
       defender: [
-        { id: 'acrobat', name: '杂技师', description: '25%概率闪避反击' },
+        { id: 'acrobat', name: '杂技师', description: '25%概率闪避怪物反击' },
         { id: 'tank', name: '重甲者', description: '防御时伤害减少70%' }
       ]
     }
@@ -202,20 +202,20 @@
     },
     combat: {
       warrior: [
-        { id: 'sword_saint', name: '剑圣', description: '攻击必定触发暴击概率+20%' },
-        { id: 'berserker', name: '狂战士', description: '攻击伤害再+30%，但防御-10%' }
+        { id: 'sword_saint', name: '剑圣', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' },
+        { id: 'berserker', name: '狂战士', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' }
       ],
       brute: [
-        { id: 'sword_saint', name: '剑圣', description: '攻击必定触发暴击概率+20%' },
-        { id: 'berserker', name: '狂战士', description: '攻击伤害再+30%，但防御-10%' }
+        { id: 'sword_saint', name: '剑圣', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' },
+        { id: 'berserker', name: '狂战士', description: '生命上限+80，攻击伤害+55%，击杀回复10%生命' }
       ],
       acrobat: [
-        { id: 'phantom_blade', name: '幻影剑客', description: '闪避率提升至40%' },
-        { id: 'iron_fortress', name: '铁壁', description: '防御时伤害减免80%' }
+        { id: 'phantom_blade', name: '幻影剑客', description: '闪避率提升至40%，防御后恢复15HP' },
+        { id: 'iron_fortress', name: '铁壁', description: '防御时伤害减免85%，防御后恢复15HP' }
       ],
       tank: [
-        { id: 'phantom_blade', name: '幻影剑客', description: '闪避率提升至40%' },
-        { id: 'iron_fortress', name: '铁壁', description: '防御时伤害减免80%' }
+        { id: 'phantom_blade', name: '幻影剑客', description: '闪避率提升至40%，防御后恢复15HP' },
+        { id: 'iron_fortress', name: '铁壁', description: '防御时伤害减免85%，防御后恢复15HP' }
       ]
     }
   }
@@ -296,40 +296,45 @@
     },
     combat: {
       sword_saint: [
-        { id: 'war_god', name: '战神', description: '攻击伤害×2，暴击率+30%' },
-        { id: 'slaughter_king', name: '杀戮之王', description: '击杀敌人时恢复10%最大生命值' }
+        { id: 'war_god', name: '战神', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' },
+        { id: 'slaughter_king', name: '杀戮之王', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' }
       ],
       berserker: [
-        { id: 'war_god', name: '战神', description: '攻击伤害×2，暴击率+30%' },
-        { id: 'slaughter_king', name: '杀戮之王', description: '击杀敌人时恢复10%最大生命值' }
+        { id: 'war_god', name: '战神', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' },
+        { id: 'slaughter_king', name: '杀戮之王', description: '生命上限+150，攻击伤害×2，击杀回复20%生命' }
       ],
       phantom_blade: [
-        { id: 'shadow_sovereign', name: '暗影霸主', description: '闪避率60%，闪避后必定暴击' },
-        { id: 'indestructible', name: '不灭之躯', description: '受到致命伤时保留1HP，冷却60s' }
+        { id: 'shadow_sovereign', name: '暗影霸主', description: '闪避率80%，防御时伤害减免95%，防御后恢复15%生命' },
+        { id: 'indestructible', name: '不灭之躯', description: '防御时伤害减免95%，防御后恢复15%生命' }
       ],
       iron_fortress: [
-        { id: 'shadow_sovereign', name: '暗影霸主', description: '闪避率60%，闪避后必定暴击' },
-        { id: 'indestructible', name: '不灭之躯', description: '受到致命伤时保留1HP，冷却60s' }
+        { id: 'shadow_sovereign', name: '暗影霸主', description: '闪避率80%，防御时伤害减免95%，防御后恢复15%生命' },
+        { id: 'indestructible', name: '不灭之躯', description: '防御时伤害减免95%，防御后恢复15%生命' }
       ]
     }
   }
 
+  const filterAvailableOptions = (items: PerkOption[]) => {
+    const available = new Set(skillStore.getAvailablePerks(props.skillType, props.level))
+    return items.filter(option => available.has(option.id))
+  }
+
   const options = computed<PerkOption[]>(() => {
     const skill = skillStore.getSkill(props.skillType)
-    if (props.level === 5) return PERK5_OPTIONS[props.skillType]
+    if (props.level === 5) return filterAvailableOptions(PERK5_OPTIONS[props.skillType])
     if (props.level === 10) {
       const perk5 = skill.perk5
-      if (perk5) return PERK10_BRANCHES[props.skillType][perk5] ?? []
+      if (perk5) return filterAvailableOptions(PERK10_BRANCHES[props.skillType][perk5] ?? [])
       return []
     }
     if (props.level === 15) {
       const perk10 = skill.perk10
-      if (perk10) return PERK15_BRANCHES[props.skillType][perk10] ?? []
+      if (perk10) return filterAvailableOptions(PERK15_BRANCHES[props.skillType][perk10] ?? [])
       return []
     }
     if (props.level === 20) {
       const perk15 = skill.perk15
-      if (perk15) return PERK20_BRANCHES[props.skillType][perk15] ?? []
+      if (perk15) return filterAvailableOptions(PERK20_BRANCHES[props.skillType][perk15] ?? [])
       return []
     }
     return []

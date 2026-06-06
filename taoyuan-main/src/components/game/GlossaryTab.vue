@@ -96,27 +96,32 @@
                 :class="selectedId === entry.id ? 'border-accent/40 bg-accent/5' : 'border-accent/15 hover:bg-accent/5'"
                 @click="selectedId = entry.id"
               >
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <p class="text-xs font-medium break-words" :class="getCategoryColor(entry.category)" v-html="highlightText(entry.name)" />
-                    <div class="flex flex-wrap items-center gap-1 mt-0.5">
-                      <span class="text-[0.625rem] text-muted/70">{{ entry.categoryLabel }}</span>
-                      <span v-if="entry.spoiler" class="text-[0.625rem] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘</span>
+                <div class="flex items-start gap-2">
+                  <ItemIcon v-if="entry.itemId" :item="getItemById(entry.itemId)" size="sm" :show-badge="false" />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="min-w-0">
+                        <p class="text-xs font-medium break-words" :class="getCategoryColor(entry.category)" v-html="highlightText(entry.name)" />
+                        <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                          <span class="text-[0.625rem] text-muted/70">{{ entry.categoryLabel }}</span>
+                          <span v-if="entry.spoiler" class="text-[0.625rem] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘</span>
+                        </div>
+                      </div>
+                      <span class="text-[0.625rem] text-muted shrink-0">{{ entry.relatedPanels.length > 0 ? `${entry.relatedPanels.length} 个入口` : '资料' }}</span>
+                    </div>
+
+                    <p class="text-[0.625rem] text-muted mt-1 leading-relaxed line-clamp-2">{{ getPreviewText(entry) }}</p>
+
+                    <div class="flex flex-wrap gap-1 mt-1.5">
+                      <span
+                        v-for="tag in getIntentTags(entry)"
+                        :key="`${entry.id}_${tag}`"
+                        class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
+                      >
+                        {{ tag }}
+                      </span>
                     </div>
                   </div>
-                  <span class="text-[0.625rem] text-muted shrink-0">{{ entry.relatedPanels.length > 0 ? `${entry.relatedPanels.length} 个入口` : '资料' }}</span>
-                </div>
-
-                <p class="text-[0.625rem] text-muted mt-1 leading-relaxed line-clamp-2">{{ getPreviewText(entry) }}</p>
-
-                <div class="flex flex-wrap gap-1 mt-1.5">
-                  <span
-                    v-for="tag in getIntentTags(entry)"
-                    :key="`${entry.id}_${tag}`"
-                    class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
-                  >
-                    {{ tag }}
-                  </span>
                 </div>
               </button>
             </div>
@@ -133,11 +138,14 @@
       <div class="border border-accent/10 rounded-xs p-2 min-h-[18rem]">
         <template v-if="selectedEntry">
           <div class="flex flex-wrap items-start justify-between gap-2 mb-2">
-            <div>
-              <p class="text-sm" :class="getCategoryColor(selectedEntry.category)">{{ selectedEntry.name }}</p>
-              <div class="flex flex-wrap items-center gap-1 mt-0.5">
-                <span class="text-[0.625rem] text-muted">{{ selectedEntry.categoryLabel }}</span>
-                <span v-if="selectedEntry.spoiler" class="text-[0.625rem] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘词条</span>
+            <div class="flex items-start gap-2 min-w-0">
+              <ItemIcon v-if="selectedEntry.itemId" :item="getItemById(selectedEntry.itemId)" size="lg" :resolution="256" :show-badge="false" />
+              <div class="min-w-0">
+                <p class="text-sm break-words" :class="getCategoryColor(selectedEntry.category)">{{ selectedEntry.name }}</p>
+                <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                  <span class="text-[0.625rem] text-muted">{{ selectedEntry.categoryLabel }}</span>
+                  <span v-if="selectedEntry.spoiler" class="text-[0.625rem] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘词条</span>
+                </div>
               </div>
             </div>
             <div class="text-right">
@@ -218,8 +226,10 @@
   import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { Search, X, BookOpen } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { GLOSSARY, GLOSSARY_CATEGORY_LABELS, GLOSSARY_INTENT_LABELS } from '@/data/glossary'
+  import { getItemById } from '@/data/items'
   import type { GlossaryCategory, GlossaryEntry, GlossaryIntentKey, GlossaryOpenPreset } from '@/data/glossary'
 
   const props = defineProps<{

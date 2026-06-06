@@ -1240,7 +1240,7 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
     requiredItems: [
       { itemId: 'green_tea_drink', quantity: 2 },
       { itemId: 'chrysanthemum_tea', quantity: 2 },
-      { itemId: 'osmanthus_tea', quantity: 1 },
+      { itemId: 'processed_osmanthus_tea', quantity: 1 },
       { itemId: 'ginseng_tea', quantity: 1 }
     ],
     reward: { money: 1500, description: '1500文' }

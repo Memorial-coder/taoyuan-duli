@@ -846,7 +846,7 @@ const WILD_TREE_ITEMS: ItemDef[] = [
     edible: false
   },
   {
-    id: 'mulberry',
+    id: 'wild_mulberry',
     name: '桑葚',
     category: 'misc',
     description: '紫黑色的桑葚，酸甜可口。',
@@ -1105,7 +1105,7 @@ const TEA_DRINK_ITEMS: ItemDef[] = [
     healthRestore: 10
   },
   {
-    id: 'osmanthus_tea',
+    id: 'processed_osmanthus_tea',
     name: '桂花茶',
     category: 'processed',
     description: '馥郁芬芳的桂花茶。',
@@ -1754,7 +1754,7 @@ export const ITEMS: ItemDef[] = [
 
   // 结缘物品
   {
-    id: 'dragon_pearl',
+    id: 'spirit_dragon_pearl',
     name: '龙珠',
     category: 'misc',
     description: '以龙玉、月光石与棱彩碎片炼成的灵珠，是龙族至高的缘定信物。',
@@ -1820,6 +1820,65 @@ export const ITEMS: ItemDef[] = [
 /** 根据ID查找物品 */
 export const getItemById = (id: string): ItemDef | undefined => {
   return ITEMS.find(i => i.id === id)
+}
+
+export type LegacyItemIdMigrationContext =
+  | 'general'
+  | 'quest_reward'
+  | 'quest_combo_tea'
+  | 'processing_output'
+  | 'hidden_npc_bond'
+
+export const LEGACY_AMBIGUOUS_ITEM_ID_COMPATIBILITY = [
+  {
+    legacyId: 'osmanthus_tea',
+    retainedRuntimeMeaning: '作物：桂花茶',
+    splitRuntimeId: 'processed_osmanthus_tea',
+    splitRuntimeMeaning: '加工品：制茶机桂花茶',
+    migrationRule: '通用背包旧档保留作物身份；任务奖励、茶饮组合与加工产出迁移到 processed_osmanthus_tea。'
+  },
+  {
+    legacyId: 'dragon_pearl',
+    retainedRuntimeMeaning: '作物：龙珠',
+    splitRuntimeId: 'spirit_dragon_pearl',
+    splitRuntimeMeaning: '龙灵结缘信物',
+    migrationRule: '通用背包旧档保留作物身份；仙灵炉产出与龙灵结缘配置迁移到 spirit_dragon_pearl。'
+  },
+  {
+    legacyId: 'lychee',
+    retainedRuntimeMeaning: '作物：荔枝',
+    splitRuntimeId: 'tree_lychee',
+    splitRuntimeMeaning: '果树水果：荔枝',
+    migrationRule: '通用背包旧档保留作物身份；果树日结新产出使用 tree_lychee。'
+  },
+  {
+    legacyId: 'persimmon',
+    retainedRuntimeMeaning: '作物：柿子',
+    splitRuntimeId: 'tree_persimmon',
+    splitRuntimeMeaning: '果树水果：鲜柿',
+    migrationRule: '通用背包旧档保留作物身份；果树日结新产出使用 tree_persimmon。'
+  },
+  {
+    legacyId: 'mulberry',
+    retainedRuntimeMeaning: '作物：桑叶',
+    splitRuntimeId: 'wild_mulberry',
+    splitRuntimeMeaning: '觅食/野树材料：桑葚',
+    migrationRule: '通用背包旧档保留作物身份；觅食与野树种植新产出使用 wild_mulberry。'
+  }
+] as const
+
+export const migrateLegacyItemId = (
+  itemId: string,
+  context: LegacyItemIdMigrationContext = 'general'
+): string => {
+  if ((context === 'quest_reward' || context === 'quest_combo_tea' || context === 'processing_output') && itemId === 'osmanthus_tea') {
+    return 'processed_osmanthus_tea'
+  }
+  if ((context === 'processing_output' || context === 'hidden_npc_bond') && itemId === 'dragon_pearl') {
+    return 'spirit_dragon_pearl'
+  }
+  if (context === 'general') return itemId
+  return itemId
 }
 
 /** 物品分类默认来源 */
@@ -1900,7 +1959,8 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   ginseng: '秋季觅食',
   wild_berry: '夏季觅食',
   camphor_seed: '野树掉落',
-  mulberry: '桑树收获',
+  mulberry: '种植收获',
+  wild_mulberry: '觅食 / 桑树种植',
   pine_resin: '树液采集器',
   // 野树相关
   tapper: '合成制作',
@@ -1940,7 +2000,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   green_tea_drink: '加工制作',
   guest_green_tea: '制茶机加工',
   chrysanthemum_tea: '加工制作',
-  osmanthus_tea: '加工制作',
+  processed_osmanthus_tea: '加工制作',
   ginseng_tea: '加工制作',
   // 礼物
   jade_ring: '商店购买',
@@ -1999,7 +2059,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   fox_flame_lantern: '制作（狐仙求缘信物）',
   cultivation_jade: '制作（山翁求缘信物）',
   silver_thread_ring: '制作（归女求缘信物）',
-  dragon_pearl: '制作（龙灵结缘信物）',
+  spirit_dragon_pearl: '制作（龙灵结缘信物）',
   eternal_blossom: '制作（桃夭结缘信物）',
   moon_elixir: '制作（月兔结缘信物）',
   fox_spirit_bead: '制作（狐仙结缘信物）',

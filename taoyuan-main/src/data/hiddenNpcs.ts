@@ -100,7 +100,7 @@ export const HIDDEN_NPCS: HiddenNpcDef[] = [
     interactionType: 'meditation',
     bondable: true,
     courtshipItemId: 'dragon_scale_charm',
-    bondItemId: 'dragon_pearl',
+    bondItemId: 'spirit_dragon_pearl',
     courtshipThreshold: 1800,
     bondThreshold: 2500,
     heartEventIds: ['long_ling_heart_1', 'long_ling_heart_2', 'long_ling_heart_3'],

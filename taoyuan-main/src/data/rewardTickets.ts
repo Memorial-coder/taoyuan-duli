@@ -89,7 +89,7 @@ export const REWARD_TICKET_EXCHANGE_OFFERS: RewardTicketExchangeOffer[] = [
     counterLabel: '祠堂赏格',
     poolTags: ['关系礼物', '茶会陈设'],
     rewardItems: [
-      { itemId: 'osmanthus_tea', quantity: 2 },
+      { itemId: 'processed_osmanthus_tea', quantity: 2 },
       { itemId: 'pine_incense', quantity: 1 },
       { itemId: 'camphor_incense', quantity: 1 }
     ]

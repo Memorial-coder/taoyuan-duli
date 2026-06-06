@@ -234,9 +234,11 @@
           :class="quest.isUrgent ? 'border border-red-500/50 bg-red-500/5 hover:bg-red-500/10' : 'border border-accent/20 hover:bg-accent/5'"
           @click="questModal = { type: 'board', questId: quest.id }"
         >
-          <div class="min-w-0">
-            <p class="text-xs truncate min-w-0" :class="quest.isUrgent ? 'text-red-400' : ''">{{ quest.description }}</p>
-            <div class="flex flex-wrap gap-1 mt-0.5">
+          <div class="flex min-w-0 items-start gap-2">
+            <ItemIcon :item="getItemById(quest.targetItemId)" size="sm" :show-badge="false" />
+            <div class="min-w-0">
+              <p class="text-xs truncate min-w-0" :class="quest.isUrgent ? 'text-red-400' : ''">{{ quest.description }}</p>
+              <div class="flex flex-wrap gap-1 mt-0.5">
               <span v-if="questStore.hasCompletedQuestHistory(quest)" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
                 做过同类
               </span>
@@ -255,12 +257,13 @@
               <span v-if="quest.relationshipStageRequired" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
                 需{{ getStageLabel(quest.relationshipStageRequired) }}
               </span>
+              </div>
+              <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
+              <p v-if="getQuestRewardPreview(quest)" class="text-[0.625rem] text-muted/70 mt-0.5 truncate">{{ getQuestRewardPreview(quest) }}</p>
+              <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
             </div>
-            <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
-            <p v-if="getQuestRewardPreview(quest)" class="text-[0.625rem] text-muted/70 mt-0.5 truncate">{{ getQuestRewardPreview(quest) }}</p>
-            <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
           </div>
-          <span class="text-xs whitespace-nowrap ml-2" :class="quest.isUrgent ? 'text-red-400' : 'text-accent'">{{ quest.moneyReward }}文</span>
+          <span class="text-xs whitespace-nowrap ml-2" :class="quest.isUrgent ? 'text-red-400' : 'text-accent'">{{ getQuestMoneyPreviewLabel(quest) }}</span>
         </div>
       </div>
     </div>
@@ -296,7 +299,7 @@
               </div>
               <p v-if="questStore.specialOrder.demandHint" class="text-[0.625rem] text-muted/70 mt-0.5 truncate">{{ questStore.specialOrder.demandHint }}</p>
         </div>
-        <span class="text-xs text-accent whitespace-nowrap ml-2">{{ questStore.specialOrder.moneyReward }}文</span>
+        <span class="text-xs text-accent whitespace-nowrap ml-2">{{ getQuestMoneyPreviewLabel(questStore.specialOrder) }}</span>
       </div>
     </div>
 
@@ -352,36 +355,39 @@
           @click="questModal = { type: 'active', questId: quest.id }"
         >
           <div class="flex items-center justify-between">
-            <div class="min-w-0">
-              <p class="text-xs truncate min-w-0">{{ quest.description }}</p>
-              <div class="flex flex-wrap gap-1 mt-0.5" v-if="quest.isUrgent || quest.sourceCategory || quest.relationshipStageRequired || quest.themeTag || quest.bonusSummary?.length || quest.activitySourceLabel || quest.orderScoreRule">
-                <span v-if="quest.variantLabel" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
-                  {{ quest.variantLabel }}
-                </span>
-                <span v-if="quest.rumorTask" class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning">
-                  传闻轻任务
-                </span>
-                <span v-if="quest.isUrgent" class="text-[0.625rem] px-1 rounded-xs border border-red-500/40 text-red-400">
-                  紧急委托
-                </span>
-                <span v-if="quest.themeTag" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
-                  {{ getThemeLabel(quest.themeTag) }}
-                </span>
-                <span v-if="quest.activitySourceLabel" class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning">
-                  {{ quest.activitySourceLabel }}
-                </span>
-                <span v-if="quest.orderScoreRule" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
-                  {{ getOrderStageTypeLabel(quest.orderStageType) }}
-                </span>
-                <span v-if="quest.sourceCategory" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
-                  {{ getCategoryLabel(quest.sourceCategory) }}
-                </span>
-                <span v-if="quest.relationshipStageRequired" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
-                  {{ getStageLabel(quest.relationshipStageRequired) }}
-                </span>
+            <div class="flex min-w-0 items-start gap-2">
+              <ItemIcon :item="getItemById(quest.targetItemId)" size="sm" :show-badge="false" :silhouette="!canSubmit(quest)" />
+              <div class="min-w-0">
+                <p class="text-xs truncate min-w-0">{{ quest.description }}</p>
+                <div class="flex flex-wrap gap-1 mt-0.5" v-if="quest.isUrgent || quest.sourceCategory || quest.relationshipStageRequired || quest.themeTag || quest.bonusSummary?.length || quest.activitySourceLabel || quest.orderScoreRule">
+                  <span v-if="quest.variantLabel" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
+                    {{ quest.variantLabel }}
+                  </span>
+                  <span v-if="quest.rumorTask" class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning">
+                    传闻轻任务
+                  </span>
+                  <span v-if="quest.isUrgent" class="text-[0.625rem] px-1 rounded-xs border border-red-500/40 text-red-400">
+                    紧急委托
+                  </span>
+                  <span v-if="quest.themeTag" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
+                    {{ getThemeLabel(quest.themeTag) }}
+                  </span>
+                  <span v-if="quest.activitySourceLabel" class="text-[0.625rem] px-1 rounded-xs border border-warning/20 text-warning">
+                    {{ quest.activitySourceLabel }}
+                  </span>
+                  <span v-if="quest.orderScoreRule" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
+                    {{ getOrderStageTypeLabel(quest.orderStageType) }}
+                  </span>
+                  <span v-if="quest.sourceCategory" class="text-[0.625rem] px-1 rounded-xs border border-success/20 text-success">
+                    {{ getCategoryLabel(quest.sourceCategory) }}
+                  </span>
+                  <span v-if="quest.relationshipStageRequired" class="text-[0.625rem] px-1 rounded-xs border border-accent/20 text-accent">
+                    {{ getStageLabel(quest.relationshipStageRequired) }}
+                  </span>
+                </div>
+                <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
+                <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
               </div>
-              <p v-if="quest.sourceLabel" class="text-[0.625rem] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
-              <p v-if="getQuestRelationshipPreview(quest)" class="text-[0.625rem] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
             </div>
             <span class="text-xs whitespace-nowrap ml-2" :class="canSubmit(quest) ? 'text-success' : 'text-muted'">
               {{ canSubmit(quest) ? '可提交' : `剩${quest.daysRemaining}天` }}
@@ -397,7 +403,10 @@
             <span class="text-xs text-muted">{{ getEffectiveProgress(quest) }}/{{ getQuestProgressMax(quest) }}</span>
           </div>
           <div v-else class="mt-0.5">
-            <span class="text-xs text-muted">背包 {{ inventoryStore.getItemCount(quest.targetItemId) }}/{{ quest.targetQuantity }}</span>
+            <span class="inline-flex items-center gap-1.5 text-xs text-muted">
+              <ItemIcon :item="getItemById(quest.targetItemId)" size="xs" :show-badge="false" />
+              背包 {{ inventoryStore.getItemCount(quest.targetItemId) }}/{{ quest.targetQuantity }}
+            </span>
           </div>
         </div>
       </div>
@@ -458,10 +467,17 @@
               <p class="text-xs">
                 {{ mainQuestDef.moneyReward }}文
                 <template v-if="mainQuestDef.friendshipReward?.length">+ 好感</template>
-                <template v-if="mainQuestDef.itemReward?.length">
-                  + {{ mainQuestDef.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
-                </template>
               </p>
+              <div v-if="mainQuestDef.itemReward?.length" class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="reward in mainQuestDef.itemReward"
+                  :key="reward.itemId"
+                  class="inline-flex items-center gap-1 rounded-xs border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted"
+                >
+                  <ItemIcon :item="getItemById(reward.itemId)" size="xs" :show-badge="false" />
+                  {{ getItemName(reward.itemId) }}×{{ reward.quantity }}
+                </span>
+              </div>
             </div>
             <Button
               v-if="!questStore.mainQuest?.accepted"
@@ -510,11 +526,24 @@
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">目标</p>
-              <p class="text-xs">{{ selectedBoardQuest.targetItemName }} × {{ selectedBoardQuest.targetQuantity }}</p>
+              <p class="inline-flex items-center gap-1.5 text-xs">
+                <ItemIcon :item="getItemById(selectedBoardQuest.targetItemId)" size="sm" :show-badge="false" />
+                {{ selectedBoardQuest.targetItemName }} × {{ selectedBoardQuest.targetQuantity }}
+              </p>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
               <p class="text-xs text-muted mb-1">奖励</p>
-              <p class="text-xs">{{ selectedBoardQuest.moneyReward }}文 + 好感{{ selectedBoardQuest.friendshipReward }}</p>
+              <p class="text-xs">{{ getQuestRewardPrimaryLine(selectedBoardQuest) }}</p>
+              <div v-if="selectedBoardQuest.itemReward?.length" class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="reward in selectedBoardQuest.itemReward"
+                  :key="reward.itemId"
+                  class="inline-flex items-center gap-1 rounded-xs border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted"
+                >
+                  <ItemIcon :item="getItemById(reward.itemId)" size="xs" :show-badge="false" />
+                  {{ getItemName(reward.itemId) }}×{{ reward.quantity }}
+                </span>
+              </div>
               <p v-if="getQuestRewardDetails(selectedBoardQuest).length > 0" class="text-[0.625rem] text-accent mt-1 leading-4">
                 {{ getQuestRewardDetails(selectedBoardQuest).join('；') }}
               </p>
@@ -550,7 +579,10 @@
             <p class="text-xs leading-relaxed mb-2">{{ questStore.specialOrder.description }}</p>
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">目标</p>
-              <p class="text-xs">{{ getQuestTargetSummary(questStore.specialOrder) }}</p>
+              <p class="inline-flex items-center gap-1.5 text-xs">
+                <ItemIcon :item="getItemById(questStore.specialOrder.targetItemId)" size="sm" :show-badge="false" />
+                {{ getQuestTargetSummary(questStore.specialOrder) }}
+              </p>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mb-2" v-if="questStore.specialOrder.demandHint || questStore.specialOrder.recommendedHybridIds?.length || questStore.specialOrder.preferredSeasons?.length">
               <p class="text-xs text-muted mb-1">需求提示</p>
@@ -589,11 +621,18 @@
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
               <p class="text-xs text-muted mb-1">奖励</p>
               <p class="text-xs">
-                {{ questStore.specialOrder.moneyReward }}文 + 好感{{ questStore.specialOrder.friendshipReward }}
-                <template v-if="questStore.specialOrder.itemReward?.length">
-                  + {{ questStore.specialOrder.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
-                </template>
+                {{ getQuestRewardPrimaryLine(questStore.specialOrder) }}
               </p>
+              <div v-if="questStore.specialOrder.itemReward?.length" class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="reward in questStore.specialOrder.itemReward"
+                  :key="reward.itemId"
+                  class="inline-flex items-center gap-1 rounded-xs border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted"
+                >
+                  <ItemIcon :item="getItemById(reward.itemId)" size="xs" :show-badge="false" />
+                  {{ getItemName(reward.itemId) }}×{{ reward.quantity }}
+                </span>
+              </div>
               <p v-if="getQuestRewardDetails(questStore.specialOrder).length > 0" class="text-[0.625rem] text-accent mt-1 leading-4">
                 {{ getQuestRewardDetails(questStore.specialOrder).join('；') }}
               </p>
@@ -677,7 +716,8 @@
                   {{ getEffectiveProgress(selectedActiveQuest) }}/{{ getQuestProgressMax(selectedActiveQuest) }}
                 </span>
               </div>
-              <p v-else class="text-xs">
+              <p v-else class="inline-flex items-center gap-1.5 text-xs">
+                <ItemIcon :item="getItemById(selectedActiveQuest.targetItemId)" size="sm" :show-badge="false" />
                 背包中 {{ inventoryStore.getItemCount(selectedActiveQuest.targetItemId) }}/{{ selectedActiveQuest.targetQuantity }}
               </p>
             </div>
@@ -688,11 +728,18 @@
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
               <p class="text-xs text-muted mb-1">奖励</p>
               <p class="text-xs">
-                {{ selectedActiveQuest.moneyReward }}文 + 好感{{ selectedActiveQuest.friendshipReward }}
-                <template v-if="selectedActiveQuest.itemReward?.length">
-                  + {{ selectedActiveQuest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
-                </template>
+                {{ getQuestRewardPrimaryLine(selectedActiveQuest) }}
               </p>
+              <div v-if="selectedActiveQuest.itemReward?.length" class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="reward in selectedActiveQuest.itemReward"
+                  :key="reward.itemId"
+                  class="inline-flex items-center gap-1 rounded-xs border border-accent/10 px-1.5 py-0.5 text-[0.625rem] text-muted"
+                >
+                  <ItemIcon :item="getItemById(reward.itemId)" size="xs" :show-badge="false" />
+                  {{ getItemName(reward.itemId) }}×{{ reward.quantity }}
+                </span>
+              </div>
               <p v-if="getQuestRewardDetails(selectedActiveQuest).length > 0" class="text-[0.625rem] text-accent mt-1 leading-4">
                 {{ getQuestRewardDetails(selectedActiveQuest).join('；') }}
               </p>
@@ -722,10 +769,11 @@
   import { RouterLink, useRoute } from 'vue-router'
   import { ClipboardList, Calendar, Clock, Plus, CheckCircle, CircleCheck, Circle, Star, BookOpen, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
-  import type { QuestInstance, RelationshipStage, VillagerQuestCategory } from '@/types'
+  import type { QuestInstance, RelationshipStage, RewardTicketType, VillagerQuestCategory } from '@/types'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useNpcStore } from '@/stores/useNpcStore'
@@ -801,39 +849,101 @@
     return stage ? STAGE_LABELS[stage] : '认识'
   }
 
+  const formatMultiplier = (value: number): string => {
+    const normalized = Number.isFinite(value) ? value : 1
+    return Number.isInteger(normalized) ? normalized.toFixed(0) : normalized.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+  }
+
+  const formatRewardTickets = (rewards: Partial<Record<RewardTicketType, number>> | undefined): string => {
+    if (!rewards) return ''
+    return Object.entries(rewards)
+      .filter((entry): entry is [RewardTicketType, number] => Number(entry[1]) > 0)
+      .map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType] ?? ticketType}×${amount}`)
+      .join('、')
+  }
+
+  const getQuestRewardPrimaryLine = (quest: QuestInstance | null | undefined): string => {
+    const preview = questStore.getQuestRewardPreviewModel(quest)
+    if (!preview) return ''
+    const parts = [`${preview.finalMoneyReward}文`]
+    if (preview.finalFriendshipReward !== 0) {
+      parts.push(`好感+${preview.finalFriendshipReward}`)
+    }
+    const baseParts: string[] = []
+    if (preview.finalMoneyReward !== preview.baseMoneyReward) {
+      baseParts.push(`基础${preview.baseMoneyReward}文`)
+    }
+    if (preview.finalFriendshipReward !== preview.baseFriendshipReward) {
+      baseParts.push(`基础好感${preview.baseFriendshipReward}`)
+    }
+    return baseParts.length > 0 ? `${parts.join(' + ')}（${baseParts.join('，')}）` : parts.join(' + ')
+  }
+
+  const getQuestMoneyPreviewLabel = (quest: QuestInstance | null | undefined): string => {
+    const preview = questStore.getQuestRewardPreviewModel(quest)
+    return preview ? `${preview.finalMoneyReward}文` : ''
+  }
+
   const getQuestRewardDetails = (quest: QuestInstance | null | undefined): string[] => {
-    if (!quest) return []
+    const preview = questStore.getQuestRewardPreviewModel(quest)
+    if (!quest || !preview) return []
     const details: string[] = []
     if (quest.rewardProfileId) {
       const profile = getSpecialOrderRewardProfile(quest.rewardProfileId)
       details.push(`奖励档案：${profile?.label ?? quest.rewardProfileId}`)
     }
-    if (quest.ticketReward && Object.keys(quest.ticketReward).length > 0) {
-      details.push(`票券：${Object.entries(quest.ticketReward).map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType}×${amount}`).join('、')}`)
+    if (preview.villageMoneyBonus > 0) {
+      details.push(`村庄项目：铜钱+${preview.villageMoneyBonus}`)
     }
-    if (quest.itemReward?.length) {
-      details.push(`物品：${quest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
+    if (preview.serviceMoneyRewardMultiplier !== 1) {
+      details.push(`服务合同：铜钱×${formatMultiplier(preview.serviceMoneyRewardMultiplier)}`)
     }
-    if (quest.recipeReward?.length) {
-      details.push(`食谱：${quest.recipeReward.join('、')}`)
+    if (preview.villageFriendshipBonus !== 0) {
+      details.push(`村庄项目：好感${preview.villageFriendshipBonus > 0 ? '+' : ''}${preview.villageFriendshipBonus}`)
     }
-    if (quest.buildingClueText) {
+    if (preview.specialOrderRank && preview.specialOrderScore != null) {
+      details.push(
+        `特殊订单预计：${preview.specialOrderRank}档 ${preview.specialOrderScore}分` +
+          `${preview.specialOrderThresholdLabel ? ` · ${preview.specialOrderThresholdLabel}` : ''}` +
+          ` · 铜钱×${formatMultiplier(preview.specialOrderMoneyMultiplier)}`
+      )
+    }
+    if (preview.specialOrderMoneyMultiplierRange && preview.specialOrderMoneyMultiplierRange.max > preview.specialOrderMoneyMultiplierRange.min) {
+      details.push(
+        `评分倍率范围：铜钱×${formatMultiplier(preview.specialOrderMoneyMultiplierRange.min)}~${formatMultiplier(preview.specialOrderMoneyMultiplierRange.max)}`
+      )
+    }
+    const ticketText = formatRewardTickets(preview.finalTicketReward)
+    if (ticketText) {
+      details.push(`票券：${ticketText}`)
+    }
+    if (preview.itemReward.length) {
+      details.push(`物品：${preview.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
+    }
+    if (preview.recipeReward.length) {
+      details.push(`食谱：${preview.recipeReward.join('、')}`)
+    }
+    if (preview.hasBuildingClue) {
       details.push('附带生活/建筑线索')
     }
     return details
   }
 
   const getQuestRewardPreview = (quest: QuestInstance | null | undefined): string => {
-    if (!quest) return ''
-    const parts: string[] = [`奖励：${quest.moneyReward}文`]
-    if (quest.friendshipReward) {
-      parts.push(`好感+${quest.friendshipReward}`)
+    const preview = questStore.getQuestRewardPreviewModel(quest)
+    if (!quest || !preview) return ''
+    const parts: string[] = [`预计：${getQuestRewardPrimaryLine(quest)}`]
+    const ticketText = formatRewardTickets(preview.finalTicketReward)
+    if (ticketText) {
+      parts.push(`票券${ticketText}`)
     }
-    if (quest.ticketReward && Object.keys(quest.ticketReward).length > 0) {
-      parts.push(`票券${Object.entries(quest.ticketReward).map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType}×${amount}`).join('、')}`)
+    if (preview.specialOrderRank && preview.specialOrderScore != null) {
+      parts.push(`评分${preview.specialOrderRank}档`)
+    } else if (preview.specialOrderMoneyMultiplierRange && preview.specialOrderMoneyMultiplierRange.max > preview.specialOrderMoneyMultiplierRange.min) {
+      parts.push(`评分倍率×${formatMultiplier(preview.specialOrderMoneyMultiplierRange.min)}~${formatMultiplier(preview.specialOrderMoneyMultiplierRange.max)}`)
     }
-    if (quest.itemReward?.length) {
-      parts.push(`物品${quest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
+    if (preview.itemReward.length) {
+      parts.push(`物品${preview.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
     }
     return parts.join(' · ')
   }

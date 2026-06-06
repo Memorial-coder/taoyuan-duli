@@ -111,6 +111,27 @@ const addOutcome = (
   }
 })
 
+type JourneyGuildOutcomeInput = {
+  guildAttackBonus: number
+  guildBadgeBonusAttack: number
+  guildBonusDefense: number
+}
+
+export const getJourneyGuildOutcomePatch = ({
+  guildAttackBonus,
+  guildBadgeBonusAttack,
+  guildBonusDefense
+}: JourneyGuildOutcomeInput): Partial<JourneyOutcomeModifiers> => ({
+  bossPressureResist: guildAttackBonus / 120 + guildBadgeBonusAttack / 220 + guildBonusDefense * 0.16,
+  rewardMultiplier: guildAttackBonus / 200,
+  carryBonus: Math.floor(guildBadgeBonusAttack / 10)
+})
+
+export const applyJourneyGuildOutcomePatch = (
+  outcome: JourneyOutcomeModifiers,
+  guildOutcome: JourneyGuildOutcomeInput
+): JourneyOutcomeModifiers => addOutcome(outcome, getJourneyGuildOutcomePatch(guildOutcome))
+
 const countUnlockedPerks = (skill: SkillPerkState): number =>
   [skill.perk5, skill.perk10, skill.perk15, skill.perk20].filter(Boolean).length
 
@@ -284,14 +305,10 @@ export const buildJourneyBuildSnapshot = (
     })
   }
 
-  outcome = addOutcome(outcome, {
-    bossPressureResist:
-      outcome.bossPressureResist +
-      guildStore.getGuildAttackBonus() / 120 +
-      miningStore.guildBadgeBonusAttack / 220 +
-      miningStore.guildBonusDefense * 0.16,
-    rewardMultiplier: guildStore.getGuildAttackBonus() / 200,
-    carryBonus: Math.floor(miningStore.guildBadgeBonusAttack / 10)
+  outcome = applyJourneyGuildOutcomePatch(outcome, {
+    guildAttackBonus: guildStore.getGuildAttackBonus(),
+    guildBadgeBonusAttack: miningStore.guildBadgeBonusAttack,
+    guildBonusDefense: miningStore.guildBonusDefense
   })
 
   for (const awakening of JOURNEY_AWAKENINGS) {

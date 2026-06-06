@@ -149,6 +149,9 @@ export const getExpectedIncomingDamage = (
 export const getLifestealHeal = (damage: number, lifesteal: number | undefined | null) =>
   Math.max(0, Math.floor(Math.max(0, damage) * clampChance(lifesteal)))
 
+export const getEffectiveDamage = (targetHpBefore: number, damage: number) =>
+  Math.min(Math.max(0, toFiniteNumber(targetHpBefore, 0)), Math.max(0, toFiniteNumber(damage, 0)))
+
 export const getDefendHeal = ({
   maxHp,
   healFlat,

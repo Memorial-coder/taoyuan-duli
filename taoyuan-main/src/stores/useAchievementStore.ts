@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { AchievementDef, AchievementCondition } from '@/types'
 import { ACHIEVEMENTS, COMMUNITY_BUNDLES } from '@/data/achievements'
-import { ITEMS } from '@/data/items'
+import { ITEMS, migrateLegacyItemId } from '@/data/items'
 import { HYBRID_DEFS } from '@/data/breeding'
 import { FISH } from '@/data/fish'
 import { usePlayerStore } from './usePlayerStore'
@@ -437,7 +437,16 @@ export const useAchievementStore = defineStore('achievement', () => {
       ? ((data as Record<string, unknown>).cookedRecipeIds as unknown[]).filter((id): id is string => typeof id === 'string')
       : []
     completedAchievements.value = data.completedAchievements ?? []
-    bundleSubmissions.value = data.bundleSubmissions ?? {}
+    bundleSubmissions.value = Object.fromEntries(
+      Object.entries(data.bundleSubmissions ?? {}).map(([bundleId, submissions]) => {
+        const migratedSubmissions: Record<string, number> = {}
+        for (const [itemId, quantity] of Object.entries(submissions ?? {})) {
+          const migratedItemId = migrateLegacyItemId(itemId, 'quest_reward')
+          migratedSubmissions[migratedItemId] = (migratedSubmissions[migratedItemId] ?? 0) + Math.max(0, Number(quantity) || 0)
+        }
+        return [bundleId, migratedSubmissions]
+      })
+    )
     completedBundles.value = data.completedBundles ?? []
     stats.value = data.stats ?? {
       totalCropsHarvested: 0,

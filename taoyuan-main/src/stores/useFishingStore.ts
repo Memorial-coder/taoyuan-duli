@@ -71,6 +71,38 @@ const TREASURE_POOL: { itemId: string | null; weight: number; minQty: number; ma
   { itemId: null, weight: 10, minQty: 50, maxQty: 200 }
 ]
 
+type FishingTreasureChanceInput = {
+  fishingLevel: number
+  activeBuff?: { type?: string; value?: number } | null
+  ringTreasureFind?: number
+  ringLuck?: number
+  blessingTreasureFind?: number
+  blessingLuck?: number
+  environmentTreasureChanceBonus?: number
+}
+
+const toFiniteNumber = (value: number | undefined | null) => (Number.isFinite(value) ? Number(value) : 0)
+
+export const getFishingLuckBuffChance = (activeBuff: FishingTreasureChanceInput['activeBuff']) =>
+  activeBuff?.type === 'luck' ? Math.max(0, toFiniteNumber(activeBuff.value) / 100) : 0
+
+export const getFishingTreasureChestChance = ({
+  fishingLevel,
+  activeBuff,
+  ringTreasureFind = 0,
+  ringLuck = 0,
+  blessingTreasureFind = 0,
+  blessingLuck = 0,
+  environmentTreasureChanceBonus = 0
+}: FishingTreasureChanceInput) =>
+  0.15 +
+  Math.max(0, toFiniteNumber(fishingLevel)) * 0.01 +
+  getFishingLuckBuffChance(activeBuff) +
+  toFiniteNumber(ringTreasureFind) +
+  toFiniteNumber(blessingTreasureFind) +
+  (toFiniteNumber(ringLuck) + toFiniteNumber(blessingLuck)) * 0.3 +
+  toFiniteNumber(environmentTreasureChanceBonus)
+
 export const useFishingStore = defineStore('fishing', () => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
@@ -600,19 +632,19 @@ export const useFishingStore = defineStore('fishing', () => {
   /** 钓鱼宝箱 */
   const rollTreasureChest = (): TreasureResult | null => {
     const cookingStore = useCookingStore()
-    const luckBuff = cookingStore.activeBuff?.type === 'luck' ? 0.05 : 0
     const ringTreasureFind = inventoryStore.getRingEffectValue('treasure_find')
     const ringLuck = inventoryStore.getRingEffectValue('luck')
     const blessingTreasureFind = skillStore.getBlessingEffectValue('treasure_find')
     const blessingLuck = skillStore.getBlessingEffectValue('luck')
-    const chance =
-      0.15 +
-      skillStore.fishingLevel * 0.01 +
-      luckBuff +
-      ringTreasureFind +
-      blessingTreasureFind +
-      (ringLuck + blessingLuck) * 0.3 +
-      environmentWindow.value.fishing.treasureChanceBonus
+    const chance = getFishingTreasureChestChance({
+      fishingLevel: skillStore.fishingLevel,
+      activeBuff: cookingStore.activeBuff,
+      ringTreasureFind,
+      ringLuck,
+      blessingTreasureFind,
+      blessingLuck,
+      environmentTreasureChanceBonus: environmentWindow.value.fishing.treasureChanceBonus
+    })
     if (Math.random() >= chance) return null
 
     // 随机1-2个奖品

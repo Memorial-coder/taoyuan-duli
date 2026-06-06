@@ -1717,7 +1717,7 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     name: '桂花茶',
     inputItemId: 'osmanthus',
     inputQuantity: 2,
-    outputItemId: 'osmanthus_tea',
+    outputItemId: 'processed_osmanthus_tea',
     outputQuantity: 1,
     processingDays: 1,
     description: '馥郁芬芳的桂花茶。'
@@ -2483,7 +2483,7 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
       { itemId: 'moonstone', quantity: 2 },
       { itemId: 'prismatic_shard', quantity: 1 }
     ],
-    outputItemId: 'dragon_pearl',
+    outputItemId: 'spirit_dragon_pearl',
     outputQuantity: 1,
     processingDays: 7,
     description: '以龙玉、月光石与五彩碎片炼成的灵珠，是龙族至高的缘定信物。'

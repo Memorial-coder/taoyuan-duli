@@ -128,9 +128,12 @@
                 :key="`recommend-${option.key}`"
                 class="flex items-start justify-between gap-2 py-0.5"
               >
-                <div class="min-w-0">
-                  <p class="text-xs text-text truncate">{{ option.displayName }}</p>
-                  <p class="text-[0.625rem] text-muted leading-snug">{{ option.recommendationText }}</p>
+                <div class="flex min-w-0 items-center gap-2">
+                  <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                  <div class="min-w-0">
+                    <p class="text-xs text-text truncate">{{ option.displayName }}</p>
+                    <p class="text-[0.625rem] text-muted leading-snug">{{ option.recommendationText }}</p>
+                  </div>
                 </div>
                 <span class="text-[0.625rem] text-accent/80 shrink-0">{{ !option.disabled ? '可开工' : option.alchemyBlocked ? '今日已满' : '缺材料' }}</span>
               </div>
@@ -160,7 +163,8 @@
                       :data-testid="`processing-recipe-${option.recipeId}`"
                       @click="handleStartProcessing(originalIndex, option.recipeId, option.quality)"
                     >
-                      {{ option.displayName }}
+                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                      <span class="truncate">{{ option.displayName }}</span>
                       <span
                         v-if="option.qualityLabel"
                         :class="{
@@ -186,12 +190,15 @@
                       :data-testid="`processing-recipe-${option.recipeId}`"
                       @click="handleStartProcessing(originalIndex, option.recipeId)"
                     >
-                      {{ option.displayName }}
+                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                      <span class="truncate">{{ option.displayName }}</span>
                       <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
-                      <span v-if="option.inputItemName" class="text-muted">
+                      <span v-if="option.inputItemName" class="inline-flex items-center gap-1 text-muted">
+                        <ItemIcon :item="option.inputItem" size="xs" :show-badge="false" />
                         ({{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }})
                       </span>
-                      <span v-for="extra in option.extraInputs" :key="extra.key" class="text-muted">
+                      <span v-for="extra in option.extraInputs" :key="extra.key" class="inline-flex items-center gap-1 text-muted">
+                        <ItemIcon :item="extra.item" size="xs" :show-badge="false" />
                         +{{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
                       </span>
                       <span v-if="option.alchemyLimitText" class="text-muted">
@@ -215,7 +222,10 @@
               <!-- 加工中 -->
               <div v-else-if="!slot.ready" :data-testid="`processing-slot-running-${slot.recipeId}`">
                 <div class="flex items-center justify-between text-xs mb-1">
-                  <span class="text-muted">{{ getRecipeName(slot.recipeId) }}</span>
+                  <span class="inline-flex min-w-0 items-center gap-1.5 text-muted">
+                    <ItemIcon :item="getRecipeOutputItem(slot.recipeId)" size="xs" :show-badge="false" />
+                    <span class="truncate">{{ getRecipeName(slot.recipeId) }}</span>
+                  </span>
                   <span class="text-muted">{{ slot.daysProcessed }}/{{ slot.totalDays }}天</span>
                 </div>
                 <div class="h-1 bg-bg rounded-xs border border-accent/10 mb-1.5">
@@ -237,7 +247,10 @@
                 >
                   <div class="flex items-center justify-between gap-2">
                     <span class="text-accent">{{ slot.alchemyResult.label }}</span>
-                    <span>{{ getItemName(slot.alchemyResult.outputItemId) }}×{{ slot.alchemyResult.outputQuantity }}</span>
+                    <span class="inline-flex min-w-0 items-center gap-1">
+                      <ItemIcon :item="getItemById(slot.alchemyResult.outputItemId)" size="xs" :show-badge="false" />
+                      <span class="truncate">{{ getItemName(slot.alchemyResult.outputItemId) }}×{{ slot.alchemyResult.outputQuantity }}</span>
+                    </span>
                   </div>
                   <p class="mt-0.5 leading-snug">{{ slot.alchemyResult.description }}</p>
                 </div>
@@ -248,6 +261,7 @@
                   :data-testid="`processing-collect-${slot.recipeId}`"
                   @click="handleCollect(originalIndex)"
                 >
+                  <ItemIcon :item="slot.alchemyResult ? getItemById(slot.alchemyResult.outputItemId) : getRecipeOutputItem(slot.recipeId)" size="xs" :show-badge="false" />
                   收取 {{ getSlotOutputName(slot) }}
                 </Button>
               </div>
@@ -329,8 +343,11 @@
             <!-- 所需材料 -->
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">所需材料</p>
-              <div v-for="mat in nextUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between">
-                <span class="text-xs text-muted">{{ getItemById(mat.itemId)?.name }}</span>
+              <div v-for="mat in nextUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between gap-2">
+                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ getItemById(mat.itemId)?.name }}</span>
+                </span>
                 <span class="text-xs" :class="getIndexedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
                   {{ getIndexedItemCount(mat.itemId) }}/{{ mat.quantity }}
                 </span>
@@ -390,8 +407,11 @@
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需材料</p>
-            <div v-for="mat in craftModal.materials" :key="mat.itemId" class="flex items-center justify-between">
-              <span class="text-xs text-muted">{{ getItemName(mat.itemId) }}</span>
+            <div v-for="mat in craftModal.materials" :key="mat.itemId" class="flex items-center justify-between gap-2">
+              <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getItemName(mat.itemId) }}</span>
+              </span>
               <span class="text-xs" :class="getIndexedItemCount(mat.itemId) >= mat.quantity * displayQty ? '' : 'text-danger'">
                 {{ getIndexedItemCount(mat.itemId) }}/{{ mat.quantity * displayQty }}
               </span>
@@ -590,7 +610,8 @@
   import { ref, computed, watch } from 'vue'
   import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle, FlaskConical } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
-  import type { MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import type { ItemDef, MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useCookingStore } from '@/stores/useCookingStore'
@@ -675,6 +696,7 @@
   interface RecipeInputViewModel {
     key: string
     itemId: string
+    item?: ItemDef
     itemName: string
     count: number
     quantity: number
@@ -688,8 +710,10 @@
     count: number
     available: boolean
     disabled: boolean
+    outputItem: ItemDef | null
     displayName: string
     qualityLabel: string
+    inputItem: ItemDef | null
     inputItemName: string | null
     extraInputs: RecipeInputViewModel[]
     alchemyLimitText: string
@@ -855,6 +879,8 @@
 
   const buildRecipeOption = (recipe: ProcessingRecipeDef, quality?: Quality): RecipeOptionViewModel => {
     const alchemyPlan = recipe.alchemy ? processingStore.getAlchemyMaterialPlan(recipe.id, 1, quality) : null
+    const outputItem = getItemById(recipe.outputItemId) ?? null
+    const inputItem = recipe.inputItemId ? getItemById(recipe.inputItemId) ?? null : null
     const count = recipe.inputItemId
       ? recipe.alchemy
         ? processingStore.getAlchemyRequirementAvailableCount(recipe.id, recipe.inputItemId, quality)
@@ -876,6 +902,7 @@
     const extraInputs = (recipe.extraInputs ?? []).map(extra => ({
       key: `${recipe.id}:${extra.itemId}`,
       itemId: extra.itemId,
+      item: getItemById(extra.itemId),
       itemName: getItemName(extra.itemId),
       count: recipe.alchemy ? processingStore.getAlchemyRequirementAvailableCount(recipe.id, extra.itemId, quality) : getIndexedItemCount(extra.itemId),
       quantity: extra.quantity
@@ -901,8 +928,10 @@
       count,
       available,
       disabled: !available || !!alchemyLimit?.blocked,
+      outputItem,
       displayName: recipe.name,
       qualityLabel: quality && quality !== 'normal' ? `[${QUALITY_NAMES[quality]}]` : recipe.minInputQuality ? `[${QUALITY_NAMES[recipe.minInputQuality]}以上]` : '',
+      inputItem,
       inputItemName: recipe.inputItemId ? getItemName(recipe.inputItemId) : null,
       extraInputs,
       alchemyLimitText,
@@ -1553,6 +1582,11 @@
     const recipe = getProcessingRecipeById(recipeId)
     if (!recipe) return recipeId
     return getItemById(recipe.outputItemId)?.name ?? recipe.name
+  }
+
+  const getRecipeOutputItem = (recipeId: string): ItemDef | null => {
+    const recipe = getProcessingRecipeById(recipeId)
+    return recipe ? getItemById(recipe.outputItemId) ?? null : null
   }
 
   const getSlotOutputName = (slot: ProcessingSlot): string => {

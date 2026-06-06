@@ -253,14 +253,11 @@
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">奖励</p>
-            <p class="text-xs text-accent">
-              {{ selectedGoal.reward.money }}文{{
-                selectedGoal.reward.items
-                  ? ' + ' + selectedGoal.reward.items.map(i => `${getDropName(i.itemId)}×${i.quantity}`).join('、')
-                  : ''
-              }}
-              + {{ getGoalBonusPoints(selectedGoal) }}贡献点
-            </p>
+            <div class="flex flex-wrap items-center gap-1.5 text-xs text-accent">
+              <span>{{ selectedGoal.reward.money }}文</span>
+              <ItemBundleInline v-if="selectedGoal.reward.items" :entries="selectedGoal.reward.items" />
+              <span>+ {{ getGoalBonusPoints(selectedGoal) }}贡献点</span>
+            </div>
           </div>
 
           <div v-if="isGoalClaimed(selectedGoal.monsterId)" class="border border-success/30 rounded-xs p-2">
@@ -294,9 +291,12 @@
           :class="item.count > 0 ? 'border-accent/20 cursor-pointer hover:bg-accent/5' : 'border-accent/10 opacity-50'"
           @click="item.count > 0 && openDonateModal(item)"
         >
-          <div class="flex-1">
-            <p class="text-xs" :class="item.count > 0 ? 'text-text' : 'text-muted'">{{ item.name }}</p>
-            <p class="text-xs text-muted">持有 {{ item.count }} · 每个 {{ item.points }} 贡献点</p>
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" :silhouette="item.count <= 0" />
+            <div class="min-w-0">
+              <p class="truncate text-xs" :class="item.count > 0 ? 'text-text' : 'text-muted'">{{ item.name }}</p>
+              <p class="text-xs text-muted">持有 {{ item.count }} · 每个 {{ item.points }} 贡献点</p>
+            </div>
           </div>
           <span class="text-xs ml-2" :class="item.count > 0 ? 'text-accent' : 'text-muted'">{{ item.count * item.points }}点</span>
         </div>
@@ -315,7 +315,10 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm text-accent mb-2">捐献{{ donateModalItem.name }}</p>
+          <div class="mb-2 flex items-center gap-2 pr-6">
+            <ItemIcon :item="getItemById(donateModalItem.itemId)" size="lg" :resolution="256" :show-badge="false" />
+            <p class="min-w-0 flex-1 truncate text-sm text-accent">捐献{{ donateModalItem.name }}</p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between">
@@ -398,33 +401,36 @@
         class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
         @click="openShopModal(item)"
       >
-        <div>
-          <p class="text-sm" :class="guildStore.isShopItemUnlocked(item.itemId) ? '' : 'text-muted'">{{ item.name }}</p>
-          <p class="text-xs text-muted">{{ item.description }}</p>
-          <p v-if="item.materials && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
-            材料:
-            <span
-              v-for="(mat, idx) in item.materials"
-              :key="mat.itemId"
-              :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'"
-            >
-              {{ getMaterialName(mat.itemId) }}×{{ mat.quantity }}
-              <span v-if="idx < item.materials.length - 1">、</span>
-            </span>
-          </p>
-          <p v-if="item.unlockGuildLevel && !guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-danger mt-0.5">
-            <Lock :size="10" class="inline" />
-            公会 Lv.{{ item.unlockGuildLevel }} 解锁
-          </p>
-          <p v-if="item.dailyLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
-            今日剩余: {{ guildStore.getDailyRemaining(item.itemId, item.dailyLimit) }}/{{ item.dailyLimit }}
-          </p>
-          <p v-if="item.weeklyLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
-            本周剩余: {{ guildStore.getWeeklyRemaining(item.itemId, item.weeklyLimit) }}/{{ item.weeklyLimit }}
-          </p>
-          <p v-if="item.totalLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
-            总限购: {{ guildStore.getTotalRemaining(item.itemId, item.totalLimit) }}/{{ item.totalLimit }}
-          </p>
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" :silhouette="!guildStore.isShopItemUnlocked(item.itemId)" />
+          <div class="min-w-0">
+            <p class="truncate text-sm" :class="guildStore.isShopItemUnlocked(item.itemId) ? '' : 'text-muted'">{{ item.name }}</p>
+            <p class="truncate text-xs text-muted">{{ item.description }}</p>
+            <div v-if="item.materials && guildStore.isShopItemUnlocked(item.itemId)" class="mt-0.5 flex flex-wrap gap-1.5">
+              <span
+                v-for="mat in item.materials"
+                :key="mat.itemId"
+                class="flex items-center gap-1 text-xs"
+                :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'"
+              >
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                {{ getMaterialName(mat.itemId) }}×{{ mat.quantity }}
+              </span>
+            </div>
+            <p v-if="item.unlockGuildLevel && !guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-danger mt-0.5">
+              <Lock :size="10" class="inline" />
+              公会 Lv.{{ item.unlockGuildLevel }} 解锁
+            </p>
+            <p v-if="item.dailyLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
+              今日剩余: {{ guildStore.getDailyRemaining(item.itemId, item.dailyLimit) }}/{{ item.dailyLimit }}
+            </p>
+            <p v-if="item.weeklyLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
+              本周剩余: {{ guildStore.getWeeklyRemaining(item.itemId, item.weeklyLimit) }}/{{ item.weeklyLimit }}
+            </p>
+            <p v-if="item.totalLimit && guildStore.isShopItemUnlocked(item.itemId)" class="text-xs text-muted mt-0.5">
+              总限购: {{ guildStore.getTotalRemaining(item.itemId, item.totalLimit) }}/{{ item.totalLimit }}
+            </p>
+          </div>
         </div>
         <span class="text-xs whitespace-nowrap ml-2" :class="item.contributionCost ? 'text-success' : 'text-accent'">
           {{ item.contributionCost ? `${item.contributionCost}贡献` : `${item.price}文` }}
@@ -443,7 +449,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="shopModalItem = null">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">{{ shopModalItem.name }}</p>
+          <div class="mb-2 flex items-center gap-2 pr-6">
+            <ItemIcon :item="getItemById(shopModalItem.itemId)" size="lg" :resolution="256" :show-badge="false" />
+            <p class="min-w-0 flex-1 truncate text-sm text-accent">{{ shopModalItem.name }}</p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ shopModalItem.description }}</p>
@@ -479,8 +488,11 @@
               <div class="border-t border-accent/10 mt-1.5 pt-1.5">
                 <span class="text-xs text-muted">所需材料</span>
               </div>
-              <div v-for="mat in shopModalItem.materials" :key="mat.itemId" class="flex items-center justify-between mt-0.5">
-                <span class="text-xs">{{ getMaterialName(mat.itemId) }} ×{{ mat.quantity * shopBuyQty }}</span>
+              <div v-for="mat in shopModalItem.materials" :key="mat.itemId" class="flex items-center justify-between gap-2 mt-0.5">
+                <span class="flex min-w-0 items-center gap-1 text-xs">
+                  <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ getMaterialName(mat.itemId) }} ×{{ mat.quantity * shopBuyQty }}</span>
+                </span>
                 <span
                   class="text-xs"
                   :class="inventoryStore.getItemCount(mat.itemId) >= mat.quantity * shopBuyQty ? 'text-success' : 'text-danger'"
@@ -633,8 +645,11 @@
 
           <div v-if="selectedMonster.drops.length > 0" class="border border-accent/10 rounded-xs p-2">
             <p class="text-xs text-muted mb-1">掉落物</p>
-            <div v-for="drop in selectedMonster.drops" :key="drop.itemId" class="flex items-center justify-between mt-0.5">
-              <span class="text-xs">{{ getDropName(drop.itemId) }}</span>
+            <div v-for="drop in selectedMonster.drops" :key="drop.itemId" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="flex min-w-0 items-center gap-1 text-xs">
+                <ItemIcon :item="getItemById(drop.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getDropName(drop.itemId) }}</span>
+              </span>
               <span class="text-xs text-muted">{{ Math.round(drop.chance * 100) }}%</span>
             </div>
           </div>
@@ -693,6 +708,8 @@
   import { ref, computed, onMounted, onUnmounted } from 'vue'
   import { Swords, Gift, CircleCheck, Circle, Lock, ShoppingCart, BookOpen, X, HandHeart } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import ItemBundleInline from '@/components/game/ItemBundleInline.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useGuildStore } from '@/stores/useGuildStore'

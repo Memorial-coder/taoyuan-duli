@@ -47,7 +47,7 @@ export const MYSTERY_BOX_DEFS: MysteryBoxDef[] = [
         id: 'mystic_cache_social',
         label: '人情小礼',
         rewardItems: [
-          { itemId: 'osmanthus_tea', quantity: 1 },
+          { itemId: 'processed_osmanthus_tea', quantity: 1 },
           { itemId: 'pine_incense', quantity: 1 }
         ],
         summary: '偏关系和节前走动。'

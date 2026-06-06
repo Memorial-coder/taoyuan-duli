@@ -81,7 +81,7 @@
                 {{ entry.event_label }} · {{ entry.counterparty_label || '系统摊位' }} · {{ entry.price_label }}
               </p>
               <p class="text-[0.625rem] text-muted mt-1">
-                交出 {{ formatBundle(entry.offered_entries) }} · 到账 {{ formatBundle(entry.received_entries) }}
+                交出 <ItemBundleInline :entries="entry.offered_entries" /> · 到账 <ItemBundleInline :entries="entry.received_entries" />
               </p>
               <p v-if="entry.category_labels.length > 0" class="text-[0.625rem] text-muted mt-1">
                 品类：{{ entry.category_labels.join('、') }}
@@ -126,8 +126,8 @@
 </template>
 
 <script setup lang="ts">
-import { getItemById } from '@/data'
-import type { ExchangeLedgerBundleEntry, ExchangeLedgerEntry, ExchangeLedgerOverview } from '@/utils/exchangeLedgerApi'
+import ItemBundleInline from '@/components/game/ItemBundleInline.vue'
+import type { ExchangeLedgerEntry, ExchangeLedgerOverview } from '@/utils/exchangeLedgerApi'
 
 const props = defineProps<{
   ledger: ExchangeLedgerOverview
@@ -139,18 +139,6 @@ const emit = defineEmits<{
   (event: 'refresh'): void
   (event: 'report-dispute', payload: { entryId: string; reasonCode: string; note: string }): void
 }>()
-
-const formatBundle = (entries: ExchangeLedgerBundleEntry[]) => {
-  if (!Array.isArray(entries) || entries.length === 0) return '无'
-  return entries
-    .map(entry => {
-      if (entry.type === 'money') return `${entry.amount}文`
-      if (entry.type === 'ticket') return `${entry.ticket_type}券×${entry.quantity}`
-      const def = getItemById(entry.item_id)
-      return `${def?.name ?? entry.item_id}×${entry.quantity}`
-    })
-    .join('、')
-}
 
 const formatTime = (unixSeconds: number) => {
   const date = new Date(Number(unixSeconds || 0) * 1000)

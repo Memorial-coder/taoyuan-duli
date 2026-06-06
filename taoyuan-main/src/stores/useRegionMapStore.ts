@@ -3506,6 +3506,33 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       if (actualDamage > 0) effects.push(`额外承受 ${actualDamage} 点伤害。`)
       if (optionId === 'cautious') effects.push('你压住了前线暴露，风险明显下降。')
       if (optionId === 'bold') effects.push('你强行闯过险段，队伍暴露大幅提升。')
+      if (playerStore.hp <= 0) {
+        const recoveryRoute = getRecommendedRecoveryRoute(session.regionId)
+        session.status = 'failure'
+        session.recommendedRouteId = recoveryRoute?.id ?? null
+        session.pendingEncounter = null
+        summary = `队伍在处理「${encounter.title}」时生命线归零，这趟远征转入失败收束。`
+        tone = 'danger'
+        effects.push('生命值已经归零，无法继续按成功遭遇推进。')
+        if (recoveryRoute) {
+          effects.push(`建议先回补给路线：${recoveryRoute.name}。`)
+        }
+        appendSessionJournal(session, encounter.title, summary, effects, tone)
+        persistActiveSession(session)
+        showFloat('远征失利', tone)
+        return {
+          success: false,
+          message: summary,
+          title: '远征失利',
+          lines: [
+            `目标：${session.targetName}`,
+            `当前进度 ${session.progressStep}/${session.totalSteps}｜士气 ${session.morale}｜风险 ${session.danger}｜视野 ${session.visibility}`,
+            `生命 ${playerStore.hp}/${playerStore.getMaxHp()}`,
+            ...effects
+          ],
+          tone: 'danger' as const
+        }
+      }
     } else if (encounter.kind === 'cache') {
       session.findings += optionId === 'bold' ? 2 : 1
       session.morale = clamp(session.morale + (optionId === 'cautious' ? 1 : optionId === 'balanced' ? 2 : 3), 0, 100)

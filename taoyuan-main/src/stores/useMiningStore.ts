@@ -47,6 +47,7 @@ import {
   buildPlayerCombatRuntime,
   calculateIncomingDamage,
   getDefendHeal,
+  getEffectiveDamage,
   getExpectedAttackDamage,
   getLifestealHeal,
   rollAttackOutcome
@@ -61,7 +62,19 @@ const COMBAT_TIME_NORMAL = 0.17
 const COMBAT_TIME_LONG = 0.25
 const MINING_COMBAT_LOG_LIMIT = 120
 
-type CombatActionResult = { message: string; combatOver: boolean; won: boolean; timeCostHours: number }
+type CombatActionResult = {
+  message: string
+  combatOver: boolean
+  won: boolean
+  timeCostHours: number
+  dealtDamage?: number
+  mainDamage?: number
+  extraDamage?: number
+  totalDamage?: number
+  effectiveDamage?: number
+  takenDamage?: number
+  isCrit?: boolean
+}
 
 type SessionLootEntry =
   | { kind: 'item'; itemId: string; quantity: number }
@@ -72,6 +85,23 @@ type SessionLootEntry =
   | { kind: 'shoe'; defId: string }
 
 type InventoryRewardEntry = { itemId: string; quantity: number; quality?: Quality }
+
+type PendingMineRewardKind = 'infested_clear' | 'main_mine_boss'
+
+interface PendingMineRewardEntry {
+  id: string
+  kind: PendingMineRewardKind
+  floorNum: number
+  itemRewards: InventoryRewardEntry[]
+  money: number
+  weaponReward: { defId: string; enchantmentId: string | null } | null
+  ringRewardId: string | null
+  hatRewardId: string | null
+  shoeRewardId: string | null
+  message: string
+}
+
+type MineRewardClaimResult = { granted: boolean; pending: boolean; message: string }
 
 export const useMiningStore = defineStore('mining', () => {
   const playerStore = usePlayerStore()
@@ -129,6 +159,9 @@ export const useMiningStore = defineStore('mining', () => {
   const claimedBossHatRewardFloors = ref<number[]>([])
   /** 已领取过主矿洞 BOSS 鞋子奖励的楼层 */
   const claimedBossShoeRewardFloors = ref<number[]>([])
+
+  /** 满包时保留的矿洞楼层奖励，避免卡死和重复发奖 */
+  const pendingMineRewards = ref<PendingMineRewardEntry[]>([])
 
   /** 本次探索收集的物品（离开时50%丢失用） */
   const sessionLoot = ref<SessionLootEntry[]>([])
@@ -281,22 +314,121 @@ export const useMiningStore = defineStore('mining', () => {
     }
   }
 
-  const grantInfestedClearRewards = (floorNum: number): { granted: boolean; message: string } => {
+  const getPendingMineRewardId = (kind: PendingMineRewardKind, floorNum: number) => `${kind}:${floorNum}`
+
+  const getPendingMineReward = (kind: PendingMineRewardKind, floorNum: number) =>
+    pendingMineRewards.value.find(reward => reward.id === getPendingMineRewardId(kind, floorNum)) ?? null
+
+  const queuePendingMineReward = (reward: PendingMineRewardEntry) => {
+    if (pendingMineRewards.value.some(entry => entry.id === reward.id)) return
+    pendingMineRewards.value.push(reward)
+  }
+
+  const removePendingMineReward = (rewardId: string) => {
+    pendingMineRewards.value = pendingMineRewards.value.filter(reward => reward.id !== rewardId)
+  }
+
+  const grantPendingMineReward = (reward: PendingMineRewardEntry): MineRewardClaimResult => {
+    if (!canGrantRewardEntries(reward.itemRewards) || !grantRewardEntries(reward.itemRewards, true)) {
+      return {
+        granted: false,
+        pending: true,
+        message: '背包空间不足，暂存矿洞奖励仍未领取。请先整理主背包或临时背包。'
+      }
+    }
+
+    if (reward.weaponReward) {
+      inventoryStore.addWeapon(reward.weaponReward.defId, reward.weaponReward.enchantmentId)
+      recordWeaponLoot(reward.weaponReward.defId, reward.weaponReward.enchantmentId)
+    }
+    if (reward.ringRewardId) {
+      inventoryStore.addRing(reward.ringRewardId)
+      recordRingLoot(reward.ringRewardId)
+    }
+    if (reward.hatRewardId) {
+      inventoryStore.addHat(reward.hatRewardId)
+      recordHatLoot(reward.hatRewardId)
+    }
+    if (reward.shoeRewardId) {
+      inventoryStore.addShoe(reward.shoeRewardId)
+      recordShoeLoot(reward.shoeRewardId)
+    }
+    if (reward.money > 0) {
+      playerStore.earnMoney(reward.money)
+      recordMoneyLoot(reward.money)
+    }
+
+    removePendingMineReward(reward.id)
+    return { granted: true, pending: false, message: reward.message }
+  }
+
+  const claimPendingMineRewards = (): { success: boolean; message: string } => {
+    if (pendingMineRewards.value.length <= 0) {
+      return { success: false, message: '当前没有暂存的矿洞奖励。' }
+    }
+
+    const messages: string[] = []
+    for (const reward of [...pendingMineRewards.value]) {
+      const result = grantPendingMineReward(reward)
+      if (!result.granted) {
+        const prefix = messages.length > 0 ? `${messages.join(' ')} ` : ''
+        return { success: false, message: `${prefix}${result.message}`.trim() }
+      }
+      if (result.message) messages.push(result.message.trim())
+    }
+
+    return { success: true, message: messages.join(' ') || '已领取暂存的矿洞奖励。' }
+  }
+
+  const grantInfestedClearRewards = (floorNum: number): MineRewardClaimResult => {
+    const pendingReward = getPendingMineReward('infested_clear', floorNum)
+    if (pendingReward) {
+      return grantPendingMineReward(pendingReward)
+    }
     if (claimedInfestedRewardFloors.value.includes(floorNum)) {
-      return { granted: false, message: '' }
+      return { granted: false, pending: false, message: '' }
     }
     const clearRewards = getInfestedClearRewards(floorNum)
     const rewardEntries = clearRewards.items.map(r => ({ itemId: r.itemId, quantity: r.quantity }))
+    const message = ` 感染层清除完毕！获得${getRewardNames(clearRewards.items)}和${clearRewards.money}文！`
     if (!canGrantRewardEntries(rewardEntries)) {
+      queuePendingMineReward({
+        id: getPendingMineRewardId('infested_clear', floorNum),
+        kind: 'infested_clear',
+        floorNum,
+        itemRewards: rewardEntries,
+        money: clearRewards.money,
+        weaponReward: null,
+        ringRewardId: null,
+        hatRewardId: null,
+        shoeRewardId: null,
+        message
+      })
+      claimedInfestedRewardFloors.value.push(floorNum)
       return {
         granted: false,
-        message: ' 背包空间不足，感染层奖励暂未领取。请先整理背包后再尝试前进或离开。'
+        pending: true,
+        message: ' 背包空间不足，感染层奖励已暂存。可以先离开整理背包，再回到矿洞面板领取。'
       }
     }
     if (!grantRewardEntries(rewardEntries, true)) {
+      queuePendingMineReward({
+        id: getPendingMineRewardId('infested_clear', floorNum),
+        kind: 'infested_clear',
+        floorNum,
+        itemRewards: rewardEntries,
+        money: clearRewards.money,
+        weaponReward: null,
+        ringRewardId: null,
+        hatRewardId: null,
+        shoeRewardId: null,
+        message
+      })
+      claimedInfestedRewardFloors.value.push(floorNum)
       return {
         granted: false,
-        message: ' 背包空间不足，感染层奖励暂未领取。请先整理背包后再尝试前进或离开。'
+        pending: true,
+        message: ' 背包空间不足，感染层奖励已暂存。可以先离开整理背包，再回到矿洞面板领取。'
       }
     }
     playerStore.earnMoney(clearRewards.money)
@@ -304,11 +436,13 @@ export const useMiningStore = defineStore('mining', () => {
     claimedInfestedRewardFloors.value.push(floorNum)
     return {
       granted: true,
-      message: ` 感染层清除完毕！获得${getRewardNames(clearRewards.items)}和${clearRewards.money}文！`
+      pending: false,
+      message
     }
   }
 
   const hasPendingMainMineBossRewards = (floorNum: number): boolean => {
+    if (getPendingMineReward('main_mine_boss', floorNum)) return true
     const bossId = BOSS_MONSTERS[floorNum]?.id
     if (bossId && !defeatedBosses.value.includes(bossId)) return true
     if (!claimedBossRewardFloors.value.includes(floorNum)) return true
@@ -318,9 +452,52 @@ export const useMiningStore = defineStore('mining', () => {
     return false
   }
 
-  const grantMainMineBossRewards = (floorNum: number): { granted: boolean; message: string } => {
+  const hasPendingInfestedClearRewards = (floorNum: number): boolean => {
+    if (getPendingMineReward('infested_clear', floorNum)) return true
+    return !claimedInfestedRewardFloors.value.includes(floorNum)
+  }
+
+  const reserveMainMineBossRewardState = ({
+    floorNum,
+    bossId,
+    shouldGrantFirstKill,
+    shouldGrantMainReward,
+    bossRingId,
+    bossHatId,
+    bossShoeId
+  }: {
+    floorNum: number
+    bossId: string | null
+    shouldGrantFirstKill: boolean
+    shouldGrantMainReward: boolean
+    bossRingId: string | null
+    bossHatId: string | null
+    bossShoeId: string | null
+  }) => {
+    if (shouldGrantFirstKill && bossId && !defeatedBosses.value.includes(bossId)) {
+      defeatedBosses.value.push(bossId)
+    }
+    if (shouldGrantMainReward && !claimedBossRewardFloors.value.includes(floorNum)) {
+      claimedBossRewardFloors.value.push(floorNum)
+    }
+    if (bossRingId && !claimedBossRingRewardFloors.value.includes(floorNum)) {
+      claimedBossRingRewardFloors.value.push(floorNum)
+    }
+    if (bossHatId && !claimedBossHatRewardFloors.value.includes(floorNum)) {
+      claimedBossHatRewardFloors.value.push(floorNum)
+    }
+    if (bossShoeId && !claimedBossShoeRewardFloors.value.includes(floorNum)) {
+      claimedBossShoeRewardFloors.value.push(floorNum)
+    }
+  }
+
+  const grantMainMineBossRewards = (floorNum: number): MineRewardClaimResult => {
+    const pendingReward = getPendingMineReward('main_mine_boss', floorNum)
+    if (pendingReward) {
+      return grantPendingMineReward(pendingReward)
+    }
     if (!hasPendingMainMineBossRewards(floorNum)) {
-      return { granted: false, message: '' }
+      return { granted: false, pending: false, message: '' }
     }
 
     const bossId = BOSS_MONSTERS[floorNum]?.id ?? null
@@ -331,70 +508,44 @@ export const useMiningStore = defineStore('mining', () => {
     const bossHatId = !claimedBossHatRewardFloors.value.includes(floorNum) ? (BOSS_DROP_HATS[floorNum] ?? null) : null
     const bossShoeId = !claimedBossShoeRewardFloors.value.includes(floorNum) ? (BOSS_DROP_SHOES[floorNum] ?? null) : null
     const oreRewards = shouldGrantMainReward ? BOSS_ORE_REWARDS[floorNum] : undefined
-
-    if (oreRewards) {
-      const rewardEntries = oreRewards.map(ore => ({ itemId: ore.itemId, quantity: ore.quantity }))
-      if (!canGrantRewardEntries(rewardEntries)) {
-        return {
-          granted: false,
-          message: ' 背包空间不足，BOSS 楼层奖励暂未领取。请先整理背包后再尝试前进或离开。'
-        }
-      }
-    }
+    const rewardEntries = oreRewards?.map(ore => ({ itemId: ore.itemId, quantity: ore.quantity })) ?? []
 
     let message = ''
     let oreRewardMessage = ''
-    if (oreRewards) {
-      const rewardEntries = oreRewards.map(ore => ({ itemId: ore.itemId, quantity: ore.quantity }))
-      if (!grantRewardEntries(rewardEntries, true)) {
-        return {
-          granted: false,
-          message: ' 背包空间不足，BOSS 楼层奖励暂未领取。请先整理背包后再尝试前进或离开。'
-        }
-      }
-      oreRewardMessage = ` 获得了${getRewardNames(oreRewards)}！`
-    }
+    if (oreRewards) oreRewardMessage = ` 获得了${getRewardNames(oreRewards)}！`
+
+    const weaponReward =
+      shouldGrantFirstKill && weaponId
+        ? {
+            defId: weaponId,
+            enchantmentId: getWeaponById(weaponId)?.fixedEnchantment ?? null
+          }
+        : null
 
     if (shouldGrantFirstKill && bossId) {
-      defeatedBosses.value.push(bossId)
       if (weaponId) {
-        const bossWeaponDef = getWeaponById(weaponId)
-        const fixedEnchant = bossWeaponDef?.fixedEnchantment ?? null
-        inventoryStore.addWeapon(weaponId, fixedEnchant)
-        recordWeaponLoot(weaponId, fixedEnchant)
-        const displayName = getWeaponDisplayName(weaponId, fixedEnchant)
+        const displayName = getWeaponDisplayName(weaponId, weaponReward?.enchantmentId ?? null)
         message += ` 首次击败BOSS！获得了传说武器：${displayName}！`
       }
     }
 
     if (bossRingId) {
-      inventoryStore.addRing(bossRingId)
-      recordRingLoot(bossRingId)
-      claimedBossRingRewardFloors.value.push(floorNum)
       const bossRingDef = getRingById(bossRingId)
       message += ` 获得了戒指：${bossRingDef?.name ?? bossRingId}！`
     }
 
     if (bossHatId) {
-      inventoryStore.addHat(bossHatId)
-      recordHatLoot(bossHatId)
-      claimedBossHatRewardFloors.value.push(floorNum)
       const bossHatDef = getHatById(bossHatId)
       message += ` 获得了帽子：${bossHatDef?.name ?? bossHatId}！`
     }
 
     if (bossShoeId) {
-      inventoryStore.addShoe(bossShoeId)
-      recordShoeLoot(bossShoeId)
-      claimedBossShoeRewardFloors.value.push(floorNum)
       const bossShoeDef = getShoeById(bossShoeId)
       message += ` 获得了鞋子：${bossShoeDef?.name ?? bossShoeId}！`
     }
 
     const moneyReward = shouldGrantMainReward ? (BOSS_MONEY_REWARDS[floorNum] ?? 0) : 0
     if (moneyReward > 0) {
-      playerStore.earnMoney(moneyReward)
-      recordMoneyLoot(moneyReward)
       message += ` 获得${moneyReward}文！`
     }
 
@@ -402,35 +553,69 @@ export const useMiningStore = defineStore('mining', () => {
       message += oreRewardMessage
     }
 
-    if (shouldGrantMainReward) {
-      claimedBossRewardFloors.value.push(floorNum)
+    const pendingBossReward: PendingMineRewardEntry = {
+      id: getPendingMineRewardId('main_mine_boss', floorNum),
+      kind: 'main_mine_boss',
+      floorNum,
+      itemRewards: rewardEntries,
+      money: moneyReward,
+      weaponReward,
+      ringRewardId: bossRingId,
+      hatRewardId: bossHatId,
+      shoeRewardId: bossShoeId,
+      message
     }
 
-    return { granted: true, message }
+    if (!canGrantRewardEntries(rewardEntries)) {
+      reserveMainMineBossRewardState({ floorNum, bossId, shouldGrantFirstKill, shouldGrantMainReward, bossRingId, bossHatId, bossShoeId })
+      queuePendingMineReward(pendingBossReward)
+      return {
+        granted: false,
+        pending: true,
+        message: ' 背包空间不足，BOSS 楼层奖励已暂存。可以先离开整理背包，再回到矿洞面板领取。'
+      }
+    }
+
+    const claimResult = grantPendingMineReward(pendingBossReward)
+    if (!claimResult.granted) {
+      reserveMainMineBossRewardState({ floorNum, bossId, shouldGrantFirstKill, shouldGrantMainReward, bossRingId, bossHatId, bossShoeId })
+      queuePendingMineReward(pendingBossReward)
+      return {
+        granted: false,
+        pending: true,
+        message: ' 背包空间不足，BOSS 楼层奖励已暂存。可以先离开整理背包，再回到矿洞面板领取。'
+      }
+    }
+
+    reserveMainMineBossRewardState({ floorNum, bossId, shouldGrantFirstKill, shouldGrantMainReward, bossRingId, bossHatId, bossShoeId })
+    return { granted: true, pending: false, message }
   }
 
-  const ensureCurrentFloorRewardsClaimed = (): { success: boolean; message: string } => {
+  const ensureCurrentFloorRewardsClaimed = (options: { blockOnPending?: boolean } = {}): { success: boolean; message: string } => {
+    const blockOnPending = options.blockOnPending ?? true
     if (!isExploring.value || isInSkullCavern.value) return { success: true, message: '' }
     const floor = getActiveFloorData()
     if (!floor) return { success: true, message: '' }
 
     if (floor.specialType === 'boss' && stairsUsable.value && hasPendingMainMineBossRewards(currentFloor.value)) {
       const result = grantMainMineBossRewards(currentFloor.value)
-      if (!result.granted) {
+      if (!result.granted && (!result.pending || blockOnPending)) {
         return { success: false, message: result.message.trim() || '请先领取 BOSS 楼层奖励。' }
       }
+      if (result.message && result.pending && !blockOnPending) return { success: true, message: result.message.trim() }
     }
 
     if (
       floor.specialType === 'infested' &&
       monstersDefeatedCount.value >= totalMonstersOnFloor.value &&
       totalMonstersOnFloor.value > 0 &&
-      !claimedInfestedRewardFloors.value.includes(getActiveFloorNum())
+      hasPendingInfestedClearRewards(getActiveFloorNum())
     ) {
       const result = grantInfestedClearRewards(getActiveFloorNum())
-      if (!result.granted) {
+      if (!result.granted && (!result.pending || blockOnPending)) {
         return { success: false, message: result.message.trim() || '请先领取感染层清剿奖励。' }
       }
+      if (result.message && result.pending && !blockOnPending) return { success: true, message: result.message.trim() }
     }
 
     return { success: true, message: '' }
@@ -465,7 +650,8 @@ export const useMiningStore = defineStore('mining', () => {
   const canRecordMainMineSafePoint = (floor: MineFloorDef | undefined): floor is MineFloorDef => {
     if (!floor?.isSafePoint) return false
     if (floor.specialType !== 'boss') return true
-    return stairsUsable.value && !hasPendingMainMineBossRewards(floor.floor)
+    const bossId = BOSS_MONSTERS[floor.floor]?.id
+    return stairsUsable.value && (!bossId || defeatedBosses.value.includes(bossId))
   }
 
   const recordMainMineSafePoint = (floor = getActiveFloorData()): boolean => {
@@ -1180,9 +1366,14 @@ export const useMiningStore = defineStore('mining', () => {
         flatReduction: runtime.defendDefense.flatReduction,
         modifiers: runtime.defendDefense.damageMultipliers
       })
-      playerStore.takeDamage(damage)
+      const actualDamage = playerStore.takeDamage(damage)
 
       let defendMsg = `你举盾防御，受到${damage}点伤害。`
+      if (playerStore.hp <= 0) {
+        combatLog.value.push(defendMsg)
+        return { ...handleDefeat(), timeCostHours, takenDamage: actualDamage }
+      }
+
       const defendHealAmount = getDefendHeal({
         maxHp: playerStore.getMaxHp(),
         healFlat: runtime.defendHealFlat,
@@ -1194,14 +1385,20 @@ export const useMiningStore = defineStore('mining', () => {
       }
 
       combatLog.value.push(defendMsg)
-      if (playerStore.hp <= 0) {
-        return { ...handleDefeat(), timeCostHours }
-      }
-      return { message: defendMsg, combatOver: false, won: false, timeCostHours }
+      return { message: defendMsg, combatOver: false, won: false, timeCostHours, takenDamage: actualDamage }
     }
 
     const monsterHpBefore = combatMonsterHp.value
     const attackOutcome = rollAttackOutcome(runtime.attack, monster.defense)
+    const effectiveDamage = getEffectiveDamage(monsterHpBefore, attackOutcome.totalDamage)
+    const attackDamageResult = {
+      dealtDamage: attackOutcome.totalDamage,
+      mainDamage: attackOutcome.damage,
+      extraDamage: attackOutcome.extraDamage,
+      totalDamage: attackOutcome.totalDamage,
+      effectiveDamage,
+      isCrit: attackOutcome.isCrit
+    }
     const timeCostHours = getAttackCombatTimeCost(
       monsterHpBefore,
       attackOutcome.totalDamage,
@@ -1218,27 +1415,27 @@ export const useMiningStore = defineStore('mining', () => {
       msg += ` 追击触发，额外造成${attackOutcome.extraDamage}点伤害。`
     }
 
-    const lifestealHeal = getLifestealHeal(attackOutcome.totalDamage, runtime.attack.lifesteal)
+    const lifestealHeal = getLifestealHeal(effectiveDamage, runtime.attack.lifesteal)
     if (lifestealHeal > 0) {
       playerStore.restoreHealth(lifestealHeal)
       msg += ` 吸血恢复${lifestealHeal}HP。`
     }
 
     if (combatMonsterHp.value <= 0) {
-      return { ...handleMonsterDefeat(monster, msg, attackOutcome.totalDamage), timeCostHours }
+      return { ...handleMonsterDefeat(monster, msg, attackOutcome.totalDamage), timeCostHours, ...attackDamageResult }
     }
 
     if (attackOutcome.didStun) {
       msg += ` ${monster.name}被震晕了，没能反击。`
       combatLog.value.push(msg)
-      return { message: msg, combatOver: false, won: false, timeCostHours }
+      return { message: msg, combatOver: false, won: false, timeCostHours, ...attackDamageResult }
     }
 
     const dodgeRate = runtime.defense.dodgeRate ?? 0
     if (dodgeRate > 0 && Math.random() < dodgeRate) {
       msg += ` 你灵巧地闪避了${monster.name}的反击。`
       combatLog.value.push(msg)
-      return { message: msg, combatOver: false, won: false, timeCostHours }
+      return { message: msg, combatOver: false, won: false, timeCostHours, ...attackDamageResult }
     }
 
     const counterDamage = calculateIncomingDamage({
@@ -1246,15 +1443,15 @@ export const useMiningStore = defineStore('mining', () => {
       flatReduction: runtime.defense.flatReduction,
       modifiers: runtime.defense.damageMultipliers
     })
-    playerStore.takeDamage(counterDamage)
+    const actualCounterDamage = playerStore.takeDamage(counterDamage)
     msg += ` ${monster.name}反击，你受到${counterDamage}点伤害。`
     combatLog.value.push(msg)
 
     if (playerStore.hp <= 0) {
-      return { ...handleDefeat(), timeCostHours }
+      return { ...handleDefeat(), timeCostHours, ...attackDamageResult, takenDamage: actualCounterDamage }
     }
 
-    return { message: msg, combatOver: false, won: false, timeCostHours }
+    return { message: msg, combatOver: false, won: false, timeCostHours, ...attackDamageResult, takenDamage: actualCounterDamage }
   }
 
   const handleMonsterDefeat = (
@@ -1584,7 +1781,7 @@ export const useMiningStore = defineStore('mining', () => {
 
   /** 离开矿洞 */
   const leaveMine = (): string => {
-    const pendingRewardCheck = ensureCurrentFloorRewardsClaimed()
+    const pendingRewardCheck = ensureCurrentFloorRewardsClaimed({ blockOnPending: false })
     if (!pendingRewardCheck.success) {
       return pendingRewardCheck.message
     }
@@ -1606,9 +1803,9 @@ export const useMiningStore = defineStore('mining', () => {
     if (isInSkullCavern.value) {
       isInSkullCavern.value = false
       cachedSkullFloorData.value = null
-      return '你离开了骷髅矿穴。'
+      return `${pendingRewardCheck.message ? `${pendingRewardCheck.message} ` : ''}你离开了骷髅矿穴。`
     }
-    return '你离开了矿洞。'
+    return `${pendingRewardCheck.message ? `${pendingRewardCheck.message} ` : ''}你离开了矿洞。`
   }
 
   // ==================== 道具使用 ====================
@@ -1789,6 +1986,11 @@ export const useMiningStore = defineStore('mining', () => {
       claimedBossRingRewardFloors: claimedBossRingRewardFloors.value,
       claimedBossHatRewardFloors: claimedBossHatRewardFloors.value,
       claimedBossShoeRewardFloors: claimedBossShoeRewardFloors.value,
+      pendingMineRewards: pendingMineRewards.value.map(reward => ({
+        ...reward,
+        itemRewards: reward.itemRewards.map(entry => ({ ...entry })),
+        weaponReward: reward.weaponReward ? { ...reward.weaponReward } : null
+      })),
       isInSkullCavern: isInSkullCavern.value,
       skullCavernFloor: skullCavernFloor.value,
       skullCavernBestFloor: skullCavernBestFloor.value,
@@ -1807,6 +2009,60 @@ export const useMiningStore = defineStore('mining', () => {
         .map(entry => Math.floor(Number(entry)))
         .filter(entry => Number.isFinite(entry) && entry > 0)
     )].sort((left, right) => left - right)
+  }
+
+  const normalizePendingMineRewards = (value: unknown): PendingMineRewardEntry[] => {
+    if (!Array.isArray(value)) return []
+    const normalized: PendingMineRewardEntry[] = []
+    for (const entry of value) {
+      if (!entry || typeof entry !== 'object') continue
+      const raw = entry as Record<string, unknown>
+      const kind = raw.kind === 'infested_clear' || raw.kind === 'main_mine_boss' ? raw.kind : null
+      const floorNum = Math.floor(Number(raw.floorNum))
+      if (!kind || !Number.isFinite(floorNum) || floorNum <= 0) continue
+      const itemRewards: InventoryRewardEntry[] = Array.isArray(raw.itemRewards)
+        ? raw.itemRewards.reduce<InventoryRewardEntry[]>((entries, item) => {
+              if (!item || typeof item !== 'object') return entries
+              const rawItem = item as Record<string, unknown>
+              const itemId = typeof rawItem.itemId === 'string' ? rawItem.itemId : ''
+              const quantity = Math.max(0, Math.floor(Number(rawItem.quantity)))
+              const quality: Quality =
+                rawItem.quality === 'fine' || rawItem.quality === 'excellent' || rawItem.quality === 'supreme'
+                  ? rawItem.quality
+                  : 'normal'
+              if (!getItemById(itemId) || quantity <= 0) return entries
+              entries.push({ itemId, quantity, quality })
+              return entries
+            }, [])
+        : []
+      const rawWeaponReward = raw.weaponReward && typeof raw.weaponReward === 'object'
+        ? raw.weaponReward as Record<string, unknown>
+        : null
+      const weaponDefId = typeof rawWeaponReward?.defId === 'string' ? rawWeaponReward.defId : ''
+      const weaponEnchantId = typeof rawWeaponReward?.enchantmentId === 'string' ? rawWeaponReward.enchantmentId : null
+      const weaponReward =
+        weaponDefId && getWeaponById(weaponDefId) && (!weaponEnchantId || getEnchantmentById(weaponEnchantId))
+          ? { defId: weaponDefId, enchantmentId: weaponEnchantId }
+          : null
+      const ringRewardId = typeof raw.ringRewardId === 'string' && getRingById(raw.ringRewardId) ? raw.ringRewardId : null
+      const hatRewardId = typeof raw.hatRewardId === 'string' && getHatById(raw.hatRewardId) ? raw.hatRewardId : null
+      const shoeRewardId = typeof raw.shoeRewardId === 'string' && getShoeById(raw.shoeRewardId) ? raw.shoeRewardId : null
+      const money = Math.max(0, Math.floor(Number(raw.money) || 0))
+      if (itemRewards.length <= 0 && money <= 0 && !weaponReward && !ringRewardId && !hatRewardId && !shoeRewardId) continue
+      normalized.push({
+        id: getPendingMineRewardId(kind, floorNum),
+        kind,
+        floorNum,
+        itemRewards,
+        money,
+        weaponReward,
+        ringRewardId,
+        hatRewardId,
+        shoeRewardId,
+        message: typeof raw.message === 'string' && raw.message.trim() ? raw.message : ' 已领取暂存矿洞奖励。'
+      })
+    }
+    return normalized
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
@@ -1851,6 +2107,27 @@ export const useMiningStore = defineStore('mining', () => {
       ...legacyClaimedBossFloors,
       ...normalizeClaimedFloorArray((data as Record<string, unknown>).claimedBossShoeRewardFloors)
     ])].sort((left, right) => left - right)
+    pendingMineRewards.value = normalizePendingMineRewards((data as Record<string, unknown>).pendingMineRewards)
+    for (const reward of pendingMineRewards.value) {
+      if (reward.kind === 'infested_clear') {
+        claimedInfestedRewardFloors.value = [...new Set([...claimedInfestedRewardFloors.value, reward.floorNum])].sort((left, right) => left - right)
+      } else if (reward.kind === 'main_mine_boss') {
+        const bossId = BOSS_MONSTERS[reward.floorNum]?.id
+        if (bossId && !defeatedBosses.value.includes(bossId)) defeatedBosses.value.push(bossId)
+        if (reward.itemRewards.length > 0 || reward.money > 0) {
+          claimedBossRewardFloors.value = [...new Set([...claimedBossRewardFloors.value, reward.floorNum])].sort((left, right) => left - right)
+        }
+        if (reward.ringRewardId) {
+          claimedBossRingRewardFloors.value = [...new Set([...claimedBossRingRewardFloors.value, reward.floorNum])].sort((left, right) => left - right)
+        }
+        if (reward.hatRewardId) {
+          claimedBossHatRewardFloors.value = [...new Set([...claimedBossHatRewardFloors.value, reward.floorNum])].sort((left, right) => left - right)
+        }
+        if (reward.shoeRewardId) {
+          claimedBossShoeRewardFloors.value = [...new Set([...claimedBossShoeRewardFloors.value, reward.floorNum])].sort((left, right) => left - right)
+        }
+      }
+    }
 
     // 骷髅矿穴状态
     isInSkullCavern.value = ((data as Record<string, unknown>).isInSkullCavern as boolean) ?? false
@@ -1887,6 +2164,7 @@ export const useMiningStore = defineStore('mining', () => {
     defeatedBosses,
     claimedInfestedRewardFloors,
     claimedBossRewardFloors,
+    pendingMineRewards,
     // 格子系统
     floorGrid,
     entryIndex,
@@ -1914,6 +2192,7 @@ export const useMiningStore = defineStore('mining', () => {
     enterMine,
     enterSkullCavern,
     combatAction,
+    claimPendingMineRewards,
     useCombatItem,
     useMonsterLure,
     goNextFloor,

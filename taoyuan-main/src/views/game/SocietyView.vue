@@ -190,7 +190,14 @@
             <div v-if="societyStore.mySociety.public_warehouse.items.length > 0" class="border-t border-accent/10 pt-2">
               <p class="text-[0.625rem] text-accent mb-1">仓库物资</p>
               <div class="flex flex-wrap gap-2">
-                <span v-for="entry in societyStore.mySociety.public_warehouse.items" :key="entry.item_id" class="text-[0.625rem] text-muted border border-accent/10 rounded-xs px-2 py-1">{{ entry.label }}</span>
+                <span
+                  v-for="entry in societyStore.mySociety.public_warehouse.items"
+                  :key="entry.item_id"
+                  class="flex items-center gap-1 text-[0.625rem] text-muted border border-accent/10 rounded-xs px-2 py-1"
+                >
+                  <ItemIcon :item="getItemById(entry.item_id)" size="xs" :show-badge="false" />
+                  {{ entry.label }}
+                </span>
               </div>
             </div>
             <div v-if="societyStore.mySociety.public_warehouse.logs.length > 0" class="border-t border-accent/10 pt-2 space-y-1">
@@ -641,7 +648,9 @@
   import { computed, onMounted, reactive, watch, watchEffect } from 'vue'
   import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useSocietyStore } from '@/stores/useSocietyStore'
+  import { getItemById } from '@/data'
   import type { SocietyProposalChoice, SocietyRole } from '@/utils/societyApi'
   import { ensureCurrentAccount } from '@/utils/accountStorage'
 

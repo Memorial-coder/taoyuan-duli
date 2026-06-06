@@ -192,7 +192,7 @@
     mineralogist: '击败怪物额外掉落矿石',
     warrior: '生命上限+40',
     brute: '攻击伤害+25%',
-    acrobat: '25%概率闪避并反击',
+    acrobat: '25%概率闪避怪物反击',
     tank: '防御时伤害减免70%',
     grandmaster_farmer: '作物售价额外+20%，品质大幅提升',
     estate_owner: '作物售价+20%，加工品售价+40%，并保留 20% 双倍收成机会',
@@ -210,10 +210,10 @@
     master_smith: '金属矿石售价+80%，冶炼速度+50%',
     deep_excavator: '炸弹不消耗且范围扩大',
     gem_collector: '击败怪物必定掉落宝石',
-    sword_saint: '生命上限+80，攻击+15%',
-    berserker: '攻击伤害+50%',
-    phantom_blade: '50%概率闪避并造成双倍伤害',
-    iron_fortress: '防御时伤害减免90%，反弹10%伤害',
+    sword_saint: '生命上限+80，攻击伤害+55%，击杀回复10%生命',
+    berserker: '生命上限+80，攻击伤害+55%，击杀回复10%生命',
+    phantom_blade: '闪避率40%，生命上限+40，防御后恢复15HP',
+    iron_fortress: '防御时伤害减免85%，生命上限+40，防御后恢复15HP',
     deity_of_harvest: '所有作物售价+50%，品质必定神圣',
     land_god: '所有农产品产量+100%',
     beast_sovereign: '动物产品数量×2，动物产品售价+50%',
@@ -230,10 +230,10 @@
     forge_god: '所有矿石售价+120%，冶炼无需燃料',
     abyss_miner: '炸弹无限使用，范围最大化',
     gem_emperor: '所有宝石必定掉落，售价+100%',
-    war_god: '生命上限+150，攻击+30%，受伤-20%',
-    slaughter_king: '攻击伤害×2，击杀回复20%生命',
-    shadow_sovereign: '80%概率闪避，闪避时造成三倍伤害',
-    indestructible: '防御时无敌，反弹全部伤害'
+    war_god: '生命上限+150，攻击伤害×2，击杀回复20%生命',
+    slaughter_king: '生命上限+150，攻击伤害×2，击杀回复20%生命',
+    shadow_sovereign: '闪避率80%，生命上限+80，防御时伤害减免95%，防御后恢复15%生命',
+    indestructible: '生命上限+80，防御时伤害减免95%，防御后恢复15%生命'
   }
 
   const PERK_NAMES: Record<SkillPerk5 | SkillPerk10 | SkillPerk15 | SkillPerk20, string> = {

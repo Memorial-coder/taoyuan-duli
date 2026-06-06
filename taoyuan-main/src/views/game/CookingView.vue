@@ -46,9 +46,12 @@
         :key="`recommend-${info.recipe.id}`"
         class="flex items-start justify-between gap-2 py-0.5"
       >
-        <div class="min-w-0">
-          <p class="text-xs text-text truncate">{{ info.recipe.name }}</p>
-          <p class="text-[0.625rem] text-muted leading-snug">{{ info.recommendationText }}</p>
+        <div class="flex min-w-0 items-center gap-2">
+          <ItemIcon :item="info.outputItem" size="xs" :quality="info.quality" />
+          <div class="min-w-0">
+            <p class="text-xs text-text truncate">{{ info.recipe.name }}</p>
+            <p class="text-[0.625rem] text-muted leading-snug">{{ info.recommendationText }}</p>
+          </div>
         </div>
         <button class="text-[0.625rem] text-accent/80 shrink-0" @click="openModal(info.recipe.id)">查看</button>
       </div>
@@ -62,13 +65,16 @@
         class="px-3 py-1.5 cursor-pointer hover:bg-accent/5"
         @click="openModal(info.recipe.id)"
       >
-        <div class="flex items-center justify-between">
-          <span class="text-xs" :class="info.canCook ? 'text-text' : 'text-muted'">
-            {{ info.recipe.name }}
-            <span v-if="info.canCook && info.quality !== 'normal'" class="text-[0.625rem] ml-0.5" :class="qualityTextClass(info.quality)">
-              [{{ QUALITY_NAMES[info.quality] }}]
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex min-w-0 items-center gap-2">
+            <ItemIcon :item="info.outputItem" size="sm" :quality="info.quality" :silhouette="!info.canCook" />
+            <span class="min-w-0 text-xs" :class="info.canCook ? 'text-text' : 'text-muted'">
+              <span class="block truncate">{{ info.recipe.name }}</span>
+              <span v-if="info.canCook && info.quality !== 'normal'" class="block text-[0.625rem]" :class="qualityTextClass(info.quality)">
+                [{{ QUALITY_NAMES[info.quality] }}]
+              </span>
             </span>
-          </span>
+          </div>
           <span class="text-[0.625rem] whitespace-nowrap ml-2" :class="info.canCook ? 'text-success' : 'text-muted/50'">
             +{{ info.recipe.effect.staminaRestore }}体力
             <span v-if="info.recipe.effect.healthRestore">+{{ info.recipe.effect.healthRestore }}生命</span>
@@ -98,16 +104,19 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm text-accent mb-2">
-            {{ modalInfo.recipe.name }}
-            <span
-              v-if="modalInfo.canCook && modalInfo.quality !== 'normal'"
-              class="text-[0.625rem] ml-0.5"
-              :class="qualityTextClass(modalInfo.quality)"
-            >
-              [{{ QUALITY_NAMES[modalInfo.quality] }}]
-            </span>
-          </p>
+          <div class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="modalInfo.outputItem" size="lg" :resolution="256" :quality="modalInfo.quality" />
+            <p class="min-w-0 text-sm text-accent">
+              <span class="block truncate">{{ modalInfo.recipe.name }}</span>
+              <span
+                v-if="modalInfo.canCook && modalInfo.quality !== 'normal'"
+                class="block text-[0.625rem]"
+                :class="qualityTextClass(modalInfo.quality)"
+              >
+                [{{ QUALITY_NAMES[modalInfo.quality] }}]
+              </span>
+            </p>
+          </div>
 
           <!-- 功效 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
@@ -131,8 +140,11 @@
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需材料</p>
             <div v-for="ing in modalInfo.ingredients" :key="ing.itemId" class="py-0.5">
-              <div class="flex items-center justify-between">
-                <span class="text-xs text-muted">{{ ing.name }}</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <ItemIcon :item="ing.item" size="xs" :quality="modalInfo.quality" />
+                  <span class="truncate">{{ ing.name }}</span>
+                </span>
                 <span class="text-xs" :class="ing.enough ? '' : 'text-danger'">{{ ing.available }}/{{ ing.quantity }}</span>
               </div>
               <p v-if="ing.cropUseText" class="text-[0.625rem] text-muted/80 leading-snug">{{ ing.cropUseText }}</p>
@@ -207,6 +219,7 @@
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import type { Quality } from '@/types'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
 
   const cookingStore = useCookingStore()
   const gameStore = useGameStore()
@@ -261,6 +274,7 @@
       const canCook = cookingStore.canCook(recipe.id)
       const maxQty = cookingStore.maxCookable(recipe.id)
       const quality = cookingStore.previewCookQuality(recipe.id)
+      const outputItem = getItemById(`food_${recipe.id}`) ?? null
       const cookingPlan = cookingStore.getCookingUsePlan(recipe.id)
       const substitutionText = cookingStore.getCookingSubstitutionText(recipe.id)
       const ingredients = recipe.ingredients.map(ing => {
@@ -270,6 +284,7 @@
         const substitutionText = formatIngredientSubstitutionText(cookingPlan.entries, ing.itemId)
         return {
           itemId: ing.itemId,
+          item,
           name: item?.name ?? ing.itemId,
           quantity: ing.quantity,
           available,
@@ -283,7 +298,7 @@
       const cropUseLabels = uniqueStrings(ingredients.map(ing => ing.cropUseText.replace(/^用途：/, '')))
       const cropUseText = cropUseLabels.length > 0 ? `用途标签：${cropUseLabels.join('、')}` : ''
       const recommendationText = buildCookingRecommendationText(canCook, categoryText, storyTriggerText, cropUseText)
-      return { recipe, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText, substitutionText, recommendationText }
+      return { recipe, outputItem, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText, substitutionText, recommendationText }
     })
   })
 

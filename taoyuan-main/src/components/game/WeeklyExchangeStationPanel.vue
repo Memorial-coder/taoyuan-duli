@@ -71,11 +71,11 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                   <div class="border border-danger/15 rounded-xs px-2 py-2 bg-danger/5">
                     <p class="text-[0.625rem] text-danger mb-1">交出</p>
-                    <p class="text-xs text-text">{{ formatBundle(offer.costs) }}</p>
+                    <ItemBundleInline class="text-xs text-text" :entries="offer.costs" />
                   </div>
                   <div class="border border-success/15 rounded-xs px-2 py-2 bg-success/5">
                     <p class="text-[0.625rem] text-success mb-1">换回</p>
-                    <p class="text-xs text-text">{{ formatBundle(offer.rewards) }}</p>
+                    <ItemBundleInline class="text-xs text-text" :entries="offer.rewards" />
                   </div>
                 </div>
                 <div class="flex flex-wrap gap-3 mt-2 text-[0.625rem] text-muted">
@@ -108,7 +108,9 @@
             <p class="text-xs text-text">{{ record.offer_name }}</p>
             <span class="text-[0.625rem] text-muted">{{ formatTime(record.created_at) }}</span>
           </div>
-          <p class="text-[0.625rem] text-muted mt-1">交出 {{ formatBundle(record.costs) }} · 换回 {{ formatBundle(record.rewards) }}</p>
+          <p class="text-[0.625rem] text-muted mt-1">
+            交出 <ItemBundleInline :entries="record.costs" /> · 换回 <ItemBundleInline :entries="record.rewards" />
+          </p>
         </div>
       </div>
     </div>
@@ -117,8 +119,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getItemById } from '@/data'
-import type { WeeklyExchangeBundleEntry, WeeklyExchangeStationSnapshot } from '@/utils/weeklyExchangeApi'
+import ItemBundleInline from '@/components/game/ItemBundleInline.vue'
+import type { WeeklyExchangeStationSnapshot } from '@/utils/weeklyExchangeApi'
 
 const props = defineProps<{
   station: WeeklyExchangeStationSnapshot
@@ -146,17 +148,6 @@ const groupedCategorySections = computed(() => {
     }))
     .filter(section => section.offers.length > 0)
 })
-
-const formatBundle = (entries: WeeklyExchangeBundleEntry[]) => {
-  if (!Array.isArray(entries) || entries.length === 0) return '无'
-  return entries
-    .map(entry => {
-      if (entry.type === 'money') return `${entry.amount}文`
-      const def = getItemById(entry.item_id)
-      return `${def?.name ?? entry.item_id}×${entry.quantity}`
-    })
-    .join('、')
-}
 
 const formatTime = (unixSeconds: number) => {
   const date = new Date(Number(unixSeconds || 0) * 1000)

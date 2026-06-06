@@ -122,11 +122,13 @@
           <div
             v-if="museumStore.isDonated(item.id)"
             @click="selectedItem = item"
-            class="border rounded-xs p-1.5 text-center text-xs transition-colors truncate cursor-pointer border-success/40 bg-success/10 text-success"
+            class="flex min-h-[58px] flex-col items-center justify-center gap-1 overflow-hidden border rounded-xs p-1.5 text-center text-xs transition-colors cursor-pointer border-success/40 bg-success/10 text-success"
           >
-            {{ item.name }}
+            <ItemIcon :item="getItemById(item.id)" size="xs" :show-badge="false" />
+            <span class="w-full truncate">{{ item.name }}</span>
           </div>
-          <div v-else class="border rounded-xs p-1.5 text-center text-xs transition-colors truncate border-accent/20 text-muted">
+          <div v-else class="flex min-h-[58px] flex-col items-center justify-center gap-1 overflow-hidden border rounded-xs p-1.5 text-center text-xs transition-colors border-accent/20 text-muted">
+            <ItemIcon :item="getItemById(item.id)" size="xs" :show-badge="false" silhouette />
             <Lock :size="12" class="mx-auto text-muted/30" />
           </div>
         </template>
@@ -136,7 +138,8 @@
       <div v-if="museumStore.donatableItems.length > 0" class="border border-accent/20 rounded-xs p-2 mb-3">
         <p class="text-xs text-accent mb-1">可捐赠物品</p>
         <div class="flex flex-wrap space-x-1">
-          <Button v-for="itemId in museumStore.donatableItems" :key="itemId" :icon="Send" :icon-size="10" @click="handleDonate(itemId)">
+          <Button v-for="itemId in museumStore.donatableItems" :key="itemId" @click="handleDonate(itemId)">
+            <ItemIcon :item="getItemById(itemId)" size="xs" :show-badge="false" />
             {{ getItemName(itemId) }}
           </Button>
         </div>
@@ -156,7 +159,10 @@
             <span class="flex-1" :class="museumStore.donatedCount >= ms.count ? 'text-text' : 'text-muted'">
               {{ ms.name }} ({{ ms.count }}件)
             </span>
-            <span class="text-muted">{{ ms.reward.money }}文{{ ms.reward.items ? '+物品' : '' }}</span>
+            <span class="flex items-center gap-1 text-muted">
+              {{ ms.reward.money }}文
+              <ItemBundleInline v-if="ms.reward.items" :entries="ms.reward.items" />
+            </span>
             <Button
               v-if="museumStore.donatedCount >= ms.count && !isMilestoneClaimed(ms.count)"
               class="!bg-accent !text-bg px-2 py-0.5"
@@ -268,6 +274,8 @@
   import { ref, computed } from 'vue'
   import { Landmark, Send, X, CircleCheck, Circle, Package, Lock } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import ItemBundleInline from '@/components/game/ItemBundleInline.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { showFloat } from '@/composables/useGameLog'

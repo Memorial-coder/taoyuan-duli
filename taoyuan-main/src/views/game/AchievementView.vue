@@ -172,7 +172,8 @@
             <p class="text-xs text-muted mb-1">奖励</p>
             <div class="flex flex-wrap space-x-3">
               <span v-if="activeAchievement.reward.money" class="text-xs text-accent">{{ activeAchievement.reward.money }}文</span>
-              <span v-for="ri in activeAchievement.reward.items ?? []" :key="ri.itemId" class="text-xs text-text">
+              <span v-for="ri in activeAchievement.reward.items ?? []" :key="ri.itemId" class="flex items-center gap-1 text-xs text-text">
+                <ItemIcon :item="getItemById(ri.itemId)" size="xs" :show-badge="false" />
                 {{ getItemName(ri.itemId) }}×{{ ri.quantity }}
               </span>
             </div>
@@ -231,8 +232,11 @@
           <!-- 需求物品 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需物品</p>
-            <div v-for="req in activeBundle.requiredItems" :key="req.itemId" class="flex items-center justify-between mt-0.5">
-              <span class="text-xs text-muted">{{ getItemName(req.itemId) }}</span>
+            <div v-for="req in activeBundle.requiredItems" :key="req.itemId" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="flex min-w-0 items-center gap-1 text-xs text-muted">
+                <ItemIcon :item="getItemById(req.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getItemName(req.itemId) }}</span>
+              </span>
               <span class="text-xs" :class="getSubmittedCount(activeBundle.id, req.itemId) >= req.quantity ? 'text-success' : ''">
                 {{ getSubmittedCount(activeBundle.id, req.itemId) }}/{{ req.quantity }}
               </span>
@@ -259,11 +263,10 @@
               v-for="req in activeBundle.requiredItems.filter(r => getSubmittedCount(activeBundle!.id, r.itemId) < r.quantity)"
               :key="'submit_' + req.itemId"
               class="w-full justify-center"
-              :icon="Send"
-              :icon-size="12"
               :disabled="!inventoryStore.hasItem(req.itemId)"
               @click="handleSubmit(activeBundle!.id, req.itemId)"
             >
+              <ItemIcon :item="getItemById(req.itemId)" size="xs" :show-badge="false" />
               提交{{ getItemName(req.itemId) }}
             </Button>
           </div>
@@ -289,7 +292,7 @@
             <div
               v-for="item in items"
               :key="item.id"
-              class="border rounded-xs p-1 text-xs text-center truncate"
+              class="flex min-h-[58px] flex-col items-center justify-center gap-1 overflow-hidden border rounded-xs p-1 text-xs text-center"
               :class="
                 shopStore.shippedItems.includes(item.id)
                   ? 'border-accent/20 cursor-pointer hover:bg-accent/5 ' + getCategoryColor(item.category)
@@ -297,8 +300,9 @@
               "
               @click="shopStore.shippedItems.includes(item.id) && (activeShippingId = item.id)"
             >
-              <template v-if="shopStore.shippedItems.includes(item.id)">{{ item.name }}</template>
-              <Lock v-else :size="12" class="mx-auto text-muted/30" />
+              <ItemIcon :item="item" size="xs" :silhouette="!shopStore.shippedItems.includes(item.id)" :show-badge="false" />
+              <span v-if="shopStore.shippedItems.includes(item.id)" class="w-full truncate">{{ item.name }}</span>
+              <Lock v-else :size="12" class="text-muted/30" />
             </div>
           </div>
         </div>
@@ -317,7 +321,10 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm mb-2" :class="getCategoryColor(activeShippingItem.category)">{{ activeShippingItem.name }}</p>
+          <div class="mb-2 flex items-center gap-2 pr-6">
+            <ItemIcon :item="activeShippingItem" size="lg" :resolution="256" :show-badge="false" />
+            <p class="min-w-0 flex-1 truncate text-sm" :class="getCategoryColor(activeShippingItem.category)">{{ activeShippingItem.name }}</p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeShippingItem.description }}</p>
@@ -590,10 +597,11 @@
 </template>
 
 <script setup lang="ts">
-  import { BookOpen, CircleCheck, Circle, Send, X, ScrollText, Lock } from 'lucide-vue-next'
+  import { BookOpen, CircleCheck, Circle, X, ScrollText, Lock } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import GlossaryTab from '@/components/game/GlossaryTab.vue'
   import ItemCollectionTab from '@/components/game/ItemCollectionTab.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { ref, computed } from 'vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useAnimalStore } from '@/stores/useAnimalStore'

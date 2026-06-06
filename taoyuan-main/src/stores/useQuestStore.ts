@@ -40,7 +40,7 @@ import { getNpcById, WS09_RELATIONSHIP_TUNING_CONFIG } from '@/data/npcs'
 import { WS10_EVENT_OPERATION_TUNING_CONFIG } from '@/data/goals'
 import { getTodayEvent } from '@/data/events'
 import { resolveEnvironmentWindow } from '@/data/environmentWindows'
-import { getItemById, getRecipeById } from '@/data'
+import { getItemById, getRecipeById, migrateLegacyItemId } from '@/data'
 import { MARKET_CATEGORY_NAMES } from '@/data/market'
 import { isRelationshipStageAtLeast } from '@/data/npcWorld'
 import { useInventoryStore } from './useInventoryStore'
@@ -79,6 +79,29 @@ type CompletedQuestHistoryEntry = {
   activitySourceLabel?: string
   themeTag?: string
   isSpecialOrder: boolean
+}
+
+type QuestRewardPreviewModel = {
+  baseMoneyReward: number
+  finalMoneyReward: number
+  baseFriendshipReward: number
+  finalFriendshipReward: number
+  villageMoneyBonus: number
+  villageMoneyBonusRate: number
+  villageFriendshipBonus: number
+  serviceMoneyRewardMultiplier: number
+  specialOrderMoneyMultiplier: number
+  specialOrderTicketMultiplier: number
+  specialOrderRank?: SpecialOrderScoreRank
+  specialOrderScore?: number
+  specialOrderThresholdLabel?: string
+  specialOrderMoneyMultiplierRange?: { min: number; max: number }
+  specialOrderTicketMultiplierRange?: { min: number; max: number }
+  finalTicketReward?: Partial<Record<RewardTicketType, number>>
+  serviceTicketReward?: Partial<Record<RewardTicketType, number>>
+  itemReward: { itemId: string; quantity: number }[]
+  recipeReward: string[]
+  hasBuildingClue: boolean
 }
 
 const ORDER_COOKING_TOPIC_LABELS = ['订单委托']
@@ -1144,6 +1167,68 @@ export const useQuestStore = defineStore('quest', () => {
     return quest.type === 'special_order' && quest.orderStageType === 'multi' && Array.isArray(quest.stageDefinitions) && quest.stageDefinitions.length > 0
   }
 
+  const getSpecialOrderRewardMultiplierRange = (
+    quest: QuestInstance,
+    field: 'rewardMoneyMultiplier' | 'rewardTicketMultiplier'
+  ): { min: number; max: number } | undefined => {
+    if (quest.type !== 'special_order' || !quest.orderScoreRule?.thresholds?.length) return undefined
+    const multipliers = quest.orderScoreRule.thresholds.map(threshold => Math.max(0, Number(threshold[field]) || 1))
+    multipliers.push(1)
+    return {
+      min: Math.min(...multipliers),
+      max: Math.max(...multipliers)
+    }
+  }
+
+  const getQuestRewardPreviewModel = (quest: QuestInstance | null | undefined): QuestRewardPreviewModel | null => {
+    if (!quest) return null
+
+    const serviceContractEffect = useShopStore().getServiceContractEffectSummary('quest')
+    const villageMoneyBonusRate = Math.max(0, villageProjectStore.getQuestMoneyBonusRate())
+    const villageMoneyBonus = Math.floor(quest.moneyReward * villageMoneyBonusRate)
+    const villageFriendshipBonus = villageProjectStore.getQuestFriendshipBonus()
+    const specialOrderSettlement =
+      quest.type === 'special_order' ? evaluateSpecialOrderSettlement(quest, []) : null
+    const specialOrderMoneyMultiplier = specialOrderSettlement?.moneyMultiplier ?? 1
+    const specialOrderTicketMultiplier = specialOrderSettlement?.ticketMultiplier ?? 1
+    const finalTicketReward = mergeTicketRewards(
+      scaleTicketRewards(quest.ticketReward, specialOrderTicketMultiplier),
+      serviceContractEffect.ticketRewards
+    )
+
+    return {
+      baseMoneyReward: quest.moneyReward,
+      finalMoneyReward: Math.max(
+        0,
+        Math.round(
+          (quest.moneyReward + villageMoneyBonus) *
+            serviceContractEffect.moneyRewardMultiplier *
+            specialOrderMoneyMultiplier
+        )
+      ),
+      baseFriendshipReward: quest.friendshipReward,
+      finalFriendshipReward: quest.friendshipReward + villageFriendshipBonus,
+      villageMoneyBonus,
+      villageMoneyBonusRate,
+      villageFriendshipBonus,
+      serviceMoneyRewardMultiplier: serviceContractEffect.moneyRewardMultiplier,
+      specialOrderMoneyMultiplier,
+      specialOrderTicketMultiplier,
+      specialOrderRank: specialOrderSettlement?.rank,
+      specialOrderScore: specialOrderSettlement?.score,
+      specialOrderThresholdLabel: specialOrderSettlement?.threshold?.label,
+      specialOrderMoneyMultiplierRange: getSpecialOrderRewardMultiplierRange(quest, 'rewardMoneyMultiplier'),
+      specialOrderTicketMultiplierRange: getSpecialOrderRewardMultiplierRange(quest, 'rewardTicketMultiplier'),
+      finalTicketReward,
+      serviceTicketReward: Object.keys(serviceContractEffect.ticketRewards).length > 0
+        ? { ...serviceContractEffect.ticketRewards }
+        : undefined,
+      itemReward: (quest.itemReward ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity })),
+      recipeReward: [...(quest.recipeReward ?? [])],
+      hasBuildingClue: Boolean(quest.buildingClueText)
+    }
+  }
+
   const getCurrentSpecialOrderStage = (quest: QuestInstance): SpecialOrderStageDef | null => {
     if (!isMultiStageOrder(quest)) return null
     const currentStageIndex = Math.max(
@@ -1447,11 +1532,21 @@ export const useQuestStore = defineStore('quest', () => {
     const inventorySnapshot = inventoryStore.serialize()
     const fishPondSnapshot = fishPondStore.serialize()
     const rewardItems = (quest.itemReward ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
+    const cloneSubmissionState = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+    const activeQuestsSnapshot = cloneSubmissionState(activeQuests.value)
+    const completedQuestCountSnapshot = completedQuestCount.value
+    const completedQuestHistorySnapshot = cloneSubmissionState(completedQuestHistory.value)
+    const specialOrderSettlementReceiptsSnapshot = [...specialOrderSettlementReceipts.value]
     const rollbackSubmissionState = () => {
       inventoryStore.deserialize(inventorySnapshot)
       fishPondStore.deserialize(fishPondSnapshot)
+      activeQuests.value = cloneSubmissionState(activeQuestsSnapshot)
+      completedQuestCount.value = completedQuestCountSnapshot
+      completedQuestHistory.value = cloneSubmissionState(completedQuestHistorySnapshot)
+      specialOrderSettlementReceipts.value = [...specialOrderSettlementReceiptsSnapshot]
     }
     let finalStageAlreadySubmitted = false
+    let pendingFinalStageProgressState: SpecialOrderProgressState | null = null
 
     const currentStage = getCurrentSpecialOrderStage(quest)
     if (currentStage) {
@@ -1591,7 +1686,7 @@ export const useQuestStore = defineStore('quest', () => {
       }
 
       const stageTransition = advanceSpecialOrderStageState(quest, currentStage, targetQuantity)
-      quest.orderProgressState = stageTransition.progressState
+      pendingFinalStageProgressState = stageTransition.progressState
       finalStageAlreadySubmitted = true
     }
 
@@ -1681,11 +1776,18 @@ export const useQuestStore = defineStore('quest', () => {
       return { success: false, message: '请先整理背包，提交后腾出的空间仍不足以领取委托奖励。' }
     }
 
+    const specialOrderSettlementQuest =
+      quest.type === 'special_order' && pendingFinalStageProgressState
+        ? ({ ...quest, orderProgressState: pendingFinalStageProgressState } as QuestInstance)
+        : quest
     const specialOrderSettlement =
-      quest.type === 'special_order' ? evaluateSpecialOrderSettlement(quest, submittedPondFishSnapshots) : null
-    if (specialOrderSettlement) {
-      quest.orderProgressState = buildCompletedSpecialOrderProgressState(quest, specialOrderSettlement)
-    }
+      quest.type === 'special_order' ? evaluateSpecialOrderSettlement(specialOrderSettlementQuest, submittedPondFishSnapshots) : null
+    const completedSpecialOrderProgressState =
+      quest.type === 'special_order'
+        ? specialOrderSettlement
+          ? buildCompletedSpecialOrderProgressState(specialOrderSettlementQuest, specialOrderSettlement)
+          : pendingFinalStageProgressState ?? quest.orderProgressState
+        : undefined
 
     // 发放铜钱奖励
     const finalMoneyReward = Math.max(
@@ -1721,6 +1823,10 @@ export const useQuestStore = defineStore('quest', () => {
           unlockedRecipes.push(getRecipeById(recipeId)?.name ?? recipeId)
         }
       }
+    }
+
+    if (completedSpecialOrderProgressState) {
+      quest.orderProgressState = completedSpecialOrderProgressState
     }
 
     let clueMessage = ''
@@ -2178,6 +2284,18 @@ export const useQuestStore = defineStore('quest', () => {
     return undefined
   }
 
+  const migrateQuestRewardItemId = (itemId: string) =>
+    migrateLegacyItemId(itemId, 'quest_reward')
+
+  const migrateQuestComboItemId = (itemId: string, itemName?: string, note?: string, requiredHybridId?: string) => {
+    if (requiredHybridId) return itemId
+    const contextText = `${itemName ?? ''} ${note ?? ''}`
+    if (itemId === 'osmanthus_tea' && /茶|暖盏|候客|前台/.test(contextText)) {
+      return migrateLegacyItemId(itemId, 'quest_combo_tea')
+    }
+    return itemId
+  }
+
   const normalizeCompletedQuestHistory = (input: unknown): CompletedQuestHistoryEntry[] => {
     if (!Array.isArray(input)) return []
     return input
@@ -2226,7 +2344,12 @@ export const useQuestStore = defineStore('quest', () => {
       .filter((entry): entry is Record<string, any> => !!entry && typeof entry === 'object' && typeof (entry as Record<string, any>).id === 'string')
       .map(requirement => ({
         id: requirement.id,
-        itemId: typeof requirement.itemId === 'string' ? requirement.itemId : '',
+        itemId: migrateQuestComboItemId(
+          typeof requirement.itemId === 'string' ? requirement.itemId : '',
+          typeof requirement.itemName === 'string' ? requirement.itemName : undefined,
+          typeof requirement.note === 'string' ? requirement.note : undefined,
+          typeof requirement.requiredHybridId === 'string' ? requirement.requiredHybridId : undefined
+        ),
         itemName: typeof requirement.itemName === 'string' ? requirement.itemName : typeof requirement.itemId === 'string' ? requirement.itemId : '未命名交付项',
         quantity: Math.max(1, Number(requirement.quantity) || 1),
         deliveryMode: normalizeDeliveryMode(requirement.deliveryMode),
@@ -2256,7 +2379,13 @@ export const useQuestStore = defineStore('quest', () => {
         title: typeof stage.title === 'string' ? stage.title : stage.id,
         description: typeof stage.description === 'string' ? stage.description : '未命名阶段',
         phaseType: normalizeStagePhaseType(stage.phaseType),
-        targetItemId: typeof stage.targetItemId === 'string' ? stage.targetItemId : undefined,
+        targetItemId: typeof stage.targetItemId === 'string'
+          ? migrateQuestComboItemId(
+              stage.targetItemId,
+              typeof stage.targetItemName === 'string' ? stage.targetItemName : undefined,
+              typeof stage.description === 'string' ? stage.description : undefined
+            )
+          : undefined,
         targetItemName: typeof stage.targetItemName === 'string' ? stage.targetItemName : undefined,
         targetQuantity: Number.isFinite(Number(stage.targetQuantity)) ? Math.max(1, Number(stage.targetQuantity)) : undefined,
         deliveryMode: normalizeDeliveryMode(stage.deliveryMode),
@@ -2270,7 +2399,7 @@ export const useQuestStore = defineStore('quest', () => {
                 itemReward: Array.isArray(stage.stageRewards.itemReward)
                   ? stage.stageRewards.itemReward
                       .filter((item: any) => item && typeof item.itemId === 'string')
-                      .map((item: any) => ({ itemId: item.itemId, quantity: Math.max(1, Number(item.quantity) || 1) }))
+                      .map((item: any) => ({ itemId: migrateQuestRewardItemId(item.itemId), quantity: Math.max(1, Number(item.quantity) || 1) }))
                   : undefined,
                 ticketReward:
                   stage.stageRewards.ticketReward && typeof stage.stageRewards.ticketReward === 'object'
@@ -2415,7 +2544,14 @@ export const useQuestStore = defineStore('quest', () => {
       npcId: quest.npcId,
       npcName: typeof quest.npcName === 'string' ? quest.npcName : quest.npcId,
       description: typeof quest.description === 'string' ? quest.description : '未命名委托',
-      targetItemId: quest.targetItemId,
+      targetItemId: quest.requiredHybridId === 'osmanthus_tea'
+        ? quest.targetItemId
+        : migrateQuestComboItemId(
+            quest.targetItemId,
+            typeof quest.targetItemName === 'string' ? quest.targetItemName : undefined,
+            typeof quest.description === 'string' ? quest.description : undefined,
+            typeof quest.requiredHybridId === 'string' ? quest.requiredHybridId : undefined
+          ),
       targetItemName: typeof quest.targetItemName === 'string' ? quest.targetItemName : quest.targetItemId,
       targetQuantity: Math.max(1, Number(quest.targetQuantity) || 1),
       collectedQuantity: Math.max(0, Number(quest.collectedQuantity) || 0),
@@ -2428,7 +2564,7 @@ export const useQuestStore = defineStore('quest', () => {
       itemReward: Array.isArray(quest.itemReward)
         ? quest.itemReward
             .filter((item: any) => item && typeof item.itemId === 'string')
-            .map((item: any) => ({ itemId: item.itemId, quantity: Math.max(1, Number(item.quantity) || 1) }))
+            .map((item: any) => ({ itemId: migrateQuestRewardItemId(item.itemId), quantity: Math.max(1, Number(item.quantity) || 1) }))
         : undefined,
       recipeReward: Array.isArray(quest.recipeReward) ? quest.recipeReward.filter((id: unknown) => typeof id === 'string') : undefined,
       ticketReward: quest.ticketReward && typeof quest.ticketReward === 'object'
@@ -2810,6 +2946,7 @@ export const useQuestStore = defineStore('quest', () => {
     acceptQuest,
     acceptSpecialOrder,
     submitQuest,
+    getQuestRewardPreviewModel,
     getQuestEffectiveProgress,
     canSubmitQuest,
     onItemObtained,

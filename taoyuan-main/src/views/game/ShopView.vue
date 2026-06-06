@@ -217,8 +217,9 @@
               <span
                 v-for="item in commerceEcho.recentItems.slice(0, 4)"
                 :key="`commerce-echo-item-${item.itemId}`"
-                class="text-[0.625rem] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent"
+                class="flex items-center gap-1 rounded-xs border border-accent/20 px-1.5 py-0.5 text-[0.625rem] text-accent"
               >
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
                 {{ item.name }} ×{{ item.quantity }} · {{ item.trendLabel }}
               </span>
             </div>
@@ -464,9 +465,12 @@
                   )
                 "
               >
-                <div>
-                  <p class="text-sm">{{ item.name }}</p>
-                  <p class="text-muted text-xs">{{ getTravelerItemDesc(item.itemId, item.quantity) }}</p>
+                <div class="flex min-w-0 items-center gap-2">
+                  <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                  <div class="min-w-0">
+                    <p class="truncate text-sm">{{ item.name }}</p>
+                    <p class="truncate text-muted text-xs">{{ getTravelerItemDesc(item.itemId, item.quantity) }}</p>
+                  </div>
                 </div>
                 <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
               </div>
@@ -799,17 +803,20 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">
-                  {{ seed.cropName }}种子
-                  <span v-if="seed.regrowth" class="text-success text-xs ml-1">[多茬]</span>
-                </p>
-                <p class="text-muted text-xs">
-                  {{ seed.season.map((s: Season) => SEASON_NAMES[s]).join('/') }}季 · {{ seed.growthDays }}天{{
-                    seed.regrowth ? ` · 每${seed.regrowthDays}天再收` : ''
-                  }}
-                  → 售{{ seed.sellPrice }}文
-                </p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(seed.seedId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">
+                    {{ seed.cropName }}种子
+                    <span v-if="seed.regrowth" class="text-success text-xs ml-1">[多茬]</span>
+                  </p>
+                  <p class="truncate text-muted text-xs">
+                    {{ seed.season.map((s: Season) => SEASON_NAMES[s]).join('/') }}季 · {{ seed.growthDays }}天{{
+                      seed.regrowth ? ` · 每${seed.regrowthDays}天再收` : ''
+                    }}
+                    → 售{{ seed.sellPrice }}文
+                  </p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(seed.price) }}文</span>
             </div>
@@ -1007,9 +1014,12 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">{{ item.name }}</p>
-                <p class="text-muted text-xs">{{ item.description }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">{{ item.name }}</p>
+                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
@@ -1209,9 +1219,12 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">{{ item.name }}</p>
-                <p class="text-muted text-xs">{{ item.description }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">{{ item.name }}</p>
+                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
@@ -1245,9 +1258,12 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">{{ f.name }}</p>
-                <p class="text-muted text-xs">{{ f.description }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(f.id)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">{{ f.name }}</p>
+                  <p class="truncate text-muted text-xs">{{ f.description }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(f.price) }}文</span>
             </div>
@@ -1276,9 +1292,12 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">{{ item.name }}</p>
-                <p class="text-muted text-xs">{{ item.description }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">{{ item.name }}</p>
+                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
@@ -1307,9 +1326,12 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">{{ item.name }}</p>
-                <p class="text-muted text-xs">{{ item.description }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">{{ item.name }}</p>
+                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
@@ -1391,9 +1413,12 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">{{ item.name }}</p>
-                <p class="text-muted text-xs">{{ item.description }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">{{ item.name }}</p>
+                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
@@ -1422,9 +1447,12 @@
                 )
               "
             >
-              <div>
-                <p class="text-sm">{{ item.name }}</p>
-                <p class="text-muted text-xs">{{ item.description }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-sm">{{ item.name }}</p>
+                  <p class="truncate text-muted text-xs">{{ item.description }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent whitespace-nowrap">{{ discounted(item.price) }}文</span>
             </div>
@@ -1477,9 +1505,12 @@
             class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
             @click="openSellModal(item.itemId, item.quality, item.originalIndex)"
           >
-            <div>
-              <span class="text-sm" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
-              <span class="text-muted text-xs ml-1">×{{ item.quantity }}</span>
+            <div class="flex min-w-0 items-center gap-2">
+              <ItemIcon :item="item.def" size="xs" :quality="item.quality" />
+              <div class="min-w-0">
+                <span class="block truncate text-sm" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
+                <span class="block text-muted text-xs">×{{ item.quantity }}</span>
+              </div>
             </div>
             <div class="flex items-center space-x-1">
               <span class="text-xs text-accent whitespace-nowrap">{{ shopStore.calculateSellPrice(item.itemId, 1, item.quality) }}文</span>
@@ -1567,7 +1598,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="shopModal = null">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2 pr-6">{{ buyModalData.name }}</p>
+          <div class="mb-2 flex items-center gap-2 pr-6">
+            <ItemIcon v-if="buyModalData.itemId" :item="buyModalItemDef" size="lg" :resolution="256" :show-badge="false" />
+            <p class="min-w-0 flex-1 truncate text-sm text-accent">{{ buyModalData.name }}</p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ buyModalData.description }}</p>
@@ -1659,9 +1693,12 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="shopModal = null">
             <X :size="14" />
           </button>
-          <p class="text-sm mb-2 pr-6" :class="qualityTextClass(sellModalItem.quality, 'text-accent')">
-            {{ sellModalDef.name }}
-          </p>
+          <div class="mb-2 flex items-center gap-2 pr-6">
+            <ItemIcon :item="sellModalDef" size="lg" :resolution="256" :quality="sellModalItem.quality" />
+            <p class="min-w-0 flex-1 truncate text-sm" :class="qualityTextClass(sellModalItem.quality, 'text-accent')">
+              {{ sellModalDef.name }}
+            </p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ sellModalDef.description }}</p>
@@ -1843,6 +1880,7 @@
   import NeighborConsignmentPanel from '@/components/game/NeighborConsignmentPanel.vue'
   import ExchangeLedgerPanel from '@/components/game/ExchangeLedgerPanel.vue'
   import MarketGovernancePanel from '@/components/game/MarketGovernancePanel.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
 
   const cohabitationStore = useCohabitationStore()
   const RAIN_TOTEM_PRICE = 300
@@ -2639,6 +2677,11 @@
   const buyModalData = computed(() => {
     if (!shopModal.value || shopModal.value.type !== 'buy') return null
     return shopModal.value
+  })
+
+  const buyModalItemDef = computed(() => {
+    const itemId = buyModalData.value?.itemId
+    return itemId ? getItemById(itemId) ?? null : null
   })
 
   const sellModalData = computed(() => {

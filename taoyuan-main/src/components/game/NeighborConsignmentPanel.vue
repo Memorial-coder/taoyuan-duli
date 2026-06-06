@@ -60,6 +60,10 @@
         </label>
       </div>
       <div class="mt-2 flex flex-wrap gap-2">
+        <span class="flex items-center gap-1 text-[0.625rem] text-muted">
+          <ItemIcon :item="draftItemDef" size="xs" :show-badge="false" />
+          {{ formatItemName(draft.item_id) }} ×{{ draft.quantity }}
+        </span>
         <button class="btn !px-2 !py-1 text-xs" :disabled="running || !overview.neighbor_group" @click="$emit('create', { ...draft })">挂出</button>
       </div>
       <p class="text-[0.625rem] text-muted mt-2">当前第一版寄售只支持普通品质物资，挂单会从服务端存档里扣除对应普通品质库存。</p>
@@ -74,9 +78,12 @@
         <div class="space-y-2">
           <div v-for="listing in overview.open_listings" :key="listing.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <p class="text-xs text-text">{{ formatItemName(listing.item_id) }} ×{{ listing.quantity }}</p>
-                <p class="text-[0.625rem] text-muted mt-1">卖家：{{ listing.seller_username }} · {{ listing.scope_label }} · {{ listing.status }}</p>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(listing.item_id)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <p class="truncate text-xs text-text">{{ formatItemName(listing.item_id) }} ×{{ listing.quantity }}</p>
+                  <p class="text-[0.625rem] text-muted mt-1">卖家：{{ listing.seller_username }} · {{ listing.scope_label }} · {{ listing.status }}</p>
+                </div>
               </div>
               <span class="text-xs text-accent">{{ listing.price_money }}文</span>
             </div>
@@ -99,7 +106,10 @@
         </div>
         <div class="space-y-2">
           <div v-for="listing in overview.my_listings" :key="listing.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-            <p class="text-xs text-text">{{ formatItemName(listing.item_id) }} ×{{ listing.quantity }} · {{ listing.price_money }}文</p>
+            <div class="flex min-w-0 items-center gap-2">
+              <ItemIcon :item="getItemById(listing.item_id)" size="xs" :show-badge="false" />
+              <p class="min-w-0 truncate text-xs text-text">{{ formatItemName(listing.item_id) }} ×{{ listing.quantity }} · {{ listing.price_money }}文</p>
+            </div>
             <p class="text-[0.625rem] text-muted mt-1">{{ listing.scope_label }} · {{ listing.status }}</p>
             <button v-if="listing.can_cancel" class="mt-2 btn !px-2 !py-1 text-[0.625rem]" :disabled="running" @click="$emit('cancel', listing.id)">取消挂单</button>
             <button v-else-if="listing.can_reclaim" class="mt-2 btn !px-2 !py-1 text-[0.625rem]" :disabled="running" @click="$emit('reclaim', listing.id)">回收过期物资</button>
@@ -113,6 +123,7 @@
 <script setup lang="ts">
 import { computed, reactive, watchEffect } from 'vue'
 import { getItemById } from '@/data'
+import ItemIcon from '@/components/game/ItemIcon.vue'
 import type { NeighborConsignmentOverview } from '@/utils/neighborConsignmentApi'
 
 const props = defineProps<{
@@ -146,4 +157,5 @@ watchEffect(() => {
 })
 
 const formatItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId
+const draftItemDef = computed(() => getItemById(draft.item_id) ?? null)
 </script>

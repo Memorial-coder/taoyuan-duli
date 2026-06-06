@@ -72,6 +72,8 @@ export const useInventoryStore = defineStore('inventory', () => {
   const equipmentPresets = ref<EquipmentPreset[]>([])
   /** 当前使用的方案ID */
   const activePresetId = ref<string | null>(null)
+  /** 最近一次读档装备迁移记录 */
+  const equipmentMigrationLogs = ref<string[]>([])
 
   /** 正在升级中的工具（2天等待期） */
   const pendingUpgrade = ref<{ toolType: ToolType; targetTier: ToolTier; daysRemaining: number } | null>(null)
@@ -109,6 +111,19 @@ export const useInventoryStore = defineStore('inventory', () => {
   const cloneOwnedHats = (source: OwnedHat[]) => source.map(hat => ({ ...hat }))
   const cloneOwnedShoes = (source: OwnedShoe[]) => source.map(shoe => ({ ...shoe }))
   const cloneEquipmentPresets = (source: EquipmentPreset[]) => source.map(preset => ({ ...preset }))
+  const pushEquipmentMigrationLog = (message: string) => {
+    equipmentMigrationLogs.value.push(message)
+  }
+  const ensureDefaultWeapon = (): number => {
+    const existingIndex = ownedWeapons.value.findIndex(weapon => weapon.defId === 'wooden_stick' && weapon.enchantmentId === null)
+    if (existingIndex >= 0) return existingIndex
+    ownedWeapons.value.unshift({ defId: 'wooden_stick', enchantmentId: null })
+    if (equippedWeaponIndex.value >= 0) equippedWeaponIndex.value += 1
+    return 0
+  }
+  const equipFallbackWeapon = () => {
+    equippedWeaponIndex.value = ensureDefaultWeapon()
+  }
   const isTrinketSlotUnlocked = computed(() => playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat'))
   const unlockedTrinkets = computed<TrinketDef[]>(() => {
     if (!isTrinketSlotUnlocked.value) return []
@@ -656,11 +671,20 @@ export const useInventoryStore = defineStore('inventory', () => {
   const normalizePendingToolUpgrade = (value: unknown) => {
     if (!value || typeof value !== 'object') return null
     const raw = value as { toolType?: unknown; targetTier?: unknown; daysRemaining?: unknown }
-    if (typeof raw.toolType !== 'string' || !TOOL_TYPES.includes(raw.toolType as ToolType)) return null
+    if (typeof raw.toolType !== 'string' || !TOOL_TYPES.includes(raw.toolType as ToolType)) {
+      pushEquipmentMigrationLog('工具升级队列的工具类型无效，已清空。')
+      return null
+    }
     const toolType = raw.toolType as ToolType
     const tool = getTool(toolType)
     const nextTier = tool ? getNextToolTier(tool.tier) : null
-    if (!nextTier) return null
+    if (!nextTier) {
+      pushEquipmentMigrationLog(`工具升级队列中的${toolType}已无法继续升级，已清空。`)
+      return null
+    }
+    if (raw.targetTier !== nextTier) {
+      pushEquipmentMigrationLog(`工具升级目标从 ${String(raw.targetTier)} 修正为 ${nextTier}。`)
+    }
     const daysRemaining = Math.max(1, Math.min(2, Math.ceil(Number(raw.daysRemaining) || 1)))
     return { toolType, targetTier: nextTier, daysRemaining }
   }
@@ -1195,15 +1219,25 @@ export const useInventoryStore = defineStore('inventory', () => {
         w => w.defId === preset.weaponDefId && (preset.weaponEnchantmentId == null || w.enchantmentId === preset.weaponEnchantmentId)
       )
       if (idx >= 0) equipWeapon(idx)
-      else missing.push('武器')
+      else {
+        equipFallbackWeapon()
+        missing.push('武器')
+      }
     }
 
     // 戒指槽1
     let ring1Idx = -1
     if (preset.ringSlot1DefId) {
       ring1Idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot1DefId)
-      if (ring1Idx >= 0) equipRing(ring1Idx, 0)
-      else missing.push('戒指1')
+      if (ring1Idx >= 0) {
+        if (!equipRing(ring1Idx, 0)) {
+          unequipRing(0)
+          missing.push('戒指1')
+        }
+      } else {
+        unequipRing(0)
+        missing.push('戒指1')
+      }
     } else {
       unequipRing(0)
     }
@@ -1216,8 +1250,15 @@ export const useInventoryStore = defineStore('inventory', () => {
         missing.push('戒指2（不可与槽1相同）')
       } else {
         const idx = ownedRings.value.findIndex(r => r.defId === preset.ringSlot2DefId)
-        if (idx >= 0) equipRing(idx, 1)
-        else missing.push('戒指2')
+        if (idx >= 0) {
+          if (!equipRing(idx, 1)) {
+            unequipRing(1)
+            missing.push('戒指2')
+          }
+        } else {
+          unequipRing(1)
+          missing.push('戒指2')
+        }
       }
     } else {
       unequipRing(1)
@@ -1227,7 +1268,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (preset.hatDefId) {
       const idx = ownedHats.value.findIndex(h => h.defId === preset.hatDefId)
       if (idx >= 0) equipHat(idx)
-      else missing.push('帽子')
+      else {
+        unequipHat()
+        missing.push('帽子')
+      }
     } else {
       unequipHat()
     }
@@ -1236,13 +1280,19 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (preset.shoeDefId) {
       const idx = ownedShoes.value.findIndex(s => s.defId === preset.shoeDefId)
       if (idx >= 0) equipShoe(idx)
-      else missing.push('鞋子')
+      else {
+        unequipShoe()
+        missing.push('鞋子')
+      }
     } else {
       unequipShoe()
     }
 
     if (preset.trinketDefId) {
-      if (!equipTrinket(preset.trinketDefId)) missing.push('饰物')
+      if (!equipTrinket(preset.trinketDefId)) {
+        unequipTrinket()
+        missing.push('饰物')
+      }
     } else {
       unequipTrinket()
     }
@@ -1278,9 +1328,113 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
+    equipmentMigrationLogs.value = []
+
     const migrateRecipeId = (id: string) => {
       if (id === 'mill_fish_feed' || id === 'recycle_fish_feed') return 'fish_feed'
       return id
+    }
+
+    const normalizeSlotIndex = (value: unknown, fallback = -1) => {
+      const index = Math.floor(Number(value))
+      return Number.isFinite(index) ? index : fallback
+    }
+
+    const normalizeOwnedWeaponEntries = (value: unknown, equippedIndexValue: unknown) => {
+      const rawWeapons = Array.isArray(value) ? value : []
+      const equippedRawIndex = normalizeSlotIndex(equippedIndexValue, 0)
+      const validWeapons: Array<OwnedWeapon & { rawIndex: number }> = []
+      rawWeapons.forEach((entry, rawIndex) => {
+        if (!entry || typeof entry !== 'object') return
+        const rawWeapon = entry as Partial<OwnedWeapon>
+        const defId = typeof rawWeapon.defId === 'string' ? rawWeapon.defId : ''
+        if (!getWeaponById(defId)) {
+          pushEquipmentMigrationLog(`移除无效武器：${defId || `#${rawIndex}`}。`)
+          return
+        }
+        const rawEnchantmentId = typeof rawWeapon.enchantmentId === 'string' ? rawWeapon.enchantmentId : null
+        const enchantmentId = rawEnchantmentId && getEnchantmentById(rawEnchantmentId) ? rawEnchantmentId : null
+        if (rawEnchantmentId && !enchantmentId) {
+          pushEquipmentMigrationLog(`清空武器 ${defId} 的无效附魔：${rawEnchantmentId}。`)
+        }
+        validWeapons.push({ defId, enchantmentId, rawIndex })
+      })
+
+      if (validWeapons.length <= 0) {
+        ownedWeapons.value = [{ defId: 'wooden_stick', enchantmentId: null }]
+        equippedWeaponIndex.value = 0
+        pushEquipmentMigrationLog('武器列表为空或全部无效，已回退到木棍。')
+        return
+      }
+
+      const remappedIndex = validWeapons.findIndex(weapon => weapon.rawIndex === equippedRawIndex)
+      ownedWeapons.value = validWeapons.map(({ rawIndex: _rawIndex, ...weapon }) => weapon)
+      equippedWeaponIndex.value = remappedIndex >= 0 ? remappedIndex : 0
+      if (remappedIndex < 0) {
+        pushEquipmentMigrationLog('当前武器索引无效或目标武器已移除，已回退到第一把有效武器。')
+      }
+    }
+
+    const normalizeOwnedRings = (value: unknown, slot1Value: unknown, slot2Value: unknown) => {
+      const rawRings = Array.isArray(value) ? value : []
+      const validRings: Array<OwnedRing & { rawIndex: number }> = []
+      rawRings.forEach((entry, rawIndex) => {
+        if (!entry || typeof entry !== 'object') return
+        const defId = typeof (entry as Partial<OwnedRing>).defId === 'string' ? (entry as Partial<OwnedRing>).defId! : ''
+        if (!getRingById(defId)) {
+          pushEquipmentMigrationLog(`移除无效戒指：${defId || `#${rawIndex}`}。`)
+          return
+        }
+        validRings.push({ defId, rawIndex })
+      })
+
+      const remapRingSlot = (slotValue: unknown, label: string) => {
+        const rawSlot = normalizeSlotIndex(slotValue)
+        if (rawSlot < 0) return -1
+        const index = validRings.findIndex(ring => ring.rawIndex === rawSlot)
+        if (index < 0) pushEquipmentMigrationLog(`${label}目标戒指无效，已清空。`)
+        return index
+      }
+
+      ownedRings.value = validRings.map(({ rawIndex: _rawIndex, ...ring }) => ring)
+      equippedRingSlot1.value = remapRingSlot(slot1Value, '戒指槽1')
+      equippedRingSlot2.value = remapRingSlot(slot2Value, '戒指槽2')
+      if (equippedRingSlot1.value >= 0 && equippedRingSlot2.value >= 0) {
+        const slot1 = ownedRings.value[equippedRingSlot1.value] ?? null
+        const slot2 = ownedRings.value[equippedRingSlot2.value] ?? null
+        if (equippedRingSlot1.value === equippedRingSlot2.value || (slot1 && slot2 && slot1.defId === slot2.defId)) {
+          equippedRingSlot2.value = -1
+          pushEquipmentMigrationLog('戒指槽2与槽1重复，已清空槽2。')
+        }
+      }
+    }
+
+    const normalizeSingleIndexedEquipment = (
+      value: unknown,
+      equippedIndexValue: unknown,
+      resolveDef: (defId: string) => unknown,
+      label: string
+    ): { entries: Array<{ defId: string }>; equippedIndex: number } => {
+      const rawEntries = Array.isArray(value) ? value : []
+      const equippedRawIndex = normalizeSlotIndex(equippedIndexValue)
+      const validEntries: Array<{ defId: string; rawIndex: number }> = []
+      rawEntries.forEach((entry, rawIndex) => {
+        if (!entry || typeof entry !== 'object') return
+        const defId = typeof (entry as { defId?: unknown }).defId === 'string' ? (entry as { defId: string }).defId : ''
+        if (!resolveDef(defId)) {
+          pushEquipmentMigrationLog(`移除无效${label}：${defId || `#${rawIndex}`}。`)
+          return
+        }
+        validEntries.push({ defId, rawIndex })
+      })
+      const remappedIndex = validEntries.findIndex(entry => entry.rawIndex === equippedRawIndex)
+      if (equippedRawIndex >= 0 && remappedIndex < 0) {
+        pushEquipmentMigrationLog(`当前${label}无效，已清空槽位。`)
+      }
+      return {
+        entries: validEntries.map(({ rawIndex: _rawIndex, ...entry }) => entry),
+        equippedIndex: remappedIndex >= 0 ? remappedIndex : -1
+      }
     }
 
     items.value = (data.items ?? []).map(i => ({ ...i, itemId: migrateRecipeId(i.itemId) })).filter(i => getItemById(i.itemId))
@@ -1305,8 +1459,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     // 新版武器系统
     if ((data as any).ownedWeapons) {
-      ownedWeapons.value = (data as any).ownedWeapons
-      equippedWeaponIndex.value = (data as any).equippedWeaponIndex ?? 0
+      normalizeOwnedWeaponEntries((data as any).ownedWeapons, (data as any).equippedWeaponIndex)
     } else {
       // 旧存档迁移：weapon: { tier: 'copper' } → ownedWeapons
       const oldWeapon = (data as any).weapon
@@ -1318,35 +1471,47 @@ export const useInventoryStore = defineStore('inventory', () => {
           gold: 'gold_halberd'
         }
         const defId = tierMap[oldWeapon.tier as string] ?? 'wooden_stick'
-        ownedWeapons.value = [{ defId, enchantmentId: null }]
-        equippedWeaponIndex.value = 0
+        normalizeOwnedWeaponEntries([{ defId, enchantmentId: null }], 0)
       } else {
-        ownedWeapons.value = [{ defId: 'wooden_stick', enchantmentId: null }]
-        equippedWeaponIndex.value = 0
+        normalizeOwnedWeaponEntries([{ defId: 'wooden_stick', enchantmentId: null }], 0)
       }
     }
 
     pendingUpgrade.value = normalizePendingToolUpgrade((data as any).pendingUpgrade)
 
     // 戒指系统（向后兼容旧存档）
-    ownedRings.value = ((data as Record<string, unknown>).ownedRings as OwnedRing[]) ?? []
-    equippedRingSlot1.value = ((data as Record<string, unknown>).equippedRingSlot1 as number | undefined) ?? -1
-    equippedRingSlot2.value = ((data as Record<string, unknown>).equippedRingSlot2 as number | undefined) ?? -1
-    // 修复无效索引
-    if (equippedRingSlot1.value >= ownedRings.value.length) equippedRingSlot1.value = -1
-    if (equippedRingSlot2.value >= ownedRings.value.length) equippedRingSlot2.value = -1
+    normalizeOwnedRings(
+      (data as Record<string, unknown>).ownedRings,
+      (data as Record<string, unknown>).equippedRingSlot1,
+      (data as Record<string, unknown>).equippedRingSlot2
+    )
 
     // 帽子系统（向后兼容旧存档）
-    ownedHats.value = ((data as Record<string, unknown>).ownedHats as OwnedHat[]) ?? []
-    equippedHatIndex.value = ((data as Record<string, unknown>).equippedHatIndex as number | undefined) ?? -1
-    if (equippedHatIndex.value >= ownedHats.value.length) equippedHatIndex.value = -1
+    const normalizedHats = normalizeSingleIndexedEquipment(
+      (data as Record<string, unknown>).ownedHats,
+      (data as Record<string, unknown>).equippedHatIndex,
+      getHatById,
+      '帽子'
+    )
+    ownedHats.value = normalizedHats.entries
+    equippedHatIndex.value = normalizedHats.equippedIndex
 
     // 鞋子系统（向后兼容旧存档）
-    ownedShoes.value = ((data as Record<string, unknown>).ownedShoes as OwnedShoe[]) ?? []
-    equippedShoeIndex.value = ((data as Record<string, unknown>).equippedShoeIndex as number | undefined) ?? -1
-    if (equippedShoeIndex.value >= ownedShoes.value.length) equippedShoeIndex.value = -1
+    const normalizedShoes = normalizeSingleIndexedEquipment(
+      (data as Record<string, unknown>).ownedShoes,
+      (data as Record<string, unknown>).equippedShoeIndex,
+      getShoeById,
+      '鞋子'
+    )
+    ownedShoes.value = normalizedShoes.entries
+    equippedShoeIndex.value = normalizedShoes.equippedIndex
     equippedTrinketId.value = typeof (data as Record<string, unknown>).equippedTrinketId === 'string' ? ((data as Record<string, unknown>).equippedTrinketId as string) : null
+    if (equippedTrinketId.value && !getTrinketById(equippedTrinketId.value)) {
+      pushEquipmentMigrationLog(`清空无效饰物：${equippedTrinketId.value}。`)
+      equippedTrinketId.value = null
+    }
     if (equippedTrinketId.value && !unlockedTrinkets.value.some(def => def.id === equippedTrinketId.value)) {
+      pushEquipmentMigrationLog(`饰物 ${equippedTrinketId.value} 尚未解锁，已清空槽位。`)
       equippedTrinketId.value = null
     }
 
@@ -1358,13 +1523,9 @@ export const useInventoryStore = defineStore('inventory', () => {
       trinketDefId: (preset as EquipmentPreset & { trinketDefId?: string | null }).trinketDefId ?? null
     }))
     activePresetId.value = ((data as Record<string, unknown>).activePresetId as string | null | undefined) ?? null
-
-    if (equippedRingSlot1.value >= 0 && equippedRingSlot2.value >= 0) {
-      const slot1 = ownedRings.value[equippedRingSlot1.value] ?? null
-      const slot2 = ownedRings.value[equippedRingSlot2.value] ?? null
-      if (equippedRingSlot1.value === equippedRingSlot2.value || (slot1 && slot2 && slot1.defId === slot2.defId)) {
-        equippedRingSlot2.value = -1
-      }
+    if (activePresetId.value && !equipmentPresets.value.some(preset => preset.id === activePresetId.value)) {
+      pushEquipmentMigrationLog(`当前装备方案 ${activePresetId.value} 不存在，已清空激活状态。`)
+      activePresetId.value = null
     }
   }
 
@@ -1374,6 +1535,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     tools,
     ownedWeapons,
     equippedWeaponIndex,
+    equipmentMigrationLogs,
     pendingUpgrade,
     isFull,
     tempItems,

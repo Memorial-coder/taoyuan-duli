@@ -6776,7 +6776,7 @@ export const useNpcStore = defineStore('npc', () => {
                 { id: 'herb', gain: 3 },
                 { id: 'green_tea_drink', gain: 3 },
                 { id: 'chrysanthemum_tea', gain: 3 },
-                { id: 'osmanthus_tea', gain: 3 }
+                { id: 'processed_osmanthus_tea', gain: 3 }
               ]
         let found = false
         for (const si of supplementItems) {

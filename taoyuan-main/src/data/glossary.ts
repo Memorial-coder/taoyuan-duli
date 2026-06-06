@@ -46,6 +46,7 @@ export interface GlossaryDetail {
 
 export interface GlossaryEntry {
   id: string
+  itemId?: string
   name: string
   category: GlossaryCategory
   categoryLabel: string
@@ -157,6 +158,9 @@ const buildItemIntents = (itemCategory: string): GlossaryIntentKey[] => {
   return Array.from(new Set(intents))
 }
 
+const existingItemId = (itemId: string | null | undefined): string | undefined =>
+  itemId && getItemById(itemId) ? itemId : undefined
+
 const buildGlossary = (): GlossaryEntry[] => {
   const entries: GlossaryEntry[] = []
 
@@ -165,6 +169,7 @@ const buildGlossary = (): GlossaryEntry[] => {
     if (!item) continue
     entries.push(makeEntry({
       id: `crop_${crop.id}`,
+      itemId: crop.id,
       name: crop.name,
       category: 'crop',
       categoryLabel: '作物',
@@ -184,6 +189,7 @@ const buildGlossary = (): GlossaryEntry[] => {
     if (!item) continue
     entries.push(makeEntry({
       id: `fish_${fish.id}`,
+      itemId: fish.id,
       name: fish.name,
       category: 'fish',
       categoryLabel: '鱼类',
@@ -264,6 +270,7 @@ const buildGlossary = (): GlossaryEntry[] => {
 
     entries.push(makeEntry({
       id: `recipe_${recipe.id}`,
+      itemId: existingItemId(`food_${recipe.id}`),
       name: recipe.name,
       category: 'recipe',
       categoryLabel: '食谱',
@@ -291,6 +298,7 @@ const buildGlossary = (): GlossaryEntry[] => {
     ]))
     entries.push(makeEntry({
       id: `machine_${machine.id}`,
+      itemId: existingItemId(machine.id),
       name: machine.name,
       category: 'machine',
       categoryLabel: '机器',
@@ -341,6 +349,7 @@ const buildGlossary = (): GlossaryEntry[] => {
   for (const ring of RINGS) {
     entries.push(makeEntry({
       id: `ring_${ring.id}`,
+      itemId: existingItemId(ring.id),
       name: ring.name,
       category: 'ring',
       categoryLabel: '戒指',
@@ -366,6 +375,7 @@ const buildGlossary = (): GlossaryEntry[] => {
   for (const hat of HATS) {
     entries.push(makeEntry({
       id: `hat_${hat.id}`,
+      itemId: existingItemId(hat.id),
       name: hat.name,
       category: 'hat',
       categoryLabel: '帽子',
@@ -391,6 +401,7 @@ const buildGlossary = (): GlossaryEntry[] => {
   for (const weapon of Object.values(WEAPONS)) {
     entries.push(makeEntry({
       id: `weapon_${weapon.id}`,
+      itemId: existingItemId(weapon.id),
       name: weapon.name,
       category: 'weapon',
       categoryLabel: '武器',
@@ -463,6 +474,7 @@ const buildGlossary = (): GlossaryEntry[] => {
 
     entries.push(makeEntry({
       id: glossaryCategory === 'seed' ? `seed_${item.id}` : `item_${item.id}`,
+      itemId: item.id,
       name: item.name,
       category: glossaryCategory,
       categoryLabel: ITEM_CATEGORY_NAMES[item.category] ?? '物品',
@@ -480,6 +492,7 @@ const buildGlossary = (): GlossaryEntry[] => {
   for (const shoe of SHOES) {
     entries.push(makeEntry({
       id: `shoe_${shoe.id}`,
+      itemId: existingItemId(shoe.id),
       name: shoe.name,
       category: 'shoe',
       categoryLabel: '鞋子',

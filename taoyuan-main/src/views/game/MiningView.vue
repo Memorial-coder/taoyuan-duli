@@ -23,6 +23,16 @@
       <p v-if="miningStore.skullSafePointFloor > 0" class="text-xs text-muted mt-0.5">安全点：第{{ miningStore.skullSafePointFloor }}层</p>
     </div>
 
+    <div v-if="miningStore.pendingMineRewards.length > 0" class="border border-warning/30 rounded-xs p-3 mb-4 bg-warning/5">
+      <div class="flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <p class="text-sm text-warning">暂存矿洞奖励</p>
+          <p class="text-xs text-muted mt-0.5">整理背包后可领取 {{ miningStore.pendingMineRewards.length }} 份未入包奖励。</p>
+        </div>
+        <Button class="shrink-0 py-1 px-2 text-xs" @click="handleClaimPendingMineRewards">领取</Button>
+      </div>
+    </div>
+
     <!-- 装备与状态 -->
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
@@ -113,7 +123,10 @@
           :key="zone.id"
           class="flex items-center justify-between border border-accent/10 rounded-xs px-3 py-1.5"
         >
-          <span class="text-xs text-success">{{ zone.bossName }}</span>
+          <span class="flex min-w-0 items-center gap-2">
+            <FishBossImage kind="mineBoss" :id="zone.bossId" :name="zone.bossName" size="xs" />
+            <span class="truncate text-xs text-success">{{ zone.bossName }}</span>
+          </span>
           <span class="text-xs text-muted">{{ zone.name }}</span>
         </div>
       </div>
@@ -298,9 +311,9 @@
                 :class="bombModeId === bombItem.id ? 'border-accent text-accent' : 'border-accent/20'"
                 @click="toggleBombMode(bombItem.id)"
               >
-                <span class="text-xs">
-                  <Zap :size="12" class="inline" />
-                  {{ bombItem.name }}
+                <span class="flex min-w-0 items-center gap-1 text-xs">
+                  <ItemIcon :item="getItemById(bombItem.id)" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ bombItem.name }}</span>
                 </span>
                 <span class="text-xs text-muted">&times;{{ bombItem.count }}</span>
               </div>
@@ -310,9 +323,9 @@
               class="flex items-center justify-between border border-danger/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-danger/5"
               @click="handleUseMonsterLure"
             >
-              <span class="text-xs text-danger">
-                <Skull :size="12" class="inline" />
-                怪物诱饵
+              <span class="flex min-w-0 items-center gap-1 text-xs text-danger">
+                <ItemIcon :item="getItemById('monster_lure')" size="xs" :show-badge="false" />
+                <span class="truncate">怪物诱饵</span>
               </span>
               <span class="text-xs text-muted">&times;{{ inventoryStore.getItemCount('monster_lure') }}</span>
             </div>
@@ -396,6 +409,15 @@
             <span class="text-[0.625rem] text-muted/40">VS</span>
             <!-- 怪物 -->
             <div class="border border-danger/20 rounded-xs p-2 relative" :class="monsterAnim">
+              <div v-if="miningStore.combatIsBoss && miningStore.combatMonster" class="mb-1.5 flex justify-center">
+                <FishBossImage
+                  kind="mineBoss"
+                  :id="miningStore.combatMonster.id"
+                  :name="miningStore.combatMonster.name"
+                  :resolution="256"
+                  size="lg"
+                />
+              </div>
               <p class="text-xs text-center text-danger mb-1.5 truncate">
                 {{ miningStore.combatMonster?.name }}
                 <span v-if="miningStore.combatIsBoss" class="text-[0.625rem]">[BOSS]</span>
@@ -525,9 +547,12 @@
               class="flex items-center justify-between border border-success/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-success/5"
               @click="handlePendingItem(item.itemId)"
             >
-              <div class="flex flex-col">
-                <span class="text-xs">{{ item.name }}</span>
-                <span class="text-[0.625rem] text-muted">{{ item.desc }}</span>
+              <div class="flex min-w-0 items-center gap-2">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <div class="min-w-0">
+                  <span class="block truncate text-xs">{{ item.name }}</span>
+                  <span class="block truncate text-[0.625rem] text-muted">{{ item.desc }}</span>
+                </div>
               </div>
               <span class="text-xs text-muted">&times;{{ item.count }}</span>
             </div>
@@ -548,7 +573,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="pendingItemId = null">
             <X :size="14" />
           </button>
-          <p class="text-sm text-accent mb-2">使用道具</p>
+          <div class="mb-2 flex items-center gap-2 pr-6">
+            <ItemIcon :item="getItemById(pendingItem.itemId)" size="lg" :resolution="256" :show-badge="false" />
+            <p class="min-w-0 flex-1 truncate text-sm text-accent">使用道具</p>
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted">道具</span>
@@ -755,6 +783,8 @@
     Check
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import FishBossImage from '@/components/game/FishBossImage.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -944,12 +974,12 @@
 
   onUnmounted(clearCombatVisualTimers)
 
-  const parseDamage = (msg: string): { dealt: number; taken: number; isCrit: boolean } => {
-    const dealt = msg.match(/造成(\d+)点伤害/)
-    const taken = msg.match(/受到(\d+)点伤害/)
+  const parseDamageFallback = (msg: string): { dealt: number; taken: number; isCrit: boolean } => {
+    const dealt = Array.from(msg.matchAll(/造成(\d+)点伤害/g)).reduce((sum, match) => sum + parseInt(match[1]!, 10), 0)
+    const taken = Array.from(msg.matchAll(/受到(\d+)点伤害/g)).reduce((sum, match) => sum + parseInt(match[1]!, 10), 0)
     return {
-      dealt: dealt ? parseInt(dealt[1]!) : 0,
-      taken: taken ? parseInt(taken[1]!) : 0,
+      dealt,
+      taken,
       isCrit: msg.includes('暴击')
     }
   }
@@ -1052,6 +1082,7 @@
       return {
         ...z,
         reached,
+        bossId: boss?.id ?? '',
         bossName: boss?.name ?? '???',
         bossDefeated,
         progress: reached ? Math.max(5, progress) : 0,
@@ -1307,7 +1338,10 @@
     const result = miningStore.combatAction(action)
     const combatTimeCost = result.timeCostHours * inventoryStore.getToolWorkTimeMultiplier('pickaxe')
     const tr = combatTimeCost > 0 ? gameStore.advanceTime(combatTimeCost) : null
-    const { dealt, taken, isCrit } = parseDamage(result.message)
+    const parsedDamage = parseDamageFallback(result.message)
+    const dealt = result.dealtDamage ?? parsedDamage.dealt
+    const taken = result.takenDamage ?? parsedDamage.taken
+    const isCrit = result.isCrit ?? parsedDamage.isCrit
 
     if (action === 'attack') sfxAttack()
     if (action === 'defend') sfxDefend()
@@ -1366,6 +1400,14 @@
   const handlePendingItem = (itemId: string) => {
     pendingItemId.value = itemId
     showCombatItems.value = false
+  }
+
+  const handleClaimPendingMineRewards = () => {
+    const result = miningStore.claimPendingMineRewards()
+    addLog(result.message)
+    if (miningStore.isExploring) {
+      exploreLog.value.push(result.message)
+    }
   }
 
   /** 使用怪物诱饵 */

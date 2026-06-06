@@ -23,7 +23,7 @@ export const WILD_TREE_DEFS: WildTreeDef[] = [
   {
     type: 'mulberry',
     name: '桑树',
-    seedItemId: 'mulberry',
+    seedItemId: 'wild_mulberry',
     growthDays: 14,
     tapProduct: 'silk',
     tapCycleDays: 4,

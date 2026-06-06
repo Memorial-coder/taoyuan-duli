@@ -313,8 +313,11 @@
                     {{ playerStore.money }}/{{ getVillageProjectMoneyCost(project.id) }}文
                   </span>
                 </div>
-                <div v-for="material in getVillageProjectMaterials(project.id)" :key="material.itemId" class="flex items-center justify-between text-[0.625rem] mt-0.5">
-                  <span class="text-muted">{{ getItemName(material.itemId) }}</span>
+                <div v-for="material in getVillageProjectMaterials(project.id)" :key="material.itemId" class="flex items-center justify-between gap-2 text-[0.625rem] mt-0.5">
+                  <span class="flex min-w-0 items-center gap-1 text-muted">
+                    <ItemIcon :item="getItemById(material.itemId)" size="xs" :show-badge="false" />
+                    <span class="truncate">{{ getItemName(material.itemId) }}</span>
+                  </span>
                   <span :class="getCombinedItemCount(material.itemId) >= material.quantity ? 'text-success' : 'text-danger'">
                     {{ getCombinedItemCount(material.itemId) }}/{{ material.quantity }}
                   </span>
@@ -349,9 +352,12 @@
                   <span class="text-[0.625rem] text-accent">{{ Math.round(project.donation.progressRate * 100) }}%</span>
                 </div>
                 <p class="text-[0.625rem] text-muted mt-1">{{ project.donation.plan.label }}</p>
-                <p v-if="project.donation.acceptedItems.length > 0" class="text-[0.625rem] text-muted mt-1">
-                  接收：{{ project.donation.acceptedItems.map(item => `${item.itemName} x${getCombinedItemCount(item.itemId)}`).join('、') }}
-                </p>
+                <div v-if="project.donation.acceptedItems.length > 0" class="mt-1 flex flex-wrap gap-1.5">
+                  <span v-for="item in project.donation.acceptedItems" :key="item.itemId" class="flex items-center gap-1 text-[0.625rem] text-muted">
+                    <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                    {{ item.itemName }} x{{ getCombinedItemCount(item.itemId) }}
+                  </span>
+                </div>
                 <div class="flex flex-wrap gap-2 mt-2">
                   <Button v-if="getFirstAvailableDonationItem(project.id)" class="justify-center" @click="quickDonate(project.id)">
                     捐赠 1 个 {{ getFirstAvailableDonationItem(project.id)?.itemName }}
@@ -397,6 +403,7 @@
   import { computed, watchEffect } from 'vue'
   import { useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { addLog, logHistory, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel } from '@/composables/useNavigation'

@@ -124,6 +124,19 @@
               </template>
             </div>
 
+            <div class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">所需材料</p>
+              <div v-for="mat in selectedUpgradeCost.materials" :key="mat.itemId" class="flex items-center justify-between gap-2 mt-0.5">
+                <span class="flex min-w-0 items-center gap-1 text-xs text-muted">
+                  <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+                </span>
+                <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
+                  {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
+                </span>
+              </div>
+            </div>
+
             <p v-if="getUpgradeBlockReason(selectedTool)" class="text-xs text-danger mb-2">
               {{ getUpgradeBlockReason(selectedTool) }}
             </p>
@@ -155,6 +168,7 @@
 <script setup lang="ts">
   import { ref, computed } from 'vue'
   import { ArrowUp, Wrench, Clock, CircleCheck, X } from 'lucide-vue-next'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'

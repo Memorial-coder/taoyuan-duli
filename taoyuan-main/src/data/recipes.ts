@@ -975,7 +975,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 65,
       healthRestore: 35,
-      buff: { type: 'luck', value: 3, description: '幸运+3（当天）' }
+      buff: { type: 'luck', value: 3, description: '幸运+3%（当天）' }
     },
     unlockSource: '与雪芹结婚后',
     description: '雪芹婚后分享的画室私房羹汤。'
@@ -1087,7 +1087,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 40,
       healthRestore: 20,
-      buff: { type: 'luck', value: 2, description: '幸运+2（当天）' }
+      buff: { type: 'luck', value: 2, description: '幸运+2%（当天）' }
     },
     unlockSource: '与墨白结婚后',
     description: '墨白婚后常在月下泡的清淡茶饭。'

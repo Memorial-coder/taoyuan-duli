@@ -435,8 +435,11 @@
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2 space-y-1">
             <p class="text-xs text-muted mb-1">所需材料</p>
-            <div v-for="mat in GREENHOUSE_MATERIAL_COST" :key="mat.itemId" class="flex items-center justify-between">
-              <span class="text-xs text-muted">{{ getItemName(mat.itemId) }}</span>
+            <div v-for="mat in GREENHOUSE_MATERIAL_COST" :key="mat.itemId" class="flex items-center justify-between gap-2">
+              <span class="flex min-w-0 items-center gap-1 text-xs text-muted">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getItemName(mat.itemId) }}</span>
+              </span>
               <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
                 {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
               </span>
@@ -482,8 +485,11 @@
           </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2 space-y-1">
-            <div v-for="mat in WAREHOUSE_UNLOCK_MATERIALS" :key="mat.itemId" class="flex items-center justify-between">
-              <span class="text-xs text-muted">{{ getItemName(mat.itemId) }}</span>
+            <div v-for="mat in WAREHOUSE_UNLOCK_MATERIALS" :key="mat.itemId" class="flex items-center justify-between gap-2">
+              <span class="flex min-w-0 items-center gap-1 text-xs text-muted">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getItemName(mat.itemId) }}</span>
+              </span>
               <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
                 {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
               </span>
@@ -538,9 +544,12 @@
               class="flex items-center justify-between border border-accent/10 rounded-xs px-2 py-1 mr-1"
               @click="chestItemDetail = { itemId: item.itemId, quality: item.quality, quantity: item.quantity }"
             >
-              <span class="text-xs truncate mr-2 cursor-pointer hover:underline" :class="qualityTextClass(item.quality)">
-                {{ getItemName(item.itemId) }}
-                <span class="text-xs text-muted">&times;{{ item.quantity }}</span>
+              <span class="flex min-w-0 items-center gap-2 text-xs truncate mr-2 cursor-pointer hover:underline" :class="qualityTextClass(item.quality)">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality" />
+                <span class="truncate">
+                  {{ getItemName(item.itemId) }}
+                  <span class="text-xs text-muted">&times;{{ item.quantity }}</span>
+                </span>
               </span>
               <div class="flex items-center space-x-1.5">
                 <Button
@@ -595,9 +604,12 @@
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
               @click="openChestQtyModal('deposit', openChestId!, item.itemId, item.quality, item.quantity)"
             >
-              <span class="text-xs truncate mr-2" :class="qualityTextClass(item.quality)">
-                {{ getItemName(item.itemId) }}
-                <span v-if="item.quality !== 'normal'" class="text-[0.625rem]">({{ QUALITY_LABEL[item.quality] }})</span>
+              <span class="flex min-w-0 items-center gap-2 text-xs truncate mr-2" :class="qualityTextClass(item.quality)">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality" />
+                <span class="truncate">
+                  {{ getItemName(item.itemId) }}
+                  <span v-if="item.quality !== 'normal'" class="text-[0.625rem]">({{ QUALITY_LABEL[item.quality] }})</span>
+                </span>
               </span>
               <span class="text-xs text-muted">&times;{{ item.quantity }}</span>
             </div>
@@ -618,10 +630,13 @@
             <p class="text-sm text-accent">{{ chestQtyModal.mode === 'withdraw' ? '取出' : '存入' }}</p>
             <Button class="py-0 px-1" :icon="X" :icon-size="12" @click="chestQtyModal = null" />
           </div>
-          <p class="text-xs mb-2" :class="qualityTextClass(chestQtyModal.quality)">
-            {{ getItemName(chestQtyModal.itemId) }}
-            <span v-if="chestQtyModal.quality !== 'normal'" class="text-[0.625rem]">({{ QUALITY_LABEL[chestQtyModal.quality] }})</span>
-          </p>
+          <div class="mb-2 flex items-center gap-2">
+            <ItemIcon :item="getItemById(chestQtyModal.itemId)" size="sm" :quality="chestQtyModal.quality" />
+            <p class="min-w-0 flex-1 truncate text-xs" :class="qualityTextClass(chestQtyModal.quality)">
+              {{ getItemName(chestQtyModal.itemId) }}
+              <span v-if="chestQtyModal.quality !== 'normal'" class="text-[0.625rem]">({{ QUALITY_LABEL[chestQtyModal.quality] }})</span>
+            </p>
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs text-muted">数量</span>
@@ -676,7 +691,8 @@
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
               <p class="text-[0.625rem] text-muted mb-1">返还材料（50%）</p>
               <div class="flex flex-wrap gap-x-3 gap-y-0.5">
-                <span v-for="mat in dismantleChestInfo.refund" :key="mat.itemId" class="text-[0.625rem] text-success">
+                <span v-for="mat in dismantleChestInfo.refund" :key="mat.itemId" class="flex items-center gap-1 text-[0.625rem] text-success">
+                  <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
                   {{ getItemName(mat.itemId) }} ×{{ mat.quantity }}
                 </span>
                 <span v-if="dismantleChestInfo.refund.length === 0" class="text-[0.625rem] text-muted">无</span>
@@ -702,9 +718,12 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="chestItemDetail = null">
             <X :size="14" />
           </button>
-          <p class="text-sm mb-2" :class="qualityTextClass(chestItemDetail.quality, 'text-accent')">
-            {{ chestItemDef.name }}
-          </p>
+          <div class="mb-2 flex items-center gap-2 pr-6">
+            <ItemIcon :item="chestItemDef" size="lg" :resolution="256" :quality="chestItemDetail.quality" />
+            <p class="min-w-0 flex-1 truncate text-sm" :class="qualityTextClass(chestItemDetail.quality, 'text-accent')">
+              {{ chestItemDef.name }}
+            </p>
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ chestItemDef.description }}</p>
           </div>
@@ -768,9 +787,10 @@
                 <span
                   v-for="mat in CHEST_DEFS[tier].craftCost"
                   :key="mat.itemId"
-                  class="text-[0.625rem]"
+                  class="flex items-center gap-1 text-[0.625rem]"
                   :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-muted' : 'text-danger'"
                 >
+                  <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
                   {{ getItemName(mat.itemId) }} {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
                 </span>
                 <span class="text-[0.625rem]" :class="playerStore.money >= CHEST_DEFS[tier].craftMoney ? 'text-muted' : 'text-danger'">
@@ -801,6 +821,7 @@
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
   import { getItemById, getNpcById } from '@/data'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { GREENHOUSE_UNLOCK_COST, GREENHOUSE_MATERIAL_COST, WAREHOUSE_UNLOCK_MATERIALS } from '@/data/buildings'
   import { CHEST_DEFS, CHEST_TIER_ORDER } from '@/data/items'
   import type { Quality, ChestTier, VoidChestRole } from '@/types'

@@ -71,17 +71,22 @@ export const handlePerkSelect = (perk: SkillPerk5 | SkillPerk10 | SkillPerk15 | 
   if (!pendingPerk.value) return
   const skillStore = useSkillStore()
   const { skillType, level } = pendingPerk.value
+  let applied = false
   if (level === 5) {
-    skillStore.setPerk5(skillType, perk as SkillPerk5)
+    applied = skillStore.setPerk5(skillType, perk as SkillPerk5)
   } else if (level === 10) {
-    skillStore.setPerk10(skillType, perk as SkillPerk10)
+    applied = skillStore.setPerk10(skillType, perk as SkillPerk10)
   } else if (level === 15) {
-    skillStore.setPerk15(skillType, perk as SkillPerk15)
+    applied = skillStore.setPerk15(skillType, perk as SkillPerk15)
   } else {
-    skillStore.setPerk20(skillType, perk as SkillPerk20)
+    applied = skillStore.setPerk20(skillType, perk as SkillPerk20)
+  }
+  pendingPerk.value = null
+  if (!applied) {
+    addLog('专精选择失败：当前技能等级或分支不满足条件。')
+    return
   }
   addLog('习得了新专精！')
-  pendingPerk.value = null
 }
 
 /** 判断是否为隐藏NPC */

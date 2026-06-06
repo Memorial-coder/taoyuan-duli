@@ -255,9 +255,7 @@
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-1.5">
-                  <Waves v-if="fish.mature && !fish.sick" :size="12" class="text-success" />
-                  <HeartPulse v-else-if="fish.sick" :size="12" class="text-danger" />
-                  <Fish v-else :size="12" class="text-muted/40" />
+                  <FishBossImage kind="fish" :id="fish.fishId" :name="fish.name" size="xs" :silhouette="fish.sick" />
                   <span class="text-xs" :class="fish.sick ? 'text-danger' : fish.mature ? 'text-text' : 'text-muted'">
                     {{ fish.name }}
                   </span>
@@ -285,9 +283,12 @@
               :key="item.itemId"
               class="border border-accent/20 rounded-xs px-3 py-2 flex items-center justify-between mr-1"
             >
-              <span class="text-xs">
-                {{ item.name }}
-                <span class="text-muted">&times;{{ item.count }}</span>
+              <span class="flex min-w-0 items-center gap-2 text-xs">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">
+                  {{ item.name }}
+                  <span class="text-muted">&times;{{ item.count }}</span>
+                </span>
               </span>
               <Button :icon-size="12" @click="handleAddFish(item.itemId)">放入</Button>
             </div>
@@ -370,16 +371,23 @@
         </div>
 
         <!-- 品种网格 -->
-        <div class="grid grid-cols-5 gap-1 p-2 max-h-[50vh] overflow-auto">
-          <div
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 p-2 max-h-[50vh] overflow-auto">
+          <button
             v-for="breed in currentGenBreeds"
             :key="breed.breedId"
-            class="border rounded-xs p-1.5 text-xs text-center transition-colors truncate"
+            type="button"
+            class="min-h-[92px] border rounded-xs p-2 text-xs text-center transition-colors flex flex-col items-center justify-center gap-1.5 overflow-hidden"
             :class="isDiscovered(breed.breedId) ? 'border-accent/20 ' + genColor(compendiumGen) : 'border-accent/10 text-muted/30'"
+            :disabled="!isDiscovered(breed.breedId)"
+            @click="openBreedDetail(breed)"
           >
-            <template v-if="isDiscovered(breed.breedId)">{{ breed.name }}</template>
+            <template v-if="isDiscovered(breed.breedId)">
+              <FishBossImage kind="fish" :id="breed.baseFishId" :name="breed.name" size="sm" />
+              <span class="max-w-full truncate">{{ breed.name }}</span>
+              <span class="text-[0.625rem] text-muted">{{ breed.generation }}代</span>
+            </template>
             <Lock v-else :size="12" class="mx-auto text-muted/30" />
-          </div>
+          </button>
         </div>
 
         <!-- 完成度 -->
@@ -403,13 +411,71 @@
 
     <!-- 鱼详情弹窗 -->
     <Transition name="panel-fade">
+      <div
+        v-if="detailBreed"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        @click.self="detailBreed = null"
+      >
+        <div class="game-panel max-w-xs w-full relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="detailBreed = null">
+            <X :size="14" />
+          </button>
+
+          <div class="flex items-center gap-3 mb-3 pr-6">
+            <FishBossImage
+              kind="fish"
+              :id="detailBreed.baseFishId"
+              :name="detailBreed.name"
+              :resolution="256"
+              size="lg"
+            />
+            <div class="min-w-0">
+              <p class="truncate text-sm text-accent">{{ detailBreed.name }}</p>
+              <p class="text-[0.625rem] text-muted mt-1">{{ detailBreed.generation }}代 · {{ getPondableFishName(detailBreed.baseFishId) }}</p>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2 space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted">图鉴编号</span>
+              <span class="text-xs text-accent">{{ detailBreed.breedId }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted">基础鱼种</span>
+              <span class="text-xs text-accent">{{ getPondableFishName(detailBreed.baseFishId) }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted">父本 A</span>
+              <span class="text-xs text-accent">{{ getBreedParentName(detailBreed.parentBreedA) }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted">父本 B</span>
+              <span class="text-xs text-accent">{{ getBreedParentName(detailBreed.parentBreedB) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="panel-fade">
       <div v-if="detailFish" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="detailFish = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="detailFish = null">
             <X :size="14" />
           </button>
 
-          <p class="text-sm text-accent mb-2">{{ detailFish.name }}</p>
+          <div class="flex items-center gap-3 mb-2">
+            <FishBossImage
+              kind="fish"
+              :id="detailFish.fishId"
+              :name="detailFish.name"
+              :variant="detailFish.sick ? '02' : '01'"
+              :silhouette="detailFish.sick"
+              :resolution="256"
+              size="lg"
+            />
+            <p class="min-w-0 text-sm text-accent">{{ detailFish.name }}</p>
+          </div>
           <p class="text-xs mb-2 flex items-center space-x-1">
             <span class="text-accent flex items-center space-x-px">
               <Star v-for="n in fishPondStore.getGeneticStarRating(detailFish.genetics)" :key="n" :size="10" />
@@ -520,8 +586,11 @@
           <!-- 所需材料 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需材料</p>
-            <div v-for="mat in modalMaterials" :key="mat.itemId" class="flex items-center justify-between mt-0.5">
-              <span class="text-xs">{{ mat.name }}</span>
+            <div v-for="mat in modalMaterials" :key="mat.itemId" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="flex min-w-0 items-center gap-1 text-xs">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ mat.name }}</span>
+              </span>
               <span class="text-xs" :class="mat.enough ? 'text-success' : 'text-danger'">{{ mat.owned }}/{{ mat.required }}</span>
             </div>
           </div>
@@ -559,6 +628,8 @@
   import { Waves, Droplets, Sparkles, HeartPulse, Package, ArrowUp, Hammer, Lock, Fish, Heart, X, Star } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import FishBossImage from '@/components/game/FishBossImage.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useFishPondStore } from '@/stores/useFishPondStore'
@@ -571,9 +642,9 @@
   import { handleEndDay } from '@/composables/useEndDay'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { POND_BUILD_COST, POND_UPGRADE_COSTS, POND_CAPACITY, PONDABLE_FISH, getPondableFish, FISH_BREEDING_DAYS } from '@/data/fishPond'
-  import { getBreedsByGeneration, BREED_COUNTS } from '@/data/pondBreeds'
+  import { getBreedById, getBreedsByGeneration, BREED_COUNTS } from '@/data/pondBreeds'
   import { getItemById } from '@/data/items'
-  import type { PondFish } from '@/types/fishPond'
+  import type { PondBreedDef, PondFish } from '@/types/fishPond'
 
   const fishPondStore = useFishPondStore()
   const inventoryStore = useInventoryStore()
@@ -589,6 +660,7 @@
   const currentTab = ref<'pond' | 'compendium'>('pond')
   const selectedBreedingFish = ref<PondFish | null>(null)
   const detailFish = ref<PondFish | null>(null)
+  const detailBreed = ref<PondBreedDef | null>(null)
   const compendiumGen = ref<1 | 2 | 3 | 4 | 5>(1)
 
   /** 建造/升级统一弹窗 */

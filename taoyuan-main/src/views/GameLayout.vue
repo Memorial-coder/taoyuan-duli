@@ -227,9 +227,12 @@
                     class="flex items-center justify-between px-2 py-0.5 border border-accent/5 rounded-xs mr-1"
                     @click.stop="voidItemDetail = { itemId: item.itemId, quality: item.quality, quantity: item.quantity }"
                   >
-                    <span class="text-[0.625rem] truncate mr-2 cursor-pointer hover:underline" :class="voidQualityClass(item.quality)">
-                      {{ getItemName(item.itemId) }}
-                      <span class="text-[0.625rem] text-muted">&times;{{ item.quantity }}</span>
+                    <span class="flex min-w-0 items-center gap-1.5 text-[0.625rem] truncate mr-2 cursor-pointer hover:underline" :class="voidQualityClass(item.quality)">
+                      <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality" />
+                      <span class="min-w-0 truncate">
+                        {{ getItemName(item.itemId) }}
+                        <span class="text-[0.625rem] text-muted">&times;{{ item.quantity }}</span>
+                      </span>
                     </span>
                     <div class="flex items-center space-x-1">
                       <Button
@@ -295,9 +298,12 @@
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
               @click="openVoidQtyModal('deposit', voidDepositChestId!, item.itemId, item.quality, item.quantity)"
             >
-              <span class="text-xs truncate mr-2" :class="voidQualityClass(item.quality)">
-                {{ getItemName(item.itemId) }}
-                <span v-if="item.quality !== 'normal'" class="text-[0.625rem]">({{ VOID_QUALITY_LABEL[item.quality] }})</span>
+              <span class="flex min-w-0 items-center gap-1.5 text-xs truncate mr-2" :class="voidQualityClass(item.quality)">
+                <ItemIcon :item="getItemById(item.itemId)" size="xs" :quality="item.quality" />
+                <span class="min-w-0 truncate">
+                  {{ getItemName(item.itemId) }}
+                  <span v-if="item.quality !== 'normal'" class="text-[0.625rem]">({{ VOID_QUALITY_LABEL[item.quality] }})</span>
+                </span>
               </span>
               <span class="text-xs text-muted">&times;{{ item.quantity }}</span>
             </div>
@@ -318,10 +324,13 @@
             <p class="text-sm text-accent">{{ voidQtyModal.mode === 'withdraw' ? '取出' : '存入' }}</p>
             <Button class="py-0 px-1" :icon="X" :icon-size="12" @click="voidQtyModal = null" />
           </div>
-          <p class="text-xs mb-2" :class="voidQualityClass(voidQtyModal.quality)">
-            {{ getItemName(voidQtyModal.itemId) }}
-            <span v-if="voidQtyModal.quality !== 'normal'" class="text-[0.625rem]">({{ VOID_QUALITY_LABEL[voidQtyModal.quality] }})</span>
-          </p>
+          <div class="flex items-center gap-2 mb-2" :class="voidQualityClass(voidQtyModal.quality)">
+            <ItemIcon :item="getItemById(voidQtyModal.itemId)" size="sm" :quality="voidQtyModal.quality" />
+            <p class="min-w-0 text-xs">
+              <span class="block truncate">{{ getItemName(voidQtyModal.itemId) }}</span>
+              <span v-if="voidQtyModal.quality !== 'normal'" class="block text-[0.625rem]">({{ VOID_QUALITY_LABEL[voidQtyModal.quality] }})</span>
+            </p>
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs text-muted">数量</span>
@@ -365,9 +374,12 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="voidItemDetail = null">
             <X :size="14" />
           </button>
-          <p class="text-sm mb-2" :class="voidQualityClass(voidItemDetail.quality) || 'text-accent'">
-            {{ voidItemDef.name }}
-          </p>
+          <div class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="voidItemDef" size="lg" :resolution="256" :quality="voidItemDetail.quality" />
+            <p class="min-w-0 text-sm" :class="voidQualityClass(voidItemDetail.quality) || 'text-accent'">
+              <span class="block truncate">{{ voidItemDef.name }}</span>
+            </p>
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ voidItemDef.description }}</p>
           </div>
@@ -504,6 +516,7 @@
   import TopGoalsPanel from '@/components/game/TopGoalsPanel.vue'
   import EventDialog from '@/components/game/EventDialog.vue'
   import HeartEventDialog from '@/components/game/HeartEventDialog.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import PerkSelectDialog from '@/components/game/PerkSelectDialog.vue'
   import FishingContestView from '@/components/game/FishingContestView.vue'
   import HarvestFairView from '@/components/game/HarvestFairView.vue'
@@ -548,7 +561,6 @@
   const sceneContentAnchor = ref<HTMLDivElement | null>(null)
   const isFullscreen = ref(false)
   const isFullscreenSupported = ref(false)
-
   const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
 
   const {

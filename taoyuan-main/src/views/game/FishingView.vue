@@ -148,8 +148,11 @@
           class="flex items-center justify-between border border-accent/10 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
           @click="selectedFish = f"
         >
-          <span class="text-xs" :class="DIFFICULTY_COLORS[f.difficulty]">{{ f.name }}</span>
-          <span class="text-[0.625rem]" :class="DIFFICULTY_COLORS[f.difficulty]">
+          <span class="flex min-w-0 items-center gap-2">
+            <FishBossImage kind="fish" :id="f.id" :name="f.name" size="xs" />
+            <span class="truncate text-xs" :class="DIFFICULTY_COLORS[f.difficulty]">{{ f.name }}</span>
+          </span>
+          <span class="shrink-0 text-[0.625rem]" :class="DIFFICULTY_COLORS[f.difficulty]">
             {{ DIFFICULTY_NAMES[f.difficulty] }}
           </span>
         </div>
@@ -347,18 +350,29 @@
             <X :size="14" />
           </button>
 
-          <p
-            class="text-sm mb-2"
-            :class="
-              catchResult.success && catchResult.quality
-                ? QUALITY_COLORS[catchResult.quality]
-                : catchResult.success
-                  ? 'text-accent'
-                  : 'text-danger'
-            "
-          >
-            {{ catchResult.fishName }}
-          </p>
+          <div class="flex items-center gap-3 mb-2">
+            <FishBossImage
+              kind="fish"
+              :id="catchResult.fishId"
+              :name="catchResult.fishName"
+              :variant="catchResult.success ? '01' : '02'"
+              :silhouette="!catchResult.success"
+              :resolution="256"
+              size="lg"
+            />
+            <p
+              class="min-w-0 text-sm"
+              :class="
+                catchResult.success && catchResult.quality
+                  ? QUALITY_COLORS[catchResult.quality]
+                  : catchResult.success
+                    ? 'text-accent'
+                    : 'text-danger'
+              "
+            >
+              {{ catchResult.fishName }}
+            </p>
+          </div>
 
           <div v-if="catchResult.description" class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ catchResult.description }}</p>
@@ -409,7 +423,10 @@
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="selectedFish = null">
             <X :size="14" />
           </button>
-          <p class="text-sm mb-2" :class="DIFFICULTY_COLORS[selectedFish.difficulty]">{{ selectedFish.name }}</p>
+          <div class="flex items-center gap-3 mb-2">
+            <FishBossImage kind="fish" :id="selectedFish.id" :name="selectedFish.name" :resolution="256" size="lg" />
+            <p class="min-w-0 text-sm" :class="DIFFICULTY_COLORS[selectedFish.difficulty]">{{ selectedFish.name }}</p>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ selectedFish.description }}</p>
@@ -459,6 +476,7 @@
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import FishingMiniGame from '@/components/game/FishingMiniGame.vue'
+  import FishBossImage from '@/components/game/FishBossImage.vue'
   import Button from '@/components/game/Button.vue'
 
   const fishingStore = useFishingStore()

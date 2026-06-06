@@ -93,20 +93,15 @@
     <div ref="collectionRef" class="max-h-72 overflow-y-auto" @scroll="onCollectionScroll">
       <div v-if="filteredCollectionItems.length > 0" :style="{ paddingTop: topPad + 'px', paddingBottom: bottomPad + 'px' }">
         <div class="grid grid-cols-3 md:grid-cols-5 gap-1">
-          <div
+          <ItemCard
             v-for="item in visibleItems"
             :key="item.id"
-            class="border rounded-xs p-1.5 text-xs text-center truncate mr-1"
-            :class="
-              achievementStore.isDiscovered(item.id)
-                ? 'border-accent/20 cursor-pointer hover:bg-accent/5 ' + getCategoryColor(item.category)
-                : 'border-accent/10 text-muted/40 cursor-pointer hover:bg-accent/5'
-            "
+            :item="item"
+            :discovered="achievementStore.isDiscovered(item.id)"
+            :secondary="CATEGORY_NAMES[item.category] ?? item.category"
+            :name-class="achievementStore.isDiscovered(item.id) ? getCategoryColor(item.category) : ''"
             @click="activeCollectionId = item.id"
-          >
-            <template v-if="achievementStore.isDiscovered(item.id)">{{ item.name }}</template>
-            <Lock v-else :size="12" class="mx-auto text-muted/30" />
-          </div>
+          />
         </div>
       </div>
     </div>
@@ -169,9 +164,15 @@
             <X :size="14" />
           </button>
 
-          <p class="text-sm mb-2" :class="activeCollectionDiscovered ? getCategoryColor(activeCollectionItem.category) : 'text-muted'">
-            {{ activeCollectionDisplayName }}
-          </p>
+          <div class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="activeCollectionItem" :silhouette="!activeCollectionDiscovered" size="lg" :resolution="256" />
+            <div class="min-w-0 flex-1 space-y-1">
+              <p class="text-sm" :class="activeCollectionDiscovered ? getCategoryColor(activeCollectionItem.category) : 'text-muted'">
+                {{ activeCollectionDisplayName }}
+              </p>
+              <ItemIconVariantPicker v-if="activeCollectionDiscovered" :item="activeCollectionItem" />
+            </div>
+          </div>
 
           <template v-if="!activeCollectionDiscovered && activeCollectionHint">
             <div class="border border-warning/20 rounded-xs p-2 mb-2 bg-warning/5">
@@ -312,8 +313,11 @@
 
 <script setup lang="ts">
   import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-  import { BookOpen, Lock, Search, FlaskConical, Waves, Swords, X } from 'lucide-vue-next'
+  import { BookOpen, Search, FlaskConical, Waves, Swords, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemCard from '@/components/game/ItemCard.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { ITEMS, getItemById } from '@/data/items'
   import { HYBRID_DEFS } from '@/data/breeding'
@@ -361,7 +365,7 @@
 
   const collectionRef = ref<HTMLElement | null>(null)
   const collectionScrollTop = ref(0)
-  const ROW_H = 34
+  const ROW_H = 68
   const VBUFFER = 5
   const collectionSearch = ref('')
   const collectionCategory = ref<ItemCategory | 'all'>('all')

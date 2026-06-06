@@ -399,10 +399,11 @@
                 重复装备补偿 {{ activeMail.duplicate_compensation_money }} 文
               </span>
             </div>
-            <div v-if="activeMail.rewards.length > 0" class="flex flex-col space-y-1">
-              <div v-for="(reward, index) in activeMail.rewards" :key="`${reward.type}-${reward.id}-${index}`" class="reward-row">
-                <span class="text-xs">{{ rewardLabel(reward) }}</span>
-              </div>
+              <div v-if="activeMail.rewards.length > 0" class="flex flex-col space-y-1">
+                <div v-for="(reward, index) in activeMail.rewards" :key="`${reward.type}-${reward.id}-${index}`" class="reward-row">
+                  <ItemIcon v-if="isItemReward(reward)" :item="getItemById(reward.id || '')" size="xs" :show-badge="false" />
+                  <span class="text-xs">{{ rewardLabel(reward) }}</span>
+                </div>
             </div>
             <p v-else class="text-xs text-muted">{{ activeMail.sender_display_name ? '这封玩家书信不附带奖励。' : '这是一封纯文字公告' }}</p>
           </div>
@@ -502,6 +503,7 @@
   import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift, ChevronLeft, ChevronRight } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import type { MailClaimSyncState, TaoyuanMailDetail, TaoyuanMailReward, TaoyuanMailSummary } from '@/stores/useMailboxStore'
 
@@ -810,6 +812,8 @@
     if (reward.type === 'shoe') return `${getShoeById(reward.id || '')?.name ?? reward.id} x${reward.quantity ?? 0}`
     return reward.id || reward.type
   }
+
+  const isItemReward = (reward: TaoyuanMailReward) => reward.type === 'item' || reward.type === 'seed'
 
   const formatTime = (timestamp?: number | null) => {
     if (!timestamp) return '长期保留'
@@ -1220,6 +1224,9 @@
   }
 
   .reward-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     padding: 6px 8px;
     border: 1px solid rgba(200, 164, 92, 0.12);
     border-radius: 2px;

@@ -182,8 +182,11 @@
           </div>
           <p class="text-[0.625rem] text-muted mt-1">{{ nextResearchUpgrade.description }}</p>
           <div class="mt-1.5 flex flex-col space-y-0.5">
-            <div v-for="mat in nextResearchUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between text-[0.625rem]">
-              <span class="text-muted">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+            <div v-for="mat in nextResearchUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between gap-2 text-[0.625rem]">
+              <span class="flex min-w-0 items-center gap-1 text-muted">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
+              </span>
               <span :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? 'text-success' : 'text-danger'">
                 {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
               </span>
@@ -285,10 +288,12 @@
             <p v-if="suggestion.parentLines.length" class="text-[0.625rem] text-muted mt-1 leading-4">
               推荐亲本：{{ suggestion.parentLines.join('；') }}
             </p>
-            <p v-if="suggestion.logisticsNeeds.length" class="text-[0.625rem] text-warning mt-1 leading-4">
-              物流补材：
-              {{ suggestion.logisticsNeeds.map(need => `${need.itemName} ${need.owned}/${need.quantity}`).join('、') }}
-            </p>
+            <div v-if="suggestion.logisticsNeeds.length" class="mt-1 flex flex-wrap gap-1.5">
+              <span v-for="need in suggestion.logisticsNeeds" :key="need.itemId" class="flex items-center gap-1 text-[0.625rem] text-warning">
+                <ItemIcon :item="getItemById(need.itemId)" size="xs" :show-badge="false" />
+                {{ need.itemName }} {{ need.owned }}/{{ need.quantity }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -485,8 +490,11 @@
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需材料</p>
-            <div v-for="mat in craftMaterials" :key="mat.itemId" class="flex items-center justify-between mt-0.5">
-              <span class="text-xs">{{ mat.name }}</span>
+            <div v-for="mat in craftMaterials" :key="mat.itemId" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="flex min-w-0 items-center gap-1 text-xs">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ mat.name }}</span>
+              </span>
               <span class="text-xs" :class="mat.enough ? 'text-success' : 'text-danger'">{{ mat.owned }}/{{ mat.required }}</span>
             </div>
           </div>
@@ -715,8 +723,11 @@
             <!-- 所需材料 -->
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">所需材料</p>
-              <div v-for="mat in nextSeedBoxUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between">
-                <span class="text-xs text-muted">{{ getItemById(mat.itemId)?.name }}</span>
+              <div v-for="mat in nextSeedBoxUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between gap-2">
+                <span class="flex min-w-0 items-center gap-1 text-xs text-muted">
+                  <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                  <span class="truncate">{{ getItemById(mat.itemId)?.name }}</span>
+                </span>
                 <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
                   {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
                 </span>
@@ -870,6 +881,7 @@
   import { ref, computed } from 'vue'
   import { FlaskConical, Plus, Check, ChevronDown, X, Dna, Trash2, Sprout, PackageOpen, Star, Lock, ArrowUpCircle, Heart } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useBreedingStore } from '@/stores/useBreedingStore'

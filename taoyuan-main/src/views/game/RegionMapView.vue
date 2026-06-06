@@ -473,7 +473,17 @@
                           <span class="text-[0.625rem]" :class="node.laneToneClass">{{ node.laneLabel }}</span>
                           <span class="text-[0.625rem]" :class="node.stageToneClass">{{ node.stageLabel }}</span>
                         </div>
-                        <p class="text-xs text-accent mt-2">{{ node.title }}</p>
+                        <div class="mt-2 flex items-center gap-2">
+                          <FishBossImage
+                            v-if="node.kind === 'boss'"
+                            kind="regionBoss"
+                            :id="node.bossId"
+                            :name="node.bossName || node.title"
+                            size="xs"
+                            :silhouette="node.disabled || !node.bossId"
+                          />
+                          <p class="min-w-0 text-xs text-accent" :class="node.kind === 'boss' ? 'truncate' : ''">{{ node.title }}</p>
+                        </div>
                         <p class="text-[0.625rem] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ node.description }}</p>
                         <div class="mt-2 space-y-1" v-if="node.detailLines.length > 0">
                           <p v-for="line in node.detailLines.slice(0, 3)" :key="`${node.key}-${line}`" class="text-[0.625rem] text-muted leading-4">
@@ -620,6 +630,16 @@
 
               <div class="border border-accent/10 rounded-xs px-3 py-2">
               <p class="text-[0.625rem] text-muted mb-2">首领准备</p>
+              <div class="mb-2 flex justify-center">
+                <FishBossImage
+                  kind="regionBoss"
+                  :id="getBossMapPreview(region.id).bossId"
+                  :name="getBossMapPreview(region.id).bossName || getBossMapPreview(region.id).title"
+                  :resolution="256"
+                  size="lg"
+                  :silhouette="!canChallengeBoss(region.id) || !getBossMapPreview(region.id).bossId"
+                />
+              </div>
               <p class="text-xs text-accent">{{ getBossMapPreview(region.id).description }}</p>
               <div class="flex items-center justify-between gap-2 mt-2">
                 <span class="text-[0.625rem]" :class="getBossMapPreview(region.id).stageToneClass">{{ getBossMapPreview(region.id).stageLabel }}</span>
@@ -2074,6 +2094,7 @@
   import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { Map } from 'lucide-vue-next'
+  import FishBossImage from '@/components/game/FishBossImage.vue'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
   import { getRareVisitorsForDay } from '@/data/bookseller'
@@ -2159,6 +2180,8 @@
     kind: 'route' | 'boss'
     regionId: RegionId
     routeId?: string
+    bossId?: string
+    bossName?: string
     laneLabel: string
     laneToneClass: string
     title: string
@@ -4154,6 +4177,8 @@
 
     return {
       stage,
+      bossId: boss?.id ?? '',
+      bossName: boss?.name ?? '',
       stageLabel: stageMeta.label,
       stageToneClass: stageMeta.toneClass,
       title: stage === 'unknown' ? '深层终点' : boss?.name ?? '首领节点',
@@ -4223,6 +4248,8 @@
       key: `${regionId}-boss`,
       kind: 'boss',
       regionId,
+      bossId: bossPreview.bossId,
+      bossName: bossPreview.bossName,
       laneLabel: '首领',
       laneToneClass: 'text-danger',
       title: bossPreview.title,

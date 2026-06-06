@@ -33,7 +33,7 @@ export const FORAGE_ITEMS: ForageItemDef[] = [
   { itemId: 'wild_berry', name: '野果', season: ['summer'], chance: 0.4, expReward: 4 },
   { itemId: 'pine_cone', name: '松果', season: ['spring', 'summer', 'autumn', 'winter'], chance: 0.3, expReward: 5 },
   { itemId: 'camphor_seed', name: '樟树种子', season: ['spring', 'summer'], chance: 0.15, expReward: 5 },
-  { itemId: 'mulberry', name: '桑葚', season: ['spring', 'summer', 'autumn'], chance: 0.2, expReward: 4 },
+  { itemId: 'wild_mulberry', name: '桑葚', season: ['spring', 'summer', 'autumn'], chance: 0.2, expReward: 4 },
   { itemId: 'seed_chestnut', name: '板栗种子', season: ['autumn'], chance: 0.08, expReward: 7 },
   { itemId: 'ancient_pottery', name: '古陶片', season: ['spring', 'summer', 'autumn', 'winter'], chance: 0.03, expReward: 12 },
   { itemId: 'bamboo_scroll', name: '竹简', season: ['spring', 'summer', 'autumn'], chance: 0.03, expReward: 12 },

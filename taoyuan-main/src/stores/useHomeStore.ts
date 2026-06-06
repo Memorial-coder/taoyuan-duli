@@ -147,7 +147,7 @@ export const useHomeStore = defineStore('home', () => {
       }
     } else if (caveChoice.value === 'fruit_bat') {
       if (Math.random() < CAVE_FRUIT_BAT_DAILY_CHANCE) {
-        const fruits = ['tree_peach', 'lychee', 'mandarin', 'plum_blossom']
+        const fruits = ['tree_peach', 'tree_lychee', 'mandarin', 'plum_blossom']
         const pick = fruits[Math.floor(Math.random() * fruits.length)]!
         results.push({ itemId: pick, quantity: 1 })
       }

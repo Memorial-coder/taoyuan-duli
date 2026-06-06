@@ -128,6 +128,7 @@
                     :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)"
                     @click="handleFeedPetSpecial(companion.id, feed.id)"
                   >
+                    <ItemIcon :item="getItemById(feed.itemId)" size="xs" :show-badge="false" />
                     {{ feed.shortLabel }}×{{ feed.count }}
                   </Button>
                   <p class="mt-0.5 truncate text-[0.5625rem] leading-3 text-muted/70" :title="getPetSpecialFeedUseHint(feed.itemId, feed.description)">
@@ -181,7 +182,10 @@
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
               @click="handleStartIncubation(eggItem.itemId)"
             >
-              <span class="text-xs">{{ eggItem.name }}</span>
+              <span class="flex min-w-0 items-center gap-2 text-xs">
+                <ItemIcon :item="getItemById(eggItem.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ eggItem.name }}</span>
+              </span>
               <span class="text-xs text-muted">&times;{{ eggItem.count }}</span>
             </div>
           </div>
@@ -206,7 +210,10 @@
               class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
               @click="handleStartBarnIncubation(eggItem.itemId)"
             >
-              <span class="text-xs">{{ eggItem.name }}</span>
+              <span class="flex min-w-0 items-center gap-2 text-xs">
+                <ItemIcon :item="getItemById(eggItem.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ eggItem.name }}</span>
+              </span>
               <span class="text-xs text-muted">&times;{{ eggItem.count }}</span>
             </div>
           </div>
@@ -292,7 +299,12 @@
         </div>
       </template>
       <template v-else>
-        <p class="text-xs text-muted">需要：{{ bDef.materialCost.map(m => `${getItemName(m.itemId)}×${m.quantity}`).join('、') }}</p>
+        <div class="flex flex-wrap gap-1.5">
+          <span v-for="mat in bDef.materialCost" :key="mat.itemId" class="flex items-center gap-1 text-xs text-muted">
+            <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+            {{ getItemName(mat.itemId) }}×{{ mat.quantity }}
+          </span>
+        </div>
       </template>
     </div>
 
@@ -425,9 +437,12 @@
         </div>
       </template>
       <template v-else>
-        <p class="text-xs text-muted">
-          需要：{{ stableDef?.materialCost.map(m => `${getItemName(m.itemId)}×${m.quantity}`).join('、') ?? '' }}
-        </p>
+        <div class="flex flex-wrap gap-1.5">
+          <span v-for="mat in stableDef?.materialCost ?? []" :key="mat.itemId" class="flex items-center gap-1 text-xs text-muted">
+            <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+            {{ getItemName(mat.itemId) }}×{{ mat.quantity }}
+          </span>
+        </div>
         <p class="text-xs text-muted mt-1">拥有马匹可减少30%旅行时间。</p>
       </template>
     </div>
@@ -669,8 +684,11 @@
                 {{ playerStore.money }} / {{ upgradeModal.cost }}文
               </span>
             </div>
-            <div v-for="mat in upgradeModal.materials" :key="mat.itemId" class="flex items-center justify-between mt-0.5">
-              <span class="text-xs">{{ mat.name }}</span>
+            <div v-for="mat in upgradeModal.materials" :key="mat.itemId" class="flex items-center justify-between gap-2 mt-0.5">
+              <span class="flex min-w-0 items-center gap-1 text-xs">
+                <ItemIcon :item="getItemById(mat.itemId)" size="xs" :show-badge="false" />
+                <span class="truncate">{{ mat.name }}</span>
+              </span>
               <span class="text-xs" :class="mat.have >= mat.need ? 'text-success' : 'text-danger'">{{ mat.have }} / {{ mat.need }}</span>
             </div>
           </div>
@@ -696,6 +714,7 @@
   import { useRouter } from 'vue-router'
   import { Hammer, ShoppingCart, Hand, Apple, Home, ArrowUp, Egg, X, Coins, Syringe, Pencil } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -709,6 +728,7 @@
     INCUBATION_MAP,
     FEED_DEFS,
     getPetSpecialFeedTasteLabel,
+    getPetSpecialFeedByItemId,
     getPetTypeLabel,
     getPetSpecialFeedUseText,
     getCropUseProfile,
@@ -952,7 +972,9 @@
 
   const getPetFeedStatusText = (companion: PetState): string => {
     if (!isPetSpecialFedToday(companion)) return '今日未加餐'
-    const itemName = companion.specialFeedItemId ? getItemName(companion.specialFeedItemId) : '特别食物'
+    const itemName = companion.specialFeedItemId
+      ? getPetSpecialFeedByItemId(companion.specialFeedItemId)?.shortLabel ?? getItemName(companion.specialFeedItemId)
+      : '特别食物'
     const taste = companion.specialFeedType ? getPetSpecialFeedTasteLabel(companion.specialFeedType) : '特别'
     return `今日：${itemName} · ${taste}`
   }

@@ -54,25 +54,15 @@
         </div>
       </div>
       <div v-if="filteredItems.length > 0" class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
-        <div
+        <ItemCard
           v-for="(item, idx) in filteredItems"
-          :key="idx"
-          class="border border-accent/20 rounded-xs p-1.5 text-center cursor-pointer hover:bg-accent/5 transition-colors relative"
+          :key="`${item.itemId}-${item.quality}-${idx}`"
+          :item="getItemById(item.itemId) ?? null"
+          :quantity="item.quantity"
+          :quality="item.quality"
+          :locked="item.locked"
           @click="activeItemIndex = inventoryStore.items.indexOf(item)"
-        >
-          <Lock v-if="item.locked" :size="10" class="absolute top-0.5 left-0.5 text-accent/60" />
-          <div
-            class="text-xs truncate"
-            :class="{
-              'text-quality-fine': item.quality === 'fine',
-              'text-quality-excellent': item.quality === 'excellent',
-              'text-quality-supreme': item.quality === 'supreme'
-            }"
-          >
-            {{ getItemById(item.itemId)?.name }}
-          </div>
-          <div class="text-xs text-muted">×{{ item.quantity }}</div>
-        </div>
+        />
 
         <!-- 空格子 -->
         <div
@@ -99,24 +89,15 @@
           </Button>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
-          <div
+          <ItemCard
             v-for="(item, idx) in inventoryStore.tempItems"
             :key="'temp-' + idx"
-            class="border border-danger/30 rounded-xs p-1.5 text-center cursor-pointer hover:bg-danger/5 transition-colors"
+            :item="getItemById(item.itemId) ?? null"
+            :quantity="item.quantity"
+            :quality="item.quality"
+            tone="danger"
             @click="activeTempIdx = idx"
-          >
-            <div
-              class="text-xs truncate"
-              :class="{
-                'text-quality-fine': item.quality === 'fine',
-                'text-quality-excellent': item.quality === 'excellent',
-                'text-quality-supreme': item.quality === 'supreme'
-              }"
-            >
-              {{ getItemById(item.itemId)?.name }}
-            </div>
-            <div class="text-xs text-muted">×{{ item.quantity }}</div>
-          </div>
+          />
 
           <!-- 空格子 -->
           <div
@@ -460,6 +441,12 @@
             {{ activeTempItemDef?.name }}
             <span class="text-xs text-danger ml-1">（临时）</span>
           </p>
+          <div v-if="activeTempItemDef" class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="activeTempItemDef" :quality="activeTempItem.quality" size="lg" :resolution="256" />
+            <div class="min-w-0 flex-1 space-y-1">
+              <ItemIconVariantPicker :item="activeTempItemDef" />
+            </div>
+          </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeTempItemDef?.description }}</p>
           </div>
@@ -518,6 +505,13 @@
           >
             {{ activeItemDef?.name }}
           </p>
+
+          <div v-if="activeItemDef" class="flex items-start gap-2 mb-2 pr-5">
+            <ItemIcon :item="activeItemDef" :quality="activeItem.quality" size="lg" :resolution="256" />
+            <div class="min-w-0 flex-1 space-y-1">
+              <ItemIconVariantPicker :item="activeItemDef" />
+            </div>
+          </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted">{{ activeItemDef?.description }}</p>
@@ -847,6 +841,9 @@
   import { ref, computed, watch } from 'vue'
   import { Apple, Archive, ArrowDown01, ArrowRight, BookMarked, Filter, Lock, LockOpen, Package, Trash2, X, Zap } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import ItemCard from '@/components/game/ItemCard.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
+  import ItemIconVariantPicker from '@/components/game/ItemIconVariantPicker.vue'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'

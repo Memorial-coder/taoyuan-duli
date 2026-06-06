@@ -1499,7 +1499,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       },
       {
         id: 'combo_osmanthus_tea',
-        itemId: 'osmanthus_tea',
+        itemId: 'processed_osmanthus_tea',
         itemName: '桂花茶',
         quantity: 4,
         note: '茶会前台需同步备齐茶饮。'
@@ -1521,7 +1521,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
         },
         {
           id: 'combo_osmanthus_tea',
-          itemId: 'osmanthus_tea',
+          itemId: 'processed_osmanthus_tea',
           itemName: '桂花茶',
           quantity: 4,
           note: '茶会前台需同步备齐茶饮。'
@@ -1768,7 +1768,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     comboRequirements: [
       { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
       { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
-      { id: 'combo_banquet_tea', itemId: 'osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
+      { id: 'combo_banquet_tea', itemId: 'processed_osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
     ],
     stageDefinitions: createComboStageDefinitions({
       title: '备齐席前统筹货单',
@@ -1776,7 +1776,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       requirements: [
         { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
         { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
-        { id: 'combo_banquet_tea', itemId: 'osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
+        { id: 'combo_banquet_tea', itemId: 'processed_osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
       ],
       requirementSummary: ['宴席总单会同时吃作物、酒饮与席前热茶。']
     }),
@@ -2254,7 +2254,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     days: 3,
     rewardMultiplier: 9,
     friendshipReward: 10,
-    itemReward: [{ itemId: 'osmanthus_tea', quantity: 1 }],
+    itemReward: [{ itemId: 'processed_osmanthus_tea', quantity: 1 }],
     bonusSummary: ['春兰会特别为你留一份节庆桂花茶。']
   },
   {
