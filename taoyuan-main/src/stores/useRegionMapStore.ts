@@ -4339,6 +4339,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const timeResult = gameStore.advanceTime(boss.timeCostHours, { skipSpeedBuff: true })
     const combatResult = simulateBossExpedition(regionId, boss)
+    const hpDelta = Math.max(0, playerStore.hp - Math.max(0, combatResult.projectedHp))
+    if (hpDelta > 0) {
+      playerStore.takeDamage(hpDelta)
+    }
 
     if (!combatResult.success) {
       const refund = Math.max(1, Math.floor(boss.staminaCost / 2))
@@ -5537,9 +5541,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     retreatActiveExpedition,
     resolveActiveEncounter,
     settleActiveExpedition,
-    completeRouteAndGrantRewards,
     runRouteExpedition,
-    completeEventAndGrantRewards,
     runRegionEvent,
     clearExpedition,
     recordBossClear,
