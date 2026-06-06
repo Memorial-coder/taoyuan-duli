@@ -990,6 +990,11 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       return { success: false, message: '该捐赠里程碑已领取。' }
     }
 
+    const inventoryStore = useInventoryStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    const playerSnapshot = playerStore.serialize()
+    const achievementSnapshot = JSON.parse(JSON.stringify(achievementStore.serialize())) as ReturnType<typeof achievementStore.serialize>
+
     const rewardResult = grantDonationMilestoneReward(projectId, milestoneId)
     if (!rewardResult.success) {
       return { success: false, message: rewardResult.message ?? '奖励发放失败。' }
@@ -999,6 +1004,9 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       claimedMilestoneIds: [...donationSummary.state.claimedMilestoneIds, milestoneId]
     })
     if (!nextState) {
+      inventoryStore.deserialize(inventorySnapshot)
+      playerStore.deserialize(playerSnapshot)
+      achievementStore.deserialize(achievementSnapshot)
       return { success: false, message: '更新捐赠里程碑状态失败。' }
     }
 
