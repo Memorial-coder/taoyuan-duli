@@ -48,6 +48,11 @@ const DEFAULTS = {
   taoyuan_daily_import_limit_money: 0,
   taoyuan_daily_export_limit_money: 0,
 
+  // 后台治理与审计留存（单位：天）
+  admin_audit_retention_days: parseInt(process.env.ADMIN_AUDIT_RETENTION_DAYS || '180', 10),
+  content_moderation_retention_days: parseInt(process.env.CONTENT_MODERATION_RETENTION_DAYS || '365', 10),
+  online_audit_retention_days: parseInt(process.env.ONLINE_AUDIT_RETENTION_DAYS || '180', 10),
+
   // 桃源乡联机集市治理配置
   taoyuan_market_weekly_exchange_enabled: true,
   taoyuan_market_weekly_festival_pool_enabled: true,
@@ -180,9 +185,24 @@ const DEFAULTS = {
   ai_assistant_console_credit:
     '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186',
   ai_assistant_api_url: '',
+  ai_assistant_api_url_allowlist: process.env.TAOYUAN_AI_ASSISTANT_API_URL_ALLOWLIST || process.env.AI_ASSISTANT_API_URL_ALLOWLIST || '',
+  // Deprecated secret field. Keep empty; runtime config only stores key metadata.
   ai_assistant_api_key: '',
+  ai_assistant_api_key_configured: false,
+  ai_assistant_api_key_last4: '',
   ai_assistant_model: '',
   ai_assistant_temperature: 0.2,
+  ai_assistant_public_short_window_ms: parseInt(process.env.AI_ASSISTANT_PUBLIC_SHORT_WINDOW_MS || '60000', 10),
+  ai_assistant_public_short_window_max: parseInt(process.env.AI_ASSISTANT_PUBLIC_SHORT_WINDOW_MAX || '8', 10),
+  ai_assistant_public_daily_max: parseInt(process.env.AI_ASSISTANT_PUBLIC_DAILY_MAX || '80', 10),
+  ai_assistant_public_concurrency_max: parseInt(process.env.AI_ASSISTANT_PUBLIC_CONCURRENCY_MAX || '2', 10),
+  ai_assistant_public_bucket_limit: parseInt(process.env.AI_ASSISTANT_PUBLIC_BUCKET_LIMIT || '2000', 10),
+  ai_assistant_public_remote_daily_budget_units: parseInt(process.env.AI_ASSISTANT_PUBLIC_REMOTE_DAILY_BUDGET_UNITS || '200000', 10),
+  ai_assistant_public_remote_daily_request_limit: parseInt(process.env.AI_ASSISTANT_PUBLIC_REMOTE_DAILY_REQUEST_LIMIT || '200', 10),
+  ai_assistant_model_circuit_window_ms: parseInt(process.env.AI_ASSISTANT_MODEL_CIRCUIT_WINDOW_MS || '300000', 10),
+  ai_assistant_model_circuit_open_ms: parseInt(process.env.AI_ASSISTANT_MODEL_CIRCUIT_OPEN_MS || '120000', 10),
+  ai_assistant_model_circuit_failure_threshold: parseInt(process.env.AI_ASSISTANT_MODEL_CIRCUIT_FAILURE_THRESHOLD || '3', 10),
+  ai_assistant_model_circuit_timeout_threshold: parseInt(process.env.AI_ASSISTANT_MODEL_CIRCUIT_TIMEOUT_THRESHOLD || '2', 10),
   ai_assistant_system_prompt:
     '你是桃源乡游戏内 AI 助手。请只依据提供的知识片段回答，优先给出清晰、简洁、面向玩家的解释和建议；如果依据不足，请明确说明无法确认，不要编造。',
   ai_assistant_blocked_topics: '掉率\n爆率\n概率\n风控\n反作弊\n后台\n管理员口令\n密钥\ntoken\n漏洞\n刷资源',

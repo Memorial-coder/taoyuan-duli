@@ -256,6 +256,25 @@ function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
 
+function normalizeAuditContext(auditContext = {}) {
+  return auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+}
+
+function buildSocialAuditContext(auditContext = {}, overrides = {}) {
+  const base = normalizeAuditContext(auditContext);
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || '',
+    field: overrides.field || base.field || '',
+    username: overrides.username || base.username || '',
+    content_type: overrides.content_type || base.content_type || 'social_text',
+    content_id: overrides.content_id || base.content_id || '',
+  };
+}
+
 function normalizeVisibility(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (normalized === 'private') return 'private';
@@ -1733,7 +1752,13 @@ function resolveSocialTarget(payload) {
   };
 }
 
-async function updateOwnProfile(username, payload = {}) {
+async function updateOwnProfile(username, payload = {}, auditContext = {}) {
+  const baseAuditContext = buildSocialAuditContext(auditContext, {
+    scene: 'online_profile',
+    username,
+    content_type: 'online_profile',
+    content_id: username,
+  });
   const publicIntro = moderateText(payload.public_intro, {
     label: '公开介绍',
     field: 'public_intro',
@@ -1741,6 +1766,7 @@ async function updateOwnProfile(username, payload = {}) {
     maxLength: 120,
     storageMaxLength: 120,
     maxLineBreaks: 3,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'public_intro' }),
   });
   const manorName = moderateText(payload.manor_name, {
     label: '庄园名',
@@ -1748,6 +1774,7 @@ async function updateOwnProfile(username, payload = {}) {
     scene: 'online_profile',
     maxLength: 40,
     storageMaxLength: 40,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'manor_name' }),
   });
   const publicTitle = moderateText(payload.public_title, {
     label: '公开称号',
@@ -1755,6 +1782,7 @@ async function updateOwnProfile(username, payload = {}) {
     scene: 'online_profile',
     maxLength: 24,
     storageMaxLength: 24,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'public_title' }),
   });
   const neighborhoodRole = moderateText(payload.neighborhood_role, {
     label: '邻里身份',
@@ -1762,6 +1790,7 @@ async function updateOwnProfile(username, payload = {}) {
     scene: 'online_profile',
     maxLength: 24,
     storageMaxLength: 24,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'neighborhood_role' }),
   });
   const showcaseTheme = moderateText(payload.showcase_theme, {
     label: '展示主题',
@@ -1769,12 +1798,25 @@ async function updateOwnProfile(username, payload = {}) {
     scene: 'online_profile',
     maxLength: 24,
     storageMaxLength: 24,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'showcase_theme' }),
   });
   const avatarImageUrl = sanitizeText(payload.avatar_image_url, 500);
   if (avatarImageUrl) {
     taoyuanImageModeration.ensureUsableUploadedImageUrl(avatarImageUrl, ['profile_avatar']);
   }
-  const avatarImageAlt = sanitizeText(payload.avatar_image_alt, 120) || '名片头像';
+  const avatarImageAlt = avatarImageUrl
+    ? (moderateText(payload.avatar_image_alt, {
+        label: '头像说明',
+        field: 'avatar_image_alt',
+        scene: 'online_profile',
+        maxLength: 120,
+        storageMaxLength: 120,
+        auditContext: buildSocialAuditContext(baseAuditContext, {
+          field: 'avatar_image_alt',
+          content_type: 'profile_avatar_alt',
+        }),
+      }) || '名片头像')
+    : '';
   updateStoredProfile(username, {
     visibility: payload.visibility,
     public_intro: publicIntro,
@@ -1783,7 +1825,7 @@ async function updateOwnProfile(username, payload = {}) {
     neighborhood_role: neighborhoodRole,
     showcase_theme: showcaseTheme,
     avatar_image_url: avatarImageUrl,
-    avatar_image_alt: avatarImageUrl ? avatarImageAlt : '',
+    avatar_image_alt: avatarImageAlt,
     selected_tag_ids: payload.selected_tag_ids,
   });
   return buildProfile(username, username);
@@ -2173,18 +2215,49 @@ async function unblockPlayer(username, targetPayload) {
   };
 }
 
-async function createNeighborGroup(username, payload = {}) {
+async function createNeighborGroup(username, payload = {}, auditContext = {}) {
   const store = loadSocialProfileStore();
   const creator = normalizeUsername(username);
   if (findMemberGroup(store, creator)) throw createError('你已经在一个邻里中了');
-  const name = sanitizeText(payload.name, 24);
+  const baseAuditContext = buildSocialAuditContext(auditContext, {
+    scene: 'neighbor_group',
+    username: creator,
+    content_type: 'neighbor_group',
+    content_id: creator,
+  });
+  const name = moderateText(payload.name, {
+    label: '邻里名称',
+    field: 'name',
+    scene: 'neighbor_group',
+    maxLength: 24,
+    storageMaxLength: 24,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'name' }),
+  });
   if (name.length < 2) throw createError('邻里名称至少 2 个字');
+  const summary = moderateText(payload.summary, {
+    label: '邻里简介',
+    field: 'summary',
+    scene: 'neighbor_group',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'summary' }),
+  });
+  const notice = moderateText(payload.notice, {
+    label: '邻里公告',
+    field: 'notice',
+    scene: 'neighbor_group',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+    auditContext: buildSocialAuditContext(baseAuditContext, { field: 'notice' }),
+  });
 
   const group = normalizeNeighborGroup({
     id: makeId('neighbor_group'),
     name,
-    summary: payload.summary,
-    notice: payload.notice,
+    summary,
+    notice,
     level: 1,
     capacity: Math.max(3, Math.min(30, Number(payload.capacity) || 12)),
     created_by: creator,
@@ -2298,14 +2371,28 @@ async function respondNeighborRequest(username, requestId, decision) {
   return request;
 }
 
-async function updateNeighborNotice(username, payload = {}) {
+async function updateNeighborNotice(username, payload = {}, auditContext = {}) {
   const store = loadSocialProfileStore();
   const actor = normalizeUsername(username);
   const group = findMemberGroup(store, actor);
   if (!group) throw createError('你当前没有邻里');
   const member = group.members.find(entry => entry.username === actor);
   if (!member || !['leader', 'manager'].includes(member.role)) throw createError('只有社长或管事可以修改公告', 403);
-  group.notice = sanitizeText(payload.notice, 160);
+  group.notice = moderateText(payload.notice, {
+    label: '邻里公告',
+    field: 'notice',
+    scene: 'neighbor_notice',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+    auditContext: buildSocialAuditContext(auditContext, {
+      scene: 'neighbor_notice',
+      field: 'notice',
+      username: actor,
+      content_type: 'neighbor_notice',
+      content_id: group.id,
+    }),
+  });
   appendNeighborActivity(group, `${actor}更新了邻里公告`, 'notice');
   store.neighbor_groups = store.neighbor_groups.map(entry => {
     const normalized = normalizeNeighborGroup(entry);
@@ -2413,12 +2500,25 @@ async function listSubscriptionOverview(username) {
   return { subscriptions };
 }
 
-async function followTarget(username, payload = {}) {
+async function followTarget(username, payload = {}, auditContext = {}) {
   const store = loadSocialProfileStore();
   const subscriber = normalizeUsername(username);
   const targetType = ['style', 'expert', 'neighbor_group', 'festival'].includes(String(payload.target_type)) ? String(payload.target_type) : null;
   const targetId = sanitizeText(payload.target_id, 64);
-  const label = sanitizeText(payload.label, 40);
+  const label = moderateText(payload.label, {
+    label: '关注标签',
+    field: 'label',
+    scene: 'social_subscription',
+    maxLength: 40,
+    storageMaxLength: 40,
+    auditContext: buildSocialAuditContext(auditContext, {
+      scene: 'social_subscription',
+      field: 'label',
+      username: subscriber,
+      content_type: 'social_subscription_label',
+      content_id: targetId,
+    }),
+  });
   if (!targetType || !targetId) throw createError('订阅参数不完整');
 
   const existing = store.subscriptions

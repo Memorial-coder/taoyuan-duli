@@ -777,6 +777,25 @@ function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
 
+function normalizeAuditContext(auditContext = {}) {
+  return auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+}
+
+function buildSocietyAuditContext(auditContext = {}, overrides = {}) {
+  const base = normalizeAuditContext(auditContext);
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || '',
+    field: overrides.field || base.field || '',
+    username: overrides.username || base.username || '',
+    content_type: overrides.content_type || base.content_type || 'society_text',
+    content_id: overrides.content_id || base.content_id || '',
+  };
+}
+
 function normalizeUsername(value) {
   return String(value || '').normalize('NFKC').trim();
 }
@@ -1163,11 +1182,12 @@ function buildSocietyProjectCompletionRoomLaunch(project) {
     const linkage = buildSocietyFestivalSquareLinkage(normalized);
     const contextSummary = linkage?.public_context_summary || '';
     const assetBoundary = linkage?.asset_boundary || '\u8be5\u8054\u52a8\u53ea\u63d0\u4f9b\u5165\u53e3\uff0c\u4e0d\u76f4\u63a5\u53d1\u4e2a\u4eba\u8d44\u4ea7\u3002';
+    const launchContextSummary = [contextSummary, assetBoundary].filter(Boolean).join(' ');
     const summary = roomId
-      ? `${completedBy}完成节庆广场筹备后，系统已自动创建上元灯会共建房间；${contextSummary || assetBoundary}`
+      ? `${completedBy}完成节庆广场筹备后，系统已自动创建上元灯会共建房间；${launchContextSummary}`
       : failureReason
-        ? `${completedBy}完成节庆广场筹备后，自动创建上元灯会房间未成功：${failureReason}。仍可从入口手动创建；${contextSummary || assetBoundary}`
-        : `${completedBy}完成节庆广场筹备后，村社可从完工现场创建上元灯会共建房间；${contextSummary || assetBoundary}`;
+        ? `${completedBy}完成节庆广场筹备后，自动创建上元灯会房间未成功：${failureReason}。仍可从入口手动创建；${launchContextSummary}`
+        : `${completedBy}完成节庆广场筹备后，村社可从完工现场创建上元灯会共建房间；${launchContextSummary}`;
     const launch = {
       id: `society_project_complete:${normalized.id}:lantern_fair`,
       source_project_id: normalized.id,
@@ -3325,8 +3345,48 @@ async function createSociety(payload = {}, actor = {}) {
   const store = loadSocietyStore();
   if (findMemberSociety(store, username, founderIdentity)) throw createError('你已经加入一个村社了');
 
-  const name = sanitizeText(payload.name, 24);
+  const baseAuditContext = buildSocietyAuditContext(actor?.auditContext, {
+    scene: 'society_create',
+    username,
+    content_type: 'society',
+    content_id: username,
+  });
+  const name = moderateText(payload.name, {
+    label: '村社名称',
+    field: 'name',
+    scene: 'society_create',
+    maxLength: 24,
+    storageMaxLength: 24,
+    auditContext: buildSocietyAuditContext(baseAuditContext, { field: 'name' }),
+  });
   if (name.length < 2) throw createError('村社名称至少 2 个字');
+  const summary = moderateText(payload.summary, {
+    label: '村社简介',
+    field: 'summary',
+    scene: 'society_create',
+    maxLength: 120,
+    storageMaxLength: 120,
+    maxLineBreaks: 3,
+    auditContext: buildSocietyAuditContext(baseAuditContext, { field: 'summary' }),
+  });
+  const notice = moderateText(payload.notice, {
+    label: '村社公告',
+    field: 'notice',
+    scene: 'society_create',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+    auditContext: buildSocietyAuditContext(baseAuditContext, { field: 'notice' }),
+  });
+  const joinRequirementNote = moderateText(payload.join_requirement_note, {
+    label: '入社说明',
+    field: 'join_requirement_note',
+    scene: 'society_create',
+    maxLength: 120,
+    storageMaxLength: 120,
+    maxLineBreaks: 2,
+    auditContext: buildSocietyAuditContext(baseAuditContext, { field: 'join_requirement_note' }),
+  });
   const duplicated = (store.societies || [])
     .map(normalizeSociety)
     .some(entry => entry.name === name);
@@ -3335,14 +3395,14 @@ async function createSociety(payload = {}, actor = {}) {
   const society = normalizeSociety({
     id: makeId('society'),
     name,
-    summary: payload.summary,
-    notice: payload.notice,
+    summary,
+    notice,
     emblem: payload.emblem,
     theme: payload.theme,
     visibility: payload.visibility,
     capacity: payload.capacity,
     join_requirement_id: payload.join_requirement_id,
-    join_requirement_note: payload.join_requirement_note,
+    join_requirement_note: joinRequirementNote,
     created_by: username,
     created_at: nowSeconds(),
     updated_at: nowSeconds(),
@@ -3634,6 +3694,13 @@ async function updateSocietyNotice(payload = {}, actor = {}) {
     scene: 'society_notice',
     maxLength: 160,
     storageMaxLength: 160,
+    auditContext: buildSocietyAuditContext(actor?.auditContext, {
+      scene: 'society_notice',
+      field: 'notice',
+      username: actorUsername,
+      content_type: 'society_notice',
+      content_id: society.id,
+    }),
   });
   appendSocietyActivity(society, `${actorDisplayName}更新了村社公告`, 'notice');
   updateSocietyInStore(store, society);
@@ -3658,6 +3725,13 @@ async function createSocietyProposal(payload = {}, actor = {}) {
     scene: 'society_proposal',
     maxLength: 40,
     storageMaxLength: 40,
+    auditContext: buildSocietyAuditContext(actor?.auditContext, {
+      scene: 'society_proposal',
+      field: 'title',
+      username: actorUsername,
+      content_type: 'society_proposal',
+      content_id: society.id,
+    }),
   });
   const summary = moderateText(payload.summary, {
     label: '提案摘要',
@@ -3665,6 +3739,13 @@ async function createSocietyProposal(payload = {}, actor = {}) {
     scene: 'society_proposal',
     maxLength: 120,
     storageMaxLength: 120,
+    auditContext: buildSocietyAuditContext(actor?.auditContext, {
+      scene: 'society_proposal',
+      field: 'summary',
+      username: actorUsername,
+      content_type: 'society_proposal',
+      content_id: society.id,
+    }),
   });
   if (title.length < 2) throw createError('提案标题至少 2 个字');
 
@@ -3757,7 +3838,21 @@ async function closeSocietyProposal(proposalId, payload = {}, actor = {}) {
   proposal.closed_at = nowSeconds();
   proposal.updated_at = nowSeconds();
   proposal.result_choice = computeProposalResultChoice(proposal);
-  proposal.resolution_note = sanitizeText(payload.resolution_note, 120);
+  proposal.resolution_note = moderateText(payload.resolution_note, {
+    label: '提案归档说明',
+    field: 'resolution_note',
+    scene: 'society_proposal_resolution',
+    maxLength: 120,
+    storageMaxLength: 120,
+    maxLineBreaks: 2,
+    auditContext: buildSocietyAuditContext(actor?.auditContext, {
+      scene: 'society_proposal_resolution',
+      field: 'resolution_note',
+      username: actorUsername,
+      content_type: 'society_proposal_resolution',
+      content_id: proposal.id,
+    }),
+  });
   society.proposals = (society.proposals || []).map(entry => {
     const normalized = normalizeSocietyProposal(entry);
     return normalized.id === proposal.id ? proposal : normalized;

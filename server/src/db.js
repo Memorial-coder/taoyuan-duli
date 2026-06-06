@@ -23,6 +23,22 @@ const QA_ONLINE_SMOKE_FORCE_LOCAL = String(process.env.QA_ONLINE_SMOKE_FORCE_LOC
 const GAMEPLAY_EVENT_LOG_MAX_TOTAL = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_TOTAL || '5000', 10) || 5000);
 const GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT || '1200', 10) || 1200);
 const GAMEPLAY_EVENT_LOG_RETENTION_DAYS = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_RETENTION_DAYS || '30', 10) || 30);
+const DEFAULT_ADMIN_AUDIT_RETENTION_DAYS = 180;
+const MAJOR_ADMIN_AUDIT_ACTIONS = new Set([
+  'ban_user_for_image',
+  'unban_user',
+  'delete_user',
+  'remove_image_blacklist',
+  'hide_hall_image_asset',
+  'restore_hall_image_asset',
+  'set_hall_report_status',
+  'set_image_report_status',
+  'hide_image_from_report',
+  'hide_hall_post',
+  'restore_hall_post',
+  'delete_hall_reply',
+  'update_content_moderation_rules',
+]);
 
 const MYSQL_ENABLED = !QA_ONLINE_SMOKE_FORCE_LOCAL && Boolean(process.env.MYSQL_HOST && process.env.MYSQL_USER && process.env.MYSQL_DATABASE);
 const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
@@ -115,6 +131,29 @@ function sanitizeDisplayName(displayName, username) {
 
 function nowSeconds() {
   return Math.floor(Date.now() / 1000);
+}
+
+function normalizePositiveInt(value, fallback) {
+  const normalized = parseInt(value, 10);
+  return Number.isInteger(normalized) && normalized > 0 ? normalized : fallback;
+}
+
+function getConfigValue(key) {
+  try {
+    return require('./config').get(key);
+  } catch {
+    return undefined;
+  }
+}
+
+function getAdminAuditRetentionDays() {
+  return Math.max(
+    DEFAULT_ADMIN_AUDIT_RETENTION_DAYS,
+    normalizePositiveInt(
+      process.env.ADMIN_AUDIT_RETENTION_DAYS || getConfigValue('admin_audit_retention_days'),
+      DEFAULT_ADMIN_AUDIT_RETENTION_DAYS,
+    ),
+  );
 }
 
 function normalizeAdminStatus(status) {
@@ -556,11 +595,12 @@ function getPool() {
   };
 }
 
-async function registerUser(username, password, displayName) {
+async function registerUser(username, password, displayName, auditContext = {}) {
   const normalized = normalizeUsername(username);
   const usernameKey = normalizeUsernameKey(username);
   const usernameError = validateUsername(username);
   const pwd = String(password || '');
+  const baseAuditContext = auditContext && typeof auditContext === 'object' ? auditContext : {};
 
   if (usernameError) return { ok: false, msg: usernameError };
   if (pwd.length < 6) return { ok: false, msg: '密码至少 6 位' };
@@ -572,6 +612,13 @@ async function registerUser(username, password, displayName) {
     minLength: 2,
     maxLength: 20,
     storageMaxLength: 20,
+    auditContext: {
+      ...baseAuditContext,
+      scene: baseAuditContext.scene || 'register',
+      field: 'username',
+      username: baseAuditContext.username || normalized,
+      content_type: 'register_username',
+    },
   });
   const passwordHash = await bcrypt.hash(pwd, 10);
   const createdAt = Math.floor(Date.now() / 1000);
@@ -582,6 +629,13 @@ async function registerUser(username, password, displayName) {
     minLength: 1,
     maxLength: 30,
     storageMaxLength: 30,
+    auditContext: {
+      ...baseAuditContext,
+      scene: baseAuditContext.scene || 'register',
+      field: 'display_name',
+      username: baseAuditContext.username || finalUsername,
+      content_type: 'register_display_name',
+    },
   });
 
   if (MYSQL_ENABLED) {
@@ -1036,10 +1090,14 @@ async function deleteUserPermanently(username) {
 
 async function recordAdminAuditLog(entry = {}) {
   const now = nowSeconds();
+  const detail = normalizeAdminAuditDetailForEntry(
+    entry,
+    entry.detail !== undefined ? entry.detail : parseAuditDetail(entry.detail_json),
+  );
   const normalized = normalizeAuditLogEntry({
     ...entry,
-    detail_json: JSON.stringify(entry.detail || entry.detail_json || {}),
-    created_at: now,
+    detail_json: JSON.stringify(detail),
+    created_at: Number(entry.created_at) || now,
   });
 
   if (MYSQL_ENABLED) {
@@ -1064,59 +1122,269 @@ async function recordAdminAuditLog(entry = {}) {
   return normalized;
 }
 
+function parseAuditDetail(detailJson) {
+  try {
+    const detail = JSON.parse(detailJson || '{}');
+    return detail && typeof detail === 'object' ? detail : {};
+  } catch {
+    return {};
+  }
+}
+
+function auditValueMatchesUsername(value, usernameKey) {
+  if (!usernameKey) return true;
+  if (typeof value === 'string') return normalizeUsernameKey(value) === usernameKey;
+  if (Array.isArray(value)) return value.some(item => auditValueMatchesUsername(item, usernameKey));
+  if (value && typeof value === 'object') {
+    return [
+      value.username,
+      value.target_username,
+      value.target_id,
+      value.source_username,
+    ].some(item => auditValueMatchesUsername(item, usernameKey));
+  }
+  return false;
+}
+
+function auditLogMatchesTargetUsername(entry, usernameKey) {
+  if (!usernameKey) return true;
+  if (normalizeUsernameKey(entry.target_username) === usernameKey) return true;
+  const detail = parseAuditDetail(entry.detail_json);
+  return [
+    detail.target_username,
+    detail.target_id,
+    detail.username,
+    detail.source_username,
+    detail.usernames,
+    detail.deleted_users,
+  ].some(value => auditValueMatchesUsername(value, usernameKey));
+}
+
+function normalizeAdminAuditDetailForEntry(entry = {}, detailInput = {}) {
+  const detail = detailInput && typeof detailInput === 'object' && !Array.isArray(detailInput)
+    ? { ...detailInput }
+    : {};
+  const action = String(entry.action || detail.action || '');
+  const operatorName = String(entry.operator_name || detail.actor_username || detail.operator_name || '');
+  const operatorRole = String(entry.operator_role || detail.actor_role || detail.operator_role || '');
+  const targetUsername = String(entry.target_username || detail.target_username || '');
+  return {
+    ...detail,
+    request_id: String(detail.request_id || entry.request_id || ''),
+    actor_username: String(detail.actor_username || operatorName),
+    actor_role: String(detail.actor_role || operatorRole),
+    target_username: String(detail.target_username || targetUsername),
+    target_type: String(detail.target_type || ''),
+    target_id: String(detail.target_id || targetUsername),
+    action: String(detail.action || action),
+    outcome: String(detail.outcome || entry.outcome || 'completed'),
+    reason: String(detail.reason || ''),
+    rule_version: String(detail.rule_version || ''),
+    ip_hash: String(detail.ip_hash || ''),
+    ua_hash: String(detail.ua_hash || ''),
+  };
+}
+
+function mapAdminAuditLogForResponse(item = {}) {
+  const detail = normalizeAdminAuditDetailForEntry(item, parseAuditDetail(item.detail_json));
+  return {
+    id: String(item.id || ''),
+    operator_role: item.operator_role,
+    operator_name: item.operator_name,
+    action: item.action,
+    target_username: item.target_username,
+    request_id: detail.request_id,
+    created_at: Number(item.created_at) || 0,
+    actor_username: detail.actor_username,
+    actor_role: detail.actor_role,
+    target_type: detail.target_type,
+    target_id: detail.target_id,
+    outcome: detail.outcome,
+    reason: detail.reason,
+    rule_version: detail.rule_version,
+    ip_hash: detail.ip_hash,
+    ua_hash: detail.ua_hash,
+    detail,
+  };
+}
+
+function normalizeAuditFilter(value, maxLength = 120) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return String(raw || '').trim().slice(0, maxLength);
+}
+
+function parseAuditTimestampFilter(value) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return Math.max(0, Math.floor(raw > 100000000000 ? raw / 1000 : raw));
+  }
+  const text = String(raw).trim();
+  if (!text) return null;
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const numeric = Number(text);
+    return Number.isFinite(numeric)
+      ? Math.max(0, Math.floor(numeric > 100000000000 ? numeric / 1000 : numeric))
+      : null;
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed / 1000)) : null;
+}
+
+function getAuditTimestampRange(options = {}) {
+  return {
+    createdFrom: parseAuditTimestampFilter(options.createdFrom ?? options.created_from ?? options.from),
+    createdTo: parseAuditTimestampFilter(options.createdTo ?? options.created_to ?? options.to),
+  };
+}
+
+function auditLogMatchesAdminFilters(entry, filters = {}) {
+  const detail = parseAuditDetail(entry.detail_json);
+  const createdAt = Number(entry.created_at) || 0;
+  const action = String(entry.action || '').toLocaleLowerCase('zh-CN');
+  const operatorName = String(entry.operator_name || '').toLocaleLowerCase('zh-CN');
+  const outcome = String(detail.outcome || '').toLocaleLowerCase('zh-CN');
+
+  if (filters.targetUsernameKey && !auditLogMatchesTargetUsername(entry, filters.targetUsernameKey)) return false;
+  if (filters.actionFilter && action !== filters.actionFilter) return false;
+  if (filters.operatorNameFilter && !operatorName.includes(filters.operatorNameFilter)) return false;
+  if (filters.outcomeFilter && outcome !== filters.outcomeFilter) return false;
+  if (filters.createdFrom !== null && createdAt < filters.createdFrom) return false;
+  if (filters.createdTo !== null && createdAt > filters.createdTo) return false;
+  return true;
+}
+
 async function listAdminAuditLogs(options = {}) {
   const page = Math.max(1, parseInt(options.page || '1', 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(options.pageSize || '20', 10) || 20));
+  const targetUsername = normalizeAuditFilter(options.targetUsername || options.target_username || options.username, 64);
+  const targetUsernameKey = normalizeUsernameKey(targetUsername);
+  const actionFilter = normalizeAuditFilter(options.action, 80).toLocaleLowerCase('zh-CN');
+  const operatorNameFilter = normalizeAuditFilter(options.operatorName || options.operator_name, 64).toLocaleLowerCase('zh-CN');
+  const outcomeFilter = normalizeAuditFilter(options.outcome, 40).toLocaleLowerCase('zh-CN');
+  const { createdFrom, createdTo } = getAuditTimestampRange(options);
 
   if (MYSQL_ENABLED) {
     await ensureMysqlReady();
-    const [[countRow]] = await buildMysqlPool().execute('SELECT COUNT(*) AS total FROM admin_audit_logs', []);
+    const where = [];
+    const params = [];
+    if (targetUsernameKey) {
+      where.push(`(
+        LOWER(target_username) = ?
+        OR detail_json LIKE ?
+        OR detail_json LIKE ?
+        OR detail_json LIKE ?
+        OR detail_json LIKE ?
+      )`);
+      params.push(
+        targetUsernameKey,
+        `%"target_username":"${targetUsername}"%`,
+        `%"target_id":"${targetUsername}"%`,
+        `%"source_username":"${targetUsername}"%`,
+        `%"username":"${targetUsername}"%`,
+      );
+    }
+    if (actionFilter) {
+      where.push('LOWER(action) = ?');
+      params.push(actionFilter);
+    }
+    if (operatorNameFilter) {
+      where.push('LOWER(operator_name) LIKE ?');
+      params.push(`%${operatorNameFilter}%`);
+    }
+    if (outcomeFilter) {
+      where.push('(detail_json LIKE ? OR detail_json LIKE ?)');
+      params.push(`%"outcome":"${outcomeFilter}"%`, `%"outcome": "${outcomeFilter}"%`);
+    }
+    if (createdFrom !== null) {
+      where.push('created_at >= ?');
+      params.push(createdFrom);
+    }
+    if (createdTo !== null) {
+      where.push('created_at <= ?');
+      params.push(createdTo);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const [[countRow]] = await buildMysqlPool().execute(`SELECT COUNT(*) AS total FROM admin_audit_logs ${whereSql}`, params);
     const offset = (page - 1) * pageSize;
     const [rows] = await buildMysqlPool().query(
       `SELECT id, operator_role, operator_name, action, target_username, detail_json, created_at
        FROM admin_audit_logs
+       ${whereSql}
        ORDER BY created_at DESC, id DESC
        LIMIT ${pageSize} OFFSET ${offset}`,
-      []
+      params
     );
     return {
       total: Number(countRow?.total) || 0,
       page,
       pageSize,
-      logs: rows.map(item => ({
-        id: String(item.id),
-        operator_role: item.operator_role,
-        operator_name: item.operator_name,
-        action: item.action,
-        target_username: item.target_username,
-        detail: (() => {
-          try {
-            return JSON.parse(item.detail_json || '{}');
-          } catch {
-            return {};
-          }
-        })(),
-        created_at: Number(item.created_at) || 0,
-      })),
+      logs: rows.map(mapAdminAuditLogForResponse),
     };
   }
 
   const store = loadAdminAuditLogStore();
+  const filteredLogs = store.logs.filter(item => auditLogMatchesAdminFilters(item, {
+    targetUsernameKey,
+    actionFilter,
+    operatorNameFilter,
+    outcomeFilter,
+    createdFrom,
+    createdTo,
+  }));
   const offset = (page - 1) * pageSize;
   return {
-    total: store.logs.length,
+    total: filteredLogs.length,
     page,
     pageSize,
-    logs: store.logs.slice(offset, offset + pageSize).map(item => ({
-      ...item,
-      detail: (() => {
-        try {
-          return JSON.parse(item.detail_json || '{}');
-        } catch {
-          return {};
-        }
-      })(),
-    })),
+    logs: filteredLogs.slice(offset, offset + pageSize).map(mapAdminAuditLogForResponse),
+  };
+}
+
+function isMajorAdminAuditLog(entry = {}) {
+  const action = String(entry.action || '');
+  if (MAJOR_ADMIN_AUDIT_ACTIONS.has(action)) return true;
+  try {
+    const detail = JSON.parse(entry.detail_json || '{}');
+    return detail?.evidence_retention === 'major' || detail?.major_evidence === true;
+  } catch {
+    return false;
+  }
+}
+
+async function pruneAdminAuditLogs(options = {}) {
+  const retentionDays = Math.max(
+    DEFAULT_ADMIN_AUDIT_RETENTION_DAYS,
+    normalizePositiveInt(options.retentionDays, getAdminAuditRetentionDays()),
+  );
+  const cutoff = nowSeconds() - retentionDays * 86400;
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const preservedActions = [...MAJOR_ADMIN_AUDIT_ACTIONS];
+    const placeholders = preservedActions.map(() => '?').join(',');
+    const [result] = await buildMysqlPool().execute(
+      `DELETE FROM admin_audit_logs
+       WHERE created_at < ?
+         AND action NOT IN (${placeholders})
+         AND (detail_json IS NULL OR (detail_json NOT LIKE '%"evidence_retention":"major"%' AND detail_json NOT LIKE '%"major_evidence":true%'))`,
+      [cutoff, ...preservedActions],
+    );
+    return {
+      removed: Number(result?.affectedRows) || 0,
+      retention_days: retentionDays,
+    };
+  }
+
+  const store = loadAdminAuditLogStore();
+  const before = store.logs.length;
+  store.logs = store.logs
+    .map(normalizeAuditLogEntry)
+    .filter(entry => (entry.created_at || 0) >= cutoff || isMajorAdminAuditLog(entry));
+  saveAdminAuditLogStore(store);
+  return {
+    removed: Math.max(0, before - store.logs.length),
+    retention_days: retentionDays,
   };
 }
 
@@ -1515,6 +1783,7 @@ module.exports = {
   deleteUserPermanently,
   recordAdminAuditLog,
   listAdminAuditLogs,
+  pruneAdminAuditLogs,
   recordContentRevision,
   listContentRevisions,
   getContentRevision,

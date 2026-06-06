@@ -4,6 +4,8 @@ const {
   createError,
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
+const { moderateText } = require('./taoyuanTextModeration');
+const { recordContentModerationRiskSignal } = require('./taoyuanContentModerationAudit');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -11,6 +13,7 @@ const DATA_DIR = process.env.DB_STORAGE
 
 const STORE_FILE = path.join(DATA_DIR, 'taoyuan_image_moderation.json');
 const MAX_REPORT_REASON_LENGTH = 200;
+const MULTI_REPORT_AUTO_HIDE_THRESHOLD = 3;
 
 const IMAGE_UPLOAD_RULES = Object.freeze({
   hall_post: {
@@ -53,6 +56,10 @@ function sanitizeText(value, maxLength) {
     .slice(0, maxLength);
 }
 
+function normalizeImageHash(value) {
+  return sanitizeText(value, 128).toLowerCase().replace(/[^a-f0-9]/g, '').slice(0, 128);
+}
+
 function normalizeUsage(value) {
   const normalized = sanitizeText(value, 40).toLowerCase();
   return IMAGE_UPLOAD_RULES[normalized]?.id || 'hall_post';
@@ -75,7 +82,7 @@ function normalizeAsset(entry) {
     alt: sanitizeText(entry?.alt, 120) || '图片',
     mime: sanitizeText(entry?.mime, 40).toLowerCase(),
     size_bytes: Math.max(0, Math.floor(Number(entry?.size_bytes) || 0)),
-    sha256: sanitizeText(entry?.sha256, 128),
+    sha256: normalizeImageHash(entry?.sha256),
     usage: normalizeUsage(entry?.usage),
     uploader_username: sanitizeText(entry?.uploader_username, 60),
     uploader_display_name: sanitizeText(entry?.uploader_display_name, 60) || sanitizeText(entry?.uploader_username, 60) || '匿名',
@@ -102,6 +109,8 @@ function normalizeImageReport(entry) {
     target_display_name: sanitizeText(entry?.target_display_name, 60) || sanitizeText(entry?.target_username, 60) || '匿名',
     usage: normalizeUsage(entry?.usage),
     status: ['pending', 'dismissed', 'resolved'].includes(status) ? status : 'pending',
+    auto_action: sanitizeText(entry?.auto_action, 80),
+    auto_action_at: Number(entry?.auto_action_at) || null,
     created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
     resolved_at: Number(entry?.resolved_at) || null,
   };
@@ -173,6 +182,97 @@ function assertImageUploadAllowed(username) {
   throw createError(blacklistEntry.reason || '当前账号已被限制上传图片，请联系管理员处理', 403);
 }
 
+function getPendingImageReportsForUrl(store, imageUrl) {
+  return (Array.isArray(store.image_reports) ? store.image_reports : [])
+    .map(normalizeImageReport)
+    .filter(report => report.image_url === imageUrl && report.status === 'pending' && report.reporter);
+}
+
+function countDistinctReporters(reports) {
+  return new Set((Array.isArray(reports) ? reports : []).map(report => report.reporter).filter(Boolean)).size;
+}
+
+function buildMultiReportRiskScore(reporterCount) {
+  return Math.min(100, 45 + Math.max(0, Math.floor(Number(reporterCount) || 0)) * 10);
+}
+
+function applyImageMultiReportAutoHide(store, imageUrl) {
+  const pendingReports = getPendingImageReportsForUrl(store, imageUrl);
+  const reporterCount = countDistinctReporters(pendingReports);
+  if (reporterCount < MULTI_REPORT_AUTO_HIDE_THRESHOLD) return null;
+  const assetIndex = store.assets.map(normalizeAsset).findIndex(entry => entry.url === imageUrl);
+  if (assetIndex < 0) return null;
+  const asset = normalizeAsset(store.assets[assetIndex]);
+  if (asset.status === 'hidden') return null;
+  const now = Math.floor(Date.now() / 1000);
+  const nextAsset = normalizeAsset({
+    ...asset,
+    status: 'hidden',
+    hidden_reason: '多人举报自动临时隐藏，等待管理员复核',
+    report_count: Math.max(asset.report_count, pendingReports.length),
+    updated_at: now,
+  });
+  store.assets[assetIndex] = nextAsset;
+  recordContentModerationRiskSignal({
+    signal_type: 'multi_report_auto_hide',
+    username: nextAsset.uploader_username,
+    target_type: 'image_asset',
+    target_id: nextAsset.id || nextAsset.stored_name || nextAsset.sha256.slice(0, 16),
+    content_type: 'image_asset',
+    content_id: nextAsset.id || nextAsset.stored_name || '',
+    scene: 'image_report',
+    reason_code: 'multi_report_threshold',
+    outcome: 'auto_temporarily_hidden',
+    report_count: pendingReports.length,
+    reporter_count: reporterCount,
+    report_ids: pendingReports.map(report => report.id),
+    image_hash_prefix: nextAsset.sha256 ? nextAsset.sha256.slice(0, 16) : '',
+    risk_score: buildMultiReportRiskScore(reporterCount),
+    created_at: now,
+    updated_at: now,
+  });
+  return { action: 'auto_hide_image_asset', reporter_count: reporterCount, asset: nextAsset };
+}
+
+function findDisposedImageAssetByHash(store, sha256, currentUrl = '') {
+  const normalizedHash = normalizeImageHash(sha256);
+  if (!normalizedHash) return null;
+  return (Array.isArray(store.assets) ? store.assets : [])
+    .map(normalizeAsset)
+    .find(asset => (
+      asset.sha256 === normalizedHash
+      && asset.status === 'hidden'
+      && (!currentUrl || asset.url !== currentUrl)
+    )) || null;
+}
+
+function rejectDisposedImageHashReuse({ store, sha256, uploaderUsername, url, storedName }) {
+  const disposedAsset = findDisposedImageAssetByHash(store, sha256, url);
+  if (!disposedAsset) return;
+  const now = Math.floor(Date.now() / 1000);
+  recordContentModerationRiskSignal({
+    signal_type: 'duplicate_image_hash_reuse',
+    username: uploaderUsername,
+    target_type: 'image_hash',
+    target_id: disposedAsset.sha256.slice(0, 16),
+    content_type: 'image_asset',
+    content_id: disposedAsset.id || disposedAsset.stored_name || '',
+    scene: 'image_hash_reuse',
+    reason_code: 'disposed_image_hash_reuse',
+    outcome: 'upload_rejected',
+    report_count: disposedAsset.report_count,
+    image_hash_prefix: disposedAsset.sha256.slice(0, 16),
+    risk_score: 85,
+    created_at: now,
+    updated_at: now,
+  });
+  throw createError(
+    '该图片与已处置图片记录匹配，已拒绝上传并进入复核队列',
+    409,
+    'IMAGE_HASH_PREVIOUSLY_DISPOSED',
+  );
+}
+
 async function registerUploadedImage(payload = {}) {
   const uploaderUsername = sanitizeText(payload.uploader_username, 60);
   if (uploaderUsername) {
@@ -188,9 +288,17 @@ async function registerUploadedImage(payload = {}) {
   const url = sanitizeText(payload.url, 500);
   if (!url) throw createError('图片地址无效');
   const storedName = sanitizeText(payload.stored_name, 160);
+  const sha256 = normalizeImageHash(payload.sha256);
   const now = Math.floor(Date.now() / 1000);
   return withImageModerationLock(async () => {
     const store = loadStore();
+    rejectDisposedImageHashReuse({
+      store,
+      sha256,
+      uploaderUsername,
+      url,
+      storedName,
+    });
     const existingIndex = store.assets
       .map(normalizeAsset)
       .findIndex(entry => entry.url === url);
@@ -202,7 +310,7 @@ async function registerUploadedImage(payload = {}) {
       alt: payload.alt,
       mime: payload.mime,
       size_bytes: sizeBytes,
-      sha256: payload.sha256,
+      sha256,
       usage,
       uploader_username: uploaderUsername,
       uploader_display_name: payload.uploader_display_name,
@@ -276,9 +384,22 @@ function ensureUsableUploadedImageUrl(imageUrl, allowedUsages = []) {
 
 async function createImageReport(payload = {}) {
   const imageUrl = sanitizeText(payload.image_url, 500);
-  const cleanReason = sanitizeText(payload.reason, MAX_REPORT_REASON_LENGTH);
+  const cleanReason = moderateText(payload.reason, {
+    label: '图片举报原因',
+    minLength: 2,
+    maxLength: MAX_REPORT_REASON_LENGTH,
+    maxLineBreaks: 8,
+    field: 'reason',
+    scene: payload.auditContext?.scene || 'image_report',
+    auditContext: {
+      ...(payload.auditContext && typeof payload.auditContext === 'object' ? payload.auditContext : {}),
+      field: 'reason',
+      username: payload.reporter,
+      content_type: 'image_report',
+      content_id: imageUrl,
+    },
+  });
   if (!imageUrl) throw createError('缺少图片地址');
-  if (cleanReason.length < 2) throw createError('举报原因至少需要 2 个字');
   const reporter = sanitizeText(payload.reporter, 60);
   const asset = getUploadedImageAssetByUrl(imageUrl);
   if (!asset) throw createError('图片不存在', 404);
@@ -316,6 +437,15 @@ async function createImageReport(payload = {}) {
         updated_at: Math.floor(Date.now() / 1000),
       });
     });
+    const autoAction = applyImageMultiReportAutoHide(store, imageUrl);
+    if (autoAction) {
+      report.auto_action = autoAction.action;
+      report.auto_action_at = Math.floor(Date.now() / 1000);
+      store.image_reports = store.image_reports.map(entry => {
+        const normalized = normalizeImageReport(entry);
+        return normalized.id === report.id ? report : normalized;
+      });
+    }
     saveStore(store);
     return report;
   });

@@ -5,6 +5,7 @@ const db = require('./db');
 const taoyuanCoopOrderRuntime = require('./taoyuanCoopOrderRuntime');
 const taoyuanActivityRoomRuntime = require('./taoyuanActivityRoomRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
+const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
   decryptTaoyuanRaw,
@@ -4453,6 +4454,44 @@ function sanitizeText(value, maxLength = 120) {
   return String(value || '').normalize('NFKC').trim().slice(0, maxLength);
 }
 
+function normalizeAuditContext(auditContext = {}) {
+  return auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+}
+
+function buildCohabitationAuditContext(actorOrContext = {}, overrides = {}) {
+  const source = actorOrContext && typeof actorOrContext === 'object' && !Array.isArray(actorOrContext)
+    ? actorOrContext
+    : {};
+  const base = normalizeAuditContext(source.auditContext || source);
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || '',
+    field: overrides.field || base.field || '',
+    username: overrides.username || base.username || normalizeUsername(source.username),
+    content_type: overrides.content_type || base.content_type || 'cohabitation_text',
+    content_id: overrides.content_id || base.content_id || '',
+  };
+}
+
+function moderateCohabitationText(value, auditContext = {}, options = {}) {
+  const baseAuditContext = buildCohabitationAuditContext(auditContext, {
+    scene: options.scene || auditContext.scene || '',
+    content_type: options.content_type || auditContext.content_type || 'cohabitation_text',
+    content_id: options.content_id || auditContext.content_id || '',
+  });
+  return moderateText(value, {
+    label: options.label || '同居文本',
+    field: options.field || '',
+    scene: baseAuditContext.scene,
+    maxLength: options.maxLength,
+    storageMaxLength: options.storageMaxLength || options.maxLength,
+    auditContext: buildCohabitationAuditContext(baseAuditContext, { field: options.field || baseAuditContext.field }),
+  });
+}
+
 
 function normalizeWarehouseOperationCredential(payload = {}) {
   const operationId = sanitizeText(
@@ -6493,30 +6532,50 @@ function canFreezeSharedFundAbnormality(member = {}, actorPermissions = {}) {
   return member.role === 'owner' || actorPermissions.fund?.spend_large === true;
 }
 
-function normalizeSharedFundFreezePayload(payload = {}) {
+function normalizeSharedFundFreezePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('shared fund freeze requires idempotency_key', 400);
   return {
     idempotency_key: idempotencyKey,
-    reason: sanitizeText(payload.reason || payload.freeze_reason || payload.memo || payload.note, 240),
+    reason: moderateCohabitationText(payload.reason || payload.freeze_reason || payload.memo || payload.note, auditContext, {
+      label: '共同基金冻结原因',
+      field: 'reason',
+      scene: 'cohabitation_fund_freeze',
+      maxLength: 240,
+    }),
     error_code: sanitizeText(payload.error_code || payload.code, 80),
     suspected_operation: sanitizeText(payload.suspected_operation || payload.operation || payload.action || 'manual_fund_review', 80),
     source_ledger_id: sanitizeText(payload.source_ledger_id || payload.ledger_id, 100),
     source_idempotency_key: sanitizeText(payload.source_idempotency_key, 120),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同基金冻结备注',
+      field: 'memo',
+      scene: 'cohabitation_fund_freeze',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeSharedFundUnfreezePayload(payload = {}) {
+function normalizeSharedFundUnfreezePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('shared fund unfreeze requires idempotency_key', 400);
-  const reason = sanitizeText(payload.reason || payload.review_reason || payload.memo || payload.note, 240);
+  const reason = moderateCohabitationText(payload.reason || payload.review_reason || payload.memo || payload.note, auditContext, {
+    label: '共同基金解冻复核原因',
+    field: 'reason',
+    scene: 'cohabitation_fund_unfreeze',
+    maxLength: 240,
+  });
   if (!reason) throw createError('shared fund unfreeze requires review reason', 400);
   return {
     idempotency_key: idempotencyKey,
     reason,
     review_result: sanitizeText(payload.review_result || payload.resolution || 'manual_review_completed', 80) || 'manual_review_completed',
-    review_note: sanitizeText(payload.review_note || payload.note || payload.memo, 240),
+    review_note: moderateCohabitationText(payload.review_note || payload.note || payload.memo, auditContext, {
+      label: '共同基金解冻复核备注',
+      field: 'review_note',
+      scene: 'cohabitation_fund_unfreeze',
+      maxLength: 240,
+    }),
     freeze_event_id: sanitizeText(payload.freeze_event_id || payload.source_freeze_event_id, 100),
   };
 }
@@ -8727,12 +8786,17 @@ function buildSharedFarmPostHarvestState(plotState = {}, settlement = {}) {
   };
 }
 
-function normalizeCohabitationDailySettlePayload(payload = {}) {
+function normalizeCohabitationDailySettlePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('cohabitation daily settlement requires idempotency_key', 400);
   return {
     idempotency_key: idempotencyKey,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同庄园日结备注',
+      field: 'memo',
+      scene: 'cohabitation_daily_settle',
+      maxLength: 160,
+    }),
   };
 }
 
@@ -9320,7 +9384,7 @@ function buildOfflineAutoIncomeAnimalRow(contract = {}, animal = {}, member = {}
   };
 }
 
-function normalizeOfflineAutoIncomePayload(payload = {}) {
+function normalizeOfflineAutoIncomePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('offline auto income claim requires idempotency_key');
   const rawTargetRefs = [
@@ -9340,7 +9404,12 @@ function normalizeOfflineAutoIncomePayload(payload = {}) {
     client_base_revision: Math.max(0, Math.floor(Number(payload.client_base_revision || payload.base_revision) || 0)),
     target_refs: targetRefs,
     batch_limit: batchLimit,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '离线自动收益领取备注',
+      field: 'memo',
+      scene: 'cohabitation_offline_auto_income',
+      maxLength: 160,
+    }),
   };
 }
 
@@ -10428,14 +10497,22 @@ function requireCohabitationIdempotencyKey(payload = {}, actionLabel = 'operatio
   return idempotencyKey;
 }
 
-function normalizeContractRecoveryAppealPayload(payload = {}) {
+function normalizeContractRecoveryAppealPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'contract recovery appeal');
   const issueType = sanitizeText(payload.issue_type || payload.type || 'warehouse_misoperation', 80);
+  const baseAuditContext = buildCohabitationAuditContext(auditContext);
   return {
     idempotency_key: idempotencyKey,
     issue_type: CONTRACT_RECOVERY_APPEAL_TYPES.has(issueType) ? issueType : 'warehouse_misoperation',
     target_ref: sanitizeText(payload.target_ref || payload.target || payload.draft_id || payload.preview_id, 160),
-    note: sanitizeText(payload.note || payload.reason || payload.memo, 300),
+    note: moderateText(payload.note || payload.reason || payload.memo, {
+      label: '共同庄园恢复申诉说明',
+      field: 'note',
+      scene: baseAuditContext.scene || 'cohabitation_recovery_appeal',
+      maxLength: 300,
+      storageMaxLength: 300,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'note' }),
+    }),
     warehouse_ledger_ids: Array.isArray(payload.warehouse_ledger_ids)
       ? payload.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
       : [],
@@ -10447,12 +10524,17 @@ function normalizeContractRecoveryAppealPayload(payload = {}) {
   };
 }
 
-function normalizeContractSafeVersionRollbackPayload(payload = {}) {
+function normalizeContractSafeVersionRollbackPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'contract safe version rollback');
   return {
     idempotency_key: idempotencyKey,
     safe_version_id: sanitizeText(payload.safe_version_id || payload.version_id || payload.id, 100),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 240),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '同居安全版本回滚原因',
+      field: 'reason',
+      scene: 'cohabitation_safe_version_rollback',
+      maxLength: 240,
+    }),
     confirmation_text: sanitizeText(payload.confirmation_text || payload.confirmation || payload.confirm_text, 80),
   };
 }
@@ -10462,11 +10544,12 @@ function getFamilyOrderStageDef(stageId = '') {
   return FAMILY_ORDER_STAGE_DEFS.find(stage => stage.id === normalizedStageId) || FAMILY_ORDER_STAGE_DEFS[0];
 }
 
-function normalizeFamilyOrderCreatePayload(payload = {}) {
+function normalizeFamilyOrderCreatePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family order create');
   const rewardRoute = FAMILY_ORDER_REWARD_ROUTES.has(payload.reward_route) ? payload.reward_route : 'shared_fund';
   const orderType = FAMILY_ORDER_TYPES.has(payload.order_type) ? payload.order_type : 'material_help';
   const stageDef = getFamilyOrderStageDef(payload.stage_id);
+  const baseAuditContext = buildCohabitationAuditContext(auditContext);
   const rewardAmount = Math.min(FAMILY_ORDER_REWARD_MAX_AMOUNT, Math.max(0, Math.floor(Number(payload.reward_amount ?? payload.amount) || 0)));
   const rewardQuantity = Math.min(FAMILY_ORDER_REWARD_MAX_QUANTITY, Math.max(0, Math.floor(Number(payload.reward_quantity ?? payload.quantity) || 0)));
   const rewardItemId = normalizeWarehouseItemId(payload.reward_item_id || payload.item_id) || 'rice';
@@ -10475,7 +10558,14 @@ function normalizeFamilyOrderCreatePayload(payload = {}) {
   if (rewardRoute === 'shared_warehouse') assertWarehouseOrdinaryItemAllowed(rewardItemId, 'deposit');
   return {
     idempotency_key: idempotencyKey,
-    title: sanitizeText(payload.title || payload.name, 80) || 'family order',
+    title: moderateText(payload.title || payload.name, {
+      label: '家族订单标题',
+      field: 'title',
+      scene: baseAuditContext.scene || 'cohabitation_family_order',
+      maxLength: 80,
+      storageMaxLength: 80,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'title' }),
+    }) || 'family order',
     order_type: orderType,
     stage_id: stageDef?.id || 'gather_materials',
     reward_route: rewardRoute,
@@ -10484,19 +10574,31 @@ function normalizeFamilyOrderCreatePayload(payload = {}) {
     reward_item_label: sanitizeText(payload.reward_item_label || payload.item_label || rewardItemId, 80),
     reward_quantity: rewardQuantity,
     reward_quality: normalizeQuality(payload.reward_quality || payload.quality || 'normal'),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateText(payload.memo || payload.note, {
+      label: '家族订单备注',
+      field: 'memo',
+      scene: baseAuditContext.scene || 'cohabitation_family_order',
+      maxLength: 180,
+      storageMaxLength: 180,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'memo' }),
+    }),
   };
 }
 
-function normalizeFamilyOrderActionPayload(payload = {}, actionLabel = 'family order action') {
+function normalizeFamilyOrderActionPayload(payload = {}, actionLabel = 'family order action', auditContext = {}) {
   return {
     idempotency_key: requireCohabitationIdempotencyKey(payload, actionLabel),
     stage_id: sanitizeText(payload.stage_id, 80),
-    note: sanitizeText(payload.note || payload.memo || payload.delivery_note, 180),
+    note: moderateCohabitationText(payload.note || payload.memo || payload.delivery_note, auditContext, {
+      label: '家族订单动作备注',
+      field: 'note',
+      scene: 'cohabitation_family_order_action',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeFamilyReputationAwardPayload(payload = {}) {
+function normalizeFamilyReputationAwardPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family reputation award');
   const sourceType = sanitizeText(payload.source_type || payload.source, 60) || 'family_governance';
   const defaultPoints = FAMILY_REPUTATION_SOURCE_POINTS[sourceType] || FAMILY_REPUTATION_SOURCE_POINTS.family_governance || 1;
@@ -10508,11 +10610,16 @@ function normalizeFamilyReputationAwardPayload(payload = {}) {
     source_ledger_id: sanitizeText(payload.source_ledger_id || payload.ledger_id, 100),
     target_username: normalizeUsername(payload.target_username || payload.member_username || payload.username),
     points,
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族声望发放备注',
+      field: 'memo',
+      scene: 'cohabitation_family_reputation',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeFamilyReputationRewardClaimPayload(payload = {}) {
+function normalizeFamilyReputationRewardClaimPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family reputation reward claim');
   const rewardType = FAMILY_REPUTATION_REWARD_TYPES.has(payload.reward_type) ? payload.reward_type : 'shared_fund_grant';
   return {
@@ -10521,11 +10628,16 @@ function normalizeFamilyReputationRewardClaimPayload(payload = {}) {
     reward_label: sanitizeText(payload.reward_label || payload.label, 80) || 'family reputation reward',
     cost_points: Math.max(1, Math.floor(Number(payload.cost_points) || FAMILY_REPUTATION_REWARD_COST)),
     amount: Math.max(1, Math.floor(Number(payload.amount) || FAMILY_REPUTATION_REWARD_AMOUNT)),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族声望奖励领取备注',
+      field: 'memo',
+      scene: 'cohabitation_family_reputation_reward',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeFamilyVisibilityUpdatePayload(payload = {}) {
+function normalizeFamilyVisibilityUpdatePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = requireCohabitationIdempotencyKey(payload, 'family visibility update');
   const defaultScope = FAMILY_VISIBILITY_SCOPES.has(payload.default_scope) ? payload.default_scope : 'contract_members';
   const enabledScopeIds = Array.isArray(payload.enabled_scope_ids)
@@ -10548,53 +10660,93 @@ function normalizeFamilyVisibilityUpdatePayload(payload = {}) {
     enabled_scope_ids: [...new Set(enabledScopeIds)].slice(0, 8),
     public_category_ids: requestedCategories.slice(0, 20),
     member_consent: memberConsent,
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族公开设置备注',
+      field: 'memo',
+      scene: 'cohabitation_family_visibility',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeFamilyVisibilityRollbackPayload(payload = {}) {
+function normalizeFamilyVisibilityRollbackPayload(payload = {}, auditContext = {}) {
   return {
     idempotency_key: requireCohabitationIdempotencyKey(payload, 'family visibility rollback'),
     audit_id: sanitizeText(payload.audit_id || payload.rollback_audit_id || payload.id, 100),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族公开设置回滚备注',
+      field: 'memo',
+      scene: 'cohabitation_family_visibility_rollback',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeFamilyFestivalReservePayload(payload = {}) {
+function normalizeFamilyFestivalReservePayload(payload = {}, auditContext = {}) {
   return {
     idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival seat reserve'),
     template_id: sanitizeText(payload.template_id, 60) || 'lantern_fair',
     seat_usernames: Array.isArray(payload.seat_usernames)
       ? payload.seat_usernames.map(normalizeUsername).filter(Boolean).slice(0, 8)
       : [],
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族节会席位备注',
+      field: 'memo',
+      scene: 'cohabitation_family_festival_reserve',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeFamilyFestivalRoomPayload(payload = {}) {
+function normalizeFamilyFestivalRoomPayload(payload = {}, auditContext = {}) {
+  const baseAuditContext = buildCohabitationAuditContext(auditContext);
   return {
     idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival room create'),
     template_id: sanitizeText(payload.template_id, 60) || 'lantern_fair',
-    title: sanitizeText(payload.title || payload.room_title, 80),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    title: moderateText(payload.title || payload.room_title, {
+      label: '家族节会房间标题',
+      field: 'title',
+      scene: baseAuditContext.scene || 'cohabitation_family_festival_room',
+      maxLength: 80,
+      storageMaxLength: 80,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'title' }),
+    }),
+    memo: moderateText(payload.memo || payload.note, {
+      label: '家族节会房间备注',
+      field: 'memo',
+      scene: baseAuditContext.scene || 'cohabitation_family_festival_room',
+      maxLength: 180,
+      storageMaxLength: 180,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'memo' }),
+    }),
   };
 }
 
-function normalizeFamilyFestivalSuppliesPayload(payload = {}) {
+function normalizeFamilyFestivalSuppliesPayload(payload = {}, auditContext = {}) {
   return {
     idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival supplies consume'),
     template_id: sanitizeText(payload.template_id, 60),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族节会供品备注',
+      field: 'memo',
+      scene: 'cohabitation_family_festival_supplies',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeFamilyFestivalSettlePayload(payload = {}) {
+function normalizeFamilyFestivalSettlePayload(payload = {}, auditContext = {}) {
   return {
     idempotency_key: requireCohabitationIdempotencyKey(payload, 'family festival settle'),
     template_id: sanitizeText(payload.template_id, 60),
     amount: Math.max(1, Math.floor(Number(payload.amount) || FAMILY_FESTIVAL_SHARED_FUND_REWARD_AMOUNT)),
     points: Math.max(1, Math.floor(Number(payload.points) || FAMILY_REPUTATION_SOURCE_POINTS.family_festival || 10)),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族节会结算备注',
+      field: 'memo',
+      scene: 'cohabitation_family_festival_settle',
+      maxLength: 180,
+    }),
   };
 }
 
@@ -14072,7 +14224,7 @@ function assertSharedFundSpendGovernance(contract, actor = {}, operation = 'spen
     : '共同基金短时间预算支出次数过高，已暂时阻断本次操作，请等待窗口结束或走人工复核', 429);
 }
 
-function normalizeSharedFarmActionPayload(payload = {}) {
+function normalizeSharedFarmActionPayload(payload = {}, auditContext = {}, options = {}) {
   const plotId = sanitizeText(payload.plot_id || payload.shared_plot_id || payload.id, 140);
   if (!plotId) throw createError('shared farm plot_id is required');
   const operationId = sanitizeText(payload.operation_id ?? payload.operationId ?? payload.operation_key ?? payload.operationKey, 120);
@@ -14083,12 +14235,20 @@ function normalizeSharedFarmActionPayload(payload = {}) {
     operation_id: operationId || idempotencyKey,
     plot_id: plotId,
     idempotency_key: idempotencyKey,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: options.label || '共同农田操作备注',
+      field: 'memo',
+      scene: options.scene || 'cohabitation_shared_farm',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeSharedFarmCarePayload(payload = {}) {
-  const request = normalizeSharedFarmActionPayload(payload);
+function normalizeSharedFarmCarePayload(payload = {}, auditContext = {}) {
+  const request = normalizeSharedFarmActionPayload(payload, auditContext, {
+    label: '共同农田管护备注',
+    scene: 'cohabitation_shared_farm_care',
+  });
   const action = sanitizeText(payload.action || payload.care_action || payload.action_type, 40);
   if (!['cure_pests', 'clear_weeds', 'remove_crop'].includes(action)) {
     throw createError('shared farm care action must be cure_pests, clear_weeds, or remove_crop', 400);
@@ -14099,8 +14259,11 @@ function normalizeSharedFarmCarePayload(payload = {}) {
   };
 }
 
-function normalizeSharedFarmPlantPayload(payload = {}) {
-  const request = normalizeSharedFarmActionPayload(payload);
+function normalizeSharedFarmPlantPayload(payload = {}, auditContext = {}) {
+  const request = normalizeSharedFarmActionPayload(payload, auditContext, {
+    label: '共同农田种植备注',
+    scene: 'cohabitation_shared_farm_plant',
+  });
   const seedItemId = normalizeWarehouseItemId(payload.seed_item_id || payload.seedItemId || payload.item_id || payload.itemId);
   const seedDef = SHARED_FARM_SEED_CATALOG[seedItemId];
   if (!seedDef) throw createError('shared farm planting only supports whitelisted shared-warehouse seeds', 403);
@@ -14116,8 +14279,11 @@ function getSharedFarmFertilizerProfile(fertilizerItemId = '') {
   return SHARED_FARM_FERTILIZER_CATALOG[normalized] || null;
 }
 
-function normalizeSharedFarmFertilizePayload(payload = {}) {
-  const request = normalizeSharedFarmActionPayload(payload);
+function normalizeSharedFarmFertilizePayload(payload = {}, auditContext = {}) {
+  const request = normalizeSharedFarmActionPayload(payload, auditContext, {
+    label: '共同农田施肥备注',
+    scene: 'cohabitation_shared_farm_fertilize',
+  });
   const fertilizerItemId = normalizeWarehouseItemId(payload.fertilizer_item_id || payload.fertilizerItemId || payload.item_id || payload.itemId);
   const fertilizerProfile = getSharedFarmFertilizerProfile(fertilizerItemId);
   if (!fertilizerProfile) {
@@ -14134,7 +14300,7 @@ function getOfflineQueueDefaultFertilizerItemId(action = '') {
   return action === 'fertilize_shared_farm_premium' ? 'quality_fertilizer' : 'basic_fertilizer';
 }
 
-function normalizeSharedAnimalActionPayload(payload = {}) {
+function normalizeSharedAnimalActionPayload(payload = {}, auditContext = {}, options = {}) {
   const animalId = sanitizeText(payload.animal_id || payload.shared_animal_id || payload.id, 140);
   if (!animalId) throw createError('shared animal animal_id is required');
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
@@ -14142,11 +14308,16 @@ function normalizeSharedAnimalActionPayload(payload = {}) {
   return {
     animal_id: animalId,
     idempotency_key: idempotencyKey,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: options.label || '共同动物操作备注',
+      field: 'memo',
+      scene: options.scene || 'cohabitation_shared_animal',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeSharedPetCarePayload(payload = {}) {
+function normalizeSharedPetCarePayload(payload = {}, auditContext = {}) {
   const petId = sanitizeText(payload.pet_id || payload.shared_pet_id || payload.id, 140);
   if (!petId) throw createError('shared pet pet_id is required');
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
@@ -14159,7 +14330,12 @@ function normalizeSharedPetCarePayload(payload = {}) {
     care_item_id: careItemId,
     care_item_profile: buildSharedPetCareItemSnapshot(careItemProfile),
     idempotency_key: idempotencyKey,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同宠物照料备注',
+      field: 'memo',
+      scene: 'cohabitation_shared_pet_care',
+      maxLength: 160,
+    }),
     confirmed_high_value_care: payload.confirmed_high_value_care === true || payload.high_value_confirmed === true,
     risk_acknowledged: payload.risk_acknowledged === true || payload.confirmed_high_value_care === true || payload.high_value_confirmed === true,
     confirmation_text: sanitizeText(payload.confirmation_text || payload.confirmationText, 120),
@@ -14181,7 +14357,7 @@ function getSharedAnimalPurchaseProfile(type = '') {
   };
 }
 
-function normalizeSharedAnimalPurchasePayload(payload = {}) {
+function normalizeSharedAnimalPurchasePayload(payload = {}, auditContext = {}) {
   const profile = getSharedAnimalPurchaseProfile(payload.animal_type || payload.type || payload.animalType);
   if (!profile) throw createError('shared animal purchase only supports whitelisted animal types', 403);
   if (profile.unit_price > FUND_MAX_MEDIUM_SPEND_AMOUNT) {
@@ -14192,14 +14368,27 @@ function normalizeSharedAnimalPurchasePayload(payload = {}) {
   return {
     animal_type: profile.type,
     profile,
-    name: sanitizeText(payload.name || payload.animal_name || profile.label, 60) || profile.label,
+    name: moderateCohabitationText(payload.name || payload.animal_name || profile.label, auditContext, {
+      label: '共同动物购买命名',
+      field: 'name',
+      scene: 'cohabitation_shared_animal_purchase',
+      maxLength: 60,
+    }) || profile.label,
     idempotency_key: idempotencyKey,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同动物购买备注',
+      field: 'memo',
+      scene: 'cohabitation_shared_animal_purchase',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeSharedAnimalSalePayload(payload = {}) {
-  return normalizeSharedAnimalActionPayload(payload);
+function normalizeSharedAnimalSalePayload(payload = {}, auditContext = {}) {
+  return normalizeSharedAnimalActionPayload(payload, auditContext, {
+    label: '共同动物出售备注',
+    scene: 'cohabitation_shared_animal_sale',
+  });
 }
 
 function buildPurchasedSharedAnimal(contract = {}, member = {}, profile = {}, request = {}, actor = {}, operatedAt = nowSeconds()) {
@@ -14262,7 +14451,7 @@ function buildPurchasedSharedAnimal(contract = {}, member = {}, profile = {}, re
     : null;
 }
 
-function normalizeOfflineConflictPreflightPayload(payload = {}) {
+function normalizeOfflineConflictPreflightPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.request_id || payload.operation_id, 120);
   if (!idempotencyKey) throw createError('offline conflict preflight requires idempotency_key');
   const rawActions = Array.isArray(payload.actions)
@@ -14277,7 +14466,12 @@ function normalizeOfflineConflictPreflightPayload(payload = {}) {
     idempotency_key: idempotencyKey,
     client_queue_revision: Math.max(0, Math.floor(Number(payload.client_queue_revision || payload.base_revision) || 0)),
     actions,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '离线冲突预检备注',
+      field: 'memo',
+      scene: 'cohabitation_offline_conflict_preflight',
+      maxLength: 160,
+    }),
   };
 }
 
@@ -14311,7 +14505,7 @@ function normalizeOfflineQueueMergePayload(payload = {}) {
   };
 }
 
-function normalizeOfflineConflictResolvePayload(payload = {}) {
+function normalizeOfflineConflictResolvePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.resolve_id || payload.queue_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('offline conflict resolve requires idempotency_key');
   const strategy = sanitizeText(payload.resolution_strategy || payload.strategy || 'server_authoritative_auto_merge', 80);
@@ -14328,7 +14522,12 @@ function normalizeOfflineConflictResolvePayload(payload = {}) {
     preflight_idempotency_key: preflightIdempotencyKey,
     client_queue_revision: mergeRequest.client_queue_revision,
     allow_partial: payload.allow_partial !== false,
-    memo: sanitizeText(payload.memo || payload.note || 'offline conflict auto resolve', 180),
+    memo: moderateCohabitationText(payload.memo || payload.note || 'offline conflict auto resolve', auditContext, {
+      label: '离线冲突解决备注',
+      field: 'memo',
+      scene: 'cohabitation_offline_conflict_resolve',
+      maxLength: 180,
+    }),
     requested_actions: uniqueSanitizedValues(mergeRequest.operations.map(operation => operation.action), 80),
     merge_request: mergeRequest,
   };
@@ -14459,8 +14658,11 @@ function buildOfflineConflictResolutionEvidence(request = {}, results = [], reje
   };
 }
 
-function normalizeSharedAnimalFeedPayload(payload = {}) {
-  const request = normalizeSharedAnimalActionPayload(payload);
+function normalizeSharedAnimalFeedPayload(payload = {}, auditContext = {}) {
+  const request = normalizeSharedAnimalActionPayload(payload, auditContext, {
+    label: '共同动物喂食备注',
+    scene: 'cohabitation_shared_animal_feed',
+  });
   const feedItemId = normalizeWarehouseItemId(payload.feed_item_id || payload.feedItemId || payload.item_id || payload.itemId || 'hay');
   if (feedItemId !== 'hay') {
     throw createError('shared animal feed only supports hay in this pass', 403);
@@ -14471,7 +14673,7 @@ function normalizeSharedAnimalFeedPayload(payload = {}) {
   };
 }
 
-function normalizeSharedWorkshopProcessPayload(payload = {}) {
+function normalizeSharedWorkshopProcessPayload(payload = {}, auditContext = {}) {
   const recipeId = sanitizeText(payload.recipe_id || payload.recipeId || payload.id, 100);
   const recipe = SHARED_WORKSHOP_RECIPE_CATALOG[recipeId];
   if (!recipe) throw createError('shared workshop processing only supports whitelisted recipes', 403);
@@ -14483,7 +14685,12 @@ function normalizeSharedWorkshopProcessPayload(payload = {}) {
     fund_ledger_id: sanitizeText(payload.fund_ledger_id || payload.budget_ledger_id || payload.medium_fund_ledger_id, 100),
     alchemy_result_mode: normalizeAlchemyResultMode(payload.alchemy_result_mode || payload.alchemyResultMode || payload.result_mode),
     alchemy_heat_level: normalizeSharedAlchemyHeatLevel(payload.alchemy_heat_level || payload.alchemyHeatLevel || payload.heat_level || payload.heatLevel),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同工坊加工备注',
+      field: 'memo',
+      scene: 'cohabitation_shared_workshop_process',
+      maxLength: 160,
+    }),
   };
 }
 
@@ -14636,7 +14843,7 @@ function assertFamilyWishSubmitAllowed(actorPermissions = {}) {
   return requiredChecks;
 }
 
-function normalizeFamilyChildCarePayload(payload = {}) {
+function normalizeFamilyChildCarePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('family child care requires idempotency_key');
   const careRef = sanitizeText(payload.care_ref || payload.target_ref || payload.child_care_ref || payload.ref, 120);
@@ -14646,22 +14853,42 @@ function normalizeFamilyChildCarePayload(payload = {}) {
     target_ref: sanitizeText(payload.target_ref || careRef, 120),
     child_ref: sanitizeText(payload.child_ref || payload.child_id || 'contract_child_private', 120),
     care_type: sanitizeText(payload.care_type || payload.type || 'daily_care', 60),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同孩子照料备注',
+      field: 'memo',
+      scene: 'cohabitation_family_child_care',
+      maxLength: 180,
+    }),
     idempotency_key: idempotencyKey,
   };
 }
 
-function normalizeFamilyWishSubmitPayload(payload = {}) {
+function normalizeFamilyWishSubmitPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('family wish submit requires idempotency_key');
   const wishRef = sanitizeText(payload.wish_ref || payload.target_ref || payload.family_wish_ref || payload.ref, 120);
   if (!wishRef) throw createError('family wish submit requires wish_ref');
+  const baseAuditContext = buildCohabitationAuditContext(auditContext);
   return {
     wish_ref: wishRef,
     target_ref: sanitizeText(payload.target_ref || wishRef, 120),
     wish_type: sanitizeText(payload.wish_type || payload.type || 'shared_family_wish', 60),
-    title: sanitizeText(payload.title || payload.name || wishRef, 80),
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    title: moderateText(payload.title || payload.name || wishRef, {
+      label: '共同家庭心愿标题',
+      field: 'title',
+      scene: baseAuditContext.scene || 'cohabitation_family_wish',
+      maxLength: 80,
+      storageMaxLength: 80,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'title' }),
+    }),
+    memo: moderateText(payload.memo || payload.note, {
+      label: '共同家庭心愿备注',
+      field: 'memo',
+      scene: baseAuditContext.scene || 'cohabitation_family_wish',
+      maxLength: 180,
+      storageMaxLength: 180,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'memo' }),
+    }),
     idempotency_key: idempotencyKey,
   };
 }
@@ -14689,7 +14916,7 @@ function normalizeWarehouseWithdrawPayload(payload = {}) {
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalDraftPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalDraftPayload(payload = {}, auditContext = {}) {
   const itemId = normalizeWarehouseItemId(payload.item_id ?? payload.itemId);
   const rawQuantity = Math.floor(Number(payload.quantity) || 0);
   const requestedQuality = String(payload.quality || 'normal').trim().toLowerCase();
@@ -14711,11 +14938,16 @@ function normalizeWarehouseHighValueWithdrawalDraftPayload(payload = {}) {
     idempotency_key: idempotencyKey,
     operation_id: credential.operation_id,
     save_slot: normalizeSaveSlot(payload.save_slot),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '共同仓库高价值取出草案原因',
+      field: 'reason',
+      scene: 'cohabitation_warehouse_high_value_draft',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalConfirmPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalConfirmPayload(payload = {}, auditContext = {}) {
   const credential = normalizeWarehouseOperationCredential(payload);
   const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('高价值取出确认需要 idempotency_key，以防断线或重试时重复确认');
@@ -14725,11 +14957,16 @@ function normalizeWarehouseHighValueWithdrawalConfirmPayload(payload = {}) {
     confirmation_text: sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation || '', 120),
     freeze_acknowledged: payload.freeze_acknowledged === true || payload.ack_freeze === true,
     rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true || payload.ack_rollback === true,
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '共同仓库高价值取出确认说明',
+      field: 'reason',
+      scene: 'cohabitation_warehouse_high_value_confirm',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalExecutePayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalExecutePayload(payload = {}, auditContext = {}) {
   const credential = normalizeWarehouseOperationCredential(payload);
   const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('高价值取出执行需要 idempotency_key，以防断线或重试时重复取出');
@@ -14738,25 +14975,40 @@ function normalizeWarehouseHighValueWithdrawalExecutePayload(payload = {}) {
     operation_id: credential.operation_id,
     save_slot: normalizeSaveSlot(payload.save_slot),
     expected_state: sanitizeText(payload.expected_state || payload.state, 60),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '共同仓库高价值取出执行说明',
+      field: 'reason',
+      scene: 'cohabitation_warehouse_high_value_execute',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalRollbackPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalRollbackPayload(payload = {}, auditContext = {}) {
   const credential = normalizeWarehouseOperationCredential(payload);
   const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('高价值取出回滚需要 idempotency_key，以防断线或重试时重复回滚');
   return {
     idempotency_key: idempotencyKey,
     operation_id: credential.operation_id,
-    reason: sanitizeText(payload.reason || payload.memo || payload.note || '撤销高价值取出草案并释放冻结库存', 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note || '撤销高价值取出草案并释放冻结库存', auditContext, {
+      label: '共同仓库高价值取出回滚原因',
+      field: 'reason',
+      scene: 'cohabitation_warehouse_high_value_rollback',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalCompensationReviewPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalCompensationReviewPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('高价值取出补偿复核需要 idempotency_key，以防断线或重试时重复提交');
-  const reason = sanitizeText(payload.reason || payload.dispute_reason || payload.memo || payload.note, 180);
+  const reason = moderateCohabitationText(payload.reason || payload.dispute_reason || payload.memo || payload.note, auditContext, {
+    label: '共同仓库高价值取出补偿复核原因',
+    field: 'reason',
+    scene: 'cohabitation_warehouse_compensation_review',
+    maxLength: 180,
+  });
   if (!reason) throw createError('高价值取出补偿复核必须填写争议或补偿原因');
   return {
     idempotency_key: idempotencyKey,
@@ -14764,17 +15016,32 @@ function normalizeWarehouseHighValueWithdrawalCompensationReviewPayload(payload 
     requested_action: WAREHOUSE_WITHDRAWAL_COMPENSATION_ACTIONS.has(payload.requested_action)
       ? payload.requested_action
       : 'manual_restore_recorded',
-    evidence_note: sanitizeText(payload.evidence_note || payload.evidence || payload.detail, 240),
-    compensation_plan: sanitizeText(payload.compensation_plan || payload.plan || '按取出流水、目标背包落点和来源 ledger 人工复核后补偿或登记无需补偿', 240),
+    evidence_note: moderateCohabitationText(payload.evidence_note || payload.evidence || payload.detail, auditContext, {
+      label: '共同仓库高价值取出补偿证据说明',
+      field: 'evidence_note',
+      scene: 'cohabitation_warehouse_compensation_review',
+      maxLength: 240,
+    }),
+    compensation_plan: moderateCohabitationText(payload.compensation_plan || payload.plan || '按取出流水、目标背包落点和来源 ledger 人工复核后补偿或登记无需补偿', auditContext, {
+      label: '共同仓库高价值取出补偿方案',
+      field: 'compensation_plan',
+      scene: 'cohabitation_warehouse_compensation_review',
+      maxLength: 240,
+    }),
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalCompensationResolvePayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalCompensationResolvePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('高价值取出补偿复核处理需要 idempotency_key，以防断线或重试时重复处理');
   const decision = sanitizeText(payload.decision || payload.status || payload.result, 40);
   if (!['approved', 'rejected'].includes(decision)) throw createError('高价值取出补偿复核处理结果必须是 approved 或 rejected', 400);
-  const resolutionNote = sanitizeText(payload.resolution_note || payload.reason || payload.memo || payload.note, 240);
+  const resolutionNote = moderateCohabitationText(payload.resolution_note || payload.reason || payload.memo || payload.note, auditContext, {
+    label: '共同仓库高价值取出补偿处理说明',
+    field: 'resolution_note',
+    scene: 'cohabitation_warehouse_compensation_resolve',
+    maxLength: 240,
+  });
   if (!resolutionNote) throw createError('高价值取出补偿复核处理必须填写处理说明');
   return {
     idempotency_key: idempotencyKey,
@@ -14787,16 +15054,21 @@ function normalizeWarehouseHighValueWithdrawalCompensationResolvePayload(payload
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalCompensationPreflightPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalCompensationPreflightPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('高价值取出补偿预检需要 idempotency_key，以防断线或重试时重复记录');
   return {
     idempotency_key: idempotencyKey,
-    operator_note: sanitizeText(payload.operator_note || payload.note || payload.memo, 240),
+    operator_note: moderateCohabitationText(payload.operator_note || payload.note || payload.memo, auditContext, {
+      label: '共同仓库高价值取出补偿预检说明',
+      field: 'operator_note',
+      scene: 'cohabitation_warehouse_compensation_preflight',
+      maxLength: 240,
+    }),
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalAutoCompensationBlockPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalAutoCompensationBlockPayload(payload = {}, auditContext = {}) {
   const rawExecutionAction = payload.execution_action || payload.compensation_action;
   if (!WAREHOUSE_WITHDRAWAL_AUTO_COMPENSATION_ACTIONS.has(rawExecutionAction)) return null;
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
@@ -14805,13 +15077,18 @@ function normalizeWarehouseHighValueWithdrawalAutoCompensationBlockPayload(paylo
     idempotency_key: idempotencyKey,
     requested_action: sanitizeText(rawExecutionAction, 80),
     requested_receipt: sanitizeText(payload.execution_receipt || payload.compensation_receipt || payload.receipt || payload.receipt_id, 160),
-    requested_note: sanitizeText(payload.execution_note || payload.operator_note || payload.note || payload.memo, 240),
+    requested_note: moderateCohabitationText(payload.execution_note || payload.operator_note || payload.note || payload.memo, auditContext, {
+      label: '共同仓库高价值取出自动补偿阻断说明',
+      field: 'requested_note',
+      scene: 'cohabitation_warehouse_compensation_auto_block',
+      maxLength: 240,
+    }),
     preflight_idempotency_key: sanitizeText(payload.preflight_idempotency_key || payload.preflight_key, 120),
     preflight_audit_id: sanitizeText(payload.preflight_audit_id || payload.preflight_id, 100),
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('warehouse compensation execution requires idempotency_key');
   const rawExecutionAction = payload.execution_action || payload.compensation_action;
@@ -14828,14 +15105,19 @@ function normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(paylo
     idempotency_key: idempotencyKey,
     execution_action: executionAction,
     execution_receipt: receipt,
-    execution_note: sanitizeText(payload.execution_note || payload.operator_note || payload.note || payload.memo, 240),
+    execution_note: moderateCohabitationText(payload.execution_note || payload.operator_note || payload.note || payload.memo, auditContext, {
+      label: '共同仓库高价值取出补偿执行说明',
+      field: 'execution_note',
+      scene: 'cohabitation_warehouse_compensation_execution',
+      maxLength: 240,
+    }),
     preflight_idempotency_key: preflightIdempotencyKey,
     preflight_audit_id: preflightAuditId,
     confirmation_text: confirmationText,
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('warehouse manual appeal resolution requires idempotency_key', 400);
   const rawResolutionAction = payload.resolution_action || payload.appeal_action || payload.action;
@@ -14843,7 +15125,12 @@ function normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payl
   if (!resolutionAction) throw createError('warehouse manual appeal resolution requires a supported resolution_action', 400);
   const receipt = sanitizeText(payload.resolution_receipt || payload.appeal_receipt || payload.receipt || payload.receipt_id, 160);
   if (!receipt) throw createError('warehouse manual appeal resolution requires resolution_receipt', 400);
-  const resolutionNote = sanitizeText(payload.resolution_note || payload.appeal_note || payload.operator_note || payload.note || payload.memo, 240);
+  const resolutionNote = moderateCohabitationText(payload.resolution_note || payload.appeal_note || payload.operator_note || payload.note || payload.memo, auditContext, {
+    label: '共同仓库高价值取出人工申诉结论说明',
+    field: 'resolution_note',
+    scene: 'cohabitation_warehouse_manual_appeal_resolution',
+    maxLength: 240,
+  });
   if (!resolutionNote) throw createError('warehouse manual appeal resolution requires resolution_note', 400);
   const confirmationText = sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation, 120);
   if (confirmationText !== WAREHOUSE_WITHDRAWAL_APPEAL_RESOLUTION_CONFIRMATION_TEXT) throw createError('warehouse manual appeal resolution confirmation text mismatch', 400);
@@ -14861,7 +15148,7 @@ function normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payl
   };
 }
 
-function normalizeWarehouseHighValueWithdrawalOperatorReceiptAuditPayload(payload = {}) {
+function normalizeWarehouseHighValueWithdrawalOperatorReceiptAuditPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('warehouse operator receipt audit requires idempotency_key', 400);
   const rawAuditAction = payload.audit_action || payload.operator_receipt_audit_action || payload.action;
@@ -14869,7 +15156,12 @@ function normalizeWarehouseHighValueWithdrawalOperatorReceiptAuditPayload(payloa
   if (!auditAction) throw createError('warehouse operator receipt audit requires a supported audit_action', 400);
   const receipt = sanitizeText(payload.audit_receipt || payload.operator_receipt || payload.receipt || payload.receipt_id, 160);
   if (!receipt) throw createError('warehouse operator receipt audit requires audit_receipt', 400);
-  const auditNote = sanitizeText(payload.audit_note || payload.operator_note || payload.note || payload.memo, 240);
+  const auditNote = moderateCohabitationText(payload.audit_note || payload.operator_note || payload.note || payload.memo, auditContext, {
+    label: '共同仓库高价值取出票据审计说明',
+    field: 'audit_note',
+    scene: 'cohabitation_warehouse_operator_receipt_audit',
+    maxLength: 240,
+  });
   if (!auditNote) throw createError('warehouse operator receipt audit requires audit_note', 400);
   const confirmationText = sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation, 120);
   if (confirmationText !== WAREHOUSE_WITHDRAWAL_OPERATOR_RECEIPT_AUDIT_CONFIRMATION_TEXT) throw createError('warehouse operator receipt audit confirmation text mismatch', 400);
@@ -14889,32 +15181,52 @@ function normalizeWarehouseHighValueWithdrawalOperatorReceiptAuditPayload(payloa
   };
 }
 
-function normalizeWarehouseGovernanceRecoveryPayload(payload = {}) {
+function normalizeWarehouseGovernanceRecoveryPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同仓库治理恢复需要 idempotency_key，以防断线或重试时重复恢复');
   const direction = normalizeWarehouseGovernanceDirection(payload.direction || payload.blocked_direction || payload.operation_direction);
-  const reason = sanitizeText(payload.reason || payload.appeal_reason || payload.memo || payload.note, 180);
+  const reason = moderateCohabitationText(payload.reason || payload.appeal_reason || payload.memo || payload.note, auditContext, {
+    label: '共同仓库治理恢复原因',
+    field: 'reason',
+    scene: 'cohabitation_warehouse_governance_recovery',
+    maxLength: 180,
+  });
   if (!reason) throw createError('共同仓库治理恢复必须填写申诉 / 恢复原因');
   return {
     idempotency_key: idempotencyKey,
     direction,
     target_username: normalizeUsername(payload.target_username || payload.targetUsername || payload.username),
     reason,
-    recovery_note: sanitizeText(payload.recovery_note || payload.approval_note || payload.note, 180),
+    recovery_note: moderateCohabitationText(payload.recovery_note || payload.approval_note || payload.note, auditContext, {
+      label: '共同仓库治理恢复备注',
+      field: 'recovery_note',
+      scene: 'cohabitation_warehouse_governance_recovery',
+      maxLength: 180,
+    }),
   };
 }
 
-function normalizeWarehouseGovernanceAppealPayload(payload = {}) {
+function normalizeWarehouseGovernanceAppealPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同仓库治理申诉需要 idempotency_key，以防断线或重试时重复提交');
   const direction = normalizeWarehouseGovernanceDirection(payload.direction || payload.blocked_direction || payload.operation_direction);
-  const reason = sanitizeText(payload.reason || payload.appeal_reason || payload.memo || payload.note, 180);
+  const reason = moderateCohabitationText(payload.reason || payload.appeal_reason || payload.memo || payload.note, auditContext, {
+    label: '共同仓库治理申诉原因',
+    field: 'reason',
+    scene: 'cohabitation_warehouse_governance_appeal',
+    maxLength: 180,
+  });
   if (reason.length < 4) throw createError('共同仓库治理申诉至少需要 4 个字的说明');
   return {
     idempotency_key: idempotencyKey,
     direction,
     reason,
-    player_note: sanitizeText(payload.player_note || payload.note || payload.memo, 180),
+    player_note: moderateCohabitationText(payload.player_note || payload.note || payload.memo, auditContext, {
+      label: '共同仓库治理申诉补充说明',
+      field: 'player_note',
+      scene: 'cohabitation_warehouse_governance_appeal',
+      maxLength: 180,
+    }),
   };
 }
 
@@ -14987,7 +15299,7 @@ function assertSharedDecorationMoveAllowed(actorPermissions = {}, decorationKind
   return [check];
 }
 
-function normalizeSharedDecorationMovePayload(payload = {}) {
+function normalizeSharedDecorationMovePayload(payload = {}, auditContext = {}) {
   const decorationId = sanitizeText(payload.decoration_id || payload.decorationId || payload.item_id || payload.id, 80);
   if (!decorationId) throw createError('shared decoration move requires decoration_id');
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
@@ -15003,7 +15315,12 @@ function normalizeSharedDecorationMovePayload(payload = {}) {
     placement_ref: placementRef,
     from_location_ref: sanitizeText(payload.from_location_ref || payload.previous_location_ref, 120),
     to_location_ref: toLocationRef || placementRef,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同装修移动备注',
+      field: 'memo',
+      scene: 'cohabitation_shared_decoration_move',
+      maxLength: 160,
+    }),
     idempotency_key: idempotencyKey,
     operation_id: sanitizeText(payload.operation_id || payload.operationId, 120),
   };
@@ -15264,27 +15581,46 @@ function normalizeLargeFundSpendConfirmPayload(payload = {}) {
   };
 }
 
-function normalizeSeparationPreviewConfirmPayload(payload = {}) {
+function buildSeparationAuditContext(actor = {}, scene = '', username = '', previewId = '', contentType = 'cohabitation_separation') {
+  return buildCohabitationAuditContext(actor, {
+    scene,
+    username,
+    content_type: contentType,
+    content_id: sanitizeText(previewId, 80),
+  });
+}
+
+function moderateSeparationMemo(value, auditContext = {}, label = '分居操作备注', scene = 'cohabitation_separation') {
+  return moderateCohabitationText(value, auditContext, {
+    label,
+    field: 'memo',
+    scene,
+    maxLength: 160,
+  });
+}
+
+function normalizeSeparationPreviewConfirmPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居预览确认需要 idempotency_key，以防断线或重试时重复确认');
   return {
     idempotency_key: idempotencyKey,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居预览确认备注', 'cohabitation_separation_preview_confirm'),
   };
 }
 
-function normalizeSeparationExecutionRequestPayload(payload = {}) {
+function normalizeSeparationExecutionRequestPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居执行请求需要 idempotency_key，以防断线或重试时重复创建执行请求');
   return {
     idempotency_key: idempotencyKey,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居执行请求备注', 'cohabitation_separation_execution_request'),
   };
 }
 
-function normalizeSeparationExecutionFailurePayload(payload = {}) {
+function normalizeSeparationExecutionFailurePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('separation execution failure recovery requires idempotency_key to avoid duplicate pending recovery', 400);
+  const baseAuditContext = buildCohabitationAuditContext(auditContext);
   const allowedStages = new Set([
     'request_execution',
     'execute_asset_return',
@@ -15304,47 +15640,61 @@ function normalizeSeparationExecutionFailurePayload(payload = {}) {
     idempotency_key: idempotencyKey,
     execution_request_id: sanitizeText(payload.execution_request_id, 100),
     failure_stage: allowedStages.has(stage) ? stage : 'manual_execution',
-    failure_reason: sanitizeText(payload.failure_reason || payload.reason || payload.error_message || payload.memo || payload.note, 240),
+    failure_reason: moderateText(payload.failure_reason || payload.reason || payload.error_message || payload.memo || payload.note, {
+      label: '分居执行失败说明',
+      field: 'failure_reason',
+      scene: baseAuditContext.scene || 'cohabitation_separation_failure',
+      maxLength: 240,
+      storageMaxLength: 240,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'failure_reason' }),
+    }),
     error_code: sanitizeText(payload.error_code || payload.code, 80),
     failed_operation_id: sanitizeText(payload.failed_operation_id || payload.failedOperationId || payload.operation_id || payload.request_id, 120),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateText(payload.memo || payload.note, {
+      label: '分居执行失败备注',
+      field: 'memo',
+      scene: baseAuditContext.scene || 'cohabitation_separation_failure',
+      maxLength: 160,
+      storageMaxLength: 160,
+      auditContext: buildCohabitationAuditContext(baseAuditContext, { field: 'memo' }),
+    }),
   };
 }
 
-function normalizeSeparationAssetReturnExecutePayload(payload = {}) {
+function normalizeSeparationAssetReturnExecutePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居资产返还执行需要 idempotency_key，以防断线或重试时重复记录返还');
   return {
     idempotency_key: idempotencyKey,
     execution_request_id: sanitizeText(payload.execution_request_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居资产返还执行备注', 'cohabitation_separation_asset_return_execute'),
   };
 }
 
-function normalizeSeparationPersonalSaveWritePayload(payload = {}) {
+function normalizeSeparationPersonalSaveWritePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居个人存档写回需要 idempotency_key，以防断线或重试时重复写回');
   return {
     idempotency_key: idempotencyKey,
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居个人田区写回备注', 'cohabitation_separation_personal_farm_write'),
   };
 }
 
-function normalizeSeparationSharedFundRefundPayload(payload = {}) {
+function normalizeSeparationSharedFundRefundPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居共同基金返还需要 idempotency_key，以防断线或重试时重复返还');
   return {
     idempotency_key: idempotencyKey,
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居共同基金返还备注', 'cohabitation_separation_shared_fund_refund'),
   };
 }
 
-function normalizeSeparationSharedFundDeltaConfirmPayload(payload = {}) {
+function normalizeSeparationSharedFundDeltaConfirmPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('shared fund delta confirmation requires idempotency_key to avoid duplicate confirmations', 400);
   return {
@@ -15356,22 +15706,22 @@ function normalizeSeparationSharedFundDeltaConfirmPayload(payload = {}) {
     unidentified_operating_allocation: Array.isArray(payload.unidentified_operating_allocation)
       ? payload.unidentified_operating_allocation
       : (Array.isArray(payload.unidentified_operating_allocation_manifest) ? payload.unidentified_operating_allocation_manifest : []),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居共同基金差额确认备注', 'cohabitation_separation_shared_fund_delta_confirm'),
   };
 }
 
-function normalizeSeparationSharedWarehouseReturnPayload(payload = {}) {
+function normalizeSeparationSharedWarehouseReturnPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居共同仓库返还需要 idempotency_key，以防断线或重试时重复返还');
   return {
     idempotency_key: idempotencyKey,
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居共同仓库返还备注', 'cohabitation_separation_shared_warehouse_return'),
   };
 }
 
-function normalizeSeparationFamilyStoryResolvePayload(payload = {}) {
+function normalizeSeparationFamilyStoryResolvePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居剧情拆分记录需要 idempotency_key，以防断线或重试时重复记录');
   const resolutionChoice = sanitizeText(payload.resolution_choice || payload.choice || 'peaceful_separation', 80);
@@ -15381,22 +15731,22 @@ function normalizeSeparationFamilyStoryResolvePayload(payload = {}) {
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
     resolution_choice: allowedChoices.includes(resolutionChoice) ? resolutionChoice : 'manual_review',
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居剧情拆分备注', 'cohabitation_separation_family_story_resolve'),
   };
 }
 
-function normalizeSeparationPersonalStoryReceiptsPayload(payload = {}) {
+function normalizeSeparationPersonalStoryReceiptsPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居个人剧情回执写入需要 idempotency_key，以防断线或重试时重复写入');
   return {
     idempotency_key: idempotencyKey,
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居个人剧情回执备注', 'cohabitation_separation_personal_story_receipts_write'),
   };
 }
 
-function normalizeSeparationStoryCinematicPlaybackPayload(payload = {}) {
+function normalizeSeparationStoryCinematicPlaybackPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居剧情演出播放记录需要 idempotency_key，以防断线或重试时重复记录');
   const playbackState = sanitizeText(payload.playback_state || payload.state || 'played', 80);
@@ -15409,8 +15759,13 @@ function normalizeSeparationStoryCinematicPlaybackPayload(payload = {}) {
     dialogue_event_id: sanitizeText(payload.dialogue_event_id, 120),
     animation_event_id: sanitizeText(payload.animation_event_id, 120),
     playback_state: allowedStates.includes(playbackState) ? playbackState : 'played',
-    confirmation_text: sanitizeText(payload.confirmation_text || payload.confirmation || payload.confirm_text, 80),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    confirmation_text: moderateCohabitationText(payload.confirmation_text || payload.confirmation || payload.confirm_text, auditContext, {
+      label: '分居剧情演出确认文本',
+      field: 'confirmation_text',
+      scene: 'cohabitation_separation_story_cinematic_record',
+      maxLength: 80,
+    }),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居剧情演出播放备注', 'cohabitation_separation_story_cinematic_record'),
   };
 }
 
@@ -16704,7 +17059,7 @@ function buildSeparationPersonalFamilyMainStateMigrationSummary(contract = {}, l
   });
 }
 
-function normalizeSeparationChildArrangementResolvePayload(payload = {}) {
+function normalizeSeparationChildArrangementResolvePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居孩子安排记录需要 idempotency_key，以防断线或重试时重复记录');
   const arrangementChoice = sanitizeText(payload.arrangement_choice || payload.choice || 'shared_care_pending_personal_saves', 100);
@@ -16714,22 +17069,22 @@ function normalizeSeparationChildArrangementResolvePayload(payload = {}) {
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
     arrangement_choice: allowedChoices.includes(arrangementChoice) ? arrangementChoice : 'manual_family_review',
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居孩子安排备注', 'cohabitation_separation_child_arrangement_resolve'),
   };
 }
 
-function normalizeSeparationPersonalFamilyReceiptsPayload(payload = {}) {
+function normalizeSeparationPersonalFamilyReceiptsPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居个人家庭回执写入需要 idempotency_key，以防断线或重试时重复写入');
   return {
     idempotency_key: idempotencyKey,
     execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居个人家庭回执备注', 'cohabitation_separation_personal_family_receipts_write'),
   };
 }
 
-function normalizeSeparationDecorationBuildingSplitPayload(payload = {}) {
+function normalizeSeparationDecorationBuildingSplitPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('分居装饰 / 建筑拆分记录需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -16738,22 +17093,27 @@ function normalizeSeparationDecorationBuildingSplitPayload(payload = {}) {
     plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
     decoration_split_manifest_hash: sanitizeText(payload.decoration_split_manifest_hash || payload.split_manifest_hash, 100),
     building_split_manifest_hash: sanitizeText(payload.building_split_manifest_hash || payload.family_building_split_manifest_hash, 100),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateSeparationMemo(payload.memo || payload.note, auditContext, '分居装饰建筑拆分备注', 'cohabitation_separation_decorations_buildings_split'),
   };
 }
 
-function normalizeLargeFundSpendExecutePayload(payload = {}) {
+function normalizeLargeFundSpendExecutePayload(payload = {}, auditContext = {}) {
   const credential = normalizeFundConsumptionCredential(payload);
   const idempotencyKey = credential.idempotency_key;
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
   return {
     idempotency_key: idempotencyKey,
     consumption_id: credential.consumption_id,
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同基金大额草案执行备注',
+      field: 'memo',
+      scene: 'cohabitation_fund_large_spend_execute',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeLargeFundHighRiskReceiptPayload(payload = {}) {
+function normalizeLargeFundHighRiskReceiptPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金高风险回执需要 idempotency_key，以防断线或重试时重复记录');
   const outcome = sanitizeText(payload.outcome || payload.receipt_outcome || payload.result, 40);
@@ -16768,12 +17128,17 @@ function normalizeLargeFundHighRiskReceiptPayload(payload = {}) {
     idempotency_key: idempotencyKey,
     outcome: normalizedOutcome,
     receipt_ref: receiptRef,
-    memo: sanitizeText(payload.memo || payload.note, 180),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '共同基金高风险回执备注',
+      field: 'memo',
+      scene: 'cohabitation_fund_high_risk_receipt',
+      maxLength: 180,
+    }),
     compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true || payload.refund_acknowledged === true,
   };
 }
 
-function normalizeFamilyBuildingRealBuildApplyPayload(payload = {}) {
+function normalizeFamilyBuildingRealBuildApplyPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实落账需要 idempotency_key，以防断线或重试时重复落账');
   return {
@@ -16782,11 +17147,16 @@ function normalizeFamilyBuildingRealBuildApplyPayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实落账备注',
+      field: 'memo',
+      scene: 'cohabitation_family_building_real_build',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingMaterialsConsumePayload(payload = {}) {
+function normalizeFamilyBuildingMaterialsConsumePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑材料消耗需要 idempotency_key，以防断线或重试时重复扣共同仓库');
   return {
@@ -16796,11 +17166,16 @@ function normalizeFamilyBuildingMaterialsConsumePayload(payload = {}) {
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     medium_fund_ledger_id: sanitizeText(payload.medium_fund_ledger_id || payload.budget_fund_ledger_id || payload.budget_ledger_id || payload.materials_fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    memo: sanitizeText(payload.memo || payload.note, 160),
+    memo: moderateCohabitationText(payload.memo || payload.note, auditContext, {
+      label: '家族建筑材料消耗备注',
+      field: 'memo',
+      scene: 'cohabitation_family_building_materials_consume',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRollbackPayload(payload = {}) {
+function normalizeFamilyBuildingRollbackPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑回滚记录需要 idempotency_key，以防断线或重试时重复记录回滚');
   return {
@@ -16809,11 +17184,16 @@ function normalizeFamilyBuildingRollbackPayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑回滚原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_rollback',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingFundRefundPayload(payload = {}) {
+function normalizeFamilyBuildingFundRefundPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑基金退款补偿需要 idempotency_key，以防断线或重试时重复退回共同基金');
   return {
@@ -16822,11 +17202,16 @@ function normalizeFamilyBuildingFundRefundPayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑基金退款原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_fund_refund',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingMaterialsRestorePayload(payload = {}) {
+function normalizeFamilyBuildingMaterialsRestorePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑材料恢复补偿需要 idempotency_key，以防断线或重试时重复恢复共同仓库');
   return {
@@ -16835,11 +17220,16 @@ function normalizeFamilyBuildingMaterialsRestorePayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑材料恢复原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_materials_restore',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingCompensationReplayPayload(payload = {}) {
+function normalizeFamilyBuildingCompensationReplayPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑补偿重放收口需要 idempotency_key，以防断线或重试时重复收口');
   return {
@@ -16848,11 +17238,16 @@ function normalizeFamilyBuildingCompensationReplayPayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑补偿重放原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_compensation_replay',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionRequestPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionRequestPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除复核请求需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -16861,11 +17256,16 @@ function normalizeFamilyBuildingRealDemolitionRequestPayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除复核请求原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_request',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionRejectPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionRejectPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除复核驳回需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -16874,11 +17274,16 @@ function normalizeFamilyBuildingRealDemolitionRejectPayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除复核驳回原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_reject',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionApprovePayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionApprovePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除复核批准需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -16887,11 +17292,16 @@ function normalizeFamilyBuildingRealDemolitionApprovePayload(payload = {}) {
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除复核批准原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_approve',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionExecutionRequestPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionExecutionRequestPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除执行请求需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -16900,11 +17310,16 @@ function normalizeFamilyBuildingRealDemolitionExecutionRequestPayload(payload = 
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除执行请求原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_execution_request',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionPersonalSaveWritePayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionPersonalSaveWritePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人存档写回需要 idempotency_key，以防断线或重试时重复写回');
   return {
@@ -16913,11 +17328,16 @@ function normalizeFamilyBuildingRealDemolitionPersonalSaveWritePayload(payload =
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人存档写回原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_personal_save',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStatePreviewPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStatePreviewPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态预览需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -16926,11 +17346,16 @@ function normalizeFamilyBuildingRealDemolitionMainStatePreviewPayload(payload = 
     draft_id: sanitizeText(payload.draft_id, 100),
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态预览原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_main_state_preview',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStateMappingPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStateMappingPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态映射证明需要 idempotency_key，以防断线或重试时重复记录');
   const mappings = Array.isArray(payload.mappings)
@@ -16952,12 +17377,17 @@ function normalizeFamilyBuildingRealDemolitionMainStateMappingPayload(payload = 
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
     expected_manifest_hash: sanitizeText(payload.expected_manifest_hash || payload.manifest_hash, 100),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态映射原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_main_state_mapping',
+      maxLength: 160,
+    }),
     mappings,
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStateMutationGuardPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStateMutationGuardPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态变更安全阀需要 idempotency_key，以防断线或重试时重复记录');
   const confirmationText = sanitizeText(payload.confirmation_text || payload.confirm_text || payload.confirmation || '', 120);
@@ -16971,11 +17401,16 @@ function normalizeFamilyBuildingRealDemolitionMainStateMutationGuardPayload(payl
     confirmation_text: confirmationText,
     compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true || payload.ack_compensation === true,
     rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true || payload.ack_rollback === true,
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态变更安全阀原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_main_state_guard',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStateExecutePayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStateExecutePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态执行需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -16985,11 +17420,16 @@ function normalizeFamilyBuildingRealDemolitionMainStateExecutePayload(payload = 
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
     expected_guard_manifest_hash: sanitizeText(payload.expected_guard_manifest_hash || payload.guard_manifest_hash || payload.manifest_hash, 100),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态执行原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_main_state_execute',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStateExactTargetPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStateExactTargetPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态精确目标绑定需要 idempotency_key，以防断线或重试时重复记录');
   const targets = Array.isArray(payload.targets || payload.exact_targets || payload.manifest)
@@ -17015,12 +17455,17 @@ function normalizeFamilyBuildingRealDemolitionMainStateExactTargetPayload(payloa
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
     expected_guard_manifest_hash: sanitizeText(payload.expected_guard_manifest_hash || payload.guard_manifest_hash || payload.manifest_hash, 100),
     expected_execution_state: sanitizeText(payload.expected_execution_state || payload.execution_state, 80),
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态精确目标绑定原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_exact_target',
+      maxLength: 160,
+    }),
     targets,
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStateExactExecutePayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStateExactExecutePayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态精确执行需要 idempotency_key，以防断线或重试时重复记录');
   return {
@@ -17034,11 +17479,16 @@ function normalizeFamilyBuildingRealDemolitionMainStateExactExecutePayload(paylo
     confirmation_text: sanitizeText(payload.confirmation_text, 80),
     compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true,
     rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true,
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态精确执行原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_exact_execute',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStateExactTargetResolutionPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStateExactTargetResolutionPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态精确目标人工解析需要 idempotency_key，以防断线或重试时重复记录');
   const targets = Array.isArray(payload.targets || payload.resolved_targets || payload.manifest)
@@ -17067,11 +17517,16 @@ function normalizeFamilyBuildingRealDemolitionMainStateExactTargetResolutionPayl
     expected_execution_state: sanitizeText(payload.expected_execution_state || payload.execution_state, 80),
     confirmation_text: sanitizeText(payload.confirmation_text, 80),
     targets,
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态精确目标解析原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_exact_resolution',
+      maxLength: 160,
+    }),
   };
 }
 
-function normalizeFamilyBuildingRealDemolitionMainStateExactMutationAdapterPayload(payload = {}) {
+function normalizeFamilyBuildingRealDemolitionMainStateExactMutationAdapterPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除个人主状态变更适配器执行需要 idempotency_key，以防断线或重试时重复写入');
   return {
@@ -17085,7 +17540,12 @@ function normalizeFamilyBuildingRealDemolitionMainStateExactMutationAdapterPaylo
     confirmation_text: sanitizeText(payload.confirmation_text, 100),
     compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true,
     rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true,
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '家族建筑真实拆除个人主状态变更适配器原因',
+      field: 'reason',
+      scene: 'cohabitation_family_building_real_demolition_exact_mutation',
+      maxLength: 160,
+    }),
   };
 }
 
@@ -17109,7 +17569,7 @@ function normalizeSharedDecorationRemovalMainStateMutationTarget(item = {}) {
   };
 }
 
-function normalizeSharedDecorationRemovalMainStateMutationPayload(payload = {}) {
+function normalizeSharedDecorationRemovalMainStateMutationPayload(payload = {}, auditContext = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同装修拆除个人主状态变更需要 idempotency_key，以防断线或重试时重复写入');
   const targets = Array.isArray(payload.targets || payload.exact_targets || payload.manifest)
@@ -17132,7 +17592,12 @@ function normalizeSharedDecorationRemovalMainStateMutationPayload(payload = {}) 
     confirmation_text: sanitizeText(payload.confirmation_text, 120),
     compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true,
     rollback_plan_acknowledged: payload.rollback_plan_acknowledged === true,
-    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+    reason: moderateCohabitationText(payload.reason || payload.memo || payload.note, auditContext, {
+      label: '共同装修拆除个人主状态变更原因',
+      field: 'reason',
+      scene: 'cohabitation_shared_decoration_removal_main_state',
+      maxLength: 160,
+    }),
     targets,
   };
 }
@@ -22158,7 +22623,12 @@ async function getCohabitationFund(contractId, actor = {}) {
 async function freezeCohabitationFundAbnormality(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const freezeRequest = normalizeSharedFundFreezePayload(payload);
+  const freezeRequest = normalizeSharedFundFreezePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_fund_freeze',
+    username: actorUsername,
+    content_type: 'cohabitation_fund_freeze',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'record shared fund abnormal freeze');
@@ -22251,7 +22721,12 @@ async function freezeCohabitationFundAbnormality(contractId, payload = {}, actor
 async function unfreezeCohabitationFundAbnormality(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
-  const unfreezeRequest = normalizeSharedFundUnfreezePayload(payload);
+  const unfreezeRequest = normalizeSharedFundUnfreezePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_fund_unfreeze',
+    username: actorUsername,
+    content_type: 'cohabitation_fund_unfreeze',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'resolve shared fund abnormal freeze');
@@ -22399,7 +22874,15 @@ async function getCohabitationSharedPets(contractId, actor = {}) {
 async function waterCohabitationSharedFarmPlot(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeSharedFarmActionPayload(payload);
+  const request = normalizeSharedFarmActionPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_farm_water',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_farm',
+    content_id: contractId,
+  }), {
+    label: '共同农田浇水备注',
+    scene: 'cohabitation_shared_farm_water',
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'water shared farm');
@@ -22548,7 +23031,12 @@ async function waterCohabitationSharedFarmPlot(contractId, payload = {}, actor =
 async function careCohabitationSharedFarmPlot(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeSharedFarmCarePayload(payload);
+  const request = normalizeSharedFarmCarePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_farm_care',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_farm',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'care shared farm');
@@ -22722,7 +23210,12 @@ async function careCohabitationSharedFarmPlot(contractId, payload = {}, actor = 
 async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeSharedFarmPlantPayload(payload);
+  const request = normalizeSharedFarmPlantPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_farm_plant',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_farm',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '种植共同农田');
@@ -22955,7 +23448,12 @@ async function plantCohabitationSharedFarmPlot(contractId, payload = {}, actor =
 async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeSharedFarmFertilizePayload(payload);
+  const request = normalizeSharedFarmFertilizePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_farm_fertilize',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_farm',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '共同农田施肥');
@@ -23210,7 +23708,15 @@ async function fertilizeCohabitationSharedFarmPlot(contractId, payload = {}, act
 async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeSharedFarmActionPayload(payload);
+  const request = normalizeSharedFarmActionPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_farm_harvest',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_farm',
+    content_id: contractId,
+  }), {
+    label: '共同农田收获备注',
+    scene: 'cohabitation_shared_farm_harvest',
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '收获共同农田');
@@ -23450,7 +23956,12 @@ async function harvestCohabitationSharedFarmPlot(contractId, payload = {}, actor
 async function settleCohabitationDailyBonus(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeCohabitationDailySettlePayload(payload);
+  const request = normalizeCohabitationDailySettlePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_daily_settle',
+    username: actorUsername,
+    content_type: 'cohabitation_daily_settlement',
+    content_id: sanitizeText(contractId, 80),
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   assertActiveContractForActor(contract, actorUsername, 'settle cohabitation daily bonus');
@@ -23876,7 +24387,12 @@ async function getCohabitationFamilyFestivalSeats(contractId, actor = {}) {
 async function createCohabitationFamilyOrder(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyOrderCreatePayload(payload);
+  const request = normalizeFamilyOrderCreatePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_order',
+    username: actorUsername,
+    content_type: 'cohabitation_family_order',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '发布家族订单');
@@ -23942,7 +24458,12 @@ async function createCohabitationFamilyOrder(contractId, payload = {}, actor = {
 async function acceptCohabitationFamilyOrder(contractId, orderId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyOrderActionPayload(payload, 'family order accept');
+  const request = normalizeFamilyOrderActionPayload(payload, 'family order accept', buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_order_accept',
+    username: actorUsername,
+    content_type: 'cohabitation_family_order_action',
+    content_id: orderId || contractId,
+  }));
   const normalizedOrderId = sanitizeText(orderId || payload.order_id || payload.id, 100);
   if (!normalizedOrderId) throw createError('family order accept requires order_id', 400);
   const store = loadContractStore();
@@ -24002,7 +24523,12 @@ async function acceptCohabitationFamilyOrder(contractId, orderId, payload = {}, 
 async function deliverCohabitationFamilyOrder(contractId, orderId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyOrderActionPayload(payload, 'family order deliver');
+  const request = normalizeFamilyOrderActionPayload(payload, 'family order deliver', buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_order_deliver',
+    username: actorUsername,
+    content_type: 'cohabitation_family_order_action',
+    content_id: orderId || contractId,
+  }));
   const normalizedOrderId = sanitizeText(orderId || payload.order_id || payload.id, 100);
   if (!normalizedOrderId) throw createError('family order deliver requires order_id', 400);
   const store = loadContractStore();
@@ -24059,7 +24585,12 @@ async function deliverCohabitationFamilyOrder(contractId, orderId, payload = {},
 async function settleCohabitationFamilyOrder(contractId, orderId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyOrderActionPayload(payload, 'family order settle');
+  const request = normalizeFamilyOrderActionPayload(payload, 'family order settle', buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_order_settle',
+    username: actorUsername,
+    content_type: 'cohabitation_family_order_action',
+    content_id: orderId || contractId,
+  }));
   const normalizedOrderId = sanitizeText(orderId || payload.order_id || payload.id, 100);
   if (!normalizedOrderId) throw createError('family order settle requires order_id', 400);
   const store = loadContractStore();
@@ -24207,7 +24738,12 @@ async function settleCohabitationFamilyOrder(contractId, orderId, payload = {}, 
 async function awardCohabitationFamilyReputation(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyReputationAwardPayload(payload);
+  const request = normalizeFamilyReputationAwardPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_reputation',
+    username: actorUsername,
+    content_type: 'cohabitation_family_reputation',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '发放家族声望');
@@ -24246,7 +24782,12 @@ async function awardCohabitationFamilyReputation(contractId, payload = {}, actor
 async function claimCohabitationFamilyReputationReward(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyReputationRewardClaimPayload(payload);
+  const request = normalizeFamilyReputationRewardClaimPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_reputation_reward',
+    username: actorUsername,
+    content_type: 'cohabitation_family_reputation_reward',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '领取家族声望奖励');
@@ -24329,7 +24870,12 @@ async function claimCohabitationFamilyReputationReward(contractId, payload = {},
 async function updateCohabitationFamilyVisibility(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyVisibilityUpdatePayload(payload);
+  const request = normalizeFamilyVisibilityUpdatePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_visibility',
+    username: actorUsername,
+    content_type: 'cohabitation_family_visibility',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '更新家族公开设置');
@@ -24410,7 +24956,12 @@ async function updateCohabitationFamilyVisibility(contractId, payload = {}, acto
 async function rollbackCohabitationFamilyVisibility(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyVisibilityRollbackPayload(payload);
+  const request = normalizeFamilyVisibilityRollbackPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_visibility_rollback',
+    username: actorUsername,
+    content_type: 'cohabitation_family_visibility_rollback',
+    content_id: payload.audit_id || payload.rollback_audit_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '回滚家族公开设置');
@@ -24496,7 +25047,12 @@ async function rollbackCohabitationFamilyVisibility(contractId, payload = {}, ac
 async function reserveCohabitationFamilyFestivalSeats(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyFestivalReservePayload(payload);
+  const request = normalizeFamilyFestivalReservePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_festival_reserve',
+    username: actorUsername,
+    content_type: 'cohabitation_family_festival_reserve',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '锁定家族节会席位');
@@ -24570,7 +25126,12 @@ async function reserveCohabitationFamilyFestivalSeats(contractId, payload = {}, 
 async function createCohabitationFamilyFestivalRoom(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyFestivalRoomPayload(payload);
+  const request = normalizeFamilyFestivalRoomPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_festival_room',
+    username: actorUsername,
+    content_type: 'cohabitation_family_festival_room',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '创建家族节会房间');
@@ -24662,7 +25223,12 @@ async function createCohabitationFamilyFestivalRoom(contractId, payload = {}, ac
 async function consumeCohabitationFamilyFestivalSupplies(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyFestivalSuppliesPayload(payload);
+  const request = normalizeFamilyFestivalSuppliesPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_festival_supplies',
+    username: actorUsername,
+    content_type: 'cohabitation_family_festival_supplies',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '消耗家族节会供品');
@@ -24779,7 +25345,12 @@ async function consumeCohabitationFamilyFestivalSupplies(contractId, payload = {
 async function settleCohabitationFamilyFestivalRewards(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyFestivalSettlePayload(payload);
+  const request = normalizeFamilyFestivalSettlePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_festival_settle',
+    username: actorUsername,
+    content_type: 'cohabitation_family_festival_settle',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '结算家族节会奖励');
@@ -25523,6 +26094,34 @@ function buildCohabitationOfflineSharedAnimalTradeRejection(operation = {}, erro
   };
 }
 
+function buildCohabitationOfflineContentModerationRejection(operation = {}, error = {}) {
+  if (!error?.moderation && !String(error?.code || '').startsWith('TEXT_')) return null;
+  const moderation = error.moderation || {};
+  const status = Math.max(0, Math.floor(Number(error?.status) || 0)) || 400;
+  if (status !== 400) return null;
+  return {
+    index: operation.index,
+    operation_id: operation.operation_id,
+    action: operation.action,
+    status: 'rejected',
+    reason: 'content_moderation_rejected',
+    error_status: status,
+    error_code: sanitizeText(error?.code || moderation.code || 'TEXT_REJECTED', 80),
+    moderation_action: sanitizeText(moderation.action || '', 80),
+    moderation_field: sanitizeText(moderation.field || '', 80),
+    moderation_scene: sanitizeText(moderation.scene || '', 120),
+    matched_category: sanitizeText(moderation.matched_category || '', 80),
+    rule_version: sanitizeText(moderation.rule_version || '', 80),
+    idempotency_key: operation.idempotency_key,
+    shared_warehouse_changed: false,
+    shared_fund_changed: false,
+    personal_save_changed: false,
+    server_authoritative: true,
+    conflict_policy: 'server_authoritative_reject_and_continue',
+    compensation_hint: 'offline operation was rejected by server-side content moderation before any shared or personal state mutation.',
+  };
+}
+
 function buildCohabitationOfflineSharedDecorationMoveRejection(operation = {}, error = {}) {
   if (operation.action !== 'move_shared_decoration') return null;
   const payload = operation.payload || {};
@@ -26001,7 +26600,12 @@ function buildCohabitationOfflineAutoIncomeRejection(operation = {}, error = {})
 async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeOfflineAutoIncomePayload(payload);
+  const request = normalizeOfflineAutoIncomePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_offline_auto_income',
+    username: actorUsername,
+    content_type: 'cohabitation_offline_operation',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'collect offline auto income');
@@ -26245,7 +26849,12 @@ async function collectCohabitationOfflineAutoIncome(contractId, payload = {}, ac
 async function preflightCohabitationOfflineConflicts(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeOfflineConflictPreflightPayload(payload);
+  const request = normalizeOfflineConflictPreflightPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_offline_conflict_preflight',
+    username: actorUsername,
+    content_type: 'cohabitation_offline_operation',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   assertActiveContractForActor(contract, actorUsername, '预检离线经营冲突');
@@ -26312,7 +26921,12 @@ async function preflightCohabitationOfflineConflicts(contractId, payload = {}, a
 async function resolveCohabitationOfflineConflicts(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeOfflineConflictResolvePayload(payload);
+  const request = normalizeOfflineConflictResolvePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_offline_conflict_resolve',
+    username: actorUsername,
+    content_type: 'cohabitation_offline_operation',
+    content_id: contractId,
+  }));
   if (request.strategy !== 'server_authoritative_auto_merge') {
     throw createError('unsupported offline conflict resolution strategy', 422);
   }
@@ -26521,6 +27135,11 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
     try {
       result = await executeCohabitationOfflineQueueOperation(contractId, operation, actor);
     } catch (error) {
+      const contentModerationRejection = buildCohabitationOfflineContentModerationRejection(operation, error);
+      if (contentModerationRejection) {
+        rejected.push(withOfflineQueueOperationRevisionEvidence(contentModerationRejection, operation, beforeOperationRevisionSnapshot));
+        continue;
+      }
       const workshopRejection = buildCohabitationOfflineWorkshopRejection(operation, error);
       if (workshopRejection) {
         rejected.push(withOfflineQueueOperationRevisionEvidence(workshopRejection, operation, beforeOperationRevisionSnapshot));
@@ -26676,7 +27295,12 @@ async function mergeCohabitationOfflineQueue(contractId, payload = {}, actor = {
 async function feedCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeSharedAnimalFeedPayload(payload);
+  const request = normalizeSharedAnimalFeedPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_animal_feed',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_animal',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '喂食共同动物');
@@ -26895,7 +27519,12 @@ async function feedCohabitationSharedAnimal(contractId, payload = {}, actor = {}
 async function buyCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeSharedAnimalPurchasePayload(payload);
+  const request = normalizeSharedAnimalPurchasePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_animal_purchase',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_animal',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'buy shared animal');
@@ -27105,7 +27734,15 @@ const purchaseCohabitationSharedAnimal = buyCohabitationSharedAnimal;
 async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeSharedAnimalActionPayload(payload);
+  const request = normalizeSharedAnimalActionPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_animal_pet',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_animal',
+    content_id: contractId,
+  }), {
+    label: '共同动物抚摸备注',
+    scene: 'cohabitation_shared_animal_pet',
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '抚摸共同动物');
@@ -27276,7 +27913,15 @@ async function petCohabitationSharedAnimal(contractId, payload = {}, actor = {})
 async function collectCohabitationSharedAnimalProduct(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeSharedAnimalActionPayload(payload);
+  const request = normalizeSharedAnimalActionPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_animal_product',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_animal',
+    content_id: contractId,
+  }), {
+    label: '共同动物产物收集备注',
+    scene: 'cohabitation_shared_animal_product',
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'collect shared animal product');
@@ -27496,7 +28141,12 @@ async function collectCohabitationSharedAnimalProduct(contractId, payload = {}, 
 async function sellCohabitationSharedAnimal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeSharedAnimalSalePayload(payload);
+  const request = normalizeSharedAnimalSalePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_animal_sale',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_animal',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'sell shared animal');
@@ -27722,7 +28372,12 @@ async function sellCohabitationSharedAnimal(contractId, payload = {}, actor = {}
 async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeSharedPetCarePayload(payload);
+  const request = normalizeSharedPetCarePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_pet_care',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_pet',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '照料共同宠物');
@@ -28091,7 +28746,12 @@ async function careCohabitationSharedPet(contractId, payload = {}, actor = {}) {
 async function processCohabitationSharedWorkshopRecipe(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeSharedWorkshopProcessPayload(payload);
+  const request = normalizeSharedWorkshopProcessPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_workshop_process',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_workshop',
+    content_id: contractId,
+  }));
   const recipe = SHARED_WORKSHOP_RECIPE_CATALOG[request.recipe_id];
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
@@ -28659,7 +29319,12 @@ async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor
 async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseHighValueWithdrawalDraftPayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalDraftPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_high_value_draft',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_high_value',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '发起共同仓库高价值取出确认');
@@ -28759,7 +29424,12 @@ async function createCohabitationWarehouseHighValueWithdrawalDraft(contractId, p
 async function confirmCohabitationWarehouseHighValueWithdrawalDraft(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseHighValueWithdrawalConfirmPayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalConfirmPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_high_value_confirm',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_high_value',
+    content_id: draftId || contractId,
+  }));
   if (!request.freeze_acknowledged || !request.rollback_plan_acknowledged) {
     throw createError('确认高价值取出前必须确认冻结与回滚方案', 400);
   }
@@ -28842,7 +29512,12 @@ async function confirmCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
 async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseHighValueWithdrawalExecutePayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalExecutePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_high_value_execute',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_high_value',
+    content_id: draftId || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '执行共同仓库高价值取出');
@@ -28999,7 +29674,12 @@ async function executeCohabitationWarehouseHighValueWithdrawalDraft(contractId, 
 async function requestCohabitationWarehouseHighValueWithdrawalCompensationReview(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseHighValueWithdrawalCompensationReviewPayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalCompensationReviewPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_compensation_review',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_compensation',
+    content_id: draftId || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '提交共同仓库高价值取出补偿复核');
@@ -29082,7 +29762,12 @@ async function requestCohabitationWarehouseHighValueWithdrawalCompensationReview
 async function resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseHighValueWithdrawalCompensationResolvePayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalCompensationResolvePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_compensation_resolve',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_compensation',
+    content_id: draftId || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '处理共同仓库高价值取出补偿复核');
@@ -29308,7 +29993,12 @@ function buildWarehouseHighValueWithdrawalCompensationPreflight(contract = {}, d
 async function recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseHighValueWithdrawalCompensationPreflightPayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalCompensationPreflightPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_compensation_preflight',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_compensation',
+    content_id: draftId || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '记录共同仓库高价值取出补偿预检');
@@ -29633,8 +30323,14 @@ function buildWarehouseCompensationExecutionRecord(contract = {}, draft = {}, re
 async function recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const autoCompensationBlock = normalizeWarehouseHighValueWithdrawalAutoCompensationBlockPayload(payload);
-  const request = autoCompensationBlock ? null : normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload);
+  const auditContext = buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_compensation_execution',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_compensation',
+    content_id: draftId || contractId,
+  });
+  const autoCompensationBlock = normalizeWarehouseHighValueWithdrawalAutoCompensationBlockPayload(payload, auditContext);
+  const request = autoCompensationBlock ? null : normalizeWarehouseHighValueWithdrawalCompensationExecutionPayload(payload, auditContext);
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'record warehouse compensation execution');
@@ -29796,7 +30492,12 @@ function buildWarehouseManualAppealResolutionRecord(contract = {}, draft = {}, r
 async function recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalManualAppealResolutionPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_manual_appeal_resolution',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_compensation',
+    content_id: draftId || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'record warehouse manual appeal resolution');
@@ -29938,7 +30639,12 @@ function buildWarehouseOperatorReceiptAuditReviewRecord(contract = {}, draft = {
 async function recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('login required', 401);
-  const request = normalizeWarehouseHighValueWithdrawalOperatorReceiptAuditPayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalOperatorReceiptAuditPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_operator_receipt_audit',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_compensation',
+    content_id: draftId || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'record warehouse operator receipt audit review');
@@ -30023,7 +30729,12 @@ async function recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAudi
 async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseHighValueWithdrawalRollbackPayload(payload);
+  const request = normalizeWarehouseHighValueWithdrawalRollbackPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_high_value_rollback',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_high_value',
+    content_id: draftId || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '撤销共同仓库高价值取出草案');
@@ -30086,7 +30797,12 @@ async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId,
 async function submitCohabitationWarehouseGovernanceAppeal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseGovernanceAppealPayload(payload);
+  const request = normalizeWarehouseGovernanceAppealPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_governance_appeal',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_governance',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '提交共同仓库治理申诉');
@@ -30187,7 +30903,12 @@ async function submitCohabitationWarehouseGovernanceAppeal(contractId, payload =
 async function recoverCohabitationWarehouseGovernance(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeWarehouseGovernanceRecoveryPayload(payload);
+  const request = normalizeWarehouseGovernanceRecoveryPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_warehouse_governance_recovery',
+    username: actorUsername,
+    content_type: 'cohabitation_warehouse_governance',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '恢复共同仓库治理阻断');
@@ -30502,7 +31223,12 @@ async function sellCohabitationWarehouseItem(contractId, payload = {}, actor = {
 async function moveCohabitationSharedDecoration(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('please sign in', 401);
-  const moveRequest = normalizeSharedDecorationMovePayload(payload);
+  const moveRequest = normalizeSharedDecorationMovePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_decoration_move',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_decoration',
+    content_id: payload.decoration_id || payload.decorationId || payload.item_id || payload.id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, 'move shared decoration');
@@ -30685,6 +31411,17 @@ async function updateCohabitationPermissions(contractId, payload = {}, actor = {
   if (!actorUsername) throw createError('请先登录', 401);
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('同居权限变更需要 idempotency_key，以防断线或重试时重复写入审计');
+  const auditNote = moderateCohabitationText(payload.note || payload.memo, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_permissions_update',
+    username: actorUsername,
+    content_type: 'cohabitation_permissions',
+    content_id: contractId,
+  }), {
+    label: '同居权限变更备注',
+    field: 'note',
+    scene: 'cohabitation_permissions_update',
+    maxLength: 160,
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const actorMember = assertActiveContractForActor(contract, actorUsername, '调整同居权限');
@@ -30720,7 +31457,7 @@ async function updateCohabitationPermissions(contractId, payload = {}, actor = {
     changed_fields: changes,
     changed_field_count: changes.length,
     confirmations_locked: true,
-    note: sanitizeText(payload.note || payload.memo, 160),
+    note: auditNote,
   }, idempotencyKey);
   saveContractStore(store);
   const auditEntry = contract.audit_log.find(entry => entry.idempotency_key === idempotencyKey && entry.action === 'permissions_updated');
@@ -30738,6 +31475,17 @@ async function restoreCohabitationDefaultPermissions(contractId, payload = {}, a
   if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('恢复同居默认权限需要 idempotency_key，以防断线或重试时重复写入审计');
+  const auditNote = moderateCohabitationText(payload.note || payload.memo, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_permissions_default_restore',
+    username: actorUsername,
+    content_type: 'cohabitation_permissions',
+    content_id: contractId,
+  }), {
+    label: '同居默认权限恢复备注',
+    field: 'note',
+    scene: 'cohabitation_permissions_default_restore',
+    maxLength: 160,
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const actorMember = assertActiveContractForActor(contract, actorUsername, '恢复同居默认权限');
@@ -30777,7 +31525,7 @@ async function restoreCohabitationDefaultPermissions(contractId, payload = {}, a
       ? 'restore_to_current_family_role_default_permissions'
       : 'restore_to_relationship_template_default_permissions',
     confirmations_locked: true,
-    note: sanitizeText(payload.note || payload.memo, 160),
+    note: auditNote,
     player_explanation: '已按当前契约类型或家族职位恢复默认权限；高风险确认阀仍保持强制开启。',
   }, idempotencyKey);
   saveContractStore(store);
@@ -30795,7 +31543,12 @@ async function restoreCohabitationDefaultPermissions(contractId, payload = {}, a
 async function submitCohabitationRecoveryAppeal(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('please login first', 401);
-  const appealPayload = normalizeContractRecoveryAppealPayload(payload);
+  const appealPayload = normalizeContractRecoveryAppealPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_recovery_appeal',
+    username: actorUsername,
+    content_type: 'cohabitation_recovery_appeal',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertRecoverableContractForActor(contract, actorUsername, 'contract recovery appeal');
@@ -30895,7 +31648,12 @@ async function submitCohabitationRecoveryAppeal(contractId, payload = {}, actor 
 async function rollbackCohabitationContractSafeVersion(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('please login first', 401);
-  const rollbackPayload = normalizeContractSafeVersionRollbackPayload(payload);
+  const rollbackPayload = normalizeContractSafeVersionRollbackPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_safe_version_rollback',
+    username: actorUsername,
+    content_type: 'cohabitation_safe_version_rollback',
+    content_id: payload.safe_version_id || payload.version_id || payload.id || contractId,
+  }));
   if (rollbackPayload.confirmation_text !== CONTRACT_SAFE_VERSION_ROLLBACK_CONFIRMATION_TEXT) {
     throw createError('contract safe version rollback requires confirmation text', 409);
   }
@@ -30986,6 +31744,17 @@ async function updateCohabitationFamilyRole(contractId, payload = {}, actor = {}
   if (!actorUsername) throw createError('请先登录', 401);
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族庄园职位变更需要 idempotency_key，以防断线或重试时重复写入审计');
+  const note = moderateCohabitationText(payload.note || payload.memo, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_role_update',
+    username: actorUsername,
+    content_type: 'cohabitation_family_role',
+    content_id: sanitizeText(contractId, 80),
+  }), {
+    label: '家族职位变更备注',
+    field: 'note',
+    scene: 'cohabitation_family_role_update',
+    maxLength: 160,
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const actorMember = assertActiveContractForActor(contract, actorUsername, '调整家族庄园职位');
@@ -31034,7 +31803,7 @@ async function updateCohabitationFamilyRole(contractId, payload = {}, actor = {}
     changed_fields: permissionChanges,
     changed_field_count: permissionChanges.length,
     confirmations_locked: true,
-    note: sanitizeText(payload.note || payload.memo, 160),
+    note,
   }, idempotencyKey);
   saveContractStore(store);
   const auditEntry = contract.audit_log.find(entry => entry.idempotency_key === idempotencyKey && entry.action === 'family_role_updated');
@@ -31927,7 +32696,12 @@ async function confirmCohabitationFundLargeSpendDraft(contractId, draftId, paylo
 async function executeCohabitationFundLargeSpendDraft(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const executeRequest = normalizeLargeFundSpendExecutePayload(payload);
+  const executeRequest = normalizeLargeFundSpendExecutePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_fund_large_spend_execute',
+    username: actorUsername,
+    content_type: 'cohabitation_fund_large_spend',
+    content_id: draftId || payload.draft_id || payload.id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '执行共同基金大额草案扣款');
@@ -32207,7 +32981,12 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
 async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const receiptRequest = normalizeLargeFundHighRiskReceiptPayload(payload);
+  const receiptRequest = normalizeLargeFundHighRiskReceiptPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_fund_high_risk_receipt',
+    username: actorUsername,
+    content_type: 'cohabitation_fund_high_risk_receipt',
+    content_id: draftId || payload.draft_id || payload.id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '记录共同基金高风险回执');
@@ -32644,7 +33423,12 @@ function buildSharedDecorationRemovalMainStateMutationResponse(contract, actorUs
 async function executeCohabitationSharedDecorationRemovalMainStateMutation(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeSharedDecorationRemovalMainStateMutationPayload(payload);
+  const request = normalizeSharedDecorationRemovalMainStateMutationPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_shared_decoration_removal_main_state',
+    username: actorUsername,
+    content_type: 'cohabitation_shared_decoration_removal',
+    content_id: payload.shared_decoration_ledger_id || payload.decoration_ledger_id || payload.ledger_id || payload.id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '执行共同装修拆除个人主状态变更');
@@ -32845,7 +33629,12 @@ async function executeCohabitationSharedDecorationRemovalMainStateMutation(contr
 async function recordCohabitationFamilyChildCare(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
-  const careRequest = normalizeFamilyChildCarePayload(payload);
+  const careRequest = normalizeFamilyChildCarePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_child_care',
+    username: actorUsername,
+    content_type: 'cohabitation_family_child_care',
+    content_id: payload.care_ref || payload.target_ref || payload.child_care_ref || payload.ref || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '璁板綍鍏卞悓瀛╁瓙鐓ф枡');
@@ -32919,7 +33708,12 @@ async function recordCohabitationFamilyChildCare(contractId, payload = {}, actor
 async function submitCohabitationFamilyWish(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
-  const wishRequest = normalizeFamilyWishSubmitPayload(payload);
+  const wishRequest = normalizeFamilyWishSubmitPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_wish',
+    username: actorUsername,
+    content_type: 'cohabitation_family_wish',
+    content_id: contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '鎻愪氦鍏卞悓瀹跺涵蹇冩効');
@@ -33006,7 +33800,12 @@ function findFamilyBuildingLedgerForRealBuildApply(contract, request = {}) {
 async function applyCohabitationFamilyBuildingRealBuild(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const applyRequest = normalizeFamilyBuildingRealBuildApplyPayload(payload);
+  const applyRequest = normalizeFamilyBuildingRealBuildApplyPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_build',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '落账家族建筑');
@@ -33148,7 +33947,12 @@ function buildMaterialConsumptionSummary(projectDefinition, ledgerEntries) {
 async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const consumeRequest = normalizeFamilyBuildingMaterialsConsumePayload(payload);
+  const consumeRequest = normalizeFamilyBuildingMaterialsConsumePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_materials_consume',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '消耗家族建筑共同仓库材料');
@@ -33383,7 +34187,12 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
 async function rollbackCohabitationFamilyBuilding(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const rollbackRequest = normalizeFamilyBuildingRollbackPayload(payload);
+  const rollbackRequest = normalizeFamilyBuildingRollbackPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_rollback',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '记录家族建筑回滚');
@@ -33519,7 +34328,12 @@ async function rollbackCohabitationFamilyBuilding(contractId, payload = {}, acto
 async function refundCohabitationFamilyBuildingFund(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const refundRequest = normalizeFamilyBuildingFundRefundPayload(payload);
+  const refundRequest = normalizeFamilyBuildingFundRefundPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_fund_refund',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '退回家族建筑共同基金');
@@ -33723,7 +34537,12 @@ function buildFamilyBuildingMaterialRestorationSummary(restorationLedgerEntries 
 async function restoreCohabitationFamilyBuildingMaterials(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const restoreRequest = normalizeFamilyBuildingMaterialsRestorePayload(payload);
+  const restoreRequest = normalizeFamilyBuildingMaterialsRestorePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_materials_restore',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '恢复家族建筑共同仓库材料');
@@ -33938,7 +34757,12 @@ async function restoreCohabitationFamilyBuildingMaterials(contractId, payload = 
 async function replayCohabitationFamilyBuildingCompensation(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const replayRequest = normalizeFamilyBuildingCompensationReplayPayload(payload);
+  const replayRequest = normalizeFamilyBuildingCompensationReplayPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_compensation_replay',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '收口家族建筑补偿重放');
@@ -34092,7 +34916,12 @@ async function replayCohabitationFamilyBuildingCompensation(contractId, payload 
 async function requestCohabitationFamilyBuildingRealDemolitionReview(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionRequestPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionRequestPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_request',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '请求家族建筑真实拆除复核');
@@ -34259,7 +35088,12 @@ async function requestCohabitationFamilyBuildingRealDemolitionReview(contractId,
 async function rejectCohabitationFamilyBuildingRealDemolitionReview(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionRejectPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionRejectPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_reject',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '驳回家族建筑真实拆除复核');
@@ -34404,7 +35238,12 @@ async function rejectCohabitationFamilyBuildingRealDemolitionReview(contractId, 
 async function approveCohabitationFamilyBuildingRealDemolitionReview(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionApprovePayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionApprovePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_approve',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '批准家族建筑真实拆除复核');
@@ -34556,7 +35395,12 @@ async function approveCohabitationFamilyBuildingRealDemolitionReview(contractId,
 async function requestCohabitationFamilyBuildingRealDemolitionExecution(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionExecutionRequestPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionExecutionRequestPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_execution_request',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '请求家族建筑真实拆除执行');
@@ -34707,7 +35551,12 @@ async function requestCohabitationFamilyBuildingRealDemolitionExecution(contract
 async function writeCohabitationFamilyBuildingRealDemolitionPersonalSave(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionPersonalSaveWritePayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionPersonalSaveWritePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_personal_save',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '写回家族建筑真实拆除个人存档');
@@ -34861,7 +35710,12 @@ async function writeCohabitationFamilyBuildingRealDemolitionPersonalSave(contrac
 async function previewCohabitationFamilyBuildingRealDemolitionMainState(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStatePreviewPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStatePreviewPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_main_state_preview',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '预览家族建筑真实拆除个人主状态');
@@ -34985,7 +35839,12 @@ async function previewCohabitationFamilyBuildingRealDemolitionMainState(contract
 async function verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStateMappingPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateMappingPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_main_state_mapping',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '记录家族建筑真实拆除个人主状态映射证明');
@@ -35127,7 +35986,12 @@ async function verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(co
 async function guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStateMutationGuardPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateMutationGuardPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_main_state_guard',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '记录家族建筑真实拆除个人主状态变更安全阀');
@@ -35286,7 +36150,12 @@ async function guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(co
 async function executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStateExecutePayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateExecutePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_main_state_execute',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '执行家族建筑真实拆除个人主状态变更');
@@ -35428,7 +36297,12 @@ async function executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(
 async function bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStateExactTargetPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateExactTargetPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_exact_target',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '绑定家族建筑真实拆除个人主状态精确目标');
@@ -35574,7 +36448,12 @@ async function bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets
 async function executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStateExactExecutePayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateExactExecutePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_exact_execute',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '执行家族建筑真实拆除个人主状态精确目标');
@@ -35729,7 +36608,12 @@ async function executeCohabitationFamilyBuildingRealDemolitionMainStateExactTarg
 async function resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStateExactTargetResolutionPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateExactTargetResolutionPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_exact_resolution',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '人工解析家族建筑真实拆除个人主状态精确目标');
@@ -35864,7 +36748,12 @@ async function resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTarg
 async function executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const request = normalizeFamilyBuildingRealDemolitionMainStateExactMutationAdapterPayload(payload);
+  const request = normalizeFamilyBuildingRealDemolitionMainStateExactMutationAdapterPayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_family_building_real_demolition_exact_mutation',
+    username: actorUsername,
+    content_type: 'cohabitation_family_building_real_demolition',
+    content_id: payload.building_ledger_id || payload.ledger_id || payload.id || payload.draft_id || contractId,
+  }));
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '执行家族建筑真实拆除个人主状态变更适配器');
@@ -35998,6 +36887,21 @@ async function createCohabitationContract(payload = {}, actor = {}) {
   const type = normalizeRelationType(payload.type);
   const typeDef = RELATION_TYPE_DEFS[type];
   const idempotencyKey = sanitizeText(payload.idempotency_key, 120);
+  const contractId = makeId('cohabitation_contract');
+  const contractTitle = moderateText(payload.title, {
+    label: '同居契约标题',
+    field: 'title',
+    scene: 'cohabitation_contract',
+    maxLength: 80,
+    storageMaxLength: 80,
+    auditContext: buildCohabitationAuditContext(actor, {
+      scene: 'cohabitation_contract',
+      username: actorUsername,
+      content_type: 'cohabitation_contract',
+      content_id: contractId,
+      field: 'title',
+    }),
+  }) || typeDef.title;
   const createdAt = nowSeconds();
   const targetUsernames = collectTargetUsernames(payload).filter(username => normalizeUsernameKey(username) !== normalizeUsernameKey(actorUsername));
   const requestedMemberCount = 1 + targetUsernames.length;
@@ -36037,9 +36941,9 @@ async function createCohabitationContract(payload = {}, actor = {}) {
       : createDefaultPermissionSet(type);
   }
   const contract = normalizeContract({
-    id: makeId('cohabitation_contract'),
+    id: contractId,
     type,
-    title: sanitizeText(payload.title, 80) || typeDef.title,
+    title: contractTitle,
     status: 'pending_acceptance',
     members,
     shared_fund: {
@@ -36162,6 +37066,20 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  const separationReason = moderateText(payload.reason, {
+    label: '分居预览原因',
+    field: 'reason',
+    scene: 'cohabitation_separation_preview',
+    maxLength: 160,
+    storageMaxLength: 160,
+    auditContext: buildCohabitationAuditContext(actor, {
+      scene: 'cohabitation_separation_preview',
+      username: actorUsername,
+      content_type: 'cohabitation_separation_preview',
+      content_id: contractId,
+      field: 'reason',
+    }),
+  });
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   if (!contract) throw createError('同居契约不存在', 404);
@@ -36336,7 +37254,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   appendAudit(contract, 'separation_preview_created', actor, {
     preview_id: preview.id,
     preview_version: preview.version,
-    reason: sanitizeText(payload.reason, 160),
+    reason: separationReason,
     idempotency_key: idempotencyKey,
     plot_groups: preview.asset_return.plots_by_origin_owner.length,
     warehouse_groups: preview.asset_return.warehouse_items_by_origin_owner.length,
@@ -36375,7 +37293,13 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
 async function confirmSeparationPreview(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const confirmRequest = normalizeSeparationPreviewConfirmPayload(payload);
+  const confirmRequest = normalizeSeparationPreviewConfirmPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_preview_confirm',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_preview'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要确认的分居预览');
@@ -36557,7 +37481,13 @@ async function confirmSeparationPreview(contractId, previewId, payload = {}, act
 async function requestSeparationExecution(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const requestPayload = normalizeSeparationExecutionRequestPayload(payload);
+  const requestPayload = normalizeSeparationExecutionRequestPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_execution_request',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_execution'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要请求执行的分居预览');
@@ -36708,7 +37638,12 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
 async function recordSeparationExecutionFailure(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('please sign in first', 401);
-  const failurePayload = normalizeSeparationExecutionFailurePayload(payload);
+  const failurePayload = normalizeSeparationExecutionFailurePayload(payload, buildCohabitationAuditContext(actor, {
+    scene: 'cohabitation_separation_failure',
+    username: actorUsername,
+    content_type: 'cohabitation_separation_failure',
+    content_id: previewId || payload.preview_id || contractId,
+  }));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('please specify the separation preview to restore to pending', 400);
@@ -37036,7 +37971,13 @@ async function recordSeparationExecutionFailure(contractId, previewId, payload =
 async function executeSeparationAssetReturn(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const executePayload = normalizeSeparationAssetReturnExecutePayload(payload);
+  const executePayload = normalizeSeparationAssetReturnExecutePayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_asset_return_execute',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_asset_return'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要执行的分居预览');
@@ -37213,7 +38154,13 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
 async function writeSeparationPersonalFarmReturns(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const writePayload = normalizeSeparationPersonalSaveWritePayload(payload);
+  const writePayload = normalizeSeparationPersonalSaveWritePayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_personal_farm_write',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_asset_return'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要写回的分居预览');
@@ -37379,7 +38326,13 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
 async function confirmSeparationSharedFundDelta(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('璇峰厛鐧诲綍', 401);
-  const confirmPayload = normalizeSeparationSharedFundDeltaConfirmPayload(payload);
+  const confirmPayload = normalizeSeparationSharedFundDeltaConfirmPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_shared_fund_delta_confirm',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_asset_return'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('shared fund delta confirmation requires a separation preview id', 400);
@@ -37575,7 +38528,13 @@ async function confirmSeparationSharedFundDelta(contractId, previewId, payload =
 async function refundSeparationSharedFund(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const refundPayload = normalizeSeparationSharedFundRefundPayload(payload);
+  const refundPayload = normalizeSeparationSharedFundRefundPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_shared_fund_refund',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_asset_return'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要返还共同基金的分居预览');
@@ -37805,7 +38764,13 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
 async function returnSeparationSharedWarehouse(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const returnPayload = normalizeSeparationSharedWarehouseReturnPayload(payload);
+  const returnPayload = normalizeSeparationSharedWarehouseReturnPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_shared_warehouse_return',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_asset_return'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要返还共同仓库的分居预览');
@@ -38084,7 +39049,13 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
 async function splitSeparationDecorationsAndBuildings(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const splitPayload = normalizeSeparationDecorationBuildingSplitPayload(payload);
+  const splitPayload = normalizeSeparationDecorationBuildingSplitPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_decorations_buildings_split',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_asset_return'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要记录装饰 / 建筑拆分的分居预览');
@@ -38369,7 +39340,13 @@ async function splitSeparationDecorationsAndBuildings(contractId, previewId, pay
 async function resolveSeparationFamilyStory(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const storyPayload = normalizeSeparationFamilyStoryResolvePayload(payload);
+  const storyPayload = normalizeSeparationFamilyStoryResolvePayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_family_story_resolve',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_story'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要记录剧情拆分的分居预览');
@@ -38575,7 +39552,13 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
 async function recordSeparationStoryCinematicPlayback(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const playbackPayload = normalizeSeparationStoryCinematicPlaybackPayload(payload);
+  const playbackPayload = normalizeSeparationStoryCinematicPlaybackPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_story_cinematic_record',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_story'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要记录剧情演出播放的分居预览');
@@ -38799,7 +39782,13 @@ async function recordSeparationStoryCinematicPlayback(contractId, previewId, pay
 async function writeSeparationPersonalStoryReceipts(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const receiptPayload = normalizeSeparationPersonalStoryReceiptsPayload(payload);
+  const receiptPayload = normalizeSeparationPersonalStoryReceiptsPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_personal_story_receipts_write',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_story'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要写入个人剧情回执的分居预览');
@@ -38993,7 +39982,13 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
 async function resolveSeparationChildArrangement(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const childPayload = normalizeSeparationChildArrangementResolvePayload(payload);
+  const childPayload = normalizeSeparationChildArrangementResolvePayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_child_arrangement_resolve',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_child_arrangement'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要记录孩子安排的分居预览');
@@ -39158,7 +40153,13 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
 async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
-  const receiptPayload = normalizeSeparationPersonalFamilyReceiptsPayload(payload);
+  const receiptPayload = normalizeSeparationPersonalFamilyReceiptsPayload(payload, buildSeparationAuditContext(
+    actor,
+    'cohabitation_separation_personal_family_receipts_write',
+    actorUsername,
+    previewId || payload.preview_id || payload.id,
+    'cohabitation_separation_child_arrangement'
+  ));
   const normalizedContractId = sanitizeText(contractId, 80);
   const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
   if (!normalizedPreviewId) throw createError('请指定要写入个人家庭回执的分居预览');

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
+const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
   findSaveIdentityById,
@@ -1396,6 +1397,28 @@ function nowSeconds() {
 
 function sanitizeText(value, maxLength = 80) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
+}
+
+function normalizeAuditContext(auditContext = {}) {
+  return auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+}
+
+function buildActivityAuditContext(actorOrContext = {}, overrides = {}) {
+  const source = actorOrContext && typeof actorOrContext === 'object' && !Array.isArray(actorOrContext)
+    ? actorOrContext
+    : {};
+  const base = normalizeAuditContext(source.auditContext || source);
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || '',
+    field: overrides.field || base.field || '',
+    username: overrides.username || base.username || sanitizeText(source.username, 40),
+    content_type: overrides.content_type || base.content_type || 'activity_room_text',
+    content_id: overrides.content_id || base.content_id || '',
+  };
 }
 
 function normalizeActivitySaveId(value) {
@@ -6934,12 +6957,45 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
   ensureNoOtherActiveRoom(store, username);
   const template = getRoomTemplateByDomain(normalizedDomain, payload.template_id);
   const gameplayTemplate = getGameplayTemplateByDomain(normalizedDomain, payload.gameplay_template_id, template.id);
+  const roomId = makeId(ACTIVITY_ROOM_ID_PREFIX[normalizedDomain] || ACTIVITY_ROOM_ID_PREFIX.festival);
+  const scene = normalizedDomain === 'expedition' ? 'expedition_room' : 'festival_room';
+  const contentType = normalizedDomain === 'expedition' ? 'expedition_room' : 'festival_room';
+  const baseAuditContext = buildActivityAuditContext(actor, {
+    scene,
+    username,
+    content_type: contentType,
+    content_id: roomId,
+  });
+  const roomTitle = moderateText(payload.title, {
+    label: normalizedDomain === 'expedition' ? '远征房间标题' : '节会房间标题',
+    field: 'title',
+    scene,
+    maxLength: 60,
+    storageMaxLength: 60,
+    auditContext: buildActivityAuditContext(baseAuditContext, { field: 'title' }),
+  }) || template.label;
+  const sourceFeedback = moderateText(payload.source_feedback || payload.source_context_summary, {
+    label: '活动来源说明',
+    field: 'source_feedback',
+    scene,
+    maxLength: 180,
+    storageMaxLength: 180,
+    auditContext: buildActivityAuditContext(baseAuditContext, { field: 'source_feedback' }),
+  });
+  const sourceLabel = moderateText(payload.source_label, {
+    label: '活动来源标签',
+    field: 'source_label',
+    scene,
+    maxLength: 40,
+    storageMaxLength: 40,
+    auditContext: buildActivityAuditContext(baseAuditContext, { field: 'source_label' }),
+  });
   const room = normalizeRoom({
-    id: makeId(ACTIVITY_ROOM_ID_PREFIX[normalizedDomain] || ACTIVITY_ROOM_ID_PREFIX.festival),
+    id: roomId,
     activity_domain: normalizedDomain,
     template_id: template.id,
     gameplay_template_id: gameplayTemplate.id,
-    title: sanitizeText(payload.title, 60) || template.label,
+    title: roomTitle,
     host_username: username,
     host_display_name: displayName,
     member_limit: payload.member_limit || template.default_member_limit,
@@ -6965,7 +7021,6 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
     syncLanternFairVisualState(room, room.gameplay_state.festival_state);
     syncLabaCookpotVisualState(room, room.gameplay_state.festival_state);
     syncDragonBoatVisualState(room, room.gameplay_state.festival_state);
-    const sourceFeedback = sanitizeText(payload.source_feedback || payload.source_context_summary, 180);
     if (sourceFeedback && ['lantern_fair', 'laba_cookpot'].includes(room.template_id)) {
       room.gameplay_state.festival_state = normalizeFestivalState(room.gameplay_state.festival_state, room.template_id);
       room.gameplay_state.festival_state.recent_feedback = sourceFeedback;
@@ -6974,7 +7029,7 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
       syncVisualState(room, room.gameplay_state.festival_state, {
         recentFeedback: sourceFeedback,
         appendHighlight: true,
-        highlightLabel: sanitizeText(payload.source_label, 40) || fallbackSourceLabel,
+        highlightLabel: sourceLabel || fallbackSourceLabel,
       });
     }
   }
@@ -6985,7 +7040,6 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
     syncEscortConvoyVisualState(room);
   }
   recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
-  const sourceFeedback = sanitizeText(payload.source_feedback || payload.source_context_summary, 180);
   if (sourceFeedback) {
     recordRoomEvent(room, 'room.source_context', actor, sourceFeedback);
   }

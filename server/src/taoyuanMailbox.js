@@ -494,9 +494,28 @@ async function resolveRecipients(rule) {
   return deduped;
 }
 
-function normalizeCampaignPayload(rawPayload, action) {
-  const title = sanitizeText(rawPayload?.title, MAX_TITLE_LENGTH);
-  const content = sanitizeText(rawPayload?.content, MAX_CONTENT_LENGTH);
+function normalizeCampaignPayload(rawPayload, action, auditContext = {}) {
+  const baseAuditContext = buildMailboxAuditContext(auditContext, {
+    scene: auditContext?.scene || 'mail_campaign',
+    content_type: auditContext?.content_type || 'mail_campaign',
+    content_id: sanitizeText(rawPayload?.id, 80),
+  });
+  const title = moderateText(rawPayload?.title, {
+    label: '邮件标题',
+    field: 'title',
+    scene: baseAuditContext.scene,
+    maxLength: MAX_TITLE_LENGTH,
+    storageMaxLength: MAX_TITLE_LENGTH,
+    auditContext: buildMailboxAuditContext(baseAuditContext, { field: 'title' }),
+  });
+  const content = moderateText(rawPayload?.content, {
+    label: '邮件内容',
+    field: 'content',
+    scene: baseAuditContext.scene,
+    maxLength: MAX_CONTENT_LENGTH,
+    storageMaxLength: MAX_CONTENT_LENGTH,
+    auditContext: buildMailboxAuditContext(baseAuditContext, { field: 'content' }),
+  });
   const rewards = Array.isArray(rawPayload?.rewards) ? rawPayload.rewards.map(normalizeReward).filter(Boolean) : [];
   const duplicateCompensationMoney = clampPositiveInt(rawPayload?.duplicate_compensation_money, 0);
   const templateType = VALID_TEMPLATE_TYPES.has(String(rawPayload?.template_type)) ? String(rawPayload.template_type) : null;
@@ -788,12 +807,37 @@ function normalizePlayerLetterTemplateType(value) {
     : 'player_letter';
 }
 
+function normalizeAuditContext(auditContext = {}) {
+  return auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+}
+
+function buildMailboxAuditContext(auditContext = {}, overrides = {}) {
+  const base = normalizeAuditContext(auditContext);
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || '',
+    field: overrides.field || base.field || '',
+    username: overrides.username || base.username || '',
+    content_type: overrides.content_type || base.content_type || 'mail_text',
+    content_id: overrides.content_id || base.content_id || '',
+  };
+}
+
 async function sendPlayerLetter(payload = {}, actor = {}) {
   return withMailboxLock(async () => {
     const senderUsername = String(actor?.username || '').trim();
     if (!senderUsername) throw createError('请先登录后再发信', 401);
     const recipient = await resolveMailRecipientBySaveIdOrUsername(payload, '请先填写收件人用户名或存档 ID');
     if (recipient.username === senderUsername) throw createError('不能给自己发信');
+    const baseAuditContext = buildMailboxAuditContext(actor?.auditContext, {
+      scene: 'player_letter',
+      username: senderUsername,
+      content_type: 'player_letter',
+      content_id: recipient.username,
+    });
 
     const title = moderateText(payload?.title, {
       label: '信件标题',
@@ -801,6 +845,7 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
       scene: 'player_letter',
       maxLength: MAX_TITLE_LENGTH,
       storageMaxLength: MAX_TITLE_LENGTH,
+      auditContext: buildMailboxAuditContext(baseAuditContext, { field: 'title' }),
     });
     const content = moderateText(payload?.content, {
       label: '信件正文',
@@ -808,9 +853,20 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
       scene: 'player_letter',
       maxLength: MAX_CONTENT_LENGTH,
       storageMaxLength: MAX_CONTENT_LENGTH,
+      auditContext: buildMailboxAuditContext(baseAuditContext, { field: 'content' }),
     });
     const photoUrl = sanitizeText(payload?.photo_url, 300);
-    const photoAlt = sanitizeText(payload?.photo_alt, 80);
+    const photoAlt = moderateText(payload?.photo_alt, {
+      label: '信件图片说明',
+      field: 'photo_alt',
+      scene: 'player_letter',
+      maxLength: 80,
+      storageMaxLength: 80,
+      auditContext: buildMailboxAuditContext(baseAuditContext, {
+        field: 'photo_alt',
+        content_type: 'player_letter_photo_alt',
+      }),
+    });
     if (title.length < 2) throw createError('信件标题至少需要 2 个字');
     if (content.length < 4) throw createError('信件正文至少需要 4 个字');
 
@@ -949,6 +1005,12 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
     if (!senderUsername) throw createError('请先登录后再寄送礼物', 401);
     const recipient = await resolveMailRecipientBySaveIdOrUsername(payload, '请先填写收件人用户名或存档 ID');
     if (recipient.username === senderUsername) throw createError('不能给自己寄礼物包裹');
+    const baseAuditContext = buildMailboxAuditContext(actor?.auditContext, {
+      scene: 'player_gift_package',
+      username: senderUsername,
+      content_type: 'player_gift_package',
+      content_id: recipient.username,
+    });
 
     const title = moderateText(payload?.title, {
       label: '包裹标题',
@@ -956,6 +1018,7 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
       scene: 'player_gift_package',
       maxLength: MAX_TITLE_LENGTH,
       storageMaxLength: MAX_TITLE_LENGTH,
+      auditContext: buildMailboxAuditContext(baseAuditContext, { field: 'title' }),
     });
     const content = moderateText(payload?.content, {
       label: '包裹附言',
@@ -963,6 +1026,7 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
       scene: 'player_gift_package',
       maxLength: MAX_CONTENT_LENGTH,
       storageMaxLength: MAX_CONTENT_LENGTH,
+      auditContext: buildMailboxAuditContext(baseAuditContext, { field: 'content' }),
     });
     if (title.length < 2) throw createError('包裹标题至少需要 2 个字');
 
@@ -1624,7 +1688,14 @@ async function saveAdminCampaign(payload, actor, action, options = {}) {
       await processPendingCampaignsInternal(data);
     }
 
-    const normalizedPayload = normalizeCampaignPayload(payload, action);
+    const normalizedPayload = normalizeCampaignPayload(
+      payload,
+      action,
+      buildMailboxAuditContext(options.auditContext || actor?.auditContext, {
+        username: actor?.username || '',
+        content_id: sanitizeText(payload?.id, 80),
+      }),
+    );
     const recipientProfiles = await resolveRecipients(normalizedPayload.recipient_rule);
     const existingId = sanitizeText(payload?.id, 80);
     const existing = existingId ? data.campaigns.find(item => item.id === existingId) : null;

@@ -1,0 +1,83 @@
+{
+  "version": "2026.0603.1",
+  "updated_at": 0,
+  "hard_block": [
+    {
+      "category": "harassment_abuse",
+      "terms": [
+        "傻逼",
+        "煞笔",
+        "妈的",
+        "操你",
+        "去死",
+        "死全家"
+      ]
+    },
+    {
+      "category": "illegal_harmful",
+      "terms": [
+        "法轮功",
+        "台独",
+        "港独",
+        "藏独"
+      ]
+    },
+    {
+      "category": "terror_extremism",
+      "terms": [
+        "恐怖袭击",
+        "炸弹制作"
+      ]
+    },
+    {
+      "category": "fraud_black_market",
+      "terms": [
+        "枪支代购",
+        "洗钱"
+      ]
+    },
+    {
+      "category": "pornography",
+      "terms": [
+        "黄色网站",
+        "约炮",
+        "卖淫",
+        "嫖娼"
+      ]
+    },
+    {
+      "category": "gambling_drugs",
+      "terms": [
+        "赌博网站",
+        "毒品交易",
+        "冰毒",
+        "海洛因"
+      ]
+    }
+  ],
+  "soft_block": [
+    {
+      "category": "spam_promotion",
+      "terms": [
+        "加微信",
+        "vx",
+        "vx:",
+        "qq群",
+        "q群",
+        "代练",
+        "刷金",
+        "外挂",
+        "开挂",
+        "脚本",
+        "黑产",
+        "私服"
+      ]
+    }
+  ],
+  "scene_policy": {
+    "hall_post": "reject_hard_review_soft",
+    "hall_reply": "reject_hard_review_soft",
+    "admin_content": "warn_hard_review_soft",
+    "admin_mail_campaign": "warn_hard_review_soft"
+  }
+}

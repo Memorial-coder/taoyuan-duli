@@ -54,6 +54,25 @@ function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
 
+function normalizeAuditContext(auditContext = {}) {
+  return auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+}
+
+function buildCoopAuditContext(auditContext = {}, overrides = {}) {
+  const base = normalizeAuditContext(auditContext);
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || '',
+    field: overrides.field || base.field || '',
+    username: overrides.username || base.username || '',
+    content_type: overrides.content_type || base.content_type || 'coop_order_text',
+    content_id: overrides.content_id || base.content_id || '',
+  };
+}
+
 function normalizeUsernameLookup(value) {
   return String(value || '').trim().toLocaleLowerCase('zh-CN');
 }
@@ -1386,6 +1405,12 @@ async function createCoopOrder(payload = {}, actor = {}) {
   if (!ownerUsername) throw createError('请先登录后再发布求助单', 401);
   const ownerUser = await db.getUser(ownerUsername);
   if (!ownerUser) throw createError('当前玩家不存在', 404);
+  const baseAuditContext = buildCoopAuditContext(actor?.auditContext, {
+    scene: 'coop_order',
+    username: ownerUsername,
+    content_type: 'coop_order',
+    content_id: ownerUsername,
+  });
 
   const title = moderateText(payload.title, {
     label: '求助单标题',
@@ -1393,6 +1418,7 @@ async function createCoopOrder(payload = {}, actor = {}) {
     scene: 'coop_order',
     maxLength: 40,
     storageMaxLength: 40,
+    auditContext: buildCoopAuditContext(baseAuditContext, { field: 'title' }),
   });
   const description = moderateText(payload.description, {
     label: '求助内容',
@@ -1400,6 +1426,7 @@ async function createCoopOrder(payload = {}, actor = {}) {
     scene: 'coop_order',
     maxLength: 160,
     storageMaxLength: 160,
+    auditContext: buildCoopAuditContext(baseAuditContext, { field: 'description' }),
   });
   if (title.length < 2) throw createError('求助单标题至少需要 2 个字');
   if (description.length < 4) throw createError('求助内容至少需要 4 个字');
@@ -1433,6 +1460,11 @@ async function createCoopOrder(payload = {}, actor = {}) {
             scene: 'coop_order_stage',
             maxLength: 40,
             storageMaxLength: 40,
+            auditContext: buildCoopAuditContext(baseAuditContext, {
+              scene: 'coop_order_stage',
+              field: 'stage_title',
+              content_type: 'coop_order_stage',
+            }),
           }),
           description: moderateText(entry?.description, {
             label: '阶段说明',
@@ -1440,6 +1472,11 @@ async function createCoopOrder(payload = {}, actor = {}) {
             scene: 'coop_order_stage',
             maxLength: 120,
             storageMaxLength: 120,
+            auditContext: buildCoopAuditContext(baseAuditContext, {
+              scene: 'coop_order_stage',
+              field: 'stage_description',
+              content_type: 'coop_order_stage',
+            }),
           }),
           preferred_order_type: normalizeOrderType(entry?.preferred_order_type || payload.order_type),
           target_item_id: sanitizeText(entry?.target_item_id, 40),
@@ -1689,7 +1726,21 @@ async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
   const deliveredItems = Array.isArray(payload.delivered_items)
     ? payload.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
     : [];
-  const resultNote = sanitizeText(payload.result_note, 160);
+  const resultNote = moderateText(payload.result_note, {
+    label: '交付说明',
+    field: 'result_note',
+    scene: 'coop_order_delivery',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+    auditContext: buildCoopAuditContext(actor?.auditContext, {
+      scene: 'coop_order_delivery',
+      field: 'result_note',
+      username: actorUsername,
+      content_type: 'coop_order_delivery_note',
+      content_id: order.id,
+    }),
+  });
   if (deliveredItems.length === 0 && resultNote.length < 2) {
     throw createError('请至少填写一条资源记录或交付说明');
   }
@@ -1776,7 +1827,21 @@ async function submitCoopOrderStageDelivery(orderId, stageId, payload = {}, acto
   const deliveredItems = Array.isArray(payload.delivered_items)
     ? payload.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
     : [];
-  const resultNote = sanitizeText(payload.result_note, 160);
+  const resultNote = moderateText(payload.result_note, {
+    label: '阶段交付说明',
+    field: 'result_note',
+    scene: 'coop_order_stage_delivery',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+    auditContext: buildCoopAuditContext(actor?.auditContext, {
+      scene: 'coop_order_stage_delivery',
+      field: 'result_note',
+      username: actorUsername,
+      content_type: 'coop_order_stage_delivery_note',
+      content_id: `${order.id}:${stage.id}`,
+    }),
+  });
   if (deliveredItems.length === 0 && resultNote.length < 2) {
     throw createError('请至少填写一条资源记录或交付说明');
   }

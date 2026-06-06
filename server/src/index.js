@@ -96,6 +96,13 @@ const CONFIGURED_NPC_PORTRAIT_DIR = process.env.TAOYUAN_NPC_PORTRAIT_DIR
   ? path.resolve(process.env.TAOYUAN_NPC_PORTRAIT_DIR)
   : DEFAULT_NPC_PORTRAIT_DIR;
 const LOCAL_NPC_PORTRAIT_DIR = path.join(__dirname, '../../taoyuan-main/public/npc');
+const DEFAULT_FISH_BOSS_ASSET_DIR = process.platform === 'win32'
+  ? path.join(__dirname, '../../taoyuan-main/public/asset_fish_boss')
+  : '/opt/taoyuan/asset_fish_boss';
+const CONFIGURED_FISH_BOSS_ASSET_DIR = process.env.TAOYUAN_FISH_BOSS_ASSET_DIR
+  ? path.resolve(process.env.TAOYUAN_FISH_BOSS_ASSET_DIR)
+  : DEFAULT_FISH_BOSS_ASSET_DIR;
+const LOCAL_FISH_BOSS_ASSET_DIR = path.join(__dirname, '../../taoyuan-main/public/asset_fish_boss');
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4013',
   'http://localhost:4013',
@@ -338,6 +345,22 @@ if (fs.existsSync(npcPortraitDir)) {
     },
   }));
   console.log(`NPC portraits mounted at /npc: ${npcPortraitDir}`);
+}
+const fishBossAssetDir = fs.existsSync(CONFIGURED_FISH_BOSS_ASSET_DIR) ? CONFIGURED_FISH_BOSS_ASSET_DIR : LOCAL_FISH_BOSS_ASSET_DIR;
+if (fs.existsSync(fishBossAssetDir)) {
+  app.use('/asset_fish_boss', express.static(fishBossAssetDir, {
+    index: false,
+    maxAge: '365d',
+    immutable: true,
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'fish-boss-asset-manifest.json' || path.basename(filePath) === 'fish-boss-asset-qa-report.json') {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
+  console.log(`Fish boss assets mounted at /asset_fish_boss: ${fishBossAssetDir}`);
 }
 app.use(session({
   name: 'taoyuan.sid',

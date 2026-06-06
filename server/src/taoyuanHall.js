@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const {
   createError,
   setActiveSaveSlot,
@@ -9,6 +10,8 @@ const {
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime')
 const taoyuanImageModeration = require('./taoyuanImageModeration')
+const { moderateText } = require('./taoyuanTextModeration')
+const { recordContentModerationRiskSignal } = require('./taoyuanContentModerationAudit')
 
 const TAOYUAN_HALL_FILE = path.join(
   process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data'),
@@ -32,6 +35,7 @@ const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 50
 const MAX_REPORT_REASON_LENGTH = 200
 const MAX_BLOCK_IMAGE_COUNT = 6
+const MULTI_REPORT_AUTO_HIDE_THRESHOLD = 3
 
 let _taoyuanHallLockTail = Promise.resolve()
 
@@ -115,6 +119,9 @@ function normalizeReply(reply) {
     reply_to_id: reply.reply_to_id ? String(reply.reply_to_id) : null,
     reply_to_author_display_name: reply.reply_to_author_display_name ? String(reply.reply_to_author_display_name) : null,
     reply_to_excerpt: reply.reply_to_excerpt ? String(reply.reply_to_excerpt).slice(0, 120) : null,
+    hidden: reply.hidden === true,
+    hidden_reason: reply.hidden_reason ? String(reply.hidden_reason).slice(0, 120) : null,
+    hidden_at: Number(reply.hidden_at) || null,
     likes: Array.isArray(reply.likes) ? reply.likes.map(String) : [],
   }
 }
@@ -130,6 +137,8 @@ function normalizeReport(report) {
     reporter: String(report.reporter || ''),
     reporter_display_name: String(report.reporter_display_name || report.reporter || '匿名'),
     status: ['pending', 'dismissed', 'resolved'].includes(String(report.status)) ? String(report.status) : 'pending',
+    auto_action: report.auto_action ? String(report.auto_action).slice(0, 80) : '',
+    auto_action_at: Number(report.auto_action_at) || null,
     created_at: Number(report.created_at) || Math.floor(Date.now() / 1000),
     resolved_at: Number(report.resolved_at) || null,
   }
@@ -225,7 +234,93 @@ function sanitizeText(value, maxLength) {
     .slice(0, maxLength)
 }
 
-function sanitizeBlocksForStorage(blocks, legacyContent = '') {
+function buildFieldAuditContext(auditContext = {}, overrides = {}) {
+  return {
+    ...(auditContext && typeof auditContext === 'object' ? auditContext : {}),
+    ...overrides,
+  }
+}
+
+function getPendingReportsForTarget(data, report) {
+  return (Array.isArray(data.reports) ? data.reports : [])
+    .map(normalizeReport)
+    .filter(item => (
+      item.status === 'pending'
+      && item.type === report.type
+      && item.post_id === report.post_id
+      && (item.reply_id || null) === (report.reply_id || null)
+      && item.reporter
+    ))
+}
+
+function countDistinctReporters(reports) {
+  return new Set((Array.isArray(reports) ? reports : []).map(report => report.reporter).filter(Boolean)).size
+}
+
+function buildMultiReportRiskScore(reporterCount) {
+  return Math.min(100, 45 + Math.max(0, Math.floor(Number(reporterCount) || 0)) * 10)
+}
+
+function applyMultiReportAutoHide(data, report) {
+  const pendingReports = getPendingReportsForTarget(data, report)
+  const reporterCount = countDistinctReporters(pendingReports)
+  if (reporterCount < MULTI_REPORT_AUTO_HIDE_THRESHOLD) return null
+  const post = (data.posts || []).find(item => item.id === report.post_id)
+  if (!post) return null
+  const now = Math.floor(Date.now() / 1000)
+  const reportIds = pendingReports.map(item => item.id)
+  if (report.type === 'reply') {
+    const reply = (post.replies || []).find(item => item.id === report.reply_id)
+    if (!reply || reply.hidden === true) return null
+    reply.hidden = true
+    reply.hidden_reason = '多人举报自动临时隐藏，等待管理员复核'
+    reply.hidden_at = now
+    post.updated_at = now
+    recordContentModerationRiskSignal({
+      signal_type: 'multi_report_auto_hide',
+      username: reply.author,
+      target_type: 'hall_reply',
+      target_id: `${post.id}:${reply.id}`,
+      content_type: 'hall_reply',
+      content_id: reply.id,
+      scene: 'hall_reply_report',
+      reason_code: 'multi_report_threshold',
+      outcome: 'auto_temporarily_hidden',
+      report_count: pendingReports.length,
+      reporter_count: reporterCount,
+      report_ids: reportIds,
+      risk_score: buildMultiReportRiskScore(reporterCount),
+      created_at: now,
+      updated_at: now,
+    })
+    return { action: 'auto_hide_hall_reply', target_type: 'hall_reply', reporter_count: reporterCount }
+  }
+
+  if (post.hidden === true) return null
+  post.hidden = true
+  post.hidden_reason = '多人举报自动临时隐藏，等待管理员复核'
+  post.updated_at = now
+  recordContentModerationRiskSignal({
+    signal_type: 'multi_report_auto_hide',
+    username: post.author,
+    target_type: 'hall_post',
+    target_id: post.id,
+    content_type: 'hall_post',
+    content_id: post.id,
+    scene: 'hall_post_report',
+    reason_code: 'multi_report_threshold',
+    outcome: 'auto_temporarily_hidden',
+    report_count: pendingReports.length,
+    reporter_count: reporterCount,
+    report_ids: reportIds,
+    risk_score: buildMultiReportRiskScore(reporterCount),
+    created_at: now,
+    updated_at: now,
+  })
+  return { action: 'auto_hide_hall_post', target_type: 'hall_post', reporter_count: reporterCount }
+}
+
+function sanitizeBlocksForStorage(blocks, legacyContent = '', auditContext = {}) {
   const normalized = normalizeBlocks(blocks, legacyContent)
   const imageBlocks = normalized.filter(block => block?.type === 'image')
   if (imageBlocks.length > MAX_BLOCK_IMAGE_COUNT) {
@@ -238,7 +333,18 @@ function sanitizeBlocksForStorage(blocks, legacyContent = '') {
         id: String(block.id || makeId('hall_block')),
         type: 'image',
         url: String(block.url || '').trim().slice(0, 500),
-        alt: sanitizeText(block.alt || '图片', 120) || '图片',
+        alt: moderateText(block.alt || '图片', {
+          label: '图片说明',
+          maxLength: 120,
+          maxLineBreaks: 1,
+          field: 'blocks.image.alt',
+          scene: auditContext.scene || 'hall_post',
+          auditContext: buildFieldAuditContext(auditContext, {
+            field: 'blocks.image.alt',
+            content_type: 'hall_image_alt',
+            content_id: block.id,
+          }),
+        }) || '图片',
         width: Number.isFinite(Number(block.width)) ? Number(block.width) : null,
         height: Number.isFinite(Number(block.height)) ? Number(block.height) : null,
       }
@@ -246,7 +352,18 @@ function sanitizeBlocksForStorage(blocks, legacyContent = '') {
     return {
       id: String(block.id || makeId('hall_block')),
       type: 'text',
-      text: sanitizeText(block.text || '', 5000),
+      text: moderateText(block.text || '', {
+        label: '正文段落',
+        maxLength: 5000,
+        maxLineBreaks: 80,
+        field: 'blocks.text',
+        scene: auditContext.scene || 'hall_post',
+        auditContext: buildFieldAuditContext(auditContext, {
+          field: 'blocks.text',
+          content_type: 'hall_post',
+          content_id: block.id,
+        }),
+      }),
     }
   }).filter(block => (block.type === 'image' ? !!block.url : !!block.text))
 
@@ -341,6 +458,9 @@ function buildDetail(post, viewerUsername = '') {
     blocks,
     replies: (post.replies || []).map(reply => ({
       ...reply,
+      content: reply.hidden === true ? '' : reply.content,
+      is_hidden: reply.hidden === true,
+      hidden_reason: reply.hidden === true ? (reply.hidden_reason || '该回复已被临时隐藏。') : '',
       is_mine: !!viewerUsername && viewerUsername === reply.author,
       is_best: !!post.best_reply_id && post.best_reply_id === reply.id,
       like_count: Array.isArray(reply.likes) ? reply.likes.length : 0,
@@ -442,13 +562,26 @@ async function createPost({
   nextWeekPrepSummary = '',
   weeklyChronicleWeekId = '',
   chronicleSourceLabels = [],
+  auditContext = {},
 }) {
-  const cleanTitle = sanitizeText(title, 60)
   const cleanType = type === 'help' ? 'help' : 'discussion'
-  const cleanBlocks = sanitizeBlocksForStorage(blocks, content)
+  const baseAuditContext = buildFieldAuditContext(auditContext, {
+    scene: auditContext.scene || (isOfficial === true ? 'admin_hall_post' : 'hall_post'),
+    username: author,
+    content_type: 'hall_post',
+  })
+  const cleanTitle = moderateText(title, {
+    label: '标题',
+    minLength: 2,
+    maxLength: 60,
+    maxLineBreaks: 1,
+    field: 'title',
+    scene: baseAuditContext.scene,
+    auditContext: buildFieldAuditContext(baseAuditContext, { field: 'title' }),
+  })
+  const cleanBlocks = sanitizeBlocksForStorage(blocks, content, baseAuditContext)
   const normalizedRewardAmount = cleanType === 'help' ? Math.max(0, Math.floor(Number(rewardAmount) || 0)) : 0
 
-  if (cleanTitle.length < 2) throw createError('标题至少需要 2 个字')
   if (cleanType !== 'help' && normalizedRewardAmount > 0) throw createError('只有求助帖可以设置悬赏')
 
   return withHallLock(async () => {
@@ -504,9 +637,21 @@ async function createPost({
   })
 }
 
-async function addReply({ postId, content, author, authorDisplayName, replyToId }) {
-  const cleanContent = sanitizeText(content, 1000)
-  if (cleanContent.length < 1) throw createError('回复内容不能为空')
+async function addReply({ postId, content, author, authorDisplayName, replyToId, auditContext = {} }) {
+  const cleanContent = moderateText(content, {
+    label: '回复内容',
+    minLength: 1,
+    maxLength: 1000,
+    maxLineBreaks: 30,
+    field: 'content',
+    scene: auditContext.scene || 'hall_reply',
+    auditContext: buildFieldAuditContext(auditContext, {
+      field: 'content',
+      username: author,
+      content_type: 'hall_reply',
+      content_id: replyToId || '',
+    }),
+  })
 
   return withHallLock(async () => {
     const data = loadHallData()
@@ -536,9 +681,21 @@ async function addReply({ postId, content, author, authorDisplayName, replyToId 
   })
 }
 
-async function createReport({ type, postId, replyId, reason, reporter, reporterDisplayName }) {
-  const cleanReason = sanitizeText(reason, MAX_REPORT_REASON_LENGTH)
-  if (cleanReason.length < 2) throw createError('举报原因至少需要 2 个字')
+async function createReport({ type, postId, replyId, reason, reporter, reporterDisplayName, auditContext = {} }) {
+  const cleanReason = moderateText(reason, {
+    label: '举报原因',
+    minLength: 2,
+    maxLength: MAX_REPORT_REASON_LENGTH,
+    maxLineBreaks: 8,
+    field: 'reason',
+    scene: auditContext.scene || 'hall_report',
+    auditContext: buildFieldAuditContext(auditContext, {
+      field: 'reason',
+      username: reporter,
+      content_type: type === 'reply' ? 'hall_reply_report' : 'hall_post_report',
+      content_id: type === 'reply' ? `${postId}:${replyId}` : String(postId || ''),
+    }),
+  })
 
   return withHallLock(async () => {
     const data = loadHallData()
@@ -568,8 +725,13 @@ async function createReport({ type, postId, replyId, reason, reporter, reporterD
     }
     data.reports = Array.isArray(data.reports) ? data.reports : []
     data.reports.unshift(report)
+    const autoAction = applyMultiReportAutoHide(data, report)
+    if (autoAction) {
+      report.auto_action = autoAction.action
+      report.auto_action_at = Math.floor(Date.now() / 1000)
+    }
     saveHallData(data)
-    return { id: report.id, status: report.status }
+    return { id: report.id, status: report.status, auto_action: report.auto_action || '' }
   })
 }
 
@@ -719,7 +881,7 @@ async function selectBestReply({ postId, replyId, actor }) {
   })
 }
 
-async function saveUploadedImage({ dataUrl, filename = '', author = '', authorDisplayName = '', usage = 'hall_post' }) {
+async function saveUploadedImage({ dataUrl, filename = '', author = '', authorDisplayName = '', usage = 'hall_post', auditContext = {} }) {
   const match = String(dataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
   if (!match) throw createError('图片数据格式无效')
 
@@ -737,7 +899,18 @@ async function saveUploadedImage({ dataUrl, filename = '', author = '', authorDi
   }
 
   ensureUploadsDir()
-  const fileBase = sanitizeFilenameBase(filename) || sanitizeFilenameBase(author) || 'hall_image'
+  const fileBase = moderateText(sanitizeFilenameBase(filename) || sanitizeFilenameBase(author) || 'hall_image', {
+    label: '图片说明',
+    maxLength: 60,
+    maxLineBreaks: 1,
+    field: 'image_alt',
+    scene: auditContext.scene || 'hall_image_upload',
+    auditContext: buildFieldAuditContext(auditContext, {
+      field: 'image_alt',
+      username: author,
+      content_type: 'hall_image_alt',
+    }),
+  })
   const savedName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${fileBase}.${ext}`
   const savePath = path.join(HALL_UPLOADS_DIR, savedName)
   fs.writeFileSync(savePath, buffer)
@@ -750,6 +923,7 @@ async function saveUploadedImage({ dataUrl, filename = '', author = '', authorDi
     alt: fileBase,
     mime,
     size_bytes: buffer.length,
+    sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
     usage,
     uploader_username: author,
     uploader_display_name: authorDisplayName,

@@ -6,7 +6,7 @@ const DATA_DIR = process.env.DB_STORAGE
   : path.join(__dirname, '../../data');
 
 const ONLINE_AUDIT_FILE = path.join(DATA_DIR, 'taoyuan_online_audits.json');
-const ONLINE_AUDIT_LOG_LIMIT = 5000;
+const DEFAULT_ONLINE_AUDIT_RETENTION_DAYS = 180;
 
 let onlineAuditLock = Promise.resolve();
 
@@ -58,6 +58,49 @@ function normalizePositiveInt(value, fallback) {
   return Number.isInteger(normalized) && normalized > 0 ? normalized : fallback;
 }
 
+function parseAuditTimestampFilter(value) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return Math.max(0, Math.floor(raw > 100000000000 ? raw / 1000 : raw));
+  }
+  const text = String(raw).trim();
+  if (!text) return null;
+  if (/^\d+(\.\d+)?$/.test(text)) {
+    const numeric = Number(text);
+    return Number.isFinite(numeric)
+      ? Math.max(0, Math.floor(numeric > 100000000000 ? numeric / 1000 : numeric))
+      : null;
+  }
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed / 1000)) : null;
+}
+
+function getAuditTimestampRange(options = {}) {
+  return {
+    createdFrom: parseAuditTimestampFilter(options.createdFrom ?? options.created_from ?? options.from),
+    createdTo: parseAuditTimestampFilter(options.createdTo ?? options.created_to ?? options.to),
+  };
+}
+
+function getConfigValue(key) {
+  try {
+    return require('./config').get(key);
+  } catch {
+    return undefined;
+  }
+}
+
+function getOnlineAuditRetentionDays() {
+  return Math.max(
+    DEFAULT_ONLINE_AUDIT_RETENTION_DAYS,
+    normalizePositiveInt(
+      process.env.ONLINE_AUDIT_RETENTION_DAYS || getConfigValue('online_audit_retention_days'),
+      DEFAULT_ONLINE_AUDIT_RETENTION_DAYS,
+    ),
+  );
+}
+
 function normalizeDetail(detail) {
   if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return {};
   return JSON.parse(JSON.stringify(detail));
@@ -89,9 +132,31 @@ function loadOnlineAuditStore() {
   return { logs: raw.logs.map(normalizeAuditEntry) };
 }
 
-function saveOnlineAuditStore(store) {
+function isMajorEvidenceLog(entry = {}) {
+  const action = String(entry.action || '').toLocaleLowerCase('zh-CN');
+  const outcome = String(entry.outcome || '').toLocaleLowerCase('zh-CN');
+  const detail = entry.detail && typeof entry.detail === 'object' ? entry.detail : {};
+  if (detail.evidence_retention === 'major' || detail.major_evidence === true) return true;
+  if (outcome === 'major_evidence') return true;
+  return action.includes('ban') || action.includes('blacklist') || action.includes('appeal_restore');
+}
+
+function pruneOnlineAuditLogs(logs = [], options = {}) {
+  const retentionDays = Math.max(
+    DEFAULT_ONLINE_AUDIT_RETENTION_DAYS,
+    normalizePositiveInt(options.retentionDays, getOnlineAuditRetentionDays()),
+  );
+  const cutoffSeconds = nowSeconds() - retentionDays * 86400;
+  return logs.map(normalizeAuditEntry).filter(entry => {
+    if ((entry.created_at || 0) >= cutoffSeconds) return true;
+    return isMajorEvidenceLog(entry);
+  });
+}
+
+function saveOnlineAuditStore(store, options = {}) {
+  const logs = Array.isArray(store?.logs) ? store.logs.map(normalizeAuditEntry) : [];
   writeJsonFileAtomic(ONLINE_AUDIT_FILE, {
-    logs: Array.isArray(store?.logs) ? store.logs.slice(0, ONLINE_AUDIT_LOG_LIMIT) : [],
+    logs: options.prune === true ? pruneOnlineAuditLogs(logs, options) : logs,
   });
 }
 
@@ -117,9 +182,6 @@ async function recordOnlineAudit(entry = {}) {
       created_at: entry.created_at || nowSeconds(),
     });
     store.logs.unshift(normalized);
-    if (store.logs.length > ONLINE_AUDIT_LOG_LIMIT) {
-      store.logs = store.logs.slice(0, ONLINE_AUDIT_LOG_LIMIT);
-    }
     saveOnlineAuditStore(store);
     return normalized;
   });
@@ -133,6 +195,7 @@ async function listOnlineAudits(options = {}) {
     const routeKeyFilter = sanitizeText(options.routeKey, 80).toLocaleLowerCase('zh-CN');
     const actionFilter = sanitizeText(options.action, 80).toLocaleLowerCase('zh-CN');
     const outcomeFilter = sanitizeText(options.outcome, 40).toLocaleLowerCase('zh-CN');
+    const { createdFrom, createdTo } = getAuditTimestampRange(options);
 
     const store = loadOnlineAuditStore();
     const filtered = store.logs.filter(entry => {
@@ -144,6 +207,8 @@ async function listOnlineAudits(options = {}) {
       if (routeKeyFilter && !routeKey.includes(routeKeyFilter)) return false;
       if (actionFilter && !action.includes(actionFilter)) return false;
       if (outcomeFilter && outcome !== outcomeFilter) return false;
+      if (createdFrom !== null && (Number(entry.created_at) || 0) < createdFrom) return false;
+      if (createdTo !== null && (Number(entry.created_at) || 0) > createdTo) return false;
       return true;
     });
 
@@ -153,6 +218,25 @@ async function listOnlineAudits(options = {}) {
       page,
       pageSize,
       logs: filtered.slice(offset, offset + pageSize),
+      retention_days: getOnlineAuditRetentionDays(),
+    };
+  });
+}
+
+async function pruneOnlineAudits(options = {}) {
+  return withOnlineAuditLock(async () => {
+    const store = loadOnlineAuditStore();
+    const before = store.logs.length;
+    store.logs = pruneOnlineAuditLogs(store.logs, options);
+    saveOnlineAuditStore(store);
+    return {
+      before,
+      after: store.logs.length,
+      removed: Math.max(0, before - store.logs.length),
+      retention_days: Math.max(
+        DEFAULT_ONLINE_AUDIT_RETENTION_DAYS,
+        normalizePositiveInt(options.retentionDays, getOnlineAuditRetentionDays()),
+      ),
     };
   });
 }
@@ -160,4 +244,6 @@ async function listOnlineAudits(options = {}) {
 module.exports = {
   recordOnlineAudit,
   listOnlineAudits,
+  pruneOnlineAudits,
+  getOnlineAuditRetentionDays,
 };

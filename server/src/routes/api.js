@@ -11,6 +11,13 @@ const cfg = require('../config');
 const taoyuanHall = require('../taoyuanHall');
 const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
+const {
+  buildAiConfigAuditDetail,
+  buildAiKnowledgeAuditDetail,
+  buildAiIndexAuditDetail,
+  buildAiDebugAskAuditDetail,
+  buildAiSourceDraftAuditDetail,
+} = require('../taoyuanAiAssistantAudit');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanRealtimeRuntime = require('../taoyuanRealtimeRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
@@ -21,6 +28,12 @@ const taoyuanSocietyRuntime = require('../taoyuanSocietyRuntime');
 const taoyuanWorldEventRuntime = require('../taoyuanWorldEventRuntime');
 const taoyuanOnlineAudit = require('../taoyuanOnlineAudit');
 const taoyuanImageModeration = require('../taoyuanImageModeration');
+const taoyuanContentModerationAudit = require('../taoyuanContentModerationAudit');
+const {
+  moderateText,
+  getContentModerationRulesMetadata,
+  saveContentModerationRules,
+} = require('../taoyuanTextModeration');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
@@ -51,10 +64,15 @@ const TAOYUAN_EXCHANGE_RECEIPTS_KEY = '__transaction_receipts';
 const TAOYUAN_EXCHANGE_RECEIPT_LIMIT = 2000;
 const TAOYUAN_ITEM_ICON_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_item_icon_preferences.json');
 const TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_npc_portrait_preferences.json');
-const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
-const PUBLIC_AI_ASK_MAX_REQUESTS = 8;
+const PUBLIC_AI_ASK_DEFAULT_SHORT_WINDOW_MS = 60 * 1000;
+const PUBLIC_AI_ASK_DEFAULT_SHORT_WINDOW_MAX = 8;
+const PUBLIC_AI_ASK_DEFAULT_DAILY_MAX = 80;
+const PUBLIC_AI_ASK_DEFAULT_CONCURRENCY_MAX = 2;
+const PUBLIC_AI_ASK_DEFAULT_BUCKET_LIMIT = 2000;
+const PUBLIC_AI_ASK_DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const ONLINE_ACTION_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const publicAiAskBuckets = new Map();
+let publicAiAskLastCleanupAt = 0;
 const onlineActionRateLimitBuckets = new Map();
 const OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY = 'official_control_verified';
 const HALL_ANNOUNCEMENT_TEMPLATE_TYPES = new Set(['event_announcement', 'showcase_wrapup']);
@@ -744,6 +762,7 @@ function getSessionActor(req) {
   return {
     username: req.session.username,
     displayName: req.session.display_name || req.session.username,
+    auditContext: buildRequestModerationAuditContext(req),
     ipAddress: getRequestIpAddress(req),
     deviceId: normalizeRiskHeaderValue(
       req.headers?.['x-taoyuan-device-id']
@@ -2013,27 +2032,226 @@ function getSaveFileSummary(username) {
   };
 }
 
-function consumePublicAiAskQuota(req) {
-  const now = Date.now();
-  const key = String(req.ip || req.headers['x-forwarded-for'] || 'unknown').trim() || 'unknown';
-  const bucket = publicAiAskBuckets.get(key) || [];
-  const recent = bucket.filter(timestamp => now - timestamp < PUBLIC_AI_ASK_WINDOW_MS);
-  if (recent.length >= PUBLIC_AI_ASK_MAX_REQUESTS) {
-    publicAiAskBuckets.set(key, recent);
-    return {
-      ok: false,
-      retryAfterMs: Math.max(1, PUBLIC_AI_ASK_WINDOW_MS - (now - recent[0])),
-    };
-  }
+function buildSaveAuditSummary(summary = {}) {
+  return {
+    exists: summary.exists === true,
+    file_name: sanitizeAuditValue(summary.file_name || '', 160),
+    file_size: Math.max(0, Number(summary.file_size) || 0),
+    updated_at: summary.updated_at || null,
+    corrupted: summary.corrupted === true,
+    slot_count: Math.max(0, Number(summary.slot_count) || 0),
+    slots: Array.isArray(summary.slots)
+      ? summary.slots.map(slot => ({
+          slot: Number(slot?.slot) || 0,
+          exists: slot?.exists === true,
+          raw_length: Math.max(0, Number(slot?.raw_length) || 0),
+        }))
+      : [],
+  };
+}
 
-  recent.push(now);
-  publicAiAskBuckets.set(key, recent);
-  return { ok: true, retryAfterMs: 0 };
+function buildUserAdminAuditSummary(user = {}) {
+  return {
+    username: sanitizeAuditValue(user?.username || '', 80),
+    status: sanitizeAuditValue(user?.status || '', 40),
+    quota: Math.max(0, Number(user?.quota) || 0),
+    banned_at: Number(user?.banned_at) || null,
+    deleted_at: Number(user?.deleted_at) || null,
+  };
 }
 
 function parsePositiveInt(value, fallback) {
   const normalized = parseInt(value, 10);
   return Number.isInteger(normalized) && normalized > 0 ? normalized : fallback;
+}
+
+function getPublicAiAskQuotaConfig() {
+  return {
+    shortWindowMs: parsePositiveInt(
+      cfg.get('ai_assistant_public_short_window_ms'),
+      PUBLIC_AI_ASK_DEFAULT_SHORT_WINDOW_MS,
+    ),
+    shortWindowMax: parsePositiveInt(
+      cfg.get('ai_assistant_public_short_window_max'),
+      PUBLIC_AI_ASK_DEFAULT_SHORT_WINDOW_MAX,
+    ),
+    dailyMax: parsePositiveInt(
+      cfg.get('ai_assistant_public_daily_max'),
+      PUBLIC_AI_ASK_DEFAULT_DAILY_MAX,
+    ),
+    concurrencyMax: parsePositiveInt(
+      cfg.get('ai_assistant_public_concurrency_max'),
+      PUBLIC_AI_ASK_DEFAULT_CONCURRENCY_MAX,
+    ),
+    bucketLimit: parsePositiveInt(
+      cfg.get('ai_assistant_public_bucket_limit'),
+      PUBLIC_AI_ASK_DEFAULT_BUCKET_LIMIT,
+    ),
+  };
+}
+
+function hashPublicAiAskIdentity(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return crypto
+    .createHash('sha256')
+    .update(`${process.env.AI_RATE_LIMIT_HASH_SALT || 'taoyuan-ai-rate-limit'}:${raw}`)
+    .digest('hex')
+    .slice(0, 24);
+}
+
+function uniquePublicAiAskValues(values = []) {
+  return [...new Set(values)];
+}
+
+function getPublicAiAskIdentityKeys(req) {
+  const ip = getRequestIpAddress(req) || 'unknown-ip';
+  const username = normalizeRiskHeaderValue(req.session?.username, 80).toLocaleLowerCase('zh-CN');
+  const sessionId = normalizeRiskHeaderValue(req.sessionID || req.session?.id, 120);
+  const deviceHint = normalizeRiskHeaderValue(
+    req.headers?.['x-taoyuan-device-id']
+      || req.headers?.['x-device-id']
+      || req.body?.device_id
+      || req.body?.deviceId,
+    160,
+  );
+  const userAgent = normalizeRiskHeaderValue(req.headers?.['user-agent'], 240);
+  const actor = username || sessionId;
+  const parts = [
+    `ip:${ip}`,
+    actor ? `actor:${actor}` : '',
+    deviceHint ? `device:${deviceHint}` : '',
+    userAgent ? `ua:${userAgent}` : '',
+  ].filter(Boolean);
+
+  return uniquePublicAiAskValues([
+    `ip:${hashPublicAiAskIdentity(ip) || 'unknown'}`,
+    actor ? `actor:${hashPublicAiAskIdentity(actor)}` : '',
+    deviceHint ? `device:${hashPublicAiAskIdentity(deviceHint)}` : '',
+    `combo:${hashPublicAiAskIdentity(parts.join('|')) || 'unknown'}`,
+  ].filter(Boolean));
+}
+
+function prunePublicAiAskBucket(bucket, now, config) {
+  bucket.short = (bucket.short || []).filter(timestamp => now - timestamp < config.shortWindowMs);
+  bucket.daily = (bucket.daily || []).filter(timestamp => now - timestamp < PUBLIC_AI_ASK_DAILY_WINDOW_MS);
+  bucket.active = Math.max(0, Number(bucket.active) || 0);
+  bucket.lastSeenAt = Math.max(
+    Number(bucket.lastSeenAt) || 0,
+    bucket.short[bucket.short.length - 1] || 0,
+    bucket.daily[bucket.daily.length - 1] || 0,
+  );
+  return bucket;
+}
+
+function trimPublicAiAskBucketCapacity(config) {
+  if (publicAiAskBuckets.size <= config.bucketLimit) return;
+  const overflow = publicAiAskBuckets.size - config.bucketLimit;
+  const staleKeys = [...publicAiAskBuckets.entries()]
+    .sort((left, right) => (left[1].lastSeenAt || 0) - (right[1].lastSeenAt || 0))
+    .slice(0, overflow)
+    .map(([key]) => key);
+  for (const key of staleKeys) publicAiAskBuckets.delete(key);
+}
+
+function cleanupPublicAiAskBuckets(now = Date.now(), config = getPublicAiAskQuotaConfig()) {
+  const shouldPruneExpired = now - publicAiAskLastCleanupAt >= Math.min(config.shortWindowMs, 60 * 1000);
+  if (shouldPruneExpired) {
+    publicAiAskLastCleanupAt = now;
+
+    for (const [key, bucket] of publicAiAskBuckets.entries()) {
+      const normalized = prunePublicAiAskBucket(bucket, now, config);
+      if (!normalized.active && normalized.short.length === 0 && normalized.daily.length === 0) {
+        publicAiAskBuckets.delete(key);
+      } else {
+        publicAiAskBuckets.set(key, normalized);
+      }
+    }
+  }
+
+  trimPublicAiAskBucketCapacity(config);
+}
+
+function getPublicAiAskBucket(key, now, config) {
+  const bucket = prunePublicAiAskBucket(
+    publicAiAskBuckets.get(key) || { short: [], daily: [], active: 0, lastSeenAt: now },
+    now,
+    config,
+  );
+  publicAiAskBuckets.set(key, bucket);
+  return bucket;
+}
+
+function buildPublicAiAskReject(reason, bucket, now, config) {
+  const oldestShort = bucket.short[0] || now;
+  const oldestDaily = bucket.daily[0] || now;
+  const retryAfterMs = reason === 'daily_quota'
+    ? Math.max(1, PUBLIC_AI_ASK_DAILY_WINDOW_MS - (now - oldestDaily))
+    : reason === 'concurrency'
+      ? Math.max(1000, Math.min(config.shortWindowMs, 10 * 1000))
+      : Math.max(1, config.shortWindowMs - (now - oldestShort));
+  return {
+    ok: false,
+    reason,
+    retryAfterMs,
+    remaining: 0,
+  };
+}
+
+function consumePublicAiAskQuota(req) {
+  const now = Date.now();
+  const config = getPublicAiAskQuotaConfig();
+  cleanupPublicAiAskBuckets(now, config);
+
+  const keys = getPublicAiAskIdentityKeys(req);
+  const buckets = keys.map(key => ({ key, bucket: getPublicAiAskBucket(key, now, config) }));
+  for (const entry of buckets) {
+    if (entry.bucket.active >= config.concurrencyMax) {
+      return buildPublicAiAskReject('concurrency', entry.bucket, now, config);
+    }
+    if (entry.bucket.daily.length >= config.dailyMax) {
+      return buildPublicAiAskReject('daily_quota', entry.bucket, now, config);
+    }
+    if (entry.bucket.short.length >= config.shortWindowMax) {
+      return buildPublicAiAskReject('short_window', entry.bucket, now, config);
+    }
+  }
+
+  for (const entry of buckets) {
+    entry.bucket.short.push(now);
+    entry.bucket.daily.push(now);
+    entry.bucket.active += 1;
+    entry.bucket.lastSeenAt = now;
+    publicAiAskBuckets.set(entry.key, entry.bucket);
+  }
+  trimPublicAiAskBucketCapacity(config);
+
+  return {
+    ok: true,
+    keys,
+    retryAfterMs: 0,
+    remaining: Math.min(...buckets.map(entry => Math.max(0, config.shortWindowMax - entry.bucket.short.length))),
+  };
+}
+
+function finishPublicAiAskQuota(quota) {
+  if (!quota?.ok || !Array.isArray(quota.keys)) return;
+  for (const key of quota.keys) {
+    const bucket = publicAiAskBuckets.get(key);
+    if (!bucket) continue;
+    bucket.active = Math.max(0, Number(bucket.active) - 1);
+    bucket.lastSeenAt = Date.now();
+    publicAiAskBuckets.set(key, bucket);
+  }
+}
+
+function resetPublicAiAskQuotaForTests() {
+  publicAiAskBuckets.clear();
+  publicAiAskLastCleanupAt = 0;
+}
+
+function getPublicAiAskQuotaStatsForTests() {
+  return { bucketCount: publicAiAskBuckets.size };
 }
 
 function parseJsonTextSafe(value, fallback = {}) {
@@ -2123,6 +2341,7 @@ function buildOnlineAuditDetail(req) {
   );
   return {
     target_username: targetUsername,
+    ip_hash: hashAdminAuditValue(getRequestIpAddress(req)),
     room_id: sanitizeAuditValue(req.params?.roomId || body.room_id || body.activity_room_id || '', 80),
     order_id: sanitizeAuditValue(req.params?.orderId || body.order_id || '', 80),
     stage_id: sanitizeAuditValue(req.params?.stageId || body.stageId || body.stage_id || '', 80),
@@ -2148,6 +2367,18 @@ function onlineActionRateLimit(req, res, next) {
   const quota = consumeOnlineActionRateLimit(rule, req);
   if (quota.ok) {
     req.onlineRateLimitRule = rule;
+    const ipHash = hashAdminAuditValue(getRequestIpAddress(req));
+    if (ipHash && req.session?.username) {
+      try {
+        taoyuanContentModerationAudit.recordIpHashPublishObservation({
+          ip_hash: ipHash,
+          username: req.session.username,
+          route_key: rule.routeKey,
+          request_id: getOnlineAuditRequestId(req),
+          created_at: Math.floor(Date.now() / 1000),
+        });
+      } catch {}
+    }
     next();
     return;
   }
@@ -2167,6 +2398,7 @@ function onlineActionRateLimit(req, res, next) {
     status_code: 429,
     detail: {
       ...buildOnlineAuditDetail(req),
+      ip_hash: hashAdminAuditValue(getRequestIpAddress(req)),
       limit_window_ms: ONLINE_ACTION_RATE_LIMIT_WINDOW_MS,
       max_requests: rule.maxRequests,
       retry_after_ms: quota.retryAfterMs,
@@ -2241,14 +2473,141 @@ function onlineAuditMiddleware(req, res, next) {
 router.use(onlineActionRateLimit);
 router.use(onlineAuditMiddleware);
 
-async function appendAdminAuditLog(req, action, targetUsername, detail) {
+function buildRequestModerationAuditContext(req, overrides = {}) {
+  return {
+    request_id: getOnlineAuditRequestId(req),
+    username: req.session?.username || req.admin?.operator_name || '',
+    ...overrides,
+  };
+}
+
+function sanitizeAdminAuditDetailValue(value, maxLength = 500) {
+  if (typeof value === 'string') return sanitizeAuditValue(value, maxLength);
+  if (Array.isArray(value)) return value.map(item => sanitizeAdminAuditDetailValue(item, maxLength));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      sanitizeAuditValue(key, 80),
+      sanitizeAdminAuditDetailValue(item, maxLength),
+    ]));
+  }
+  return value;
+}
+
+function hashAdminAuditValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  return crypto
+    .createHash('sha256')
+    .update(`${process.env.AUDIT_HASH_SALT || 'taoyuan-admin-audit'}:${raw}`)
+    .digest('hex')
+    .slice(0, 32);
+}
+
+async function appendAdminAuditLog(req, action, targetUsername, detail = {}) {
+  const normalizedDetail = sanitizeAdminAuditDetailValue(detail, 500);
   return db.recordAdminAuditLog({
     operator_role: req.admin?.role || '',
     operator_name: req.admin?.operator_name || '',
     action,
     target_username: targetUsername || '',
-    detail,
+    detail: {
+      request_id: getOnlineAuditRequestId(req),
+      actor_username: req.admin?.operator_name || '',
+      actor_role: req.admin?.role || '',
+      target_username: targetUsername || '',
+      target_type: normalizedDetail?.target_type || '',
+      target_id: normalizedDetail?.target_id || '',
+      action,
+      outcome: normalizedDetail?.outcome || 'completed',
+      reason: normalizedDetail?.reason || '',
+      rule_version: normalizedDetail?.rule_version || '',
+      ip_hash: hashAdminAuditValue(getRequestIpAddress(req)),
+      ua_hash: hashAdminAuditValue(req.headers?.['user-agent']),
+      ...normalizedDetail,
+    },
   });
+}
+
+function findAdminHallPost(postId) {
+  return taoyuanHall.listAdminPosts().find(post => post.id === String(postId)) || null;
+}
+
+function findHallReport(reportId) {
+  return taoyuanHall.listReports().find(report => report.id === String(reportId)) || null;
+}
+
+function findImageReport(reportId) {
+  return taoyuanImageModeration.listImageReports().find(report => report.id === String(reportId)) || null;
+}
+
+function findImageAssetByUrl(imageUrl) {
+  return taoyuanImageModeration.listImageAssets().find(asset => asset.url === String(imageUrl || '')) || null;
+}
+
+function resolveHallReportTargetUsername(report = {}) {
+  const post = findAdminHallPost(report.post_id || '');
+  if (!post) return '';
+  if (report.type === 'reply') {
+    const reply = Array.isArray(post.replies)
+      ? post.replies.find(entry => entry.id === String(report.reply_id || ''))
+      : null;
+    return reply?.author || post.author || '';
+  }
+  return post.author || '';
+}
+
+function buildReportDispositionAuditDetail({ targetType, targetId, beforeStatus, afterStatus, reason, report, extra = {} }) {
+  return {
+    target_type: targetType,
+    target_id: targetId,
+    report_id: report?.id || '',
+    report_type: report?.type || '',
+    report_reason_excerpt: sanitizeAuditValue(report?.reason || reason || '', 80),
+    before_status: beforeStatus || '',
+    after_status: afterStatus || '',
+    reason: sanitizeAuditValue(reason || '', 120),
+    admin_note: sanitizeAuditValue(extra.admin_note || extra.note || '', 120),
+    multi_report_triggered: extra.multi_report_triggered === true || Boolean(report?.auto_action),
+    auto_action: report?.auto_action || '',
+    auto_action_at: report?.auto_action_at || null,
+    ...extra,
+  };
+}
+
+function buildHallMultiReportAuditContext(report = {}) {
+  const relatedReports = taoyuanHall.listReports().filter(entry => (
+    entry.type === report.type
+    && entry.post_id === report.post_id
+    && String(entry.reply_id || '') === String(report.reply_id || '')
+  ));
+  const autoReport = relatedReports.find(entry => entry.auto_action) || null;
+  if (!autoReport) return {};
+  const reporterCount = new Set(relatedReports.map(entry => entry.reporter).filter(Boolean)).size;
+  return {
+    multi_report_triggered: true,
+    auto_action: autoReport.auto_action || '',
+    auto_action_at: autoReport.auto_action_at || null,
+    multi_report_report_count: relatedReports.length,
+    multi_report_reporter_count: reporterCount,
+    multi_report_report_ids: relatedReports.map(entry => entry.id).filter(Boolean).slice(0, 20),
+  };
+}
+
+function buildImageMultiReportAuditContext(report = {}) {
+  const relatedReports = taoyuanImageModeration.listImageReports().filter(entry => (
+    entry.image_url === report.image_url
+  ));
+  const autoReport = relatedReports.find(entry => entry.auto_action) || null;
+  if (!autoReport) return {};
+  const reporterCount = new Set(relatedReports.map(entry => entry.reporter).filter(Boolean)).size;
+  return {
+    multi_report_triggered: true,
+    auto_action: autoReport.auto_action || '',
+    auto_action_at: autoReport.auto_action_at || null,
+    multi_report_report_count: relatedReports.length,
+    multi_report_reporter_count: reporterCount,
+    multi_report_report_ids: relatedReports.map(entry => entry.id).filter(Boolean).slice(0, 20),
+  };
 }
 
 function readJsonListSafe(filePath, field, fallback = []) {
@@ -2272,6 +2631,8 @@ async function buildAdminOnlineOverviewPayload() {
   const hallPosts = taoyuanHall.listAdminPosts();
   const imageReports = taoyuanImageModeration.listImageReports();
   const imageBlacklist = taoyuanImageModeration.listImageBlacklist();
+  const moderationEvents = taoyuanContentModerationAudit.listContentModerationEvents({ pageSize: 40 });
+  const moderationRiskSignals = taoyuanContentModerationAudit.listContentModerationRiskSignals({ pageSize: 40 });
   const onlineAudits = readJsonListSafe(path.join(DATA_DIR, 'taoyuan_online_audits.json'), 'logs', []);
   const recentPlayerResult = await db.listUsersAdmin({ page: 1, pageSize: 12, status: 'all' });
 
@@ -2290,6 +2651,8 @@ async function buildAdminOnlineOverviewPayload() {
       pending_hall_report_count: pendingHallReports.length,
       pending_image_report_count: pendingImageModerationReports.length,
       image_blacklist_count: imageBlacklist.length,
+      content_moderation_event_count: moderationEvents.total,
+      content_risk_signal_count: moderationRiskSignals.total,
       online_audit_count: onlineAudits.length,
     },
     recent_players: recentPlayerResult.users.map(entry => ({
@@ -2317,6 +2680,8 @@ async function buildAdminOnlineOverviewPayload() {
       image_reports: pendingImageModerationReports.slice(0, 40),
       recent_posts: hallPosts.slice(0, 30),
       image_blacklist: imageBlacklist,
+      moderation_events: moderationEvents.events,
+      risk_signals: moderationRiskSignals.signals,
     },
     audit: {
       online_logs: onlineAudits
@@ -2348,6 +2713,304 @@ function normalizeHomepageAboutPayload(raw = {}) {
       .replace(/\r\n/g, '\n')
       .replace(/\]\((\/taoyuan\/hall\/uploads\/[^)]+)\)/g, '](/api$1)')
       .trim(),
+  };
+}
+
+function buildHomepageAboutFieldAuditContext(auditContext = {}, overrides = {}) {
+  const base = auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || 'admin_content',
+    username: overrides.username || base.username || '',
+    content_type: overrides.content_type || base.content_type || 'homepage_about',
+    content_id: overrides.content_id || base.content_id || 'homepage_about',
+  };
+}
+
+function moderateHomepageAboutPayload(payload = {}, auditContext = {}) {
+  const baseAuditContext = buildHomepageAboutFieldAuditContext(auditContext);
+  return {
+    ...payload,
+    aboutButtonText: moderateText(payload.aboutButtonText, {
+      label: '首页关于按钮文案',
+      field: 'about_button_text',
+      scene: baseAuditContext.scene,
+      maxLength: 80,
+      storageMaxLength: 80,
+      auditContext: buildHomepageAboutFieldAuditContext(baseAuditContext, { field: 'about_button_text' }),
+    }) || '关于游戏',
+    aboutDialogTitle: moderateText(payload.aboutDialogTitle, {
+      label: '首页关于标题',
+      field: 'about_dialog_title',
+      scene: baseAuditContext.scene,
+      maxLength: 120,
+      storageMaxLength: 120,
+      auditContext: buildHomepageAboutFieldAuditContext(baseAuditContext, { field: 'about_dialog_title' }),
+    }) || '关于桃源乡',
+    aboutDialogContent: moderateText(payload.aboutDialogContent, {
+      label: '首页关于正文',
+      field: 'about_dialog_content',
+      scene: baseAuditContext.scene,
+      maxLength: 5000,
+      storageMaxLength: 5000,
+      auditContext: buildHomepageAboutFieldAuditContext(baseAuditContext, { field: 'about_dialog_content' }),
+    }),
+  };
+}
+
+function buildAdminContentModerationAuditContext(req, overrides = {}) {
+  return buildRequestModerationAuditContext(req, {
+    username: req.admin?.operator_name || req.session?.username || '',
+    ...overrides,
+  });
+}
+
+function moderateAdminAiConfigPayload(payload = {}, req) {
+  const next = payload && typeof payload === 'object' && !Array.isArray(payload) ? { ...payload } : {};
+  const baseAuditContext = buildAdminContentModerationAuditContext(req, {
+    scene: 'admin_ai_config',
+    content_type: 'ai_config',
+    content_id: 'taoyuan_ai_assistant',
+  });
+  const moderateField = (field, auditField, label, maxLength, maxLineBreaks = 0) => {
+    if (next[field] === undefined || next[field] === null) return;
+    next[field] = moderateText(next[field], {
+      label,
+      field: auditField,
+      scene: 'admin_ai_config',
+      maxLength,
+      storageMaxLength: maxLength,
+      maxLineBreaks,
+      auditContext: {
+        ...baseAuditContext,
+        field: auditField,
+      },
+    });
+  };
+
+  moderateField('assistantName', 'assistant_name', 'AI 助手名称', 80);
+  moderateField('welcomeMessage', 'welcome_message', 'AI 助手欢迎语', 1200, 20);
+  moderateField('consoleCreditMessage', 'console_credit_message', 'AI 助手署名文案', 1200, 20);
+  moderateField('systemPrompt', 'system_prompt', 'AI 助手系统提示词', 8000, 200);
+  moderateField('blockedTopics', 'blocked_topics', 'AI 助手拦截主题说明', 2000, 80);
+
+  return next;
+}
+
+function moderateAdminAiKnowledgePayload(payload = {}, req, options = {}) {
+  const source = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  const next = { ...source };
+  const contentId = sanitizeAuditValue(options.contentId || next.id || '', 80);
+  const baseAuditContext = buildAdminContentModerationAuditContext(req, {
+    scene: 'admin_ai_knowledge',
+    content_type: 'ai_knowledge_entry',
+    content_id: contentId,
+  });
+  const hasField = field => Object.prototype.hasOwnProperty.call(next, field);
+  const moderateField = (field, label, maxLength, extra = {}) => {
+    if (!hasField(field)) return;
+    next[field] = moderateText(next[field], {
+      label,
+      field,
+      scene: 'admin_ai_knowledge',
+      maxLength,
+      storageMaxLength: maxLength,
+      maxLineBreaks: extra.maxLineBreaks || 0,
+      auditContext: {
+        ...baseAuditContext,
+        field,
+        content_type: extra.contentType || baseAuditContext.content_type,
+        content_id: extra.contentId || baseAuditContext.content_id,
+      },
+    });
+  };
+
+  moderateField('title', 'AI 知识标题', 160, { maxLineBreaks: 2 });
+  moderateField('content', 'AI 知识正文', 20000, { maxLineBreaks: 500 });
+
+  if (hasField('keywords')) {
+    if (Array.isArray(next.keywords)) {
+      next.keywords = next.keywords.map((keyword, index) => moderateText(keyword, {
+        label: 'AI 知识关键词',
+        field: 'keywords',
+        scene: 'admin_ai_knowledge',
+        maxLength: 80,
+        storageMaxLength: 80,
+        auditContext: {
+          ...baseAuditContext,
+          field: 'keywords',
+          content_type: 'ai_knowledge_keyword',
+          content_id: contentId ? `${contentId}:keyword:${index}` : `keyword:${index}`,
+        },
+      }));
+    } else {
+      next.keywords = moderateText(next.keywords, {
+        label: 'AI 知识关键词',
+        field: 'keywords',
+        scene: 'admin_ai_knowledge',
+        maxLength: 800,
+        storageMaxLength: 800,
+        maxLineBreaks: 20,
+        auditContext: {
+          ...baseAuditContext,
+          field: 'keywords',
+          content_type: 'ai_knowledge_keyword',
+        },
+      });
+    }
+  }
+
+  return next;
+}
+
+function moderateAdminAiSourceDraftPayload(req) {
+  const routeName = sanitizeAuditValue(req.body?.route_name, 80);
+  const question = moderateText(req.body?.question, {
+    label: 'AI 知识源码草稿问题',
+    field: 'source_question',
+    scene: 'admin_ai_knowledge_source_draft',
+    maxLength: 240,
+    storageMaxLength: 240,
+    maxLineBreaks: 4,
+    auditContext: buildAdminContentModerationAuditContext(req, {
+      scene: 'admin_ai_knowledge_source_draft',
+      field: 'source_question',
+      content_type: 'ai_knowledge_source_draft',
+      content_id: routeName,
+    }),
+  });
+  return { question, routeName: req.body?.route_name };
+}
+
+function moderateAndroidAppReleaseConfigPayload(payload = {}, req) {
+  const next = normalizeAndroidAppReleaseConfig(payload);
+  const baseAuditContext = buildAdminContentModerationAuditContext(req, {
+    scene: 'admin_android_release_config',
+    content_type: 'android_release_config',
+    content_id: 'android_release_config',
+  });
+  return {
+    ...next,
+    releaseNotes: moderateText(next.releaseNotes, {
+      label: '安卓发布说明',
+      field: 'release_notes',
+      scene: 'admin_android_release_config',
+      maxLength: 2400,
+      storageMaxLength: 2400,
+      auditContext: {
+        ...baseAuditContext,
+        field: 'release_notes',
+      },
+    }),
+    forceUpdateMessage: moderateText(next.forceUpdateMessage, {
+      label: '安卓强更提示',
+      field: 'force_update_message',
+      scene: 'admin_android_release_config',
+      maxLength: 600,
+      storageMaxLength: 600,
+      auditContext: {
+        ...baseAuditContext,
+        field: 'force_update_message',
+      },
+    }),
+  };
+}
+
+function moderateOnlineReleaseConfigPayload(payload = {}, req) {
+  const next = normalizeOnlineReleaseConfig(payload);
+  const baseAuditContext = buildAdminContentModerationAuditContext(req, {
+    scene: 'admin_online_release_config',
+    content_type: 'online_release_config',
+    content_id: 'online_release_config',
+  });
+  const moderateField = (value, field, label, maxLength) => moderateText(value, {
+    label,
+    field,
+    scene: 'admin_online_release_config',
+    maxLength,
+    storageMaxLength: maxLength,
+    auditContext: {
+      ...baseAuditContext,
+      field,
+    },
+  });
+
+  return {
+    ...next,
+    betaTemplates: {
+      manor: moderateField(next.betaTemplates.manor, 'beta_template_manor', '庄园灰度提示模板', 160),
+      society: moderateField(next.betaTemplates.society, 'beta_template_society', '社团灰度提示模板', 160),
+      festival: moderateField(next.betaTemplates.festival, 'beta_template_festival', '节会灰度提示模板', 160),
+      expedition: moderateField(next.betaTemplates.expedition, 'beta_template_expedition', '远征灰度提示模板', 160),
+    },
+    releaseNotes: {
+      features: moderateField(next.releaseNotes.features, 'release_notes_features', '联机发布功能说明', 2400),
+      visibleChanges: moderateField(next.releaseNotes.visibleChanges, 'release_notes_visible_changes', '联机发布可见变化', 2400),
+      playerNotice: moderateField(next.releaseNotes.playerNotice, 'release_notes_player_notice', '联机发布玩家公告', 2400),
+      knownIssues: moderateField(next.releaseNotes.knownIssues, 'release_notes_known_issues', '联机发布已知问题', 2400),
+      rollbackPlan: moderateField(next.releaseNotes.rollbackPlan, 'release_notes_rollback_plan', '联机发布回滚说明', 2400),
+    },
+  };
+}
+
+const OFFICIAL_CONTROL_MANAGED_TEXT_FIELDS = Object.freeze({
+  ai_assistant_console_credit: { label: '官方云控 AI 助手署名文案', maxLength: 1200, maxLineBreaks: 20 },
+  ai_assistant_name: { label: '官方云控 AI 助手名称', maxLength: 80, maxLineBreaks: 0 },
+  ai_assistant_welcome: { label: '官方云控 AI 助手欢迎语', maxLength: 1200, maxLineBreaks: 20 },
+  taoyuan_about_dialog_title: { label: '官方云控首页关于标题', maxLength: 120, maxLineBreaks: 2 },
+  taoyuan_about_dialog_content: { label: '官方云控首页关于正文', maxLength: 5000, maxLineBreaks: 160 },
+});
+
+function moderateOfficialControlManagedValuesPayload(values = {}, req) {
+  const next = values && typeof values === 'object' && !Array.isArray(values) ? { ...values } : {};
+  const baseAuditContext = buildAdminContentModerationAuditContext(req, {
+    scene: 'official_control_config',
+    content_type: 'official_control_managed_config',
+    content_id: 'official_control_config',
+  });
+  for (const key of officialControlPlatform.MANAGED_KEYS) {
+    if (!Object.prototype.hasOwnProperty.call(next, key)) continue;
+    const rule = OFFICIAL_CONTROL_MANAGED_TEXT_FIELDS[key];
+    if (!rule) continue;
+    next[key] = moderateText(next[key], {
+      label: rule.label,
+      field: key,
+      scene: 'official_control_config',
+      maxLength: rule.maxLength,
+      storageMaxLength: rule.maxLength,
+      maxLineBreaks: rule.maxLineBreaks,
+      auditContext: {
+        ...baseAuditContext,
+        field: key,
+        content_id: key,
+      },
+    });
+  }
+  return next;
+}
+
+function buildOfficialControlConfigAuditDetail(beforeRelease = null, afterRelease = null) {
+  const beforeValues = beforeRelease?.values && typeof beforeRelease.values === 'object' ? beforeRelease.values : {};
+  const afterValues = afterRelease?.values && typeof afterRelease.values === 'object' ? afterRelease.values : {};
+  const changedFields = officialControlPlatform.MANAGED_KEYS.filter(key => (
+    String(beforeValues[key] ?? '') !== String(afterValues[key] ?? '')
+  ));
+  return {
+    target_type: 'official_control_config',
+    target_id: sanitizeAuditValue(afterRelease?.version || afterRelease?.id || '', 120),
+    release_id: sanitizeAuditValue(afterRelease?.id || '', 120),
+    version: sanitizeAuditValue(afterRelease?.version || '', 120),
+    profile_id: sanitizeAuditValue(afterRelease?.profileId || afterRelease?.profile_id || '', 120),
+    changed_fields: changedFields,
+    managed_key_count: officialControlPlatform.MANAGED_KEYS.length,
+    value_summaries: changedFields.map(key => ({
+      key,
+      length: String(afterValues[key] || '').length,
+      hash: hashAdminAuditValue(afterValues[key]),
+    })),
   };
 }
 
@@ -2946,7 +3609,16 @@ function getPublicConfigPayload(req) {
 
 router.post('/register', async (req, res, next) => {
   try {
-    const result = await db.registerUser(req.body?.username, req.body?.password, req.body?.display_name);
+    const result = await db.registerUser(
+      req.body?.username,
+      req.body?.password,
+      req.body?.display_name,
+      buildRequestModerationAuditContext(req, {
+        scene: 'register',
+        username: req.body?.username,
+        content_type: 'register',
+      }),
+    );
     if (!result.ok) return res.status(400).json(result);
 
     await establishUserSession(req, result.user);
@@ -3140,6 +3812,8 @@ router.get('/admin/taoyuan/hall/overview', userAdminAuth, (req, res) => {
       reports: taoyuanHall.listReports(),
       image_reports: taoyuanImageModeration.listImageReports(),
       blacklist: taoyuanImageModeration.listImageBlacklist(),
+      moderation_events: taoyuanContentModerationAudit.listContentModerationEvents({ pageSize: 40 }).events,
+      risk_signals: taoyuanContentModerationAudit.listContentModerationRiskSignals({ pageSize: 40 }).signals,
     });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取交流大厅概览失败' });
@@ -3154,13 +3828,136 @@ router.get('/admin/taoyuan/audit-logs', userAdminAuth, async (req, res) => {
       page,
       pageSize,
       username: req.query.username,
-      routeKey: req.query.route_key,
+      routeKey: req.query.route_key || req.query.routeKey,
+      action: req.query.action,
+      outcome: req.query.outcome,
+      createdFrom: req.query.created_from || req.query.createdFrom || req.query.from,
+      createdTo: req.query.created_to || req.query.createdTo || req.query.to,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取在线审计日志失败' });
+  }
+});
+
+router.get('/admin/taoyuan/content-moderation/events', userAdminAuth, (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 50);
+    const result = taoyuanContentModerationAudit.listContentModerationEvents({
+      page,
+      pageSize,
+      username: req.query.username,
+      scene: req.query.scene,
       action: req.query.action,
       outcome: req.query.outcome,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取在线审计日志失败' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取内容审核事件失败' });
+  }
+});
+
+router.get('/admin/taoyuan/content-moderation/risk-signals', userAdminAuth, (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 50);
+    const result = taoyuanContentModerationAudit.listContentModerationRiskSignals({
+      page,
+      pageSize,
+      username: req.query.username,
+      signal_type: req.query.signal_type,
+      scene: req.query.scene,
+      status: req.query.status || 'pending',
+      created_from: req.query.created_from,
+      created_to: req.query.created_to,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取内容风险信号失败' });
+  }
+});
+
+router.post('/admin/taoyuan/content-moderation/risk-signals/:id/status', adminAuth, async (req, res) => {
+  try {
+    const result = taoyuanContentModerationAudit.updateContentModerationRiskSignalStatus(
+      req.params.id,
+      req.body?.status,
+    );
+    await appendAdminAuditLog(req, 'update_content_risk_signal_status', result.signal?.username || '', {
+      target_type: 'content_risk_signal',
+      target_id: result.signal?.id || req.params.id,
+      signal_type: result.signal?.signal_type || '',
+      before_status: result.before?.status || '',
+      after_status: result.signal?.status || '',
+      risk_score: result.signal?.risk_score || 0,
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+      target_username: result.signal?.username || '',
+      signal_target_type: result.signal?.target_type || '',
+      signal_target_id: result.signal?.target_id || '',
+      outcome: result.signal?.outcome || '',
+    });
+    res.json({ ok: true, signal: result.signal });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新内容风险信号失败' });
+  }
+});
+
+router.get('/admin/taoyuan/content-moderation/rules', userAdminAuth, (req, res) => {
+  try {
+    res.json({ ok: true, rules: getContentModerationRulesMetadata() });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取内容审核规则元数据失败' });
+  }
+});
+
+router.post('/admin/taoyuan/content-moderation/rules', adminAuth, async (req, res) => {
+  try {
+    const result = await saveContentModerationRules(req.body?.rules || req.body || {}, {
+      operator_name: req.admin?.operator_name || 'admin',
+      operator_role: req.admin?.role || '',
+      username: req.admin?.operator_name || 'admin',
+      role: req.admin?.role || '',
+    }, {
+      request_id: getOnlineAuditRequestId(req),
+    });
+    res.json({ ok: true, rules: result.metadata });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新内容审核规则失败' });
+  }
+});
+
+router.post('/admin/taoyuan/audit-retention/prune', adminAuth, async (req, res) => {
+  try {
+    const adminAudit = await db.pruneAdminAuditLogs({
+      retentionDays: req.body?.admin_audit_retention_days,
+    });
+    const onlineAudit = await taoyuanOnlineAudit.pruneOnlineAudits({
+      retentionDays: req.body?.online_audit_retention_days,
+    });
+    const contentModeration = taoyuanContentModerationAudit.pruneContentModerationEvents({
+      retentionDays: req.body?.content_moderation_retention_days,
+    });
+    await appendAdminAuditLog(req, 'prune_audit_retention', '', {
+      target_type: 'audit_retention',
+      target_id: 'manual_prune',
+      admin_audit_removed: adminAudit.removed,
+      online_audit_removed: onlineAudit.removed,
+      content_moderation_removed: contentModeration.removed,
+      admin_audit_retention_days: adminAudit.retention_days,
+      online_audit_retention_days: onlineAudit.retention_days,
+      content_moderation_retention_days: contentModeration.retention_days,
+      reason: req.body?.reason || 'manual_retention_prune',
+    });
+    res.json({
+      ok: true,
+      admin_audit: adminAudit,
+      online_audit: onlineAudit,
+      content_moderation: contentModeration,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '清理审计留存失败' });
   }
 });
 
@@ -3185,7 +3982,15 @@ router.get('/taoyuan/online/profile', loginRequired, async (req, res) => {
 
 router.post('/taoyuan/online/profile', loginRequired, signRequired, async (req, res) => {
   try {
-    const profile = await taoyuanSocialRuntime.updateOwnProfile(req.session.username, req.body || {});
+    const profile = await taoyuanSocialRuntime.updateOwnProfile(
+      req.session.username,
+      req.body || {},
+      buildRequestModerationAuditContext(req, {
+        scene: 'online_profile',
+        content_type: 'online_profile',
+        content_id: req.session.username,
+      }),
+    );
     res.json({ ok: true, profile });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存公开名片失败' });
@@ -3226,10 +4031,7 @@ router.get('/taoyuan/online/manor/:username', createOnlineReleaseGuard('manor'),
 
 router.post('/taoyuan/online/manor/guestbook', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const actor = {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    };
+    const actor = getSessionActor(req);
     const entry = await taoyuanManorRuntime.leaveGuestbookEntry(req.body || {}, actor);
     emitManorGuestbookNotificationCreatedEvent('guestbook_created', entry, actor);
     res.json({ ok: true, entry });
@@ -3240,10 +4042,7 @@ router.post('/taoyuan/online/manor/guestbook', createOnlineReleaseGuard('manor')
 
 router.post('/taoyuan/online/manor/guestbook/:entryId/reply', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const actor = {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    };
+    const actor = getSessionActor(req);
     const entry = await taoyuanManorRuntime.replyGuestbookEntry(req.params.entryId, req.body || {}, actor);
     emitManorGuestbookNotificationCreatedEvent('guestbook_replied', entry, actor);
     res.json({ ok: true, entry });
@@ -3266,10 +4065,7 @@ router.post('/taoyuan/online/manor/guestbook/:entryId/pin', createOnlineReleaseG
 
 router.post('/taoyuan/online/manor/visit', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const entry = await taoyuanManorRuntime.recordManorVisit(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const entry = await taoyuanManorRuntime.recordManorVisit(req.body || {}, getSessionActor(req));
     res.json({ ok: true, entry });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '记录庄园来访失败' });
@@ -3287,7 +4083,15 @@ router.post('/taoyuan/online/manor/guide', createOnlineReleaseGuard('manor'), lo
 
 router.post('/taoyuan/online/manor/theme-week', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const snapshot = await taoyuanManorRuntime.updateManorThemeWeek(req.session.username, req.body || {});
+    const snapshot = await taoyuanManorRuntime.updateManorThemeWeek(
+      req.session.username,
+      req.body || {},
+      buildRequestModerationAuditContext(req, {
+        scene: 'manor_theme_week',
+        content_type: 'manor_theme_week',
+        content_id: req.session.username,
+      }),
+    );
     res.json({ ok: true, snapshot });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存庄园主题周失败' });
@@ -3424,10 +4228,7 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-map', crea
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/water', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.waterCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.waterCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '浇水共同农田失败' });
@@ -3438,10 +4239,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/water
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/care', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.careCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.careCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '共同农田管护失败' });
@@ -3452,10 +4250,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/care'
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/plant', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.plantCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.plantCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '种植共同农田失败' });
@@ -3466,10 +4261,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/plant
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/fertilize', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.fertilizeCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.fertilizeCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '共同农田施肥失败' });
@@ -3480,10 +4272,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/ferti
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/harvest', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.harvestCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.harvestCohabitationSharedFarmPlot(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '收获共同农田失败' });
@@ -3494,10 +4283,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-map/harve
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/daily-settle', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.settleCohabitationDailyBonus(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.settleCohabitationDailyBonus(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '共同庄园日结失败' });
@@ -3520,10 +4306,7 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals', 
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/feed', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.feedCohabitationSharedAnimal(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.feedCohabitationSharedAnimal(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '喂食共同动物失败' });
@@ -3534,10 +4317,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/f
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/buy', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.buyCohabitationSharedAnimal(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.buyCohabitationSharedAnimal(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'buy shared animal failed' });
@@ -3548,10 +4328,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/b
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/purchase', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.purchaseCohabitationSharedAnimal(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.purchaseCohabitationSharedAnimal(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'purchase shared animal failed' });
@@ -3562,10 +4339,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/p
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/pet', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.petCohabitationSharedAnimal(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.petCohabitationSharedAnimal(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '抚摸共同动物失败' });
@@ -3576,10 +4350,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/p
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/collect-product', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.collectCohabitationSharedAnimalProduct(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.collectCohabitationSharedAnimalProduct(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'collect shared animal product failed' });
@@ -3590,10 +4361,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/c
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/sell', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.sellCohabitationSharedAnimal(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.sellCohabitationSharedAnimal(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'sell shared animal failed' });
@@ -3616,10 +4384,7 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-pets', cre
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-pets/care', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.careCohabitationSharedPet(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.careCohabitationSharedPet(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'care shared pet failed' });
@@ -3630,10 +4395,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-pets/care
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-workshop/process', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.processCohabitationSharedWorkshopRecipe(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.processCohabitationSharedWorkshopRecipe(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'process shared workshop recipe failed' });
@@ -3901,10 +4663,7 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/offline-status', 
 
 router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCohabitationRuntime.createCohabitationContract(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanCohabitationRuntime.createCohabitationContract(req.body || {}, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建同居契约失败' });
@@ -3914,10 +4673,7 @@ router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-queue/merge', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.mergeCohabitationOfflineQueue(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.mergeCohabitationOfflineQueue(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({
@@ -3933,10 +4689,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-queue/me
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflicts/preflight', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.preflightCohabitationOfflineConflicts(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.preflightCohabitationOfflineConflicts(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({
@@ -3951,10 +4704,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflict
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflicts/resolve', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.resolveCohabitationOfflineConflicts(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.resolveCohabitationOfflineConflicts(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({
@@ -3972,10 +4722,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-conflict
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/offline-auto-income/collect', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.collectCohabitationOfflineAutoIncome(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.collectCohabitationOfflineAutoIncome(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '领取离线自动收益失败' });
@@ -4041,10 +4788,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.requestCohabitationWarehouseHighValueWithdrawalCompensationReview(req.params.contractId, req.params.draftId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '提交共同仓库高价值取出补偿复核失败' });
@@ -4055,10 +4799,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/resolve', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.resolveCohabitationWarehouseHighValueWithdrawalCompensationReview(req.params.contractId, req.params.draftId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '处理共同仓库高价值取出补偿复核失败' });
@@ -4069,10 +4810,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/preflight', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalCompensationPreflight(req.params.contractId, req.params.draftId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录共同仓库高价值取出补偿预检失败' });
@@ -4083,10 +4821,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/execute', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalCompensationExecution(req.params.contractId, req.params.draftId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '\u8bb0\u5f55\u5171\u540c\u4ed3\u5e93\u9ad8\u4ef7\u503c\u53d6\u51fa\u8865\u507f\u6267\u884c\u5931\u8d25' });
@@ -4097,10 +4832,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/appeal-resolution', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalManualAppealResolution(req.params.contractId, req.params.draftId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'record warehouse manual appeal resolution failed' });
@@ -4111,10 +4843,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-v
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/compensation-review/operator-receipt-audit', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.recordCohabitationWarehouseHighValueWithdrawalOperatorReceiptAuditReview(req.params.contractId, req.params.draftId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'record warehouse operator receipt audit review failed' });
@@ -4137,10 +4866,7 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-va
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/high-value-withdrawal-drafts/:draftId/rollback', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(req.params.contractId, req.params.draftId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(req.params.contractId, req.params.draftId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '回滚共同仓库高价值取出草案失败' });
@@ -4184,10 +4910,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/govern
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-decorations/move', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.moveCohabitationSharedDecoration(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.moveCohabitationSharedDecoration(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'move shared decoration failed' });
@@ -4309,10 +5032,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-wishes', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.submitCohabitationFamilyWish(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.submitCohabitationFamilyWish(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '提交共同家庭心愿失败' });
@@ -4323,10 +5043,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-wishes', 
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-child-care', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.recordCohabitationFamilyChildCare(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.recordCohabitationFamilyChildCare(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录共同孩子照料失败' });
@@ -4337,10 +5054,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-child-car
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-build-apply', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.applyCohabitationFamilyBuildingRealBuild(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.applyCohabitationFamilyBuildingRealBuild(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '落账家族建筑失败' });
@@ -4351,10 +5065,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/materials/consume', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.consumeCohabitationFamilyBuildingMaterials(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.consumeCohabitationFamilyBuildingMaterials(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '消耗家族建筑材料失败' });
@@ -4365,10 +5076,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/rollback', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.rollbackCohabitationFamilyBuilding(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.rollbackCohabitationFamilyBuilding(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录家族建筑回滚失败' });
@@ -4379,10 +5087,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/fund/refund', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.refundCohabitationFamilyBuildingFund(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.refundCohabitationFamilyBuildingFund(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '退回家族建筑共同基金失败' });
@@ -4393,10 +5098,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/materials/restore', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.restoreCohabitationFamilyBuildingMaterials(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.restoreCohabitationFamilyBuildingMaterials(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复家族建筑共同仓库材料失败' });
@@ -4407,10 +5109,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/compensation/replay', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.replayCohabitationFamilyBuildingCompensation(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.replayCohabitationFamilyBuildingCompensation(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '收口家族建筑补偿重放失败' });
@@ -4421,10 +5120,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/request-review', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.requestCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.requestCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '请求家族建筑真实拆除复核失败' });
@@ -4435,10 +5131,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/approve-review', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.approveCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.approveCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '批准家族建筑真实拆除复核失败' });
@@ -4449,10 +5142,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/request-execution', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.requestCohabitationFamilyBuildingRealDemolitionExecution(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.requestCohabitationFamilyBuildingRealDemolitionExecution(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '请求家族建筑真实拆除执行失败' });
@@ -4463,10 +5153,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/write-personal-save', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '写回家族建筑真实拆除个人存档失败' });
@@ -4477,10 +5164,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/preview-main-state', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.previewCohabitationFamilyBuildingRealDemolitionMainState(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.previewCohabitationFamilyBuildingRealDemolitionMainState(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '预览家族建筑真实拆除个人主状态失败' });
@@ -4491,10 +5175,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/verify-main-state-mapping', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.displayName || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(req.params.contractId, req.body || {}, getSessionActor(req));
       return res.json({ ok: true, ...result });
     } catch (error) {
       return handleApiError(res, error, '记录家族建筑真实拆除个人主状态映射证明失败');
@@ -4505,10 +5186,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/guard-main-state-mutation', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.displayName,
-      });
+      const result = await taoyuanCohabitationRuntime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(req.params.contractId, req.body || {}, getSessionActor(req));
       return res.json({ ok: true, ...result });
     } catch (error) {
       return sendRuntimeError(res, error, '记录家族建筑真实拆除个人主状态变更安全阀失败');
@@ -4519,10 +5197,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/execute-main-state-mutation', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.displayName,
-      });
+      const result = await taoyuanCohabitationRuntime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(req.params.contractId, req.body || {}, getSessionActor(req));
       return res.json({ ok: true, ...result });
     } catch (error) {
       return sendRuntimeError(res, error, '执行家族建筑真实拆除个人主状态变更失败');
@@ -4533,10 +5208,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/bind-main-state-exact-targets', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.displayName,
-      });
+      const result = await taoyuanCohabitationRuntime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(req.params.contractId, req.body || {}, getSessionActor(req));
       return res.json({ ok: true, ...result });
     } catch (error) {
       return sendRuntimeError(res, error, '绑定家族建筑真实拆除个人主状态精确目标失败');
@@ -4547,10 +5219,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/execute-main-state-exact-targets', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.displayName,
-      });
+      const result = await taoyuanCohabitationRuntime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(req.params.contractId, req.body || {}, getSessionActor(req));
       return res.json({ ok: true, ...result });
     } catch (error) {
       return sendRuntimeError(res, error, '执行家族建筑真实拆除个人主状态精确目标失败');
@@ -4561,10 +5230,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/resolve-main-state-exact-targets', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.displayName,
-      });
+      const result = await taoyuanCohabitationRuntime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(req.params.contractId, req.body || {}, getSessionActor(req));
       return res.json({ ok: true, ...result });
     } catch (error) {
       return sendRuntimeError(res, error, '人工解析家族建筑真实拆除个人主状态精确目标失败');
@@ -4575,10 +5241,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/execute-main-state-exact-mutation', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.displayName,
-      });
+      const result = await taoyuanCohabitationRuntime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(req.params.contractId, req.body || {}, getSessionActor(req));
       return res.json({ ok: true, ...result });
     } catch (error) {
       return sendRuntimeError(res, error, '执行家族建筑真实拆除个人主状态变更适配器失败');
@@ -4589,10 +5252,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/reject-review', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.rejectCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.rejectCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '驳回家族建筑真实拆除复核失败' });
@@ -4601,13 +5261,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
 });
 
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/reject', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.rejectCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, getSessionActor(req));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '驳回家族建筑真实拆除复核失败' });
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions/default-restore', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.restoreCohabitationDefaultPermissions(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.restoreCohabitationDefaultPermissions(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复同居默认权限失败' });
@@ -4618,10 +5285,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions/defa
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/recovery-appeals', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.submitCohabitationRecoveryAppeal(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.submitCohabitationRecoveryAppeal(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '提交共同庄园恢复申诉失败' });
@@ -4632,10 +5296,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/recovery-appeals
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/safe-versions/rollback', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.rollbackCohabitationContractSafeVersion(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.rollbackCohabitationContractSafeVersion(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '回滚同居契约安全版本失败' });
@@ -4643,26 +5304,10 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/safe-versions/ro
   });
 });
 
-  return withTaoyuanExchangeLock(async () => {
-    try {
-      const result = await taoyuanCohabitationRuntime.rejectCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
-      res.json({ ok: true, ...result });
-    } catch (error) {
-      res.status(error.status || 500).json({ ok: false, msg: error.message || '驳回家族建筑真实拆除复核失败' });
-    }
-  });
-});
-
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.updateCohabitationPermissions(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.updateCohabitationPermissions(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '调整同居权限失败' });
@@ -4673,10 +5318,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions', cr
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/roles', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.updateCohabitationFamilyRole(req.params.contractId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.updateCohabitationFamilyRole(req.params.contractId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '调整家族庄园职位失败' });
@@ -4698,10 +5340,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/accept', createO
 
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-preview', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCohabitationRuntime.createSeparationPreview(req.params.contractId, req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanCohabitationRuntime.createSeparationPreview(req.params.contractId, req.body || {}, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '生成分居预览失败' });
@@ -4711,10 +5350,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/confirm', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.confirmSeparationPreview(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.confirmSeparationPreview(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '确认分居预览失败' });
@@ -4725,10 +5361,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/request-execution', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.requestSeparationExecution(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.requestSeparationExecution(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '请求分居执行失败' });
@@ -4739,10 +5372,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/record-execution-failure', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.recordSeparationExecutionFailure(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.recordSeparationExecutionFailure(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'record separation execution failure failed' });
@@ -4753,10 +5383,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/execute-asset-return', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.executeSeparationAssetReturn(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.executeSeparationAssetReturn(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行分居返还记录失败' });
@@ -4767,10 +5394,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/write-personal-farm-returns', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.writeSeparationPersonalFarmReturns(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.writeSeparationPersonalFarmReturns(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '写回分居来源田区失败' });
@@ -4781,10 +5405,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/confirm-shared-fund-delta', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.confirmSeparationSharedFundDelta(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.confirmSeparationSharedFundDelta(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'confirm separation shared fund delta failed' });
@@ -4798,10 +5419,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
       const result = await taoyuanCohabitationRuntime.confirmSeparationSharedFundDelta(req.params.contractId, req.params.previewId, {
         ...(req.body || {}),
         confirmation_scope: 'shared_fund_dispute',
-      }, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      }, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || 'confirm separation shared fund dispute failed' });
@@ -4812,10 +5430,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/refund-shared-fund', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.refundSeparationSharedFund(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.refundSeparationSharedFund(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '返还分居共同基金失败' });
@@ -4826,10 +5441,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/return-shared-warehouse', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.returnSeparationSharedWarehouse(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.returnSeparationSharedWarehouse(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '返还分居共同仓库失败' });
@@ -4840,10 +5452,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/split-decorations-buildings', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.splitSeparationDecorationsAndBuildings(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.splitSeparationDecorationsAndBuildings(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录分居装饰 / 建筑拆分失败' });
@@ -4854,10 +5463,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/resolve-family-story', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.resolveSeparationFamilyStory(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.resolveSeparationFamilyStory(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录分居剧情拆分失败' });
@@ -4868,10 +5474,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/record-story-cinematic', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.recordSeparationStoryCinematicPlayback(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.recordSeparationStoryCinematicPlayback(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录分居剧情演出播放失败' });
@@ -4882,10 +5485,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/write-personal-story-receipts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.writeSeparationPersonalStoryReceipts(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.writeSeparationPersonalStoryReceipts(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '写入分居个人剧情回执失败' });
@@ -4896,10 +5496,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/resolve-child-arrangement', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.resolveSeparationChildArrangement(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.resolveSeparationChildArrangement(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '记录分居孩子安排失败' });
@@ -4910,10 +5507,7 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/write-personal-family-receipts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanCohabitationRuntime.writeSeparationPersonalFamilyReceipts(req.params.contractId, req.params.previewId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const result = await taoyuanCohabitationRuntime.writeSeparationPersonalFamilyReceipts(req.params.contractId, req.params.previewId, req.body || {}, getSessionActor(req));
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '写入分居个人家庭回执失败' });
@@ -4932,10 +5526,7 @@ router.get('/taoyuan/online/orders', createOnlineReleaseGuard('order'), loginReq
 
 router.post('/taoyuan/online/orders', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const actor = {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    };
+    const actor = getSessionActor(req);
     const order = await taoyuanCoopOrderRuntime.createCoopOrder(req.body || {}, actor);
     if (order?.target_username) {
       emitCoopOrderNotificationCreatedEvent('order_created', { order }, actor);
@@ -5171,7 +5762,15 @@ router.get('/taoyuan/online/social/neighbors/overview', createOnlineReleaseGuard
 
 router.post('/taoyuan/online/social/neighbors', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
-    const group = await taoyuanSocialRuntime.createNeighborGroup(req.session.username, req.body || {});
+    const group = await taoyuanSocialRuntime.createNeighborGroup(
+      req.session.username,
+      req.body || {},
+      buildRequestModerationAuditContext(req, {
+        scene: 'neighbor_group',
+        content_type: 'neighbor_group',
+        content_id: req.session.username,
+      }),
+    );
     res.json({ ok: true, group });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建邻里失败' });
@@ -5225,7 +5824,14 @@ router.post('/taoyuan/online/social/neighbors/requests/:requestId/reject', creat
 router.post('/taoyuan/online/social/neighbors/notice', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const actor = getSessionActor(req);
-    const group = await taoyuanSocialRuntime.updateNeighborNotice(req.session.username, req.body || {});
+    const group = await taoyuanSocialRuntime.updateNeighborNotice(
+      req.session.username,
+      req.body || {},
+      buildRequestModerationAuditContext(req, {
+        scene: 'neighbor_notice',
+        content_type: 'neighbor_notice',
+      }),
+    );
     emitNeighborNotificationCreatedEvent('notice_updated', { group }, actor);
     res.json({ ok: true, group });
   } catch (error) {
@@ -5261,7 +5867,15 @@ router.get('/taoyuan/online/social/subscriptions', createOnlineReleaseGuard('soc
 
 router.post('/taoyuan/online/social/subscriptions', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
-    const subscription = await taoyuanSocialRuntime.followTarget(req.session.username, req.body || {});
+    const subscription = await taoyuanSocialRuntime.followTarget(
+      req.session.username,
+      req.body || {},
+      buildRequestModerationAuditContext(req, {
+        scene: 'social_subscription',
+        content_type: 'social_subscription_label',
+        content_id: req.body?.target_id || '',
+      }),
+    );
     res.json({ ok: true, subscription });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '添加订阅失败' });
@@ -5326,10 +5940,7 @@ router.get('/taoyuan/online/societies', loginRequired, async (req, res) => {
 
 router.post('/taoyuan/online/societies', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.createSociety(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanSocietyRuntime.createSociety(req.body || {}, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建村社失败' });
@@ -5417,10 +6028,7 @@ router.post('/taoyuan/online/societies/leave', loginRequired, signRequired, asyn
 
 router.post('/taoyuan/online/societies/proposals', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.createSocietyProposal(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanSocietyRuntime.createSocietyProposal(req.body || {}, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建村社提案失败' });
@@ -5441,10 +6049,7 @@ router.post('/taoyuan/online/societies/proposals/:proposalId/vote', loginRequire
 
 router.post('/taoyuan/online/societies/proposals/:proposalId/close', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.closeSocietyProposal(req.params.proposalId, req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanSocietyRuntime.closeSocietyProposal(req.params.proposalId, req.body || {}, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '归档村社提案失败' });
@@ -5508,10 +6113,7 @@ router.post('/taoyuan/online/world-events/:eventId/contribute', loginRequired, s
 
 router.post('/taoyuan/online/festival/rooms', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanActivityRoomRuntime.createFestivalRoom(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanActivityRoomRuntime.createFestivalRoom(req.body || {}, getSessionActor(req));
     emitActivityRoomRealtimeEvent('festival', 'create', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -5681,10 +6283,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/close', createOnlineReleaseG
 
 router.post('/taoyuan/online/expedition/rooms', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanActivityRoomRuntime.createExpeditionRoom(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const result = await taoyuanActivityRoomRuntime.createExpeditionRoom(req.body || {}, getSessionActor(req));
     emitActivityRoomRealtimeEvent('expedition', 'create', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -5906,10 +6505,13 @@ router.get('/admin/official-control/config/current', userAdminAuth, officialCont
 
 router.post('/admin/official-control/config/publish', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, async (req, res) => {
   try {
-    const release = officialControlPlatform.publishRelease(req.body?.values || req.body || {}, {
+    const beforeRelease = officialControlPlatform.getCurrentRelease();
+    const values = moderateOfficialControlManagedValuesPayload(req.body?.values || req.body || {}, req);
+    const release = officialControlPlatform.publishRelease(values, {
       operator_name: req.admin?.operator_name,
       operator_role: req.admin?.role,
     });
+    await appendAdminAuditLog(req, 'publish_official_control_config', '', buildOfficialControlConfigAuditDetail(beforeRelease, release));
     if (typeof cfg.getManagedStatus === 'function') {
       const officialManagedConfig = require('../officialManagedConfig');
       await officialManagedConfig.refreshFromRemote('publish');
@@ -5985,12 +6587,18 @@ router.get('/admin/users/:username', userAdminAuth, async (req, res) => {
     const username = decodeRouteUsername(req.params.username);
     const user = await db.getUserAdmin(username);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
+    const recentAuditLogs = await db.listAdminAuditLogs({
+      page: 1,
+      pageSize: 20,
+      targetUsername: user.username,
+    });
 
     res.json({
       ok: true,
       user: {
         ...user,
         save_file: getSaveFileSummary(user.username),
+        recent_governance_logs: recentAuditLogs.logs,
       },
     });
   } catch (error) {
@@ -6002,10 +6610,21 @@ router.post('/admin/users/:username/quota', userAdminAuth, async (req, res) => {
   try {
     const username = decodeRouteUsername(req.params.username);
     const quota = Math.max(0, Math.round(Number(req.body?.quota) || 0));
+    const beforeUser = await db.getUserAdmin(username);
     const user = await db.setUserQuota(username, quota);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
 
-    await appendAdminAuditLog(req, 'set_user_quota', username, { quota });
+    await appendAdminAuditLog(req, 'set_user_quota', user.username || username, {
+      target_type: 'user',
+      target_id: user.username || username,
+      before_status: beforeUser?.status || '',
+      after_status: user.status || '',
+      before_quota: Math.max(0, Number(beforeUser?.quota) || 0),
+      after_quota: Math.max(0, Number(user.quota) || 0),
+      quota_delta: Math.max(0, Number(user.quota) || 0) - Math.max(0, Number(beforeUser?.quota) || 0),
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+    });
     res.json({ ok: true, user });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '修改额度失败' });
@@ -6016,10 +6635,20 @@ router.post('/admin/users/:username/reset-password', adminAuth, async (req, res)
   try {
     const username = decodeRouteUsername(req.params.username);
     const newPassword = String(req.body?.new_password || '');
+    const beforeUser = await db.getUserAdmin(username);
     const result = await db.resetUserPassword(username, newPassword);
     if (!result.ok) return res.status(400).json(result);
 
-    await appendAdminAuditLog(req, 'reset_user_password', username, { password_length: newPassword.length });
+    await appendAdminAuditLog(req, 'reset_user_password', beforeUser?.username || username, {
+      target_type: 'user_credential',
+      target_id: beforeUser?.username || username,
+      before_status: beforeUser?.status || '',
+      after_status: beforeUser?.status || '',
+      credential_changed: true,
+      password_length: newPassword.length,
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+    });
     res.json({ ok: true });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '重置密码失败' });
@@ -6034,10 +6663,21 @@ router.post('/admin/users/:username/status', adminAuth, async (req, res) => {
       return res.status(400).json({ ok: false, msg: '无效的用户状态' });
     }
 
+    const beforeUser = await db.getUserAdmin(username);
     const user = await db.setUserStatus(username, status);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在或状态不可修改' });
 
-    await appendAdminAuditLog(req, 'set_user_status', username, { status });
+    await appendAdminAuditLog(req, 'set_user_status', user.username || username, {
+      target_type: 'user',
+      target_id: user.username || username,
+      before_status: beforeUser?.status || '',
+      after_status: user.status || status,
+      before_banned_at: beforeUser?.banned_at || null,
+      after_banned_at: user.banned_at || null,
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+      evidence_retention: status === 'banned' || beforeUser?.status === 'banned' ? 'major' : '',
+    });
     res.json({ ok: true, user });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '修改用户状态失败' });
@@ -6047,10 +6687,23 @@ router.post('/admin/users/:username/status', adminAuth, async (req, res) => {
 router.delete('/admin/users/:username', adminAuth, async (req, res) => {
   try {
     const username = decodeRouteUsername(req.params.username);
+    const beforeUser = await db.getUserAdmin(username);
+    const beforeSave = beforeUser ? getSaveFileSummary(beforeUser.username) : null;
     const user = await db.deleteUserPermanently(username);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在或已删除' });
 
-    await appendAdminAuditLog(req, 'delete_user', user.username, { mode: 'permanent' });
+    await appendAdminAuditLog(req, 'delete_user', user.username, {
+      target_type: 'user',
+      target_id: user.username,
+      mode: 'permanent',
+      before_status: beforeUser?.status || user.status || '',
+      after_status: 'deleted',
+      before_quota: Math.max(0, Number(beforeUser?.quota ?? user.quota) || 0),
+      deleted_save: buildSaveAuditSummary(beforeSave || getSaveFileSummary(user.username)),
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+      evidence_retention: 'major',
+    });
     res.json({ ok: true, user });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '删除用户失败' });
@@ -6077,11 +6730,22 @@ router.post('/admin/users/batch-delete', adminAuth, async (req, res) => {
 
     const deleted_usernames = [];
     const missing_usernames = [];
+    const deleted_user_summaries = [];
 
     for (const username of usernames) {
+      const beforeUser = await db.getUserAdmin(username);
+      const beforeSave = beforeUser ? getSaveFileSummary(beforeUser.username) : null;
       const deleted = await db.deleteUserPermanently(username);
-      if (deleted) deleted_usernames.push(deleted.username);
-      else missing_usernames.push(username);
+      if (deleted) {
+        deleted_usernames.push(deleted.username);
+        deleted_user_summaries.push({
+          ...buildUserAdminAuditSummary(beforeUser || deleted),
+          after_status: 'deleted',
+          deleted_save: buildSaveAuditSummary(beforeSave || getSaveFileSummary(deleted.username)),
+        });
+      } else {
+        missing_usernames.push(username);
+      }
     }
 
     if (!deleted_usernames.length) {
@@ -6089,10 +6753,17 @@ router.post('/admin/users/batch-delete', adminAuth, async (req, res) => {
     }
 
     await appendAdminAuditLog(req, 'delete_user', deleted_usernames.join(','), {
+      target_type: 'user_batch',
+      target_id: deleted_usernames.join(','),
       mode: 'permanent_batch',
       count: deleted_usernames.length,
       usernames: deleted_usernames,
       missing_usernames,
+      deleted_users: deleted_user_summaries.slice(0, 100),
+      deleted_users_truncated: deleted_user_summaries.length > 100,
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+      evidence_retention: 'major',
     });
 
     res.json({ ok: true, deleted_usernames, missing_usernames });
@@ -6125,7 +6796,17 @@ router.get('/admin/users/:username/save/export', adminAuth, async (req, res) => 
       return res.status(404).json({ ok: false, msg: '该用户没有存档文件' });
     }
 
-    await appendAdminAuditLog(req, 'export_user_save', canonicalUsername, { file_name: `${canonicalUsername}.json` });
+    const saveSummary = getSaveFileSummary(canonicalUsername);
+    await appendAdminAuditLog(req, 'export_user_save', canonicalUsername, {
+      target_type: 'user_save',
+      target_id: canonicalUsername,
+      before_status: 'available',
+      after_status: 'exported',
+      file_name: `${canonicalUsername}.json`,
+      save_summary: buildSaveAuditSummary(saveSummary),
+      reason: req.query?.reason || req.body?.reason || '',
+      admin_note: req.query?.admin_note || req.body?.admin_note || req.body?.note || '',
+    });
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${canonicalUsername}.json`)}`);
     res.send(fs.readFileSync(filePath, 'utf8'));
@@ -6161,11 +6842,24 @@ router.post('/admin/users/:username/save/migrate', adminAuth, async (req, res) =
       return res.status(400).json({ ok: false, msg: '目标用户已存在存档文件，请确认覆盖' });
     }
 
+    const sourceSaveBefore = getSaveFileSummary(canonicalSourceUsername);
+    const targetSaveBefore = getSaveFileSummary(canonicalTargetUsername);
     ensureTaoyuanSavesDir();
     fs.copyFileSync(sourcePath, targetPath);
+    const targetSaveAfter = getSaveFileSummary(canonicalTargetUsername);
     await appendAdminAuditLog(req, 'migrate_user_save', canonicalSourceUsername, {
+      target_type: 'user_save_migration',
+      target_id: `${canonicalSourceUsername}->${canonicalTargetUsername}`,
       target_username: canonicalTargetUsername,
+      source_username: canonicalSourceUsername,
       overwrite,
+      before_status: targetSaveBefore.exists ? 'target_save_exists' : 'target_save_missing',
+      after_status: targetSaveAfter.exists ? 'target_save_exists' : 'target_save_missing',
+      source_save: buildSaveAuditSummary(sourceSaveBefore),
+      target_save_before: buildSaveAuditSummary(targetSaveBefore),
+      target_save_after: buildSaveAuditSummary(targetSaveAfter),
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
     });
     res.json({
       ok: true,
@@ -6182,7 +6876,16 @@ router.get('/admin/audit-logs', adminAuth, async (req, res) => {
   try {
     const page = parsePositiveInt(req.query.page, 1);
     const pageSize = parsePositiveInt(req.query.page_size, 20);
-    const result = await db.listAdminAuditLogs({ page, pageSize });
+    const result = await db.listAdminAuditLogs({
+      page,
+      pageSize,
+      targetUsername: req.query.target_username || req.query.targetUsername || req.query.username,
+      action: req.query.action,
+      operatorName: req.query.operator_name || req.query.operatorName,
+      outcome: req.query.outcome,
+      createdFrom: req.query.created_from || req.query.createdFrom || req.query.from,
+      createdTo: req.query.created_to || req.query.createdTo || req.query.to,
+    });
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取操作日志失败' });
@@ -6197,9 +6900,11 @@ router.get('/admin/taoyuan/online-audit', adminAuth, async (req, res) => {
       page,
       pageSize,
       username: req.query.username,
-      routeKey: req.query.route_key,
+      routeKey: req.query.route_key || req.query.routeKey,
       action: req.query.action,
       outcome: req.query.outcome,
+      createdFrom: req.query.created_from || req.query.createdFrom || req.query.from,
+      createdTo: req.query.created_to || req.query.createdTo || req.query.to,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -6234,7 +6939,15 @@ router.post('/admin/content/homepage-about', userAdminAuth, async (req, res) => 
     if (!['draft', 'publish'].includes(action)) {
       return res.status(400).json({ ok: false, msg: '无效的内容操作' });
     }
-    const payload = normalizeHomepageAboutPayload(req.body || {});
+    const payload = moderateHomepageAboutPayload(
+      normalizeHomepageAboutPayload(req.body || {}),
+      buildRequestModerationAuditContext(req, {
+        scene: 'admin_content',
+        username: req.admin?.operator_name || '',
+        content_type: 'homepage_about',
+        content_id: 'homepage_about',
+      }),
+    );
     const summary = String(req.body?.summary || '').trim().slice(0, 120);
     const published = action === 'publish';
     let publishedContent = null;
@@ -6271,7 +6984,15 @@ router.post('/admin/content/homepage-about/restore/:revisionId', userAdminAuth, 
     if (!revision || revision.content_key !== 'homepage_about') {
       return res.status(404).json({ ok: false, msg: '内容版本不存在' });
     }
-    const payload = normalizeHomepageAboutPayload(revision.payload || {});
+    const payload = moderateHomepageAboutPayload(
+      normalizeHomepageAboutPayload(revision.payload || {}),
+      buildRequestModerationAuditContext(req, {
+        scene: 'admin_content_restore',
+        username: req.admin?.operator_name || '',
+        content_type: 'homepage_about',
+        content_id: `homepage_about:${revision.id}`,
+      }),
+    );
     const content = publishHomepageAboutContent(payload);
     const nextRevision = await appendContentRevisionLog(req, 'restore', content, {
       contentKey: 'homepage_about',
@@ -6301,7 +7022,7 @@ router.get('/admin/taoyuan/android/release-config', userAdminAuth, async (req, r
 
 router.post('/admin/taoyuan/android/release-config', userAdminAuth, async (req, res) => {
   try {
-    const config = publishAndroidAppReleaseConfig(req.body || {});
+    const config = publishAndroidAppReleaseConfig(moderateAndroidAppReleaseConfigPayload(req.body || {}, req));
     await appendAdminAuditLog(req, 'update_android_release_config', '', {
       enabled: config.enabled,
       latest_version_name: config.latestVersionName,
@@ -6328,7 +7049,7 @@ router.get('/admin/taoyuan/online-release-config', adminAuth, async (req, res) =
 
 router.post('/admin/taoyuan/online-release-config', adminAuth, async (req, res) => {
   try {
-    const config = publishOnlineReleaseConfig(req.body || {});
+    const config = publishOnlineReleaseConfig(moderateOnlineReleaseConfigPayload(req.body || {}, req));
     await appendAdminAuditLog(req, 'update_online_release_config', '', {
       enabled: config.enabled,
       gray_channel: config.grayChannel,
@@ -6990,15 +7711,40 @@ router.get('/taoyuan/ai/config', (req, res) => {
   res.json({ ok: true, config: taoyuanAiAssistant.getPublicConfig() });
 });
 
+function writeSseEvent(res, event, data = {}) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+function sendAiAskStreamError(res, error) {
+  const message = error?.message || 'AI 助手暂时不可用';
+  writeSseEvent(res, 'error', { error: message });
+  writeSseEvent(res, 'done', { done: true, error: message });
+}
+
 router.post('/taoyuan/ai/ask', async (req, res) => {
+  let rateLimit = null;
   try {
-    const rateLimit = consumePublicAiAskQuota(req);
+    rateLimit = consumePublicAiAskQuota(req);
     if (!rateLimit.ok) {
       res.setHeader('Retry-After', String(Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000))));
       return res.status(429).json({ ok: false, msg: 'AI 提问过于频繁，请稍后再试' });
     }
 
-    const result = await taoyuanAiAssistant.askPublic(req.body?.question, {
+    const question = moderateText(req.body?.question, {
+      label: 'AI 提问内容',
+      field: 'question',
+      scene: 'ai_question',
+      maxLength: 1200,
+      storageMaxLength: 1200,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'ai_question',
+        content_type: 'ai_question',
+        content_id: req.body?.route_name || '',
+      }),
+    });
+
+    const result = await taoyuanAiAssistant.askPublic(question, {
       routeName: req.body?.route_name,
       contextLabel: req.body?.context_label,
       contextSnapshot: req.body?.context_snapshot,
@@ -7006,16 +7752,87 @@ router.post('/taoyuan/ai/ask', async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || 'AI 助手暂时不可用' });
+  } finally {
+    finishPublicAiAskQuota(rateLimit);
+  }
+});
+
+router.post('/taoyuan/ai/ask-stream', async (req, res) => {
+  let rateLimit = null;
+  let quotaFinished = false;
+  const finishQuota = () => {
+    if (quotaFinished) return;
+    quotaFinished = true;
+    finishPublicAiAskQuota(rateLimit);
+  };
+
+  res.on('close', finishQuota);
+
+  try {
+    rateLimit = consumePublicAiAskQuota(req);
+    if (!rateLimit.ok) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000))));
+      return res.status(429).json({ ok: false, msg: 'AI 提问过于频繁，请稍后再试' });
+    }
+
+    const question = moderateText(req.body?.question, {
+      label: 'AI 提问内容',
+      field: 'question',
+      maxLength: 1200,
+      storageMaxLength: 1200,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'ai_question_stream',
+        content_type: 'ai_question',
+        content_id: req.body?.route_name || '',
+      }),
+    });
+
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    for (const phase of taoyuanAiAssistant.getAskStreamPhases()) {
+      writeSseEvent(res, 'phase', phase);
+    }
+
+    const result = await taoyuanAiAssistant.askPublic(question, {
+      routeName: req.body?.route_name,
+      contextLabel: req.body?.context_label,
+      contextSnapshot: req.body?.context_snapshot,
+    });
+
+    for (const item of taoyuanAiAssistant.buildAskStreamResultEvents(result)) {
+      writeSseEvent(res, item.event, item.data);
+    }
+    res.end();
+  } catch (error) {
+    if (res.headersSent) {
+      sendAiAskStreamError(res, error);
+      res.end();
+      return;
+    }
+    res.status(error.status || 500).json({ ok: false, msg: error.message || 'AI 助手暂时不可用' });
+  } finally {
+    finishQuota();
   }
 });
 
 router.post('/admin/taoyuan/ai/ask-debug', adminAuth, async (req, res) => {
   try {
+    const question = req.body?.question;
+    const routeName = req.body?.route_name;
     const result = await taoyuanAiAssistant.askDebug(req.body?.question, {
-      routeName: req.body?.route_name,
+      routeName,
       contextLabel: req.body?.context_label,
       contextSnapshot: req.body?.context_snapshot,
     });
+    await appendAdminAuditLog(req, 'debug_ai_ask', '', buildAiDebugAskAuditDetail({
+      question,
+      routeName,
+      result,
+    }));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || 'AI 调试问答失败' });
@@ -7026,12 +7843,13 @@ router.get('/admin/taoyuan/ai/config', adminAuth, (req, res) => {
   res.json({ ok: true, config: taoyuanAiAssistant.getAdminConfig() });
 });
 
-router.post('/admin/taoyuan/ai/config', adminAuth, (req, res) => {
+router.post('/admin/taoyuan/ai/config', adminAuth, async (req, res) => {
   try {
     const readBodyValue = (camelKey, snakeKey = camelKey) =>
       req.body?.[camelKey] !== undefined ? req.body[camelKey] : req.body?.[snakeKey];
 
-    const config = taoyuanAiAssistant.setAdminConfig({
+    const beforeConfig = taoyuanAiAssistant.getAdminConfig();
+    const payload = {
       enabled: readBodyValue('enabled'),
       mode: readBodyValue('mode'),
       sourceReadEnabled: readBodyValue('sourceReadEnabled', 'source_read_enabled'),
@@ -7041,11 +7859,20 @@ router.post('/admin/taoyuan/ai/config', adminAuth, (req, res) => {
       consoleCreditMessage: readBodyValue('consoleCreditMessage', 'console_credit_message'),
       apiUrl: readBodyValue('apiUrl', 'api_url'),
       apiKey: readBodyValue('apiKey', 'api_key'),
+      apiKeyAction: readBodyValue('apiKeyAction', 'api_key_action'),
+      clearApiKey: readBodyValue('clearApiKey', 'clear_api_key'),
       model: readBodyValue('model'),
       temperature: readBodyValue('temperature'),
       systemPrompt: readBodyValue('systemPrompt', 'system_prompt'),
       blockedTopics: readBodyValue('blockedTopics', 'blocked_topics'),
-    });
+    };
+    const moderatedPayload = moderateAdminAiConfigPayload(payload, req);
+    const config = taoyuanAiAssistant.setAdminConfig(moderatedPayload);
+    await appendAdminAuditLog(req, 'update_ai_config', '', buildAiConfigAuditDetail({
+      beforeConfig,
+      afterConfig: config,
+      input: moderatedPayload,
+    }));
     res.json({ ok: true, config });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存 AI 配置失败' });
@@ -7060,9 +7887,15 @@ router.get('/admin/taoyuan/ai/source-index', adminAuth, (req, res) => {
   }
 });
 
-router.post('/admin/taoyuan/ai/source-index/rebuild', adminAuth, (req, res) => {
+router.post('/admin/taoyuan/ai/source-index/rebuild', adminAuth, async (req, res) => {
   try {
-    res.json({ ok: true, status: taoyuanAiAssistant.rebuildSourceIndex() });
+    const status = taoyuanAiAssistant.rebuildSourceIndex();
+    await appendAdminAuditLog(req, 'rebuild_ai_source_index', '', buildAiIndexAuditDetail({
+      targetType: 'ai_source_index',
+      status,
+      action: 'rebuild',
+    }));
+    res.json({ ok: true, status });
   } catch (error) {
     res.status(500).json({ ok: false, msg: error.message || '重建源码索引失败' });
   }
@@ -7076,9 +7909,15 @@ router.get('/admin/taoyuan/ai/noun-lexicon', adminAuth, (req, res) => {
   }
 });
 
-router.post('/admin/taoyuan/ai/noun-lexicon/rebuild', adminAuth, (req, res) => {
+router.post('/admin/taoyuan/ai/noun-lexicon/rebuild', adminAuth, async (req, res) => {
   try {
-    res.json({ ok: true, status: taoyuanAiAssistant.rebuildNounLexicon() });
+    const status = taoyuanAiAssistant.rebuildNounLexicon();
+    await appendAdminAuditLog(req, 'rebuild_ai_noun_lexicon', '', buildAiIndexAuditDetail({
+      targetType: 'ai_noun_lexicon',
+      status,
+      action: 'rebuild',
+    }));
+    res.json({ ok: true, status });
   } catch (error) {
     res.status(500).json({ ok: false, msg: error.message || '重建名词词典失败' });
   }
@@ -7094,48 +7933,85 @@ router.get('/admin/taoyuan/ai/knowledge', adminAuth, (req, res) => {
   }
 });
 
-router.post('/admin/taoyuan/ai/knowledge', adminAuth, (req, res) => {
+router.post('/admin/taoyuan/ai/knowledge', adminAuth, async (req, res) => {
   try {
-    const entry = taoyuanAiAssistant.createKnowledgeEntry(req.body || {});
+    const payload = moderateAdminAiKnowledgePayload(req.body || {}, req);
+    const entry = taoyuanAiAssistant.createKnowledgeEntry(payload);
+    await appendAdminAuditLog(req, 'create_ai_knowledge', '', buildAiKnowledgeAuditDetail({
+      afterEntry: entry,
+      action: 'create',
+    }));
     res.json({ ok: true, entry });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建知识条目失败' });
   }
 });
 
-router.put('/admin/taoyuan/ai/knowledge/:id', adminAuth, (req, res) => {
+router.put('/admin/taoyuan/ai/knowledge/:id', adminAuth, async (req, res) => {
   try {
-    const entry = taoyuanAiAssistant.updateKnowledgeEntry(req.params.id, req.body || {});
+    const beforeEntry = taoyuanAiAssistant
+      .listKnowledgeEntries()
+      .find(entry => String(entry.id) === String(req.params.id)) || null;
+    const payload = moderateAdminAiKnowledgePayload(req.body || {}, req, { contentId: req.params.id });
+    const entry = taoyuanAiAssistant.updateKnowledgeEntry(req.params.id, payload);
+    await appendAdminAuditLog(req, 'update_ai_knowledge', '', buildAiKnowledgeAuditDetail({
+      beforeEntry,
+      afterEntry: entry,
+      id: req.params.id,
+      action: 'update',
+    }));
     res.json({ ok: true, entry });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新知识条目失败' });
   }
 });
 
-router.delete('/admin/taoyuan/ai/knowledge/:id', adminAuth, (req, res) => {
+router.delete('/admin/taoyuan/ai/knowledge/:id', adminAuth, async (req, res) => {
   try {
     const entry = taoyuanAiAssistant.deleteKnowledgeEntry(req.params.id);
+    await appendAdminAuditLog(req, 'delete_ai_knowledge', '', buildAiKnowledgeAuditDetail({
+      beforeEntry: entry,
+      id: req.params.id,
+      action: 'delete',
+    }));
     res.json({ ok: true, entry });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '删除知识条目失败' });
   }
 });
 
-router.post('/admin/taoyuan/ai/knowledge/source-draft', adminAuth, (req, res) => {
+router.post('/admin/taoyuan/ai/knowledge/source-draft', adminAuth, async (req, res) => {
   try {
-    const question = req.body?.question;
-    const routeName = req.body?.route_name;
+    const { question, routeName } = moderateAdminAiSourceDraftPayload(req);
     const snippets = taoyuanAiAssistant.searchSourceContext(question, routeName);
     const draft = taoyuanAiAssistant.draftKnowledgeFromSource(question, routeName, snippets);
+    await appendAdminAuditLog(req, 'draft_ai_knowledge_from_source', '', buildAiSourceDraftAuditDetail({
+      question,
+      routeName,
+      snippets,
+      draft,
+    }));
     res.json({ ok: true, snippets, draft });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '生成知识草稿失败' });
   }
 });
 
-router.post('/admin/taoyuan/ai/knowledge/:id/publish', adminAuth, (req, res) => {
+router.post('/admin/taoyuan/ai/knowledge/:id/publish', adminAuth, async (req, res) => {
   try {
+    const current = taoyuanAiAssistant
+      .listKnowledgeEntries()
+      .find(entry => String(entry.id) === String(req.params.id));
+    if (current) {
+      moderateAdminAiKnowledgePayload(current, req, { contentId: req.params.id });
+    }
     const entry = taoyuanAiAssistant.publishKnowledgeEntry(req.params.id);
+    await appendAdminAuditLog(req, 'publish_ai_knowledge', '', buildAiKnowledgeAuditDetail({
+      beforeEntry: current,
+      afterEntry: entry,
+      id: req.params.id,
+      action: 'publish',
+    }));
     res.json({ ok: true, entry });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发布知识条目失败' });
@@ -7291,6 +8167,11 @@ router.post('/taoyuan/mail/player-letter', loginRequired, signRequired, async (r
     const mail = await taoyuanMailbox.sendPlayerLetter(req.body || {}, {
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'player_letter',
+        content_type: 'player_letter',
+        content_id: req.body?.target_username || req.body?.target_save_id || '',
+      }),
     });
     emitMailNotificationCreatedEvent(mail?.recipient_username || req.body?.target_username, 'player_letter', mail);
     res.json({ ok: true, mail });
@@ -7304,6 +8185,11 @@ router.post('/taoyuan/mail/player-gift-package', loginRequired, signRequired, as
     const mail = await taoyuanMailbox.sendPlayerGiftPackage(req.body || {}, {
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'player_gift_package',
+        content_type: 'player_gift_package',
+        content_id: req.body?.target_username || req.body?.target_save_id || '',
+      }),
     });
     emitMailNotificationCreatedEvent(mail?.recipient_username || req.body?.target_username, 'player_gift_package', mail);
     res.json({ ok: true, mail });
@@ -7321,9 +8207,21 @@ router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async 
       {
         username: req.session.username,
         displayName: req.session.display_name || req.session.username,
+        auditContext: buildRequestModerationAuditContext(req, {
+          scene: 'system_mail_campaign',
+          content_type: 'system_mail_campaign',
+          content_id: req.body?.id || req.session.username,
+        }),
       },
       req.session.username,
-      { skipPendingCampaigns: true },
+      {
+        skipPendingCampaigns: true,
+        auditContext: buildRequestModerationAuditContext(req, {
+          scene: 'system_mail_campaign',
+          content_type: 'system_mail_campaign',
+          content_id: req.body?.id || req.session.username,
+        }),
+      },
     );
     emitMailCampaignNotificationCreatedEvents(campaign, 'system_campaign', {
       previousDeliveryIds,
@@ -7364,9 +8262,26 @@ router.post('/admin/taoyuan/mail/campaigns', adminAuth, async (req, res) => {
       : new Set();
     const campaign = await taoyuanMailbox.saveAdminCampaign(
       req.body,
-      { username: req.admin?.operator_name || 'admin', displayName: req.admin?.role_label || '管理员' },
+      {
+        username: req.admin?.operator_name || 'admin',
+        displayName: req.admin?.role_label || '管理员',
+        auditContext: buildRequestModerationAuditContext(req, {
+          scene: 'admin_mail_campaign',
+          username: req.admin?.operator_name || 'admin',
+          content_type: 'admin_mail_campaign',
+          content_id: req.body?.id || '',
+        }),
+      },
       action,
-      { skipPendingCampaigns: true },
+      {
+        skipPendingCampaigns: true,
+        auditContext: buildRequestModerationAuditContext(req, {
+          scene: 'admin_mail_campaign',
+          username: req.admin?.operator_name || 'admin',
+          content_type: 'admin_mail_campaign',
+          content_id: req.body?.id || '',
+        }),
+      },
     );
     if (action === 'send') {
       emitMailCampaignNotificationCreatedEvents(campaign, 'admin_campaign', { previousDeliveryIds });
@@ -7413,6 +8328,10 @@ router.post('/taoyuan/hall/upload-image', loginRequired, signRequired, async (re
       author: req.session.username,
       authorDisplayName: req.session.display_name || req.session.username,
       usage: req.body?.usage || 'hall_post',
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'hall_image_upload',
+        content_type: 'hall_image_alt',
+      }),
     });
     res.json({ ok: true, ...uploaded });
   } catch (error) {
@@ -7459,6 +8378,10 @@ router.post('/taoyuan/hall/posts', loginRequired, signRequired, async (req, res)
       chronicleSourceLabels: Array.isArray(req.body?.chronicle_source_labels) ? req.body.chronicle_source_labels : [],
       author: req.session.username,
       authorDisplayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: admin ? 'admin_hall_post' : 'hall_post',
+        content_type: 'hall_post',
+      }),
     });
     await emitHallOfficialAnnouncementNotificationCreatedEvent(post, getSessionActor(req));
     res.json({ ok: true, post });
@@ -7475,6 +8398,11 @@ router.post('/taoyuan/hall/posts/:id/replies', loginRequired, signRequired, asyn
       replyToId: req.body?.reply_to_id,
       author: req.session.username,
       authorDisplayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'hall_reply',
+        content_type: 'hall_reply',
+        content_id: req.params.id,
+      }),
     });
     emitHallReplyNotificationCreatedEvent(post, getLatestHallReply(post), getSessionActor(req));
     res.json({ ok: true, post });
@@ -7491,6 +8419,11 @@ router.post('/taoyuan/hall/posts/:id/report', loginRequired, signRequired, async
       reason: req.body?.reason,
       reporter: req.session.username,
       reporterDisplayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'hall_report',
+        content_type: 'hall_post_report',
+        content_id: req.params.id,
+      }),
     });
     res.json({ ok: true, report });
   } catch (error) {
@@ -7507,6 +8440,11 @@ router.post('/taoyuan/hall/posts/:id/replies/:replyId/report', loginRequired, si
       reason: req.body?.reason,
       reporter: req.session.username,
       reporterDisplayName: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'hall_report',
+        content_type: 'hall_reply_report',
+        content_id: `${req.params.id}:${req.params.replyId}`,
+      }),
     });
     res.json({ ok: true, report });
   } catch (error) {
@@ -7529,6 +8467,11 @@ router.post('/taoyuan/hall/posts/:id/blocks/:blockId/report-image', loginRequire
       reason: req.body?.reason,
       reporter: req.session.username,
       reporter_display_name: req.session.display_name || req.session.username,
+      auditContext: buildRequestModerationAuditContext(req, {
+        scene: 'image_report',
+        content_type: 'image_report',
+        content_id: block.url,
+      }),
     });
     res.json({ ok: true, report });
   } catch (error) {
@@ -7613,10 +8556,24 @@ router.get('/admin/taoyuan/hall/image-reports', adminAuth, (req, res) => {
 
 router.post('/admin/taoyuan/hall/image-assets/hide', adminAuth, async (req, res) => {
   try {
+    const beforeAsset = findImageAssetByUrl(req.body?.image_url);
     const asset = await taoyuanImageModeration.setImageAssetVisibility({
       imageUrl: req.body?.image_url,
       hidden: req.body?.hidden !== false,
       reason: req.body?.reason,
+    });
+    const hidden = req.body?.hidden !== false;
+    await appendAdminAuditLog(req, hidden ? 'hide_hall_image_asset' : 'restore_hall_image_asset', asset.uploader_username, {
+      target_type: 'image_asset',
+      target_id: asset.id || asset.stored_name || asset.url,
+      image_url: asset.url,
+      image_sha256_prefix: asset.sha256 ? String(asset.sha256).slice(0, 16) : '',
+      before_status: beforeAsset?.status || '',
+      after_status: asset.status,
+      reason: req.body?.reason || '',
+      report_count: asset.report_count,
+      uploader_username: asset.uploader_username,
+      admin_note: req.body?.admin_note || req.body?.note || '',
     });
     res.json({ ok: true, asset });
   } catch (error) {
@@ -7626,7 +8583,24 @@ router.post('/admin/taoyuan/hall/image-assets/hide', adminAuth, async (req, res)
 
 router.post('/admin/taoyuan/hall/reports/:id/status', adminAuth, async (req, res) => {
   try {
+    const beforeReport = findHallReport(req.params.id);
     const report = await taoyuanHall.setReportStatus({ reportId: req.params.id, status: req.body?.status });
+    await appendAdminAuditLog(req, 'set_hall_report_status', resolveHallReportTargetUsername(report) || report.reporter, buildReportDispositionAuditDetail({
+      targetType: report.type === 'reply' ? 'hall_reply_report' : 'hall_post_report',
+      targetId: report.reply_id || report.post_id || report.id,
+      beforeStatus: beforeReport?.status,
+      afterStatus: report.status,
+      reason: req.body?.reason || report.reason || '',
+      report,
+      extra: {
+        ...buildHallMultiReportAuditContext(report),
+        post_id: report.post_id,
+        reply_id: report.reply_id || '',
+        reporter: report.reporter,
+        resolved_at: report.resolved_at,
+        admin_note: req.body?.admin_note || req.body?.note || '',
+      },
+    }));
     res.json({ ok: true, report });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新举报状态失败' });
@@ -7635,7 +8609,27 @@ router.post('/admin/taoyuan/hall/reports/:id/status', adminAuth, async (req, res
 
 router.post('/admin/taoyuan/hall/image-reports/:id/status', adminAuth, async (req, res) => {
   try {
+    const beforeReport = findImageReport(req.params.id);
     const report = await taoyuanImageModeration.setImageReportStatus({ reportId: req.params.id, status: req.body?.status });
+    await appendAdminAuditLog(req, 'set_image_report_status', report.target_username || report.reporter, buildReportDispositionAuditDetail({
+      targetType: 'image_report',
+      targetId: report.id,
+      beforeStatus: beforeReport?.status,
+      afterStatus: report.status,
+      reason: req.body?.reason || report.reason || '',
+      report,
+      extra: {
+        ...buildImageMultiReportAuditContext(report),
+        image_url: report.image_url,
+        stored_name: report.stored_name,
+        post_id: report.post_id,
+        block_id: report.block_id,
+        reporter: report.reporter,
+        target_username: report.target_username,
+        resolved_at: report.resolved_at,
+        admin_note: req.body?.admin_note || req.body?.note || '',
+      },
+    }));
     res.json({ ok: true, report });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新图片举报状态失败' });
@@ -7644,7 +8638,30 @@ router.post('/admin/taoyuan/hall/image-reports/:id/status', adminAuth, async (re
 
 router.post('/admin/taoyuan/hall/image-reports/:id/hide', adminAuth, async (req, res) => {
   try {
+    const beforeReport = findImageReport(req.params.id);
+    const beforeAsset = beforeReport ? findImageAssetByUrl(beforeReport.image_url) : null;
     const result = await taoyuanImageModeration.hideImageFromReport(req.params.id, req.body?.reason);
+    await appendAdminAuditLog(req, 'hide_image_from_report', result.asset?.uploader_username || result.report?.target_username || '', buildReportDispositionAuditDetail({
+      targetType: 'image_asset',
+      targetId: result.asset?.id || result.asset?.stored_name || result.asset?.url,
+      beforeStatus: beforeAsset?.status,
+      afterStatus: result.asset?.status,
+      reason: req.body?.reason || result.report?.reason || '',
+      report: result.report,
+      extra: {
+        ...buildImageMultiReportAuditContext(result.report || beforeReport || {}),
+        image_url: result.asset?.url || result.report?.image_url || '',
+        stored_name: result.asset?.stored_name || result.report?.stored_name || '',
+        image_sha256_prefix: result.asset?.sha256 ? String(result.asset.sha256).slice(0, 16) : '',
+        post_id: result.report?.post_id || '',
+        block_id: result.report?.block_id || '',
+        reporter: result.report?.reporter || beforeReport?.reporter || '',
+        target_username: result.report?.target_username || result.asset?.uploader_username || '',
+        report_before_status: beforeReport?.status || '',
+        report_after_status: result.report?.status || '',
+        admin_note: req.body?.admin_note || req.body?.note || '',
+      },
+    }));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '隐藏图片失败' });
@@ -7657,19 +8674,38 @@ router.post('/admin/taoyuan/image-blacklist/:username', adminAuth, async (req, r
     const blocked = req.body?.blocked !== false;
     const user = await db.getUserAdmin(username);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
+    const beforeEntry = taoyuanImageModeration.getImageBlacklistEntry
+      ? taoyuanImageModeration.getImageBlacklistEntry(username)
+      : taoyuanImageModeration.listImageBlacklist().find(entry => entry.username === username);
+    const beforeStatus = user.status || '';
     const entry = await taoyuanImageModeration.setImageBlacklist(username, blocked, {
       display_name: user.display_name || user.username,
       reason: req.body?.reason,
       created_by: req.admin?.operator_name || '',
     });
     if (blocked) {
-      await db.setUserStatus(username, 'banned');
+      const bannedUser = await db.setUserStatus(username, 'banned');
       await appendAdminAuditLog(req, 'ban_user_for_image', username, {
+        target_type: 'user_image_blacklist',
+        target_id: username,
         reason: req.body?.reason || '',
+        before_status: beforeStatus,
+        after_status: bannedUser?.status || 'banned',
+        before_blacklist_status: beforeEntry ? 'blocked' : 'active',
+        after_blacklist_status: 'blocked',
+        blacklist_reason: entry?.reason || req.body?.reason || '',
+        admin_note: req.body?.admin_note || req.body?.note || '',
       });
     } else {
       await appendAdminAuditLog(req, 'remove_image_blacklist', username, {
+        target_type: 'user_image_blacklist',
+        target_id: username,
         reason: req.body?.reason || '',
+        before_status: beforeStatus,
+        after_status: user.status || '',
+        before_blacklist_status: beforeEntry ? 'blocked' : 'active',
+        after_blacklist_status: 'active',
+        admin_note: req.body?.admin_note || req.body?.note || '',
       });
     }
     res.json({ ok: true, entry, blacklist: taoyuanImageModeration.listImageBlacklist() });
@@ -7680,7 +8716,21 @@ router.post('/admin/taoyuan/image-blacklist/:username', adminAuth, async (req, r
 
 router.post('/admin/taoyuan/hall/posts/:id/hide', adminAuth, async (req, res) => {
   try {
+    const beforePost = findAdminHallPost(req.params.id);
     const result = await taoyuanHall.hidePost({ postId: req.params.id, hidden: req.body?.hidden, reason: req.body?.reason });
+    const afterPost = findAdminHallPost(req.params.id);
+    const hidden = req.body?.hidden !== false;
+    await appendAdminAuditLog(req, hidden ? 'hide_hall_post' : 'restore_hall_post', beforePost?.author || afterPost?.author || '', {
+      target_type: 'hall_post',
+      target_id: req.params.id,
+      before_status: beforePost?.hidden ? 'hidden' : 'active',
+      after_status: result.hidden ? 'hidden' : 'active',
+      reason: req.body?.reason || afterPost?.hidden_reason || '',
+      post_id: req.params.id,
+      author: beforePost?.author || afterPost?.author || '',
+      report_id: req.body?.report_id || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+    });
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '隐藏帖子失败' });
@@ -7689,7 +8739,23 @@ router.post('/admin/taoyuan/hall/posts/:id/hide', adminAuth, async (req, res) =>
 
 router.delete('/admin/taoyuan/hall/posts/:id/replies/:replyId', adminAuth, async (req, res) => {
   try {
+    const beforePost = findAdminHallPost(req.params.id);
+    const beforeReply = Array.isArray(beforePost?.replies)
+      ? beforePost.replies.find(reply => reply.id === String(req.params.replyId))
+      : null;
     const post = await taoyuanHall.deleteReplyByAdmin({ postId: req.params.id, replyId: req.params.replyId });
+    await appendAdminAuditLog(req, 'delete_hall_reply', beforeReply?.author || '', {
+      target_type: 'hall_reply',
+      target_id: req.params.replyId,
+      post_id: req.params.id,
+      reply_id: req.params.replyId,
+      before_status: beforeReply ? 'active' : '',
+      after_status: 'deleted',
+      reason: req.body?.reason || '',
+      content_excerpt: sanitizeAuditValue(beforeReply?.content || '', 80),
+      report_id: req.body?.report_id || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+    });
     res.json({ ok: true, post });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '删除回复失败' });
@@ -7698,7 +8764,17 @@ router.delete('/admin/taoyuan/hall/posts/:id/replies/:replyId', adminAuth, async
 
 router.post('/admin/taoyuan/hall/posts/:id/pin', adminAuth, async (req, res) => {
   try {
+    const beforePost = findAdminHallPost(req.params.id);
     const post = await taoyuanHall.setPinned({ postId: req.params.id, pinned: req.body?.pinned });
+    await appendAdminAuditLog(req, 'set_hall_post_pin', post.author || beforePost?.author || '', {
+      target_type: 'hall_post',
+      target_id: req.params.id,
+      post_id: req.params.id,
+      before_status: beforePost?.pinned ? 'pinned' : 'normal',
+      after_status: post.pinned ? 'pinned' : 'normal',
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+    });
     res.json({ ok: true, post });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '置顶帖子失败' });
@@ -7707,7 +8783,17 @@ router.post('/admin/taoyuan/hall/posts/:id/pin', adminAuth, async (req, res) => 
 
 router.post('/admin/taoyuan/hall/posts/:id/feature', adminAuth, async (req, res) => {
   try {
+    const beforePost = findAdminHallPost(req.params.id);
     const post = await taoyuanHall.setFeatured({ postId: req.params.id, featured: req.body?.featured });
+    await appendAdminAuditLog(req, 'set_hall_post_feature', post.author || beforePost?.author || '', {
+      target_type: 'hall_post',
+      target_id: req.params.id,
+      post_id: req.params.id,
+      before_status: beforePost?.featured ? 'featured' : 'normal',
+      after_status: post.featured ? 'featured' : 'normal',
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+    });
     res.json({ ok: true, post });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '加精帖子失败' });
@@ -7766,9 +8852,20 @@ router.post('/admin/taoyuan/orders/:orderId/rollback', userAdminAuth, async (req
 router.post('/admin/taoyuan/users/:username/unban', adminAuth, async (req, res) => {
   try {
     const username = decodeRouteUsername(req.params.username);
+    const beforeUser = await db.getUserAdmin(username);
     const user = await db.setUserStatus(username, 'active');
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
-    await appendAdminAuditLog(req, 'unban_user', username, { status: 'active' });
+    await appendAdminAuditLog(req, 'unban_user', user.username || username, {
+      target_type: 'user',
+      target_id: user.username || username,
+      before_status: beforeUser?.status || '',
+      after_status: user.status || 'active',
+      before_banned_at: beforeUser?.banned_at || null,
+      after_banned_at: user.banned_at || null,
+      reason: req.body?.reason || '',
+      admin_note: req.body?.admin_note || req.body?.note || '',
+      evidence_retention: 'major',
+    });
     res.json({
       ok: true,
       user: {
@@ -7794,5 +8891,12 @@ router.post('/admin/taoyuan/festival/rooms/:roomId/retry-close', userAdminAuth, 
     res.status(error.status || 500).json({ ok: false, msg: error.message || '重放活动结算失败' });
   }
 });
+
+router.__testing = {
+  consumePublicAiAskQuota,
+  finishPublicAiAskQuota,
+  resetPublicAiAskQuotaForTests,
+  getPublicAiAskQuotaStatsForTests,
+};
 
 module.exports = router;

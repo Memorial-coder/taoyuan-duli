@@ -21,6 +21,25 @@ function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
 
+function normalizeAuditContext(auditContext = {}) {
+  return auditContext && typeof auditContext === 'object' && !Array.isArray(auditContext)
+    ? auditContext
+    : {};
+}
+
+function buildManorAuditContext(auditContext = {}, overrides = {}) {
+  const base = normalizeAuditContext(auditContext);
+  return {
+    ...base,
+    ...overrides,
+    scene: overrides.scene || base.scene || '',
+    field: overrides.field || base.field || '',
+    username: overrides.username || base.username || '',
+    content_type: overrides.content_type || base.content_type || 'manor_text',
+    content_id: overrides.content_id || base.content_id || '',
+  };
+}
+
 function normalizeManorSaveId(value) {
   const saveId = Number(value);
   return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
@@ -2168,8 +2187,30 @@ async function recordManorVisit(payload = {}, actor = {}) {
   const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
-  const summary = sanitizeText(payload.summary, 160);
-  const feedback = sanitizeText(payload.feedback, 160);
+  const baseAuditContext = buildManorAuditContext(actor?.auditContext, {
+    scene: 'manor_visit',
+    username: actor.username,
+    content_type: 'manor_visit',
+    content_id: targetUsername,
+  });
+  const summary = moderateText(payload.summary, {
+    label: '庄园访问摘要',
+    field: 'summary',
+    scene: 'manor_visit',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 2,
+    auditContext: buildManorAuditContext(baseAuditContext, { field: 'summary' }),
+  });
+  const feedback = moderateText(payload.feedback, {
+    label: '庄园访问反馈',
+    field: 'feedback',
+    scene: 'manor_visit',
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 2,
+    auditContext: buildManorAuditContext(baseAuditContext, { field: 'feedback' }),
+  });
   const carriedItems = Array.isArray(payload.carried_items) ? payload.carried_items : [];
   const entry = normalizeVisitEntry({
     id: makeId('manor_visit'),
@@ -2195,6 +2236,12 @@ async function leaveGuestbookEntry(payload = {}, actor = {}) {
   const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
+  const baseAuditContext = buildManorAuditContext(actor?.auditContext, {
+    scene: 'manor_guestbook',
+    username: actor.username,
+    content_type: 'manor_guestbook',
+    content_id: targetUsername,
+  });
   const content = moderateText(payload.content, {
     label: '庄园留言',
     field: 'content',
@@ -2203,6 +2250,7 @@ async function leaveGuestbookEntry(payload = {}, actor = {}) {
     maxLength: 160,
     storageMaxLength: 160,
     maxLineBreaks: 3,
+    auditContext: buildManorAuditContext(baseAuditContext, { field: 'content' }),
   });
   if (content.length < 1) throw createError('留言内容不能为空');
 
@@ -2234,6 +2282,12 @@ async function replyGuestbookEntry(entryId, payload = {}, actor = {}) {
     .find(item => item.id === String(entryId || '').trim());
   if (!entry) throw createError('留言不存在', 404);
   if (entry.target_username !== actor.username) throw createError('只有庄园主人可以回复留言', 403);
+  const baseAuditContext = buildManorAuditContext(actor?.auditContext, {
+    scene: 'manor_guestbook_reply',
+    username: actor.username,
+    content_type: 'manor_guestbook_reply',
+    content_id: entry.id,
+  });
   const replyText = moderateText(payload.reply_text, {
     label: '留言回复',
     field: 'reply_text',
@@ -2242,6 +2296,7 @@ async function replyGuestbookEntry(entryId, payload = {}, actor = {}) {
     maxLength: 160,
     storageMaxLength: 160,
     maxLineBreaks: 3,
+    auditContext: buildManorAuditContext(baseAuditContext, { field: 'reply_text' }),
   });
   if (replyText.length < 1) throw createError('回复内容不能为空');
 
@@ -2386,11 +2441,17 @@ async function updateManorGuide(username, payload = {}) {
   return buildManorSnapshot(username, username);
 }
 
-async function updateManorThemeWeek(username, payload = {}) {
+async function updateManorThemeWeek(username, payload = {}, auditContext = {}) {
   const coverImageUrl = sanitizeText(payload.cover_image_url, 500);
   if (coverImageUrl) {
     taoyuanImageModeration.ensureUsableUploadedImageUrl(coverImageUrl, ['manor_cover']);
   }
+  const baseAuditContext = buildManorAuditContext(auditContext, {
+    scene: 'manor_theme_week',
+    username,
+    content_type: 'manor_theme_week',
+    content_id: username,
+  });
   updateThemeConfig(username, {
     label: moderateText(payload.label, {
       label: '庄园主题周标题',
@@ -2398,12 +2459,25 @@ async function updateManorThemeWeek(username, payload = {}) {
       scene: 'manor_theme_week',
       maxLength: 30,
       storageMaxLength: 30,
+      auditContext: buildManorAuditContext(baseAuditContext, { field: 'label' }),
     }),
     season: payload.season,
     week_tag: payload.week_tag,
     template_id: payload.template_id,
     cover_image_url: coverImageUrl,
-    cover_image_alt: coverImageUrl ? (sanitizeText(payload.cover_image_alt, 120) || '庄园主图') : '',
+    cover_image_alt: coverImageUrl
+      ? (moderateText(payload.cover_image_alt, {
+          label: '庄园封面说明',
+          field: 'cover_image_alt',
+          scene: 'manor_theme_week',
+          maxLength: 120,
+          storageMaxLength: 120,
+          auditContext: buildManorAuditContext(baseAuditContext, {
+            field: 'cover_image_alt',
+            content_type: 'manor_cover_alt',
+          }),
+        }) || '庄园主图')
+      : '',
   });
   return buildManorSnapshot(username, username);
 }
@@ -2720,6 +2794,12 @@ async function submitManorStealAction(payload = {}, actor = {}) {
     throw createError('这个庄园物件今天已经被轻采过了', 409);
   }
 
+  const baseAuditContext = buildManorAuditContext(actor?.auditContext, {
+    scene: 'manor_steal',
+    username: visitorUsername,
+    content_type: 'manor_steal_note',
+    content_id: targetUsername,
+  });
   const note = payload.note
     ? moderateText(payload.note, {
         label: '偷菜留言',
@@ -2728,6 +2808,7 @@ async function submitManorStealAction(payload = {}, actor = {}) {
         maxLength: 80,
         storageMaxLength: 80,
         maxLineBreaks: 1,
+        auditContext: buildManorAuditContext(baseAuditContext, { field: 'note' }),
       })
     : '';
   const objectDef = MANOR_CARE_VISUAL_OBJECT_DEFS.find(definition => definition.id === actionDef.object_id);

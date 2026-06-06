@@ -1,0 +1,422 @@
+{
+  "version": 1,
+  "updatedAt": "2026-06-06",
+  "entries": [
+    {
+      "id": "resource_cabbage",
+      "title": "青菜",
+      "kind": "crop",
+      "aliases": ["青菜", "cabbage", "青菜种子", "小青菜", "菜苗", "绿叶菜"],
+      "routeHints": ["farm", "shop", "cooking", "quest"],
+      "questionTypes": ["resource-source", "resource-use", "shop-purchase", "recipe"],
+      "summary": "春季基础作物，成长快，适合新手现金流和早期料理。",
+      "unlock": "开局可通过万物铺购买种子，春季农田可种；非春季请以商店货架和农田页面为准。",
+      "fastRoute": "春季最快路线是去万物铺买青菜种子，当天播种，成长 3 天后收获。",
+      "recommendedRoute": "春季缺青菜时优先买种子并安排浇水；如果已经有青菜，优先留 2 个做炒青菜或交早期委托。",
+      "routeSteps": ["打开商店/万物铺核对青菜种子。", "春季在农田播种并连续照料。", "收获后先满足料理或委托需求，多余部分再出售。"],
+      "sources": [
+        { "type": "shop", "label": "万物铺", "detail": "购买青菜种子后在春季农田种植。", "conditions": ["春季", "农田"] },
+        { "type": "harvest", "label": "种植收获", "detail": "青菜种子成长后收获青菜。", "conditions": ["成长 3 天"] }
+      ],
+      "uses": [
+        { "type": "recipe", "label": "炒青菜", "detail": "料理配方需要青菜。", "quantity": "2" },
+        { "type": "recipe", "label": "麻辣火锅", "detail": "进阶料理会消耗青菜。", "quantity": "1" },
+        { "type": "quest", "label": "告示板/特殊订单", "detail": "早期蔬菜类委托可能要求交付青菜。" }
+      ],
+      "relations": ["seed_cabbage", "stir_fried_cabbage", "spicy_hotpot"]
+    },
+    {
+      "id": "resource_crucian",
+      "title": "鲫鱼",
+      "kind": "fish",
+      "aliases": ["鲫鱼", "crucian", "新手鱼", "小鲫", "溪流鱼"],
+      "routeHints": ["fishing", "quest", "fishpond"],
+      "questionTypes": ["resource-source", "resource-use", "fish-condition"],
+      "summary": "常见淡水鱼，适合早期钓鱼练手，也会进入委托需求。",
+      "unlock": "钓鱼入口可用后即可尝试；公开资料显示鲫鱼在溪流四季可钓。",
+      "fastRoute": "最快路线是直接去溪流钓鱼，四季、任意天气都可尝试。",
+      "recommendedRoute": "缺鲫鱼时先去溪流钓；如果要做鱼塘路线，再把多余鲫鱼留作养殖、展示或加工。",
+      "routeSteps": ["打开钓鱼入口并前往溪流。", "预留背包格和体力，优先钓到任务所需数量。", "多余鲫鱼可留给鱼塘、委托或烟熏加工。"],
+      "sources": [
+        { "type": "fishing", "label": "溪流", "detail": "四季均可在溪流钓到。", "conditions": ["任意天气", "四季"] },
+        { "type": "fishpond", "label": "鱼塘", "detail": "后续可作为鱼塘养殖和展示相关素材。" }
+      ],
+      "uses": [
+        { "type": "quest", "label": "钓鱼类委托", "detail": "告示板和村民委托可能需要鲫鱼。" },
+        { "type": "processing", "label": "烟熏鲫鱼", "detail": "可加工为鱼类食品或交付素材。" }
+      ],
+      "relations": ["smoked_crucian", "fishpond"]
+    },
+    {
+      "id": "resource_copper_ore",
+      "title": "铜矿",
+      "kind": "mineral",
+      "aliases": ["铜矿", "copper_ore", "铜矿石", "铜料", "矿料"],
+      "routeHints": ["mining", "upgrade", "quest"],
+      "questionTypes": ["resource-source", "resource-use", "task-diagnosis"],
+      "summary": "最基础的矿石，常用于工具升级、建造备料和早期委托。",
+      "unlock": "矿洞入口可用后可采矿；部分阶段也可通过铁匠铺或活动补给补缺。",
+      "fastRoute": "最快路线通常是进矿洞集中采矿；若只差少量且商店可见，可先去铁匠铺补缺。",
+      "recommendedRoute": "优先按任务或工具升级缺口决定数量：缺 1-2 个先查铁匠铺，缺较多就安排矿洞一趟。",
+      "routeSteps": ["先确认任务、工具或建筑到底缺几个铜矿。", "少量缺口先查铁匠铺；大量缺口进入矿洞采矿。", "采矿前预留体力和背包格，避免半路返回。"],
+      "sources": [
+        { "type": "mining", "label": "矿洞", "detail": "进入矿洞后通过采矿获得。", "conditions": ["准备体力", "留背包格"] },
+        { "type": "shop", "label": "铁匠铺", "detail": "部分阶段可通过铁匠铺或活动补给补缺。" }
+      ],
+      "uses": [
+        { "type": "upgrade", "label": "工具升级", "detail": "早期工具升级和铁匠铺路线会消耗矿石。" },
+        { "type": "quest", "label": "铜矿采购", "detail": "告示板和村民委托会要求交付铜矿。" },
+        { "type": "building", "label": "建造备料", "detail": "村庄工程和中后期订单可能要求矿材。" }
+      ],
+      "relations": ["iron_ore", "gold_ore", "tiejiangpu"]
+    },
+    {
+      "id": "resource_lineage_cert",
+      "title": "谱系认证签",
+      "kind": "quest_item",
+      "aliases": ["谱系认证签", "认证签", "lineage_cert", "谱系补材", "育种凭证", "认证补材"],
+      "routeHints": ["breeding", "quest", "museum"],
+      "questionTypes": ["resource-source", "resource-use", "task-diagnosis"],
+      "summary": "育种和高阶订单相关的公开任务补材，用于认证、供货和展陈复核。",
+      "unlock": "需要推进到育种、认证或相关专题订单后才会出现；具体是否可得以育种/任务页面可见状态为准。",
+      "fastRoute": "最快路线是先查看育种页面的认证、失败样本处理和当前专题订单需求。",
+      "recommendedRoute": "如果订单要求谱系认证签，优先推进育种认证；若页面未出现认证入口，先做育种前置或对应专题任务。",
+      "routeSteps": ["打开育种页面确认认证入口和失败样本处理。", "查看当前订单是否明确要求谱系认证签。", "需要展陈复核时同步查看博物馆或商会相关任务。"],
+      "sources": [
+        { "type": "breeding", "label": "育种系统", "detail": "从高阶失败样本拆解或认证流程中获得相关补材。", "conditions": ["育种解锁", "推进谱系"] },
+        { "type": "quest", "label": "活动/商会任务", "detail": "部分专题订单会围绕谱系认证签组织需求。" }
+      ],
+      "uses": [
+        { "type": "quest", "label": "精品供货", "detail": "商会、专题茶席和节庆宴席订单会检查认证补材。" },
+        { "type": "museum", "label": "陈列复核", "detail": "博物馆和展示线会把认证签作为展品复核线索。" }
+      ],
+      "relations": ["breeding", "museum", "guild"]
+    },
+    {
+      "id": "recipe_stir_fried_cabbage",
+      "title": "炒青菜",
+      "kind": "recipe",
+      "aliases": ["炒青菜", "stir_fried_cabbage", "青菜料理", "炒菜", "新手菜"],
+      "routeHints": ["cooking", "farm"],
+      "questionTypes": ["recipe", "resource-use", "resource-source"],
+      "summary": "初始料理之一，用青菜制作，适合早期恢复体力。",
+      "unlock": "开局料理线可用后按厨房/烹饪入口制作；如果入口未出现，以厨房或烹饪页面为准。",
+      "fastRoute": "最快路线是准备 2 个青菜，然后在厨房/烹饪入口制作。",
+      "recommendedRoute": "体力紧张时优先做炒青菜；青菜不足时先按青菜来源路线补齐。",
+      "routeSteps": ["确认背包里有 2 个青菜。", "打开厨房或烹饪入口制作炒青菜。", "如果青菜不足，先去万物铺买种子并种植。"],
+      "sources": [
+        { "type": "recipe", "label": "初始自带", "detail": "开局即可按配方制作。", "conditions": ["厨房/烹饪入口"] }
+      ],
+      "uses": [
+        { "type": "ingredient", "label": "需要青菜", "detail": "制作炒青菜需要青菜。", "quantity": "2" },
+        { "type": "stamina", "label": "恢复体力", "detail": "成品用于早期体力补给。" }
+      ],
+      "relations": ["cabbage", "cooking"]
+    },
+    {
+      "id": "resource_wood",
+      "title": "木材",
+      "kind": "material",
+      "aliases": ["木材", "wood", "木料", "建材木头", "树木材料"],
+      "routeHints": ["forage", "home", "village", "workshop", "quest"],
+      "questionTypes": ["resource-source", "resource-use", "task-diagnosis"],
+      "summary": "基础建造和制作材料，常用于建筑、作坊机器、委托和村庄工程。",
+      "unlock": "开局可通过砍树或采集相关路径获得；具体工具和地点以玩家可见页面为准。",
+      "fastRoute": "最快路线是去可砍树/采集的区域获取木材；如果已有浮木加工入口，也可把浮木处理成木材补缺。",
+      "recommendedRoute": "建造或任务缺木材时先集中采集一趟；只差少量时检查背包、仓储和可加工浮木。",
+      "routeSteps": ["确认建筑或任务缺口数量。", "前往采集/砍树相关入口获取木材。", "作坊可用时把浮木等材料处理成木材补缺。"],
+      "sources": [
+        { "type": "forage", "label": "砍树/采集", "detail": "公开物品来源标记为砍树获得。", "conditions": ["四季"] },
+        { "type": "processing", "label": "浮木处理", "detail": "作坊回收链可把浮木处理为木材。" }
+      ],
+      "uses": [
+        { "type": "building", "label": "建筑和村庄工程", "detail": "农舍、温室、动物建筑或村庄工程会消耗木材。" },
+        { "type": "processing", "label": "作坊机器", "detail": "多种加工机器和制作配方需要木材。" },
+        { "type": "quest", "label": "木材备料", "detail": "告示板和村民委托会要求交付木材。" }
+      ],
+      "relations": ["stone", "firewood", "driftwood", "building"]
+    },
+    {
+      "id": "resource_stone",
+      "title": "石材",
+      "kind": "material",
+      "aliases": ["石材", "stone", "石料", "建筑石料", "石头"],
+      "routeHints": ["mining", "forage", "home", "village", "quest"],
+      "questionTypes": ["resource-source", "resource-use", "task-diagnosis"],
+      "summary": "常见建筑石料，可用于建造、加工与委托。",
+      "unlock": "公开来源为采石或矿洞获取；矿洞/采石入口是否可用以当前页面为准。",
+      "fastRoute": "最快路线是优先去采石或矿洞补石材，顺路清理建筑和任务缺口。",
+      "recommendedRoute": "缺石材时先确认是否同时缺矿石；如果是建筑材料缺口，安排矿洞/采石一趟更省来回。",
+      "routeSteps": ["确认建筑、作坊或任务缺口数量。", "前往采石/矿洞入口获取石材。", "回程后优先交付限时委托或推进建筑。"],
+      "sources": [
+        { "type": "mining", "label": "矿洞", "detail": "公开物品来源标记为采石 / 矿洞获取。" },
+        { "type": "forage", "label": "采石", "detail": "通过采石相关入口补充基础石材。" }
+      ],
+      "uses": [
+        { "type": "building", "label": "建筑材料", "detail": "村庄工程、建筑升级和作坊机器会消耗石材。" },
+        { "type": "quest", "label": "石材委托", "detail": "告示板和村民委托会要求交付石材。" }
+      ],
+      "relations": ["wood", "copper_ore", "building"]
+    },
+    {
+      "id": "resource_herb",
+      "title": "草药",
+      "kind": "material",
+      "aliases": ["草药", "herb", "药草", "山草药", "野草药"],
+      "routeHints": ["forage", "shop", "workshop", "quest"],
+      "questionTypes": ["resource-source", "resource-use", "task-diagnosis"],
+      "summary": "山间野生材料，可用于委托、晒架、研磨、药膏和后续丹药准备。",
+      "unlock": "春季、夏季、秋季可通过山间采集获得；冬季是否有替代来源以商店和任务页面为准。",
+      "fastRoute": "最快路线是春夏秋去山间采集；如果药铺或活动补给可见，可用于少量补缺。",
+      "recommendedRoute": "缺草药时优先采集，采到后先满足任务；多余草药可晒干或研磨成草药膏。",
+      "routeSteps": ["确认当前季节是否适合采集草药。", "去采集入口补齐任务所需数量。", "多余草药进入晒架或研磨链，准备药膏/丹药。"],
+      "sources": [
+        { "type": "forage", "label": "山间采集", "detail": "春季、夏季、秋季可采到草药。", "conditions": ["春季", "夏季", "秋季"] },
+        { "type": "shop", "label": "药铺/活动补给", "detail": "部分阶段可通过药铺或活动补给补缺，以页面可见为准。" }
+      ],
+      "uses": [
+        { "type": "quest", "label": "草药委托", "detail": "村民和告示板委托会要求交付草药。" },
+        { "type": "processing", "label": "晒架/研磨", "detail": "可加工为药材干、草药膏或进一步进入丹药链。" }
+      ],
+      "relations": ["dried_herb", "herbal_paste", "forage"]
+    },
+    {
+      "id": "resource_wild_mushroom",
+      "title": "野蘑菇",
+      "kind": "material",
+      "aliases": ["野蘑菇", "wild_mushroom", "蘑菇", "秋季蘑菇", "矿洞蘑菇"],
+      "routeHints": ["forage", "mining", "quest", "workshop"],
+      "questionTypes": ["resource-source", "resource-use", "task-diagnosis"],
+      "summary": "秋季觅食材料，也可能通过矿洞蘑菇层获取，可用于委托和脱水加工。",
+      "unlock": "秋季可通过觅食获取；矿洞蘑菇层是否可进入以当前矿洞进度和页面可见状态为准。",
+      "fastRoute": "秋季最快路线是直接觅食；非秋季需要看矿洞蘑菇层或现有库存，不要臆造稳定来源。",
+      "recommendedRoute": "秋季任务缺野蘑菇时优先采集；如果要长期备料，可把多余蘑菇脱水储备。",
+      "routeSteps": ["确认当前是否秋季。", "秋季优先走觅食；非秋季查看矿洞蘑菇层是否可见。", "多余野蘑菇可进入脱水加工链。"],
+      "sources": [
+        { "type": "forage", "label": "秋季觅食", "detail": "秋季可采集到野蘑菇。", "conditions": ["秋季"] },
+        { "type": "mining", "label": "矿洞蘑菇层", "detail": "公开物品来源标记包含矿洞蘑菇层。" }
+      ],
+      "uses": [
+        { "type": "quest", "label": "采集类委托", "detail": "秋季采集委托可能要求野蘑菇。" },
+        { "type": "processing", "label": "脱水加工", "detail": "可加工为干蘑菇，作为后续材料。" }
+      ],
+      "relations": ["forage", "mining", "dried_mushroom"]
+    },
+    {
+      "id": "resource_honey",
+      "title": "蜂蜜",
+      "kind": "material",
+      "aliases": ["蜂蜜", "honey", "普通蜂蜜", "蜂箱蜂蜜", "蜜"],
+      "routeHints": ["workshop", "quest", "cooking"],
+      "questionTypes": ["resource-source", "resource-use", "task-diagnosis"],
+      "summary": "蜂箱产出的甜味材料，可用于委托、蜜饯、茶饮、丹药和节会甜品。",
+      "unlock": "需要蜂箱等加工/产出设施可用；蜂箱每 4 天自动产出蜂蜜，是否已建成以页面可见状态为准。",
+      "fastRoute": "最快路线是检查蜂箱是否已有产出；未建蜂箱时先推进蜂箱设施或查看任务/活动奖励。",
+      "recommendedRoute": "缺蜂蜜时先查蜂箱成熟状态；如果没有蜂箱，优先补建筑/机器前置，不要把蜂蜜当作随时可买资源。",
+      "routeSteps": ["打开作坊或蜂箱相关入口确认是否已建成。", "蜂箱有产出时先收取蜂蜜。", "蜂蜜不足时推进蜂箱前置或查看当前任务奖励。"],
+      "sources": [
+        { "type": "processing", "label": "蜂箱", "detail": "蜂箱每 4 天自动产出蜂蜜。", "conditions": ["蜂箱可用"] },
+        { "type": "quest", "label": "任务/活动奖励", "detail": "部分委托或活动可能奖励蜂蜜，以任务页面可见为准。" }
+      ],
+      "uses": [
+        { "type": "quest", "label": "蜂蜜委托", "detail": "采集或供货类委托会要求蜂蜜。" },
+        { "type": "processing", "label": "蜜饯/茶饮/丹药", "detail": "多条加工链会把蜂蜜作为辅料。" }
+      ],
+      "relations": ["honey_machine", "chrysanthemum_honey", "osmanthus_honey"]
+    },
+    {
+      "id": "resource_fish_feed",
+      "title": "鱼饲料",
+      "kind": "material",
+      "aliases": ["鱼饲料", "fish_feed", "鱼塘饲料", "鱼食", "喂鱼饲料"],
+      "routeHints": ["fishpond", "shop", "workshop", "quest"],
+      "questionTypes": ["resource-source", "resource-use", "shop-purchase", "task-diagnosis"],
+      "summary": "鱼塘喂养材料，可通过购买、磨坊加工、回收站或旅行商人补充。",
+      "unlock": "鱼塘相关玩法出现后需求更明确；购买、磨坊、回收站或旅行商人是否可用以当前页面为准。",
+      "fastRoute": "最快路线通常是先查商店/旅行商人；若要省钱，磨坊用干草加工或回收垃圾制成鱼饲料。",
+      "recommendedRoute": "急着喂鱼先买，长期经营则用干草或垃圾加工，避免鱼塘断粮。",
+      "routeSteps": ["打开商店或旅行商人货架查看是否可买。", "有磨坊时用干草加工鱼饲料。", "有回收站时把钓鱼垃圾回收成鱼饲料。"],
+      "sources": [
+        { "type": "shop", "label": "商店/旅行商人", "detail": "公开来源包含商店购买和旅行商人。" },
+        { "type": "processing", "label": "磨坊加工", "detail": "可用干草加工鱼饲料。", "conditions": ["干草×5"] },
+        { "type": "recycle", "label": "回收站", "detail": "可用钓鱼垃圾回收制成鱼饲料。", "conditions": ["垃圾×4"] }
+      ],
+      "uses": [
+        { "type": "fishpond", "label": "鱼塘喂食", "detail": "用于鱼塘喂养和维持养殖节奏。" },
+        { "type": "quest", "label": "鱼塘/活动奖励线", "detail": "部分鱼塘任务会奖励或消耗鱼饲料。" }
+      ],
+      "relations": ["fishpond", "water_purifier", "hay", "trash"]
+    },
+    {
+      "id": "resource_water_purifier",
+      "title": "水质改良剂",
+      "kind": "material",
+      "aliases": ["水质改良剂", "water_purifier", "净水剂", "净化剂", "清理鱼塘"],
+      "routeHints": ["fishpond", "shop", "quest"],
+      "questionTypes": ["resource-source", "resource-use", "shop-purchase", "task-diagnosis"],
+      "summary": "鱼塘水质维护材料，可通过商店、旅行商人或任务奖励补充。",
+      "unlock": "鱼塘玩法出现后更常用；商店、旅行商人或任务奖励是否可得以页面可见状态为准。",
+      "fastRoute": "最快路线是先查商店/旅行商人；任务奖励里出现时可顺手领取。",
+      "recommendedRoute": "鱼塘水质告急时先买水质改良剂；平时把任务奖励留作应急储备。",
+      "routeSteps": ["打开鱼塘确认水质是否需要处理。", "先查商店或旅行商人是否出售水质改良剂。", "有相关任务奖励时优先领取并留作应急。"],
+      "sources": [
+        { "type": "shop", "label": "商店/旅行商人", "detail": "公开来源包含商店购买和旅行商人。" },
+        { "type": "quest", "label": "任务奖励", "detail": "部分鱼塘或中后期任务会奖励水质改良剂。" }
+      ],
+      "uses": [
+        { "type": "fishpond", "label": "鱼塘清洁", "detail": "用于改善鱼塘水质和处理养殖风险。" },
+        { "type": "planning", "label": "鱼塘周赛准备", "detail": "周赛前可作为水质稳定储备。" }
+      ],
+      "relations": ["fishpond", "fish_feed", "advanced_water_purifier"]
+    },
+    {
+      "id": "system_shop_index",
+      "title": "商店来源索引",
+      "kind": "shop",
+      "aliases": ["商店", "万物铺", "陈伯店", "杂货铺", "铁匠铺", "孙铁匠", "药铺", "渔具铺", "在哪里买"],
+      "routeHints": ["shop"],
+      "questionTypes": ["shop-purchase", "resource-source"],
+      "summary": "常见购买路径：万物铺买种子，铁匠铺补矿石/工具，药铺买肥料草药，渔具铺买鱼饵。",
+      "sources": [
+        { "type": "shop", "label": "万物铺", "detail": "出售种子和日用品。" },
+        { "type": "shop", "label": "铁匠铺", "detail": "出售矿石、金属制品和工具升级相关服务。" },
+        { "type": "shop", "label": "药铺", "detail": "出售肥料和草药，冬季休业。" },
+        { "type": "shop", "label": "渔具铺", "detail": "出售鱼饵和钓鱼用品。" }
+      ],
+      "uses": [
+        { "type": "route", "label": "资源补缺", "detail": "缺少基础材料时先查商店，再决定种植、采集、挖矿或钓鱼。" }
+      ],
+      "relations": ["wanwupu", "tiejiangpu", "yaopu", "yugupu"]
+    },
+    {
+      "id": "system_fishpond_index",
+      "title": "鱼塘",
+      "kind": "fishpond",
+      "aliases": ["鱼塘", "养鱼", "鱼池", "养鱼池", "鱼塘周赛"],
+      "routeHints": ["fishpond"],
+      "questionTypes": ["page-feature", "resource-use", "precondition"],
+      "summary": "鱼塘用于养殖、展示和周赛，关注容量、水质、成熟鱼、病鱼和报名状态。",
+      "sources": [
+        { "type": "system", "label": "鱼塘页面", "detail": "从鱼塘页查看鱼数量、水质、成熟鱼、病鱼和周赛。" }
+      ],
+      "uses": [
+        { "type": "planning", "label": "中后期经营", "detail": "满塘先收成或升级容量，病鱼优先治疗和清洁。" }
+      ],
+      "relations": ["crucian", "fish_feed", "water_purifier"]
+    },
+    {
+      "id": "system_breeding_index",
+      "title": "育种",
+      "kind": "breeding",
+      "aliases": ["育种", "杂交", "谱系", "认证"],
+      "routeHints": ["breeding"],
+      "questionTypes": ["page-feature", "resource-use", "precondition"],
+      "summary": "育种围绕种子箱、杂交、图鉴、认证和周赛推进。",
+      "sources": [
+        { "type": "system", "label": "育种页面", "detail": "查看育种台、可发现杂交、接近门槛和周赛报名。" }
+      ],
+      "uses": [
+        { "type": "quest", "label": "谱系订单", "detail": "高阶供货、认证和展陈任务会用到育种产物。" }
+      ],
+      "relations": ["resource_lineage_cert", "museum", "guild"]
+    },
+    {
+      "id": "system_museum_index",
+      "title": "博物馆",
+      "kind": "museum",
+      "aliases": ["博物馆", "捐赠", "展陈", "展厅", "学者委托"],
+      "routeHints": ["museum"],
+      "questionTypes": ["page-feature", "resource-use", "task-diagnosis"],
+      "summary": "博物馆关注藏品、展陈等级、空展位、里程碑和学者委托。",
+      "sources": [
+        { "type": "system", "label": "博物馆页面", "detail": "查看藏品进度、展位、馆区等级和学者委托。" }
+      ],
+      "uses": [
+        { "type": "quest", "label": "馆务委托", "detail": "展陈筹备和学者委托会消耗矿物、古物或认证补材。" }
+      ],
+      "relations": ["copper_ore", "resource_lineage_cert", "guild"]
+    },
+    {
+      "id": "system_guild_index",
+      "title": "公会",
+      "kind": "guild",
+      "aliases": ["公会", "贡献", "讨伐", "公会讨伐", "公会奖励", "赛季"],
+      "routeHints": ["guild"],
+      "questionTypes": ["page-feature", "resource-use"],
+      "summary": "公会关注等级、贡献、赛季阶段、段位和讨伐奖励。",
+      "sources": [
+        { "type": "system", "label": "公会页面", "detail": "查看贡献、赛季、奖励池和可领取讨伐奖励。" }
+      ],
+      "uses": [
+        { "type": "planning", "label": "成长路线", "detail": "把公会奖励与任务、博物馆、瀚海路线结合安排。" }
+      ],
+      "relations": ["museum", "hanhai", "quest"]
+    },
+    {
+      "id": "system_hanhai_index",
+      "title": "瀚海",
+      "kind": "hanhai",
+      "aliases": ["瀚海", "瀚海商路", "商路", "商队", "遗迹", "瀚海商店", "赌坊"],
+      "routeHints": ["hanhai"],
+      "questionTypes": ["page-feature", "resource-source", "resource-use"],
+      "summary": "瀚海围绕遗迹清理、商路投资、轮换货架和牌局次数推进。",
+      "sources": [
+        { "type": "system", "label": "瀚海页面", "detail": "查看遗迹剩余、商路投资、商店可购和牌局状态。" }
+      ],
+      "uses": [
+        { "type": "planning", "label": "中后期资源路线", "detail": "用于补足稀有材料、活动目录和商路收益。" }
+      ],
+      "relations": ["guild", "museum", "shop"]
+    },
+    {
+      "id": "system_festival_index",
+      "title": "节会",
+      "kind": "festival",
+      "aliases": ["节会", "活动", "节会房间", "活动房间", "夏夜灯会", "灯会", "房间重连"],
+      "routeHints": ["festival", "quest", "mail"],
+      "questionTypes": ["page-feature", "task-diagnosis"],
+      "summary": "节会把活动房间、活动邮件、限时任务和奖励节奏串起来。",
+      "sources": [
+        { "type": "system", "label": "节会房间", "detail": "查看房间状态、成员、玩法阶段、可重连和可结算提示。" },
+        { "type": "system", "label": "活动邮件", "detail": "活动奖励和提醒常通过邮箱承接。" }
+      ],
+      "uses": [
+        { "type": "planning", "label": "限时安排", "detail": "优先处理快到期的活动任务、邮件和房间状态。" }
+      ],
+      "relations": ["mailbox", "quest", "online"]
+    },
+    {
+      "id": "system_npc_index",
+      "title": "NPC 与村民委托",
+      "kind": "npc",
+      "aliases": ["NPC", "村民", "陈伯", "陈伯店", "秋月", "阿石", "孙铁匠", "送礼", "好感"],
+      "routeHints": ["village", "quest", "shop"],
+      "questionTypes": ["page-feature", "task-diagnosis", "resource-use"],
+      "summary": "NPC 关系连接商店、村民委托、好感解锁、料理和任务奖励。",
+      "sources": [
+        { "type": "system", "label": "村庄页面", "detail": "查看 NPC、好感和交互入口。" },
+        { "type": "quest", "label": "村民委托", "detail": "村民会要求作物、鱼、矿石、料理或任务补材。" }
+      ],
+      "uses": [
+        { "type": "unlock", "label": "关系解锁", "detail": "好感会解锁配方、线索或后续任务。" }
+      ],
+      "relations": ["cabbage", "crucian", "copper_ore", "recipe_stir_fried_cabbage"]
+    },
+    {
+      "id": "system_building_index",
+      "title": "建筑与村庄工程",
+      "kind": "building",
+      "aliases": ["建筑", "村庄工程", "温室", "农舍", "矿料棚"],
+      "routeHints": ["home", "village", "upgrade"],
+      "questionTypes": ["page-feature", "resource-use", "precondition"],
+      "summary": "建筑线消耗木材、石材、矿材等资源，并解锁温室、仓储或中后期便利功能。",
+      "sources": [
+        { "type": "system", "label": "家园/村庄工程", "detail": "查看农舍等级、温室、动物建筑和可推进工程。" }
+      ],
+      "uses": [
+        { "type": "unlock", "label": "功能解锁", "detail": "建筑升级会改变种植、仓储、养殖和任务路线。" }
+      ],
+      "relations": ["wood", "stone", "copper_ore", "greenhouse"]
+    }
+  ]
+}
