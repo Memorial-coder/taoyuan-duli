@@ -3644,6 +3644,7 @@
     | 'water_shared_farm'
     | 'care_shared_farm_cure_pests'
     | 'care_shared_farm_clear_weeds'
+    | 'remove_crop_shared_farm'
     | 'plant_shared_farm'
     | 'fertilize_shared_farm_basic'
     | 'fertilize_shared_farm_premium'
@@ -7313,6 +7314,7 @@
       makeOption('water_shared_farm', 'water_shared_farm', '共同农田浇水', 'plot', canWaterSelectedSharedFarmPlot.value, '请选择可浇水地块'),
       makeOption('care_shared_farm_cure_pests', 'care_shared_farm', '共同农田除虫', 'plot', canCureSelectedSharedFarmPlot.value, '请选择有虫害地块'),
       makeOption('care_shared_farm_clear_weeds', 'care_shared_farm', '共同农田清草', 'plot', canClearWeedsSelectedSharedFarmPlot.value, '请选择有杂草地块'),
+      makeOption('remove_crop_shared_farm', 'remove_crop_shared_farm', '共同农田铲除作物', 'plot', canRemoveCropSelectedSharedFarmPlot.value, '请选择有作物地块'),
       makeOption('plant_shared_farm', 'plant_shared_farm', '共同农田种植', 'plot', canPlantSelectedSharedFarmPlot.value, '请选择可种植地块和种子'),
       makeOption('fertilize_shared_farm_basic', 'fertilize_shared_farm_basic', '共同农田基础施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium !== true, '请选择基础肥料并确认共同仓库库存'),
       makeOption('fertilize_shared_farm_premium', 'fertilize_shared_farm_premium', '共同农田高级施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium === true, '请选择高级肥料并确认共同仓库库存与权限'),
@@ -7831,6 +7833,7 @@
     const labels: Record<string, string> = {
       water_shared_farm: '共同农田浇水',
       care_shared_farm: '共同农田管护',
+      remove_crop_shared_farm: '共同农田铲除作物',
       plant_shared_farm: '共同农田种植',
       fertilize_shared_farm_basic: '共同农田基础施肥',
       fertilize_shared_farm_premium: '共同农田高级施肥',
@@ -8142,6 +8145,7 @@
       basePayload.plot_id = plot.id
       if (option.id === 'care_shared_farm_cure_pests') basePayload.action = 'cure_pests'
       if (option.id === 'care_shared_farm_clear_weeds') basePayload.action = 'clear_weeds'
+      if (option.id === 'remove_crop_shared_farm') basePayload.action = 'remove_crop'
       if (option.id === 'plant_shared_farm') basePayload.seed_item_id = sharedFarmSeedItemId.value
       if (option.id === 'fertilize_shared_farm_basic' || option.id === 'fertilize_shared_farm_premium') {
         const fertilizer = selectedSharedFarmFertilizer.value
@@ -12080,6 +12084,7 @@
       plant_shared_farm: '种植共同农田',
       harvest_shared_farm: '收获共同农田',
       care_shared_farm: '管护共同农田',
+      remove_crop_shared_farm: '铲除共同农田作物',
       feed_shared_animal: '喂食共同动物',
       pet_shared_animal: '抚摸共同动物',
       collect_shared_animal_product: '收取动物产物',

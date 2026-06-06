@@ -682,6 +682,7 @@ const SHARED_PET_CARE_ITEM_IDS = Object.freeze(Object.keys(SHARED_PET_CARE_ITEM_
 const OFFLINE_QUEUE_SHARED_FARM_ACTIONS = Object.freeze([
   'water_shared_farm',
   'care_shared_farm',
+  'remove_crop_shared_farm',
   'plant_shared_farm',
   'fertilize_shared_farm_basic',
   'fertilize_shared_farm_premium',
@@ -24908,15 +24909,17 @@ async function executeCohabitationOfflineQueueOperation(contractId, operation = 
       memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm water merge', 160),
     }, actor);
   }
-  if (operation.action === 'care_shared_farm') {
-    const careAction = sanitizeText(payload.action || payload.care_action || payload.action_type, 40);
+  if (operation.action === 'care_shared_farm' || operation.action === 'remove_crop_shared_farm') {
+    const careAction = operation.action === 'remove_crop_shared_farm'
+      ? 'remove_crop'
+      : sanitizeText(payload.action || payload.care_action || payload.action_type, 40);
     return careCohabitationSharedFarmPlot(contractId, {
       ...payload,
       plot_id: payload.plot_id || payload.shared_plot_id || payload.id,
       action: careAction,
       care_action: careAction,
       idempotency_key: operation.idempotency_key,
-      memo: sanitizeText(payload.memo || payload.note || 'offline queue shared farm care merge', 160),
+      memo: sanitizeText(payload.memo || payload.note || `offline queue shared farm ${careAction} merge`, 160),
     }, actor);
   }
   if (operation.action === 'plant_shared_farm') {

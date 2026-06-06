@@ -2069,6 +2069,7 @@ export interface CohabitationOfflineStatus {
 export type CohabitationOfflineQueueAction =
   | 'water_shared_farm'
   | 'care_shared_farm'
+  | 'remove_crop_shared_farm'
   | 'plant_shared_farm'
   | 'fertilize_shared_farm_basic'
   | 'fertilize_shared_farm_premium'

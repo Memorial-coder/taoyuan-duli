@@ -106,6 +106,7 @@ assertAllIncluded(frontendApiSource, [
   'CohabitationOfflineConflictResolutionEvidence',
   'preflightCohabitationOfflineConflicts',
   'resolveCohabitationOfflineConflicts',
+  'remove_crop_shared_farm',
   'collect_offline_auto_income',
   'settle_shared_daily',
 ], 'frontend API offline conflict types')
@@ -116,6 +117,7 @@ assertAllIncluded(frontendStoreSource, [
 ], 'frontend store offline conflict actions')
 assertAllIncluded(frontendViewSource, [
   'move_shared_decoration',
+  'remove_crop_shared_farm',
   'settle_shared_daily',
   'collect_offline_auto_income',
   'offline_conflict_auto_resolved',
