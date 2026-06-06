@@ -111,6 +111,10 @@ taoyuan-main/public/npc/
 # Generated item icon assets are reproducible and too large for Git.
 taoyuan-main/public/item/
 taoyuan-main/public/item-icons-*.zip
+taoyuan-main/public/crop/
+taoyuan-main/public/crop.zip
+taoyuan-main/public/crop-*.zip
+taoyuan-main/public/crop_transparent_webp/
 
 # Local review / audit artifacts not for GitHub
 QA测试报告-*.md
