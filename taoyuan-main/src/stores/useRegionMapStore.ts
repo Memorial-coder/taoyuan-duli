@@ -3256,7 +3256,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         session.pendingEncounter ? `遭遇：${session.pendingEncounter.title}` : '',
         ...effects
       ].filter(Boolean),
-      tone: tone === 'danger' ? ('danger' as const) : tone === 'success' ? ('success' as const) : ('accent' as const)
+      tone: tone === 'danger' ? ('danger' as const) : tone === 'success' ? ('success' as const) : ('accent' as const),
+      timeResult
     }
   }
 
@@ -3313,7 +3314,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         `士气 ${session.morale}｜风险 ${session.danger}｜视野 ${session.visibility}`,
         ...effects,
       ].filter(Boolean),
-      tone: 'accent' as const
+      tone: 'accent' as const,
+      timeResult
     }
   }
 
@@ -3438,7 +3440,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         ...effects,
         session.retreatRule === 'after_camp' ? '已按预设规则切换为回撤收束。' : ''
       ].filter(Boolean),
-      tone: tone === 'success' ? ('success' as const) : ('accent' as const)
+      tone: tone === 'success' ? ('success' as const) : ('accent' as const),
+      timeResult
     }
   }
 

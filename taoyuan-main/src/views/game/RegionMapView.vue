@@ -2081,6 +2081,7 @@
   import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
   import { getItemById } from '@/data/items'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { handleEndDay } from '@/composables/useEndDay'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
   import { useFishPondStore } from '@/stores/useFishPondStore'
@@ -3119,6 +3120,12 @@
   const setActionSummary = (message: string, tone: 'success' | 'danger' | 'accent' = 'success') => {
     lastActionSummary.value = message
     actionTone.value = tone
+  }
+
+  type RegionActionTimeResult = { passedOut?: boolean; message?: string }
+  const handleRegionActionEndDay = (result: { timeResult?: RegionActionTimeResult }) => {
+    if (!result.timeResult?.passedOut) return
+    handleEndDay()
   }
 
   const openSettlementDialog = (title: string, lines: string[], tone: 'success' | 'danger' | 'accent' = 'success') => {
@@ -4613,6 +4620,7 @@
     } else {
       openSettlementDialog(result.title, result.lines, result.tone)
     }
+    handleRegionActionEndDay(result)
   }
 
   const handleCampExpedition = () => {
@@ -4623,6 +4631,7 @@
     } else {
       openSettlementDialog(result.title, result.lines, result.tone)
     }
+    handleRegionActionEndDay(result)
   }
 
   const handleResolveCampAction = (actionId: RegionCampActionId) => {
@@ -4633,6 +4642,7 @@
     } else {
       openSettlementDialog(result.title, result.lines, result.tone)
     }
+    handleRegionActionEndDay(result)
   }
 
   const handleRetreatExpedition = () => {
