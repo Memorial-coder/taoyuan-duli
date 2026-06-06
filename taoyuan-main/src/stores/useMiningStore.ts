@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { MonsterDef, CombatAction, MineFloorDef, MineTile, Quality } from '@/types'
 import {
@@ -59,6 +59,7 @@ const COMBAT_TIME_FAST = 0.08
 const COMBAT_TIME_ADVANTAGE = 0.12
 const COMBAT_TIME_NORMAL = 0.17
 const COMBAT_TIME_LONG = 0.25
+const MINING_COMBAT_LOG_LIMIT = 120
 
 type CombatActionResult = { message: string; combatOver: boolean; won: boolean; timeCostHours: number }
 
@@ -104,6 +105,14 @@ export const useMiningStore = defineStore('mining', () => {
   const combatMonsterHp = ref(0)
   const combatRound = ref(0)
   const combatLog = ref<string[]>([])
+  watch(
+    () => combatLog.value.length,
+    length => {
+      const overflow = length - MINING_COMBAT_LOG_LIMIT
+      if (overflow > 0) combatLog.value.splice(0, overflow)
+    },
+    { flush: 'sync' }
+  )
   const combatIsBoss = ref(false)
 
   /** 已击败的 BOSS（首杀记录） */

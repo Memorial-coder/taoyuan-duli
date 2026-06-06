@@ -20,6 +20,9 @@ const GAMEPLAY_EVENT_LOG_FILE = path.join(DATA_DIR, 'taoyuan_gameplay_event_logs
 const EXCHANGE_RATE = parseInt(process.env.EXCHANGE_RATE || '500000', 10);
 const DEFAULT_USER_QUOTA = parseInt(process.env.DEFAULT_USER_QUOTA || '2000000', 10);
 const QA_ONLINE_SMOKE_FORCE_LOCAL = String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() === 'true';
+const GAMEPLAY_EVENT_LOG_MAX_TOTAL = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_TOTAL || '5000', 10) || 5000);
+const GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT || '1200', 10) || 1200);
+const GAMEPLAY_EVENT_LOG_RETENTION_DAYS = Math.max(1, parseInt(process.env.GAMEPLAY_EVENT_LOG_RETENTION_DAYS || '30', 10) || 30);
 
 const MYSQL_ENABLED = !QA_ONLINE_SMOKE_FORCE_LOCAL && Boolean(process.env.MYSQL_HOST && process.env.MYSQL_USER && process.env.MYSQL_DATABASE);
 const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
@@ -254,6 +257,39 @@ function normalizeGameplayEventLogEntry(entry = {}) {
     meta_json: entry.meta_json || '{}',
     created_at: Number(entry.created_at) || nowSeconds(),
   };
+}
+
+function getGameplayEventLogSaveSlot(entry = {}) {
+  try {
+    const meta = JSON.parse(entry.meta_json || '{}');
+    return Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null;
+  } catch {
+    return null;
+  }
+}
+
+function pruneGameplayEventLogEntries(entries = [], now = nowSeconds()) {
+  const cutoff = now - GAMEPLAY_EVENT_LOG_RETENTION_DAYS * 86400;
+  const perUserSlotCounts = new Map();
+  const normalized = entries
+    .map(normalizeGameplayEventLogEntry)
+    .filter(entry => (Number(entry.created_at) || 0) >= cutoff)
+    .sort((left, right) => {
+      const byCreatedAt = (Number(right.created_at) || 0) - (Number(left.created_at) || 0);
+      return byCreatedAt !== 0 ? byCreatedAt : String(right.id).localeCompare(String(left.id));
+    });
+  const kept = [];
+  for (const entry of normalized) {
+    if (kept.length >= GAMEPLAY_EVENT_LOG_MAX_TOTAL) break;
+    const username = entry.username || 'guest';
+    const saveSlot = getGameplayEventLogSaveSlot(entry);
+    const key = `${username}|${saveSlot ?? 'none'}`;
+    const count = perUserSlotCounts.get(key) || 0;
+    if (count >= GAMEPLAY_EVENT_LOG_MAX_PER_USER_SLOT) continue;
+    perUserSlotCounts.set(key, count + 1);
+    kept.push(entry);
+  }
+  return kept;
 }
 
 function localUserToPublic(user) {
@@ -1241,43 +1277,88 @@ async function getContentRevision(id) {
   };
 }
 
-async function recordGameplayEventLog(entry = {}) {
-  const now = nowSeconds();
-  const normalized = normalizeGameplayEventLogEntry({
-    ...entry,
-    tags_json: JSON.stringify(Array.isArray(entry.tags) ? entry.tags : entry.tags_json || []),
-    meta_json: JSON.stringify(entry.meta || entry.meta_json || {}),
-    created_at: now,
-  });
-
+async function pruneGameplayEventLogs() {
+  const cutoff = nowSeconds() - GAMEPLAY_EVENT_LOG_RETENTION_DAYS * 86400;
   if (MYSQL_ENABLED) {
     try {
       await ensureMysqlReady();
-      await buildMysqlPool().execute(
-        `INSERT INTO gameplay_event_logs
-         (username, day_label, category, message, route_name, tags_json, meta_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          normalized.username,
-          normalized.day_label,
-          normalized.category,
-          normalized.message,
-          normalized.route_name,
-          normalized.tags_json,
-          normalized.meta_json,
-          normalized.created_at,
-        ]
-      );
-      return normalized;
+      await buildMysqlPool().execute('DELETE FROM gameplay_event_logs WHERE created_at < ?', [cutoff]);
+      const [[countRow]] = await buildMysqlPool().execute('SELECT COUNT(*) AS total FROM gameplay_event_logs', []);
+      const overflow = (Number(countRow?.total) || 0) - GAMEPLAY_EVENT_LOG_MAX_TOTAL;
+      if (overflow > 0) {
+        await buildMysqlPool().execute(
+          `DELETE FROM gameplay_event_logs
+           WHERE id NOT IN (
+             SELECT id FROM (
+               SELECT id FROM gameplay_event_logs
+               ORDER BY created_at DESC, id DESC
+               LIMIT ${GAMEPLAY_EVENT_LOG_MAX_TOTAL}
+             ) retained_gameplay_logs
+           )`,
+          []
+        );
+      }
+      return;
     } catch (error) {
-      logMysqlFallback('recordGameplayEventLog', error);
+      logMysqlFallback('pruneGameplayEventLogs', error);
     }
   }
 
   const store = loadGameplayEventLogStore();
-  store.logs.unshift(normalized);
+  store.logs = pruneGameplayEventLogEntries(store.logs);
   saveGameplayEventLogStore(store);
-  return normalized;
+}
+
+async function recordGameplayEventLogsBatch(entries = []) {
+  const now = nowSeconds();
+  const normalizedEntries = (Array.isArray(entries) ? entries : [])
+    .map(entry => normalizeGameplayEventLogEntry({
+      ...entry,
+      tags_json: JSON.stringify(Array.isArray(entry.tags) ? entry.tags : entry.tags_json || []),
+      meta_json: JSON.stringify(entry.meta || entry.meta_json || {}),
+      created_at: Number(entry.created_at) || now,
+    }))
+    .filter(entry => entry.message);
+
+  if (normalizedEntries.length === 0) return [];
+
+  if (MYSQL_ENABLED) {
+    try {
+      await ensureMysqlReady();
+      const placeholders = normalizedEntries.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      const params = normalizedEntries.flatMap(entry => [
+        entry.username,
+        entry.day_label,
+        entry.category,
+        entry.message,
+        entry.route_name,
+        entry.tags_json,
+        entry.meta_json,
+        entry.created_at,
+      ]);
+      await buildMysqlPool().execute(
+        `INSERT INTO gameplay_event_logs
+         (username, day_label, category, message, route_name, tags_json, meta_json, created_at)
+         VALUES ${placeholders}`,
+        params
+      );
+      await pruneGameplayEventLogs();
+      return normalizedEntries;
+    } catch (error) {
+      logMysqlFallback('recordGameplayEventLogsBatch', error);
+    }
+  }
+
+  const store = loadGameplayEventLogStore();
+  store.logs.unshift(...normalizedEntries.slice().reverse());
+  store.logs = pruneGameplayEventLogEntries(store.logs, now);
+  saveGameplayEventLogStore(store);
+  return normalizedEntries;
+}
+
+async function recordGameplayEventLog(entry = {}) {
+  const [recorded] = await recordGameplayEventLogsBatch([entry]);
+  return recorded || null;
 }
 
 async function listGameplayEventLogs(options = {}) {
@@ -1438,7 +1519,9 @@ module.exports = {
   listContentRevisions,
   getContentRevision,
   recordGameplayEventLog,
+  recordGameplayEventLogsBatch,
   listGameplayEventLogs,
+  pruneGameplayEventLogs,
   getUserAccessState,
   EXCHANGE_RATE,
   MYSQL_ENABLED,

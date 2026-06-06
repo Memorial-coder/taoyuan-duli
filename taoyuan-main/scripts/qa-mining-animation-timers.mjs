@@ -18,7 +18,7 @@ const assert = (condition, message) => {
 const source = fs.readFileSync(miningViewPath, 'utf8')
 
 const requiredPatterns = [
-  [/import \{ ref, computed, onUnmounted \} from 'vue'/, 'MiningView 必须导入 onUnmounted'],
+  [/import \{ ref, computed, onUnmounted(?:, watch)? \} from 'vue'/, 'MiningView 必须导入 onUnmounted'],
   [/const animTimers: Record<CombatVisualTarget, CombatTimer \| null>/, '必须为 player/monster 动画保存 timer id'],
   [/const floatTimers: Record<CombatVisualTarget, CombatTimer \| null>/, '必须为 player/monster 浮字保存 timer id'],
   [/let combatLockTimer: CombatTimer \| null = null/, '必须为 combat lock 保存 timer id'],

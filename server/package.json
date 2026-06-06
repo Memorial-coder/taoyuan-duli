@@ -12,6 +12,7 @@
     "qa:activity-room-reconnect-idempotency": "node scripts/qa-activity-room-reconnect-idempotency.mjs",
     "qa:online-release-guard": "node scripts/qa-online-release-guard.mjs",
     "qa:server-node-check": "node scripts/qa-server-node-check.mjs",
+    "qa:gameplay-log-retention": "node scripts/qa-gameplay-log-retention.mjs",
     "qa:activity-room-visual-state": "node scripts/qa-activity-room-visual-state.mjs",
     "qa:manor-care": "node scripts/qa-manor-care.mjs",
     "qa:manor-steal": "node scripts/qa-manor-steal.mjs",

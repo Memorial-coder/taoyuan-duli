@@ -32,6 +32,7 @@
     "qa:navigation-clock-guards": "node scripts/qa-navigation-clock-guards.mjs",
     "qa:new-game-reset-guards": "node scripts/qa-new-game-reset-guards.mjs",
     "qa:mining-animation-timers": "node scripts/qa-mining-animation-timers.mjs",
+    "qa:gameplay-log-guards": "node scripts/qa-gameplay-log-guards.mjs",
     "qa:crop-use-entry-guard": "node scripts/qa-crop-use-entry-guard.mjs",
     "qa:reward-delivery-control": "node scripts/qa-reward-delivery-control.mjs",
     "qa:random-npc-save-guard": "node scripts/qa-random-npc-save-guard.mjs",

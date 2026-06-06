@@ -1,0 +1,158 @@
+/* global console, process */
+
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { registerHooks } from 'node:module'
+import ts from 'typescript'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '..')
+const srcRoot = path.join(projectRoot, 'src')
+
+const errors = []
+
+const assert = (condition, message) => {
+  if (!condition) errors.push(message)
+}
+
+const tryResolveFile = candidate => {
+  const variants = [
+    candidate,
+    `${candidate}.ts`,
+    `${candidate}.js`,
+    path.join(candidate, 'index.ts'),
+    path.join(candidate, 'index.js')
+  ]
+  for (const item of variants) {
+    try {
+      if (fs.statSync(item).isFile()) return item
+    } catch {
+      // ignore missing candidate
+    }
+  }
+  return null
+}
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === 'qmsg') return { url: 'qa:qmsg', shortCircuit: true }
+    if (specifier.startsWith('@/')) {
+      const resolved = tryResolveFile(path.join(srcRoot, specifier.slice(2)))
+      if (!resolved) throw new Error(`无法解析模块：${specifier}`)
+      return { url: pathToFileURL(resolved).href, shortCircuit: true }
+    }
+    return nextResolve(specifier, context)
+  },
+  load(url, context, nextLoad) {
+    if (url === 'qa:qmsg') {
+      return {
+        format: 'module',
+        source: 'const noop = () => {}; const Qmsg = { config: noop, info: noop, success: noop, warning: noop, error: noop, closeAll: noop }; export default Qmsg;',
+        shortCircuit: true
+      }
+    }
+    if (url.startsWith('file:') && /\.(ts|tsx)$/.test(url)) {
+      const filePath = fileURLToPath(url)
+      const transpiled = ts.transpileModule(fs.readFileSync(filePath, 'utf8'), {
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          target: ts.ScriptTarget.ES2022,
+          esModuleInterop: true,
+          allowSyntheticDefaultImports: true
+        },
+        fileName: filePath
+      })
+      return { format: 'module', source: transpiled.outputText, shortCircuit: true }
+    }
+    return nextLoad(url, context)
+  }
+})
+
+const storage = new Map()
+const timerIds = new Set()
+let nextTimerId = 1
+let fetchCalls = 0
+
+globalThis.window = {
+  location: { hash: '#/game/mining' },
+  localStorage: {
+    getItem: key => storage.get(String(key)) ?? null,
+    setItem: (key, value) => storage.set(String(key), String(value)),
+    removeItem: key => storage.delete(String(key)),
+    clear: () => storage.clear()
+  },
+  setTimeout: () => {
+    const id = nextTimerId++
+    timerIds.add(id)
+    return id
+  },
+  clearTimeout: id => {
+    timerIds.delete(id)
+  },
+  addEventListener: () => {}
+}
+
+Object.defineProperty(globalThis, 'navigator', {
+  value: { sendBeacon: () => true },
+  configurable: true
+})
+
+globalThis.fetch = async () => {
+  fetchCalls += 1
+  return { ok: false, status: 503 }
+}
+
+const logModule = await import(pathToFileURL(path.join(srcRoot, 'composables', 'useGameLog.ts')).href)
+const {
+  addLog,
+  resetLogs,
+  logHistory,
+  GAME_LOG_HISTORY_LIMIT,
+  GAMEPLAY_LOG_QUEUE_LIMIT,
+  _flushGameplayLogQueueForQa,
+  _getGameplayLogDebugState
+} = logModule
+
+resetLogs()
+for (let index = 0; index < GAME_LOG_HISTORY_LIMIT + 160; index += 1) {
+  addLog(`矿洞探索日志 ${index}`)
+}
+assert(logHistory.value.length === GAME_LOG_HISTORY_LIMIT, 'logHistory 必须按上限裁剪')
+assert(_getGameplayLogDebugState().queueLength === GAMEPLAY_LOG_QUEUE_LIMIT, 'gameplayLogQueue 必须按上限裁剪')
+
+resetLogs()
+for (let index = 0; index < 5; index += 1) addLog('重复的挖矿日志')
+assert(logHistory.value.length === 1, '短时间重复日志应折叠为一条历史记录')
+assert(logHistory.value[0]?.meta?.repeat_count === 5, '重复日志应记录 repeat_count')
+assert(_getGameplayLogDebugState().queueLength === 1, '短时间重复日志应折叠为一条待上报记录')
+
+resetLogs()
+for (let index = 0; index < 60; index += 1) addLog(`离线战斗日志 ${index}`)
+for (let index = 0; index < 4; index += 1) {
+  await _flushGameplayLogQueueForQa()
+}
+assert(fetchCalls >= 4, '失败 flush 应检查 response.ok 并触发有限重试')
+assert(_getGameplayLogDebugState().queueLength <= 10, '超过最大重试次数的日志必须从队列丢弃')
+
+resetLogs()
+for (let index = 0; index < 20; index += 1) addLog(`待清理日志 ${index}`)
+resetLogs()
+assert(_getGameplayLogDebugState().queueLength === 0, 'resetLogs 必须同步清理待上报队列')
+
+const miningStoreSource = fs.readFileSync(path.join(srcRoot, 'stores', 'useMiningStore.ts'), 'utf8')
+assert(/const MINING_COMBAT_LOG_LIMIT = 120/.test(miningStoreSource), 'useMiningStore 必须定义 combatLog 上限')
+assert(/watch\(\s*\(\) => combatLog\.value\.length[\s\S]*combatLog\.value\.splice\(0, overflow\)/.test(miningStoreSource), 'combatLog 必须按长度同步裁剪')
+
+const miningViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'MiningView.vue'), 'utf8')
+assert(/const MINING_EXPLORE_LOG_LIMIT = 120/.test(miningViewSource), 'MiningView 必须定义 exploreLog 上限')
+assert(/watch\(\s*\(\) => exploreLog\.value\.length[\s\S]*exploreLog\.value\.splice\(0, overflow\)/.test(miningViewSource), 'exploreLog 必须按长度同步裁剪')
+
+if (errors.length > 0) {
+  console.error('qa-gameplay-log-guards 失败:')
+  for (const error of errors) console.error(`- ${error}`)
+  process.exitCode = 1
+} else {
+  console.log('qa-gameplay-log-guards 通过')
+}

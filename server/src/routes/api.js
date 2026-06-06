@@ -6398,7 +6398,7 @@ router.post('/taoyuan/logs/gameplay/batch', async (req, res) => {
     const rawLogs = Array.isArray(req.body?.logs) ? req.body.logs.slice(0, 100) : [];
     if (rawLogs.length === 0) return res.json({ ok: true, count: 0 });
     const usernameFromSession = normalizeUsername(req.session?.username || '');
-    const saved = [];
+    const normalizedLogs = [];
     for (const item of rawLogs) {
       const message = String(item?.message || '').trim();
       if (!message) continue;
@@ -6407,7 +6407,7 @@ router.post('/taoyuan/logs/gameplay/batch', async (req, res) => {
       const saveSlot = Number.isInteger(saveSlotRaw) && saveSlotRaw >= 0 && saveSlotRaw <= 2 ? saveSlotRaw : null;
       const meta = item?.meta && typeof item.meta === 'object' ? { ...item.meta } : {};
       if (saveSlot !== null) meta.save_slot = saveSlot;
-      saved.push(await db.recordGameplayEventLog({
+      normalizedLogs.push({
         username: normalizedUsername,
         day_label: String(item?.day_label || '').slice(0, 64),
         category: String(item?.category || 'system').slice(0, 32),
@@ -6415,8 +6415,9 @@ router.post('/taoyuan/logs/gameplay/batch', async (req, res) => {
         route_name: String(item?.route_name || '').slice(0, 128),
         tags: Array.isArray(item?.tags) ? item.tags.slice(0, 16) : [],
         meta,
-      }));
+      });
     }
+    const saved = await db.recordGameplayEventLogsBatch(normalizedLogs);
     res.json({ ok: true, count: saved.length });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '写入游戏日志失败' });

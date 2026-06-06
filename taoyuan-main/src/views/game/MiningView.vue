@@ -735,7 +735,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onUnmounted } from 'vue'
+  import { ref, computed, onUnmounted, watch } from 'vue'
   import { onBeforeRouteLeave } from 'vue-router'
   import {
     Mountain,
@@ -800,7 +800,16 @@
     return null
   })
 
+  const MINING_EXPLORE_LOG_LIMIT = 120
   const exploreLog = ref<string[]>([])
+  watch(
+    () => exploreLog.value.length,
+    length => {
+      const overflow = length - MINING_EXPLORE_LOG_LIMIT
+      if (overflow > 0) exploreLog.value.splice(0, overflow)
+    },
+    { flush: 'sync' }
+  )
 
   const showMapModal = ref(false)
   const showElevatorModal = ref(false)
