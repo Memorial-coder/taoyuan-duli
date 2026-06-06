@@ -354,6 +354,10 @@ export const useFrontierChronicleStore = defineStore('frontierChronicle', () => 
     }
   }
 
+  const $reset = () => {
+    saveData.value = createDefaultSaveData()
+  }
+
   return {
     saveData,
     chronicleEntries,
@@ -366,6 +370,7 @@ export const useFrontierChronicleStore = defineStore('frontierChronicle', () => 
     recordRegionNotable,
     getChronicleOverview,
     serialize,
-    deserialize
+    deserialize,
+    $reset
   }
 })

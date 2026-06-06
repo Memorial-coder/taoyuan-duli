@@ -1828,6 +1828,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     saveData.value = createDefaultRegionMapSaveData()
     syncStructuralState()
   }
+  const $reset = reset
 
   const getRegionUnlockProgress = (regionId: RegionId) => {
     const villageProjectStore = useVillageProjectStore()
@@ -5511,6 +5512,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     resourceLedgerEntries,
     getActiveRegionEvents,
     reset,
+    $reset,
     getRegionUnlockProgress,
     refreshUnlocksFromProgress,
     setWeeklyFocus,

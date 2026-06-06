@@ -177,6 +177,10 @@ export const usePlayerRecordCenterStore = defineStore('playerRecordCenter', () =
     saveData.value = normalizeSaveData(data)
   }
 
+  const $reset = () => {
+    saveData.value = createDefaultSaveData()
+  }
+
   return {
     saveData,
     dailyDigests,
@@ -190,6 +194,7 @@ export const usePlayerRecordCenterStore = defineStore('playerRecordCenter', () =
     setLastOpenTab,
     getPreferredOpenTab,
     serialize,
-    deserialize
+    deserialize,
+    $reset
   }
 })
