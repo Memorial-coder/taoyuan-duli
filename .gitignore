@@ -1,6 +1,10 @@
 # Local assistant settings
+.codex/
 .claude/
 .codex-temp/
+.agent/
+.agents/
+taoyuan-main/.vscode/
 CLAUDE.md
 CLAUDE.local.md
 
@@ -21,6 +25,10 @@ taoyuan-main/dist-electron/
 
 # Local runtime data
 /data/
+.vite/
+.tmp/
+/tmp/
+/output/
 server/.tmp-*/
 production/session-logs/
 production/session-state/active.md
@@ -31,10 +39,14 @@ taoyuan-main/android/key
 
 # Local archives
 taoyuan-duli-latest.tar
+taoyuan-duli-update-*.tar
 codex-skills-export-*.zip
 
 # Local logs
 *.log
+
+# Local photo and generated-image workspace
+/images/
 
 # Item source art is huge; Git should keep only runtime-compressed icons.
 images/item/**/*.png
@@ -95,6 +107,10 @@ images/generated/npc/**/*.JPEG
 images/generated/npc/**/*.webp
 images/generated/npc/**/*.WEBP
 taoyuan-main/public/npc/
+
+# Generated item icon assets are reproducible and too large for Git.
+taoyuan-main/public/item/
+taoyuan-main/public/item-icons-*.zip
 
 # Local review / audit artifacts not for GitHub
 QA测试报告-*.md
