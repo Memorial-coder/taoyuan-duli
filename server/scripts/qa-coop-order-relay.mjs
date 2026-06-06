@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename)
 const serverRoot = path.resolve(__dirname, '..')
 const tempDir = path.resolve(serverRoot, '.tmp-coop-order-relay')
 const storageFile = path.join(tempDir, '.storage.json')
+const coopOrderFile = path.join(tempDir, 'taoyuan_coop_orders.json')
 
 await rm(tempDir, { recursive: true, force: true })
 await mkdir(tempDir, { recursive: true })
@@ -137,6 +138,7 @@ const duplicateDeliveryOne = await orderRuntime.submitCoopOrderStageDelivery(ord
 assert.equal(duplicateDeliveryOne.duplicate_protected, true, 'duplicate stage delivery should be idempotent')
 assert.equal(duplicateDeliveryOne.receipt.id, deliveredOne.receipt.id, 'duplicate delivery should replay original receipt')
 
+const preConfirmStageOneStore = await readFile(coopOrderFile, 'utf8')
 const confirmedOne = await orderRuntime.confirmCoopOrderStageDelivery(order.id, stageOne.id, actor(owner))
 assert.equal(confirmedOne.receipt.status, 'confirmed', 'stage one receipt should confirm')
 assert.equal(confirmedOne.receipt.reward_value, 2, 'stage one reward should be 2')
@@ -144,6 +146,11 @@ assert.equal(confirmedOne.receipt.relay_pending_reward_value, 5, 'stage one rece
 assert.notEqual(confirmedOne.receipt.relay_story_summary, deliveredOne.receipt.relay_story_summary, 'confirmed stage receipt should refresh confirmed story summary')
 assert.notEqual(confirmedOne.receipt.relay_story_settlement_summary, deliveredOne.receipt.relay_story_settlement_summary, 'confirmed stage receipt should refresh settlement story summary')
 assert.equal(getMoney(helperA), 12, 'stage one helper should receive exactly 2 money')
+
+await writeFile(coopOrderFile, preConfirmStageOneStore, 'utf8')
+const replayedConfirmOne = await orderRuntime.confirmCoopOrderStageDelivery(order.id, stageOne.id, actor(owner))
+assert.equal(replayedConfirmOne.receipt.status, 'confirmed', 'stage one replay after store rollback should still confirm receipt')
+assert.equal(getMoney(helperA), 12, 'stage one replay after store rollback should not pay helper twice')
 
 await assert.rejects(
   () => orderRuntime.confirmCoopOrderStageDelivery(order.id, stageOne.id, actor(owner)),

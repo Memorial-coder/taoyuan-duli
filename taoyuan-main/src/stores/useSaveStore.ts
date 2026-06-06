@@ -58,7 +58,8 @@ import {
   WS12_SAVE_MIGRATION_PROFILES
 } from '@/data/goals'
 import { buildScopedSingleKey, buildScopedStorageKey, ensureCurrentAccount, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
-import { deleteServerSlotRaw, fetchServerSlotRaw, fetchServerSlots, saveServerSlotRaw, setServerActiveSlot } from '@/utils/serverSaveApi'
+import { deleteServerSlotRaw, fetchServerSlotEntries, fetchServerSlotRaw, saveServerSlotRaw, setServerActiveSlot } from '@/utils/serverSaveApi'
+import { isProtectedApiError } from '@/utils/protectedApi'
 import { _registerGameplaySaveContextGetter } from '@/composables/useGameLog'
 
 const LEGACY_SAVE_KEY_PREFIX = 'taoyuanxiang_save_'
@@ -127,15 +128,13 @@ const loadPendingServerSaveMap = (): PendingServerSaveMap => {
       const slot = Number(slotKey)
       if (!isValidSlot(slot)) continue
       if (!entry || typeof entry !== 'object' || typeof entry.raw !== 'string' || !entry.raw) continue
+      const rawBaseRevision = (entry as any).baseRevision ?? (entry as any).base_revision ?? (entry as any).revision
+      const baseRevision = Number.isFinite(Number(rawBaseRevision)) ? Math.max(0, Math.floor(Number(rawBaseRevision))) : 0
       next[slot] = {
         raw: entry.raw,
         savedAt: typeof entry.savedAt === 'string' && entry.savedAt ? entry.savedAt : new Date().toISOString(),
         updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now(),
-        revision: Number.isFinite(Number(entry.revision))
-          ? Number(entry.revision)
-          : Number.isFinite(Number(entry.updatedAt))
-            ? Number(entry.updatedAt)
-            : Date.now()
+        baseRevision
       }
     }
     return next
@@ -171,11 +170,11 @@ const getPendingServerSlotNumbers = (): number[] =>
     .map(item => item.slot)
     .sort((left, right) => left - right)
 
-const buildPendingServerSaveEntry = (raw: string, revision: number): PendingServerSaveEntry => ({
+const buildPendingServerSaveEntry = (raw: string, baseRevision: number): PendingServerSaveEntry => ({
   raw,
   savedAt: new Date().toISOString(),
   updatedAt: Date.now(),
-  revision
+  baseRevision: Math.max(0, Math.floor(Number(baseRevision) || 0))
 })
 
 /** 加密 JSON 字符串 */
@@ -256,7 +255,7 @@ interface PendingServerSaveEntry {
   raw: string
   savedAt: string
   updatedAt: number
-  revision: number
+  baseRevision: number
 }
 
 type PendingServerSaveMap = Partial<Record<number, PendingServerSaveEntry>>
@@ -652,6 +651,7 @@ const normalizeSaveEnvelope = (raw: Record<string, any>): SaveEnvelope | null =>
     data: migrateSavePayload(raw, saveVersion)
   }
 }
+
 const LOAD_FAILURE_MESSAGES: Record<SaveLoadFailureCode, string> = {
   invalid_slot: '存档槽位无效，请刷新存档列表后重试。',
   pending_copy_blocked: '该服务端存档还有未同步的本地副本，请先完成同步或刷新远端存档。',
@@ -767,7 +767,6 @@ export const useSaveStore = defineStore('save', () => {
     lastServerSyncMessage.value = syncMessage
   }
 
-
   const setLoadError = (
     code: SaveLoadFailureCode,
     slot: number,
@@ -788,18 +787,31 @@ export const useSaveStore = defineStore('save', () => {
     lastLoadError.value = null
   }
 
-  const queuePendingServerSave = (slot: number, raw: string) => {
-    const map = loadPendingServerSaveMap()
-    const previousRevision = Math.max(
-      lastIssuedServerRevisionBySlot.value[slot] ?? 0,
-      map[slot]?.revision ?? 0
-    )
-    const nextRevision = Math.max(Date.now(), previousRevision + 1)
+  const rememberServerSlotState = (slot: number, raw: string | null | undefined, revision: number | null | undefined) => {
+    if (!isValidSlot(slot)) return
+    const normalizedRevision = Number.isFinite(Number(revision)) ? Math.max(0, Math.floor(Number(revision))) : 0
     lastIssuedServerRevisionBySlot.value = {
       ...lastIssuedServerRevisionBySlot.value,
-      [slot]: nextRevision
+      [slot]: Math.max(lastIssuedServerRevisionBySlot.value[slot] ?? 0, normalizedRevision)
     }
-    map[slot] = buildPendingServerSaveEntry(raw, nextRevision)
+    if (typeof raw === 'string' && raw) {
+      lastAuthoritativeServerRawBySlot.value = {
+        ...lastAuthoritativeServerRawBySlot.value,
+        [slot]: raw
+      }
+    }
+  }
+
+  const acknowledgeServerSlotRevision = (slot: number | null | undefined, revision: number | null | undefined) => {
+    const normalizedSlot = Number(slot)
+    if (!Number.isInteger(normalizedSlot) || !isValidSlot(normalizedSlot)) return
+    rememberServerSlotState(normalizedSlot, null, revision)
+  }
+
+  const queuePendingServerSave = (slot: number, raw: string) => {
+    const map = loadPendingServerSaveMap()
+    const baseRevision = map[slot]?.baseRevision ?? Math.max(0, Math.floor(Number(lastIssuedServerRevisionBySlot.value[slot]) || 0))
+    map[slot] = buildPendingServerSaveEntry(raw, baseRevision)
     persistPendingServerSaveMap(map)
     refreshPendingServerState()
   }
@@ -816,7 +828,7 @@ export const useSaveStore = defineStore('save', () => {
     const currentEntry = map[slot]
     if (!currentEntry) return true
     if (
-      currentEntry.revision !== expectedEntry.revision ||
+      currentEntry.baseRevision !== expectedEntry.baseRevision ||
       currentEntry.updatedAt !== expectedEntry.updatedAt ||
       currentEntry.raw !== expectedEntry.raw
     ) {
@@ -1415,16 +1427,27 @@ export const useSaveStore = defineStore('save', () => {
   const buildMergedServerSlotStates = async (): Promise<Array<{ raw: string | null; pendingSync: boolean; readBlocked: boolean }>> => {
     const pendingMap = loadPendingServerSaveMap()
     try {
-      const raws = await fetchServerSlots()
+      const serverEntries = await fetchServerSlotEntries()
       serverSlotsFetchState.value = 'available'
-      return Array.from({ length: MAX_SLOTS }, (_, slot) => {
-        const pendingRaw = pendingMap[slot]?.raw ?? null
+      let hasRevisionConflict = false
+      const states = Array.from({ length: MAX_SLOTS }, (_, slot) => {
+        const serverEntry = serverEntries[slot] ?? { raw: null, revision: 0 }
+        rememberServerSlotState(slot, serverEntry.raw, serverEntry.revision)
+        const pendingEntry = pendingMap[slot]
+        const pendingRaw = pendingEntry?.raw ?? null
+        const pendingConflictsWithRemote = !!pendingEntry && serverEntry.revision > pendingEntry.baseRevision
+        if (pendingConflictsWithRemote) hasRevisionConflict = true
         return {
-          raw: pendingRaw ?? raws[slot] ?? null,
+          raw: pendingConflictsWithRemote ? serverEntry.raw : (pendingRaw ?? serverEntry.raw ?? null),
           pendingSync: !!pendingRaw,
           readBlocked: false
         }
       })
+      if (hasRevisionConflict) {
+        serverSyncStatus.value = serverSyncStatus.value === 'syncing' ? serverSyncStatus.value : 'error'
+        lastServerSyncMessage.value = '服务端存档已在其他设备更新，本地待同步副本已暂停上传，请重新读取远端存档后再决定是否覆盖。'
+      }
+      return states
     } catch {
       serverSlotsFetchState.value = 'unavailable'
       return Array.from({ length: MAX_SLOTS }, (_, slot) => ({
@@ -1446,6 +1469,8 @@ export const useSaveStore = defineStore('save', () => {
         attempted: false,
         syncedSlots: [] as number[],
         failedSlots: [] as number[],
+        invalidSlots: [] as number[],
+        staleSlots: [] as number[],
         pendingSlots: [...currentPending]
       }
     }
@@ -1464,6 +1489,8 @@ export const useSaveStore = defineStore('save', () => {
         attempted: false,
         syncedSlots: [] as number[],
         failedSlots: [] as number[],
+        invalidSlots: [] as number[],
+        staleSlots: [] as number[],
         pendingSlots: [...currentPending]
       }
     }
@@ -1471,35 +1498,43 @@ export const useSaveStore = defineStore('save', () => {
     serverSyncStatus.value = 'syncing'
     const syncedSlots: number[] = []
     const failedSlots: number[] = []
+    const invalidSlots: number[] = []
+    const staleSlots: number[] = []
 
     for (const { slot, entry } of pendingEntries) {
       try {
-        const saveResult = await saveServerSlotRaw(slot, entry.raw, entry.revision)
-        lastIssuedServerRevisionBySlot.value = {
-          ...lastIssuedServerRevisionBySlot.value,
-          [slot]: Math.max(lastIssuedServerRevisionBySlot.value[slot] ?? 0, saveResult.currentRevision)
-        }
+        const saveResult = await saveServerSlotRaw(slot, entry.raw, entry.baseRevision)
+        rememberServerSlotState(slot, saveResult.raw, saveResult.currentRevision)
         if (saveResult.stale) {
           failedSlots.push(slot)
+          staleSlots.push(slot)
           continue
         }
         if (saveResult.raw) {
-          lastAuthoritativeServerRawBySlot.value = {
-            ...lastAuthoritativeServerRawBySlot.value,
-            [slot]: saveResult.raw
-          }
           refreshRuntimeOnlineIdentityFromRaw(slot, 'server', saveResult.raw)
         }
         if (clearPendingServerSaveIfUnchanged(slot, entry)) {
           syncedSlots.push(slot)
         }
-      } catch {
+      } catch (error) {
+        if (isProtectedApiError(error) && error.status === 422) {
+          clearPendingServerSaveIfUnchanged(slot, entry)
+          failedSlots.push(slot)
+          invalidSlots.push(slot)
+          continue
+        }
         failedSlots.push(slot)
       }
     }
 
     const remainingPending = refreshPendingServerState()
-    if (failedSlots.length > 0) {
+    if (staleSlots.length > 0) {
+      serverSyncStatus.value = 'error'
+      lastServerSyncMessage.value = '云存档已在其他设备更新，本地待同步副本已暂停上传。请重新读取远端存档，确认后再保存。'
+    } else if (invalidSlots.length > 0) {
+      serverSyncStatus.value = 'error'
+      lastServerSyncMessage.value = '云存档数据无效，已保留远端旧档。请重新读取远端存档或导出本地备份后处理。'
+    } else if (failedSlots.length > 0) {
       serverSyncStatus.value = remainingPending.length > 0 ? 'queued' : 'error'
       lastServerSyncMessage.value = '服务暂时不可用，已先保存在当前浏览器，恢复后会自动同步。'
     } else if (remainingPending.length > 0) {
@@ -1517,6 +1552,8 @@ export const useSaveStore = defineStore('save', () => {
       attempted: true,
       syncedSlots,
       failedSlots,
+      invalidSlots,
+      staleSlots,
       pendingSlots: [...remainingPending]
     }
   }
@@ -1542,6 +1579,22 @@ export const useSaveStore = defineStore('save', () => {
       )
       return true
     }
+    if (syncResult.invalidSlots.includes(slot)) {
+      setLastSaveState(
+        'failed',
+        '云存档数据无效，已保留远端旧档。请重新读取远端存档或导出本地备份后处理。',
+        lastServerSyncMessage.value
+      )
+      return false
+    }
+    if (syncResult.staleSlots.includes(slot)) {
+      setLastSaveState(
+        'failed',
+        '云存档已在其他设备更新，已保留远端旧档。请重新读取远端存档，确认后再保存。',
+        lastServerSyncMessage.value
+      )
+      return false
+    }
 
     setLastSaveState('queued', '', '服务暂时不可用，当前进度已先保存在浏览器，恢复后会自动同步。')
     return true
@@ -1554,11 +1607,21 @@ export const useSaveStore = defineStore('save', () => {
   ): Promise<string | null> => {
     if (mode === 'server') {
       const allowPendingServerCopy = options.allowPendingServerCopy !== false
-      const pendingRaw = getPendingServerRaw(slot)
-      if (pendingRaw && !allowPendingServerCopy) return null
+      const pendingEntry = loadPendingServerSaveMap()[slot]
+      const pendingRaw = pendingEntry?.raw ?? null
       try {
-        const serverRaw = await fetchServerSlotRaw(slot)
-        return allowPendingServerCopy ? (pendingRaw ?? serverRaw) : serverRaw
+        const serverEntry = await fetchServerSlotRaw(slot)
+        if (serverEntry) {
+          rememberServerSlotState(slot, serverEntry.raw, serverEntry.revision)
+        }
+        const pendingConflictsWithRemote = !!pendingEntry && !!serverEntry && serverEntry.revision > pendingEntry.baseRevision
+        if (pendingConflictsWithRemote) {
+          serverSyncStatus.value = 'error'
+          lastServerSyncMessage.value = '服务端存档已在其他设备更新，本地待同步副本已暂停上传，请重新读取远端存档后再决定是否覆盖。'
+          return serverEntry.raw
+        }
+        if (pendingRaw && !allowPendingServerCopy) return null
+        return allowPendingServerCopy ? (pendingRaw ?? serverEntry?.raw ?? null) : (serverEntry?.raw ?? null)
       } catch (error) {
         if (allowPendingServerCopy && pendingRaw) return pendingRaw
         throw error
@@ -1861,6 +1924,7 @@ export const useSaveStore = defineStore('save', () => {
     getQaGovernanceStorageOverview,
     refreshPendingServerState,
     hasPendingServerSave,
+    acknowledgeServerSlotRevision,
     setStorageMode,
     setQaGovernanceStorageMode,
     getSlots,

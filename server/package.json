@@ -15,6 +15,7 @@
     "qa:activity-room-visual-state": "node scripts/qa-activity-room-visual-state.mjs",
     "qa:manor-care": "node scripts/qa-manor-care.mjs",
     "qa:manor-steal": "node scripts/qa-manor-steal.mjs",
+    "qa:mailbox-reward-idempotency": "node scripts/qa-mailbox-reward-idempotency.mjs",
     "qa:coop-order-relay": "node scripts/qa-coop-order-relay.mjs",
     "qa:coop-order-compensation-replay": "node scripts/qa-coop-order-compensation-replay.mjs",
     "qa:society-lantern-wall": "node scripts/qa-society-lantern-wall.mjs",
@@ -24,6 +25,8 @@
     "qa:cohabitation-idempotency-credentials": "node scripts/qa-cohabitation-idempotency-credentials.mjs",
     "qa:hall-upload-visibility-guard": "node scripts/qa-hall-upload-visibility-guard.mjs",
     "qa:save-corruption-guard": "node scripts/qa-save-corruption-guard.mjs",
+    "qa:save-cas-guard": "node scripts/qa-save-cas-guard.mjs",
+    "qa:transaction-idempotency": "node scripts/qa-transaction-idempotency.mjs",
     "qa:cohabitation-offline-closeout": "node scripts/qa-cohabitation-offline-closeout.mjs",
     "qa:realtime-smoke": "node scripts/qa-realtime-smoke.mjs"
   },

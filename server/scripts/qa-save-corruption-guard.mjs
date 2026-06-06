@@ -44,6 +44,48 @@ assert.throws(
 const after = await readFile(saveFile, 'utf8')
 assert.equal(after, '{ broken json', 'corrupted save file must remain untouched after blocked write')
 
+const validSaveRaw = encryptTaoyuanData({
+  data: {
+    player: { playerName: 'valid_guard_user', money: 120 },
+    game: { year: 1, season: 'spring', day: 1 },
+  },
+})
+const badRawUsername = 'bad_raw_guard_user'
+saveUserSaveSlots(badRawUsername, {
+  slots: {
+    ...createEmptySlots(),
+    0: { raw: validSaveRaw, revision: 7 },
+  },
+})
+
+assert.throws(
+  () => prepareSlotEntryForSave(badRawUsername, 0, 'not-a-save', 8),
+  error =>
+    error?.status === 422 &&
+    error?.code === 'TAOYUAN_SAVE_RAW_INVALID' &&
+    error?.details?.reason === 'decrypt_or_parse_failed' &&
+    error?.details?.required_operation === 'resubmit_valid_save_raw',
+  'undecryptable raw should be rejected before it can overwrite an existing cloud save'
+)
+
+const stillValid = loadUserSaveSlots(badRawUsername)
+assert.equal(stillValid.slots[0].raw, validSaveRaw, 'old cloud raw should remain unchanged after rejected bad raw')
+assert.equal(stillValid.slots[0].revision, 7, 'old cloud revision should remain unchanged after rejected bad raw')
+
+const missingPlayerRaw = encryptTaoyuanData({
+  data: {
+    inventory: { items: [], tempItems: [] },
+  },
+})
+assert.throws(
+  () => prepareSlotEntryForSave('missing_player_guard_user', 0, missingPlayerRaw, 1),
+  error =>
+    error?.status === 422 &&
+    error?.code === 'TAOYUAN_SAVE_RAW_INVALID' &&
+    error?.details?.reason === 'missing_gameplay_player',
+  'save raw without gameplayData.player should be rejected before overwrite'
+)
+
 const illegalSaveRaw = encryptTaoyuanData({
   data: {
     player: { playerName: 'illegal_guard_user', money: -1 },

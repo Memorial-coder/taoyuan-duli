@@ -47,6 +47,8 @@ const DATA_DIR = process.env.DB_STORAGE
   : path.join(__dirname, '../../../data');
 
 const TAOYUAN_EXCHANGE_LIMITS_FILE = path.join(DATA_DIR, 'taoyuan_exchange_limits.json');
+const TAOYUAN_EXCHANGE_RECEIPTS_KEY = '__transaction_receipts';
+const TAOYUAN_EXCHANGE_RECEIPT_LIMIT = 2000;
 const TAOYUAN_ITEM_ICON_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_item_icon_preferences.json');
 const TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_npc_portrait_preferences.json');
 const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
@@ -2742,6 +2744,149 @@ function updateTaoyuanTodayUsage(username, deltas = {}) {
   all[today][username] = current;
   taoyuanExchangeLimitsSave(all);
   return { today, import_money: current.import_money, export_money: current.export_money };
+}
+
+function sanitizeTransactionIdempotencyKey(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized || normalized.length > 120) return '';
+  return /^[a-zA-Z0-9._:-]+$/.test(normalized) ? normalized : '';
+}
+
+function getRequestedSaveSlot(body = {}) {
+  const rawSlot = body.active_save_slot ?? body.save_slot ?? body.slot;
+  const slot = Number(rawSlot);
+  return Number.isInteger(slot) && slot >= 0 && slot <= 2 ? slot : null;
+}
+
+function getTaoyuanExchangeReceiptMap(data) {
+  if (!data[TAOYUAN_EXCHANGE_RECEIPTS_KEY] || typeof data[TAOYUAN_EXCHANGE_RECEIPTS_KEY] !== 'object') {
+    data[TAOYUAN_EXCHANGE_RECEIPTS_KEY] = {};
+  }
+  return data[TAOYUAN_EXCHANGE_RECEIPTS_KEY];
+}
+
+function buildQuotaExchangeReceiptStorageKey(username, direction, idempotencyKey) {
+  return `${String(username || '').trim()}:${String(direction || '').trim()}:${String(idempotencyKey || '').trim()}`;
+}
+
+function pruneTaoyuanExchangeReceipts(receipts) {
+  const entries = Object.entries(receipts || {})
+    .sort(([, left], [, right]) => (Number(right?.updated_at) || 0) - (Number(left?.updated_at) || 0));
+  return Object.fromEntries(entries.slice(0, TAOYUAN_EXCHANGE_RECEIPT_LIMIT));
+}
+
+function normalizeQuotaExchangeReceipt(raw, fallbackKey = '') {
+  if (!raw || typeof raw !== 'object') return null;
+  const status = ['pending', 'succeeded', 'failed_rolled_back', 'compensation_pending'].includes(String(raw.status))
+    ? String(raw.status)
+    : 'pending';
+  return {
+    id: String(raw.id || fallbackKey || ''),
+    username: String(raw.username || ''),
+    direction: String(raw.direction || ''),
+    idempotency_key: String(raw.idempotency_key || ''),
+    requested_money: Math.max(0, Math.floor(Number(raw.requested_money) || 0)),
+    requested_save_slot: Number.isInteger(Number(raw.requested_save_slot)) ? Number(raw.requested_save_slot) : null,
+    status,
+    created_at: Number(raw.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(raw.updated_at) || Number(raw.created_at) || Math.floor(Date.now() / 1000),
+    error_message: String(raw.error_message || '').slice(0, 240),
+    response: raw.response && typeof raw.response === 'object' ? { ...raw.response } : null,
+  };
+}
+
+function getQuotaExchangeReceipt(username, direction, idempotencyKey) {
+  const data = taoyuanExchangeLimitsLoad();
+  const receipts = getTaoyuanExchangeReceiptMap(data);
+  const storageKey = buildQuotaExchangeReceiptStorageKey(username, direction, idempotencyKey);
+  return normalizeQuotaExchangeReceipt(receipts[storageKey], storageKey);
+}
+
+function assertQuotaExchangeReceiptMatches(receipt, { money, requestedSaveSlot }) {
+  if (!receipt) return;
+  if (receipt.requested_money !== money || receipt.requested_save_slot !== requestedSaveSlot) {
+    throw createError('该兑换幂等键已被不同请求使用，请刷新后重试', 409, 'TAOYUAN_EXCHANGE_IDEMPOTENCY_CONFLICT');
+  }
+}
+
+function beginQuotaExchangeReceipt(username, direction, idempotencyKey, { money, requestedSaveSlot }) {
+  const data = taoyuanExchangeLimitsLoad();
+  const receipts = getTaoyuanExchangeReceiptMap(data);
+  const storageKey = buildQuotaExchangeReceiptStorageKey(username, direction, idempotencyKey);
+  const existing = normalizeQuotaExchangeReceipt(receipts[storageKey], storageKey);
+  if (existing) {
+    assertQuotaExchangeReceiptMatches(existing, { money, requestedSaveSlot });
+    return existing;
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const receipt = {
+    id: storageKey,
+    username,
+    direction,
+    idempotency_key: idempotencyKey,
+    requested_money: money,
+    requested_save_slot: requestedSaveSlot,
+    status: 'pending',
+    created_at: now,
+    updated_at: now,
+    error_message: '',
+    response: null,
+  };
+  receipts[storageKey] = receipt;
+  data[TAOYUAN_EXCHANGE_RECEIPTS_KEY] = pruneTaoyuanExchangeReceipts(receipts);
+  taoyuanExchangeLimitsSave(data);
+  return normalizeQuotaExchangeReceipt(receipt, storageKey);
+}
+
+function finalizeQuotaExchangeReceipt(username, direction, idempotencyKey, updates = {}, usageDelta = {}) {
+  const data = taoyuanExchangeLimitsLoad();
+  const today = todayBJ();
+  if (!data[today] || typeof data[today] !== 'object') data[today] = {};
+  const current = data[today][username] && typeof data[today][username] === 'object'
+    ? data[today][username]
+    : { import_money: 0, export_money: 0 };
+  current.import_money = Math.max(0, (parseInt(current.import_money, 10) || 0) + (parseInt(usageDelta.importDelta, 10) || 0));
+  current.export_money = Math.max(0, (parseInt(current.export_money, 10) || 0) + (parseInt(usageDelta.exportDelta, 10) || 0));
+  data[today][username] = current;
+
+  const receipts = getTaoyuanExchangeReceiptMap(data);
+  const storageKey = buildQuotaExchangeReceiptStorageKey(username, direction, idempotencyKey);
+  const previous = normalizeQuotaExchangeReceipt(receipts[storageKey], storageKey) || {};
+  receipts[storageKey] = {
+    ...previous,
+    ...updates,
+    id: storageKey,
+    username,
+    direction,
+    idempotency_key: idempotencyKey,
+    updated_at: Math.floor(Date.now() / 1000),
+  };
+  data[TAOYUAN_EXCHANGE_RECEIPTS_KEY] = pruneTaoyuanExchangeReceipts(receipts);
+  taoyuanExchangeLimitsSave(data);
+  return { today, import_money: current.import_money, export_money: current.export_money };
+}
+
+function sendQuotaExchangeReceiptReplay(res, receipt) {
+  if (!receipt) return false;
+  if (receipt.status === 'succeeded' && receipt.response) {
+    res.json({
+      ...receipt.response,
+      idempotency_replayed: true,
+      transaction_receipt_status: receipt.status,
+    });
+    return true;
+  }
+  const statusCode = receipt.status === 'pending' || receipt.status === 'compensation_pending' ? 409 : 400;
+  res.status(statusCode).json({
+    ok: false,
+    code: receipt.status === 'failed_rolled_back'
+      ? 'TAOYUAN_EXCHANGE_RECEIPT_FAILED_ROLLED_BACK'
+      : 'TAOYUAN_EXCHANGE_RECEIPT_COMPENSATION_PENDING',
+    msg: receipt.error_message || '上一笔额度兑换状态未完成，请刷新后确认资产状态',
+    transaction_receipt_status: receipt.status,
+    idempotency_replayed: true,
+  });
+  return true;
 }
 
 let taoyuanExchangeLock = Promise.resolve();
@@ -6282,14 +6427,34 @@ router.post('/taoyuan/quota/import', loginRequired, signRequired, async (req, re
   return withTaoyuanExchangeLock(async () => {
     const username = req.session.username;
     const money = parseInt(req.body?.money, 10);
+    const direction = String(req.body?.direction || '').trim();
+    const idempotencyKey = sanitizeTransactionIdempotencyKey(req.body?.idempotency_key);
+    const requestedSaveSlot = getRequestedSaveSlot(req.body || {});
     const dollarPerMoney = getTaoyuanDollarPerMoney();
     const er = cfg.get('exchange_rate') || db.EXCHANGE_RATE;
     const dailyImportLimit = getTaoyuanDailyLimitMoney('import');
     const dailyExportLimit = getTaoyuanDailyLimitMoney('export');
 
+    if (direction !== 'import') {
+      return res.status(400).json({ ok: false, code: 'TAOYUAN_EXCHANGE_DIRECTION_REQUIRED', msg: '额度导入请求缺少正确的交易方向' });
+    }
+    if (!idempotencyKey) {
+      return res.status(400).json({ ok: false, code: 'TAOYUAN_EXCHANGE_IDEMPOTENCY_REQUIRED', msg: '额度导入请求缺少幂等键' });
+    }
+    if (requestedSaveSlot === null) {
+      return res.status(400).json({ ok: false, code: 'TAOYUAN_EXCHANGE_SAVE_SLOT_REQUIRED', msg: '额度导入请求缺少服务端存档槽位' });
+    }
     if (!Number.isInteger(money) || money <= 0) {
       return res.status(400).json({ ok: false, msg: '请输入有效的铜钱数量' });
     }
+
+    const existingReceipt = getQuotaExchangeReceipt(username, 'import', idempotencyKey);
+    try {
+      assertQuotaExchangeReceiptMatches(existingReceipt, { money, requestedSaveSlot });
+    } catch (error) {
+      return res.status(error.status || 409).json({ ok: false, code: error.code, msg: error.message });
+    }
+    if (sendQuotaExchangeReceiptReplay(res, existingReceipt)) return;
 
     let saveContext;
     try {
@@ -6297,31 +6462,56 @@ router.post('/taoyuan/quota/import', loginRequired, signRequired, async (req, re
     } catch (error) {
       return res.status(error.status || 400).json({ ok: false, msg: error.message || '当前没有可用于兑换的服务端存档' });
     }
+    if (saveContext.slot !== requestedSaveSlot) {
+      return res.status(409).json({
+        ok: false,
+        code: 'TAOYUAN_EXCHANGE_SAVE_SLOT_STALE',
+        msg: '当前服务端活动存档槽位已变化，请刷新后重试',
+        active_save_slot: saveContext.slot,
+      });
+    }
 
     const usageBefore = getTaoyuanTodayUsage(username);
     if (dailyImportLimit > 0 && (usageBefore.import_money + money) > dailyImportLimit) {
       return res.status(400).json({ ok: false, msg: '今日转入已达上限', today_imported_money: usageBefore.import_money });
     }
 
+    beginQuotaExchangeReceipt(username, 'import', idempotencyKey, { money, requestedSaveSlot });
     const quotaCost = Math.round(money * dollarPerMoney * er);
     const consumed = await db.consumeQuota(username, quotaCost);
-    if (!consumed) return res.status(400).json({ ok: false, msg: '账户额度不足' });
+    if (!consumed) {
+      finalizeQuotaExchangeReceipt(username, 'import', idempotencyKey, {
+        status: 'failed_rolled_back',
+        error_message: '账户额度不足',
+      });
+      return res.status(400).json({ ok: false, msg: '账户额度不足', transaction_receipt_status: 'failed_rolled_back' });
+    }
 
     let saveUpdate;
     try {
       saveUpdate = taoyuanHall.updateActiveSaveMoney(username, money);
     } catch (error) {
-      await db.addQuota(username, quotaCost);
-      return res.status(error.status || 500).json({ ok: false, msg: error.message || '服务端存档入账失败，额度已回退' });
+      const rolledBack = await db.addQuota(username, quotaCost);
+      finalizeQuotaExchangeReceipt(username, 'import', idempotencyKey, {
+        status: rolledBack ? 'failed_rolled_back' : 'compensation_pending',
+        error_message: rolledBack
+          ? (error.message || '服务端存档入账失败，额度已回退')
+          : (error.message || '服务端存档入账失败，额度回退状态待人工补偿'),
+      });
+      return res.status(error.status || 500).json({
+        ok: false,
+        msg: rolledBack ? (error.message || '服务端存档入账失败，额度已回退') : '服务端存档入账失败，额度回退状态待人工补偿',
+        transaction_receipt_status: rolledBack ? 'failed_rolled_back' : 'compensation_pending',
+      });
     }
 
-    const usageAfter = updateTaoyuanTodayUsage(username, { importDelta: money });
     const newQuota = await db.getQuota(username);
-    res.json({
+    const responsePayload = {
       ok: true,
       money_received: money,
       save_slot: saveUpdate.slot,
       taoyuan_money: saveUpdate.money,
+      save_revision: saveUpdate.revision,
       quota_spent: quotaCost,
       exchange_rate_quota_per_money: Math.round(dollarPerMoney * er),
       exchange_rate_dollar_per_money: dollarPerMoney,
@@ -6329,9 +6519,25 @@ router.post('/taoyuan/quota/import', loginRequired, signRequired, async (req, re
       dollars: newQuota != null ? parseFloat((newQuota / er).toFixed(4)) : 0,
       taoyuan_daily_import_limit_money: dailyImportLimit,
       taoyuan_daily_export_limit_money: dailyExportLimit,
+      today_imported_money: 0,
+      today_exported_money: 0,
+      active_save_slot: saveContext.slot,
+      idempotency_key: idempotencyKey,
+      transaction_receipt_status: 'succeeded',
+    };
+    const usageAfter = finalizeQuotaExchangeReceipt(username, 'import', idempotencyKey, {
+      status: 'succeeded',
+      error_message: '',
+      response: {
+        ...responsePayload,
+        today_imported_money: usageBefore.import_money + money,
+        today_exported_money: usageBefore.export_money,
+      },
+    }, { importDelta: money });
+    res.json({
+      ...responsePayload,
       today_imported_money: usageAfter.import_money,
       today_exported_money: usageAfter.export_money,
-      active_save_slot: saveContext.slot,
     });
   });
 });
@@ -6340,19 +6546,48 @@ router.post('/taoyuan/quota/export', loginRequired, signRequired, async (req, re
   return withTaoyuanExchangeLock(async () => {
     const username = req.session.username;
     const money = parseInt(req.body?.money, 10);
+    const direction = String(req.body?.direction || '').trim();
+    const idempotencyKey = sanitizeTransactionIdempotencyKey(req.body?.idempotency_key);
+    const requestedSaveSlot = getRequestedSaveSlot(req.body || {});
     const dollarPerMoney = getTaoyuanDollarPerMoney();
     const er = cfg.get('exchange_rate') || db.EXCHANGE_RATE;
     const dailyImportLimit = getTaoyuanDailyLimitMoney('import');
     const dailyExportLimit = getTaoyuanDailyLimitMoney('export');
 
+    if (direction !== 'export') {
+      return res.status(400).json({ ok: false, code: 'TAOYUAN_EXCHANGE_DIRECTION_REQUIRED', msg: '额度导出请求缺少正确的交易方向' });
+    }
+    if (!idempotencyKey) {
+      return res.status(400).json({ ok: false, code: 'TAOYUAN_EXCHANGE_IDEMPOTENCY_REQUIRED', msg: '额度导出请求缺少幂等键' });
+    }
+    if (requestedSaveSlot === null) {
+      return res.status(400).json({ ok: false, code: 'TAOYUAN_EXCHANGE_SAVE_SLOT_REQUIRED', msg: '额度导出请求缺少服务端存档槽位' });
+    }
     if (!Number.isInteger(money) || money <= 0) {
       return res.status(400).json({ ok: false, msg: '请输入有效的铜钱数量' });
     }
 
+    const existingReceipt = getQuotaExchangeReceipt(username, 'export', idempotencyKey);
     try {
-      taoyuanHall.updateActiveSaveMoney(username, 0);
+      assertQuotaExchangeReceiptMatches(existingReceipt, { money, requestedSaveSlot });
+    } catch (error) {
+      return res.status(error.status || 409).json({ ok: false, code: error.code, msg: error.message });
+    }
+    if (sendQuotaExchangeReceiptReplay(res, existingReceipt)) return;
+
+    let saveContext;
+    try {
+      saveContext = taoyuanHall.updateActiveSaveMoney(username, 0);
     } catch (error) {
       return res.status(error.status || 400).json({ ok: false, msg: error.message || '当前没有可用于兑换的服务端存档' });
+    }
+    if (saveContext.slot !== requestedSaveSlot) {
+      return res.status(409).json({
+        ok: false,
+        code: 'TAOYUAN_EXCHANGE_SAVE_SLOT_STALE',
+        msg: '当前服务端活动存档槽位已变化，请刷新后重试',
+        active_save_slot: saveContext.slot,
+      });
     }
 
     const usageBefore = getTaoyuanTodayUsage(username);
@@ -6360,29 +6595,48 @@ router.post('/taoyuan/quota/export', loginRequired, signRequired, async (req, re
       return res.status(400).json({ ok: false, msg: '今日提现已达上限', today_exported_money: usageBefore.export_money });
     }
 
+    beginQuotaExchangeReceipt(username, 'export', idempotencyKey, { money, requestedSaveSlot });
     let saveUpdate;
     try {
       saveUpdate = taoyuanHall.updateActiveSaveMoney(username, -money);
     } catch (error) {
-      return res.status(error.status || 400).json({ ok: false, msg: error.message || '桃源货币不足，无法完成提现' });
+      finalizeQuotaExchangeReceipt(username, 'export', idempotencyKey, {
+        status: 'failed_rolled_back',
+        error_message: error.message || '桃源货币不足，无法完成提现',
+      });
+      return res.status(error.status || 400).json({
+        ok: false,
+        msg: error.message || '桃源货币不足，无法完成提现',
+        transaction_receipt_status: 'failed_rolled_back',
+      });
     }
 
     const quotaGain = Math.round(money * dollarPerMoney * er);
     const added = await db.addQuota(username, quotaGain);
     if (!added) {
+      let rolledBack = false;
       try {
         taoyuanHall.updateActiveSaveMoney(username, money);
+        rolledBack = true;
       } catch {}
-      return res.status(500).json({ ok: false, msg: '发放账户额度失败' });
+      finalizeQuotaExchangeReceipt(username, 'export', idempotencyKey, {
+        status: rolledBack ? 'failed_rolled_back' : 'compensation_pending',
+        error_message: rolledBack ? '发放账户额度失败，桃源铜钱已回退' : '发放账户额度失败，桃源铜钱回退状态待人工补偿',
+      });
+      return res.status(500).json({
+        ok: false,
+        msg: rolledBack ? '发放账户额度失败，桃源铜钱已回退' : '发放账户额度失败，桃源铜钱回退状态待人工补偿',
+        transaction_receipt_status: rolledBack ? 'failed_rolled_back' : 'compensation_pending',
+      });
     }
 
-    const usageAfter = updateTaoyuanTodayUsage(username, { exportDelta: money });
     const newQuota = await db.getQuota(username);
-    res.json({
+    const responsePayload = {
       ok: true,
       money_spent: money,
       save_slot: saveUpdate.slot,
       taoyuan_money: saveUpdate.money,
+      save_revision: saveUpdate.revision,
       quota_gained: quotaGain,
       exchange_rate_quota_per_money: Math.round(dollarPerMoney * er),
       exchange_rate_dollar_per_money: dollarPerMoney,
@@ -6390,6 +6644,23 @@ router.post('/taoyuan/quota/export', loginRequired, signRequired, async (req, re
       dollars: newQuota != null ? parseFloat((newQuota / er).toFixed(4)) : 0,
       taoyuan_daily_import_limit_money: dailyImportLimit,
       taoyuan_daily_export_limit_money: dailyExportLimit,
+      today_imported_money: 0,
+      today_exported_money: 0,
+      active_save_slot: saveContext.slot,
+      idempotency_key: idempotencyKey,
+      transaction_receipt_status: 'succeeded',
+    };
+    const usageAfter = finalizeQuotaExchangeReceipt(username, 'export', idempotencyKey, {
+      status: 'succeeded',
+      error_message: '',
+      response: {
+        ...responsePayload,
+        today_imported_money: usageBefore.import_money,
+        today_exported_money: usageBefore.export_money + money,
+      },
+    }, { exportDelta: money });
+    res.json({
+      ...responsePayload,
       today_imported_money: usageAfter.import_money,
       today_exported_money: usageAfter.export_money,
     });
@@ -6409,11 +6680,20 @@ router.post('/taoyuan/exchange-station/weekly/:offerId/exchange', loginRequired,
   return withTaoyuanExchangeLock(async () => {
     try {
       const actor = getSessionActor(req);
-      const result = taoyuanWeeklyExchangeStation.exchangeWeeklyOffer(req.session.username, req.params.offerId);
-      emitExchangeStationNotificationCreatedEvent('weekly_exchange_station', 'weekly_exchange_updated', result, actor);
+      const result = taoyuanWeeklyExchangeStation.exchangeWeeklyOffer(req.session.username, req.params.offerId, {
+        idempotency_key: req.body?.idempotency_key,
+      });
+      if (result?.idempotency_replayed !== true) {
+        emitExchangeStationNotificationCreatedEvent('weekly_exchange_station', 'weekly_exchange_updated', result, actor);
+      }
       res.json({ ok: true, ...result });
     } catch (error) {
-      res.status(error.status || 500).json({ ok: false, msg: error.message || '执行每周换物失败' });
+      res.status(error.status || 500).json({
+        ok: false,
+        code: error.code,
+        msg: error.message || '执行每周换物失败',
+        transaction_receipt_status: error.transaction_receipt_status,
+      });
     }
   });
 });
@@ -6431,11 +6711,20 @@ router.post('/taoyuan/exchange-station/festival-stall/:offerId/purchase', loginR
   return withTaoyuanExchangeLock(async () => {
     try {
       const actor = getSessionActor(req);
-      const result = taoyuanFestivalStall.purchaseFestivalStallOffer(req.session.username, req.params.offerId);
-      emitExchangeStationNotificationCreatedEvent('festival_stall', 'festival_stall_updated', result, actor);
+      const result = taoyuanFestivalStall.purchaseFestivalStallOffer(req.session.username, req.params.offerId, {
+        idempotency_key: req.body?.idempotency_key,
+      });
+      if (result?.idempotency_replayed !== true) {
+        emitExchangeStationNotificationCreatedEvent('festival_stall', 'festival_stall_updated', result, actor);
+      }
       res.json({ ok: true, ...result });
     } catch (error) {
-      res.status(error.status || 500).json({ ok: false, msg: error.message || '购买节庆摊位商品失败' });
+      res.status(error.status || 500).json({
+        ok: false,
+        code: error.code,
+        msg: error.message || '购买节庆摊位商品失败',
+        transaction_receipt_status: error.transaction_receipt_status,
+      });
     }
   });
 });
@@ -6577,7 +6866,14 @@ router.post('/admin/taoyuan/market-governance/sanctions/:username', userAdminAut
 router.get('/taoyuan/save/slots', loginRequired, (req, res) => {
   try {
     const data = loadTaoyuanUserSaves(req.session.username);
-    res.json({ ok: true, slots: [0, 1, 2].map(slot => ({ slot, raw: data.slots[slot]?.raw || null })) });
+    res.json({
+      ok: true,
+      slots: [0, 1, 2].map(slot => ({
+        slot,
+        raw: data.slots[slot]?.raw || null,
+        revision: Number.isFinite(Number(data.slots[slot]?.revision)) ? Math.floor(Number(data.slots[slot].revision)) : 0,
+      })),
+    });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '读取服务端存档失败' });
   }
@@ -6592,7 +6888,8 @@ router.get('/taoyuan/save/:slot', loginRequired, (req, res) => {
   const data = loadTaoyuanUserSaves(req.session.username);
   const raw = data.slots[slot]?.raw || null;
   if (!raw) return res.status(404).json({ ok: false, msg: '服务端存档不存在' });
-  res.json({ ok: true, slot, raw });
+  const revision = Number.isFinite(Number(data.slots[slot]?.revision)) ? Math.floor(Number(data.slots[slot].revision)) : 0;
+  res.json({ ok: true, slot, raw, revision, current_revision: revision });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '读取服务端存档失败' });
   }
@@ -6618,7 +6915,7 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   try {
   const slot = parseInt(req.params.slot, 10);
   const raw = typeof req.body?.raw === 'string' ? req.body.raw : '';
-  const requestedRevision = Number.isFinite(Number(req.body?.revision)) ? Math.floor(Number(req.body.revision)) : null;
+  const baseRevision = Number.isFinite(Number(req.body?.base_revision)) ? Math.floor(Number(req.body.base_revision)) : null;
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
@@ -6626,19 +6923,48 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   const data = loadTaoyuanUserSaves(req.session.username);
   const currentEntry = data.slots[slot];
   const currentRevision = currentEntry?.revision ?? 0;
-  if (requestedRevision !== null && requestedRevision < currentRevision) {
-    return res.json({ ok: true, stale: true, slot, current_revision: currentRevision });
+  if (baseRevision === null) {
+    return res.status(400).json({
+      ok: false,
+      code: 'TAOYUAN_SAVE_BASE_REVISION_REQUIRED',
+      msg: '缺少云存档基础 revision，请刷新存档槽位后重试',
+      slot,
+      current_revision: currentRevision,
+      raw: currentEntry?.raw || null,
+    });
   }
-  const nextRevision = requestedRevision !== null
-    ? Math.max(requestedRevision, currentRevision)
-    : nextSlotRevision(currentRevision);
+  if (baseRevision !== currentRevision) {
+    return res.status(409).json({
+      ok: false,
+      stale: true,
+      code: 'TAOYUAN_SAVE_REVISION_STALE',
+      msg: '云存档已在其他设备更新，已保留远端旧档',
+      slot,
+      base_revision: baseRevision,
+      current_revision: currentRevision,
+      revision: currentRevision,
+      raw: currentEntry?.raw || null,
+    });
+  }
+  const nextRevision = nextSlotRevision(currentRevision);
   const preparedEntry = prepareSlotEntryForSave(req.session.username, slot, raw, nextRevision);
   data.slots[slot] = { raw: preparedEntry.raw, revision: nextRevision };
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
-  res.json({ ok: true, stale: false, slot, current_revision: nextRevision, raw: preparedEntry.raw });
+  res.json({
+    ok: true,
+    stale: false,
+    slot,
+    base_revision: currentRevision,
+    current_revision: nextRevision,
+    revision: nextRevision,
+    raw: preparedEntry.raw,
+  });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存服务端存档失败' });
+    const payload = { ok: false, msg: error.message || '保存服务端存档失败' };
+    if (error.code) payload.code = error.code;
+    if (error.details) payload.details = error.details;
+    res.status(error.status || 500).json(payload);
   }
 });
 

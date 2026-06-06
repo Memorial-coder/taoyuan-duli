@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +10,7 @@ const serverRoot = path.resolve(__dirname, '..')
 const tempDirName = process.env.QA_COOP_ORDER_COMPENSATION_TEMP_DIR || `.tmp-coop-order-compensation-${process.pid}`
 const tempDir = path.isAbsolute(tempDirName) ? tempDirName : path.resolve(serverRoot, tempDirName)
 const storageFile = path.join(tempDir, '.storage.json')
+const coopOrderFile = path.join(tempDir, 'taoyuan_coop_orders.json')
 
 await rm(tempDir, { recursive: true, force: true })
 await mkdir(tempDir, { recursive: true })
@@ -112,6 +113,7 @@ assert.ok(failedRetryCompensation.last_error, 'failed replay should retain last 
 
 seedSave(helper)
 
+const preSuccessfulReplayStore = await readFile(coopOrderFile, 'utf8')
 const resolved = await orderRuntime.replayCoopOrderCompensation(pending.compensation.id, actor(owner))
 assert.equal(resolved.compensation.status, 'resolved', 'second replay should resolve compensation after save recovery')
 assert.equal(resolved.compensation.attempt_count, 3, 'successful replay should preserve total attempt count')
@@ -119,6 +121,12 @@ assert.equal(resolved.receipt.status, 'confirmed', 'successful replay should con
 assert.equal(resolved.receipt.compensation_id, '', 'successful replay should clear receipt compensation pointer')
 assert.equal(resolved.order.delivery_status, 'confirmed', 'successful replay should confirm order delivery')
 assert.equal(getMoney(helper), 17, 'successful replay should pay helper exactly once')
+
+await writeFile(coopOrderFile, preSuccessfulReplayStore, 'utf8')
+const replayedResolved = await orderRuntime.replayCoopOrderCompensation(pending.compensation.id, actor(owner))
+assert.equal(replayedResolved.compensation.status, 'resolved', 'replayed success after store rollback should resolve compensation')
+assert.equal(replayedResolved.receipt.status, 'confirmed', 'replayed success after store rollback should confirm receipt')
+assert.equal(getMoney(helper), 17, 'replayed success after store rollback should not pay helper twice')
 
 await assert.rejects(
   () => orderRuntime.replayCoopOrderCompensation(pending.compensation.id, actor(owner)),

@@ -359,7 +359,7 @@ function clearActiveSaveSlotIfMatches(username, slot) {
 }
 
 function nextSlotRevision(currentRevision = 0) {
-  return Math.max(Date.now(), Math.floor(Number(currentRevision) || 0) + 1);
+  return Math.max(0, Math.floor(Number(currentRevision) || 0)) + 1;
 }
 
 function evpBytesToKey(passwordBuffer, saltBuffer, keyLen, ivLen) {
@@ -550,6 +550,15 @@ function assertGameplaySaveFieldIntegrity(saveContainer, phase = 'save_write') {
   throw error;
 }
 
+function createInvalidSaveRawError(reason) {
+  const error = createError('云存档数据无效，已保留远端旧档', 422, 'TAOYUAN_SAVE_RAW_INVALID');
+  error.details = {
+    reason,
+    required_operation: 'resubmit_valid_save_raw',
+  };
+  return error;
+}
+
 function serializeGameplaySaveContainer(container) {
   const savedAt = new Date().toISOString();
   if (container?.wrapped) {
@@ -635,14 +644,12 @@ function prepareSlotEntryForSave(username, slot, raw, revision = 0) {
   if (normalizedSlot === null) throw createError('无效的存档槽位');
 
   const decrypted = decryptTaoyuanRaw(raw);
+  if (!decrypted) {
+    throw createInvalidSaveRawError('decrypt_or_parse_failed');
+  }
   const saveContainer = normalizeGameplaySaveContainer(decrypted);
   if (!saveContainer?.gameplayData?.player) {
-    return {
-      raw,
-      revision,
-      identity: null,
-      changed: false,
-    };
+    throw createInvalidSaveRawError('missing_gameplay_player');
   }
   assertGameplaySaveFieldIntegrity(saveContainer, 'prepare_slot_entry_for_save');
 

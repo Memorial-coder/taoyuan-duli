@@ -128,6 +128,16 @@ function normalizeClaimResult(result) {
   };
 }
 
+function ensureOnlineMailRewardState(saveData) {
+  if (!saveData.onlineMailRewards || typeof saveData.onlineMailRewards !== 'object') {
+    saveData.onlineMailRewards = {};
+  }
+  if (!saveData.onlineMailRewards.appliedDeliveries || typeof saveData.onlineMailRewards.appliedDeliveries !== 'object') {
+    saveData.onlineMailRewards.appliedDeliveries = {};
+  }
+  return saveData.onlineMailRewards;
+}
+
 function normalizeMailSaveId(value) {
   const saveId = Number(value);
   return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
@@ -1378,6 +1388,20 @@ function applyRewardsToSave(username, delivery) {
   context.username = username;
   ensureInventoryState(context.data);
   ensureDecorationState(context.data);
+  const deliveryKey = sanitizeText(delivery?.id, 120);
+  if (!deliveryKey) throw createError('邮件奖励缺少领取凭证，暂时无法领取', 500);
+  const mailRewardState = ensureOnlineMailRewardState(context.data);
+  const appliedDelivery = mailRewardState.appliedDeliveries[deliveryKey];
+  if (appliedDelivery) {
+    const previousResult = normalizeClaimResult(appliedDelivery.result);
+    return previousResult || {
+      save_slot: context.slot,
+      money_added: 0,
+      duplicate_compensation_money: 0,
+      applied_rewards: [],
+      skipped_rewards: [{ type: 'mail_delivery', id: deliveryKey, reason: 'already_applied' }],
+    };
+  }
 
   if (!canFitStackableRewards(context.data, delivery.rewards)) {
     throw createError('背包空间不足，请先整理背包后再领取');
@@ -1421,6 +1445,13 @@ function applyRewardsToSave(username, delivery) {
     applyEquipmentReward(context.data, reward, delivery.duplicate_compensation_money, result);
   }
 
+  mailRewardState.appliedDeliveries[deliveryKey] = {
+    delivery_id: deliveryKey,
+    campaign_id: sanitizeText(delivery.campaign_id, 120),
+    mail_title: sanitizeText(delivery.title, MAX_TITLE_LENGTH),
+    applied_at: Math.floor(Date.now() / 1000),
+    result: normalizeClaimResult(result),
+  };
   persistGameplayData(context);
   return result;
 }

@@ -18,6 +18,7 @@ const TAOYUAN_FESTIVAL_STALL_FILE = path.join(DATA_DIR, 'taoyuan_festival_stall.
 const ITEM_MAX_STACK = 999
 const TEMP_BAG_CAPACITY = 10
 const MAX_RECORDS_TO_KEEP = 240
+const MAX_TRANSACTION_RECEIPTS_PER_WEEK = 400
 const FESTIVAL_STALL_OPEN_DAY_START = 4
 const FESTIVAL_STALL_OPEN_DAY_END = 6
 
@@ -70,6 +71,45 @@ function normalizeRecord(record) {
   }
 }
 
+function sanitizeIdempotencyKey(value) {
+  const normalized = String(value || '').trim()
+  if (!normalized || normalized.length > 120) return ''
+  return /^[a-zA-Z0-9._:-]+$/.test(normalized) ? normalized : ''
+}
+
+function buildTransactionReceiptKey(username, offerId, idempotencyKey) {
+  return `${String(username || '')}:festival_stall:${String(offerId || '')}:${String(idempotencyKey || '')}`
+}
+
+function normalizeTransactionReceipt(raw, fallbackKey = '') {
+  if (!raw || typeof raw !== 'object') return null
+  const status = ['pending', 'succeeded', 'failed_rolled_back', 'compensation_pending'].includes(String(raw.status))
+    ? String(raw.status)
+    : 'pending'
+  return {
+    id: String(raw.id || fallbackKey || ''),
+    username: String(raw.username || ''),
+    source: 'festival_stall',
+    offer_id: String(raw.offer_id || ''),
+    idempotency_key: String(raw.idempotency_key || ''),
+    status,
+    created_at: Number(raw.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(raw.updated_at) || Number(raw.created_at) || Math.floor(Date.now() / 1000),
+    error_message: String(raw.error_message || '').slice(0, 240),
+    response: raw.response && typeof raw.response === 'object' ? JSON.parse(JSON.stringify(raw.response)) : null,
+  }
+}
+
+function normalizeTransactionReceipts(rawReceipts) {
+  const receipts = rawReceipts && typeof rawReceipts === 'object' ? rawReceipts : {}
+  const normalized = Object.entries(receipts)
+    .map(([key, value]) => [String(key), normalizeTransactionReceipt(value, key)])
+    .filter(([, value]) => value)
+    .sort(([, left], [, right]) => (Number(right.updated_at) || 0) - (Number(left.updated_at) || 0))
+    .slice(0, MAX_TRANSACTION_RECEIPTS_PER_WEEK)
+  return Object.fromEntries(normalized)
+}
+
 function normalizeWeekState(rawWeek) {
   const userUsage = rawWeek && typeof rawWeek.user_usage === 'object' ? rawWeek.user_usage : {}
   const offerClaims = rawWeek && typeof rawWeek.offer_claims === 'object' ? rawWeek.offer_claims : {}
@@ -92,6 +132,7 @@ function normalizeWeekState(rawWeek) {
         .filter(([, count]) => count > 0)
     ),
     records: Array.isArray(rawWeek?.records) ? rawWeek.records.map(normalizeRecord).filter(Boolean).slice(0, MAX_RECORDS_TO_KEEP) : [],
+    transaction_receipts: normalizeTransactionReceipts(rawWeek?.transaction_receipts),
   }
 }
 
@@ -119,7 +160,67 @@ function saveFestivalStore(store) {
 
 function getFestivalWeekState(store, weekKey) {
   if (!store.weeks[weekKey]) store.weeks[weekKey] = normalizeWeekState({})
+  if (!store.weeks[weekKey].transaction_receipts || typeof store.weeks[weekKey].transaction_receipts !== 'object') {
+    store.weeks[weekKey].transaction_receipts = {}
+  }
   return store.weeks[weekKey]
+}
+
+function getExistingTransactionReceipt(weekState, username, offerId, idempotencyKey) {
+  const receiptKey = buildTransactionReceiptKey(username, offerId, idempotencyKey)
+  return normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey)
+}
+
+function beginTransactionReceipt(store, weekKey, weekState, username, offerId, idempotencyKey) {
+  const receiptKey = buildTransactionReceiptKey(username, offerId, idempotencyKey)
+  const existing = normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey)
+  if (existing) return existing
+  const now = Math.floor(Date.now() / 1000)
+  const receipt = normalizeTransactionReceipt({
+    id: receiptKey,
+    username,
+    source: 'festival_stall',
+    offer_id: offerId,
+    idempotency_key: idempotencyKey,
+    status: 'pending',
+    created_at: now,
+    updated_at: now,
+    error_message: '',
+    response: null,
+  }, receiptKey)
+  weekState.transaction_receipts[receiptKey] = receipt
+  store.weeks[weekKey] = normalizeWeekState(weekState)
+  saveFestivalStore(store)
+  return receipt
+}
+
+function updateTransactionReceipt(store, weekKey, weekState, username, offerId, idempotencyKey, updates = {}) {
+  const receiptKey = buildTransactionReceiptKey(username, offerId, idempotencyKey)
+  const previous = normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey) || {}
+  weekState.transaction_receipts[receiptKey] = normalizeTransactionReceipt({
+    ...previous,
+    ...updates,
+    id: receiptKey,
+    username,
+    source: 'festival_stall',
+    offer_id: offerId,
+    idempotency_key: idempotencyKey,
+    updated_at: Math.floor(Date.now() / 1000),
+  }, receiptKey)
+  store.weeks[weekKey] = normalizeWeekState(weekState)
+}
+
+function throwTransactionReceiptReplay(receipt) {
+  if (!receipt || receipt.status === 'succeeded') return
+  const error = createError(
+    receipt.error_message || '上一笔节庆摊位交易状态未完成，请刷新后确认资产状态',
+    receipt.status === 'failed_rolled_back' ? 400 : 409,
+    receipt.status === 'failed_rolled_back'
+      ? 'FESTIVAL_STALL_RECEIPT_FAILED_ROLLED_BACK'
+      : 'FESTIVAL_STALL_RECEIPT_COMPENSATION_PENDING'
+  )
+  error.transaction_receipt_status = receipt.status
+  throw error
 }
 
 function getFestivalAvailability() {
@@ -702,7 +803,7 @@ function listFestivalStall(username) {
   }
 }
 
-function purchaseFestivalStallOffer(username, offerId) {
+function purchaseFestivalStallOffer(username, offerId, options = {}) {
   const availability = getFestivalAvailability()
   if (!availability.open) throw createError(availability.reason || '当前节庆摊位未开放')
 
@@ -711,6 +812,17 @@ function purchaseFestivalStallOffer(username, offerId) {
   const weekState = getFestivalWeekState(store, weekKey)
   const offer = getFestivalCatalog(availability.themeWeek.id).find(entry => entry.id === String(offerId || '').trim())
   if (!offer) throw createError('节庆摊位没有这项商品', 404)
+  const idempotencyKey = sanitizeIdempotencyKey(options.idempotency_key || options.idempotencyKey)
+  if (!idempotencyKey) throw createError('节庆摊位请求缺少幂等键', 400, 'FESTIVAL_STALL_IDEMPOTENCY_REQUIRED')
+  const existingReceipt = getExistingTransactionReceipt(weekState, username, offer.id, idempotencyKey)
+  if (existingReceipt?.status === 'succeeded' && existingReceipt.response) {
+    return {
+      ...existingReceipt.response,
+      idempotency_replayed: true,
+      transaction_receipt_status: existingReceipt.status,
+    }
+  }
+  throwTransactionReceiptReplay(existingReceipt)
   const boothCategory = Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival'
   marketGovernance.ensureNotSanctioned(username, '节庆摊位')
   marketGovernance.ensureSourceEnabled('festival_stall', { category: boothCategory })
@@ -751,9 +863,17 @@ function purchaseFestivalStallOffer(username, offerId) {
   const slot = context.slot
   const previousSlotEntry = context.saves.slots[slot] ? { ...context.saves.slots[slot] } : null
   const previousMainMoney = Math.max(0, Math.floor(Number(context.data.player.money) || 0))
+  beginTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey)
   context.data.player.money = previousMainMoney - offer.price_money
 
   if (!applyRewardsToSave(context.data, offer.rewards)) {
+    updateTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey, {
+      status: 'failed_rolled_back',
+      error_message: '背包空间不足，请先整理背包',
+    })
+    try {
+      saveFestivalStore(store)
+    } catch {}
     throw createError('背包空间不足，请先整理背包')
   }
 
@@ -773,24 +893,7 @@ function purchaseFestivalStallOffer(username, offerId) {
   weekState.offer_claims[offer.id] = clampPositiveInt(weekState.offer_claims[offer.id], 0) + 1
   weekState.records = [record, ...weekState.records].slice(0, MAX_RECORDS_TO_KEEP)
 
-  try {
-    persistGameplayData(context)
-    saveFestivalStore(store)
-    marketGovernance.applyGovernanceRecord(username, {
-      source: 'festival_stall',
-      money_volume: clampPositiveInt(offer.price_money, 0),
-    })
-  } catch (error) {
-    if (previousSlotEntry) {
-      context.saves.slots[slot] = previousSlotEntry
-      try {
-        saveUserSaveSlots(username, context.saves)
-      } catch {}
-    }
-    throw createError(`节庆摊位购买失败：${error?.message || '未知错误'}`, 500)
-  }
-
-  return {
+  const responsePayload = {
     week_key: weekKey,
     week_label: availability.weekWindow.week_label,
     refresh_hint: `节庆窗口 · ${availability.themeWeek.startDay}到${availability.themeWeek.endDay}`,
@@ -802,7 +905,50 @@ function purchaseFestivalStallOffer(username, offerId) {
       costs: record.costs.map(entry => ({ ...entry })),
       rewards: record.rewards.map(entry => ({ ...entry })),
     },
+    idempotency_key: idempotencyKey,
+    transaction_receipt_status: 'succeeded',
   }
+  updateTransactionReceipt(store, weekKey, weekState, username, offer.id, idempotencyKey, {
+    status: 'succeeded',
+    error_message: '',
+    response: responsePayload,
+  })
+
+  let playerSavePersisted = false
+  try {
+    persistGameplayData(context)
+    playerSavePersisted = true
+    saveFestivalStore(store)
+  } catch (error) {
+    let rolledBack = !playerSavePersisted
+    if (playerSavePersisted && previousSlotEntry) {
+      context.saves.slots[slot] = previousSlotEntry
+      try {
+        saveUserSaveSlots(username, context.saves)
+        rolledBack = true
+      } catch {}
+    }
+    try {
+      const rollbackStore = loadFestivalStore()
+      const rollbackWeekState = getFestivalWeekState(rollbackStore, weekKey)
+      updateTransactionReceipt(rollbackStore, weekKey, rollbackWeekState, username, offer.id, idempotencyKey, {
+        status: rolledBack ? 'failed_rolled_back' : 'compensation_pending',
+        error_message: rolledBack
+          ? `节庆摊位购买失败，玩家存档已回退：${error?.message || '未知错误'}`
+          : `节庆摊位购买失败，玩家存档回退待补偿：${error?.message || '未知错误'}`,
+      })
+      saveFestivalStore(rollbackStore)
+    } catch {}
+    throw createError(`节庆摊位购买失败：${error?.message || '未知错误'}`, 500)
+  }
+  try {
+    marketGovernance.applyGovernanceRecord(username, {
+      source: 'festival_stall',
+      money_volume: clampPositiveInt(offer.price_money, 0),
+    })
+  } catch {}
+
+  return responsePayload
 }
 
 module.exports = {

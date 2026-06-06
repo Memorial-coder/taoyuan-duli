@@ -16,6 +16,7 @@ const ITEM_MAX_STACK = 999;
 const TEMP_BAG_CAPACITY = 10;
 const MAX_RECORDS_PER_WEEK = 200;
 const MAX_WEEKS_TO_KEEP = 16;
+const MAX_TRANSACTION_RECEIPTS_PER_WEEK = 400;
 
 const FIXED_WEEKLY_OFFER_IDS = ['wintersweet_for_herb', 'wood_for_stone'];
 const OFFER_CATEGORIES = Object.freeze({
@@ -199,6 +200,45 @@ function normalizeRecord(record) {
   };
 }
 
+function sanitizeIdempotencyKey(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized || normalized.length > 120) return '';
+  return /^[a-zA-Z0-9._:-]+$/.test(normalized) ? normalized : '';
+}
+
+function buildTransactionReceiptKey(username, offerId, idempotencyKey) {
+  return `${String(username || '')}:weekly_exchange_station:${String(offerId || '')}:${String(idempotencyKey || '')}`;
+}
+
+function normalizeTransactionReceipt(raw, fallbackKey = '') {
+  if (!raw || typeof raw !== 'object') return null;
+  const status = ['pending', 'succeeded', 'failed_rolled_back', 'compensation_pending'].includes(String(raw.status))
+    ? String(raw.status)
+    : 'pending';
+  return {
+    id: String(raw.id || fallbackKey || ''),
+    username: String(raw.username || ''),
+    source: 'weekly_exchange_station',
+    offer_id: String(raw.offer_id || ''),
+    idempotency_key: String(raw.idempotency_key || ''),
+    status,
+    created_at: Number(raw.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(raw.updated_at) || Number(raw.created_at) || Math.floor(Date.now() / 1000),
+    error_message: String(raw.error_message || '').slice(0, 240),
+    response: raw.response && typeof raw.response === 'object' ? JSON.parse(JSON.stringify(raw.response)) : null,
+  };
+}
+
+function normalizeTransactionReceipts(rawReceipts) {
+  const receipts = rawReceipts && typeof rawReceipts === 'object' ? rawReceipts : {};
+  const normalized = Object.entries(receipts)
+    .map(([key, value]) => [String(key), normalizeTransactionReceipt(value, key)])
+    .filter(([, value]) => value)
+    .sort(([, left], [, right]) => (Number(right.updated_at) || 0) - (Number(left.updated_at) || 0))
+    .slice(0, MAX_TRANSACTION_RECEIPTS_PER_WEEK);
+  return Object.fromEntries(normalized);
+}
+
 function normalizeWeekState(rawWeek) {
   const userUsage = rawWeek && typeof rawWeek.user_usage === 'object' ? rawWeek.user_usage : {};
   const offerClaims = rawWeek && typeof rawWeek.offer_claims === 'object' ? rawWeek.offer_claims : {};
@@ -223,6 +263,7 @@ function normalizeWeekState(rawWeek) {
     records: Array.isArray(rawWeek?.records)
       ? rawWeek.records.map(normalizeRecord).filter(Boolean).slice(0, MAX_RECORDS_PER_WEEK)
       : [],
+    transaction_receipts: normalizeTransactionReceipts(rawWeek?.transaction_receipts),
   };
 }
 
@@ -609,7 +650,67 @@ function getWeekState(store, weekKey) {
   if (!store.weeks[weekKey]) {
     store.weeks[weekKey] = normalizeWeekState({});
   }
+  if (!store.weeks[weekKey].transaction_receipts || typeof store.weeks[weekKey].transaction_receipts !== 'object') {
+    store.weeks[weekKey].transaction_receipts = {};
+  }
   return store.weeks[weekKey];
+}
+
+function getExistingTransactionReceipt(weekState, username, offerId, idempotencyKey) {
+  const receiptKey = buildTransactionReceiptKey(username, offerId, idempotencyKey);
+  return normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey);
+}
+
+function beginTransactionReceipt(store, weekKey, weekState, username, offerId, idempotencyKey) {
+  const receiptKey = buildTransactionReceiptKey(username, offerId, idempotencyKey);
+  const existing = normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey);
+  if (existing) return existing;
+  const now = Math.floor(Date.now() / 1000);
+  const receipt = normalizeTransactionReceipt({
+    id: receiptKey,
+    username,
+    source: 'weekly_exchange_station',
+    offer_id: offerId,
+    idempotency_key: idempotencyKey,
+    status: 'pending',
+    created_at: now,
+    updated_at: now,
+    error_message: '',
+    response: null,
+  }, receiptKey);
+  weekState.transaction_receipts[receiptKey] = receipt;
+  store.weeks[weekKey] = normalizeWeekState(weekState);
+  saveExchangeStore(store);
+  return receipt;
+}
+
+function updateTransactionReceipt(store, weekKey, weekState, username, offerId, idempotencyKey, updates = {}) {
+  const receiptKey = buildTransactionReceiptKey(username, offerId, idempotencyKey);
+  const previous = normalizeTransactionReceipt(weekState.transaction_receipts?.[receiptKey], receiptKey) || {};
+  weekState.transaction_receipts[receiptKey] = normalizeTransactionReceipt({
+    ...previous,
+    ...updates,
+    id: receiptKey,
+    username,
+    source: 'weekly_exchange_station',
+    offer_id: offerId,
+    idempotency_key: idempotencyKey,
+    updated_at: Math.floor(Date.now() / 1000),
+  }, receiptKey);
+  store.weeks[weekKey] = normalizeWeekState(weekState);
+}
+
+function throwTransactionReceiptReplay(receipt) {
+  if (!receipt || receipt.status === 'succeeded') return;
+  const error = createError(
+    receipt.error_message || '上一笔每周交换站交易状态未完成，请刷新后确认资产状态',
+    receipt.status === 'failed_rolled_back' ? 400 : 409,
+    receipt.status === 'failed_rolled_back'
+      ? 'WEEKLY_EXCHANGE_RECEIPT_FAILED_ROLLED_BACK'
+      : 'WEEKLY_EXCHANGE_RECEIPT_COMPENSATION_PENDING'
+  );
+  error.transaction_receipt_status = receipt.status;
+  throw error;
 }
 
 function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '') {
@@ -737,12 +838,23 @@ function listWeeklyExchangeStation(username) {
   };
 }
 
-function exchangeWeeklyOffer(username, offerId) {
+function exchangeWeeklyOffer(username, offerId, options = {}) {
   const store = loadExchangeStore();
   const weekWindow = getCurrentWeekWindow();
   const weekState = getWeekState(store, weekWindow.week_key);
   const offer = getWeeklyOffers(weekWindow.week_key).find(entry => entry.id === String(offerId || '').trim());
   if (!offer) throw createError('本周交换站没有这项换物', 404);
+  const idempotencyKey = sanitizeIdempotencyKey(options.idempotency_key || options.idempotencyKey);
+  if (!idempotencyKey) throw createError('每周交换站请求缺少幂等键', 400, 'WEEKLY_EXCHANGE_IDEMPOTENCY_REQUIRED');
+  const existingReceipt = getExistingTransactionReceipt(weekState, username, offer.id, idempotencyKey);
+  if (existingReceipt?.status === 'succeeded' && existingReceipt.response) {
+    return {
+      ...existingReceipt.response,
+      idempotency_replayed: true,
+      transaction_receipt_status: existingReceipt.status,
+    };
+  }
+  throwTransactionReceiptReplay(existingReceipt);
   const availability = getOfferAvailabilityScope(offer, username);
   if (!availability.enabled) {
     throw createError(availability.reason || '当前无法兑换这项换物');
@@ -790,10 +902,26 @@ function exchangeWeeklyOffer(username, offerId) {
     ? { ...context.saves.slots[slot] }
     : null;
 
+  beginTransactionReceipt(store, weekWindow.week_key, weekState, username, offer.id, idempotencyKey);
+
   if (!applyCostsToSave(context.data, offer.costs)) {
+    updateTransactionReceipt(store, weekWindow.week_key, weekState, username, offer.id, idempotencyKey, {
+      status: 'failed_rolled_back',
+      error_message: '物资不足，暂时无法换物',
+    });
+    try {
+      saveExchangeStore(store);
+    } catch {}
     throw createError('物资不足，暂时无法换物');
   }
   if (!applyRewardsToSave(context.data, offer.rewards)) {
+    updateTransactionReceipt(store, weekWindow.week_key, weekState, username, offer.id, idempotencyKey, {
+      status: 'failed_rolled_back',
+      error_message: '背包空间不足，请先整理背包',
+    });
+    try {
+      saveExchangeStore(store);
+    } catch {}
     throw createError('背包空间不足，请先整理背包');
   }
 
@@ -818,24 +946,7 @@ function exchangeWeeklyOffer(username, offerId) {
     .sort((left, right) => right.created_at - left.created_at)
     .slice(0, MAX_RECORDS_PER_WEEK);
 
-  persistGameplayData(context);
-  try {
-    saveExchangeStore(store);
-    marketGovernance.applyGovernanceRecord(username, {
-      source: 'weekly_exchange_station',
-      money_volume: cashPrice,
-    });
-  } catch (error) {
-    if (previousSlotEntry) {
-      context.saves.slots[slot] = previousSlotEntry;
-      try {
-        saveUserSaveSlots(username, context.saves);
-      } catch {}
-    }
-    throw createError(`交换站记录写入失败：${error?.message || '未知错误'}`, 500);
-  }
-
-  return {
+  const responsePayload = {
     week_key: weekWindow.week_key,
     week_label: weekWindow.week_label,
     refresh_hint: weekWindow.refresh_hint,
@@ -847,7 +958,50 @@ function exchangeWeeklyOffer(username, offerId) {
       costs: record.costs.map(entry => ({ ...entry })),
       rewards: record.rewards.map(entry => ({ ...entry })),
     },
+    idempotency_key: idempotencyKey,
+    transaction_receipt_status: 'succeeded',
   };
+  updateTransactionReceipt(store, weekWindow.week_key, weekState, username, offer.id, idempotencyKey, {
+    status: 'succeeded',
+    error_message: '',
+    response: responsePayload,
+  });
+
+  let playerSavePersisted = false;
+  try {
+    persistGameplayData(context);
+    playerSavePersisted = true;
+    saveExchangeStore(store);
+  } catch (error) {
+    let rolledBack = !playerSavePersisted;
+    if (playerSavePersisted && previousSlotEntry) {
+      context.saves.slots[slot] = previousSlotEntry;
+      try {
+        saveUserSaveSlots(username, context.saves);
+        rolledBack = true;
+      } catch {}
+    }
+    try {
+      const rollbackStore = loadExchangeStore();
+      const rollbackWeekState = getWeekState(rollbackStore, weekWindow.week_key);
+      updateTransactionReceipt(rollbackStore, weekWindow.week_key, rollbackWeekState, username, offer.id, idempotencyKey, {
+        status: rolledBack ? 'failed_rolled_back' : 'compensation_pending',
+        error_message: rolledBack
+          ? `交换站记录写入失败，玩家存档已回退：${error?.message || '未知错误'}`
+          : `交换站记录写入失败，玩家存档回退待补偿：${error?.message || '未知错误'}`,
+      });
+      saveExchangeStore(rollbackStore);
+    } catch {}
+    throw createError(`交换站记录写入失败：${error?.message || '未知错误'}`, 500);
+  }
+  try {
+    marketGovernance.applyGovernanceRecord(username, {
+      source: 'weekly_exchange_station',
+      money_volume: cashPrice,
+    });
+  } catch {}
+
+  return responsePayload;
 }
 
 module.exports = {

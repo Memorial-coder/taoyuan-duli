@@ -170,7 +170,7 @@ const seedSessionSave = async session => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       raw: buildSeedSavePayload(session.username),
-      revision: Date.now(),
+      base_revision: 0,
     }),
   })
   assert(saveResult.response.ok, `save write returned ${saveResult.response.status}: ${saveResult.data?.msg || 'unknown error'}`)
@@ -714,6 +714,8 @@ try {
     const offset = friendSocket.messages.length
     const result = await fetchSessionJson(owner, '/api/taoyuan/exchange-station/weekly/wood_for_stone/exchange', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idempotency_key: 'qa-realtime-weekly-wood-for-stone' }),
     })
     assert(result.response.ok, `weekly exchange returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
     const notification = await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
@@ -742,6 +744,8 @@ try {
     const offset = friendSocket.messages.length
     const result = await fetchSessionJson(owner, `/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(offerId)}/purchase`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idempotency_key: `qa-realtime-festival-${offerId}` }),
     })
     assert(result.response.ok, `festival stall purchase returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
     const notification = await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>

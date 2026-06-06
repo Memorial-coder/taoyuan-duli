@@ -1,5 +1,9 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
-import { fetchProtectedJson } from '@/utils/protectedApi'
+import { fetchProtectedJson, isProtectedApiError } from '@/utils/protectedApi'
+import {
+  clearTransactionIdempotencyKey,
+  getOrCreateTransactionIdempotencyKey
+} from '@/utils/transactionIdempotency'
 
 export type WeeklyExchangeBundleEntry =
   | {
@@ -85,6 +89,9 @@ export interface WeeklyExchangeActionResponse {
   money: number
   offer: WeeklyExchangeOffer
   record: WeeklyExchangeRecord
+  idempotency_key?: string
+  idempotency_replayed?: boolean
+  transaction_receipt_status?: string
   msg?: string
 }
 
@@ -93,6 +100,15 @@ const ensureLoggedInContext = async () => {
   if (!account || account === 'guest') {
     throw new Error('请先登录后再使用每周交换站')
   }
+}
+
+const shouldKeepTransactionKeyAfterError = (error: unknown): boolean => {
+  if (!isProtectedApiError(error)) return true
+  if (error.status === null) return true
+  const status = typeof (error.data as any)?.transaction_receipt_status === 'string'
+    ? (error.data as any).transaction_receipt_status
+    : ''
+  return status === 'pending' || status === 'compensation_pending'
 }
 
 const request = async <T>(input: string, initFactory?: RequestInit | (() => Promise<RequestInit> | RequestInit)) => {
@@ -116,14 +132,29 @@ export const fetchWeeklyExchangeStation = async (): Promise<WeeklyExchangeStatio
 }
 
 export const exchangeWeeklyOffer = async (offerId: string): Promise<WeeklyExchangeActionResponse> => {
-  const data = await request<WeeklyExchangeActionResponse>(`/api/taoyuan/exchange-station/weekly/${encodeURIComponent(offerId)}/exchange`, async () => {
-    const csrfToken = await ensureCurrentCsrfToken()
-    return {
-      method: 'POST',
-      headers: {
-        'X-CSRF-Token': csrfToken
+  const fingerprint = `weekly:${offerId}`
+  const idempotencyKey = getOrCreateTransactionIdempotencyKey('weekly_exchange_station', fingerprint)
+  try {
+    const data = await request<WeeklyExchangeActionResponse>(`/api/taoyuan/exchange-station/weekly/${encodeURIComponent(offerId)}/exchange`, async () => {
+      const csrfToken = await ensureCurrentCsrfToken()
+      return {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ idempotency_key: idempotencyKey })
       }
+    })
+    clearTransactionIdempotencyKey('weekly_exchange_station', fingerprint)
+    return {
+      ...(data as WeeklyExchangeActionResponse),
+      idempotency_key: typeof data?.idempotency_key === 'string' ? data.idempotency_key : idempotencyKey
     }
-  })
-  return data as WeeklyExchangeActionResponse
+  } catch (error) {
+    if (!shouldKeepTransactionKeyAfterError(error)) {
+      clearTransactionIdempotencyKey('weekly_exchange_station', fingerprint)
+    }
+    throw error
+  }
 }

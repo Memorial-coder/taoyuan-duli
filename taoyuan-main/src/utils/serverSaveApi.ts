@@ -1,5 +1,5 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
-import { fetchProtectedJson } from '@/utils/protectedApi'
+import { fetchProtectedJson, isProtectedApiError } from '@/utils/protectedApi'
 
 const MAX_SLOTS = 3
 
@@ -25,7 +25,36 @@ export const fetchServerSlots = async (): Promise<(string | null)[]> => {
   return Array.from({ length: MAX_SLOTS }, (_, slot) => data?.slots?.[slot]?.raw ?? null)
 }
 
-export const fetchServerSlotRaw = async (slot: number): Promise<string | null> => {
+export interface ServerSaveSlotEntry {
+  slot: number
+  raw: string | null
+  revision: number
+}
+
+export const fetchServerSlotEntries = async (): Promise<ServerSaveSlotEntry[]> => {
+  await ensureLoggedInContext()
+  const { data } = await fetchProtectedJson(() => fetch('/api/taoyuan/save/slots', {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取服务端存档列表失败',
+    networkErrorMessage: '服务端存档连接失败，请检查网络或稍后重试'
+  })
+  return Array.from({ length: MAX_SLOTS }, (_, slot) => {
+    const entry = Array.isArray(data?.slots) ? data.slots[slot] : null
+    return {
+      slot,
+      raw: typeof entry?.raw === 'string' && entry.raw ? entry.raw : null,
+      revision: Number.isFinite(Number(entry?.revision)) ? Math.max(0, Math.floor(Number(entry.revision))) : 0
+    }
+  })
+}
+
+export interface ServerSaveSlotRaw {
+  raw: string
+  revision: number
+}
+
+export const fetchServerSlotRaw = async (slot: number): Promise<ServerSaveSlotRaw | null> => {
   const safeSlot = normalizeSlot(slot)
   if (safeSlot === null) throw new Error('无效的存档槽位')
   await ensureLoggedInContext()
@@ -37,7 +66,13 @@ export const fetchServerSlotRaw = async (slot: number): Promise<string | null> =
     allowNotFound: true
   })
   if (response.status === 404) return null
-  return typeof data?.raw === 'string' ? data.raw : null
+  if (typeof data?.raw !== 'string' || !data.raw) return null
+  return {
+    raw: data.raw,
+    revision: Number.isFinite(Number(data?.revision ?? data?.current_revision))
+      ? Math.max(0, Math.floor(Number(data?.revision ?? data?.current_revision)))
+      : 0
+  }
 }
 
 export interface SaveServerSlotRawResult {
@@ -46,28 +81,49 @@ export interface SaveServerSlotRawResult {
   raw: string | null
 }
 
-export const saveServerSlotRaw = async (slot: number, raw: string, revision: number): Promise<SaveServerSlotRawResult> => {
+export const saveServerSlotRaw = async (slot: number, raw: string, baseRevision: number): Promise<SaveServerSlotRawResult> => {
   const safeSlot = normalizeSlot(slot)
   if (safeSlot === null) throw new Error('无效的存档槽位')
   await ensureLoggedInContext()
-  const { data } = await fetchProtectedJson(async () => {
-    const csrfToken = await ensureCurrentCsrfToken()
-    return fetch(`/api/taoyuan/save/${safeSlot}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': csrfToken
-      },
-      body: JSON.stringify({ raw, revision })
+  let data: any
+  try {
+    const result = await fetchProtectedJson(async () => {
+      const csrfToken = await ensureCurrentCsrfToken()
+      return fetch(`/api/taoyuan/save/${safeSlot}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({
+          raw,
+          base_revision: Math.max(0, Math.floor(Number(baseRevision) || 0))
+        })
+      })
+    }, {
+      fallbackMessage: '保存服务端存档失败',
+      networkErrorMessage: '服务端存档连接失败，请检查网络或稍后重试'
     })
-  }, {
-    fallbackMessage: '保存服务端存档失败',
-    networkErrorMessage: '服务端存档连接失败，请检查网络或稍后重试'
-  })
+    data = result.data
+  } catch (error) {
+    if (isProtectedApiError(error) && error.status === 409 && (error.data as any)?.stale === true) {
+      const payload = error.data as any
+      return {
+        stale: true,
+        currentRevision: Number.isFinite(Number(payload?.current_revision ?? payload?.revision))
+          ? Math.max(0, Math.floor(Number(payload?.current_revision ?? payload?.revision)))
+          : Math.max(0, Math.floor(Number(baseRevision) || 0)),
+        raw: typeof payload?.raw === 'string' && payload.raw ? payload.raw : null
+      }
+    }
+    throw error
+  }
   return {
     stale: data?.stale === true,
-    currentRevision: Number.isFinite(Number(data?.current_revision)) ? Number(data?.current_revision) : revision,
+    currentRevision: Number.isFinite(Number(data?.current_revision ?? data?.revision))
+      ? Math.max(0, Math.floor(Number(data?.current_revision ?? data?.revision)))
+      : Math.max(0, Math.floor(Number(baseRevision) || 0)),
     raw: typeof data?.raw === 'string' && data.raw ? data.raw : null
   }
 }

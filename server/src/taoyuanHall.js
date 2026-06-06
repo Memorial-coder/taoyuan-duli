@@ -55,10 +55,11 @@ function updateActiveSaveMoney(username, delta) {
   const nextMoney = currentMoney + normalizedDelta
   if (nextMoney < 0) throw createError('桃源货币不足，无法完成悬赏操作')
   context.data.player.money = nextMoney
-  persistGameplayData(context)
+  const revision = persistGameplayData(context)
   return {
     slot: context.slot,
     money: nextMoney,
+    revision,
   }
 }
 

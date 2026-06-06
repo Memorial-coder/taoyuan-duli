@@ -6853,6 +6853,12 @@ function applyActivityReceiptReward(receipt, room) {
       REWARD_INVENTORY_TEMP_CAPACITY,
       receipt.reward_payload?.items || []
     );
+    if (inventoryResult.overflowItems.length > 0) {
+      const overflowSummary = inventoryResult.overflowItems
+        .map(item => `${item.item_id}x${item.quantity}`)
+        .join(', ');
+      throw createError(`远征物品奖励背包空间不足，已转入补偿队列：${overflowSummary}`);
+    }
     context.data.items = inventoryResult.mainSlots;
     context.data.tempItems = inventoryResult.tempSlots;
   }

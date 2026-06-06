@@ -1204,17 +1204,50 @@ function markExpiredOrders(store) {
   return nextOrders;
 }
 
-function applyMoneyReward(username, amount) {
+function applyMoneyReward(username, amount, receipt = {}) {
   const rewardAmount = Math.max(0, Math.floor(Number(amount) || 0));
   if (rewardAmount <= 0) return { money: 0, slot: null };
+  const receiptKey = sanitizeText(receipt.idempotency_key || receipt.id, 120);
+  if (!receiptKey) throw createError('协作委托个人奖励缺少幂等凭证，暂时无法写入', 500);
   const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，无法写入协作委托奖励');
   context.username = username;
+  if (!context.data.coopOrderRewards || typeof context.data.coopOrderRewards !== 'object') {
+    context.data.coopOrderRewards = {};
+  }
+  if (!context.data.coopOrderRewards.appliedReceipts || typeof context.data.coopOrderRewards.appliedReceipts !== 'object') {
+    context.data.coopOrderRewards.appliedReceipts = {};
+  }
+  const appliedReceipt = context.data.coopOrderRewards.appliedReceipts[receiptKey];
+  if (appliedReceipt) {
+    const appliedSlot = Number.isInteger(Number(appliedReceipt.slot)) ? Number(appliedReceipt.slot) : context.slot;
+    const appliedMoney = Number.isFinite(Number(appliedReceipt.money_after))
+      ? Math.max(0, Math.floor(Number(appliedReceipt.money_after)))
+      : Math.max(0, Math.floor(Number(context.data?.player?.money) || 0));
+    return {
+      money: appliedMoney,
+      slot: appliedSlot,
+      replayed: true,
+    };
+  }
   const currentMoney = Math.max(0, Math.floor(Number(context.data?.player?.money) || 0));
-  context.data.player.money = currentMoney + rewardAmount;
+  const moneyAfter = currentMoney + rewardAmount;
+  context.data.player.money = moneyAfter;
+  context.data.coopOrderRewards.appliedReceipts[receiptKey] = {
+    idempotency_key: receiptKey,
+    receipt_id: sanitizeText(receipt.id, 80),
+    order_id: sanitizeText(receipt.order_id, 80),
+    stage_id: sanitizeText(receipt.stage_id, 80),
+    reward_value: rewardAmount,
+    money_before: currentMoney,
+    money_after: moneyAfter,
+    slot: context.slot,
+    applied_at: Math.floor(Date.now() / 1000),
+  };
   persistGameplayData(context);
   return {
-    money: context.data.player.money,
+    money: moneyAfter,
     slot: context.slot,
+    replayed: false,
   };
 }
 
@@ -1327,9 +1360,11 @@ async function applyRewardByReceipt(store, receipt, specialtyType, options = {})
     };
   }
   if (receipt.reward_type === 'money') {
-    const rewardState = applyMoneyReward(receipt.assignee_username, receipt.reward_value);
+    const rewardState = applyMoneyReward(receipt.assignee_username, receipt.reward_value, receipt);
     return {
-      reward_result: `铜钱已写入槽位 ${Number(rewardState.slot) + 1}`,
+      reward_result: rewardState.replayed
+        ? `铜钱此前已写入槽位 ${Number(rewardState.slot) + 1}`
+        : `铜钱已写入槽位 ${Number(rewardState.slot) + 1}`,
       reward_route: 'personal',
     };
   }

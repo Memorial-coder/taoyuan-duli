@@ -128,6 +128,8 @@ const quaternarySessionState = createSessionState()
 const blockRelationSessionState = createSessionState()
 const governanceSessionState = createSessionState()
 const imageBlacklistSessionState = createSessionState()
+const expeditionOverflowSessionState = createSessionState()
+const expeditionOverflowPartnerSessionState = createSessionState()
 const l81MemberAState = createSessionState()
 const l81MemberBState = createSessionState()
 const l81MemberCState = createSessionState()
@@ -193,6 +195,30 @@ const fetchSessionJson = async (session, pathname, init = {}) => {
 }
 
 const fetchAuthedJson = async (pathname, init = {}) => fetchSessionJson(sessionState, pathname, init)
+const normalizeSaveRevision = value => (
+  Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0
+)
+const readSessionSaveRevision = async (session, slot) => {
+  const { response, data } = await fetchSessionJson(session, `/api/taoyuan/save/${slot}`)
+  if (response.status === 404) return 0
+  assert(response.ok, `save revision read returned ${response.status}: ${data?.msg || 'unknown error'}`)
+  return normalizeSaveRevision(data?.revision ?? data?.current_revision)
+}
+const writeSessionSaveSlot = async (session, slot, raw, baseRevision = null) => {
+  const resolvedBaseRevision = baseRevision === null
+    ? await readSessionSaveRevision(session, slot)
+    : normalizeSaveRevision(baseRevision)
+  return fetchSessionJson(session, `/api/taoyuan/save/${slot}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      raw,
+      base_revision: resolvedBaseRevision,
+    }),
+  })
+}
 const fetchAdminJson = async (pathname, init = {}) => {
   assert(adminToken, `ADMIN_TOKEN is required for ${pathname}`)
   const headers = new Headers(init.headers || {})
@@ -253,16 +279,7 @@ const createSmokeSeed = () => {
 const seedSessionSave = async (session, startingMoney) => {
   assert(session.username, 'session username is required before provisioning a save')
   const rawSavePayload = buildSeedSavePayload(session.username, startingMoney)
-  const { response: saveResponse, data: saveData } = await fetchSessionJson(session, '/api/taoyuan/save/0', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      raw: rawSavePayload,
-      revision: 1,
-    }),
-  })
+  const { response: saveResponse, data: saveData } = await writeSessionSaveSlot(session, 0, rawSavePayload)
   assert(saveResponse.ok, `save write returned ${saveResponse.status}`)
   assert(saveData?.ok === true && saveData?.slot === 0, 'save write payload is incomplete')
   assert(typeof saveData?.raw === 'string' && saveData.raw, 'save write payload did not return authoritative raw save')
@@ -311,6 +328,28 @@ const bootstrapSession = async (session, labelPrefix, startingMoney) => {
   assert(typeof meData?.csrf_token === 'string' && meData.csrf_token, '/api/me did not return csrf_token')
   session.csrfToken = meData.csrf_token
   await seedSessionSave(session, startingMoney)
+}
+
+const fillExpeditionRewardInventory = async session => {
+  const current = await fetchSessionJson(session, '/api/taoyuan/save/0')
+  assert(current.response.ok, `expedition overflow save read returned ${current.response.status}`)
+  assert(current.data?.ok === true && typeof current.data?.raw === 'string', 'expedition overflow save payload is incomplete')
+  const decrypted = decryptTaoyuanRaw(current.data.raw)
+  assert(decrypted?.player, 'expedition overflow save did not decrypt to gameplay data')
+  const buildFullSlots = (prefix, count) => Array.from({ length: count }, (_, index) => ({
+    itemId: `${prefix}_${index}`,
+    quality: 'normal',
+    quantity: 999,
+  }))
+  const overflowRaw = encryptTaoyuanData({
+    ...decrypted,
+    capacity: 24,
+    items: buildFullSlots('qa_full_main', 24),
+    tempItems: buildFullSlots('qa_full_temp', 10),
+  })
+  const saveResult = await writeSessionSaveSlot(session, 0, overflowRaw, current.data?.revision ?? current.data?.current_revision)
+  assert(saveResult.response.ok, `expedition overflow save write returned ${saveResult.response.status}: ${saveResult.data?.msg || 'unknown error'}`)
+  assert(saveResult.data?.ok === true, 'expedition overflow save write payload is incomplete')
 }
 
 const bootstrapAuthOnlySession = async (session, labelPrefix) => {
@@ -385,6 +424,8 @@ const cleanupSmokeUsers = async () => {
     blockRelationSessionState.username,
     governanceSessionState.username,
     imageBlacklistSessionState.username,
+    expeditionOverflowSessionState.username,
+    expeditionOverflowPartnerSessionState.username,
     l81MemberAState.username,
     l81MemberBState.username,
     l81MemberCState.username,
@@ -606,16 +647,12 @@ try {
       }
     }
     const tamperedRaw = encryptTaoyuanData(beforeDecrypted)
-    const { response: saveResponse, data: saveData } = await fetchAuthedJson('/api/taoyuan/save/0', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        raw: tamperedRaw,
-        revision: 2,
-      }),
-    })
+    const { response: saveResponse, data: saveData } = await writeSessionSaveSlot(
+      sessionState,
+      0,
+      tamperedRaw,
+      beforeRead.data?.revision ?? beforeRead.data?.current_revision,
+    )
     assert(saveResponse.ok, `save identity overwrite returned ${saveResponse.status}: ${saveData?.msg || 'unknown error'}`)
     assert(saveData?.ok === true && saveData?.stale === false, 'save identity overwrite payload is incomplete')
 
@@ -984,7 +1021,11 @@ try {
   let neighborConsignmentListingId = ''
   let neighborConsignmentExpiredListingId = ''
   let festivalStallFoodOfferId = ''
+  let festivalStallFoodRewardItemId = ''
+  let festivalStallFoodRewardQuantity = 0
   let festivalStallTicketOfferId = ''
+  let festivalStallTicketRewardType = ''
+  let festivalStallTicketRewardQuantity = 0
   let exchangeLedgerReportableEntryId = ''
   let festivalPrimaryRewardMoney = 0
   let festivalSecondaryRewardMoney = 0
@@ -2134,10 +2175,20 @@ try {
     const ticketOffer = data.stall.offers.find(entry => entry?.booth_category === 'tickets')
     assert(foodOffer, 'festival stall did not expose any festival food')
     assert(ticketOffer, 'festival stall did not expose any ticket bundle')
+    const foodReward = foodOffer?.rewards?.find(entry => entry?.type === 'item' && entry?.item_id && Number(entry?.quantity) > 0)
+    const ticketReward = ticketOffer?.rewards?.find(entry => entry?.type === 'ticket' && entry?.ticket_type && Number(entry?.quantity) > 0)
+    assert(foodReward, 'festival stall food offer did not expose an item reward')
+    assert(ticketReward, 'festival stall ticket offer did not expose a wallet ticket reward')
     festivalStallFoodOfferId = String(foodOffer?.id || '')
+    festivalStallFoodRewardItemId = String(foodReward?.item_id || '')
+    festivalStallFoodRewardQuantity = Math.max(0, Math.floor(Number(foodReward?.quantity) || 0))
     festivalStallTicketOfferId = String(ticketOffer?.id || '')
+    festivalStallTicketRewardType = String(ticketReward?.ticket_type || '')
+    festivalStallTicketRewardQuantity = Math.max(0, Math.floor(Number(ticketReward?.quantity) || 0))
     assert(festivalStallFoodOfferId, 'festival stall food offer id was not created')
+    assert(festivalStallFoodRewardItemId && festivalStallFoodRewardQuantity > 0, 'festival stall food reward detail was not captured')
     assert(festivalStallTicketOfferId, 'festival stall ticket offer id was not created')
+    assert(festivalStallTicketRewardType && festivalStallTicketRewardQuantity > 0, 'festival stall ticket reward detail was not captured')
   })
 
   await runCheck('POST /api/taoyuan/exchange-station/festival-stall/:offerId/purchase food path', async () => {
@@ -2146,25 +2197,28 @@ try {
     assert(preSave.data?.ok === true && typeof preSave.data?.raw === 'string', 'festival stall buyer save payload is incomplete')
     const preDecrypted = decryptTaoyuanRaw(preSave.data.raw)
     const preMoney = Math.floor(Number(preDecrypted?.player?.money) || 0)
-    const targetFoodId = 'food_qing_tuan'
-    const preFoodCount = getInventoryItemQuantity(preDecrypted, targetFoodId)
+    const preFoodCount = getInventoryItemQuantity(preDecrypted, festivalStallFoodRewardItemId)
 
     const { response, data } = await fetchAuthedJson(`/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(festivalStallFoodOfferId)}/purchase`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idempotency_key: `qa-online-festival-food-${festivalStallFoodOfferId}` }),
     })
     assert(response.ok, `festival stall purchase returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.offer?.id === festivalStallFoodOfferId, 'festival stall food purchase payload is incomplete')
+    const purchasedFoodReward = data.offer.rewards?.find(entry => entry?.type === 'item' && entry?.item_id === festivalStallFoodRewardItemId)
+    assert(Number(purchasedFoodReward?.quantity || 0) === festivalStallFoodRewardQuantity, 'festival stall food purchase did not preserve the selected reward detail')
 
     const buyerSave = await fetchAuthedJson('/api/taoyuan/save/0')
     assert(buyerSave.response.ok, `festival stall buyer persistence read returned ${buyerSave.response.status}`)
     assert(buyerSave.data?.ok === true && typeof buyerSave.data?.raw === 'string', 'festival stall buyer persistence payload is incomplete')
     const buyerDecrypted = decryptTaoyuanRaw(buyerSave.data.raw)
     const buyerMoney = Math.floor(Number(buyerDecrypted?.player?.money) || 0)
-    const buyerFoodCount = getInventoryItemQuantity(buyerDecrypted, targetFoodId)
+    const buyerFoodCount = getInventoryItemQuantity(buyerDecrypted, festivalStallFoodRewardItemId)
     primaryExpectedMoney -= data.offer.price_money
     assert(buyerMoney === preMoney - data.offer.price_money, `festival stall did not deduct buyer money correctly, current money=${buyerMoney}`)
     assert(buyerMoney === primaryExpectedMoney, `festival stall did not persist buyer money correctly, expected money=${primaryExpectedMoney}, current money=${buyerMoney}`)
-    assert(buyerFoodCount === preFoodCount + 2, `festival stall did not grant festival food correctly, current food=${buyerFoodCount}`)
+    assert(buyerFoodCount === preFoodCount + festivalStallFoodRewardQuantity, `festival stall did not grant festival food correctly, expected ${festivalStallFoodRewardItemId}=${preFoodCount + festivalStallFoodRewardQuantity}, current=${buyerFoodCount}`)
   })
 
   await runCheck('POST /api/taoyuan/exchange-station/festival-stall/:offerId/purchase ticket path', async () => {
@@ -2173,24 +2227,28 @@ try {
     assert(preSave.data?.ok === true && typeof preSave.data?.raw === 'string', 'festival stall ticket pre-save payload is incomplete')
     const preDecrypted = decryptTaoyuanRaw(preSave.data.raw)
     const preMoney = Math.floor(Number(preDecrypted?.player?.money) || 0)
-    const preCaravanTicketCount = getRewardTicketQuantity(preDecrypted, 'caravan')
+    const preTicketCount = getRewardTicketQuantity(preDecrypted, festivalStallTicketRewardType)
 
     const { response, data } = await fetchAuthedJson(`/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(festivalStallTicketOfferId)}/purchase`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idempotency_key: `qa-online-festival-ticket-${festivalStallTicketOfferId}` }),
     })
     assert(response.ok, `festival stall ticket purchase returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.offer?.id === festivalStallTicketOfferId, 'festival stall ticket purchase payload is incomplete')
+    const purchasedTicketReward = data.offer.rewards?.find(entry => entry?.type === 'ticket' && entry?.ticket_type === festivalStallTicketRewardType)
+    assert(Number(purchasedTicketReward?.quantity || 0) === festivalStallTicketRewardQuantity, 'festival stall ticket purchase did not preserve the selected reward detail')
 
     const buyerSave = await fetchAuthedJson('/api/taoyuan/save/0')
     assert(buyerSave.response.ok, `festival stall ticket persistence read returned ${buyerSave.response.status}`)
     assert(buyerSave.data?.ok === true && typeof buyerSave.data?.raw === 'string', 'festival stall ticket persistence payload is incomplete')
     const buyerDecrypted = decryptTaoyuanRaw(buyerSave.data.raw)
     const buyerMoney = Math.floor(Number(buyerDecrypted?.player?.money) || 0)
-    const buyerCaravanTicketCount = getRewardTicketQuantity(buyerDecrypted, 'caravan')
+    const buyerTicketCount = getRewardTicketQuantity(buyerDecrypted, festivalStallTicketRewardType)
     primaryExpectedMoney -= data.offer.price_money
     assert(buyerMoney === preMoney - data.offer.price_money, `festival stall ticket bundle did not deduct buyer money correctly, current money=${buyerMoney}`)
     assert(buyerMoney === primaryExpectedMoney, `festival stall ticket bundle did not persist buyer money correctly, expected money=${primaryExpectedMoney}, current money=${buyerMoney}`)
-    assert(buyerCaravanTicketCount === preCaravanTicketCount + 1, `festival stall did not grant wallet ticket correctly, current caravan券=${buyerCaravanTicketCount}`)
+    assert(buyerTicketCount === preTicketCount + festivalStallTicketRewardQuantity, `festival stall did not grant wallet ticket correctly, expected ${festivalStallTicketRewardType}券=${preTicketCount + festivalStallTicketRewardQuantity}, current=${buyerTicketCount}`)
   })
 
   await runCheck('POST /api/taoyuan/exchange-station/weekly/:offerId/exchange write path', async () => {
@@ -2202,6 +2260,8 @@ try {
     const preStoneCount = getInventoryItemQuantity(preDecrypted, 'stone')
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/weekly/wood_for_stone/exchange', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idempotency_key: 'qa-online-weekly-wood-for-stone' }),
     })
     assert(response.ok, `weekly exchange execution returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.offer?.id === 'wood_for_stone', 'weekly exchange execution payload is incomplete')
@@ -3088,6 +3148,112 @@ try {
     const secondaryItems = Array.isArray(secondaryDecrypted?.items) ? secondaryDecrypted.items : []
     assert(secondaryItems.some(item => String(item?.itemId || '') === 'wood' && Number(item?.quantity || 0) >= 2), 'expedition reward did not persist secondary expedition wood reward')
     assert(secondaryItems.some(item => String(item?.itemId || '') === 'paper' && Number(item?.quantity || 0) >= 1), 'expedition reward did not persist secondary expedition paper reward')
+  })
+
+  let expeditionOverflowRoomId = ''
+  let expeditionOverflowPartnerSaveIdentity = null
+  await runCheck('Expedition overflow reward session bootstrap', async () => {
+    await bootstrapSession(expeditionOverflowSessionState, 'smkexfull', 510)
+    await bootstrapSession(expeditionOverflowPartnerSessionState, 'smkexmate', 510)
+    await fillExpeditionRewardInventory(expeditionOverflowSessionState)
+    const partnerSave = await fetchSessionJson(expeditionOverflowPartnerSessionState, '/api/taoyuan/save/0')
+    assert(partnerSave.response.ok, `expedition overflow partner save read returned ${partnerSave.response.status}`)
+    expeditionOverflowPartnerSaveIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(partnerSave.data.raw))
+    assert(expeditionOverflowPartnerSaveIdentity?.save_id, 'expedition overflow partner save identity is missing')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms overflow create path', async () => {
+    const { response, data } = await fetchSessionJson(expeditionOverflowSessionState, '/api/taoyuan/online/expedition/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': expeditionOverflowSessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        template_id: 'expedition_outpost',
+        gameplay_template_id: 'expedition_roles',
+        title: `overflow expedition ${Date.now()}`,
+      }),
+    })
+    assert(response.ok, `expedition overflow create returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.id, 'expedition overflow create payload is incomplete')
+    expeditionOverflowRoomId = String(data.room.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms overflow invite/join path', async () => {
+    const invite = await fetchSessionJson(expeditionOverflowSessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionOverflowRoomId)}/invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': expeditionOverflowSessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        target_save_id: expeditionOverflowPartnerSaveIdentity.save_id,
+      }),
+    })
+    assert(invite.response.ok, `expedition overflow invite returned ${invite.response.status}: ${invite.data?.msg || 'unknown error'}`)
+    const join = await fetchSessionJson(expeditionOverflowPartnerSessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionOverflowRoomId)}/join`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': expeditionOverflowPartnerSessionState.csrfToken,
+      },
+    })
+    assert(join.response.ok, `expedition overflow join returned ${join.response.status}: ${join.data?.msg || 'unknown error'}`)
+    assert(join.data?.room?.members?.some(item => item?.username === expeditionOverflowPartnerSessionState.username), 'expedition overflow partner did not join room')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms overflow start path', async () => {
+    for (const step of ['ready-check', 'ready']) {
+      const { response, data } = await fetchSessionJson(expeditionOverflowSessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionOverflowRoomId)}/${step}`, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': expeditionOverflowSessionState.csrfToken,
+        },
+      })
+      assert(response.ok, `expedition overflow ${step} returned ${response.status}: ${data?.msg || 'unknown error'}`)
+      assert(data?.ok === true, `expedition overflow ${step} payload is incomplete`)
+    }
+    const partnerReady = await fetchSessionJson(expeditionOverflowPartnerSessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionOverflowRoomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': expeditionOverflowPartnerSessionState.csrfToken,
+      },
+    })
+    assert(partnerReady.response.ok, `expedition overflow partner ready returned ${partnerReady.response.status}: ${partnerReady.data?.msg || 'unknown error'}`)
+    const start = await fetchSessionJson(expeditionOverflowSessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionOverflowRoomId)}/start`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': expeditionOverflowSessionState.csrfToken,
+      },
+    })
+    assert(start.response.ok, `expedition overflow start returned ${start.response.status}: ${start.data?.msg || 'unknown error'}`)
+    await wait(6500)
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms overflow settle path', async () => {
+    const { response, data } = await fetchSessionJson(expeditionOverflowSessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionOverflowRoomId)}/settle`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': expeditionOverflowSessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition overflow settle returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'settling', 'expedition overflow settle payload is incomplete')
+    assert(data.room.settlement_receipts.some(item => Array.isArray(item?.reward_payload?.items) && item.reward_payload.items.length > 0), 'expedition overflow settle did not create item reward receipt')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms overflow close compensation path', async () => {
+    const { response, data } = await fetchSessionJson(expeditionOverflowSessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionOverflowRoomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': expeditionOverflowSessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition overflow close returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    const receipt = data?.room?.settlement_receipts?.find(item => item?.target_username === expeditionOverflowSessionState.username)
+    assert(data?.ok === true && data?.room?.state === 'settling', 'expedition overflow close should keep room in settling for compensation')
+    assert(receipt?.status === 'compensation_pending', `overflow receipt should be compensation_pending, current=${receipt?.status}`)
+    assert(receipt?.status !== 'persisted', 'overflow receipt must not be marked persisted')
   })
 
   let l81MemberAExpectedMoney = 320
@@ -4037,16 +4203,7 @@ try {
 
   await runCheck('GET /api/taoyuan/online/societies active save isolation', async () => {
     const alternateRawSavePayload = buildSeedSavePayload(secondarySessionState.username, 260)
-    const alternateSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/1', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        raw: alternateRawSavePayload,
-        revision: 1,
-      }),
-    })
+    const alternateSave = await writeSessionSaveSlot(secondarySessionState, 1, alternateRawSavePayload)
     assert(alternateSave.response.ok, `secondary alternate save write returned ${alternateSave.response.status}`)
     assert(alternateSave.data?.ok === true && alternateSave.data?.slot === 1, 'secondary alternate save write payload is incomplete')
     const alternateIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(alternateSave.data?.raw || ''))

@@ -26,6 +26,7 @@
     "qa:online-regression-live-smoke": "node scripts/qa-online-regression-live-smoke.mjs",
     "qa:account-context-guard": "node scripts/qa-account-context-guard.mjs",
     "qa:mailbox-account-reset": "node scripts/qa-mailbox-account-reset.mjs",
+    "qa:quota-exchange-save-consistency": "node scripts/qa-quota-exchange-save-consistency.mjs",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
     "qa:inventory-guards": "node scripts/qa-inventory-guards.mjs",
     "qa:navigation-clock-guards": "node scripts/qa-navigation-clock-guards.mjs",

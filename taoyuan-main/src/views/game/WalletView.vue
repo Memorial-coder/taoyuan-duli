@@ -1218,28 +1218,29 @@
     addLog(`【开匣】${result.message}`)
   }
 
-  const persistExchangeResult = async (rollbackMoney: number) => {
+  const persistExchangeResult = async (result: { saveRevision?: number }) => {
+    if (runtimeServerSlot.value !== null && result.saveRevision !== undefined) {
+      saveStore.acknowledgeServerSlotRevision(runtimeServerSlot.value, result.saveRevision)
+    }
     if (runtimeServerSlot.value === null || runtimeServerSessionHasPendingCopy.value) {
-      playerStore.setMoney(rollbackMoney)
       try {
         await refreshExchangeContext()
       } catch {
         void 0
       }
-      showFloat('额度已变更，但当前没有可写回的服务端存档，已回滚本地铜钱。', 'danger')
-      addLog('额度兑换成功，但当前存档不可写回；已回滚本地铜钱。')
+      showFloat('额度已写入服务端，但当前会话不可自动保存，请重新读取服务端存档。', 'accent')
+      addLog('额度兑换成功，服务端存档已更新；当前会话不可自动保存，请重新读取服务端存档。')
       return false
     }
     const ok = await saveStore.autoSave()
     if (!ok) {
-      playerStore.setMoney(rollbackMoney)
       try {
         await refreshExchangeContext()
       } catch {
         void 0
       }
-      showFloat('额度已变更，但当前存档写回失败，已回滚本地铜钱并刷新额度。', 'danger')
-      addLog('额度兑换成功，但存档写回失败；已回滚当前会话的铜钱并刷新额度。')
+      showFloat('额度已写入服务端，但当前会话自动保存失败，请重新读取服务端存档。', 'accent')
+      addLog('额度兑换成功，服务端存档已更新；当前会话自动保存失败，请重新读取服务端存档。')
       return false
     }
     return true
@@ -1263,10 +1264,12 @@
     importing.value = true
     try {
       const previousMoney = playerStore.money
-      const result = await importQuotaToTaoyuan(sanitizedExchangeMoney.value)
-      playerStore.setMoney(previousMoney + (result.moneyReceived ?? 0))
+      const result = await importQuotaToTaoyuan(sanitizedExchangeMoney.value, {
+        activeSaveSlot: runtimeServerSlot.value
+      })
+      playerStore.setMoney(result.taoyuanMoney ?? (previousMoney + (result.moneyReceived ?? 0)))
       applyExchangeResultContext(result)
-      const persisted = await persistExchangeResult(previousMoney)
+      const persisted = await persistExchangeResult(result)
       if (!persisted) return
       showFloat(`+${result.moneyReceived ?? 0}文`, 'accent')
       addLog(`从账号额度导入了${result.moneyReceived ?? 0}文。`)
@@ -1286,10 +1289,12 @@
     exporting.value = true
     try {
       const previousMoney = playerStore.money
-      const result = await exportTaoyuanToQuota(sanitizedExchangeMoney.value)
-      playerStore.setMoney(previousMoney - (result.moneySpent ?? 0))
+      const result = await exportTaoyuanToQuota(sanitizedExchangeMoney.value, {
+        activeSaveSlot: runtimeServerSlot.value
+      })
+      playerStore.setMoney(result.taoyuanMoney ?? (previousMoney - (result.moneySpent ?? 0)))
       applyExchangeResultContext(result)
-      const persisted = await persistExchangeResult(previousMoney)
+      const persisted = await persistExchangeResult(result)
       if (!persisted) return
       showFloat(`+${result.quotaGained ?? 0}quota`, 'success')
       addLog(`导出了${result.moneySpent ?? 0}文，获得 ${result.quotaGained ?? 0} quota。`)

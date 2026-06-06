@@ -1,5 +1,9 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
-import { fetchProtectedJson } from '@/utils/protectedApi'
+import { fetchProtectedJson, isProtectedApiError } from '@/utils/protectedApi'
+import {
+  clearTransactionIdempotencyKey,
+  getOrCreateTransactionIdempotencyKey
+} from '@/utils/transactionIdempotency'
 
 export type FestivalStallBundleEntry =
   | {
@@ -87,6 +91,9 @@ export interface FestivalStallActionResponse {
   money: number
   offer: FestivalStallOffer
   record: FestivalStallRecord
+  idempotency_key?: string
+  idempotency_replayed?: boolean
+  transaction_receipt_status?: string
   msg?: string
 }
 
@@ -95,6 +102,15 @@ const ensureLoggedInContext = async () => {
   if (!account || account === 'guest') {
     throw new Error('请先登录后再使用节庆摊位')
   }
+}
+
+const shouldKeepTransactionKeyAfterError = (error: unknown): boolean => {
+  if (!isProtectedApiError(error)) return true
+  if (error.status === null) return true
+  const status = typeof (error.data as any)?.transaction_receipt_status === 'string'
+    ? (error.data as any).transaction_receipt_status
+    : ''
+  return status === 'pending' || status === 'compensation_pending'
 }
 
 const request = async <T>(input: string, initFactory?: RequestInit | (() => Promise<RequestInit> | RequestInit)) => {
@@ -118,14 +134,29 @@ export const fetchFestivalStall = async (): Promise<FestivalStallSnapshot | null
 }
 
 export const purchaseFestivalStallOffer = async (offerId: string): Promise<FestivalStallActionResponse> => {
-  const data = await request<FestivalStallActionResponse>(`/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(offerId)}/purchase`, async () => {
-    const csrfToken = await ensureCurrentCsrfToken()
-    return {
-      method: 'POST',
-      headers: {
-        'X-CSRF-Token': csrfToken
+  const fingerprint = `festival:${offerId}`
+  const idempotencyKey = getOrCreateTransactionIdempotencyKey('festival_stall', fingerprint)
+  try {
+    const data = await request<FestivalStallActionResponse>(`/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(offerId)}/purchase`, async () => {
+      const csrfToken = await ensureCurrentCsrfToken()
+      return {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken
+        },
+        body: JSON.stringify({ idempotency_key: idempotencyKey })
       }
+    })
+    clearTransactionIdempotencyKey('festival_stall', fingerprint)
+    return {
+      ...(data as FestivalStallActionResponse),
+      idempotency_key: typeof data?.idempotency_key === 'string' ? data.idempotency_key : idempotencyKey
     }
-  })
-  return data as FestivalStallActionResponse
+  } catch (error) {
+    if (!shouldKeepTransactionKeyAfterError(error)) {
+      clearTransactionIdempotencyKey('festival_stall', fingerprint)
+    }
+    throw error
+  }
 }
