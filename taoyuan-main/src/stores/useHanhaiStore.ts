@@ -576,6 +576,18 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
+  const normalizeActiveTexasSessionForLoad = (value: Partial<ActiveTexasSession> | null | undefined): ActiveTexasSession | null => {
+    const session = cloneActiveTexasSession(value)
+    if (!session || session.settled || session.startedAtDayTag !== getCurrentDayTag()) return null
+    return session
+  }
+
+  const normalizeActiveBuckshotSessionForLoad = (value: Partial<ActiveBuckshotSession> | null | undefined): ActiveBuckshotSession | null => {
+    const session = cloneActiveBuckshotSession(value)
+    if (!session || session.settled || session.startedAtDayTag !== getCurrentDayTag()) return null
+    return session
+  }
+
   const beginHanhaiAction = (lockId: string): boolean => {
     if (!hanhaiFeatureFlags.hanhaiActionGuardEnabled) return true
     if (hanhaiActionLocks.value.includes(lockId)) return false
@@ -1949,8 +1961,8 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       lastWeeklyResetDayTag: data?.cycleState?.lastWeeklyResetDayTag ?? ''
     }
     if (unlocked.value) syncCycleStateToCurrentWeek()
-    activeTexasSession.value = cloneActiveTexasSession(data?.activeTexasSession)
-    activeBuckshotSession.value = cloneActiveBuckshotSession(data?.activeBuckshotSession)
+    activeTexasSession.value = normalizeActiveTexasSessionForLoad(data?.activeTexasSession)
+    activeBuckshotSession.value = normalizeActiveBuckshotSessionForLoad(data?.activeBuckshotSession)
   }
 
   const reset = () => {

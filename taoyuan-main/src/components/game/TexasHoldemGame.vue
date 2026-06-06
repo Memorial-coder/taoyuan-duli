@@ -138,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, nextTick } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
   import { SUIT_LABELS, RANK_LABELS, evaluateBestHand, compareHands, texasDealerAI } from '@/data/hanhai'
   import { sfxChipBet, sfxFoldCards, sfxCardFlip, sfxCasinoWin, sfxCasinoLose } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
@@ -182,6 +182,17 @@
   const playerActions = ref<TexasActionRecord[]>([])
   const actionLog = ref<string[]>([])
   const logRef = ref<HTMLElement | null>(null)
+  const timers = new Set<ReturnType<typeof setTimeout>>()
+  let disposed = false
+
+  const schedule = (callback: () => void, delay: number) => {
+    const timer = setTimeout(() => {
+      timers.delete(timer)
+      if (!disposed) callback()
+    }, delay)
+    timers.add(timer)
+    return timer
+  }
 
   const toCall = computed(() => Math.max(0, dealerBetRound.value - playerBetRound.value))
 
@@ -281,7 +292,7 @@
     addActionLog(`—— ${streetLabel.value} ——`)
 
     if (playerAllIn.value || dealerAllIn.value) {
-      setTimeout(() => advanceStreet(), 600)
+      schedule(() => advanceStreet(), 600)
       return
     }
 
@@ -304,7 +315,7 @@
     if (playerActed) {
       isPlayerTurn.value = false
       animating.value = true
-      setTimeout(() => dealerTurn(), 800)
+      schedule(() => dealerTurn(), 800)
     } else {
       isPlayerTurn.value = true
       animating.value = false
@@ -319,7 +330,7 @@
     addActionLog('你过牌')
     isPlayerTurn.value = false
     animating.value = true
-    setTimeout(() => dealerTurn(), 800)
+    schedule(() => dealerTurn(), 800)
   }
 
   const doCall = () => {
@@ -338,7 +349,7 @@
     addActionLog(`你加注 ${amount}`)
     isPlayerTurn.value = false
     animating.value = true
-    setTimeout(() => dealerTurn(), 800)
+    schedule(() => dealerTurn(), 800)
   }
 
   const doAllIn = () => {
@@ -349,7 +360,7 @@
     playerAllIn.value = true
     isPlayerTurn.value = false
     animating.value = true
-    setTimeout(() => dealerTurn(), 800)
+    schedule(() => dealerTurn(), 800)
   }
 
   const doFold = () => {
@@ -446,7 +457,7 @@
     const cmp = compareHands(pHand, dHand)
     const result = cmp > 0 ? 'won' : cmp === 0 ? 'draw' : 'lost'
 
-    setTimeout(() => endHand(result), 800)
+    schedule(() => endHand(result), 800)
   }
 
   // === 单手结算 ===
@@ -481,7 +492,7 @@
       endSession()
     } else {
       // 还有剩余手数，自动开始下一手
-      setTimeout(() => startNextHand(), 1000)
+      schedule(() => startNextHand(), 1000)
     }
   }
 
@@ -583,6 +594,12 @@
     addActionLog(`双方各下盲注 ${tier.blind}`)
     addActionLog('—— 翻牌前 ——')
     isPlayerTurn.value = true
+  })
+
+  onUnmounted(() => {
+    disposed = true
+    for (const timer of timers) clearTimeout(timer)
+    timers.clear()
   })
 </script>
 

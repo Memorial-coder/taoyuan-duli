@@ -853,6 +853,17 @@
   const { pauseClock, resumeClock } = useGameClock()
   const activeTab = ref<'shop' | 'relic' | 'casino'>('shop')
   const shopModalItem = ref<HanhaiShopItemDef | null>(null)
+  const animationTimers = new Set<ReturnType<typeof setTimeout>>()
+  let disposed = false
+
+  const scheduleAnimation = (callback: () => void, delay: number) => {
+    const timer = setTimeout(() => {
+      animationTimers.delete(timer)
+      if (!disposed) callback()
+    }, delay)
+    animationTimers.add(timer)
+    return timer
+  }
 
   const tierRank = { P0: 0, P1: 1, P2: 2 } as const
   const HANHAI_PROGRESS_TIER_LABELS = {
@@ -882,6 +893,9 @@
   })
 
   onUnmounted(() => {
+    disposed = true
+    for (const timer of animationTimers) clearTimeout(timer)
+    animationTimers.clear()
     endHanhaiBgm()
     resumeClock('hanhaiCasino')
   })
@@ -1057,7 +1071,7 @@
       if (step >= totalSteps) {
         // 动画结束，停在 targetIndex 上，延迟显示结果
         sfxRouletteStop()
-        setTimeout(() => {
+        scheduleAnimation(() => {
           roulettePhase.value = 'done'
           if (rouletteAnimResult.value && rouletteAnimResult.value.multiplier > 0) sfxCasinoWin()
           else sfxCasinoLose()
@@ -1074,10 +1088,10 @@
       else if (remaining > 1) delay = 350
       else delay = 500
 
-      setTimeout(tick, delay)
+      scheduleAnimation(tick, delay)
     }
 
-    setTimeout(tick, 60)
+    scheduleAnimation(tick, 60)
   }
 
   const handleRoulette = (betTier: number) => {
@@ -1109,11 +1123,11 @@
         sfxDiceTick()
         step++
         const delay = step < 8 ? 80 : step < 11 ? 150 : 250
-        setTimeout(tick, delay)
+        scheduleAnimation(tick, delay)
       } else {
         diceDisplay.value = [finalDice1, finalDice2]
         sfxDiceLand()
-        setTimeout(() => {
+        scheduleAnimation(() => {
           dicePhase.value = 'done'
           if (diceAnimResult.value?.won) sfxCasinoWin()
           else sfxCasinoLose()
@@ -1152,11 +1166,11 @@
         sfxCupTick()
         step++
         const delay = step < 6 ? 100 : step < 10 ? 180 : 300
-        setTimeout(tick, delay)
+        scheduleAnimation(tick, delay)
       } else {
         cupShuffleIndex.value = -1
         sfxCupReveal()
-        setTimeout(() => {
+        scheduleAnimation(() => {
           cupPhase.value = 'done'
           if (cupAnimResult.value?.won) sfxCasinoWin()
           else sfxCasinoLose()
@@ -1195,10 +1209,10 @@
         sfxCricketTick()
         step++
         const delay = step < 6 ? 120 : step < 10 ? 200 : 350
-        setTimeout(tick, delay)
+        scheduleAnimation(tick, delay)
       } else {
         sfxCricketClash()
-        setTimeout(() => {
+        scheduleAnimation(() => {
           cricketPhase.value = 'done'
           if (cricketAnimResult.value?.won) sfxCasinoWin()
           else if (!cricketAnimResult.value?.draw) sfxCasinoLose()
@@ -1248,10 +1262,10 @@
         sfxCardFlip()
         step++
         const delay = step === 1 ? 600 : 300
-        setTimeout(tick, delay)
+        scheduleAnimation(tick, delay)
       } else {
         cardFlipIndex.value = -1
-        setTimeout(() => {
+        scheduleAnimation(() => {
           cardPhase.value = 'done'
           if (cardAnimResult.value?.won) sfxCasinoWin()
           else sfxCasinoLose()

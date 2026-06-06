@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, nextTick, onMounted } from 'vue'
+  import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
   import { BUCKSHOT_BET_AMOUNT, BUCKSHOT_WIN_MULTIPLIER, dealerDecide } from '@/data/hanhai'
   import { sfxGunshot, sfxGunEmpty, sfxCasinoWin, sfxCasinoLose } from '@/composables/useAudio'
   import type { BuckshotPlayerAction, BuckshotSetup, ShellType } from '@/types'
@@ -125,6 +125,18 @@
   // 受击动画
   const playerHit = ref(false)
   const dealerHit = ref(false)
+  const timers = new Set<ReturnType<typeof setTimeout>>()
+  const delayResolvers = new Set<(active: boolean) => void>()
+  let disposed = false
+
+  const schedule = (callback: () => void, ms: number) => {
+    const timer = setTimeout(() => {
+      timers.delete(timer)
+      if (!disposed) callback()
+    }, ms)
+    timers.add(timer)
+    return timer
+  }
 
   const liveRemaining = computed(() => {
     let count = 0
@@ -149,12 +161,12 @@
   const triggerHitAnim = (target: 'player' | 'dealer') => {
     if (target === 'player') {
       playerHit.value = true
-      setTimeout(() => {
+      schedule(() => {
         playerHit.value = false
       }, 400)
     } else {
       dealerHit.value = true
-      setTimeout(() => {
+      schedule(() => {
         dealerHit.value = false
       }, 400)
     }
@@ -207,7 +219,15 @@
     return false
   }
 
-  const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+  const delay = (ms: number) => new Promise<boolean>(resolve => {
+    delayResolvers.add(resolve)
+    const timer = setTimeout(() => {
+      timers.delete(timer)
+      delayResolvers.delete(resolve)
+      resolve(!disposed)
+    }, ms)
+    timers.add(timer)
+  })
 
   /** 玩家射击对方 */
   const shootOpponent = async () => {
@@ -228,10 +248,11 @@
     }
 
     await nextTick()
+    if (disposed) return
 
     if (!checkGameEnd()) {
       isPlayerTurn.value = false
-      await delay(800)
+      if (!(await delay(800))) return
       animating.value = false
       void dealerTurn()
     } else {
@@ -251,7 +272,7 @@
       sfxGunEmpty()
       addActionLog('你射向自己——空弹！获得额外回合。')
       // 额外回合，不切换
-      await delay(400)
+      if (!(await delay(400))) return
       animating.value = false
       if (checkGameEnd()) return
     } else {
@@ -260,10 +281,11 @@
       triggerHitAnim('player')
       addActionLog('你射向自己——实弹！你 -1HP')
       await nextTick()
+      if (disposed) return
 
       if (!checkGameEnd()) {
         isPlayerTurn.value = false
-        await delay(800)
+        if (!(await delay(800))) return
         animating.value = false
         void dealerTurn()
       } else {
@@ -274,10 +296,10 @@
 
   /** 庄家回合 */
   const dealerTurn = async () => {
-    if (gameOver.value) return
+    if (disposed || gameOver.value) return
     animating.value = true
 
-    await delay(800)
+    if (!(await delay(800))) return
 
     if (shellIndex.value >= shells.value.length) {
       checkGameEnd()
@@ -301,6 +323,7 @@
         addActionLog('庄家射向你——空弹，未命中。')
       }
       await nextTick()
+      if (disposed) return
 
       if (!checkGameEnd()) {
         isPlayerTurn.value = true
@@ -313,7 +336,7 @@
       if (shell === 'blank') {
         sfxGunEmpty()
         addActionLog('庄家射向自己——空弹！庄家获得额外回合。')
-        await delay(600)
+        if (!(await delay(600))) return
         if (!checkGameEnd()) {
           await dealerTurn()
         } else {
@@ -325,6 +348,7 @@
         triggerHitAnim('dealer')
         addActionLog('庄家射向自己——实弹！庄家 -1HP')
         await nextTick()
+        if (disposed) return
 
         if (!checkGameEnd()) {
           isPlayerTurn.value = true
@@ -343,6 +367,14 @@
       addActionLog('庄家先手。')
       void dealerTurn()
     }
+  })
+
+  onUnmounted(() => {
+    disposed = true
+    for (const timer of timers) clearTimeout(timer)
+    timers.clear()
+    for (const resolve of delayResolvers) resolve(false)
+    delayResolvers.clear()
   })
 </script>
 
