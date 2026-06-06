@@ -693,6 +693,10 @@
   }
 
   const currentGenBreeds = computed(() => getBreedsByGeneration(compendiumGen.value))
+  const getBreedParentName = (breedId: string | null): string => {
+    if (!breedId) return '初代'
+    return getBreedById(breedId)?.name ?? breedId
+  }
 
   const mirageMarshFishPondHandoff = computed(() => {
     const specimenQty = regionMapStore.getFamilyResourceQuantity('ecology_specimen')
@@ -930,6 +934,10 @@
   /** 打开鱼详情 */
   const openFishDetail = (fish: PondFish) => {
     detailFish.value = fish
+  }
+
+  const openBreedDetail = (breed: PondBreedDef) => {
+    detailBreed.value = breed
   }
 
   /** 弹窗内选为繁殖亲本 */
