@@ -106,6 +106,18 @@ const logProjectCredit = (routeKey: string) => {
   log(...logArgs)
 }
 
+const cloneInitialPiniaState = (state: unknown) => {
+  const seen = new WeakSet<object>()
+  const json = JSON.stringify(toRaw(state), (_key, value) => {
+    if (value && typeof value === 'object') {
+      if (seen.has(value)) return undefined
+      seen.add(value)
+    }
+    return value
+  })
+  return JSON.parse(json || '{}') as Record<string, unknown>
+}
+
 router.afterEach((to) => {
   logProjectCredit(to.fullPath)
 })
@@ -120,10 +132,10 @@ const bootstrap = async () => {
   // 为 setup store 添加 $reset() 支持（Pinia 默认仅 option store 支持 $reset）
   // 使用 JSON 深拷贝而非 structuredClone，因为后者无法处理 Vue 的 reactive Proxy
   pinia.use(({ store }) => {
-    const initialState = JSON.parse(JSON.stringify(toRaw(store.$state)))
+    const initialState = cloneInitialPiniaState(store.$state)
     store.$reset = () => {
       store.$patch(($state) => {
-        Object.assign($state, JSON.parse(JSON.stringify(initialState)))
+        Object.assign($state, cloneInitialPiniaState(initialState))
       })
     }
   })

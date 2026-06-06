@@ -447,6 +447,16 @@
       </div>
     </Transition>
   </div>
+  <div
+    v-else-if="deepLinkRecoveryInProgress"
+    class="game-layout-root flex h-screen flex-col items-center justify-center gap-3 p-4 text-center"
+    data-testid="game-deeplink-restore"
+  >
+    <div class="game-panel w-full max-w-xs">
+      <Divider title label="恢复旅程" />
+      <p class="text-xs text-muted leading-5">正在恢复最近的存档…</p>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -482,6 +492,7 @@
   import { syncNavigationClockPauseForRoute } from '@/composables/useNavigation'
   import { useAudio } from '@/composables/useAudio'
   import type { Quality, RecordCenterTabId } from '@/types'
+  import type { SaveSlotInfo } from '@/stores/useSaveStore'
   import { Moon, X, Map, ArrowDown, ArrowDownToLine, Maximize2, Minimize2 } from 'lucide-vue-next'
   import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
   import Button from '@/components/game/Button.vue'
@@ -538,10 +549,7 @@
   const isFullscreen = ref(false)
   const isFullscreenSupported = ref(false)
 
-  // 游戏未开始时重定向到主菜单
-  if (!gameStore.isGameStarted) {
-    void router.replace('/')
-  }
+  const deepLinkRecoveryInProgress = ref(!gameStore.isGameStarted)
 
   const {
     currentEvent,
@@ -754,7 +762,46 @@
     }
   }
 
-  onMounted(() => {
+  const getSavedAtTimestamp = (slot: SaveSlotInfo) => {
+    const timestamp = Date.parse(slot.savedAt ?? '')
+    return Number.isFinite(timestamp) ? timestamp : 0
+  }
+
+  const resolveDeepLinkRecoverySlot = async () => {
+    if (saveStore.activeSlot >= 0 && saveStore.activeSlotMode === saveStore.storageMode) {
+      return saveStore.activeSlot
+    }
+
+    const slots = await saveStore.getSlots()
+    const latestSlot = slots
+      .filter(slot => slot.exists && !slot.readBlocked)
+      .sort((left, right) => getSavedAtTimestamp(right) - getSavedAtTimestamp(left) || left.slot - right.slot)[0]
+    return latestSlot?.slot ?? -1
+  }
+
+  const recoverGameDeepLink = async () => {
+    if (gameStore.isGameStarted) {
+      deepLinkRecoveryInProgress.value = false
+      return true
+    }
+
+    deepLinkRecoveryInProgress.value = true
+    const requestedFullPath = route.fullPath || '/game/farm'
+    const recoverySlot = await resolveDeepLinkRecoverySlot()
+    if (recoverySlot >= 0 && await saveStore.loadFromSlot(recoverySlot)) {
+      addLog(`已从存档 ${recoverySlot + 1} 恢复当前页面。`)
+      deepLinkRecoveryInProgress.value = false
+      return true
+    }
+
+    const redirectQuery = requestedFullPath.startsWith('/game')
+      ? { redirect: requestedFullPath }
+      : undefined
+    await router.replace({ name: 'menu', query: redirectQuery })
+    return false
+  }
+
+  const startGameLayoutRuntime = () => {
     startClock()
     isFullscreenSupported.value = supportsGameFullscreen()
     syncFullscreenState()
@@ -774,6 +821,11 @@
     backgroundAutoSaveTimer.value = window.setInterval(() => {
       void runBackgroundAutoSave()
     }, BACKGROUND_AUTOSAVE_INTERVAL_MS)
+  }
+
+  onMounted(async () => {
+    if (!(await recoverGameDeepLink())) return
+    startGameLayoutRuntime()
   })
   onUnmounted(() => {
     stopClock()
