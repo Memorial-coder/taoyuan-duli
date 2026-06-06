@@ -75,6 +75,8 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   /** 正在升级中的工具（2天等待期） */
   const pendingUpgrade = ref<{ toolType: ToolType; targetTier: ToolTier; daysRemaining: number } | null>(null)
+  const TOOL_TIER_ORDER: ToolTier[] = ['basic', 'iron', 'steel', 'iridium']
+  const TOOL_TYPES: ToolType[] = ['wateringCan', 'hoe', 'pickaxe', 'fishingRod', 'scythe', 'axe', 'pan']
 
   const isFull = computed(() => items.value.length >= capacity.value)
 
@@ -645,6 +647,24 @@ export const useInventoryStore = defineStore('inventory', () => {
     return tools.value.find(t => t.type === type)
   }
 
+  const getNextToolTier = (tier: ToolTier): ToolTier | null => {
+    const currentIndex = TOOL_TIER_ORDER.indexOf(tier)
+    if (currentIndex < 0 || currentIndex >= TOOL_TIER_ORDER.length - 1) return null
+    return TOOL_TIER_ORDER[currentIndex + 1]!
+  }
+
+  const normalizePendingToolUpgrade = (value: unknown) => {
+    if (!value || typeof value !== 'object') return null
+    const raw = value as { toolType?: unknown; targetTier?: unknown; daysRemaining?: unknown }
+    if (typeof raw.toolType !== 'string' || !TOOL_TYPES.includes(raw.toolType as ToolType)) return null
+    const toolType = raw.toolType as ToolType
+    const tool = getTool(toolType)
+    const nextTier = tool ? getNextToolTier(tool.tier) : null
+    if (!nextTier) return null
+    const daysRemaining = Math.max(1, Math.min(2, Math.ceil(Number(raw.daysRemaining) || 1)))
+    return { toolType, targetTier: nextTier, daysRemaining }
+  }
+
   /** 获取工具等级对应的体力消耗倍率 */
   const getToolStaminaMultiplier = (type: ToolType): number => {
     const tool = getTool(type)
@@ -673,10 +693,9 @@ export const useInventoryStore = defineStore('inventory', () => {
   const upgradeTool = (type: ToolType): boolean => {
     const tool = getTool(type)
     if (!tool) return false
-    const tiers: ToolTier[] = ['basic', 'iron', 'steel', 'iridium']
-    const currentIndex = tiers.indexOf(tool.tier)
-    if (currentIndex >= tiers.length - 1) return false
-    tool.tier = tiers[currentIndex + 1]!
+    const nextTier = getNextToolTier(tool.tier)
+    if (!nextTier) return false
+    tool.tier = nextTier
     return true
   }
 
@@ -688,6 +707,9 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 开始升级工具（进入2天等待期） */
   const startUpgrade = (type: ToolType, targetTier: ToolTier): boolean => {
     if (pendingUpgrade.value) return false
+    const tool = getTool(type)
+    const nextTier = tool ? getNextToolTier(tool.tier) : null
+    if (!nextTier || targetTier !== nextTier) return false
     pendingUpgrade.value = { toolType: type, targetTier, daysRemaining: 2 }
     return true
   }
@@ -697,10 +719,15 @@ export const useInventoryStore = defineStore('inventory', () => {
     if (!pendingUpgrade.value) return null
     pendingUpgrade.value.daysRemaining--
     if (pendingUpgrade.value.daysRemaining <= 0) {
-      const { toolType, targetTier } = pendingUpgrade.value
-      upgradeTool(toolType)
+      const { toolType } = pendingUpgrade.value
+      const tool = getTool(toolType)
+      const completedTier = tool ? getNextToolTier(tool.tier) : null
+      if (!completedTier || !upgradeTool(toolType)) {
+        pendingUpgrade.value = null
+        return null
+      }
       pendingUpgrade.value = null
-      return { completed: true, toolType, targetTier }
+      return { completed: true, toolType, targetTier: completedTier }
     }
     return null
   }
@@ -1299,7 +1326,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
     }
 
-    pendingUpgrade.value = (data as any).pendingUpgrade ?? null
+    pendingUpgrade.value = normalizePendingToolUpgrade((data as any).pendingUpgrade)
 
     // 戒指系统（向后兼容旧存档）
     ownedRings.value = ((data as Record<string, unknown>).ownedRings as OwnedRing[]) ?? []
