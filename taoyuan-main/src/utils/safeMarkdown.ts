@@ -2,8 +2,12 @@ const TEXT_NODE = 3
 const ELEMENT_NODE = 1
 const HTML_PLACEHOLDER_PREFIX = '@@TAOYUANHTML'
 const HTML_PLACEHOLDER_SUFFIX = '@@'
+const INLINE_CODE_PLACEHOLDER_PREFIX = '@@TAOYUANINLINECODE'
 const HTML_TAG_RE = /<\/?[a-zA-Z][\w:-]*(?:\s+[^<>]*?)?\s*\/?>/g
 const STANDALONE_HTML_RE = /^<(?:img|br|hr)\b[^>]*\/?>$|^<([a-zA-Z][\w:-]*)(?:\s+[^<>]*?)?>[\s\S]*<\/\1>$/i
+const URL_SCHEME_RE = /^([a-z][a-z0-9+.-]*):/i
+const MARKDOWN_HR_RE = /^(?:-{3,}|\*{3,}|_{3,})$/
+const TABLE_SEPARATOR_CELL_RE = /^:?-{3,}:?$/
 
 const STRICT_ALLOWED_HTML_TAGS = new Set([
   'a',
@@ -185,11 +189,25 @@ const normalizeLegacyUploadUrl = (value: string): string => {
   return value
 }
 
+const hasUnsafeUrlCharacter = (value: string): boolean => {
+  for (let index = 0; index < value.length; index += 1) {
+    const charCode = value.charCodeAt(index)
+    if (charCode <= 32 || charCode === 127) return true
+  }
+  return false
+}
+
 const sanitizeUrl = (value: string): string => {
   const trimmed = normalizeLegacyUploadUrl(value.trim())
   if (!trimmed) return ''
-  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) return trimmed
+  if (hasUnsafeUrlCharacter(trimmed)) return ''
   if (trimmed.startsWith('/') || trimmed.startsWith('#')) return trimmed
+
+  const schemeMatch = trimmed.match(URL_SCHEME_RE)
+  if (!schemeMatch) return ''
+
+  const scheme = String(schemeMatch[1] || '').toLowerCase()
+  if (scheme === 'http' || scheme === 'https' || scheme === 'mailto' || scheme === 'tel') return trimmed
   return ''
 }
 
@@ -455,7 +473,13 @@ const restoreSafeHtmlTags = (value: string, placeholders: string[]): string => {
 }
 
 const renderInlineMarkdown = (value: string, mode: HtmlMode = 'strict'): string => {
-  const { text, placeholders } = preserveSafeHtmlTags(value, mode)
+  const inlineCodeBlocks: string[] = []
+  const withoutInlineCode = value.replace(/`([^`]+?)`/g, (_, code: string) => {
+    const index = inlineCodeBlocks.length
+    inlineCodeBlocks.push(`<code>${escapeHtml(code)}</code>`)
+    return `${INLINE_CODE_PLACEHOLDER_PREFIX}${index}${HTML_PLACEHOLDER_SUFFIX}`
+  })
+  const { text, placeholders } = preserveSafeHtmlTags(withoutInlineCode, mode)
   let html = escapeHtml(text)
 
   html = html.replace(/!\[([^\]]*?)\]\(([^)]+?)\)/g, (_, alt: string, url: string) => {
@@ -463,7 +487,6 @@ const renderInlineMarkdown = (value: string, mode: HtmlMode = 'strict'): string 
     if (!safeUrl) return alt || '鍥剧墖'
     return `<img src="${escapeHtml(safeUrl)}" alt="${escapeHtml(alt || '')}" loading="lazy" />`
   })
-  html = html.replace(/`([^`]+?)`/g, '<code>$1</code>')
   html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
   html = html.replace(/__([^_]+?)__/g, '<strong>$1</strong>')
   html = html.replace(/\*([^*]+?)\*/g, '<em>$1</em>')
@@ -474,12 +497,103 @@ const renderInlineMarkdown = (value: string, mode: HtmlMode = 'strict'): string 
     return `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${textValue}</a>`
   })
 
-  return restoreSafeHtmlTags(html, placeholders)
+  const withSafeHtml = restoreSafeHtmlTags(html, placeholders)
+  return withSafeHtml.replace(
+    new RegExp(`${escapeRegExp(INLINE_CODE_PLACEHOLDER_PREFIX)}(\\d+)${escapeRegExp(HTML_PLACEHOLDER_SUFFIX)}`, 'g'),
+    (_, index: string) => inlineCodeBlocks[Number(index)] || '',
+  )
 }
 
 const renderParagraph = (lines: string[]): string => {
   const content = lines.map(line => renderInlineMarkdown(line)).join('<br />')
   return `<p>${content}</p>`
+}
+
+const splitMarkdownTableRow = (value: string): string[] => {
+  let row = value.trim()
+  if (row.startsWith('|')) row = row.slice(1)
+  if (row.endsWith('|')) row = row.slice(0, -1)
+
+  const cells: string[] = []
+  let cell = ''
+  let escaped = false
+
+  for (const char of row) {
+    if (escaped) {
+      cell += char
+      escaped = false
+      continue
+    }
+
+    if (char === '\\') {
+      escaped = true
+      continue
+    }
+
+    if (char === '|') {
+      cells.push(cell.trim())
+      cell = ''
+      continue
+    }
+
+    cell += char
+  }
+
+  cells.push(cell.trim())
+  return cells
+}
+
+const parseMarkdownTableAlignments = (value: string): Array<'left' | 'center' | 'right' | ''> | null => {
+  const cells = splitMarkdownTableRow(value).map(cell => cell.replace(/\s+/g, ''))
+  if (cells.length < 2 || cells.some(cell => !TABLE_SEPARATOR_CELL_RE.test(cell))) return null
+
+  return cells.map(cell => {
+    const left = cell.startsWith(':')
+    const right = cell.endsWith(':')
+    if (left && right) return 'center'
+    if (right) return 'right'
+    if (left) return 'left'
+    return ''
+  })
+}
+
+const renderMarkdownTable = (
+  headers: string[],
+  alignments: Array<'left' | 'center' | 'right' | ''>,
+  rows: string[][],
+): string => {
+  const columnCount = Math.min(headers.length, alignments.length)
+  const normalizeCells = (cells: string[]) => Array.from({ length: columnCount }, (_, index) => cells[index] ?? '')
+  const renderCell = (tagName: 'td' | 'th', cell: string, index: number) => {
+    const align = alignments[index]
+    const alignAttr = align ? ` data-align="${align}"` : ''
+    return `<${tagName}${alignAttr}>${renderInlineMarkdown(cell)}</${tagName}>`
+  }
+  const headerHtml = normalizeCells(headers).map((cell, index) => renderCell('th', cell, index)).join('')
+  const rowsHtml = rows
+    .map(row => `<tr>${normalizeCells(row).map((cell, index) => renderCell('td', cell, index)).join('')}</tr>`)
+    .join('')
+
+  return `<div class="ai-md-table-scroll" role="region" aria-label="Markdown table" tabindex="0"><table><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`
+}
+
+const renderBlockquote = (lines: string[]): string => {
+  const paragraphGroups: string[][] = []
+  let buffer: string[] = []
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      if (buffer.length) paragraphGroups.push(buffer)
+      buffer = []
+      continue
+    }
+    buffer.push(trimmed)
+  }
+
+  if (buffer.length) paragraphGroups.push(buffer)
+  const content = paragraphGroups.length ? paragraphGroups.map(group => renderParagraph(group)).join('') : '<p></p>'
+  return `<blockquote>${content}</blockquote>`
 }
 
 const renderStandaloneHtml = (value: string): string | null => {
@@ -502,7 +616,7 @@ export const renderSafeMarkdown = (value: string): string => {
   const withoutCode = source.replace(/```([\w-]*)\n([\s\S]*?)```/g, (_, lang: string, code: string) => {
     const index = codeBlocks.length
     const langClass = lang ? ` class="language-${escapeHtml(lang)}"` : ''
-    codeBlocks.push(`<pre><code${langClass}>${escapeHtml(code.trimEnd())}</code></pre>`)
+    codeBlocks.push(`<div class="ai-md-code-block"><button type="button" class="ai-md-code-copy" data-ai-copy-code="1" aria-label="复制代码片段">复制</button><pre><code${langClass}>${escapeHtml(code.trimEnd())}</code></pre></div>`)
     return `${placeholderPrefix}${index}__`
   })
 
@@ -525,7 +639,8 @@ export const renderSafeMarkdown = (value: string): string => {
     listItems = []
   }
 
-  for (const rawLine of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const rawLine = lines[lineIndex] ?? ''
     const line = rawLine.trimEnd()
     const trimmed = line.trim()
 
@@ -547,6 +662,58 @@ export const renderSafeMarkdown = (value: string): string => {
       flushParagraph()
       flushList()
       if (standaloneHtml) htmlParts.push(standaloneHtml)
+      continue
+    }
+
+    const tableAlignments = lineIndex + 1 < lines.length ? parseMarkdownTableAlignments(lines[lineIndex + 1] ?? '') : null
+    if (trimmed.includes('|') && tableAlignments) {
+      const headers = splitMarkdownTableRow(trimmed)
+      if (headers.length >= 2 && headers.length === tableAlignments.length) {
+        const tableRows: string[][] = []
+        let rowIndex = lineIndex + 2
+
+        while (rowIndex < lines.length) {
+          const rowLine = (lines[rowIndex] ?? '').trim()
+          if (!rowLine || rowLine.startsWith(placeholderPrefix) || !rowLine.includes('|')) break
+
+          const cells = splitMarkdownTableRow(rowLine)
+          if (cells.length < 2) break
+          tableRows.push(cells)
+          rowIndex += 1
+        }
+
+        flushParagraph()
+        flushList()
+        htmlParts.push(renderMarkdownTable(headers, tableAlignments, tableRows))
+        lineIndex = rowIndex - 1
+        continue
+      }
+    }
+
+    const blockquoteMatch = trimmed.match(/^>\s?(.*)$/)
+    if (blockquoteMatch) {
+      const blockquoteLines: string[] = [blockquoteMatch[1] ?? '']
+      let quoteIndex = lineIndex + 1
+
+      while (quoteIndex < lines.length) {
+        const quoteLine = (lines[quoteIndex] ?? '').trim()
+        const quoteMatch = quoteLine.match(/^>\s?(.*)$/)
+        if (!quoteMatch) break
+        blockquoteLines.push(quoteMatch[1] ?? '')
+        quoteIndex += 1
+      }
+
+      flushParagraph()
+      flushList()
+      htmlParts.push(renderBlockquote(blockquoteLines))
+      lineIndex = quoteIndex - 1
+      continue
+    }
+
+    if (MARKDOWN_HR_RE.test(trimmed.replace(/\s+/g, ''))) {
+      flushParagraph()
+      flushList()
+      htmlParts.push('<hr />')
       continue
     }
 

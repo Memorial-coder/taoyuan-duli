@@ -4,6 +4,15 @@ export type AiAssistantRole = 'assistant' | 'user'
 export type AiKnowledgeAccess = 'public' | 'standard'
 export type AiKnowledgeReviewStatus = 'draft' | 'published' | 'archived'
 export type AiKnowledgeSourceType = 'manual' | 'source' | 'source-auto' | 'built-in'
+export type AiAssistantStructuredActionType =
+  | 'navigate'
+  | 'open_page'
+  | 'open_mail'
+  | 'open_activity'
+  | 'open_quest'
+  | 'copy_checklist'
+  | 'expand_page'
+  | 'mark_goal'
 
 import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from './officialManaged'
 
@@ -39,6 +48,126 @@ export interface AiAssistantEvidenceItem {
   originSourceType?: string
   truncated?: boolean
   originalLength?: number
+}
+
+export interface AiAssistantStructuredAction {
+  type: AiAssistantStructuredActionType | string
+  label: string
+  target: string
+  value: string
+  items: string[]
+}
+
+export type AiAssistantSuggestionLevel = 'now' | 'today' | 'week'
+export type AiAssistantSuggestionSignal =
+  | 'cash-flow'
+  | 'task-progress'
+  | 'season-risk'
+  | 'stamina-use'
+  | 'resource-shortage'
+  | 'growth-unlock'
+  | 'online-deadline'
+
+export interface AiAssistantActionSuggestion {
+  id: string
+  level: AiAssistantSuggestionLevel | string
+  levelLabel: string
+  title: string
+  reason: string
+  benefit: string
+  signals: Array<AiAssistantSuggestionSignal | string>
+  signalLabels: string[]
+  routeName: string
+  routeLabel: string
+  action: AiAssistantStructuredAction
+}
+
+export interface AiAssistantThreeStepSuggestionsTrace {
+  available: boolean
+  routeName: string
+  routeLabel: string
+  summary: string
+  suggestions: AiAssistantActionSuggestion[]
+}
+
+export interface AiAssistantOutputGuardTrace {
+  blocked: boolean
+  reasons: string[]
+  originalProvider?: string
+}
+
+export interface AiAssistantEvidenceSummaryItem {
+  id: string
+  title: string
+  sourceType: string
+  sourceTypeLabel: string
+  moduleType: string
+  moduleLabel: string
+  routeHints: string[]
+  truncated: boolean
+}
+
+export interface AiAssistantTraceSummary {
+  provider: AiAssistantProvider
+  providerLabel: string
+  mode: AiAssistantMode
+  modeLabel: string
+  answerSourceLabel: string
+  fallback: boolean
+  guarded: boolean
+  uncertain: boolean
+  uncertainPoints: string[]
+  evidenceCount: number
+  sourceTypes: string[]
+}
+
+export type AiAssistantAnswerBlockKind =
+  | 'summary'
+  | 'steps'
+  | 'notice'
+  | 'risk'
+  | 'sources'
+  | 'fallback'
+  | 'uncertainty'
+
+export interface AiAssistantAnswerBlock {
+  id: string
+  kind: AiAssistantAnswerBlockKind
+  title: string
+  content: string
+  copyable: boolean
+}
+
+export interface AiAssistantLocalDiagnosticDimensions {
+  urgency: number
+  benefit: number
+  unlockValue: number
+  risk: number
+  staminaCost: number
+  moneyPressure: number
+  taskValue: number
+}
+
+export interface AiAssistantLocalDiagnosticSignal {
+  id: string
+  category: string
+  categoryLabel: string
+  title: string
+  detail?: string
+  recommendation: string
+  routeName: string
+  routeLabel: string
+  score: number
+  reasons: string[]
+  dimensions: AiAssistantLocalDiagnosticDimensions
+  source?: string
+}
+
+export interface AiAssistantLocalDiagnosticsTrace {
+  available: boolean
+  summary: string
+  signals: AiAssistantLocalDiagnosticSignal[]
+  suggestions: AiAssistantLocalDiagnosticSignal[]
 }
 
 export interface AiAssistantTraceCandidate {
@@ -107,6 +236,8 @@ export interface AiAssistantDebugTrace {
     finalMatches: AiAssistantTraceCandidate[]
   }
   evidence: AiAssistantEvidenceItem[]
+  diagnostics?: AiAssistantLocalDiagnosticsTrace
+  suggestions?: AiAssistantThreeStepSuggestionsTrace
   model: {
     used: boolean
     rawOutput: string
@@ -116,10 +247,12 @@ export interface AiAssistantDebugTrace {
       evidence_ids: string[]
       matched_files: string[]
       uncertain_points: string[]
+      actions: AiAssistantStructuredAction[]
     } | null
     error: string
     blocked?: boolean
   }
+  outputGuard?: AiAssistantOutputGuardTrace
   timings: Record<string, number>
   finalAnswer: string
 }
@@ -140,6 +273,11 @@ export interface AiAssistantAdminConfig extends AiAssistantPublicConfig {
   nounLexiconStatus?: AiNounLexiconStatus
   apiUrl: string
   apiKey: string
+  apiKeyConfigured: boolean
+  apiKeyLast4: string
+  apiKeyMasked: string
+  apiKeySource: string
+  apiKeyClearRequested: boolean
   model: string
   temperature: number
   systemPrompt: string
@@ -180,12 +318,147 @@ export interface AiSourceDraftResult {
 export interface AiAssistantAskResult {
   answer: string
   sources: string[]
+  evidence: AiAssistantEvidenceSummaryItem[]
+  suggestions: AiAssistantActionSuggestion[]
+  traceSummary?: AiAssistantTraceSummary
   mode: AiAssistantMode
   provider: AiAssistantProvider
   trace?: AiAssistantDebugTrace
 }
 
+export type AiAssistantStreamEventName = 'phase' | 'delta' | 'evidence' | 'done' | 'error'
+
+export interface AiAssistantStreamEvent {
+  event: AiAssistantStreamEventName | string
+  phase?: string
+  label?: string
+  detail?: string
+  delta?: string
+  evidence?: AiAssistantEvidenceSummaryItem[]
+  sources?: string[]
+  suggestions?: AiAssistantActionSuggestion[]
+  traceSummary?: AiAssistantTraceSummary
+  mode?: AiAssistantMode
+  provider?: AiAssistantProvider
+  answer?: string
+  done?: boolean
+  error?: string
+}
+
+export interface AiAssistantBaseContextState {
+  currentRouteName?: string
+  currentPageLabel?: string
+  year?: number
+  season?: string
+  seasonLabel?: string
+  day?: number
+  dateLabel?: string
+  weather?: string
+  weatherLabel?: string
+  hour?: number
+  timeLabel?: string
+  timePeriod?: string
+  timePeriodLabel?: string
+  stamina?: number
+  maxStamina?: number
+  staminaLabel?: string
+  money?: number
+  moneyLabel?: string
+}
+
+export interface AiAssistantWeeklyPlanContextV2 {
+  planId?: string
+  weekId?: string
+  primaryRouteLabel?: string
+  primaryRouteSummary?: string
+  secondaryRouteLabels?: string[]
+  secondaryRouteSummaries?: string[]
+  claimableNodeLabels?: string[]
+  nextWeekPrepSummary?: string
+  sourceLabels?: string[]
+}
+
+export interface AiAssistantInventoryContext {
+  slotUsageLabel?: string
+  keyResourceLabels?: string[]
+  shortageLabels?: string[]
+  toolLevelLabels?: string[]
+  pendingToolUpgradeLabel?: string
+}
+
+export interface AiAssistantFarmingContext {
+  plotStatusLabel?: string
+  harvestableLabels?: string[]
+  waterRiskLabels?: string[]
+  seasonRiskLabels?: string[]
+  greenhouseLabel?: string
+}
+
+export interface AiAssistantAnimalContext {
+  buildingLabels?: string[]
+  animalStatusLabel?: string
+  productLabels?: string[]
+  careAlertLabels?: string[]
+}
+
+export interface AiAssistantBuildingContext {
+  farmhouseLabel?: string
+  greenhouseLabel?: string
+  animalBuildingLabels?: string[]
+  villageProjectLabel?: string
+  availableProjectLabels?: string[]
+}
+
+export interface AiAssistantQuestContext {
+  mainQuestLabel?: string
+  mainQuestObjectiveLabels?: string[]
+  activeQuestLabels?: string[]
+  boardQuestLabels?: string[]
+  specialOrderLabel?: string
+  limitedTimeQuestLabel?: string
+  claimableLabels?: string[]
+  blockerLabels?: string[]
+  shortageLabels?: string[]
+}
+
+export interface AiAssistantLateGameContext {
+  fishPondLabel?: string
+  fishPondAlertLabels?: string[]
+  breedingLabel?: string
+  breedingAlertLabels?: string[]
+  museumLabel?: string
+  museumAlertLabels?: string[]
+  guildLabel?: string
+  guildAlertLabels?: string[]
+  hanhaiLabel?: string
+  hanhaiAlertLabels?: string[]
+}
+
+export interface AiAssistantOnlineContext {
+  saveSyncLabel?: string
+  mailboxLabel?: string
+  mailClaimableLabels?: string[]
+  hallLabel?: string
+  festivalRoomLabel?: string
+  coopOrderLabel?: string
+  coopCompensationLabel?: string
+  cohabitationLabel?: string
+  societyLabel?: string
+  onlineAlertLabels?: string[]
+}
+
 export interface AiAssistantContextSnapshot {
+  contextVersion?: number
+  version?: number
+  baseState?: AiAssistantBaseContextState
+  weeklyPlan?: AiAssistantWeeklyPlanContextV2
+  inventory?: AiAssistantInventoryContext
+  farming?: AiAssistantFarmingContext
+  animals?: AiAssistantAnimalContext
+  buildings?: AiAssistantBuildingContext
+  quests?: AiAssistantQuestContext
+  lateGame?: AiAssistantLateGameContext
+  online?: AiAssistantOnlineContext
   weeklyPlanId?: string
   currentThemeWeekId?: string
   currentThemeWeekLabel?: string
@@ -211,7 +484,22 @@ export interface AiAssistantMessage {
   content: string
   createdAt: number
   sources?: string[]
+  evidence?: AiAssistantEvidenceSummaryItem[]
+  suggestions?: AiAssistantActionSuggestion[]
+  traceSummary?: AiAssistantTraceSummary
+  mode?: AiAssistantMode
+  provider?: AiAssistantProvider
+  trace?: AiAssistantDebugTrace
   pending?: boolean
+  pendingStartedAt?: number
+  streaming?: boolean
+  streamPhase?: string
+  streamPhaseLabel?: string
+  streamPhaseDetail?: string
+  localDraft?: boolean
+  draftForPendingId?: string
+  retryQuestion?: string
+  cancelled?: boolean
   error?: boolean
   richStatic?: boolean
 }

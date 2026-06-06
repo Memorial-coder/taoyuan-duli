@@ -90,7 +90,19 @@
 
       <div class="ai-admin-panel__group">
         <label class="ai-admin-panel__label">API Key</label>
-        <input v-model="store.adminConfig.apiKey" type="password" class="ai-admin-panel__input" placeholder="留空则不带 Bearer Token" />
+        <p class="text-[0.6875rem] text-muted leading-5">{{ apiKeyStatusText }}</p>
+        <input
+          v-model="store.adminConfig.apiKey"
+          type="password"
+          class="ai-admin-panel__input"
+          placeholder="留空保持不变，输入新 Key 后保存"
+          :disabled="store.adminConfig.apiKeyClearRequested"
+        />
+        <div class="ai-admin-panel__row !justify-end">
+          <button class="btn" :class="{ '!bg-danger !text-bg': store.adminConfig.apiKeyClearRequested }" @click="toggleApiKeyClear">
+            {{ store.adminConfig.apiKeyClearRequested ? '取消清空' : '显式清空 Key' }}
+          </button>
+        </div>
       </div>
 
       <div class="ai-admin-panel__group">
@@ -158,6 +170,17 @@
     const fields = store.adminConfig.readonlyManagedFields || []
     return fields.length ? fields.map(field => managedFieldLabelMap[field] || field).join('、') : '无'
   })
+  const apiKeySourceLabel = computed(() => {
+    if (store.adminConfig.apiKeySource === 'env') return '环境变量'
+    if (store.adminConfig.apiKeySource === 'runtime') return '本进程新 Key'
+    if (store.adminConfig.apiKeySource === 'metadata') return '已迁移状态'
+    return '未配置'
+  })
+  const apiKeyStatusText = computed(() => {
+    if (!store.adminConfig.apiKeyConfigured) return '当前：未配置'
+    const masked = store.adminConfig.apiKeyMasked || (store.adminConfig.apiKeyLast4 ? `****${store.adminConfig.apiKeyLast4}` : '已配置')
+    return `当前：${masked} · 来源：${apiKeySourceLabel.value}`
+  })
 
   const isManagedReadonly = (key: 'ai_assistant_name' | 'ai_assistant_welcome' | 'ai_assistant_console_credit') => {
     return readonlyManagedFieldSet.value.has(key)
@@ -165,6 +188,13 @@
 
   const saveAdminConfig = async () => {
     await store.saveAdminConfig()
+  }
+
+  const toggleApiKeyClear = () => {
+    store.adminConfig.apiKeyClearRequested = !store.adminConfig.apiKeyClearRequested
+    if (store.adminConfig.apiKeyClearRequested) {
+      store.adminConfig.apiKey = ''
+    }
   }
 
   const openKnowledgeAdminPage = () => {

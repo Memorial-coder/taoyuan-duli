@@ -101,6 +101,69 @@
     </div>
 
     <div class="async-community-board__side">
+      <template v-if="detailsMode === 'compact'">
+        <div v-if="activeProject" class="async-community-board__detail" data-testid="async-community-project-compact-detail">
+          <div class="async-community-board__detail-head">
+            <div class="min-w-0">
+              <p class="async-community-board__title">{{ currentStage?.label || '等待阶段' }}</p>
+              <p class="async-community-board__meta">
+                {{ currentStage ? stageStateLabel(currentStage.state) : '未开始' }} · {{ activeProject.contributors.length }} 名贡献者
+              </p>
+            </div>
+            <span v-if="activeProject.completion_event_id" class="async-community-board__event">已完工</span>
+          </div>
+
+          <button
+            type="button"
+            class="async-community-board__detail-trigger"
+            data-testid="async-community-project-detail-trigger"
+            @click="$emit('open-detail', activeProject.id)"
+          >
+            <ScrollText :size="13" aria-hidden="true" />
+            <span>查看阶段详情</span>
+          </button>
+
+          <RouterLink
+            v-if="completionRoomTemplateId"
+            class="async-community-board__room-link"
+            :to="{
+              name: 'online-festival',
+              query: {
+                tab: 'festival-room',
+                template: completionRoomTemplateId,
+                gameplay: completionRoomGameplayId,
+                title: completionRoomTitle,
+              },
+            }"
+            data-testid="async-community-completion-room-link"
+          >
+            <Sparkles :size="14" aria-hidden="true" />
+            <span>{{ completionRoomLabel }}已解锁</span>
+            <small>{{ completionRoomSummary }}</small>
+          </RouterLink>
+
+          <div v-if="availableContributionOptions.length > 0" class="async-community-board__actions">
+            <button
+              v-for="option in availableContributionOptions"
+              :key="`${activeProject.id}-${option.id}`"
+              type="button"
+              class="async-community-board__action"
+              :disabled="actionRunning"
+              :title="option.reward_preview || option.id"
+              :data-testid="`online-society-async-contribute-${activeProject.id}-${option.id}`"
+              @click="$emit('trigger-contribution', { projectId: activeProject.id, optionId: option.id })"
+            >
+              <PackagePlus :size="13" aria-hidden="true" />
+              <span>{{ actionLabel(option.id, option.label) }}</span>
+              <small>+{{ option.progress_delta }}</small>
+            </button>
+          </div>
+          <p v-else class="async-community-board__empty">当前阶段暂无可提交贡献。</p>
+          <p v-if="recentFeedback" class="async-community-board__feedback">{{ recentFeedback }}</p>
+        </div>
+      </template>
+
+      <template v-else>
       <div v-if="activeProject" class="async-community-board__detail" data-testid="async-community-project-detail">
         <div class="async-community-board__detail-head">
           <div class="min-w-0">
@@ -197,6 +260,7 @@
       </div>
 
       <p v-if="recentFeedback" class="async-community-board__feedback">{{ recentFeedback }}</p>
+      </template>
     </div>
   </section>
 </template>
@@ -235,16 +299,19 @@
     recentFeedback?: string
     actionRunning?: boolean
     actionLabels?: Record<string, string>
+    detailsMode?: 'inline' | 'compact'
   }>(), {
     selectedProjectId: '',
     recentFeedback: '',
     actionRunning: false,
     actionLabels: () => ({}),
+    detailsMode: 'inline',
   })
 
   const emit = defineEmits<{
     (event: 'select-project', projectId: string): void
     (event: 'trigger-contribution', payload: { projectId: string, optionId: string }): void
+    (event: 'open-detail', projectId: string): void
   }>()
 
   const visibleProjects = computed(() => props.projects.filter(project => project.stages.length > 0))
@@ -588,6 +655,21 @@
     grid-column: 2;
     color: var(--color-muted);
     font-size: 0.625rem;
+    line-height: 1rem;
+  }
+
+  .async-community-board__detail-trigger {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-accent);
+    margin-top: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
     line-height: 1rem;
   }
 
