@@ -735,7 +735,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue'
+  import { ref, computed, onUnmounted } from 'vue'
   import { onBeforeRouteLeave } from 'vue-router'
   import {
     Mountain,
@@ -821,6 +821,9 @@
   /** 离开矿洞确认 */
   const showLeaveConfirm = ref(false)
 
+  type CombatVisualTarget = 'player' | 'monster'
+  type CombatTimer = ReturnType<typeof setTimeout>
+
   // 战斗动画状态
   const combatAnimLock = ref(false)
   const playerAnim = ref('')
@@ -828,35 +831,109 @@
   const playerFloat = ref<{ text: string; key: number } | null>(null)
   const monsterFloat = ref<{ text: string; key: number } | null>(null)
   let floatCounter = 0
+  const animTimers: Record<CombatVisualTarget, CombatTimer | null> = {
+    player: null,
+    monster: null
+  }
+  const animTokens: Record<CombatVisualTarget, number> = {
+    player: 0,
+    monster: 0
+  }
+  const floatTimers: Record<CombatVisualTarget, CombatTimer | null> = {
+    player: null,
+    monster: null
+  }
+  const floatTokens: Record<CombatVisualTarget, number> = {
+    player: 0,
+    monster: 0
+  }
+  let combatLockTimer: CombatTimer | null = null
+  let combatLockToken = 0
 
-  const triggerAnim = (target: 'player' | 'monster', cls: string, duration: number = 400) => {
+  const clearOwnedTimer = (timer: CombatTimer | null) => {
+    if (timer !== null) clearTimeout(timer)
+  }
+
+  const setAnimForTarget = (target: CombatVisualTarget, value: string) => {
     if (target === 'player') {
-      playerAnim.value = cls
-      setTimeout(() => {
-        playerAnim.value = ''
-      }, duration)
+      playerAnim.value = value
     } else {
-      monsterAnim.value = cls
-      setTimeout(() => {
-        monsterAnim.value = ''
-      }, duration)
+      monsterAnim.value = value
     }
   }
 
-  const showDamageFloat = (target: 'player' | 'monster', text: string) => {
+  const setFloatForTarget = (target: CombatVisualTarget, value: { text: string; key: number } | null) => {
+    if (target === 'player') {
+      playerFloat.value = value
+    } else {
+      monsterFloat.value = value
+    }
+  }
+
+  const getFloatForTarget = (target: CombatVisualTarget) => target === 'player' ? playerFloat.value : monsterFloat.value
+
+  const clearAnimTimer = (target: CombatVisualTarget) => {
+    clearOwnedTimer(animTimers[target])
+    animTimers[target] = null
+  }
+
+  const clearFloatTimer = (target: CombatVisualTarget) => {
+    clearOwnedTimer(floatTimers[target])
+    floatTimers[target] = null
+  }
+
+  const clearCombatLockTimer = () => {
+    clearOwnedTimer(combatLockTimer)
+    combatLockTimer = null
+  }
+
+  const triggerAnim = (target: CombatVisualTarget, cls: string, duration: number = 400) => {
+    clearAnimTimer(target)
+    const token = ++animTokens[target]
+    setAnimForTarget(target, cls)
+    animTimers[target] = setTimeout(() => {
+      if (animTokens[target] !== token) return
+      setAnimForTarget(target, '')
+      animTimers[target] = null
+    }, duration)
+  }
+
+  const showDamageFloat = (target: CombatVisualTarget, text: string) => {
+    clearFloatTimer(target)
     const obj = { text, key: ++floatCounter }
-    if (target === 'player') {
-      playerFloat.value = obj
-      setTimeout(() => {
-        playerFloat.value = null
-      }, 800)
-    } else {
-      monsterFloat.value = obj
-      setTimeout(() => {
-        monsterFloat.value = null
-      }, 800)
-    }
+    const token = ++floatTokens[target]
+    setFloatForTarget(target, obj)
+    floatTimers[target] = setTimeout(() => {
+      if (floatTokens[target] !== token || getFloatForTarget(target)?.key !== obj.key) return
+      setFloatForTarget(target, null)
+      floatTimers[target] = null
+    }, 800)
   }
+
+  const scheduleCombatUnlock = (duration: number = 400) => {
+    clearCombatLockTimer()
+    const token = ++combatLockToken
+    combatLockTimer = setTimeout(() => {
+      if (combatLockToken !== token) return
+      combatAnimLock.value = false
+      combatLockTimer = null
+    }, duration)
+  }
+
+  const clearCombatVisualTimers = () => {
+    clearAnimTimer('player')
+    clearAnimTimer('monster')
+    clearFloatTimer('player')
+    clearFloatTimer('monster')
+    clearCombatLockTimer()
+    playerAnim.value = ''
+    monsterAnim.value = ''
+    playerFloat.value = null
+    monsterFloat.value = null
+    combatAnimLock.value = false
+  }
+
+  onUnmounted(clearCombatVisualTimers)
 
   const parseDamage = (msg: string): { dealt: number; taken: number; isCrit: boolean } => {
     const dealt = msg.match(/造成(\d+)点伤害/)
@@ -1215,6 +1292,7 @@
 
   const handleCombat = (action: CombatAction) => {
     if (combatAnimLock.value) return
+    clearCombatLockTimer()
     combatAnimLock.value = true
 
     const result = miningStore.combatAction(action)
@@ -1257,9 +1335,7 @@
       }
     }
 
-    setTimeout(() => {
-      combatAnimLock.value = false
-    }, 400)
+    scheduleCombatUnlock(400)
   }
 
   /** 使用战斗道具 */
