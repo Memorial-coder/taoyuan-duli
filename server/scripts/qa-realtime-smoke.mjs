@@ -162,7 +162,11 @@ const buildSeedSavePayload = username => encryptTaoyuanData({
   },
 })
 
-const createSmokeSeed = () => Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 4)
+let smokeSeedCounter = 0
+const createSmokeSeed = () => {
+  smokeSeedCounter += 1
+  return `${Date.now().toString().slice(-8)}${String(smokeSeedCounter).padStart(3, '0')}`
+}
 
 const seedSessionSave = async session => {
   const saveResult = await fetchSessionJson(session, '/api/taoyuan/save/0', {
