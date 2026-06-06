@@ -23,85 +23,118 @@
       </template>
     </OnlineModuleShell>
 
-    <section class="game-panel-muted space-y-3 p-3" data-testid="online-cohabitation-tab-groups">
-      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div class="min-w-0">
-          <p class="text-sm text-accent">{{ activeTabGroupMeta.label }}</p>
-          <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabGroupMeta.summary }}</p>
-        </div>
-        <span class="w-fit shrink-0 border border-accent/15 px-2 py-1 text-[0.625rem] text-muted">
-          {{ activeTabMeta.label }}
-        </span>
-      </div>
-
-      <div
-        class="flex gap-2 overflow-x-auto pb-1"
-        role="tablist"
-        aria-label="共同庄园常用入口"
-        data-testid="online-cohabitation-primary-tabs"
-      >
-        <button
-          v-for="tab in cohabitationPrimaryTabs"
-          :id="cohabitationTabButtonId(tab.key)"
-          :key="tab.key"
-          :data-testid="`online-module-tab-${tab.key}`"
-          type="button"
-          role="tab"
-          :aria-selected="activeTab === tab.key"
-          :aria-controls="`online-module-panel-${tab.key}`"
-          :tabindex="activeTab === tab.key ? 0 : -1"
-          class="min-h-[36px] shrink-0 border px-3 py-2 text-xs transition-colors"
-          :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
-          @click="setActiveTab(tab.key)"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-
-      <details
-        class="border border-accent/10 bg-black/10 p-2"
-        :open="shouldOpenMoreTabGroups"
-        data-testid="online-cohabitation-more-tab-groups"
-      >
-        <summary class="cursor-pointer text-xs text-accent">更多分组入口</summary>
-        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div
-            v-for="group in cohabitationHiddenTabGroups"
-            :key="group.key"
-            class="space-y-2"
-            :data-testid="`online-cohabitation-tab-group-${group.key}`"
-          >
-            <p class="text-[0.625rem] text-muted">{{ group.label }}</p>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="tab in group.tabs"
-                :id="cohabitationTabButtonId(tab.key)"
-                :key="tab.key"
-                :data-testid="`online-module-tab-${tab.key}`"
-                type="button"
-                role="tab"
-                :aria-selected="activeTab === tab.key"
-                :aria-controls="`online-module-panel-${tab.key}`"
-                :tabindex="activeTab === tab.key ? 0 : -1"
-                class="min-h-[36px] border px-3 py-2 text-xs transition-colors"
-                :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
-                @click="setActiveTab(tab.key)"
-              >
-                {{ tab.label }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </details>
-    </section>
-
-    <section
-      class="space-y-3"
-      role="tabpanel"
-      :id="`online-module-panel-${activeTab}`"
-      :aria-labelledby="`online-module-tab-${activeTab}`"
-      data-testid="online-module-tabpanel"
+    <div
+      class="space-y-3 xl:grid xl:grid-cols-[18rem_minmax(0,1fr)_320px] xl:items-start xl:gap-3 xl:space-y-0"
+      data-testid="online-cohabitation-desktop-layout"
     >
+      <aside class="space-y-3 xl:sticky xl:top-4" data-testid="online-cohabitation-left-list">
+        <section class="game-panel-muted space-y-3 p-3" data-testid="online-cohabitation-tab-groups">
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between xl:flex-col">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">{{ activeTabGroupMeta.label }}</p>
+              <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabGroupMeta.summary }}</p>
+            </div>
+            <span class="w-fit shrink-0 border border-accent/15 px-2 py-1 text-[0.625rem] text-muted">
+              {{ activeTabMeta.label }}
+            </span>
+          </div>
+
+          <div
+            class="flex gap-2 overflow-x-auto pb-1 xl:flex-col xl:overflow-visible xl:pb-0"
+            role="tablist"
+            aria-label="共同庄园常用入口"
+            data-testid="online-cohabitation-primary-tabs"
+          >
+            <button
+              v-for="tab in cohabitationPrimaryTabs"
+              :id="cohabitationTabButtonId(tab.key)"
+              :key="tab.key"
+              :data-testid="`online-module-tab-${tab.key}`"
+              type="button"
+              role="tab"
+              :aria-selected="activeTab === tab.key"
+              :aria-controls="`online-module-panel-${tab.key}`"
+              :tabindex="activeTab === tab.key ? 0 : -1"
+              class="min-h-[36px] shrink-0 border px-3 py-2 text-left text-xs transition-colors"
+              :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
+              @click="setActiveTab(tab.key)"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+
+          <details
+            class="border border-accent/10 bg-black/10 p-2"
+            :open="shouldOpenMoreTabGroups"
+            data-testid="online-cohabitation-more-tab-groups"
+          >
+            <summary class="cursor-pointer text-xs text-accent">更多分组入口</summary>
+            <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+              <div
+                v-for="group in cohabitationHiddenTabGroups"
+                :key="group.key"
+                class="space-y-2"
+                :data-testid="`online-cohabitation-tab-group-${group.key}`"
+              >
+                <p class="text-[0.625rem] text-muted">{{ group.label }}</p>
+                <div class="flex flex-wrap gap-2 xl:flex-col">
+                  <button
+                    v-for="tab in group.tabs"
+                    :id="cohabitationTabButtonId(tab.key)"
+                    :key="tab.key"
+                    :data-testid="`online-module-tab-${tab.key}`"
+                    type="button"
+                    role="tab"
+                    :aria-selected="activeTab === tab.key"
+                    :aria-controls="`online-module-panel-${tab.key}`"
+                    :tabindex="activeTab === tab.key ? 0 : -1"
+                    class="min-h-[36px] border px-3 py-2 text-left text-xs transition-colors"
+                    :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
+                    @click="setActiveTab(tab.key)"
+                  >
+                    {{ tab.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </details>
+        </section>
+
+        <section class="game-panel-muted space-y-3 p-3" data-testid="online-cohabitation-left-contract-list">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm text-accent">契约切换</p>
+            <span class="text-[0.625rem] text-muted">{{ cohabitationStore.contracts.length }} 份</span>
+          </div>
+          <p v-if="cohabitationStore.contracts.length === 0" class="text-xs leading-5 text-muted">
+            当前没有可切换的共同庄园契约。
+          </p>
+          <div v-else class="space-y-2">
+            <button
+              v-for="contract in cohabitationStore.contracts.slice(0, 4)"
+              :key="contract.id"
+              type="button"
+              class="w-full border p-2 text-left transition-colors"
+              :class="contract.id === cohabitationStore.activeContractId ? 'border-accent/50 bg-accent/10' : 'border-accent/10 bg-black/10 hover:border-accent/30'"
+              :data-testid="`online-cohabitation-left-contract-${contract.id}`"
+              @click="selectContract(contract.id)"
+            >
+              <p class="truncate text-xs text-accent">{{ contract.title || contract.type_label }}</p>
+              <p class="mt-1 text-[0.625rem] text-muted">
+                {{ contract.members.length }} 人 · {{ statusLabel(contract.status) }}
+              </p>
+            </button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="min-w-0 space-y-3" data-testid="online-cohabitation-main-stage">
+        <section
+          class="space-y-3"
+          role="tabpanel"
+          :id="`online-module-panel-${activeTab}`"
+          :aria-labelledby="`online-module-tab-${activeTab}`"
+          data-testid="online-module-tabpanel"
+        >
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
@@ -3000,10 +3033,10 @@
                 <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
             </div>
-            <p v-if="familyVisibilityPanel.summary.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
+            <p v-if="familyVisibilityPanel.summary?.disabled_reason" class="mt-3 text-[0.625rem] leading-4 text-muted">
               {{ familyVisibilityPanel.summary.disabled_reason }}
             </p>
-            <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ familyVisibilityPanel.governance.current_policy || '当前没有公开策略说明。' }}</p>
+            <p class="mt-3 text-[0.625rem] leading-4 text-muted">{{ familyVisibilityPanel.governance?.current_policy || '当前没有公开策略说明。' }}</p>
             <div class="mt-3 grid gap-2 sm:grid-cols-2">
               <button
                 type="button"
@@ -3016,7 +3049,7 @@
               <button
                 type="button"
                 class="online-action-btn online-action-btn--compact justify-center"
-                :disabled="cohabitationStore.actionLoading || !familyVisibilityPanel.summary.rollback_enabled"
+                :disabled="cohabitationStore.actionLoading || !familyVisibilityPanel.summary?.rollback_enabled"
                 @click="rollbackFamilyVisibilityFromPanel"
               >
                 回滚公开
@@ -3442,7 +3475,110 @@
           </div>
         </div>
       </div>
-    </section>
+        </section>
+      </main>
+
+      <aside class="game-panel-muted space-y-3 p-3 xl:sticky xl:top-4" data-testid="online-cohabitation-right-status">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-sm text-accent">共同庄园状态</p>
+            <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.label }} · {{ activeTabMeta.summary }}</p>
+          </div>
+          <span v-if="selectedContract" class="shrink-0 border border-accent/15 px-2 py-1 text-[0.625rem] text-muted">
+            {{ statusLabel(selectedContract.status) }}
+          </span>
+        </div>
+
+        <div class="grid gap-2" data-testid="online-cohabitation-right-status-cards">
+          <article class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">契约</p>
+            <p class="mt-1 text-xs text-accent">{{ overviewContractStatusLabel }}</p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewContractDetailLabel }}</p>
+          </article>
+          <article class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">共同基金</p>
+            <p class="mt-1 text-xs text-accent">{{ overviewFundBalanceLabel }}</p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewFundDetailLabel }}</p>
+          </article>
+          <article class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">共同仓库</p>
+            <p class="mt-1 text-xs text-accent">{{ overviewWarehouseSummaryLabel }}</p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewWarehouseDetailLabel }}</p>
+          </article>
+          <article class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">待办</p>
+            <p class="mt-1 text-xs text-accent">{{ overviewRiskTodoLabel }}</p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ overviewRecommendationLabel }}</p>
+          </article>
+        </div>
+
+        <div v-if="selectedContract" class="border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-right-member-summary">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-accent">成员</p>
+            <span class="text-[0.625rem] text-muted">{{ selectedContract.members.length }} 人</span>
+          </div>
+          <div class="mt-2 flex flex-wrap gap-1">
+            <span
+              v-for="member in selectedContract.members.slice(0, 6)"
+              :key="member.username"
+              class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted"
+            >
+              {{ member.display_name || member.username }}
+            </span>
+          </div>
+        </div>
+
+        <div class="grid gap-2">
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-cohabitation-right-goto-map"
+            @click="setActiveTab('map')"
+          >
+            <Map :size="12" />
+            查看共同地图
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-cohabitation-right-goto-fund"
+            @click="setActiveTab('fund')"
+          >
+            <Wallet :size="12" />
+            查看共同基金
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-cohabitation-right-goto-warehouse"
+            @click="setActiveTab('warehouse')"
+          >
+            <Package :size="12" />
+            查看共同仓库
+          </button>
+        </div>
+
+        <OnlineTechnicalDetails
+          title="共同庄园状态详情"
+          summary="展开查看当前契约、分组和页面定位信息。"
+        >
+          <dl class="grid gap-1 text-[0.625rem] text-muted" data-testid="online-cohabitation-right-technical-detail">
+            <div>
+              <dt class="text-accent">active_tab</dt>
+              <dd class="break-all">{{ activeTab }}</dd>
+            </div>
+            <div>
+              <dt class="text-accent">active_group</dt>
+              <dd class="break-all">{{ activeTabGroupKey }}</dd>
+            </div>
+            <div>
+              <dt class="text-accent">contract_id</dt>
+              <dd class="break-all">{{ cohabitationStore.activeContractId || 'none' }}</dd>
+            </div>
+          </dl>
+        </OnlineTechnicalDetails>
+      </aside>
+    </div>
 
     <OnlineConfirmActionDialog
       :open="cohabitationRiskConfirmOpen"
@@ -3975,6 +4111,7 @@
   const route = useRoute()
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
+  const cohabitationRouteTabSyncTimer = ref<ReturnType<typeof window.setTimeout> | null>(null)
   const lastRefreshAttemptAt = ref(0)
   const recoveryActionMessage = ref('')
   const recoveryActionOk = ref(false)
@@ -4170,14 +4307,45 @@
     return alias ?? null
   }
 
-  const syncActiveTabFromRoute = () => {
+  const readCohabitationRouteTabCandidate = () => {
+    if (typeof window !== 'undefined') {
+      const hashQueryStart = window.location.hash.indexOf('?')
+      if (hashQueryStart >= 0) {
+        const hashTab = new URLSearchParams(window.location.hash.slice(hashQueryStart + 1)).get('tab')
+        if (hashTab) return hashTab
+      }
+    }
     const tab = route.query.tab
-    const candidate = Array.isArray(tab) ? tab[0] : tab
-    const resolvedTab = resolveCohabitationTabKey(candidate ?? '')
+    return Array.isArray(tab) ? tab[0] : tab
+  }
+
+  const resolveCohabitationRouteTab = () => {
+    const candidate = readCohabitationRouteTabCandidate() ?? ''
+    return resolveCohabitationTabKey(candidate)
+  }
+
+  const syncActiveTabFromRoute = () => {
+    const resolvedTab = resolveCohabitationRouteTab()
     if (resolvedTab) {
       activeTab.value = resolvedTab
     }
   }
+
+  const hasExplicitCohabitationRouteTab = () =>
+    Boolean(resolveCohabitationRouteTab())
+
+  const queueCohabitationRouteTabSync = () => {
+    if (typeof window === 'undefined') return
+    if (cohabitationRouteTabSyncTimer.value !== null) {
+      window.clearTimeout(cohabitationRouteTabSyncTimer.value)
+    }
+    cohabitationRouteTabSyncTimer.value = window.setTimeout(() => {
+      cohabitationRouteTabSyncTimer.value = null
+      syncActiveTabFromRoute()
+    }, 0)
+  }
+
+  syncActiveTabFromRoute()
 
   const normalizeActorKey = (value = '') => value.trim().toLocaleLowerCase('zh-CN')
 
@@ -7625,7 +7793,9 @@
 
   const setActiveTabGroup = (groupKey: string) => {
     const group = cohabitationTabGroups.find(entry => entry.key === groupKey)
-    if (group) activeTab.value = group.defaultTab
+    if (!group) return
+    const routeTab = resolveCohabitationRouteTab()
+    activeTab.value = routeTab && group.tabKeys.includes(routeTab) ? routeTab : group.defaultTab
   }
 
   const syncContractDraftType = () => {
@@ -7639,6 +7809,7 @@
     await cohabitationStore.refreshAll()
     syncContractDraftType()
     lastRefreshAttemptAt.value = Date.now()
+    syncActiveTabFromRoute()
   }
 
   const resetSharedPetCareConfirmation = () => {
@@ -7672,9 +7843,10 @@
     roleActionMessage.value = ''
     contractActionMessage.value = ''
     separationActionMessage.value = ''
-    if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview') {
+    if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview' && !hasExplicitCohabitationRouteTab()) {
       activeTab.value = 'overview'
     }
+    syncActiveTabFromRoute()
   }
 
   const acceptSelectedContract = async () => {
@@ -12114,16 +12286,33 @@
 
   onMounted(() => {
     syncActiveTabFromRoute()
+    queueCohabitationRouteTabSync()
+    window.addEventListener('hashchange', syncActiveTabFromRoute)
     void refreshModule()
+  })
+
+  onBeforeUnmount(() => {
+    window.removeEventListener('hashchange', syncActiveTabFromRoute)
+    if (cohabitationRouteTabSyncTimer.value !== null) {
+      window.clearTimeout(cohabitationRouteTabSyncTimer.value)
+    }
   })
 
   watch(() => cohabitationStore.activeContractId, (contractId) => {
     loadOfflineQueueDraftOperations(contractId)
   }, { immediate: true })
 
-  watch(() => route.query.tab, () => {
+  watch(() => route.fullPath, () => {
     syncActiveTabFromRoute()
-  })
+    queueCohabitationRouteTabSync()
+  }, { flush: 'post' })
+
+  watch(activeTab, (tab) => {
+    const routeTab = resolveCohabitationRouteTab()
+    if (routeTab && tab !== routeTab) {
+      activeTab.value = routeTab
+    }
+  }, { flush: 'post' })
 
   watch(selectedSharedPetCareItemId, () => {
     resetSharedPetCareConfirmation()

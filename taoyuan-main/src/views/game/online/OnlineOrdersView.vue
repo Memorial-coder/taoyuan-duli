@@ -140,8 +140,18 @@
             @secondary="setActiveTab('publish')"
           />
           <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-available-list">
-            <div v-for="order in availableOrderCards" :key="order.id" data-testid="online-orders-available-entry" class="border border-accent/10 bg-black/10 p-2">
-              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div
+              v-for="order in availableOrderCards"
+              :key="order.id"
+              data-testid="online-orders-available-entry"
+              class="cursor-pointer border border-accent/10 bg-black/10 p-2 transition hover:border-accent/30 focus:outline-none focus-visible:border-accent"
+              role="button"
+              tabindex="0"
+              @click="openAvailableOrderDetail(order)"
+              @keydown.enter.prevent="openAvailableOrderDetail(order)"
+              @keydown.space.prevent="openAvailableOrderDetail(order)"
+            >
+              <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-1">
                     <p class="truncate text-xs text-accent">{{ order.title }}</p>
@@ -149,106 +159,35 @@
                       接力单
                     </span>
                   </div>
-                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">
-                    {{ order.owner_display_name }} 发布 · {{ getCoopOrderScopeLabel(order.scope) }} · {{ order.description || '无描述' }}
+                  <p class="mt-1 line-clamp-1 text-[0.625rem] leading-4 text-muted">
+                    {{ getAvailableOrderDemandSummary(order) }}
                   </p>
                 </div>
                 <span class="w-fit shrink-0 text-[0.625rem]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">
-                  {{ order.status === 'open' ? (isOrderAcceptable(order) ? '可接' : '处理中') : getCoopOrderStatusLabel(order.status) }}
+                  {{ getAvailableOrderStatusLabel(order) }}
                 </span>
               </div>
-              <p class="mt-2 text-[0.625rem] text-muted">
-                {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopTime(order.deadline_at) }}
-              </p>
-              <p class="mt-1 text-[0.625rem] text-accent">
-                回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
-              </p>
-              <div v-if="isRelayOrder(order)" class="mt-2 border border-warning/20 bg-warning/5 p-2">
-                <div class="flex items-center justify-between gap-2 text-[0.625rem] text-muted">
-                  <span>{{ getRelayStageProgressLabel(order) }}</span>
-                  <span>{{ getRelayStageProgressPercent(order) }}%</span>
-                </div>
-                <div class="mt-1 h-1.5 overflow-hidden border border-warning/20 bg-black/20">
-                  <div class="h-full bg-warning" :style="{ width: `${getRelayStageProgressPercent(order)}%` }" />
-                </div>
+              <div class="mt-2 grid gap-1 text-[0.625rem] text-muted sm:grid-cols-2">
+                <p class="truncate">回报：{{ getOrderRewardSummary(order) }}</p>
+                <p class="truncate sm:text-right">{{ getOrderDeadlineSummary(order) }}</p>
               </div>
-              <AsyncCommunityBoard
-                v-if="order.visual_state?.async_projects?.length"
-                class="mt-2"
-                :projects="order.visual_state.async_projects"
-                :recent-feedback="order.visual_state.recent_feedback"
-                :action-running="coopOrderStore.actionRunning"
-                @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
-              />
-              <OnlineOrderStoryFlowPanel
-                v-if="order.visual_state?.story_flow"
-                class="mt-2"
-                :story-flow="order.visual_state.story_flow"
-              />
-              <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
-                <div class="flex flex-col gap-1 text-[0.625rem] text-muted sm:flex-row sm:items-center sm:justify-between">
-                  <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
-                  <span>已落账 {{ order.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ order.relay_settlement_summary.pending_reward_value }}</span>
-                </div>
-                <div class="mt-2 grid gap-1 md:grid-cols-2">
-                  <p
-                    v-for="share in order.relay_settlement_summary.shares"
-                    :key="share.stage_id"
-                    class="truncate text-[0.625rem] text-muted"
-                  >
-                    {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }}
-                  </p>
-                </div>
-              </div>
-              <p v-if="order.priority_reasons?.length" class="mt-1 text-[0.625rem] text-warning">
-                推荐理由：{{ order.priority_reasons.join('；') }}
-              </p>
-              <p v-if="order.assignee_username" class="mt-1 text-[0.625rem] text-success">
-                当前接单人：{{ order.assignee_display_name || order.assignee_username }}
-              </p>
-
-              <div v-if="order.collaboration_mode === 'multi_stage'" class="mt-2 space-y-2">
-                <OnlineEmptyState
-                  v-if="coopOrderStore.getOpenStages(order).length === 0"
-                  title="当前没有可接阶段"
-                  description="这张接力单的开放阶段可能已经被接走，或者正在等发布人确认上一段交付。"
-                />
-                <div
-                  v-for="stage in coopOrderStore.getOpenStages(order)"
-                  :key="stage.id"
-                  class="border border-accent/10 bg-bg/40 p-2"
-                >
-                  <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                    <div class="min-w-0">
-                      <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
-                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
-                    </div>
-                    <span class="w-fit shrink-0 text-[0.625rem] text-success">可接力</span>
-                  </div>
-                  <p class="mt-2 text-[0.625rem] text-muted">
-                    {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
-                  </p>
-                  <div class="mt-2 flex justify-end">
-                    <button
-                      data-testid="online-orders-stage-accept-submit"
-                      class="online-action-btn online-action-btn--compact"
-                      type="button"
-                      :disabled="coopOrderStore.actionRunning"
-                      @click="openOrderActionConfirm({ kind: 'accept-stage', orderId: order.id, stageId: stage.id })"
-                    >
-                      接这一段
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div v-else class="mt-2 flex justify-end">
+              <div class="mt-2 flex flex-wrap justify-end gap-2">
                 <button
+                  data-testid="online-orders-available-detail-trigger"
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  @click.stop="openAvailableOrderDetail(order)"
+                >
+                  <Info :size="12" />
+                  详情
+                </button>
+                <button
+                  v-if="!isRelayOrder(order)"
                   data-testid="online-orders-accept-submit"
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="coopOrderStore.actionRunning || !canAcceptSingleOrder(order)"
-                  @click="openOrderActionConfirm({ kind: 'accept-order', orderId: order.id })"
+                  @click.stop="openOrderActionConfirm({ kind: 'accept-order', orderId: order.id })"
                 >
                   {{ order.assignee_username ? '已有人接单' : '接这张单' }}
                 </button>
@@ -729,7 +668,7 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ receipt.stage_title || `委托 ${receipt.order_id}` }}</p>
-                  <p class="mt-1 text-[0.625rem] text-muted">凭证 {{ receipt.id }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ getCoopReceiptStatusLabel(receipt.status) }}</p>
                 </div>
                 <span class="w-fit shrink-0 text-[0.625rem]" :class="receipt.status === 'confirmed' ? 'text-success' : receipt.status === 'compensation_pending' ? 'text-warning' : 'text-muted'">
                   {{ getCoopReceiptStatusLabel(receipt.status) }}
@@ -754,7 +693,7 @@
                 {{ receipt.reward_result }}
               </p>
               <p v-if="receipt.reward_route === 'shared_fund'" class="mt-1 text-[0.625rem] text-success">
-                结算去向：共同基金 · 契约 {{ receipt.cohabitation_contract_id }}{{ receipt.shared_fund_ledger_id ? ` · 流水 ${receipt.shared_fund_ledger_id}` : '' }}
+                结算去向：共同基金
               </p>
               <p
                 v-if="receipt.shared_order_efficiency_bonus_applied"
@@ -763,12 +702,25 @@
               >
                 同接效率：原始 {{ formatCoopDuration(receipt.order_original_duration_seconds) }} · 减免 {{ formatCoopDuration(receipt.order_efficiency_bonus_seconds) }} · 有效 {{ formatCoopDuration(receipt.order_effective_duration_seconds) }}
               </p>
-              <p v-if="receipt.compensation_id" class="mt-1 text-[0.625rem] text-warning">
-                关联补偿：{{ receipt.compensation_id }}
-              </p>
-              <p class="mt-2 text-[0.625rem] text-muted">
-                创建 {{ formatCoopTime(receipt.created_at) }} · 更新 {{ formatCoopTime(receipt.updated_at) }}
-              </p>
+              <OnlineTechnicalDetails
+                class="mt-2"
+                title="结算凭证详情"
+                summary="展开查看凭证编号、结算去向编号和更新时间。"
+                :copyable="receiptTechnicalCopyValue(receipt)"
+              >
+                <div class="grid gap-1 sm:grid-cols-2">
+                  <p>凭证编号：{{ receipt.id }}</p>
+                  <p>关联委托：{{ receipt.order_id }}</p>
+                  <p v-if="receipt.stage_id">接力阶段：{{ receipt.stage_id }}</p>
+                  <p>重复提交保护：{{ receipt.idempotency_key || '未记录' }}</p>
+                  <p v-if="receipt.cohabitation_contract_id">共同庄园契约：{{ receipt.cohabitation_contract_id }}</p>
+                  <p v-if="receipt.shared_fund_ledger_id">共同基金流水：{{ receipt.shared_fund_ledger_id }}</p>
+                  <p v-if="receipt.compensation_id">关联补偿：{{ receipt.compensation_id }}</p>
+                  <p>创建：{{ formatCoopTime(receipt.created_at) }}</p>
+                  <p>确认：{{ formatCoopTime(receipt.confirmed_at) }}</p>
+                  <p>更新：{{ formatCoopTime(receipt.updated_at) }}</p>
+                </div>
+              </OnlineTechnicalDetails>
             </div>
           </OnlineScrollArea>
         </div>
@@ -789,7 +741,7 @@
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ compensation.reason || `委托 ${compensation.order_id}` }}</p>
-                  <p class="mt-1 text-[0.625rem] text-muted">补偿 {{ compensation.id }} · 凭证 {{ compensation.receipt_id }}</p>
+                  <p class="mt-1 text-[0.625rem] text-muted">{{ getCompensationStatusLabel(compensation.status) }}</p>
                 </div>
                 <span class="shrink-0 text-[0.625rem]" :class="compensation.status === 'pending' ? 'text-warning' : 'text-success'">
                   {{ getCompensationStatusLabel(compensation.status) }}
@@ -806,11 +758,28 @@
                 class="mt-2"
                 tone="warning"
                 title="最近一次补偿没有处理成功"
-                :description="compensation.last_error"
+                description="可以稍后重试；详细原因已收进补偿详情。"
               />
-              <p class="mt-2 text-[0.625rem] text-muted">
-                已尝试 {{ compensation.attempt_count }} 次 · 更新 {{ formatCoopTime(compensation.updated_at) }}
-              </p>
+              <p class="mt-2 text-[0.625rem] text-muted">已尝试 {{ compensation.attempt_count }} 次</p>
+              <OnlineTechnicalDetails
+                class="mt-2"
+                title="补偿详情"
+                summary="展开查看补偿编号、关联凭证、最近失败原因和更新时间。"
+                :copyable="compensationTechnicalCopyValue(compensation)"
+              >
+                <div class="grid gap-1 sm:grid-cols-2">
+                  <p>补偿编号：{{ compensation.id }}</p>
+                  <p>关联凭证：{{ compensation.receipt_id }}</p>
+                  <p>关联委托：{{ compensation.order_id }}</p>
+                  <p v-if="compensation.stage_id">接力阶段：{{ compensation.stage_id }}</p>
+                  <p>发布人：{{ compensation.owner_username }}</p>
+                  <p>接单人：{{ compensation.assignee_username }}</p>
+                  <p>创建：{{ formatCoopTime(compensation.created_at) }}</p>
+                  <p>更新：{{ formatCoopTime(compensation.updated_at) }}</p>
+                  <p v-if="compensation.resolved_at">解决：{{ formatCoopTime(compensation.resolved_at) }}</p>
+                  <p v-if="compensation.last_error" class="sm:col-span-2">最近失败原因：{{ compensation.last_error }}</p>
+                </div>
+              </OnlineTechnicalDetails>
               <div v-if="compensation.status === 'pending'" class="mt-2 flex justify-end">
                 <button
                   data-testid="online-orders-compensation-retry-submit"
@@ -840,6 +809,137 @@
       @close="closeOrderWizard"
     />
 
+    <OnlineBottomSheet
+      :open="availableOrderDetailOpen"
+      :title="availableOrderDetailTitle"
+      :description="availableOrderDetailDescription"
+      side="bottom"
+      @close="closeAvailableOrderDetail"
+    >
+      <div v-if="selectedAvailableOrder" class="space-y-3" data-testid="online-orders-detail-sheet">
+        <div class="grid gap-2 text-xs sm:grid-cols-2">
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">发布人</p>
+            <p class="mt-1 text-accent">{{ selectedAvailableOrder.owner_display_name || selectedAvailableOrder.owner_username }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">可见范围</p>
+            <p class="mt-1 text-accent">{{ getCoopOrderScopeLabel(selectedAvailableOrder.scope) }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">需求</p>
+            <p class="mt-1 text-accent">{{ getAvailableOrderDemandSummary(selectedAvailableOrder) }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">回报</p>
+            <p class="mt-1 text-accent">{{ getOrderRewardSummary(selectedAvailableOrder) }}</p>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 bg-black/10 p-2">
+          <p class="text-[0.625rem] text-muted">委托说明</p>
+          <p class="mt-1 text-xs leading-5 text-text">{{ selectedAvailableOrder.description || '发布人还没有填写额外说明。' }}</p>
+          <p v-if="selectedAvailableOrder.priority_reasons?.length" class="mt-2 text-[0.625rem] leading-4 text-warning">
+            推荐理由：{{ selectedAvailableOrder.priority_reasons.join('；') }}
+          </p>
+          <p v-if="selectedAvailableOrder.assignee_username" class="mt-1 text-[0.625rem] text-success">
+            当前接单人：{{ selectedAvailableOrder.assignee_display_name || selectedAvailableOrder.assignee_username }}
+          </p>
+        </div>
+
+        <div v-if="isRelayOrder(selectedAvailableOrder)" class="border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-detail-relay-progress">
+          <div class="flex items-center justify-between gap-2 text-[0.625rem] text-muted">
+            <span>{{ getRelayStageProgressLabel(selectedAvailableOrder) }}</span>
+            <span>{{ getRelayStageProgressPercent(selectedAvailableOrder) }}%</span>
+          </div>
+          <div class="mt-1 h-1.5 overflow-hidden border border-warning/20 bg-black/20">
+            <div class="h-full bg-warning" :style="{ width: `${getRelayStageProgressPercent(selectedAvailableOrder)}%` }" />
+          </div>
+        </div>
+
+        <AsyncCommunityBoard
+          v-if="selectedAvailableOrder.visual_state?.async_projects?.length"
+          :projects="selectedAvailableOrder.visual_state.async_projects"
+          :recent-feedback="selectedAvailableOrder.visual_state.recent_feedback"
+          :action-running="coopOrderStore.actionRunning"
+          @trigger-contribution="triggerOrderRelayAction(selectedAvailableOrder, $event.optionId)"
+        />
+        <OnlineOrderStoryFlowPanel
+          v-if="selectedAvailableOrder.visual_state?.story_flow"
+          :story-flow="selectedAvailableOrder.visual_state.story_flow"
+        />
+
+        <div v-if="selectedAvailableOrder.relay_settlement_summary" class="border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
+          <div class="flex flex-col gap-1 text-[0.625rem] text-muted sm:flex-row sm:items-center sm:justify-between">
+            <span>分账池：{{ getCoopRewardTypeLabel(selectedAvailableOrder.relay_settlement_summary.reward_type) }} {{ selectedAvailableOrder.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(selectedAvailableOrder.relay_settlement_summary.status) }}</span>
+            <span>已落账 {{ selectedAvailableOrder.relay_settlement_summary.confirmed_reward_value }} / 待结 {{ selectedAvailableOrder.relay_settlement_summary.pending_reward_value }}</span>
+          </div>
+          <OnlineTechnicalDetails
+            class="mt-2"
+            title="接力分账详情"
+            summary="展开查看每一段的回报比例、去向和结算状态。"
+          >
+            <div class="grid gap-1 md:grid-cols-2">
+              <p
+                v-for="share in selectedAvailableOrder.relay_settlement_summary.shares"
+                :key="share.stage_id"
+                class="truncate"
+              >
+                {{ share.sequence }}. {{ share.stage_title }}：{{ share.share_percent }}% / {{ share.reward_value }} · {{ getRelaySettlementRouteLabel(share.reward_route) }} · {{ getCoopReceiptStatusLabel(share.settlement_status === 'pending' ? 'pending_owner_confirm' : share.settlement_status) }}
+              </p>
+            </div>
+          </OnlineTechnicalDetails>
+        </div>
+
+        <div v-if="selectedAvailableOrder.collaboration_mode === 'multi_stage'" class="space-y-2" data-testid="online-orders-detail-stage-list">
+          <OnlineEmptyState
+            v-if="coopOrderStore.getOpenStages(selectedAvailableOrder).length === 0"
+            title="当前没有可接阶段"
+            description="这张接力单的开放阶段可能已经被接走，或者正在等发布人确认上一段交付。"
+          />
+          <div
+            v-for="stage in coopOrderStore.getOpenStages(selectedAvailableOrder)"
+            :key="stage.id"
+            class="border border-accent/10 bg-bg/40 p-2"
+          >
+            <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
+                <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ stage.description || '这段还没写说明。' }}</p>
+              </div>
+              <span class="w-fit shrink-0 text-[0.625rem] text-success">可接力</span>
+            </div>
+            <p class="mt-2 text-[0.625rem] text-muted">
+              {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
+            </p>
+            <div class="mt-2 flex justify-end">
+              <button
+                data-testid="online-orders-stage-accept-submit"
+                class="online-action-btn online-action-btn--compact"
+                type="button"
+                :disabled="coopOrderStore.actionRunning"
+                @click="openOrderActionConfirmFromDetail({ kind: 'accept-stage', orderId: selectedAvailableOrder.id, stageId: stage.id })"
+              >
+                接这一段
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="flex justify-end">
+          <button
+            data-testid="online-orders-detail-accept-submit"
+            class="online-action-btn online-action-btn--compact"
+            type="button"
+            :disabled="coopOrderStore.actionRunning || !canAcceptSingleOrder(selectedAvailableOrder)"
+            @click="openOrderActionConfirmFromDetail({ kind: 'accept-order', orderId: selectedAvailableOrder.id })"
+          >
+            {{ selectedAvailableOrder.assignee_username ? '已有人接单' : '接这张单' }}
+          </button>
+        </div>
+      </div>
+    </OnlineBottomSheet>
+
     <div v-if="orderActionConfirmOpen" class="contents" data-testid="online-orders-action-confirm">
       <OnlineConfirmActionDialog
         :open="orderActionConfirmOpen"
@@ -862,8 +962,9 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { ExternalLink, Handshake, PlusCircle } from 'lucide-vue-next'
+  import { ExternalLink, Handshake, Info, PlusCircle } from 'lucide-vue-next'
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
+  import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
   import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineOrderWizard from '@/components/game/online/OnlineOrderWizard.vue'
@@ -871,10 +972,11 @@
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineScrollArea from '@/components/game/online/OnlineScrollArea.vue'
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
-  import type { OnlineCoopCompensationEntry, OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderStageEntry, OnlineCoopOrderType, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
+  import type { OnlineCoopCompensationEntry, OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderStageEntry, OnlineCoopOrderType, OnlineCoopReceiptEntry, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
 
   type OrdersTabKey = 'publish' | 'available' | 'mine' | 'accepted' | 'receipts'
   type OrdersTabMeta = { key: OrdersTabKey; label: string; summary: string }
@@ -894,6 +996,7 @@
   const lastRefreshAttemptAt = ref(0)
   const orderWizardOpen = ref(false)
   const orderActionConfirm = ref<OrderActionConfirm | null>(null)
+  const selectedAvailableOrderId = ref('')
   const orderBoardFilter = ref<'all' | 'single' | 'relay'>('all')
   const FAMILY_SHARED_FUND_TYPES = new Set(['oath_manor', 'business_partner'])
   const orderBoardFilterOptions: Array<{ id: 'all' | 'single' | 'relay'; label: string }> = [
@@ -1088,6 +1191,21 @@
     if (items.length === 0) return '未登记资源'
     return items.map(item => `${item.item_id} ×${item.quantity}`).join('、')
   }
+  const receiptTechnicalCopyValue = (receipt: OnlineCoopReceiptEntry): string[] => [
+    receipt.id,
+    receipt.order_id,
+    receipt.stage_id,
+    receipt.idempotency_key,
+    receipt.cohabitation_contract_id,
+    receipt.shared_fund_ledger_id,
+    receipt.compensation_id,
+  ].filter((value): value is string => Boolean(value))
+  const compensationTechnicalCopyValue = (compensation: OnlineCoopCompensationEntry): string[] => [
+    compensation.id,
+    compensation.receipt_id,
+    compensation.order_id,
+    compensation.stage_id,
+  ].filter((value): value is string => Boolean(value))
   const formatCoopTime = (timestamp: number) => {
     if (!timestamp) return '未设置'
     return new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false })
@@ -1177,6 +1295,37 @@
         getAvailableOrderRank(left) - getAvailableOrderRank(right) || right.updated_at - left.updated_at
       )
   )
+  const getAvailableOrderDemandSummary = (order: OnlineCoopOrderEntry) => {
+    const typeLabel = getCoopOrderTypeLabel(order.order_type)
+    if (isRelayOrder(order)) {
+      const counts = getRelayStageCounts(order)
+      return `${typeLabel} · ${counts.total} 段接力 · ${counts.open} 段可接`
+    }
+    return `${typeLabel} · ${order.description.trim() || '等待发布人补充说明'}`
+  }
+  const getOrderDeadlineSummary = (order: OnlineCoopOrderEntry) => {
+    if (!order.deadline_at) return '未设置截止时间'
+    const remainingSeconds = Math.floor(order.deadline_at - Date.now() / 1000)
+    if (remainingSeconds <= 0) return '已到截止时间'
+    return `剩余 ${formatCoopDuration(remainingSeconds)}`
+  }
+  const getAvailableOrderStatusLabel = (order: OnlineCoopOrderEntry) => {
+    if (order.status !== 'open') return getCoopOrderStatusLabel(order.status)
+    return isOrderAcceptable(order) ? '可接' : '处理中'
+  }
+  const selectedAvailableOrder = computed(() => {
+    if (!selectedAvailableOrderId.value) return null
+    return availableOrderCards.value.find(order => order.id === selectedAvailableOrderId.value)
+      || getOrderById(selectedAvailableOrderId.value)
+      || null
+  })
+  const availableOrderDetailOpen = computed(() => Boolean(selectedAvailableOrder.value))
+  const availableOrderDetailTitle = computed(() => selectedAvailableOrder.value?.title || '委托详情')
+  const availableOrderDetailDescription = computed(() => {
+    const order = selectedAvailableOrder.value
+    if (!order) return ''
+    return `${getAvailableOrderDemandSummary(order)} · ${getOrderDeadlineSummary(order)}`
+  })
   const reputationSpecialtySummary = computed(() => {
     const specialties = coopOrderStore.reputationSummary.specialty_ranks.slice(0, 2)
     if (specialties.length === 0) return '暂无专业方向'
@@ -1371,6 +1520,14 @@
     orderWizardOpen.value = true
   }
 
+  const openAvailableOrderDetail = (order: OnlineCoopOrderEntry) => {
+    selectedAvailableOrderId.value = order.id
+  }
+
+  const closeAvailableOrderDetail = () => {
+    selectedAvailableOrderId.value = ''
+  }
+
   const closeOrderWizard = () => {
     if (coopOrderStore.actionRunning) return
     orderWizardOpen.value = false
@@ -1398,6 +1555,13 @@
     }
     coopOrderStore.errorMessage = ''
     orderActionConfirm.value = action
+  }
+
+  const openOrderActionConfirmFromDetail = (action: OrderActionConfirm) => {
+    openOrderActionConfirm(action)
+    if (orderActionConfirm.value) {
+      closeAvailableOrderDetail()
+    }
   }
 
   const closeOrderActionConfirm = () => {
@@ -1438,15 +1602,21 @@
   const confirmStageDeliveryEntry = async (orderId: string, stageId: string) => {
     return runOrderStoreAction(() => coopOrderStore.confirmDelivery(orderId, stageId))
   }
-  const triggerOrderRelayAction = async (order: OnlineCoopOrderEntry, optionId: string) => {
+  const triggerOrderRelayAction = (order: OnlineCoopOrderEntry, optionId: string) => {
     const [action, stageId] = optionId.split(':')
     if (!stageId) return
     if (action === 'accept_stage') {
-      await acceptStageEntry(order.id, stageId)
+      openOrderActionConfirm({ kind: 'accept-stage', orderId: order.id, stageId })
+      if (orderActionConfirm.value && selectedAvailableOrderId.value === order.id) {
+        closeAvailableOrderDetail()
+      }
       return
     }
     if (action === 'confirm_stage') {
-      await confirmStageDeliveryEntry(order.id, stageId)
+      openOrderActionConfirm({ kind: 'confirm-delivery', orderId: order.id, stageId })
+      if (orderActionConfirm.value && selectedAvailableOrderId.value === order.id) {
+        closeAvailableOrderDetail()
+      }
       return
     }
     if (action === 'deliver_stage') {
@@ -1454,7 +1624,10 @@
       if (!draft.note.trim()) {
         draft.note = '从接力路线提交交付说明'
       }
-      await submitStageDeliveryEntry(order.id, stageId)
+      openOrderActionConfirm({ kind: 'submit-delivery', orderId: order.id, stageId })
+      if (orderActionConfirm.value && selectedAvailableOrderId.value === order.id) {
+        closeAvailableOrderDetail()
+      }
     }
   }
   const retryCompensationEntry = async (compensationId: string) => {

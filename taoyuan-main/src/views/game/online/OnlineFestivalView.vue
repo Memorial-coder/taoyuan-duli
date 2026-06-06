@@ -274,8 +274,8 @@
           </div>
         </div>
 
-        <div class="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div class="space-y-3">
+        <div class="grid gap-3 xl:grid-cols-[18rem_minmax(0,1fr)_320px]" data-testid="online-festival-room-desktop-layout">
+          <div class="space-y-3 xl:order-2" data-testid="online-festival-room-main-stage">
             <div class="game-panel-muted p-3" data-testid="online-festival-room-status-panel">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">我的节会状态</p>
@@ -669,7 +669,7 @@
             </div>
           </div>
 
-          <div class="space-y-3">
+          <div class="space-y-3 xl:order-1" data-testid="online-festival-room-left-list">
             <div class="game-panel-muted p-3" data-testid="online-festival-room-create-entry">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">创建节会房间</p>
@@ -914,6 +914,21 @@
               </div>
             </div>
           </div>
+
+          <div class="space-y-3 xl:order-3" data-testid="online-festival-room-right-status">
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">房间状态侧栏</p>
+                <span class="text-[0.625rem] text-muted">320px</span>
+              </div>
+              <div class="mt-3 space-y-2 text-[0.625rem] leading-4 text-muted" data-testid="online-festival-room-desktop-status-summary">
+                <p>当前房间：{{ festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : '空闲中' }}</p>
+                <p>待处理邀请：{{ festivalRoomStore.invitedRooms.length }} 条</p>
+                <p>可见房间：{{ festivalRoomStore.visibleRooms.length }} 间</p>
+                <p>最近结算：{{ festivalRoomStore.recentReceipts.length }} 条</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="game-panel-muted p-3">
@@ -971,8 +986,8 @@
           </div>
         </div>
 
-        <div class="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div class="space-y-3">
+        <div class="grid gap-3 xl:grid-cols-[18rem_minmax(0,1fr)_320px]" data-testid="online-expedition-room-desktop-layout">
+          <div class="space-y-3 xl:order-2" data-testid="online-expedition-room-main-stage">
             <div class="game-panel-muted p-3" data-testid="online-expedition-room-status-panel">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">我的远征状态</p>
@@ -1005,73 +1020,13 @@
                 >
                   <template #actions>
                     <Button
-                      v-if="expeditionRoomStore.myRoom.can_host_ready_check"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      data-testid="online-expedition-room-shell-ready-check-submit"
+                      class="online-action-btn online-action-btn--primary min-h-[44px] justify-center"
+                      data-testid="online-expedition-room-lobby-trigger"
                       :disabled="expeditionRoomStore.actionRunning"
-                      @click="startExpeditionReadyCheck(expeditionRoomStore.myRoom.id)"
+                      @click="openExpeditionRoomLobby"
                     >
-                      开始准备
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_ready"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      data-testid="online-expedition-room-shell-ready-submit"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="readyExpeditionRoom(expeditionRoomStore.myRoom.id)"
-                    >
-                      我已准备
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_unready"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="unreadyExpeditionRoom(expeditionRoomStore.myRoom.id)"
-                    >
-                      取消准备
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_host_start_countdown"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      data-testid="online-expedition-room-shell-start-submit"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="startExpeditionCountdown(expeditionRoomStore.myRoom.id)"
-                    >
-                      开始倒计时
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_reconnect"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="reconnectExpeditionRoom(expeditionRoomStore.myRoom.id)"
-                    >
-                      恢复连接
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_host_settle"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      data-testid="online-expedition-room-shell-settle-submit"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="settleExpeditionRoom(expeditionRoomStore.myRoom.id)"
-                    >
-                      撤离并结算
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_host_close"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      data-testid="online-expedition-room-shell-close-submit"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="closeExpeditionRoom(expeditionRoomStore.myRoom.id)"
-                    >
-                      {{ expeditionRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
-                    </Button>
-                    <Button
-                      v-if="expeditionRoomStore.myRoom.can_leave"
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      :disabled="expeditionRoomStore.actionRunning"
-                      @click="leaveExpeditionRoom(expeditionRoomStore.myRoom.id)"
-                    >
-                      离开房间
+                      <UsersRound :size="14" aria-hidden="true" />
+                      打开准备大厅
                     </Button>
                   </template>
                 </OnlineVisualRoomShell>
@@ -1348,7 +1303,12 @@
                   </label>
                 </OnlineTechnicalDetails>
 
-                <div class="grid gap-2 sm:grid-cols-2">
+                <OnlineTechnicalDetails
+                  v-if="expeditionRoomBackupActionsVisible"
+                  title="备用房间操作"
+                  summary="旧准备、倒计时、结算和关闭入口保留为测试钩子；主流程请打开准备大厅。"
+                >
+                  <div class="grid gap-2 sm:grid-cols-2" data-testid="online-expedition-room-lobby-backup-actions">
                   <Button
                     v-if="expeditionRoomStore.myRoom.can_host_ready_check"
                     class="online-action-btn online-action-btn--compact justify-center"
@@ -1382,28 +1342,35 @@
                   <Button v-if="expeditionRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="reconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
                     恢复连接
                   </Button>
-                  <Button
+                  <div
                     v-if="expeditionRoomStore.myRoom.can_host_settle"
-                    class="online-action-btn online-action-btn--compact justify-center"
-                    data-testid="online-expedition-room-settle-submit"
-                    :disabled="expeditionRoomStore.actionRunning"
-                    @click="settleExpeditionRoom(expeditionRoomStore.myRoom.id)"
+                    class="flex"
+                    data-testid="online-expedition-room-shell-settle-submit"
+                    @click="openExpeditionSettleConfirm"
                   >
-                    撤离并结算
-                  </Button>
+                    <Button
+                      class="online-action-btn online-action-btn--compact w-full justify-center"
+                      data-testid="online-expedition-room-settle-submit"
+                      :disabled="expeditionRoomStore.actionRunning"
+                      @click="openExpeditionSettleConfirm"
+                    >
+                      撤离并结算
+                    </Button>
+                  </div>
                   <Button
                     v-if="expeditionRoomStore.myRoom.can_host_close"
                     class="online-action-btn online-action-btn--compact justify-center"
                     data-testid="online-expedition-room-close-submit"
                     :disabled="expeditionRoomStore.actionRunning"
-                    @click="closeExpeditionRoom(expeditionRoomStore.myRoom.id)"
+                    @click="openExpeditionCloseConfirm"
                   >
                     {{ expeditionRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
                   </Button>
                   <Button v-if="expeditionRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="leaveExpeditionRoom(expeditionRoomStore.myRoom.id)">
                     离开房间
                   </Button>
-                </div>
+                  </div>
+                </OnlineTechnicalDetails>
                 <OnlineTechnicalDetails
                   v-if="expeditionRoomStore.myRoom.can_disconnect"
                   title="调试操作"
@@ -1439,7 +1406,7 @@
             </div>
           </div>
 
-          <div class="space-y-3">
+          <div class="space-y-3 xl:order-1" data-testid="online-expedition-room-left-list">
             <div class="game-panel-muted p-3" data-testid="online-expedition-room-create-entry">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">创建远征房间</p>
@@ -1585,6 +1552,21 @@
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-3 xl:order-3" data-testid="online-expedition-room-right-status">
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">远征状态侧栏</p>
+                <span class="text-[0.625rem] text-muted">320px</span>
+              </div>
+              <div class="mt-3 space-y-2 text-[0.625rem] leading-4 text-muted" data-testid="online-expedition-room-desktop-status-summary">
+                <p>当前房间：{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</p>
+                <p>待处理邀请：{{ expeditionRoomStore.invitedRooms.length }} 条</p>
+                <p>可见房间：{{ expeditionRoomStore.visibleRooms.length }} 间</p>
+                <p>最近结算：{{ expeditionRoomStore.recentReceipts.length }} 条</p>
               </div>
             </div>
           </div>
@@ -1836,6 +1818,36 @@
       @close="closeFestivalRoomLobby"
     />
 
+    <OnlineRoomLobbyDialog
+      :open="showExpeditionRoomLobby"
+      domain="expedition"
+      :room="expeditionLobbyRoom"
+      :current-user-id="expeditionLobbyCurrentUserId"
+      :busy-action="expeditionRoomStore.actionRunning"
+      :last-feedback="expeditionLobbyLastFeedback"
+      @invite="openExpeditionInvitePanel"
+      @ready="handleExpeditionLobbyReady"
+      @unready="handleExpeditionLobbyUnready"
+      @start-ready-check="handleExpeditionLobbyStartReadyCheck"
+      @start-countdown="handleExpeditionLobbyStartCountdown"
+      @settle="handleExpeditionLobbySettle"
+      @cancel-room="handleExpeditionLobbyCloseRoom"
+      @leave-room="handleExpeditionLobbyLeaveRoom"
+      @accept-invite="handleExpeditionLobbyAcceptInvite"
+      @reconnect="handleExpeditionLobbyReconnect"
+      @view-countdown="openExpeditionRoomLobby"
+      @enter-gameplay="closeExpeditionRoomLobby"
+      @view-members="openExpeditionRoomLobby"
+      @view-objective="closeExpeditionRoomLobby"
+      @view-settlement="closeExpeditionRoomLobby"
+      @view-record="closeExpeditionRoomLobby"
+      @return-lobby="closeExpeditionRoomLobby"
+      @notify-members="openExpeditionInvitePanel"
+      @retry-settle="handleExpeditionLobbySettle"
+      @rematch="openExpeditionRoomWizard"
+      @close="closeExpeditionRoomLobby"
+    />
+
     <div v-if="showFestivalSettleConfirm" class="contents" data-testid="online-room-settle-confirm">
       <OnlineConfirmActionDialog
         :open="showFestivalSettleConfirm"
@@ -1869,6 +1881,42 @@
         @confirm="confirmFestivalCloseRoom"
         @cancel="closeFestivalConfirmDialog"
         @close="closeFestivalConfirmDialog"
+      />
+    </div>
+
+    <div v-if="showExpeditionSettleConfirm" class="contents" data-testid="online-expedition-room-settle-confirm">
+      <OnlineConfirmActionDialog
+        :open="showExpeditionSettleConfirm"
+        title="确认远征结算"
+        :description="expeditionSettleConfirmDescription"
+        :impact-items="expeditionSettleImpactItems"
+        :asset-changes="expeditionSettleAssetChanges"
+        confirm-label="确认结算"
+        cancel-label="返回房间"
+        :running="expeditionRoomStore.actionRunning"
+        :recovery-hint="expeditionSettleRecoveryHint"
+        @confirm="confirmExpeditionSettle"
+        @cancel="closeExpeditionConfirmDialog"
+        @close="closeExpeditionConfirmDialog"
+      />
+    </div>
+
+    <div v-if="showExpeditionCloseConfirm" class="contents" data-testid="online-expedition-room-close-confirm">
+      <OnlineConfirmActionDialog
+        :open="showExpeditionCloseConfirm"
+        :title="expeditionCloseConfirmTitle"
+        :description="expeditionCloseConfirmDescription"
+        :impact-items="expeditionCloseImpactItems"
+        :asset-changes="expeditionCloseAssetChanges"
+        :irreversible="true"
+        :require-text="expeditionCloseRequireText"
+        :confirm-label="expeditionCloseConfirmLabel"
+        cancel-label="返回房间"
+        :running="expeditionRoomStore.actionRunning"
+        :recovery-hint="expeditionCloseRecoveryHint"
+        @confirm="confirmExpeditionCloseRoom"
+        @cancel="closeExpeditionConfirmDialog"
+        @close="closeExpeditionConfirmDialog"
       />
     </div>
 
@@ -1984,6 +2032,8 @@
   const showFestivalRoomLobby = ref(false)
   const festivalConfirmAction = ref<'settle' | 'close' | ''>('')
   const showExpeditionRoomWizard = ref(false)
+  const showExpeditionRoomLobby = ref(false)
+  const expeditionConfirmAction = ref<'settle' | 'close' | ''>('')
   const showFestivalInvitePanel = ref(false)
   const showExpeditionInvitePanel = ref(false)
   const festivalInviteSubmitting = ref(false)
@@ -2697,6 +2747,181 @@
       }
     })
   })
+  const expeditionLobbyIsHostUser = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return false
+    return room.can_host_ready_check || room.can_host_start_countdown || room.can_host_settle || room.can_host_close
+  })
+  const expeditionLobbyCurrentMember = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return null
+    if (expeditionLobbyIsHostUser.value) {
+      return room.members.find(member => member.username === room.host_username) ?? null
+    }
+    const nonHostWithMyStatus = room.members.find(member => member.username !== room.host_username && member.status === room.my_member_status)
+    if (nonHostWithMyStatus) return nonHostWithMyStatus
+    return room.members.find(member => member.status === room.my_member_status)
+      ?? room.members.find(member => member.username !== room.host_username)
+      ?? room.members[0]
+      ?? null
+  })
+  const expeditionLobbyCurrentUserId = computed(() =>
+    expeditionLobbyCurrentMember.value?.username || (expeditionLobbyIsHostUser.value ? expeditionRoomStore.myRoom?.host_username || '' : '')
+  )
+  const expeditionLobbyRoom = computed<OnlineRoomLobbyRoom | null>(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return null
+    return {
+      id: room.id,
+      title: room.title,
+      template_label: room.template_label,
+      gameplay_template_label: room.gameplay.template_label,
+      state: room.state,
+      state_label: room.state_label,
+      host_username: room.host_username,
+      member_limit: room.member_limit,
+      members: room.members.map(member => ({
+        id: member.username,
+        username: member.username,
+        display_name: member.display_name,
+        role: member.username === room.host_username ? 'host' : member.role,
+        status: member.status,
+        status_label: member.status_label,
+        invited_at: member.invited_at,
+        joined_at: member.joined_at,
+        ready_at: member.ready_at,
+        disconnected_at: member.disconnected_at,
+        left_at: member.left_at,
+      })),
+      can_invite: expeditionLobbyIsHostUser.value && !['settled', 'closed'].includes(room.state),
+      can_join: room.can_join,
+      can_ready: room.can_ready,
+      can_unready: room.can_unready,
+      can_leave: room.can_leave,
+      can_reconnect: room.can_reconnect,
+      can_host_ready_check: room.can_host_ready_check,
+      can_host_start_countdown: room.can_host_start_countdown,
+      can_host_settle: room.can_host_settle,
+      can_host_close: room.can_host_close,
+    }
+  })
+  const expeditionLobbyLastFeedback = computed(() =>
+    expeditionRoomActionFeedback.value || expeditionRoomStore.errorMessage || ''
+  )
+  const expeditionRoomBackupActionsVisible = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return false
+    return room.can_host_ready_check
+      || room.can_ready
+      || room.can_unready
+      || room.can_host_start_countdown
+      || room.can_reconnect
+      || room.can_host_settle
+      || room.can_host_close
+      || room.can_leave
+  })
+  const showExpeditionSettleConfirm = computed(() => expeditionConfirmAction.value === 'settle')
+  const showExpeditionCloseConfirm = computed(() => expeditionConfirmAction.value === 'close')
+  const expeditionSettleUnfinishedMembers = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    return room.members.filter(member => !['finished', 'settled', 'left', 'kicked'].includes(member.status))
+  })
+  const expeditionSettleConfirmDescription = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return '结算会根据当前远征进度生成奖励记录。'
+    const unfinishedText = expeditionSettleUnfinishedMembers.value.length > 0
+      ? `当前还有 ${expeditionSettleUnfinishedMembers.value.length} 名成员未完成，系统会按现有远征进度结算。`
+      : '所有成员已完成或已有结果，适合进入结算。'
+    return `${room.title} 将按当前路线进度生成奖励记录和远征回看。${unfinishedText}`
+  })
+  const expeditionSettleImpactItems = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const unfinishedMembers = expeditionSettleUnfinishedMembers.value
+      .map(member => member.display_name || member.username)
+      .slice(0, 3)
+      .join('、')
+    return [
+      { id: 'room', label: '远征房间', value: room.title },
+      { id: 'state', label: '当前状态', value: room.state_label },
+      { id: 'members', label: '参与成员', value: `${room.joined_member_count}/${room.member_limit} 人` },
+      { id: 'unfinished-members', label: '未完成成员', value: unfinishedMembers || '无' },
+    ]
+  })
+  const expeditionSettleAssetChanges = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const rewardItems = expeditionRoomRewardPreview.value.slice(0, 3).map((label, index) => ({
+      id: `reward-${index}`,
+      label,
+      value: '',
+    }))
+    return rewardItems.length > 0
+      ? rewardItems
+      : [{
+        id: 'reward-preview-empty',
+        label: room.settlement_receipts.length > 0 ? '已有结算记录会继续保留。' : '奖励预览将在结算后生成。',
+        value: '',
+      }]
+  })
+  const expeditionSettleRecoveryHint = computed(() =>
+    expeditionRoomStore.errorMessage || '如果结算没有完成，远征房间会保留当前状态，可刷新后再次尝试。'
+  )
+  const expeditionCloseConfirmTitle = computed(() => {
+    const state = expeditionRoomStore.myRoom?.state
+    if (state === 'running') return '确认关闭进行中的远征房间'
+    if (state === 'settling') return '确认关闭远征房间'
+    return '确认取消远征房间'
+  })
+  const expeditionCloseConfirmDescription = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return '关闭后成员需要返回大厅，未生成的新奖励不会补发。'
+    const runningText = room.state === 'running'
+      ? '房间正在进行中，关闭后成员会退出本轮远征，未完成进度不会继续推进。'
+      : '关闭后成员会回到大厅，后续需要重新创建远征队伍。'
+    return `${room.title} 当前为「${room.state_label}」。${runningText}`
+  })
+  const expeditionCloseImpactItems = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const readyCount = room.members.filter(member => ['ready', 'countdown_locked', 'active', 'finished', 'settled'].includes(member.status)).length
+    return [
+      { id: 'room', label: '远征房间', value: room.title },
+      { id: 'state', label: '当前状态', value: room.state_label },
+      { id: 'members', label: '影响成员', value: `${room.members.length} 人` },
+      { id: 'ready-members', label: '已准备或已参与', value: `${readyCount} 人` },
+    ]
+  })
+  const expeditionCloseAssetChanges = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const existingRecords = room.settlement_receipts.length
+    return [
+      {
+        id: 'new-reward',
+        label: existingRecords > 0 ? '已有结算记录继续保留。' : '不会生成新的成员奖励。',
+        value: existingRecords > 0 ? `${existingRecords} 条` : '',
+      },
+      {
+        id: 'member-progress',
+        label: '未完成的远征进度会停止推进。',
+        value: '',
+      },
+    ]
+  })
+  const expeditionCloseRequireText = computed(() =>
+    expeditionRoomStore.myRoom?.state === 'running' ? '确认关闭远征房间' : ''
+  )
+  const expeditionCloseConfirmLabel = computed(() => {
+    const state = expeditionRoomStore.myRoom?.state
+    if (state === 'settling') return '正式关闭'
+    if (state === 'running') return '确认关闭远征房间'
+    return '确认取消房间'
+  })
+  const expeditionCloseRecoveryHint = computed(() =>
+    expeditionRoomStore.errorMessage || '如果关闭没有完成，远征房间会保留当前状态，可刷新后再次尝试。'
+  )
   const expeditionGameplayActionMap = computed(() =>
     new Map((expeditionRoomStore.myRoom?.gameplay.available_actions ?? []).map(action => [action.id, action]))
   )
@@ -2890,6 +3115,45 @@
   }
   const closeExpeditionInvitePanel = () => {
     showExpeditionInvitePanel.value = false
+  }
+  const openExpeditionRoomLobby = () => {
+    activeTab.value = 'expedition-room'
+    showExpeditionRoomLobby.value = true
+  }
+  const closeExpeditionRoomLobby = () => {
+    showExpeditionRoomLobby.value = false
+  }
+  const openExpeditionSettleConfirm = () => {
+    if (!expeditionRoomStore.myRoom || expeditionRoomStore.actionRunning) return
+    expeditionConfirmAction.value = 'settle'
+  }
+  const openExpeditionCloseConfirm = () => {
+    if (!expeditionRoomStore.myRoom || expeditionRoomStore.actionRunning) return
+    expeditionConfirmAction.value = 'close'
+  }
+  const closeExpeditionConfirmDialog = () => {
+    if (expeditionRoomStore.actionRunning) return
+    expeditionConfirmAction.value = ''
+  }
+  const confirmExpeditionSettle = async () => {
+    const roomId = expeditionRoomStore.myRoom?.id
+    if (!roomId) return
+    try {
+      await expeditionRoomStore.settleRoomAction(roomId)
+      closeExpeditionConfirmDialog()
+    } catch {
+      // Store errorMessage remains visible in the dialog so the host can retry.
+    }
+  }
+  const confirmExpeditionCloseRoom = async () => {
+    const roomId = expeditionRoomStore.myRoom?.id
+    if (!roomId) return
+    try {
+      await expeditionRoomStore.closeRoomAction(roomId)
+      closeExpeditionConfirmDialog()
+    } catch {
+      // Store errorMessage remains visible in the dialog so the host can retry.
+    }
   }
   const openFestivalRoomWizard = () => {
     showFestivalRoomWizard.value = true
@@ -3143,6 +3407,38 @@
   const reconnectExpeditionRoom = async (roomId: string) => {
     await expeditionRoomStore.reconnectRoomAction(roomId).catch(() => {})
   }
+  const runExpeditionLobbyRoomAction = async (action: (roomId: string) => Promise<void>) => {
+    const roomId = expeditionRoomStore.myRoom?.id
+    if (!roomId) return
+    await action(roomId)
+  }
+  const handleExpeditionLobbyStartReadyCheck = async () => {
+    await runExpeditionLobbyRoomAction(startExpeditionReadyCheck)
+  }
+  const handleExpeditionLobbyReady = async () => {
+    await runExpeditionLobbyRoomAction(readyExpeditionRoom)
+  }
+  const handleExpeditionLobbyUnready = async () => {
+    await runExpeditionLobbyRoomAction(unreadyExpeditionRoom)
+  }
+  const handleExpeditionLobbyStartCountdown = async () => {
+    await runExpeditionLobbyRoomAction(startExpeditionCountdown)
+  }
+  const handleExpeditionLobbySettle = () => {
+    openExpeditionSettleConfirm()
+  }
+  const handleExpeditionLobbyCloseRoom = () => {
+    openExpeditionCloseConfirm()
+  }
+  const handleExpeditionLobbyLeaveRoom = async () => {
+    await runExpeditionLobbyRoomAction(leaveExpeditionRoom)
+  }
+  const handleExpeditionLobbyAcceptInvite = async () => {
+    await runExpeditionLobbyRoomAction(joinExpeditionRoom)
+  }
+  const handleExpeditionLobbyReconnect = async () => {
+    await runExpeditionLobbyRoomAction(reconnectExpeditionRoom)
+  }
   const playExpeditionGameplayAction = async (roomId: string, actionId: string) => {
     await expeditionRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})
   }
@@ -3163,13 +3459,6 @@
     if (!roomId) return
     await playExpeditionGameplayAction(roomId, payload.actionId)
   }
-  const settleExpeditionRoom = async (roomId: string) => {
-    await expeditionRoomStore.settleRoomAction(roomId).catch(() => {})
-  }
-  const closeExpeditionRoom = async (roomId: string) => {
-    await expeditionRoomStore.closeRoomAction(roomId).catch(() => {})
-  }
-
   watch(
     () => route.query.tab,
     tab => {

@@ -307,7 +307,12 @@ export const fetchHallAdminReports = async (): Promise<HallAdminReport[]> => {
   return Array.isArray(data.reports) ? data.reports : []
 }
 
-export const updateHallAdminReportStatus = async (reportId: string, status: 'dismissed' | 'resolved'): Promise<HallAdminReport> => {
+export const updateHallAdminReportStatus = async (
+  reportId: string,
+  status: 'dismissed' | 'resolved',
+  reason = '',
+  options: { adminNote?: string } = {},
+): Promise<HallAdminReport> => {
   const token = ensureAdminToken()
   const res = await fetch(`/api/admin/taoyuan/hall/reports/${encodeURIComponent(reportId)}/status`, {
     method: 'POST',
@@ -316,7 +321,11 @@ export const updateHallAdminReportStatus = async (reportId: string, status: 'dis
       'Content-Type': 'application/json',
       'X-Admin-Token': token,
     },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({
+      status,
+      reason,
+      admin_note: options.adminNote || '',
+    }),
   })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok || !data?.report) {
@@ -348,7 +357,12 @@ export const fetchHallAdminImageReports = async (): Promise<{
   }
 }
 
-export const updateHallAdminImageReportStatus = async (reportId: string, status: 'dismissed' | 'resolved'): Promise<HallImageAdminReport> => {
+export const updateHallAdminImageReportStatus = async (
+  reportId: string,
+  status: 'dismissed' | 'resolved',
+  reason = '',
+  options: { adminNote?: string } = {},
+): Promise<HallImageAdminReport> => {
   const token = ensureAdminToken()
   const res = await fetch(`/api/admin/taoyuan/hall/image-reports/${encodeURIComponent(reportId)}/status`, {
     method: 'POST',
@@ -357,7 +371,11 @@ export const updateHallAdminImageReportStatus = async (reportId: string, status:
       'Content-Type': 'application/json',
       'X-Admin-Token': token,
     },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({
+      status,
+      reason,
+      admin_note: options.adminNote || '',
+    }),
   })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok || !data?.report) {
@@ -366,7 +384,11 @@ export const updateHallAdminImageReportStatus = async (reportId: string, status:
   return data.report
 }
 
-export const hideHallImageByAdmin = async (reportId: string, reason: string): Promise<{ report: HallImageAdminReport; asset: HallImageAsset }> => {
+export const hideHallImageByAdmin = async (
+  reportId: string,
+  reason: string,
+  options: { adminNote?: string } = {},
+): Promise<{ report: HallImageAdminReport; asset: HallImageAsset }> => {
   const token = ensureAdminToken()
   const res = await fetch(`/api/admin/taoyuan/hall/image-reports/${encodeURIComponent(reportId)}/hide`, {
     method: 'POST',
@@ -375,7 +397,10 @@ export const hideHallImageByAdmin = async (reportId: string, reason: string): Pr
       'Content-Type': 'application/json',
       'X-Admin-Token': token,
     },
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({
+      reason,
+      admin_note: options.adminNote || '',
+    }),
   })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok || !data?.report || !data?.asset) {
@@ -391,6 +416,7 @@ export const setHallImageAssetVisibility = async (
   imageUrl: string,
   hidden: boolean,
   reason = '',
+  options: { adminNote?: string } = {},
 ): Promise<HallImageAsset> => {
   const token = ensureAdminToken()
   const res = await fetch('/api/admin/taoyuan/hall/image-assets/hide', {
@@ -404,6 +430,7 @@ export const setHallImageAssetVisibility = async (
       image_url: imageUrl,
       hidden,
       reason,
+      admin_note: options.adminNote || '',
     }),
   })
   const data = await parseJsonSafe(res)
@@ -417,6 +444,7 @@ export const setHallImageBlacklist = async (
   username: string,
   blocked: boolean,
   reason = '',
+  options: { adminNote?: string } = {},
 ): Promise<{ blacklist: HallImageBlacklistEntry[] }> => {
   const token = ensureAdminToken()
   const res = await fetch(`/api/admin/taoyuan/image-blacklist/${encodeURIComponent(username)}`, {
@@ -426,7 +454,11 @@ export const setHallImageBlacklist = async (
       'Content-Type': 'application/json',
       'X-Admin-Token': token,
     },
-    body: JSON.stringify({ blocked, reason }),
+    body: JSON.stringify({
+      blocked,
+      reason,
+      admin_note: options.adminNote || '',
+    }),
   })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok) {
@@ -437,7 +469,12 @@ export const setHallImageBlacklist = async (
   }
 }
 
-export const hideHallPostByAdmin = async (postId: string, hidden: boolean, reason: string): Promise<{ id: string; hidden: boolean }> => {
+export const hideHallPostByAdmin = async (
+  postId: string,
+  hidden: boolean,
+  reason: string,
+  options: { reportId?: string; adminNote?: string } = {},
+): Promise<{ id: string; hidden: boolean }> => {
   const token = ensureAdminToken()
   const res = await fetch(`/api/admin/taoyuan/hall/posts/${encodeURIComponent(postId)}/hide`, {
     method: 'POST',
@@ -446,7 +483,12 @@ export const hideHallPostByAdmin = async (postId: string, hidden: boolean, reaso
       'Content-Type': 'application/json',
       'X-Admin-Token': token,
     },
-    body: JSON.stringify({ hidden, reason }),
+    body: JSON.stringify({
+      hidden,
+      reason,
+      report_id: options.reportId || '',
+      admin_note: options.adminNote || '',
+    }),
   })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok) {
@@ -455,14 +497,24 @@ export const hideHallPostByAdmin = async (postId: string, hidden: boolean, reaso
   return { id: String(data.id || postId), hidden: data.hidden === true }
 }
 
-export const deleteHallReplyByAdmin = async (postId: string, replyId: string): Promise<HallPostDetail> => {
+export const deleteHallReplyByAdmin = async (
+  postId: string,
+  replyId: string,
+  options: { reason?: string; reportId?: string; adminNote?: string } = {},
+): Promise<HallPostDetail> => {
   const token = ensureAdminToken()
   const res = await fetch(`/api/admin/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies/${encodeURIComponent(replyId)}`, {
     method: 'DELETE',
     credentials: 'include',
     headers: {
+      'Content-Type': 'application/json',
       'X-Admin-Token': token,
     },
+    body: JSON.stringify({
+      reason: options.reason || '',
+      report_id: options.reportId || '',
+      admin_note: options.adminNote || '',
+    }),
   })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok || !data?.post) {

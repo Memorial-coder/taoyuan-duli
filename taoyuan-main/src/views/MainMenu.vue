@@ -9,7 +9,7 @@
     <!-- 标题 -->
     <div class="flex flex-col items-center gap-2 text-center">
       <div class="flex items-center space-x-3">
-      <div class="logo" />
+      <button type="button" class="logo" aria-label="桃源乡徽记" @click="handleLogoClick" />
       <h1 class="text-accent text-2xl md:text-4xl tracking-widest">{{ pkg.title }}</h1>
       </div>
       <p class="text-[0.6875rem] md:text-xs text-muted leading-6 max-w-md">
@@ -133,7 +133,7 @@
           <Button class="text-center justify-center" :icon="BookOpen" @click="handleOpenGuide">新手教程</Button>
           <Button class="text-center justify-center" :icon="BookOpen" @click="handleOpenGuideBook">百科全书</Button>
           <Button class="text-center justify-center" :icon="MessagesSquare" @click="handleOpenHall">交流大厅</Button>
-          <Button class="text-center justify-center" :icon="KeyRound" @click="handleOpenAdmin">桃源管理</Button>
+          <Button v-if="showAdminEntry" class="text-center justify-center" :icon="KeyRound" @click="handleOpenAdmin">桃源管理</Button>
           <Button
             v-if="menuConfig.returnButtonEnabled"
             class="text-center justify-center"
@@ -470,6 +470,7 @@
   const { startBgm } = useAudio()
   const pkg = _pkg as typeof _pkg & { title: string }
   const isNativePlatform = Capacitor.isNativePlatform()
+  const ADMIN_ENTRY_UNLOCK_CLICKS = 7
 
   const gameStore = useGameStore()
   const saveStore = useSaveStore()
@@ -484,6 +485,8 @@
   const showCharCreate = ref(false)
   const showFarmSelect = ref(false)
   const showIdentitySetup = ref(false)
+  const adminLogoClickCount = ref(0)
+  const adminEntryUnlocked = ref(false)
   const slotMenuOpen = ref<number | null>(null)
   const selectedMap = ref<FarmMapType>('standard')
   const charName = ref('')
@@ -528,6 +531,14 @@
   }
 
   const deleteTargetSlot = ref<number | null>(null)
+  const showAdminEntry = computed(() => adminEntryUnlocked.value)
+
+  const handleLogoClick = () => {
+    if (adminEntryUnlocked.value) return
+    adminLogoClickCount.value += 1
+    if (adminLogoClickCount.value < ADMIN_ENTRY_UNLOCK_CLICKS) return
+    adminEntryUnlocked.value = true
+  }
   const currentUser = ref<null | { username: string; display_name?: string }>(null)
   let desktopMenuMediaQuery: MediaQueryList | null = null
 
@@ -1046,9 +1057,17 @@
   .logo {
     width: 50px;
     height: 50px;
+    padding: 0;
+    border: 0;
+    appearance: none;
     background: url(@/assets/logo.png) center / contain no-repeat;
     image-rendering: pixelated;
     flex-shrink: 0;
+  }
+
+  .logo:focus-visible {
+    outline: 1px solid rgba(200, 164, 92, 0.55);
+    outline-offset: 4px;
   }
 
   .main-menu-about-markdown :deep(p),

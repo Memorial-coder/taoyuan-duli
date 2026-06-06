@@ -32,6 +32,14 @@
   --spacing-6: 24px;
   --spacing-8: 32px;
   --online-sticky-action-bar-fallback-height: calc(6rem + env(safe-area-inset-bottom, 0px));
+  --online-visual-touch-target: 44px;
+  --ai-assistant-touch-target: 44px;
+  --ai-assistant-mobile-edge: 8px;
+  --ai-assistant-markdown-border: rgba(200, 164, 92, 0.18);
+  --ai-assistant-markdown-soft-bg: rgba(255, 255, 255, 0.04);
+  --ai-assistant-info-border: rgba(120, 190, 255, 0.28);
+  --ai-assistant-risk-border: rgba(255, 137, 137, 0.38);
+  --ai-assistant-warn-border: rgba(248, 209, 122, 0.42);
 }
 
 /* 生产环境禁止选中和复制 */

@@ -72,7 +72,154 @@
     </div>
 
     <div class="visual-track-board__side" data-testid="visual-track-side-panel">
-      <div v-if="selectedCell && activeTrack" class="visual-track-board__detail" data-testid="visual-track-cell-detail">
+      <template v-if="!isCompactViewport">
+        <div v-if="selectedCell && activeTrack" class="visual-track-board__detail" data-testid="visual-track-cell-detail">
+          <div class="visual-track-board__detail-head">
+            <div class="min-w-0">
+              <p class="visual-track-board__title">{{ selectedCell.label || kindLabel(selectedCell.kind) }}</p>
+              <p class="visual-track-board__meta">第 {{ selectedCell.index + 1 }} 格 · {{ kindLabel(selectedCell.kind) }}</p>
+            </div>
+            <span v-if="selectedCell.event_id" class="visual-track-board__event">{{ selectedCell.event_id }}</span>
+          </div>
+
+          <div v-if="selectedCell.risk_preview || selectedCell.reward_preview" class="visual-track-board__preview-grid">
+            <p v-if="selectedCell.risk_preview" class="visual-track-board__preview visual-track-board__preview--risk">
+              {{ selectedCell.risk_preview }}
+            </p>
+            <p v-if="selectedCell.reward_preview" class="visual-track-board__preview visual-track-board__preview--reward">
+              {{ selectedCell.reward_preview }}
+            </p>
+          </div>
+
+          <div v-if="selectedCell.effect_ids.length > 0" class="visual-track-board__effects">
+            <span
+              v-for="effectId in selectedCell.effect_ids"
+              :key="`${selectedCell.id}-${effectId}`"
+              class="visual-track-board__effect"
+            >
+              {{ effectLabel(effectId) }}
+            </span>
+          </div>
+
+          <div
+            v-if="selectedCellFailureReason || selectedCellImpactText"
+            class="visual-track-board__readable-feedback"
+            data-testid="visual-track-readable-feedback"
+          >
+            <p v-if="selectedCellFailureReason" class="visual-track-board__readable-line visual-track-board__readable-line--warning">
+              失败原因：{{ selectedCellFailureReason }}
+            </p>
+            <p v-if="selectedCellImpactText" class="visual-track-board__readable-line">
+              影响范围：{{ selectedCellImpactText }}
+            </p>
+          </div>
+
+          <OnlineTechnicalDetails
+            v-if="selectedCellTechnicalReason"
+            class="visual-track-board__technical-details"
+            title="规则细节"
+            summary="展开查看赛道格、队伍占位和可行动作判断。"
+          >
+            <p data-testid="visual-track-technical-reason">{{ selectedCellTechnicalReason }}</p>
+          </OnlineTechnicalDetails>
+
+          <div
+            v-if="selectedCell.available_action_ids.length > 0"
+            class="visual-track-board__actions"
+            data-testid="visual-track-action-panel"
+          >
+            <button
+              v-for="actionId in selectedCell.available_action_ids"
+              :key="`${selectedCell.id}-${actionId}`"
+              type="button"
+              class="visual-track-board__action"
+              :data-testid="`visual-track-action-${actionId}`"
+              :disabled="actionRunning"
+              :title="actionId"
+              @click="$emit('trigger-action', { trackId: activeTrack.id, cellId: selectedCell.id, actionId })"
+            >
+              <Play :size="13" aria-hidden="true" />
+              <span>{{ actionLabel(actionId) }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="visual-track-board__empty">
+          <Circle :size="16" aria-hidden="true" />
+          <span>选择赛道格</span>
+        </div>
+      </template>
+
+      <template v-else>
+        <button
+          v-if="selectedCell && activeTrack"
+          type="button"
+          class="visual-track-board__mobile-detail-trigger"
+          data-testid="visual-track-detail-sheet-trigger"
+          @click="openDetailSheet"
+        >
+          <span>已选择 {{ selectedCell.label || kindLabel(selectedCell.kind) }}</span>
+          <small>{{ selectedCell.available_action_ids.length > 0 ? '查看详情和行动' : '查看详情' }}</small>
+        </button>
+
+        <div v-else class="visual-track-board__empty">
+          <Circle :size="16" aria-hidden="true" />
+          <span>选择赛道格</span>
+        </div>
+      </template>
+
+      <div
+        v-if="activeTrack && activeTrack.teams.length > 0"
+        class="visual-track-board__teams"
+        aria-label="队伍位置"
+        data-testid="visual-track-team-standings"
+      >
+        <div
+          v-for="(team, teamIndex) in sortedTeams"
+          :key="team.team_id"
+          class="visual-track-board__team"
+          :data-testid="`visual-track-team-row-${team.team_id}`"
+        >
+          <span class="visual-track-board__team-marker" :class="`visual-track-board__marker--${team.state}`">
+            {{ team.marker || team.label.slice(0, 1) || team.team_id.slice(0, 1) }}
+          </span>
+          <span class="visual-track-board__team-rank">第 {{ teamIndex + 1 }} 名</span>
+          <span class="visual-track-board__team-name">{{ team.label || team.team_id }}</span>
+          <span class="visual-track-board__team-state">
+            {{ teamStateLabel(team.state) }} · {{ team.last_action_id ? actionLabel(team.last_action_id) : '未行动' }} · {{ team.position_index + 1 }} 格
+          </span>
+        </div>
+      </div>
+
+      <p
+        v-if="recentFeedback && !isCompactViewport"
+        class="visual-track-board__feedback"
+        data-testid="visual-track-action-result"
+        aria-live="polite"
+      >
+        行动结果：{{ recentFeedback }}
+      </p>
+
+      <p
+        v-if="recentFeedback && isCompactViewport"
+        class="visual-track-board__feedback"
+        data-testid="visual-track-mobile-action-result"
+        aria-live="polite"
+      >
+        行动结果：{{ recentFeedback }}
+      </p>
+    </div>
+
+    <OnlineBottomSheet
+      v-if="selectedCell && activeTrack && isCompactViewport"
+      :open="detailSheetOpen"
+      :title="selectedCell.label || kindLabel(selectedCell.kind)"
+      :description="`${activeTrack.label || activeTrack.id} · 第 ${selectedCell.index + 1} 格`"
+      side="bottom"
+      initial-focus=".visual-track-board__action"
+      @close="closeDetailSheet"
+    >
+      <div class="visual-track-board__detail visual-track-board__detail--sheet" data-testid="visual-track-cell-detail">
         <div class="visual-track-board__detail-head">
           <div class="min-w-0">
             <p class="visual-track-board__title">{{ selectedCell.label || kindLabel(selectedCell.kind) }}</p>
@@ -113,6 +260,15 @@
           </p>
         </div>
 
+        <OnlineTechnicalDetails
+          v-if="selectedCellTechnicalReason"
+          class="visual-track-board__technical-details"
+          title="规则细节"
+          summary="展开查看赛道格、队伍占位和可行动作判断。"
+        >
+          <p data-testid="visual-track-technical-reason">{{ selectedCellTechnicalReason }}</p>
+        </OnlineTechnicalDetails>
+
         <div
           v-if="selectedCell.available_action_ids.length > 0"
           class="visual-track-board__actions"
@@ -134,34 +290,6 @@
         </div>
       </div>
 
-      <div v-else class="visual-track-board__empty">
-        <Circle :size="16" aria-hidden="true" />
-        <span>选择赛道格</span>
-      </div>
-
-      <div
-        v-if="activeTrack && activeTrack.teams.length > 0"
-        class="visual-track-board__teams"
-        aria-label="队伍位置"
-        data-testid="visual-track-team-standings"
-      >
-        <div
-          v-for="(team, teamIndex) in sortedTeams"
-          :key="team.team_id"
-          class="visual-track-board__team"
-          :data-testid="`visual-track-team-row-${team.team_id}`"
-        >
-          <span class="visual-track-board__team-marker" :class="`visual-track-board__marker--${team.state}`">
-            {{ team.marker || team.label.slice(0, 1) || team.team_id.slice(0, 1) }}
-          </span>
-          <span class="visual-track-board__team-rank">第 {{ teamIndex + 1 }} 名</span>
-          <span class="visual-track-board__team-name">{{ team.label || team.team_id }}</span>
-          <span class="visual-track-board__team-state">
-            {{ teamStateLabel(team.state) }} · {{ team.last_action_id ? actionLabel(team.last_action_id) : '未行动' }} · {{ team.position_index + 1 }} 格
-          </span>
-        </div>
-      </div>
-
       <p
         v-if="recentFeedback"
         class="visual-track-board__feedback"
@@ -170,13 +298,15 @@
       >
         行动结果：{{ recentFeedback }}
       </p>
-    </div>
+    </OnlineBottomSheet>
   </section>
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
   import { AlertTriangle, ChevronsRight, Circle, Flag, Play, Shield, Sparkles } from 'lucide-vue-next'
+  import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import type { Component } from 'vue'
   import type {
     OnlineVisualTrack,
@@ -215,6 +345,9 @@
       teams: [...track.teams],
     })))
   const trackById = computed(() => new Map(visibleTracks.value.map(track => [track.id, track])))
+  const detailSheetOpen = ref(false)
+  const isCompactViewport = ref(false)
+  let viewportQuery: MediaQueryList | null = null
   const activeTrackId = computed(() => {
     if (props.selectedTrackId && trackById.value.has(props.selectedTrackId)) return props.selectedTrackId
     return visibleTracks.value[0]?.id || ''
@@ -234,8 +367,15 @@
     if (!cell) return ''
     if (cell.available_action_ids.length > 0) return ''
     if (cell.kind === 'finish') return '终点格只用于结算回看，不能重复提交推进行动。'
-    if (cell.occupant_team_ids.length === 0) return '当前没有队伍位于该格，服务端不会接受格子行动。'
+    if (cell.occupant_team_ids.length === 0) return '当前没有队伍位于该格，请选择队伍所在格。'
     return '当前赛道格没有可用行动，需刷新房间或选择队伍所在格。'
+  })
+  const selectedCellTechnicalReason = computed(() => {
+    const cell = selectedCell.value
+    const track = activeTrack.value
+    if (!cell || cell.available_action_ids.length > 0) return ''
+    const occupants = cell.occupant_team_ids.length > 0 ? cell.occupant_team_ids.join(', ') : 'none'
+    return `track_id=${track?.id || 'none'}; cell_id=${cell.id}; kind=${cell.kind}; available_action_ids=${cell.available_action_ids.length}; occupant_team_ids=${occupants}; current_round=${track?.current_round ?? 0}`
   })
   const selectedCellImpactText = computed(() => {
     const cell = selectedCell.value
@@ -256,11 +396,28 @@
   const selectTrack = (trackId: string) => {
     const track = trackById.value.get(trackId)
     const cellId = track?.cells[0]?.id || ''
-    if (cellId) emit('select-cell', { trackId, cellId })
+    if (cellId) {
+      emit('select-cell', { trackId, cellId })
+      if (isCompactViewport.value) detailSheetOpen.value = true
+    }
   }
 
   const selectCell = (trackId: string, cellId: string) => {
     emit('select-cell', { trackId, cellId })
+    if (isCompactViewport.value) detailSheetOpen.value = true
+  }
+
+  const openDetailSheet = () => {
+    detailSheetOpen.value = true
+  }
+
+  const closeDetailSheet = () => {
+    detailSheetOpen.value = false
+  }
+
+  const updateViewportMode = () => {
+    isCompactViewport.value = Boolean(viewportQuery?.matches)
+    if (!isCompactViewport.value) closeDetailSheet()
   }
 
   const kindLabel = (kind: OnlineVisualTrackCellKind) => ({
@@ -323,6 +480,17 @@
   }
 
   const actionLabel = (actionId: string) => props.actionLabels[actionId] || actionId.split('_').join(' ')
+
+  onMounted(() => {
+    if (typeof window === 'undefined') return
+    viewportQuery = window.matchMedia('(max-width: 760px)')
+    updateViewportMode()
+    viewportQuery.addEventListener('change', updateViewportMode)
+  })
+
+  onBeforeUnmount(() => {
+    viewportQuery?.removeEventListener('change', updateViewportMode)
+  })
 </script>
 
 <style scoped>
@@ -352,7 +520,7 @@
 
   .visual-track-board__track-tab {
     display: inline-flex;
-    min-height: 2rem;
+    min-height: var(--online-visual-touch-target, 44px);
     flex: 0 0 auto;
     align-items: center;
     gap: 0.3rem;
@@ -373,10 +541,28 @@
   .visual-track-board__detail,
   .visual-track-board__empty,
   .visual-track-board__feedback,
+  .visual-track-board__mobile-detail-trigger,
   .visual-track-board__teams {
     border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
     background: rgb(0 0 0 / 0.1);
     padding: 0.625rem;
+  }
+
+  .visual-track-board__mobile-detail-trigger {
+    display: flex;
+    min-height: var(--online-visual-touch-target, 44px);
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: rgb(var(--color-text));
+    text-align: left;
+  }
+
+  .visual-track-board__mobile-detail-trigger small {
+    flex-shrink: 0;
+    color: var(--color-accent);
+    font-size: 0.68rem;
+    line-height: 1.2;
   }
 
   .visual-track-board__river {
@@ -591,13 +777,17 @@
     color: #d4976a;
   }
 
+  .visual-track-board__technical-details {
+    margin-top: 0.625rem;
+  }
+
   .visual-track-board__actions {
     grid-template-columns: 1fr;
   }
 
   .visual-track-board__action {
     display: inline-flex;
-    min-height: 2rem;
+    min-height: var(--online-visual-touch-target, 44px);
     align-items: center;
     justify-content: center;
     gap: 0.3rem;

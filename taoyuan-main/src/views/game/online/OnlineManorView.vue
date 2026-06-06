@@ -42,7 +42,7 @@
         </div>
       </div>
 
-      <div v-if="activeTab === 'overview'" class="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+      <div v-if="activeTab === 'overview'" class="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
         <div class="space-y-3">
           <ManorPreviewCard
             v-if="snapshot"
@@ -66,33 +66,113 @@
             {{ overviewCopy }}
           </p>
         </div>
-        <div class="grid gap-2">
-          <button class="online-action-btn online-action-btn--compact w-full" type="button" @click="activeTab = 'theme'">查看主题</button>
-          <button class="online-action-btn online-action-btn--compact w-full" type="button" @click="activeTab = 'guestbook'">去留言</button>
-          <button class="online-action-btn online-action-btn--compact w-full" type="button" @click="activeTab = 'visits'">看访客</button>
+        <div v-if="snapshot" class="grid content-start gap-2" data-testid="online-manor-identity-summary">
+          <div class="border border-accent/10 bg-black/10 p-3">
+            <p class="text-xs text-accent">{{ isOwner ? '主人主行动' : '访客主行动' }}</p>
+            <p class="mt-1 text-[0.625rem] leading-5 text-muted">
+              {{ isOwner ? '先处理公开展示、留言和照料收口。' : '先留下互动，再进入照料或轻采。' }}
+            </p>
+            <div v-if="isOwner" class="mt-3 grid gap-2" data-testid="online-manor-owner-primary-actions">
+              <button
+                data-testid="online-manor-owner-primary-manage-theme"
+                class="online-action-btn min-h-11 w-full justify-center"
+                type="button"
+                @click="openThemeManagementFromOverview"
+              >
+                <Sparkles :size="14" />
+                管理展示
+              </button>
+              <button
+                data-testid="online-manor-owner-primary-guestbook"
+                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
+                type="button"
+                @click="activeTab = 'guestbook'"
+              >
+                <MessageSquare :size="14" />
+                查看留言
+              </button>
+              <button
+                data-testid="online-manor-owner-primary-care"
+                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
+                type="button"
+                @click="activeTab = 'care'"
+              >
+                <Sprout :size="14" />
+                处理照料
+              </button>
+            </div>
+            <div v-else class="mt-3 grid gap-2" data-testid="online-manor-visitor-primary-actions">
+              <button
+                data-testid="online-manor-visitor-primary-guestbook"
+                class="online-action-btn min-h-11 w-full justify-center"
+                type="button"
+                @click="openGuestbookDialogFromOverview"
+              >
+                <MessageSquare :size="14" />
+                留言
+              </button>
+              <button
+                data-testid="online-manor-visitor-primary-care"
+                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
+                type="button"
+                @click="activeTab = 'care'"
+              >
+                <Sprout :size="14" />
+                照料
+              </button>
+              <button
+                data-testid="online-manor-visitor-primary-steal"
+                class="online-action-btn online-action-btn--compact min-h-10 w-full justify-center"
+                type="button"
+                :disabled="!snapshot.steal_state.can_steal"
+                @click="activeTab = 'care'"
+              >
+                <Sparkles :size="14" />
+                轻采
+              </button>
+              <p v-if="!snapshot.steal_state.can_steal" class="text-[0.625rem] leading-5 text-amber-200">
+                {{ stealFailureReason }}
+              </p>
+            </div>
+          </div>
+
+          <div v-if="isOwner" class="border border-accent/10 bg-bg/30 p-3" data-testid="online-manor-overview-latest-summary">
+            <p class="text-xs text-accent">最新互动</p>
+            <div class="mt-2 grid gap-2 text-[0.625rem] leading-5 text-muted">
+              <p data-testid="online-manor-owner-latest-guestbook">{{ ownerLatestGuestbookSummary }}</p>
+              <p data-testid="online-manor-owner-latest-care">{{ ownerLatestCareSummary }}</p>
+            </div>
+          </div>
+          <div v-else class="border border-accent/10 bg-bg/30 p-3" data-testid="online-manor-visitor-action-status">
+            <p class="text-xs text-accent">今日可做</p>
+            <div class="mt-2 grid gap-2 text-[0.625rem] leading-5 text-muted">
+              <p data-testid="online-manor-visitor-care-status">照料：{{ carePermissionLabel }} · 剩余 {{ careRemainingLabel }}</p>
+              <p data-testid="online-manor-visitor-steal-status">轻采：{{ stealPermissionLabel }} · 剩余 {{ stealRemainingLabel }}</p>
+            </div>
+          </div>
         </div>
       </div>
 
       <div v-else-if="activeTab === 'theme'" class="space-y-3">
         <div v-if="snapshot" class="game-panel-muted space-y-3 p-3">
           <div v-if="isOwner" class="grid gap-3 md:grid-cols-[minmax(0,1fr)_260px]">
-            <div class="border border-accent/10 bg-black/10 p-3">
+            <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-manor-cover-summary-card">
               <div class="flex items-center justify-between gap-2">
                 <div class="min-w-0">
                   <p class="text-xs text-accent">庄园主图</p>
-                  <p class="mt-1 text-[0.625rem] leading-5 text-muted">上传后的主图会跟随主题周保存，并出现在公开展示里。</p>
+                  <p class="mt-1 text-[0.625rem] leading-5 text-muted">主图编辑已收进弹窗，避免主题页直接铺上传表单。</p>
                 </div>
                 <button
+                  data-testid="online-manor-cover-upload-dialog-trigger"
                   class="online-action-btn online-action-btn--compact shrink-0"
                   type="button"
                   :disabled="uploadingCover"
-                  @click="triggerCoverUpload"
+                  @click="openCoverDialog"
                 >
                   <Upload :size="12" />
-                  {{ uploadingCover ? '上传中' : '上传' }}
+                  {{ uploadingCover ? '上传中' : '编辑主图' }}
                 </button>
               </div>
-              <input ref="coverInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handleCoverSelected" />
               <div class="mt-3 overflow-hidden border border-accent/10 bg-bg/30">
                 <img
                   v-if="coverImageUrl"
@@ -105,34 +185,25 @@
                   暂无庄园主图
                 </div>
               </div>
-              <input
-                v-model="manorStore.coverImageAltDraft"
-                data-testid="online-manor-cover-alt-input"
-                maxlength="120"
-                class="online-input mt-2 w-full"
-                placeholder="主图说明"
-              />
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">说明：{{ coverImageAlt || '尚未填写主图说明' }}</p>
             </div>
 
-            <div class="border border-accent/10 bg-black/10 p-3">
+            <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-manor-theme-save-summary-card">
               <p class="text-xs text-accent">保存主题</p>
-              <p class="mt-1 text-[0.625rem] leading-5 text-muted">主题名、模板和主图会作为同一次主题周快照保存。</p>
-              <input
-                v-model="manorStore.themeLabelDraft"
-                data-testid="online-manor-theme-label-input"
-                maxlength="30"
-                class="online-input mt-3 w-full"
-                placeholder="保存当前主题名"
-              />
+              <p class="mt-1 text-[0.625rem] leading-5 text-muted">主题名、模板和主图说明会在保存弹窗里确认后写入快照。</p>
+              <div class="mt-3 border border-accent/10 bg-bg/30 p-2 text-[0.625rem] leading-5 text-muted">
+                <p>主题名：{{ manorStore.themeLabelDraft || currentTheme }}</p>
+                <p>模板：{{ selectedTemplateOption?.label || '暂无模板' }}</p>
+              </div>
               <button
-                data-testid="online-manor-theme-save-button"
+                data-testid="online-manor-theme-save-dialog-trigger"
                 class="online-action-btn online-action-btn--compact online-action-btn--primary mt-2 w-full justify-center"
                 type="button"
                 :disabled="manorStore.themeActionRunning"
-                @click="saveThemeWeek"
+                @click="themeSaveDialogOpen = true"
               >
                 <Save :size="12" />
-                {{ manorStore.themeActionRunning ? '保存中' : '保存主题' }}
+                {{ manorStore.themeActionRunning ? '保存中' : '打开保存弹窗' }}
               </button>
             </div>
           </div>
@@ -251,68 +322,23 @@
       <div v-else-if="activeTab === 'guestbook'" class="space-y-3">
         <div v-if="snapshot" class="game-panel-muted grid gap-3 p-3 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
           <div class="space-y-3">
-            <div class="border border-accent/10 bg-black/10 p-3">
+            <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-manor-guestbook-action-panel">
               <div class="flex items-center gap-2 text-accent">
                 <MessageSquare :size="13" />
-                <p class="text-xs">留言类型</p>
+                <p class="text-xs">写留言</p>
               </div>
-              <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5 lg:grid-cols-2">
-                <button
-                  v-for="option in guestbookKindOptions"
-                  :key="option.id"
-                  type="button"
-                  class="border px-3 py-2 text-left text-[0.625rem] transition-colors"
-                  :class="manorStore.guestbookKindDraft === option.id ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
-                  @click="manorStore.setGuestbookKind(option.id)"
-                >
-                  <span class="block text-xs">{{ option.label }}</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="border border-accent/10 bg-black/10 p-3">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-[0.625rem] text-muted">当前留言模式</p>
-                <span class="text-[0.625rem] text-accent">{{ currentGuestbookKind.label }}</span>
-              </div>
-              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ currentGuestbookKind.helper }}</p>
-              <div class="mt-3 flex flex-wrap gap-1">
-                <button
-                  v-for="pick in manorStore.guestbookQuickPicks"
-                  :key="pick"
-                  type="button"
-                  class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted transition-colors hover:border-accent/30 hover:text-accent"
-                  @click="manorStore.applyGuestbookQuickPick(pick)"
-                >
-                  {{ pick }}
-                </button>
-              </div>
-            </div>
-
-            <div class="border border-accent/10 bg-black/10 p-3">
-              <textarea
-                v-model="manorStore.guestbookDraft"
-                data-testid="online-manor-guestbook-input"
-                rows="4"
-                maxlength="160"
-                class="online-textarea w-full"
-                :placeholder="manorStore.guestbookPlaceholder"
-              />
-              <div class="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <p class="text-[0.625rem] leading-5 text-muted">
-                  将以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。{{ guestbookDraftLength }}/160
-                </p>
-                <button
-                  data-testid="online-manor-guestbook-submit"
-                  class="online-action-btn online-action-btn--compact online-action-btn--primary shrink-0"
-                  type="button"
-                  :disabled="!canSubmitGuestbook"
-                  @click="submitGuestbook"
-                >
-                  <Send :size="12" />
-                  {{ manorStore.guestbookActionRunning ? '提交中' : manorStore.guestbookSubmitLabel }}
-                </button>
-              </div>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">
+                留言类型、快捷短句和正文已经收进弹窗；当前模式为「{{ currentGuestbookKind.label }}」，草稿 {{ guestbookDraftLength }}/160。
+              </p>
+              <button
+                data-testid="online-manor-guestbook-dialog-trigger"
+                class="online-action-btn online-action-btn--compact online-action-btn--primary mt-3 w-full justify-center"
+                type="button"
+                @click="openGuestbookDialog"
+              >
+                <Send :size="12" />
+                写留言
+              </button>
             </div>
           </div>
 
@@ -347,7 +373,7 @@
               title="还没有访客留言"
               description="写下第一条问候，或稍后刷新看看新的来访回声。"
               primary-label="写留言"
-              @primary="activeTab = 'guestbook'"
+              @primary="openGuestbookDialog"
             />
 
             <div v-else data-testid="online-manor-guestbook-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
@@ -509,16 +535,24 @@
             />
 
             <div v-else data-testid="online-manor-visit-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
-              <div v-for="entry in visitEntries" :key="entry.id" data-testid="online-manor-visit-entry" class="border border-accent/10 bg-bg/30 p-3">
+              <p class="text-[0.625rem] leading-5 text-muted" data-testid="online-manor-visit-recent-limit">
+                默认展示最近 {{ recentVisitEntries.length }} 条来访记录<span v-if="hiddenVisitEntryCount > 0">，另有 {{ hiddenVisitEntryCount }} 条已收起</span>。
+              </p>
+              <div v-for="entry in recentVisitEntries" :key="entry.id" data-testid="online-manor-visit-entry" class="border border-accent/10 bg-bg/30 p-3">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <p class="text-xs text-accent">{{ entry.visitor_display_name }} · {{ visitPurposeLabel(entry.purpose) }}</p>
                   <span class="text-[0.625rem] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
                 </div>
                 <p class="mt-2 text-[0.625rem] leading-5 text-muted">来访行为：{{ entry.summary || '前来参观庄园' }}</p>
-                <p v-if="entry.feedback" class="mt-1 text-[0.625rem] leading-5 text-muted">来访反馈：{{ entry.feedback }}</p>
-                <p v-if="entry.carried_items.length > 0" class="mt-1 text-[0.625rem] leading-5 text-muted">
-                  带走委托：{{ entry.carried_items.map(item => `${item.itemId} x${item.quantity}`).join('、') }}
-                </p>
+                <button
+                  data-testid="online-manor-visit-detail-trigger"
+                  class="online-action-btn online-action-btn--compact mt-2"
+                  type="button"
+                  @click="openVisitDetail(entry)"
+                >
+                  <Route :size="12" />
+                  查看来访详情
+                </button>
               </div>
             </div>
 
@@ -538,7 +572,10 @@
                 争议回看：{{ visitorActivityDisputeSummary }}
               </p>
               <div v-if="visitorActivityEntries.length > 0" data-testid="online-manor-visitor-activity-log" class="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
-                <div v-for="entry in visitorActivityEntries" :key="entry.id" data-testid="online-manor-visitor-activity-entry" class="border border-accent/10 bg-bg/30 p-2">
+                <p class="text-[0.625rem] leading-5 text-muted" data-testid="online-manor-visitor-activity-recent-limit">
+                  默认展示最近 {{ recentVisitorActivityEntries.length }} 条行为记录<span v-if="hiddenVisitorActivityCount > 0">，另有 {{ hiddenVisitorActivityCount }} 条已收起</span>。
+                </p>
+                <div v-for="entry in recentVisitorActivityEntries" :key="entry.id" data-testid="online-manor-visitor-activity-entry" class="border border-accent/10 bg-bg/30 p-2">
                   <div class="flex flex-wrap items-center justify-between gap-2">
                     <div class="flex min-w-0 flex-wrap items-center gap-2">
                       <p class="text-[0.625rem] text-accent">{{ entry.visitor_display_name }}</p>
@@ -550,10 +587,15 @@
                   </div>
                   <p class="mt-1 text-[0.625rem] leading-4 text-accent">{{ entry.title || visitorActivityFallbackTitle(entry.kind) }}</p>
                   <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.summary }}</p>
-                  <p v-if="entry.object_label || entry.action_label" class="mt-1 text-[0.625rem] leading-4 text-muted">
-                    对象：{{ entry.object_label || '未记录对象' }} · 动作：{{ entry.action_label || '未记录动作' }}
-                  </p>
-                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ entry.audit_note }}</p>
+                  <button
+                    data-testid="online-manor-visitor-activity-detail-trigger"
+                    class="online-action-btn online-action-btn--compact mt-2"
+                    type="button"
+                    @click="openVisitorActivityDetail(entry)"
+                  >
+                    <Route :size="12" />
+                    查看行为详情
+                  </button>
                 </div>
               </div>
               <OnlineEmptyState
@@ -717,9 +759,15 @@
                 <p v-if="careFailureReason" data-testid="online-manor-care-failure-reason" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
                   照料失败原因：{{ careFailureReason }}
                 </p>
-                <p data-testid="online-manor-care-anti-abuse-summary" class="mt-1 text-[0.625rem] leading-5 text-muted">
-                  照料审计：{{ careAntiAbuseSummary }}
-                </p>
+                <OnlineTechnicalDetails
+                  class="mt-2"
+                  title="照料规则说明"
+                  summary="展开查看照料次数、短时窗口和异常标记。"
+                >
+                  <p data-testid="online-manor-care-anti-abuse-summary">
+                    照料审计：{{ careAntiAbuseSummary }}
+                  </p>
+                </OnlineTechnicalDetails>
                 <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-steal-readable-limits">
                   <div v-for="row in stealReadableLimitRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
                     <p class="text-[0.625rem] text-accent">{{ row.label }}</p>
@@ -730,9 +778,16 @@
                 <p v-if="stealFailureReason" data-testid="online-manor-steal-failure-reason" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
                   轻采失败原因：{{ stealFailureReason }}
                 </p>
-                <p data-testid="online-manor-steal-anti-abuse-summary" class="mt-1 text-[0.625rem] leading-5 text-muted">
-                  反刷审计：{{ stealAntiAbuseSummary }}
-                </p>
+                <OnlineTechnicalDetails
+                  class="mt-2"
+                  title="轻采规则说明"
+                  summary="展开查看反刷审计、主人保留比例和凭证收口规则。"
+                >
+                  <p data-testid="online-manor-steal-anti-abuse-summary">
+                    反刷审计：{{ stealAntiAbuseSummary }}
+                  </p>
+                  <p class="mt-1">{{ stealReadableImpactSummary }}</p>
+                </OnlineTechnicalDetails>
               </div>
             </div>
 
@@ -763,20 +818,16 @@
                     {{ careRoomSummary }}
                   </p>
                 </div>
-                <div class="flex shrink-0 flex-wrap gap-2">
-                  <button
-                    v-for="memberLimit in careRoomMemberLimitOptions"
-                    :key="memberLimit"
-                    data-testid="online-manor-care-room-create"
-                    class="online-action-btn online-action-btn--compact"
-                    type="button"
-                    :disabled="!careRoomState?.can_create_room || manorStore.careRoomActionRunning"
-                    @click="createCareRoom(memberLimit)"
-                  >
-                    <Plus :size="12" />
-                    {{ memberLimit }} 人房
-                  </button>
-                </div>
+                <button
+                  data-testid="online-manor-care-room-create-dialog-trigger"
+                  class="online-action-btn online-action-btn--compact shrink-0"
+                  type="button"
+                  :disabled="!careRoomState?.can_create_room || manorStore.careRoomActionRunning"
+                  @click="openCareRoomCreateDialog"
+                >
+                  <Plus :size="12" />
+                  创建护理房
+                </button>
               </div>
               <p v-if="careRoomState && !careRoomState.can_create_room" class="mt-2 text-[0.625rem] leading-5 text-amber-200">
                 {{ careRoomState.create_denied_reason || '当前庄园暂未开放协作护理房间。' }}
@@ -811,50 +862,23 @@
                       {{ participant.display_name }} · {{ participant.role_label }}
                     </span>
                   </div>
-                  <div v-if="room.actions.length > 0" data-testid="online-manor-care-room-action-ledger" class="mt-2 space-y-2 border-l border-accent/20 pl-2">
-                    <div v-for="action in room.actions" :key="action.id">
-                      <p class="text-[0.625rem] text-accent">
-                        {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }}
-                      </p>
-                      <p class="mt-1 text-[0.625rem] leading-4 text-muted">
-                        {{ action.object_label }} · 预期第 {{ action.expected_order }} 步 · {{ action.role_label }}{{ action.role_matched ? '匹配' : '未匹配' }}
-                      </p>
-                      <p class="text-[0.625rem] leading-4 text-muted">
-                        健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 顺序风险 +${action.risk_delta}` : ' · 顺序正常' }}
-                      </p>
-                    </div>
-                  </div>
                   <div class="mt-3 flex flex-wrap gap-2">
                     <button
-                      v-if="room.can_join"
-                      data-testid="online-manor-care-room-join"
+                      data-testid="online-manor-care-room-detail-trigger"
                       class="online-action-btn online-action-btn--compact"
                       type="button"
-                      :disabled="manorStore.careRoomActionRunning"
-                      @click="joinCareRoom(room.id)"
+                      @click="openCareRoomDetail(room.id)"
                     >
-                      <Plus :size="12" />
-                      加入
-                    </button>
-                    <button
-                      v-for="actionId in room.available_action_ids"
-                      :key="`${room.id}-${actionId}`"
-                      data-testid="online-manor-care-room-action"
-                      class="online-action-btn online-action-btn--compact"
-                      type="button"
-                      :disabled="manorStore.careRoomActionRunning"
-                      @click="submitCareRoomAction(room.id, actionId)"
-                    >
-                      <Sprout :size="12" />
-                      {{ careRoomActionLabel(actionId) }}
+                      <Route :size="12" />
+                      查看护理详情
                     </button>
                     <button
                       v-if="room.can_settle"
-                      data-testid="online-manor-care-room-settle"
+                      data-testid="online-manor-care-room-settle-trigger"
                       class="online-action-btn online-action-btn--compact online-action-btn--primary"
                       type="button"
                       :disabled="manorStore.careRoomActionRunning"
-                      @click="settleCareRoom(room.id)"
+                      @click="openCareRoomSettleConfirm(room.id)"
                     >
                       <Save :size="12" />
                       结算护理
@@ -889,17 +913,24 @@
 
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">轻采规则</p>
-              <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ stealReadableImpactSummary }}</p>
-              <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ snapshot.steal_state.audit.reward_cap_summary }}</p>
-              <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ snapshot.steal_state.audit.settlement_summary }}</p>
-              <p class="mt-1 text-[0.625rem] leading-5 text-muted">异常标记：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
-              <div class="mt-2 space-y-2">
-                <div v-for="effect in stealEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
-                  <p class="text-[0.625rem] text-accent">{{ effect.label }}</p>
-                  <p class="mt-1 text-[0.625rem] leading-4 text-muted">主人：{{ effect.ownerCompensation }}</p>
-                  <p class="text-[0.625rem] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">主路径只显示可轻采对象、次数和奖励摘要；规则、反刷和主人保留比例可展开核对。</p>
+              <OnlineTechnicalDetails
+                class="mt-2"
+                title="轻采规则明细"
+                summary="展开查看收益上限、主人保留比例、异常标记和动作效果。"
+              >
+                <p>{{ stealReadableImpactSummary }}</p>
+                <p class="mt-1">{{ snapshot.steal_state.audit.reward_cap_summary }}</p>
+                <p class="mt-1">{{ snapshot.steal_state.audit.settlement_summary }}</p>
+                <p class="mt-1">异常标记：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
+                <div class="mt-2 space-y-2">
+                  <div v-for="effect in stealEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
+                    <p class="text-[0.625rem] text-accent">{{ effect.label }}</p>
+                    <p class="mt-1 text-[0.625rem] leading-4 text-muted">主人：{{ effect.ownerCompensation }}</p>
+                    <p class="text-[0.625rem] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
+                  </div>
                 </div>
-              </div>
+              </OnlineTechnicalDetails>
             </div>
 
             <div class="border border-accent/10 bg-black/10 p-3">
@@ -928,13 +959,15 @@
                   <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                     主人：{{ entry.owner_compensation }} · 访客：{{ entry.visitor_reward }} · 单次 {{ entry.visitor_reward_quantity || entry.quantity || 1 }}
                   </p>
-                  <p data-testid="online-manor-steal-receipt-guard" class="mt-1 text-[0.625rem] leading-4 text-muted">
-                    凭证：{{ stealEntryReceiptLabel(entry) }} · 主人保留 {{ stealEntryOwnerReservedPercent(entry) }} · 访客日上限 {{ entry.reward_daily_cap || snapshot.steal_state.limits.visitor_daily_limit }}
-                  </p>
-                  <p data-testid="online-manor-steal-use-summary" class="mt-1 text-[0.625rem] leading-4 text-muted">
-                    用途：{{ stealEntryUseSummary(entry) }}
-                  </p>
-                  <p v-if="entry.note" class="mt-1 text-[0.625rem] leading-4 text-muted">留言：{{ entry.note }}</p>
+                  <button
+                    data-testid="online-manor-steal-detail-trigger"
+                    class="online-action-btn online-action-btn--compact mt-2"
+                    type="button"
+                    @click="openStealDetail(entry)"
+                  >
+                    <Route :size="12" />
+                    查看轻采详情
+                  </button>
                 </div>
               </div>
               <OnlineEmptyState
@@ -1039,6 +1072,495 @@
         </div>
       </div>
     </section>
+
+    <OnlineActionDialog
+      :open="coverDialogOpen"
+      title="更新庄园主图"
+      description="选择一张公开展示图，并补充一句主图说明。"
+      confirm-label="完成"
+      :running="uploadingCover"
+      @confirm="closeCoverDialog"
+      @cancel="closeCoverDialog"
+      @close="closeCoverDialog"
+    >
+      <div class="space-y-3" data-testid="online-manor-cover-upload-dialog">
+        <div class="overflow-hidden border border-accent/10 bg-bg/30">
+          <img
+            v-if="coverImageUrl"
+            :src="coverImageUrl"
+            :alt="coverImageAlt"
+            class="h-40 w-full object-cover"
+          />
+          <div v-else class="flex h-40 items-center justify-center gap-2 px-3 text-[0.625rem] text-muted">
+            <ImageIcon :size="14" />
+            暂无庄园主图
+          </div>
+        </div>
+        <button
+          data-testid="online-manor-cover-upload-button"
+          class="online-action-btn online-action-btn--compact online-action-btn--primary w-full justify-center"
+          type="button"
+          :disabled="uploadingCover"
+          @click="triggerCoverUpload"
+        >
+          <Upload :size="12" />
+          {{ uploadingCover ? '上传中' : '选择图片' }}
+        </button>
+        <input ref="coverInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handleCoverSelected" />
+        <input
+          v-model="manorStore.coverImageAltDraft"
+          data-testid="online-manor-cover-alt-input"
+          maxlength="120"
+          class="online-input w-full"
+          placeholder="主图说明"
+        />
+      </div>
+      <template #details>
+        主图会先暂存在当前主题草稿里，确认保存主题后再写入公开展示。
+      </template>
+    </OnlineActionDialog>
+
+    <OnlineActionDialog
+      :open="themeSaveDialogOpen"
+      title="保存主题展示"
+      description="确认主题名、展示模板和主图说明后，写入本周庄园主题快照。"
+      :running="manorStore.themeActionRunning"
+      @cancel="closeThemeSaveDialog"
+      @close="closeThemeSaveDialog"
+    >
+      <div class="space-y-3" data-testid="online-manor-theme-save-dialog">
+        <label class="block">
+          <span class="text-[0.625rem] leading-4 text-muted">主题名</span>
+          <input
+            v-model="manorStore.themeLabelDraft"
+            data-testid="online-manor-theme-label-input"
+            maxlength="30"
+            class="online-input mt-1 w-full"
+            placeholder="保存当前主题名"
+          />
+        </label>
+        <div class="border border-accent/10 bg-bg/30 p-2 text-[0.625rem] leading-5 text-muted">
+          <p>展示模板：{{ selectedTemplateOption?.label || '暂无模板' }}</p>
+          <p>主图说明：{{ coverImageAlt || '尚未填写主图说明' }}</p>
+        </div>
+      </div>
+      <template #details>
+        保存后会继续使用原主题接口，不改变庄园访问、照料或轻采规则。
+      </template>
+      <template #footer="{ cancel }">
+        <footer class="flex flex-col-reverse gap-2 border-t border-accent/10 pt-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-action-dialog-cancel"
+            :disabled="manorStore.themeActionRunning"
+            @click="cancel"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+            data-testid="online-manor-theme-save-button"
+            :disabled="manorStore.themeActionRunning"
+            @click="confirmThemeSave"
+          >
+            <span data-testid="online-action-dialog-confirm">{{ manorStore.themeActionRunning ? '保存中' : '保存主题' }}</span>
+          </button>
+        </footer>
+      </template>
+    </OnlineActionDialog>
+
+    <OnlineActionDialog
+      :open="guestbookDialogOpen"
+      title="写一条庄园留言"
+      description="选择留言类型，写下问候或建议。提交失败时草稿会留在这里。"
+      :running="manorStore.guestbookActionRunning"
+      @cancel="closeGuestbookDialog"
+      @close="closeGuestbookDialog"
+    >
+      <div class="space-y-3" data-testid="online-manor-guestbook-dialog">
+        <div>
+          <p class="text-[0.625rem] text-muted">留言类型</p>
+          <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <button
+              v-for="option in guestbookKindOptions"
+              :key="option.id"
+              type="button"
+              class="border px-3 py-2 text-left text-[0.625rem] transition-colors"
+              :class="manorStore.guestbookKindDraft === option.id ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
+              @click="manorStore.setGuestbookKind(option.id)"
+            >
+              <span class="block text-xs">{{ option.label }}</span>
+            </button>
+          </div>
+          <p class="mt-2 text-[0.625rem] leading-5 text-muted">{{ currentGuestbookKind.helper }}</p>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <button
+            v-for="pick in manorStore.guestbookQuickPicks"
+            :key="pick"
+            type="button"
+            class="border border-accent/15 px-2 py-1 text-[0.625rem] text-muted transition-colors hover:border-accent/30 hover:text-accent"
+            @click="manorStore.applyGuestbookQuickPick(pick)"
+          >
+            {{ pick }}
+          </button>
+        </div>
+        <textarea
+          v-model="manorStore.guestbookDraft"
+          data-testid="online-manor-guestbook-input"
+          rows="5"
+          maxlength="160"
+          class="online-textarea w-full"
+          :placeholder="manorStore.guestbookPlaceholder"
+        />
+        <p class="text-[0.625rem] leading-5 text-muted">
+          将以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。{{ guestbookDraftLength }}/160
+        </p>
+      </div>
+      <template #footer="{ cancel }">
+        <footer class="flex flex-col-reverse gap-2 border-t border-accent/10 pt-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-action-dialog-cancel"
+            :disabled="manorStore.guestbookActionRunning"
+            @click="cancel"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+            data-testid="online-manor-guestbook-submit"
+            :disabled="!canSubmitGuestbook"
+            @click="submitGuestbook"
+          >
+            <span data-testid="online-action-dialog-confirm">{{ manorStore.guestbookActionRunning ? '提交中' : manorStore.guestbookSubmitLabel }}</span>
+          </button>
+        </footer>
+      </template>
+    </OnlineActionDialog>
+
+    <OnlineBottomSheet
+      :open="Boolean(selectedVisitEntry)"
+      :title="selectedVisitEntryTitle"
+      :description="selectedVisitEntryDescription"
+      side="right"
+      @close="closeVisitDetail"
+    >
+      <div v-if="selectedVisitEntry" class="space-y-3" data-testid="online-manor-visit-detail-sheet">
+        <section class="grid gap-2 text-xs sm:grid-cols-2">
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">来访者</p>
+            <p class="mt-1 text-accent">{{ selectedVisitEntry.visitor_display_name }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">来访时间</p>
+            <p class="mt-1 text-accent">{{ formatVisitTime(selectedVisitEntry.created_at) }}</p>
+          </div>
+        </section>
+        <section class="border border-accent/10 bg-black/10 p-2">
+          <p class="text-xs text-accent">来访行为</p>
+          <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ selectedVisitEntry.summary || '前来参观庄园' }}</p>
+          <p v-if="selectedVisitEntry.feedback" class="mt-1 text-[0.625rem] leading-5 text-muted">来访反馈：{{ selectedVisitEntry.feedback }}</p>
+        </section>
+        <section class="border border-accent/10 bg-black/10 p-2">
+          <p class="text-xs text-accent">携带物</p>
+          <p v-if="selectedVisitEntry.carried_items.length > 0" class="mt-1 text-[0.625rem] leading-5 text-muted">
+            {{ selectedVisitEntry.carried_items.map(item => `${item.itemId} x${item.quantity}`).join('、') }}
+          </p>
+          <p v-else class="mt-1 text-[0.625rem] leading-5 text-muted">本次来访没有携带物记录。</p>
+        </section>
+      </div>
+      <template #footer>
+        <div class="flex justify-end">
+          <button type="button" class="online-action-btn online-action-btn--compact" @click="closeVisitDetail">
+            关闭
+          </button>
+        </div>
+      </template>
+    </OnlineBottomSheet>
+
+    <OnlineBottomSheet
+      :open="Boolean(selectedVisitorActivityEntry)"
+      :title="selectedVisitorActivityTitle"
+      :description="selectedVisitorActivityDescription"
+      side="right"
+      @close="closeVisitorActivityDetail"
+    >
+      <div v-if="selectedVisitorActivityEntry" class="space-y-3" data-testid="online-manor-visitor-activity-detail-sheet">
+        <section class="grid gap-2 text-xs sm:grid-cols-2">
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">行为类型</p>
+            <p class="mt-1 text-accent">{{ selectedVisitorActivityEntry.kind_label }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">记录时间</p>
+            <p class="mt-1 text-accent">{{ formatVisitTime(selectedVisitorActivityEntry.created_at) }}</p>
+          </div>
+        </section>
+        <section class="border border-accent/10 bg-black/10 p-2">
+          <p class="text-xs text-accent">{{ selectedVisitorActivityEntry.title || visitorActivityFallbackTitle(selectedVisitorActivityEntry.kind) }}</p>
+          <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ selectedVisitorActivityEntry.summary }}</p>
+          <p v-if="selectedVisitorActivityEntry.object_label || selectedVisitorActivityEntry.action_label" class="mt-1 text-[0.625rem] leading-5 text-muted">
+            对象：{{ selectedVisitorActivityEntry.object_label || '未记录对象' }} · 动作：{{ selectedVisitorActivityEntry.action_label || '未记录动作' }}
+          </p>
+        </section>
+        <OnlineTechnicalDetails
+          title="审计说明"
+          summary="展开查看争议回看与记录来源。"
+        >
+          <p>{{ selectedVisitorActivityEntry.audit_note || '暂无额外审计说明。' }}</p>
+          <p class="mt-1">来源记录：{{ selectedVisitorActivityEntry.source_id || selectedVisitorActivityEntry.id }}</p>
+        </OnlineTechnicalDetails>
+      </div>
+      <template #footer>
+        <div class="flex justify-end">
+          <button type="button" class="online-action-btn online-action-btn--compact" @click="closeVisitorActivityDetail">
+            关闭
+          </button>
+        </div>
+      </template>
+    </OnlineBottomSheet>
+
+    <OnlineBottomSheet
+      :open="Boolean(selectedStealEntry)"
+      :title="selectedStealEntryTitle"
+      :description="selectedStealEntryDescription"
+      side="right"
+      @close="closeStealDetail"
+    >
+      <div v-if="selectedStealEntry" class="space-y-3" data-testid="online-manor-steal-detail-sheet">
+        <section class="grid gap-2 text-xs sm:grid-cols-2">
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">主人补偿</p>
+            <p class="mt-1 text-accent">{{ selectedStealEntry.owner_compensation }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">访客奖励</p>
+            <p class="mt-1 text-accent">{{ selectedStealEntry.visitor_reward }}</p>
+          </div>
+        </section>
+        <section class="border border-accent/10 bg-black/10 p-2">
+          <p class="text-xs text-accent">轻采对象</p>
+          <p class="mt-1 text-[0.625rem] leading-5 text-muted">
+            {{ selectedStealEntry.object_label || '未记录对象' }} · {{ selectedStealEntry.action_label }}
+          </p>
+          <p v-if="selectedStealEntry.note" class="mt-1 text-[0.625rem] leading-5 text-muted">留言：{{ selectedStealEntry.note }}</p>
+        </section>
+        <OnlineTechnicalDetails
+          title="轻采凭证详情"
+          summary="展开查看凭证、用途和重复提交保护。"
+          :copyable="stealEntryReceiptLabel(selectedStealEntry)"
+        >
+          <p data-testid="online-manor-steal-receipt-guard">
+            凭证：{{ stealEntryReceiptLabel(selectedStealEntry) }} · 主人保留 {{ stealEntryOwnerReservedPercent(selectedStealEntry) }} · 访客日上限 {{ selectedStealEntry.reward_daily_cap || snapshot?.steal_state.limits.visitor_daily_limit }}
+          </p>
+          <p data-testid="online-manor-steal-use-summary" class="mt-1">
+            用途：{{ stealEntryUseSummary(selectedStealEntry) }}
+          </p>
+          <p class="mt-1">重复提交保护：{{ selectedStealEntry.idempotency_key || '未回传' }}</p>
+        </OnlineTechnicalDetails>
+      </div>
+      <template #footer>
+        <div class="flex justify-end">
+          <button type="button" class="online-action-btn online-action-btn--compact" @click="closeStealDetail">
+            关闭
+          </button>
+        </div>
+      </template>
+    </OnlineBottomSheet>
+
+    <OnlineActionDialog
+      :open="careRoomCreateDialogOpen"
+      title="创建协作护理房间"
+      description="选择本次护理人数，创建后成员分工、动作明细和结算会进入护理详情抽屉。"
+      :running="manorStore.careRoomActionRunning"
+      @confirm="confirmCreateCareRoom"
+      @cancel="closeCareRoomCreateDialog"
+      @close="closeCareRoomCreateDialog"
+    >
+      <div class="space-y-3" data-testid="online-manor-care-room-create-dialog">
+        <OnlineStatusBanner
+          v-if="careRoomState && !careRoomState.can_create_room"
+          tone="warning"
+          title="暂时不能创建护理房"
+          :description="careRoomState.create_denied_reason || '当前庄园暂未开放协作护理房间。'"
+        />
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            v-for="memberLimit in careRoomMemberLimitOptions"
+            :key="memberLimit"
+            type="button"
+            class="border px-3 py-2 text-center text-xs transition-colors"
+            :class="careRoomCreateMemberLimit === memberLimit ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
+            :data-testid="`online-manor-care-room-member-limit-${memberLimit}`"
+            :disabled="manorStore.careRoomActionRunning"
+            @click="careRoomCreateMemberLimit = memberLimit"
+          >
+            {{ memberLimit }} 人
+          </button>
+        </div>
+        <div class="border border-accent/10 bg-bg/30 p-2 text-[0.625rem] leading-5 text-muted">
+          <p>窗口：{{ careRoomSummary }}</p>
+          <p>创建后，成员加入、分工动作、顺序风险和结算入口会统一进入详情抽屉。</p>
+        </div>
+      </div>
+      <template #footer="{ cancel, confirm }">
+        <footer class="flex flex-col-reverse gap-2 border-t border-accent/10 pt-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            data-testid="online-action-dialog-cancel"
+            :disabled="manorStore.careRoomActionRunning"
+            @click="cancel"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+            data-testid="online-manor-care-room-create"
+            :disabled="!careRoomState?.can_create_room || manorStore.careRoomActionRunning"
+            @click="confirm"
+          >
+            <span data-testid="online-action-dialog-confirm">{{ manorStore.careRoomActionRunning ? '创建中' : `创建 ${careRoomCreateMemberLimit} 人房` }}</span>
+          </button>
+        </footer>
+      </template>
+    </OnlineActionDialog>
+
+    <OnlineBottomSheet
+      :open="Boolean(selectedCareRoom)"
+      :title="selectedCareRoomTitle"
+      :description="selectedCareRoomDescription"
+      side="right"
+      :close-on-backdrop="!manorStore.careRoomActionRunning"
+      @close="closeCareRoomDetail"
+    >
+      <div v-if="selectedCareRoom" class="space-y-3" data-testid="online-manor-care-room-detail-sheet">
+        <section class="grid gap-2 text-xs sm:grid-cols-3">
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">分工进度</p>
+            <p class="mt-1 text-accent">{{ careRoomProgressSummary(selectedCareRoom) }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2">
+            <p class="text-[0.625rem] text-muted">结算条件</p>
+            <p class="mt-1 text-accent">{{ careRoomSettlementHint(selectedCareRoom) }}</p>
+          </div>
+          <div class="border border-accent/10 bg-black/10 p-2" data-testid="online-manor-care-room-risk-summary">
+            <p class="text-[0.625rem] text-muted">风险回看</p>
+            <p class="mt-1 text-accent">{{ careRoomRiskSummary(selectedCareRoom) }}</p>
+          </div>
+        </section>
+
+        <section class="border border-accent/10 bg-black/10 p-2">
+          <p class="text-xs text-accent">待完成分工</p>
+          <p class="mt-1 text-[0.625rem] leading-5 text-muted">{{ careRoomPendingActionLabels(selectedCareRoom) }}</p>
+        </section>
+
+        <section class="border border-accent/10 bg-black/10 p-2">
+          <p class="text-xs text-accent">成员</p>
+          <div class="mt-2 flex flex-wrap gap-1">
+            <span
+              v-for="participant in selectedCareRoom.participants"
+              :key="`${selectedCareRoom.id}-detail-${participant.username}`"
+              class="border border-accent/10 bg-bg/30 px-2 py-1 text-[0.625rem] text-muted"
+            >
+              {{ participant.display_name }} · {{ participant.role_label }}
+            </span>
+          </div>
+        </section>
+
+        <section class="border border-accent/10 bg-black/10 p-2">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-accent">护理动作</p>
+            <span class="text-[0.625rem] text-muted">{{ selectedCareRoom.actions.length }} 条记录</span>
+          </div>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              v-if="selectedCareRoom.can_join"
+              data-testid="online-manor-care-room-join"
+              class="online-action-btn online-action-btn--compact"
+              type="button"
+              :disabled="manorStore.careRoomActionRunning"
+              @click="joinCareRoom(selectedCareRoom.id)"
+            >
+              <Plus :size="12" />
+              加入
+            </button>
+            <button
+              v-for="actionId in selectedCareRoom.available_action_ids"
+              :key="`${selectedCareRoom.id}-${actionId}`"
+              data-testid="online-manor-care-room-action"
+              class="online-action-btn online-action-btn--compact"
+              type="button"
+              :disabled="manorStore.careRoomActionRunning"
+              @click="submitCareRoomAction(selectedCareRoom.id, actionId)"
+            >
+              <Sprout :size="12" />
+              {{ careRoomActionLabel(actionId) }}
+            </button>
+          </div>
+        </section>
+
+        <section v-if="selectedCareRoom.actions.length > 0" data-testid="online-manor-care-room-action-ledger" class="space-y-2 border border-accent/10 bg-black/10 p-2">
+          <div v-for="action in selectedCareRoom.actions" :key="action.id" class="border-l border-accent/20 pl-2">
+            <p class="text-[0.625rem] text-accent">
+              {{ action.actual_order }}. {{ action.actor_display_name }} · {{ action.action_label }}
+            </p>
+            <p class="mt-1 text-[0.625rem] leading-4 text-muted">
+              {{ action.object_label }} · 预期第 {{ action.expected_order }} 步 · {{ action.role_label }}{{ action.role_matched ? '匹配' : '未匹配' }}
+            </p>
+            <p class="text-[0.625rem] leading-4 text-muted">
+              健康 +{{ action.health_delta }}{{ action.order_risk ? ` · 顺序风险 +${action.risk_delta}` : ' · 顺序正常' }}
+            </p>
+          </div>
+        </section>
+      </div>
+      <template #footer>
+        <div v-if="selectedCareRoom" class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            class="online-action-btn online-action-btn--compact justify-center"
+            :disabled="manorStore.careRoomActionRunning"
+            @click="closeCareRoomDetail"
+          >
+            关闭
+          </button>
+          <button
+            v-if="selectedCareRoom.can_settle"
+            data-testid="online-manor-care-room-settle"
+            class="online-action-btn online-action-btn--compact online-action-btn--primary justify-center"
+            type="button"
+            :disabled="manorStore.careRoomActionRunning"
+            @click="openCareRoomSettleConfirm(selectedCareRoom.id)"
+          >
+            <Save :size="12" />
+            结算护理
+          </button>
+        </div>
+      </template>
+    </OnlineBottomSheet>
+
+    <div v-if="careRoomSettleConfirmRoomId" data-testid="online-manor-care-room-settle-confirm">
+      <OnlineConfirmActionDialog
+        :open="Boolean(selectedCareRoomForSettle)"
+        title="确认结算护理房"
+        description="结算后会收口本次协作护理分工、健康变化和风险记录。"
+        :impact-items="careRoomSettleImpactItems"
+        :asset-changes="careRoomSettleAssetChanges"
+        require-text="确认结算护理"
+        confirm-label="确认结算"
+        recovery-hint="若结算失败，护理房会保留当前分工记录，可刷新后重试。"
+        :running="manorStore.careRoomActionRunning"
+        @confirm="confirmCareRoomSettle"
+        @cancel="closeCareRoomSettleConfirm"
+        @close="closeCareRoomSettleConfirm"
+      />
+    </div>
   </div>
 </template>
 
@@ -1061,9 +1583,13 @@
     Upload,
   } from 'lucide-vue-next'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
+  import OnlineActionDialog from '@/components/game/online/OnlineActionDialog.vue'
+  import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
+  import OnlineConfirmActionDialog from '@/components/game/online/OnlineConfirmActionDialog.vue'
   import OnlineEmptyState from '@/components/game/online/OnlineEmptyState.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
@@ -1074,6 +1600,8 @@
   type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'care' | 'favorites'
   type ManorTabMeta = { key: ManorTabKey; label: string; summary: string }
   type ManorCareActionPayload = { objectId: string; actionId: string }
+  type OnlineManorVisitEntry = OnlineManorSnapshot['visit_entries'][number]
+  type OnlineManorVisitorActivityEntry = OnlineManorSnapshot['visitor_activity_entries'][number]
   type OnlineManorStealEntry = OnlineManorSnapshot['steal_entries'][number]
   type GuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
   type VisitPurpose = 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
@@ -1084,6 +1612,16 @@
   const lastRefreshAttemptAt = ref(0)
   const uploadingCover = ref(false)
   const coverInputRef = ref<HTMLInputElement | null>(null)
+  const coverDialogOpen = ref(false)
+  const themeSaveDialogOpen = ref(false)
+  const guestbookDialogOpen = ref(false)
+  const careRoomCreateDialogOpen = ref(false)
+  const careRoomCreateMemberLimit = ref(2)
+  const selectedVisitEntryId = ref('')
+  const selectedVisitorActivityEntryId = ref('')
+  const selectedStealEntryId = ref('')
+  const selectedCareRoomId = ref('')
+  const careRoomSettleConfirmRoomId = ref('')
   const guestbookKindOptions: Array<{ id: GuestbookKind; label: string; helper: string }> = [
     { id: 'text', label: '留言', helper: '自由写参观感受，适合留下完整的一句话。' },
     { id: 'blessing', label: '祝福', helper: '更适合节气问候、丰收祝愿和暖一点的回声。' },
@@ -1144,7 +1682,11 @@
   const guestbookDraftLength = computed(() => manorStore.guestbookDraft.trim().length)
   const canSubmitGuestbook = computed(() => guestbookDraftLength.value > 0 && !manorStore.guestbookActionRunning)
   const visitEntries = computed(() => snapshot.value?.visit_entries ?? [])
+  const recentVisitEntries = computed(() => visitEntries.value.slice(0, 3))
+  const hiddenVisitEntryCount = computed(() => Math.max(0, visitEntries.value.length - recentVisitEntries.value.length))
   const visitorActivityEntries = computed(() => snapshot.value?.visitor_activity_entries ?? [])
+  const recentVisitorActivityEntries = computed(() => visitorActivityEntries.value.slice(0, 3))
+  const hiddenVisitorActivityCount = computed(() => Math.max(0, visitorActivityEntries.value.length - recentVisitorActivityEntries.value.length))
   const visitorActivityKindCounts = computed(() => {
     const counts = {
       visit: 0,
@@ -1206,6 +1748,39 @@
   const careSceneFeedback = computed(() => snapshot.value?.visual_state.recent_feedback || '')
   const recentCareEntries = computed(() => (snapshot.value?.care_entries ?? []).slice(0, 8))
   const recentStealEntries = computed(() => (snapshot.value?.steal_entries ?? []).slice(0, 8))
+  const selectedVisitEntry = computed(() => visitEntries.value.find(entry => entry.id === selectedVisitEntryId.value) ?? null)
+  const selectedVisitorActivityEntry = computed(() => visitorActivityEntries.value.find(entry => entry.id === selectedVisitorActivityEntryId.value) ?? null)
+  const selectedStealEntry = computed(() => recentStealEntries.value.find(entry => entry.id === selectedStealEntryId.value) ?? null)
+  const selectedVisitEntryTitle = computed(() => {
+    const entry = selectedVisitEntry.value
+    if (!entry) return '来访详情'
+    return `${entry.visitor_display_name} · ${visitPurposeLabel(entry.purpose)}`
+  })
+  const selectedVisitEntryDescription = computed(() => {
+    const entry = selectedVisitEntry.value
+    if (!entry) return '查看本次来访目的、反馈和携带物。'
+    return entry.summary || entry.feedback || '本次来访没有额外说明。'
+  })
+  const selectedVisitorActivityTitle = computed(() => {
+    const entry = selectedVisitorActivityEntry.value
+    if (!entry) return '访客行为详情'
+    return `${entry.visitor_display_name} · ${entry.kind_label}`
+  })
+  const selectedVisitorActivityDescription = computed(() => {
+    const entry = selectedVisitorActivityEntry.value
+    if (!entry) return '查看访客行为、对象和审计说明。'
+    return entry.title || visitorActivityFallbackTitle(entry.kind)
+  })
+  const selectedStealEntryTitle = computed(() => {
+    const entry = selectedStealEntry.value
+    if (!entry) return '轻采详情'
+    return `${entry.visitor_display_name} · ${entry.action_label}`
+  })
+  const selectedStealEntryDescription = computed(() => {
+    const entry = selectedStealEntry.value
+    if (!entry) return '查看轻采收益、主人补偿和凭证。'
+    return entry.summary || `${entry.object_label} 已有轻采记录`
+  })
   const careRemainingLabel = computed(() => {
     const careState = snapshot.value?.care_state
     if (!careState) return '0/0'
@@ -1370,12 +1945,41 @@
   const careRoomState = computed(() => snapshot.value?.care_room_state ?? null)
   const activeCareRooms = computed(() => careRoomState.value?.active_rooms ?? [])
   const recentCareRoomRecords = computed(() => snapshot.value?.care_room_records ?? [])
+  const selectedCareRoom = computed(() => activeCareRooms.value.find(room => room.id === selectedCareRoomId.value) ?? null)
+  const selectedCareRoomForSettle = computed(() => activeCareRooms.value.find(room => room.id === careRoomSettleConfirmRoomId.value) ?? null)
   const careRoomSummary = computed(() => {
     const state = careRoomState.value
     if (!state) return '刷新庄园快照后可建立 2-4 人护理房间。'
     return `窗口 ${Math.round(state.limits.window_seconds / 60)} 分钟 · ${state.record_summary}`
   })
   const careRoomActionTotal = computed(() => Object.keys(careRoomState.value?.action_labels ?? {}).length || 4)
+  const selectedCareRoomTitle = computed(() => {
+    const room = selectedCareRoom.value
+    if (!room) return '护理房详情'
+    return `${careRoomStatusLabel(room.status)} · ${room.participants.length}/${room.member_limit} 人`
+  })
+  const selectedCareRoomDescription = computed(() => {
+    const room = selectedCareRoom.value
+    if (!room) return '查看护理分工、动作记录和结算状态。'
+    return room.summary || careRoomSettlementHint(room)
+  })
+  const careRoomSettleImpactItems = computed(() => {
+    const room = selectedCareRoomForSettle.value
+    if (!room) return []
+    return [
+      { label: '护理房', value: `${careRoomStatusLabel(room.status)} · ${room.participants.length}/${room.member_limit} 人` },
+      { label: '分工进度', value: careRoomProgressSummary(room) },
+      { label: '风险回看', value: careRoomRiskSummary(room) },
+    ]
+  })
+  const careRoomSettleAssetChanges = computed(() => {
+    const room = selectedCareRoomForSettle.value
+    if (!room) return []
+    return [
+      { label: '健康收口', value: String(room.health_score || room.health_delta || 0) },
+      { label: '结算记录', value: room.settlement_receipt_id || '确认后生成' },
+    ]
+  })
   const activeTabMeta = computed<ManorTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as ManorTabKey
@@ -1437,6 +2041,22 @@
     return '这是访客视角的庄园概览；页面只展示可访问内容，不暴露庄园主编辑控件。'
   })
 
+  const ownerLatestGuestbookSummary = computed(() => {
+    const entry = guestbookEntries.value[0]
+    if (!entry) return '最新留言：还没有访客留言。'
+    return `最新留言：${entry.author_display_name} 留下「${entry.content}」`
+  })
+
+  const ownerLatestCareSummary = computed(() => {
+    const careEntry = recentCareEntries.value[0]
+    if (careEntry) return `最新照料：${careEntry.visitor_display_name} ${careEntry.action_label}，${careEntry.owner_benefit}`
+    const careRoom = recentCareRoomRecords.value[0]
+    if (careRoom) return `最新照料：协作护理房 ${careRoomStatusLabel(careRoom.status)}，${careRoom.summary}`
+    const stealEntry = recentStealEntries.value[0]
+    if (stealEntry) return `最新照料：${stealEntry.visitor_display_name} ${stealEntry.action_label}，${stealEntry.owner_compensation}`
+    return '最新照料：还没有照料或轻采记录。'
+  })
+
   const refreshSnapshot = async () => {
     await manorStore.refreshSnapshot({
       target_username: routeTargetUsername.value,
@@ -1446,8 +2066,45 @@
     lastRefreshAttemptAt.value = Date.now()
   }
 
-  const saveThemeWeek = async () => {
-    await manorStore.saveThemeWeekSnapshot().catch(() => {})
+  const openCoverDialog = () => {
+    coverDialogOpen.value = true
+  }
+
+  const closeCoverDialog = () => {
+    if (uploadingCover.value) return
+    coverDialogOpen.value = false
+  }
+
+  const closeThemeSaveDialog = () => {
+    if (manorStore.themeActionRunning) return
+    themeSaveDialogOpen.value = false
+  }
+
+  const openThemeManagementFromOverview = () => {
+    activeTab.value = 'theme'
+    themeSaveDialogOpen.value = true
+  }
+
+  const openGuestbookDialog = () => {
+    guestbookDialogOpen.value = true
+  }
+
+  const openGuestbookDialogFromOverview = () => {
+    activeTab.value = 'guestbook'
+    guestbookDialogOpen.value = true
+  }
+
+  const closeGuestbookDialog = () => {
+    if (manorStore.guestbookActionRunning) return
+    guestbookDialogOpen.value = false
+  }
+
+  const confirmThemeSave = async () => {
+    await manorStore.saveThemeWeekSnapshot()
+      .then(() => {
+        themeSaveDialogOpen.value = false
+      })
+      .catch(() => {})
   }
 
   const triggerCoverUpload = () => {
@@ -1472,7 +2129,11 @@
   }
 
   const submitGuestbook = async () => {
-    await manorStore.createGuestbookEntry().catch(() => {})
+    await manorStore.createGuestbookEntry()
+      .then(() => {
+        guestbookDialogOpen.value = false
+      })
+      .catch(() => {})
   }
 
   const replyGuestbook = async (entryId: string) => {
@@ -1512,6 +2173,30 @@
 
   const recordVisit = async () => {
     await manorStore.createVisitRecord().catch(() => {})
+  }
+
+  const openVisitDetail = (entry: OnlineManorVisitEntry) => {
+    selectedVisitEntryId.value = entry.id
+  }
+
+  const closeVisitDetail = () => {
+    selectedVisitEntryId.value = ''
+  }
+
+  const openVisitorActivityDetail = (entry: OnlineManorVisitorActivityEntry) => {
+    selectedVisitorActivityEntryId.value = entry.id
+  }
+
+  const closeVisitorActivityDetail = () => {
+    selectedVisitorActivityEntryId.value = ''
+  }
+
+  const openStealDetail = (entry: OnlineManorStealEntry) => {
+    selectedStealEntryId.value = entry.id
+  }
+
+  const closeStealDetail = () => {
+    selectedStealEntryId.value = ''
   }
 
   const visitPurposeLabel = (purpose: string) => {
@@ -1624,8 +2309,33 @@
     await manorStore.saveGuideSnapshot().catch(() => {})
   }
 
-  const createCareRoom = async (memberLimit: number) => {
-    await manorStore.createCareRoom(memberLimit).catch(() => {})
+  const openCareRoomCreateDialog = () => {
+    careRoomCreateMemberLimit.value = careRoomMemberLimitOptions[0] ?? 2
+    careRoomCreateDialogOpen.value = true
+  }
+
+  const closeCareRoomCreateDialog = () => {
+    if (manorStore.careRoomActionRunning) return
+    careRoomCreateDialogOpen.value = false
+  }
+
+  const confirmCreateCareRoom = async () => {
+    await manorStore.createCareRoom(careRoomCreateMemberLimit.value)
+      .then(() => {
+        careRoomCreateDialogOpen.value = false
+        const createdRoom = activeCareRooms.value[0]
+        if (createdRoom) selectedCareRoomId.value = createdRoom.id
+      })
+      .catch(() => {})
+  }
+
+  const openCareRoomDetail = (roomId: string) => {
+    selectedCareRoomId.value = roomId
+  }
+
+  const closeCareRoomDetail = () => {
+    if (manorStore.careRoomActionRunning) return
+    selectedCareRoomId.value = ''
   }
 
   const joinCareRoom = async (roomId: string) => {
@@ -1636,8 +2346,24 @@
     await manorStore.submitCareRoomAction(roomId, actionId).catch(() => {})
   }
 
-  const settleCareRoom = async (roomId: string) => {
-    await manorStore.settleCareRoom(roomId).catch(() => {})
+  const openCareRoomSettleConfirm = (roomId: string) => {
+    careRoomSettleConfirmRoomId.value = roomId
+  }
+
+  const closeCareRoomSettleConfirm = () => {
+    if (manorStore.careRoomActionRunning) return
+    careRoomSettleConfirmRoomId.value = ''
+  }
+
+  const confirmCareRoomSettle = async () => {
+    const roomId = careRoomSettleConfirmRoomId.value
+    if (!roomId) return
+    await manorStore.settleCareRoom(roomId)
+      .then(() => {
+        careRoomSettleConfirmRoomId.value = ''
+        selectedCareRoomId.value = ''
+      })
+      .catch(() => {})
   }
 
   const submitCareVisualAction = async (payload: ManorCareActionPayload) => {

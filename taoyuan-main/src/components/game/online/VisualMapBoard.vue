@@ -64,7 +64,129 @@
     </div>
 
     <div class="visual-map-board__side">
-      <div v-if="selectedNode" class="visual-map-board__detail" data-testid="visual-map-node-detail">
+      <template v-if="!isCompactViewport">
+        <div v-if="selectedNode" class="visual-map-board__detail" data-testid="visual-map-node-detail">
+          <div class="visual-map-board__detail-head">
+            <div class="min-w-0">
+              <p class="visual-map-board__title">{{ selectedNode.label || selectedNode.id }}</p>
+              <p class="visual-map-board__meta">{{ stateLabel(selectedNode.state) }} · {{ selectedNode.kind || 'node' }}</p>
+              <p v-if="selectedNode.id === currentNode?.id" class="visual-map-board__current-text">队伍当前位置</p>
+            </div>
+            <span v-if="selectedNode.claimed_by || selectedNode.owner_username" class="visual-map-board__claim">
+              {{ selectedNode.claimed_by || selectedNode.owner_username }}
+            </span>
+          </div>
+
+          <div class="visual-map-board__preview-grid">
+            <p v-if="selectedNode.risk_preview" class="visual-map-board__preview visual-map-board__preview--risk">
+              {{ selectedNode.risk_preview }}
+            </p>
+            <p v-if="selectedNode.reward_preview" class="visual-map-board__preview visual-map-board__preview--reward">
+              {{ selectedNode.reward_preview }}
+            </p>
+          </div>
+
+          <div
+            v-if="selectedNodeFailureReason || selectedNodeImpactText"
+            class="visual-map-board__readable-feedback"
+            data-testid="visual-map-readable-feedback"
+          >
+            <p v-if="selectedNodeFailureReason" class="visual-map-board__readable-line visual-map-board__readable-line--warning">
+              失败原因：{{ selectedNodeFailureReason }}
+            </p>
+            <p v-if="selectedNodeImpactText" class="visual-map-board__readable-line">
+              影响范围：{{ selectedNodeImpactText }}
+            </p>
+          </div>
+
+          <OnlineTechnicalDetails
+            v-if="selectedNodeTechnicalReason"
+            class="visual-map-board__technical-details"
+            title="规则细节"
+            summary="展开查看节点状态与可行动作判断。"
+          >
+            <p data-testid="visual-map-technical-reason">{{ selectedNodeTechnicalReason }}</p>
+          </OnlineTechnicalDetails>
+
+          <div v-if="resourcePreviewText(selectedNode.resource_cost_preview)" class="visual-map-board__resource">
+            消耗：{{ resourcePreviewText(selectedNode.resource_cost_preview) }}
+          </div>
+          <div v-if="resourcePreviewText(selectedNode.resource_reward_preview)" class="visual-map-board__resource">
+            产出：{{ resourcePreviewText(selectedNode.resource_reward_preview) }}
+          </div>
+
+          <div v-if="selectedNode.available_action_ids.length > 0" class="visual-map-board__actions">
+            <button
+              v-for="actionId in selectedNode.available_action_ids"
+              :key="`${selectedNode.id}-${actionId}`"
+              type="button"
+              class="visual-map-board__action"
+              :data-testid="`visual-map-action-${actionId}`"
+              :disabled="actionRunning"
+              :title="actionId"
+              @click="$emit('trigger-action', { nodeId: selectedNode.id, actionId })"
+            >
+              <Play :size="13" aria-hidden="true" />
+              <span>{{ actionLabel(actionId) }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="visual-map-board__empty">
+          <MapPin :size="16" aria-hidden="true" />
+          <span>选择一个节点</span>
+        </div>
+
+        <p
+          v-if="recentFeedback"
+          :key="feedbackAnimationKey"
+          class="visual-map-board__feedback"
+          data-testid="visual-map-action-result"
+          aria-live="polite"
+        >
+          行动结果：{{ recentFeedback }}
+        </p>
+      </template>
+
+      <template v-else>
+        <button
+          v-if="selectedNode"
+          type="button"
+          class="visual-map-board__mobile-detail-trigger"
+          data-testid="visual-map-detail-sheet-trigger"
+          @click="openDetailSheet"
+        >
+          <span>已选择 {{ selectedNode.label || selectedNode.id }}</span>
+          <small>{{ selectedNode.available_action_ids.length > 0 ? '查看详情和行动' : '查看详情' }}</small>
+        </button>
+
+        <div v-else class="visual-map-board__empty">
+          <MapPin :size="16" aria-hidden="true" />
+          <span>选择一个节点</span>
+        </div>
+
+        <p
+          v-if="recentFeedback"
+          :key="feedbackAnimationKey"
+          class="visual-map-board__feedback"
+          data-testid="visual-map-mobile-action-result"
+          aria-live="polite"
+        >
+          行动结果：{{ recentFeedback }}
+        </p>
+      </template>
+    </div>
+
+    <OnlineBottomSheet
+      v-if="selectedNode && isCompactViewport"
+      :open="detailSheetOpen"
+      :title="selectedNode.label || selectedNode.id"
+      :description="`${stateLabel(selectedNode.state)} · ${selectedNode.kind || 'node'}`"
+      side="bottom"
+      initial-focus=".visual-map-board__action"
+      @close="closeDetailSheet"
+    >
+      <div class="visual-map-board__detail visual-map-board__detail--sheet" data-testid="visual-map-node-detail">
         <div class="visual-map-board__detail-head">
           <div class="min-w-0">
             <p class="visual-map-board__title">{{ selectedNode.label || selectedNode.id }}</p>
@@ -98,6 +220,15 @@
           </p>
         </div>
 
+        <OnlineTechnicalDetails
+          v-if="selectedNodeTechnicalReason"
+          class="visual-map-board__technical-details"
+          title="规则细节"
+          summary="展开查看节点状态与可行动作判断。"
+        >
+          <p data-testid="visual-map-technical-reason">{{ selectedNodeTechnicalReason }}</p>
+        </OnlineTechnicalDetails>
+
         <div v-if="resourcePreviewText(selectedNode.resource_cost_preview)" class="visual-map-board__resource">
           消耗：{{ resourcePreviewText(selectedNode.resource_cost_preview) }}
         </div>
@@ -122,11 +253,6 @@
         </div>
       </div>
 
-      <div v-else class="visual-map-board__empty">
-        <MapPin :size="16" aria-hidden="true" />
-        <span>选择一个节点</span>
-      </div>
-
       <p
         v-if="recentFeedback"
         :key="feedbackAnimationKey"
@@ -136,13 +262,15 @@
       >
         行动结果：{{ recentFeedback }}
       </p>
-    </div>
+    </OnlineBottomSheet>
   </section>
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
   import { AlertTriangle, Circle, DoorOpen, Gift, MapPin, Pickaxe, Play, Shield } from 'lucide-vue-next'
+  import OnlineBottomSheet from '@/components/game/online/OnlineBottomSheet.vue'
+  import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import type { Component } from 'vue'
   import type { OnlineVisualNode } from '@/types/onlineVisual'
 
@@ -170,6 +298,9 @@
 
   const visibleNodes = computed(() => props.nodes.filter(node => node.state !== 'hidden'))
   const nodeById = computed(() => new Map(visibleNodes.value.map(node => [node.id, node])))
+  const detailSheetOpen = ref(false)
+  const isCompactViewport = ref(false)
+  let viewportQuery: MediaQueryList | null = null
   const activeNodeId = computed(() => {
     if (props.selectedNodeId && nodeById.value.has(props.selectedNodeId)) return props.selectedNodeId
     return visibleNodes.value[0]?.id || ''
@@ -181,10 +312,16 @@
     const node = selectedNode.value
     if (!node) return ''
     if (node.available_action_ids.length > 0) return ''
-    if (node.state === 'locked') return '节点尚未解锁，需要先处理相邻节点或等待服务端开放。'
-    if (node.state === 'resolved') return '节点已经处理完成，重复行动会被服务端拒绝。'
+    if (node.state === 'locked') return '节点尚未解锁，请先处理相邻节点或稍后再试。'
+    if (node.state === 'resolved') return '节点已经处理完成，当前不能重复行动。'
     if (node.state === 'hidden') return '节点尚未公开，不能直接提交行动。'
     return '当前节点没有可用行动，需刷新房间或选择其它节点。'
+  })
+  const selectedNodeTechnicalReason = computed(() => {
+    const node = selectedNode.value
+    if (!node || node.available_action_ids.length > 0) return ''
+    const connected = node.connected_node_ids.length > 0 ? node.connected_node_ids.join(', ') : 'none'
+    return `state=${node.state}; available_action_ids=${node.available_action_ids.length}; connected_node_ids=${connected}; current_node=${node.id === currentNode.value?.id ? 'true' : 'false'}`
   })
   const selectedNodeImpactText = computed(() => {
     const node = selectedNode.value
@@ -217,6 +354,20 @@
 
   const selectNode = (nodeId: string) => {
     emit('select-node', nodeId)
+    if (isCompactViewport.value) detailSheetOpen.value = true
+  }
+
+  const openDetailSheet = () => {
+    detailSheetOpen.value = true
+  }
+
+  const closeDetailSheet = () => {
+    detailSheetOpen.value = false
+  }
+
+  const updateViewportMode = () => {
+    isCompactViewport.value = Boolean(viewportQuery?.matches)
+    if (!isCompactViewport.value) closeDetailSheet()
   }
 
   const stateLabel = (state: OnlineVisualNode['state']) => ({
@@ -258,6 +409,17 @@
     .filter(([, amount]) => amount > 0)
     .map(([id, amount]) => `${id} x${amount}`)
     .join('、')
+
+  onMounted(() => {
+    if (typeof window === 'undefined') return
+    viewportQuery = window.matchMedia('(max-width: 760px)')
+    updateViewportMode()
+    viewportQuery.addEventListener('change', updateViewportMode)
+  })
+
+  onBeforeUnmount(() => {
+    viewportQuery?.removeEventListener('change', updateViewportMode)
+  })
 </script>
 
 <style scoped>
@@ -308,8 +470,8 @@
     z-index: 1;
     display: inline-flex;
     max-width: 7.5rem;
-    min-width: 2.25rem;
-    min-height: 2.25rem;
+    min-width: var(--online-visual-touch-target, 44px);
+    min-height: var(--online-visual-touch-target, 44px);
     translate: -50% -50%;
     align-items: center;
     justify-content: center;
@@ -410,10 +572,28 @@
 
   .visual-map-board__detail,
   .visual-map-board__empty,
+  .visual-map-board__mobile-detail-trigger,
   .visual-map-board__feedback {
     border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
     background: rgb(0 0 0 / 0.1);
     padding: 0.625rem;
+  }
+
+  .visual-map-board__mobile-detail-trigger {
+    display: flex;
+    min-height: var(--online-visual-touch-target, 44px);
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: rgb(var(--color-text));
+    text-align: left;
+  }
+
+  .visual-map-board__mobile-detail-trigger small {
+    flex-shrink: 0;
+    color: var(--color-accent);
+    font-size: 0.68rem;
+    line-height: 1.2;
   }
 
   .visual-map-board__detail-head {
@@ -489,9 +669,13 @@
     color: #d4976a;
   }
 
+  .visual-map-board__technical-details {
+    margin-top: 0.625rem;
+  }
+
   .visual-map-board__action {
     display: inline-flex;
-    min-height: 2rem;
+    min-height: var(--online-visual-touch-target, 44px);
     align-items: center;
     justify-content: center;
     gap: 0.3rem;
@@ -552,7 +736,7 @@
 
     .visual-map-board__mobile-node {
       display: grid;
-      min-height: 3.2rem;
+      min-height: calc(var(--online-visual-touch-target, 44px) + 0.45rem);
       grid-template-columns: auto minmax(0, 1fr);
       align-items: center;
       gap: 0.25rem 0.4rem;
