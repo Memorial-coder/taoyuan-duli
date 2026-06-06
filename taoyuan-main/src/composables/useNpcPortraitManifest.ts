@@ -48,6 +48,14 @@ const manifestLoading = ref(false)
 const manifestError = ref('')
 let loadPromise: Promise<NpcPortraitManifest | null> | null = null
 
+export const resetNpcPortraitManifest = () => {
+  manifest.value = null
+  manifestLoaded.value = false
+  manifestLoading.value = false
+  manifestError.value = ''
+  loadPromise = null
+}
+
 const normalizeVariant = (value: string | null | undefined): NpcPortraitVariant => {
   return value === '02' || value === '03' || value === '04' || value === '05' ? value : '01'
 }
@@ -86,7 +94,6 @@ export const loadNpcPortraitManifest = async (): Promise<NpcPortraitManifest | n
       return manifest.value
     } catch (error) {
       manifestError.value = error instanceof Error ? error.message : 'npc portrait manifest load failed'
-      manifestLoaded.value = true
       manifest.value = null
       return null
     } finally {
@@ -96,6 +103,11 @@ export const loadNpcPortraitManifest = async (): Promise<NpcPortraitManifest | n
   })()
 
   return loadPromise
+}
+
+export const retryNpcPortraitManifest = async (): Promise<NpcPortraitManifest | null> => {
+  manifestLoaded.value = false
+  return loadNpcPortraitManifest()
 }
 
 export const resolveNpcPortraitEntry = (target: NpcPortraitLookup | null | undefined): NpcPortraitManifestEntry | null => {
@@ -169,6 +181,8 @@ export const useNpcPortraitManifest = () => ({
   manifestLoading,
   manifestError,
   loadNpcPortraitManifest,
+  retryNpcPortraitManifest,
+  resetNpcPortraitManifest,
   resolveNpcPortraitEntry,
   getNpcPortraitUrl,
 })
