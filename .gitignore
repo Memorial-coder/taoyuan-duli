@@ -115,6 +115,8 @@ taoyuan-main/public/crop/
 taoyuan-main/public/crop.zip
 taoyuan-main/public/crop-*.zip
 taoyuan-main/public/crop_transparent_webp/
+taoyuan-main/public/asset_fish_boss/
+taoyuan-main/images/generated/story-scenes/README.md
 
 # Local review / audit artifacts not for GitHub
 QA测试报告-*.md
