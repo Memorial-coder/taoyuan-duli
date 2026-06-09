@@ -537,17 +537,107 @@ function detectGameplaySaveFieldAnomalies(gameplayData = {}) {
   return anomalies;
 }
 
-function assertGameplaySaveFieldIntegrity(saveContainer, phase = 'save_write') {
-  const anomalies = detectGameplaySaveFieldAnomalies(saveContainer?.gameplayData);
-  if (anomalies.length <= 0) return;
+function createSaveFieldAnomalyError(anomalies, phase = 'save_write', extraDetails = {}) {
   const error = createError('save field anomaly detected; repair out-of-range or illegal fields before writing this save', 422, 'TAOYUAN_SAVE_FIELD_ANOMALY');
   error.details = {
     phase,
     anomaly_count: anomalies.length,
     anomalies,
     required_operation: 'repair_save_fields_before_write',
+    ...extraDetails,
   };
-  throw error;
+  return error;
+}
+
+function parseSaveFieldPath(fieldPath = '') {
+  const segments = [];
+  for (const part of String(fieldPath || '').split('.')) {
+    if (!part) return [];
+    const pattern = /([^\[\]]+)|\[(\d+)\]/g;
+    let match;
+    while ((match = pattern.exec(part)) !== null) {
+      if (match[1]) {
+        segments.push(match[1]);
+      } else if (match[2] !== undefined) {
+        segments.push(Number(match[2]));
+      }
+    }
+  }
+  return segments;
+}
+
+function cloneRepairValue(value) {
+  if (!value || typeof value !== 'object') return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+}
+
+function setSaveFieldValue(root, fieldPath, value) {
+  const segments = parseSaveFieldPath(fieldPath);
+  if (!root || typeof root !== 'object' || segments.length <= 0) return false;
+  let target = root;
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index];
+    if (!target || typeof target !== 'object') return false;
+    target = target[segment];
+  }
+  if (!target || typeof target !== 'object') return false;
+  target[segments[segments.length - 1]] = cloneRepairValue(value);
+  return true;
+}
+
+function applyGameplaySaveFieldRepairs(saveContainer, phase = 'save_write') {
+  const gameplayData = saveContainer?.gameplayData;
+  const anomalies = detectGameplaySaveFieldAnomalies(gameplayData);
+  if (anomalies.length <= 0) {
+    return { repaired: false, anomaly_count: 0, repaired_count: 0, anomalies: [] };
+  }
+  if (!gameplayData || typeof gameplayData !== 'object') {
+    throw createSaveFieldAnomalyError(anomalies, phase, {
+      repair_attempted: true,
+      repaired_count: 0,
+    });
+  }
+
+  let repairedCount = 0;
+  for (const anomaly of anomalies) {
+    if (anomaly.action === 'collection_overflow' && anomaly.field_path === 'farm.plots' && Array.isArray(gameplayData.farm?.plots)) {
+      const limit = Number(anomaly.normalized_value);
+      if (Number.isInteger(limit) && limit >= 0) {
+        gameplayData.farm.plots = gameplayData.farm.plots.slice(0, limit);
+        repairedCount += 1;
+      }
+      continue;
+    }
+    if (setSaveFieldValue(gameplayData, anomaly.field_path, anomaly.normalized_value)) {
+      repairedCount += 1;
+    }
+  }
+
+  const remaining = detectGameplaySaveFieldAnomalies(gameplayData);
+  if (remaining.length > 0) {
+    throw createSaveFieldAnomalyError(remaining, phase, {
+      repair_attempted: true,
+      repaired_count: repairedCount,
+      original_anomaly_count: anomalies.length,
+    });
+  }
+
+  return {
+    repaired: true,
+    anomaly_count: anomalies.length,
+    repaired_count: repairedCount,
+    anomalies,
+  };
+}
+
+function assertGameplaySaveFieldIntegrity(saveContainer, phase = 'save_write') {
+  const anomalies = detectGameplaySaveFieldAnomalies(saveContainer?.gameplayData);
+  if (anomalies.length <= 0) return;
+  throw createSaveFieldAnomalyError(anomalies, phase);
 }
 
 function createInvalidSaveRawError(reason) {
@@ -639,7 +729,7 @@ function ensureSaveIdentitiesForSlots(username, saves) {
   return { saves: next, changed };
 }
 
-function prepareSlotEntryForSave(username, slot, raw, revision = 0) {
+function prepareSlotEntryForSave(username, slot, raw, revision = 0, options = {}) {
   const normalizedSlot = normalizeSaveSlot(slot);
   if (normalizedSlot === null) throw createError('无效的存档槽位');
 
@@ -651,15 +741,19 @@ function prepareSlotEntryForSave(username, slot, raw, revision = 0) {
   if (!saveContainer?.gameplayData?.player) {
     throw createInvalidSaveRawError('missing_gameplay_player');
   }
+  const fieldRepair = options.repairFieldAnomalies === true
+    ? applyGameplaySaveFieldRepairs(saveContainer, 'prepare_slot_entry_for_save')
+    : null;
   assertGameplaySaveFieldIntegrity(saveContainer, 'prepare_slot_entry_for_save');
 
   const identity = ensureSaveIdentityRecord(username, normalizedSlot, getSaveNicknameSnapshot(saveContainer, username));
   const changed = applySaveIdentityToContainer(saveContainer, identity);
   return {
-    raw: changed ? encryptTaoyuanData(serializeGameplaySaveContainer(saveContainer)) : raw,
+    raw: changed || fieldRepair?.repaired ? encryptTaoyuanData(serializeGameplaySaveContainer(saveContainer)) : raw,
     revision,
     identity,
-    changed,
+    changed: changed || fieldRepair?.repaired === true,
+    fieldRepair,
   };
 }
 
@@ -741,6 +835,7 @@ module.exports = {
   buildSaveMeta,
   normalizeGameplaySaveContainer,
   detectGameplaySaveFieldAnomalies,
+  applyGameplaySaveFieldRepairs,
   serializeGameplaySaveContainer,
   ensureSaveIdentityForSlot,
   ensureSaveIdentitiesForSlots,

@@ -84,6 +84,12 @@
       >
         服务端槽位暂时不可读取，当前无法确认云端是否已有真实存档。为避免误覆盖，这些槽位不会再显示成“空槽位”。
       </div>
+      <div
+        v-if="serverSaveFieldAnomaly"
+        class="mb-3 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-left text-[0.625rem] leading-5 text-danger"
+      >
+        云存档字段异常，服务端已保留远端旧档。你可以在弹窗中确认修复字段后强制保存当前进度。
+      </div>
       <div class="mb-3">
         <Button
           class="text-center justify-center text-sm w-full"
@@ -216,13 +222,54 @@
           </div>
         </div>
       </Transition>
+      <Transition name="panel-fade">
+        <div
+          v-if="serverSaveFieldAnomaly"
+          class="game-modal-overlay fixed inset-0 z-60 flex items-center justify-center bg-bg/80 p-4"
+          @click.self="saveStore.dismissServerSaveFieldAnomaly"
+        >
+          <div class="game-panel w-full max-w-sm text-left">
+            <div class="mb-3 flex items-start gap-2">
+              <AlertTriangle :size="16" class="mt-0.5 shrink-0 text-danger" />
+              <div>
+                <p class="text-sm text-danger">修复异常字段后强制保存？</p>
+                <p class="mt-1 text-[0.6875rem] leading-5 text-muted">
+                  服务端检测到当前页面存档有越界或非法字段。确认后会先把这些字段修到合法范围，再覆盖服务端存档 {{ serverSaveFieldAnomaly.slot + 1 }}。
+                </p>
+              </div>
+            </div>
+            <div class="mb-3 rounded-xs border border-danger/20 bg-bg/25 px-3 py-2 text-[0.625rem] leading-5">
+              <p class="text-text">{{ formatConflictSummary(serverSaveFieldAnomaly.summary) }}</p>
+              <p class="mt-1 text-muted">异常 {{ serverSaveFieldAnomaly.details.anomaly_count }} 项，远端旧档会在确认后被覆盖。</p>
+            </div>
+            <div v-if="visibleFieldAnomalies.length > 0" class="mb-4 space-y-1 text-[0.625rem] leading-5 text-muted">
+              <p v-for="(entry, index) in visibleFieldAnomalies" :key="entry.id || entry.field_path || index">
+                {{ formatSaveFieldAnomaly(entry) }}
+              </p>
+              <p v-if="hiddenFieldAnomalyCount > 0">还有 {{ hiddenFieldAnomalyCount }} 项未展开。</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button :disabled="repairingFieldAnomaly" @click="saveStore.dismissServerSaveFieldAnomaly">暂不处理</Button>
+              <Button
+                class="btn-danger justify-center"
+                :icon="Save"
+                :icon-size="12"
+                :disabled="repairingFieldAnomaly"
+                @click="handleRepairServerFieldAnomaly"
+              >
+                {{ repairingFieldAnomaly ? '修复保存中...' : '修复并强制保存' }}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
-  import { X, FolderOpen, Settings, Download, Trash2, Upload, CloudUpload, CloudDownload, Save } from 'lucide-vue-next'
+  import { X, FolderOpen, Settings, Download, Trash2, Upload, CloudUpload, CloudDownload, Save, AlertTriangle } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import { SEASON_NAMES } from '@/stores/useGameStore'
@@ -246,8 +293,12 @@
   const downloading = ref(false)
   const savingCurrent = ref(false)
   const resolvingConflict = ref(false)
+  const repairingFieldAnomaly = ref(false)
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
   const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
+  const serverSaveFieldAnomaly = computed(() => saveStore.serverSaveFieldAnomaly)
+  const visibleFieldAnomalies = computed(() => serverSaveFieldAnomaly.value?.details.anomalies.slice(0, 5) ?? [])
+  const hiddenFieldAnomalyCount = computed(() => Math.max(0, (serverSaveFieldAnomaly.value?.details.anomalies.length ?? 0) - visibleFieldAnomalies.value.length))
   const saveIdentityHint = computed(() => {
     const identity = saveStore.currentOnlineIdentity
     if (saveStore.storageMode === 'server') {
@@ -287,6 +338,16 @@
       : '时间未知'
     const moneyText = Number.isFinite(Number(info.money)) ? ` · ${Math.floor(Number(info.money))} 铜钱` : ''
     return `${playerName} · ${dayText}${moneyText}`
+  }
+
+  const formatSaveFieldAnomaly = (entry: { field_path?: string; action?: string; normalized_value?: unknown; limit?: unknown }) => {
+    const fieldPath = entry.field_path || 'unknown_field'
+    const action = entry.action ? ` · ${entry.action}` : ''
+    const limit = entry.limit !== undefined && entry.limit !== null ? ` · limit ${String(entry.limit)}` : ''
+    const normalized = entry.normalized_value !== undefined && entry.normalized_value !== null
+      ? ` -> ${String(entry.normalized_value)}`
+      : ''
+    return `${fieldPath}${action}${limit}${normalized}`
   }
 
   const refreshSlots = async () => {
@@ -330,6 +391,10 @@
         showFloat('云存档有新版本，请选择保存当前页面或改用服务端存档。', 'accent')
         return
       }
+      if (saveStore.serverSaveFieldAnomaly?.slot === saveStore.activeSlot) {
+        showFloat('检测到云存档字段异常，请在弹窗中确认是否修复后强制保存。', 'accent')
+        return
+      }
       showFloat(saveStore.lastSaveErrorMessage || '保存失败。', 'danger')
     }
   }
@@ -341,6 +406,10 @@
     resolvingConflict.value = false
     await refreshSlots()
     if (!ok) {
+      if (saveStore.serverSaveFieldAnomaly) {
+        showFloat('检测到云存档字段异常，请在弹窗中确认是否修复后强制保存。', 'accent')
+        return
+      }
       showFloat(saveStore.lastSaveErrorMessage || '处理云存档冲突失败。', 'danger')
       return
     }
@@ -359,6 +428,33 @@
       return
     }
     showFloat(saveStore.lastServerSyncMessage || '已改用服务端存档。', 'success')
+  }
+
+  const handleRepairServerFieldAnomaly = async () => {
+    if (repairingFieldAnomaly.value) return
+    repairingFieldAnomaly.value = true
+    const ok = await saveStore.forceRepairServerSaveFieldAnomaly()
+    repairingFieldAnomaly.value = false
+    await refreshSlots()
+    if (!ok) {
+      if (saveStore.lastSaveResultStatus === 'conflict') {
+        showFloat('云存档又有新版本，请先比较当前页面和服务端存档。', 'accent')
+        return
+      }
+      showFloat(saveStore.lastSaveErrorMessage || '修复并强制保存失败。', 'danger')
+      return
+    }
+
+    emit('change')
+    showFloat(saveStore.lastServerSyncMessage || '已修复异常字段并保存到服务端。', 'success')
+    if (props.saveIntent === 'save-return') {
+      window.location.href = props.returnUrl || '/'
+      return
+    }
+    if (props.saveIntent === 'save') {
+      emit('saved', 'save')
+      emit('close')
+    }
   }
 
   const handleExport = async (slot: number) => {

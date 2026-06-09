@@ -462,6 +462,15 @@ assert(saveStoreSource.includes('resolveServerSaveConflict'), 'server save confl
 assert(mainMenuSource.includes('saveStore.lastLoadErrorMessage'), 'main menu must read the load error message')
 assert(mainMenuSource.includes("showFloat(message, 'danger')"), 'main menu must show load failure feedback')
 assert(mainMenuSource.includes('addLog(message)'), 'main menu must log load failure feedback')
+assert(mainMenuSource.includes('saveStore.lastSaveErrorMessage || saveStore.lastLoadErrorMessage'), 'main menu must show structured import failures before calling a save damaged')
+assert(mainMenuSource.includes('main-menu-import-notice-panel'), 'main menu must keep import feedback visible on the home page')
+assert(mainMenuSource.includes("setImportNotice({ tone: 'success'"), 'main menu must persist successful import feedback')
+assert(mainMenuSource.includes("setImportNotice({\n              tone: saveStore.lastSaveResultStatus === 'conflict'"), 'main menu must persist conflict import feedback')
+assert(mainMenuSource.includes('handleLoadImportedSlot'), 'main menu import success notice must offer a direct load action')
+assert(mainMenuSource.includes('main-menu-server-save-conflict-panel'), 'main menu must render server import conflict panel')
+assert(mainMenuSource.includes('main-menu-import-conflict-actions'), 'main menu import notice must expose conflict actions next to the import feedback')
+assert(mainMenuSource.includes("handleResolveServerConflict('local')"), 'main menu must let players keep imported/local copy')
+assert(mainMenuSource.includes("handleResolveServerConflict('remote')"), 'main menu must let players use server save')
 assert(saveManagerSource.includes('server-save-conflict-panel'), 'save manager must render server conflict panel')
 assert(saveManagerSource.includes("handleResolveServerConflict('local')"), 'save manager must let players keep current page')
 assert(saveManagerSource.includes("handleResolveServerConflict('remote')"), 'save manager must let players use server save')
@@ -572,6 +581,25 @@ assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.l
   const imported = await saveStore.importSave(1, `\uFEFF${validRaw}\n`)
   assert.equal(imported, true, 'import should tolerate BOM and trailing whitespace around encrypted saves')
   assert.equal(typeof localStorage.getItem('taoyuanxiang_save_qa-save_1'), 'string', 'trimmed import should persist into target slot')
+}
+
+{
+  const validRaw = await makeValidRaw(1919)
+  const legacyEnvelope = decryptJson(validRaw)
+  legacyEnvelope.meta = {
+    ...(legacyEnvelope.meta ?? {}),
+    saveVersion: 5,
+    savedAt: '2026-05-23T05:22:14.405Z'
+  }
+  legacyEnvelope.savedAt = '2026-05-23T05:22:14.405Z'
+  localStorage.clear()
+  const { saveStore, gameStore, playerStore } = freshStores()
+  const imported = await saveStore.importSave(1, encryptJson(legacyEnvelope))
+  assert.equal(imported, true, 'v5 envelope saves should import without being reported as damaged')
+  const loaded = await saveStore.loadFromSlot(1)
+  assert.equal(loaded, true, 'v5 envelope saves should load after import')
+  assert.equal(playerStore.money, 1919, 'v5 import/load should restore player money')
+  assert.equal(Number.isInteger(gameStore.year), true, 'v5 import/load should restore game calendar')
 }
 
 {

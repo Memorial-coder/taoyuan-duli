@@ -118,6 +118,103 @@
           </template>
         </section>
       </div>
+
+      <div
+        v-if="importNotice"
+        ref="importNoticePanelRef"
+        class="rounded-xs border px-3 py-2 text-left text-[0.6875rem] leading-5"
+        :class="importNotice.tone === 'danger'
+          ? 'border-danger/30 bg-danger/10 text-danger'
+          : importNotice.tone === 'success'
+            ? 'border-success/30 bg-success/10 text-success'
+            : 'border-warning/35 bg-warning/10 text-warning'"
+        data-testid="main-menu-import-notice-panel"
+        @click.stop
+      >
+        <div class="flex items-start justify-between gap-3">
+          <p>{{ importNotice.message }}</p>
+          <Button class="shrink-0 px-2 py-1" :icon="X" :icon-size="12" @click="clearImportNotice" />
+        </div>
+        <div v-if="serverSaveConflict && importNotice.tone === 'accent'" class="mt-2 space-y-2" data-testid="main-menu-import-conflict-actions">
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div class="rounded-xs border border-warning/20 bg-bg/25 px-2 py-1.5">
+              <p class="text-text">导入/本地副本</p>
+              <p class="mt-1 text-muted">{{ formatConflictSummary(serverSaveConflict.localSummary) }}</p>
+            </div>
+            <div class="rounded-xs border border-warning/20 bg-bg/25 px-2 py-1.5">
+              <p class="text-text">服务端现有</p>
+              <p class="mt-1 text-muted">{{ formatConflictSummary(serverSaveConflict.remoteSummary) }}</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Button
+              class="justify-center text-xs"
+              :icon="Save"
+              :icon-size="12"
+              :disabled="resolvingConflict"
+              @click="handleResolveServerConflict('local')"
+            >
+              保存这份副本
+            </Button>
+            <Button
+              class="justify-center text-xs"
+              :icon="CloudDownload"
+              :icon-size="12"
+              :disabled="resolvingConflict"
+              @click="handleResolveServerConflict('remote')"
+            >
+              改用服务端存档
+            </Button>
+          </div>
+        </div>
+        <div v-else-if="importNotice.tone === 'success' && importNotice.slot !== null" class="mt-2">
+          <Button class="justify-center text-xs" :icon="Play" :icon-size="12" @click="handleLoadImportedSlot">
+            载入这个存档
+          </Button>
+        </div>
+      </div>
+
+      <div
+        v-if="serverSaveConflict && !importNotice"
+        class="rounded-xs border border-warning/35 bg-warning/10 px-3 py-2 text-left text-[0.6875rem] leading-5 text-warning"
+        data-testid="main-menu-server-save-conflict-panel"
+        @click.stop
+      >
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <p class="text-xs text-warning">云存档冲突</p>
+          <span class="shrink-0 rounded-xs border border-warning/30 px-1.5 py-0.5">存档 {{ serverSaveConflict.slot + 1 }}</span>
+        </div>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div class="rounded-xs border border-warning/20 bg-bg/25 px-2 py-1.5">
+            <p class="text-text">导入/本地副本</p>
+            <p class="mt-1 text-muted">{{ formatConflictSummary(serverSaveConflict.localSummary) }}</p>
+          </div>
+          <div class="rounded-xs border border-warning/20 bg-bg/25 px-2 py-1.5">
+            <p class="text-text">服务端现有</p>
+            <p class="mt-1 text-muted">{{ formatConflictSummary(serverSaveConflict.remoteSummary) }}</p>
+          </div>
+        </div>
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button
+            class="justify-center text-xs"
+            :icon="Save"
+            :icon-size="12"
+            :disabled="resolvingConflict"
+            @click="handleResolveServerConflict('local')"
+          >
+            保存这份副本
+          </Button>
+          <Button
+            class="justify-center text-xs"
+            :icon="CloudDownload"
+            :icon-size="12"
+            :disabled="resolvingConflict"
+            @click="handleResolveServerConflict('remote')"
+          >
+            改用服务端存档
+          </Button>
+        </div>
+      </div>
     </div>
 
     <!-- 主菜单 -->
@@ -439,7 +536,7 @@
 </template>
 
 <script setup lang="ts">
-  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays } from 'lucide-vue-next'
+  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays, Save, CloudDownload } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
@@ -447,7 +544,7 @@
   import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue'
   import { useRouter } from 'vue-router'
   import type { PanelKey } from '@/composables/useNavigation'
-  import { useGameStore } from '@/stores/useGameStore'
+  import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useAnimalStore } from '@/stores/useAnimalStore'
@@ -482,12 +579,20 @@
   const mailboxStore = useMailboxStore()
 
   const slots = ref<Awaited<ReturnType<typeof saveStore.getSlots>>>([])
+  type ImportNotice = {
+    tone: 'success' | 'danger' | 'accent'
+    message: string
+    slot: number | null
+  }
   const showCharCreate = ref(false)
   const showFarmSelect = ref(false)
   const showIdentitySetup = ref(false)
   const adminLogoClickCount = ref(0)
   const adminEntryUnlocked = ref(false)
   const slotMenuOpen = ref<number | null>(null)
+  const resolvingConflict = ref(false)
+  const importNotice = ref<ImportNotice | null>(null)
+  const importNoticePanelRef = ref<HTMLElement | null>(null)
   const selectedMap = ref<FarmMapType>('standard')
   const charName = ref('')
   const charGender = ref<Gender>('male')
@@ -544,6 +649,7 @@
 
   const existingSlots = computed(() => slots.value.filter(slot => slot.exists))
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
+  const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
   const storageModeText = computed(() => (saveStore.storageMode === 'local' ? '本地存储（当前设备）' : '服务端持久化（当前账号）'))
   const storageModeDesc = computed(() =>
     saveStore.storageMode === 'local'
@@ -958,7 +1064,24 @@
   }
 
   const triggerImport = () => {
+    clearImportNotice()
     fileInputRef.value?.click()
+  }
+
+  const revealImportNotice = () => {
+    if (typeof window === 'undefined') return
+    window.requestAnimationFrame(() => {
+      importNoticePanelRef.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    })
+  }
+
+  const setImportNotice = (notice: ImportNotice) => {
+    importNotice.value = notice
+    revealImportNotice()
+  }
+
+  const clearImportNotice = () => {
+    importNotice.value = null
   }
 
   const buildImportSuccessMessage = (slot: number) => {
@@ -970,6 +1093,58 @@
     return `已导入到本地存档 ${slot + 1}；切到服务端保存后会生成公开存档 ID。`
   }
 
+  const buildImportFailureMessage = () => {
+    if (saveStore.lastSaveResultStatus === 'conflict') {
+      return '云存档有新版本，请在上方比较后选择要保存哪一个。'
+    }
+    return saveStore.lastSaveErrorMessage || saveStore.lastLoadErrorMessage || '存档文件无效或已损坏。'
+  }
+
+  const formatConflictSummary = (info: {
+    exists?: boolean
+    playerName?: string
+    year?: number
+    season?: string
+    day?: number
+    money?: number
+  } | null | undefined) => {
+    if (!info?.exists) return '空槽位'
+    const playerName = info.playerName || '未命名'
+    const season = info.season ? (SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] ?? info.season) : '?'
+    const dayText = Number.isFinite(Number(info.year)) && Number.isFinite(Number(info.day))
+      ? `第${Number(info.year)}年 ${season} 第${Number(info.day)}天`
+      : '时间未知'
+    const moneyText = Number.isFinite(Number(info.money)) ? ` · ${Math.floor(Number(info.money))} 铜钱` : ''
+    return `${playerName} · ${dayText}${moneyText}`
+  }
+
+  const handleResolveServerConflict = async (choice: 'local' | 'remote') => {
+    if (resolvingConflict.value) return
+    const conflictSlot = serverSaveConflict.value?.slot ?? null
+    resolvingConflict.value = true
+    const ok = await saveStore.resolveServerSaveConflict(choice)
+    resolvingConflict.value = false
+    await refreshSlots()
+
+    const message = ok
+      ? saveStore.lastServerSyncMessage || (choice === 'local' ? '已保存这份副本并覆盖服务端存档。' : '已改用服务端存档。')
+      : saveStore.lastSaveErrorMessage || '处理云存档冲突失败。'
+    showFloat(message, ok ? 'success' : 'danger')
+    addLog(message)
+    setImportNotice({
+      tone: ok ? 'success' : 'danger',
+      message,
+      slot: ok ? conflictSlot : null
+    })
+  }
+
+  const handleLoadImportedSlot = async () => {
+    const slot = importNotice.value?.slot
+    if (slot === null || slot === undefined) return
+    clearImportNotice()
+    await loadGameFromSlot(slot)
+  }
+
   const handleImportFile = (e: Event) => {
     const input = e.target as HTMLInputElement
     const file = input.files?.[0]
@@ -977,23 +1152,42 @@
     const reader = new FileReader()
     reader.onload = () => {
       const content = reader.result as string
+      setImportNotice({ tone: 'accent', message: '正在导入存档...', slot: null })
       const slotAllocationBlockReason = saveStore.getSlotAllocationBlockReason()
       if (slotAllocationBlockReason) {
         showFloat(slotAllocationBlockReason, 'danger')
+        setImportNotice({ tone: 'danger', message: slotAllocationBlockReason, slot: null })
+        addLog(slotAllocationBlockReason)
         input.value = ''
         return
       }
       // 找到第一个空槽位导入，没有则提示
       const emptySlot = slots.value.find(s => !s.exists)
       if (!emptySlot) {
-        showFloat('存档槽位已满，请先删除一个旧存档。')
+        const message = '存档槽位已满，请先删除一个旧存档。'
+        showFloat(message, 'danger')
+        setImportNotice({ tone: 'danger', message, slot: null })
+        addLog(message)
       } else {
         void (async () => {
           if (await saveStore.importSave(emptySlot.slot, content)) {
             await refreshSlots()
-            showFloat(buildImportSuccessMessage(emptySlot.slot), 'success')
+            const message = buildImportSuccessMessage(emptySlot.slot)
+            showFloat(message, 'success')
+            setImportNotice({ tone: 'success', message, slot: emptySlot.slot })
+            addLog(message)
           } else {
-            showFloat('存档文件无效或已损坏。', 'danger')
+            const message = buildImportFailureMessage()
+            if (saveStore.lastSaveResultStatus === 'conflict') {
+              await refreshSlots()
+            }
+            showFloat(message, saveStore.lastSaveResultStatus === 'conflict' ? 'accent' : 'danger')
+            setImportNotice({
+              tone: saveStore.lastSaveResultStatus === 'conflict' ? 'accent' : 'danger',
+              message,
+              slot: saveStore.lastSaveResultStatus === 'conflict' ? emptySlot.slot : null
+            })
+            addLog(message)
           }
         })()
       }

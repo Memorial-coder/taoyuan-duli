@@ -7679,6 +7679,7 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   const slot = parseInt(req.params.slot, 10);
   const raw = typeof req.body?.raw === 'string' ? req.body.raw : '';
   const baseRevision = Number.isFinite(Number(req.body?.base_revision)) ? Math.floor(Number(req.body.base_revision)) : null;
+  const repairFieldAnomalies = req.body?.repair_field_anomalies === true || req.body?.repairFieldAnomalies === true;
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
@@ -7710,7 +7711,7 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
     });
   }
   const nextRevision = nextSlotRevision(currentRevision);
-  const preparedEntry = prepareSlotEntryForSave(req.session.username, slot, raw, nextRevision);
+  const preparedEntry = prepareSlotEntryForSave(req.session.username, slot, raw, nextRevision, { repairFieldAnomalies });
   data.slots[slot] = { raw: preparedEntry.raw, revision: nextRevision };
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
@@ -7722,6 +7723,7 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
     current_revision: nextRevision,
     revision: nextRevision,
     raw: preparedEntry.raw,
+    field_repair: preparedEntry.fieldRepair || null,
   });
   } catch (error) {
     const payload = { ok: false, msg: error.message || '保存服务端存档失败' };

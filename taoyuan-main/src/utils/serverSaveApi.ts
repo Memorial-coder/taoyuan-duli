@@ -79,9 +79,38 @@ export interface SaveServerSlotRawResult {
   stale: boolean
   currentRevision: number
   raw: string | null
+  fieldRepair: ServerSaveFieldRepairSummary | null
 }
 
-export const saveServerSlotRaw = async (slot: number, raw: string, baseRevision: number): Promise<SaveServerSlotRawResult> => {
+export interface ServerSaveFieldAnomaly {
+  id?: string
+  action?: string
+  field_path?: string
+  observed_value?: unknown
+  normalized_value?: unknown
+  limit?: unknown
+  severity?: string
+  detected_at?: string
+  required_operation?: string
+}
+
+export interface ServerSaveFieldRepairSummary {
+  repaired?: boolean
+  anomaly_count?: number
+  repaired_count?: number
+  anomalies?: ServerSaveFieldAnomaly[]
+}
+
+export interface SaveServerSlotRawOptions {
+  repairFieldAnomalies?: boolean
+}
+
+export const saveServerSlotRaw = async (
+  slot: number,
+  raw: string,
+  baseRevision: number,
+  options: SaveServerSlotRawOptions = {}
+): Promise<SaveServerSlotRawResult> => {
   const safeSlot = normalizeSlot(slot)
   if (safeSlot === null) throw new Error('无效的存档槽位')
   await ensureLoggedInContext()
@@ -98,7 +127,8 @@ export const saveServerSlotRaw = async (slot: number, raw: string, baseRevision:
         },
         body: JSON.stringify({
           raw,
-          base_revision: Math.max(0, Math.floor(Number(baseRevision) || 0))
+          base_revision: Math.max(0, Math.floor(Number(baseRevision) || 0)),
+          ...(options.repairFieldAnomalies ? { repair_field_anomalies: true } : {})
         })
       })
     }, {
@@ -114,7 +144,8 @@ export const saveServerSlotRaw = async (slot: number, raw: string, baseRevision:
         currentRevision: Number.isFinite(Number(payload?.current_revision ?? payload?.revision))
           ? Math.max(0, Math.floor(Number(payload?.current_revision ?? payload?.revision)))
           : Math.max(0, Math.floor(Number(baseRevision) || 0)),
-        raw: typeof payload?.raw === 'string' && payload.raw ? payload.raw : null
+        raw: typeof payload?.raw === 'string' && payload.raw ? payload.raw : null,
+        fieldRepair: null
       }
     }
     throw error
@@ -124,7 +155,10 @@ export const saveServerSlotRaw = async (slot: number, raw: string, baseRevision:
     currentRevision: Number.isFinite(Number(data?.current_revision ?? data?.revision))
       ? Math.max(0, Math.floor(Number(data?.current_revision ?? data?.revision)))
       : Math.max(0, Math.floor(Number(baseRevision) || 0)),
-    raw: typeof data?.raw === 'string' && data.raw ? data.raw : null
+    raw: typeof data?.raw === 'string' && data.raw ? data.raw : null,
+    fieldRepair: data?.field_repair && typeof data.field_repair === 'object'
+      ? data.field_repair as ServerSaveFieldRepairSummary
+      : null
   }
 }
 

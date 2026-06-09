@@ -59,6 +59,7 @@ import {
 } from '@/data/goals'
 import { buildScopedSingleKey, buildScopedStorageKey, ensureCurrentAccount, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
 import { deleteServerSlotRaw, fetchServerSlotEntries, fetchServerSlotRaw, saveServerSlotRaw, setServerActiveSlot } from '@/utils/serverSaveApi'
+import type { ServerSaveFieldAnomaly, ServerSaveFieldRepairSummary } from '@/utils/serverSaveApi'
 import { isProtectedApiError } from '@/utils/protectedApi'
 import { _registerGameplaySaveContextGetter } from '@/composables/useGameLog'
 
@@ -226,6 +227,24 @@ export interface ServerSaveConflictState {
   remoteSummary: SaveSlotInfo
   localBaseRevision: number
   remoteRevision: number
+  occurredAt: string
+}
+
+export interface ServerSaveFieldAnomalyDetails {
+  phase?: string
+  anomaly_count: number
+  repaired_count?: number
+  repair_attempted?: boolean
+  required_operation?: string
+  anomalies: ServerSaveFieldAnomaly[]
+}
+
+export interface ServerSaveFieldAnomalyState {
+  slot: number
+  localRaw: string
+  baseRevision: number
+  summary: SaveSlotInfo
+  details: ServerSaveFieldAnomalyDetails
   occurredAt: string
 }
 
@@ -685,6 +704,24 @@ const getErrorDetail = (error: unknown): string => {
   return ''
 }
 
+const extractServerSaveFieldAnomalyDetails = (error: unknown): ServerSaveFieldAnomalyDetails | null => {
+  if (!isProtectedApiError(error) || error.status !== 422) return null
+  const payload = error.data as any
+  if (payload?.code !== 'TAOYUAN_SAVE_FIELD_ANOMALY') return null
+  const details = payload?.details && typeof payload.details === 'object' ? payload.details : {}
+  const anomalies = Array.isArray(details.anomalies)
+    ? details.anomalies.filter((entry: unknown): entry is ServerSaveFieldAnomaly => !!entry && typeof entry === 'object')
+    : []
+  return {
+    phase: typeof details.phase === 'string' ? details.phase : undefined,
+    anomaly_count: Number.isFinite(Number(details.anomaly_count)) ? Math.max(0, Math.floor(Number(details.anomaly_count))) : anomalies.length,
+    repaired_count: Number.isFinite(Number(details.repaired_count)) ? Math.max(0, Math.floor(Number(details.repaired_count))) : undefined,
+    repair_attempted: details.repair_attempted === true,
+    required_operation: typeof details.required_operation === 'string' ? details.required_operation : undefined,
+    anomalies
+  }
+}
+
 const parseSaveDataForLoad = (raw: string): {
   ok: true
   rawData: Record<string, any>
@@ -734,6 +771,7 @@ export const useSaveStore = defineStore('save', () => {
   const lastServerSyncMessage = ref('')
   const lastSaveResultStatus = ref<SaveExecutionStatus>('saved')
   const serverSaveConflict = ref<ServerSaveConflictState | null>(null)
+  const serverSaveFieldAnomaly = ref<ServerSaveFieldAnomalyState | null>(null)
   const serverSlotsFetchState = ref<'unknown' | 'available' | 'unavailable'>(
     getStoredSaveMode() === 'server' ? 'unknown' : 'available'
   )
@@ -768,6 +806,7 @@ export const useSaveStore = defineStore('save', () => {
     runtimeSessionMode.value = null
     currentOnlineIdentity.value = null
     serverSaveConflict.value = null
+    serverSaveFieldAnomaly.value = null
     lastLoadError.value = null
     lastIssuedServerRevisionBySlot.value = { 0: 0, 1: 0, 2: 0 }
     lastAuthoritativeServerRawBySlot.value = {}
@@ -1220,6 +1259,36 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
+  const setServerSaveFieldAnomaly = (
+    slot: number,
+    localEntry: PendingServerSaveEntry,
+    details: ServerSaveFieldAnomalyDetails,
+    baseRevision = localEntry.baseRevision
+  ) => {
+    if (!isValidSlot(slot) || !localEntry.raw) return
+    serverSaveFieldAnomaly.value = {
+      slot,
+      localRaw: localEntry.raw,
+      baseRevision: Math.max(0, Math.floor(Number(baseRevision) || 0)),
+      summary: parseSlotInfo(slot, localEntry.raw, true, false),
+      details,
+      occurredAt: new Date().toISOString()
+    }
+  }
+
+  const clearServerSaveFieldAnomaly = (slot?: number) => {
+    if (slot === undefined || serverSaveFieldAnomaly.value?.slot === slot) {
+      serverSaveFieldAnomaly.value = null
+    }
+  }
+
+  const dismissServerSaveFieldAnomaly = () => {
+    clearServerSaveFieldAnomaly()
+    if (lastSaveResultStatus.value === 'failed') {
+      lastServerSyncMessage.value = ''
+    }
+  }
+
   const applySaveData = (data: Record<string, any>, slot: number, mode: SaveMode = storageMode.value): boolean => {
     const normalized = normalizeSaveEnvelope(data)
     if (!normalized) return false
@@ -1565,9 +1634,18 @@ export const useSaveStore = defineStore('save', () => {
         }
         if (clearPendingServerSaveIfUnchanged(slot, entry)) {
           clearServerSaveConflict(slot)
+          clearServerSaveFieldAnomaly(slot)
           syncedSlots.push(slot)
         }
       } catch (error) {
+        const fieldAnomalyDetails = extractServerSaveFieldAnomalyDetails(error)
+        if (fieldAnomalyDetails) {
+          setServerSaveFieldAnomaly(slot, entry, fieldAnomalyDetails)
+          clearPendingServerSaveIfUnchanged(slot, entry)
+          failedSlots.push(slot)
+          invalidSlots.push(slot)
+          continue
+        }
         if (isProtectedApiError(error) && error.status === 422) {
           clearPendingServerSaveIfUnchanged(slot, entry)
           failedSlots.push(slot)
@@ -1584,7 +1662,9 @@ export const useSaveStore = defineStore('save', () => {
       lastServerSyncMessage.value = '云存档已在其他设备更新，本地待同步副本已暂停上传。请比较后选择要保存哪一个。'
     } else if (invalidSlots.length > 0) {
       serverSyncStatus.value = 'error'
-      lastServerSyncMessage.value = '云存档数据无效，已保留远端旧档。请重新读取远端存档或导出本地备份后处理。'
+      lastServerSyncMessage.value = serverSaveFieldAnomaly.value
+        ? '云存档字段异常，已保留远端旧档。可确认修复异常字段后强制保存当前进度。'
+        : '云存档数据无效，已保留远端旧档。请重新读取远端存档或导出本地备份后处理。'
     } else if (failedSlots.length > 0) {
       serverSyncStatus.value = remainingPending.length > 0 ? 'queued' : 'error'
       lastServerSyncMessage.value = '服务暂时不可用，已先保存在当前浏览器，恢复后会自动同步。'
@@ -1633,7 +1713,9 @@ export const useSaveStore = defineStore('save', () => {
     if (syncResult.invalidSlots.includes(slot)) {
       setLastSaveState(
         'failed',
-        '云存档数据无效，已保留远端旧档。请重新读取远端存档或导出本地备份后处理。',
+        serverSaveFieldAnomaly.value?.slot === slot
+          ? '云存档字段异常，已保留远端旧档。请在弹窗确认是否修复后强制保存。'
+          : '云存档数据无效，已保留远端旧档。请重新读取远端存档或导出本地备份后处理。',
         lastServerSyncMessage.value
       )
       return false
@@ -1649,6 +1731,80 @@ export const useSaveStore = defineStore('save', () => {
 
     setLastSaveState('queued', '', '服务暂时不可用，当前进度已先保存在浏览器，恢复后会自动同步。')
     return true
+  }
+
+  const buildFieldRepairMessage = (fieldRepair: ServerSaveFieldRepairSummary | null): string => {
+    const repairedCount = Number(fieldRepair?.repaired_count ?? fieldRepair?.anomaly_count)
+    return Number.isFinite(repairedCount) && repairedCount > 0
+      ? `已修复 ${Math.floor(repairedCount)} 项异常字段并保存到服务端存档。`
+      : '已修复异常字段并保存到服务端存档。'
+  }
+
+  const forceRepairServerSaveFieldAnomaly = async (): Promise<boolean> => {
+    const anomaly = serverSaveFieldAnomaly.value
+    if (!anomaly) return false
+    const slot = anomaly.slot
+    const localEntry: PendingServerSaveEntry = {
+      raw: anomaly.localRaw,
+      savedAt: anomaly.summary.savedAt ?? anomaly.occurredAt,
+      updatedAt: Date.now(),
+      baseRevision: anomaly.baseRevision
+    }
+    try {
+      serverSyncStatus.value = 'syncing'
+      const saveResult = await saveServerSlotRaw(slot, anomaly.localRaw, anomaly.baseRevision, {
+        repairFieldAnomalies: true
+      })
+      rememberServerSlotState(slot, saveResult.raw, saveResult.currentRevision)
+      if (saveResult.stale) {
+        setServerSaveConflict(slot, localEntry, saveResult.raw, saveResult.currentRevision)
+        clearServerSaveFieldAnomaly(slot)
+        serverSyncStatus.value = 'error'
+        setLastSaveState(
+          'conflict',
+          '云存档又有新版本，请重新比较后再选择要保存哪一个。',
+          '服务端存档已更新，本地修复副本仍已保留。'
+        )
+        return false
+      }
+
+      clearPendingServerSave(slot)
+      clearServerSaveConflict(slot)
+      clearServerSaveFieldAnomaly(slot)
+      applyActiveSlotSelection(slot, 'server')
+      setRuntimeSession(slot, 'server')
+
+      const repairedRaw = saveResult.raw ?? anomaly.localRaw
+      const parsed = repairedRaw ? parseSaveData(repairedRaw) : null
+      const applied = parsed ? applySaveData(parsed, slot, 'server') : false
+      if (!applied) {
+        refreshRuntimeOnlineIdentityFromRaw(slot, 'server', repairedRaw)
+      }
+
+      serverSyncStatus.value = 'synced'
+      setLastSaveState(
+        'saved',
+        '',
+        applied
+          ? buildFieldRepairMessage(saveResult.fieldRepair)
+          : '异常字段已修复并写入服务端，但当前页面回读失败，请手动重新载入该服务端存档。'
+      )
+      return true
+    } catch (error) {
+      const fieldAnomalyDetails = extractServerSaveFieldAnomalyDetails(error)
+      if (fieldAnomalyDetails) {
+        setServerSaveFieldAnomaly(slot, localEntry, fieldAnomalyDetails, anomaly.baseRevision)
+      }
+      serverSyncStatus.value = 'error'
+      setLastSaveState(
+        'failed',
+        fieldAnomalyDetails
+          ? '自动修复后仍有字段异常，服务端旧档已保留。请导出本地备份后手动处理。'
+          : getErrorDetail(error) || '修复并强制保存失败，服务端旧档已保留。',
+        '服务端存档尚未覆盖。'
+      )
+      return false
+    }
   }
 
   const getRawByMode = async (
@@ -1878,6 +2034,17 @@ export const useSaveStore = defineStore('save', () => {
         setLastSaveState('saved', '', '已保存当前进度并覆盖服务端存档。')
         return true
       } catch (error) {
+        const fieldAnomalyDetails = extractServerSaveFieldAnomalyDetails(error)
+        if (fieldAnomalyDetails) {
+          setServerSaveFieldAnomaly(slot, localEntry, fieldAnomalyDetails, conflict.remoteRevision)
+          serverSyncStatus.value = 'error'
+          setLastSaveState(
+            'failed',
+            '云存档字段异常，已保留远端旧档。请在弹窗确认是否修复后强制保存。',
+            '服务端存档冲突尚未解决。'
+          )
+          return false
+        }
         serverSyncStatus.value = 'error'
         setLastSaveState(
           'failed',
@@ -1914,6 +2081,7 @@ export const useSaveStore = defineStore('save', () => {
     }
 
     clearServerSaveConflict(slot)
+    clearServerSaveFieldAnomaly(slot)
     setLastSaveState('saved', '', '已载入服务端存档，当前页面副本已放弃。')
     return true
   }
@@ -2060,6 +2228,7 @@ export const useSaveStore = defineStore('save', () => {
     lastServerSyncMessage,
     lastSaveResultStatus,
     serverSaveConflict,
+    serverSaveFieldAnomaly,
     currentOnlineIdentity,
     qaGovernanceBaselineAudit,
     qaGovernanceOverview,
@@ -2085,6 +2254,8 @@ export const useSaveStore = defineStore('save', () => {
     syncPendingServerSaves,
     loadFromSlot,
     resolveServerSaveConflict,
+    forceRepairServerSaveFieldAnomaly,
+    dismissServerSaveFieldAnomaly,
     deleteSlot,
     exportSave,
     importSave,

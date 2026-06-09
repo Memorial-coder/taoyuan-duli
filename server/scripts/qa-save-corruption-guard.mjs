@@ -16,6 +16,7 @@ const require = createRequire(import.meta.url)
 const {
   TAOYUAN_SAVES_DIR,
   createEmptySlots,
+  decryptTaoyuanRaw,
   encryptTaoyuanData,
   loadUserSaveSlots,
   prepareSlotEntryForSave,
@@ -109,6 +110,24 @@ assert.throws(
     error?.details?.anomalies?.some(entry => entry.field_path === 'game.season') &&
     error?.details?.required_operation === 'repair_save_fields_before_write',
   'out-of-range or illegal gameplay fields should block save writes before overwrite'
+)
+
+const repairedEntry = prepareSlotEntryForSave('illegal_guard_user', 0, illegalSaveRaw, 1, {
+  repairFieldAnomalies: true,
+})
+assert.equal(repairedEntry.fieldRepair?.repaired, true, 'confirmed repair save should report repaired field anomalies')
+assert.ok(repairedEntry.fieldRepair?.anomaly_count >= 6, 'confirmed repair save should report anomaly count')
+const repairedPayload = decryptTaoyuanRaw(repairedEntry.raw)
+assert.equal(repairedPayload.data.player.money, 0, 'confirmed repair save should clamp player money')
+assert.equal(repairedPayload.data.game.year, 1, 'confirmed repair save should clamp year')
+assert.equal(repairedPayload.data.game.day, 28, 'confirmed repair save should clamp day')
+assert.equal(repairedPayload.data.game.season, 'spring', 'confirmed repair save should normalize illegal season')
+assert.equal(repairedPayload.data.inventory.items[0].quantity, 0, 'confirmed repair save should clamp inventory quantity')
+assert.equal(repairedPayload.data.farm.plots[0].state, 'wasteland', 'confirmed repair save should normalize farm plot state')
+assert.equal(repairedPayload.data.farm.plots[0].growthDays, 0, 'confirmed repair save should clamp farm growth days')
+assert.doesNotThrow(
+  () => prepareSlotEntryForSave('illegal_guard_user', 0, repairedEntry.raw, 2),
+  'repaired save should pass the normal write guard'
 )
 
 await rm(tempDir, { recursive: true, force: true })
