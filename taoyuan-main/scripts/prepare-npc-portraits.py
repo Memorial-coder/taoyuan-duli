@@ -11,7 +11,8 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 
-VARIANT_RE = re.compile(r"^(?P<base>.+)_(?P<variant>0[1-5])\.png$", re.IGNORECASE)
+SUPPORTED_SOURCE_SUFFIXES = {".png", ".webp"}
+VARIANT_RE = re.compile(r"^(?P<base>.+)_(?P<variant>0[1-5])\.(?:png|webp)$", re.IGNORECASE)
 
 
 def parse_sizes(raw):
@@ -55,11 +56,20 @@ def display_name_for(base):
 
 def collect_groups(source_dir):
   groups = defaultdict(dict)
-  for file_path in source_dir.glob("*.png"):
+  for file_path in sorted(source_dir.iterdir(), key=lambda item: item.name.lower()):
+    if not file_path.is_file() or file_path.suffix.lower() not in SUPPORTED_SOURCE_SUFFIXES:
+      continue
     match = VARIANT_RE.match(file_path.name)
     if not match:
       continue
-    groups[match.group("base")][match.group("variant")] = file_path
+    base = match.group("base")
+    variant = match.group("variant")
+    previous = groups[base].get(variant)
+    if previous and previous.suffix.lower() == ".webp":
+      continue
+    if previous and file_path.suffix.lower() != ".webp":
+      continue
+    groups[base][variant] = file_path
   return dict(sorted(groups.items(), key=lambda item: item[0]))
 
 
