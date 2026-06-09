@@ -1095,9 +1095,9 @@
     if (animalStore.grazedToday) return false
     if (gameStore.isRainy) return false
     if (gameStore.season === 'winter') {
-      return animalStore.animals.some(a => a.wasFed && a.type === 'yak')
+      return animalStore.animals.some(a => a.type === 'yak')
     }
-    const hasGrazeableAnimals = animalStore.animals.some(a => a.wasFed && a.type !== 'horse')
+    const hasGrazeableAnimals = animalStore.animals.some(a => a.type !== 'horse')
     return hasGrazeableAnimals
   })
 
@@ -1106,10 +1106,10 @@
     if (animalStore.grazedToday) return '今天已放牧'
     if (gameStore.isRainy) return '雨天不能放牧'
     if (gameStore.season === 'winter') {
-      const hasYak = animalStore.animals.some(a => a.wasFed && a.type === 'yak')
+      const hasYak = animalStore.animals.some(a => a.type === 'yak')
       return hasYak ? '' : '冬天只有牦牛可放牧'
     }
-    if (!animalStore.animals.some(a => a.wasFed && a.type !== 'horse')) return '先喂食再放牧'
+    if (!animalStore.animals.some(a => a.type !== 'horse')) return '没有可放牧动物'
     return ''
   })
 

@@ -23,6 +23,7 @@ import {
   getPetSpecialFeedByItemId,
   getPetSpecialFeedFeedback,
   getPetSpecialFeedTasteLabel,
+  getItemById,
   PREMIUM_FEED_ID,
   NOURISHING_FEED_ID,
   VITALITY_FEED_ID,
@@ -742,7 +743,13 @@ export const useAnimalStore = defineStore('animal', () => {
   // ============================================================
 
   /** 放牧（春/夏/秋非雨天；冬季仅牦牛可放牧） */
-  const grazeAnimals = (): { success: boolean; count: number; message: string; bonusProducts?: { itemId: string; quality: Quality }[] } => {
+  const grazeAnimals = (): {
+    success: boolean
+    count: number
+    message: string
+    bonusProducts?: { itemId: string; quality: Quality }[]
+    products?: AnimalProductGrant[]
+  } => {
     if (grazedToday.value) {
       return { success: false, count: 0, message: '今天已经放牧过了。' }
     }
@@ -756,23 +763,45 @@ export const useAnimalStore = defineStore('animal', () => {
     let grazeable: Animal[]
     if (gameStore.season === 'winter') {
       // 冬季仅牦牛可放牧
-      grazeable = animals.value.filter(a => a.wasFed && a.type === 'yak')
+      grazeable = animals.value.filter(a => a.type === 'yak')
       if (grazeable.length === 0) {
-        return { success: false, count: 0, message: '冬天只有牦牛可以放牧，且需先喂食。' }
+        return { success: false, count: 0, message: '冬天只有牦牛可以放牧。' }
       }
     } else {
-      grazeable = animals.value.filter(a => a.wasFed && a.type !== 'horse')
+      grazeable = animals.value.filter(a => a.type !== 'horse')
       if (grazeable.length === 0) {
-        return { success: false, count: 0, message: '没有已喂食的动物可放牧。' }
+        return { success: false, count: 0, message: '没有可放牧的动物。' }
       }
     }
 
     grazedToday.value = true
     const bonusProducts: { itemId: string; quality: Quality }[] = []
+    const products: AnimalProductGrant[] = []
+    const inventoryStore = useInventoryStore()
+    const farmingSkill = useSkillStore().getSkill('farming')
+    const productContext: AnimalProductQualityContext = {
+      hasShepherd: farmingSkill.perk10 === 'shepherd',
+      hasAnimalWhisperer: farmingSkill.perk15 === 'animal_whisperer',
+      hasNatureBond: farmingSkill.perk20 === 'nature_bond',
+      hasBeastSovereign: farmingSkill.perk20 === 'beast_sovereign'
+    }
 
     for (const animal of grazeable) {
+      animal.wasFed = true
+      animal.fedWith = null
+      animal.hunger = 0
       animal.mood = 255
       animal.friendship = Math.min(1000, animal.friendship + 10)
+
+      if (!animal.pastureProducedToday) {
+        const product = buildAnimalProductGrant(animal, productContext)
+        if (product) {
+          inventoryStore.addItem(product.itemId, product.quantity, product.quality)
+          products.push(product)
+          animal.pastureProducedToday = true
+          animal.daysSinceProduct = 0
+        }
+      }
 
       // 猪放牧时额外找到松露
       if (animal.type === 'pig') {
@@ -782,7 +811,6 @@ export const useAnimalStore = defineStore('animal', () => {
 
     // 将猪找到的松露直接加入背包
     if (bonusProducts.length > 0) {
-      const inventoryStore = useInventoryStore()
       for (const bp of bonusProducts) {
         inventoryStore.addItem(bp.itemId, 1, bp.quality)
       }
@@ -793,8 +821,17 @@ export const useAnimalStore = defineStore('animal', () => {
     if (pigCount > 0) {
       message += `猪找到了${pigCount}个松露！`
     }
+    if (products.length > 0) {
+      message += ` 收获：${products.map(formatAnimalProductGrant).join('、')}。`
+    }
 
-    return { success: true, count: grazeable.length, message, bonusProducts: bonusProducts.length > 0 ? bonusProducts : undefined }
+    return {
+      success: true,
+      count: grazeable.length,
+      message,
+      bonusProducts: bonusProducts.length > 0 ? bonusProducts : undefined,
+      products: products.length > 0 ? products : undefined
+    }
   }
 
   /** 饥饿致死天数上限 */
@@ -929,7 +966,7 @@ export const useAnimalStore = defineStore('animal', () => {
 
       // 产品检查（跳过马，马无产出；生病时不产出）
       const def = ANIMAL_DEFS.find(d => d.type === animal.type)
-      if (def && def.produceDays > 0 && animal.wasFed && !animal.sick) {
+      if (def && def.produceDays > 0 && animal.wasFed && !animal.sick && !animal.pastureProducedToday) {
         const effectiveDays = animal.fedWith === NOURISHING_FEED_ID ? Math.max(1, def.produceDays - 1) : def.produceDays
         if (animal.daysSinceProduct >= effectiveDays) {
           let quality = getAnimalProductQuality(animal.friendship)
@@ -977,6 +1014,7 @@ export const useAnimalStore = defineStore('animal', () => {
       animal.wasFed = false
       animal.fedWith = null
       animal.wasPetted = false
+      animal.pastureProducedToday = false
     }
 
     // 移除死亡的动物（饿死或病死）
@@ -1050,6 +1088,52 @@ export const useAnimalStore = defineStore('animal', () => {
     return 'normal'
   }
 
+  type AnimalProductGrant = { itemId: string; quality: Quality; quantity: number }
+
+  type AnimalProductQualityContext = {
+    hasShepherd: boolean
+    hasAnimalWhisperer: boolean
+    hasNatureBond: boolean
+    hasBeastSovereign: boolean
+  }
+
+  const ANIMAL_PRODUCT_QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+
+  const upgradeAnimalProductQuality = (quality: Quality): Quality => {
+    const idx = ANIMAL_PRODUCT_QUALITY_ORDER.indexOf(quality)
+    return ANIMAL_PRODUCT_QUALITY_ORDER[Math.min(idx + 1, ANIMAL_PRODUCT_QUALITY_ORDER.length - 1)]!
+  }
+
+  const getBoostedAnimalProductQuality = (animal: Animal, context: AnimalProductQualityContext): Quality => {
+    let quality = getAnimalProductQuality(animal.friendship)
+    if (context.hasShepherd) quality = upgradeAnimalProductQuality(quality)
+    if (context.hasAnimalWhisperer) quality = upgradeAnimalProductQuality(quality)
+    if (context.hasNatureBond) quality = 'supreme'
+
+    const animalBondBonus = useHiddenNpcStore().getBondBonusByType('animal_blessing')
+    if (animalBondBonus?.type === 'animal_blessing' && Math.random() < animalBondBonus.chance) {
+      quality = upgradeAnimalProductQuality(quality)
+    }
+
+    return quality
+  }
+
+  const buildAnimalProductGrant = (animal: Animal, context: AnimalProductQualityContext): AnimalProductGrant | null => {
+    const def = ANIMAL_DEFS.find(d => d.type === animal.type)
+    if (!def || def.produceDays <= 0 || !def.productId || animal.sick) return null
+
+    return {
+      itemId: def.productId,
+      quality: getBoostedAnimalProductQuality(animal, context),
+      quantity: context.hasBeastSovereign ? 2 : 1
+    }
+  }
+
+  const formatAnimalProductGrant = (grant: AnimalProductGrant): string => {
+    const name = getItemById(grant.itemId)?.name ?? grant.itemId
+    return `${name}×${grant.quantity}`
+  }
+
   /** 修改动物名称（id='pet' 表示宠物） */
   const renameAnimal = (id: string, newName: string): boolean => {
     const trimmed = newName.trim()
@@ -1116,6 +1200,7 @@ export const useAnimalStore = defineStore('animal', () => {
       wasFed: Boolean(animal?.wasFed),
       fedWith: typeof animal?.fedWith === 'string' ? animal.fedWith : null,
       wasPetted: Boolean(animal?.wasPetted),
+      pastureProducedToday: Boolean(animal?.pastureProducedToday),
       hunger: Number.isFinite(animal?.hunger) ? animal.hunger : 0,
       sick: Boolean(animal?.sick),
       sickDays: Number.isFinite(animal?.sickDays) ? animal.sickDays : 0

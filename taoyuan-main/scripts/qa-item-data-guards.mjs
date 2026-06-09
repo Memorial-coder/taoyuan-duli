@@ -80,7 +80,9 @@ const {
   PROCESSING_RECIPES,
   FRUIT_TREE_DEFS,
   FORAGE_ITEMS,
-  HIDDEN_NPCS
+  HIDDEN_NPCS,
+  ANIMAL_DEFS,
+  FEED_DEFS
 } = data
 const { WILD_TREE_DEFS } = wildTrees
 
@@ -113,6 +115,28 @@ expectItem('persimmon', { category: 'crop', sellPrice: 225, edible: true })
 expectItem('tree_persimmon', { category: 'fruit', sellPrice: 127, edible: true })
 expectItem('mulberry', { category: 'crop', sellPrice: 60, edible: true })
 expectItem('wild_mulberry', { category: 'misc', sellPrice: 25, edible: true })
+expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
+expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })
+expectItem('duck_egg', { category: 'animal_product', sellPrice: 180 })
+expectItem('rabbit_fur', { category: 'animal_product', sellPrice: 330 })
+expectItem('goat_milk', { category: 'animal_product', sellPrice: 240 })
+expectItem('buffalo_milk', { category: 'animal_product', sellPrice: 230 })
+expectItem('donkey_milk', { category: 'animal_product', sellPrice: 300 })
+expectItem('ostrich_egg', { category: 'animal_product', sellPrice: 520 })
+expectItem('antler_velvet', { category: 'animal_product', sellPrice: 900 })
+
+const hayFeedPrice = FEED_DEFS.find(feed => feed.id === 'hay')?.price ?? 50
+for (const animal of ANIMAL_DEFS) {
+  if (!animal.productId || animal.produceDays <= 0) continue
+  const product = getItemById(animal.productId)
+  assert(!!product, `${animal.type} 产物缺少物品定义：${animal.productId}`)
+  if (!product) continue
+  const normalCycleProfit = product.sellPrice - hayFeedPrice * animal.produceDays
+  assert(
+    normalCycleProfit >= 0,
+    `${animal.type} 普通品质基础喂养不应亏本：${animal.productId} ${product.sellPrice} - 干草 ${hayFeedPrice}×${animal.produceDays}`
+  )
+}
 
 const recipeById = id => PROCESSING_RECIPES.find(recipe => recipe.id === id)
 assert(recipeById('brew_osmanthus')?.outputItemId === 'processed_osmanthus_tea', 'brew_osmanthus 应产出 processed_osmanthus_tea')

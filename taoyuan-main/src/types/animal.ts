@@ -55,6 +55,8 @@ export interface Animal {
   /** 今天喂食使用的饲料类型 */
   fedWith: string | null
   wasPetted: boolean
+  /** 是否已经通过今日放牧直接产出，避免日结重复产出 */
+  pastureProducedToday?: boolean
   /** 饥饿值：连续未喂食天数，达到上限时死亡 */
   hunger: number
   /** 是否生病（连续饥饿≥3天有概率生病，生病时不产出） */

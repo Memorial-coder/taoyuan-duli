@@ -662,7 +662,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '鸭蛋',
     category: 'animal_product',
     description: '个大味美的鸭蛋。',
-    sellPrice: 142,
+    sellPrice: 180,
     edible: true,
     staminaRestore: 8,
     healthRestore: 4
@@ -680,7 +680,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
   { id: 'wool', name: '羊毛', category: 'animal_product', description: '柔软的羊毛。', sellPrice: 510, edible: false },
   { id: 'hay', name: '干草', category: 'material', description: '喂养牲畜的干草。', sellPrice: 0, edible: false },
   // 新增动物产品
-  { id: 'rabbit_fur', name: '兔毛', category: 'animal_product', description: '柔软的兔毛。', sellPrice: 225, edible: false },
+  { id: 'rabbit_fur', name: '兔毛', category: 'animal_product', description: '柔软的兔毛。', sellPrice: 330, edible: false },
   {
     id: 'rabbit_foot',
     name: '幸运兔脚',
@@ -704,7 +704,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '鹌鹑蛋',
     category: 'animal_product',
     description: '小巧的鹌鹑蛋。',
-    sellPrice: 37,
+    sellPrice: 65,
     edible: true,
     staminaRestore: 3,
     healthRestore: 2
@@ -714,7 +714,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '鸽子蛋',
     category: 'animal_product',
     description: '营养丰富的鸽子蛋。',
-    sellPrice: 67,
+    sellPrice: 140,
     edible: true,
     staminaRestore: 5,
     healthRestore: 3
@@ -735,7 +735,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '羊奶',
     category: 'animal_product',
     description: '新鲜的羊奶。',
-    sellPrice: 165,
+    sellPrice: 240,
     edible: true,
     staminaRestore: 10,
     healthRestore: 5
@@ -755,7 +755,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '水牛奶',
     category: 'animal_product',
     description: '醇厚的水牛奶。',
-    sellPrice: 150,
+    sellPrice: 230,
     edible: true,
     staminaRestore: 8,
     healthRestore: 4
@@ -776,7 +776,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '鹿茸',
     category: 'animal_product',
     description: '珍贵的鹿茸，可直接食用补体力。',
-    sellPrice: 675,
+    sellPrice: 900,
     edible: true,
     staminaRestore: 30,
     healthRestore: 15
@@ -786,7 +786,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '驴奶',
     category: 'animal_product',
     description: '驴奶，味道温和。',
-    sellPrice: 120,
+    sellPrice: 300,
     edible: true,
     staminaRestore: 6,
     healthRestore: 3
@@ -806,7 +806,7 @@ const ANIMAL_PRODUCT_ITEMS: ItemDef[] = [
     name: '鸵鸟蛋',
     category: 'animal_product',
     description: '巨大的鸵鸟蛋。',
-    sellPrice: 300,
+    sellPrice: 520,
     edible: true,
     staminaRestore: 15,
     healthRestore: 8
