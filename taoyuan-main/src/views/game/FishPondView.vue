@@ -377,7 +377,7 @@
             :key="breed.breedId"
             type="button"
             class="min-h-[92px] border rounded-xs p-2 text-xs text-center transition-colors flex flex-col items-center justify-center gap-1.5 overflow-hidden"
-            :class="isDiscovered(breed.breedId) ? 'border-accent/20 ' + genColor(compendiumGen) : 'border-accent/10 text-muted/30'"
+            :class="isDiscovered(breed.breedId) ? 'fish-breed-card ' + genBorderColor(breed.generation) + ' ' + genColor(breed.generation) : 'border-accent/10 text-muted/30'"
             :disabled="!isDiscovered(breed.breedId)"
             @click="openBreedDetail(breed)"
           >
@@ -720,6 +720,14 @@
     if (gen >= 4) return 'text-quality-excellent'
     if (gen >= 3) return 'text-quality-fine'
     return 'text-accent'
+  }
+
+  /** 图鉴品级边框：1-2代沿用金色，3-5代复用物品品质色 */
+  const genBorderColor = (gen: number): string => {
+    if (gen >= 5) return 'fish-breed-card--supreme'
+    if (gen >= 4) return 'fish-breed-card--excellent'
+    if (gen >= 3) return 'fish-breed-card--fine'
+    return 'fish-breed-card--normal'
   }
 
   /** 水质条颜色 */
@@ -1181,3 +1189,41 @@
     }
   }
 </script>
+
+<style scoped>
+  .fish-breed-card {
+    border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+
+  .fish-breed-card:hover {
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  }
+
+  .fish-breed-card--normal:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 46%, transparent);
+  }
+
+  .fish-breed-card--fine {
+    border-color: color-mix(in srgb, var(--color-quality-fine) 66%, transparent);
+  }
+
+  .fish-breed-card--fine:hover {
+    border-color: color-mix(in srgb, var(--color-quality-fine) 82%, transparent);
+  }
+
+  .fish-breed-card--excellent {
+    border-color: color-mix(in srgb, var(--color-quality-excellent) 72%, transparent);
+  }
+
+  .fish-breed-card--excellent:hover {
+    border-color: color-mix(in srgb, var(--color-quality-excellent) 88%, transparent);
+  }
+
+  .fish-breed-card--supreme {
+    border-color: color-mix(in srgb, var(--color-quality-supreme) 76%, transparent);
+  }
+
+  .fish-breed-card--supreme:hover {
+    border-color: color-mix(in srgb, var(--color-quality-supreme) 92%, transparent);
+  }
+</style>

@@ -1,7 +1,18 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { SkillType, SkillState, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, RingEffectType } from '@/types'
+import type {
+  SkillType,
+  SkillState,
+  SkillPerk5,
+  SkillPerk10,
+  SkillPerk15,
+  SkillPerk20,
+  RingEffectType,
+  SkillMasteryNodeId,
+  SkillMasteryEffectKey
+} from '@/types'
 import { HYBRID_MASTERY_DEFS, MASTERY_REWARD_DEFS, PRIMARY_MASTERY_DEFS } from '@/data/mastery'
+import { SKILL_MASTERY_EFFECT_VALUES, SKILL_MASTERY_NODE_DEFS, getSkillMasteryNodeDefs } from '@/data/skillMastery'
 import { BLESSINGS } from '@/data/blessings'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
@@ -12,7 +23,7 @@ const EXP_TABLE = [0, 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000,
 
 /** 创建初始技能状态 */
 const createSkill = (type: SkillType): SkillState => {
-  return { type, exp: 0, level: 0, perk5: null, perk10: null, perk15: null, perk20: null }
+  return { type, exp: 0, level: 0, perk5: null, perk10: null, perk15: null, perk20: null, masteryExp: 0, masteryPoints: 0, unlockedMasteryNodeIds: [] }
 }
 
 type SkillPerk = SkillPerk5 | SkillPerk10 | SkillPerk15 | SkillPerk20
@@ -121,6 +132,10 @@ const includesPerk = <T extends SkillPerk>(options: readonly T[] | undefined, pe
 const SKILL_TYPES: SkillType[] = ['farming', 'foraging', 'fishing', 'mining', 'combat']
 const MAX_SKILL_LEVEL = 20
 const MAX_SKILL_EXP = EXP_TABLE[MAX_SKILL_LEVEL]!
+const SKILL_MASTERY_EXP_PER_POINT = 5000
+const SKILL_MASTERY_NODE_BY_ID = new Map<SkillMasteryNodeId, (typeof SKILL_MASTERY_NODE_DEFS)[number]>(
+  SKILL_MASTERY_NODE_DEFS.map(node => [node.id, node] as const)
+)
 
 export const useSkillStore = defineStore('skill', () => {
   const skills = ref<SkillState[]>([
@@ -201,16 +216,127 @@ export const useSkillStore = defineStore('skill', () => {
     }
   }
 
+  const normalizeSkillMasteryNumbers = (skill: SkillState) => {
+    const rawMasteryExp = Math.floor(Number(skill.masteryExp))
+    const normalizedMasteryExp = Number.isFinite(rawMasteryExp) ? Math.max(0, rawMasteryExp) : 0
+    if (skill.masteryExp !== normalizedMasteryExp) {
+      skillMigrationLogs.value.push(`${skill.type} 精研经验从 ${String(skill.masteryExp)} 修正为 ${normalizedMasteryExp}。`)
+    }
+    skill.masteryExp = normalizedMasteryExp
+
+    const rawMasteryPoints = Math.floor(Number(skill.masteryPoints))
+    const normalizedMasteryPoints = Number.isFinite(rawMasteryPoints) ? Math.max(0, rawMasteryPoints) : 0
+    if (skill.masteryPoints !== normalizedMasteryPoints) {
+      skillMigrationLogs.value.push(`${skill.type} 精研点从 ${String(skill.masteryPoints)} 修正为 ${normalizedMasteryPoints}。`)
+    }
+    skill.masteryPoints = normalizedMasteryPoints
+
+    if (!Array.isArray(skill.unlockedMasteryNodeIds)) {
+      skillMigrationLogs.value.push(`${skill.type} 精研节点记录格式无效，已重置。`)
+      skill.unlockedMasteryNodeIds = []
+    }
+  }
+
+  const convertSkillMasteryExp = (skill: SkillState) => {
+    if (skill.masteryExp < SKILL_MASTERY_EXP_PER_POINT) return
+    const gainedPoints = Math.floor(skill.masteryExp / SKILL_MASTERY_EXP_PER_POINT)
+    skill.masteryPoints += gainedPoints
+    skill.masteryExp %= SKILL_MASTERY_EXP_PER_POINT
+  }
+
+  const addSkillMasteryExp = (skill: SkillState, amount: number) => {
+    normalizeSkillMasteryNumbers(skill)
+    const normalizedAmount = Math.floor(Number(amount))
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return
+    skill.masteryExp += normalizedAmount
+    convertSkillMasteryExp(skill)
+  }
+
+  const normalizeSkillMasteryState = (skill: SkillState) => {
+    normalizeSkillMasteryNumbers(skill)
+    if (skill.level < MAX_SKILL_LEVEL) {
+      if (skill.masteryExp > 0 || skill.masteryPoints > 0 || skill.unlockedMasteryNodeIds.length > 0) {
+        skillMigrationLogs.value.push(`${skill.type} 未满级的精研记录已清空。`)
+      }
+      skill.masteryExp = 0
+      skill.masteryPoints = 0
+      skill.unlockedMasteryNodeIds = []
+      return
+    }
+
+    convertSkillMasteryExp(skill)
+
+    const normalizedNodeIds: SkillMasteryNodeId[] = []
+    for (const rawNodeId of skill.unlockedMasteryNodeIds) {
+      const node = typeof rawNodeId === 'string' ? SKILL_MASTERY_NODE_BY_ID.get(rawNodeId as SkillMasteryNodeId) : undefined
+      if (!node) {
+        skillMigrationLogs.value.push(`${skill.type} 移除非法精研节点 ${String(rawNodeId)}。`)
+        continue
+      }
+      if (node.skillType !== skill.type) {
+        skillMigrationLogs.value.push(`${skill.type} 移除跨技能精研节点 ${node.id}。`)
+        continue
+      }
+      if (normalizedNodeIds.includes(node.id)) {
+        skillMigrationLogs.value.push(`${skill.type} 移除重复精研节点 ${node.id}。`)
+        continue
+      }
+      normalizedNodeIds.push(node.id)
+    }
+    skill.unlockedMasteryNodeIds = normalizedNodeIds
+  }
+
+  const getSkillMasteryNodes = (type: SkillType) => getSkillMasteryNodeDefs(type)
+
+  const hasSkillMasteryNode = (nodeId: SkillMasteryNodeId): boolean =>
+    skills.value.some(skill => skill.unlockedMasteryNodeIds.includes(nodeId))
+
+  const canUnlockSkillMasteryNode = (type: SkillType, nodeId: SkillMasteryNodeId): boolean => {
+    const skill = getSkill(type)
+    const node = SKILL_MASTERY_NODE_BY_ID.get(nodeId)
+    return !!node && node.skillType === type && skill.level >= MAX_SKILL_LEVEL && !skill.unlockedMasteryNodeIds.includes(nodeId) && skill.masteryPoints >= node.cost
+  }
+
+  const unlockSkillMasteryNode = (type: SkillType, nodeId: SkillMasteryNodeId): boolean => {
+    const skill = getSkill(type)
+    const node = SKILL_MASTERY_NODE_BY_ID.get(nodeId)
+    if (!node || !canUnlockSkillMasteryNode(type, nodeId)) return false
+    skill.masteryPoints -= node.cost
+    skill.unlockedMasteryNodeIds.push(node.id)
+    return true
+  }
+
+  const getSkillMasteryProgress = (type: SkillType): { current: number; required: number } | null => {
+    const skill = getSkill(type)
+    if (skill.level < MAX_SKILL_LEVEL) return null
+    return { current: skill.masteryExp, required: SKILL_MASTERY_EXP_PER_POINT }
+  }
+
+  const getSkillMasteryEffectValue = (effectKey: SkillMasteryEffectKey): number => {
+    const node = SKILL_MASTERY_NODE_DEFS.find(entry => entry.effectKey === effectKey)
+    if (!node || !hasSkillMasteryNode(node.id)) return 0
+    return SKILL_MASTERY_EFFECT_VALUES[effectKey] ?? 0
+  }
+
   /** 增加经验并自动升级（含戒指经验加成） */
   const addExp = (type: SkillType, amount: number): { leveledUp: boolean; newLevel: number } => {
     const ringExpBonus = useInventoryStore().getRingEffectValue('exp_bonus')
-    const adjustedAmount = Math.floor(amount * (1 + ringExpBonus))
+    const adjustedAmount = Math.max(0, Math.floor(amount * (1 + ringExpBonus)))
 
     const skill = getSkill(type)
-    skill.exp += adjustedAmount
+    normalizeSkillMasteryNumbers(skill)
     let leveledUp = false
 
-    while (skill.level < 20) {
+    if (skill.level >= MAX_SKILL_LEVEL) {
+      skill.exp = MAX_SKILL_EXP
+      addSkillMasteryExp(skill, adjustedAmount)
+      refreshMasteryUnlocks()
+      return { leveledUp, newLevel: skill.level }
+    }
+
+    skill.exp += adjustedAmount
+
+    while (skill.level < MAX_SKILL_LEVEL) {
       const nextLevelExp = EXP_TABLE[skill.level + 1]!
       if (skill.exp >= nextLevelExp) {
         skill.level++
@@ -218,6 +344,11 @@ export const useSkillStore = defineStore('skill', () => {
       } else {
         break
       }
+    }
+    if (skill.level >= MAX_SKILL_LEVEL && skill.exp > MAX_SKILL_EXP) {
+      const overflowExp = skill.exp - MAX_SKILL_EXP
+      skill.exp = MAX_SKILL_EXP
+      addSkillMasteryExp(skill, overflowExp)
     }
 
     refreshMasteryUnlocks()
@@ -304,6 +435,7 @@ export const useSkillStore = defineStore('skill', () => {
   }
 
   const normalizeSkillProgress = (skill: SkillState) => {
+    normalizeSkillMasteryNumbers(skill)
     const rawLevel = Math.floor(Number(skill.level))
     const normalizedLevel = Number.isFinite(rawLevel) ? Math.max(0, Math.min(MAX_SKILL_LEVEL, rawLevel)) : 0
     const rawExp = Math.floor(Number(skill.exp))
@@ -327,8 +459,10 @@ export const useSkillStore = defineStore('skill', () => {
       skill.exp = minimumExpForLevel
     }
     if (skill.level >= MAX_SKILL_LEVEL && skill.exp > MAX_SKILL_EXP) {
-      skillMigrationLogs.value.push(`${skill.type} 满级经验超过上限，已裁剪到 ${MAX_SKILL_EXP}。`)
+      const overflowExp = skill.exp - MAX_SKILL_EXP
+      skillMigrationLogs.value.push(`${skill.type} 满级经验超过上限，${overflowExp} 已转入精研经验。`)
       skill.exp = MAX_SKILL_EXP
+      addSkillMasteryExp(skill, overflowExp)
     }
   }
 
@@ -418,7 +552,11 @@ export const useSkillStore = defineStore('skill', () => {
     for (const s of uniqueSkills) {
       if (!('perk15' in s)) (s as SkillState).perk15 = null
       if (!('perk20' in s)) (s as SkillState).perk20 = null
+      if (!('masteryExp' in s)) (s as SkillState).masteryExp = 0
+      if (!('masteryPoints' in s)) (s as SkillState).masteryPoints = 0
+      if (!('unlockedMasteryNodeIds' in s)) (s as SkillState).unlockedMasteryNodeIds = []
       normalizeSkillProgress(s)
+      normalizeSkillMasteryState(s)
       normalizePerks(s)
     }
     skills.value = uniqueSkills
@@ -438,10 +576,17 @@ export const useSkillStore = defineStore('skill', () => {
     masteryPoints,
     masteryRewards,
     dailyBlessingPreview,
+    skillMasteryExpPerPoint: SKILL_MASTERY_EXP_PER_POINT,
     getBlessingEffectValue,
     getSkill,
     addExp,
     getExpToNextLevel,
+    getSkillMasteryNodes,
+    hasSkillMasteryNode,
+    canUnlockSkillMasteryNode,
+    unlockSkillMasteryNode,
+    getSkillMasteryProgress,
+    getSkillMasteryEffectValue,
     getStaminaReduction,
     setPerk5,
     setPerk10,

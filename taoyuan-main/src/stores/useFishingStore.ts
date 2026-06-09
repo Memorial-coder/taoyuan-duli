@@ -29,8 +29,16 @@ import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useNpcStore } from './useNpcStore'
 
 const STAMINA_COST = 4
-const MAX_CRAB_POTS = 10
+const BASE_CRAB_POTS_LIMIT = 10
+const SKILLED_CRAB_POTS_LIMIT = 14
+const MASTER_CRAB_POTS_LIMIT = 18
 const MAX_CRAB_POTS_PER_LOCATION = 3
+
+const getCrabPotLimitForFishingLevel = (level: number): number => {
+  if (level >= 15) return MASTER_CRAB_POTS_LIMIT
+  if (level >= 10) return SKILLED_CRAB_POTS_LIMIT
+  return BASE_CRAB_POTS_LIMIT
+}
 
 /** 蟹笼产物池 */
 const CRAB_POT_LOOT: { itemId: string; weight: number; locationOverride?: FishingLocation; replaces?: string }[] = [
@@ -177,6 +185,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
   /** 蟹笼 */
   const crabPots = ref<CrabPotState[]>([])
+  const maxCrabPots = computed(() => getCrabPotLimitForFishingLevel(skillStore.fishingLevel))
 
   /** 装备鱼饵（仅标记类型，不从背包取出） */
   const equipBait = (type: BaitType): { success: boolean; message: string } => {
@@ -700,8 +709,8 @@ export const useFishingStore = defineStore('fishing', () => {
 
   /** 放置蟹笼 */
   const placeCrabPot = (location: FishingLocation): { success: boolean; message: string } => {
-    if (crabPots.value.length >= MAX_CRAB_POTS) {
-      return { success: false, message: `蟹笼已达上限 (${MAX_CRAB_POTS})。` }
+    if (crabPots.value.length >= maxCrabPots.value) {
+      return { success: false, message: `蟹笼已达上限 (${maxCrabPots.value})。` }
     }
     const atLocation = crabPots.value.filter(p => p.location === location).length
     if (atLocation >= MAX_CRAB_POTS_PER_LOCATION) {
@@ -845,6 +854,7 @@ export const useFishingStore = defineStore('fishing', () => {
     equippedTackle,
     tackleDurability,
     crabPots,
+    maxCrabPots,
     crabPotsByLocation,
     setLocation,
     equipBait,

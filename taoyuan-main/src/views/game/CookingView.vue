@@ -208,21 +208,24 @@
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { getItemById } from '@/data'
   import { getCropUseTagMatches } from '@/data/cropUseProfiles'
   import { getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from '@/data/recipes'
+  import { formatCropUseSubstitutionSummary, getLowestCropUsePlanQuality } from '@/utils/cropUseSubstitution'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
-  import type { Quality } from '@/types'
+  import type { Quality, RecipeDef } from '@/types'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
 
   const cookingStore = useCookingStore()
   const gameStore = useGameStore()
+  const skillStore = useSkillStore()
   const achievementStore = useAchievementStore()
   const tutorialStore = useTutorialStore()
 
@@ -251,6 +254,37 @@
     return labels.length > 0 ? `用途：${labels.join('、')}` : ''
   }
 
+  const hasRequiredCookingSkill = (recipe: RecipeDef): boolean => {
+    if (!recipe.requiredSkill) return true
+    return skillStore.getSkill(recipe.requiredSkill.type).level >= recipe.requiredSkill.level
+  }
+
+  const getCookingPlanQuality = (plan: ReturnType<typeof cookingStore.getCookingUsePlan>): Quality => {
+    return plan.entries.length > 0 ? getLowestCropUsePlanQuality(plan) : 'normal'
+  }
+
+  const buildRecipeIngredientInfos = (
+    recipe: RecipeDef,
+    cookingPlan: ReturnType<typeof cookingStore.getCookingUsePlan>
+  ) => {
+    return recipe.ingredients.map(ing => {
+      const item = getItemById(ing.itemId)
+      const available = cookingStore.getCookingIngredientAvailableCount(ing.itemId)
+      const cropUseText = getCookingCropUseText(ing.itemId)
+      const substitutionText = formatIngredientSubstitutionText(cookingPlan.entries, ing.itemId)
+      return {
+        itemId: ing.itemId,
+        item,
+        name: item?.name ?? ing.itemId,
+        quantity: ing.quantity,
+        available,
+        enough: !cookingPlan.missing.some(missing => missing.requirementItemId === ing.itemId),
+        cropUseText,
+        substitutionText
+      }
+    })
+  }
+
   const buildCookingRecommendationText = (
     canCook: boolean,
     categoryText: string,
@@ -271,34 +305,17 @@
   /** 预计算食谱信息（不含数量，避免改数量触发全量重算） */
   const recipeInfos = computed(() => {
     return cookingStore.recipes.map(recipe => {
-      const canCook = cookingStore.canCook(recipe.id)
-      const maxQty = cookingStore.maxCookable(recipe.id)
-      const quality = cookingStore.previewCookQuality(recipe.id)
-      const outputItem = getItemById(`food_${recipe.id}`) ?? null
       const cookingPlan = cookingStore.getCookingUsePlan(recipe.id)
-      const substitutionText = cookingStore.getCookingSubstitutionText(recipe.id)
-      const ingredients = recipe.ingredients.map(ing => {
-        const item = getItemById(ing.itemId)
-        const available = cookingStore.getCookingIngredientAvailableCount(ing.itemId)
-        const cropUseText = getCookingCropUseText(ing.itemId)
-        const substitutionText = formatIngredientSubstitutionText(cookingPlan.entries, ing.itemId)
-        return {
-          itemId: ing.itemId,
-          item,
-          name: item?.name ?? ing.itemId,
-          quantity: ing.quantity,
-          available,
-          enough: !cookingPlan.missing.some(missing => missing.requirementItemId === ing.itemId),
-          cropUseText,
-          substitutionText
-        }
-      })
+      const canCook = hasRequiredCookingSkill(recipe) && cookingPlan.fulfilled
+      const quality = getCookingPlanQuality(cookingPlan)
+      const outputItem = getItemById(`food_${recipe.id}`) ?? null
+      const substitutionText = formatCropUseSubstitutionSummary(cookingPlan, getItemName)
       const categoryText = getRecipeCategoryLabels(recipe).join('、')
       const storyTriggerText = getRecipeStoryTriggerLabels(recipe).join('、')
-      const cropUseLabels = uniqueStrings(ingredients.map(ing => ing.cropUseText.replace(/^用途：/, '')))
+      const cropUseLabels = uniqueStrings(recipe.ingredients.map(ing => getCookingCropUseText(ing.itemId).replace(/^用途：/, '')))
       const cropUseText = cropUseLabels.length > 0 ? `用途标签：${cropUseLabels.join('、')}` : ''
       const recommendationText = buildCookingRecommendationText(canCook, categoryText, storyTriggerText, cropUseText)
-      return { recipe, outputItem, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText, substitutionText, recommendationText }
+      return { recipe, outputItem, canCook, quality, cookingPlan, categoryText, storyTriggerText, cropUseText, substitutionText, recommendationText }
     })
   })
 
@@ -312,7 +329,13 @@
   /** 当前弹窗对应的食谱信息（响应式，材料变化时自动更新） */
   const modalInfo = computed(() => {
     if (!modalRecipeId.value) return null
-    return recipeInfos.value.find(i => i.recipe.id === modalRecipeId.value) ?? null
+    const info = recipeInfos.value.find(i => i.recipe.id === modalRecipeId.value)
+    if (!info) return null
+    return {
+      ...info,
+      maxQty: cookingStore.maxCookable(info.recipe.id),
+      ingredients: buildRecipeIngredientInfos(info.recipe, info.cookingPlan)
+    }
   })
 
   const openModal = (recipeId: string) => {

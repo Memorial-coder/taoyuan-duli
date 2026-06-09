@@ -83,6 +83,49 @@ export type SkillPerk20 =
   | 'shadow_sovereign'
   | 'indestructible' // 战斗: phantom_blade/iron_fortress分支
 
+export type SkillMasteryNodeId =
+  | 'farming_batch_irrigation'
+  | 'farming_festival_supply'
+  | 'farming_processing_flow'
+  | 'foraging_rare_signal'
+  | 'foraging_journey_scout'
+  | 'foraging_weather_window'
+  | 'fishing_tide_marker'
+  | 'fishing_pond_link'
+  | 'fishing_legend_weight'
+  | 'mining_floor_intel'
+  | 'mining_bomb_efficiency'
+  | 'mining_rare_transmute'
+  | 'combat_boss_pressure'
+  | 'combat_escort_margin'
+  | 'combat_trinket_tuning'
+
+export type SkillMasteryEffectKey =
+  | 'batch_irrigation'
+  | 'festival_supply'
+  | 'processing_flow'
+  | 'rare_signal'
+  | 'journey_scout'
+  | 'weather_window'
+  | 'tide_marker'
+  | 'pond_link'
+  | 'legend_weight'
+  | 'floor_intel'
+  | 'bomb_efficiency'
+  | 'rare_transmute'
+  | 'boss_pressure'
+  | 'escort_margin'
+  | 'trinket_tuning'
+
+export interface SkillMasteryNodeDef {
+  id: SkillMasteryNodeId
+  skillType: SkillType
+  label: string
+  summary: string
+  cost: number
+  effectKey: SkillMasteryEffectKey
+}
+
 /** 技能状态 */
 export interface SkillState {
   type: SkillType
@@ -92,6 +135,9 @@ export interface SkillState {
   perk10: SkillPerk10 | null
   perk15: SkillPerk15 | null
   perk20: SkillPerk20 | null
+  masteryExp: number
+  masteryPoints: number
+  unlockedMasteryNodeIds: SkillMasteryNodeId[]
 }
 
 /** 钓鱼小游戏评级 */

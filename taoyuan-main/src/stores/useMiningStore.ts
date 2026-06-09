@@ -544,9 +544,12 @@ export const useMiningStore = defineStore('mining', () => {
       message += ` 获得了鞋子：${bossShoeDef?.name ?? bossShoeId}！`
     }
 
-    const moneyReward = shouldGrantMainReward ? (BOSS_MONEY_REWARDS[floorNum] ?? 0) : 0
+    const bossPressureBonus = skillStore.getSkillMasteryEffectValue('boss_pressure')
+    const baseMoneyReward = shouldGrantMainReward ? (BOSS_MONEY_REWARDS[floorNum] ?? 0) : 0
+    const moneyReward = Math.floor(baseMoneyReward * (1 + bossPressureBonus))
     if (moneyReward > 0) {
       message += ` 获得${moneyReward}文！`
+      if (bossPressureBonus > 0 && moneyReward > baseMoneyReward) message += '（首领压制）'
     }
 
     if (oreRewardMessage) {
@@ -1100,8 +1103,11 @@ export const useMiningStore = defineStore('mining', () => {
     const _miningSkill = skillStore.getSkill('mining')
     const abyssMinerActive = _miningSkill.perk20 === 'abyss_miner'
     const deepExcavatorActive = _miningSkill.perk15 === 'deep_excavator'
-    const excavatorSaved = abyssMinerActive || deepExcavatorActive || (_miningSkill.perk10 === 'excavator' && Math.random() < 0.3)
-    if (excavatorSaved) {
+    const excavatorPerkSaved = abyssMinerActive || deepExcavatorActive || (_miningSkill.perk10 === 'excavator' && Math.random() < 0.3)
+    const bombEfficiencyChance = skillStore.getSkillMasteryEffectValue('bomb_efficiency')
+    const bombEfficiencySaved = !excavatorPerkSaved && bombEfficiencyChance > 0 && Math.random() < bombEfficiencyChance
+    const bombSaved = excavatorPerkSaved || bombEfficiencySaved
+    if (bombSaved) {
       inventoryStore.addItem(bombId, 1)
     }
 
@@ -1214,7 +1220,7 @@ export const useMiningStore = defineStore('mining', () => {
     if (monstersKilled > 0) msg += `${oreCollected > 0 ? '，' : ''}击败了${monstersKilled}只怪物`
     if (oreCollected === 0 && monstersKilled === 0) msg += '翻开了一些区域'
     msg += '！'
-    if (excavatorSaved) msg += '（挖掘者：炸弹未消耗！）'
+    if (bombSaved) msg += `（${bombEfficiencySaved ? '爆破效率' : '挖掘者'}：炸弹未消耗！）`
     if (inventoryBlocked) msg += '（部分奖励因背包空间不足未领取）'
     return { success: true, message: msg }
   }
@@ -1466,7 +1472,9 @@ export const useMiningStore = defineStore('mining', () => {
     const floor = getActiveFloorData()
     const wildernessXpBonus = useGameStore().farmMapType === 'wilderness' ? 1.5 : 1.0
     const infestedXpBonus = floor?.specialType === 'infested' ? 1.5 : 1.0
-    skillStore.addExp('combat', Math.floor(monster.expReward * wildernessXpBonus * infestedXpBonus))
+    const bossPressureBonus = combatIsBoss.value ? skillStore.getSkillMasteryEffectValue('boss_pressure') : 0
+    const combatExpGain = Math.floor(monster.expReward * wildernessXpBonus * infestedXpBonus * (1 + bossPressureBonus))
+    skillStore.addExp('combat', combatExpGain)
 
     // 幸运附魔 + 戒指增加掉落率
     const owned = inventoryStore.getEquippedWeapon()
@@ -1576,7 +1584,7 @@ export const useMiningStore = defineStore('mining', () => {
       if (isInSkullCavern.value) {
         // 骷髅矿穴BOSS：奖励铜钱和矿石（按深度缩放）
         const scFloor = skullCavernFloor.value
-        const moneyReward = 200 + scFloor * 20
+        const moneyReward = Math.floor((200 + scFloor * 20) * (1 + bossPressureBonus))
         playerStore.earnMoney(moneyReward)
         recordMoneyLoot(moneyReward)
         msg += ` 获得${moneyReward}文！`
@@ -1595,7 +1603,8 @@ export const useMiningStore = defineStore('mining', () => {
       }
     }
 
-    msg += ` ${monster.name}被击败了！(+${monster.expReward}经验)`
+    msg += ` ${monster.name}被击败了！(+${combatExpGain}经验)`
+    if (bossPressureBonus > 0) msg += '（首领压制）'
     if (drops.length > 0) msg += ` 掉落了物品。`
     if (inventoryBlocked) msg += ' 部分掉落因背包空间不足未领取。'
     if (Math.random() < 0.05) {

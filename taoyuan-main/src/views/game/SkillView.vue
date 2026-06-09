@@ -57,6 +57,48 @@
         </div>
         <p v-else-if="skill.level < 5" class="text-[0.625rem] text-muted">Lv5 / Lv10 / Lv15 / Lv20 时可选择专精天赋</p>
         <p v-else class="text-[0.625rem] text-muted">升级到 Lv{{ !skill.perk5 ? 5 : !skill.perk10 ? 10 : !skill.perk15 ? 15 : 20 }} 后可选择天赋</p>
+
+        <div v-if="skill.level >= 20" class="border border-accent/20 rounded-xs px-2 py-2 mt-2 bg-accent/5">
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <div class="flex items-center gap-1.5">
+              <Sparkles :size="12" class="text-accent" />
+              <span class="text-xs text-accent">后20级精研</span>
+            </div>
+            <span class="text-[0.625rem] text-accent">精研点 {{ skill.masteryPoints }}</span>
+          </div>
+          <div class="bg-bg rounded-xs h-1.5 border border-accent/10">
+            <div class="h-full bg-accent rounded-xs transition-all" :style="{ width: masteryPercent(skill.type) + '%' }" />
+          </div>
+          <p class="text-[0.625rem] text-muted mt-1">
+            {{ skillStore.getSkillMasteryProgress(skill.type)?.current ?? 0 }}/{{ skillStore.getSkillMasteryProgress(skill.type)?.required ?? skillStore.skillMasteryExpPerPoint }}
+          </p>
+
+          <div class="space-y-1 mt-2">
+            <div v-for="node in skillStore.getSkillMasteryNodes(skill.type)" :key="node.id" class="border border-accent/10 rounded-xs px-2 py-1.5 bg-bg/20">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs" :class="skillStore.hasSkillMasteryNode(node.id) ? 'text-success' : 'text-text'">{{ node.label }}</p>
+                  <p class="text-[0.625rem] text-muted mt-0.5 leading-relaxed">{{ node.summary }}</p>
+                  <p class="text-[0.625rem] text-muted/80 mt-0.5">费用 {{ node.cost }} · {{ node.effectKey }}</p>
+                </div>
+                <span v-if="skillStore.hasSkillMasteryNode(node.id)" class="inline-flex shrink-0 items-center gap-1 text-[0.625rem] text-success">
+                  <CheckCircle2 :size="12" />
+                  已解锁
+                </span>
+                <button
+                  v-else
+                  class="inline-flex shrink-0 items-center gap-1 rounded-xs border px-2 py-1 text-[0.625rem] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  :class="skillStore.canUnlockSkillMasteryNode(skill.type, node.id) ? 'border-accent/40 text-accent hover:bg-accent/10' : 'border-accent/10 text-muted'"
+                  :disabled="!skillStore.canUnlockSkillMasteryNode(skill.type, node.id)"
+                  @click="skillStore.unlockSkillMasteryNode(skill.type, node.id)"
+                >
+                  <Unlock :size="12" />
+                  <span>解锁</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="game-panel">
@@ -125,7 +167,7 @@
 
 <script setup lang="ts">
   import { type Component } from 'vue'
-  import { Star, Wheat, TreePine, Fish, Pickaxe, Sword } from 'lucide-vue-next'
+  import { Star, Wheat, TreePine, Fish, Pickaxe, Sword, Sparkles, Unlock, CheckCircle2 } from 'lucide-vue-next'
   import { useSkillStore } from '@/stores/useSkillStore'
   import type { SkillType, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20 } from '@/types'
 
@@ -317,5 +359,11 @@
     const info = skillStore.getExpToNextLevel(type)
     if (!info) return 100
     return Math.round((info.current / info.required) * 100)
+  }
+
+  const masteryPercent = (type: SkillType): number => {
+    const info = skillStore.getSkillMasteryProgress(type)
+    if (!info) return 0
+    return Math.min(100, Math.round((info.current / info.required) * 100))
   }
 </script>

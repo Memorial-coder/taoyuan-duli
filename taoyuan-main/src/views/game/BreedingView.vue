@@ -147,14 +147,15 @@
           <button
             v-for="seed in displayedBreedingSeeds"
             :key="seed.genetics.id"
-            class="relative border rounded-xs px-1 py-1.5 text-center cursor-pointer hover:bg-accent/5 transition-colors mr-1"
+            class="breeding-seed-card relative border rounded-xs px-1 py-1.5 text-center cursor-pointer hover:bg-accent/5 transition-colors mr-1"
             :class="selectedSeedIds.includes(seed.genetics.id) ? 'border-accent bg-accent/10' : 'border-accent/20'"
             @click="openSeedDetail(seed)"
           >
             <Heart v-if="breedingStore.isFavorite(seed.genetics.id)" :size="10" class="absolute top-1 right-1 text-danger fill-current" />
-            <p class="text-xs truncate" :class="seedStarColor(seed.genetics)">{{ getCropName(seed.genetics.cropId) }}</p>
-            <p class="text-xs text-muted">G{{ seed.genetics.generation }}</p>
-            <p class="text-xs flex items-center justify-center space-x-px" :class="seedStarColor(seed.genetics)">
+            <ItemIcon :item="getSeedItemForCrop(seed.genetics.cropId)" size="sm" :show-badge="false" />
+            <p class="breeding-seed-card__name text-xs truncate" :class="seedStarColor(seed.genetics)">{{ getCropName(seed.genetics.cropId) }}</p>
+            <p class="text-xs text-muted leading-4">G{{ seed.genetics.generation }}</p>
+            <p class="text-xs flex items-center justify-center space-x-px leading-4" :class="seedStarColor(seed.genetics)">
               <Star v-for="n in getStarRating(seed.genetics)" :key="n" :size="10" />
             </p>
           </button>
@@ -791,11 +792,16 @@
             <button
               v-for="seed in displayedBreedingSeeds"
               :key="seed.genetics.id"
-              class="flex items-center justify-between px-2 py-1 border rounded-xs text-xs cursor-pointer hover:bg-accent/5"
+              class="breeding-seed-option flex items-center justify-between px-2 py-1 border rounded-xs text-xs cursor-pointer hover:bg-accent/5"
               :class="selectedSeedIds.includes(seed.genetics.id) ? 'border-accent bg-accent/10' : 'border-accent/20'"
               @click="toggleSeedSelect(seed.genetics.id)"
             >
-              <span :class="seedStarColor(seed.genetics)">{{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}</span>
+              <span class="breeding-seed-option__main">
+                <ItemIcon :item="getSeedItemForCrop(seed.genetics.cropId)" size="xs" :show-badge="false" />
+                <span class="breeding-seed-option__label" :class="seedStarColor(seed.genetics)">
+                  {{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}
+                </span>
+              </span>
               <span class="text-muted flex items-center space-x-1">
                 <span class="flex items-center space-x-px">
                   <Star v-for="n in getStarRating(seed.genetics)" :key="n" :size="10" />
@@ -1509,6 +1515,11 @@
     return getCropById(cropId)?.name ?? cropId
   }
 
+  const getSeedItemForCrop = (cropId: string) => {
+    const crop = getCropById(cropId)
+    return crop ? (getItemById(crop.seedId) ?? null) : null
+  }
+
   const seedStarColor = (g: { sweetness: number; yield: number; resistance: number }): string => {
     const total = g.sweetness + g.yield + g.resistance
     if (total >= 250) return 'text-quality-supreme'
@@ -1517,3 +1528,48 @@
     return ''
   }
 </script>
+
+<style scoped>
+  .breeding-seed-card {
+    display: flex;
+    min-height: 96px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .breeding-seed-card__name {
+    width: 100%;
+    margin-top: 2px;
+  }
+
+  .breeding-seed-card :deep(.item-icon--sm) {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .breeding-seed-option {
+    min-height: 42px;
+    gap: 8px;
+  }
+
+  .breeding-seed-option__main {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .breeding-seed-option__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .breeding-seed-option :deep(.item-icon--xs) {
+    width: 28px !important;
+    height: 28px !important;
+  }
+</style>

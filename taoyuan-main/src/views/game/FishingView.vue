@@ -170,7 +170,7 @@
           <Box :size="14" class="inline" />
           蟹笼
         </p>
-        <span class="text-xs text-muted">{{ fishingStore.crabPots.length }}/10</span>
+        <span class="text-xs text-muted">{{ fishingStore.crabPots.length }}/{{ fishingStore.maxCrabPots }}</span>
       </div>
       <div v-if="crabPotLocations.length > 0" class="flex flex-col space-y-1 mb-2">
         <div v-for="loc in crabPotLocations" :key="loc.id" class="border border-accent/10 rounded-xs p-2">

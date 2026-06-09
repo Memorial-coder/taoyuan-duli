@@ -31,6 +31,8 @@
         <span v-if="foragingSkill.perk10 === 'tracker'" class="text-[0.625rem] text-success">追踪者：额外+1物品</span>
         <span v-if="cookingLuckBuff > 0" class="text-[0.625rem] text-success">料理运气+{{ cookingLuckBuff }}%</span>
         <span v-if="isForestFarm" class="text-[0.625rem] text-success">森林农场：经验×1.25</span>
+        <span v-if="rareSignalBonus > 0" class="text-[0.625rem] text-success">稀有信号：稀有概率+{{ Math.round(rareSignalBonus * 100) }}%</span>
+        <span v-if="weatherWindowBonus > 0 && environmentWindow.forage.active" class="text-[0.625rem] text-success">天候窗口：窗口概率+{{ Math.round(weatherWindowBonus * 100) }}%</span>
       </div>
       <div v-if="environmentWindow.forage.active" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/40">
         <div class="flex items-center justify-between gap-2">
@@ -268,6 +270,8 @@
   const hasLumberjackPerk = computed(() => foragingSkill.value.perk5 === 'lumberjack' || foragingSkill.value.perk10 === 'forester')
   const isForestFarm = computed(() => gameStore.farmMapType === 'forest')
   const cookingLuckBuff = computed(() => (cookingStore.activeBuff?.type === 'luck' ? cookingStore.activeBuff.value : 0))
+  const rareSignalBonus = computed(() => skillStore.getSkillMasteryEffectValue('rare_signal'))
+  const weatherWindowBonus = computed(() => skillStore.getSkillMasteryEffectValue('weather_window'))
 
   const handleForage = () => {
     if (gameStore.isPastBedtime) {
@@ -337,11 +341,15 @@
     for (const item of items) {
       const herbalistBonus = skill.perk5 === 'herbalist' ? 1.2 : 1.0
       const cookingBuff = cookingStore.activeBuff?.type === 'luck' ? cookingStore.activeBuff.value / 100 : 0
+      const rareSignalMult = item.chance <= 0.12 ? 1 + rareSignalBonus.value : 1
+      const weatherWindowMult = environmentWindow.value.forage.active ? 1 + weatherWindowBonus.value : 1
       const adjustedChance = Math.min(
         1,
         item.chance *
           (WEATHER_FORAGE_MODIFIER[gameStore.weather] ?? 1) *
           environmentWindow.value.forage.forageChanceMultiplier *
+          rareSignalMult *
+          weatherWindowMult *
           herbalistBonus *
           (1 + cookingBuff)
       )
