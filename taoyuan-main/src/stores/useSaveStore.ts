@@ -79,7 +79,8 @@ const sanitizeExportFileName = (value: string): string =>
     .trim() || 'taoyuan_save'
 
 export type ServerSaveSyncStatus = 'idle' | 'syncing' | 'queued' | 'synced' | 'error'
-export type SaveExecutionStatus = 'saved' | 'queued' | 'failed'
+export type SaveExecutionStatus = 'saved' | 'queued' | 'failed' | 'conflict'
+export type ServerSaveConflictResolution = 'local' | 'remote'
 export interface LoadFromSlotOptions {
   mode?: SaveMode
   allowPendingServerCopy?: boolean
@@ -215,6 +216,17 @@ export interface SaveSlotInfo {
   savedAt?: string
   pendingSync?: boolean
   readBlocked?: boolean
+}
+
+export interface ServerSaveConflictState {
+  slot: number
+  localRaw: string
+  remoteRaw: string | null
+  localSummary: SaveSlotInfo
+  remoteSummary: SaveSlotInfo
+  localBaseRevision: number
+  remoteRevision: number
+  occurredAt: string
 }
 
 export type SaveLoadFailureCode =
@@ -721,6 +733,7 @@ export const useSaveStore = defineStore('save', () => {
   const pendingServerSlots = ref<number[]>(getPendingServerSlotNumbers())
   const lastServerSyncMessage = ref('')
   const lastSaveResultStatus = ref<SaveExecutionStatus>('saved')
+  const serverSaveConflict = ref<ServerSaveConflictState | null>(null)
   const serverSlotsFetchState = ref<'unknown' | 'available' | 'unavailable'>(
     getStoredSaveMode() === 'server' ? 'unknown' : 'available'
   )
@@ -754,6 +767,7 @@ export const useSaveStore = defineStore('save', () => {
     runtimeSessionSlot.value = -1
     runtimeSessionMode.value = null
     currentOnlineIdentity.value = null
+    serverSaveConflict.value = null
     lastLoadError.value = null
     lastIssuedServerRevisionBySlot.value = { 0: 0, 1: 0, 2: 0 }
     lastAuthoritativeServerRawBySlot.value = {}
@@ -820,6 +834,9 @@ export const useSaveStore = defineStore('save', () => {
     const map = loadPendingServerSaveMap()
     delete map[slot]
     persistPendingServerSaveMap(map)
+    if (serverSaveConflict.value?.slot === slot) {
+      serverSaveConflict.value = null
+    }
     refreshPendingServerState()
   }
 
@@ -837,6 +854,9 @@ export const useSaveStore = defineStore('save', () => {
     }
     delete map[slot]
     persistPendingServerSaveMap(map)
+    if (serverSaveConflict.value?.slot === slot) {
+      serverSaveConflict.value = null
+    }
     refreshPendingServerState()
     return true
   }
@@ -887,6 +907,7 @@ export const useSaveStore = defineStore('save', () => {
     storageMode.value = mode
     setStoredSaveMode(mode)
     serverSlotsFetchState.value = mode === 'server' ? 'unknown' : 'available'
+    if (mode !== 'server') clearServerSaveConflict()
     activeSlot.value = activeSlotsByMode.value[mode] ?? -1
     activeSlotMode.value = activeSlot.value >= 0 ? mode : null
     refreshPendingServerState()
@@ -1174,6 +1195,31 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
+  const setServerSaveConflict = (
+    slot: number,
+    localEntry: PendingServerSaveEntry,
+    remoteRaw: string | null,
+    remoteRevision: number
+  ) => {
+    if (!isValidSlot(slot) || !localEntry.raw) return
+    serverSaveConflict.value = {
+      slot,
+      localRaw: localEntry.raw,
+      remoteRaw,
+      localSummary: parseSlotInfo(slot, localEntry.raw, true, false),
+      remoteSummary: parseSlotInfo(slot, remoteRaw, false, false),
+      localBaseRevision: localEntry.baseRevision,
+      remoteRevision: Math.max(0, Math.floor(Number(remoteRevision) || 0)),
+      occurredAt: new Date().toISOString()
+    }
+  }
+
+  const clearServerSaveConflict = (slot?: number) => {
+    if (slot === undefined || serverSaveConflict.value?.slot === slot) {
+      serverSaveConflict.value = null
+    }
+  }
+
   const applySaveData = (data: Record<string, any>, slot: number, mode: SaveMode = storageMode.value): boolean => {
     const normalized = normalizeSaveEnvelope(data)
     if (!normalized) return false
@@ -1436,7 +1482,10 @@ export const useSaveStore = defineStore('save', () => {
         const pendingEntry = pendingMap[slot]
         const pendingRaw = pendingEntry?.raw ?? null
         const pendingConflictsWithRemote = !!pendingEntry && serverEntry.revision > pendingEntry.baseRevision
-        if (pendingConflictsWithRemote) hasRevisionConflict = true
+        if (pendingConflictsWithRemote && pendingEntry) {
+          hasRevisionConflict = true
+          setServerSaveConflict(slot, pendingEntry, serverEntry.raw, serverEntry.revision)
+        }
         return {
           raw: pendingConflictsWithRemote ? serverEntry.raw : (pendingRaw ?? serverEntry.raw ?? null),
           pendingSync: !!pendingRaw,
@@ -1445,7 +1494,7 @@ export const useSaveStore = defineStore('save', () => {
       })
       if (hasRevisionConflict) {
         serverSyncStatus.value = serverSyncStatus.value === 'syncing' ? serverSyncStatus.value : 'error'
-        lastServerSyncMessage.value = '服务端存档已在其他设备更新，本地待同步副本已暂停上传，请重新读取远端存档后再决定是否覆盖。'
+        lastServerSyncMessage.value = '服务端存档已在其他设备更新，本地待同步副本已暂停上传。请比较后选择要保存哪一个。'
       }
       return states
     } catch {
@@ -1506,6 +1555,7 @@ export const useSaveStore = defineStore('save', () => {
         const saveResult = await saveServerSlotRaw(slot, entry.raw, entry.baseRevision)
         rememberServerSlotState(slot, saveResult.raw, saveResult.currentRevision)
         if (saveResult.stale) {
+          setServerSaveConflict(slot, entry, saveResult.raw, saveResult.currentRevision)
           failedSlots.push(slot)
           staleSlots.push(slot)
           continue
@@ -1514,6 +1564,7 @@ export const useSaveStore = defineStore('save', () => {
           refreshRuntimeOnlineIdentityFromRaw(slot, 'server', saveResult.raw)
         }
         if (clearPendingServerSaveIfUnchanged(slot, entry)) {
+          clearServerSaveConflict(slot)
           syncedSlots.push(slot)
         }
       } catch (error) {
@@ -1530,7 +1581,7 @@ export const useSaveStore = defineStore('save', () => {
     const remainingPending = refreshPendingServerState()
     if (staleSlots.length > 0) {
       serverSyncStatus.value = 'error'
-      lastServerSyncMessage.value = '云存档已在其他设备更新，本地待同步副本已暂停上传。请重新读取远端存档，确认后再保存。'
+      lastServerSyncMessage.value = '云存档已在其他设备更新，本地待同步副本已暂停上传。请比较后选择要保存哪一个。'
     } else if (invalidSlots.length > 0) {
       serverSyncStatus.value = 'error'
       lastServerSyncMessage.value = '云存档数据无效，已保留远端旧档。请重新读取远端存档或导出本地备份后处理。'
@@ -1589,8 +1640,8 @@ export const useSaveStore = defineStore('save', () => {
     }
     if (syncResult.staleSlots.includes(slot)) {
       setLastSaveState(
-        'failed',
-        '云存档已在其他设备更新，已保留远端旧档。请重新读取远端存档，确认后再保存。',
+        'conflict',
+        '云存档已在其他设备更新，请选择保存当前页面或改用服务端存档。',
         lastServerSyncMessage.value
       )
       return false
@@ -1616,8 +1667,9 @@ export const useSaveStore = defineStore('save', () => {
         }
         const pendingConflictsWithRemote = !!pendingEntry && !!serverEntry && serverEntry.revision > pendingEntry.baseRevision
         if (pendingConflictsWithRemote) {
+          setServerSaveConflict(slot, pendingEntry, serverEntry.raw, serverEntry.revision)
           serverSyncStatus.value = 'error'
-          lastServerSyncMessage.value = '服务端存档已在其他设备更新，本地待同步副本已暂停上传，请重新读取远端存档后再决定是否覆盖。'
+          lastServerSyncMessage.value = '服务端存档已在其他设备更新，本地待同步副本已暂停上传。请比较后选择要保存哪一个。'
           return serverEntry.raw
         }
         if (pendingRaw && !allowPendingServerCopy) return null
@@ -1788,6 +1840,84 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
+  const resolveServerSaveConflict = async (choice: ServerSaveConflictResolution): Promise<boolean> => {
+    const conflict = serverSaveConflict.value
+    if (!conflict) return true
+    const slot = conflict.slot
+    const pendingEntry = loadPendingServerSaveMap()[slot]
+    const localEntry = pendingEntry?.raw
+      ? pendingEntry
+      : {
+          raw: conflict.localRaw,
+          savedAt: conflict.localSummary.savedAt ?? conflict.occurredAt,
+          updatedAt: Date.now(),
+          baseRevision: conflict.localBaseRevision
+        }
+
+    if (choice === 'local') {
+      try {
+        serverSyncStatus.value = 'syncing'
+        const saveResult = await saveServerSlotRaw(slot, localEntry.raw, conflict.remoteRevision)
+        rememberServerSlotState(slot, saveResult.raw, saveResult.currentRevision)
+        if (saveResult.stale) {
+          setServerSaveConflict(slot, localEntry, saveResult.raw, saveResult.currentRevision)
+          serverSyncStatus.value = 'error'
+          setLastSaveState(
+            'conflict',
+            '云存档又有新版本，请重新比较后再选择要保存哪一个。',
+            '服务端存档已更新，本地副本仍已保留。'
+          )
+          return false
+        }
+        clearPendingServerSave(slot)
+        clearServerSaveConflict(slot)
+        applyActiveSlotSelection(slot, 'server')
+        setRuntimeSession(slot, 'server')
+        refreshRuntimeOnlineIdentityFromRaw(slot, 'server', saveResult.raw ?? localEntry.raw)
+        serverSyncStatus.value = 'synced'
+        setLastSaveState('saved', '', '已保存当前进度并覆盖服务端存档。')
+        return true
+      } catch (error) {
+        serverSyncStatus.value = 'error'
+        setLastSaveState(
+          'failed',
+          getErrorDetail(error) || '保存当前进度失败，本地副本仍已保留。',
+          '服务端存档冲突尚未解决。'
+        )
+        return false
+      }
+    }
+
+    const pendingMap = loadPendingServerSaveMap()
+    const previousPending = pendingMap[slot]
+    if (previousPending) {
+      delete pendingMap[slot]
+      persistPendingServerSaveMap(pendingMap)
+      refreshPendingServerState()
+    }
+
+    const loaded = await loadFromSlot(slot, { mode: 'server', allowPendingServerCopy: false })
+    if (!loaded) {
+      if (previousPending) {
+        const restoreMap = loadPendingServerSaveMap()
+        restoreMap[slot] = previousPending
+        persistPendingServerSaveMap(restoreMap)
+        refreshPendingServerState()
+        setServerSaveConflict(slot, previousPending, conflict.remoteRaw, conflict.remoteRevision)
+      }
+      setLastSaveState(
+        'failed',
+        lastLoadErrorMessage.value || '载入服务端存档失败，本地副本仍已保留。',
+        lastServerSyncMessage.value
+      )
+      return false
+    }
+
+    clearServerSaveConflict(slot)
+    setLastSaveState('saved', '', '已载入服务端存档，当前页面副本已放弃。')
+    return true
+  }
+
   /** 鍒犻櫎鎸囧畾妲戒綅 */
   const deleteSlot = async (slot: number): Promise<boolean> => {
     if (slot < 0 || slot >= MAX_SLOTS) return false
@@ -1909,6 +2039,7 @@ export const useSaveStore = defineStore('save', () => {
     pendingServerSlots,
     lastServerSyncMessage,
     lastSaveResultStatus,
+    serverSaveConflict,
     currentOnlineIdentity,
     qaGovernanceBaselineAudit,
     qaGovernanceOverview,
@@ -1933,6 +2064,7 @@ export const useSaveStore = defineStore('save', () => {
     autoSave,
     syncPendingServerSaves,
     loadFromSlot,
+    resolveServerSaveConflict,
     deleteSlot,
     exportSave,
     importSave,

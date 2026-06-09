@@ -29,10 +29,50 @@
         </div>
       </div>
       <div
-        v-if="saveStore.storageMode === 'server' && saveStore.pendingServerSlots.length > 0"
+        v-if="saveStore.storageMode === 'server' && saveStore.pendingServerSlots.length > 0 && !serverSaveConflict"
         class="mb-3 rounded-xs border border-warning/30 bg-warning/10 px-3 py-2 text-left text-[0.625rem] text-warning"
       >
         当前账号有 {{ saveStore.pendingServerSlots.length }} 个待同步服务端存档，服务恢复后会自动补传。
+      </div>
+      <div
+        v-if="saveStore.storageMode === 'server' && serverSaveConflict"
+        class="mb-3 rounded-xs border border-warning/35 bg-warning/10 px-3 py-2 text-left text-[0.625rem] leading-5 text-warning"
+        data-testid="server-save-conflict-panel"
+      >
+        <div class="mb-2 flex items-center justify-between gap-2">
+          <p class="text-xs text-warning">云存档冲突</p>
+          <span class="shrink-0 rounded-xs border border-warning/30 px-1.5 py-0.5">存档 {{ serverSaveConflict.slot + 1 }}</span>
+        </div>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div class="rounded-xs border border-warning/20 bg-bg/25 px-2 py-1.5">
+            <p class="text-text">当前页面</p>
+            <p class="mt-1 text-muted">{{ formatConflictSummary(serverSaveConflict.localSummary) }}</p>
+          </div>
+          <div class="rounded-xs border border-warning/20 bg-bg/25 px-2 py-1.5">
+            <p class="text-text">服务端</p>
+            <p class="mt-1 text-muted">{{ formatConflictSummary(serverSaveConflict.remoteSummary) }}</p>
+          </div>
+        </div>
+        <div class="mt-2 flex flex-col gap-1 sm:flex-row">
+          <Button
+            class="flex-1 justify-center text-xs"
+            :icon="Save"
+            :icon-size="12"
+            :disabled="resolvingConflict"
+            @click="handleResolveServerConflict('local')"
+          >
+            保存当前进度
+          </Button>
+          <Button
+            class="flex-1 justify-center text-xs"
+            :icon="CloudDownload"
+            :icon-size="12"
+            :disabled="resolvingConflict"
+            @click="handleResolveServerConflict('remote')"
+          >
+            改用服务端存档
+          </Button>
+        </div>
       </div>
       <div class="mb-3 rounded-xs border border-accent/15 bg-accent/5 px-3 py-2 text-left text-[0.625rem] leading-5">
         <p class="text-accent">联机存档身份</p>
@@ -205,7 +245,9 @@
   const uploading = ref(false)
   const downloading = ref(false)
   const savingCurrent = ref(false)
+  const resolvingConflict = ref(false)
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
+  const serverSaveConflict = computed(() => saveStore.serverSaveConflict)
   const saveIdentityHint = computed(() => {
     const identity = saveStore.currentOnlineIdentity
     if (saveStore.storageMode === 'server') {
@@ -227,6 +269,24 @@
         : `已导入到服务端存档 ${slot + 1}，公开存档 ID 已随服务端保存写回。`
     }
     return `已导入到本地存档 ${slot + 1}；切到服务端保存后会生成公开存档 ID。`
+  }
+
+  const formatConflictSummary = (info: {
+    exists?: boolean
+    playerName?: string
+    year?: number
+    season?: string
+    day?: number
+    money?: number
+  } | null | undefined) => {
+    if (!info?.exists) return '空槽位'
+    const playerName = info.playerName || '未命名'
+    const season = info.season ? (SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] ?? info.season) : '?'
+    const dayText = Number.isFinite(Number(info.year)) && Number.isFinite(Number(info.day))
+      ? `第${Number(info.year)}年 ${season} 第${Number(info.day)}天`
+      : '时间未知'
+    const moneyText = Number.isFinite(Number(info.money)) ? ` · ${Math.floor(Number(info.money))} 铜钱` : ''
+    return `${playerName} · ${dayText}${moneyText}`
   }
 
   const refreshSlots = async () => {
@@ -265,8 +325,40 @@
         emit('close')
       }
     } else {
+      if (saveStore.lastSaveResultStatus === 'conflict') {
+        await refreshSlots()
+        showFloat('云存档有新版本，请选择保存当前页面或改用服务端存档。', 'accent')
+        return
+      }
       showFloat(saveStore.lastSaveErrorMessage || '保存失败。', 'danger')
     }
+  }
+
+  const handleResolveServerConflict = async (choice: 'local' | 'remote') => {
+    if (resolvingConflict.value) return
+    resolvingConflict.value = true
+    const ok = await saveStore.resolveServerSaveConflict(choice)
+    resolvingConflict.value = false
+    await refreshSlots()
+    if (!ok) {
+      showFloat(saveStore.lastSaveErrorMessage || '处理云存档冲突失败。', 'danger')
+      return
+    }
+
+    emit('change')
+    if (choice === 'local') {
+      showFloat(saveStore.lastServerSyncMessage || '已保存当前进度。', 'success')
+      if (props.saveIntent === 'save-return') {
+        window.location.href = props.returnUrl || '/'
+        return
+      }
+      if (props.saveIntent === 'save') {
+        emit('saved', 'save')
+        emit('close')
+      }
+      return
+    }
+    showFloat(saveStore.lastServerSyncMessage || '已改用服务端存档。', 'success')
   }
 
   const handleExport = async (slot: number) => {

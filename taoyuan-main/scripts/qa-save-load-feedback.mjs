@@ -245,8 +245,13 @@ registerHooks({
           };
           export const saveServerSlotRaw = async (slot, raw, baseRevision) => {
             const state = getState();
+            const currentRevision = Math.max(0, Number(state.revisionBySlot?.[slot]) || 0);
+            const normalizedBaseRevision = Math.max(0, Number(baseRevision) || 0);
+            if (currentRevision !== normalizedBaseRevision) {
+              return { stale: true, currentRevision, raw: state.rawBySlot?.[slot] ?? null };
+            }
             state.rawBySlot = { ...(state.rawBySlot ?? {}), [slot]: raw };
-            state.revisionBySlot = { ...(state.revisionBySlot ?? {}), [slot]: Math.max(0, Number(baseRevision) || 0) + 1 };
+            state.revisionBySlot = { ...(state.revisionBySlot ?? {}), [slot]: normalizedBaseRevision + 1 };
             return { stale: false, currentRevision: state.revisionBySlot[slot], raw };
           };
           export const setServerActiveSlot = async slot => {
@@ -362,7 +367,14 @@ const installBrowserShims = () => {
   Object.defineProperty(globalThis, 'Element', { value: function Element() {}, configurable: true })
   Object.defineProperty(globalThis, 'HTMLElement', { value: function HTMLElement() {}, configurable: true })
   Object.defineProperty(globalThis, 'SVGElement', { value: function SVGElement() {}, configurable: true })
-  Object.defineProperty(globalThis, 'fetch', { value: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }), configurable: true })
+  Object.defineProperty(globalThis, 'fetch', {
+    value: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, user: { username: 'qa-save' }, csrf_token: 'qa-csrf' })
+    }),
+    configurable: true
+  })
 }
 
 const encryptJson = value => CryptoJS.AES.encrypt(JSON.stringify(value), ENCRYPTION_KEY).toString()
@@ -411,13 +423,14 @@ const makeValidRaw = async (money = 1200) => {
   playerStore.setMoney(money)
   const saved = await saveStore.saveToSlot(0)
   assert.equal(saved, true, 'fixture save must succeed')
-  const raw = localStorage.getItem(LOCAL_SAVE_SLOT_0)
+  const raw = localStorage.getItem(LOCAL_SAVE_SLOT_0) ?? localStorage.getItem('taoyuanxiang_save_qa-save_0')
   assert.equal(typeof raw, 'string', 'fixture raw must be stored')
   return raw
 }
 
 const saveStoreSource = await readSource('src/stores/useSaveStore.ts')
 const mainMenuSource = await readSource('src/views/MainMenu.vue')
+const saveManagerSource = await readSource('src/components/game/SaveManager.vue')
 
 for (const code of [
   'decrypt_failed',
@@ -441,10 +454,17 @@ assert(saveStoreSource.includes("setLoadError('server_active_slot_failed'"), 'se
 assert(saveStoreSource.includes("setLoadError('runtime_restore_failed'"), 'runtime restore failure must set structured load error')
 assert(saveStoreSource.includes('lastLoadError,'), 'lastLoadError must be returned by the store')
 assert(saveStoreSource.includes('lastLoadErrorMessage,'), 'lastLoadErrorMessage must be returned by the store')
+assert(saveStoreSource.includes("'conflict'"), 'save store must expose a conflict save status')
+assert(saveStoreSource.includes('export interface ServerSaveConflictState'), 'server save conflict state must be exported')
+assert(saveStoreSource.includes('const serverSaveConflict = ref<ServerSaveConflictState | null>(null)'), 'server save conflict ref is missing')
+assert(saveStoreSource.includes('resolveServerSaveConflict'), 'server save conflict resolver is missing')
 
 assert(mainMenuSource.includes('saveStore.lastLoadErrorMessage'), 'main menu must read the load error message')
 assert(mainMenuSource.includes("showFloat(message, 'danger')"), 'main menu must show load failure feedback')
 assert(mainMenuSource.includes('addLog(message)'), 'main menu must log load failure feedback')
+assert(saveManagerSource.includes('server-save-conflict-panel'), 'save manager must render server conflict panel')
+assert(saveManagerSource.includes("handleResolveServerConflict('local')"), 'save manager must let players keep current page')
+assert(saveManagerSource.includes("handleResolveServerConflict('remote')"), 'save manager must let players use server save')
 
 {
   localStorage.clear()
@@ -496,6 +516,52 @@ assert(mainMenuSource.includes('addLog(message)'), 'main menu must log load fail
   assert.equal(playerStore.money, 999, 'server active-slot failure must roll back runtime store')
   assert.equal(saveStore.activeSlot, -1, 'server active-slot failure must restore active slot')
   assert.equal(saveStore.runtimeSessionSlot, -1, 'server active-slot failure must restore runtime session slot')
+}
+
+{
+  const remoteRaw = await makeValidRaw(4444)
+  localStorage.clear()
+  const { saveStore, gameStore, playerStore } = freshStores()
+  gameStore.startNewGame('standard')
+  playerStore.setIdentity('本地页', 'female')
+  playerStore.setMoney(3333)
+  saveStore.setStorageMode('server')
+  globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot = { 0: remoteRaw }
+  globalThis.__QA_SERVER_SAVE_API_STATE__.revisionBySlot = { 0: 2 }
+
+  const saved = await saveStore.saveToSlot(0)
+  assert.equal(saved, false, 'stale server revision must not silently overwrite remote save')
+  assert.equal(saveStore.lastSaveResultStatus, 'conflict', 'stale server revision must expose conflict status')
+  assert.equal(saveStore.serverSaveConflict?.slot, 0, 'conflict must identify slot')
+  assert.equal(saveStore.serverSaveConflict?.localSummary.money, 3333, 'conflict must summarize current page copy')
+  assert.equal(saveStore.serverSaveConflict?.remoteSummary.money, 4444, 'conflict must summarize remote copy')
+  assert.deepEqual(saveStore.pendingServerSlots, [0], 'local copy must remain pending during conflict')
+
+  const resolvedLocal = await saveStore.resolveServerSaveConflict('local')
+  assert.equal(resolvedLocal, true, 'local conflict resolution should save current page')
+  assert.equal(saveStore.serverSaveConflict, null, 'local resolution should clear conflict')
+  assert.deepEqual(saveStore.pendingServerSlots, [], 'local resolution should clear pending copy')
+  assert.equal(decryptJson(globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot[0]).data.player.money, 3333, 'local resolution must overwrite remote only after explicit choice')
+}
+
+{
+  const remoteRaw = await makeValidRaw(5555)
+  localStorage.clear()
+  const { saveStore, gameStore, playerStore } = freshStores()
+  gameStore.startNewGame('standard')
+  playerStore.setIdentity('本地页', 'female')
+  playerStore.setMoney(6666)
+  saveStore.setStorageMode('server')
+  globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot = { 0: remoteRaw }
+  globalThis.__QA_SERVER_SAVE_API_STATE__.revisionBySlot = { 0: 4 }
+
+  const saved = await saveStore.saveToSlot(0)
+  assert.equal(saved, false, 'remote-choice fixture must create a conflict')
+  const resolvedRemote = await saveStore.resolveServerSaveConflict('remote')
+  assert.equal(resolvedRemote, true, 'remote conflict resolution should load server save')
+  assert.equal(saveStore.serverSaveConflict, null, 'remote resolution should clear conflict')
+  assert.deepEqual(saveStore.pendingServerSlots, [], 'remote resolution should discard pending local copy')
+  assert.equal(playerStore.money, 5555, 'remote resolution must restore the server save data')
 }
 
 stdout.write('qa-save-load-feedback passed\n')
