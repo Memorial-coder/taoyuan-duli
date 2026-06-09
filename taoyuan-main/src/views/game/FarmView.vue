@@ -568,89 +568,132 @@
       <Transition name="panel-fade">
         <div
           v-if="showShippingBox"
-          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 z-50 flex items-end bg-black/60 p-0 md:items-center md:justify-center md:p-4"
           @click.self="showShippingBox = false"
         >
-          <div class="game-panel max-w-xs w-full relative">
-            <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showShippingBox = false">
-              <X :size="14" />
-            </button>
-            <div class="flex items-center space-x-1.5 text-sm text-accent mb-1">
-              <Package :size="14" />
-              <span>出货箱</span>
-            </div>
-            <p class="text-xs text-muted mb-2">放入的物品将在次日结算。</p>
-            <p v-if="inventoryStore.getRingEffectValue('sell_price_bonus') > 0" class="text-success text-xs mb-2">
-              戒指加成中：售价 +{{ Math.round(inventoryStore.getRingEffectValue('sell_price_bonus') * 100) }}%
-            </p>
-
-            <!-- 已放入的物品 -->
-            <div v-if="shopStore.shippingBox.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
-              <p class="text-xs text-muted mb-1">已放入</p>
-              <div class="flex flex-col space-y-1 max-h-36 overflow-y-auto">
-                <div
-                  v-for="(entry, idx) in shopStore.shippingBox"
-                  :key="idx"
-                  class="flex items-center justify-between border border-accent/20 rounded-xs px-2 py-1 cursor-pointer hover:bg-accent/5"
-                  @click="handleRemoveFromBox(entry.itemId, entry.quantity, entry.quality)"
-                >
-                  <div class="min-w-0">
-                    <span
-                      class="text-xs"
-                      :class="{
-                        'text-quality-fine': entry.quality === 'fine',
-                        'text-quality-excellent': entry.quality === 'excellent',
-                        'text-quality-supreme': entry.quality === 'supreme'
-                      }"
-                    >
-                      {{ getItemName(entry.itemId) }}
-                    </span>
-                    <span class="text-muted text-xs ml-1">×{{ entry.quantity }}</span>
-                  </div>
-                  <span class="text-xs text-accent whitespace-nowrap ml-2">
-                    ≈{{ shopStore.calculateSellPrice(entry.itemId, entry.quantity, entry.quality) }}文
-                  </span>
+          <div
+            class="game-panel flex max-h-[88dvh] min-h-[70dvh] w-full max-w-none flex-col rounded-t-xs md:max-h-[82dvh] md:min-h-[560px] md:max-w-4xl md:rounded-xs"
+            data-testid="shipping-box-modal"
+          >
+            <div class="flex shrink-0 items-start justify-between gap-3 border-b border-accent/10 pb-2">
+              <div class="min-w-0">
+                <div class="flex items-center space-x-1.5 text-sm text-accent">
+                  <Package :size="14" />
+                  <span>出货箱</span>
+                  <span v-if="shopStore.shippingBox.length > 0" class="text-xs text-muted">{{ shopStore.shippingBox.length }}种</span>
                 </div>
+                <p class="mt-1 text-xs text-muted">放入的物品将在次日结算，当前预计 {{ shippingBoxTotal }} 文。</p>
+                <p v-if="inventoryStore.getRingEffectValue('sell_price_bonus') > 0" class="mt-1 text-xs text-success">
+                  戒指加成中：售价 +{{ Math.round(inventoryStore.getRingEffectValue('sell_price_bonus') * 100) }}%
+                </p>
               </div>
-              <p class="text-xs text-accent mt-1.5">预计收入：{{ shippingBoxTotal }}文</p>
-            </div>
-            <div v-else class="flex flex-col items-center justify-center py-4 text-muted mb-2">
-              <Package :size="32" class="text-muted/30" />
-              <p class="text-xs mt-2">出货箱是空的</p>
+              <button class="shrink-0 text-muted hover:text-text" @click="showShippingBox = false">
+                <X :size="16" />
+              </button>
             </div>
 
-            <!-- 可放入的背包物品 -->
-            <div v-if="shippableItems.length > 0" class="border border-accent/10 rounded-xs p-2">
-              <p class="text-xs text-muted mb-1">背包物品</p>
-              <div class="flex flex-col space-y-1 overflow-auto max-h-48">
-                <div
-                  v-for="item in shippableItems"
-                  :key="item.itemId + item.quality"
-                  class="flex items-center justify-between border border-accent/10 rounded-xs px-2 py-1 mr-1"
-                >
-                  <div class="min-w-0">
-                    <span
-                      class="text-xs"
-                      :class="{
-                        'text-quality-fine': item.quality === 'fine',
-                        'text-quality-excellent': item.quality === 'excellent',
-                        'text-quality-supreme': item.quality === 'supreme'
-                      }"
-                    >
-                      {{ item.def?.name }}
-                    </span>
-                    <span class="text-muted text-xs ml-1">×{{ item.quantity }}</span>
-                  </div>
-                  <div class="flex space-x-1">
-                    <Button @click="handleAddToBox(item.itemId, 1, item.quality)">放入1</Button>
-                    <Button v-if="item.quantity > 1" @click="handleAddToBox(item.itemId, item.quantity, item.quality)">全部</Button>
+            <div class="grid min-h-0 flex-1 grid-cols-1 gap-3 pt-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
+              <section class="flex min-h-0 flex-col border border-accent/10 rounded-xs p-2" data-testid="shipping-box-loaded-section">
+                <div class="mb-2 flex shrink-0 items-center justify-between">
+                  <p class="text-xs text-muted">已放入</p>
+                  <span class="text-xs text-accent">{{ shippingBoxTotal }}文</span>
+                </div>
+                <div v-if="shopStore.shippingBox.length > 0" class="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                  <div
+                    v-for="(entry, idx) in shopStore.shippingBox"
+                    :key="`${entry.itemId}-${entry.quality}-${idx}`"
+                    class="flex min-h-[52px] items-center justify-between gap-2 border border-accent/20 rounded-xs px-2 py-1.5 hover:bg-accent/5"
+                  >
+                    <div class="flex min-w-0 items-center gap-2">
+                      <ItemIcon :item="getItemById(entry.itemId)" size="xs" :quality="entry.quality" />
+                      <div class="min-w-0">
+                        <span class="block truncate text-xs" :class="qualityTextClass(entry.quality)">{{ getItemName(entry.itemId) }}</span>
+                        <span class="block text-[0.625rem] text-muted">
+                          {{ QUALITY_NAMES[entry.quality] }} · ×{{ entry.quantity }} · ≈{{ shopStore.calculateSellPrice(entry.itemId, entry.quantity, entry.quality) }}文
+                        </span>
+                      </div>
+                    </div>
+                    <Button class="shrink-0 px-2 py-1 text-xs" @click="handleRemoveFromBox(entry.itemId, entry.quantity, entry.quality)">
+                      取回
+                    </Button>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div v-else class="flex flex-col items-center py-3 text-muted">
-              <Wheat :size="32" class="text-muted/30" />
-              <p class="text-xs mt-2">背包中没有可出货的物品</p>
+                <div v-else class="flex min-h-[180px] flex-1 flex-col items-center justify-center text-muted">
+                  <Package :size="36" class="text-muted/30" />
+                  <p class="mt-2 text-xs">出货箱是空的</p>
+                </div>
+              </section>
+
+              <section class="flex min-h-0 flex-col border border-accent/10 rounded-xs p-2" data-testid="shipping-box-inventory-section">
+                <div class="grid shrink-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_120px_132px]">
+                  <input
+                    v-model="shippingBoxSearch"
+                    data-testid="shipping-box-search"
+                    class="w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
+                    placeholder="搜索背包物品"
+                  />
+                  <select
+                    v-model="shippingBoxCategory"
+                    data-testid="shipping-box-category"
+                    class="w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
+                  >
+                    <option value="all">全部分类</option>
+                    <option v-for="cat in SHIPPING_FILTER_CATEGORIES" :key="cat" :value="cat">{{ SHIPPING_CATEGORY_NAMES[cat] }}</option>
+                  </select>
+                  <select
+                    v-model="shippingBoxSort"
+                    data-testid="shipping-box-sort"
+                    class="w-full rounded-xs border border-accent/20 bg-bg px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50"
+                  >
+                    <option value="price-desc">售价高到低</option>
+                    <option value="quantity-desc">数量多到少</option>
+                    <option value="name-asc">名称 A-Z</option>
+                  </select>
+                </div>
+
+                <div v-if="filteredShippableItems.length > 0" class="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+                  <div
+                    v-for="item in filteredShippableItems"
+                    :key="`${item.itemId}-${item.quality}`"
+                    class="grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border border-accent/10 rounded-xs px-2 py-1.5"
+                  >
+                    <div class="flex min-w-0 items-center gap-2">
+                      <ItemIcon :item="item.def" size="xs" :quality="item.quality" />
+                      <div class="min-w-0">
+                        <span class="block truncate text-xs" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
+                        <span class="block text-[0.625rem] text-muted">
+                          {{ SHIPPING_CATEGORY_NAMES[item.def!.category] ?? item.def!.category }} · {{ QUALITY_NAMES[item.quality] }} · ×{{ item.quantity }} · ≈{{ shopStore.calculateSellPrice(item.itemId, item.quantity, item.quality) }}文
+                        </span>
+                      </div>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-1">
+                      <Button class="px-2 py-1 text-xs" data-testid="shipping-box-add-one" @click="handleAddToBox(item.itemId, 1, item.quality)">
+                        放入1
+                      </Button>
+                      <Button
+                        v-if="item.quantity > 1"
+                        class="px-2 py-1 text-xs"
+                        data-testid="shipping-box-add-five"
+                        @click="handleAddToBox(item.itemId, Math.min(5, item.quantity), item.quality)"
+                      >
+                        放入{{ Math.min(5, item.quantity) }}
+                      </Button>
+                      <Button
+                        v-if="item.quantity > 1"
+                        class="px-2 py-1 text-xs"
+                        data-testid="shipping-box-add-all"
+                        @click="handleAddToBox(item.itemId, item.quantity, item.quality)"
+                      >
+                        全部
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="flex min-h-[220px] flex-1 flex-col items-center justify-center text-muted">
+                  <Wheat :size="36" class="text-muted/30" />
+                  <p class="mt-2 text-xs">没有匹配的可出货物品</p>
+                </div>
+              </section>
             </div>
           </div>
         </div>
