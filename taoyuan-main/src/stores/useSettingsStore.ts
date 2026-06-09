@@ -10,12 +10,14 @@ import { CROP_USE_TAG_LABELS, type CropUseTag } from '@/data/cropUseProfiles'
 
 export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 'right' | 'bottomleft' | 'bottom' | 'bottomright'
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
+export type FarmPlotDisplayMode = 'classic' | 'image'
 
 export const DEFAULT_FONT_SIZE = 16
 export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 24
 export const CROP_USE_TAG_SAVE_VERSION = 1
 export const DEFAULT_NPC_PORTRAITS_ENABLED = false
+export const DEFAULT_FARM_PLOT_DISPLAY_MODE: FarmPlotDisplayMode = 'classic'
 const DEFAULT_THEME: ThemeKey = 'dark'
 const DEFAULT_QMSG_POSITION: QmsgPosition = 'top'
 const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
@@ -65,6 +67,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const qmsgShowIcon = ref(false)
   const qmsgShowReverse = ref(false)
   const npcPortraitsEnabled = ref(DEFAULT_NPC_PORTRAITS_ENABLED)
+  const farmPlotDisplayMode = ref<FarmPlotDisplayMode>(DEFAULT_FARM_PLOT_DISPLAY_MODE)
 
   /** 背包物品筛选：选中的分类（空数组 = 显示全部） */
   const inventoryFilter = ref<ItemCategory[]>([])
@@ -193,6 +196,7 @@ export const useSettingsStore = defineStore('settings', () => {
       qmsgShowIcon: qmsgShowIcon.value,
       qmsgShowReverse: qmsgShowReverse.value,
       npcPortraitsEnabled: npcPortraitsEnabled.value,
+      farmPlotDisplayMode: farmPlotDisplayMode.value,
       inventoryFilter: inventoryFilter.value,
       inventoryCropUseFilter: selectedCropUseTags,
       cropUseTagSaveVersion: CROP_USE_TAG_SAVE_VERSION,
@@ -225,6 +229,9 @@ export const useSettingsStore = defineStore('settings', () => {
     npcPortraitsEnabled.value = typeof data?.npcPortraitsEnabled === 'boolean'
       ? data.npcPortraitsEnabled
       : DEFAULT_NPC_PORTRAITS_ENABLED
+    farmPlotDisplayMode.value = data?.farmPlotDisplayMode === 'image'
+      ? 'image'
+      : DEFAULT_FARM_PLOT_DISPLAY_MODE
     inventoryFilter.value = data?.inventoryFilter ?? []
     const cropUseFilterState = normalizeCropUseFilterState(data)
     cropUseTagSaveVersion.value = cropUseFilterState.version
@@ -266,6 +273,7 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowIcon,
     qmsgShowReverse,
     npcPortraitsEnabled,
+    farmPlotDisplayMode,
     inventoryFilter,
     inventoryCropUseFilter,
     cropUseTagSaveVersion,

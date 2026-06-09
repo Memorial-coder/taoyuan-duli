@@ -64,6 +64,7 @@ const TAOYUAN_EXCHANGE_RECEIPTS_KEY = '__transaction_receipts';
 const TAOYUAN_EXCHANGE_RECEIPT_LIMIT = 2000;
 const TAOYUAN_ITEM_ICON_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_item_icon_preferences.json');
 const TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_npc_portrait_preferences.json');
+const TAOYUAN_CROP_IMAGE_PREFERENCES_FILE = path.join(DATA_DIR, 'taoyuan_crop_image_preferences.json');
 const PUBLIC_AI_ASK_DEFAULT_SHORT_WINDOW_MS = 60 * 1000;
 const PUBLIC_AI_ASK_DEFAULT_SHORT_WINDOW_MAX = 8;
 const PUBLIC_AI_ASK_DEFAULT_DAILY_MAX = 80;
@@ -666,6 +667,7 @@ function normalizeUsernameKey(username) {
 
 const ITEM_ICON_VARIANTS = new Set(['01', '02', '03']);
 const NPC_PORTRAIT_VARIANTS = new Set(['01', '02', '03', '04', '05']);
+const CROP_IMAGE_VARIANTS = new Set(['01', '02']);
 
 function loadJsonObject(filePath) {
   try {
@@ -704,6 +706,17 @@ function normalizeNpcPortraitPreferences(raw) {
   return normalized;
 }
 
+function normalizeCropImagePreferences(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const normalized = {};
+  for (const [cropId, variant] of Object.entries(raw)) {
+    const key = String(cropId || '').trim();
+    if (!key || key.length > 120) continue;
+    if (CROP_IMAGE_VARIANTS.has(variant)) normalized[key] = variant;
+  }
+  return normalized;
+}
+
 function getUserItemIconPreferences(username) {
   const store = loadJsonObject(TAOYUAN_ITEM_ICON_PREFERENCES_FILE);
   return normalizeItemIconPreferences(store[normalizeUsernameKey(username)]);
@@ -727,6 +740,19 @@ function setUserNpcPortraitPreferences(username, preferences) {
   const usernameKey = normalizeUsernameKey(username);
   store[usernameKey] = normalizeNpcPortraitPreferences(preferences);
   saveJsonObject(TAOYUAN_NPC_PORTRAIT_PREFERENCES_FILE, store);
+  return store[usernameKey];
+}
+
+function getUserCropImagePreferences(username) {
+  const store = loadJsonObject(TAOYUAN_CROP_IMAGE_PREFERENCES_FILE);
+  return normalizeCropImagePreferences(store[normalizeUsernameKey(username)]);
+}
+
+function setUserCropImagePreferences(username, preferences) {
+  const store = loadJsonObject(TAOYUAN_CROP_IMAGE_PREFERENCES_FILE);
+  const usernameKey = normalizeUsernameKey(username);
+  store[usernameKey] = normalizeCropImagePreferences(preferences);
+  saveJsonObject(TAOYUAN_CROP_IMAGE_PREFERENCES_FILE, store);
   return store[usernameKey];
 }
 
@@ -3685,6 +3711,21 @@ router.get('/taoyuan/npc-portrait-preferences', loginRequired, (req, res) => {
 
 router.post('/taoyuan/npc-portrait-preferences', loginRequired, signRequired, (req, res) => {
   const preferences = setUserNpcPortraitPreferences(req.session.username, req.body?.preferences);
+  res.json({
+    ok: true,
+    preferences,
+  });
+});
+
+router.get('/taoyuan/crop-image-preferences', loginRequired, (req, res) => {
+  res.json({
+    ok: true,
+    preferences: getUserCropImagePreferences(req.session.username),
+  });
+});
+
+router.post('/taoyuan/crop-image-preferences', loginRequired, signRequired, (req, res) => {
+  const preferences = setUserCropImagePreferences(req.session.username, req.body?.preferences);
   res.json({
     ok: true,
     preferences,

@@ -73,8 +73,28 @@
       <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
 
       <!-- 批量操作入口 -->
-      <div>
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <Button class="w-full md:w-auto" :icon-size="12" :icon="Wrench" @click="showBatchActions = true">一键操作</Button>
+        <div class="farm-plot-display-toggle" role="group" aria-label="地块显示形式">
+          <button
+            type="button"
+            class="farm-plot-display-toggle__button"
+            :class="{ 'farm-plot-display-toggle__button--active': settingsStore.farmPlotDisplayMode === 'classic' }"
+            @click="settingsStore.farmPlotDisplayMode = 'classic'"
+          >
+            <Square :size="12" />
+            <span>原版</span>
+          </button>
+          <button
+            type="button"
+            class="farm-plot-display-toggle__button"
+            :class="{ 'farm-plot-display-toggle__button--active': settingsStore.farmPlotDisplayMode === 'image' }"
+            @click="settingsStore.farmPlotDisplayMode = 'image'"
+          >
+            <Sprout :size="12" />
+            <span>图片</span>
+          </button>
+        </div>
       </div>
 
       <!-- 田庄特殊功能 -->
@@ -203,8 +223,13 @@
             @click="activePlotId = plot.id"
           >
             <div class="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center">
-              <component :is="getPlotDisplay(plot).icon" :size="14" />
-              <span v-if="plot.cropId" class="text-[0.625rem] opacity-60 truncate max-w-full px-0.5 mt-1">{{ getCropName(plot.cropId) }}</span>
+              <template v-if="settingsStore.farmPlotDisplayMode === 'image' && plot.cropId">
+                <CropImage :crop-id="plot.cropId" :crop-name="getCropName(plot.cropId)" :plot="plot" size="tile" />
+              </template>
+              <template v-else>
+                <component :is="getPlotDisplay(plot).icon" :size="14" />
+                <span v-if="plot.cropId" class="text-[0.625rem] opacity-60 truncate max-w-full px-0.5 mt-1">{{ getCropName(plot.cropId) }}</span>
+              </template>
               <!-- 角标 -->
               <Droplets
                 v-if="(plot.state === 'planted' || plot.state === 'growing') && !plot.watered"
@@ -279,6 +304,13 @@
               </span>
             </div>
             <p v-if="activePlot.giantCropGroup !== null" class="text-xs text-accent mb-2">收获可获得大量作物！</p>
+            <div v-if="activePlot.cropId" class="farm-crop-image-detail border border-accent/10 rounded-xs p-2 mb-2">
+              <CropImage :crop-id="activePlot.cropId" :crop-name="getCropName(activePlot.cropId)" :plot="activePlot" size="lg" :resolution="256" />
+              <div class="min-w-0">
+                <p class="text-xs text-muted mb-1">作物图片</p>
+                <CropImageVariantPicker :crop-id="activePlot.cropId" :crop-name="getCropName(activePlot.cropId)" :plot="activePlot" />
+              </div>
+            </div>
 
             <!-- 操作列表 -->
             <div class="flex flex-col space-y-1 max-h-60 overflow-y-auto">
@@ -892,8 +924,13 @@
               :title="getPlotTooltip(plot)"
               @click="activeGhPlotId = plot.id"
             >
-              <component :is="getPlotDisplay(plot).icon" :size="14" />
-              <span v-if="plot.cropId" class="text-[0.625rem] opacity-70 truncate max-w-full px-0.5">{{ getCropName(plot.cropId) }}</span>
+              <template v-if="settingsStore.farmPlotDisplayMode === 'image' && plot.cropId">
+                <CropImage :crop-id="plot.cropId" :crop-name="getCropName(plot.cropId)" :plot="plot" size="tile" />
+              </template>
+              <template v-else>
+                <component :is="getPlotDisplay(plot).icon" :size="14" />
+                <span v-if="plot.cropId" class="text-[0.625rem] opacity-70 truncate max-w-full px-0.5">{{ getCropName(plot.cropId) }}</span>
+              </template>
             </button>
           </div>
         </div>
@@ -1031,6 +1068,13 @@
               </div>
             </div>
           </div>
+          <div v-if="activeGhPlot.cropId" class="farm-crop-image-detail border border-accent/10 rounded-xs p-2 mb-2">
+            <CropImage :crop-id="activeGhPlot.cropId" :crop-name="getCropName(activeGhPlot.cropId)" :plot="activeGhPlot" size="lg" :resolution="256" />
+            <div class="min-w-0">
+              <p class="text-xs text-muted mb-1">作物图片</p>
+              <CropImageVariantPicker :crop-id="activeGhPlot.cropId" :crop-name="getCropName(activeGhPlot.cropId)" :plot="activeGhPlot" />
+            </div>
+          </div>
 
           <!-- 操作区 -->
           <div class="flex flex-col space-y-1.5">
@@ -1113,6 +1157,8 @@
     Flower2
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import CropImage from '@/components/game/CropImage.vue'
+  import CropImageVariantPicker from '@/components/game/CropImageVariantPicker.vue'
   import Divider from '@/components/game/Divider.vue'
   import { useBreedingStore } from '@/stores/useBreedingStore'
   import { useCookingStore } from '@/stores/useCookingStore'
@@ -1122,6 +1168,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
+  import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
@@ -1173,6 +1220,7 @@
   const playerStore = usePlayerStore()
   const shopStore = useShopStore()
   const breedingStore = useBreedingStore()
+  const settingsStore = useSettingsStore()
 
   // === 田庄特殊功能 ===
 
@@ -1626,10 +1674,6 @@
   }
 
   const getPlotDisplay = (plot: (typeof farmStore.plots)[number]): { icon: Component; color: string; bg: string } => {
-    // 巨型作物特殊显示（仅在已成熟时才显示巨型图标）
-    if (plot.giantCropGroup !== null && plot.state === 'harvestable') {
-      return { icon: Star, color: 'text-accent', bg: 'bg-accent/10' }
-    }
     // 虫害显示
     if (plot.infested) {
       return { icon: Bug, color: 'text-danger', bg: 'bg-danger/10' }
@@ -1637,6 +1681,10 @@
     // 杂草显示
     if (plot.weedy) {
       return { icon: Leaf, color: 'text-success/70', bg: 'bg-success/10' }
+    }
+    // 巨型作物特殊显示（仅在已成熟时才显示巨型图标）
+    if (plot.giantCropGroup !== null && plot.state === 'harvestable') {
+      return { icon: Star, color: 'text-accent', bg: 'bg-accent/10' }
     }
     switch (plot.state) {
       case 'wasteland':
@@ -2393,6 +2441,64 @@
   .farm-plot {
     height: 0;
     padding-bottom: 100%;
+  }
+
+  .farm-plot :deep(.crop-image--tile) {
+    width: min(42px, 72%) !important;
+    height: min(42px, 72%) !important;
+  }
+
+  .farm-plot-display-toggle {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid rgb(var(--color-accent) / 0.18);
+    border-radius: 4px;
+    background: rgb(var(--color-bg) / 0.32);
+  }
+
+  .farm-plot-display-toggle__button {
+    display: inline-flex;
+    flex: 1 1 0;
+    min-height: 30px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: rgb(var(--color-muted));
+    font-size: 0.75rem;
+    line-height: 1;
+    transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+  }
+
+  .farm-plot-display-toggle__button:hover,
+  .farm-plot-display-toggle__button--active {
+    border-color: rgb(var(--color-accent) / 0.48);
+    background: rgb(var(--color-accent) / 0.14);
+    color: rgb(var(--color-accent));
+  }
+
+  .farm-crop-image-detail {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgb(var(--color-bg) / 0.26);
+  }
+
+  .farm-crop-image-detail :deep(.crop-image-variant-picker__button) {
+    min-width: 42px;
+    min-height: 42px;
+  }
+
+  @media (min-width: 640px) {
+    .farm-plot-display-toggle {
+      width: auto;
+      min-width: 174px;
+    }
   }
 
   .farm-batch-action {

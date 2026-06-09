@@ -96,6 +96,13 @@ const CONFIGURED_NPC_PORTRAIT_DIR = process.env.TAOYUAN_NPC_PORTRAIT_DIR
   ? path.resolve(process.env.TAOYUAN_NPC_PORTRAIT_DIR)
   : DEFAULT_NPC_PORTRAIT_DIR;
 const LOCAL_NPC_PORTRAIT_DIR = path.join(__dirname, '../../taoyuan-main/public/npc');
+const DEFAULT_CROP_ASSET_DIR = process.platform === 'win32'
+  ? path.join(__dirname, '../../taoyuan-main/public/crop')
+  : '/opt/taoyuan/crop';
+const CONFIGURED_CROP_ASSET_DIR = process.env.TAOYUAN_CROP_ASSET_DIR
+  ? path.resolve(process.env.TAOYUAN_CROP_ASSET_DIR)
+  : DEFAULT_CROP_ASSET_DIR;
+const LOCAL_CROP_ASSET_DIR = path.join(__dirname, '../../taoyuan-main/public/crop');
 const DEFAULT_FISH_BOSS_ASSET_DIR = process.platform === 'win32'
   ? path.join(__dirname, '../../taoyuan-main/public/asset_fish_boss')
   : '/opt/taoyuan/asset_fish_boss';
@@ -345,6 +352,22 @@ if (fs.existsSync(npcPortraitDir)) {
     },
   }));
   console.log(`NPC portraits mounted at /npc: ${npcPortraitDir}`);
+}
+const cropAssetDir = fs.existsSync(CONFIGURED_CROP_ASSET_DIR) ? CONFIGURED_CROP_ASSET_DIR : LOCAL_CROP_ASSET_DIR;
+if (fs.existsSync(cropAssetDir)) {
+  app.use('/crop', express.static(cropAssetDir, {
+    index: false,
+    maxAge: '365d',
+    immutable: true,
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'crop-asset-manifest.json' || path.basename(filePath) === 'crop-asset-qa-report.json') {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
+  console.log(`Crop assets mounted at /crop: ${cropAssetDir}`);
 }
 const fishBossAssetDir = fs.existsSync(CONFIGURED_FISH_BOSS_ASSET_DIR) ? CONFIGURED_FISH_BOSS_ASSET_DIR : LOCAL_FISH_BOSS_ASSET_DIR;
 if (fs.existsSync(fishBossAssetDir)) {
