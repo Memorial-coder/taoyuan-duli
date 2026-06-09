@@ -414,7 +414,13 @@
             emit('change')
             showFloat(buildImportSuccessMessage(emptySlot.slot), 'success')
           } else {
-            showFloat('存档文件无效或已损坏。', 'danger')
+            const message = saveStore.lastSaveResultStatus === 'conflict'
+              ? '云存档有新版本，请选择保存导入存档或改用服务端存档。'
+              : saveStore.lastSaveErrorMessage || saveStore.lastLoadErrorMessage || '存档文件无效或已损坏。'
+            if (saveStore.lastSaveResultStatus === 'conflict') {
+              await refreshSlots()
+            }
+            showFloat(message, saveStore.lastSaveResultStatus === 'conflict' ? 'accent' : 'danger')
           }
         })()
       }

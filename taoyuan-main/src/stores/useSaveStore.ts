@@ -1976,11 +1976,19 @@ export const useSaveStore = defineStore('save', () => {
 
   /** 浠庢枃浠跺鍏ュ瓨妗ｅ埌鎸囧畾妲戒綅 */
   const importSave = async (slot: number, fileContent: string): Promise<boolean> => {
-    if (slot < 0 || slot >= MAX_SLOTS) return false
+    if (slot < 0 || slot >= MAX_SLOTS) {
+      setLastSaveState('failed', '存档槽位无效，请刷新存档列表后重试。', lastServerSyncMessage.value)
+      return false
+    }
     try {
+      lastSaveErrorMessage.value = ''
+      const normalizedFileContent = String(fileContent || '').trim()
       // 楠岃瘉鏂囦欢鍐呭鍙В瀵?
-      const data = parseSaveData(fileContent)
-      if (!data || !normalizeSaveEnvelope(data)) return false
+      const data = parseSaveData(normalizedFileContent)
+      if (!data || !normalizeSaveEnvelope(data)) {
+        setLastSaveState('failed', '存档文件无法解密，或不是当前版本可识别的桃源乡存档。', '')
+        return false
+      }
       const runtimeSnapshot = buildCurrentSaveData()
       const previousActiveSlot = activeSlot.value
       const previousActiveSlotMode = activeSlotMode.value
@@ -1995,9 +2003,21 @@ export const useSaveStore = defineStore('save', () => {
       runtimeSessionSlot.value = previousRuntimeSessionSlot
       runtimeSessionMode.value = previousRuntimeSessionMode
       activeSlotsByMode.value = { ...previousActiveSlotsByMode }
-      if (!validationPassed || !restorePassed) return false
-      return await setRawByMode(slot, fileContent)
-    } catch {
+      if (!validationPassed) {
+        setLastSaveState('failed', '存档可以解密，但当前版本还不能完整恢复这份旧档。', '')
+        return false
+      }
+      if (!restorePassed) {
+        setLastSaveState('failed', '导入校验后恢复当前页面失败，请刷新页面后再导入。', '')
+        return false
+      }
+      const persisted = await setRawByMode(slot, normalizedFileContent)
+      if (!persisted && !lastSaveErrorMessage.value && lastSaveResultStatus.value !== 'conflict') {
+        setLastSaveState('failed', '存档文件有效，但写入当前存储位置失败。', lastServerSyncMessage.value)
+      }
+      return persisted
+    } catch (error) {
+      setLastSaveState('failed', getErrorDetail(error) || '导入存档失败。', lastServerSyncMessage.value)
       return false
     }
   }

@@ -465,6 +465,7 @@ assert(mainMenuSource.includes('addLog(message)'), 'main menu must log load fail
 assert(saveManagerSource.includes('server-save-conflict-panel'), 'save manager must render server conflict panel')
 assert(saveManagerSource.includes("handleResolveServerConflict('local')"), 'save manager must let players keep current page')
 assert(saveManagerSource.includes("handleResolveServerConflict('remote')"), 'save manager must let players use server save')
+assert(saveManagerSource.includes('saveStore.lastSaveErrorMessage || saveStore.lastLoadErrorMessage'), 'save manager must show structured import failures before calling a save damaged')
 
 {
   localStorage.clear()
@@ -562,6 +563,31 @@ assert(saveManagerSource.includes("handleResolveServerConflict('remote')"), 'sav
   assert.equal(saveStore.serverSaveConflict, null, 'remote resolution should clear conflict')
   assert.deepEqual(saveStore.pendingServerSlots, [], 'remote resolution should discard pending local copy')
   assert.equal(playerStore.money, 5555, 'remote resolution must restore the server save data')
+}
+
+{
+  const validRaw = await makeValidRaw(7777)
+  localStorage.clear()
+  const { saveStore } = freshStores()
+  const imported = await saveStore.importSave(1, `\uFEFF${validRaw}\n`)
+  assert.equal(imported, true, 'import should tolerate BOM and trailing whitespace around encrypted saves')
+  assert.equal(typeof localStorage.getItem('taoyuanxiang_save_qa-save_1'), 'string', 'trimmed import should persist into target slot')
+}
+
+{
+  const remoteRaw = await makeValidRaw(8888)
+  const importRaw = await makeValidRaw(9999)
+  localStorage.clear()
+  const { saveStore } = freshStores()
+  saveStore.setStorageMode('server')
+  globalThis.__QA_SERVER_SAVE_API_STATE__.rawBySlot = { 1: remoteRaw }
+  globalThis.__QA_SERVER_SAVE_API_STATE__.revisionBySlot = { 1: 3 }
+  const imported = await saveStore.importSave(1, importRaw)
+  assert.equal(imported, false, 'server import with stale base revision should not silently overwrite remote save')
+  assert.equal(saveStore.lastSaveResultStatus, 'conflict', 'server import conflict must expose conflict status')
+  assert(saveStore.lastSaveErrorMessage.includes('云存档'), 'server import conflict should explain the cloud-save conflict')
+  assert.equal(saveStore.serverSaveConflict?.localSummary.money, 9999, 'server import conflict must summarize imported save')
+  assert.equal(saveStore.serverSaveConflict?.remoteSummary.money, 8888, 'server import conflict must summarize remote save')
 }
 
 stdout.write('qa-save-load-feedback passed\n')

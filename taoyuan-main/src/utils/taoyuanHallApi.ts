@@ -1,4 +1,5 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
+import { getStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
 import type {
   HallAdminReport,
   HallCategory,
@@ -36,7 +37,7 @@ export const fetchHallViewer = async (): Promise<HallViewer> => {
     throw new Error('交流大厅连接失败，请检查网络后再试')
   }
   const data = await parseJsonSafe(res)
-  const adminToken = typeof window !== 'undefined' ? window.localStorage.getItem('admin_token') || '' : ''
+  const adminToken = getAdminToken()
   if (res.status === 401 || res.status === 403) {
     return { loggedIn: false, username: null, displayName: null, isAdmin: !!adminToken, status: 'readonly' }
   }
@@ -282,8 +283,7 @@ export const reportHallImage = async (postId: string, blockId: string, reason: s
 }
 
 const getAdminToken = () => {
-  if (typeof window === 'undefined') return ''
-  return window.localStorage.getItem('admin_token') || ''
+  return String(getStoredAdminToken() || '').trim()
 }
 
 const ensureAdminToken = () => {
