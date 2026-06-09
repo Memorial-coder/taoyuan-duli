@@ -273,6 +273,32 @@ const freshInventoryStore = () => {
   assert(inventoryStore.getWeaponAttack() === 5, '空武器列表回退后攻击应使用明确的木棍定义。')
 }
 
+{
+  const inventoryStore = freshInventoryStore()
+  inventoryStore.ownedWeapons = [
+    { defId: 'wooden_stick', enchantmentId: null },
+    { defId: 'copper_sword', enchantmentId: null }
+  ]
+  inventoryStore.equippedWeaponIndex = 0
+  inventoryStore.createEquipmentPreset('qa-loadout-a')
+  const preset = inventoryStore.equipmentPresets[inventoryStore.equipmentPresets.length - 1]
+  inventoryStore.saveCurrentToPreset(preset.id)
+
+  assert(inventoryStore.equipWeapon(1), 'QA setup should switch to loadout B weapon.')
+  const sellResult = inventoryStore.sellWeapon(0)
+  assert(sellResult.success === true, 'QA setup should sell the weapon saved in loadout A.')
+  assert(
+    inventoryStore.ownedWeapons.length === 1 && inventoryStore.ownedWeapons[0].defId === 'copper_sword',
+    'QA setup should only keep loadout B weapon after selling A weapon.'
+  )
+
+  const applyResult = inventoryStore.applyEquipmentPreset(preset.id)
+  assert(applyResult.success === true, 'Applying a preset with a sold weapon should return a readable result.')
+  assert(inventoryStore.ownedWeapons.length === 1, 'Applying a preset with a sold weapon must not create a replacement weapon.')
+  assert(!inventoryStore.ownedWeapons.some(weapon => weapon.defId === 'wooden_stick'), 'Sold wooden stick must not reappear after applying the old preset.')
+  assert(inventoryStore.getEquippedWeapon().defId === 'copper_sword', 'Missing preset weapon should fall back to an existing weapon.')
+}
+
 if (errors.length > 0) {
   console.error('Equipment guard failed:')
   for (const error of errors) {

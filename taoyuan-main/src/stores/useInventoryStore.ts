@@ -147,6 +147,15 @@ export const useInventoryStore = defineStore('inventory', () => {
     return 0
   }
   const equipFallbackWeapon = () => {
+    const woodenStickIndex = ownedWeapons.value.findIndex(weapon => weapon.defId === 'wooden_stick' && weapon.enchantmentId === null)
+    if (woodenStickIndex >= 0) {
+      equippedWeaponIndex.value = woodenStickIndex
+      return
+    }
+    if (ownedWeapons.value.length > 0) {
+      equippedWeaponIndex.value = 0
+      return
+    }
     equippedWeaponIndex.value = ensureDefaultWeapon()
   }
   const isTrinketSlotUnlocked = computed(() => playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat'))

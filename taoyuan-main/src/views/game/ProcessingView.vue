@@ -155,63 +155,70 @@
               <div v-if="!slot.recipeId">
                 <!-- 种子制造机：按品质展开 -->
                 <template v-if="group.isSeedMaker">
-                  <div v-if="group.seedRecipeOptions.length > 0" class="grid space-y-1">
+                  <div v-if="group.seedRecipeOptions.length > 0" class="processing-option-grid grid grid-cols-3 gap-1.5 md:grid-cols-5">
                     <Button
                       v-for="option in group.seedRecipeOptions"
                       :key="option.key"
+                      class="processing-option-card"
                       :disabled="option.disabled"
                       :data-testid="`processing-recipe-${option.recipeId}`"
                       @click="handleStartProcessing(originalIndex, option.recipeId, option.quality)"
                     >
-                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
-                      <span class="truncate">{{ option.displayName }}</span>
-                      <span
-                        v-if="option.qualityLabel"
-                        :class="{
-                          'text-quality-fine': option.quality === 'fine',
-                          'text-quality-excellent': option.quality === 'excellent',
-                          'text-quality-supreme': option.quality === 'supreme'
-                        }"
-                      >
-                        {{ option.qualityLabel }}
+                      <span class="processing-option-card__body">
+                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                        <span class="processing-option-card__copy">
+                          <span class="processing-option-card__name">
+                            {{ option.displayName }}
+                            <span
+                              v-if="option.qualityLabel"
+                              :class="{
+                                'text-quality-fine': option.quality === 'fine',
+                                'text-quality-excellent': option.quality === 'excellent',
+                                'text-quality-supreme': option.quality === 'supreme'
+                              }"
+                            >
+                              {{ option.qualityLabel }}
+                            </span>
+                          </span>
+                          <span class="processing-option-card__meta">{{ option.count }}/{{ option.recipe.inputQuantity }}</span>
+                        </span>
                       </span>
-                      <span class="text-muted">({{ option.count }}/{{ option.recipe.inputQuantity }})</span>
                     </Button>
                   </div>
                   <p v-else class="text-xs text-muted">{{ group.emptyMessage }}</p>
                 </template>
                 <!-- 其他机器：普通配方列表 -->
                 <template v-else>
-                  <div v-if="group.recipeOptions.length > 0" class="grid space-y-1">
+                  <div v-if="group.recipeOptions.length > 0" class="processing-option-grid grid grid-cols-3 gap-1.5 md:grid-cols-5">
                     <Button
                       v-for="option in group.recipeOptions"
                       :key="option.key"
+                      class="processing-option-card"
                       :disabled="option.disabled"
                       :data-testid="`processing-recipe-${option.recipeId}`"
                       @click="handleStartProcessing(originalIndex, option.recipeId)"
                     >
-                      <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
-                      <span class="truncate">{{ option.displayName }}</span>
-                      <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
-                      <span v-if="option.inputItemName" class="inline-flex items-center gap-1 text-muted">
-                        <ItemIcon :item="option.inputItem" size="xs" :show-badge="false" />
-                        ({{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }})
-                      </span>
-                      <span v-for="extra in option.extraInputs" :key="extra.key" class="inline-flex items-center gap-1 text-muted">
-                        <ItemIcon :item="extra.item" size="xs" :show-badge="false" />
-                        +{{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
-                      </span>
-                      <span v-if="option.alchemyLimitText" class="text-muted">
-                        [{{ option.alchemyLimitText }}]
-                      </span>
-                      <span v-if="option.alchemyMetaText" class="text-muted">
-                        {{ option.alchemyMetaText }}
-                      </span>
-                      <span v-if="option.cropUseText" class="text-muted">
-                        {{ option.cropUseText }}
-                      </span>
-                      <span v-if="option.substitutionText" class="text-accent/80">
-                        {{ option.substitutionText }}
+                      <span class="processing-option-card__body">
+                        <ItemIcon :item="option.outputItem" size="xs" :quality="option.quality ?? 'normal'" :silhouette="option.disabled" />
+                        <span class="processing-option-card__copy">
+                          <span class="processing-option-card__name">
+                            {{ option.displayName }}
+                            <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
+                          </span>
+                          <span class="processing-option-card__meta">
+                            <span v-if="option.inputItemName">
+                              {{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }}
+                            </span>
+                            <span v-else>{{ option.recipe.processingDays }}天</span>
+                            <span v-for="extra in option.extraInputs" :key="extra.key">
+                              · {{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
+                            </span>
+                            <span v-if="option.alchemyLimitText"> · {{ option.alchemyLimitText }}</span>
+                            <span v-if="option.alchemyMetaText"> · {{ option.alchemyMetaText }}</span>
+                            <span v-if="option.cropUseText"> · {{ option.cropUseText }}</span>
+                            <span v-if="option.substitutionText" class="text-accent/80"> · {{ option.substitutionText }}</span>
+                          </span>
+                        </span>
                       </span>
                     </Button>
                   </div>
@@ -283,19 +290,19 @@
 
       <div v-for="cat in craftCategories" :key="cat.label" class="mb-3 last:mb-0">
         <p class="text-xs text-muted mb-1">{{ cat.label }}</p>
-        <div class="flex flex-col space-y-1 max-h-60 overflow-y-auto">
+        <div class="processing-craft-grid grid grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1 md:grid-cols-5">
           <div
             v-for="item in cat.items"
             :key="item.id"
-            class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5 mr-1"
+            class="processing-craft-card border border-accent/20 rounded-xs px-2 py-1.5 cursor-pointer hover:bg-accent/5"
             :data-testid="`processing-craft-${item.id}`"
             @click="openCraftModal(item)"
           >
-            <div class="text-xs truncate mr-2">
+            <div class="processing-craft-card__name">
               {{ item.name }}
               <span v-if="item.badge" class="text-muted ml-1">[{{ item.badge }}]</span>
             </div>
-            <span v-if="item.cost > 0" class="text-xs text-accent whitespace-nowrap">{{ item.cost }}文</span>
+            <span v-if="item.cost > 0" class="processing-craft-card__meta">{{ item.cost }}文</span>
           </div>
         </div>
       </div>
@@ -1927,3 +1934,74 @@
     }
   }
 </script>
+
+<style scoped>
+  .processing-option-grid,
+  .processing-craft-grid {
+    grid-auto-rows: minmax(58px, auto);
+  }
+
+  .processing-option-card {
+    min-width: 0;
+    min-height: 58px;
+    justify-content: flex-start;
+    padding: 6px;
+    text-align: left;
+  }
+
+  .processing-option-card :deep(> span) {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .processing-option-card__body {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .processing-option-card__copy,
+  .processing-craft-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .processing-option-card__copy {
+    flex: 1 1 auto;
+    gap: 3px;
+  }
+
+  .processing-option-card__name,
+  .processing-option-card__meta,
+  .processing-craft-card__name,
+  .processing-craft-card__meta {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .processing-option-card__name,
+  .processing-craft-card__name {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+  }
+
+  .processing-option-card__meta,
+  .processing-craft-card__meta {
+    color: var(--color-muted);
+    font-size: 0.625rem;
+    line-height: 1.1;
+  }
+
+  .processing-craft-card {
+    min-height: 58px;
+    gap: 3px;
+    transition: border-color 0.16s ease, background-color 0.16s ease;
+  }
+</style>

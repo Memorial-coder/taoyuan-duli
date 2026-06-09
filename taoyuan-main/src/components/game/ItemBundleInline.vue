@@ -11,6 +11,7 @@
 <script setup lang="ts">
   import { computed } from 'vue'
   import { getItemById } from '@/data'
+  import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
   import type { ItemDef } from '@/types'
   import ItemIcon from '@/components/game/ItemIcon.vue'
 
@@ -33,6 +34,12 @@
   const moneyUnit = '\u6587'
   const ticketUnit = '\u5238'
 
+  const getTicketLabel = (ticketType: string | undefined): string => {
+    const normalizedTicketType = String(ticketType ?? '').trim()
+    if (!normalizedTicketType) return '\u7968\u5238'
+    return (REWARD_TICKET_LABELS as Partial<Record<string, string>>)[normalizedTicketType] ?? `${normalizedTicketType}${ticketUnit}`
+  }
+
   const displayEntries = computed(() => props.entries
     .filter(entry => entry && typeof entry === 'object')
     .map((entry, index) => {
@@ -47,7 +54,7 @@
         return {
           key: `ticket-${index}-${entry.ticket_type ?? 'ticket'}-${entry.quantity ?? 0}`,
           item: null as ItemDef | null,
-          label: `${entry.ticket_type ?? 'ticket'}${ticketUnit}${multiply}${entry.quantity ?? 0}`,
+          label: `${getTicketLabel(entry.ticket_type)}${multiply}${entry.quantity ?? 0}`,
         }
       }
 
