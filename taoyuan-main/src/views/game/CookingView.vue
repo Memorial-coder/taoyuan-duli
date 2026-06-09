@@ -58,35 +58,35 @@
     </div>
 
     <!-- 食谱列表 -->
-    <div v-if="displayedRecipeInfos.length > 0" class="border border-accent/20 rounded-xs divide-y divide-accent/10 mb-4">
-      <div
+    <div v-if="displayedRecipeInfos.length > 0" class="cooking-recipe-grid mb-4">
+      <button
         v-for="info in displayedRecipeInfos"
         :key="info.recipe.id"
-        class="px-3 py-1.5 cursor-pointer hover:bg-accent/5"
+        type="button"
+        class="cooking-recipe-card"
+        :class="{
+          'cooking-recipe-card--makeable': info.canCook,
+          'cooking-recipe-card--locked': !info.canCook
+        }"
+        :title="recipeCardTitle(info)"
         @click="openModal(info.recipe.id)"
       >
-        <div class="flex items-start justify-between gap-2">
-          <div class="flex min-w-0 items-center gap-2">
-            <ItemIcon :item="info.outputItem" size="sm" :quality="info.quality" :silhouette="!info.canCook" />
-            <span class="min-w-0 text-xs" :class="info.canCook ? 'text-text' : 'text-muted'">
-              <span class="block truncate">{{ info.recipe.name }}</span>
-              <span v-if="info.canCook && info.quality !== 'normal'" class="block text-[0.625rem]" :class="qualityTextClass(info.quality)">
-                [{{ QUALITY_NAMES[info.quality] }}]
-              </span>
-            </span>
-          </div>
-          <span class="text-[0.625rem] whitespace-nowrap ml-2" :class="info.canCook ? 'text-success' : 'text-muted/50'">
-            +{{ info.recipe.effect.staminaRestore }}体力
-            <span v-if="info.recipe.effect.healthRestore">+{{ info.recipe.effect.healthRestore }}生命</span>
+        <span v-if="info.canCook" class="cooking-recipe-card__status-dot" aria-hidden="true" />
+        <ItemIcon :item="info.outputItem" size="sm" :quality="info.quality" :silhouette="!info.canCook" />
+        <span class="cooking-recipe-card__copy">
+          <span class="cooking-recipe-card__name">{{ info.recipe.name }}</span>
+          <span
+            v-if="info.canCook && info.quality !== 'normal'"
+            class="cooking-recipe-card__meta"
+            :class="qualityTextClass(info.quality)"
+          >
+            [{{ QUALITY_NAMES[info.quality] }}]
           </span>
-        </div>
-        <p v-if="info.categoryText" class="text-[0.625rem] text-accent/80 mt-0.5">{{ info.categoryText }}</p>
-        <p v-if="info.storyTriggerText" class="text-[0.625rem] text-water/90 mt-0.5">{{ info.storyTriggerText }}</p>
-        <p v-if="info.recipe.effect.buff" class="text-[0.625rem] text-water mt-0.5">{{ info.recipe.effect.buff.description }}</p>
-        <p v-if="info.cropUseText" class="text-[0.625rem] text-muted mt-0.5">{{ info.cropUseText }}</p>
-        <p v-if="info.substitutionText" class="text-[0.625rem] text-accent/80 mt-0.5">{{ info.substitutionText }}</p>
-        <p v-if="info.recommendationText" class="text-[0.625rem] text-accent/80 mt-0.5">{{ info.recommendationText }}</p>
-      </div>
+          <span class="cooking-recipe-card__effect" :class="info.canCook ? 'text-success' : 'text-muted/50'">
+            {{ recipeRecoveryText(info) }}
+          </span>
+        </span>
+      </button>
     </div>
     <div v-else class="flex flex-col items-center justify-center py-8 mb-4">
       <UtensilsCrossed :size="36" class="text-accent/20 mb-2" />
@@ -326,6 +326,27 @@
     return recipeInfos.value.filter(info => info.canCook)
   })
 
+  type RecipeInfo = (typeof recipeInfos.value)[number]
+
+  const recipeRecoveryText = (info: RecipeInfo): string => {
+    const parts = [`+${info.recipe.effect.staminaRestore}体力`]
+    if (info.recipe.effect.healthRestore) parts.push(`+${info.recipe.effect.healthRestore}生命`)
+    return parts.join(' ')
+  }
+
+  const recipeCardTitle = (info: RecipeInfo): string => {
+    return [
+      info.recipe.name,
+      recipeRecoveryText(info),
+      info.categoryText,
+      info.storyTriggerText,
+      info.recipe.effect.buff?.description ?? '',
+      info.cropUseText,
+      info.substitutionText,
+      info.recommendationText
+    ].filter(Boolean).join('\n')
+  }
+
   /** 当前弹窗对应的食谱信息（响应式，材料变化时自动更新） */
   const modalInfo = computed(() => {
     if (!modalRecipeId.value) return null
@@ -388,3 +409,105 @@
     if (tr.passedOut) handleEndDay()
   }
 </script>
+
+<style scoped>
+  .cooking-recipe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 6px;
+  }
+
+  .cooking-recipe-card {
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 98px;
+    appearance: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
+    border-radius: 4px;
+    background: rgb(var(--color-panel) / 0.34);
+    padding: 7px 6px 6px;
+    text-align: center;
+    transition: border-color 0.16s ease, background-color 0.16s ease, opacity 0.16s ease;
+  }
+
+  .cooking-recipe-card:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 44%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 6%, rgb(var(--color-panel) / 0.42));
+  }
+
+  .cooking-recipe-card--makeable {
+    border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-accent) 18%);
+  }
+
+  .cooking-recipe-card--locked {
+    opacity: 0.78;
+  }
+
+  .cooking-recipe-card__status-dot {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    border: 1px solid rgb(var(--color-bg));
+    border-radius: 999px;
+    background: var(--color-success);
+  }
+
+  .cooking-recipe-card__copy {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .cooking-recipe-card__name,
+  .cooking-recipe-card__meta,
+  .cooking-recipe-card__effect {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cooking-recipe-card__name {
+    color: rgb(var(--color-text));
+    font-size: 0.6875rem;
+    line-height: 1.2;
+  }
+
+  .cooking-recipe-card--locked .cooking-recipe-card__name {
+    color: var(--color-muted);
+  }
+
+  .cooking-recipe-card__meta,
+  .cooking-recipe-card__effect {
+    font-size: 0.625rem;
+    line-height: 1.1;
+  }
+
+  .cooking-recipe-card__meta {
+    color: var(--color-accent);
+  }
+
+  @media (min-width: 768px) {
+    .cooking-recipe-grid {
+      grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .cooking-recipe-grid {
+      grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    }
+  }
+</style>

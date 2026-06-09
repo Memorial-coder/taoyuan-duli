@@ -181,6 +181,9 @@ const freshInventoryStore = () => {
   inventoryStore.equippedShoeIndex = 0
   assert(inventoryStore.getEquipmentBonus('mining_stamina') > 0, '测试前矿工套应提供采矿体力加成。')
   assert(inventoryStore.activeSets.some(set => set.id === 'miner_set'), '测试前矿工套装奖励应激活。')
+  const minerCatalog = inventoryStore.equipmentSetCatalog.find(set => set.id === 'miner_set')
+  assert(minerCatalog?.ownedCount === 3 && minerCatalog?.equippedCount === 3, '套装目录应显示矿工套已拥有并已装备。')
+  assert(minerCatalog?.pieces.every(piece => piece.owned), '套装目录应列出已拥有的矿工套组成件。')
 
   inventoryStore.equipmentPresets.push({
     id: 'qa-missing-preset',
@@ -203,6 +206,15 @@ const freshInventoryStore = () => {
   assert(inventoryStore.equippedShoeIndex === -1, '方案目标鞋子缺失时应清空鞋子槽。')
   assert(inventoryStore.getEquipmentBonus('mining_stamina') === 0, '缺失方案不得保留旧矿工套属性。')
   assert(!inventoryStore.activeSets.some(set => set.id === 'miner_set'), '缺失方案不得保留旧矿工套装奖励。')
+}
+
+{
+  const inventoryStore = freshInventoryStore()
+  const minerCatalog = inventoryStore.equipmentSetCatalog.find(set => set.id === 'miner_set')
+  assert(minerCatalog, '套装目录应在未获得装备前显示矿工套。')
+  assert(minerCatalog?.ownedCount === 0 && minerCatalog?.equippedCount === 0, '未获得装备前套装目录应显示0件拥有/装备。')
+  assert(minerCatalog?.bonuses.some(bonus => bonus.count === 2 && bonus.description.includes('矿石加成') && bonus.active === false), '未激活套装仍应展示奖励档位。')
+  assert(inventoryStore.activeSets.length === 0, '套装预览不应改变激活套装列表语义。')
 }
 
 {

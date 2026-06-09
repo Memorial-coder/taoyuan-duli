@@ -14,6 +14,30 @@ export interface EquipmentPreset {
   shoeDefId: string | null
   trinketDefId: string | null
 }
+
+export interface EquipmentSetCatalogPiece {
+  slot: 'weapon' | 'ring' | 'hat' | 'shoe'
+  slotLabel: string
+  defId: string
+  name: string
+  owned: boolean
+  equipped: boolean
+}
+
+export interface EquipmentSetCatalogEntry {
+  id: string
+  name: string
+  description: string
+  totalPieces: number
+  ownedCount: number
+  equippedCount: number
+  pieces: EquipmentSetCatalogPiece[]
+  bonuses: {
+    count: 2 | 3 | 4
+    description: string
+    active: boolean
+  }[]
+}
 import { showFloat } from '@/composables/useGameLog'
 import { getItemById } from '@/data/items'
 import { getWeaponById, getEnchantmentById, getWeaponSellPrice } from '@/data/weapons'
@@ -1144,6 +1168,71 @@ export const useInventoryStore = defineStore('inventory', () => {
     return { success: true, message: `合成了${def.name}！` }
   }
 
+  /** 全部套装目录（含未拥有装备，供 UI 预览套装效果） */
+  const equipmentSetCatalog = computed<EquipmentSetCatalogEntry[]>(() => {
+    const isWeaponEquipped = (defId: string): boolean => ownedWeapons.value[equippedWeaponIndex.value]?.defId === defId
+    const isRingEquipped = (defId: string): boolean => {
+      return [equippedRingSlot1.value, equippedRingSlot2.value].some(idx => idx >= 0 && idx < ownedRings.value.length && ownedRings.value[idx]?.defId === defId)
+    }
+    const isHatEquipped = (defId: string): boolean => equippedHatIndex.value >= 0 && ownedHats.value[equippedHatIndex.value]?.defId === defId
+    const isShoeEquipped = (defId: string): boolean => equippedShoeIndex.value >= 0 && ownedShoes.value[equippedShoeIndex.value]?.defId === defId
+
+    return EQUIPMENT_SETS.map(set => {
+      const pieces: EquipmentSetCatalogPiece[] = []
+      if (set.pieces.weapon) {
+        pieces.push({
+          slot: 'weapon',
+          slotLabel: '武器',
+          defId: set.pieces.weapon,
+          name: getWeaponById(set.pieces.weapon)?.name ?? set.pieces.weapon,
+          owned: hasWeapon(set.pieces.weapon),
+          equipped: isWeaponEquipped(set.pieces.weapon)
+        })
+      }
+      pieces.push(
+        {
+          slot: 'ring',
+          slotLabel: '戒指',
+          defId: set.pieces.ring,
+          name: getRingById(set.pieces.ring)?.name ?? set.pieces.ring,
+          owned: hasRing(set.pieces.ring),
+          equipped: isRingEquipped(set.pieces.ring)
+        },
+        {
+          slot: 'hat',
+          slotLabel: '帽子',
+          defId: set.pieces.hat,
+          name: getHatById(set.pieces.hat)?.name ?? set.pieces.hat,
+          owned: hasHat(set.pieces.hat),
+          equipped: isHatEquipped(set.pieces.hat)
+        },
+        {
+          slot: 'shoe',
+          slotLabel: '鞋子',
+          defId: set.pieces.shoe,
+          name: getShoeById(set.pieces.shoe)?.name ?? set.pieces.shoe,
+          owned: hasShoe(set.pieces.shoe),
+          equipped: isShoeEquipped(set.pieces.shoe)
+        }
+      )
+      const equippedCount = pieces.filter(piece => piece.equipped).length
+      return {
+        id: set.id,
+        name: set.name,
+        description: set.description,
+        totalPieces: pieces.length,
+        ownedCount: pieces.filter(piece => piece.owned).length,
+        equippedCount,
+        pieces,
+        bonuses: set.bonuses.map(b => ({
+          count: b.count,
+          description: b.description,
+          active: equippedCount >= b.count
+        }))
+      }
+    })
+  })
+
   // ============================================================
   // 饰物系统
   // ============================================================
@@ -1596,6 +1685,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     getEquipmentBonus,
     craftRing,
     activeSets,
+    equipmentSetCatalog,
     ownedHats,
     equippedHatIndex,
     addHat,

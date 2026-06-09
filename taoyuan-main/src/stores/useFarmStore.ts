@@ -56,7 +56,9 @@ export const useFarmStore = defineStore('farm', () => {
   const lightningRods = ref(0)
   const scarecrows = ref(0)
   const giantCropCounter = ref(0)
-  const tilledPlots = computed(() => plots.value.filter(p => p.state !== 'wasteland'))
+  const sprinklerPlotIds = computed(() => new Set(sprinklers.value.map(s => s.plotId)))
+  const hasSprinklerAtPlot = (plotId: number): boolean => sprinklerPlotIds.value.has(plotId)
+  const tilledPlots = computed(() => plots.value.filter(p => p.state !== 'wasteland' && !hasSprinklerAtPlot(p.id)))
   const harvestableCount = computed(() => plots.value.filter(p => p.state === 'harvestable').length)
 
   /** 重置农场为指定大小（用于新游戏初始化） */
@@ -70,8 +72,6 @@ export const useFarmStore = defineStore('farm', () => {
     nextFruitTreeId.value = 0
     nextWildTreeId.value = 0
   }
-
-  const hasSprinklerAtPlot = (plotId: number): boolean => sprinklers.value.some(s => s.plotId === plotId)
 
   /** 开垦地块 */
   const tillPlot = (plotId: number): boolean => {
@@ -323,6 +323,17 @@ export const useFarmStore = defineStore('farm', () => {
     const plot = plots.value[plotId]
     if (!plot) return false
     if (plot.state === 'wasteland') return false
+    if (hasSprinklerAtPlot(plotId)) return false
+    if (plot.fertilizer) return false
+    plot.fertilizer = fertilizerType
+    return true
+  }
+
+  /** 给温室地块施肥 */
+  const applyGreenhouseFertilizer = (plotId: number, fertilizerType: FertilizerType): boolean => {
+    const plot = greenhousePlots.value[plotId]
+    if (!plot) return false
+    if (plot.state === 'wasteland') return false
     if (plot.fertilizer) return false
     plot.fertilizer = fertilizerType
     return true
@@ -332,7 +343,7 @@ export const useFarmStore = defineStore('farm', () => {
   const applyFertileSoil = (): number => {
     let count = 0
     for (const plot of plots.value) {
-      if (plot.state !== 'wasteland' && !plot.fertilizer) {
+      if (plot.state !== 'wasteland' && !plot.fertilizer && !hasSprinklerAtPlot(plot.id)) {
         plot.fertilizer = 'basic_fertilizer'
         count++
       }
@@ -500,7 +511,7 @@ export const useFarmStore = defineStore('farm', () => {
     let reclaimedCount = 0
 
     // 先记录换季前就已经空置的耕地
-    const preExistingTilled = new Set(plots.value.filter(p => p.state === 'tilled' && !p.cropId).map(p => p.id))
+    const preExistingTilled = new Set(plots.value.filter(p => p.state === 'tilled' && !p.cropId && !hasSprinklerAtPlot(p.id)).map(p => p.id))
 
     // 作物枯萎检查（肥料保留在土壤中）
     for (const plot of plots.value) {
@@ -1075,6 +1086,7 @@ export const useFarmStore = defineStore('farm', () => {
     curePest,
     clearWeed,
     getSprinklerCoverage,
+    hasSprinklerAtPlot,
     placeSprinkler,
     removeSprinkler,
     getAllWateredBySprinklers,
@@ -1101,6 +1113,7 @@ export const useFarmStore = defineStore('farm', () => {
     dailyWildTreeUpdate,
     initGreenhouse,
     greenhouseLevel,
+    applyGreenhouseFertilizer,
     greenhousePlantCrop,
     greenhousePlantGeneticSeed,
     greenhouseHarvestPlot,

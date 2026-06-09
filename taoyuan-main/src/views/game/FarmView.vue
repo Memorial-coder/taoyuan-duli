@@ -925,9 +925,9 @@
           <p class="text-xs text-muted mb-3">无季节限制 · 自动浇水 · {{ farmStore.greenhousePlots.length }}块地</p>
 
           <!-- 操作按钮 -->
-          <div class="flex space-x-2 mb-3">
+          <div class="flex flex-wrap gap-2 mb-3">
             <Button
-              class="flex-1 justify-center"
+              class="flex-1 min-w-[7.5rem] justify-center"
               :class="{ '!bg-accent !text-bg': ghHarvestableCount > 0 }"
               :disabled="ghHarvestableCount === 0"
               :icon-size="12"
@@ -937,7 +937,7 @@
               一键收获{{ ghHarvestableCount > 0 ? ` (${ghHarvestableCount}块)` : '' }}
             </Button>
             <Button
-              class="flex-1 justify-center"
+              class="flex-1 min-w-[7.5rem] justify-center"
               :disabled="ghTilledEmptyCount === 0 || (allSeeds.length === 0 && ghBatchBreedingSeedGroups.length === 0)"
               :icon-size="12"
               :icon="Sprout"
@@ -945,7 +945,16 @@
             >
               一键种植{{ ghTilledEmptyCount > 0 ? ` (${ghTilledEmptyCount}块)` : '' }}
             </Button>
-            <Button v-if="nextGhUpgrade" class="flex-1 justify-center" :icon-size="12" :icon="ArrowUp" @click="showGhUpgradeModal = true">
+            <Button
+              class="flex-1 min-w-[7.5rem] justify-center"
+              :disabled="ghFertilizableCount === 0 || fertilizerItems.length === 0"
+              :icon-size="12"
+              :icon="CirclePlus"
+              @click="showGhBatchFertilize = true"
+            >
+              一键施肥{{ ghFertilizableCount > 0 ? ` (${ghFertilizableCount}块)` : '' }}
+            </Button>
+            <Button v-if="nextGhUpgrade" class="flex-1 min-w-[7.5rem] justify-center" :icon-size="12" :icon="ArrowUp" @click="showGhUpgradeModal = true">
               升级温室
             </Button>
           </div>
@@ -955,7 +964,7 @@
             <button
               v-for="plot in farmStore.greenhousePlots"
               :key="plot.id"
-              class="greenhouse-plot aspect-square border border-accent/20 rounded-xs flex flex-col items-center justify-center cursor-pointer transition-colors hover:border-accent/60 hover:bg-panel/80 leading-tight"
+              class="greenhouse-plot relative aspect-square border border-accent/20 rounded-xs flex flex-col items-center justify-center cursor-pointer transition-colors hover:border-accent/60 hover:bg-panel/80 leading-tight"
               :class="getPlotDisplay(plot).color"
               :title="getPlotTooltip(plot)"
               @click="activeGhPlotId = plot.id"
@@ -967,6 +976,7 @@
                 <component :is="getPlotDisplay(plot).icon" :size="14" />
                 <span v-if="plot.cropId" class="text-[0.625rem] opacity-70 truncate max-w-full px-0.5">{{ getCropName(plot.cropId) }}</span>
               </template>
+              <CirclePlus v-if="plot.fertilizer" :size="8" class="absolute bottom-0 left-0 text-success drop-shadow-sm" />
             </button>
           </div>
         </div>
@@ -1064,6 +1074,38 @@
       </div>
     </Transition>
 
+    <!-- 温室一键施肥弹窗 -->
+    <Transition name="panel-fade">
+      <div
+        v-if="showGhBatchFertilize"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        @click.self="showGhBatchFertilize = false"
+      >
+        <div class="game-panel max-w-xs w-full relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showGhBatchFertilize = false">
+            <X :size="14" />
+          </button>
+          <p class="text-accent text-sm mb-2">温室一键施肥</p>
+          <p class="text-xs text-muted mb-2">可施肥地块 {{ ghFertilizableCount }} 块，选择肥料：</p>
+          <div class="farm-action-list flex flex-col space-y-1 max-h-60 overflow-y-auto overflow-x-hidden pr-1">
+            <button
+              v-for="f in fertilizerItems"
+              :key="f.itemId"
+              class="btn w-full text-xs justify-between shrink-0"
+              @click="doGhBatchFertilize(f.type)"
+            >
+              <span :class="f.colorClass">{{ f.name }}</span>
+              <span class="text-muted">×{{ f.count }}</span>
+            </button>
+          </div>
+          <div v-if="fertilizerItems.length === 0" class="flex flex-col items-center py-4">
+            <CirclePlus :size="32" class="text-muted/30" />
+            <p class="text-xs text-muted mt-2">没有可用的肥料</p>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 温室地块操作弹窗 -->
     <Transition name="panel-fade">
       <div
@@ -1107,6 +1149,10 @@
               <div class="flex items-center justify-between">
                 <span class="text-xs text-muted">特性</span>
                 <span class="text-xs text-water">自动浇水 · 无季节限制</span>
+              </div>
+              <div v-if="activeGhPlot.fertilizer" class="flex items-center justify-between">
+                <span class="text-xs text-muted">肥料</span>
+                <span class="text-xs text-success">{{ ghPlotFertName }}</span>
               </div>
             </div>
           </div>
@@ -1160,6 +1206,22 @@
               <p class="text-xs text-muted mt-2">背包中没有种子</p>
               <Button v-if="isWanwupuOpen" class="mt-2" :icon-size="12" :icon="Store" @click="goToShop">前往商店购买</Button>
               <p v-else class="text-[0.625rem] text-muted/60 mt-1">{{ wanwupuClosedReason }}</p>
+            </div>
+
+            <div v-if="canGhFertilize && fertilizerItems.length > 0" class="border border-accent/10 rounded-xs p-2">
+              <p class="text-xs text-muted mb-1">施肥</p>
+              <div class="flex flex-wrap gap-1">
+                <button
+                  v-for="f in fertilizerItems"
+                  :key="f.itemId"
+                  class="btn text-xs farm-seed-chip"
+                  @click="doGhFertilize(f.type)"
+                >
+                  <CirclePlus :size="10" />
+                  <span class="farm-seed-chip__label" :class="f.colorClass">{{ f.name }}</span>
+                  <span class="text-muted">(×{{ f.count }})</span>
+                </button>
+              </div>
             </div>
 
             <!-- 可收获 → 收获 -->
@@ -1282,7 +1344,7 @@
     if (!tutorialStore.enabled || gameStore.year > 1) return null
     if (farmStore.plots.every(p => p.state === 'wasteland')) return '点击下方「一键操作」→「一键开垦」来开垦荒地，或直接点击地块逐一操作。'
     const hasPlanted = farmStore.plots.some(p => p.state === 'planted' || p.state === 'growing' || p.state === 'harvestable')
-    if (!hasPlanted && farmStore.plots.some(p => p.state === 'tilled'))
+    if (!hasPlanted && farmStore.plots.some(p => p.state === 'tilled' && !farmStore.hasSprinklerAtPlot(p.id)))
       return '已开垦的地块可以种植作物。使用「一键种植」可批量播种背包中的种子。'
     if (farmStore.plots.some(p => (p.state === 'planted' || p.state === 'growing') && !p.watered) && !gameStore.isRainy)
       return '作物需要每天浇水才会生长。「一键浇水」可一次浇完所有作物。'
@@ -1357,6 +1419,7 @@
   const showGreenhouseModal = ref(false)
   const showGhUpgradeModal = ref(false)
   const showGhBatchPlant = ref(false)
+  const showGhBatchFertilize = ref(false)
   const chopFruitTreeTarget = ref<{ id: number; type: string } | null>(null)
   const chopWildTreeTarget = ref<{ id: number; type: string; chopCount: number } | null>(null)
 
@@ -1371,6 +1434,7 @@
     showBatchFertilize.value = false
     showBatchActions.value = false
     showGreenhouseModal.value = false
+    showGhBatchFertilize.value = false
     navigateToPanel('shop')
   }
 
@@ -1549,14 +1613,26 @@
     return getFertilizerById(activePlot.value.fertilizer)?.name ?? activePlot.value.fertilizer
   })
 
+  const ghPlotFertName = computed(() => {
+    if (!activeGhPlot.value?.fertilizer) return ''
+    return getFertilizerById(activeGhPlot.value.fertilizer)?.name ?? activeGhPlot.value.fertilizer
+  })
+
   const canWater = computed(() => {
     if (!activePlot.value) return false
     return (activePlot.value.state === 'planted' || activePlot.value.state === 'growing') && !activePlot.value.watered
   })
 
   const canFertilize = computed(() => {
-    if (!activePlot.value) return false
-    return activePlot.value.state !== 'wasteland' && !activePlot.value.fertilizer
+    const plot = activePlot.value
+    if (!plot) return false
+    return plot.state !== 'wasteland' && !plot.fertilizer && !farmStore.hasSprinklerAtPlot(plot.id)
+  })
+
+  const canGhFertilize = computed(() => {
+    const plot = activeGhPlot.value
+    if (!plot) return false
+    return plot.state !== 'wasteland' && !plot.fertilizer
   })
 
   // === 背包物品列表 ===
@@ -1654,7 +1730,19 @@
   }
 
   const hasSprinkler = (plotId: number): boolean => {
-    return farmStore.sprinklers.some(s => s.plotId === plotId)
+    return farmStore.hasSprinklerAtPlot(plotId)
+  }
+
+  const isPlantableTilledPlot = (plot: (typeof farmStore.plots)[number]): boolean => {
+    return plot.state === 'tilled' && !farmStore.hasSprinklerAtPlot(plot.id)
+  }
+
+  const isFertilizablePlot = (plot: (typeof farmStore.plots)[number]): boolean => {
+    return plot.state !== 'wasteland' && !plot.fertilizer && !farmStore.hasSprinklerAtPlot(plot.id)
+  }
+
+  const isGreenhouseFertilizablePlot = (plot: (typeof farmStore.greenhousePlots)[number]): boolean => {
+    return plot.state !== 'wasteland' && !plot.fertilizer
   }
 
   /** 洒水器覆盖范围（含放置洒水器的地块自身） */
@@ -1669,8 +1757,8 @@
   const unwateredCount = computed(() => farmStore.plots.filter(needsWater).length)
   const wastelandCount = computed(() => farmStore.plots.filter(p => p.state === 'wasteland').length)
   const harvestableCount = computed(() => farmStore.plots.filter(p => p.state === 'harvestable').length)
-  const tilledEmptyCount = computed(() => farmStore.plots.filter(p => p.state === 'tilled').length)
-  const fertilizableCount = computed(() => farmStore.plots.filter(p => p.state !== 'wasteland' && !p.fertilizer).length)
+  const tilledEmptyCount = computed(() => farmStore.plots.filter(isPlantableTilledPlot).length)
+  const fertilizableCount = computed(() => farmStore.plots.filter(isFertilizablePlot).length)
   const infestedCount = computed(() => farmStore.plots.filter(p => p.infested).length)
   const weedyCount = computed(() => farmStore.plots.filter(p => p.weedy).length)
 
@@ -1739,7 +1827,7 @@
     }
     const skillStore = useSkillStore()
     const cookingStore = useCookingStore()
-    const targets = farmStore.plots.filter(p => p.state === 'tilled' && !farmStore.sprinklers.some(s => s.plotId === p.id))
+    const targets = farmStore.plots.filter(isPlantableTilledPlot)
     if (targets.length === 0) {
       addLog('没有可种植的空耕地。')
       showBatchPlant.value = false
@@ -1853,7 +1941,7 @@
   const getPlotTooltip = (plot: (typeof farmStore.plots)[number]): string => {
     let tip = ''
     if (plot.state === 'wasteland') tip = '荒地（点击开垦）'
-    else if (plot.state === 'tilled') tip = '已耕地（点击播种）'
+    else if (plot.state === 'tilled') tip = hasSprinkler(plot.id) ? '已放置洒水器（不可种植）' : '已耕地（点击播种）'
     else if (plot.state === 'harvestable') {
       const crop = getCropById(plot.cropId!)
       tip = `${crop?.name ?? ''}已成熟（点击收获）`
@@ -2211,6 +2299,8 @@
 
   const ghTilledEmptyCount = computed(() => farmStore.greenhousePlots.filter(p => p.state === 'tilled').length)
 
+  const ghFertilizableCount = computed(() => farmStore.greenhousePlots.filter(isGreenhouseFertilizablePlot).length)
+
   const ghGridCols = computed(() => {
     const upgradeDef = GREENHOUSE_UPGRADES[farmStore.greenhouseLevel - 1]
     return upgradeDef?.gridCols ?? 4
@@ -2243,6 +2333,72 @@
   })
 
   // === 弹窗操作：温室 ===
+
+  const doGhFertilize = (type: FertilizerType) => {
+    if (activeGhPlotId.value === null) return
+    if (gameStore.isPastBedtime) {
+      addLog('已经凌晨2点了，你必须休息。')
+      handleEndDay()
+      return
+    }
+    if (!inventoryStore.removeItem(type)) {
+      addLog('没有该肥料了。')
+      return
+    }
+    if (farmStore.applyGreenhouseFertilizer(activeGhPlotId.value, type)) {
+      const fertDef = getFertilizerById(type)
+      addLog(`给温室地块施了${fertDef?.name ?? '肥料'}。`)
+    } else {
+      inventoryStore.addItem(type)
+      addLog('无法在此施肥（需要已开垦且未施肥的温室地块）。')
+    }
+    activeGhPlotId.value = null
+  }
+
+  const doGhBatchFertilize = (type: FertilizerType) => {
+    if (gameStore.isPastBedtime) {
+      addLog('已经凌晨2点了，你必须休息。')
+      showGhBatchFertilize.value = false
+      handleEndDay()
+      return
+    }
+    const fertDef = getFertilizerById(type)
+    if (!fertDef) return
+
+    const targets = farmStore.greenhousePlots.filter(isGreenhouseFertilizablePlot)
+    if (targets.length === 0) {
+      addLog('没有可施肥的温室地块。')
+      showGhBatchFertilize.value = false
+      return
+    }
+
+    let applied = 0
+    for (const plot of targets) {
+      if (!inventoryStore.hasItem(type)) break
+      if (!inventoryStore.removeItem(type)) break
+      if (farmStore.applyGreenhouseFertilizer(plot.id, type)) {
+        applied++
+      } else {
+        inventoryStore.addItem(type)
+        break
+      }
+    }
+
+    if (applied > 0) {
+      showFloat(`温室施肥 ×${applied}`, 'success')
+      addLog(`在温室一键施了${applied}块地的${fertDef.name}。`)
+      const tr = gameStore.advanceTime(ACTION_TIME_COSTS.plant * Math.min(applied, 3))
+      if (tr.message) addLog(tr.message)
+      if (tr.passedOut) {
+        showGhBatchFertilize.value = false
+        handleEndDay()
+        return
+      }
+    } else {
+      addLog('肥料不足，无法给温室施肥。')
+    }
+    showGhBatchFertilize.value = false
+  }
 
   const doGhPlant = (cropId: string) => {
     if (activeGhPlotId.value === null) return

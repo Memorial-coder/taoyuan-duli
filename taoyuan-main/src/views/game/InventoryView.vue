@@ -292,15 +292,44 @@
       </div>
 
       <!-- 套装效果 -->
-      <div v-if="inventoryStore.activeSets.length > 0" class="border border-accent/20 rounded-xs p-2 mt-3">
+      <div v-if="inventoryStore.equipmentSetCatalog.length > 0" class="border border-accent/20 rounded-xs p-2 mt-3">
         <p class="text-xs text-muted mb-1">套装效果</p>
-        <div v-for="set in inventoryStore.activeSets" :key="set.id" class="border border-accent/10 rounded-xs p-2 mb-1.5 last:mb-0">
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-xs text-accent">{{ set.name }}</span>
-            <span class="text-xs text-muted">{{ set.equippedCount }}/3</span>
-          </div>
-          <div v-for="bonus in set.bonuses" :key="bonus.count" class="text-[0.625rem]" :class="bonus.active ? 'text-success' : 'text-muted/40'">
-            ({{ bonus.count }}件) {{ bonus.description }}
+        <div class="max-h-80 overflow-y-auto pr-1 space-y-1.5">
+          <div
+            v-for="set in inventoryStore.equipmentSetCatalog"
+            :key="set.id"
+            class="border rounded-xs p-2"
+            :class="set.equippedCount > 0 ? 'border-accent/20 bg-accent/5' : 'border-accent/10'"
+          >
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <span class="text-xs text-accent truncate">{{ set.name }}</span>
+              <span class="text-[0.625rem] text-muted whitespace-nowrap">拥有 {{ set.ownedCount }}/{{ set.totalPieces }} · 装备 {{ set.equippedCount }}/{{ set.totalPieces }}</span>
+            </div>
+            <p class="text-[0.625rem] text-muted mb-1 leading-4">{{ set.description }}</p>
+            <div class="flex flex-wrap gap-1 mb-1.5">
+              <span
+                v-for="piece in set.pieces"
+                :key="piece.slot + ':' + piece.defId"
+                class="border rounded-xs px-1.5 py-0.5 text-[0.625rem] leading-4"
+                :class="
+                  piece.equipped
+                    ? 'border-accent/30 bg-accent/10 text-accent'
+                    : piece.owned
+                      ? 'border-success/30 text-success'
+                      : 'border-accent/10 text-muted/50'
+                "
+              >
+                {{ piece.slotLabel }}：{{ piece.name }}
+              </span>
+            </div>
+            <div
+              v-for="bonus in set.bonuses"
+              :key="bonus.count"
+              class="text-[0.625rem] leading-4"
+              :class="bonus.active ? 'text-success' : 'text-muted/50'"
+            >
+              ({{ bonus.count }}件) {{ bonus.description }}
+            </div>
           </div>
         </div>
       </div>
