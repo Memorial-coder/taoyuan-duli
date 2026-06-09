@@ -134,6 +134,7 @@ taoyuan-main/audit_*
 taoyuan-main/test_items.ts
 taoyuan-main/error.md
 taoyuan-main/playwright_*.py
+taoyuan-main/scripts/__pycache__/
 tools/__pycache__/
 tools/generate_ccgs_category_skills.py
 tools/localize_ccgs_skills_zh.py
