@@ -2267,6 +2267,11 @@ export const useShopStore = defineStore('shop', () => {
 
   const getCurrentShippingDayKey = (): string => `${gameStore.year}-${gameStore.seasonIndex}-${gameStore.day}`
 
+  const isFestivalSupplyCategory = (category: string): boolean => category === 'crop' || category === 'processed'
+
+  const hasCurrentFestivalSupplyWindow = (): boolean =>
+    getSeasonEventsForDay(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()).length > 0
+
   const buildFallbackLifetimeCategoryTotalsFromKnownItems = (itemIds: string[]) => {
     const totals: Partial<Record<MarketCategory, number>> = {}
     for (const itemId of itemIds) {
@@ -2497,6 +2502,8 @@ export const useShopStore = defineStore('shop', () => {
       const currentDayRecord = shippingHistory.value[dayKey] ?? {}
       const dayRecord: Record<string, number> = { ...(shippingHistory.value[dayKey] ?? {}) }
       const itemDayRecord: Record<string, number> = { ...(shippingItemHistory.value[dayKey] ?? {}) }
+      const festivalSupplyBonus = skillStore.getSkillMasteryEffectValue('festival_supply')
+      const festivalSupplyActive = festivalSupplyBonus > 0 && hasCurrentFestivalSupplyWindow()
 
       for (const entry of shippingBox.value) {
         const itemDef = getItemById(entry.itemId)
@@ -2511,7 +2518,8 @@ export const useShopStore = defineStore('shop', () => {
             gameStore.day,
             effectiveRecentVolume
           )
-          totalIncome += Math.floor(calculateBaseSellPrice(entry.itemId, entry.quantity, entry.quality) * marketMultiplier)
+          const festivalSupplyMultiplier = festivalSupplyActive && isFestivalSupplyCategory(itemDef.category) ? 1 + festivalSupplyBonus : 1
+          totalIncome += Math.floor(calculateBaseSellPrice(entry.itemId, entry.quantity, entry.quality) * marketMultiplier * festivalSupplyMultiplier)
         }
         recordCompletedSale(entry.itemId, entry.quantity, 'shipping_box', dayRecord, itemDayRecord, dayKey)
       }

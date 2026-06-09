@@ -15,7 +15,7 @@ import type {
 } from '@/types'
 import { getAvailableFish, getBaitById, getTackleById, getItemById } from '@/data'
 import { resolveEnvironmentWindow } from '@/data/environmentWindows'
-import { FISH } from '@/data/fish'
+import { FISH, FISHING_LOCATIONS } from '@/data/fish'
 import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
@@ -90,6 +90,9 @@ type FishingTreasureChanceInput = {
 }
 
 const toFiniteNumber = (value: number | undefined | null) => (Number.isFinite(value) ? Number(value) : 0)
+const FISHING_LOCATION_NAME_BY_ID = new Map<FishingLocation, string>(
+  FISHING_LOCATIONS.map(location => [location.id, location.name])
+)
 
 export const getFishingLuckBuffChance = (activeBuff: FishingTreasureChanceInput['activeBuff']) =>
   activeBuff?.type === 'luck' ? Math.max(0, toFiniteNumber(activeBuff.value) / 100) : 0
@@ -136,6 +139,23 @@ export const useFishingStore = defineStore('fishing', () => {
       year: gameStore.year
     })
   )
+  const tideMarkerHint = computed(() => {
+    if (skillStore.getSkillMasteryEffectValue('tide_marker') <= 0) return ''
+
+    const currentLegendaryFish = FISH.filter(
+      fish =>
+        fish.difficulty === 'legendary' &&
+        fish.season.includes(gameStore.season) &&
+        (fish.weather.includes('any') || fish.weather.includes(gameStore.weather as any))
+    )
+    if (currentLegendaryFish.length === 0) return '潮汐标记：今日没有传说鱼窗口。'
+
+    const fishLabels = currentLegendaryFish.map(fish => {
+      const locationName = FISHING_LOCATION_NAME_BY_ID.get(fish.location ?? 'creek') ?? '溪流'
+      return `${locationName}·${fish.name}`
+    })
+    return `潮汐标记：${fishLabels.join('、')}`
+  })
 
   const companionshipFishingFocus = computed(() => {
     const familyWishOverview = npcStore.getFamilyWishOverview()
@@ -596,12 +616,14 @@ export const useFishingStore = defineStore('fishing', () => {
       const expGain = currentFish.value.sellPrice * (difficultyExpMult[currentFish.value.difficulty] ?? 1)
       const riverlandBonus = gameStore.farmMapType === 'riverland' ? 1.25 : 1.0
       const perfectMult = rating === 'perfect' ? 2 : 1
-      skillStore.addExp('fishing', Math.floor(expGain * riverlandBonus * perfectMult))
+      const legendWeightBonus = currentFish.value.difficulty === 'legendary' ? skillStore.getSkillMasteryEffectValue('legend_weight') : 0
+      skillStore.addExp('fishing', Math.floor(expGain * riverlandBonus * perfectMult * (1 + legendWeightBonus)))
 
       message =
         catchQty > 1
           ? `成功钓上了${catchQty}条${currentFish.value.name}！${ratingTag}`
           : `成功钓上了${currentFish.value.name}！${ratingTag}`
+      if (legendWeightBonus > 0) message += '（传奇称重）'
     }
 
     // 宝箱只在主鱼成功入包后结算，避免背包满时出现“鱼没拿到但宝箱到账”
@@ -845,6 +867,7 @@ export const useFishingStore = defineStore('fishing', () => {
   return {
     availableFish,
     environmentWindow,
+    tideMarkerHint,
     companionshipFishingFocus,
     fishingLocation,
     currentFish,

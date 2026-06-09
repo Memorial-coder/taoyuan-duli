@@ -36,6 +36,9 @@
         </span>
       </div>
       <p class="text-xs text-muted leading-4">{{ fishingStore.environmentWindow.fishing.summary }}</p>
+      <p v-if="fishingStore.tideMarkerHint" class="text-[0.625rem] text-accent mt-1 leading-4">
+        {{ fishingStore.tideMarkerHint }}
+      </p>
       <div class="flex flex-wrap gap-1.5 mt-2">
         <span
           v-for="line in fishingStore.environmentWindow.fishing.detailLines"

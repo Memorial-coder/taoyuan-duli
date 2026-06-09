@@ -24,6 +24,7 @@ import { TRINKETS, getTrinketById, type TrinketDef } from '@/data/trinkets'
 import { EQUIPMENT_SETS } from '@/data/equipmentSets'
 import { usePlayerStore } from './usePlayerStore'
 import { useAchievementStore } from './useAchievementStore'
+import { useSkillStore } from './useSkillStore'
 
 const INITIAL_CAPACITY = 24
 const MAX_CAPACITY = 120
@@ -872,8 +873,9 @@ export const useInventoryStore = defineStore('inventory', () => {
       }
     }
     if (equippedTrinket.value) {
+      const trinketTuningMultiplier = 1 + useSkillStore().getSkillMasteryEffectValue('trinket_tuning')
       for (const eff of equippedTrinket.value.effects) {
-        if (eff.type === effectType) total += eff.value
+        if (eff.type === effectType) total += eff.value * trinketTuningMultiplier
       }
     }
     // 套装奖励

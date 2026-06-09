@@ -149,6 +149,16 @@ const miningViewSource = fs.readFileSync(path.join(srcRoot, 'views', 'game', 'Mi
 assert(/const MINING_EXPLORE_LOG_LIMIT = 120/.test(miningViewSource), 'MiningView 必须定义 exploreLog 上限')
 assert(/watch\(\s*\(\) => exploreLog\.value\.length[\s\S]*exploreLog\.value\.splice\(0, overflow\)/.test(miningViewSource), 'exploreLog 必须按长度同步裁剪')
 
+assert(/type MineRewardDisplayEntry = \{ itemId: string; quantity: number; quality\?: Quality; label: string \}/.test(miningStoreSource), '矿洞动作结果必须提供奖励展示条目类型')
+assert(/const recentRewards = ref<MineRewardDisplayEntry\[\]>\(\[\]\)/.test(miningStoreSource), 'useMiningStore 必须记录最近获得的具体奖励')
+assert(/const buildRewardDisplayEntries = \(entries: InventoryRewardEntry\[\]\): MineRewardDisplayEntry\[\]/.test(miningStoreSource), '矿洞奖励必须通过统一 helper 生成具体物品名和数量')
+assert(/label: `\$\{name\}×\$\{entry\.quantity\}`/.test(miningStoreSource), '矿洞奖励展示标签必须包含物品名和数量')
+assert(/挖到了\$\{formatRewardLabels\(rewards\)\}/.test(miningStoreSource), '挖矿日志必须显示具体挖到的物品和数量')
+assert(/刚获得：\$\{formatRewardLabels\(rewards\)\}/.test(miningStoreSource), '矿洞宝箱或炸弹日志必须显示刚获得的具体奖励')
+assert(/掉落：\$\{formatRewardLabels\(rewards\)\}/.test(miningStoreSource), '战斗掉落日志必须显示具体物品名和数量')
+assert(/data-testid="mine-recent-rewards"/.test(miningViewSource), 'MiningView 必须渲染矿洞“刚获得”奖励区')
+assert(/reward\.label/.test(miningViewSource), '矿洞“刚获得”奖励区必须展示具体奖励标签')
+
 if (errors.length > 0) {
   console.error('qa-gameplay-log-guards 失败:')
   for (const error of errors) console.error(`- ${error}`)

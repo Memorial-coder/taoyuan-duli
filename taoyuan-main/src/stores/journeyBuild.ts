@@ -168,6 +168,8 @@ export const buildJourneyBuildSnapshot = (
   const weaponType = weaponDef?.type ?? 'club'
   const matchedWeaponBias = target.weaponBias.includes(weaponType)
   const equipmentBonuses = buildEquipmentBonuses()
+  const journeyScoutBonus = skillStore.getSkillMasteryEffectValue('journey_scout')
+  const escortMarginBonus = skillStore.getSkillMasteryEffectValue('escort_margin')
   const outcomeBase = createEmptyJourneyOutcomeModifiers()
   let outcome = mergeOutcome(outcomeBase, {})
 
@@ -210,6 +212,13 @@ export const buildJourneyBuildSnapshot = (
       utility: Math.floor(miningValue / 42)
     }
   })
+
+  if (journeyScoutBonus > 0 || escortMarginBonus > 0) {
+    outcome = addOutcome(outcome, {
+      scoutBonus: journeyScoutBonus,
+      hazardResist: escortMarginBonus
+    })
+  }
 
   if (weaponType === 'sword') {
     outcome = addOutcome(outcome, {

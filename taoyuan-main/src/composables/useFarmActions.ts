@@ -362,6 +362,7 @@ export const handleBatchWater = () => {
   let watered = 0
   const batchRingFarmReduction = inventoryStore.getRingEffectValue('farming_stamina')
   const batchRingGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
+  const batchIrrigationReduction = skillStore.getSkillMasteryEffectValue('batch_irrigation')
   for (const plot of targets) {
     const crop = getCropById(plot.cropId!)
     const baseCost = crop?.deepWatering ? 3 : 2
@@ -374,7 +375,8 @@ export const handleBatchWater = () => {
           (1 - skillStore.getStaminaReduction('farming')) *
           (1 - farmingBuff) *
           (1 - batchRingFarmReduction) *
-          (1 - batchRingGlobalReduction)
+          (1 - batchRingGlobalReduction) *
+          (1 - batchIrrigationReduction)
       )
     )
     if (!playerStore.consumeStamina(cost)) break
@@ -385,7 +387,8 @@ export const handleBatchWater = () => {
 
   if (watered > 0) {
     sfxWater()
-    addLog(`一键浇水了${watered}块地。`)
+    const masterySuffix = batchIrrigationReduction > 0 ? '（批量灌溉）' : ''
+    addLog(`一键浇水了${watered}块地。${masterySuffix}`)
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.batchWater * inventoryStore.getToolStaminaMultiplier('wateringCan'))
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) handleEndDay()

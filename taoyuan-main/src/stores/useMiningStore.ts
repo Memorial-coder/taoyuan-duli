@@ -62,6 +62,15 @@ const COMBAT_TIME_NORMAL = 0.17
 const COMBAT_TIME_LONG = 0.25
 const MINING_COMBAT_LOG_LIMIT = 120
 const applySkillMasteryBonus = (value: number, bonus: number): number => Math.floor(value * (1 + bonus) + 1e-6)
+const RARE_TRANSMUTE_ORE_UPGRADES: Record<string, string> = {
+  copper_ore: 'iron_ore',
+  iron_ore: 'gold_ore',
+  gold_ore: 'crystal_ore',
+  crystal_ore: 'shadow_ore',
+  shadow_ore: 'void_ore',
+  void_ore: 'iridium_ore'
+}
+const getRareTransmuteOre = (oreId: string): string | null => RARE_TRANSMUTE_ORE_UPGRADES[oreId] ?? null
 
 type CombatActionResult = {
   message: string
@@ -75,6 +84,7 @@ type CombatActionResult = {
   effectiveDamage?: number
   takenDamage?: number
   isCrit?: boolean
+  rewards?: MineRewardDisplayEntry[]
 }
 
 type SessionLootEntry =
@@ -86,6 +96,12 @@ type SessionLootEntry =
   | { kind: 'shoe'; defId: string }
 
 type InventoryRewardEntry = { itemId: string; quantity: number; quality?: Quality }
+
+type MineRewardDisplayEntry = { itemId: string; quantity: number; quality?: Quality; label: string }
+
+type MineActionResult = { success: boolean; message: string; startsCombat: boolean; rewards?: MineRewardDisplayEntry[] }
+
+type MineUtilityResult = { success: boolean; message: string; rewards?: MineRewardDisplayEntry[] }
 
 type PendingMineRewardKind = 'infested_clear' | 'main_mine_boss'
 
@@ -163,6 +179,7 @@ export const useMiningStore = defineStore('mining', () => {
 
   /** 满包时保留的矿洞楼层奖励，避免卡死和重复发奖 */
   const pendingMineRewards = ref<PendingMineRewardEntry[]>([])
+  const recentRewards = ref<MineRewardDisplayEntry[]>([])
 
   /** 本次探索收集的物品（离开时50%丢失用） */
   const sessionLoot = ref<SessionLootEntry[]>([])
@@ -226,6 +243,25 @@ export const useMiningStore = defineStore('mining', () => {
     return getFloor(currentFloor.value)
   }
 
+  const getFloorIntelMessage = (floor = getActiveFloorData()): string => {
+    if (skillStore.getSkillMasteryEffectValue('floor_intel') <= 0 || !floor) return ''
+    const specialLabels: Record<string, string> = {
+      mushroom: '蘑菇洞穴',
+      treasure: '宝箱层',
+      infested: '感染层',
+      dark: '暗河层',
+      boss: 'BOSS层'
+    }
+    const lines: string[] = []
+    const specialLabel = floor.specialType ? (specialLabels[floor.specialType] ?? '') : ''
+    if (specialLabel) lines.push(`特殊层：${specialLabel}`)
+    if (floor.ores.length > 0) {
+      const oreNames = floor.ores.slice(0, 3).map(oreId => getItemById(oreId)?.name ?? oreId)
+      lines.push(`主要矿石：${oreNames.join('、')}`)
+    }
+    return lines.length > 0 ? ` 层位情报：${lines.join('；')}。` : ''
+  }
+
   const recordItemLoot = (itemId: string, quantity: number) => {
     if (quantity <= 0) return
     sessionLoot.value.push({ kind: 'item', itemId, quantity })
@@ -246,6 +282,33 @@ export const useMiningStore = defineStore('mining', () => {
     }
     return [...merged.values()]
   }
+
+  const buildRewardDisplayEntries = (entries: InventoryRewardEntry[]): MineRewardDisplayEntry[] => {
+    return mergeRewardEntries(entries).map(entry => {
+      const name = getItemById(entry.itemId)?.name ?? entry.itemId
+      return {
+        itemId: entry.itemId,
+        quantity: entry.quantity,
+        quality: entry.quality,
+        label: `${name}×${entry.quantity}`
+      }
+    })
+  }
+
+  const buildMoneyRewardDisplayEntry = (amount: number): MineRewardDisplayEntry | null => {
+    if (amount <= 0) return null
+    return { itemId: 'money', quantity: amount, label: `铜钱×${amount}` }
+  }
+
+  const setRecentRewards = (rewards: MineRewardDisplayEntry[]) => {
+    recentRewards.value = rewards.slice(0, 12)
+  }
+
+  const clearRecentRewards = () => {
+    recentRewards.value = []
+  }
+
+  const formatRewardLabels = (rewards: MineRewardDisplayEntry[]): string => rewards.map(reward => reward.label).join('、')
 
   const canGrantRewardEntries = (entries: InventoryRewardEntry[]): boolean => {
     const merged = mergeRewardEntries(entries)
@@ -737,7 +800,7 @@ export const useMiningStore = defineStore('mining', () => {
   // ==================== 格子交互 ====================
 
   /** 与已揭示的怪物/BOSS重新交战（逃跑后或炸弹揭示后） */
-  const engageRevealedMonster = (index: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const engageRevealedMonster = (index: number): MineActionResult => {
     if (!isExploring.value) return { success: false, message: '你不在矿洞中。', startsCombat: false }
     if (inCombat.value) return { success: false, message: '战斗中无法探索。', startsCombat: false }
 
@@ -779,7 +842,7 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   /** 翻开格子 — 核心交互入口 */
-  const revealTile = (index: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const revealTile = (index: number): MineActionResult => {
     if (!isExploring.value) return { success: false, message: '你不在矿洞中。', startsCombat: false }
     if (inCombat.value) return { success: false, message: '战斗中无法探索。', startsCombat: false }
 
@@ -828,6 +891,7 @@ export const useMiningStore = defineStore('mining', () => {
     if (Math.random() < 0.03) {
       useSecretNoteStore().tryCollectNote('mining')
     }
+    clearRecentRewards()
 
     // 根据类型处理
     switch (tile.type) {
@@ -854,13 +918,13 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   /** 处理空格子 */
-  const _handleEmptyTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleEmptyTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     tile.state = 'revealed'
     return { success: true, message: `探索了一个空区域。(-${staminaCost}体力)`, startsCombat: false }
   }
 
   /** 处理矿石格子 */
-  const _handleOreTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleOreTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     const oreId = tile.data?.oreId ?? 'copper_ore'
     let quantity = tile.data?.oreQuantity ?? 1
 
@@ -896,13 +960,19 @@ export const useMiningStore = defineStore('mining', () => {
       herbRewards.push({ itemId: herbId, quantity: 1 })
     }
 
-    const rewardEntries: InventoryRewardEntry[] = [{ itemId: oreId, quantity }, ...herbRewards]
+    const rareTransmuteChance = skillStore.getSkillMasteryEffectValue('rare_transmute')
+    const rareTransmuteOreId = rareTransmuteChance > 0 && Math.random() < rareTransmuteChance ? getRareTransmuteOre(oreId) : null
+    const rareTransmuteRewards: InventoryRewardEntry[] = rareTransmuteOreId ? [{ itemId: rareTransmuteOreId, quantity: 1 }] : []
+    const rewardEntries: InventoryRewardEntry[] = [{ itemId: oreId, quantity }, ...herbRewards, ...rareTransmuteRewards]
     if (!canGrantRewardEntries(rewardEntries) || !grantRewardEntries(rewardEntries, true)) {
       playerStore.restoreStamina(staminaCost)
       return { success: false, message: '背包空间不足，无法收取矿石。', startsCombat: false }
     }
+    const rewards = buildRewardDisplayEntries(rewardEntries)
+    setRecentRewards(rewards)
 
     useQuestStore().onItemObtained(oreId, quantity)
+    if (rareTransmuteOreId) useQuestStore().onItemObtained(rareTransmuteOreId, 1)
 
     // 经验
     const hilltopXpBonus = gameStore.farmMapType === 'hilltop' ? 1.25 : 1.0
@@ -910,11 +980,12 @@ export const useMiningStore = defineStore('mining', () => {
 
     tile.state = 'collected'
     const windowSuffix = environmentWindow.value.mining.active ? ` ${environmentWindow.value.mining.label}：${environmentWindow.value.mining.summary}` : ''
-    return { success: true, message: `挖到了${quantity}个矿石！(-${staminaCost}体力)${windowSuffix}`, startsCombat: false }
+    const rareTransmuteSuffix = rareTransmuteOreId ? '（稀矿转化）' : ''
+    return { success: true, message: `挖到了${formatRewardLabels(rewards)}！(-${staminaCost}体力)${windowSuffix}${rareTransmuteSuffix}`, startsCombat: false, rewards }
   }
 
   /** 处理怪物格子 */
-  const _handleMonsterTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleMonsterTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     const monster = tile.data?.monster
     if (!monster) {
       tile.state = 'revealed'
@@ -933,7 +1004,7 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   /** 处理 BOSS 格子 */
-  const _handleBossTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleBossTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     const monster = tile.data?.monster
     if (!monster) {
       tile.state = 'revealed'
@@ -954,7 +1025,7 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   /** 处理楼梯格子 */
-  const _handleStairsTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleStairsTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     tile.state = 'revealed'
     stairsFound.value = true
 
@@ -977,7 +1048,7 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   /** 处理陷阱格子 */
-  const _handleTrapTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleTrapTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     const damage = tile.data?.trapDamage ?? 5
     playerStore.takeDamage(damage)
     tile.state = 'triggered'
@@ -991,7 +1062,7 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   /** 处理宝箱格子 */
-  const _handleTreasureTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleTreasureTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     const items = tile.data?.treasureItems ?? []
     const money = tile.data?.treasureMoney ?? 0
 
@@ -1000,6 +1071,9 @@ export const useMiningStore = defineStore('mining', () => {
       playerStore.restoreStamina(staminaCost)
       return { success: false, message: '背包空间不足，无法开启宝箱。', startsCombat: false }
     }
+    const rewards = buildRewardDisplayEntries(rewardEntries)
+    const moneyReward = buildMoneyRewardDisplayEntry(money)
+    if (moneyReward) rewards.push(moneyReward)
     if (money > 0) {
       playerStore.earnMoney(money)
       recordMoneyLoot(money)
@@ -1066,16 +1140,18 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     tile.state = 'collected'
+    setRecentRewards(rewards)
 
     let msg = '发现宝箱！'
     if (items.length > 0) msg += `获得了${getRewardNames(items)}`
     if (money > 0) msg += `${items.length > 0 ? '和' : '获得了'}${money}文`
     msg += `！(-${staminaCost}体力)`
-    return { success: true, message: msg, startsCombat: false }
+    const rewardSuffix = rewards.length > 0 ? ` 刚获得：${formatRewardLabels(rewards)}。` : ''
+    return { success: true, message: `${msg}${rewardSuffix}`, startsCombat: false, rewards: rewards.length > 0 ? rewards : undefined }
   }
 
   /** 处理蘑菇格子 */
-  const _handleMushroomTile = (tile: MineTile, staminaCost: number): { success: boolean; message: string; startsCombat: boolean } => {
+  const _handleMushroomTile = (tile: MineTile, staminaCost: number): MineActionResult => {
     const items = tile.data?.mushroomItems ?? []
 
     const rewardEntries = items.map(r => ({ itemId: r.itemId, quantity: r.quantity }))
@@ -1083,16 +1159,18 @@ export const useMiningStore = defineStore('mining', () => {
       playerStore.restoreStamina(staminaCost)
       return { success: false, message: '背包空间不足，无法采集蘑菇。', startsCombat: false }
     }
+    const rewards = buildRewardDisplayEntries(rewardEntries)
+    setRecentRewards(rewards)
     skillStore.addExp('foraging', 3)
 
     tile.state = 'collected'
-    return { success: true, message: `采集到了${getRewardNames(items)}！(+3采集经验, -${staminaCost}体力)`, startsCombat: false }
+    return { success: true, message: `采集到了${formatRewardLabels(rewards)}！(+3采集经验, -${staminaCost}体力)`, startsCombat: false, rewards }
   }
 
   // ==================== 炸弹 ====================
 
   /** 在格子上使用炸弹 */
-  const useBombOnGrid = (bombId: string, centerIndex: number): { success: boolean; message: string } => {
+  const useBombOnGrid = (bombId: string, centerIndex: number): MineUtilityResult => {
     if (!isExploring.value) return { success: false, message: '你不在矿洞中。' }
     if (inCombat.value) return { success: false, message: '战斗中无法使用炸弹。' }
 
@@ -1117,8 +1195,9 @@ export const useMiningStore = defineStore('mining', () => {
 
     let oreCollected = 0
     let monstersKilled = 0
-    const collectedOres: string[] = []
     let inventoryBlocked = false
+    const bombRewardEntries: InventoryRewardEntry[] = []
+    let bombMoney = 0
 
     for (const idx of indices) {
       const tile = floorGrid.value[idx]
@@ -1136,8 +1215,8 @@ export const useMiningStore = defineStore('mining', () => {
             inventoryBlocked = true
             break
           }
+          bombRewardEntries.push({ itemId: oreId, quantity })
           useAchievementStore().discoverItem(oreId)
-          collectedOres.push(oreId)
           oreCollected++
           tile.state = 'collected'
           break
@@ -1151,7 +1230,11 @@ export const useMiningStore = defineStore('mining', () => {
             // 普通掉落（概率减半）
             for (const drop of monster.drops) {
               if (Math.random() < drop.chance * 0.5) {
-                addAndRecordItemLoot(drop.itemId, 1)
+                if (addAndRecordItemLoot(drop.itemId, 1) > 0) {
+                  bombRewardEntries.push({ itemId: drop.itemId, quantity: 1 })
+                } else {
+                  inventoryBlocked = true
+                }
               }
             }
             tile.state = 'defeated'
@@ -1188,7 +1271,9 @@ export const useMiningStore = defineStore('mining', () => {
           if (money > 0) {
             playerStore.earnMoney(money)
             recordMoneyLoot(money)
+            bombMoney += money
           }
+          bombRewardEntries.push(...rewardEntries)
           tile.state = 'collected'
           break
         }
@@ -1199,6 +1284,7 @@ export const useMiningStore = defineStore('mining', () => {
             inventoryBlocked = true
             break
           }
+          bombRewardEntries.push(...rewardEntries)
           tile.state = 'collected'
           break
         }
@@ -1215,15 +1301,20 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     if (oreCollected > 0) skillStore.addExp('mining', 5 * oreCollected)
+    const rewards = buildRewardDisplayEntries(bombRewardEntries)
+    const moneyReward = buildMoneyRewardDisplayEntry(bombMoney)
+    if (moneyReward) rewards.push(moneyReward)
+    if (rewards.length > 0) setRecentRewards(rewards)
 
     let msg = `${bombDef.name}爆炸了！`
     if (oreCollected > 0) msg += `采集了${oreCollected}份矿石`
     if (monstersKilled > 0) msg += `${oreCollected > 0 ? '，' : ''}击败了${monstersKilled}只怪物`
     if (oreCollected === 0 && monstersKilled === 0) msg += '翻开了一些区域'
+    if (rewards.length > 0) msg += `，刚获得：${formatRewardLabels(rewards)}`
     msg += '！'
     if (bombSaved) msg += `（${bombEfficiencySaved ? '爆破效率' : '挖掘者'}：炸弹未消耗！）`
     if (inventoryBlocked) msg += '（部分奖励因背包空间不足未领取）'
-    return { success: true, message: msg }
+    return { success: true, message: msg, rewards: rewards.length > 0 ? rewards : undefined }
   }
 
   // ==================== 进入 / 离开 ====================
@@ -1234,13 +1325,14 @@ export const useMiningStore = defineStore('mining', () => {
     isInSkullCavern.value = false
     currentFloor.value = getMainMineEntryFloor(startFromSafePoint)
     sessionLoot.value = []
+    clearRecentRewards()
 
     _generateGrid()
 
     // BOSS 层自动进入战斗（如果格子中有 boss 且入口邻格就是 boss）
     _checkAutoBossCombat()
 
-    return `进入云隐矿洞，当前第${currentFloor.value}层。`
+    return `进入云隐矿洞，当前第${currentFloor.value}层。${getFloorIntelMessage()}`
   }
 
   /** 进入骷髅矿穴（可选择起始安全点楼层） */
@@ -1251,12 +1343,13 @@ export const useMiningStore = defineStore('mining', () => {
     skullCavernFloor.value = getSkullCavernEntryFloor(startFromSafePoint)
     cacheSkullFloor(skullCavernFloor.value)
     sessionLoot.value = []
+    clearRecentRewards()
 
     _generateGrid()
 
     _checkAutoBossCombat()
 
-    return `进入骷髅矿穴，当前第${skullCavernFloor.value}层。`
+    return `进入骷髅矿穴，当前第${skullCavernFloor.value}层。${getFloorIntelMessage()}`
   }
 
   /** 检查是否自动触发BOSS战（BOSS格在入口邻格时） */
@@ -1465,9 +1558,14 @@ export const useMiningStore = defineStore('mining', () => {
     monster: MonsterDef,
     msg: string,
     _totalDamage: number
-  ): { message: string; combatOver: boolean; won: boolean } => {
+  ): { message: string; combatOver: boolean; won: boolean; rewards?: MineRewardDisplayEntry[] } => {
     inCombat.value = false
     let inventoryBlocked = false
+    const combatRewardEntries: InventoryRewardEntry[] = []
+    const combatRewardDisplays: MineRewardDisplayEntry[] = []
+    const addCombatRewardDisplay = (entry: MineRewardDisplayEntry) => {
+      combatRewardDisplays.push(entry)
+    }
 
     // 经验
     const floor = getActiveFloorData()
@@ -1492,12 +1590,11 @@ export const useMiningStore = defineStore('mining', () => {
       guildBonusDropRate.value
 
     // 普通掉落
-    const drops: string[] = []
     for (const drop of monster.drops) {
       if (Math.random() < Math.min(drop.chance + luckyBonus, 1)) {
         if (addAndRecordItemLoot(drop.itemId, 1) > 0) {
           useAchievementStore().discoverItem(drop.itemId)
-          drops.push(drop.itemId)
+          combatRewardEntries.push({ itemId: drop.itemId, quantity: 1 })
         } else {
           inventoryBlocked = true
         }
@@ -1511,7 +1608,7 @@ export const useMiningStore = defineStore('mining', () => {
         const dropQty = (_killMiningSkill.perk20 === 'gem_emperor') ? 2 : 1
         const bonusOre = floor.ores[Math.floor(Math.random() * floor.ores.length)]!
         if (addAndRecordItemLoot(bonusOre, dropQty) > 0) {
-          drops.push(bonusOre)
+          combatRewardEntries.push({ itemId: bonusOre, quantity: dropQty })
         } else {
           inventoryBlocked = true
         }
@@ -1539,6 +1636,7 @@ export const useMiningStore = defineStore('mining', () => {
             recordWeaponLoot(wd.weaponId, enchantId)
             const displayName = getWeaponDisplayName(wd.weaponId, enchantId)
             msg += ` 获得了武器：${displayName}！`
+            addCombatRewardDisplay({ itemId: wd.weaponId, quantity: 1, label: `武器：${displayName}×1` })
           }
         }
       }
@@ -1551,6 +1649,7 @@ export const useMiningStore = defineStore('mining', () => {
             recordRingLoot(rd.ringId)
             const ringDef = getRingById(rd.ringId)
             msg += ` 获得了戒指：${ringDef?.name ?? rd.ringId}！`
+            addCombatRewardDisplay({ itemId: rd.ringId, quantity: 1, label: `戒指：${ringDef?.name ?? rd.ringId}×1` })
           }
         }
       }
@@ -1563,6 +1662,7 @@ export const useMiningStore = defineStore('mining', () => {
             recordHatLoot(hd.hatId)
             const hatDef = getHatById(hd.hatId)
             msg += ` 获得了帽子：${hatDef?.name ?? hd.hatId}！`
+            addCombatRewardDisplay({ itemId: hd.hatId, quantity: 1, label: `帽子：${hatDef?.name ?? hd.hatId}×1` })
           }
         }
       }
@@ -1575,6 +1675,7 @@ export const useMiningStore = defineStore('mining', () => {
             recordShoeLoot(sd.shoeId)
             const shoeDef = getShoeById(sd.shoeId)
             msg += ` 获得了鞋子：${shoeDef?.name ?? sd.shoeId}！`
+            addCombatRewardDisplay({ itemId: sd.shoeId, quantity: 1, label: `鞋子：${shoeDef?.name ?? sd.shoeId}×1` })
           }
         }
       }
@@ -1589,12 +1690,16 @@ export const useMiningStore = defineStore('mining', () => {
         playerStore.earnMoney(moneyReward)
         recordMoneyLoot(moneyReward)
         msg += ` 获得${moneyReward}文！`
+        const moneyDisplay = buildMoneyRewardDisplayEntry(moneyReward)
+        if (moneyDisplay) addCombatRewardDisplay(moneyDisplay)
         const bonusOreCount = 3 + Math.floor(scFloor / 25)
         const orePool = ['iridium_ore', 'void_ore', 'shadow_ore']
         for (let i = 0; i < bonusOreCount; i++) {
           const oreId = orePool[Math.floor(Math.random() * orePool.length)]!
           if (addAndRecordItemLoot(oreId, 1) <= 0) {
             inventoryBlocked = true
+          } else {
+            combatRewardEntries.push({ itemId: oreId, quantity: 1 })
           }
         }
         msg += ` 获得了${bonusOreCount}个稀有矿石！`
@@ -1604,9 +1709,12 @@ export const useMiningStore = defineStore('mining', () => {
       }
     }
 
+    const rewards = [...buildRewardDisplayEntries(combatRewardEntries), ...combatRewardDisplays]
+    if (rewards.length > 0) setRecentRewards(rewards)
+
     msg += ` ${monster.name}被击败了！(+${combatExpGain}经验)`
     if (bossPressureBonus > 0) msg += '（首领压制）'
-    if (drops.length > 0) msg += ` 掉落了物品。`
+    if (rewards.length > 0) msg += ` 掉落：${formatRewardLabels(rewards)}。`
     if (inventoryBlocked) msg += ' 部分掉落因背包空间不足未领取。'
     if (Math.random() < 0.05) {
       useSecretNoteStore().tryCollectNote('monster')
@@ -1644,13 +1752,14 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     combatIsBoss.value = false
-    return { message: msg, combatOver: true, won: true }
+    return { message: msg, combatOver: true, won: true, rewards: rewards.length > 0 ? rewards : undefined }
   }
 
   /** 战斗失败处理 */
   const handleDefeat = (): { message: string; combatOver: boolean; won: boolean } => {
     inCombat.value = false
     combatIsBoss.value = false
+    clearRecentRewards()
     const wasInSkullCavern = isInSkullCavern.value
     isExploring.value = false
     monsterLureUsedOnFloor.value = false
@@ -1756,7 +1865,7 @@ export const useMiningStore = defineStore('mining', () => {
           skullCavernFloor.value = 1
           cacheSkullFloor(1)
           _generateGrid()
-          return { success: true, message: '你穿过矿洞最深处的裂隙，进入了骷髅矿穴第1层！' }
+          return { success: true, message: `你穿过矿洞最深处的裂隙，进入了骷髅矿穴第1层！${getFloorIntelMessage()}` }
         }
         return { success: false, message: '已经到达矿洞最深处！（击败60层BOSS可解锁骷髅矿穴）' }
       }
@@ -1786,6 +1895,7 @@ export const useMiningStore = defineStore('mining', () => {
     const specialLabel = newFloor?.specialType ? (specialLabels[newFloor.specialType] ?? '') : ''
     let msg = `前进到${locationName}第${activeFloorNum}层。${newFloor?.isSafePoint ? '（安全点！）' : ''}`
     if (specialLabel) msg += ` [${specialLabel}]`
+    msg += getFloorIntelMessage(newFloor)
     return { success: true, message: msg }
   }
 
@@ -1806,6 +1916,7 @@ export const useMiningStore = defineStore('mining', () => {
     }
     isExploring.value = false
     combatIsBoss.value = false
+    clearRecentRewards()
     floorGrid.value = []
     _combatTileIndex.value = -1
     monsterLureUsedOnFloor.value = false
@@ -1829,6 +1940,7 @@ export const useMiningStore = defineStore('mining', () => {
     combatRound.value = 0
     combatLog.value = []
     combatIsBoss.value = false
+    clearRecentRewards()
     floorGrid.value = []
     _combatTileIndex.value = -1
     monsterLureUsedOnFloor.value = false
@@ -1841,7 +1953,7 @@ export const useMiningStore = defineStore('mining', () => {
     return '已强制结束本次矿洞探索并退出。'
   }
 
-  const useCombatItem = (itemId: string): { success: boolean; message: string } => {
+  const useCombatItem = (itemId: string, quantity: number = 1): { success: boolean; message: string } => {
     if (!inCombat.value && !isExploring.value) return { success: false, message: '不在矿洞中。' }
 
     // 公会徽章：永久+3攻击力
@@ -1893,55 +2005,89 @@ export const useMiningStore = defineStore('mining', () => {
     // 食物/药剂类道具
     const def = getItemById(itemId)
     if (!def) return { success: false, message: '未知物品。' }
+    const requestedQuantity = Math.max(1, Math.floor(quantity))
+    const hasHpRestore = Boolean(def.healthRestore && def.healthRestore > 0)
+    const hasStaminaRestore = Boolean(def.staminaRestore && def.staminaRestore > 0)
+    const isRestoreTargetFull = () => {
+      const hpFull = playerStore.hp >= playerStore.getMaxHp()
+      const staminaFull = playerStore.stamina >= playerStore.maxStamina
+      if (hasHpRestore && hasStaminaRestore) return hpFull && staminaFull
+      if (hasHpRestore) return hpFull
+      if (hasStaminaRestore) return staminaFull
+      return false
+    }
+    const restoreFullMessage = () => {
+      if (hasHpRestore && hasStaminaRestore) return '体力和生命值都已满。'
+      if (hasHpRestore) return '生命值已满。'
+      if (hasStaminaRestore) return '体力已满。'
+      return '该道具没有可用恢复效果。'
+    }
+    if (!hasHpRestore && !hasStaminaRestore) return { success: false, message: restoreFullMessage() }
 
     // 烹饪品走 cookingStore.eat()，以正确应用buff、厨房加成等
     if (itemId.startsWith('food_')) {
       const cookingStore = useCookingStore()
-      const hpFull = playerStore.hp >= playerStore.getMaxHp()
-      const staminaFull = playerStore.stamina >= playerStore.maxStamina
-      if (hpFull && staminaFull) {
-        return { success: false, message: '体力和生命值都已满。' }
-      }
-      // 查找背包中该食物的最低品质
+      if (isRestoreTargetFull()) return { success: false, message: restoreFullMessage() }
       const qualityOrder: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
-      const foodQuality = qualityOrder.find(q => inventoryStore.getItemCount(itemId, q) > 0) ?? 'normal'
-      const result = cookingStore.eat(itemId.slice(5), foodQuality)
-      if (result.success && inCombat.value) combatLog.value.push(result.message)
-      return result
+      let used = 0
+      const messages: string[] = []
+
+      for (let i = 0; i < requestedQuantity; i++) {
+        if (isRestoreTargetFull()) break
+        const foodQuality = qualityOrder.find(q => inventoryStore.getItemCount(itemId, q) > 0) ?? null
+        if (!foodQuality) break
+        const result = cookingStore.eat(itemId.slice(5), foodQuality)
+        if (!result.success) {
+          if (used === 0) return result
+          break
+        }
+        used++
+        messages.push(result.message)
+      }
+
+      if (used <= 0) return { success: false, message: isRestoreTargetFull() ? restoreFullMessage() : `没有${def.name}。` }
+      const msg = used === 1 ? messages[0]! : `连续使用${def.name}×${used}。${messages[messages.length - 1] ?? ''}`
+      if (inCombat.value) combatLog.value.push(msg)
+      return { success: true, message: msg }
     }
 
-    const hpFull = playerStore.hp >= playerStore.getMaxHp()
-    const staminaFull = playerStore.stamina >= playerStore.maxStamina
-    const hasHpRestore = def.healthRestore && def.healthRestore > 0
-    const hasStaminaRestore = def.staminaRestore && def.staminaRestore > 0
-
-    if (hasHpRestore && !hasStaminaRestore && hpFull) {
-      return { success: false, message: '生命值已满。' }
-    }
-    if (hasStaminaRestore && !hasHpRestore && staminaFull) {
-      return { success: false, message: '体力已满。' }
-    }
-    if (hpFull && staminaFull && (hasHpRestore || hasStaminaRestore)) {
-      return { success: false, message: '体力和生命值都已满。' }
-    }
-
-    if (!inventoryStore.removeItem(itemId)) return { success: false, message: `没有${def.name}。` }
+    if (isRestoreTargetFull()) return { success: false, message: restoreFullMessage() }
 
     // 炼金师专精：食物恢复+50%
     const alchemistBonus = skillStore.getSkill('foraging').perk10 === 'alchemist' ? 1.5 : 1.0
-    const parts: string[] = []
-    if (hasHpRestore) {
-      const restore = def.healthRestore! >= 999 ? playerStore.getMaxHp() : Math.floor(def.healthRestore! * alchemistBonus)
-      playerStore.restoreHealth(restore)
-      parts.push(`恢复${def.healthRestore! >= 999 ? '全部' : restore}HP`)
-    }
-    if (hasStaminaRestore) {
-      const restore = Math.floor(def.staminaRestore! * alchemistBonus)
-      playerStore.restoreStamina(restore)
-      parts.push(`恢复${restore}体力`)
+    let used = 0
+    let totalHpRestore = 0
+    let totalStaminaRestore = 0
+
+    for (let i = 0; i < requestedQuantity; i++) {
+      if (isRestoreTargetFull()) break
+      if (!inventoryStore.removeItem(itemId)) {
+        if (used === 0) return { success: false, message: `没有${def.name}。` }
+        break
+      }
+
+      const beforeHp = playerStore.hp
+      const beforeStamina = playerStore.stamina
+      if (hasHpRestore) {
+        const restore = def.healthRestore! >= 999 ? playerStore.getMaxHp() : Math.floor(def.healthRestore! * alchemistBonus)
+        playerStore.restoreHealth(restore)
+      }
+      if (hasStaminaRestore) {
+        const restore = Math.floor(def.staminaRestore! * alchemistBonus)
+        playerStore.restoreStamina(restore)
+      }
+
+      used++
+      totalHpRestore += Math.max(0, playerStore.hp - beforeHp)
+      totalStaminaRestore += Math.max(0, playerStore.stamina - beforeStamina)
     }
 
-    const msg = `使用了${def.name}，${parts.join('和')}！`
+    if (used <= 0) return { success: false, message: isRestoreTargetFull() ? restoreFullMessage() : `没有${def.name}。` }
+
+    const parts: string[] = []
+    if (totalHpRestore > 0) parts.push(`恢复${totalHpRestore}HP`)
+    if (totalStaminaRestore > 0) parts.push(`恢复${totalStaminaRestore}体力`)
+    const msg = `使用了${def.name}×${used}，${parts.join('和') || '状态已满'}！`
     if (inCombat.value) combatLog.value.push(msg)
     return { success: true, message: msg }
   }
@@ -2175,6 +2321,7 @@ export const useMiningStore = defineStore('mining', () => {
     claimedInfestedRewardFloors,
     claimedBossRewardFloors,
     pendingMineRewards,
+    recentRewards,
     // 格子系统
     floorGrid,
     entryIndex,

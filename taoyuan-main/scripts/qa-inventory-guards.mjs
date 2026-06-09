@@ -161,6 +161,7 @@ installBrowserShims()
 const { createPinia, setActivePinia } = await import('pinia')
 const inventoryStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useInventoryStore.ts')).href)
 const playerStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/usePlayerStore.ts')).href)
+const miningStoreModule = await import(pathToFileURL(path.join(projectRoot, 'src/stores/useMiningStore.ts')).href)
 const itemDataModule = await import(pathToFileURL(path.join(projectRoot, 'src/data/items.ts')).href)
 const inventoryUseRulesModule = await import(pathToFileURL(path.join(projectRoot, 'src/utils/inventoryUseRules.ts')).href)
 
@@ -318,6 +319,27 @@ const applyRecoveryItem = ({ inventoryStore, playerStore, itemId, quality = 'nor
   assert(playerStore.hp === maxHp, '双恢复道具应恢复缺失 HP。')
   assert(playerStore.stamina === playerStore.maxStamina, '双恢复道具不应让已满体力越界。')
   assert(inventoryStore.getItemCount('warriors_feast') === 0, '双恢复道具成功使用后应消耗。')
+}
+
+{
+  const { inventoryStore, playerStore } = freshInventoryAndPlayerStores()
+  const miningStore = miningStoreModule.useMiningStore()
+  const maxHp = playerStore.getMaxHp()
+  miningStore.isExploring = true
+  playerStore.hp = maxHp - 16
+  playerStore.stamina = playerStore.maxStamina - 30
+  inventoryStore.items = [{ itemId: 'corn', quantity: 3, quality: 'normal' }]
+
+  const result = miningStore.useCombatItem('corn', 3)
+  assert(result.success === true, '矿洞批量吃玉米应成功')
+  assert(result.message.includes('×2'), '矿洞批量吃玉米应汇总实际使用数量')
+  assert(playerStore.hp === maxHp, '矿洞批量吃玉米应在 HP 满时停止')
+  assert(playerStore.stamina === playerStore.maxStamina, '矿洞批量吃玉米应在体力满时停止')
+  assert(inventoryStore.getItemCount('corn') === 1, '请求吃 3 个玉米但满状态后应只消耗 2 个')
+
+  const blocked = miningStore.useCombatItem('corn', 3)
+  assert(blocked.success === false, 'HP/体力已满时矿洞批量吃食物应被阻止')
+  assert(inventoryStore.getItemCount('corn') === 1, 'HP/体力已满时不应继续消耗玉米')
 }
 
 if (errors.length > 0) {

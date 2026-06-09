@@ -363,6 +363,23 @@
             </div>
           </div>
 
+          <div
+            v-if="miningStore.recentRewards.length > 0"
+            data-testid="mine-recent-rewards"
+            class="border border-success/20 bg-success/5 rounded-xs px-3 py-2"
+          >
+            <p class="text-xs text-success mb-1">刚获得</p>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="reward in miningStore.recentRewards"
+                :key="`${reward.itemId}-${reward.quality ?? 'normal'}-${reward.quantity}`"
+                class="rounded-xs border border-success/20 px-2 py-0.5 text-[0.625rem] text-text"
+              >
+                {{ reward.label }}
+              </span>
+            </div>
+          </div>
+
           <!-- 探索日志 -->
           <div class="text-xs text-muted space-y-0.5 max-h-24 overflow-y-auto">
             <p v-for="(msg, i) in recentLog" :key="i" :class="{ 'text-text': i === recentLog.length - 1 }">{{ msg }}</p>
@@ -591,9 +608,28 @@
               <span class="text-xs">×{{ pendingItem.count }}</span>
             </div>
           </div>
+          <div v-if="pendingItemQuantityOptions.length > 1" class="mb-2">
+            <div class="mb-1 flex items-center justify-between">
+              <span class="text-xs text-muted">数量</span>
+              <span class="text-xs text-success">×{{ pendingItemQuantity }}</span>
+            </div>
+            <div class="grid grid-cols-4 gap-1">
+              <button
+                v-for="option in pendingItemQuantityOptions"
+                :key="option"
+                type="button"
+                data-testid="mining-item-quantity-option"
+                class="rounded-xs border px-2 py-1 text-xs"
+                :class="pendingItemQuantity === option ? 'border-accent bg-accent/15 text-accent' : 'border-accent/15 text-muted hover:bg-accent/5'"
+                @click="pendingItemQuantity = option"
+              >
+                {{ option === pendingItemMaxQuantity && option > 3 ? '最大' : `×${option}` }}
+              </button>
+            </div>
+          </div>
           <div class="flex space-x-1.5">
             <Button class="flex-1 justify-center" @click="pendingItemId = null">取消</Button>
-            <Button class="flex-1 justify-center !bg-accent !text-bg" @click="handleConfirmUseItem">确认使用</Button>
+            <Button class="flex-1 justify-center !bg-accent !text-bg" @click="handleConfirmUseItem">确认使用 ×{{ pendingItemQuantity }}</Button>
           </div>
         </div>
       </div>
@@ -851,10 +887,25 @@
   const showCombatItems = ref(false)
 
   /** 道具使用确认 */
+  const singleUseCombatItems = new Set(['guild_badge', 'life_talisman', 'lucky_coin', 'defense_charm', 'slayer_charm'])
   const pendingItemId = ref<string | null>(null)
+  const pendingItemQuantity = ref(1)
   const pendingItem = computed(() => {
     if (!pendingItemId.value) return null
     return availableCombatItems.value.find(i => i.itemId === pendingItemId.value) ?? null
+  })
+  const pendingItemMaxQuantity = computed(() => {
+    const item = pendingItem.value
+    if (!item || singleUseCombatItems.has(item.itemId)) return 1
+    return Math.max(1, item.count)
+  })
+  const pendingItemQuantityOptions = computed(() => {
+    const max = pendingItemMaxQuantity.value
+    return Array.from(new Set([1, Math.min(2, max), Math.min(3, max), max])).filter(value => value >= 1)
+  })
+  watch(pendingItemQuantityOptions, options => {
+    const max = options[options.length - 1] ?? 1
+    pendingItemQuantity.value = Math.min(Math.max(1, pendingItemQuantity.value), max)
   })
 
   /** 离开矿洞确认 */
@@ -1382,8 +1433,8 @@
   }
 
   /** 使用战斗道具 */
-  const handleUseCombatItem = (itemId: string) => {
-    const result = miningStore.useCombatItem(itemId)
+  const handleUseCombatItem = (itemId: string, quantity = 1) => {
+    const result = miningStore.useCombatItem(itemId, quantity)
     sfxClick()
     addLog(result.message)
     if (result.success) {
@@ -1393,12 +1444,14 @@
 
   const handleConfirmUseItem = () => {
     if (!pendingItemId.value) return
-    handleUseCombatItem(pendingItemId.value)
+    handleUseCombatItem(pendingItemId.value, pendingItemQuantity.value)
     pendingItemId.value = null
+    pendingItemQuantity.value = 1
   }
 
   const handlePendingItem = (itemId: string) => {
     pendingItemId.value = itemId
+    pendingItemQuantity.value = 1
     showCombatItems.value = false
   }
 

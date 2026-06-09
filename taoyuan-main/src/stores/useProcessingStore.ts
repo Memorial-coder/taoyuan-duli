@@ -224,6 +224,19 @@ export const useProcessingStore = defineStore('processing', () => {
     return entries
   }
 
+  const getEffectiveProcessingDays = (recipe: ProcessingRecipeDef, machineType: MachineType): number => {
+    let totalDays = recipe.processingDays
+    const processingFlowBonus = skillStore.getSkillMasteryEffectValue('processing_flow')
+    if (processingFlowBonus > 0) {
+      totalDays = Math.max(1, Math.ceil(totalDays * (1 - processingFlowBonus)))
+    }
+    // 仙缘能力：织速（gui_nv_1）织布机加工时间-30%
+    if (machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_1')) {
+      totalDays = Math.max(1, Math.ceil(totalDays * 0.7))
+    }
+    return totalDays
+  }
+
   const getSlotInputRefundEntries = (slot: ProcessingSlot, recipe: ProcessingRecipeDef): { itemId: string; quantity: number; quality?: Quality }[] => {
     if (slot.consumedInputs?.length) {
       return slot.consumedInputs.map(entry => ({
@@ -616,7 +629,7 @@ export const useProcessingStore = defineStore('processing', () => {
       slot.consumedInputs = toConsumedInputs(materialPlan)
       slot.alchemyResult = undefined
       slot.daysProcessed = 0
-      slot.totalDays = recipe.processingDays
+      slot.totalDays = getEffectiveProcessingDays(recipe, slot.machineType)
       slot.ready = false
       incrementAlchemyDailyUse(recipeId)
       return true
@@ -657,11 +670,7 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.consumedInputs = undefined
     slot.alchemyResult = undefined
     slot.daysProcessed = 0
-    slot.totalDays = recipe.processingDays
-    // 仙缘能力：织速（gui_nv_1）织布机加工时间-30%
-    if (slot.machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_1')) {
-      slot.totalDays = Math.max(1, Math.ceil(slot.totalDays * 0.7))
-    }
+    slot.totalDays = getEffectiveProcessingDays(recipe, slot.machineType)
     slot.ready = false
     incrementAlchemyDailyUse(recipeId)
     return true
@@ -962,10 +971,7 @@ export const useProcessingStore = defineStore('processing', () => {
               const restartPlan = buildVoidRestartPlan(voidInput.id, slot.recipeId)
               if (restartPlan && warehouseStore.consumeChestItemsExact(voidInput.id, restartPlan.entries)) {
                 slot.daysProcessed = 0
-                slot.totalDays = recipe.processingDays
-                if (slot.machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_1')) {
-                  slot.totalDays = Math.max(1, Math.ceil(slot.totalDays * 0.7))
-                }
+                slot.totalDays = getEffectiveProcessingDays(recipe, slot.machineType)
                 slot.inputQuality = restartPlan.nextQuality
                 slot.consumedInputs = undefined
                 slot.ready = false

@@ -844,6 +844,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
 
     const skillStore = useSkillStore()
     const fishingLevel = skillStore.getSkill('fishing').level
+    const pondLinkBonus = skillStore.getSkillMasteryEffectValue('pond_link')
 
     // 1. 水质衰减
     let decay = WATER_QUALITY_DECAY_BASE
@@ -936,7 +937,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
         if (!def) continue
         // 产出概率受体重基因影响
         const weightBonus = fish.genetics.weight / 200
-        const rate = def.baseProductionRate + weightBonus
+        const rate = Math.min(1, def.baseProductionRate + weightBonus + pondLinkBonus)
         if (Math.random() < rate) {
           const quality = _getProductQuality(fish.genetics.qualityGene)
           result.products.push({ itemId: def.productItemId, quality })
