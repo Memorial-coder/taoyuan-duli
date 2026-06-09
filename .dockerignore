@@ -10,6 +10,7 @@ data
 .codex-temp
 *.log
 taoyuan-duli-latest.tar
+taoyuan-duli-update-*.tar
 codex-skills-export-*.zip
 server/.tmp-*/
 production/session-logs/
@@ -18,6 +19,14 @@ taoyuan-main/.audit-shots/
 taoyuan-main/.codex-temp-*
 taoyuan-main/audit_*
 taoyuan-main/docs/*.zip
+taoyuan-main/docs/asset_fish_boss/
+taoyuan-main/docs/crop/
+taoyuan-main/docs/item/
+taoyuan-main/docs/npc/
+taoyuan-main/public/asset_fish_boss/
+taoyuan-main/public/crop/
+taoyuan-main/public/item/
+taoyuan-main/public/npc/
 images/item/**/*.png
 images/item/**/*.PNG
 images/item/**/*.jpg
@@ -111,4 +120,3 @@ taoyuan-main/images/npc/**/*.psd
 taoyuan-main/images/npc/**/*.PSD
 taoyuan-main/images/npc/**/*.psb
 taoyuan-main/images/npc/**/*.PSB
-taoyuan-main/public/npc/

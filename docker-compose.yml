@@ -14,3 +14,7 @@ services:
       - "${HOST_PORT:-4014}:4013"
     volumes:
       - ./data:/app/data
+      - ./taoyuan-main/public/asset_fish_boss:/opt/taoyuan/asset_fish_boss:ro
+      - ./taoyuan-main/public/crop:/opt/taoyuan/crop:ro
+      - ./taoyuan-main/public/item:/opt/taoyuan/item:ro
+      - ./taoyuan-main/public/npc:/opt/taoyuan/npc:ro

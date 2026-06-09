@@ -33,6 +33,8 @@ RUN cd server && npm ci --omit=dev
 
 COPY server ./server
 COPY --from=frontend-builder /app/taoyuan-main/docs ./taoyuan-main/docs
+COPY taoyuan-main/public/asset_fish_boss /opt/taoyuan/asset_fish_boss
+COPY taoyuan-main/public/crop /opt/taoyuan/crop
 COPY data-defaults ./data-defaults
 
 RUN mkdir -p /app/data
