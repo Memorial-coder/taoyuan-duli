@@ -4,6 +4,102 @@
 
 ## [未发布]
 
+### 0605 PR-F 非房间 QA 全量收口
+- `src/router/index.ts` 补回 `npc -> village`、`processing -> workshop` legacy redirect，保留旧深链和旧 named route 可用性，不改变现有 `village` / `workshop` 主路由。
+- `src/views/game/AnimalView.vue` 的宠物今日加餐状态优先使用特殊喂食定义的 `shortLabel`，让状态「今日：稻米 · 饱腹」与按钮文案一致；不改变喂食扣减、时间推进、store action 或存档字段。
+- 本轮验证：`node --check taoyuan-main/e2e/game-smoke.spec.ts`、`npm --prefix taoyuan-main run check`、`qa:online-ui-structure`、`qa:online-player-copy`、炼丹 / 宠物 / NPC 定向 E2E 4 passed、未过滤完整 E2E 64 passed、未过滤 `qa:mobile-ui-smoke` 均通过；运行时仍有本地后端 `127.0.0.1:4013` proxy 拒连噪声但不影响退出码。
+
+### 0605 共同庄园 legacy tab alias 收口
+- `src/views/game/online/OnlineCohabitationView.vue` 在 setup、route watcher、刷新和契约切换路径重放显式 `tab` query，修复 `tab=public` / `separation` / `festival` 深链被异步刷新带回总览的问题；公开面板对首帧缺失 `summary` / `governance` 的数据补空值保护。
+- `e2e/game-smoke.spec.ts` 的 `online cohabitation keeps legacy tab query aliases grouped` 继续覆盖 `public -> visibility`、`separation -> offline`、`festival -> festivalSeats`。本轮目标 E2E 提权复跑 1 passed；完整 game-smoke 收窄为 60 passed / 4 failed，剩余失败在炼丹、宠物和 NPC 跨域页面。
+- 本轮验证：`node --check taoyuan-main/e2e/game-smoke.spec.ts`、`npm --prefix taoyuan-main run check`、`qa:online-ui-structure`、`qa:online-player-copy` 和目标共同庄园 alias E2E 均通过；`check` 仍仅保留既有 3 条 warning。
+
+### 0605 房间流程 PR-F E2E 收束
+- `e2e/game-smoke.spec.ts` 的节庆广场完工房间入口用例在点击 `async-community-completion-room-link` 前先关闭 `online-bottom-sheet` 并等待卸载，保留原节会房 query 断言，避免详情抽屉遮挡点击。
+- 跨域兼容改动：`src/views/game/online/OnlineSocietyView.vue` 的公共建设详情抽屉补 `async-community-project-readback` 回看摘要；花灯墙贡献后详情抽屉能真实读回「挂花灯 · 进行中」，E2E 断言不再依赖主页面旧直出位置。
+- 本轮验证：`node --check taoyuan-main/e2e/game-smoke.spec.ts`、`node --check taoyuan-main/scripts/qa-online-ui-structure.mjs`、`node --check taoyuan-main/scripts/qa-mobile-ui-smoke.mjs`、`node --check taoyuan-main/scripts/run-e2e.mjs`、`node --check taoyuan-main/scripts/port-utils.mjs`、`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、未过滤 `qa:mobile-ui-smoke`、节庆广场 / 花灯墙目标 E2E、远征区域样例目标 E2E 和当前 Agent A 目标组合 E2E 34 passed；全量 dev server E2E 为 59 passed / 5 failed，剩余失败在炼丹、宠物、NPC 和共同庄园 tab alias，未出现房间、节庆广场或远征样例失败。
+
+### 0605 节会可视化热区遮挡修复
+- `src/components/game/online/VisualSceneBoard.vue` 将 selected / needs_action / overheated / blocked 物件提高层级，修复腊八共灶 smoke 中 `米桶` 热区拦截 `灶台火候` 中心点击的问题；仅调整 CSS 层级，不改变 `trigger-action`、store action、接口字段或旧 test id。
+- `e2e/game-smoke.spec.ts` 的 `online festival visual scene supports laba cookpot object actions` 改为定位玩家可见的「灶台火候 2/6」热区并先断言可见；目标 E2E 在只读静态 server 下复跑通过。
+- 本轮验证：`node --check` 四个目标脚本、临时静态构建、目标 E2E、`npm --prefix taoyuan-main run check` 和 `qa:online-ui-structure` 均通过；完整未过滤 `test:e2e` 仍留 PR-F 后续收束。
+
+### 0605 在线委托接力确认补强
+- `src/views/game/online/OnlineOrdersView.vue` 将 `AsyncCommunityBoard` 的接力快捷按钮纳入 `OnlineConfirmActionDialog`，`accept_stage` / `confirm_stage` / `deliver_stage` 先展示影响对象、资产变化和失败恢复提示，确认后再调用原 `coopOrderStore.acceptStage()` / `confirmDelivery()` / `submitDelivery()`。
+- `e2e/game-smoke.spec.ts` 的公共订单接力用例迁移到 `online-orders-detail-sheet` 内触发接力，断言 `online-orders-action-confirm` 与确认弹窗内容，并等待原 `/api/taoyuan/online/orders/.../stages/.../accept` POST 后回看阶段和分账状态；`scripts/qa-online-ui-structure.mjs` 同步守护详情抽屉、确认按钮和原接口等待。
+- 本轮验证：`node --check` 两个目标脚本、`npm --prefix taoyuan-main run check`、`qa:online-player-copy` 和目标 E2E 非沙箱复跑通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端覆盖既有缺口阻断，orders-only mobile smoke 提权复跑仍卡在首页 `page.goto` 超时，未进入委托场景。
+
+### 0605 房间流程移动端 QA 复验
+- `scripts/qa-mobile-ui-smoke.mjs` 将独立远征房 smoke 的「最近结算」断言改为精确文本定位，避免与「最近结算：0 条」摘要产生 Playwright strict mode 歧义；未改页面 DOM、store action、接口字段或旧 test id。
+- 本轮验证：`node --check` 三个目标脚本、`npm --prefix taoyuan-main run check`、节会房 / 独立远征房过滤 `qa:mobile-ui-smoke` 和房间域 E2E grep 均通过；全量 mobile smoke 仍被在线委托详情抽屉断言阻断，`qa:online-ui-structure` 仍被共同庄园入口与花灯墙移动端覆盖缺口阻断，未出现房间流程新增失败。
+
+### 0605 共同庄园桌面三栏布局
+- `src/views/game/online/OnlineCohabitationView.vue` 新增 `online-cohabitation-desktop-layout`，在桌面端使用 `xl:grid-cols-[18rem_minmax(0,1fr)_320px]`，左栏承载分组导航和契约切换，中栏保留原 `online-module-tabpanel` 与各业务面板，右栏展示契约、共同基金、共同仓库、待办、成员和折叠技术详情。
+- `scripts/qa-online-ui-structure.mjs` 新增共同庄园三栏 test id、320px 右栏规格和截图 E2E 名称守护；`e2e/game-smoke.spec.ts` 新增 `online cohabitation desktop layout keeps three columns`，1366x768 下断言左 / 中 / 右三栏可见、列顺序和宽度，并输出 `docs/ui-smoke-2026-04-26/resp-002-online-cohabitation-desktop-1366x768.png`。
+- 本轮验证：两个目标脚本 `node --check`、`npm --prefix taoyuan-main run check`、`qa:online-player-copy` 和共同庄园桌面三栏目标 E2E 非沙箱复跑均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端覆盖既有缺口阻断，未出现本轮三栏新增断言失败。
+
+### 0605 可视化舞台触控目标尺寸
+- `src/app.css` 新增 `--online-visual-touch-target: 44px`；`src/components/game/online/VisualMapBoard.vue`、`VisualSceneBoard.vue`、`VisualTrackBoard.vue` 将地图节点、场景物件 / 列表、轨道格、赛道标签、移动详情入口和行动按钮统一抬到 44px 触控目标，不改变原 `trigger-action` 事件和旧 test id。
+- `scripts/qa-mobile-ui-smoke.mjs` 的 online-manor 视觉物件触控检查从 36px 提升到 44px；`e2e/game-smoke.spec.ts` 新增 `expectVisualTouchTargets()`，在地图、场景和轨道三条视觉用例中量测真实按钮尺寸；`scripts/qa-online-ui-structure.mjs` 同步守护变量、组件引用和 QA selector。
+- 本轮验证：三个目标脚本 `node --check`、`npm --prefix taoyuan-main run check`、`qa:online-player-copy`、online-manor-only `qa:mobile-ui-smoke` 非沙箱复跑和三条视觉目标 E2E 非沙箱复跑均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端覆盖既有缺口阻断，未出现本轮触控目标新增断言失败。
+
+### 0604 可视化舞台移动端详情抽屉
+- `src/components/game/online/VisualMapBoard.vue`、`VisualSceneBoard.vue`、`VisualTrackBoard.vue` 在 760px 以下点击节点、物件或赛道格时打开 `OnlineBottomSheet`，页面侧栏只保留轻量详情入口与移动端行动反馈，避免主舞台下方继续铺开完整详情。
+- 抽屉内保留旧 `visual-map-node-detail` / `visual-scene-object-detail` / `visual-track-cell-detail`、`visual-*-readable-feedback`、`visual-*-action-*` 和 `visual-*-action-result` test id；行动按钮、玩家反馈、技术详情和行动结果仍走原 `trigger-action` 事件，不改变 store action 或接口语义。
+- `scripts/qa-online-ui-structure.mjs` 增加三类视觉底部抽屉、移动详情触发器和移动轻量反馈静态守护；`scripts/qa-mobile-ui-smoke.mjs` 覆盖 online-manor 轻采物件点击后打开视觉抽屉并关闭后续凭证详情；`e2e/game-smoke.spec.ts` 的三条视觉目标用例在 390x844 下断言地图 / 场景 / 赛道抽屉后切回桌面继续旧行动流程。
+- 本轮验证：`node --check` 三个目标脚本、`npm --prefix taoyuan-main run check`、`qa:online-player-copy`、online-manor-only `qa:mobile-ui-smoke` 非沙箱复跑和三条视觉目标 E2E 非沙箱复跑均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端覆盖既有缺口阻断，未出现视觉抽屉新增断言失败。
+
+### 0604 可视化舞台失败原因玩家化
+- `src/components/game/online/VisualMapBoard.vue`、`VisualSceneBoard.vue`、`VisualTrackBoard.vue` 将玩家可见失败原因改为“当前不能重复行动”“请先处理相邻节点或稍后再试”“请选择队伍所在格”等玩家态提示，不再直出“服务端拒绝 / 不会接受”。
+- 三个视觉组件新增默认折叠的 `OnlineTechnicalDetails`，通过 `visual-map-technical-reason`、`visual-scene-technical-reason`、`visual-track-technical-reason` 保留 state、available_action_ids、协作进度、赛道格占位队伍等技术判断。
+- `scripts/qa-online-ui-structure.mjs` 增加技术详情 test id 和禁止旧实现语言的静态守护。
+- 本轮验证：`node --check`、三个视觉组件 SFC `compileScript`、`npm --prefix taoyuan-main run check`、`qa:online-player-copy`、目标视觉 E2E 非沙箱复跑均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端覆盖既有缺口阻断，未出现本轮可视化组件新增断言失败。
+
+### 0604 在线庄园访客记录和轻采凭证详情抽屉
+- `src/views/game/online/OnlineManorView.vue` 将来访记录和访客行为审计默认列表收敛为最近 3 条摘要，新增 `online-manor-visit-detail-sheet`、`online-manor-visitor-activity-detail-sheet` 详情抽屉承接反馈、携带物、对象、动作和审计说明。
+- 轻采记录列表只保留主人补偿、访客奖励和详情入口；`online-manor-steal-receipt-guard`、`online-manor-steal-use-summary` 保留在 `online-manor-steal-detail-sheet` 内的 `OnlineTechnicalDetails`，同时把反刷审计和主人保留比例移入默认折叠规则说明。
+- `e2e/game-smoke.spec.ts` 与 `scripts/qa-mobile-ui-smoke.mjs` 迁移轻采凭证断言到“打开详情抽屉 → 展开技术详情”路径，`scripts/qa-online-ui-structure.mjs` 增加最近 3 条、访客详情抽屉、轻采详情抽屉和技术详情静态守护。
+- 本轮验证：三个 `node --check`、`OnlineManorView.vue` SFC `compileScript`、`npm --prefix taoyuan-main run check`、`qa:online-player-copy`、在线庄园 4 场 E2E 非沙箱复跑和 online-manor-only `qa:mobile-ui-smoke` 非沙箱复跑均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端覆盖既有缺口阻断，未出现本轮庄园详情抽屉新增断言失败。
+
+### 0604 在线庄园护理房动作抽屉化
+- `src/views/game/online/OnlineManorView.vue` 将护理房创建迁入 `OnlineActionDialog`，旧 `online-manor-care-room-create` 保留在弹窗确认按钮上；列表卡只保留摘要、详情入口和结算触发，不再在长页直接铺动作按钮与动作明细。
+- 护理房成员、待完成分工、风险回看、动作按钮和旧 `online-manor-care-room-action-ledger` 迁入 `OnlineBottomSheet` 的 `online-manor-care-room-detail-sheet`；结算改为 `OnlineConfirmActionDialog`，要求输入「确认结算护理」后才调用原 `manorStore.settleCareRoom()`。
+- `e2e/game-smoke.spec.ts` 与 `scripts/qa-mobile-ui-smoke.mjs` 迁移护理房创建、分工动作和结算路径，`scripts/qa-online-ui-structure.mjs` 增加弹窗 / 抽屉 / 确认弹窗静态守护。
+- 本轮验证：两个 `node --check`、`OnlineManorView.vue` SFC `compileScript`、`npm --prefix taoyuan-main run check`、`qa:online-player-copy`、在线庄园 4 场 E2E 组合和 online-manor-only `qa:mobile-ui-smoke` 非沙箱复跑均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端覆盖既有缺口阻断，未出现护理房新增断言失败。
+
+### 0604 在线庄园留言上传主题弹窗化
+- `src/views/game/online/OnlineManorView.vue` 将庄园主图上传、主题保存和留言输入迁入 `OnlineActionDialog`；主题页首屏只保留主图 / 主题摘要卡和弹窗触发按钮，留言页首屏只保留留言动作面板与列表，访客概览「留言」主行动直接打开留言弹窗。
+- 旧 `online-manor-cover-alt-input`、`online-manor-theme-label-input`、`online-manor-theme-save-button`、`online-manor-guestbook-input`、`online-manor-guestbook-submit` 均保留在弹窗内；确认后继续调用原 `uploadHallImage()`、`manorStore.saveThemeWeekSnapshot()` 和 `manorStore.createGuestbookEntry()`，不新增接口字段。
+- `e2e/game-smoke.spec.ts` 扩展在线庄园身份 smoke，覆盖主题保存、主图上传 mock 回填、访客留言提交和弹窗关闭；`scripts/qa-mobile-ui-smoke.mjs` 覆盖主图上传 / 留言弹窗，`scripts/qa-online-ui-structure.mjs` 增加弹窗化静态守护。
+- 本轮验证：`node --check` 两个 QA 脚本、`OnlineManorView.vue` SFC `compileScript`、`npm --prefix taoyuan-main run check`、`qa:online-player-copy`、online-manor-only `qa:mobile-ui-smoke` 非沙箱复跑和在线庄园 4 场 E2E 组合均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口和花灯墙移动端物件既有缺口阻断，未出现庄园弹窗化新增断言失败。
+
+### 0604 房间备用操作浏览器保护
+- `e2e/game-smoke.spec.ts` 新增 `online festival room backup create action submits original endpoint`、`online expedition room backup create action submits original endpoint` 与 `standalone expedition room backup create action submits original endpoint`，覆盖节会房、在线节会远征和独立远征折叠备用创建表单里的旧 create submit test id 仍会提交原创建 POST，并读回创建后状态与大厅入口。
+- `e2e/game-smoke.spec.ts` 新增 `online festival room backup invite action submits original endpoint`、`online expedition room backup invite action submits original endpoint` 与 `standalone expedition room backup invite action submits original endpoint`，覆盖节会房、在线节会远征和独立远征折叠备用邀请表单里的旧 invite submit test id 仍会提交原 `/invite` POST，并由原 store action 清空输入。
+- `e2e/game-smoke.spec.ts` 新增 `online festival room backup ready action submits original endpoint`，覆盖节会房备用操作折叠区里的旧 `online-festival-room-ready-check-submit` 仍会提交原 `/ready-check` 接口，并读回准备确认状态与旧倒计时入口。
+- `e2e/game-smoke.spec.ts` 继续新增 `online expedition room backup ready action submits original endpoint`，覆盖在线节会远征备用操作折叠区里的旧 `online-expedition-room-ready-check-submit` 仍会提交原远征 `/ready-check` 接口，并读回准备确认状态与旧倒计时入口。
+- `e2e/game-smoke.spec.ts` 继续新增 `standalone expedition room backup ready action submits original endpoint`，覆盖独立远征页备用操作折叠区里的旧 `expedition-room-ready-check-submit` 仍会提交原远征 `/ready-check` 接口，并读回准备确认状态与旧倒计时入口。
+- `e2e/game-smoke.spec.ts` 继续新增 `online expedition room backup settle action submits original endpoint` 与 `standalone expedition room backup settle action submits original endpoint`，覆盖在线节会远征和独立远征旧结算按钮仍先进入确认弹窗，再提交原远征 `/settle` 接口并读回结算记录。
+- `e2e/game-smoke.spec.ts` 继续新增 `online festival room backup close action submits original endpoint`、`online expedition room backup close action submits original endpoint` 与 `standalone expedition room backup close action submits original endpoint`，覆盖三个旧关闭按钮仍先进入确认弹窗，填写确认文字后提交原 `/close` 接口并读回关闭状态。
+- `scripts/qa-online-ui-structure.mjs` 同步守护十四个 E2E 名称，补上 OUI-003 备用回滚路径的浏览器级提交证据。
+- 本轮验证：两个 `node --check`、`npm --prefix taoyuan-main run check`、三条备用 create 组合 E2E、三条备用 invite 组合 E2E、三条备用 ready 组合 E2E、两条备用 settle 组合 E2E 和三条备用 close 组合 E2E 均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口与花灯墙移动端 smoke 覆盖缺口阻断，未出现本轮新增断言失败。
+
+### 0604 房间桌面三栏布局
+- `src/views/game/online/OnlineFestivalView.vue` 的节会房与在线节会远征标签、`src/views/game/ExpeditionRoomView.vue` 的独立远征页在桌面端改为左列表 / 中舞台 / 右状态三栏，右栏使用 320px 规格，主舞台保持在中栏突出展示。
+- `scripts/qa-online-ui-structure.mjs` 与 `e2e/game-smoke.spec.ts` 新增三栏 test id、右栏宽度、列顺序和桌面截图保护；截图输出为 `resp-002-online-festival-room-desktop-1366x768.png`、`resp-002-online-expedition-room-desktop-1366x768.png`、`resp-002-standalone-expedition-room-desktop-1366x768.png`。
+- 本轮验证：`node --check` 两个目标脚本、`npm --prefix taoyuan-main run check` 和房间桌面布局目标 E2E grep 均通过；`qa:online-ui-structure` 仍被共同庄园 / 花灯墙移动端 smoke 覆盖缺口阻断，未出现本轮新增三栏断言失败。
+
+### 0604 在线庄园主人访客态分层
+- `src/views/game/online/OnlineManorView.vue` 的概览页按 `viewer_is_owner` 拆出身份主行动：主人默认展示「管理展示 / 查看留言 / 处理照料」并读回最新留言和照料摘要，访客默认展示「留言 / 照料 / 轻采」并读回今日照料 / 轻采剩余次数；不新增接口字段，不改照料、轻采或主题 store action。
+- `e2e/game-smoke.spec.ts` 新增 `online manor overview separates owner and visitor primary actions`，同时把既有庄园照料 / 轻采 / 护理房用例迁到稳定 test id，避免新增概览按钮后产生按钮文案歧义。
+- `scripts/qa-mobile-ui-smoke.mjs` 新增 owner 身份和有限轻采 mock，生成 `docs/ui-smoke-2026-04-26/36-online-manor-limited-steal-mobile-390x844.png`、`37-online-manor-limited-steal-mobile-360x780.png`、`46-online-manor-owner-identity-mobile-390x844.png`、`47-online-manor-owner-identity-mobile-360x780.png`；`scripts/qa-online-ui-structure.mjs` 同步保护身份主行动、E2E 和移动端 smoke。
+- 本轮验证：`node --check` 三个目标脚本、`OnlineManorView.vue` SFC `compileScript`、`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、online-manor-only `qa:mobile-ui-smoke` 非沙箱复跑、在线庄园 4 场 E2E 组合均通过；`qa:online-ui-structure` 仍被小屋 / 农场共同庄园入口和花灯墙移动端物件既有缺口阻断，未出现在线庄园新增断言失败。
+
+### 0604 在线村社仓廪公共消耗确认
+- `src/views/game/online/OnlineSocietyView.vue` 的公共仓入仓继续保留轻操作；公共消耗按钮改为打开 `OnlineConfirmActionDialog`，展示影响对象、公共仓扣除、个人资产不扣除、失败恢复提示，并要求输入「确认公共消耗」后才调用原 `societyStore.consumeWarehouse()`。
+- `e2e/game-smoke.spec.ts`、`scripts/qa-mobile-ui-smoke.mjs` 和 `scripts/qa-online-ui-structure.mjs` 同步补仓廪确认弹窗、确认文字、只扣公共仓和移动端 390x844 / 360x780 场景保护。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、两个 `node --check`、`OnlineSocietyView.vue` SFC 解析、warehouse-only `qa:mobile-ui-smoke` 非沙箱复跑和目标 E2E 均通过；`qa:online-ui-structure` 仍被既有小屋 / 农场共同庄园、在线庄园轻采、花灯墙移动端覆盖缺口阻断，未出现仓廪新增断言失败。
+
 ### 0604 高风险确认组件收束
 - `src/components/game/online/OnlineConfirmActionDialog.vue` 完成危险确认规格证据回填：默认危险语气、背景不可关闭、影响对象 / 资产变化展示、确认文字门槛和禁用原因均有结构守护。
 - 本轮验证：`node --check taoyuan-main/scripts/qa-online-ui-structure.mjs` 与节会房关闭确认目标 E2E 通过；`check` 当前被 Agent B 范围 `OnlineSocietyView.vue` 未使用符号阻断，`qa:online-ui-structure` 仍剩非 Agent A 移动端覆盖缺口。
@@ -16,6 +112,36 @@
 - `e2e/game-smoke.spec.ts` 新增 `gotoOnlineFestivalTab()`，在线节会 / 远征房间和相邻节会视觉用例跳转后会等待目标 test id 并重试，相关用例加 `test.slow()` 降低全量并发下首页 / 田庄竞态误杀。
 - 本轮验证：房间组合 grep、节会 / 远征视觉相邻 grep、`node --check taoyuan-main/e2e/game-smoke.spec.ts` 与 `npm --prefix taoyuan-main run check` 通过；完整 `game-smoke.spec.ts` 仍返回 1，但剩余 11 个失败均非房间主流程。
 - 移动端过滤 smoke 复跑 `online-festival-room` 与 `online-cohabitation-family-festival-confirm`，重新生成节会房创建 / 邀请 / 大厅 / 结算和家族节会确认 390x844、360x780 截图；未过滤 mobile smoke 仍被在线委托公开接力凭证断言阻断。
+
+### 0604 在线节会远征房间流程
+- `src/views/game/online/OnlineFestivalView.vue` 的远征标签复用统一创建向导、邀请面板、准备大厅和高风险确认弹窗；主行动改为打开准备大厅，旧准备 / 倒计时 / 结算 / 关闭 test id 保留在备用房间操作内。
+- `e2e/game-smoke.spec.ts` 补齐远征 `/ready-check` 与 `/close` mock，新增远征邀请 / 大厅准备检查和关闭确认场景；远征创建用例改为断言统一准备大厅入口，结算和关闭仍调用原 store action。
+- 本轮验证：`node --check taoyuan-main/e2e/game-smoke.spec.ts`、`node --check taoyuan-main/scripts/qa-online-ui-structure.mjs`、`npm --prefix taoyuan-main run check` 与 `npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts -g "online expedition" --reporter=line` 通过；`qa:online-ui-structure` 仍被非 Agent A 移动端覆盖缺口阻断，未出现远征新增断言失败。
+
+### 0604 独立远征大厅流程
+- `src/views/game/ExpeditionRoomView.vue` 补齐页面级 `expedition-room-page`，独立页创建、邀请、准备大厅、结算确认和关闭确认复用 `OnlineRoomWizard`、`OnlineInvitePanel`、`OnlineRoomLobbyDialog`、`OnlineConfirmActionDialog`；旧创建 / 邀请 / ready / 倒计时 / 结算 / 关闭 test id 保留在备用区域。
+- `src/router/index.ts` 新增 `/game/expedition-room` 直达路由，保留旧 `/game/expedition` 到在线节会远征标签的重定向；`qa-mobile-ui-smoke.mjs` 新增独立远征页 mock 与 390x844 / 360x780 场景，`game-smoke.spec.ts` 新增 standalone E2E 覆盖邀请面板、准备大厅和关闭确认 `/close` 提交。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、`node --check` 三个目标脚本、`TAOYUAN_E2E_PORT=57044 TAOYUAN_MOBILE_SMOKE_ONLY=online-expedition-room npm --prefix taoyuan-main run qa:mobile-ui-smoke` 非沙箱复跑、`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts -g "standalone expedition room" --reporter=line` 均通过；移动截图为 `docs/ui-smoke-2026-04-26/46-online-expedition-room-main-mobile-390x844.png`、`docs/ui-smoke-2026-04-26/47-online-expedition-room-main-mobile-360x780.png`。`qa:online-ui-structure` 仍被非 Agent A 的移动覆盖缺口阻断，未出现独立远征新增断言失败。
+
+### 0604 在线委托详情抽屉
+- `src/views/game/online/OnlineOrdersView.vue` 的可接委托卡片降噪为标题、接力标签、需求摘要、回报、剩余时间、状态和详情按钮；单阶段委托继续保留 `online-orders-accept-submit` 主按钮，接力阶段接单迁入详情抽屉。
+- 接力阶段列表、故事流、公开接力分账、阶段接单和结算摘要迁入 `OnlineBottomSheet` 的 `online-orders-detail-sheet`；凭证编号、补偿编号、共同基金流水和最近失败原因收进默认折叠的 `OnlineTechnicalDetails`。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、三个 `node --check` 与 orders-only `qa:mobile-ui-smoke` 通过；`qa:online-ui-structure` 仍被既有 / 并行覆盖缺口阻断，未出现委托详情抽屉新增断言失败。
+
+### 0604 在线村社创建向导
+- `src/views/game/online/OnlineSocietyView.vue` 未加入村社首屏改为 `online-society-create-summary` 摘要卡、`online-society-create-trigger` 主 CTA 和公开村社摘要，不再直接铺开创建长表单。
+- 创建村社迁入 `OnlineActionDialog` 分步向导，覆盖名称与公告、徽记主题、公开容量、入社条件、确认创建；旧创建输入、选择和提交 test id 保留在向导内，提交仍调用原 `societyStore.submitSociety()`。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy` 与 society-create-only `qa:mobile-ui-smoke` 通过并生成 390x844 / 360x780 截图；`qa:online-ui-structure` 仍被既有 / 后续覆盖缺口阻断，未出现创建村社向导新增断言失败。
+
+### 0604 在线村社邀请与申请抽屉化
+- `src/views/game/online/OnlineSocietyView.vue` 的村社管理员邀请入口改为 `OnlineInvitePanel domain="society"`，支持批量输入、已在村社成员拦截、逐项发送结果和失败重试；旧单人邀请输入与提交 test id 保留在备用邀请表单内。
+- 收到的邀请、本人待处理申请和管理员待审申请迁入 `OnlineBottomSheet` 的 `online-society-request-detail-sheet`；旧管理员接受 / 拒绝 test id 保留在抽屉 footer，处理动作继续调用原 `societyStore.acceptRequest()` / `rejectRequest()`。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-player-copy`、三个 `node --check`、`OnlineSocietyView.vue` SFC 解析与 society-requests-only `qa:mobile-ui-smoke` 通过并生成 390x844 / 360x780 截图；`check` 当前被 `OnlineFestivalView.vue` 并行房间 / 远征接入缺失 handler 阻断，`qa:online-ui-structure` 仍被既有 / 后续覆盖缺口阻断，未出现村社邀请与申请新增断言失败。
+
+### 0604 在线村社提案弹窗化
+- `src/views/game/online/OnlineSocietyView.vue` 的提案 tab 改为活跃提案列表 + `online-society-proposal-action-panel` 操作摘要；发起提案进入 `OnlineActionDialog` 的 `online-society-proposal-dialog`，旧标题 / 类型 / 说明 / 提交 test id 保留在弹窗内。
+- 归档提案不再在卡片内铺备注输入，改为 `online-society-proposal-close-dialog` 确认弹窗，展示提案、票数、归档影响和失败恢复提示；历史提案备注收进可展开 `online-society-proposal-archive-note-*`。
+- 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、三个 `node --check`、`OnlineSocietyView.vue` SFC 解析与 society-proposals-only `qa:mobile-ui-smoke` 通过并生成 390x844 / 360x780 截图；`qa:online-ui-structure` 仍被既有 / 后续覆盖缺口阻断，未出现村社提案新增断言失败。
 
 ### 0603 房间流程浏览器 E2E 键盘关闭
 - `e2e/game-smoke.spec.ts` 新增 `online festival room wizard escape closes dialog and restores focus`，覆盖 1280x720 桌面视口下节会房创建向导使用 `OnlineActionDialog` 普通弹窗承载，按 Esc 关闭后焦点回到 `online-room-create-trigger`。
@@ -5983,3 +6109,9 @@
 - `src/views/game/online/OnlineNeighborView.vue` 的公开名片首屏改为摘要和“编辑名片”入口，原编辑表单迁入 `OnlineActionDialog`，保留旧保存 / 输入 test id。
 - 保存公开名片失败时弹窗保持打开并显示错误提示，store 草稿不被清空；`scripts/qa-online-ui-structure.mjs` 已补邻里名片弹窗静态断言。
 - 本轮验证：`npm --prefix taoyuan-main run check`、`npm --prefix taoyuan-main run qa:online-player-copy`、`npm --prefix taoyuan-main run qa:mobile-ui-smoke` 通过；`qa:online-ui-structure` 仍被既有移动端 smoke 覆盖缺口阻断，未出现邻里新增断言失败。
+
+### 0604 在线村社公共工程详情抽屉
+
+- `src/components/game/online/AsyncCommunityBoard.vue` 新增 compact 详情模式，村社公共工程首屏只保留当前阶段摘要、详情入口和贡献主按钮。
+- `src/views/game/online/OnlineSocietyView.vue` 新增 `online-society-project-detail-sheet`，阶段详情、贡献记录、贡献榜和历史回看进入抽屉；完工创建房间入口继续使用现有预填 query 跳转，未跨域改动房间向导。
+- `scripts/qa-mobile-ui-smoke.mjs` 和 `scripts/qa-online-ui-structure.mjs` 已补公共工程详情抽屉、桥工程和节庆广场完工入口断言；本轮验证 `check`、玩家文案扫描、目标 mobile smoke 通过，`qa:online-ui-structure` 仍只剩既有覆盖缺口。

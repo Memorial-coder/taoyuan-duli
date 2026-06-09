@@ -1,9 +1,33 @@
 # 桃源乡独立版更新日志
 
-最后整理：2026-06-04
+最后整理：2026-06-05
+- PR-F 非房间 QA 全量收口：补回 `/game/npc`、`/game/processing` 旧深链到现有村庄 / 工坊页面的兼容跳转；宠物加餐状态优先显示特殊喂食短名，与「稻米」按钮一致。定向炼丹 / 宠物 / NPC E2E 4 passed，完整 game-smoke 64 passed，未过滤 mobile smoke、结构 QA、玩家文案扫描和 check 均通过；运行时仍有本地后端 4013 proxy 拒连噪声但不影响退出码。
+- 共同庄园 legacy tab alias 收口：`tab=public / separation / festival` 深链会在刷新与契约切换后保持映射到公开、离线、节会分组，不再回到总览；公开面板首帧补 `summary` / `governance` 空值保护。目标 E2E 通过，全量 game-smoke 收窄为 60 passed / 4 failed，剩余失败为炼丹、宠物和 NPC 跨域页面。
+- 房间流程 PR-F E2E 收束：节庆广场完工后进入节会房间的浏览器用例会先关闭详情抽屉再点击房间入口，避免抽屉遮挡；远征 / 区域样例改用 dev server 复验，确认静态 server 下样例 API 缺失不是远征流程失败。跨域兼容改动：村社公共建设详情抽屉补回看摘要，花灯墙贡献后可真实读回「挂花灯 · 进行中」。当前 HEAD 续跑 check、结构 QA、未过滤 mobile smoke 和 Agent A 目标组合 34 条 E2E 均通过；全量 game-smoke 仍为 59 passed / 5 failed，失败停在炼丹、宠物、NPC 和共同庄园 tab alias，未出现房间域失败。
+- 节会可视化热区遮挡修复：腊八共灶场景中需要处理的「灶台火候」热区会优先浮在普通物件上方，避免被「米桶」等相邻热区拦截点击；节会 visual scene 目标 E2E 已在静态 server 下复跑通过。跨域兼容改动仅限 `VisualSceneBoard.vue` CSS 层级。
+- 服务端在线 smoke 收口：`qa-online-smoke` 的节庆摊位购买断言改为读取当前 `offer.rewards`，避免主题轮换后仍硬查旧食物 / 票券；村社节庆广场完工房间入口的 summary 同步展示“不直接发个人资产”边界，服务端在线 smoke、server node check 与 online release guard 均通过。
+- 在线委托接力确认补强：`AsyncCommunityBoard` 中的公共订单接力快捷按钮不再绕过确认弹窗，改为先打开 `online-orders-action-confirm`，展示影响对象、接单收益和失败恢复提示，确认后仍提交原阶段接单 / 交付 / 结算 store action；桌面 E2E 已迁移到详情抽屉内点击接力按钮并等待原 `/stages/.../accept` POST。
+- 房间流程移动端 QA 复验：`qa-mobile-ui-smoke` 的独立远征房场景将「最近结算」断言收窄为精确文本定位，解除与「最近结算：0 条」摘要的 strict mode 歧义；节会房 / 独立远征房过滤移动端 smoke 和房间域 E2E grep 通过，全量 mobile smoke 剩余阻断仍在在线委托详情抽屉，结构 QA 剩余阻断仍在共同庄园入口与花灯墙移动端覆盖。
+- 共同庄园桌面三栏布局：`OnlineCohabitationView.vue` 在 1280px 以上改为左侧分组 / 契约列表、中间主面板、右侧状态摘要三栏，右栏固定 320px 规格；保留原 `online-module-tabpanel`、业务面板、store action 和旧 test id。结构 QA 已守护共同庄园三栏 test id，新增 1366x768 浏览器 smoke 生成 `resp-002-online-cohabitation-desktop-1366x768.png`。
+- 可视化舞台触控目标尺寸：`VisualMapBoard`、`VisualSceneBoard`、`VisualTrackBoard` 统一使用 44px 触控目标变量，覆盖地图节点、场景物件 / 列表、轨道格、赛道标签、移动详情入口和行动按钮；mobile smoke 与三条视觉 E2E 已改为量测 44px 真实按钮尺寸，online-manor 过滤 smoke 和视觉目标 E2E 非沙箱复跑通过。
+- 可视化舞台移动端详情抽屉：`VisualMapBoard`、`VisualSceneBoard`、`VisualTrackBoard` 在 390x844 等小屏点击节点、物件或赛道格时打开 `OnlineBottomSheet`，详情内保留行动按钮、失败原因 / 影响范围、技术详情和行动结果；舞台下方只留轻量详情入口，避免大量详情文字挤压主舞台。目标视觉 E2E 已覆盖 390x844 抽屉路径，online-manor 移动端 smoke 已覆盖视觉物件抽屉行动。
+- 可视化舞台失败原因玩家化：`VisualMapBoard`、`VisualSceneBoard`、`VisualTrackBoard` 不再在玩家反馈中直出“服务端拒绝 / 不会接受”等实现语言，改为“当前不能重复行动”等可理解提示；节点 / 物件 / 赛道格的 state、可行动作数量和占位队伍等技术判断进入默认折叠的 `OnlineTechnicalDetails`。
+- 在线庄园访客记录和轻采凭证详情抽屉：来访与访客行为默认只展示最近 3 条摘要，详情进入 `OnlineBottomSheet`；轻采记录卡只留收益摘要，凭证、用途、重复提交保护、反刷审计和主人保留比例进入默认折叠的 `OnlineTechnicalDetails`。轻采 E2E 与 online-manor 移动端 smoke 已迁移到“打开详情抽屉 → 展开技术详情 → 核对凭证”路径。
+- 在线庄园护理房动作抽屉化：护理房创建进入 `OnlineActionDialog`，分工动作与记录迁入 `OnlineBottomSheet` 详情抽屉，结算进入 `OnlineConfirmActionDialog` 并要求「确认结算护理」；桌面 E2E 与 online-manor 移动端 smoke 已覆盖创建、动作、风险回看、确认结算和截图。
+- 在线庄园留言 / 上传 / 主题弹窗化：主图上传、主题保存和留言输入迁入 `OnlineActionDialog`，访客概览「留言」直接打开弹窗，旧主图说明、主题名、留言输入 / 提交 test id 保留；补主图上传 mock、主题保存、留言提交 E2E，以及 online-manor 移动端 smoke 截图证据。
+- 房间备用操作浏览器保护：新增节会房、在线节会远征和独立远征旧备用“创建房间”“邀请玩家”“开始准备”和“关闭房间”入口 E2E，并补在线节会远征 / 独立远征旧备用“结算”入口 E2E；展开折叠备用操作后点击旧 create / invite / ready-check / settle / close test id，确认仍提交原创建 POST、`/invite`、`/ready-check`、`/settle`、`/close` 接口并读回房间、大厅、准备确认、结算记录或关闭状态；结构 QA 同步守护十四个 E2E 名称。
+- 房间桌面三栏布局：节会房、在线节会远征标签和独立远征页在 1366x768 下采用左列表 / 中舞台 / 右状态栏布局，右栏固定 320px 规格；新增桌面 E2E 与三张截图证据，OUI-RESP-002 的 Agent A 子范围已验证，完整任务仍等待共同庄园 Agent B 子范围。
+- 在线庄园主人 / 访客态分层：概览页按身份拆出主人「管理展示 / 查看留言 / 处理照料」和访客「留言 / 照料 / 轻采」主行动，主人首屏读回最新留言与照料摘要；补主人 / 访客 E2E、移动端 390x844 / 360x780 owner 身份与有限轻采 smoke，在线庄园轻采结构 QA 缺口已解除。
+- 在线村社仓廪公共消耗确认：入仓继续保持轻操作，公共消耗改为先进入高风险确认弹窗，明确只扣公共仓、不扣个人背包或铜钱；补桌面 E2E、移动端 390x844 / 360x780 smoke 和结构 QA 保护。
 - 房间流程 QA 收束：`game-smoke.spec.ts` 新增在线节会 / 远征房间跳转稳定 helper，房间主流程与相邻节会 / 远征视觉 E2E 在目标 grep 下通过；移动端过滤 smoke 复跑节会房创建、邀请、大厅、结算和家族节会确认截图，完整 E2E / 结构 QA 剩余失败已归类为非房间页面级或 Agent B 覆盖缺口。
+- 在线节会远征房间流程：远征标签复用统一创建向导、邀请面板、准备大厅和高风险确认弹窗；远征 E2E 组合覆盖创建、邀请 / 准备大厅、视觉结算确认和关闭确认，旧备用 test id 与原 store action 继续保留。
+- 独立远征大厅流程：`ExpeditionRoomView.vue` 复用创建向导、邀请面板、准备大厅、结算确认和关闭确认；补 `/game/expedition-room` 直达路由、独立页 mobile smoke 390x844 / 360x780 截图和 standalone E2E，玩家态文案不再暴露“降级玩法动作”与服务端冲突字样。
 - 移动端主操作安全区：`OnlineStickyActionBar` 的底部 spacer 改为跟随固定栏真实高度，并保留 `env(safe-area-inset-bottom)` 安全区 padding；在线中心 sticky 与节会房移动端过滤 smoke 已覆盖 390x844 / 360x780 截图。
 - 高风险确认组件收束：`OnlineConfirmActionDialog` 按危险语气、影响对象、资产变化、确认文字和背景不可关闭规格完成证据回填，节会房关闭确认 E2E 复跑通过。
+- 在线委托详情抽屉：`OnlineOrdersView.vue` 的可接委托卡片降噪为标题、需求摘要、回报、剩余时间和主按钮，接力阶段、故事流、公开接力分账与阶段接单迁入 `OnlineBottomSheet` 详情抽屉；凭证编号、补偿编号、共同基金流水和最近失败原因收进默认折叠技术详情，orders-only 移动端 smoke 已覆盖 390x844 / 360x780 截图。
+- 在线村社创建向导：`OnlineSocietyView.vue` 未加入村社首屏改为创建摘要、主 CTA 和公开村社摘要，创建表单迁入 `OnlineActionDialog` 分步向导，移动端 smoke 已覆盖 390x844 / 360x780 的填写、提交和新村社读回。
+- 在线村社邀请与申请抽屉化：村社管理员邀请复用 `OnlineInvitePanel` 批量发送、已入社拦截和失败重试，申请 / 邀请处理迁入 `OnlineBottomSheet` 详情抽屉；管理员动作与成员动作分层，society-requests 移动端 smoke 已覆盖 390x844 / 360x780。
+- 在线村社提案弹窗化：村社提案页改成列表 + 操作摘要，发起提案进入 `OnlineActionDialog`，归档提案进入确认弹窗并收纳备注；旧提案输入 / 提交 test id 保留，society-proposals 移动端 smoke 已覆盖 390x844 / 360x780。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房创建向导普通弹窗 Esc / 焦点返回场景，覆盖桌面 `OnlineRoomWizard` 由 `OnlineActionDialog` 承载时按 Esc 关闭、焦点返回 `online-room-create-trigger`，并可再次打开。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房结算确认路径，覆盖运行中房间从备用结算按钮进入 `OnlineConfirmActionDialog`、断言影响对象、奖励预览、恢复提示、`/settle` 提交和奖励读回；`openHome` 增加短重试以降低首页启动竞态。
 - 房间流程浏览器 E2E：`game-smoke.spec.ts` 新增节会房成员接受邀请并准备路径，覆盖受邀成员在准备大厅点击“接受邀请”调用 `/join`、再点击“我已准备”调用 `/ready`，并读回成员状态、准备计数和主行动切换。
@@ -1822,3 +1846,7 @@
 ### 2026-06-03 联机邻里创建向导
 
 - Agent B：在线邻里的创建邻里入口改为三步弹窗向导，首屏不再铺出名称、简介、公告和规模表单；失败时弹窗保留草稿和错误提示，确认仍走原邻里创建 action。
+
+### 2026-06-04 联机村社公共工程详情抽屉
+
+- Agent B：在线村社公共工程改为列表摘要 + 详情抽屉，阶段、贡献记录、贡献榜和历史回看不再铺满首屏；贡献主按钮和完工创建房间预填入口继续保留，并补了移动端 smoke 覆盖。
