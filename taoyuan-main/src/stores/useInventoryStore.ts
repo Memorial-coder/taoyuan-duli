@@ -957,6 +957,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const craftRing = (defId: string): { success: boolean; message: string } => {
     const def = getRingById(defId)
     if (!def || !def.recipe) return { success: false, message: '该戒指无法合成。' }
+    if (hasRing(defId)) return { success: false, message: `已拥有${def.name}，无需重复合成。` }
 
     // 检查材料
     for (const mat of def.recipe) {

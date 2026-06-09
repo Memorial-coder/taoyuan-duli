@@ -3307,6 +3307,7 @@
 
   const canCraftRing = (ring: RingDef): boolean => {
     if (!ring.recipe) return false
+    if (inventoryStore.hasRing(ring.id)) return false
     if (playerStore.money < ring.recipeMoney) return false
     for (const mat of ring.recipe) {
       if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
@@ -3319,7 +3320,8 @@
     if (result.success) {
       sfxBuy()
       showFloat(result.message, 'success')
-      addLog(result.message)
+      addLog(result.message, { silent: true })
+      shopModal.value = null
     } else {
       addLog(result.message)
     }

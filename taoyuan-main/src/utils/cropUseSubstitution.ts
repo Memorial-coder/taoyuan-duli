@@ -76,11 +76,21 @@ const scoreCropUseCandidate = (expected: CropUseProfile, candidate: CropUseProfi
   return score
 }
 
-export const getCropUseSubstitutionCandidateIds = (itemId: string, tags: CropUseTag[]): string[] => {
-  const expected = getCropUseProfile(itemId)
-  if (!hasAnyTag(expected, tags)) return []
+const cropUseSubstitutionCandidateCache = new Map<string, string[]>()
+const getCandidateCacheKey = (itemId: string, tags: CropUseTag[]) => `${itemId}::${[...tags].sort().join('|')}`
 
-  return CROPS
+export const getCropUseSubstitutionCandidateIds = (itemId: string, tags: CropUseTag[]): string[] => {
+  const cacheKey = getCandidateCacheKey(itemId, tags)
+  const cached = cropUseSubstitutionCandidateCache.get(cacheKey)
+  if (cached) return cached
+
+  const expected = getCropUseProfile(itemId)
+  if (!hasAnyTag(expected, tags)) {
+    cropUseSubstitutionCandidateCache.set(cacheKey, [])
+    return []
+  }
+
+  const candidates = CROPS
     .map((crop, index) => {
       const profile = getCropUseProfile(crop.id)
       if (!profile || profile.cropId === itemId) return null
@@ -94,6 +104,8 @@ export const getCropUseSubstitutionCandidateIds = (itemId: string, tags: CropUse
     .filter((entry): entry is { cropId: string; score: number; index: number } => entry !== null)
     .sort((a, b) => a.score - b.score || a.index - b.index || a.cropId.localeCompare(b.cropId))
     .map(entry => entry.cropId)
+  cropUseSubstitutionCandidateCache.set(cacheKey, candidates)
+  return candidates
 }
 
 export const getCropUseRequirementCandidateIds = (itemId: string, tags: CropUseTag[]): string[] => {

@@ -61,6 +61,7 @@ const COMBAT_TIME_ADVANTAGE = 0.12
 const COMBAT_TIME_NORMAL = 0.17
 const COMBAT_TIME_LONG = 0.25
 const MINING_COMBAT_LOG_LIMIT = 120
+const applySkillMasteryBonus = (value: number, bonus: number): number => Math.floor(value * (1 + bonus) + 1e-6)
 
 type CombatActionResult = {
   message: string
@@ -546,7 +547,7 @@ export const useMiningStore = defineStore('mining', () => {
 
     const bossPressureBonus = skillStore.getSkillMasteryEffectValue('boss_pressure')
     const baseMoneyReward = shouldGrantMainReward ? (BOSS_MONEY_REWARDS[floorNum] ?? 0) : 0
-    const moneyReward = Math.floor(baseMoneyReward * (1 + bossPressureBonus))
+    const moneyReward = applySkillMasteryBonus(baseMoneyReward, bossPressureBonus)
     if (moneyReward > 0) {
       message += ` 获得${moneyReward}文！`
       if (bossPressureBonus > 0 && moneyReward > baseMoneyReward) message += '（首领压制）'
@@ -1473,7 +1474,7 @@ export const useMiningStore = defineStore('mining', () => {
     const wildernessXpBonus = useGameStore().farmMapType === 'wilderness' ? 1.5 : 1.0
     const infestedXpBonus = floor?.specialType === 'infested' ? 1.5 : 1.0
     const bossPressureBonus = combatIsBoss.value ? skillStore.getSkillMasteryEffectValue('boss_pressure') : 0
-    const combatExpGain = Math.floor(monster.expReward * wildernessXpBonus * infestedXpBonus * (1 + bossPressureBonus))
+    const combatExpGain = applySkillMasteryBonus(Math.floor(monster.expReward * wildernessXpBonus * infestedXpBonus), bossPressureBonus)
     skillStore.addExp('combat', combatExpGain)
 
     // 幸运附魔 + 戒指增加掉落率
@@ -1584,7 +1585,7 @@ export const useMiningStore = defineStore('mining', () => {
       if (isInSkullCavern.value) {
         // 骷髅矿穴BOSS：奖励铜钱和矿石（按深度缩放）
         const scFloor = skullCavernFloor.value
-        const moneyReward = Math.floor((200 + scFloor * 20) * (1 + bossPressureBonus))
+        const moneyReward = applySkillMasteryBonus(200 + scFloor * 20, bossPressureBonus)
         playerStore.earnMoney(moneyReward)
         recordMoneyLoot(moneyReward)
         msg += ` 获得${moneyReward}文！`
