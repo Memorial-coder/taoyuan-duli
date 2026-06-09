@@ -8,7 +8,6 @@ const {
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime')
 const {
-  getCurrentWeekWindow,
   getFestivalThemeRotation,
 } = require('./taoyuanWeeklyExchangeStation')
 const marketGovernance = require('./taoyuanMarketGovernance')
@@ -21,6 +20,16 @@ const MAX_RECORDS_TO_KEEP = 240
 const MAX_TRANSACTION_RECEIPTS_PER_WEEK = 400
 const FESTIVAL_STALL_OPEN_DAY_START = 4
 const FESTIVAL_STALL_OPEN_DAY_END = 6
+const DAYS_PER_WEEK = 7
+const DAYS_PER_SEASON = 28
+const SEASON_ORDER = ['spring', 'summer', 'autumn', 'winter']
+const SEASON_LABELS = {
+  spring: '春',
+  summer: '夏',
+  autumn: '秋',
+  winter: '冬',
+}
+const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -223,38 +232,115 @@ function throwTransactionReceiptReplay(receipt) {
   throw error
 }
 
-function getFestivalAvailability() {
-  const weekWindow = getCurrentWeekWindow()
+function normalizeGameCalendar(saveData) {
+  const game = saveData && typeof saveData === 'object' && saveData.game && typeof saveData.game === 'object'
+    ? saveData.game
+    : null
+  if (!game) return null
+  const year = Math.max(1, Math.floor(Number(game.year) || 1))
+  const rawSeason = String(game.season || 'spring')
+  const season = rawSeason === 'fall'
+    ? 'autumn'
+    : SEASON_ORDER.includes(rawSeason)
+      ? rawSeason
+      : 'spring'
+  const day = Math.min(DAYS_PER_SEASON, Math.max(1, Math.floor(Number(game.day) || 1)))
+  return { year, season, day }
+}
+
+function getNextGameWeekStart(calendar) {
+  const weekOfSeason = Math.floor((calendar.day - 1) / DAYS_PER_WEEK) + 1
+  const nextDay = weekOfSeason * DAYS_PER_WEEK + 1
+  if (nextDay <= DAYS_PER_SEASON) {
+    return { year: calendar.year, season: calendar.season, day: nextDay }
+  }
+  const seasonIndex = SEASON_ORDER.indexOf(calendar.season)
+  const nextSeasonIndex = seasonIndex >= 0 ? seasonIndex + 1 : 1
+  if (nextSeasonIndex < SEASON_ORDER.length) {
+    return { year: calendar.year, season: SEASON_ORDER[nextSeasonIndex], day: 1 }
+  }
+  return { year: calendar.year + 1, season: SEASON_ORDER[0], day: 1 }
+}
+
+function formatGameDayLabel(calendar) {
+  return `第${calendar.year}年 ${SEASON_LABELS[calendar.season] || calendar.season} 第${calendar.day}天`
+}
+
+function buildGameWeekWindow(saveData) {
+  const calendar = normalizeGameCalendar(saveData)
+  if (!calendar) {
+    return {
+      week_key: 'game-calendar-unavailable',
+      week_label: '游戏内节庆周待同步',
+      refresh_hint: '同步服务端存档后按游戏内周轮换',
+      game_calendar: null,
+    }
+  }
+
+  const weekOfSeason = Math.floor((calendar.day - 1) / DAYS_PER_WEEK) + 1
+  const weekdayIndex = (calendar.day - 1) % DAYS_PER_WEEK
+  const weekStartDay = (weekOfSeason - 1) * DAYS_PER_WEEK + 1
+  const weekEndDay = Math.min(DAYS_PER_SEASON, weekStartDay + DAYS_PER_WEEK - 1)
+  const nextRefresh = getNextGameWeekStart(calendar)
+  const seasonLabel = SEASON_LABELS[calendar.season] || calendar.season
+  return {
+    week_key: `game:${calendar.year}:${calendar.season}:week-${weekOfSeason}`,
+    week_label: `第${calendar.year}年 ${seasonLabel} 第${weekOfSeason}周（第${weekStartDay}-${weekEndDay}天）`,
+    refresh_hint: `按游戏内周轮换 · ${formatGameDayLabel(nextRefresh)}刷新`,
+    game_calendar: {
+      year: calendar.year,
+      season: calendar.season,
+      day: calendar.day,
+      week_of_season: weekOfSeason,
+      week_start_day: weekStartDay,
+      week_end_day: weekEndDay,
+      weekday_index: weekdayIndex,
+      weekday_label: WEEKDAY_LABELS[weekdayIndex],
+    },
+  }
+}
+
+function buildFestivalThemeWeek(festivalTheme) {
+  return {
+    id: festivalTheme.id,
+    name: festivalTheme.label,
+    startDay: '周五',
+    endDay: '周日',
+    summary: festivalTheme.bulletin,
+  }
+}
+
+function getFestivalAvailability(saveData = null) {
+  const weekWindow = buildGameWeekWindow(saveData)
   const festivalTheme = getFestivalThemeRotation(weekWindow.week_key)
-  const bjNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
-  const weekDay = (bjNow.getUTCDay() + 6) % 7
+  const themeWeek = buildFestivalThemeWeek(festivalTheme)
   const forceOpen = String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim() === 'true'
-  const open = forceOpen || (weekDay >= FESTIVAL_STALL_OPEN_DAY_START && weekDay <= FESTIVAL_STALL_OPEN_DAY_END)
+  const gameWeekday = Number(weekWindow.game_calendar?.weekday_index)
+  const hasGameCalendar = Number.isInteger(gameWeekday)
+
+  if (!hasGameCalendar) {
+    return {
+      open: false,
+      reason: '当前没有可用的服务端存档，无法判断游戏内节庆摊位开放日。',
+      weekWindow,
+      themeWeek,
+    }
+  }
+
+  const open = forceOpen || (gameWeekday >= FESTIVAL_STALL_OPEN_DAY_START && gameWeekday <= FESTIVAL_STALL_OPEN_DAY_END)
   if (!open) {
     return {
       open: false,
-      reason: '节庆临时摊位只在每周五到周日开放，当前先展示预告，不开放购买。',
+      reason: `节庆临时摊位只在游戏内每周五到周日开放，今天是${weekWindow.game_calendar.weekday_label}，当前先展示预告，不开放购买。`,
       weekWindow,
-      themeWeek: {
-        id: festivalTheme.id,
-        name: festivalTheme.label,
-        startDay: '周五',
-        endDay: '周日',
-        summary: festivalTheme.bulletin,
-      },
+      themeWeek,
     }
   }
   return {
     open: true,
     reason: '',
     weekWindow,
-    themeWeek: {
-      id: festivalTheme.id,
-      name: festivalTheme.label,
-      startDay: '周五',
-      endDay: '周日',
-      summary: festivalTheme.bulletin,
-    },
+    themeWeek,
   }
 }
 
@@ -681,13 +767,12 @@ function getFestivalCatalog(themeId = '') {
   ])
 }
 
-function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '') {
+function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '', availability = getFestivalAvailability(saveData)) {
   const claimedByUser = clampPositiveInt(weekState.user_usage?.[username]?.[offer.id], 0)
   const claimedGlobal = clampPositiveInt(weekState.offer_claims?.[offer.id], 0)
   const remainingGlobal = Math.max(0, clampPositiveInt(offer.station_stock, 0) - claimedGlobal)
   let canExchange = true
   let disabledReason = ''
-  const availability = getFestivalAvailability()
   const boothCategory = Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival'
 
   if (!availability.open) {
@@ -750,11 +835,6 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
 }
 
 function listFestivalStall(username) {
-  const availability = getFestivalAvailability()
-  const store = loadFestivalStore()
-  const weekKey = availability.weekWindow?.week_key || 'festival_closed'
-  const weekState = getFestivalWeekState(store, weekKey)
-
   let saveData = null
   let saveMessage = ''
   try {
@@ -765,6 +845,10 @@ function listFestivalStall(username) {
     saveMessage = error?.message || '当前账号没有可用的桃源服务端存档'
   }
 
+  const availability = getFestivalAvailability(saveData)
+  const store = loadFestivalStore()
+  const weekKey = availability.weekWindow?.week_key || 'festival_closed'
+  const weekState = getFestivalWeekState(store, weekKey)
   const offers = getFestivalCatalog(availability.themeWeek?.id || '')
   const myRecords = weekState.records
     .filter(record => record.username === username)
@@ -779,7 +863,9 @@ function listFestivalStall(username) {
   return {
     week_key: weekKey,
     week_label: availability.weekWindow?.week_label || '节庆未开放',
-    refresh_hint: availability.themeWeek ? `节庆窗口 · ${availability.themeWeek.startDay}到${availability.themeWeek.endDay}` : '节庆未开放时摊位隐藏',
+    refresh_hint: availability.themeWeek
+      ? `节庆窗口 · 游戏内${availability.themeWeek.startDay}到${availability.themeWeek.endDay} · ${availability.weekWindow?.refresh_hint || '按游戏内周轮换'}`
+      : '节庆未开放时摊位隐藏',
     bulletin: availability.themeWeek
       ? `节庆摊位会在主题周内临时开放，卖完就收摊。${availability.themeWeek.summary || ''}`
       : availability.reason,
@@ -798,13 +884,16 @@ function listFestivalStall(username) {
       { id: 'food', label: '节日食物', offer_count: offers.filter(offer => offer.categories.includes('food')).length },
       { id: 'tickets', label: '票券/代币', offer_count: offers.filter(offer => offer.categories.includes('tickets')).length },
     ],
-    offers: offers.map(offer => buildOfferSummary(offer, weekState, username, saveData, saveMessage)),
+    offers: offers.map(offer => buildOfferSummary(offer, weekState, username, saveData, saveMessage, availability)),
     my_records: myRecords,
   }
 }
 
 function purchaseFestivalStallOffer(username, offerId, options = {}) {
-  const availability = getFestivalAvailability()
+  const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，暂时无法购买节庆摊位商品')
+  context.username = username
+  ensureInventoryState(context.data)
+  const availability = getFestivalAvailability(context.data)
   if (!availability.open) throw createError(availability.reason || '当前节庆摊位未开放')
 
   const store = loadFestivalStore()
@@ -836,10 +925,6 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
     source_label: '节庆摊位',
     money_volume: clampPositiveInt(offer.price_money, 0),
   })
-
-  const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，暂时无法购买节庆摊位商品')
-  context.username = username
-  ensureInventoryState(context.data)
 
   const userUsage = weekState.user_usage[username] && typeof weekState.user_usage[username] === 'object'
     ? weekState.user_usage[username]
@@ -954,4 +1039,8 @@ function purchaseFestivalStallOffer(username, offerId, options = {}) {
 module.exports = {
   listFestivalStall,
   purchaseFestivalStallOffer,
+  __testing: {
+    buildGameWeekWindow,
+    getFestivalAvailability,
+  },
 }

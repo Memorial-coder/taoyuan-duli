@@ -166,6 +166,11 @@ const seedSave = (username, { money = 1000, wood = 20 } = {}) => {
         playerName: username,
         money,
       },
+      game: {
+        year: 1,
+        season: 'autumn',
+        day: 14,
+      },
       inventory: {
         items: [
           { itemId: 'wood', quantity: wood, quality: 'normal', locked: false },
