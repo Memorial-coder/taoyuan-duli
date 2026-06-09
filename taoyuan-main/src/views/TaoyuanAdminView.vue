@@ -910,6 +910,13 @@
   const switchAdminTab = (tab: 'mail' | 'content' | 'android' | 'logs' | 'online' | 'ai' | 'cloud' | 'debug') => {
     activeAdminTab.value = tab
     const nextQuery = { ...route.query }
+    if (tab !== 'mail') {
+      delete nextQuery.mode
+      delete nextQuery.username
+    }
+    if (tab !== 'ai') {
+      delete nextQuery.ai_panel
+    }
     if (tab === 'mail') {
       delete nextQuery.tab
     } else {

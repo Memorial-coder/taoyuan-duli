@@ -15,13 +15,34 @@
         </button>
       </div>
 
-      <div v-if="store.adminConfig.officialManagedStatus" class="text-[0.6875rem] text-muted leading-5">
-        当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFieldsText }}
-        <div v-if="store.adminConfig.officialManagedStatus.lastError" class="mt-1 text-warning">
-          最近回退原因：{{ store.adminConfig.officialManagedStatus.lastError }}
-        </div>
+      <div class="ai-admin-panel__subnav" role="tablist" aria-label="AI 助手管理">
+        <button
+          type="button"
+          class="btn"
+          data-testid="ai-admin-subnav-config"
+          :class="{ '!bg-accent !text-bg': activeAdminPanelPage === 'config' }"
+          role="tab"
+          :aria-selected="activeAdminPanelPage === 'config'"
+          @click="setAiAdminPanelPage('config')"
+        >
+          <Settings2 :size="12" />
+          <span>配置</span>
+        </button>
+        <button
+          type="button"
+          class="btn"
+          data-testid="ai-admin-subnav-knowledge"
+          :class="{ '!bg-accent !text-bg': activeAdminPanelPage === 'knowledge' }"
+          role="tab"
+          :aria-selected="activeAdminPanelPage === 'knowledge'"
+          @click="setAiAdminPanelPage('knowledge')"
+        >
+          <BookOpen :size="12" />
+          <span>知识库</span>
+        </button>
       </div>
 
+      <template v-if="activeAdminPanelPage === 'config'">
       <div class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">功能开关</p>
         <div class="ai-admin-panel__row">
@@ -62,22 +83,20 @@
         </div>
       </div>
 
-      <div class="ai-admin-panel__group">
+      <div v-if="!isManagedReadonly('ai_assistant_name')" class="ai-admin-panel__group">
         <div class="ai-admin-panel__field-header">
           <label class="ai-admin-panel__label">助手名称</label>
           <span data-testid="ai-admin-char-count-assistant-name">{{ store.adminConfig.assistantName.length }}/20</span>
         </div>
-        <p class="text-[0.6875rem] text-muted leading-5">展示在玩家侧小助理标题、欢迎语称呼和官方托管 AI 名称预览中。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">展示在玩家侧小助理标题和欢迎语称呼中。</p>
         <input
           v-model="store.adminConfig.assistantName"
           class="ai-admin-panel__input"
           maxlength="20"
-          :disabled="isManagedReadonly('ai_assistant_name')"
-          :readonly="isManagedReadonly('ai_assistant_name')"
         />
       </div>
 
-      <div class="ai-admin-panel__group">
+      <div v-if="!isManagedReadonly('ai_assistant_welcome')" class="ai-admin-panel__group">
         <div class="ai-admin-panel__field-header">
           <label class="ai-admin-panel__label">欢迎语</label>
           <span data-testid="ai-admin-char-count-welcome">{{ store.adminConfig.welcomeMessage.length }}/300</span>
@@ -88,24 +107,6 @@
           rows="3"
           class="ai-admin-panel__textarea"
           maxlength="300"
-          :disabled="isManagedReadonly('ai_assistant_welcome')"
-          :readonly="isManagedReadonly('ai_assistant_welcome')"
-        />
-      </div>
-
-      <div class="ai-admin-panel__group">
-        <div class="ai-admin-panel__field-header">
-          <label class="ai-admin-panel__label">控制台署名文案</label>
-          <span data-testid="ai-admin-char-count-console-credit">{{ store.adminConfig.consoleCreditMessage.length }}/1200</span>
-        </div>
-        <p class="text-[0.6875rem] text-muted leading-5">用于玩家侧控制台/署名展示；官方托管发布会把这一项和助手名称、欢迎语一起纳入 diff。</p>
-        <textarea
-          v-model="store.adminConfig.consoleCreditMessage"
-          rows="3"
-          class="ai-admin-panel__textarea"
-          maxlength="1200"
-          :disabled="isManagedReadonly('ai_assistant_console_credit')"
-          :readonly="isManagedReadonly('ai_assistant_console_credit')"
         />
       </div>
 
@@ -230,169 +231,38 @@
         </div>
       </div>
 
-      <div class="ai-admin-panel__section" data-testid="ai-admin-official-preview">
-        <div class="ai-admin-panel__section-header">
-          <div>
-            <p class="ai-admin-panel__label">官方托管 AI 文案发布预览</p>
-            <p class="text-[0.6875rem] text-muted leading-5">只发布助手名称、欢迎语和控制台署名；首页关于字段会沿用当前官方版本。</p>
-          </div>
-          <button class="btn" :disabled="officialLoading" @click="void loadOfficialControlData()">
-            <RefreshCw :size="12" />
-            <span>{{ officialLoading ? '刷新中...' : '刷新云控' }}</span>
-          </button>
-        </div>
-
-        <div v-if="officialError" class="text-xs text-danger leading-6">{{ officialError }}</div>
-        <div v-if="officialUnavailable" class="text-xs text-muted leading-6">{{ officialUnavailable }}</div>
-
-        <div v-if="officialCanLogin" class="ai-admin-official-auth" data-testid="ai-admin-official-second-auth">
-          <input
-            v-model="officialSecondPassword"
-            type="password"
-            class="ai-admin-panel__input"
-            placeholder="云控二次密码"
-            @keydown.enter.prevent="void loginOfficialControl()"
-          />
-          <button class="btn" :disabled="officialAuthenticating || !officialSecondPassword.trim()" @click="void loginOfficialControl()">
-            <Settings2 :size="12" />
-            <span>{{ officialAuthenticating ? '验证中...' : '二次验证' }}</span>
-          </button>
-        </div>
-
-        <template v-if="officialStatus?.secondAuthVerified">
-          <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
-            <div class="ai-admin-panel__group">
-              <div class="ai-admin-panel__field-header">
-                <label class="ai-admin-panel__label">托管助手名称</label>
-                <span>{{ officialDraft.ai_assistant_name.length }}/80</span>
-              </div>
-              <input v-model="officialDraft.ai_assistant_name" class="ai-admin-panel__input" maxlength="80" />
-            </div>
-            <div class="ai-admin-panel__group">
-              <div class="ai-admin-panel__field-header">
-                <label class="ai-admin-panel__label">发布状态</label>
-                <span>{{ currentOfficialRelease ? `v${currentOfficialRelease.version}` : '尚未发布' }}</span>
-              </div>
-              <button class="btn" @click="loadOfficialDraftFromAdminConfig">
-                <RotateCcw :size="12" />
-                <span>载入当前配置</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="ai-admin-panel__group">
-            <div class="ai-admin-panel__field-header">
-              <label class="ai-admin-panel__label">托管欢迎语</label>
-              <span>{{ officialDraft.ai_assistant_welcome.length }}/1200</span>
-            </div>
-            <textarea v-model="officialDraft.ai_assistant_welcome" rows="3" class="ai-admin-panel__textarea" maxlength="1200" />
-          </div>
-
-          <div class="ai-admin-panel__group">
-            <div class="ai-admin-panel__field-header">
-              <label class="ai-admin-panel__label">托管控制台署名</label>
-              <span>{{ officialDraft.ai_assistant_console_credit.length }}/1200</span>
-            </div>
-            <textarea v-model="officialDraft.ai_assistant_console_credit" rows="3" class="ai-admin-panel__textarea" maxlength="1200" />
-          </div>
-
-          <div class="ai-admin-preview-card">
-            <div class="ai-admin-preview-card__header">
-              <span>{{ officialDraft.ai_assistant_name || '桃源小助理' }}</span>
-              <span>官方托管预览</span>
-            </div>
-            <p>{{ officialDraft.ai_assistant_welcome || '暂无欢迎语' }}</p>
-            <div class="ai-admin-preview-card__meta">
-              <span>{{ previewOfficialConsoleCredit }}</span>
-            </div>
-          </div>
-
-          <div class="ai-admin-panel__section ai-admin-panel__section--nested" data-testid="ai-admin-official-diff">
-            <div class="ai-admin-panel__section-header">
-              <p class="ai-admin-panel__label">发布差异</p>
-              <span class="text-[0.6875rem] text-muted">{{ officialDiffRows.length }} 项</span>
-            </div>
-            <div v-if="officialDiffRows.length" class="ai-admin-diff-list">
-              <div v-for="row in officialDiffRows" :key="row.key" class="ai-admin-diff-row">
-                <span>{{ row.label }}</span>
-                <small>{{ row.before }}</small>
-                <strong>{{ row.after }}</strong>
-              </div>
-            </div>
-            <p v-else class="text-xs text-muted leading-6">当前托管草稿与最新官方版本一致。</p>
-          </div>
-
-          <div class="ai-admin-panel__row !justify-end">
-            <button
-              class="btn btn-primary"
-              data-testid="ai-admin-official-second-confirm"
-              :disabled="officialPublishing || officialDiffRows.length === 0"
-              @click="void publishOfficialAiDraft()"
-            >
-              <CloudUpload :size="12" />
-              <span>{{ officialPublishing ? '发布中...' : '二次确认并发布' }}</span>
-            </button>
-          </div>
-
-          <div class="ai-admin-panel__section ai-admin-panel__section--nested" data-testid="ai-admin-official-release-records">
-            <div class="ai-admin-panel__section-header">
-              <p class="ai-admin-panel__label">发布记录摘要</p>
-              <span class="text-[0.6875rem] text-muted">{{ officialReleases.length }} 条</span>
-            </div>
-            <div v-if="officialReleases.length" class="ai-admin-release-list">
-              <button
-                v-for="release in officialReleases.slice(0, 5)"
-                :key="release.id"
-                type="button"
-                class="ai-admin-release-card"
-                @click="syncOfficialDraftFromRelease(release)"
-              >
-                <span>v{{ release.version }}</span>
-                <small>{{ formatOfficialTime(release.createdAt) }} · {{ summarizeOfficialAiRelease(release) }}</small>
-              </button>
-            </div>
-            <p v-else class="text-xs text-muted leading-6">暂无官方托管发布记录。</p>
-          </div>
-        </template>
-      </div>
-
       <div class="ai-admin-panel__footer">
         <p class="text-[0.6875rem] text-muted">若未配置 API 地址和模型名，系统会自动退回内置知识库回答。</p>
         <div class="ai-admin-panel__row !justify-end">
-          <button class="btn" @click="openKnowledgeAdminPage">
+          <button class="btn" type="button" @click="openKnowledgeAdminPage">
             <BookOpen :size="12" />
             <span>知识库页面</span>
           </button>
-          <button class="btn" :disabled="store.isSavingAdmin" @click="void saveAdminConfig()">
+          <button class="btn" type="button" :disabled="store.isSavingAdmin" @click="void saveAdminConfig()">
             <Settings2 :size="12" />
             <span>{{ store.isSavingAdmin ? '保存中...' : '保存配置' }}</span>
           </button>
         </div>
       </div>
+      </template>
+
+      <AiAssistantKnowledgeAdminPanel v-else />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
-  import { useRouter } from 'vue-router'
-  import { BookOpen, CloudUpload, RefreshCw, RotateCcw, Send, Settings2 } from 'lucide-vue-next'
+  import { computed, onMounted, ref, watch } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
+  import { BookOpen, RefreshCw, Send, Settings2 } from 'lucide-vue-next'
+  import AiAssistantKnowledgeAdminPanel from '@/components/game/AiAssistantKnowledgeAdminPanel.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useAiAssistantStore } from '@/stores/useAiAssistantStore'
   import { askAiAssistantDebug } from '@/utils/taoyuanAiApi'
-  import {
-    fetchOfficialControlCurrentConfig,
-    fetchOfficialControlPlatformStatus,
-    loginOfficialControlSecondAuth,
-    publishOfficialControlConfig,
-  } from '@/utils/officialControlApi'
   import type {
     AiAssistantAdminConfig,
     AiAssistantAskResult,
     AiAssistantProvider,
-    OfficialControlPlatformStatus,
-    OfficialControlReleaseRecord,
-    OfficialManagedConfigValues,
   } from '@/types'
 
   const props = withDefaults(
@@ -407,54 +277,24 @@
   )
 
   const store = useAiAssistantStore()
+  const route = useRoute()
   const router = useRouter()
   type ConfigComparable = Record<string, string>
+  type AiAdminPanelPage = 'config' | 'knowledge'
   type DiffRow = {
     key: string
     label: string
     before: string
     after: string
   }
-  type AiOfficialFieldKey = 'ai_assistant_name' | 'ai_assistant_welcome' | 'ai_assistant_console_credit'
 
   const loadedConfigComparable = ref<ConfigComparable | null>(null)
+  const activeAdminPanelPage = ref<AiAdminPanelPage>('config')
   const testQuestion = ref('我今天该做什么？')
   const testQuestionResult = ref<AiAssistantAskResult | null>(null)
   const testQuestionError = ref('')
   const isTestingQuestion = ref(false)
-  const officialStatus = ref<OfficialControlPlatformStatus | null>(null)
-  const currentOfficialRelease = ref<OfficialControlReleaseRecord | null>(null)
-  const officialReleases = ref<OfficialControlReleaseRecord[]>([])
-  const officialLoading = ref(false)
-  const officialAuthenticating = ref(false)
-  const officialPublishing = ref(false)
-  const officialSecondPassword = ref('')
-  const officialError = ref('')
-  const officialUnavailable = ref('')
-  const officialDraft = ref<Record<AiOfficialFieldKey, string>>({
-    ai_assistant_name: '桃源小助理',
-    ai_assistant_welcome: '',
-    ai_assistant_console_credit: '',
-  })
-  const managedFieldLabelMap: Record<string, string> = {
-    ai_assistant_console_credit: 'AI 控制台署名',
-    ai_assistant_name: 'AI 助手名称',
-    ai_assistant_welcome: 'AI 欢迎语',
-    taoyuan_about_dialog_title: '关于弹窗标题',
-    taoyuan_about_dialog_content: '关于弹窗正文',
-  }
   const readonlyManagedFieldSet = computed(() => new Set(store.adminConfig.readonlyManagedFields || []))
-  const sourceLabel = computed(() => {
-    const source = store.adminConfig.officialManagedStatus?.source
-    if (source === 'official_live') return '官方实时'
-    if (source === 'official_cached') return '官方缓存'
-    if (source === 'local_default') return '本地默认'
-    return '未知'
-  })
-  const readonlyManagedFieldsText = computed(() => {
-    const fields = store.adminConfig.readonlyManagedFields || []
-    return fields.length ? fields.map(field => managedFieldLabelMap[field] || field).join('、') : '无'
-  })
   const apiKeySourceLabel = computed(() => {
     if (store.adminConfig.apiKeySource === 'env') return '环境变量'
     if (store.adminConfig.apiKeySource === 'runtime') return '本进程新 Key'
@@ -479,8 +319,25 @@
       .filter(Boolean).length
   ))
 
-  const isManagedReadonly = (key: 'ai_assistant_name' | 'ai_assistant_welcome' | 'ai_assistant_console_credit') => {
+  const isManagedReadonly = (key: 'ai_assistant_name' | 'ai_assistant_welcome') => {
     return readonlyManagedFieldSet.value.has(key)
+  }
+
+  const normalizeAiAdminPanelPage = (value: unknown): AiAdminPanelPage => (
+    String(value || '') === 'knowledge' ? 'knowledge' : 'config'
+  )
+
+  const setAiAdminPanelPage = (page: AiAdminPanelPage) => {
+    activeAdminPanelPage.value = page
+    const nextQuery = { ...route.query, tab: 'ai' } as Record<string, string | string[] | undefined>
+    delete nextQuery.mode
+    delete nextQuery.username
+    if (page === 'knowledge') {
+      nextQuery.ai_panel = 'knowledge'
+    } else {
+      delete nextQuery.ai_panel
+    }
+    void router.replace({ path: '/admin', query: nextQuery })
   }
 
   const clipPreview = (value: unknown, maxLength = 72) => {
@@ -502,7 +359,6 @@
     sourceIngestEnabled: config.sourceIngestEnabled ? '生成源码候选' : '不自动沉淀',
     assistantName: clipPreview(config.assistantName, 40),
     welcomeMessage: clipPreview(config.welcomeMessage, 80),
-    consoleCreditMessage: clipPreview(config.consoleCreditMessage, 80),
     apiUrl: clipPreview(config.apiUrl, 80),
     apiKeyState: getApiKeyComparableState(config),
     model: clipPreview(config.model, 60),
@@ -518,7 +374,6 @@
     sourceIngestEnabled: '源码候选',
     assistantName: '助手名称',
     welcomeMessage: '欢迎语',
-    consoleCreditMessage: '控制台署名',
     apiUrl: '模型 API 地址',
     apiKeyState: 'API Key 动作',
     model: '模型名称',
@@ -557,7 +412,6 @@
     const saved = await store.saveAdminConfig()
     if (saved) {
       captureAdminConfigBaseline()
-      loadOfficialDraftFromAdminConfig()
     }
   }
 
@@ -569,7 +423,7 @@
   }
 
   const openKnowledgeAdminPage = () => {
-    void router.push({ path: '/admin', query: { tab: 'ai' } })
+    setAiAdminPanelPage('knowledge')
   }
 
   const runTestQuestion = async () => {
@@ -592,153 +446,9 @@
     }
   }
 
-  const syncOfficialDraftFromRelease = (release: OfficialControlReleaseRecord | null) => {
-    const values = release?.values || {}
-    officialDraft.value = {
-      ai_assistant_name: String(values.ai_assistant_name || store.adminConfig.assistantName || '桃源小助理'),
-      ai_assistant_welcome: String(values.ai_assistant_welcome || store.adminConfig.welcomeMessage || ''),
-      ai_assistant_console_credit: String(values.ai_assistant_console_credit || store.adminConfig.consoleCreditMessage || ''),
-    }
-  }
-
-  const loadOfficialDraftFromAdminConfig = () => {
-    officialDraft.value = {
-      ai_assistant_name: store.adminConfig.assistantName,
-      ai_assistant_welcome: store.adminConfig.welcomeMessage,
-      ai_assistant_console_credit: store.adminConfig.consoleCreditMessage,
-    }
-  }
-
-  const officialFieldLabels: Record<AiOfficialFieldKey, string> = {
-    ai_assistant_name: '助手名称',
-    ai_assistant_welcome: '欢迎语',
-    ai_assistant_console_credit: '控制台署名',
-  }
-  const officialFieldKeys: AiOfficialFieldKey[] = [
-    'ai_assistant_name',
-    'ai_assistant_welcome',
-    'ai_assistant_console_credit',
-  ]
-  const officialCanLogin = computed(() => (
-    officialStatus.value?.enabled === true
-    && officialStatus.value.hostAllowed === true
-    && officialStatus.value.secondAuthVerified !== true
-  ))
-  const previewOfficialConsoleCredit = computed(() => clipPreview(officialDraft.value.ai_assistant_console_credit, 120))
-  const officialDiffRows = computed<DiffRow[]>(() => {
-    const values = currentOfficialRelease.value?.values || {}
-    return officialFieldKeys
-      .filter(key => String(values[key] || '') !== String(officialDraft.value[key] || ''))
-      .map(key => ({
-        key,
-        label: officialFieldLabels[key],
-        before: currentOfficialRelease.value ? clipPreview(values[key], 80) : '尚未发布',
-        after: clipPreview(officialDraft.value[key], 80),
-      }))
-  })
-
-  const formatOfficialTime = (timestamp?: number | null) => {
-    if (!timestamp) return '-'
-    return new Date(timestamp).toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  const summarizeOfficialAiRelease = (release: OfficialControlReleaseRecord) => {
-    const values = release.values || {}
-    const name = values.ai_assistant_name || '未命名'
-    const welcomeLength = String(values.ai_assistant_welcome || '').length
-    const creditLength = String(values.ai_assistant_console_credit || '').length
-    return `${name} · 欢迎语 ${welcomeLength} 字 · 署名 ${creditLength} 字`
-  }
-
-  const loadOfficialControlData = async (options: { silent?: boolean } = {}) => {
-    officialLoading.value = true
-    officialError.value = ''
-    officialUnavailable.value = ''
-    try {
-      officialStatus.value = await fetchOfficialControlPlatformStatus()
-      if (!officialStatus.value.enabled || !officialStatus.value.hostAllowed) {
-        officialUnavailable.value = '当前环境未启用官方托管发布，或当前 host 不在官方云控允许列表内。'
-        currentOfficialRelease.value = null
-        officialReleases.value = []
-        syncOfficialDraftFromRelease(null)
-        return
-      }
-      if (!officialStatus.value.secondAuthVerified) {
-        currentOfficialRelease.value = null
-        officialReleases.value = []
-        syncOfficialDraftFromRelease(null)
-        return
-      }
-      const result = await fetchOfficialControlCurrentConfig()
-      currentOfficialRelease.value = result.current
-      officialReleases.value = result.releases
-      syncOfficialDraftFromRelease(result.current)
-    } catch (error) {
-      officialError.value = error instanceof Error ? error.message : '读取官方托管状态失败'
-      if (!options.silent) showFloat(officialError.value, 'danger')
-    } finally {
-      officialLoading.value = false
-    }
-  }
-
-  const loginOfficialControl = async () => {
-    const password = officialSecondPassword.value.trim()
-    if (!password) return
-    officialAuthenticating.value = true
-    officialError.value = ''
-    try {
-      officialStatus.value = await loginOfficialControlSecondAuth(password)
-      officialSecondPassword.value = ''
-      showFloat('云控二次验证通过', 'success')
-      await loadOfficialControlData()
-    } catch (error) {
-      officialError.value = error instanceof Error ? error.message : '云控二次验证失败'
-      showFloat(officialError.value, 'danger')
-    } finally {
-      officialAuthenticating.value = false
-    }
-  }
-
-  const buildOfficialPublishValues = (): OfficialManagedConfigValues => ({
-    ...(currentOfficialRelease.value?.values || {}),
-    ai_assistant_name: officialDraft.value.ai_assistant_name,
-    ai_assistant_welcome: officialDraft.value.ai_assistant_welcome,
-    ai_assistant_console_credit: officialDraft.value.ai_assistant_console_credit,
-  })
-
-  const publishOfficialAiDraft = async () => {
-    if (!officialDiffRows.value.length) return
-    const diffText = officialDiffRows.value.map(row => row.label).join('、')
-    if (typeof window !== 'undefined' && !window.confirm(`确认发布官方托管 AI 文案吗？本次变更：${diffText}`)) return
-    officialPublishing.value = true
-    officialError.value = ''
-    try {
-      const result = await publishOfficialControlConfig(buildOfficialPublishValues())
-      currentOfficialRelease.value = result.current
-      officialReleases.value = result.releases
-      syncOfficialDraftFromRelease(result.current)
-      await store.loadAdminConfig()
-      captureAdminConfigBaseline()
-      showFloat(`官方 AI 文案已发布为 v${result.current.version}`, 'success')
-    } catch (error) {
-      officialError.value = error instanceof Error ? error.message : '发布官方 AI 文案失败'
-      showFloat(officialError.value, 'danger')
-    } finally {
-      officialPublishing.value = false
-    }
-  }
-
   const loadPanelData = async () => {
     await store.loadAdminConfig()
     captureAdminConfigBaseline()
-    loadOfficialDraftFromAdminConfig()
-    await loadOfficialControlData({ silent: true })
   }
 
   onMounted(() => {
@@ -746,9 +456,16 @@
       void loadPanelData()
     } else {
       captureAdminConfigBaseline()
-      loadOfficialDraftFromAdminConfig()
     }
   })
+
+  watch(
+    () => route.query.ai_panel,
+    value => {
+      activeAdminPanelPage.value = normalizeAiAdminPanelPage(value)
+    },
+    { immediate: true }
+  )
 </script>
 
 <style scoped>
@@ -777,6 +494,13 @@
     padding: 10px 12px;
     border: 1px solid rgba(200, 164, 92, 0.14);
     background: rgba(200, 164, 92, 0.06);
+  }
+
+  .ai-admin-panel__subnav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
   .ai-admin-panel__input,
@@ -890,8 +614,7 @@
     background: rgba(255, 255, 255, 0.03);
   }
 
-  .ai-admin-diff-list,
-  .ai-admin-release-list {
+  .ai-admin-diff-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -920,34 +643,6 @@
     color: rgb(var(--color-text));
   }
 
-  .ai-admin-official-auth {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .ai-admin-release-card {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 100%;
-    padding: 8px;
-    border: 1px solid rgba(200, 164, 92, 0.14);
-    background: rgba(255, 255, 255, 0.03);
-    color: rgb(var(--color-text));
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .ai-admin-release-card:hover {
-    border-color: rgba(200, 164, 92, 0.34);
-  }
-
-  .ai-admin-release-card small {
-    color: rgb(var(--color-muted));
-  }
-
   .ai-admin-panel__loading {
     padding: 24px 0;
     text-align: center;
@@ -958,10 +653,6 @@
 
   @media (max-width: 640px) {
     .ai-admin-diff-row {
-      grid-template-columns: 1fr;
-    }
-
-    .ai-admin-official-auth {
       grid-template-columns: 1fr;
     }
   }

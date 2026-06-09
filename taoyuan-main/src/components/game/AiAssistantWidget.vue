@@ -182,12 +182,13 @@
             </div>
           </div>
 
-          <div class="ai-panel__quick" role="group" aria-label="AI 助手快捷问题">
+          <div class="ai-panel__quick" role="group" aria-label="AI 助手快捷问题" data-testid="ai-quick-question-list">
             <button
               v-for="item in quickQuestions"
               :key="item"
               type="button"
               class="ai-quick-btn"
+              data-testid="ai-quick-question"
               :disabled="store.isAsking"
               :aria-label="`快捷问题：${item}`"
               @click="void submitQuestion(item)"
@@ -196,7 +197,7 @@
             </button>
           </div>
 
-          <div class="ai-panel__input">
+          <div class="ai-panel__input" data-testid="ai-assistant-input">
             <textarea
               v-model="draft"
               rows="3"
@@ -2106,8 +2107,13 @@
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
-    padding: 1px 2px 4px;
-    scrollbar-width: thin;
+    padding: 1px 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .ai-panel__quick::-webkit-scrollbar {
+    display: none;
   }
 
   .ai-quick-btn {
