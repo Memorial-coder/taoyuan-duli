@@ -7964,10 +7964,37 @@ router.post('/admin/taoyuan/ai/noun-lexicon/rebuild', adminAuth, async (req, res
   }
 });
 
+function normalizeAdminAiKnowledgePayload(payload = {}) {
+  return {
+    ...payload,
+    routeNames: payload.routeNames ?? payload.route_names,
+    sourceType: payload.sourceType ?? payload.source_type,
+    sourceRefs: payload.sourceRefs ?? payload.source_refs,
+    reviewStatus: payload.reviewStatus ?? payload.review_status,
+  };
+}
+
 router.get('/admin/taoyuan/ai/knowledge', adminAuth, (req, res) => {
   try {
+    const keyword = String(req.query.keyword || '').trim().toLowerCase();
+    const reviewStatus = String(req.query.review_status || req.query.reviewStatus || '').trim();
     const sourceType = String(req.query.source_type || '').trim();
-    const entries = taoyuanAiAssistant.listKnowledgeEntries().filter(entry => !sourceType || String(entry.sourceType || entry.source_type || '') === sourceType);
+    const entries = taoyuanAiAssistant
+      .listKnowledgeEntries()
+      .filter(entry => !sourceType || String(entry.sourceType || entry.source_type || '') === sourceType)
+      .filter(entry => !reviewStatus || String(entry.reviewStatus || entry.review_status || '') === reviewStatus)
+      .filter(entry => {
+        if (!keyword) return true;
+        const haystack = [
+          entry.title,
+          entry.content,
+          ...(entry.keywords || []),
+          ...(entry.routeNames || entry.route_names || []),
+          entry.sourceType || entry.source_type,
+          entry.reviewStatus || entry.review_status,
+        ].join('\n').toLowerCase();
+        return haystack.includes(keyword);
+      });
     res.json({ ok: true, entries });
   } catch (error) {
     res.status(500).json({ ok: false, msg: error.message || '获取 AI 知识库失败' });
@@ -7976,7 +8003,7 @@ router.get('/admin/taoyuan/ai/knowledge', adminAuth, (req, res) => {
 
 router.post('/admin/taoyuan/ai/knowledge', adminAuth, async (req, res) => {
   try {
-    const payload = moderateAdminAiKnowledgePayload(req.body || {}, req);
+    const payload = normalizeAdminAiKnowledgePayload(moderateAdminAiKnowledgePayload(req.body || {}, req));
     const entry = taoyuanAiAssistant.createKnowledgeEntry(payload);
     await appendAdminAuditLog(req, 'create_ai_knowledge', '', buildAiKnowledgeAuditDetail({
       afterEntry: entry,
@@ -7993,7 +8020,7 @@ router.put('/admin/taoyuan/ai/knowledge/:id', adminAuth, async (req, res) => {
     const beforeEntry = taoyuanAiAssistant
       .listKnowledgeEntries()
       .find(entry => String(entry.id) === String(req.params.id)) || null;
-    const payload = moderateAdminAiKnowledgePayload(req.body || {}, req, { contentId: req.params.id });
+    const payload = normalizeAdminAiKnowledgePayload(moderateAdminAiKnowledgePayload(req.body || {}, req, { contentId: req.params.id }));
     const entry = taoyuanAiAssistant.updateKnowledgeEntry(req.params.id, payload);
     await appendAdminAuditLog(req, 'update_ai_knowledge', '', buildAiKnowledgeAuditDetail({
       beforeEntry,
