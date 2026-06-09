@@ -25,9 +25,117 @@
     <!-- 村民 Tab -->
     <div v-if="activeTab === 'villager'">
       <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
+      <!-- 固定村民快捷区：手机端先给聊天和送礼入口，再展示长线关系信息。 -->
+      <div class="mb-3" data-testid="npc-quick-grid">
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-1.5 md:gap-2">
+          <div
+            v-for="npc in NPCS"
+            :key="npc.id"
+            class="relative border border-accent/20 rounded-xs p-2 pr-14 transition-colors min-h-[7.25rem] md:min-h-[5.75rem]"
+            :class="[npcAvailable(npc.id) ? 'cursor-pointer hover:bg-accent/5' : 'cursor-pointer opacity-70 hover:bg-accent/5', 'text-center md:text-left']"
+            :data-testid="`npc-quick-card-${npc.id}`"
+            @click="handleSelectNpc(npc.id)"
+          >
+            <div class="absolute right-1.5 top-1.5 z-10 flex items-center gap-1">
+              <Button
+                class="!h-7 !w-7 !px-0 !py-0 justify-center"
+                :icon="MessageCircle"
+                :icon-size="12"
+                :disabled="!canQuickTalkWithNpc(npc.id)"
+                :aria-label="`和${npc.name}聊天`"
+                :title="`和${npc.name}聊天`"
+                :data-testid="`npc-quick-talk-${npc.id}`"
+                @click.stop="handleQuickTalkNpc(npc.id)"
+              />
+              <Button
+                class="!h-7 !w-7 !px-0 !py-0 justify-center"
+                :icon="Gift"
+                :icon-size="12"
+                :disabled="!canQuickGiftWithNpc(npc.id)"
+                :aria-label="`给${npc.name}送礼`"
+                :title="`给${npc.name}送礼`"
+                :data-testid="`npc-quick-gift-${npc.id}`"
+                @click.stop="handleQuickGiftNpc(npc.id)"
+              />
+            </div>
+
+            <!-- 移动端：两列卡片，核心状态一眼能扫到。 -->
+            <div class="md:hidden">
+              <NpcPortrait
+                class="mx-auto mb-1"
+                :id="npc.id"
+                :name="npc.name"
+                :fallback-text="npc.name"
+                size="xs"
+              />
+              <p class="text-xs truncate" :class="levelColor(npcStore.getFriendshipLevel(npc.id))">
+                {{ npc.name }}
+              </p>
+              <p class="text-[0.625rem] text-muted truncate">
+                {{ npcStore.getRelationshipStageText(npc.id) }} · {{ npcStore.getScheduleStatus(npc.id).location }}
+              </p>
+              <p class="text-[0.625rem] flex items-center justify-center" :class="heartCount(npc.id) > 0 ? 'text-danger' : 'text-muted/30'">
+                {{ heartCount(npc.id) }}
+                <Heart :size="10" :fill="heartCount(npc.id) > 0 ? 'currentColor' : 'none'" />
+                <span class="text-muted/50 ml-0.5">{{ npcStore.getNpcState(npc.id)?.friendship ?? 0 }}</span>
+              </p>
+              <div class="flex items-center justify-center space-x-1 mt-0.5 min-h-3.5">
+                <MessageCircle :size="10" :class="npcStore.getNpcState(npc.id)?.talkedToday ? 'text-muted/20' : 'text-success'" />
+                <Gift :size="10" :class="npcGiftClass(npc.id)" />
+                <Heart v-if="npcStore.getNpcState(npc.id)?.married" :size="10" class="text-danger" />
+                <Heart v-else-if="npcStore.getNpcState(npc.id)?.dating" :size="10" class="text-danger/50" />
+                <Heart v-else-if="npcStore.getNpcState(npc.id)?.zhiji" :size="10" class="text-accent" />
+                <Heart v-else-if="npc.marriageable" :size="10" class="text-muted/30" />
+                <Cake v-if="npcStore.isBirthday(npc.id)" :size="10" class="text-danger" />
+              </div>
+            </div>
+
+            <!-- 桌面端：保留更完整的信息密度。 -->
+            <div class="hidden md:flex items-start gap-2">
+              <NpcPortrait
+                :id="npc.id"
+                :name="npc.name"
+                :fallback-text="npc.name"
+                size="sm"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs truncate" :class="levelColor(npcStore.getFriendshipLevel(npc.id))">
+                    {{ npc.name }}
+                    <span v-if="npcStore.getNpcState(npc.id)?.married" class="text-danger text-[0.625rem] ml-0.5">[伴侣]</span>
+                    <span v-else-if="npcStore.getNpcState(npc.id)?.dating" class="text-danger/70 text-[0.625rem] ml-0.5">[约会中]</span>
+                    <span v-else-if="npcStore.getNpcState(npc.id)?.zhiji" class="text-accent text-[0.625rem] ml-0.5">[知己]</span>
+                  </span>
+                </div>
+                <p class="text-[0.625rem] text-muted truncate">{{ npc.role }}</p>
+                <p class="text-[0.625rem] text-muted/70 truncate">
+                  {{ npcStore.getRelationshipStageText(npc.id) }} · {{ npcStore.getScheduleStatus(npc.id).location }}
+                </p>
+                <div class="flex items-center justify-between mt-0.5">
+                  <div class="flex items-center space-x-px">
+                    <Heart
+                      v-for="h in 10"
+                      :key="h"
+                      :size="10"
+                      class="flex-shrink-0"
+                      :class="(npcStore.getNpcState(npc.id)?.friendship ?? 0) >= h * 250 ? 'text-danger' : 'text-muted/30'"
+                      :fill="(npcStore.getNpcState(npc.id)?.friendship ?? 0) >= h * 250 ? 'currentColor' : 'none'"
+                    />
+                  </div>
+                  <span class="text-[0.625rem] text-muted/50">{{ npcStore.getNpcState(npc.id)?.friendship ?? 0 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <GuidanceDigestPanel surface-id="npc" title="陪伴关系引导" />
       <QaGovernancePanel page-id="npc" title="陪伴治理总览" />
-      <FamilyRelationGraph @select-npc="handleSelectNpc" />
+      <FamilyRelationGraph
+        @select-npc="handleSelectNpc"
+        @quick-talk-npc="handleQuickTalkNpc"
+        @quick-gift-npc="handleQuickGiftNpc"
+      />
 
       <div class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
@@ -958,92 +1066,6 @@
             <p class="text-[0.625rem] text-muted leading-4 mt-0.5">
               旧信消耗 {{ randomNpcOldLetterItemName }}×{{ randomNpcOldLetterCostQuantity }}；旧物消耗 {{ randomNpcOldKeepsakeItemName }}×{{ randomNpcOldKeepsakeCostQuantity }}；节会重逢需今日有节会（{{ randomNpcFestivalReunionEventName }}），仍受本周短访 / 长住名额上限约束。
             </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- NPC 网格：移动端紧凑，桌面端详细 -->
-      <div class="grid grid-cols-4 md:grid-cols-3 gap-1.5 md:gap-2">
-        <div
-          v-for="npc in NPCS"
-          :key="npc.id"
-          class="border border-accent/20 rounded-xs p-1.5 md:p-2 transition-colors"
-          :class="[npcAvailable(npc.id) ? 'cursor-pointer hover:bg-accent/5' : 'opacity-50', 'text-center md:text-left']"
-          @click="handleSelectNpc(npc.id)"
-        >
-          <!-- 移动端：紧凑布局 -->
-          <div class="md:hidden">
-            <NpcPortrait
-              class="mx-auto mb-1"
-              :id="npc.id"
-              :name="npc.name"
-              :fallback-text="npc.name"
-              size="xs"
-            />
-            <p class="text-xs truncate" :class="levelColor(npcStore.getFriendshipLevel(npc.id))">
-              {{ npc.name }}
-            </p>
-            <p class="text-[0.625rem] text-muted truncate">
-              {{ npcStore.getRelationshipStageText(npc.id) }} · {{ npcStore.getScheduleStatus(npc.id).location }}
-            </p>
-            <p class="text-[0.625rem] flex items-center justify-center" :class="heartCount(npc.id) > 0 ? 'text-danger' : 'text-muted/30'">
-              {{ heartCount(npc.id) }}
-              <Heart :size="10" :fill="heartCount(npc.id) > 0 ? 'currentColor' : 'none'" />
-              <span class="text-muted/50 ml-0.5">{{ npcStore.getNpcState(npc.id)?.friendship ?? 0 }}</span>
-            </p>
-            <div class="flex items-center justify-center space-x-1 mt-0.5 min-h-3.5">
-              <MessageCircle :size="10" :class="npcStore.getNpcState(npc.id)?.talkedToday ? 'text-muted/20' : 'text-success'" />
-              <Gift :size="10" :class="npcGiftClass(npc.id)" />
-              <Heart v-if="npcStore.getNpcState(npc.id)?.married" :size="10" class="text-danger" />
-              <Heart v-else-if="npcStore.getNpcState(npc.id)?.dating" :size="10" class="text-danger/50" />
-              <Heart v-else-if="npcStore.getNpcState(npc.id)?.zhiji" :size="10" class="text-accent" />
-              <Heart v-else-if="npc.marriageable" :size="10" class="text-muted/30" />
-              <Cake v-if="npcStore.isBirthday(npc.id)" :size="10" class="text-danger" />
-            </div>
-          </div>
-          <!-- 桌面端：显示更多信息 -->
-          <div class="hidden md:flex items-start gap-2">
-            <NpcPortrait
-              :id="npc.id"
-              :name="npc.name"
-              :fallback-text="npc.name"
-              size="sm"
-            />
-            <div class="min-w-0 flex-1">
-            <div class="flex items-center justify-between">
-              <span class="text-xs" :class="levelColor(npcStore.getFriendshipLevel(npc.id))">
-                {{ npc.name }}
-                <span v-if="npcStore.getNpcState(npc.id)?.married" class="text-danger text-[0.625rem] ml-0.5">[伴侣]</span>
-                <span v-else-if="npcStore.getNpcState(npc.id)?.dating" class="text-danger/70 text-[0.625rem] ml-0.5">[约会中]</span>
-                <span v-else-if="npcStore.getNpcState(npc.id)?.zhiji" class="text-accent text-[0.625rem] ml-0.5">[知己]</span>
-              </span>
-              <div class="flex items-center space-x-1">
-                <MessageCircle :size="10" :class="npcStore.getNpcState(npc.id)?.talkedToday ? 'text-muted/20' : 'text-success'" />
-                <Gift :size="10" :class="npcGiftClass(npc.id)" />
-                <span v-if="npc.marriageable" class="text-danger/50">
-                  <Heart :size="10" />
-                </span>
-                <Cake v-if="npcStore.isBirthday(npc.id)" :size="10" class="text-danger" />
-              </div>
-            </div>
-            <p class="text-[0.625rem] text-muted truncate">{{ npc.role }}</p>
-            <p class="text-[0.625rem] text-muted/70 truncate">
-              {{ npcStore.getRelationshipStageText(npc.id) }} · {{ npcStore.getScheduleStatus(npc.id).location }}
-            </p>
-            <div class="flex items-center justify-between mt-0.5">
-              <div class="flex items-center space-x-px">
-                <Heart
-                  v-for="h in 10"
-                  :key="h"
-                  :size="10"
-                  class="flex-shrink-0"
-                  :class="(npcStore.getNpcState(npc.id)?.friendship ?? 0) >= h * 250 ? 'text-danger' : 'text-muted/30'"
-                  :fill="(npcStore.getNpcState(npc.id)?.friendship ?? 0) >= h * 250 ? 'currentColor' : 'none'"
-                />
-              </div>
-              <span class="text-[0.625rem] text-muted/50">{{ npcStore.getNpcState(npc.id)?.friendship ?? 0 }}</span>
-            </div>
-            </div>
           </div>
         </div>
       </div>
