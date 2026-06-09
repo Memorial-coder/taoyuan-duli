@@ -1177,8 +1177,9 @@ async function main() {
       const mineEntry = page.getByTestId('online-orders-mine-entry').filter({ hasText: orderTitle }).first()
       await expect(mineEntry.getByTestId('online-orders-confirm-submit')).toBeVisible({ timeout: 10000 })
       await mineEntry.getByTestId('online-orders-confirm-submit').click()
-      await expect(page.getByTestId('online-orders-action-confirm')).toBeVisible({ timeout: 10000 })
-      await page.getByTestId('online-orders-action-confirm').getByTestId('online-confirm-action-dialog-confirm').click()
+      await expect(page.getByTestId('online-orders-action-confirm')).toHaveCount(1)
+      await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-confirm-action-dialog-confirm').click()
 
       let compensationId = ''
       await expect.poll(async () => {
@@ -1204,8 +1205,9 @@ async function main() {
       const compensationEntry = page.getByTestId('online-orders-compensation-entry').filter({ hasText: compensationId }).first()
       await expect(compensationEntry.getByTestId('online-orders-compensation-retry-submit')).toBeVisible({ timeout: 10000 })
       await compensationEntry.getByTestId('online-orders-compensation-retry-submit').click()
-      await expect(page.getByTestId('online-orders-action-confirm')).toBeVisible({ timeout: 10000 })
-      await page.getByTestId('online-orders-action-confirm').getByTestId('online-confirm-action-dialog-confirm').click()
+      await expect(page.getByTestId('online-orders-action-confirm')).toHaveCount(1)
+      await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-confirm-action-dialog-confirm').click()
 
       await expect.poll(async () => {
         const overview = await readCoopOrderOverview(owner)
@@ -1532,16 +1534,21 @@ async function main() {
 
       await page.goto(`${frontendBaseURL}/#/game/online/society`)
       await expect(page.getByTestId('online-society-page')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-society-create-trigger').click()
       await expect(page.getByTestId('online-society-create-name-input')).toBeVisible({ timeout: 10000 })
       await page.getByTestId('online-society-create-name-input').fill(societyName)
       await page.getByTestId('online-society-create-summary-input').fill(societySummary)
       await page.getByTestId('online-society-create-notice-input').fill(societyNotice)
+      await page.getByTestId('online-society-create-next').click()
       await page.getByTestId('online-society-create-emblem-select').selectOption('lantern_medallion')
       await page.getByTestId('online-society-create-theme-select').selectOption('festival_hosts')
+      await page.getByTestId('online-society-create-next').click()
       await page.getByTestId('online-society-create-visibility-select').selectOption('semi_public')
       await page.getByTestId('online-society-create-capacity-select').selectOption('24')
+      await page.getByTestId('online-society-create-next').click()
       await page.getByTestId('online-society-create-join-requirement-select').selectOption('friends_recommended')
       await page.getByTestId('online-society-create-join-note-input').fill(joinNote)
+      await page.getByTestId('online-society-create-next').click()
       await page.getByTestId('online-society-create-submit').click()
 
       let societyId = ''
@@ -1564,7 +1571,9 @@ async function main() {
 
       await page.getByTestId('online-module-tab-members').click()
       await page.getByTestId('online-module-refresh-button').click()
-      await expect(page.getByTestId(`online-society-managed-request-accept-${joinRequest.id}`)).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId(`online-society-managed-request-detail-${joinRequest.id}`)).toBeVisible({ timeout: 10000 })
+      await page.getByTestId(`online-society-managed-request-detail-${joinRequest.id}`).click()
+      await expect(page.getByTestId('online-society-request-detail-sheet')).toBeVisible({ timeout: 10000 })
       await page.getByTestId(`online-society-managed-request-accept-${joinRequest.id}`).click()
       await expect.poll(async () => {
         const ownerOverview = await readSocietyOverview(owner)
@@ -1613,6 +1622,8 @@ async function main() {
       assert(getInventoryItemQuantity(afterProjectSave.data, 'wood') === beforeProjectWood - 1, 'society public project did not deduct owner wood')
 
       await page.getByTestId('online-module-tab-proposals').click()
+      await expect(page.getByTestId('online-society-proposal-create-trigger')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-society-proposal-create-trigger').click()
       await expect(page.getByTestId('online-society-proposal-title-input')).toBeVisible({ timeout: 10000 })
       await page.getByTestId('online-society-proposal-title-input').fill(proposalTitle)
       await page.getByTestId('online-society-proposal-kind-select').selectOption('festival')

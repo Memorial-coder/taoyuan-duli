@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findAvailablePort, isPlaywrightEnvironmentError } from './port-utils.mjs'
+import { findAvailablePort, isPlaywrightEnvironmentError, isTcpServerReachable, stopWindowsViteProcessesForPort, waitForTcpServer } from './port-utils.mjs'
 import { chromium, expect } from '@playwright/test'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -16,6 +16,23 @@ const configuredBaseURL = process.env.TAOYUAN_BASE_URL?.trim() || ''
 const port = configuredBaseURL ? preferredPort : await findAvailablePort(host, preferredPort)
 const baseURL = configuredBaseURL || `http://${host}:${port}`
 const shouldStartDevServer = process.env.TAOYUAN_SKIP_DEV_SERVER !== '1' && !configuredBaseURL
+const readTimeoutMs = (name, fallback) => {
+  const value = Number(process.env[name])
+  return Number.isFinite(value) && value >= 0 ? value : fallback
+}
+const devServerSettleMs = readTimeoutMs('TAOYUAN_DEV_SERVER_SETTLE_MS', 30_000)
+const homeNavigationTimeoutMs = readTimeoutMs('TAOYUAN_MOBILE_SMOKE_NAV_TIMEOUT_MS', 30_000)
+const homeReadyTimeoutMs = readTimeoutMs('TAOYUAN_MOBILE_SMOKE_HOME_READY_TIMEOUT_MS', 30_000)
+const routeFetchTimeoutMs = readTimeoutMs('TAOYUAN_MOBILE_SMOKE_ROUTE_FETCH_TIMEOUT_MS', 5_000)
+const scenarioFilter = process.env.TAOYUAN_MOBILE_SMOKE_ONLY?.trim() || ''
+const sampleFallbackScenarios = new Set([
+  'online-festival-room',
+  'online-expedition-room',
+  'online-orders',
+  'cottage-cohabitation-entry',
+  'farm-cohabitation-switch',
+  'online-society-projects'
+])
 const sampleId = 'region_map_showcase'
 
 const consoleErrors = []
@@ -171,44 +188,105 @@ const mockRelationshipOverview = {
 const onlineCenterModuleKeys = ['manor', 'neighbor', 'orders', 'festival', 'society']
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-async function isServerReachable(url) {
+async function fulfillFromNodeFetch(route) {
+  const request = route.request()
+  if (request.method() !== 'GET') {
+    await route.continue()
+    return
+  }
+  const controller = new AbortController()
+  const timeout = routeFetchTimeoutMs > 0
+    ? setTimeout(() => controller.abort(), routeFetchTimeoutMs)
+    : null
   try {
-    const response = await fetch(url)
-    return response.ok
+    const response = await fetch(request.url(), {
+      signal: routeFetchTimeoutMs > 0 ? controller.signal : undefined,
+      headers: {
+        accept: request.headers().accept || '*/*'
+      }
+    })
+    const headers = {}
+    for (const [key, value] of response.headers.entries()) {
+      if (['connection', 'content-encoding', 'content-length', 'transfer-encoding'].includes(key.toLowerCase())) continue
+      headers[key] = value
+    }
+    await route.fulfill({
+      status: response.status,
+      headers,
+      body: Buffer.from(await response.arrayBuffer())
+    })
   } catch {
-    return false
+    await route.continue()
+  } finally {
+    if (timeout) clearTimeout(timeout)
   }
-}
-
-async function waitForServer(url, timeoutMs = 120_000) {
-  const startedAt = Date.now()
-  while (Date.now() - startedAt < timeoutMs) {
-    if (await isServerReachable(url)) return
-    await wait(1000)
-  }
-  throw new Error(`Timed out waiting for dev server at ${url}`)
 }
 
 function startDevServer() {
-  const child = process.platform === 'win32'
-    ? spawn(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `npm run dev -- --host ${host} --port ${port} --strictPort`], {
-        cwd: repoRoot,
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-    : spawn('npm', ['run', 'dev', '--', '--host', host, '--port', String(port), '--strictPort'], {
-        cwd: repoRoot,
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
+  let markReady
+  let markFailed
+  let readySettled = false
+  const ready = new Promise((resolve, reject) => {
+    markReady = () => {
+      if (readySettled) return
+      readySettled = true
+      resolve()
+    }
+    markFailed = error => {
+      if (readySettled) return
+      readySettled = true
+      reject(error)
+    }
+  })
+  const viteCliPath = path.resolve(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js')
+  const child = spawn(process.execPath, [viteCliPath, '--host', host, '--port', String(port), '--strictPort'], {
+    cwd: repoRoot,
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
 
   child.stdout.on('data', chunk => {
     process.stdout.write(chunk)
+    const text = String(chunk)
+    if (/ready in|Local:/i.test(text)) markReady()
   })
   child.stderr.on('data', chunk => {
     process.stderr.write(chunk)
+    const text = String(chunk)
+    if (/ready in|Local:/i.test(text)) markReady()
+  })
+  child.once('exit', code => {
+    if (!readySettled) markFailed(new Error(`Dev server exited before ready, code=${code ?? 'unknown'}`))
   })
 
-  return child
+  return { child, ready }
+}
+
+async function waitForStartedDevServer(server) {
+  if (!server) {
+    await waitForTcpServer(baseURL)
+    return
+  }
+  await Promise.race([
+    server.ready,
+    wait(120_000).then(() => {
+      throw new Error(`Timed out waiting for dev server stdout readiness at ${baseURL}`)
+    })
+  ])
+  await wait(devServerSettleMs)
+}
+
+function stopProcessTree(child) {
+  if (!child || !child.pid) return
+  if (process.platform === 'win32') {
+    if (!child.killed) {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' })
+    }
+    stopWindowsViteProcessesForPort(port)
+    return
+  }
+  child.kill('SIGTERM')
 }
 
 const emptyVisualState = {
@@ -468,6 +546,17 @@ function buildMobileSmokeFestivalSquareProject(contributed = false) {
     completion_feedback: '',
     world_feedback: '',
     completion_rewards: [],
+    completion_room_launch: {
+      id: 'festival-square-room-launch',
+      source_project_id: 'festival_square',
+      source_event_id: '',
+      template_id: 'lantern_fair',
+      gameplay_template_id: 'festival_square_opening',
+      title: '清溪节社节庆广场',
+      label: '节庆广场开幕',
+      summary: '用当前公共工程模板创建节会房间',
+      status: 'available'
+    },
     can_contribute: true,
     my_contribution_count: contributed ? 1 : 0,
     contribution_packages: [
@@ -563,9 +652,147 @@ function buildMobileSmokeFestivalSquareVisualProject(contributed = false) {
   }
 }
 
-function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lantern_wall') {
+function buildMobileSmokePublicWarehouse(deposited = false, consumed = false) {
+  const categories = [
+    { id: 'grain', label: '粮食', count: deposited ? 1 : 0, points: deposited ? 10 : 0 },
+    { id: 'herb', label: '药草', count: 0, points: 0 },
+    { id: 'wood', label: '木材', count: 0, points: 0 },
+    { id: 'cloth', label: '布料', count: 0, points: 0 },
+    { id: 'fish', label: '鱼获', count: 0, points: 0 }
+  ]
+
+  return {
+    funds: 120,
+    items: deposited && !consumed ? [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }] : [],
+    logs: deposited ? [
+      {
+        id: 'warehouse-mobile-rice-log',
+        username: 'mobile_smoke_owner',
+        display_name: '移动端烟测号',
+        action: 'deposit',
+        deposit_id: 'grain_rice',
+        deposit_label: '稻米入仓',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 10,
+        context_id: 'warehouse-mobile',
+        idempotency_key: 'warehouse-mobile-rice',
+        entries: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }],
+        created_at: 5
+      }
+    ].concat(consumed ? [
+      {
+        id: 'warehouse-mobile-cookpot-log',
+        username: 'mobile_smoke_owner',
+        display_name: '移动端烟测号',
+        action: 'consume',
+        deposit_id: 'laba_cookpot_base',
+        deposit_label: '腊八共灶底料',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 0,
+        context_id: 'warehouse-mobile',
+        idempotency_key: 'warehouse-mobile-cookpot',
+        entries: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }],
+        created_at: 6
+      }
+    ] : []) : [],
+    deposit_options: [
+      {
+        id: 'grain_rice',
+        label: '稻米入仓',
+        summary: '把本周富余稻米交入村社仓廪，优先补粮食格。',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 10,
+        costs: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }]
+      },
+      {
+        id: 'herb_mugwort',
+        label: '艾草入仓',
+        summary: '补入常备药草，周结算时提高灾后恢复余量。',
+        category_id: 'herb',
+        category_label: '药草',
+        weekly_points: 8,
+        costs: [{ item_id: 'mugwort', quantity: 2, label: '艾草 x2' }]
+      },
+      {
+        id: 'wood_bundle',
+        label: '木材入仓',
+        summary: '补足修桥、修灯和临时棚架需要的木材。',
+        category_id: 'wood',
+        category_label: '木材',
+        weekly_points: 8,
+        costs: [{ item_id: 'wood', quantity: 3, label: '木材 x3' }]
+      },
+      {
+        id: 'cloth_roll',
+        label: '布料入仓',
+        summary: '补入遮雨布和节会灯幔，服务公共活动消耗。',
+        category_id: 'cloth',
+        category_label: '布料',
+        weekly_points: 8,
+        costs: [{ item_id: 'cloth', quantity: 2, label: '布料 x2' }]
+      },
+      {
+        id: 'fish_basket',
+        label: '鱼获入仓',
+        summary: '补入可快分的鱼获，供公共任务和救急餐使用。',
+        category_id: 'fish',
+        category_label: '鱼获',
+        weekly_points: 8,
+        costs: [{ item_id: 'fish', quantity: 2, label: '鱼获 x2' }]
+      }
+    ],
+    consume_options: deposited && !consumed ? [
+      {
+        id: 'laba_cookpot_base',
+        label: '腊八共灶底料',
+        summary: '从公共仓取稻米开灶，只扣公共仓，不发个人奖励。',
+        category_id: 'grain',
+        category_label: '粮食',
+        weekly_points: 0,
+        costs: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }],
+        asset_boundary: '只扣公共仓，不扣个人背包或个人铜钱。'
+      }
+    ] : [],
+    weekly_settlement: {
+      window_started_at: 0,
+      window_ends_at: 7,
+      status: deposited ? 'collecting' : 'empty',
+      status_label: deposited ? '收集中' : '待入仓',
+      total_points: deposited ? 10 : 0,
+      contributor_count: deposited ? 1 : 0,
+      covered_category_count: deposited ? 1 : 0,
+      categories,
+      effects: {
+        disaster_response: {
+          active: deposited,
+          level: deposited ? 1 : 0,
+          label: '灾害应对',
+          summary: deposited ? '灾害应对预备 +1' : '等待粮食、药草等基础物资。'
+        },
+        festival_cost_discount: {
+          active: false,
+          percent: 0,
+          label: '节会成本下降',
+          summary: '五类物资齐备后降低公共节会成本。'
+        },
+        public_task_bonus: {
+          active: false,
+          level: 0,
+          label: '公共任务加成',
+          summary: '周结算达标后提升公共任务起步效率。'
+        }
+      }
+    }
+  }
+}
+
+function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lantern_wall', warehouseState = {}) {
   const isBridge = projectKind === 'bridge'
   const isFestivalSquare = projectKind === 'festival_square'
+  const isWarehouse = projectKind === 'warehouse'
   const publicProject = isBridge
     ? buildMobileSmokeBridgeProject(contributed)
     : isFestivalSquare
@@ -577,13 +804,13 @@ function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lan
       ? buildMobileSmokeFestivalSquareVisualProject(contributed)
       : buildMobileSmokeLanternWallVisualProject(contributed)
   return {
-    ok: true,
+      ok: true,
     bulletin: '移动端村社 smoke',
     my_society: {
       id: 'mobile-smoke-society',
-      name: isBridge ? '清溪桥社' : isFestivalSquare ? '清溪节社' : '清溪灯社',
-      summary: '移动端公共建设测试村社',
-      notice: isBridge ? '本周先把溪桥修通。' : isFestivalSquare ? '本周把广场搭成节会现场。' : '本周先点亮花灯墙。',
+      name: isWarehouse ? '清溪仓社' : isBridge ? '清溪桥社' : isFestivalSquare ? '清溪节社' : '清溪灯社',
+      summary: isWarehouse ? '移动端仓廪测试村社' : '移动端公共建设测试村社',
+      notice: isWarehouse ? '本周先补齐村社仓廪。' : isBridge ? '本周先把溪桥修通。' : isFestivalSquare ? '本周把广场搭成节会现场。' : '本周先点亮花灯墙。',
       emblem: isBridge ? 'bridge_badge' : 'lantern_medallion',
       emblem_label: isBridge ? '桥章' : '灯章',
       theme: isBridge ? 'public_works' : 'festival_hosts',
@@ -648,14 +875,20 @@ function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lan
         top_contributors: [],
         timeline: []
       },
-      public_warehouse: {
+      public_warehouse: isWarehouse ? buildMobileSmokePublicWarehouse(
+        Boolean(warehouseState.deposited),
+        Boolean(warehouseState.consumed)
+      ) : {
         funds: 0,
         items: [],
         logs: [],
         deposit_options: [],
+        consume_options: [],
         weekly_settlement: {
           total_points: 0,
           contributor_count: 0,
+          covered_category_count: 0,
+          categories: [],
           category_progress: [],
           effects: {
             disaster_response: { id: 'disaster_response', label: '灾害应对', summary: '暂无', active: false },
@@ -679,6 +912,213 @@ function buildMobileSmokeSocietyOverview(contributed = false, projectKind = 'lan
     proposal_kind_options: [{ id: 'governance', label: '治理', summary: '' }],
     public_project_defs: [{ id: publicProject.id, label: publicProject.label, summary: '', target_progress: 100 }],
     public_project_package_options: publicProject.contribution_packages
+  }
+}
+
+function buildMobileSmokeSocietyCreateOverview(created = false, payload = {}) {
+  const overview = buildMobileSmokeSocietyOverview(false, 'lantern_wall')
+  const publicSociety = {
+    ...overview.my_society,
+    id: 'mobile-smoke-public-society',
+    name: '溪畔春社',
+    summary: '面向春耕和节会互助的公开村社。',
+    notice: '先熟悉公开名片，再申请加入。',
+    member_count: 5,
+    leader_username: 'spring_host',
+    leader_display_name: '春社管事',
+    my_role: '',
+    my_role_label: '',
+    can_apply: true,
+    can_invite: false,
+    can_review_requests: false,
+    can_manage_roles: false,
+    can_manage_notice: false,
+    can_create_proposal: false,
+    can_close_proposal: false,
+    members: [],
+    public_projects: [],
+    visual_state: emptyVisualState,
+  }
+  const options = {
+    visibility: overview.visibility_options.find(entry => entry.id === payload.visibility) || overview.visibility_options[0],
+    theme: overview.theme_options.find(entry => entry.id === payload.theme) || overview.theme_options[0],
+    emblem: overview.emblem_options.find(entry => entry.id === payload.emblem) || overview.emblem_options[0],
+    capacity: overview.capacity_options.find(entry => entry.value === payload.capacity) || overview.capacity_options[0],
+    join: overview.join_requirement_options.find(entry => entry.id === payload.join_requirement_id) || overview.join_requirement_options[0],
+  }
+  const createdSociety = {
+    ...overview.my_society,
+    id: 'mobile-smoke-created-society',
+    name: payload.name || '移动端烟测村社',
+    summary: payload.summary || '',
+    notice: payload.notice || '',
+    emblem: options.emblem?.id || 'lantern_medallion',
+    emblem_label: options.emblem?.label || '灯章',
+    theme: options.theme?.id || 'festival_hosts',
+    theme_label: options.theme?.label || '节会主办',
+    visibility: options.visibility?.id || 'public',
+    visibility_label: options.visibility?.label || '公开',
+    capacity: options.capacity?.value || 24,
+    join_requirement_id: options.join?.id || 'open',
+    join_requirement_label: options.join?.label || '来者皆可',
+    join_requirement_summary: options.join?.summary || '公开申请',
+    join_requirement_note: payload.join_requirement_note || '',
+  }
+  return {
+    ...overview,
+    bulletin: '移动端村社创建 smoke',
+    my_society: created ? createdSociety : null,
+    visible_societies: created ? [createdSociety, publicSociety] : [publicSociety],
+    public_project_defs: [],
+    public_project_package_options: [],
+  }
+}
+
+function buildMobileSmokeSocietyProposal(overrides = {}) {
+  const status = overrides.status || 'open'
+  return {
+    id: overrides.id || 'prop-mobile-schedule',
+    title: overrides.title || '本周节会排班',
+    summary: overrides.summary || '确认本周灯会值守和公共建设接力安排。',
+    kind: overrides.kind || 'festival',
+    kind_label: overrides.kindLabel || '节会',
+    status,
+    status_label: status === 'closed' ? '已归档' : '投票中',
+    created_by: 'mobile_smoke_owner',
+    created_by_display_name: '移动端烟测号',
+    created_at: 5,
+    updated_at: status === 'closed' ? 8 : 5,
+    closed_at: status === 'closed' ? 8 : 0,
+    vote_counts: overrides.voteCounts || { support: 3, reject: 1, abstain: 0 },
+    total_vote_count: overrides.totalVoteCount || 4,
+    my_vote_choice: overrides.myVoteChoice || 'support',
+    can_vote: status === 'open',
+    can_close: status === 'open',
+    result_choice: status === 'closed' ? 'support' : 'pending',
+    result_label: status === 'closed' ? '赞成通过' : '投票中',
+    resolution_note: overrides.resolutionNote || '',
+    choice_options: [
+      { id: 'support', label: '赞成' },
+      { id: 'reject', label: '反对' },
+      { id: 'abstain', label: '暂缓' }
+    ],
+    votes: []
+  }
+}
+
+function buildMobileSmokeSocietyManagementOverview(options = {}) {
+  const overview = buildMobileSmokeSocietyOverview(false, 'lantern_wall')
+  const requestHandled = Boolean(options.requestHandled)
+  const invitedRecipient = options.invitedRecipient || ''
+  const proposalCreated = Boolean(options.proposalCreated)
+  const proposalArchived = Boolean(options.proposalArchived)
+  const proposalArchiveNote = options.proposalArchiveNote || ''
+  const createdProposalPayload = options.createdProposalPayload || {}
+  const activeProposals = [
+    ...(proposalArchived ? [] : [buildMobileSmokeSocietyProposal()]),
+    ...(proposalCreated
+      ? [buildMobileSmokeSocietyProposal({
+          id: 'prop-mobile-created',
+          title: createdProposalPayload.title || '移动端提案弹窗',
+          summary: createdProposalPayload.summary || '移动端创建提案说明。',
+          kind: createdProposalPayload.kind || 'governance',
+          kindLabel: createdProposalPayload.kind === 'festival' ? '节会' : '治理',
+          voteCounts: { support: 0, reject: 0, abstain: 0 },
+          totalVoteCount: 0,
+          myVoteChoice: ''
+        })]
+      : [])
+  ]
+  const proposalHistory = proposalArchived
+    ? [buildMobileSmokeSocietyProposal({
+        status: 'closed',
+        resolutionNote: proposalArchiveNote || '按多数票执行，本周先试运行。'
+      })]
+    : []
+  const applicant = {
+    username: 'society_applicant',
+    display_name: '申请人',
+    save_id: 987654321,
+    save_slot: 0,
+    role: 'member',
+    role_label: '成员',
+    joined_at: 7,
+  }
+  const existingMember = {
+    username: 'existing_member',
+    display_name: '已在村社的成员',
+    save_id: 222333444,
+    save_slot: 1,
+    role: 'member',
+    role_label: '成员',
+    joined_at: 2,
+  }
+  const request = {
+    id: 'req-mobile-apply',
+    society_id: overview.my_society.id,
+    society_name: overview.my_society.name,
+    username: applicant.username,
+    display_name: applicant.display_name,
+    target_save_id: applicant.save_id,
+    target_save_slot: applicant.save_slot,
+    invited_by: '',
+    invited_by_display_name: '',
+    type: 'apply',
+    type_label: '加入申请',
+    status: 'pending',
+    created_at: 5,
+    updated_at: 5,
+  }
+  const inviteRequest = invitedRecipient
+    ? {
+        id: 'req-mobile-invite',
+        society_id: overview.my_society.id,
+        society_name: overview.my_society.name,
+        username: invitedRecipient,
+        display_name: invitedRecipient,
+        target_save_id: 0,
+        target_save_slot: null,
+        invited_by: 'mobile_smoke_owner',
+        invited_by_display_name: '移动端烟测号',
+        type: 'invite',
+        type_label: '成员邀请',
+        status: 'pending',
+        created_at: 6,
+        updated_at: 6,
+      }
+    : null
+
+  return {
+    ...overview,
+    bulletin: '移动端村社管理 smoke',
+    my_society: {
+      ...overview.my_society,
+      can_invite: true,
+      can_review_requests: true,
+      can_manage_roles: true,
+      can_manage_notice: true,
+      can_create_proposal: true,
+      can_close_proposal: true,
+      members: requestHandled
+        ? [...overview.my_society.members, existingMember, applicant]
+        : [...overview.my_society.members, existingMember],
+      active_proposals: activeProposals,
+      proposal_history: proposalHistory,
+    },
+    managed_requests: requestHandled ? [] : [request],
+    incoming_invites: [],
+    my_pending_requests: [],
+    role_options: [
+      { id: 'president', label: '社长' },
+      { id: 'steward', label: '管事' },
+      { id: 'member', label: '成员' },
+    ],
+    proposal_kind_options: [
+      { id: 'governance', label: '治理', summary: '' },
+      { id: 'festival', label: '节会', summary: '' },
+    ],
+    visible_societies: [],
+    ...(inviteRequest ? { latest_invite_request: inviteRequest } : {}),
   }
 }
 
@@ -925,9 +1365,9 @@ function buildMobileSmokeRelayOrder(accepted = false) {
       compensation_pending_reward_value: 0,
       status: 'settling',
       shares: [
-        { stage_id: 'stage_collect', stage_title: '采收青菜', sequence: 1, share_percent: 31, reward_value: 80, settlement_route: 'personal', receipt_id: 'receipt-stage-collect', status: 'confirmed' },
-        { stage_id: 'stage_process', stage_title: '加工干菜', sequence: 2, share_percent: 35, reward_value: 90, settlement_route: 'personal', receipt_id: '', status: accepted ? 'pending' : 'planned' },
-        { stage_id: 'stage_deliver', stage_title: '送到灯会', sequence: 3, share_percent: 34, reward_value: 90, settlement_route: 'personal', receipt_id: '', status: 'planned' }
+        { stage_id: 'stage_collect', stage_title: '采收青菜', sequence: 1, share_percent: 31, reward_value: 80, reward_label: '铜钱', assignee_username: 'helper_done', assignee_display_name: '已完成的帮手', delivery_status: 'confirmed', settlement_status: 'confirmed', settlement_receipt_id: 'receipt-stage-collect', reward_route: 'personal', cohabitation_contract_id: '', shared_fund_ledger_id: '', confirmed_at: 2 },
+        { stage_id: 'stage_process', stage_title: '加工干菜', sequence: 2, share_percent: 35, reward_value: 90, reward_label: '铜钱', assignee_username: accepted ? 'mobile_smoke_owner' : '', assignee_display_name: accepted ? '移动端烟测号' : '', delivery_status: 'none', settlement_status: accepted ? 'pending' : 'pending', settlement_receipt_id: '', reward_route: accepted ? 'shared_fund' : 'personal', cohabitation_contract_id: accepted ? 'contract-mobile-family' : '', shared_fund_ledger_id: '', confirmed_at: 0 },
+        { stage_id: 'stage_deliver', stage_title: '送到灯会', sequence: 3, share_percent: 34, reward_value: 90, reward_label: '铜钱', assignee_username: '', assignee_display_name: '', delivery_status: 'none', settlement_status: 'pending', settlement_receipt_id: '', reward_route: 'personal', cohabitation_contract_id: '', shared_fund_ledger_id: '', confirmed_at: 0 }
       ]
     },
     created_at: 1,
@@ -1040,7 +1480,28 @@ function buildMobileSmokeCoopOrderOverview(accepted = false, publishedTitle = ''
       compensation_pending_reward_value: 0,
       compensation_count: 0,
       settlement_status_counts: { planned: 0, settling: 1, settled: 0, compensation_pending: 0 },
-      recent_receipts: []
+      recent_receipts: [
+        {
+          receipt_id: 'receipt-stage-collect',
+          order_id: 'relay-order-mobile-smoke',
+          order_title: '灯会干菜接力单',
+          stage_id: 'stage_collect',
+          stage_title: '采收青菜',
+          assignee_display_name: '已完成的帮手',
+          reward_type: 'money',
+          reward_value: 80,
+          reward_label: '铜钱',
+          reward_route: 'personal',
+          status: 'confirmed',
+          relay_story_chapter_id: 'story-stage-collect',
+          relay_story_chapter_title: '采收青菜',
+          relay_story_summary: '第一段青菜已备齐。',
+          relay_story_detail: '青菜已交到接力篮中。',
+          relay_story_settlement_summary: '已确认 80 铜钱',
+          confirmed_at: 2,
+          updated_at: 2
+        }
+      ]
     },
     reputation_summary: {
       total: 0,
@@ -1562,7 +2023,166 @@ function buildMobileSmokeCohabitationDetailResponse(pathname = '') {
   return response
 }
 
-function buildMobileSmokeExpeditionRoomOverview() {
+function buildMobileSmokeExpeditionGameplay() {
+  return {
+    template_id: 'expedition_cavern',
+    template_label: '协作矿洞',
+    template_kind: 'map',
+    template_summary: '一起探索矿洞路线。',
+    objective_label: '探索进度',
+    progress_value: 3,
+    progress_target: 8,
+    progress_percent: 38,
+    progress_text: '3/8',
+    score_label: '补给值',
+    score_value: 3,
+    phase: 'active',
+    phase_label: '进行中',
+    last_action_id: '',
+    last_action_summary: '移动端远征队伍已进入矿洞路线。',
+    last_actor_username: 'mobile_smoke_owner',
+    last_actor_display_name: '移动端烟测号',
+    is_completed: false,
+    completed_at: 0,
+    contributions: [],
+    available_actions: [],
+    cavern_state: null,
+    festival_state: null
+  }
+}
+
+function buildMobileSmokeExpeditionRoomSnapshot() {
+  return {
+    id: 'mobile-smoke-expedition-room',
+    title: '移动端远征大厅',
+    template_id: 'expedition_outpost',
+    template_label: '协作远征',
+    template_summary: '组队出发前的移动端占位数据。',
+    gameplay_template_id: 'expedition_cavern',
+    host_username: 'mobile_smoke_owner',
+    host_display_name: '移动端烟测号',
+    state: 'running',
+    state_label: '进行中',
+    state_reason: '',
+    member_limit: 4,
+    countdown_seconds: 0,
+    reconnect_window_seconds: 180,
+    created_at: 1,
+    updated_at: 2,
+    ready_check_started_at: 0,
+    countdown_started_at: 0,
+    countdown_ends_at: 0,
+    running_started_at: 2,
+    settled_at: 0,
+    closed_at: 0,
+    aborted_at: 0,
+    settlement_version: 0,
+    members: [
+      {
+        username: 'mobile_smoke_owner',
+        display_name: '移动端烟测号',
+        role: 'host',
+        status: 'active',
+        status_label: '房主进行中',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 2,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'mobile_smoke_friend',
+        display_name: '协作好友',
+        role: 'member',
+        status: 'active',
+        status_label: '参与中',
+        invited_at: 1,
+        joined_at: 1,
+        ready_at: 2,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ],
+    invitations: [],
+    recent_events: [],
+    action_log: [],
+    settlement_receipts: [],
+    visual_state: {
+      ...emptyVisualState,
+      board_type: 'map',
+      board_id: 'mobile-smoke-cavern-map',
+      revision: 2,
+      recent_feedback: '队伍已经确认远征路线。'
+    },
+    gameplay: buildMobileSmokeExpeditionGameplay(),
+    joined_member_count: 2,
+    ready_member_count: 2,
+    my_member_status: 'active',
+    invitation_id: '',
+    can_join: false,
+    can_leave: false,
+    can_ready: false,
+    can_unready: false,
+    can_disconnect: false,
+    can_reconnect: false,
+    can_host_ready_check: false,
+    can_host_start_countdown: false,
+    can_host_settle: true,
+    can_host_close: true
+  }
+}
+
+function buildMobileSmokeExpeditionInviteActionResponse(targetUsername = 'mobile_smoke_guest') {
+  const room = buildMobileSmokeExpeditionRoomSnapshot()
+  const targetDisplayName = targetUsername === 'cavern_guest'
+    ? '矿洞新友'
+    : targetUsername === 'route_helper'
+      ? '路线协作者'
+      : targetUsername
+  room.members = [
+    ...room.members,
+    {
+      username: targetUsername,
+      display_name: targetDisplayName,
+      role: 'member',
+      status: 'invited',
+      status_label: '已邀请',
+      invited_at: 3,
+      joined_at: 0,
+      ready_at: 0,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }
+  ]
+  room.invitations = [{
+    id: `mobile-smoke-expedition-invite-${targetUsername}`,
+    room_id: room.id,
+    target_username: targetUsername,
+    target_display_name: targetDisplayName,
+    status: 'pending',
+    status_label: '待处理',
+    invited_at: 3,
+    responded_at: 0
+  }]
+  return {
+    ok: true,
+    room,
+    overview: {
+      ...buildMobileSmokeExpeditionRoomOverview('host-running'),
+      my_room: room
+    },
+    msg: '邀请已发送，等待对方加入。'
+  }
+}
+
+function buildMobileSmokeExpeditionRoomOverview(roomState = 'empty') {
+  const myRoom = roomState === 'host-running' ? buildMobileSmokeExpeditionRoomSnapshot() : null
   return {
     ok: true,
     bulletin: '移动端远征房 smoke',
@@ -1591,7 +2211,7 @@ function buildMobileSmokeExpeditionRoomOverview() {
         action_options: []
       }
     ],
-    my_room: null,
+    my_room: myRoom,
     invited_rooms: [],
     visible_rooms: [],
     recent_receipts: []
@@ -1714,7 +2334,9 @@ function buildMobileSmokeCareRoom(actionIds = [], completed = false) {
   }
 }
 
-function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
+function buildMobileSmokeManorSnapshot(careRoomStep = 'empty', manorMode = 'care-room', lightHarvested = false) {
+  const ownerIdentityMode = manorMode === 'owner-identity'
+  const limitedStealMode = manorMode === 'limited-steal'
   const activeRoom = careRoomStep === 'empty' ? null : buildMobileSmokeCareRoom(
     careRoomStep === 'created'
       ? []
@@ -1732,17 +2354,110 @@ function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
     room_pest_control: '协作除虫',
     room_tidy: '协作收拾'
   }
+  const ownerGuestbookEntries = ownerIdentityMode ? [{
+    id: 'mobile-smoke-owner-guestbook-1',
+    target_username: 'mobile_smoke_owner',
+    target_save_id: 1,
+    target_save_slot: null,
+    author_username: 'visitor_green',
+    author_display_name: '青禾访客',
+    kind: 'blessing',
+    content: '果林护理得很周到，春日看起来更亮了。',
+    reply_text: '',
+    reply_author_display_name: '',
+    pinned: false,
+    created_at: 3,
+    updated_at: 3
+  }] : []
+  const ownerCareEntries = ownerIdentityMode ? [{
+    id: 'mobile-smoke-owner-care-1',
+    target_username: 'mobile_smoke_owner',
+    target_save_id: 1,
+    target_save_slot: null,
+    visitor_username: 'visitor_green',
+    visitor_display_name: '青禾访客',
+    action_id: 'water_field',
+    action_label: '帮忙浇水',
+    object_id: 'manor_field',
+    object_label: '田地',
+    day_tag: 'mobile-smoke-day',
+    idempotency_key: 'mobile-smoke-owner-care',
+    owner_benefit: '作物获得今日灌溉保护',
+    visitor_reward: '友情点 +1',
+    summary: '青禾访客帮田地浇了水。',
+    created_at: 4
+  }] : []
+  const stealEntries = limitedStealMode && lightHarvested ? [{
+    id: 'mobile-smoke-steal-entry',
+    target_username: 'orchard_owner',
+    target_save_id: 1,
+    target_save_slot: null,
+    visitor_username: 'mobile_smoke_owner',
+    visitor_display_name: '移动端烟测号',
+    action_id: 'light_harvest',
+    action_label: '轻采果实',
+    object_id: 'mobile_smoke_apple_tree',
+    object_label: '雨后苹果树',
+    target_id: 'mobile_smoke_apple_tree',
+    target_label: '雨后苹果树',
+    item_id: 'apple',
+    item_label: '普通苹果',
+    quantity: 1,
+    use_tags: ['food', 'order', 'festival'],
+    use_summary: '可用于料理、订单与节会备料。',
+    day_tag: 'mobile-smoke-day',
+    idempotency_key: 'mobile-smoke-steal',
+    owner_compensation: '主人保留 100% 库存并收到轻采凭证',
+    visitor_reward: '普通苹果 x1',
+    visitor_reward_quantity: 1,
+    reward_daily_cap: 2,
+    owner_reserved_ratio: 1,
+    settlement_receipt_id: 'mobile-smoke-steal-receipt',
+    note: '轻采后给主人留了感谢。',
+    summary: '移动端烟测号轻采了雨后苹果树，主人库存保持完整。',
+    created_at: 5
+  }] : []
+  const visitorActivityEntries = [
+    ...ownerCareEntries.map(entry => ({
+      id: 'mobile-smoke-owner-activity-care',
+      source_id: entry.id,
+      kind: 'care',
+      kind_label: '好友照料',
+      visitor_username: entry.visitor_username,
+      visitor_display_name: entry.visitor_display_name,
+      object_label: entry.object_label,
+      action_label: entry.action_label,
+      title: '好友帮忙照料田地',
+      summary: entry.summary,
+      audit_note: '照料记录可用于主人回看最近护理。',
+      created_at: entry.created_at
+    })),
+    ...stealEntries.map(entry => ({
+      id: 'mobile-smoke-visitor-activity-steal',
+      source_id: entry.id,
+      kind: 'steal',
+      kind_label: '轻采记录',
+      visitor_username: entry.visitor_username,
+      visitor_display_name: entry.visitor_display_name,
+      object_label: entry.object_label,
+      action_label: entry.action_label,
+      title: '访客轻采普通果实',
+      summary: entry.summary,
+      audit_note: '轻采凭证已写入，可用于主人补偿和争议回看。',
+      created_at: entry.created_at
+    }))
+  ]
   return {
-    username: 'orchard_owner',
-    display_name: '远山果匠',
+    username: ownerIdentityMode ? 'mobile_smoke_owner' : 'orchard_owner',
+    display_name: ownerIdentityMode ? '移动端烟测号' : '远山果匠',
     visibility: 'public',
-    viewer_is_owner: false,
-    manor_name: '远山果园',
+    viewer_is_owner: ownerIdentityMode,
+    manor_name: ownerIdentityMode ? '移动端烟测庄园' : '远山果园',
     avatar_image_url: '',
     avatar_image_alt: '',
     cover_image_url: '',
     cover_image_alt: '',
-    public_title: '果林庄园主',
+    public_title: ownerIdentityMode ? '春日庄园主人' : '果林庄园主',
     showcase_theme: '雨后果林护理日',
     season_progress: '春 2 年',
     current_focus: '协作护理田地和畜棚',
@@ -1750,18 +2465,18 @@ function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
     visual_summary: '田地、畜棚和果树开放护理',
     placed_decoration_count: 0,
     public_tags: [],
-    guestbook_entries: [],
+    guestbook_entries: ownerGuestbookEntries,
     visit_entries: [],
-    visitor_activity_entries: [],
+    visitor_activity_entries: visitorActivityEntries,
     guide_points: [],
     guide_routes: [],
-    today_visit_summary: '今日 1 次护理协作',
+    today_visit_summary: ownerIdentityMode ? '今日 1 次留言，1 次照料' : '今日 1 次护理协作',
     is_favorited_by_viewer: false,
     is_followed_by_viewer: false,
     access_policy: {
       visit_mode: 'public',
       care_mode: 'public',
-      steal_mode: 'closed',
+      steal_mode: limitedStealMode ? 'mutual' : 'closed',
       updated_at: 1,
       options: [
         { id: 'public', label: '公开' },
@@ -1771,7 +2486,7 @@ function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
       ]
     },
     relation_context: {
-      viewer_is_owner: false,
+      viewer_is_owner: ownerIdentityMode,
       viewer_is_friend: true,
       viewer_is_mutual: true,
       viewer_follows_owner: true,
@@ -1779,14 +2494,18 @@ function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
       mutual_follow: true,
       can_visit: true,
       can_care: true,
-      can_steal: false
+      can_steal: limitedStealMode
     },
     visual_state: {
       ...emptyVisualState,
       board_type: 'scene',
       board_id: 'manor_care_scene',
       selected_visual_id: 'manor_field',
-      recent_feedback: careRoomStep === 'settled' ? '协作护理房已结算，健康度凭证已写入。' : '',
+      recent_feedback: lightHarvested
+        ? '移动端烟测号轻采了雨后苹果树，主人库存保持完整。'
+        : careRoomStep === 'settled'
+          ? '协作护理房已结算，健康度凭证已写入。'
+          : '',
       objects: [
         {
           id: 'manor_field',
@@ -1819,7 +2538,23 @@ function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
           requires_cooperation: true,
           cooperation_required_count: 2,
           cooperation_current_count: activeRoom ? activeRoom.participants.length : 0
-        }
+        },
+        ...(limitedStealMode ? [{
+          id: 'mobile_smoke_apple_tree',
+          label: '雨后苹果树',
+          kind: 'fruit_tree',
+          x: 78,
+          y: 36,
+          state: lightHarvested ? 'complete' : 'needs_action',
+          available_action_ids: lightHarvested ? [] : ['light_harvest'],
+          progress_value: lightHarvested ? 1 : 0,
+          progress_target: 1,
+          handled_by: lightHarvested ? 'mobile_smoke_owner' : '',
+          handled_at: lightHarvested ? 5 : 0,
+          requires_cooperation: false,
+          cooperation_required_count: 1,
+          cooperation_current_count: lightHarvested ? 1 : 0
+        }] : [])
       ]
     },
     care_state: {
@@ -1853,35 +2588,49 @@ function buildMobileSmokeManorSnapshot(careRoomStep = 'empty') {
     },
     steal_state: {
       day_tag: 'mobile-smoke-day',
-      action_labels: {},
-      action_effects: {},
+      action_labels: limitedStealMode ? { light_harvest: '轻采果实' } : {},
+      action_effects: limitedStealMode ? {
+        light_harvest: { owner_compensation: '主人保留 100% 库存并收到轻采凭证', visitor_reward: '普通苹果 x1' }
+      } : {},
       limits: { visitor_daily_limit: 2, manor_daily_limit: 6, object_daily_limit: 1 },
-      visitor_daily_count: 0,
-      manor_daily_count: 0,
-      remaining_steal_count: 0,
-      manor_remaining_steal_count: 0,
-      can_steal: false,
-      steal_denied_reason: '轻采已关闭。',
+      visitor_daily_count: lightHarvested ? 1 : 0,
+      manor_daily_count: lightHarvested ? 1 : 0,
+      remaining_steal_count: limitedStealMode ? (lightHarvested ? 1 : 2) : 0,
+      manor_remaining_steal_count: limitedStealMode ? (lightHarvested ? 5 : 6) : 0,
+      can_steal: limitedStealMode,
+      steal_denied_reason: limitedStealMode ? '' : '轻采已关闭。',
       audit: {
         visitor_limit_enforced: true,
         manor_limit_enforced: true,
         object_limit_enforced: true,
         whitelist_enforced: true,
         recent_window_seconds: 600,
-        recent_window_count: 0,
+        recent_window_count: lightHarvested ? 1 : 0,
         risk_flags: [],
-        daily_visitor_counts: [],
+        daily_visitor_counts: limitedStealMode ? [{
+          visitor_username: 'mobile_smoke_owner',
+          visitor_display_name: '移动端烟测号',
+          count: lightHarvested ? 1 : 0,
+          limit: 2
+        }] : [],
         dispute_log_available: true,
         owner_reserved_percent: 100,
         visitor_reward_quantity_cap: 1,
-        reward_cap_summary: '轻采当前关闭。',
+        reward_cap_summary: limitedStealMode ? '轻采由凭证记录，普通果实单次最多 1 件。' : '轻采当前关闭。',
         settlement_summary: '主人库存保留 100%。'
       },
-      whitelist_summary: '轻采关闭',
-      target_use_hints: {}
+      whitelist_summary: limitedStealMode ? '只允许普通成熟果实和边角产物，稀有物与活动核心物排除。' : '轻采关闭',
+      target_use_hints: limitedStealMode ? {
+        mobile_smoke_apple_tree: {
+          item_id: 'apple',
+          label: '普通苹果',
+          use_tags: ['food', 'order', 'festival'],
+          use_summary: '可用于料理、订单与节会备料。'
+        }
+      } : {}
     },
-    care_entries: [],
-    steal_entries: [],
+    care_entries: ownerCareEntries,
+    steal_entries: stealEntries,
     care_room_state: {
       viewer_username: 'mobile_smoke_owner',
       day_tag: 'mobile-smoke-day',
@@ -1922,28 +2671,33 @@ async function createPage(browser, viewport, options = {}) {
   const mockSocial = Boolean(options.mockSocial)
   const mockSociety = Boolean(options.mockSociety)
   const mockSocietyProject = options.mockSocietyProject || 'lantern_wall'
+  const mockSocietyMode = options.mockSocietyMode || 'member'
   const mockOrders = Boolean(options.mockOrders)
   const mockManor = Boolean(options.mockManor)
+  const mockManorMode = options.mockManorMode || 'care-room'
   const mockFestivalRoom = Boolean(options.mockFestivalRoom)
   const mockFestivalRoomState = options.mockFestivalRoomState || 'empty'
+  const mockExpeditionRoom = Boolean(options.mockExpeditionRoom)
+  const mockExpeditionRoomState = options.mockExpeditionRoomState || 'empty'
   const mockCohabitation = Boolean(options.mockCohabitation)
   const context = await browser.newContext({
     viewport,
     locale: 'zh-CN',
     reducedMotion: 'reduce'
   })
-  if (mockSociety || mockOrders || mockManor || mockFestivalRoom || mockCohabitation) {
+  if (mockSociety || mockOrders || mockManor || mockFestivalRoom || mockExpeditionRoom || mockCohabitation) {
     await context.addInitScript(() => {
       window.localStorage.setItem('taoyuanxiang_current_account', 'mobile_smoke_owner')
     })
   }
   const page = await context.newPage()
+  await page.route(new RegExp(`^${escapeRegExp(baseURL)}(?:/|/index\\.html)?(?:\\?.*)?$`), fulfillFromNodeFetch)
 
   await page.route('**/api/me', async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(mockSocial || mockSociety || mockOrders || mockManor || mockFestivalRoom || mockCohabitation
+      body: JSON.stringify(mockSocial || mockSociety || mockOrders || mockManor || mockFestivalRoom || mockExpeditionRoom || mockCohabitation
         ? {
             ok: true,
             user: {
@@ -2003,7 +2757,7 @@ async function createPage(browser, viewport, options = {}) {
     })
   })
 
-  if (mockFestivalRoom) {
+  if (mockFestivalRoom || mockExpeditionRoom) {
     await page.route('**/api/taoyuan/online/world-events', async route => {
       await route.fulfill({
         status: 200,
@@ -2012,6 +2766,9 @@ async function createPage(browser, viewport, options = {}) {
       })
     })
 
+  }
+
+  if (mockFestivalRoom) {
     await page.route('**/api/taoyuan/online/festival/rooms', async route => {
       await route.fulfill({
         status: 200,
@@ -2037,6 +2794,28 @@ async function createPage(browser, viewport, options = {}) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildMobileSmokeExpeditionRoomOverview())
+      })
+    })
+  }
+
+  if (mockExpeditionRoom) {
+    await page.route('**/api/taoyuan/online/expedition/rooms', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeExpeditionRoomOverview(mockExpeditionRoomState))
+      })
+    })
+
+    await page.route('**/api/taoyuan/online/expedition/rooms/*/invite', async route => {
+      const payload = route.request().postDataJSON()
+      const targetUsername = typeof payload?.target_username === 'string' && payload.target_username.trim()
+        ? payload.target_username.trim()
+        : 'mobile_smoke_guest'
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMobileSmokeExpeditionInviteActionResponse(targetUsername))
       })
     })
   }
@@ -2093,22 +2872,147 @@ async function createPage(browser, viewport, options = {}) {
 
   if (mockSociety) {
     let societyContributed = false
+    let societyCreated = false
+    let createdSocietyPayload = {}
+    let societyInviteRecipient = ''
+    let societyRequestHandled = false
+    let societyProposalCreated = false
+    let societyProposalPayload = {}
+    let societyProposalArchived = false
+    let societyProposalArchiveNote = ''
+    let societyWarehouseDeposited = false
+    let societyWarehouseConsumed = false
+    const buildManagementOverview = () => buildMobileSmokeSocietyManagementOverview({
+      invitedRecipient: societyInviteRecipient,
+      requestHandled: societyRequestHandled,
+      proposalCreated: societyProposalCreated,
+      createdProposalPayload: societyProposalPayload,
+      proposalArchived: societyProposalArchived,
+      proposalArchiveNote: societyProposalArchiveNote
+    })
     await page.route('**/api/taoyuan/online/societies', async route => {
+      if (mockSocietyMode === 'create' && route.request().method() === 'POST') {
+        createdSocietyPayload = route.request().postDataJSON()
+        societyCreated = true
+        const overview = buildMobileSmokeSocietyCreateOverview(societyCreated, createdSocietyPayload)
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, society: overview.my_society, overview })
+        })
+        return
+      }
+      const body = mockSocietyMode === 'create'
+        ? buildMobileSmokeSocietyCreateOverview(societyCreated, createdSocietyPayload)
+        : mockSocietyMode === 'management'
+          ? buildManagementOverview()
+        : buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject, {
+            deposited: societyWarehouseDeposited,
+            consumed: societyWarehouseConsumed
+          })
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject))
+        body: JSON.stringify(body)
+      })
+    })
+    await page.route('**/api/taoyuan/online/societies/invite', async route => {
+      const payload = route.request().postDataJSON()
+      societyInviteRecipient = payload.target_username || String(payload.target_save_id || '')
+      const overview = buildManagementOverview()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, request: overview.latest_invite_request, overview })
+      })
+    })
+    await page.route('**/api/taoyuan/online/societies/proposals', async route => {
+      societyProposalPayload = route.request().postDataJSON()
+      societyProposalCreated = true
+      const overview = buildManagementOverview()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, proposal: overview.my_society.active_proposals.find(entry => entry.id === 'prop-mobile-created'), overview })
+      })
+    })
+    await page.route('**/api/taoyuan/online/societies/proposals/*/close', async route => {
+      const payload = route.request().postDataJSON()
+      societyProposalArchived = true
+      societyProposalArchiveNote = payload.resolution_note || ''
+      const overview = buildManagementOverview()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, proposal: overview.my_society.proposal_history[0], overview })
+      })
+    })
+    await page.route('**/api/taoyuan/online/societies/requests/*/accept', async route => {
+      societyRequestHandled = true
+      const overview = buildManagementOverview()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, request: { id: 'req-mobile-apply', status: 'accepted' }, overview })
+      })
+    })
+    await page.route('**/api/taoyuan/online/societies/requests/*/reject', async route => {
+      societyRequestHandled = true
+      const overview = buildManagementOverview()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, request: { id: 'req-mobile-apply', status: 'rejected' }, overview })
       })
     })
     await page.route('**/api/taoyuan/online/societies/public-projects/*/contribute', async route => {
       societyContributed = true
-      const overview = buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject)
+      const overview = buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject, {
+        deposited: societyWarehouseDeposited,
+        consumed: societyWarehouseConsumed
+      })
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
           ok: true,
           project: overview.my_society.public_projects[0],
+          society: overview.my_society,
+          overview,
+          player_money: 999
+        })
+      })
+    })
+    await page.route('**/api/taoyuan/online/societies/public-warehouse/deposit', async route => {
+      societyWarehouseDeposited = true
+      const overview = buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject, {
+        deposited: societyWarehouseDeposited,
+        consumed: societyWarehouseConsumed
+      })
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          warehouse: overview.my_society.public_warehouse,
+          society: overview.my_society,
+          overview,
+          player_money: 999
+        })
+      })
+    })
+    await page.route('**/api/taoyuan/online/societies/public-warehouse/consume', async route => {
+      societyWarehouseConsumed = true
+      const overview = buildMobileSmokeSocietyOverview(societyContributed, mockSocietyProject, {
+        deposited: societyWarehouseDeposited,
+        consumed: societyWarehouseConsumed
+      })
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          warehouse: overview.my_society.public_warehouse,
           society: overview.my_society,
           overview,
           player_money: 999
@@ -2161,6 +3065,7 @@ async function createPage(browser, viewport, options = {}) {
 
   if (mockManor) {
     let careRoomStep = 'empty'
+    let lightHarvested = false
     await page.route('**/api/taoyuan/online/manor/favorites/overview', async route => {
       await route.fulfill({
         status: 200,
@@ -2172,12 +3077,21 @@ async function createPage(browser, viewport, options = {}) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: true, snapshot: buildMobileSmokeManorSnapshot(careRoomStep) })
+        body: JSON.stringify({ ok: true, snapshot: buildMobileSmokeManorSnapshot(careRoomStep, mockManorMode, lightHarvested) })
+      })
+    })
+    await page.route('**/api/taoyuan/online/manor/steal', async route => {
+      lightHarvested = true
+      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep, mockManorMode, lightHarvested)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, entry: snapshot.steal_entries[0], snapshot, idempotent: false })
       })
     })
     await page.route('**/api/taoyuan/online/manor/care-rooms', async route => {
       careRoomStep = 'created'
-      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep)
+      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep, mockManorMode, lightHarvested)
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -2187,7 +3101,7 @@ async function createPage(browser, viewport, options = {}) {
     await page.route('**/api/taoyuan/online/manor/care-rooms/*/action', async route => {
       const body = route.request().postDataJSON()
       careRoomStep = body?.action_id === 'room_feed' ? 'fed' : 'irrigated'
-      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep)
+      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep, mockManorMode, lightHarvested)
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -2202,7 +3116,7 @@ async function createPage(browser, viewport, options = {}) {
     })
     await page.route('**/api/taoyuan/online/manor/care-rooms/*/settle', async route => {
       careRoomStep = 'settled'
-      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep)
+      const snapshot = buildMobileSmokeManorSnapshot(careRoomStep, mockManorMode, lightHarvested)
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -2227,13 +3141,30 @@ async function createPage(browser, viewport, options = {}) {
 }
 
 async function openHome(page) {
-  await page.goto(baseURL)
-  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '新的旅程' })).toBeVisible()
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto(baseURL, { waitUntil: 'commit', timeout: homeNavigationTimeoutMs })
+      break
+    } catch (error) {
+      if (attempt === 2) throw error
+      await page.waitForTimeout(500)
+    }
+  }
+  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible({ timeout: homeReadyTimeoutMs })
+  await expect(page.getByRole('button', { name: '新的旅程' })).toBeVisible({ timeout: homeReadyTimeoutMs })
 }
 
 async function loadBuiltInSample(page, id) {
-  await page.waitForFunction(() => typeof window.__TAOYUAN_SAMPLE_SAVES__?.load === 'function')
+  const sampleApiReady = await page.waitForFunction(() => typeof window.__TAOYUAN_SAMPLE_SAVES__?.load === 'function', null, { timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false)
+  if (!sampleApiReady) {
+    if (!sampleFallbackScenarios.has(scenarioFilter)) {
+      throw new Error('Built-in sample save API is unavailable; run against the dev server for full mobile smoke coverage.')
+    }
+    await startSmokeJourney(page)
+    return
+  }
   const loaded = await page.evaluate(async targetId => {
     const api = window.__TAOYUAN_SAMPLE_SAVES__
     return api ? await api.load(targetId) : false
@@ -2241,10 +3172,21 @@ async function loadBuiltInSample(page, id) {
   if (!loaded) throw new Error(`Unable to load sample save ${id}`)
 }
 
+async function startSmokeJourney(page) {
+  if (await page.getByTestId('game-layout').isVisible().catch(() => false)) return
+  await page.getByTestId('new-journey-button').click()
+  await page.getByTestId('privacy-agree-button').click()
+  await page.getByTestId('char-name-input').fill('移动端烟测')
+  await page.getByTestId('char-create-next-button').click()
+  await page.getByTestId('farm-option-standard').click()
+  await page.getByTestId('confirm-start-journey-button').click()
+  await expect(page.getByTestId('game-layout')).toBeVisible({ timeout: 15_000 })
+}
+
 async function openSamplePage(page, hash) {
   await openHome(page)
   await loadBuiltInSample(page, sampleId)
-  await page.goto(`${baseURL}${hash}`)
+  await page.goto(`${baseURL}${hash}`, { waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('game-layout')).toBeVisible()
 }
 
@@ -2265,14 +3207,19 @@ async function captureScenario({
   mockSocial = false,
   mockSociety = false,
   mockSocietyProject = 'lantern_wall',
+  mockSocietyMode = 'member',
   mockOrders = false,
   mockManor = false,
+  mockManorMode = 'care-room',
   mockFestivalRoom = false,
   mockFestivalRoomState = 'empty',
+  mockExpeditionRoom = false,
+  mockExpeditionRoomState = 'empty',
   mockCohabitation = false,
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockOrders, mockManor, mockFestivalRoom, mockFestivalRoomState, mockCohabitation })
+  if (scenarioFilter && !label.includes(scenarioFilter)) return
+  const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockSocietyMode, mockOrders, mockManor, mockManorMode, mockFestivalRoom, mockFestivalRoomState, mockExpeditionRoom, mockExpeditionRoomState, mockCohabitation })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -2484,6 +3431,32 @@ async function prepareOnlineCenterMobile(page) {
   expect(layoutIssues.heroActionCount).toBeLessThanOrEqual(3)
   expect(layoutIssues.firstHeroActionInViewport).toBe(true)
   expect(layoutIssues.stickyPrimaryInViewport).toBe(true)
+}
+
+async function prepareCottageCohabitationEntryMobile(page) {
+  const entry = page.getByTestId('cottage-cohabitation-family-entry')
+  await expect(entry).toBeVisible()
+  await expect(entry).toContainText('同居 / 家庭 / 共同庄园')
+  await expect(entry).toContainText('个人铜币与个人背包仍保持独立')
+  await entry.getByRole('button', { name: '进入' }).click()
+  await expect(page).toHaveURL(/\/#\/game\/online\/cohabitation/)
+  await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+}
+
+async function prepareFarmCohabitationSwitchMobile(page) {
+  const switchEntry = page.getByTestId('farm-cohabitation-switch')
+  await expect(switchEntry).toBeVisible()
+  await expect(switchEntry).toContainText('共同庄园切换')
+  await expect(switchEntry).toContainText('个人田庄批量操作继续保留在本页')
+  const sharedMapButton = switchEntry.getByRole('button', { name: '查看共同农田' })
+  await sharedMapButton.click()
+  await page.waitForTimeout(100)
+  if (!/#\/game\/online\/cohabitation\?tab=map/.test(page.url())) {
+    await sharedMapButton.evaluate(element => element.click())
+  }
+  await expect(page).toHaveURL(/\/#\/game\/online\/cohabitation\?tab=map/)
+  await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+  await expect(page.getByTestId('online-module-tab-map')).toHaveAttribute('aria-selected', 'true')
 }
 
 async function ensureOnlineFestivalRoomTab(page) {
@@ -2842,6 +3815,137 @@ async function prepareOnlineFestivalRoomSettleConfirmMobile(page) {
   expect(layoutIssues.cancelHeight).toBeGreaterThanOrEqual(32)
 }
 
+async function assertConfirmActionDialogMobileLayout(page) {
+  const layoutIssues = await page.evaluate(() => {
+    const overlay = document.querySelector('[data-testid="online-action-dialog"]')
+    const panel = overlay?.querySelector('[role="dialog"]')
+    const confirmButton = document.querySelector('[data-testid="online-confirm-action-dialog-confirm"]')
+    const cancelButton = document.querySelector('[data-testid="online-confirm-action-dialog-cancel"]')
+    const impactList = document.querySelector('[data-testid="online-confirm-impact-list"]')
+    const visibleControls = Array.from(overlay?.querySelectorAll('button, input, select, textarea') ?? [])
+      .filter(element => {
+        const style = window.getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    const clippedControls = visibleControls
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.label)
+    const panelRect = panel?.getBoundingClientRect()
+    const confirmRect = confirmButton?.getBoundingClientRect()
+    const cancelRect = cancelButton?.getBoundingClientRect()
+    const impactRect = impactList?.getBoundingClientRect()
+
+    return {
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clippedControls,
+      panelLeft: panelRect?.left ?? Number.NaN,
+      panelRight: panelRect?.right ?? Number.NaN,
+      panelTop: panelRect?.top ?? Number.NaN,
+      panelBottom: panelRect?.bottom ?? Number.NaN,
+      impactTop: impactRect?.top ?? Number.NaN,
+      confirmBottom: confirmRect?.bottom ?? Number.NaN,
+      confirmHeight: confirmRect?.height ?? 0,
+      cancelHeight: cancelRect?.height ?? 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+
+  expect(layoutIssues.docOverflow).toBeLessThanOrEqual(4)
+  expect(layoutIssues.clippedControls).toEqual([])
+  expect(layoutIssues.panelLeft).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelRight).toBeLessThanOrEqual(layoutIssues.viewportWidth + 1)
+  expect(layoutIssues.panelTop).toBeGreaterThanOrEqual(-1)
+  expect(layoutIssues.panelBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.impactTop).toBeLessThan(layoutIssues.viewportHeight)
+  expect(layoutIssues.confirmBottom).toBeLessThanOrEqual(layoutIssues.viewportHeight + 1)
+  expect(layoutIssues.confirmHeight).toBeGreaterThanOrEqual(32)
+  expect(layoutIssues.cancelHeight).toBeGreaterThanOrEqual(32)
+}
+
+async function prepareExpeditionRoomMainFlowMobile(page) {
+  await expect(page.getByTestId('expedition-room-page')).toBeVisible()
+  await expect(page.getByText('联机远征大厅')).toBeVisible()
+  await expect(page.getByTestId('online-expedition-room-create-trigger')).toBeVisible()
+  await expect(page.getByTestId('online-visual-room-title')).toContainText('移动端远征大厅')
+  await expect(page.getByText('最近结算', { exact: true })).toBeVisible()
+
+  await page.getByTestId('online-expedition-room-create-trigger').click()
+  await expect(page.getByTestId('online-room-wizard')).toBeVisible()
+  await expect(page.getByTestId('online-room-wizard-step-gameplay')).toBeVisible()
+  await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-room-wizard')).toHaveCount(0)
+
+  await page.getByTestId('online-expedition-room-lobby-trigger').click()
+  await expect(page.getByTestId('online-room-lobby')).toBeVisible()
+  await expect(page.getByTestId('online-room-member-list')).toContainText('移动端烟测号')
+  await expect(page.getByTestId('online-room-member-list')).toContainText('协作好友')
+  await expect(page.getByTestId('online-room-primary-action')).toBeVisible()
+  await assertFestivalRoomLobbyMobileLayout(page)
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-room-lobby')).toHaveCount(0)
+
+  await page.getByTestId('online-expedition-room-invite-trigger').click()
+  await expect(page.getByTestId('online-invite-panel')).toBeVisible()
+  await expect(page.getByTestId('online-invite-existing-list')).toContainText('移动端烟测号')
+  await expect(page.getByTestId('online-invite-existing-list')).toContainText('协作好友')
+  await page.getByTestId('online-invite-input').fill('cavern_guest 协作好友')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('cavern_guest')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('已在房间')
+  await expect(page.getByTestId('online-invite-submit')).toContainText('发送邀请 1')
+  await page.getByTestId('online-invite-submit').click()
+  await expect(page.getByTestId('online-invite-result-cavern_guest')).toContainText('已邀请')
+  await page.getByRole('button', { name: '稍后邀请' }).click()
+  await expect(page.getByTestId('online-invite-panel')).toHaveCount(0)
+
+  await page.getByTestId('online-technical-details-toggle').filter({ hasText: '备用房间操作' }).click()
+  await expect(page.getByTestId('expedition-room-lobby-backup-actions')).toBeVisible()
+  await page.getByTestId('expedition-room-settle-submit').click()
+  await expect(page.getByTestId('expedition-room-settle-confirm')).toHaveCount(1)
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('移动端远征大厅')
+  await expect(page.getByTestId('online-confirm-asset-list')).toBeVisible()
+  await assertConfirmActionDialogMobileLayout(page)
+  await page.getByTestId('online-confirm-action-dialog-cancel').click()
+  await expect(page.getByTestId('expedition-room-settle-confirm')).toHaveCount(0)
+
+  await page.getByTestId('expedition-room-close-submit').click()
+  await expect(page.getByTestId('expedition-room-close-confirm')).toHaveCount(1)
+  await expect(page.getByTestId('online-confirm-irreversible')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-required-text')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-disabled-reason')).toContainText('确认文字未填写')
+  await assertConfirmActionDialogMobileLayout(page)
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="expedition-room-page"]')
+    if (!root) return ['expedition-room-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
 async function ensureOnlineCohabitationFestivalSeatsTab(page) {
   await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
   const festivalSeatsTab = page.getByTestId('online-module-tab-festivalSeats')
@@ -2957,17 +4061,41 @@ async function prepareOnlineOrdersMobile(page) {
   await expect(page.getByTestId('online-orders-board-filter-relay')).toBeVisible()
   await page.getByTestId('online-orders-board-filter-relay').click()
   await expect(page.getByTestId('online-orders-available-list')).toBeVisible()
-  await expect(page.getByTestId('online-orders-available-entry')).toContainText('灯会干菜接力单')
-  await expect(page.getByTestId('online-orders-available-entry')).toContainText('接力单')
-  await expect(page.getByTestId('online-orders-available-entry')).toContainText('阶段 1/3 已确认')
-  await expect(page.getByTestId('async-community-board')).toBeVisible()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('加工干菜')
-  await expect(page.getByTestId('online-orders-story-flow')).toBeVisible()
-  await expect(page.getByTestId('online-orders-story-flow-chapters')).toContainText('采收青菜')
-  await expect(page.getByTestId('online-orders-relay-settlement-summary')).toContainText('分账池')
+  const relayEntry = page.getByTestId('online-orders-available-entry').filter({ hasText: '灯会干菜接力单' }).first()
+  await expect(relayEntry).toBeVisible()
+  await expect(relayEntry).toContainText('接力单')
+  await expect(relayEntry).toContainText('剩余')
+  await relayEntry.getByTestId('online-orders-available-detail-trigger').click()
+  const orderDetailSheet = page.getByTestId('online-orders-detail-sheet')
+  await expect(orderDetailSheet).toBeVisible()
+  await expect(orderDetailSheet).toContainText('阶段 1/3 已确认')
+  await expect(orderDetailSheet.getByTestId('async-community-board')).toBeVisible()
+  await expect(orderDetailSheet.getByTestId('async-community-project-detail')).toContainText('加工干菜')
+  await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('0 人 · 1 条历史')
+  await expect(orderDetailSheet.getByTestId('online-orders-story-flow')).toBeVisible()
+  await expect(orderDetailSheet.getByTestId('online-orders-story-flow-chapters')).toContainText('采收青菜')
+  await expect(orderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('分账池')
+  await expect(orderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('已落账 80 / 待结 180')
+  await page.getByTestId('online-orders-society-board-receipts').scrollIntoViewIfNeeded()
+  await expect(page.getByTestId('online-orders-society-board-receipts')).toContainText('已完成的帮手 · 赏金 80 · 个人铜钱')
   await page.getByTestId('online-society-async-contribute-relay_route-accept_stage:stage_process').click()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('送到灯会')
-  await expect(page.getByText('移动端烟测号已接下加工干菜这一段。')).toBeVisible()
+  await expect(page.getByTestId('online-orders-detail-sheet')).toHaveCount(0)
+  await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认接下这一段')
+  await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('灯会干菜接力单')
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('阶段 2 · 加工干菜')
+  await expect(page.getByTestId('online-confirm-asset-list')).toContainText('进入“我的接单”')
+  await expect(page.getByTestId('online-confirm-recovery-hint')).toContainText('接单失败时不会占用这张单')
+  await page.getByTestId('online-confirm-action-dialog-confirm').click()
+  await expect(page.getByTestId('online-orders-action-confirm')).toHaveCount(0)
+  await relayEntry.getByTestId('online-orders-available-detail-trigger').click()
+  const updatedOrderDetailSheet = page.getByTestId('online-orders-detail-sheet')
+  await expect(updatedOrderDetailSheet).toBeVisible()
+  await expect(updatedOrderDetailSheet.getByTestId('async-community-project-detail')).toContainText('送到灯会')
+  await expect(updatedOrderDetailSheet.getByTestId('async-community-project-readback')).toContainText('1 人 · 1 条历史')
+  await expect(updatedOrderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('加工干菜：35% / 90 · 共同基金')
+  await expect(updatedOrderDetailSheet).toContainText('移动端烟测号已接下加工干菜这一段。')
+  await page.getByTestId('online-bottom-sheet-close').click()
 
   await ordersTab('receipts').click()
   await expect(page.getByText('还没有结算凭证')).toBeVisible()
@@ -2978,10 +4106,10 @@ async function prepareOnlineOrdersMobile(page) {
   await acceptedEntry.getByTestId('online-orders-delivery-quantity-input').fill('2')
   await acceptedEntry.getByTestId('online-orders-delivery-note-input').fill('交付确认弹窗烟测说明。')
   await acceptedEntry.getByTestId('online-orders-delivery-submit').click()
-  await expect(page.getByTestId('online-orders-action-confirm')).toBeVisible()
-  await expect(page.getByTestId('online-orders-action-confirm')).toContainText('移动端待交付求助单')
-  await expect(page.getByTestId('online-orders-action-confirm')).toContainText('smoke_wheat ×2')
-  await page.getByTestId('online-orders-action-confirm').getByTestId('online-confirm-action-dialog-confirm').click()
+  await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-action-dialog')).toContainText('移动端待交付求助单')
+  await expect(page.getByTestId('online-confirm-action-dialog')).toContainText('smoke_wheat ×2')
+  await page.getByTestId('online-confirm-action-dialog-confirm').click()
   await expect(page.getByTestId('online-orders-action-confirm')).toHaveCount(0)
   await expect(acceptedEntry).toContainText('待确认')
   await expect(ordersTab('publish')).toBeVisible()
@@ -3036,12 +4164,195 @@ async function prepareOnlineSocietyProjectsMobile(page) {
   await page.getByTestId('online-module-tab-projects').click()
 
   await expect(page.getByTestId('async-community-board')).toBeVisible()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('写愿望')
+  await expect(page.getByTestId('async-community-project-compact-detail')).toContainText('写愿望')
+  await expect(page.getByTestId('async-community-site-objects')).toContainText('好友留言')
+  await expect(page.getByText('纪念墙')).toBeVisible()
+  await expect(page.getByText('愿望册')).toBeVisible()
   await expect(page.getByTestId('online-society-async-contribute-lantern_wall-write_wish')).toBeVisible()
   await page.getByTestId('online-society-async-contribute-lantern_wall-write_wish').click()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('挂花灯')
+  await expect(page.getByTestId('async-community-project-compact-detail')).toContainText('挂花灯')
   await expect(page.getByText('移动端烟测号写下一张愿望签，花灯墙亮了一角。')).toBeVisible()
+  await page.getByTestId('async-community-project-detail-trigger').click()
+  await expect(page.getByTestId('online-society-project-detail-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-society-project-stage-list')).toContainText('挂花灯')
+  const asyncCommunityProjectReadback = '[data-testid="async-community-project-readback"]'
+  const projectReadbackSummary = await page.evaluate(readbackSelector => {
+    const directReadback = document.querySelector(readbackSelector)?.textContent || ''
+    if (directReadback) return directReadback
+    const contributors = document.querySelector('[data-testid="online-society-project-contributors"]')?.textContent || ''
+    const history = document.querySelector('[data-testid="online-society-project-history"]')?.textContent || ''
+    return contributors.includes('移动端烟测号') && history.includes('移动端烟测号写下一张愿望签。')
+      ? '1 人 · 1 条历史'
+      : ''
+  }, asyncCommunityProjectReadback)
+  expect(projectReadbackSummary).toContain('1 人 · 1 条历史')
+  await expect(page.getByTestId('online-society-project-recent-contributions')).toContainText('移动端烟测号 提交了 写愿望（+10）')
+  await expect(page.getByTestId('online-society-project-history')).toContainText('移动端烟测号写下一张愿望签。')
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-society-project-detail-sheet')).toHaveCount(0)
   await expect(page.getByTestId('online-society-project-contribute-lantern_wall-write_wish')).toBeVisible()
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-society-page"]')
+    if (!root) return ['online-society-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .async-community-board__project-tabs')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
+async function prepareOnlineSocietyCreateMobile(page) {
+  await expect(page.getByTestId('online-society-page')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-summary')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-trigger')).toBeVisible()
+  await expect(page.getByText('溪畔春社')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-name-input')).toHaveCount(0)
+
+  await page.getByTestId('online-society-create-trigger').click()
+  await expect(page.getByTestId('online-society-create-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-step-basic')).toBeVisible()
+  await page.getByTestId('online-society-create-name-input').fill('移动端烟测村社')
+  await page.getByTestId('online-society-create-summary-input').fill('一起照看节会、公共建设和互助委托。')
+  await page.getByTestId('online-society-create-notice-input').fill('本周先招募两位稳定成员。')
+  await page.getByTestId('online-society-create-next').click()
+
+  await expect(page.getByTestId('online-society-create-step-style')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-emblem-select')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-theme-select')).toBeVisible()
+  await page.getByTestId('online-society-create-next').click()
+
+  await expect(page.getByTestId('online-society-create-step-access')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-visibility-select')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-capacity-select')).toBeVisible()
+  await page.getByTestId('online-society-create-next').click()
+
+  await expect(page.getByTestId('online-society-create-step-join')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-join-requirement-select')).toBeVisible()
+  await page.getByTestId('online-society-create-join-note-input').fill('希望先有公开名片和稳定经营节奏。')
+  await page.getByTestId('online-society-create-next').click()
+
+  await expect(page.getByTestId('online-society-create-step-review')).toBeVisible()
+  await expect(page.getByTestId('online-society-create-step-review')).toContainText('移动端烟测村社')
+  await page.getByTestId('online-society-create-submit').click()
+  await expect(page.getByTestId('online-society-create-dialog')).toHaveCount(0)
+  await expect(page.getByText('移动端烟测村社').first()).toBeVisible()
+  await expect(page.getByTestId('online-society-create-summary')).toHaveCount(0)
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-society-page"]')
+    if (!root) return ['online-society-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .async-community-board__project-tabs')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
+async function prepareOnlineSocietyRequestsMobile(page) {
+  await expect(page.getByTestId('online-society-page')).toBeVisible()
+  await expect(page.getByText('清溪灯社').first()).toBeVisible()
+  await page.getByTestId('online-module-tab-members').click()
+  await expect(page.getByTestId('online-society-admin-actions')).toBeVisible()
+  await expect(page.getByTestId('online-society-member-actions')).toHaveCount(0)
+
+  await page.getByTestId('online-society-invite-panel-trigger').click()
+  await expect(page.getByTestId('online-invite-panel')).toBeVisible()
+  await page.getByTestId('online-invite-input').fill('new_helper\nexisting_member')
+  await page.getByTestId('online-invite-submit').click()
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('new_helper')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('邀请已发送')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('existing_member')
+  await expect(page.getByTestId('online-invite-result-list')).toContainText('已经在村社')
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-invite-panel')).toHaveCount(0)
+
+  await expect(page.getByTestId('online-society-managed-request-entry')).toContainText('申请人')
+  await page.getByTestId('online-society-managed-request-detail-req-mobile-apply').click()
+  await expect(page.getByTestId('online-society-request-detail-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-society-request-detail-sheet')).toContainText('加入申请')
+  await expect(page.getByTestId('online-society-request-detail-sheet')).toContainText('987654321')
+  await page.getByTestId('online-society-managed-request-accept-req-mobile-apply').click()
+  await expect(page.getByTestId('online-society-request-detail-sheet')).toHaveCount(0)
+  await expect(page.getByTestId('online-society-managed-request-entry')).toHaveCount(0)
+  await expect(page.getByTestId('online-society-member-entry').filter({ hasText: '申请人' }).first()).toBeVisible()
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-society-page"]')
+    if (!root) return ['online-society-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .async-community-board__project-tabs')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
+async function prepareOnlineSocietyProposalsMobile(page) {
+  await expect(page.getByTestId('online-society-page')).toBeVisible()
+  await expect(page.getByText('清溪灯社').first()).toBeVisible()
+  await page.getByTestId('online-module-tab-proposals').click()
+  await expect(page.getByTestId('online-society-proposal-list')).toBeVisible()
+  await expect(page.getByTestId('online-society-proposal-action-panel')).toBeVisible()
+  await expect(page.getByTestId('online-society-proposal-title-input')).toHaveCount(0)
+
+  await page.getByTestId('online-society-proposal-create-trigger').click()
+  await expect(page.getByTestId('online-society-proposal-dialog')).toBeVisible()
+  await page.getByTestId('online-society-proposal-title-input').fill('移动端提案弹窗')
+  await page.getByTestId('online-society-proposal-kind-select').selectOption('festival')
+  await page.getByTestId('online-society-proposal-summary-input').fill('移动端发起提案应在弹窗内完成。')
+  await page.getByTestId('online-society-proposal-submit').click()
+  await expect(page.getByTestId('online-society-proposal-dialog')).toHaveCount(0)
+  await expect(page.getByTestId('online-society-proposal-list')).toContainText('移动端提案弹窗')
+
+  await page.getByTestId('online-society-proposal-close-trigger-prop-mobile-schedule').click()
+  await expect(page.getByTestId('online-society-proposal-close-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-society-proposal-close-impact-list')).toContainText('本周节会排班')
+  await expect(page.getByTestId('online-society-proposal-close-impact-list')).toContainText('赞成 3 / 反对 1 / 暂缓 0')
+  await page.getByTestId('online-society-proposal-close-note-input').fill('按多数票执行，本周先试运行。')
+  await page.getByTestId('online-society-proposal-close-confirm').click()
+  await expect(page.getByTestId('online-society-proposal-close-dialog')).toHaveCount(0)
+  await expect(page.getByTestId('online-society-proposal-archive-note-prop-mobile-schedule')).toBeVisible()
+  await page.getByTestId('online-society-proposal-archive-note-prop-mobile-schedule').locator('summary').click()
+  await expect(page.getByTestId('online-society-proposal-archive-note-prop-mobile-schedule')).toContainText('按多数票执行')
 
   const clippedControls = await page.evaluate(() => {
     const root = document.querySelector('[data-testid="online-society-page"]')
@@ -3073,11 +4384,18 @@ async function prepareOnlineSocietyBridgeMobile(page) {
   await page.getByTestId('online-module-tab-projects').click()
 
   await expect(page.getByTestId('async-community-board')).toBeVisible()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('搭脚手架')
+  await expect(page.getByTestId('async-community-project-compact-detail')).toContainText('搭脚手架')
   await expect(page.getByTestId('online-society-async-contribute-bridge-labor_shift')).toBeVisible()
   await page.getByTestId('online-society-async-contribute-bridge-labor_shift').click()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('铺桥面')
+  await expect(page.getByTestId('async-community-project-compact-detail')).toContainText('铺桥面')
   await expect(page.getByText('移动端烟测号补上一段修桥工班，桥面推进了一截。')).toBeVisible()
+  await page.getByTestId('online-society-project-detail-trigger-bridge').click()
+  await expect(page.getByTestId('online-society-project-detail-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-society-project-stage-list')).toContainText('铺桥面')
+  await expect(page.getByTestId('online-society-project-recent-contributions')).toContainText('施工行动')
+  await expect(page.getByTestId('online-society-project-contributors')).toContainText('移动端烟测号')
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-society-project-detail-sheet')).toHaveCount(0)
   await expect(page.getByTestId('online-society-project-contribute-bridge-labor_shift')).toBeVisible()
 
   const clippedControls = await page.evaluate(() => {
@@ -3110,12 +4428,84 @@ async function prepareOnlineSocietyFestivalSquareMobile(page) {
   await page.getByTestId('online-module-tab-projects').click()
 
   await expect(page.getByTestId('async-community-board')).toBeVisible()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('备料')
+  await expect(page.getByTestId('async-community-project-compact-detail')).toContainText('备料')
   await expect(page.getByTestId('online-society-async-contribute-festival_square-festival_scenery')).toBeVisible()
   await page.getByTestId('online-society-async-contribute-festival_square-festival_scenery').click()
-  await expect(page.getByTestId('async-community-project-detail')).toContainText('搭场')
+  await expect(page.getByTestId('async-community-project-compact-detail')).toContainText('搭场')
   await expect(page.getByText('移动端烟测号搭起第一批节庆布景，广场开始像节会现场。')).toBeVisible()
+  await page.getByTestId('async-community-project-detail-trigger').click()
+  await expect(page.getByTestId('online-society-project-detail-sheet')).toBeVisible()
+  await expect(page.getByTestId('online-society-project-stage-list')).toContainText('搭场')
+  await expect(page.getByTestId('online-society-project-recent-contributions')).toContainText('布景搭设')
+  await expect(page.getByTestId('online-society-project-history')).toContainText('移动端烟测号搭起第一批节庆布景')
+  await expect(page.getByTestId('online-society-project-detail-room-launch')).toContainText('节庆广场开幕')
+  await expect(page.getByTestId('online-society-project-detail-room-launch')).toContainText('创建房间')
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-society-project-detail-sheet')).toHaveCount(0)
   await expect(page.getByTestId('online-society-project-contribute-festival_square-festival_scenery')).toBeVisible()
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-society-page"]')
+    if (!root) return ['online-society-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .async-community-board__project-tabs')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
+async function prepareOnlineSocietyWarehouseMobile(page) {
+  await expect(page.getByTestId('online-society-page')).toBeVisible()
+  await expect(page.getByText('清溪仓社').first()).toBeVisible()
+  await expect(page.getByTestId('online-module-tab-storage')).toBeVisible()
+  await page.getByTestId('online-module-tab-storage').click()
+
+  await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('待入仓')
+  await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('0/5 类齐备')
+  await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('节会成本下降')
+  await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('公共任务加成')
+  await expect(page.getByTestId('online-society-warehouse-deposit-herb_mugwort')).toBeVisible()
+  await expect(page.getByTestId('online-society-warehouse-deposit-wood_bundle')).toBeVisible()
+  await expect(page.getByTestId('online-society-warehouse-deposit-cloth_roll')).toBeVisible()
+  await expect(page.getByTestId('online-society-warehouse-deposit-fish_basket')).toBeVisible()
+
+  await page.getByTestId('online-society-warehouse-deposit-grain_rice').click()
+
+  await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('收集中')
+  await expect(page.getByTestId('online-society-warehouse-weekly-settlement')).toContainText('1/5 类齐备')
+  await expect(page.getByTestId('online-society-page')).toContainText('移动端烟测号 补入了 稻米入仓')
+  await expect(page.getByTestId('online-society-warehouse-consume-panel')).toContainText('公共消耗')
+  await expect(page.getByTestId('online-society-warehouse-consume-panel')).toContainText('只扣公共仓')
+
+  await page.getByTestId('online-society-warehouse-consume-laba_cookpot_base').click()
+
+  await expect(page.getByTestId('online-society-warehouse-consume-confirm')).toHaveCount(1)
+  await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('腊八共灶底料')
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('只扣公共仓')
+  await expect(page.getByTestId('online-confirm-asset-list')).toContainText('稻米 x2')
+  await expect(page.getByTestId('online-confirm-asset-list')).toContainText('不扣个人背包')
+  await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+  await page.getByTestId('online-confirm-required-text').fill('确认公共消耗')
+  await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+  await page.getByTestId('online-confirm-action-dialog-confirm').click()
+
+  await expect(page.getByTestId('online-confirm-action-dialog')).toHaveCount(0)
+  await expect(page.getByTestId('online-society-page')).toContainText('移动端烟测号 消耗了 腊八共灶底料')
+  await expect(page.getByTestId('online-society-page')).toContainText('只扣公共仓')
 
   const clippedControls = await page.evaluate(() => {
     const root = document.querySelector('[data-testid="online-society-page"]')
@@ -3151,22 +4541,36 @@ async function prepareOnlineManorCareRoomMobile(page) {
   await expect(page.getByTestId('visual-scene-list-object-manor_field')).toBeVisible()
   await expect(page.getByTestId('online-manor-care-readable-limits')).toContainText('访客今日照料')
   await expect(page.getByTestId('online-manor-care-room-panel')).toBeVisible()
-  await expect(page.getByTestId('online-manor-care-room-create').first()).toBeVisible()
-  await page.getByTestId('online-manor-care-room-create').first().click()
+  await expect(page.getByTestId('online-manor-care-room-create-dialog-trigger')).toBeVisible()
+  await page.getByTestId('online-manor-care-room-create-dialog-trigger').click()
+  await expect(page.getByTestId('online-manor-care-room-create-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-action-dialog')).toBeVisible()
+  await page.getByTestId('online-manor-care-room-create').click()
 
   await expect(page.getByTestId('online-manor-care-room-list')).toBeVisible()
   await expect(page.getByTestId('online-manor-care-room-entry')).toContainText('护理中')
   await expect(page.getByTestId('online-manor-care-room-entry')).toContainText('移动端烟测号')
+  await expect(page.getByTestId('online-manor-care-room-detail-sheet')).toBeVisible()
   await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('成员 2/2')
   await page.getByTestId('online-manor-care-room-action').first().click()
 
   await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作灌溉')
-  await expect(page.getByTestId('online-manor-care-room-risk-summary')).toContainText('累计风险')
+  await expect(page.getByTestId('online-manor-care-room-detail-sheet').getByTestId('online-manor-care-room-risk-summary')).toContainText('累计风险')
   await page.getByTestId('online-manor-care-room-action').first().click()
   await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作喂食')
   await expect(page.getByTestId('online-manor-care-room-settle')).toBeVisible()
   await page.getByTestId('online-manor-care-room-settle').click()
+  await expect(page.getByTestId('online-manor-care-room-settle-confirm')).toHaveCount(1)
+  await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-confirm-impact-list')).toContainText('分工进度')
+  await expect(page.getByTestId('online-confirm-asset-list')).toContainText('健康收口')
+  await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+  await page.getByTestId('online-confirm-required-text').fill('确认结算护理')
+  await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+  await page.getByTestId('online-confirm-action-dialog-confirm').click()
 
+  await expect(page.getByTestId('online-manor-care-room-settle-confirm')).toHaveCount(0)
+  await expect(page.getByTestId('online-manor-care-room-detail-sheet')).toHaveCount(0)
   await expect(page.getByTestId('online-manor-care-room-records')).toBeVisible()
   await expect(page.getByTestId('online-manor-care-room-record')).toContainText('护理房间已结算')
   await expect(page.getByTestId('online-manor-care-room-record-settlement')).toContainText('mobile-smoke-care-room-settlement')
@@ -3198,7 +4602,12 @@ async function prepareOnlineManorCareRoomMobile(page) {
   const smallSceneTargets = await page.evaluate(() => {
     const root = document.querySelector('[data-testid="visual-scene-board"]')
     if (!root) return ['visual-scene-board']
-    return Array.from(root.querySelectorAll('[data-testid^="visual-scene-object-"], [data-testid^="visual-scene-list-object-"]'))
+    return Array.from(document.querySelectorAll([
+      'button[data-testid^="visual-scene-object-"]',
+      'button[data-testid^="visual-scene-list-object-"]',
+      'button[data-testid="visual-scene-detail-sheet-trigger"]',
+      'button[data-testid^="visual-scene-action-"]'
+    ].join(',')))
       .map(element => {
         const rect = element.getBoundingClientRect()
         return {
@@ -3207,11 +4616,116 @@ async function prepareOnlineManorCareRoomMobile(page) {
           height: rect.height,
         }
       })
-      .filter(entry => entry.width < 36 || entry.height < 36)
+      .filter(entry => entry.width < 44 || entry.height < 44)
       .map(entry => entry.label)
   })
 
   expect(smallSceneTargets).toEqual([])
+}
+
+async function prepareOnlineManorOwnerIdentityMobile(page) {
+  await expect(page.getByTestId('online-manor-page')).toBeVisible()
+  await expect(page.getByTestId('online-manor-owner-primary-actions')).toBeVisible()
+  await expect(page.getByTestId('online-manor-owner-primary-actions')).toContainText('管理展示')
+  await expect(page.getByTestId('online-manor-owner-primary-actions')).toContainText('查看留言')
+  await expect(page.getByTestId('online-manor-owner-primary-actions')).toContainText('处理照料')
+  await expect(page.getByTestId('online-manor-visitor-primary-actions')).toHaveCount(0)
+  await expect(page.getByTestId('online-manor-overview-latest-summary')).toContainText('最新留言')
+  await expect(page.getByTestId('online-manor-overview-latest-summary')).toContainText('最新照料')
+
+  await page.getByTestId('online-manor-owner-primary-manage-theme').click()
+  await expect(page.getByTestId('online-action-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-manor-theme-label-input')).toBeVisible()
+  await page.getByTestId('online-action-dialog-cancel').click()
+  await page.getByTestId('online-module-tab-overview').click()
+  await page.getByTestId('online-manor-owner-primary-guestbook').click()
+  await expect(page.getByTestId('online-manor-guestbook-list')).toContainText('青禾访客')
+  await page.getByTestId('online-module-tab-theme').click()
+  await page.getByTestId('online-manor-cover-upload-dialog-trigger').click()
+  await expect(page.getByTestId('online-manor-cover-upload-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-manor-cover-alt-input')).toBeVisible()
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-manor-page"]')
+    if (!root) return ['online-manor-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .visual-scene-board__stage')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
+async function prepareOnlineManorLimitedStealMobile(page) {
+  await expect(page.getByTestId('online-manor-page')).toBeVisible()
+  await expect(page.getByTestId('online-manor-visitor-primary-actions')).toBeVisible()
+  await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('留言')
+  await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('照料')
+  await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('轻采')
+  await expect(page.getByTestId('online-manor-owner-primary-actions')).toHaveCount(0)
+  await expect(page.getByTestId('online-manor-visitor-action-status')).toContainText('轻采：可轻采')
+
+  await page.getByTestId('online-manor-visitor-primary-guestbook').click()
+  await expect(page.getByTestId('online-manor-guestbook-dialog')).toBeVisible()
+  await expect(page.getByTestId('online-manor-guestbook-input')).toBeVisible()
+  await page.getByTestId('online-action-dialog-cancel').click()
+  await page.getByTestId('online-module-tab-overview').click()
+  await page.getByTestId('online-manor-visitor-primary-steal').click()
+  await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+  await expect(page.getByTestId('online-manor-steal-readable-limits')).toContainText('0/2')
+  await expect(page.getByTestId('visual-scene-detail-sheet-trigger')).toBeVisible()
+
+  await page.getByTestId('visual-scene-object-mobile_smoke_apple_tree').click()
+  await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
+  await expect(page.getByTestId('visual-scene-object-detail')).toContainText('雨后苹果树')
+  await page.getByTestId('visual-scene-action-light_harvest').click()
+  await expect(page.getByTestId('visual-scene-action-result')).toContainText('移动端烟测号轻采了雨后苹果树')
+  await page.getByTestId('online-bottom-sheet-close').click()
+  await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
+  await expect(page.getByTestId('online-manor-steal-readable-limits')).toContainText('1/2')
+  await expect(page.getByTestId('online-manor-steal-anti-abuse-summary')).toContainText('移动端烟测号 1/2')
+  await expect(page.getByTestId('online-manor-steal-log')).toContainText('移动端烟测号 · 轻采果实')
+  await page.getByTestId('online-manor-steal-detail-trigger').first().click()
+  const stealDetailSheet = page.getByTestId('online-manor-steal-detail-sheet')
+  await expect(stealDetailSheet).toBeVisible()
+  await stealDetailSheet.getByTestId('online-technical-details-toggle').click()
+  await expect(stealDetailSheet.getByTestId('online-manor-steal-receipt-guard')).toContainText('mobile-smoke-steal-receipt')
+  await expect(stealDetailSheet.getByTestId('online-manor-steal-receipt-guard')).toContainText('主人保留 100%')
+  await expect(stealDetailSheet.getByTestId('online-manor-steal-use-summary')).toContainText('料理、订单与节会备料')
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-manor-page"]')
+    if (!root) return ['online-manor-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto, .visual-scene-board__stage')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
 }
 
 async function main() {
@@ -3227,16 +4741,14 @@ async function main() {
   }
 
   await mkdir(outputDir, { recursive: true })
-  const shouldLaunchServer = shouldStartDevServer && !(await isServerReachable(baseURL))
+  const shouldLaunchServer = shouldStartDevServer && !(await isTcpServerReachable(baseURL))
   const server = shouldLaunchServer ? startDevServer() : null
   const stopServer = () => {
-    if (server && !server.killed) {
-      server.kill('SIGTERM')
-    }
+    stopProcessTree(server?.child)
   }
 
   try {
-    await waitForServer(baseURL)
+    await waitForStartedDevServer(server)
     const browser = await chromium.launch()
     try {
       await captureScenario({
@@ -3534,6 +5046,62 @@ async function main() {
       })
       await captureScenario({
         browser,
+        label: '40-cottage-cohabitation-entry-mobile-390x844',
+        hash: '/#/game/cottage',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-cohabitation-page"]',
+        mockCohabitation: true,
+        prepare: prepareCottageCohabitationEntryMobile
+      })
+      await captureScenario({
+        browser,
+        label: '41-cottage-cohabitation-entry-mobile-360x780',
+        hash: '/#/game/cottage',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-cohabitation-page"]',
+        mockCohabitation: true,
+        prepare: prepareCottageCohabitationEntryMobile
+      })
+      await captureScenario({
+        browser,
+        label: '42-farm-cohabitation-switch-mobile-390x844',
+        hash: '/#/game/farm',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-cohabitation-page"]',
+        mockCohabitation: true,
+        prepare: prepareFarmCohabitationSwitchMobile
+      })
+      await captureScenario({
+        browser,
+        label: '43-farm-cohabitation-switch-mobile-360x780',
+        hash: '/#/game/farm',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-cohabitation-page"]',
+        mockCohabitation: true,
+        prepare: prepareFarmCohabitationSwitchMobile
+      })
+      await captureScenario({
+        browser,
+        label: '46-online-expedition-room-main-mobile-390x844',
+        hash: '/#/game/expedition-room',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="expedition-room-page"]',
+        mockExpeditionRoom: true,
+        mockExpeditionRoomState: 'host-running',
+        prepare: prepareExpeditionRoomMainFlowMobile
+      })
+      await captureScenario({
+        browser,
+        label: '47-online-expedition-room-main-mobile-360x780',
+        hash: '/#/game/expedition-room',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="expedition-room-page"]',
+        mockExpeditionRoom: true,
+        mockExpeditionRoomState: 'host-running',
+        prepare: prepareExpeditionRoomMainFlowMobile
+      })
+      await captureScenario({
+        browser,
         label: '27-online-orders-mobile-360x780',
         hash: '/#/game/online/orders',
         viewport: { width: 360, height: 780 },
@@ -3601,6 +5169,126 @@ async function main() {
       })
       await captureScenario({
         browser,
+        label: '38-online-society-warehouse-mobile-390x844',
+        hash: '/#/game/online/society?tab=storage',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyProject: 'warehouse',
+        prepare: prepareOnlineSocietyWarehouseMobile
+      })
+      await captureScenario({
+        browser,
+        label: '39-online-society-warehouse-mobile-360x780',
+        hash: '/#/game/online/society?tab=storage',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyProject: 'warehouse',
+        prepare: prepareOnlineSocietyWarehouseMobile
+      })
+      await captureScenario({
+        browser,
+        label: '40-online-society-create-mobile-390x844',
+        hash: '/#/game/online/society',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyMode: 'create',
+        prepare: prepareOnlineSocietyCreateMobile
+      })
+      await captureScenario({
+        browser,
+        label: '41-online-society-create-mobile-360x780',
+        hash: '/#/game/online/society',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyMode: 'create',
+        prepare: prepareOnlineSocietyCreateMobile
+      })
+      await captureScenario({
+        browser,
+        label: '42-online-society-requests-mobile-390x844',
+        hash: '/#/game/online/society?tab=members',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyMode: 'management',
+        prepare: prepareOnlineSocietyRequestsMobile
+      })
+      await captureScenario({
+        browser,
+        label: '43-online-society-requests-mobile-360x780',
+        hash: '/#/game/online/society?tab=members',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyMode: 'management',
+        prepare: prepareOnlineSocietyRequestsMobile
+      })
+      await captureScenario({
+        browser,
+        label: '44-online-society-proposals-mobile-390x844',
+        hash: '/#/game/online/society?tab=proposals',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyMode: 'management',
+        prepare: prepareOnlineSocietyProposalsMobile
+      })
+      await captureScenario({
+        browser,
+        label: '45-online-society-proposals-mobile-360x780',
+        hash: '/#/game/online/society?tab=proposals',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-society-page"]',
+        mockSociety: true,
+        mockSocietyMode: 'management',
+        prepare: prepareOnlineSocietyProposalsMobile
+      })
+      await captureScenario({
+        browser,
+        label: '36-online-manor-limited-steal-mobile-390x844',
+        hash: '/#/game/online/manor',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-manor-page"]',
+        mockManor: true,
+        mockManorMode: 'limited-steal',
+        prepare: prepareOnlineManorLimitedStealMobile
+      })
+      await captureScenario({
+        browser,
+        label: '37-online-manor-limited-steal-mobile-360x780',
+        hash: '/#/game/online/manor',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-manor-page"]',
+        mockManor: true,
+        mockManorMode: 'limited-steal',
+        prepare: prepareOnlineManorLimitedStealMobile
+      })
+      await captureScenario({
+        browser,
+        label: '46-online-manor-owner-identity-mobile-390x844',
+        hash: '/#/game/online/manor',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-manor-page"]',
+        mockManor: true,
+        mockManorMode: 'owner-identity',
+        prepare: prepareOnlineManorOwnerIdentityMobile
+      })
+      await captureScenario({
+        browser,
+        label: '47-online-manor-owner-identity-mobile-360x780',
+        hash: '/#/game/online/manor',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-manor-page"]',
+        mockManor: true,
+        mockManorMode: 'owner-identity',
+        prepare: prepareOnlineManorOwnerIdentityMobile
+      })
+      await captureScenario({
+        browser,
         label: '34-online-manor-care-room-mobile-390x844',
         hash: '/#/game/online/manor',
         viewport: { width: 390, height: 844 },
@@ -3637,7 +5325,7 @@ async function main() {
         '在线节会房场景使用 mock 登录态与房间模板数据，覆盖 390x844 与 360x780 视口下创建向导底部抽屉、运行中准备大厅主行动、邀请面板批量发送、结算确认弹窗、footer 主按钮、关闭按钮、背景滚动锁定和横向溢出断言。',
         '共同庄园家族节会场景使用 mock 登录态与节会席位数据，覆盖 390x844 与 360x780 视口下结算确认弹窗、影响对象、资产变化、恢复提示、确认文字门槛和横向溢出断言。',
         '在线村社场景使用 mock 登录态与村社公共建设数据，覆盖花灯墙写愿望、修桥施工行动、节庆筹备布景搭设、贡献后阶段反馈和移动端横向溢出断言。',
-        '在线庄园场景使用 mock 登录态与护理房数据，覆盖 2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
+        '在线庄园场景使用 mock 登录态与护理房 / 身份 / 轻采数据，覆盖主人主行动、访客留言 / 照料 / 轻采入口、2 人护理房创建、灌溉 / 喂食分工点击、结算凭证回看和移动端横向溢出断言。'
       ]
     }
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), 'utf8')

@@ -1,7 +1,10 @@
 import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'node:url'
 import legacy from '@vitejs/plugin-legacy'
+
+const configDirname = dirname(fileURLToPath(import.meta.url))
 
 const createManualChunkName = (id: string) => {
   const normalizedId = id.replace(/\\/g, '/')
@@ -115,7 +118,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src')
+      '@': resolve(configDirname, 'src')
     }
   }
 })

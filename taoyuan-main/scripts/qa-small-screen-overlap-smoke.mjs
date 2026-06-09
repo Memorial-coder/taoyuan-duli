@@ -1,5 +1,5 @@
 /* global process, setTimeout, window, document, HTMLElement */
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -49,16 +49,21 @@ const startDevServer = async () => {
     : []
   devServer = spawn(npmCommand, [...npmArgs, 'run', 'dev', '--', '--host', host, '--port', String(port), '--strictPort'], {
     cwd: repoRoot,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: 'ignore',
     env: { ...process.env, BROWSER: 'none' },
   })
+  devServer.unref()
   await waitForTcpServer(baseURL, 120_000)
   await wait(1000)
 }
 
 const stopDevServer = () => {
   if (!devServer) return
-  devServer.kill('SIGTERM')
+  if (process.platform === 'win32') {
+    spawnSync('taskkill.exe', ['/pid', String(devServer.pid), '/t', '/f'], { stdio: 'ignore' })
+  } else {
+    devServer.kill('SIGTERM')
+  }
   devServer = null
   stopWindowsViteProcessesForPort(port)
 }

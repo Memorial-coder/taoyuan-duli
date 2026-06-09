@@ -3,6 +3,12 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 const sampleId = 'breeding_specialist'
 const regionMapSampleId = 'region_map_showcase'
 const regionAncientRoadSampleId = 'region_ancient_road_midgame'
+const readTimeoutMs = (name: string, fallback: number) => {
+  const value = Number(process.env[name])
+  return Number.isFinite(value) && value >= 0 ? value : fallback
+}
+const homeNavigationTimeoutMs = readTimeoutMs('TAOYUAN_E2E_HOME_NAV_TIMEOUT_MS', 30_000)
+const homeReadyTimeoutMs = readTimeoutMs('TAOYUAN_E2E_HOME_READY_TIMEOUT_MS', 30_000)
 
 const emptyVisualState = {
   board_type: 'scene',
@@ -20,15 +26,15 @@ const emptyVisualState = {
 async function openHome(page: Page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 })
+      await page.goto('/', { waitUntil: 'commit', timeout: homeNavigationTimeoutMs })
       break
     } catch (error) {
       if (attempt === 2) throw error
       await page.waitForTimeout(500)
     }
   }
-  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('button', { name: '新的旅程' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible({ timeout: homeReadyTimeoutMs })
+  await expect(page.getByRole('button', { name: '新的旅程' })).toBeVisible({ timeout: homeReadyTimeoutMs })
 }
 
 async function startNewJourney(page: Page, playerName: string) {
@@ -85,6 +91,36 @@ async function openTechnicalDetailsForTestId(page: Page, testId: string) {
   await expect(target).toBeVisible()
 }
 
+async function expectVisualTouchTargets(page: Page, selectors: string[], minSize = 44) {
+  const undersizedTargets = await page.evaluate(({ selectors, minSize }) => {
+    return selectors.flatMap(selector => Array.from(document.querySelectorAll<HTMLElement>(selector)))
+      .filter(element => {
+        const rect = element.getBoundingClientRect()
+        const style = window.getComputedStyle(element)
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+      })
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.getAttribute('data-testid') || element.textContent?.trim() || element.tagName,
+          width: rect.width,
+          height: rect.height,
+        }
+      })
+      .filter(entry => entry.width < minSize || entry.height < minSize)
+      .map(entry => `${entry.label}:${Math.round(entry.width)}x${Math.round(entry.height)}`)
+  }, { selectors, minSize })
+
+  expect(undersizedTargets).toEqual([])
+}
+
+async function openSocietyProjectDetailSheet(page: Page) {
+  await page.getByTestId('async-community-project-detail-trigger').click()
+  const sheet = page.getByTestId('online-society-project-detail-sheet')
+  await expect(sheet).toBeVisible()
+  return sheet
+}
+
 async function expectOnlineFestivalRoomLoaded(page: Page, title: string) {
   await expect(page.getByTestId('online-festival-room-status-panel')).toContainText(title)
   const legacyRoom = page.getByTestId('online-festival-room-my-room')
@@ -112,6 +148,59 @@ async function gotoOnlineFestivalTab(page: Page, tab: string, readyTestId: strin
   await expect(page.getByTestId(readyTestId)).toBeVisible({ timeout: 10_000 })
 }
 
+async function gotoExpeditionRoomPage(page: Page) {
+  const url = '/#/game/expedition-room'
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 })
+    const ready = await expect(page.getByTestId('expedition-room-page')).toBeVisible({ timeout: 5_000 })
+      .then(() => true)
+      .catch(() => false)
+    if (ready) return
+    await page.waitForTimeout(500)
+  }
+  await expect(page.getByTestId('expedition-room-page')).toBeVisible({ timeout: 10_000 })
+}
+
+async function expectRoomDesktopLayout(page: Page, options: {
+  layoutTestId: string
+  leftTestId: string
+  mainTestId: string
+  rightTestId: string
+  screenshotPath: string
+}) {
+  const layout = page.getByTestId(options.layoutTestId)
+  const left = page.getByTestId(options.leftTestId)
+  const main = page.getByTestId(options.mainTestId)
+  const right = page.getByTestId(options.rightTestId)
+
+  await expect(layout).toBeVisible()
+  await expect(left).toBeVisible()
+  await expect(main).toBeVisible()
+  await expect(right).toBeVisible()
+
+  const [layoutBox, leftBox, mainBox, rightBox] = await Promise.all([
+    layout.boundingBox(),
+    left.boundingBox(),
+    main.boundingBox(),
+    right.boundingBox()
+  ])
+
+  expect(layoutBox, `${options.layoutTestId} should have a bounding box`).toBeTruthy()
+  expect(leftBox, `${options.leftTestId} should have a bounding box`).toBeTruthy()
+  expect(mainBox, `${options.mainTestId} should have a bounding box`).toBeTruthy()
+  expect(rightBox, `${options.rightTestId} should have a bounding box`).toBeTruthy()
+  if (!layoutBox || !leftBox || !mainBox || !rightBox) return
+
+  expect(Math.round(rightBox.width)).toBeGreaterThanOrEqual(310)
+  expect(Math.round(rightBox.width)).toBeLessThanOrEqual(380)
+  expect(Math.round(mainBox.width)).toBeGreaterThanOrEqual(400)
+  expect(leftBox.x).toBeLessThan(mainBox.x)
+  expect(mainBox.x).toBeLessThan(rightBox.x)
+  expect(layoutBox.width).toBeGreaterThanOrEqual(1000)
+
+  await page.screenshot({ path: options.screenshotPath, fullPage: false })
+}
+
 async function openCohabitationTab(page: Page, tabKey: string) {
   const target = page.getByTestId(`online-module-tab-${tabKey}`)
   if (!(await target.isVisible().catch(() => false))) {
@@ -121,6 +210,27 @@ async function openCohabitationTab(page: Page, tabKey: string) {
   }
   await expect(target).toBeVisible()
   await target.click()
+}
+
+async function revealCohabitationTab(page: Page, tabKey: string) {
+  const target = page.getByTestId(`online-module-tab-${tabKey}`)
+  if (!(await target.isVisible().catch(() => false))) {
+    const groupedMore = page.getByTestId('online-cohabitation-more-tab-groups')
+    const isOpen = await groupedMore.evaluate(node => (node as HTMLDetailsElement).open).catch(() => false)
+    if (!isOpen) await groupedMore.locator('summary').click()
+  }
+  await expect(target).toBeVisible()
+  return target
+}
+
+async function expectCohabitationAliasDeepLink(page: Page, alias: string, tabKey: string) {
+  await page.goto('/#/game/online', { waitUntil: 'domcontentloaded', timeout: 15_000 })
+  await expect(page.getByTestId('online-center')).toBeVisible()
+  await page.goto(`/#/game/online/cohabitation?tab=${alias}`, { waitUntil: 'domcontentloaded', timeout: 15_000 })
+  await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+  await expect(page.getByTestId('online-cohabitation-tab-groups')).toBeVisible()
+  const target = await revealCohabitationTab(page, tabKey)
+  await expect(target).toHaveAttribute('aria-selected', 'true')
 }
 
 async function openCohabitationOverviewDetails(page: Page) {
@@ -697,7 +807,9 @@ async function mockOnlineVisualRoom(page: Page, options: {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildExpeditionOverview()) })
   })
   const isExpeditionActionUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/action(?:\?.*)?$/.test(url)
+  const isExpeditionReadyCheckUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/ready-check(?:\?.*)?$/.test(url)
   const isExpeditionSettleUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/settle(?:\?.*)?$/.test(url)
+  const isExpeditionCloseUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/close(?:\?.*)?$/.test(url)
   const isExpeditionInviteUrl = (url: string) => /\/api\/taoyuan\/online\/expedition\/rooms\/[^/?]+\/invite(?:\?.*)?$/.test(url)
   const fulfillExpeditionAction = async (route: Route) => {
     let payload: { action_id?: string } = {}
@@ -717,11 +829,69 @@ async function mockOnlineVisualRoom(page: Page, options: {
       body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
     })
   }
+  const fulfillExpeditionReadyCheck = async (route: Route) => {
+    const readyMembers = (currentRoom.members as Array<Record<string, unknown>>).map(member => {
+      if (String(member.status || '') === 'invited') return member
+      return {
+        ...member,
+        status: 'ready',
+        status_label: member.username === currentRoom.host_username ? '房主已准备' : '已准备',
+        ready_at: Number(member.ready_at || 0) || 1760000200
+      }
+    })
+    currentRoom = {
+      ...currentRoom,
+      state: 'ready_check',
+      state_label: '准备确认',
+      state_reason: '远征准备确认已发起，等待成员确认出发状态。',
+      ready_member_count: readyMembers.filter(member => String(member.status || '') === 'ready').length,
+      members: readyMembers as typeof currentRoom.members,
+      can_invite: true,
+      can_host_ready_check: false,
+      can_host_start_countdown: true,
+      can_host_settle: false,
+      can_host_close: true,
+      gameplay: {
+        ...currentRoom.gameplay,
+        phase: 'ready_check',
+        phase_label: '准备确认',
+        last_action_summary: '远征准备确认已发起。'
+      }
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
+    })
+  }
   const fulfillExpeditionSettle = async (route: Route) => {
     const settleResult = options.onSettle?.(currentRoom)
     if (settleResult) {
       currentRoom = settleResult.room
       currentExpeditionRecentReceipts = settleResult.recentReceipts ?? currentExpeditionRecentReceipts
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: buildExpeditionOverview(), room: currentRoom })
+    })
+  }
+  const fulfillExpeditionClose = async (route: Route) => {
+    currentRoom = {
+      ...currentRoom,
+      state: 'closed',
+      state_label: '已关闭',
+      state_reason: '房主已关闭本轮远征房间。',
+      can_invite: false,
+      can_leave: false,
+      can_ready: false,
+      can_unready: false,
+      can_host_ready_check: false,
+      can_host_start_countdown: false,
+      can_host_settle: false,
+      can_host_close: false,
+      can_disconnect: false,
+      can_reconnect: false
     }
     await route.fulfill({
       status: 200,
@@ -756,7 +926,9 @@ async function mockOnlineVisualRoom(page: Page, options: {
     })
   }
   await page.route(isExpeditionActionUrl, fulfillExpeditionAction)
+  await page.route(isExpeditionReadyCheckUrl, fulfillExpeditionReadyCheck)
   await page.route(isExpeditionSettleUrl, fulfillExpeditionSettle)
+  await page.route(isExpeditionCloseUrl, fulfillExpeditionClose)
   await page.route(isExpeditionInviteUrl, fulfillExpeditionInvite)
 }
 
@@ -1288,7 +1460,8 @@ function buildPublicWarehouse(deposited = false, consumed = false) {
         category_id: 'grain',
         category_label: '粮食',
         weekly_points: 0,
-        costs: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }]
+        costs: [{ item_id: 'rice', quantity: 2, label: '稻米 x2' }],
+        asset_boundary: '只扣公共仓，不扣个人背包或个人铜钱。'
       }
     ] : []
   }
@@ -3259,12 +3432,99 @@ function buildFriendManorSnapshot(cared = false, stolen = false, careRoomActionI
   }
 }
 
+function buildOwnerManorSnapshot(themeLabel = '春日互助', coverImageUrl = '', coverImageAlt = '') {
+  const snapshot = buildFriendManorSnapshot(true, false, [], false, false)
+  const ownerGuestbookEntry = {
+    id: 'owner-guestbook-1',
+    target_username: 'tester',
+    target_save_id: 1,
+    target_save_slot: null,
+    author_username: 'visitor_green',
+    author_display_name: '青禾访客',
+    kind: 'blessing',
+    content: '春菜田照料得很周到，来访时也很安心。',
+    reply_text: '',
+    reply_author_display_name: '',
+    pinned: false,
+    created_at: 6,
+    updated_at: 6
+  }
+  const ownerCareEntry = {
+    id: 'owner-care-entry-1',
+    target_username: 'tester',
+    target_save_id: 1,
+    target_save_slot: null,
+    visitor_username: 'visitor_green',
+    visitor_display_name: '青禾访客',
+    action_id: 'water_plot',
+    action_label: '帮忙浇水',
+    object_id: 'friend_plot_1',
+    object_label: '春菜田',
+    day_tag: '2026-05-25',
+    idempotency_key: 'owner-care-e2e-1',
+    owner_benefit: '作物健康保护',
+    visitor_reward: '友情点 +1',
+    summary: '青禾访客帮春菜田浇了水。',
+    created_at: 7
+  }
+  return {
+    ...snapshot,
+    username: 'tester',
+    display_name: '测试者',
+    viewer_is_owner: true,
+    manor_name: '测试者的春日庄园',
+    public_title: '自己的庄园展示',
+    showcase_theme: themeLabel,
+    current_focus: '整理公开展示与访客互动',
+    weekly_goal: '处理最新留言和照料回看',
+    today_visit_summary: '今日 1 条留言，1 次照料',
+    guestbook_entries: [ownerGuestbookEntry],
+    care_entries: [ownerCareEntry],
+    steal_entries: [],
+    visitor_activity_entries: [{
+      id: 'owner-activity-care-1',
+      source_id: ownerCareEntry.id,
+      kind: 'care',
+      kind_label: '好友照料',
+      visitor_username: ownerCareEntry.visitor_username,
+      visitor_display_name: ownerCareEntry.visitor_display_name,
+      title: '好友帮忙照料春菜田',
+      summary: ownerCareEntry.summary,
+      object_label: ownerCareEntry.object_label,
+      action_label: ownerCareEntry.action_label,
+      audit_note: '主人概览可直接回看最近照料来源。',
+      created_at: ownerCareEntry.created_at
+    }],
+    relation_context: {
+      ...snapshot.relation_context,
+      viewer_is_owner: true,
+      can_visit: true,
+      can_care: true,
+      can_steal: false
+    },
+    visual_state: {
+      ...snapshot.visual_state,
+      recent_feedback: '青禾访客帮春菜田浇了水。'
+    },
+    theme_week: {
+      ...snapshot.theme_week,
+      active_theme: themeLabel,
+      active_theme_source: 'owner',
+      cover_image_url: coverImageUrl,
+      cover_image_alt: coverImageAlt
+    }
+  }
+}
+
 async function mockOnlineManorCare(page: Page) {
   let cared = false
   let stolen = false
   let careRoomActionIds: string[] = []
   let careRoomSettled = false
   let careRoomCreated = false
+  let ownerThemeLabel = '春日互助'
+  let ownerCoverImageUrl = ''
+  let ownerCoverImageAlt = ''
   await page.unroute('**/api/me').catch(() => {})
   await page.route('**/api/me', async route => {
     await route.fulfill({
@@ -3282,6 +3542,40 @@ async function mockOnlineManorCare(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ ok: true, favorites: [], same_theme_favorites: [], hot_manors: [] })
+    })
+  })
+  await page.route('**/api/taoyuan/hall/upload-image', async route => {
+    ownerCoverImageUrl = '/images/e2e-manor-cover.png'
+    ownerCoverImageAlt = '弹窗主图'
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, url: ownerCoverImageUrl, alt: ownerCoverImageAlt })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, snapshot: buildOwnerManorSnapshot(ownerThemeLabel, ownerCoverImageUrl, ownerCoverImageAlt) })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/theme-week', async route => {
+    const payload = route.request().postDataJSON() as { label?: string, cover_image_url?: string, cover_image_alt?: string }
+    ownerThemeLabel = String(payload.label || ownerThemeLabel)
+    ownerCoverImageUrl = String(payload.cover_image_url || ownerCoverImageUrl)
+    ownerCoverImageAlt = String(payload.cover_image_alt || ownerCoverImageAlt)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, snapshot: buildOwnerManorSnapshot(ownerThemeLabel, ownerCoverImageUrl, ownerCoverImageAlt) })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/guestbook', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true })
     })
   })
   await page.route('**/api/taoyuan/online/manor/friend_owner', async route => {
@@ -3691,14 +3985,32 @@ test.describe('web game smoke', () => {
     await expectOnlineExpeditionRoomLoaded(page, '协作矿洞 smoke')
     await expect(page.getByTestId('visual-map-board')).toBeVisible()
     await expect(page.getByText('路线采脉：路标先定').first()).toBeVisible()
+    await page.setViewportSize({ width: 390, height: 844 })
 
     await page.getByTestId('visual-map-node-cavern_ore').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
     await expect(page.getByTestId('visual-map-readable-feedback')).toContainText('影响范围：风险：采矿会推高风险')
     await expect(page.getByTestId('visual-map-readable-feedback')).toContainText('收益：矿石 +2')
     await expect(page.getByTestId('visual-map-readable-feedback')).toContainText('产出 ore x2')
+    await expectVisualTouchTargets(page, [
+      'button[data-testid^="visual-map-node-"]',
+      'button[data-testid="visual-map-detail-sheet-trigger"]',
+      'button[data-testid^="visual-map-action-"]',
+    ])
+    await page.getByTestId('online-bottom-sheet-close').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
 
     await page.getByTestId('visual-map-node-cavern_exit').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
     await expect(page.getByTestId('visual-map-node-detail')).toContainText('撤离点')
+    await expect(page.getByTestId('visual-map-action-confirm_withdrawal')).toBeEnabled()
+    await expectVisualTouchTargets(page, [
+      'button[data-testid^="visual-map-node-"]',
+      'button[data-testid="visual-map-detail-sheet-trigger"]',
+      'button[data-testid^="visual-map-action-"]',
+    ])
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
     await expect(page.getByTestId('visual-map-action-confirm_withdrawal')).toBeEnabled()
     const withdrawalResponsePromise = page.waitForResponse(response =>
       response.url().includes('/api/taoyuan/online/expedition/rooms/')
@@ -3715,8 +4027,14 @@ test.describe('web game smoke', () => {
     await expect(page.getByText('提前撤离已确认，并结算 1 个节点组合收益。').first()).toBeVisible()
     await expect(page.getByText('确认人：测试者').first()).toBeVisible()
     await expect(page.getByTestId('online-expedition-room-gameplay-action-split_mine')).toHaveCount(0)
+    await openTechnicalDetailsForTestId(page, 'online-expedition-room-settle-submit')
     await expect(page.getByTestId('online-expedition-room-settle-submit')).toBeVisible()
     await page.getByTestId('online-expedition-room-shell-settle-submit').click()
+    await expect(page.getByTestId('online-expedition-room-settle-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认远征结算')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('协作矿洞 smoke')
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
 
     await expect(page.getByText('组合收益：路线采脉').first()).toBeVisible()
     await expect(page.getByText('提前收尾：提前撤离已确认').first()).toBeVisible()
@@ -3725,6 +4043,611 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('提前撤离 · 提前撤离已确认')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('风险峰值：第 2 回合 · 测试者 · 确认撤离 · 撤离前确认风险峰值 3')
     await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('奖励已记录：120 铜钱、1 张奖券、ore x2')
+  })
+
+  test('online expedition room close confirm requires text escape focus and submits', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '远征关闭')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-expedition-close-room',
+      title: '远征关闭 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.members = [{
+      username: 'tester',
+      display_name: '测试者',
+      role: 'host',
+      status: 'active',
+      status_label: '进行中',
+      invited_at: 0,
+      joined_at: 1,
+      ready_at: 2,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
+    await expectOnlineExpeditionRoomLoaded(page, '远征关闭 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-expedition-room-close-submit')
+
+    const closeButton = page.getByTestId('online-expedition-room-close-submit')
+    await closeButton.click()
+    await expect(page.getByTestId('online-expedition-room-close-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('远征关闭 smoke')
+    await expect(page.getByTestId('online-confirm-irreversible')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await expect(page.getByTestId('online-confirm-disabled-reason')).toContainText('确认文字未填写')
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('online-expedition-room-close-confirm')).toHaveCount(0)
+    await expect(closeButton).toBeFocused()
+
+    await closeButton.click()
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认关闭远征房间')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+    const closeResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/close')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const closeResponse = await closeResponsePromise
+    expect(closeResponse.url()).toContain('/close')
+    await expect(page.getByTestId('online-expedition-room-close-confirm')).toHaveCount(0)
+    await expect(page.getByText('房主已关闭本轮远征房间。').first()).toBeVisible()
+  })
+
+  test('standalone expedition room reuses invite lobby and close confirm', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '独立远征')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-standalone-expedition-room',
+      title: '独立远征 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.can_invite = true
+    room.can_host_settle = true
+    room.can_host_close = true
+    room.members = [{
+      username: 'tester',
+      display_name: '测试者',
+      role: 'host',
+      status: 'active',
+      status_label: '进行中',
+      invited_at: 0,
+      joined_at: 1,
+      ready_at: 2,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    await gotoExpeditionRoomPage(page)
+
+    await expect(page.getByTestId('expedition-room-page')).toContainText('联机远征大厅')
+    await expect(page.getByTestId('online-visual-room-title')).toContainText('独立远征 smoke')
+    await expect(page.getByTestId('online-expedition-room-invite-trigger')).toBeVisible()
+    await expect(page.getByTestId('online-expedition-room-lobby-trigger')).toBeVisible()
+
+    await page.getByTestId('online-expedition-room-invite-trigger').click()
+    await expect(page.getByTestId('online-invite-panel')).toBeVisible()
+    await page.getByTestId('online-invite-input').fill('tester cavern_friend')
+    await expect(page.getByTestId('online-invite-result-tester')).toContainText('已在房间')
+    await expect(page.getByTestId('online-invite-submit')).toContainText('发送邀请 1')
+    await page.getByTestId('online-invite-submit').click()
+    await expect(page.getByTestId('online-invite-result-cavern_friend')).toContainText('已邀请')
+    await page.getByRole('button', { name: '稍后邀请' }).click()
+    await expect(page.getByTestId('online-invite-panel')).toHaveCount(0)
+
+    await page.getByTestId('online-expedition-room-lobby-trigger').click()
+    await expect(page.getByTestId('online-room-lobby')).toBeVisible()
+    await expect(page.getByTestId('online-room-member-list')).toContainText('测试者')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('进入玩法')
+    await page.getByTestId('online-bottom-sheet-close').click()
+    await expect(page.getByTestId('online-room-lobby')).toHaveCount(0)
+
+    await openTechnicalDetailsForTestId(page, 'expedition-room-close-submit')
+    await page.getByTestId('expedition-room-close-submit').click()
+    await expect(page.getByTestId('expedition-room-close-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('独立远征 smoke')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认关闭远征房间')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+    const closeResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/close')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const closeResponse = await closeResponsePromise
+    expect(closeResponse.url()).toContain('/close')
+    await expect(page.getByTestId('expedition-room-close-confirm')).toHaveCount(0)
+    await expect(page.getByText('房主已关闭本轮远征房间。').first()).toBeVisible()
+  })
+
+  test('standalone expedition room backup create action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '独立旧创建')
+
+    const seedRoom = buildRoomSnapshot({
+      id: 'e2e-standalone-expedition-backup-create-seed',
+      title: '独立旧创建 seed',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room: seedRoom, startWithoutRoom: true })
+    await gotoExpeditionRoomPage(page)
+    await expect(page.getByTestId('expedition-room-page')).toContainText('空闲中')
+    await openTechnicalDetailsForTestId(page, 'expedition-room-create-submit')
+    await page.getByTestId('expedition-room-title-input').fill('独立远征备用创建 smoke')
+
+    const createResponsePromise = page.waitForResponse(response =>
+      response.url().endsWith('/api/taoyuan/online/expedition/rooms')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('expedition-room-create-submit').click()
+    const createResponse = await createResponsePromise
+    const createPayload = createResponse.request().postData() || ''
+    expect(createPayload).toContain('expedition_outpost')
+    expect(createPayload).toContain('expedition_cavern')
+    expect(createPayload).toContain('独立远征备用创建 smoke')
+
+    await expect(page.getByTestId('online-visual-room-title')).toContainText('独立远征备用创建 smoke')
+    await expect(page.getByTestId('expedition-room-page')).toContainText('已创建')
+    await expect(page.getByTestId('online-expedition-room-lobby-trigger')).toBeVisible()
+  })
+
+  test('standalone expedition room backup invite action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '独立旧邀请')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-standalone-expedition-backup-invite-room',
+      title: '独立远征备用邀请 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '独立远征队伍已创建，可以从备用邀请表单邀请成员。'
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_settle = false
+    room.can_host_close = true
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    await gotoExpeditionRoomPage(page)
+    await expect(page.getByTestId('expedition-room-page')).toContainText('独立远征备用邀请 smoke')
+    await openTechnicalDetailsForTestId(page, 'expedition-room-invite-submit')
+    await page.getByTestId('expedition-room-invite-username-input').fill('standalone_invite_friend')
+
+    const inviteResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/invite')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('expedition-room-invite-submit').click()
+    const inviteResponse = await inviteResponsePromise
+    const invitePayload = inviteResponse.request().postData() || ''
+    expect(invitePayload).toContain('standalone_invite_friend')
+    await expect(page.getByTestId('expedition-room-invite-username-input')).toHaveValue('')
+    await expect(page.getByTestId('online-expedition-room-lobby-trigger')).toBeVisible()
+  })
+
+  test('standalone expedition room backup ready action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '独立备用')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-standalone-expedition-backup-ready-room',
+      title: '独立远征备用准备 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '独立远征队伍已创建，可以从备用操作发起准备。'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.ready_member_count = 0
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_start_countdown = false
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.gameplay = {
+      ...room.gameplay,
+      phase: 'created',
+      phase_label: '等待准备',
+      available_actions: []
+    }
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'joined',
+        status_label: '房主',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'cavern_helper',
+        display_name: '矿洞帮手',
+        role: 'member',
+        status: 'joined',
+        status_label: '未准备',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    await gotoExpeditionRoomPage(page)
+    await expect(page.getByTestId('expedition-room-page')).toContainText('独立远征备用准备 smoke')
+    await openTechnicalDetailsForTestId(page, 'expedition-room-ready-check-submit')
+    await expect(page.getByTestId('expedition-room-lobby-backup-actions')).toBeVisible()
+
+    const readyCheckResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/ready-check')
+      && response.status() === 200
+    )
+    await page.getByTestId('expedition-room-ready-check-submit').click()
+    const readyCheckResponse = await readyCheckResponsePromise
+    expect(readyCheckResponse.url()).toContain('/ready-check')
+
+    await expect(page.getByTestId('expedition-room-page')).toContainText('准备确认')
+    await expect(page.getByTestId('expedition-room-lobby-backup-actions')).toContainText('开始倒计时')
+    await expect(page.getByTestId('expedition-room-start-submit')).toBeVisible()
+  })
+
+  test('standalone expedition room backup settle action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '独立备用结算')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-standalone-expedition-backup-settle-room',
+      title: '独立远征备用结算 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'running'
+    room.state_label = '进行中'
+    room.state_reason = '独立远征已完成关键行动，可以从备用操作进入结算。'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.ready_member_count = 1
+    room.can_host_settle = true
+    room.can_host_close = true
+    room.gameplay.available_actions = []
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'active',
+        status_label: '进行中',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 2,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'cavern_helper',
+        display_name: '矿洞帮手',
+        role: 'member',
+        status: 'joined',
+        status_label: '未完成',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, {
+      domain: 'expedition',
+      room,
+      onSettle: (currentRoom) => {
+        const receipt = {
+          id: 'receipt-standalone-expedition-backup-settle-e2e',
+          room_id: currentRoom.id,
+          room_title: currentRoom.title,
+          template_label: currentRoom.template_label,
+          target_username: 'tester',
+          target_display_name: '测试者',
+          target_slot: 0,
+          status: 'persisted',
+          status_label: '已结算',
+          reward_payload: { money: 130, reward_tickets: 1, items: [{ item_id: 'ore', quantity: 3 }] },
+          summary: '独立远征备用结算 smoke 已生成奖励记录。',
+          route_replay: null,
+          created_at: 1760000401
+        }
+        currentRoom.state = 'settled'
+        currentRoom.state_label = '已结算'
+        currentRoom.state_reason = '独立远征备用结算 smoke 已完成，奖励已记录。'
+        currentRoom.can_host_settle = false
+        currentRoom.can_host_close = true
+        currentRoom.gameplay.phase = 'completed'
+        currentRoom.gameplay.phase_label = '已完成'
+        currentRoom.settlement_receipts = [receipt]
+        return { room: currentRoom, recentReceipts: [receipt] }
+      }
+    })
+
+    await gotoExpeditionRoomPage(page)
+    await expect(page.getByTestId('expedition-room-page')).toContainText('独立远征备用结算 smoke')
+    await openTechnicalDetailsForTestId(page, 'expedition-room-settle-submit')
+    await expect(page.getByTestId('expedition-room-lobby-backup-actions')).toBeVisible()
+
+    await page.getByTestId('expedition-room-settle-submit').click()
+    await expect(page.getByTestId('expedition-room-settle-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认远征结算')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('独立远征备用结算 smoke')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('矿洞帮手')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('奖励预览将在结算后生成')
+    await expect(page.getByTestId('online-confirm-recovery-hint')).toContainText('远征房间会保留当前状态')
+
+    const settleResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/settle')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const settleResponse = await settleResponsePromise
+    expect(settleResponse.url()).toContain('/settle')
+    await expect(page.getByTestId('expedition-room-settle-confirm')).toHaveCount(0)
+    await expect(page.getByTestId('expedition-room-page')).toContainText('已结算')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('独立远征备用结算 smoke 已生成奖励记录')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('奖励已记录：130 铜钱、1 张奖券、ore x3')
+  })
+
+  test('standalone expedition room backup close action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '独立旧关闭')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-standalone-expedition-backup-close-room',
+      title: '独立远征备用关闭 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'running'
+    room.state_label = '进行中'
+    room.state_reason = '独立远征正在进行，可以从备用操作关闭房间。'
+    room.can_invite = false
+    room.can_host_ready_check = false
+    room.can_host_start_countdown = false
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.gameplay.available_actions = []
+    room.members = [{
+      username: 'tester',
+      display_name: '测试者',
+      role: 'host',
+      status: 'active',
+      status_label: '进行中',
+      invited_at: 0,
+      joined_at: 1,
+      ready_at: 2,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    await gotoExpeditionRoomPage(page)
+    await expect(page.getByTestId('expedition-room-page')).toContainText('独立远征备用关闭 smoke')
+    await openTechnicalDetailsForTestId(page, 'expedition-room-close-submit')
+    await expect(page.getByTestId('expedition-room-lobby-backup-actions')).toBeVisible()
+
+    await page.getByTestId('expedition-room-close-submit').click()
+    await expect(page.getByTestId('expedition-room-close-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('独立远征备用关闭 smoke')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认关闭远征房间')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+
+    const closeResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/close')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const closeResponse = await closeResponsePromise
+    expect(closeResponse.url()).toContain('/close')
+    await expect(page.getByTestId('expedition-room-close-confirm')).toHaveCount(0)
+    await expect(page.getByTestId('expedition-room-page')).toContainText('已关闭')
+    await expect(page.getByText('房主已关闭本轮远征房间。').first()).toBeVisible()
+  })
+
+  test('online festival room desktop layout keeps three columns', async ({ page }) => {
+    test.slow()
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await openHome(page)
+    await startNewJourney(page, '节会桌面')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-desktop-room',
+      title: '节会桌面布局 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_close = true
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
+    await expectOnlineFestivalRoomLoaded(page, '节会桌面布局 smoke')
+    await expectRoomDesktopLayout(page, {
+      layoutTestId: 'online-festival-room-desktop-layout',
+      leftTestId: 'online-festival-room-left-list',
+      mainTestId: 'online-festival-room-main-stage',
+      rightTestId: 'online-festival-room-right-status',
+      screenshotPath: 'docs/ui-smoke-2026-04-26/resp-002-online-festival-room-desktop-1366x768.png'
+    })
+  })
+
+  test('online expedition room desktop layouts keep three columns', async ({ page }) => {
+    test.slow()
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await openHome(page)
+    await startNewJourney(page, '远征桌面')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-expedition-desktop-room',
+      title: '远征桌面布局 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_close = true
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
+    await expectOnlineExpeditionRoomLoaded(page, '远征桌面布局 smoke')
+    await expectRoomDesktopLayout(page, {
+      layoutTestId: 'online-expedition-room-desktop-layout',
+      leftTestId: 'online-expedition-room-left-list',
+      mainTestId: 'online-expedition-room-main-stage',
+      rightTestId: 'online-expedition-room-right-status',
+      screenshotPath: 'docs/ui-smoke-2026-04-26/resp-002-online-expedition-room-desktop-1366x768.png'
+    })
+
+    await gotoExpeditionRoomPage(page)
+    await expect(page.getByTestId('online-visual-room-title')).toContainText('远征桌面布局 smoke')
+    await expectRoomDesktopLayout(page, {
+      layoutTestId: 'expedition-room-desktop-layout',
+      leftTestId: 'expedition-room-left-list',
+      mainTestId: 'expedition-room-main-stage',
+      rightTestId: 'expedition-room-right-status',
+      screenshotPath: 'docs/ui-smoke-2026-04-26/resp-002-standalone-expedition-room-desktop-1366x768.png'
+    })
   })
 
   test('online festival room wizard escape closes dialog and restores focus', async ({ page }) => {
@@ -3763,6 +4686,36 @@ test.describe('web game smoke', () => {
     await createTrigger.click()
     await expect(page.getByTestId('online-action-dialog')).toBeVisible()
     await expect(page.getByTestId('online-room-wizard-step-gameplay')).toBeVisible()
+  })
+
+  test('online festival room wizard honors society launch query prefill', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '节庆预填')
+
+    const seedRoom = buildRoomSnapshot({
+      id: 'e2e-festival-query-prefill-seed',
+      title: '节庆广场预填 seed',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'write_wish',
+      actionLabel: '写愿望',
+      visualState: emptyVisualState
+    })
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room: seedRoom, startWithoutRoom: true })
+
+    const launchTitle = '节庆广场开幕'
+    await page.goto(`/#/game/online/festival?tab=festival-room&template=lantern_fair&gameplay=assembly&title=${encodeURIComponent(launchTitle)}`)
+    await expect(page.getByTestId('online-festival-room-create-entry')).toBeVisible()
+    await page.getByTestId('online-room-create-trigger').click()
+    await expect(page.getByTestId('online-room-wizard')).toBeVisible()
+    await expect(page.getByTestId('online-room-wizard-template-lantern_fair')).toHaveClass(/bg-accent\/10/)
+    await page.getByTestId('online-room-wizard-next').click()
+    await expect(page.getByTestId('online-room-wizard-gameplay-select')).toHaveValue('assembly')
+    await expect(page.getByTestId('online-room-wizard-title-input')).toHaveValue(launchTitle)
   })
 
   test('online festival room wizard creates host room', async ({ page }) => {
@@ -3823,6 +4776,161 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-festival-room-invite-trigger')).toBeVisible()
   })
 
+  test('online festival room backup create action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '节会旧创建')
+
+    const seedRoom = buildRoomSnapshot({
+      id: 'e2e-festival-backup-create-seed',
+      title: '节会旧创建 seed',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room: seedRoom, startWithoutRoom: true })
+
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-create-entry')
+    await expect(page.getByTestId('online-festival-room-status-panel')).toContainText('空闲中')
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-create-submit')
+    await expect(page.getByTestId('online-festival-room-create-backup')).toBeVisible()
+    await page.getByTestId('online-festival-room-title-input').fill('节会备用创建 smoke')
+
+    const createResponsePromise = page.waitForResponse(response =>
+      response.url().endsWith('/api/taoyuan/online/festival/rooms')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-festival-room-create-submit').click()
+    const createResponse = await createResponsePromise
+    const createPayload = createResponse.request().postData() || ''
+    expect(createPayload).toContain('dragon_boat')
+    expect(createPayload).toContain('squad_coop')
+    expect(createPayload).toContain('节会备用创建 smoke')
+
+    await expectOnlineFestivalRoomLoaded(page, '节会备用创建 smoke')
+    await expect(page.getByTestId('online-festival-room-status-panel')).toContainText('已创建')
+    await expect(page.getByTestId('online-festival-room-lobby-trigger')).toBeVisible()
+  })
+
+  test('online festival room backup invite action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '节会旧邀请')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-backup-invite-room',
+      title: '节会备用邀请 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '房间已创建，可以从备用邀请表单邀请成员。'
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_settle = false
+    room.can_host_close = true
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
+    await expectOnlineFestivalRoomLoaded(page, '节会备用邀请 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-invite-submit')
+    await page.getByTestId('online-festival-room-invite-username-input').fill('festival_invite_friend')
+
+    const inviteResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/invite')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-festival-room-invite-submit').click()
+    const inviteResponse = await inviteResponsePromise
+    const invitePayload = inviteResponse.request().postData() || ''
+    expect(invitePayload).toContain('festival_invite_friend')
+    await expect(page.getByTestId('online-festival-room-invite-username-input')).toHaveValue('')
+    await expect(page.getByTestId('online-festival-room-lobby-trigger')).toBeVisible()
+  })
+
+  test('online festival room backup close action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '节会旧关闭')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-backup-close-room',
+      title: '节会备用关闭 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.state = 'running'
+    room.state_label = '进行中'
+    room.state_reason = '节会正在进行，可以从备用操作关闭房间。'
+    room.can_invite = false
+    room.can_host_ready_check = false
+    room.can_host_start_countdown = false
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.gameplay.available_actions = []
+    room.members = [{
+      username: 'tester',
+      display_name: '测试者',
+      role: 'host',
+      status: 'active',
+      status_label: '进行中',
+      invited_at: 0,
+      joined_at: 1,
+      ready_at: 2,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
+    await expectOnlineFestivalRoomLoaded(page, '节会备用关闭 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-close-submit')
+    await expect(page.getByTestId('online-festival-room-lobby-backup-actions')).toBeVisible()
+
+    await page.getByTestId('online-festival-room-close-submit').click()
+    await expect(page.getByTestId('online-room-close-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('节会备用关闭 smoke')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认关闭房间')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+
+    const closeResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/close')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const closeResponse = await closeResponsePromise
+    expect(closeResponse.url()).toContain('/close')
+    await expect(page.getByTestId('online-room-close-confirm')).toHaveCount(0)
+    await expect(page.getByTestId('online-festival-room-status-panel')).toContainText('已关闭')
+    await expect(page.getByText('房主已关闭本轮房间。').first()).toBeVisible()
+  })
+
   test('online expedition room wizard creates host room', async ({ page }) => {
     test.slow()
     await openHome(page)
@@ -3879,7 +4987,558 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('已创建')
     await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('等待准备')
     await expect(page.getByTestId('online-expedition-room-invite-trigger')).toBeVisible()
-    await expect(page.getByTestId('online-expedition-room-ready-check-submit')).toBeVisible()
+    await expect(page.getByTestId('online-expedition-room-lobby-trigger')).toBeVisible()
+  })
+
+  test('online expedition room backup create action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '远征旧创建')
+
+    const seedRoom = buildRoomSnapshot({
+      id: 'e2e-expedition-backup-create-seed',
+      title: '远征旧创建 seed',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room: seedRoom, startWithoutRoom: true })
+
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-create-entry')
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('空闲中')
+    await openTechnicalDetailsForTestId(page, 'online-expedition-room-create-submit')
+    await expect(page.getByTestId('online-expedition-room-create-backup')).toBeVisible()
+    await page.getByTestId('online-expedition-room-title-input').fill('远征备用创建 smoke')
+
+    const createResponsePromise = page.waitForResponse(response =>
+      response.url().endsWith('/api/taoyuan/online/expedition/rooms')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-expedition-room-create-submit').click()
+    const createResponse = await createResponsePromise
+    const createPayload = createResponse.request().postData() || ''
+    expect(createPayload).toContain('expedition_outpost')
+    expect(createPayload).toContain('expedition_cavern')
+    expect(createPayload).toContain('远征备用创建 smoke')
+
+    await expectOnlineExpeditionRoomLoaded(page, '远征备用创建 smoke')
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('已创建')
+    await expect(page.getByTestId('online-expedition-room-lobby-trigger')).toBeVisible()
+  })
+
+  test('online expedition room backup invite action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '远征旧邀请')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-expedition-backup-invite-room',
+      title: '远征备用邀请 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '远征队伍已创建，可以从备用邀请表单邀请成员。'
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_settle = false
+    room.can_host_close = true
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
+    await expectOnlineExpeditionRoomLoaded(page, '远征备用邀请 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-expedition-room-invite-submit')
+    await page.getByTestId('online-expedition-room-invite-username-input').fill('expedition_invite_friend')
+
+    const inviteResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/invite')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-expedition-room-invite-submit').click()
+    const inviteResponse = await inviteResponsePromise
+    const invitePayload = inviteResponse.request().postData() || ''
+    expect(invitePayload).toContain('expedition_invite_friend')
+    await expect(page.getByTestId('online-expedition-room-invite-username-input')).toHaveValue('')
+    await expect(page.getByTestId('online-expedition-room-lobby-trigger')).toBeVisible()
+  })
+
+  test('online expedition room invite panel and lobby start ready check', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '远征准备')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-expedition-ready-room',
+      title: '远征准备 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '远征队伍已创建，可以邀请成员或开始准备。'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.ready_member_count = 0
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'joined',
+        status_label: '房主',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'route_helper',
+        display_name: '路线助手',
+        role: 'member',
+        status: 'joined',
+        status_label: '未准备',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
+    await expectOnlineExpeditionRoomLoaded(page, '远征准备 smoke')
+    await page.getByTestId('online-expedition-room-invite-trigger').click()
+    await expect(page.getByTestId('online-invite-panel')).toBeVisible()
+    await page.getByTestId('online-invite-input').fill('tester cavern_friend')
+    await expect(page.getByTestId('online-invite-result-tester')).toContainText('已在房间')
+    await expect(page.getByTestId('online-invite-submit')).toContainText('发送邀请 1')
+    await page.getByTestId('online-invite-submit').click()
+    await expect(page.getByTestId('online-invite-result-cavern_friend')).toContainText('已邀请')
+    await page.getByRole('button', { name: '稍后邀请' }).click()
+    await expect(page.getByTestId('online-invite-panel')).toHaveCount(0)
+
+    await page.getByTestId('online-expedition-room-lobby-trigger').click()
+    await expect(page.getByTestId('online-room-lobby')).toBeVisible()
+    await expect(page.getByTestId('online-room-member-list')).toContainText('路线助手')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('邀请玩家')
+
+    const readyCheckResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/ready-check')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-room-action-start-ready-check').click()
+    const readyCheckResponse = await readyCheckResponsePromise
+    expect(readyCheckResponse.url()).toContain('/ready-check')
+    await expect(page.getByTestId('online-room-lobby')).toContainText('准备确认')
+    await expect(page.getByTestId('online-room-member-list')).toContainText('已准备')
+    await expect(page.getByTestId('online-room-primary-action')).toContainText('开始倒计时')
+  })
+
+  test('online festival room backup ready action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '节会备用')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-festival-backup-ready-room',
+      title: '节会备用准备 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: emptyVisualState
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '房间已创建，可以从备用操作发起准备。'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.ready_member_count = 0
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_start_countdown = false
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.gameplay = {
+      ...room.gameplay,
+      phase: 'created',
+      phase_label: '等待准备',
+      available_actions: []
+    }
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'joined',
+        status_label: '房主',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'lantern_helper',
+        display_name: '灯会帮手',
+        role: 'member',
+        status: 'joined',
+        status_label: '未准备',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+    await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
+    await expectOnlineFestivalRoomLoaded(page, '节会备用准备 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-festival-room-ready-check-submit')
+    await expect(page.getByTestId('online-festival-room-lobby-backup-actions')).toBeVisible()
+
+    const readyCheckResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/festival/rooms/')
+      && response.url().includes('/ready-check')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-festival-room-ready-check-submit').click()
+    const readyCheckResponse = await readyCheckResponsePromise
+    expect(readyCheckResponse.url()).toContain('/ready-check')
+
+    await expect(page.getByTestId('online-festival-room-status-panel')).toContainText('准备确认')
+    await expect(page.getByTestId('online-festival-room-lobby-backup-actions')).toContainText('开始倒计时')
+    await expect(page.getByTestId('online-festival-room-start-submit')).toBeVisible()
+  })
+
+  test('online expedition room backup ready action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '远征备用')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-expedition-backup-ready-room',
+      title: '远征备用准备 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'created'
+    room.state_label = '已创建'
+    room.state_reason = '远征队伍已创建，可以从备用操作发起准备。'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.ready_member_count = 0
+    room.can_invite = true
+    room.can_host_ready_check = true
+    room.can_host_start_countdown = false
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.gameplay = {
+      ...room.gameplay,
+      phase: 'created',
+      phase_label: '等待准备',
+      available_actions: []
+    }
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'joined',
+        status_label: '房主',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'route_helper',
+        display_name: '路线助手',
+        role: 'member',
+        status: 'joined',
+        status_label: '未准备',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
+    await expectOnlineExpeditionRoomLoaded(page, '远征备用准备 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-expedition-room-ready-check-submit')
+    await expect(page.getByTestId('online-expedition-room-lobby-backup-actions')).toBeVisible()
+
+    const readyCheckResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/ready-check')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-expedition-room-ready-check-submit').click()
+    const readyCheckResponse = await readyCheckResponsePromise
+    expect(readyCheckResponse.url()).toContain('/ready-check')
+
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('准备确认')
+    await expect(page.getByTestId('online-expedition-room-lobby-backup-actions')).toContainText('开始倒计时')
+    await expect(page.getByTestId('online-expedition-room-start-submit')).toBeVisible()
+  })
+
+  test('online expedition room backup settle action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '远征备用结算')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-expedition-backup-settle-room',
+      title: '远征备用结算 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'running'
+    room.state_label = '进行中'
+    room.state_reason = '远征现场已完成关键行动，可以从备用操作进入结算。'
+    room.joined_member_count = 2
+    room.member_limit = 4
+    room.ready_member_count = 1
+    room.can_host_settle = true
+    room.can_host_close = true
+    room.gameplay.available_actions = []
+    room.members = [
+      {
+        username: 'tester',
+        display_name: '测试者',
+        role: 'host',
+        status: 'active',
+        status_label: '进行中',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 2,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      },
+      {
+        username: 'route_helper',
+        display_name: '路线助手',
+        role: 'member',
+        status: 'joined',
+        status_label: '未完成',
+        invited_at: 0,
+        joined_at: 1,
+        ready_at: 0,
+        disconnected_at: 0,
+        reconnected_at: 0,
+        left_at: 0,
+        active_receipt_id: ''
+      }
+    ] as any
+
+    await mockOnlineVisualRoom(page, {
+      domain: 'expedition',
+      room,
+      onSettle: (currentRoom) => {
+        const receipt = {
+          id: 'receipt-expedition-backup-settle-e2e',
+          room_id: currentRoom.id,
+          room_title: currentRoom.title,
+          template_label: currentRoom.template_label,
+          target_username: 'tester',
+          target_display_name: '测试者',
+          target_slot: 0,
+          status: 'persisted',
+          status_label: '已结算',
+          reward_payload: { money: 120, reward_tickets: 1, items: [{ item_id: 'ore', quantity: 2 }] },
+          summary: '远征备用结算 smoke 已生成奖励记录。',
+          route_replay: null,
+          created_at: 1760000400
+        }
+        currentRoom.state = 'settled'
+        currentRoom.state_label = '已结算'
+        currentRoom.state_reason = '远征备用结算 smoke 已完成，奖励已记录。'
+        currentRoom.can_host_settle = false
+        currentRoom.can_host_close = true
+        currentRoom.gameplay.phase = 'completed'
+        currentRoom.gameplay.phase_label = '已完成'
+        currentRoom.settlement_receipts = [receipt]
+        return { room: currentRoom, recentReceipts: [receipt] }
+      }
+    })
+
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
+    await expectOnlineExpeditionRoomLoaded(page, '远征备用结算 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-expedition-room-settle-submit')
+    await expect(page.getByTestId('online-expedition-room-lobby-backup-actions')).toBeVisible()
+
+    await page.getByTestId('online-expedition-room-settle-submit').click()
+    await expect(page.getByTestId('online-expedition-room-settle-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认远征结算')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('远征备用结算 smoke')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('路线助手')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('奖励预览将在结算后生成')
+    await expect(page.getByTestId('online-confirm-recovery-hint')).toContainText('远征房间会保留当前状态')
+
+    const settleResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/settle')
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const settleResponse = await settleResponsePromise
+    expect(settleResponse.url()).toContain('/settle')
+    await expect(page.getByTestId('online-expedition-room-settle-confirm')).toHaveCount(0)
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('已结算')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('远征备用结算 smoke 已生成奖励记录')
+    await expect(page.getByTestId('online-visual-room-settlement-replay')).toContainText('奖励已记录：120 铜钱、1 张奖券、ore x2')
+  })
+
+  test('online expedition room backup close action submits original endpoint', async ({ page }) => {
+    test.slow()
+    await openHome(page)
+    await startNewJourney(page, '远征旧关闭')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-expedition-backup-close-room',
+      title: '远征备用关闭 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map'
+      }
+    })
+    room.state = 'running'
+    room.state_label = '进行中'
+    room.state_reason = '远征现场正在进行，可以从备用操作关闭房间。'
+    room.can_invite = false
+    room.can_host_ready_check = false
+    room.can_host_start_countdown = false
+    room.can_host_settle = false
+    room.can_host_close = true
+    room.gameplay.available_actions = []
+    room.members = [{
+      username: 'tester',
+      display_name: '测试者',
+      role: 'host',
+      status: 'active',
+      status_label: '进行中',
+      invited_at: 0,
+      joined_at: 1,
+      ready_at: 2,
+      disconnected_at: 0,
+      reconnected_at: 0,
+      left_at: 0,
+      active_receipt_id: ''
+    }] as any
+
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+    await gotoOnlineFestivalTab(page, 'expedition-room', 'online-expedition-room-status-panel')
+    await expectOnlineExpeditionRoomLoaded(page, '远征备用关闭 smoke')
+    await openTechnicalDetailsForTestId(page, 'online-expedition-room-close-submit')
+    await expect(page.getByTestId('online-expedition-room-lobby-backup-actions')).toBeVisible()
+
+    await page.getByTestId('online-expedition-room-close-submit').click()
+    await expect(page.getByTestId('online-expedition-room-close-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('远征备用关闭 smoke')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认关闭远征房间')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+
+    const closeResponsePromise = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/expedition/rooms/')
+      && response.url().includes('/close')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    const closeResponse = await closeResponsePromise
+    expect(closeResponse.url()).toContain('/close')
+    await expect(page.getByTestId('online-expedition-room-close-confirm')).toHaveCount(0)
+    await expect(page.getByTestId('online-expedition-room-status-panel')).toContainText('已关闭')
+    await expect(page.getByText('房主已关闭本轮远征房间。').first()).toBeVisible()
   })
 
   test('online festival room invite panel handles success failure and retry', async ({ page }) => {
@@ -4432,13 +6091,27 @@ test.describe('web game smoke', () => {
     await gotoOnlineFestivalTab(page, 'festival-room', 'online-festival-room-status-panel')
     await expectOnlineFestivalRoomLoaded(page, '灯会共建 smoke')
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+    await page.setViewportSize({ width: 390, height: 844 })
 
     await page.getByTestId('visual-scene-object-lantern_blocked_queue').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
     await expect(page.getByTestId('visual-scene-readable-feedback')).toContainText('失败原因：物件当前受阻')
     await expect(page.getByTestId('visual-scene-readable-feedback')).toContainText('需要先处理前置物件或等待权限恢复')
+    await page.getByTestId('online-bottom-sheet-close').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
 
     await page.getByTestId('visual-scene-object-lantern_main_lamp').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
     await expect(page.getByTestId('visual-scene-object-detail')).toContainText('主灯')
+    await expect(page.getByTestId('visual-scene-action-lock_piece')).toBeEnabled()
+    await expectVisualTouchTargets(page, [
+      'button[data-testid^="visual-scene-object-"]',
+      'button[data-testid^="visual-scene-list-object-"]',
+      'button[data-testid="visual-scene-detail-sheet-trigger"]',
+      'button[data-testid^="visual-scene-action-"]',
+    ])
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
     await page.getByTestId('visual-scene-action-lock_piece').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-lock_piece')).toHaveCount(0)
@@ -4627,7 +6300,9 @@ test.describe('web game smoke', () => {
     await expect(page.getByText('分粥队伍').first()).toBeVisible()
     await expect(page.getByText('留香案').first()).toBeVisible()
 
-    await page.getByTestId('visual-scene-object-laba_cookpot_stove').click()
+    const stoveHotzone = page.getByRole('button', { name: /灶台火候\s*2\/6/ })
+    await expect(stoveHotzone).toBeVisible()
+    await stoveHotzone.click()
     await expect(page.getByTestId('visual-scene-object-detail')).toContainText('灶台火候')
     await expect(page.getByTestId('visual-scene-readable-feedback')).toContainText('过热会提高现场压力')
     await page.getByTestId('visual-scene-action-steady_rudder').click()
@@ -4676,6 +6351,65 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-festival-friend-lantern-memory-record-photo')).toContainText('留影收口：合影人')
   })
 
+  test('online manor overview separates owner and visitor primary actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '庄园身份')
+    await mockOnlineManorCare(page)
+
+    await page.goto('/#/game/online/manor')
+    await expect(page.getByTestId('online-manor-page')).toBeVisible()
+    await expect(page.getByTestId('online-manor-owner-primary-actions')).toBeVisible()
+    await expect(page.getByTestId('online-manor-owner-primary-actions')).toContainText('管理展示')
+    await expect(page.getByTestId('online-manor-owner-primary-actions')).toContainText('查看留言')
+    await expect(page.getByTestId('online-manor-owner-primary-actions')).toContainText('处理照料')
+    await expect(page.getByTestId('online-manor-visitor-primary-actions')).toHaveCount(0)
+    await expect(page.getByTestId('online-manor-overview-latest-summary')).toContainText('青禾访客')
+
+    await page.getByTestId('online-manor-owner-primary-manage-theme').click()
+    await expect(page.getByTestId('online-manor-theme-save-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-manor-theme-label-input')).toBeVisible()
+    await page.getByTestId('online-manor-theme-label-input').fill('弹窗主题')
+    await page.getByTestId('online-manor-theme-save-button').click()
+    await expect(page.getByTestId('online-manor-theme-save-dialog')).toHaveCount(0)
+    await expect(page.getByTestId('online-manor-theme-save-summary-card')).toContainText('弹窗主题')
+    await page.getByTestId('online-manor-cover-upload-dialog-trigger').click()
+    await expect(page.getByTestId('online-manor-cover-upload-dialog')).toBeVisible()
+    const coverFileChooserPromise = page.waitForEvent('filechooser')
+    await page.getByTestId('online-manor-cover-upload-button').click()
+    const coverFileChooser = await coverFileChooserPromise
+    await coverFileChooser.setFiles({
+      name: 'manor-cover.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('manor cover smoke')
+    })
+    await expect(page.getByTestId('online-manor-cover-alt-input')).toHaveValue('弹窗主图')
+    await page.getByTestId('online-action-dialog-confirm').click()
+    await expect(page.getByTestId('online-manor-cover-upload-dialog')).toHaveCount(0)
+    await page.getByTestId('online-module-tab-overview').click()
+    await page.getByTestId('online-manor-owner-primary-guestbook').click()
+    await expect(page.getByTestId('online-manor-guestbook-list')).toContainText('青禾访客')
+    await page.getByTestId('online-module-tab-overview').click()
+    await page.getByTestId('online-manor-owner-primary-care').click()
+    await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+
+    await page.goto('/#/game/online/manor?target_username=friend_owner')
+    await expect(page.getByTestId('online-manor-page')).toBeVisible()
+    await expect(page.getByTestId('online-manor-visitor-primary-actions')).toBeVisible()
+    await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('留言')
+    await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('照料')
+    await expect(page.getByTestId('online-manor-visitor-primary-actions')).toContainText('轻采')
+    await expect(page.getByTestId('online-manor-owner-primary-actions')).toHaveCount(0)
+    await page.getByTestId('online-manor-visitor-primary-guestbook').click()
+    await expect(page.getByTestId('online-manor-guestbook-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-manor-guestbook-input')).toBeVisible()
+    await page.getByTestId('online-manor-guestbook-input').fill('来访弹窗留言')
+    await page.getByTestId('online-manor-guestbook-submit').click()
+    await expect(page.getByTestId('online-manor-guestbook-dialog')).toHaveCount(0)
+    await page.getByTestId('online-module-tab-overview').click()
+    await page.getByTestId('online-manor-visitor-primary-steal').click()
+    await expect(page.getByTestId('online-manor-steal-readable-limits')).toContainText('0/2')
+  })
+
   test('online manor visual scene supports friend care actions', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '照料')
@@ -4683,14 +6417,14 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/manor?target_username=friend_owner')
     await expect(page.getByTestId('online-manor-page')).toBeVisible()
-    await page.getByRole('button', { name: '照料' }).click()
+    await page.getByTestId('online-manor-visitor-primary-care').click()
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
 
     await page.getByTestId('visual-scene-object-friend_plot_1').click()
     await expect(page.getByTestId('visual-scene-object-detail')).toContainText('春菜田')
     await page.getByTestId('visual-scene-action-water_plot').click()
 
-    await expect(page.getByText('测试者帮春菜田浇了水。')).toBeVisible()
+    await expect(page.getByTestId('visual-scene-action-result')).toContainText('测试者帮春菜田浇了水。')
     await expect(page.getByTestId('online-manor-care-log')).toContainText('帮忙浇水')
   })
 
@@ -4701,7 +6435,7 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/manor?target_username=friend_owner')
     await expect(page.getByTestId('online-manor-page')).toBeVisible()
-    await page.getByRole('button', { name: '照料' }).click()
+    await page.getByTestId('online-manor-visitor-primary-care').click()
     await expect(page.getByTestId('visual-scene-board')).toBeVisible()
     await expect(page.getByTestId('online-manor-steal-readable-limits')).toContainText('0/2')
 
@@ -4713,9 +6447,13 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-manor-steal-readable-limits')).toContainText('1/2')
     await expect(page.getByTestId('online-manor-steal-anti-abuse-summary')).toContainText('近窗 1 次')
     await expect(page.getByTestId('online-manor-steal-log')).toContainText('测试者 · 轻采果实')
-    await expect(page.getByTestId('online-manor-steal-receipt-guard')).toContainText('receipt-steal-e2e-1')
-    await expect(page.getByTestId('online-manor-steal-receipt-guard')).toContainText('主人保留 100%')
-    await expect(page.getByTestId('online-manor-steal-use-summary')).toContainText('料理、订单与节会备料')
+    await page.getByTestId('online-manor-steal-detail-trigger').first().click()
+    const stealDetailSheet = page.getByTestId('online-manor-steal-detail-sheet')
+    await expect(stealDetailSheet).toBeVisible()
+    await stealDetailSheet.getByTestId('online-technical-details-toggle').click()
+    await expect(stealDetailSheet.getByTestId('online-manor-steal-receipt-guard')).toContainText('receipt-steal-e2e-1')
+    await expect(stealDetailSheet.getByTestId('online-manor-steal-receipt-guard')).toContainText('主人保留 100%')
+    await expect(stealDetailSheet.getByTestId('online-manor-steal-use-summary')).toContainText('料理、订单与节会备料')
   })
 
   test('online manor care room supports full cooperation settlement', async ({ page }) => {
@@ -4725,28 +6463,40 @@ test.describe('web game smoke', () => {
 
     await page.goto('/#/game/online/manor?target_username=friend_owner')
     await expect(page.getByTestId('online-manor-page')).toBeVisible()
-    await page.getByRole('button', { name: '照料' }).click()
+    await page.getByTestId('online-manor-visitor-primary-care').click()
     await expect(page.getByTestId('online-manor-care-room-panel')).toBeVisible()
-    await page.getByTestId('online-manor-care-room-create').first().click()
+    await page.getByTestId('online-manor-care-room-create-dialog-trigger').click()
+    await expect(page.getByTestId('online-manor-care-room-create-dialog')).toBeVisible()
+    await page.getByTestId('online-manor-care-room-create').click()
 
     await expect(page.getByTestId('online-manor-care-room-entry')).toContainText('护理中')
+    await expect(page.getByTestId('online-manor-care-room-detail-sheet')).toBeVisible()
     await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('0/4 项')
     await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('成员 2/2')
 
-    await page.getByRole('button', { name: '协作灌溉' }).click()
+    await page.getByTestId('online-manor-care-room-action').first().click()
     await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作灌溉')
-    await page.getByRole('button', { name: '协作喂食' }).click()
+    await page.getByTestId('online-manor-care-room-action').first().click()
     await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作喂食')
-    await page.getByRole('button', { name: '协作除虫' }).click()
+    await page.getByTestId('online-manor-care-room-action').first().click()
     await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作除虫')
-    await page.getByRole('button', { name: '协作收拾' }).click()
+    await page.getByTestId('online-manor-care-room-action').first().click()
 
     await expect(page.getByTestId('online-manor-care-room-action-ledger')).toContainText('协作收拾')
     await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('4/4 项')
     await expect(page.getByTestId('online-manor-care-room-progress-summary')).toContainText('健康 26')
     await expect(page.getByTestId('online-manor-care-room-settle')).toBeVisible()
     await page.getByTestId('online-manor-care-room-settle').click()
+    await expect(page.getByTestId('online-manor-care-room-settle-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('分工进度')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认结算护理')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
 
+    await expect(page.getByTestId('online-manor-care-room-settle-confirm')).toHaveCount(0)
+    await expect(page.getByTestId('online-manor-care-room-detail-sheet')).toHaveCount(0)
     await expect(page.getByTestId('online-manor-care-room-records')).toBeVisible()
     await expect(page.getByTestId('online-manor-care-room-record')).toContainText('健康度 26')
     await expect(page.getByTestId('online-manor-care-room-record')).toContainText('灌溉、喂食、除虫、收拾四项完成')
@@ -4896,18 +6646,9 @@ test.describe('web game smoke', () => {
     await startNewJourney(page, '分组')
     await mockOnlineCohabitation(page)
 
-    await page.goto('/#/game/online/cohabitation?tab=festival')
-    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
-    await expect(page.getByTestId('online-cohabitation-tab-groups')).toBeVisible()
-    await expect(page.getByTestId('online-module-tab-festivalSeats')).toHaveAttribute('aria-selected', 'true')
-
-    await page.goto('/#/game/online/cohabitation?tab=public')
-    await expect(page.getByTestId('online-module-tab-visibility')).toBeVisible()
-    await expect(page.getByTestId('online-module-tab-visibility')).toHaveAttribute('aria-selected', 'true')
-
-    await page.goto('/#/game/online/cohabitation?tab=separation')
-    await expect(page.getByTestId('online-module-tab-offline')).toBeVisible()
-    await expect(page.getByTestId('online-module-tab-offline')).toHaveAttribute('aria-selected', 'true')
+    await expectCohabitationAliasDeepLink(page, 'public', 'visibility')
+    await expectCohabitationAliasDeepLink(page, 'separation', 'offline')
+    await expectCohabitationAliasDeepLink(page, 'festival', 'festivalSeats')
   })
 
   test('online cohabitation overview keeps first screen to four main cards', async ({ page }) => {
@@ -4924,6 +6665,25 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-cohabitation-overview-warehouse-card')).toBeVisible()
     await expect(page.getByTestId('online-cohabitation-overview-risk-card')).toBeVisible()
     await expect(page.getByTestId('online-cohabitation-overview-details')).not.toHaveAttribute('open', '')
+  })
+
+  test('online cohabitation desktop layout keeps three columns', async ({ page }) => {
+    test.slow()
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await openHome(page)
+    await startNewJourney(page, '共同庄园桌面')
+    await mockOnlineCohabitation(page)
+
+    await page.goto('/#/game/online/cohabitation')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    await expectRoomDesktopLayout(page, {
+      layoutTestId: 'online-cohabitation-desktop-layout',
+      leftTestId: 'online-cohabitation-left-list',
+      mainTestId: 'online-cohabitation-main-stage',
+      rightTestId: 'online-cohabitation-right-status',
+      screenshotPath: 'docs/ui-smoke-2026-04-26/resp-002-online-cohabitation-desktop-1366x768.png'
+    })
+    await expect(page.getByTestId('online-cohabitation-right-status-cards')).toContainText('共同基金')
   })
 
   test('online cohabitation family festival actions require confirm dialog', async ({ page }) => {
@@ -5273,15 +7033,29 @@ test.describe('web game smoke', () => {
     await page.getByTestId('online-festival-room-member-limit-2').click()
     await expect(page.getByTestId('online-festival-room-member-limit-2')).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByTestId('visual-track-board')).toBeVisible()
+    await page.setViewportSize({ width: 390, height: 844 })
 
     await page.getByTestId('visual-track-cell-dragon_cell_2').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
     await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('失败原因：当前赛道格没有可用行动')
     await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('影响范围：风险：回浪会拖慢节奏')
     await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('影响队伍：西湾龙舟')
+    await page.getByTestId('online-bottom-sheet-close').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
 
     await page.getByTestId('visual-track-cell-dragon_cell_1').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toBeVisible()
     await expect(page.getByTestId('visual-track-cell-detail')).toContainText('鼓点窗口')
     await expect(page.getByTestId('visual-track-readable-feedback')).toContainText('影响队伍：东岸龙舟')
+    await expect(page.getByTestId('visual-track-action-sync_oar')).toBeEnabled()
+    await expectVisualTouchTargets(page, [
+      'button[data-testid^="visual-track-cell-"]',
+      'button[data-testid^="visual-track-action-"]',
+      'button[data-testid="visual-track-detail-sheet-trigger"]',
+      '.visual-track-board__track-tab',
+    ])
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
     await expect(page.getByTestId('visual-track-team-standings')).toBeVisible()
     await expect(page.getByTestId('visual-track-team-row-team_north')).toContainText('第 1 名')
     await expect(page.getByTestId('visual-track-team-row-team_north')).toContainText('完赛')
@@ -5313,7 +7087,9 @@ test.describe('web game smoke', () => {
     await page.goto('/#/game/online/society?tab=projects')
     await expect(page.getByTestId('online-society-page')).toBeVisible()
     await expect(page.getByTestId('async-community-board')).toBeVisible()
-    await expect(page.getByTestId('async-community-project-detail')).toContainText('搭脚手架')
+    const detailSheet = await openSocietyProjectDetailSheet(page)
+    await expect(detailSheet.getByTestId('online-society-project-stage-list')).toContainText('搭脚手架')
+    await page.getByTestId('online-bottom-sheet-close').click()
 
     await page.getByTestId('online-society-async-contribute-bridge-labor_shift').click()
 
@@ -5335,25 +7111,24 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('async-community-board')).toContainText('愿望册')
     await expect(page.getByTestId('async-community-site-objects')).toContainText('愿望签')
     await expect(page.getByTestId('async-community-site-objects')).toContainText('好友留言')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('共建类型')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('花灯墙')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('阶段收口')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('当前回看')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('写愿望 · 进行中')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('贡献记录')
-    await expect(page.getByTestId('async-community-project-detail')).toContainText('写愿望')
+    let detailSheet = await openSocietyProjectDetailSheet(page)
+    await expect(detailSheet.getByTestId('online-society-project-stage-list')).toContainText('写愿望')
+    await expect(detailSheet.getByTestId('online-society-project-recent-contributions')).toContainText('贡献记录')
+    await page.getByTestId('online-bottom-sheet-close').click()
 
     await page.getByTestId('online-society-async-contribute-lantern_wall-write_wish').click()
 
-    await expect(page.getByTestId('async-community-project-detail')).toContainText('挂花灯')
+    detailSheet = await openSocietyProjectDetailSheet(page)
+    await expect(detailSheet.getByTestId('online-society-project-stage-list')).toContainText('挂花灯')
+    await expect(detailSheet.getByTestId('async-community-project-readback')).toContainText('挂花灯 · 进行中')
     await expect(page.getByTestId('async-community-site-objects')).toContainText('灯线')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('挂花灯 · 进行中')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('1 人 · 1 条历史')
+    await expect(detailSheet.getByTestId('online-society-project-history')).toContainText('测试者写下一张愿望签。')
+    await expect(detailSheet.getByTestId('online-society-project-recent-contributions')).toContainText('测试者 提交了 写愿望（+10）')
     await expect(page.getByText('测试者写下一张愿望签，花灯墙亮了一角。')).toBeVisible()
     await expect(page.getByTestId('online-society-project-contribute-lantern_wall-write_wish')).toBeVisible()
     await expect(page.getByTestId('online-society-page')).toContainText('新愿望签已经挂上墙。')
-    await expect(page.getByTestId('online-society-page')).toContainText('测试者 提交了 写愿望（+10）')
-    await expect(page.getByTestId('async-community-board')).toContainText('测试者写下一张愿望签。')
+    await expect(page.getByTestId('online-society-page')).toContainText('写愿望 · +10 进度')
+    await expect(page.getByTestId('async-community-board')).toContainText('测试者写下一张愿望签，花灯墙亮了一角。')
   })
 
   test('online society festival square contribution unlocks festival room launch', async ({ page }) => {
@@ -5370,17 +7145,23 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('async-community-board')).toContainText('开幕')
     await expect(page.getByTestId('async-community-site-objects')).toContainText('空场')
     await expect(page.getByTestId('async-community-site-objects')).toContainText('备料桌')
-    await expect(page.getByTestId('async-community-project-detail')).toContainText('备料')
+    let detailSheet = await openSocietyProjectDetailSheet(page)
+    await expect(detailSheet.getByTestId('online-society-project-stage-list')).toContainText('备料')
+    await page.getByTestId('online-bottom-sheet-close').click()
 
     await page.getByTestId('online-society-async-contribute-festival_square-festival_scenery').click()
 
-    await expect(page.getByTestId('async-community-project-detail')).toContainText('开幕')
+    detailSheet = await openSocietyProjectDetailSheet(page)
+    await expect(detailSheet.getByTestId('online-society-project-stage-list')).toContainText('开幕')
     await expect(page.getByTestId('async-community-site-objects')).toContainText('人气')
     await expect(page.getByTestId('async-community-site-objects')).toContainText('留影')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('开幕 · 已完成')
+    await expect(detailSheet.getByTestId('online-society-project-stage-list')).toContainText('已完成')
     await expect(page.getByText('测试者搭起第一批节庆布景，广场开始像节会现场。')).toBeVisible()
     await expect(page.getByTestId('async-community-completion-room-link')).toContainText('上元灯会房间')
     await expect(page.getByTestId('async-community-completion-room-link')).toContainText('用共建广场开启正式灯会房间')
+    await expect(detailSheet.getByTestId('online-society-project-detail-room-launch')).toContainText('创建房间')
+    await page.getByTestId('online-bottom-sheet-close').click()
+    await expect(page.getByTestId('online-bottom-sheet')).toHaveCount(0)
     await expect(page.getByTestId('online-society-completion-room-launch')).toContainText('创建房间')
 
     await page.getByTestId('async-community-completion-room-link').click()
@@ -5427,6 +7208,18 @@ test.describe('web game smoke', () => {
 
     await page.getByTestId('online-society-warehouse-consume-laba_cookpot_base').click()
 
+    await expect(page.getByTestId('online-society-warehouse-consume-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-action-dialog-title')).toContainText('确认公共仓消耗')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('腊八共灶底料')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('只扣公共仓')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('稻米 x2')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('不扣个人背包')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeDisabled()
+    await page.getByTestId('online-confirm-required-text').fill('确认公共消耗')
+    await expect(page.getByTestId('online-confirm-action-dialog-confirm')).toBeEnabled()
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+
     await expect(page.getByTestId('online-society-page')).toContainText('测试者 消耗了 腊八共灶底料')
     await expect(page.getByTestId('online-society-page')).toContainText('只扣公共仓')
   })
@@ -5441,39 +7234,63 @@ test.describe('web game smoke', () => {
     await page.getByTestId('online-orders-board-filter-relay').click()
 
     await expect(page.getByTestId('online-orders-available-list')).toBeVisible()
-    await expect(page.getByTestId('online-orders-available-entry')).toContainText('灯会干菜接力单')
-    await expect(page.getByTestId('online-orders-available-entry')).toContainText('接力单')
-    await expect(page.getByTestId('online-orders-available-entry')).toContainText('阶段 1/3 已确认')
-    await expect(page.getByTestId('async-community-board')).toBeVisible()
-    await expect(page.getByTestId('async-community-project-detail')).toContainText('加工干菜')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('共建类型')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('公共订单接力')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('阶段收口')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('1/3 阶段')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('当前回看')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('加工干菜 · 进行中')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('贡献记录')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('0 人 · 1 条历史')
-    await expect(page.getByTestId('async-community-site-objects')).toContainText('待接')
-    await expect(page.getByTestId('async-community-site-objects')).toContainText('任务')
-    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('分账池：赏金 260 · 待分账')
-    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('已落账 80 / 待结 180')
-    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('采收青菜：31% / 80 · 个人铜钱')
+    const relayEntry = page.getByTestId('online-orders-available-entry').filter({ hasText: '灯会干菜接力单' }).first()
+    await expect(relayEntry).toBeVisible()
+    await expect(relayEntry).toContainText('接力单')
+    await expect(relayEntry).toContainText('回报：赏金 260')
+    await relayEntry.getByTestId('online-orders-available-detail-trigger').click()
+
+    const orderDetailSheet = page.getByTestId('online-orders-detail-sheet')
+    await expect(orderDetailSheet).toBeVisible()
+    await expect(orderDetailSheet).toContainText('阶段 1/3 已确认')
+    await expect(orderDetailSheet.getByTestId('async-community-board')).toBeVisible()
+    await expect(orderDetailSheet.getByTestId('async-community-project-detail')).toContainText('加工干菜')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('共建类型')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('公共订单接力')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('阶段收口')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('1/3 阶段')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('当前回看')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('加工干菜 · 进行中')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('贡献记录')
+    await expect(orderDetailSheet.getByTestId('async-community-project-readback')).toContainText('0 人 · 1 条历史')
+    await expect(orderDetailSheet.getByTestId('async-community-site-objects')).toContainText('待接')
+    await expect(orderDetailSheet.getByTestId('async-community-site-objects')).toContainText('任务')
+    await expect(orderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('分账池：赏金 260 · 待分账')
+    await expect(orderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('已落账 80 / 待结 180')
+    await expect(orderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('采收青菜：31% / 80 · 个人铜钱')
     await expect(page.getByTestId('online-orders-society-board')).toContainText('公开订单')
     await expect(page.getByTestId('online-orders-society-board')).toContainText('1 张')
     await expect(page.getByTestId('online-orders-society-board-settlement')).toContainText('分账池 260 · 已落账 80 · 待结 180 · 补偿中 0')
     await expect(page.getByTestId('online-orders-society-board-receipts')).toContainText('灯会干菜接力单 · 采收青菜')
     await expect(page.getByTestId('online-orders-society-board-receipts')).toContainText('已完成的帮手 · 赏金 80 · 个人铜钱')
 
-    await page.getByTestId('online-society-async-contribute-relay_route-accept_stage:stage_process').click()
+    await orderDetailSheet.getByTestId('online-society-async-contribute-relay_route-accept_stage:stage_process').click()
+    await expect(page.getByTestId('online-orders-action-confirm')).toHaveCount(1)
+    await expect(page.getByTestId('online-confirm-action-dialog')).toBeVisible()
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('灯会干菜接力单')
+    await expect(page.getByTestId('online-confirm-impact-list')).toContainText('加工干菜')
+    await expect(page.getByTestId('online-confirm-asset-list')).toContainText('进入“我的接单”')
+    await expect(page.getByTestId('online-confirm-recovery-hint')).toContainText('接单失败')
 
-    await expect(page.getByTestId('async-community-project-detail')).toContainText('送到灯会')
-    await expect(page.getByTestId('async-community-site-objects')).toContainText('待接')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('送到灯会 · 进行中')
-    await expect(page.getByTestId('async-community-project-readback')).toContainText('1 人 · 1 条历史')
+    const acceptResponse = page.waitForResponse(response =>
+      response.url().includes('/api/taoyuan/online/orders/relay-order-e2e/stages/stage_process/accept')
+      && response.request().method() === 'POST'
+    )
+    await page.getByTestId('online-confirm-action-dialog-confirm').click()
+    await acceptResponse
+    await expect(page.getByTestId('online-orders-action-confirm')).toHaveCount(0)
+
+    const updatedRelayEntry = page.getByTestId('online-orders-available-entry').filter({ hasText: '灯会干菜接力单' }).first()
+    await expect(updatedRelayEntry).toBeVisible()
+    await updatedRelayEntry.getByTestId('online-orders-available-detail-trigger').click()
+    const updatedOrderDetailSheet = page.getByTestId('online-orders-detail-sheet')
+    await expect(updatedOrderDetailSheet.getByTestId('async-community-project-detail')).toContainText('送到灯会')
+    await expect(updatedOrderDetailSheet.getByTestId('async-community-site-objects')).toContainText('待接')
+    await expect(updatedOrderDetailSheet.getByTestId('async-community-project-readback')).toContainText('送到灯会 · 进行中')
+    await expect(updatedOrderDetailSheet.getByTestId('async-community-project-readback')).toContainText('1 人 · 1 条历史')
     await expect(page.getByText('测试者已接下加工干菜这一段。')).toBeVisible()
-    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('分账池：赏金 260 · 分账进行中')
-    await expect(page.getByTestId('online-orders-relay-settlement-summary').first()).toContainText('加工干菜：35% / 90 · 共同基金')
+    await expect(updatedOrderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('分账池：赏金 260 · 分账进行中')
+    await expect(updatedOrderDetailSheet.getByTestId('online-orders-relay-settlement-summary')).toContainText('加工干菜：35% / 90 · 共同基金')
   })
 
   test('can load the built-in region map showcase in dev mode', async ({ page }) => {
