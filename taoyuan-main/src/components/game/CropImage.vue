@@ -49,6 +49,8 @@
     variant?: CropAssetVariant
     resolution?: CropAssetSize
     size?: 'xs' | 'sm' | 'md' | 'lg' | 'tile'
+    fallbackMode?: 'glyph' | 'label'
+    fallbackText?: string | null
   }>(), {
     cropId: null,
     cropName: null,
@@ -57,6 +59,8 @@
     variant: undefined,
     resolution: 128,
     size: 'md',
+    fallbackMode: 'glyph',
+    fallbackText: null,
   })
 
   const loadFailed = ref(false)
@@ -72,13 +76,16 @@
   }))
   const imageUrl = computed(() => getCropAssetUrl(lookupTarget.value, selectedVariant.value, props.resolution))
   const altText = computed(() => resolvedCropName.value && resolvedState.value ? `${resolvedCropName.value} ${resolvedState.value}` : 'crop image')
-  const fallbackGlyph = computed(() => (resolvedCropName.value || resolvedCropId.value || '?').trim().slice(0, 1) || '?')
+  const fallbackGlyph = computed(() => {
+    const source = (props.fallbackText || resolvedCropName.value || resolvedCropId.value || '?').trim() || '?'
+    return props.fallbackMode === 'label' || props.size === 'tile' ? source : source.slice(0, 1)
+  })
 
   const pixelSize = computed(() => {
     if (props.size === 'xs') return 34
     if (props.size === 'sm') return 44
     if (props.size === 'lg') return 88
-    if (props.size === 'tile') return 42
+    if (props.size === 'tile') return 128
     return 58
   })
 
@@ -142,5 +149,14 @@
 
   .crop-image--lg .crop-image__fallback {
     font-size: 1rem;
+  }
+
+  .crop-image--tile .crop-image__fallback {
+    max-width: 92%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.625rem;
+    line-height: 1.15;
   }
 </style>

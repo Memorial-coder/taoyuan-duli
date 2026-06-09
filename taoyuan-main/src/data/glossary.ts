@@ -44,9 +44,19 @@ export interface GlossaryDetail {
   value: string
 }
 
+export interface GlossaryNpcPortrait {
+  id?: string
+  name?: string
+  displayName?: string
+  templateId?: string
+  assetBase?: string
+  fallbackText?: string
+}
+
 export interface GlossaryEntry {
   id: string
   itemId?: string
+  npcPortrait?: GlossaryNpcPortrait
   name: string
   category: GlossaryCategory
   categoryLabel: string
@@ -215,6 +225,11 @@ const buildGlossary = (): GlossaryEntry[] => {
     entries.push(makeEntry({
       id: `npc_${npc.id}`,
       name: npc.name,
+      npcPortrait: {
+        id: npc.id,
+        name: npc.name,
+        fallbackText: npc.name,
+      },
       category: 'npc',
       categoryLabel: '村民',
       description: `${npc.role}，${npc.personality}`,
@@ -522,6 +537,12 @@ const buildGlossary = (): GlossaryEntry[] => {
     entries.push(makeEntry({
       id: `hnpc_${hiddenNpc.id}`,
       name: `${hiddenNpc.name}（${hiddenNpc.trueName}）`,
+      npcPortrait: {
+        id: hiddenNpc.id,
+        name: hiddenNpc.name,
+        assetBase: `${hiddenNpc.name}-${hiddenNpc.trueName}`,
+        fallbackText: hiddenNpc.name,
+      },
       category: 'npc',
       categoryLabel: '仙灵',
       description: hiddenNpc.origin,

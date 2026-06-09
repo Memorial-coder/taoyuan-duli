@@ -186,6 +186,64 @@
               </div>
             </div>
 
+            <!-- 页面宽度 -->
+            <div class="settings-dialog-card border border-accent/20 rounded-xs" data-testid="settings-page-width-card">
+              <p class="text-xs text-muted mb-2">页面宽度</p>
+              <div class="settings-segmented-control" role="group" aria-label="页面宽度模式">
+                <button
+                  type="button"
+                  class="settings-segmented-control__button"
+                  :class="{ 'settings-segmented-control__button--active': settingsStore.pageWidthMode === 'responsive' }"
+                  data-testid="settings-page-width-responsive"
+                  @click="settingsStore.setPageWidthMode('responsive')"
+                >
+                  <Maximize2 :size="12" />
+                  <span>响应式</span>
+                </button>
+                <button
+                  type="button"
+                  class="settings-segmented-control__button"
+                  :class="{ 'settings-segmented-control__button--active': settingsStore.pageWidthMode === 'custom' }"
+                  data-testid="settings-page-width-custom"
+                  @click="settingsStore.setPageWidthMode('custom')"
+                >
+                  <Percent :size="12" />
+                  <span>自定义</span>
+                </button>
+              </div>
+              <template v-if="settingsStore.pageWidthMode === 'custom'">
+                <div class="settings-dialog-stepper settings-page-width-stepper flex items-center justify-center space-x-3 mt-3">
+                  <Button
+                    class="settings-stepper-btn py-1 px-3"
+                    :icon="Minus"
+                    :icon-size="12"
+                    :disabled="settingsStore.pageWidthPercent <= MIN_PAGE_WIDTH_PERCENT"
+                    data-testid="settings-page-width-decrease"
+                    @click="settingsStore.changePageWidthPercent(-PAGE_WIDTH_PERCENT_STEP)"
+                  />
+                  <span class="settings-stepper-value text-sm text-center" data-testid="settings-page-width-value">{{ settingsStore.pageWidthPercent }}%</span>
+                  <Button
+                    class="settings-stepper-btn py-1 px-3"
+                    :icon="Plus"
+                    :icon-size="12"
+                    :disabled="settingsStore.pageWidthPercent >= MAX_PAGE_WIDTH_PERCENT"
+                    data-testid="settings-page-width-increase"
+                    @click="settingsStore.changePageWidthPercent(PAGE_WIDTH_PERCENT_STEP)"
+                  />
+                </div>
+                <input
+                  class="settings-page-width-range mt-3"
+                  type="range"
+                  :min="MIN_PAGE_WIDTH_PERCENT"
+                  :max="MAX_PAGE_WIDTH_PERCENT"
+                  :step="PAGE_WIDTH_PERCENT_STEP"
+                  :value="settingsStore.pageWidthPercent"
+                  data-testid="settings-page-width-range"
+                  @input="handlePageWidthInput"
+                />
+              </template>
+            </div>
+
             <!-- 配色主题 -->
             <div class="settings-dialog-card border border-accent/20 rounded-xs">
               <p class="text-xs text-muted mb-2">配色主题</p>
@@ -225,6 +283,33 @@
                 >
                   关
                 </Button>
+              </div>
+            </div>
+
+            <!-- 田地显示 -->
+            <div class="settings-dialog-card border border-accent/20 rounded-xs" data-testid="settings-farm-display-card">
+              <p class="text-xs text-muted mb-2">田地显示</p>
+              <div class="settings-segmented-control" role="group" aria-label="田地显示形式">
+                <button
+                  type="button"
+                  class="settings-segmented-control__button"
+                  :class="{ 'settings-segmented-control__button--active': settingsStore.farmPlotDisplayMode === 'classic' }"
+                  data-testid="settings-farm-display-classic"
+                  @click="settingsStore.farmPlotDisplayMode = 'classic'"
+                >
+                  <Square :size="12" />
+                  <span>原版</span>
+                </button>
+                <button
+                  type="button"
+                  class="settings-segmented-control__button"
+                  :class="{ 'settings-segmented-control__button--active': settingsStore.farmPlotDisplayMode === 'image' }"
+                  data-testid="settings-farm-display-image"
+                  @click="settingsStore.farmPlotDisplayMode = 'image'"
+                >
+                  <Sprout :size="12" />
+                  <span>图片</span>
+                </button>
               </div>
             </div>
           </template>
@@ -418,14 +503,27 @@
     ArrowDownRight,
     Settings,
     Palette,
-    Bell
+    Bell,
+    Sprout,
+    Square,
+    Maximize2,
+    Percent
   } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import { useAudio } from '@/composables/useAudio'
   import { useGameClock } from '@/composables/useGameClock'
   import { useGameLog } from '@/composables/useGameLog'
-  import { MAX_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore, type QmsgPosition, type QmsgLimitWidthWrap } from '@/stores/useSettingsStore'
+  import {
+    MAX_FONT_SIZE,
+    MAX_PAGE_WIDTH_PERCENT,
+    MIN_FONT_SIZE,
+    MIN_PAGE_WIDTH_PERCENT,
+    PAGE_WIDTH_PERCENT_STEP,
+    useSettingsStore,
+    type QmsgPosition,
+    type QmsgLimitWidthWrap
+  } from '@/stores/useSettingsStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useWebdav } from '@/composables/useWebdav'
   import { THEMES } from '@/data/themes'
@@ -542,6 +640,11 @@
     settingsStore.syncQmsgConfig()
   }
 
+  const handlePageWidthInput = (event: Event) => {
+    const target = event.target as HTMLInputElement | null
+    settingsStore.setPageWidthPercent(Number(target?.value ?? settingsStore.pageWidthPercent))
+  }
+
   const setBool = (key: BoolSettingKey, value: boolean) => {
     settingsStore[key] = value
     settingsStore.syncQmsgConfig()
@@ -594,6 +697,49 @@
     width: 44px;
     height: 44px;
     flex-shrink: 0;
+  }
+
+  .settings-page-width-stepper .settings-stepper-value {
+    min-width: 56px;
+  }
+
+  .settings-page-width-range {
+    width: 100%;
+    accent-color: var(--color-accent);
+  }
+
+  .settings-segmented-control {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid rgb(var(--color-accent) / 0.18);
+    border-radius: 4px;
+    background: rgb(var(--color-bg) / 0.32);
+  }
+
+  .settings-segmented-control__button {
+    display: inline-flex;
+    flex: 1 1 0;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: rgb(var(--color-muted));
+    font-size: 0.75rem;
+    line-height: 1;
+    transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+  }
+
+  .settings-segmented-control__button:hover,
+  .settings-segmented-control__button--active {
+    border-color: rgb(var(--color-accent) / 0.48);
+    background: rgb(var(--color-accent) / 0.14);
+    color: rgb(var(--color-accent));
   }
 
   .settings-save-button {

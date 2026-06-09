@@ -73,28 +73,8 @@
       <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
 
       <!-- 批量操作入口 -->
-      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
         <Button class="w-full md:w-auto" :icon-size="12" :icon="Wrench" @click="showBatchActions = true">一键操作</Button>
-        <div class="farm-plot-display-toggle" role="group" aria-label="地块显示形式">
-          <button
-            type="button"
-            class="farm-plot-display-toggle__button"
-            :class="{ 'farm-plot-display-toggle__button--active': settingsStore.farmPlotDisplayMode === 'classic' }"
-            @click="settingsStore.farmPlotDisplayMode = 'classic'"
-          >
-            <Square :size="12" />
-            <span>原版</span>
-          </button>
-          <button
-            type="button"
-            class="farm-plot-display-toggle__button"
-            :class="{ 'farm-plot-display-toggle__button--active': settingsStore.farmPlotDisplayMode === 'image' }"
-            @click="settingsStore.farmPlotDisplayMode = 'image'"
-          >
-            <Sprout :size="12" />
-            <span>图片</span>
-          </button>
-        </div>
       </div>
 
       <!-- 田庄特殊功能 -->
@@ -224,7 +204,7 @@
           >
             <div class="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center">
               <template v-if="settingsStore.farmPlotDisplayMode === 'image' && plot.cropId">
-                <CropImage :crop-id="plot.cropId" :crop-name="getCropName(plot.cropId)" :plot="plot" size="tile" />
+                <CropImage :crop-id="plot.cropId" :crop-name="getCropName(plot.cropId)" :plot="plot" size="tile" fallback-mode="label" />
               </template>
               <template v-else>
                 <component :is="getPlotDisplay(plot).icon" :size="14" />
@@ -365,25 +345,28 @@
                 <button
                   v-for="seed in plantableSeeds"
                   :key="seed.cropId + ':' + seed.quality"
-                  class="btn text-xs justify-between mr-1 shrink-0"
+                  class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
                   @click="doPlant(seed.cropId, seed.quality)"
                 >
-                  <span :class="seed.colorClass">
-                    {{ seed.name }}
-                    <span
-                      v-if="seed.quality !== 'normal'"
-                      :class="{
-                        'text-quality-fine': seed.quality === 'fine',
-                        'text-quality-excellent': seed.quality === 'excellent',
-                        'text-quality-supreme': seed.quality === 'supreme'
-                      }"
-                      class="ml-0.5"
-                    >
-                      [{{ QUALITY_NAMES[seed.quality] }}]
+                  <span class="farm-seed-option__main">
+                    <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
+                    <span class="farm-seed-option__label" :class="seed.colorClass">
+                      {{ seed.name }}
+                      <span
+                        v-if="seed.quality !== 'normal'"
+                        :class="{
+                          'text-quality-fine': seed.quality === 'fine',
+                          'text-quality-excellent': seed.quality === 'excellent',
+                          'text-quality-supreme': seed.quality === 'supreme'
+                        }"
+                        class="ml-0.5"
+                      >
+                        [{{ QUALITY_NAMES[seed.quality] }}]
+                      </span>
+                      <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
                     </span>
-                    <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
                   </span>
-                  <span class="text-muted">×{{ seed.count }}</span>
+                  <span class="text-muted farm-seed-option__count">×{{ seed.count }}</span>
                 </button>
               </template>
               <template v-if="activePlot.state === 'tilled' && !hasSprinkler(activePlot.id) && plantableBreedingSeeds.length > 0">
@@ -391,11 +374,14 @@
                 <button
                   v-for="seed in plantableBreedingSeeds"
                   :key="seed.genetics.id"
-                  class="btn text-xs justify-between mr-1 shrink-0"
+                  class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
                   @click="doPlantGeneticSeed(seed.genetics.id)"
                 >
-                  <span>{{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}</span>
-                  <span class="text-muted flex items-center space-x-px">
+                  <span class="farm-seed-option__main">
+                    <ItemIcon :item="getSeedItemForCrop(seed.genetics.cropId)" size="xs" :show-badge="false" />
+                    <span class="farm-seed-option__label">{{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}</span>
+                  </span>
+                  <span class="text-muted flex items-center space-x-px farm-seed-option__count">
                     <Star v-for="n in getStarRating(seed.genetics)" :key="n" :size="10" />
                   </span>
                 </button>
@@ -459,29 +445,35 @@
             <div class="flex flex-col space-y-1 max-h-[60vh] overflow-y-auto">
               <button
                 v-for="seed in plantableSeeds"
-                :key="seed.cropId"
-                class="btn text-xs justify-between mr-1 shrink-0"
+                :key="seed.cropId + ':' + seed.quality"
+                class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
                 @click="doBatchPlant(seed.cropId)"
               >
-                <span :class="seed.colorClass">
-                  {{ seed.name }}
-                  <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
+                <span class="farm-seed-option__main">
+                  <ItemIcon :item="getSeedItem(seed.seedId)" :quality="seed.quality" size="xs" :show-badge="seed.quality !== 'normal'" />
+                  <span class="farm-seed-option__label" :class="seed.colorClass">
+                    {{ seed.name }}
+                    <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
+                  </span>
                 </span>
-                <span class="text-muted">×{{ seed.count }}</span>
+                <span class="text-muted farm-seed-option__count">×{{ seed.count }}</span>
               </button>
               <template v-if="batchBreedingSeedGroups.length > 0">
                 <Divider label="育种种子" class="!my-2" />
                 <button
                   v-for="group in batchBreedingSeedGroups"
                   :key="group.cropId"
-                  class="btn text-xs justify-between mr-1 shrink-0"
+                  class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
                   @click="doBatchPlantBreeding(group.cropId)"
                 >
-                  <span>
-                    {{ group.name }}
-                    <span class="text-muted">G{{ group.minGen }}{{ group.minGen !== group.maxGen ? `~${group.maxGen}` : '' }}</span>
+                  <span class="farm-seed-option__main">
+                    <ItemIcon :item="getSeedItemForCrop(group.cropId)" size="xs" :show-badge="false" />
+                    <span class="farm-seed-option__label">
+                      {{ group.name }}
+                      <span class="text-muted">G{{ group.minGen }}{{ group.minGen !== group.maxGen ? `~${group.maxGen}` : '' }}</span>
+                    </span>
                   </span>
-                  <span class="text-muted">×{{ group.count }}</span>
+                  <span class="text-muted farm-seed-option__count">×{{ group.count }}</span>
                 </button>
               </template>
               <div v-if="plantableSeeds.length === 0 && batchBreedingSeedGroups.length === 0" class="flex flex-col items-center py-4">
@@ -919,13 +911,13 @@
             <button
               v-for="plot in farmStore.greenhousePlots"
               :key="plot.id"
-              class="aspect-square border border-accent/20 rounded-xs flex flex-col items-center justify-center cursor-pointer transition-colors hover:border-accent/60 hover:bg-panel/80 leading-tight"
+              class="greenhouse-plot aspect-square border border-accent/20 rounded-xs flex flex-col items-center justify-center cursor-pointer transition-colors hover:border-accent/60 hover:bg-panel/80 leading-tight"
               :class="getPlotDisplay(plot).color"
               :title="getPlotTooltip(plot)"
               @click="activeGhPlotId = plot.id"
             >
               <template v-if="settingsStore.farmPlotDisplayMode === 'image' && plot.cropId">
-                <CropImage :crop-id="plot.cropId" :crop-name="getCropName(plot.cropId)" :plot="plot" size="tile" />
+                <CropImage :crop-id="plot.cropId" :crop-name="getCropName(plot.cropId)" :plot="plot" size="tile" fallback-mode="label" />
               </template>
               <template v-else>
                 <component :is="getPlotDisplay(plot).icon" :size="14" />
@@ -989,28 +981,34 @@
             <button
               v-for="seed in allSeeds"
               :key="seed.cropId"
-              class="btn text-xs justify-between mr-1 shrink-0"
+              class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
               @click="doGhBatchPlant(seed.cropId)"
             >
-              <span>
-                {{ seed.name }}
-                <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
+              <span class="farm-seed-option__main">
+                <ItemIcon :item="getSeedItem(seed.seedId)" size="xs" :show-badge="false" />
+                <span class="farm-seed-option__label">
+                  {{ seed.name }}
+                  <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
+                </span>
               </span>
-              <span class="text-muted">×{{ seed.count }}</span>
+              <span class="text-muted farm-seed-option__count">×{{ seed.count }}</span>
             </button>
             <template v-if="ghBatchBreedingSeedGroups.length > 0">
               <Divider label="育种种子" class="!my-2" />
               <button
                 v-for="group in ghBatchBreedingSeedGroups"
                 :key="group.cropId"
-                class="btn text-xs justify-between mr-1 shrink-0"
+                class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
                 @click="doGhBatchPlantBreeding(group.cropId)"
               >
-                <span>
-                  {{ group.name }}
-                  <span class="text-muted">G{{ group.minGen }}{{ group.minGen !== group.maxGen ? `~${group.maxGen}` : '' }}</span>
+                <span class="farm-seed-option__main">
+                  <ItemIcon :item="getSeedItemForCrop(group.cropId)" size="xs" :show-badge="false" />
+                  <span class="farm-seed-option__label">
+                    {{ group.name }}
+                    <span class="text-muted">G{{ group.minGen }}{{ group.minGen !== group.maxGen ? `~${group.maxGen}` : '' }}</span>
+                  </span>
                 </span>
-                <span class="text-muted">×{{ group.count }}</span>
+                <span class="text-muted farm-seed-option__count">×{{ group.count }}</span>
               </button>
             </template>
           </div>
@@ -1081,25 +1079,35 @@
             <!-- 已耕 → 种植（所有种子） -->
             <div v-if="activeGhPlot.state === 'tilled' && allSeeds.length > 0" class="border border-accent/10 rounded-xs p-2">
               <p class="text-xs text-muted mb-1">种植</p>
-              <div class="flex flex-wrap space-x-1">
-                <Button v-for="seed in allSeeds" :key="seed.cropId" @click="doGhPlant(seed.cropId)">
-                  {{ seed.name }}
-                  <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
-                  (×{{ seed.count }})
-                </Button>
+              <div class="flex flex-wrap gap-1">
+                <button
+                  v-for="seed in allSeeds"
+                  :key="seed.cropId"
+                  class="btn text-xs farm-seed-chip"
+                  @click="doGhPlant(seed.cropId)"
+                >
+                  <ItemIcon :item="getSeedItem(seed.seedId)" size="xs" :show-badge="false" />
+                  <span class="farm-seed-chip__label">
+                    {{ seed.name }}
+                    <span v-if="seed.regrowth" class="text-success ml-1">[多茬]</span>
+                  </span>
+                  <span class="text-muted">(×{{ seed.count }})</span>
+                </button>
               </div>
             </div>
             <!-- 已耕 → 育种种子 -->
             <div v-if="activeGhPlot.state === 'tilled' && breedingStore.breedingBox.length > 0" class="border border-accent/10 rounded-xs p-2">
               <p class="text-xs text-muted mb-1">育种种子</p>
               <div class="flex flex-wrap gap-1">
-                <Button
+                <button
                   v-for="seed in breedingStore.breedingBox"
                   :key="seed.genetics.id"
+                  class="btn text-xs farm-seed-chip"
                   @click="doGhPlantGeneticSeed(seed.genetics.id)"
                 >
-                  {{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}
-                </Button>
+                  <ItemIcon :item="getSeedItemForCrop(seed.genetics.cropId)" size="xs" :show-badge="false" />
+                  <span class="farm-seed-chip__label">{{ getCropName(seed.genetics.cropId) }} G{{ seed.genetics.generation }}</span>
+                </button>
               </div>
             </div>
             <!-- 已耕无种子空状态 -->
@@ -1159,6 +1167,7 @@
   import Button from '@/components/game/Button.vue'
   import CropImage from '@/components/game/CropImage.vue'
   import CropImageVariantPicker from '@/components/game/CropImageVariantPicker.vue'
+  import ItemIcon from '@/components/game/ItemIcon.vue'
   import Divider from '@/components/game/Divider.vue'
   import { useBreedingStore } from '@/stores/useBreedingStore'
   import { useCookingStore } from '@/stores/useCookingStore'
@@ -1517,6 +1526,13 @@
   const getCropName = (cropId: string): string => {
     const crop = getCropById(cropId)
     return crop?.name ?? cropId
+  }
+
+  const getSeedItem = (seedId: string) => getItemById(seedId) ?? null
+
+  const getSeedItemForCrop = (cropId: string) => {
+    const crop = getCropById(cropId)
+    return crop ? getSeedItem(crop.seedId) : null
   }
 
   const hasSprinkler = (plotId: number): boolean => {
@@ -2443,43 +2459,13 @@
     padding-bottom: 100%;
   }
 
-  .farm-plot :deep(.crop-image--tile) {
-    width: min(42px, 72%) !important;
-    height: min(42px, 72%) !important;
-  }
-
-  .farm-plot-display-toggle {
-    display: inline-flex;
-    width: 100%;
-    align-items: center;
-    gap: 4px;
-    padding: 3px;
-    border: 1px solid rgb(var(--color-accent) / 0.18);
-    border-radius: 4px;
-    background: rgb(var(--color-bg) / 0.32);
-  }
-
-  .farm-plot-display-toggle__button {
-    display: inline-flex;
-    flex: 1 1 0;
-    min-height: 30px;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 0 8px;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    color: rgb(var(--color-muted));
-    font-size: 0.75rem;
-    line-height: 1;
-    transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
-  }
-
-  .farm-plot-display-toggle__button:hover,
-  .farm-plot-display-toggle__button--active {
-    border-color: rgb(var(--color-accent) / 0.48);
-    background: rgb(var(--color-accent) / 0.14);
-    color: rgb(var(--color-accent));
+  .farm-plot :deep(.crop-image--tile),
+  .greenhouse-plot :deep(.crop-image--tile) {
+    width: 98% !important;
+    height: 98% !important;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
   }
 
   .farm-crop-image-detail {
@@ -2494,11 +2480,47 @@
     min-height: 42px;
   }
 
-  @media (min-width: 640px) {
-    .farm-plot-display-toggle {
-      width: auto;
-      min-width: 174px;
-    }
+  .farm-seed-option {
+    width: 100%;
+    min-height: 42px;
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .farm-seed-option__main {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+  }
+
+  .farm-seed-option__label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .farm-seed-option__count {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .farm-seed-chip {
+    min-height: 40px;
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .farm-seed-chip__label {
+    min-width: 0;
+  }
+
+  .farm-seed-option :deep(.item-icon--xs),
+  .farm-seed-chip :deep(.item-icon--xs) {
+    width: 28px !important;
+    height: 28px !important;
   }
 
   .farm-batch-action {

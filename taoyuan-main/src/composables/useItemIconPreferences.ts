@@ -1,15 +1,23 @@
 import { readonly, reactive } from 'vue'
 import { apiFetch } from '@/utils/apiClient'
-import { ensureCurrentCsrfToken } from '@/utils/accountStorage'
+import { buildScopedSingleKey, ensureCurrentCsrfToken, migrateLegacySingleValue } from '@/utils/accountStorage'
 import type { ItemIconVariant } from '@/composables/useItemIconManifest'
 
-const STORAGE_KEY = 'taoyuanxiang_item_icon_preferences_v1'
+const LEGACY_STORAGE_KEY = 'taoyuanxiang_item_icon_preferences_v1'
+const STORAGE_KEY_PREFIX = `${LEGACY_STORAGE_KEY}_`
 const VALID_VARIANTS = new Set<ItemIconVariant>(['01', '02', '03'])
 
 const preferences = reactive<Record<string, ItemIconVariant>>({})
-let loaded = false
+let loadedStorageKey = ''
 let loadPromise: Promise<void> | null = null
+let loadingStorageKey = ''
 let saveTimer = 0
+
+const getStorageKey = (): string => {
+  const storageKey = buildScopedSingleKey(STORAGE_KEY_PREFIX)
+  migrateLegacySingleValue(LEGACY_STORAGE_KEY, storageKey)
+  return storageKey
+}
 
 const normalizePreferences = (raw: unknown): Record<string, ItemIconVariant> => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
@@ -24,7 +32,7 @@ const normalizePreferences = (raw: unknown): Record<string, ItemIconVariant> => 
 
 const readLocalPreferences = (): Record<string, ItemIconVariant> => {
   try {
-    return normalizePreferences(JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'))
+    return normalizePreferences(JSON.parse(localStorage.getItem(getStorageKey()) || '{}'))
   } catch {
     return {}
   }
@@ -32,9 +40,24 @@ const readLocalPreferences = (): Record<string, ItemIconVariant> => {
 
 const persistLocalPreferences = () => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...preferences }))
+    localStorage.setItem(getStorageKey(), JSON.stringify({ ...preferences }))
   } catch {
     /* ignore */
+  }
+}
+
+const replacePreferences = (next: Record<string, ItemIconVariant>) => {
+  for (const key of Object.keys(preferences)) {
+    delete preferences[key]
+  }
+  Object.assign(preferences, next)
+}
+
+const ensureLoadedScope = () => {
+  const storageKey = getStorageKey()
+  if (loadedStorageKey !== storageKey && !loadPromise) {
+    replacePreferences(readLocalPreferences())
+    loadedStorageKey = storageKey
   }
 }
 
@@ -64,23 +87,29 @@ const scheduleServerSave = () => {
 }
 
 export const loadItemIconPreferences = async () => {
-  if (loaded) return
-  if (loadPromise) return loadPromise
+  const storageKey = getStorageKey()
+  if (loadedStorageKey === storageKey) return
+  if (loadPromise && loadingStorageKey === storageKey) return loadPromise
 
+  loadingStorageKey = storageKey
   loadPromise = (async () => {
-    Object.assign(preferences, readLocalPreferences())
+    replacePreferences(readLocalPreferences())
+    loadedStorageKey = storageKey
     try {
       const res = await apiFetch('/api/taoyuan/item-icon-preferences')
       if (res.ok) {
         const data = await res.json().catch(() => null)
-        Object.assign(preferences, normalizePreferences(data?.preferences))
+        if (getStorageKey() !== storageKey) return
+        replacePreferences(normalizePreferences(data?.preferences))
         persistLocalPreferences()
       }
     } catch {
       /* keep local fallback */
     } finally {
-      loaded = true
-      loadPromise = null
+      if (loadingStorageKey === storageKey) {
+        loadPromise = null
+        loadingStorageKey = ''
+      }
     }
   })()
 
@@ -88,12 +117,14 @@ export const loadItemIconPreferences = async () => {
 }
 
 export const getItemIconVariant = (itemId: string | null | undefined): ItemIconVariant => {
+  ensureLoadedScope()
   const key = String(itemId || '').trim()
   const variant = key ? preferences[key] : undefined
   return variant && VALID_VARIANTS.has(variant) ? variant : '01'
 }
 
 export const setItemIconVariant = (itemId: string | null | undefined, variant: ItemIconVariant) => {
+  ensureLoadedScope()
   const key = String(itemId || '').trim()
   if (!key || !VALID_VARIANTS.has(variant)) return
   if (variant === '01') {

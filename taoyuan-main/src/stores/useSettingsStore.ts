@@ -11,19 +11,26 @@ import { CROP_USE_TAG_LABELS, type CropUseTag } from '@/data/cropUseProfiles'
 export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 'right' | 'bottomleft' | 'bottom' | 'bottomright'
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
 export type FarmPlotDisplayMode = 'classic' | 'image'
+export type PageWidthMode = 'responsive' | 'custom'
 
 export const DEFAULT_FONT_SIZE = 16
 export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 24
+export const MIN_PAGE_WIDTH_PERCENT = 60
+export const MAX_PAGE_WIDTH_PERCENT = 100
+export const PAGE_WIDTH_PERCENT_STEP = 5
 export const CROP_USE_TAG_SAVE_VERSION = 1
 export const DEFAULT_NPC_PORTRAITS_ENABLED = false
 export const DEFAULT_FARM_PLOT_DISPLAY_MODE: FarmPlotDisplayMode = 'classic'
+export const DEFAULT_PAGE_WIDTH_MODE: PageWidthMode = 'responsive'
+export const DEFAULT_PAGE_WIDTH_PERCENT = 100
 const DEFAULT_THEME: ThemeKey = 'dark'
 const DEFAULT_QMSG_POSITION: QmsgPosition = 'top'
 const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
 const CROP_USE_FILTER_TAG_SET = new Set<CropUseTag>(CROP_USE_FILTER_TAGS)
 
 const clampFontSize = (value: number) => Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(value)))
+const clampPageWidthPercent = (value: number) => Math.min(MAX_PAGE_WIDTH_PERCENT, Math.max(MIN_PAGE_WIDTH_PERCENT, Math.round(value)))
 
 const sanitizeInventoryCropUseFilter = (value: any): CropUseTag[] => {
   if (!Array.isArray(value)) return []
@@ -68,6 +75,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const qmsgShowReverse = ref(false)
   const npcPortraitsEnabled = ref(DEFAULT_NPC_PORTRAITS_ENABLED)
   const farmPlotDisplayMode = ref<FarmPlotDisplayMode>(DEFAULT_FARM_PLOT_DISPLAY_MODE)
+  const pageWidthMode = ref<PageWidthMode>(DEFAULT_PAGE_WIDTH_MODE)
+  const pageWidthPercent = ref(DEFAULT_PAGE_WIDTH_PERCENT)
 
   /** 背包物品筛选：选中的分类（空数组 = 显示全部） */
   const inventoryFilter = ref<ItemCategory[]>([])
@@ -90,6 +99,19 @@ export const useSettingsStore = defineStore('settings', () => {
     document.documentElement.style.setProperty('--color-text', hexToRgb(t.text))
   }
 
+  const applyPageWidth = () => {
+    if (typeof document === 'undefined') return
+    const root = document.documentElement
+    if (!root) return
+    pageWidthPercent.value = clampPageWidthPercent(pageWidthPercent.value)
+    if (typeof root.setAttribute === 'function') {
+      root.setAttribute('data-page-width-mode', pageWidthMode.value)
+    } else if (root.dataset) {
+      root.dataset.pageWidthMode = pageWidthMode.value
+    }
+    root.style?.setProperty?.('--app-page-width', `${pageWidthPercent.value}vw`)
+  }
+
   const changeFontSize = (delta: number) => {
     fontSize.value = clampFontSize(fontSize.value + delta)
     applyFontSize()
@@ -98,6 +120,20 @@ export const useSettingsStore = defineStore('settings', () => {
   const changeTheme = (key: ThemeKey) => {
     theme.value = key
     applyTheme()
+  }
+
+  const setPageWidthMode = (mode: PageWidthMode) => {
+    pageWidthMode.value = mode === 'custom' ? 'custom' : DEFAULT_PAGE_WIDTH_MODE
+    applyPageWidth()
+  }
+
+  const setPageWidthPercent = (value: number) => {
+    pageWidthPercent.value = clampPageWidthPercent(value)
+    applyPageWidth()
+  }
+
+  const changePageWidthPercent = (delta: number) => {
+    setPageWidthPercent(pageWidthPercent.value + delta)
   }
 
   const changeQmsgPosition = (pos: QmsgPosition) => {
@@ -197,6 +233,8 @@ export const useSettingsStore = defineStore('settings', () => {
       qmsgShowReverse: qmsgShowReverse.value,
       npcPortraitsEnabled: npcPortraitsEnabled.value,
       farmPlotDisplayMode: farmPlotDisplayMode.value,
+      pageWidthMode: pageWidthMode.value,
+      pageWidthPercent: pageWidthPercent.value,
       inventoryFilter: inventoryFilter.value,
       inventoryCropUseFilter: selectedCropUseTags,
       cropUseTagSaveVersion: CROP_USE_TAG_SAVE_VERSION,
@@ -232,6 +270,11 @@ export const useSettingsStore = defineStore('settings', () => {
     farmPlotDisplayMode.value = data?.farmPlotDisplayMode === 'image'
       ? 'image'
       : DEFAULT_FARM_PLOT_DISPLAY_MODE
+    pageWidthMode.value = data?.pageWidthMode === 'custom'
+      ? 'custom'
+      : DEFAULT_PAGE_WIDTH_MODE
+    pageWidthPercent.value = clampPageWidthPercent(data?.pageWidthPercent ?? DEFAULT_PAGE_WIDTH_PERCENT)
+    applyPageWidth()
     inventoryFilter.value = data?.inventoryFilter ?? []
     const cropUseFilterState = normalizeCropUseFilterState(data)
     cropUseTagSaveVersion.value = cropUseFilterState.version
@@ -257,6 +300,7 @@ export const useSettingsStore = defineStore('settings', () => {
   syncQmsgConfig()
   applyFontSize()
   applyTheme()
+  applyPageWidth()
 
   return {
     fontSize,
@@ -274,6 +318,8 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowReverse,
     npcPortraitsEnabled,
     farmPlotDisplayMode,
+    pageWidthMode,
+    pageWidthPercent,
     inventoryFilter,
     inventoryCropUseFilter,
     cropUseTagSaveVersion,
@@ -283,6 +329,9 @@ export const useSettingsStore = defineStore('settings', () => {
     lateGameFeatureConfigs: LATE_GAME_FEATURE_FLAGS,
     changeFontSize,
     changeTheme,
+    setPageWidthMode,
+    setPageWidthPercent,
+    changePageWidthPercent,
     changeQmsgPosition,
     syncQmsgConfig,
     setLateGameFeatureBaselineSaveVersion,
@@ -297,6 +346,7 @@ export const useSettingsStore = defineStore('settings', () => {
     clearLateGameBalanceOverrides,
     applyFontSize,
     applyTheme,
+    applyPageWidth,
     serialize,
     deserialize
   }

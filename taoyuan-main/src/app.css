@@ -40,6 +40,7 @@
   --ai-assistant-info-border: rgba(120, 190, 255, 0.28);
   --ai-assistant-risk-border: rgba(255, 137, 137, 0.38);
   --ai-assistant-warn-border: rgba(248, 209, 122, 0.42);
+  --app-page-width: 100%;
 }
 
 /* 生产环境禁止选中和复制 */
@@ -101,13 +102,20 @@ button {
 
 @media (min-width: 1536px) {
   #app {
-    max-width: 1260px;
+    max-width: none;
   }
 
   #app.app-shell--admin {
     max-width: none;
     padding-left: 18px;
     padding-right: 18px;
+  }
+}
+
+@media (min-width: 768px) {
+  html[data-page-width-mode='custom'] #app:not(.app-shell--admin) {
+    width: min(100%, var(--app-page-width));
+    max-width: none;
   }
 }
 

@@ -98,6 +98,16 @@
               >
                 <div class="flex items-start gap-2">
                   <ItemIcon v-if="entry.itemId" :item="getItemById(entry.itemId)" size="sm" :show-badge="false" />
+                  <NpcPortrait
+                    v-else-if="entry.npcPortrait"
+                    :id="entry.npcPortrait.id"
+                    :name="entry.npcPortrait.name"
+                    :display-name="entry.npcPortrait.displayName"
+                    :template-id="entry.npcPortrait.templateId"
+                    :asset-base="entry.npcPortrait.assetBase"
+                    :fallback-text="entry.npcPortrait.fallbackText ?? entry.name"
+                    size="sm"
+                  />
                   <div class="min-w-0 flex-1">
                     <div class="flex items-start justify-between gap-2">
                       <div class="min-w-0">
@@ -140,6 +150,17 @@
           <div class="flex flex-wrap items-start justify-between gap-2 mb-2">
             <div class="flex items-start gap-2 min-w-0">
               <ItemIcon v-if="selectedEntry.itemId" :item="getItemById(selectedEntry.itemId)" size="lg" :resolution="256" :show-badge="false" />
+              <NpcPortrait
+                v-else-if="selectedEntry.npcPortrait"
+                :id="selectedEntry.npcPortrait.id"
+                :name="selectedEntry.npcPortrait.name"
+                :display-name="selectedEntry.npcPortrait.displayName"
+                :template-id="selectedEntry.npcPortrait.templateId"
+                :asset-base="selectedEntry.npcPortrait.assetBase"
+                :fallback-text="selectedEntry.npcPortrait.fallbackText ?? selectedEntry.name"
+                size="lg"
+                :resolution="256"
+              />
               <div class="min-w-0">
                 <p class="text-sm break-words" :class="getCategoryColor(selectedEntry.category)">{{ selectedEntry.name }}</p>
                 <div class="flex flex-wrap items-center gap-1 mt-0.5">
@@ -227,6 +248,7 @@
   import { Search, X, BookOpen } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import ItemIcon from '@/components/game/ItemIcon.vue'
+  import NpcPortrait from '@/components/game/NpcPortrait.vue'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { GLOSSARY, GLOSSARY_CATEGORY_LABELS, GLOSSARY_INTENT_LABELS } from '@/data/glossary'
   import { getItemById } from '@/data/items'
