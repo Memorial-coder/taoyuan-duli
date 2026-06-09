@@ -55,13 +55,12 @@
         <p class="text-xs text-warning">市场轮换摘要</p>
         <span class="text-[0.625rem] text-muted">{{ marketOverview.phaseLabel }}</span>
       </div>
-      <p class="text-[0.625rem] text-muted leading-5">{{ marketOverview.phaseDescription }}</p>
       <p v-if="marketOverview.hotspotCategoryLabels.length > 0" class="mt-1 text-[0.625rem] text-warning">
         热点：{{ marketOverview.hotspotCategoryLabels.slice(0, 3).join('、') }}
       </p>
-      <p v-if="marketRouteHighlights" class="mt-1 text-[0.625rem] text-success">建议路线：{{ marketRouteHighlights }}</p>
-      <p v-if="marketOverview.overflowPenaltyCount > 0" class="mt-1 text-[0.625rem] text-danger">
-        当前有 {{ marketOverview.overflowPenaltyCount }} 个品类处于过剩压制，建议尽快换线出货。
+      <p v-else class="mt-1 text-[0.625rem] text-muted">热点等待刷新</p>
+      <p class="mt-1 text-[0.625rem] text-muted leading-5">
+        详细行情、地区收购和过剩压制已收进商圈「市场」标签。
       </p>
       <div v-if="marketCtas.length > 0" class="mt-2 flex flex-wrap gap-1">
         <button

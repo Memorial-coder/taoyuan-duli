@@ -181,15 +181,6 @@ const seedMiningCombat = async page => {
   })
 }
 
-const openWanwuShop = async page => {
-  await page.evaluate(async () => {
-    const { useShopStore } = await import('/src/stores/useShopStore.ts')
-    const shop = useShopStore()
-    shop.currentShopId = 'wanwupu'
-  })
-  await page.waitForTimeout(250)
-}
-
 const clearTransientOverlays = async page => {
   await page.evaluate(() => {
     document
@@ -280,7 +271,15 @@ const scenarios = [
     targetSelector: '.game-modal-overlay .game-panel',
     targetTextNeedles: ['价格', '购买'],
     prepare: async page => {
-      await openWanwuShop(page)
+      await expect(page.getByTestId('shop-tab-trade')).toBeVisible()
+      const primaryCta = page.getByTestId('shop-primary-action-card').getByRole('button').first()
+      const primaryCtaText = (await primaryCta.textContent().catch(() => '')) || ''
+      if (await primaryCta.isVisible().catch(() => false) && /万物铺|推荐货架|继续逛这家|切回买入货架/.test(primaryCtaText)) {
+        await primaryCta.click()
+      } else {
+        await page.getByTestId('shop-entry-wanwupu').click()
+      }
+      await expect(page.locator('text=万物铺').first()).toBeVisible({ timeout: 10_000 })
       const clicked = await page.evaluate(() => {
         const candidates = Array.from(document.querySelectorAll('.cursor-pointer'))
         const target = candidates.find(element => {

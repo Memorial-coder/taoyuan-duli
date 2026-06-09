@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -40,6 +41,25 @@ const pageErrors = []
 const requestFailures = []
 const screenshots = []
 const pageChecks = []
+
+function assertShippingBoxSourceGuards() {
+  const source = readFileSync(path.join(repoRoot, 'src', 'views', 'game', 'FarmView.vue'), 'utf8')
+  const required = [
+    ['data-testid="shipping-box-modal"', '出货箱弹窗必须有稳定测试选择器'],
+    ['data-testid="shipping-box-entry"', '出货箱入口必须有稳定测试选择器'],
+    ['max-h-[88dvh]', '移动端出货箱必须接近全屏高度'],
+    ['md:max-h-[82dvh]', '桌面端出货箱必须限制在视口内'],
+    ['md:max-w-4xl', '桌面端出货箱必须使用宽弹窗'],
+    ['data-testid="shipping-box-search"', '出货箱必须保留搜索入口'],
+    ['data-testid="shipping-box-category"', '出货箱必须保留分类筛选入口'],
+    ['data-testid="shipping-box-sort"', '出货箱必须保留排序入口'],
+    ['data-testid="shipping-box-add-one"', '出货箱必须保留放入1按钮'],
+    ['data-testid="shipping-box-add-five"', '出货箱必须保留批量放入按钮'],
+    ['data-testid="shipping-box-add-all"', '出货箱必须保留全部放入按钮']
+  ]
+  const missing = required.filter(([needle]) => !source.includes(needle)).map(([, message]) => message)
+  if (missing.length > 0) throw new Error(`shipping box mobile source guards failed: ${missing.join('; ')}`)
+}
 
 const buildMockProfile = ({
   username,
@@ -3216,7 +3236,8 @@ async function captureScenario({
   mockExpeditionRoom = false,
   mockExpeditionRoomState = 'empty',
   mockCohabitation = false,
-  prepare
+  prepare,
+  assertPage
 }) {
   if (scenarioFilter && !label.includes(scenarioFilter)) return
   const { context, page } = await createPage(browser, viewport, { mockSocial, mockSociety, mockSocietyProject, mockSocietyMode, mockOrders, mockManor, mockManorMode, mockFestivalRoom, mockFestivalRoomState, mockExpeditionRoom, mockExpeditionRoomState, mockCohabitation })
@@ -3230,6 +3251,9 @@ async function captureScenario({
     const primary = page.locator(primarySelector)
     await expect(primary.first()).toBeVisible()
     const primaryBox = await primary.first().boundingBox()
+    if (assertPage) {
+      await assertPage(page, viewport)
+    }
     const screenshotPath = path.resolve(outputDir, `${label}.png`)
     await page.screenshot({ path: screenshotPath, fullPage: false })
     screenshots.push(screenshotPath)
@@ -3262,6 +3286,38 @@ async function captureScenario({
   } finally {
     await context.close()
   }
+}
+
+async function assertShopTradeDefault(page) {
+  await expect(page.getByTestId('shop-tab-trade')).toBeVisible()
+  await expect(page.getByTestId('shop-tab-trade')).toContainText('买卖')
+
+  const reachability = await page.evaluate(() => {
+    const visibleInViewport = element => {
+      if (!element) return false
+      const rect = element.getBoundingClientRect()
+      const style = window.getComputedStyle(element)
+      return rect.width > 0
+        && rect.height > 0
+        && rect.top < window.innerHeight
+        && rect.bottom > 0
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+    }
+
+    const shopEntry = Array.from(document.querySelectorAll('[data-testid^="shop-entry-"]'))
+      .find(element => visibleInViewport(element))
+    const primaryCta = document.querySelector('[data-testid="shop-primary-action-card"] button')
+    const primaryCtaText = primaryCta?.textContent?.trim() || ''
+
+    return {
+      hasVisibleShopEntry: Boolean(shopEntry),
+      hasVisibleWanwuCta: visibleInViewport(primaryCta) && /万物铺|推荐货架|继续逛这家|切回买入货架/.test(primaryCtaText),
+      primaryCtaText
+    }
+  })
+
+  expect(reachability.hasVisibleShopEntry || reachability.hasVisibleWanwuCta).toBeTruthy()
 }
 
 async function ensureManualExpedition(page) {
@@ -4740,6 +4796,7 @@ async function main() {
     throw error
   }
 
+  assertShippingBoxSourceGuards()
   await mkdir(outputDir, { recursive: true })
   const shouldLaunchServer = shouldStartDevServer && !(await isTcpServerReachable(baseURL))
   const server = shouldLaunchServer ? startDevServer() : null
@@ -4756,7 +4813,8 @@ async function main() {
         label: '01-shop-mobile-390x844',
         hash: '/#/game/shop',
         viewport: { width: 390, height: 844 },
-        primarySelector: '[data-testid="shop-primary-action-card"]'
+        primarySelector: '[data-testid="shop-primary-action-card"]',
+        assertPage: assertShopTradeDefault
       })
       await captureScenario({
         browser,
@@ -4777,7 +4835,8 @@ async function main() {
         label: '04-shop-mobile-360x780',
         hash: '/#/game/shop',
         viewport: { width: 360, height: 780 },
-        primarySelector: '[data-testid="shop-primary-action-card"]'
+        primarySelector: '[data-testid="shop-primary-action-card"]',
+        assertPage: assertShopTradeDefault
       })
       await captureScenario({
         browser,
@@ -4798,7 +4857,8 @@ async function main() {
         label: '07-shop-mobile-430x932',
         hash: '/#/game/shop',
         viewport: { width: 430, height: 932 },
-        primarySelector: '[data-testid="shop-primary-action-card"]'
+        primarySelector: '[data-testid="shop-primary-action-card"]',
+        assertPage: assertShopTradeDefault
       })
       await captureScenario({
         browser,

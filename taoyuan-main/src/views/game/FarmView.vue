@@ -293,7 +293,7 @@
             </div>
 
             <!-- 操作列表 -->
-            <div class="flex flex-col space-y-1 max-h-60 overflow-y-auto">
+            <div class="farm-action-list flex flex-col space-y-1 max-h-60 overflow-y-auto overflow-x-hidden pr-1">
               <Button
                 v-if="activePlot.state === 'wasteland'"
                 class="w-full justify-center shrink-0"
@@ -345,7 +345,7 @@
                 <button
                   v-for="seed in plantableSeeds"
                   :key="seed.cropId + ':' + seed.quality"
-                  class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
+                  class="btn text-xs justify-between shrink-0 farm-seed-option"
                   @click="doPlant(seed.cropId, seed.quality)"
                 >
                   <span class="farm-seed-option__main">
@@ -374,7 +374,7 @@
                 <button
                   v-for="seed in plantableBreedingSeeds"
                   :key="seed.genetics.id"
-                  class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
+                  class="btn text-xs justify-between shrink-0 farm-seed-option"
                   @click="doPlantGeneticSeed(seed.genetics.id)"
                 >
                   <span class="farm-seed-option__main">
@@ -404,7 +404,7 @@
                 <button
                   v-for="f in fertilizerItems"
                   :key="f.itemId"
-                  class="btn text-xs justify-between mr-1 shrink-0"
+                  class="btn w-full text-xs justify-between shrink-0"
                   @click="doFertilize(f.type)"
                 >
                   <span :class="f.colorClass">{{ f.name }}</span>
@@ -416,14 +416,14 @@
                 <button
                   v-for="s in sprinklerItems"
                   :key="s.itemId"
-                  class="btn text-xs justify-between mr-1 shrink-0"
+                  class="btn w-full text-xs justify-between shrink-0"
                   @click="doPlaceSprinkler(s.type)"
                 >
                   <span :class="s.colorClass">{{ s.name }}</span>
                   <span class="text-muted">×{{ s.count }}</span>
                 </button>
               </template>
-              <Button v-if="hasSprinkler(activePlot.id)" class="mr-1 justify-center shrink-0" @click="doRemoveSprinkler">拆除洒水器</Button>
+              <Button v-if="hasSprinkler(activePlot.id)" class="w-full justify-center shrink-0" @click="doRemoveSprinkler">拆除洒水器</Button>
             </div>
           </div>
         </div>
@@ -442,11 +442,11 @@
             </button>
             <p class="text-accent text-sm mb-2">一键种植</p>
             <p class="text-xs text-muted mb-2">空耕地 {{ tilledEmptyCount }} 块，选择要种植的种子：</p>
-            <div class="flex flex-col space-y-1 max-h-[60vh] overflow-y-auto">
+            <div class="farm-action-list flex flex-col space-y-1 max-h-[60vh] overflow-y-auto overflow-x-hidden pr-1">
               <button
                 v-for="seed in plantableSeeds"
                 :key="seed.cropId + ':' + seed.quality"
-                class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
+                class="btn text-xs justify-between shrink-0 farm-seed-option"
                 @click="doBatchPlant(seed.cropId)"
               >
                 <span class="farm-seed-option__main">
@@ -463,7 +463,7 @@
                 <button
                   v-for="group in batchBreedingSeedGroups"
                   :key="group.cropId"
-                  class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
+                  class="btn text-xs justify-between shrink-0 farm-seed-option"
                   @click="doBatchPlantBreeding(group.cropId)"
                 >
                   <span class="farm-seed-option__main">
@@ -500,11 +500,11 @@
             </button>
             <p class="text-accent text-sm mb-2">一键施肥</p>
             <p class="text-xs text-muted mb-2">可施肥地块 {{ fertilizableCount }} 块，选择肥料：</p>
-            <div class="flex flex-col space-y-1 max-h-60 overflow-y-auto">
+            <div class="farm-action-list flex flex-col space-y-1 max-h-60 overflow-y-auto overflow-x-hidden pr-1">
               <button
                 v-for="f in fertilizerItems"
                 :key="f.itemId"
-                class="btn text-xs justify-between mr-1 shrink-0"
+                class="btn w-full text-xs justify-between shrink-0"
                 @click="doBatchFertilize(f.type)"
               >
                 <span :class="f.colorClass">{{ f.name }}</span>
@@ -537,6 +537,7 @@
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <!-- 出货箱入口 -->
         <div
+          data-testid="shipping-box-entry"
           class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/5"
           @click="showShippingBox = true"
         >
@@ -662,7 +663,7 @@
                       <div class="min-w-0">
                         <span class="block truncate text-xs" :class="qualityTextClass(item.quality)">{{ item.def?.name }}</span>
                         <span class="block text-[0.625rem] text-muted">
-                          {{ SHIPPING_CATEGORY_NAMES[item.def!.category] ?? item.def!.category }} · {{ QUALITY_NAMES[item.quality] }} · ×{{ item.quantity }} · ≈{{ shopStore.calculateSellPrice(item.itemId, item.quantity, item.quality) }}文
+                          {{ SHIPPING_CATEGORY_NAMES[item.def.category] ?? item.def.category }} · {{ QUALITY_NAMES[item.quality] }} · ×{{ item.quantity }} · ≈{{ shopStore.calculateSellPrice(item.itemId, item.quantity, item.quality) }}文
                         </span>
                       </div>
                     </div>
@@ -1020,11 +1021,11 @@
           </button>
           <p class="text-accent text-sm mb-2">温室一键种植</p>
           <p class="text-xs text-muted mb-2">空耕地 {{ ghTilledEmptyCount }} 块，选择要种植的种子：</p>
-          <div class="flex flex-col space-y-1 max-h-60 overflow-y-auto">
+          <div class="farm-action-list flex flex-col space-y-1 max-h-60 overflow-y-auto overflow-x-hidden pr-1">
             <button
               v-for="seed in allSeeds"
               :key="seed.cropId"
-              class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
+              class="btn text-xs justify-between shrink-0 farm-seed-option"
               @click="doGhBatchPlant(seed.cropId)"
             >
               <span class="farm-seed-option__main">
@@ -1041,7 +1042,7 @@
               <button
                 v-for="group in ghBatchBreedingSeedGroups"
                 :key="group.cropId"
-                class="btn text-xs justify-between mr-1 shrink-0 farm-seed-option"
+                class="btn text-xs justify-between shrink-0 farm-seed-option"
                 @click="doGhBatchPlantBreeding(group.cropId)"
               >
                 <span class="farm-seed-option__main">
@@ -1253,7 +1254,7 @@
     handleBatchClearWeed,
     QUALITY_NAMES
   } from '@/composables/useFarmActions'
-  import type { SprinklerType, FertilizerType, FruitTreeType, WildTreeType, Quality } from '@/types'
+  import type { SprinklerType, FertilizerType, FruitTreeType, WildTreeType, Quality, ItemCategory, ItemDef } from '@/types'
   import { sfxHarvest, sfxPlant } from '@/composables/useAudio'
 
   const router = useRouter()
@@ -1347,6 +1348,9 @@
   // === 出货箱 ===
 
   const showShippingBox = ref(false)
+  const shippingBoxSearch = ref('')
+  const shippingBoxCategory = ref<'all' | ItemCategory>('all')
+  const shippingBoxSort = ref<'price-desc' | 'quantity-desc' | 'name-asc'>('price-desc')
   const showBatchPlant = ref(false)
   const showBatchFertilize = ref(false)
   const showBatchActions = ref(false)
@@ -1382,10 +1386,81 @@
 
   const getItemName = (itemId: string): string => getItemById(itemId)?.name ?? itemId
 
-  const shippableItems = computed(() => {
+  const SHIPPING_FILTER_CATEGORIES: ItemCategory[] = [
+    'crop',
+    'animal_product',
+    'fish',
+    'ore',
+    'gem',
+    'processed',
+    'food',
+    'fruit',
+    'material',
+    'misc',
+    'fossil',
+    'artifact',
+    'bomb',
+    'elixir'
+  ]
+
+  const SHIPPING_CATEGORY_NAMES: Partial<Record<ItemCategory, string>> = {
+    crop: '作物',
+    animal_product: '畜产品',
+    fish: '鱼获',
+    ore: '矿石',
+    gem: '宝石',
+    processed: '加工品',
+    food: '料理',
+    fruit: '水果',
+    material: '材料',
+    misc: '杂物',
+    fossil: '化石',
+    artifact: '古物',
+    bomb: '炸弹',
+    elixir: '丹药',
+    gift: '礼物',
+    bait: '鱼饵',
+    tackle: '钓具'
+  }
+
+  const qualityTextClass = (quality: Quality): string => {
+    if (quality === 'fine') return 'text-quality-fine'
+    if (quality === 'excellent') return 'text-quality-excellent'
+    if (quality === 'supreme') return 'text-quality-supreme'
+    return ''
+  }
+
+  type ShippableInventoryItem = { itemId: string; quantity: number; quality: Quality; locked?: boolean; def: ItemDef }
+
+  const shippableItems = computed<ShippableInventoryItem[]>(() => {
     return inventoryStore.items
       .map(inv => ({ ...inv, def: getItemById(inv.itemId) }))
-      .filter(item => item.def && item.def.category !== 'seed' && item.def.category !== 'machine' && item.def.category !== 'sprinkler')
+      .filter(
+        (item): item is ShippableInventoryItem =>
+          !!item.def && item.def.category !== 'seed' && item.def.category !== 'machine' && item.def.category !== 'sprinkler'
+      )
+  })
+
+  const filteredShippableItems = computed(() => {
+    const query = shippingBoxSearch.value.trim().toLocaleLowerCase()
+    const category = shippingBoxCategory.value
+    const items = shippableItems.value
+      .filter(item => {
+        if (!item.def) return false
+        if (category !== 'all' && item.def.category !== category) return false
+        if (!query) return true
+        return item.def.name.toLocaleLowerCase().includes(query) || item.itemId.toLocaleLowerCase().includes(query)
+      })
+      .map(item => ({
+        ...item,
+        totalPrice: shopStore.calculateSellPrice(item.itemId, item.quantity, item.quality)
+      }))
+
+    return items.sort((left, right) => {
+      if (shippingBoxSort.value === 'quantity-desc') return right.quantity - left.quantity || right.totalPrice - left.totalPrice
+      if (shippingBoxSort.value === 'name-asc') return (left.def?.name ?? '').localeCompare(right.def?.name ?? '')
+      return right.totalPrice - left.totalPrice || right.quantity - left.quantity
+    })
   })
 
   const shippingBoxTotal = computed(() => {

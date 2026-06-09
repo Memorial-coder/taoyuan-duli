@@ -1,50 +1,34 @@
 <template>
   <div>
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
-    <div v-if="isCompactMobile && !shopStore.currentShopId" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">
-      <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <p class="text-xs text-accent">商圈提示</p>
-          <p class="text-xs text-muted mt-1 leading-5">先看买卖切换和当前货架，需要时再展开市场与承接说明。</p>
-        </div>
-        <button class="btn !px-2 !py-1 text-xs shrink-0" @click="shopPreludeExpanded = !shopPreludeExpanded">
-          {{ shopPreludeExpanded || shopPreludeForceOpen ? '收起' : '展开' }}
-        </button>
-      </div>
+    <div v-if="!shopStore.currentShopId" class="mb-3 grid grid-cols-4 gap-1.5" data-testid="shop-tabbar">
+      <button
+        v-for="tab in shopTabs"
+        :key="tab.id"
+        type="button"
+        class="rounded-xs border px-2 py-2 text-xs transition-colors"
+        :class="
+          shopActiveTab === tab.id
+            ? 'border-accent/40 bg-accent/10 text-accent'
+            : 'border-accent/10 bg-bg/10 text-muted hover:bg-accent/5'
+        "
+        :data-testid="`shop-tab-${tab.id}`"
+        @click="selectShopTab(tab.id)"
+      >
+        <span class="flex items-center justify-center gap-1">
+          <component :is="tab.icon" :size="12" />
+          <span>{{ tab.label }}</span>
+        </span>
+      </button>
     </div>
-
-    <template v-if="!isCompactMobile || shopPreludeExpanded || shopPreludeForceOpen">
-      <GuidanceDigestPanel surface-id="shop" title="目录承接引导" />
-      <QaGovernancePanel page-id="shop" title="市场治理总览" />
-    <div v-if="ancientRoadShopHandoff" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
-      <div class="flex items-center justify-between gap-2">
-        <p class="text-xs text-accent">古驿荒道承接</p>
-        <span class="text-[0.625rem] text-muted">行旅图 -> 商圈</span>
-      </div>
-      <p class="text-[0.625rem] text-muted mt-1 leading-4">
-        荒道已完成 {{ ancientRoadShopHandoff.completedRoutes }} 条节点，当前古迹残卷库存 {{ ancientRoadShopHandoff.archiveQty }} 份。
-      </p>
-      <p class="text-[0.625rem] text-muted mt-1 leading-4">
-        这批收益更适合先在商圈补齐护送和档案整理消耗，再继续回任务板或瀚海承接。
-      </p>
-      <p v-if="ancientRoadShopHandoff.offerNames.length > 0" class="text-[0.625rem] text-accent mt-1">
-        补给推荐：{{ ancientRoadShopHandoff.offerNames.join('、') }}
-      </p>
-      <div class="mt-2 flex flex-wrap gap-2">
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('quest')">去任务板</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('hanhai')">去瀚海</button>
-        <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('region-map')">看行旅图</button>
-      </div>
-    </div>
-    </template>
 
     <!-- 返回按钮（在子商铺时显示） -->
-    <Button v-if="shopStore.currentShopId" class="mb-3 w-full md:w-auto" :icon="ChevronLeft" @click="shopStore.currentShopId = null">
+    <Button v-if="shopActiveTab === 'trade' && shopStore.currentShopId" class="mb-3 w-full md:w-auto" :icon="ChevronLeft" @click="returnToShopOverview">
       返回商圈
     </Button>
 
     <div
-      v-if="isCompactMobile && (!shopStore.currentShopId || mobileTab === 'sell')"
+      v-if="shopActiveTab === 'trade' && (!shopStore.currentShopId || mobileTab === 'sell')"
       class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70"
       data-testid="shop-primary-action-card"
     >
@@ -71,7 +55,7 @@
     </div>
 
     <!-- 移动端：购买/出售切换 -->
-    <div class="flex space-x-1.5 mb-3 md:hidden">
+    <div v-if="shopActiveTab === 'trade'" class="flex space-x-1.5 mb-3 md:hidden">
       <Button
         class="flex-1 justify-center"
         :class="{ '!bg-accent !text-bg': mobileTab === 'buy' }"
@@ -92,17 +76,38 @@
 
     <div class="flex flex-col md:flex-row space-x-0 md:space-x-4 md:space-y-6">
       <!-- 左侧：购买区 -->
-      <div class="flex-1" :class="{ 'hidden md:block': mobileTab === 'sell' }">
+      <div class="flex-1" :class="{ 'hidden md:block': shopActiveTab === 'trade' && mobileTab === 'sell' }">
         <!-- 折扣提示 -->
-        <p v-if="hasDiscount" class="text-success text-xs mb-3">{{ discountHint }}</p>
-        <div v-if="shopStore.currentShopId && currentShopRelationshipHint" class="border border-accent/10 rounded-xs px-2 py-1.5 mb-3">
+        <p v-if="shopActiveTab === 'trade' && hasDiscount" class="text-success text-xs mb-3">{{ discountHint }}</p>
+        <div v-if="shopActiveTab === 'trade' && shopStore.currentShopId && currentShopRelationshipHint" class="border border-accent/10 rounded-xs px-2 py-1.5 mb-3">
           <p class="text-[0.625rem] text-accent">{{ currentShopRelationshipHint }}</p>
           <p v-if="currentShopNextBenefitHint" class="text-[0.625rem] text-muted/70 mt-0.5">{{ currentShopNextBenefitHint }}</p>
         </div>
 
-        <template v-if="!isCompactMobile || shopPreludeExpanded || shopPreludeForceOpen">
+        <template v-if="!shopStore.currentShopId">
+        <template v-if="shopActiveTab === 'economy'">
+        <GuidanceDigestPanel surface-id="shop" title="目录承接引导" />
+        <div v-if="ancientRoadShopHandoff" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-accent">古驿荒道承接</p>
+            <span class="text-[0.625rem] text-muted">行旅图 -> 商圈</span>
+          </div>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">
+            荒道已完成 {{ ancientRoadShopHandoff.completedRoutes }} 条节点，当前古迹残卷库存 {{ ancientRoadShopHandoff.archiveQty }} 份。
+          </p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">
+            这批收益更适合先在商圈补齐护送和档案整理消耗，再继续回任务板或瀚海承接。
+          </p>
+          <p v-if="ancientRoadShopHandoff.offerNames.length > 0" class="text-[0.625rem] text-accent mt-1">
+            补给推荐：{{ ancientRoadShopHandoff.offerNames.join('、') }}
+          </p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('quest')">去任务板</button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('hanhai')">去瀚海</button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[0.625rem]" @click="navigateToPanel('region-map')">看行旅图</button>
+          </div>
+        </div>
         <div
-          v-if="!shopStore.currentShopId"
           class="border border-accent/20 rounded-xs p-3 mb-3"
           :class="promptSectionClass('economy-overview')"
           :data-prompt-focus="buildPromptFocusAttr('economy-overview')"
@@ -165,9 +170,10 @@
             </button>
           </div>
         </div>
+        </template>
 
         <div
-          v-if="!shopStore.currentShopId"
+          v-if="shopActiveTab === 'market'"
           class="border border-warning/20 rounded-xs p-3 mb-3"
           :class="promptSectionClass('market-overview')"
           :data-prompt-focus="buildPromptFocusAttr('market-overview')"
@@ -353,8 +359,10 @@
           </div>
         </div>
 
+        <template v-if="shopActiveTab === 'governance'">
+        <QaGovernancePanel page-id="shop" title="市场治理总览" />
         <div
-          v-if="!shopStore.currentShopId && weeklyExchangeStore.station"
+          v-if="weeklyExchangeStore.station"
           class="mb-3"
           :class="promptSectionClass('weekly-exchange-station')"
           :data-prompt-focus="buildPromptFocusAttr('weekly-exchange-station')"
@@ -369,7 +377,7 @@
         </div>
 
         <div
-          v-if="!shopStore.currentShopId && festivalStallStore.stall"
+          v-if="festivalStallStore.stall"
           class="mb-3"
           :class="promptSectionClass('festival-stall')"
           :data-prompt-focus="buildPromptFocusAttr('festival-stall')"
@@ -384,7 +392,7 @@
         </div>
 
         <div
-          v-if="!shopStore.currentShopId && neighborConsignmentStore.overview"
+          v-if="neighborConsignmentStore.overview"
           class="mb-3"
           :class="promptSectionClass('neighbor-consignment')"
           :data-prompt-focus="buildPromptFocusAttr('neighbor-consignment')"
@@ -402,7 +410,7 @@
         </div>
 
         <div
-          v-if="!shopStore.currentShopId && marketGovernanceStore.governance"
+          v-if="marketGovernanceStore.governance"
           class="mb-3"
           :class="promptSectionClass('market-governance')"
           :data-prompt-focus="buildPromptFocusAttr('market-governance')"
@@ -415,7 +423,7 @@
         </div>
 
         <div
-          v-if="!shopStore.currentShopId && exchangeLedgerStore.ledger"
+          v-if="exchangeLedgerStore.ledger"
           class="mb-3"
           :class="promptSectionClass('exchange-ledger')"
           :data-prompt-focus="buildPromptFocusAttr('exchange-ledger')"
@@ -429,7 +437,9 @@
           />
         </div>
         </template>
+        </template>
 
+        <template v-if="shopActiveTab === 'trade'">
         <!-- ====== 商圈总览 ====== -->
         <template v-if="!shopStore.currentShopId">
           <h3 class="text-accent text-sm mb-3">
@@ -549,6 +559,7 @@
               :key="shop.id"
               class="flex items-center justify-between border rounded-xs px-3 py-2"
               :class="isOpen(shop) ? 'border-accent/30 cursor-pointer hover:bg-accent/5' : 'border-accent/10 opacity-50'"
+              :data-testid="`shop-entry-${shop.id}`"
               @click="isOpen(shop) && enterShop(shop.id)"
             >
               <div>
@@ -1458,10 +1469,11 @@
             </div>
           </div>
         </template>
+        </template>
       </div>
 
       <!-- 右侧：出售区 -->
-      <div class="flex-1" :class="{ 'hidden md:block': mobileTab === 'buy' }">
+      <div v-if="shopActiveTab === 'trade'" class="flex-1" :class="{ 'hidden md:block': mobileTab === 'buy' }">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-accent text-sm">
             <TrendingUp :size="14" class="inline" />
@@ -1806,7 +1818,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
   import {
     ShoppingCart,
     Coins,
@@ -1904,13 +1916,27 @@
   const exchangeLedgerStore = useExchangeLedgerStore()
   const marketGovernanceStore = useMarketGovernanceStore()
   const isCompactMobile = ref(false)
-  const shopPreludeExpanded = ref(false)
+  type ShopTabId = 'trade' | 'market' | 'economy' | 'governance'
+  const shopActiveTab = ref<ShopTabId>('trade')
+  const shopTabs = [
+    { id: 'trade', label: '买卖', icon: Store },
+    { id: 'market', label: '市场', icon: Filter },
+    { id: 'economy', label: '经济', icon: TrendingUp },
+    { id: 'governance', label: '治理', icon: Wallet }
+  ] as const
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
-  const shopPreludeForceOpen = computed(() =>
-    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'festival-stall', 'neighbor-consignment', 'market-governance', 'exchange-ledger'].some(key => isPromptFocusActive(key))
-  )
+  const selectShopTab = (tabId: ShopTabId) => {
+    shopActiveTab.value = tabId
+    if (tabId !== 'trade') {
+      shopStore.currentShopId = null
+    }
+  }
+  const returnToShopOverview = () => {
+    shopStore.currentShopId = null
+    shopActiveTab.value = 'trade'
+  }
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const todayAmbientRareVisitors = computed(() =>
     getRareVisitorsForDay(gameStore.season, gameStore.day).filter(visitor => visitor.id !== BOOKSELLER_VISITOR_ID)
@@ -1945,32 +1971,65 @@
     handlers: {
       'economy-overview': () => {
         shopStore.currentShopId = null
+        shopActiveTab.value = 'economy'
       },
       'market-overview': () => {
         shopStore.currentShopId = null
+        shopActiveTab.value = 'market'
       },
       'recommended-consumption': () => {
+        shopActiveTab.value = 'trade'
         shopStore.currentShopId = 'wanwupu'
       },
       'weekly-exchange-station': () => {
         shopStore.currentShopId = null
+        shopActiveTab.value = 'governance'
       },
       'festival-stall': () => {
         shopStore.currentShopId = null
+        shopActiveTab.value = 'governance'
       },
       'neighbor-consignment': () => {
         shopStore.currentShopId = null
+        shopActiveTab.value = 'governance'
       },
       'market-governance': () => {
         shopStore.currentShopId = null
+        shopActiveTab.value = 'governance'
       },
       'exchange-ledger': () => {
         shopStore.currentShopId = null
+        shopActiveTab.value = 'governance'
       }
     }
   })
 
+  const selectShopTabForFocus = (focusKey: string) => {
+    if (focusKey === 'economy-overview') {
+      shopStore.currentShopId = null
+      shopActiveTab.value = 'economy'
+      return
+    }
+    if (focusKey === 'market-overview') {
+      shopStore.currentShopId = null
+      shopActiveTab.value = 'market'
+      return
+    }
+    if (focusKey === 'recommended-consumption') {
+      shopActiveTab.value = 'trade'
+      shopStore.currentShopId = 'wanwupu'
+      return
+    }
+    if (['weekly-exchange-station', 'festival-stall', 'neighbor-consignment', 'market-governance', 'exchange-ledger'].includes(focusKey)) {
+      shopStore.currentShopId = null
+      shopActiveTab.value = 'governance'
+      return
+    }
+    shopActiveTab.value = 'trade'
+  }
+
   const focusShopSection = (focusKey: string, label: string) => {
+    selectShopTabForFocus(focusKey)
     runPromptAction({
       id: `shop-${focusKey}`,
       label,
@@ -1981,6 +2040,17 @@
   }
 
   const promptSectionClass = (focusKey: string) => (isPromptFocusActive(focusKey) ? 'prompt-focus-target--active' : '')
+
+  const hasMarketGovernanceBlocker = computed(() => {
+    const governance = marketGovernanceStore.governance
+    return Boolean(governance?.sanction.blocked || (governance?.my_today.next_action_ready_in_seconds ?? 0) > 0)
+  })
+
+  watch(hasMarketGovernanceBlocker, blocked => {
+    if (!blocked) return
+    shopStore.currentShopId = null
+    shopActiveTab.value = 'governance'
+  })
 
   const tutorialHint = computed(() => {
     if (!tutorialStore.enabled || gameStore.year > 1) return null
