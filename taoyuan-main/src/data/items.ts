@@ -373,7 +373,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     name: '远古果酒',
     category: 'processed',
     description: '远古水果慢酿出的幽蓝果酒，酒液里像封着亘古生命力，可陈酿也适合高阶供礼。',
-    sellPrice: 7600,
+    sellPrice: 18000,
     edible: true,
     staminaRestore: 80,
     healthRestore: 40

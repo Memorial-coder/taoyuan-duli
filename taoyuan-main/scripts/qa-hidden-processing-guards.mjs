@@ -123,6 +123,17 @@ assert(ancientWine?.outputItemId === 'ancient_fruit_wine', '远古水果隐藏�
 assert(ancientWine?.hiddenMeta?.gate?.workshopLevel === 2, '远古水果隐藏配方需要工坊 Lv.2 门槛')
 assert(ancientWine?.hiddenMeta?.gate?.requiredItemId === 'ancient_fruit', '远古水果隐藏配方需要持有 ancient_fruit 才出现')
 
+const ancientFruitItem = getItemById('ancient_fruit')
+const ancientWineItem = getItemById('ancient_fruit_wine')
+const ancientWineInputQuantity = Math.max(1, ancientWine?.inputQuantity ?? 1)
+const ancientWineMinimumSellPrice = (ancientFruitItem?.sellPrice ?? 0) * ancientWineInputQuantity * 3
+assert(!!ancientFruitItem, '缺少远古水果物品定义 ancient_fruit')
+assert(!!ancientWineItem, '缺少远古果酒物品定义 ancient_fruit_wine')
+assert(
+  (ancientWineItem?.sellPrice ?? 0) >= ancientWineMinimumSellPrice,
+  `远古果酒售价必须至少覆盖酒坊三倍增值：${ancientWineItem?.sellPrice ?? 0} < ${ancientFruitItem?.sellPrice ?? 0} × ${ancientWineInputQuantity} × 3`
+)
+
 const ancientProfile = getCropUseProfile('ancient_fruit')
 assert(ancientProfile?.tags.includes('wine'), '远古水果用途档案必须包含 wine')
 assert(ancientProfile?.tags.includes('alchemy'), '远古水果用途档案必须包含 alchemy')
