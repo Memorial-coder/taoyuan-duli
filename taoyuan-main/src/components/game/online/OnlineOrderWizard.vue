@@ -219,7 +219,7 @@
       >
         <div>
           <p id="online-order-wizard-step-reward-title" class="text-sm leading-5 text-accent">设置回报</p>
-          <p class="mt-1 text-xs leading-5 text-muted">回报会在结算凭证里记录，接力单会按阶段拆分。</p>
+          <p class="mt-1 text-xs leading-5 text-muted">回报会在结算记录里留档，接力单会按阶段拆分。</p>
         </div>
 
         <div class="grid gap-2 md:grid-cols-2">

@@ -13,15 +13,39 @@ const scanRoots = [
   path.join(appRoot, 'src', 'components', 'game', 'online'),
 ]
 
+const stringScanFiles = [
+  path.join(appRoot, 'src', 'data', 'onlineVisualActivitySchedule.ts'),
+  path.join(appRoot, 'src', 'data', 'onlineVisualFeatureFlags.ts'),
+  path.join(appRoot, 'src', 'data', 'onlineVisualRewardControl.ts'),
+  path.join(appRoot, 'src', 'composables', 'useEndDay.ts'),
+]
+
 const denylist = [
+  { term: '网络异常测试', suggestion: '改为“模拟连接中断”，并确保只在测试档运行态显示' },
+  { term: '高风险功能开关', suggestion: '改为“入口可用状态”或玩家能理解的入口说明' },
+  { term: '服务端权威', suggestion: '改为“系统确认”或“以最新状态为准”' },
+  { term: '服务端结算', suggestion: '改为“系统结算”或“结算记录”' },
+  { term: '服务端分账', suggestion: '改为“系统分账”或“分账摘要”' },
+  { term: '服务端凭证', suggestion: '改为“系统记录”或“结算记录”' },
+  { term: '结算凭证', suggestion: '改为“结算记录”' },
   { term: 'per-member receipt', suggestion: '改为“成员结算记录”；技术详情可保留 per-member receipt' },
   { term: '服务端状态冲突', suggestion: '改为“房间信息有更新，请刷新后继续”' },
   { term: '服务端落账', suggestion: '改为“奖励已记录”' },
   { term: 'idempotency', suggestion: '改为“重复提交保护”；技术详情可保留 idempotency key' },
+  { term: '幂等凭证', suggestion: '改为“重复提交保护”' },
+  { term: '幂等保护', suggestion: '改为“重复提交保护”' },
   { term: 'record-only', suggestion: '改为“仅记录本次结果”；技术详情可保留 record-only mode' },
   { term: '开始 ready', suggestion: '改为“开始准备”' },
-  { term: '模拟断线', suggestion: '改为“网络异常测试”，并移入调试或技术详情折叠区' },
+  { term: '测试钩子', suggestion: '改为“备用入口”，测试说明只保留在测试档' },
+  { term: '旧入口', suggestion: '改为“备用入口”' },
+  { term: '旧按钮', suggestion: '改为“备用操作”' },
+  { term: '旧玩法', suggestion: '改为“备用操作”或具体玩法名称' },
+  { term: '模拟断线', suggestion: '改为“模拟连接中断”，并确保只在测试档运行态显示' },
   { term: '降级入口', suggestion: '改为“备用操作”' },
+  { term: '调试', suggestion: '改为“检查/恢复/备用”，测试说明只保留在测试档' },
+  { term: '反刷', suggestion: '改为“频次限制”或“交易限制”' },
+  { term: '技术详情', suggestion: '改为“记录详情”，原始字段只保留在测试档' },
+  { term: 'QA', suggestion: '改为玩家可理解的检查说明，或移入测试档' },
   { term: 'fallback', suggestion: '改为“备用操作”；技术详情可保留 fallback path' },
   { term: 'revision', suggestion: '改为“版本记录”；技术详情可保留 state revision' },
   { term: 'receipt', suggestion: '改为“结算记录”；技术详情可保留 receipt payload' },
@@ -164,6 +188,23 @@ const extractVisibleSegments = source => {
   return segments
 }
 
+const extractStringLiteralSegments = source => {
+  const segments = []
+  const stringPattern = /(['"`])((?:\\.|(?!\1)[\s\S])*?)\1/g
+  for (const match of source.matchAll(stringPattern)) {
+    const rawText = match[2] ?? ''
+    const text = normalizeWhitespace(rawText.replace(/\$\{[\s\S]*?\}/g, ' '))
+    if (!/[\u3400-\u9fff]/u.test(text)) continue
+    segments.push({
+      line: countLines(source.slice(0, match.index ?? 0)) + 1,
+      text,
+      context: 'string',
+      technicalDetails: false,
+    })
+  }
+  return segments
+}
+
 const getExcerpt = (text, index, length) => {
   const start = Math.max(0, index - 28)
   const end = Math.min(text.length, index + length + 28)
@@ -206,16 +247,26 @@ const collectFindingsForSegment = (relativeFile, segment) => {
   return selected
 }
 
-const scannedFiles = (await Promise.all(scanRoots.map(collectVueFiles)))
+const scannedVueFiles = (await Promise.all(scanRoots.map(collectVueFiles)))
   .flat()
+  .map(toRelativePath)
+  .sort()
+const scannedStringFiles = stringScanFiles
   .map(toRelativePath)
   .sort()
 
 const findings = []
 
-for (const relativeFile of scannedFiles) {
+for (const relativeFile of scannedVueFiles) {
   const source = await readFile(path.join(appRoot, relativeFile), 'utf8')
   for (const segment of extractVisibleSegments(source)) {
+    findings.push(...collectFindingsForSegment(relativeFile, segment))
+  }
+}
+
+for (const relativeFile of scannedStringFiles) {
+  const source = await readFile(path.join(appRoot, relativeFile), 'utf8')
+  for (const segment of extractStringLiteralSegments(source)) {
     findings.push(...collectFindingsForSegment(relativeFile, segment))
   }
 }
@@ -228,9 +279,9 @@ if (findings.length > 0) {
     console.error(`  摘要：${finding.excerpt}`)
   }
   console.error('')
-  console.error(`扫描范围：${scannedFiles.length} 个 Vue 文件；denylist：${denylist.length} 项；allowlist：${allowlist.length} 项。`)
+  console.error(`扫描范围：${scannedVueFiles.length} 个 Vue 文件，${scannedStringFiles.length} 个配置/日志文件；denylist：${denylist.length} 项；allowlist：${allowlist.length} 项。`)
   if (!warnOnly) process.exit(1)
   process.exit(0)
 }
 
-console.log(`[qa-online-player-copy] passed (${scannedFiles.length} files, ${denylist.length} denylist terms, ${allowlist.length} allowlist entries)`)
+console.log(`[qa-online-player-copy] passed (${scannedVueFiles.length} Vue files, ${scannedStringFiles.length} string files, ${denylist.length} denylist terms, ${allowlist.length} allowlist entries)`)

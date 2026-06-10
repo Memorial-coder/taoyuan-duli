@@ -44,7 +44,7 @@
         <div class="mt-2 flex flex-wrap gap-1 text-[0.625rem] text-muted">
           <span class="border border-accent/10 rounded-xs px-2 py-1">共同农田地图</span>
           <span class="border border-accent/10 rounded-xs px-2 py-1">仓库 / 基金边界</span>
-          <span class="border border-accent/10 rounded-xs px-2 py-1">服务端审计</span>
+          <span class="border border-accent/10 rounded-xs px-2 py-1">系统记录</span>
         </div>
       </section>
 

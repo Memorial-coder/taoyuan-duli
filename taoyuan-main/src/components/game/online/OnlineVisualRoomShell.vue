@@ -88,7 +88,7 @@
     >
       <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
-          <p class="text-[0.625rem] text-accent">入口与降级</p>
+          <p class="text-[0.625rem] text-accent">入口与备用操作</p>
           <p class="mt-1 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-room-primary-entry">
             {{ visualContentLabel }}
           </p>
@@ -154,7 +154,7 @@
         <div v-if="rewardPreview.length > 0" class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1" role="list" aria-label="奖励预览">
           <p v-for="reward in rewardPreview" :key="reward" class="text-[0.625rem] leading-4 text-muted" data-testid="online-visual-room-reward-item" role="listitem">{{ reward }}</p>
         </div>
-        <p v-else class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-room-reward-empty">结算前会展示服务端返回的行动收益、凭证或可保留成果。</p>
+        <p v-else class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-room-reward-empty">结算前会展示行动收益、结算记录或可保留成果。</p>
       </div>
     </div>
 
@@ -165,10 +165,10 @@
       aria-live="polite"
     >
       <div class="flex items-center justify-between gap-2">
-        <p class="text-[0.625rem] text-success">结算 / 回看凭证</p>
+        <p class="text-[0.625rem] text-success">结算 / 回看记录</p>
         <span class="text-[0.625rem] text-muted" data-testid="online-visual-room-settlement-count">{{ settlementRecords.length }} 条</span>
       </div>
-      <div class="mt-2 grid gap-1 md:grid-cols-2" role="list" aria-label="结算和回看凭证">
+      <div class="mt-2 grid gap-1 md:grid-cols-2" role="list" aria-label="结算和回看记录">
         <article
           v-for="record in settlementRecords"
           :key="record.id"
@@ -259,9 +259,9 @@
       'Enter 或 Space 触发当前聚焦按钮，行动结果会回到房间反馈区。',
     ],
     focusGuideSummary: '可视化房间保留原按钮键盘操作，并把行动结果、失败原因和权限提示固定在房间顶部。',
-    visualContentLabel: '可视化棋盘、场景或轨道作为主要入口；旧按钮面板继续作为兼容路径保留。',
-    fallbackEntryLabel: '旧按钮备用操作',
-    fallbackEntryHint: '当可视化入口关闭、缺失或没有可用热区动作时，玩家仍可使用旧按钮继续提交同一行动。',
+    visualContentLabel: '可视化棋盘、场景或轨道作为主要入口；备用操作会在需要时保留。',
+    fallbackEntryLabel: '备用操作',
+    fallbackEntryHint: '当主要入口暂时不可用或没有可选动作时，玩家仍可继续提交同一行动。',
     fallbackEntryVisible: false,
     countdownSeconds: 0,
     countdownRemainingSeconds: 0,
@@ -284,8 +284,8 @@
 
   const connectionLabel = computed(() => {
     if (props.connectionState === 'disconnected') return '连接已断开，可在重连窗口内恢复房间状态。'
-    if (props.connectionState === 'reconnecting') return '正在等待重连确认，操作会以服务端最新状态为准。'
-    if (props.connectionState === 'conflict') return '服务端状态有冲突，请刷新后再提交操作。'
+    if (props.connectionState === 'reconnecting') return '正在等待重连确认，操作会以最新房间状态为准。'
+    if (props.connectionState === 'conflict') return '房间状态需要刷新确认，请刷新后再提交操作。'
     return ''
   })
 
@@ -296,7 +296,7 @@
   })
 
   const fallbackEntryStatus = computed(() =>
-    props.fallbackEntryVisible ? '旧入口当前可见' : '主可视化入口优先'
+    props.fallbackEntryVisible ? '备用入口当前可用' : '主可视化入口优先'
   )
 
   const mobileFeedbackLabel = computed(() => {
@@ -315,7 +315,7 @@
       return `${props.settlementRecords.length} 条 · ${firstRecord.replayLabel || firstRecord.summary || firstRecord.targetLabel}`
     }
     if (props.rewardPreview.length > 0) return `奖励预览 ${props.rewardPreview.length} 项`
-    return '结算后会显示服务端回看凭证'
+    return '结算后会显示回看记录'
   })
 
   const mobileReadbackRows = computed(() => [
@@ -333,7 +333,7 @@
     },
     {
       id: 'fallback',
-      label: '旧入口',
+      label: '备用入口',
       value: `${fallbackEntryStatus.value} · ${props.fallbackEntryLabel}`,
       valueClass: props.fallbackEntryVisible ? 'text-warning' : 'text-muted',
     },

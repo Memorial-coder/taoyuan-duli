@@ -339,7 +339,7 @@
           <div v-if="currentSociety?.can_invite" class="game-panel-muted p-3">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">备用单人邀请</p>
-              <span class="text-[0.625rem] text-muted">兼容旧入口</span>
+              <span class="text-[0.625rem] text-muted">备用入口</span>
             </div>
             <details class="mt-3 border border-accent/10 bg-black/10 p-2">
               <summary class="cursor-pointer text-[0.625rem] text-muted">展开单人邀请表单</summary>

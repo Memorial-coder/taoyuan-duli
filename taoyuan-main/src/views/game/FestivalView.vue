@@ -484,16 +484,16 @@
             </Button>
           </div>
           <OnlineTechnicalDetails
-            v-if="festivalRoomStore.myRoom.can_disconnect"
-            title="调试操作"
-            summary="用于 QA 复核网络异常恢复，默认不进入玩家主路径。"
+            v-if="festivalRoomStore.myRoom.can_disconnect && saveStore.isBuiltInSampleRuntime"
+            title="连接恢复"
+            summary="连接中断时的恢复入口默认收起，主流程请优先使用准备、倒计时和结算。"
           >
             <Button
               :disabled="festivalRoomStore.actionRunning"
               data-testid="festival-room-disconnect-submit"
               @click="disconnectRoom(festivalRoomStore.myRoom.id)"
             >
-              网络异常测试
+              模拟连接中断
             </Button>
           </OnlineTechnicalDetails>
         </div>
@@ -552,8 +552,8 @@
 
       <div class="space-y-3">
         <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
-          <p class="text-sm text-accent mb-2">最近结算凭证</p>
-          <div v-if="festivalRoomStore.recentReceipts.length === 0" class="text-xs text-muted leading-5">节会结算目前先生成凭证预览，用来证明房间生命周期、逐成员凭证和关闭流程已经打通。后续具体小游戏奖励会继续接到这里。</div>
+          <p class="text-sm text-accent mb-2">最近结算记录</p>
+          <div v-if="festivalRoomStore.recentReceipts.length === 0" class="text-xs text-muted leading-5">节会结算会在这里生成房间记录，方便回看参与成员、奖励去向和关闭结果。</div>
           <div v-else class="space-y-2">
             <div v-for="receipt in festivalRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
               <div class="flex items-start justify-between gap-2">
@@ -598,11 +598,13 @@
   import Button from '@/components/game/Button.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
 
   const route = useRoute()
   const festivalRoomStore = useFestivalRoomStore()
+  const saveStore = useSaveStore()
   const worldEventStore = useWorldEventStore()
 
   type ChronicleSnapshot = WorldEventOverview['recent_chronicles'][number]

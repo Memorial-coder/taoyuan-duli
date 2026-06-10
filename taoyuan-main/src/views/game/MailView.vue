@@ -448,7 +448,7 @@
 
           <div v-if="mailboxStore.receipts.length > 0" class="detail-card mt-3">
             <div class="flex items-center justify-between gap-2 mb-2">
-              <p class="text-xs text-accent">结算凭证回看</p>
+              <p class="text-xs text-accent">结算记录回看</p>
               <span class="text-[0.625rem] text-muted">最近 {{ mailboxStore.receipts.length }} 条</span>
             </div>
             <div class="space-y-2">

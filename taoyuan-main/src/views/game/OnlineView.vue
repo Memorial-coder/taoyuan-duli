@@ -8,7 +8,7 @@
             <h2 class="game-section-title">在线中心</h2>
           </div>
           <p class="mt-1 text-xs leading-5 text-muted">
-            先处理正在进行的房间、邀请和互助待办；技术治理信息留在各模块里展开查看。
+            先处理正在进行的房间、邀请和互助待办；更多记录和说明可在各模块里展开查看。
           </p>
           <p class="mt-1 text-[0.625rem] leading-4 text-muted">
             {{ lastRefreshedLabel }}
@@ -93,7 +93,7 @@
       <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
         <div class="min-w-0">
           <h3 class="text-sm leading-5 text-accent">常用入口</h3>
-          <p class="mt-1 text-xs leading-5 text-muted">更多数字、凭证和细节进入各模块页面查看。</p>
+          <p class="mt-1 text-xs leading-5 text-muted">更多数字、记录和细节进入各模块页面查看。</p>
         </div>
         <span class="text-[0.625rem] leading-4 text-muted">{{ modules.length }} 个在线模块</span>
       </div>
@@ -154,20 +154,20 @@
       </div>
       <OnlineTechnicalDetails
         class="mt-3"
-        title="调试与治理信息"
-        summary="功能开关、备用路径和配置兜底默认折叠，供发布检查和 QA 定位。"
+        title="更多入口说明"
+        summary="备用入口和异常时的继续方式默认收起，需要时可展开查看。"
         tone="warning"
       >
         <div class="space-y-3" data-testid="online-center-governance-details">
           <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-visual-feature-flag-panel">
             <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
               <div class="min-w-0">
-                <p class="text-xs leading-4 text-accent">高风险功能开关</p>
+                <p class="text-xs leading-4 text-accent">入口可用状态</p>
                 <p class="mt-1 text-[0.625rem] leading-4 text-muted">
                   {{ onlineVisualFeatureFlagSummary }}
                 </p>
               </div>
-              <span class="text-[0.625rem] leading-4 text-muted">关闭时保留旧入口、收尾或只读回看</span>
+              <span class="text-[0.625rem] leading-4 text-muted">不可用时可从备用入口继续或只读回看</span>
             </div>
             <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               <article
@@ -191,7 +191,7 @@
                     </span>
                   </label>
                   <span class="shrink-0 text-[0.625rem] leading-4 text-accent">
-                    {{ featureFlag.enabled ? '开启' : '降级' }}
+                    {{ featureFlag.enabled ? '开启' : '备用' }}
                   </span>
                 </div>
                 <p class="mt-2 text-[0.625rem] leading-4 text-muted" data-testid="online-visual-feature-flag-fallback">
@@ -324,8 +324,8 @@
       </div>
       <OnlineTechnicalDetails
         class="mt-3"
-        title="调试与治理信息：奖励与投放"
-        summary="奖励口径、结算边界和投放限制默认折叠，玩家只在活动卡看到可参加入口。"
+        title="奖励与记录说明"
+        summary="奖励说明、记录边界和参与限制默认收起，活动卡只展示可参加入口。"
         tone="warning"
       >
         <div class="border border-accent/10 bg-black/10 p-3" data-testid="online-visual-reward-control-panel">
@@ -334,7 +334,7 @@
               <p class="text-xs leading-4 text-accent">奖励与投放控制</p>
               <p class="mt-1 text-[0.625rem] leading-4 text-muted">{{ onlineVisualRewardControlSummary }}</p>
             </div>
-            <span class="text-[0.625rem] leading-4 text-muted">服务端凭证优先 · 纪念优先</span>
+            <span class="text-[0.625rem] leading-4 text-muted">结算记录优先 · 纪念优先</span>
           </div>
           <div class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             <article
@@ -748,7 +748,7 @@
     const featureFlag = getOnlineVisualFeatureFlagConfig(featureFlagKey)
     const enabled = isOnlineVisualFeatureEnabled(onlineVisualFeatureFlagState, featureFlagKey)
     const fallbackRoute = routeForFeatureFallback(featureFlagKey)
-    const fallbackStatus = enabled ? '可视化入口开启' : '已降级到旧入口 / 只读回看'
+    const fallbackStatus = enabled ? '可视化入口开启' : '可从备用入口继续 / 只读回看'
 
     return {
       enabled,
@@ -863,7 +863,7 @@
 
   const onlineVisualFeatureFlagSummary = computed(() => {
     const enabledCount = onlineVisualFeatureFlagItems.value.filter(flag => flag.enabled).length
-    return `${enabledCount}/${onlineVisualFeatureFlagItems.value.length} 个开关默认开启 · 配置缺失时按定义保守降级`
+    return `${enabledCount}/${onlineVisualFeatureFlagItems.value.length} 个入口默认开启 · 配置缺失时保留备用入口`
   })
 
   const onlineVisualFestivalCalendar = computed<ResolvedOnlineVisualScheduleEntry[]>(() =>

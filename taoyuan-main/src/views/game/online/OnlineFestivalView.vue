@@ -319,18 +319,18 @@
                   </template>
                 </OnlineVisualRoomShell>
                 <OnlineTechnicalDetails
-                  v-if="festivalRoomStore.myRoom.can_disconnect"
-                  title="调试操作"
-                  summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
+                  v-if="festivalRoomStore.myRoom.can_disconnect && saveStore.isBuiltInSampleRuntime"
+                  title="连接恢复"
+                  summary="连接中断时的恢复入口默认收起，主流程请优先使用准备、倒计时和结算。"
                 >
                   <Button class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
-                    网络异常测试
+                    模拟连接中断
                   </Button>
                 </OnlineTechnicalDetails>
                 <OnlineTechnicalDetails
                   v-if="festivalRoomBackupActionsVisible"
                   title="备用房间操作"
-                  summary="旧准备、倒计时、结算和关闭入口保留为测试钩子；主流程请打开准备大厅。"
+                  summary="备用准备、倒计时、结算和关闭入口默认收起；主流程请打开准备大厅。"
                 >
                   <div class="grid gap-2 sm:grid-cols-2" data-testid="online-festival-room-lobby-backup-actions">
                     <Button
@@ -525,8 +525,8 @@
 
                 <OnlineTechnicalDetails
                   v-if="festivalRoomFallbackActionsVisible"
-                  title="旧节会按钮备用操作"
-                  summary="当前没有可用的场景或赛道主行动，旧节会按钮保留为键盘和回归测试的备用操作。"
+                  title="节会备用操作"
+                  summary="当前没有可用的场景或赛道主行动，备用操作会展开供键盘用户继续处理。"
                   :default-open="true"
                 >
                   <div class="grid gap-2 md:grid-cols-2" data-testid="online-festival-room-gameplay-backup-actions">
@@ -567,7 +567,7 @@
                 </OnlineTechnicalDetails>
 
                 <div v-if="festivalRoomStore.myRoom.settlement_receipts.length > 0" class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-xs text-accent">本房结算凭证</p>
+                  <p class="text-xs text-accent">本房结算记录</p>
                   <div class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
                     <div
                       v-for="receipt in festivalRoomStore.myRoom.settlement_receipts"
@@ -620,7 +620,7 @@
 
                 <OnlineTechnicalDetails
                   title="备用邀请表单"
-                  summary="保留旧单人邀请入口和测试钩子，主流程请优先使用邀请面板。"
+                  summary="备用单人邀请入口默认收起；主流程请优先使用邀请面板。"
                 >
                   <label class="block">
                     <span class="text-[0.625rem] text-muted">邀请玩家</span>
@@ -697,7 +697,7 @@
 
             <OnlineTechnicalDetails
               title="备用创建表单"
-              summary="保留旧创建入口和测试钩子，主流程请优先使用创建向导。"
+              summary="备用创建入口默认收起；主流程请优先使用创建向导。"
             >
               <div class="space-y-3" data-testid="online-festival-room-create-backup">
                 <div class="flex flex-wrap gap-2">
@@ -933,10 +933,10 @@
 
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">最近结算凭证</p>
+            <p class="text-sm text-accent">最近结算记录</p>
             <span class="text-[0.625rem] text-muted">{{ festivalRoomStore.recentReceipts.length }} 条</span>
           </div>
-          <div v-if="festivalRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有节会房间结算凭证。</div>
+          <div v-if="festivalRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有节会房间结算记录。</div>
           <div v-else class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
             <div v-for="receipt in festivalRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -1032,16 +1032,16 @@
                 </OnlineVisualRoomShell>
 
                 <OnlineTechnicalDetails
-                  v-if="expeditionRoomStore.myRoom.can_disconnect"
-                  title="调试操作"
-                  summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
+                  v-if="expeditionRoomStore.myRoom.can_disconnect && saveStore.isBuiltInSampleRuntime"
+                  title="连接恢复"
+                  summary="连接中断时的恢复入口默认收起，主流程请优先使用准备、倒计时和结算。"
                 >
                   <Button
                     class="online-action-btn online-action-btn--compact justify-center"
                     :disabled="expeditionRoomStore.actionRunning"
                     @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)"
                   >
-                    网络异常测试
+                    模拟连接中断
                   </Button>
                 </OnlineTechnicalDetails>
 
@@ -1248,7 +1248,7 @@
                 </div>
 
                 <div v-if="expeditionRoomStore.myRoom.settlement_receipts.length > 0" class="border border-accent/10 bg-black/10 p-2">
-                  <p class="text-xs text-accent">本房结算凭证</p>
+                  <p class="text-xs text-accent">本房结算记录</p>
                   <div class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
                     <p
                       v-for="receipt in expeditionRoomStore.myRoom.settlement_receipts"
@@ -1280,7 +1280,7 @@
 
                 <OnlineTechnicalDetails
                   title="备用邀请表单"
-                  summary="保留旧远征单人邀请入口和测试钩子，主流程请优先使用邀请面板。"
+                  summary="保留远征备用邀请入口，主流程请优先使用邀请面板。"
                 >
                   <label class="block">
                     <span class="text-[0.625rem] text-muted">邀请玩家</span>
@@ -1306,7 +1306,7 @@
                 <OnlineTechnicalDetails
                   v-if="expeditionRoomBackupActionsVisible"
                   title="备用房间操作"
-                  summary="旧准备、倒计时、结算和关闭入口保留为测试钩子；主流程请打开准备大厅。"
+                  summary="备用准备、倒计时、结算和关闭入口默认收起；主流程请打开准备大厅。"
                 >
                   <div class="grid gap-2 sm:grid-cols-2" data-testid="online-expedition-room-lobby-backup-actions">
                   <Button
@@ -1372,12 +1372,12 @@
                   </div>
                 </OnlineTechnicalDetails>
                 <OnlineTechnicalDetails
-                  v-if="expeditionRoomStore.myRoom.can_disconnect"
-                  title="调试操作"
-                  summary="网络异常测试入口默认收起，备用操作区仍保留原远征按钮。"
+                  v-if="expeditionRoomStore.myRoom.can_disconnect && saveStore.isBuiltInSampleRuntime"
+                  title="连接恢复"
+                  summary="连接中断时的恢复入口默认收起，备用操作区仍保留可继续处理的远征行动。"
                 >
                   <Button class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
-                    网络异常测试
+                    模拟连接中断
                   </Button>
                 </OnlineTechnicalDetails>
               </div>
@@ -1434,7 +1434,7 @@
 
             <OnlineTechnicalDetails
               title="备用创建表单"
-              summary="保留旧远征创建入口和测试钩子，主流程请优先使用创建向导。"
+              summary="保留远征备用创建入口，主流程请优先使用创建向导。"
             >
               <div class="space-y-3" data-testid="online-expedition-room-create-backup">
                 <label class="block">
@@ -1574,10 +1574,10 @@
 
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">最近结算凭证</p>
+            <p class="text-sm text-accent">最近结算记录</p>
             <span class="text-[0.625rem] text-muted">{{ expeditionRoomStore.recentReceipts.length }} 条</span>
           </div>
-          <div v-if="expeditionRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有远征房间结算凭证。</div>
+          <div v-if="expeditionRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有远征房间结算记录。</div>
           <div v-else class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
             <div v-for="receipt in expeditionRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -1695,10 +1695,10 @@
 
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">最近结算凭证</p>
+            <p class="text-sm text-accent">最近结算记录</p>
             <span class="text-[0.625rem] text-muted">{{ recentReceiptCards.length }} 条</span>
           </div>
-          <div v-if="recentReceiptCards.length === 0" class="mt-3 text-xs text-muted">当前没有节会或远征结算凭证。</div>
+          <div v-if="recentReceiptCards.length === 0" class="mt-3 text-xs text-muted">当前没有节会或远征结算记录。</div>
           <div v-else class="mt-3 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
             <div v-for="receipt in recentReceiptCards" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -1958,6 +1958,7 @@
   } from '@/data/onlineFestivalSceneAssets'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { OnlineVisualNode, OnlineVisualObject, OnlineVisualTrack } from '@/types/onlineVisual'
   import type { ExpeditionCavernComboRecordSnapshot, ExpeditionCavernStateSnapshot, ExpeditionRoomRouteReplay } from '@/utils/expeditionRoomApi'
@@ -1981,6 +1982,7 @@
   const worldEventStore = useWorldEventStore()
   const festivalRoomStore = useFestivalRoomStore()
   const expeditionRoomStore = useExpeditionRoomStore()
+  const saveStore = useSaveStore()
   const festivalSceneAssetSpecs = ONLINE_FESTIVAL_SCENE_ASSET_SPECS
   const selectedFestivalSceneAssetSpec = computed(() =>
     getOnlineFestivalSceneAssetSpec(festivalRoomStore.selectedTemplateId)
@@ -2014,9 +2016,9 @@
 
   const tabs: FestivalTabMeta[] = [
     { key: 'world', label: '世界事件', summary: '查看当前季节大事件、公共目标和世界纪年入口。' },
-    { key: 'festival-room', label: '节会房间', summary: '创建节会房间，处理邀请、ready、玩法动作和结算凭证。' },
+    { key: 'festival-room', label: '节会房间', summary: '创建节会房间，处理邀请、准备状态、玩法动作和结算记录。' },
     { key: 'expedition-room', label: '远征房间', summary: '创建远征队伍，处理分工、资源、回合动作、断线恢复和结算。' },
-    { key: 'memorials', label: '纪念记录', summary: '集中查看节会纪念、结算凭证和后续纪年记录入口。' },
+    { key: 'memorials', label: '纪念记录', summary: '集中查看节会纪念、结算记录和后续纪年记录入口。' },
   ]
 
   const normalizeTab = (value: unknown): FestivalTabKey => {
@@ -2074,7 +2076,7 @@
     { label: '当前事件', value: worldEventStore.currentEvent?.label || '未载入' },
     { label: '节会房间', value: festivalRoomStore.myRoom?.state_label || `${festivalRoomStore.visibleRooms.length} 可见` },
     { label: '远征房间', value: expeditionRoomStore.myRoom?.state_label || `${expeditionRoomStore.visibleRooms.length} 可见` },
-    { label: '纪念与凭证', value: `${festivalRoomStore.recentMemorials.length + festivalRoomStore.recentReceipts.length + expeditionRoomStore.recentReceipts.length} 条` },
+    { label: '纪念与记录', value: `${festivalRoomStore.recentMemorials.length + festivalRoomStore.recentReceipts.length + expeditionRoomStore.recentReceipts.length} 条` },
   ])
   const recentReceiptCards = computed<ReceiptCard[]>(() => [
     ...festivalRoomStore.recentReceipts.map(receipt => ({
@@ -2277,12 +2279,12 @@
   const festivalRoomVisualContentLabel = computed(() => {
     const room = festivalRoomStore.myRoom
     if (!room) return '节会可视化内容尚未载入。'
-    if (showFestivalTrackBoard.value) return '龙舟或节会轨道作为主入口，赛道格动作继续提交服务端节会行动。'
+    if (showFestivalTrackBoard.value) return '龙舟或节会轨道作为主入口，赛道格动作会提交到当前节会房间。'
     if (showFestivalSceneBoard.value) return '节会现场物件作为主入口，点灯、解谜、秩序和留影都从场景热区提交。'
-    return '当前房间没有可用场景或轨道热区，旧节会按钮作为主入口。'
+    return '当前房间没有可用场景或轨道热区，备用操作会作为主入口。'
   })
-  const festivalRoomFallbackEntryLabel = '旧节会按钮备用操作'
-  const festivalRoomFallbackEntryHint = '当场景或赛道没有可用主行动时，旧节会按钮会在备用操作中展开；结算和关闭按钮仍在房间操作区。'
+  const festivalRoomFallbackEntryLabel = '节会备用操作'
+  const festivalRoomFallbackEntryHint = '当场景或赛道没有可用主行动时，备用操作会展开；结算和关闭按钮仍在房间操作区。'
   const selectedFestivalSceneObjectId = computed(() =>
     selectedFestivalVisualObjectId.value || festivalRoomStore.myRoom?.visual_state.selected_visual_id || ''
   )
@@ -2516,12 +2518,12 @@
   const festivalRoomShellErrors = computed(() => {
     const messages = [
       festivalRoomStore.errorMessage,
-      festivalRoomConnectionState.value === 'conflict' ? '服务端节会房间状态存在冲突，请刷新后再继续提交。' : '',
+      festivalRoomConnectionState.value === 'conflict' ? '节会房间状态需要刷新确认，请刷新后再继续提交。' : '',
     ].filter(Boolean) as string[]
     return Array.from(new Set(messages))
   })
   const festivalRoomConflictMessage = computed(() =>
-    festivalRoomConnectionState.value === 'conflict' ? '当前本地节会状态可能落后于服务端，请先刷新确认。' : ''
+    festivalRoomConnectionState.value === 'conflict' ? '当前节会状态可能不是最新，请先刷新确认。' : ''
   )
   const festivalRoomActionFeedback = computed(() => {
     const room = festivalRoomStore.myRoom
@@ -2553,7 +2555,7 @@
       : 'Tab 进入灯会物件后用 Enter 选择热区，再提交点灯、解谜、秩序或留影行动。'
     return [
       boardHint,
-      '可视化行动不可用时，旧节会按钮会在备用操作中展开；结算入口仍在房间操作区。',
+      '可视化行动不可用时，备用操作会展开；结算入口仍在房间操作区。',
     ]
   })
   const festivalRoomRewardPreview = computed(() => {
@@ -2679,12 +2681,12 @@
   const expeditionRoomShellErrors = computed(() => {
     const messages = [
       expeditionRoomStore.errorMessage,
-      expeditionRoomConnectionState.value === 'conflict' ? '服务端远征房间状态存在冲突，请刷新后再继续提交。' : '',
+      expeditionRoomConnectionState.value === 'conflict' ? '远征房间状态需要刷新确认，请刷新后再继续提交。' : '',
     ].filter(Boolean) as string[]
     return Array.from(new Set(messages))
   })
   const expeditionRoomConflictMessage = computed(() =>
-    expeditionRoomConnectionState.value === 'conflict' ? '当前本地远征状态可能落后于服务端，请先刷新确认。' : ''
+    expeditionRoomConnectionState.value === 'conflict' ? '当前远征状态可能不是最新，请先刷新确认。' : ''
   )
   const expeditionRoomActionFeedback = computed(() => {
     const room = expeditionRoomStore.myRoom
@@ -2717,7 +2719,7 @@
       : 'Tab 进入矿洞节点后用 Enter 选择节点，再提交探路、采集、支护或撤离。'
     return [
       boardHint,
-      '旧远征按钮和结算入口仍在房间下方，移动端与键盘用户可继续从备用操作进入。',
+      '远征备用操作和结算入口仍在房间下方，移动端与键盘用户可继续进入。',
     ]
   })
   const expeditionRoomRewardPreview = computed(() => {
@@ -2970,12 +2972,12 @@
   const expeditionRoomVisualContentLabel = computed(() => {
     const room = expeditionRoomStore.myRoom
     if (!room) return '远征可视化内容尚未载入。'
-    if (showExpeditionTrackBoard.value) return '远征轨道或护送路线作为主入口，轨道格动作继续提交服务端远征行动。'
+    if (showExpeditionTrackBoard.value) return '远征轨道或护送路线作为主入口，轨道格动作会提交到当前远征房间。'
     if (showExpeditionMapBoard.value) return '矿洞节点地图作为主入口，撤离点、采集、支护和探路都从节点动作提交。'
-    return '当前房间没有可用地图或轨道热区，旧远征按钮作为主入口。'
+    return '当前房间没有可用地图或轨道热区，远征备用操作会作为主入口。'
   })
-  const expeditionRoomFallbackEntryLabel = '旧远征按钮备用操作'
-  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一远征行动；结算和关闭按钮仍在房间壳操作区。'
+  const expeditionRoomFallbackEntryLabel = '远征备用操作'
+  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化内容缺失时，下方备用操作继续提交同一远征行动；结算和关闭按钮仍在房间操作区。'
   const expeditionVisualActionLabels = computed<Record<string, string>>(() =>
     Object.fromEntries(Array.from(expeditionGameplayActionMap.value.values()).map(action => [action.id, action.label]))
   )

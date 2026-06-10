@@ -498,14 +498,14 @@
                       >
                         <span class="block text-accent">{{ member.display_name || member.username }}</span>
                         <span class="mt-1 block">{{ member.status_label }} · {{ formatDuration(member.offline_seconds) }} / {{ formatDuration(member.offline_timeout_seconds) }}</span>
-                        <span class="mt-1 block">最后活跃：{{ member.last_active_at > 0 ? formatTime(member.last_active_at) : '等待服务端校验' }}</span>
+                        <span class="mt-1 block">最后活跃：{{ member.last_active_at > 0 ? formatTime(member.last_active_at) : '等待系统确认' }}</span>
                       </p>
                     </div>
                     <p
                       class="leading-4"
                       data-testid="online-cohabitation-separation-offline-timeout-policy"
                     >
-                      {{ latestSeparationPreview.confirmation_state?.offline_confirm_timeout_policy || '冷静期结束后，长期离线待确认成员会由服务端按超时证据复核；通过后只进入待人工执行，不伪造确认、不改个人存档。' }}
+                      {{ latestSeparationPreview.confirmation_state?.offline_confirm_timeout_policy || '冷静期结束后，长期离线待确认成员会由系统按超时记录复核；通过后只进入待人工执行，不伪造确认、不改个人存档。' }}
                     </p>
                   </div>
                   <div
@@ -548,7 +548,7 @@
                           <p class="mt-1">建议返还 {{ row.suggested_refund_amount }} · 拆分基数 {{ row.split_basis_amount }}</p>
                           <p class="mt-1">注资 {{ row.capital_contribution_amount }} · 经营 {{ row.operating_contribution_amount }} · 未知经营 {{ row.manual_unidentified_operating_contribution_amount }}</p>
                           <p class="mt-1">流水 {{ row.ledger_ids.length }} · 注资 {{ row.capital_ledger_ids.length }} · 经营 {{ row.operating_ledger_ids.length }} · 卖出 {{ row.warehouse_sale_ledger_ids.length }}</p>
-                          <p class="mt-1 break-all">证据 {{ row.ledger_ids.slice(0, 4).join('、') || row.operating_ledger_ids.slice(0, 4).join('、') || row.warehouse_sale_ledger_ids.slice(0, 4).join('、') || '待补充' }}</p>
+                          <p class="mt-1 break-all">记录 {{ row.ledger_ids.slice(0, 4).join('、') || row.operating_ledger_ids.slice(0, 4).join('、') || row.warehouse_sale_ledger_ids.slice(0, 4).join('、') || '待补充' }}</p>
                           <p class="mt-1">{{ row.confirmation_status }} · {{ row.return_status }}</p>
                           <p class="mt-1">{{ row.boundary_label }}</p>
                         </div>
@@ -1099,7 +1099,7 @@
                     >
                       <p class="text-accent">{{ recoveryAppealIssueLabel(appeal.issue_type) }} · {{ appeal.status }}</p>
                       <p class="mt-1 break-all">目标 {{ appeal.target_ref || appeal.preview_id || appeal.safe_version_id || '未绑定' }}</p>
-                      <p class="mt-1">仓库流水 {{ appeal.warehouse_ledger_ids?.length ?? 0 }} · 审计 {{ appeal.audit_ids?.length ?? 0 }} · {{ formatTime(appeal.submitted_at) }}</p>
+                      <p class="mt-1">仓库流水 {{ appeal.warehouse_ledger_ids?.length ?? 0 }} · 复核 {{ appeal.audit_ids?.length ?? 0 }} · {{ formatTime(appeal.submitted_at) }}</p>
                     </div>
                   </div>
                   <p
@@ -1126,7 +1126,7 @@
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">个人铜币不合并，共同基金单独显示。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，分居执行按预览确认码分步写回。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted" data-testid="online-cohabitation-authoritative-warehouse-summary">普通仓库操作按权限开放，高价值取出走草案确认；农田 / 动物 / 宠物 / 工坊和离线自动收益入仓均由系统记录入仓。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还由服务端分步执行，前端只提交确认过的返还意图。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还由系统分步处理，当前界面只提交确认过的返还意图。</p>
             </div>
           </div>
         </div>
@@ -1181,7 +1181,7 @@
               <span class="text-[0.625rem] text-muted">{{ selectedSharedFarmPlot ? selectedSharedFarmPlot.source_area : '未选地块' }}</span>
             </div>
             <div v-if="!selectedSharedFarmPlot" class="mt-3 text-xs leading-5 text-muted">
-              点选左侧地块后，可按服务端权限执行浇水、种植或收获。
+              点选左侧地块后，可按当前权限执行浇水、种植或收获。
             </div>
             <div v-else class="mt-3 space-y-3">
               <div class="border border-accent/10 bg-black/10 p-2 text-[0.625rem] leading-4 text-muted">
@@ -1763,7 +1763,7 @@
                 <p v-for="row in warehouseCompensationAuditTargetSlotRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
               <div class="mt-2 grid gap-2 text-[0.625rem] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-ledger-ids">
-                <p v-if="warehouseCompensationAuditLedgerRows.length === 0" class="border border-accent/10 px-2 py-1">暂无流水证据。</p>
+                <p v-if="warehouseCompensationAuditLedgerRows.length === 0" class="border border-accent/10 px-2 py-1">暂无流水记录。</p>
                 <p v-for="row in warehouseCompensationAuditLedgerRows" :key="row.id" class="border border-accent/10 px-2 py-1">{{ row.label }}：{{ row.value }}</p>
               </div>
               <div class="mt-2 grid gap-2 text-[0.625rem] text-muted" data-testid="online-cohabitation-warehouse-compensation-audit-timeline">
@@ -1952,7 +1952,7 @@
                   class="mt-1 text-[0.625rem] text-muted"
                   data-testid="online-cohabitation-warehouse-ledger-policy-evidence"
                 >
-                  分级：{{ warehouseLedgerRiskLabel(entry) }} · {{ entry.high_value_withdrawal_required ? '需高价值取出确认' : '普通流可用' }}
+                  分级：{{ warehouseLedgerRiskLabel(entry) }} · {{ entry.high_value_withdrawal_required ? '需高价值取出确认' : '普通流程可用' }}
                 </p>
               </div>
             </div>
@@ -4085,8 +4085,8 @@
       riskLevel: 'high_value_pet_treat',
       requiresConfirmation: true,
       confirmationPhrase: '确认消耗共同宠物高阶点心',
-      rollbackPlan: '缺少确认会被服务端阻断，提交后按共同宠物与仓库 ledger 补偿。',
-      compensationHint: '异常时按共同宠物照料 ledger 和共同仓库扣料 ledger 返还或重放。',
+      rollbackPlan: '缺少确认会被系统阻断，提交后按共同宠物与仓库记录补偿。',
+      compensationHint: '异常时按共同宠物照料记录和共同仓库扣料记录返还或重放。',
     },
     lotus_heart_cat_treat: {
       itemId: 'lotus_heart_cat_treat',
@@ -4097,8 +4097,8 @@
       riskLevel: 'high_value_pet_treat',
       requiresConfirmation: true,
       confirmationPhrase: '确认消耗共同宠物高阶点心',
-      rollbackPlan: '缺少确认会被服务端阻断，提交后按共同宠物与仓库 ledger 补偿。',
-      compensationHint: '异常时按共同宠物照料 ledger 和共同仓库扣料 ledger 返还或重放。',
+      rollbackPlan: '缺少确认会被系统阻断，提交后按共同宠物与仓库记录补偿。',
+      compensationHint: '异常时按共同宠物照料记录和共同仓库扣料记录返还或重放。',
     },
     spirit_fruit_mooncake: {
       itemId: 'spirit_fruit_mooncake',
@@ -4109,8 +4109,8 @@
       riskLevel: 'rare_pet_treat',
       requiresConfirmation: true,
       confirmationPhrase: '确认消耗共同宠物高阶点心',
-      rollbackPlan: '缺少确认会被服务端阻断，提交后按共同宠物与仓库 ledger 补偿。',
-      compensationHint: '异常时按共同宠物照料 ledger 和共同仓库扣料 ledger 返还或重放。',
+      rollbackPlan: '缺少确认会被系统阻断，提交后按共同宠物与仓库记录补偿。',
+      compensationHint: '异常时按共同宠物照料记录和共同仓库扣料记录返还或重放。',
     },
   }
 
@@ -4268,10 +4268,10 @@
     { key: 'map', label: '地图', summary: '只读展示成员农田横向拼接、来源归属和暂缓写操作。' },
     { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限取出或卖入共同基金。' },
     { key: 'fund', label: '基金', summary: '查看共同基金余额、注资和权限支出流水，个人铜币保持独立。' },
-    { key: 'permissions', label: '权限', summary: '查看和调整成员业务权限分组，确认安全阀仍由服务端强制开启。' },
+    { key: 'permissions', label: '权限', summary: '查看和调整成员业务权限分组，确认安全阀仍由系统强制开启。' },
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
-    { key: 'buildings', label: '建筑', summary: '查看家族建筑蓝图、建筑流水，并按服务端规则提交真实落账、材料消耗和回滚补偿收口。' },
+    { key: 'buildings', label: '建筑', summary: '查看家族建筑蓝图、建筑流水，并按系统规则提交真实落账、材料消耗和回滚补偿收口。' },
     { key: 'relations', label: '关系', summary: '只读查看契约成员、家族职位、共同能力节点和隐私边界。' },
     { key: 'visibility', label: '公开', summary: '只读查看关系图公开范围、可见数据类别、成员同意和隐私护栏。' },
     { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
@@ -5919,12 +5919,12 @@
     return [
       ...evidence.withdraw_ledger_entries.map(entry => ({
         id: `withdraw:${entry.id}`,
-        label: `取出 ledger ${entry.id}`,
+        label: `取出记录 ${entry.id}`,
         value: `${entry.item_id} ${entry.quality || 'normal'} x${entry.quantity} / ${entry.actor_display_name || entry.actor_username || '未知'} / ${formatTime(entry.created_at)}`,
       })),
       ...evidence.source_ledger_entries.map(entry => ({
         id: `source:${entry.id}`,
-        label: `来源 ledger ${entry.id}`,
+        label: `来源记录 ${entry.id}`,
         value: `${entry.item_id} ${entry.quality || 'normal'} x${entry.quantity} / ${entry.actor_display_name || entry.actor_username || '未知'} / ${formatTime(entry.created_at)}`,
       })),
     ].slice(0, 8)
@@ -6289,7 +6289,7 @@
     const autoIncome = cohabitationStore.offlineStatus?.offline_auto_income
     const farmCount = Number(autoIncome?.harvestable_plot_count) || 0
     const animalCount = Number(autoIncome?.ready_animal_product_count) || 0
-    return `服务端按当前契约状态领取：农田 ${farmCount}、动物产物 ${animalCount}，只写共同仓库流水。`
+    return `系统按当前契约状态领取：农田 ${farmCount}、动物产物 ${animalCount}，只写共同仓库流水。`
   })
   const canCollectOfflineAutoIncome = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -7542,8 +7542,8 @@
       makeOption('care_shared_farm_clear_weeds', 'care_shared_farm', '共同农田清草', 'plot', canClearWeedsSelectedSharedFarmPlot.value, '请选择有杂草地块'),
       makeOption('remove_crop_shared_farm', 'remove_crop_shared_farm', '共同农田铲除作物', 'plot', canRemoveCropSelectedSharedFarmPlot.value, '请选择有作物地块'),
       makeOption('plant_shared_farm', 'plant_shared_farm', '共同农田种植', 'plot', canPlantSelectedSharedFarmPlot.value, '请选择可种植地块和种子'),
-      makeOption('fertilize_shared_farm_basic', 'fertilize_shared_farm_basic', '共同农田基础施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium !== true, '请选择基础肥料并确认共同仓库库存'),
-      makeOption('fertilize_shared_farm_premium', 'fertilize_shared_farm_premium', '共同农田高级施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium === true, '请选择高级肥料并确认共同仓库库存与权限'),
+      makeOption('fertilize_shared_farm_basic', 'fertilize_shared_farm_basic', selectedSharedFarmPlot.value?.plot_state.fertilizer ? '共同农田替换基础肥料' : '共同农田基础施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium !== true, '请选择基础肥料并确认共同仓库库存'),
+      makeOption('fertilize_shared_farm_premium', 'fertilize_shared_farm_premium', selectedSharedFarmPlot.value?.plot_state.fertilizer ? '共同农田替换高级肥料' : '共同农田高级施肥', 'plot', canFertilizeSelectedSharedFarmPlot.value && selectedSharedFarmFertilizer.value?.premium === true, '请选择高级肥料并确认共同仓库库存与权限'),
       makeOption('harvest_shared_farm', 'harvest_shared_farm', '共同农田收获入仓', 'plot', canHarvestSelectedSharedFarmPlot.value, '请选择可收获地块'),
       makeOption('feed_shared_animal', 'feed_shared_animal', '共同动物干草喂食', 'animal', canFeedSelectedSharedAnimal.value, '请选择可喂食动物并确认共同仓库干草'),
       makeOption('pet_shared_animal', 'pet_shared_animal', '共同动物抚摸', 'animal', canPetSelectedSharedAnimal.value, '请选择可抚摸动物'),
@@ -8115,7 +8115,7 @@
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.shared_fund_changed === false ? '共同基金未改' : '',
         entry.client_base_stale === true ? '本地基线过期' : '',
-      ].filter(Boolean).join(' · ') || '共同庄园日结已按服务端契约状态合并'
+      ].filter(Boolean).join(' · ') || '共同庄园日结已按契约最新状态合并'
     }
     if (entry.action === 'collect_offline_auto_income') {
       const collected = Math.max(0, Math.floor(Number(entry.collected_count) || 0))
@@ -8152,7 +8152,7 @@
         fundLedgerIds.length ? `基金流水 ${fundLedgerIds.length} 笔` : '',
         entry.personal_save_changed === false ? '个人存档未改' : '',
         entry.client_base_stale === true ? '本地基线过期' : '',
-      ].filter(Boolean).join(' · ') || '共同动物买卖已按服务端状态合并'
+      ].filter(Boolean).join(' · ') || '共同动物买卖已按最新状态合并'
     }
     if (entry.action === 'move_shared_decoration') {
       const decorationId = typeof entry.decoration_id === 'string' ? entry.decoration_id : ''
@@ -8167,7 +8167,7 @@
         entry.shared_fund_changed === false ? '共同基金未改' : '',
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.client_base_stale === true ? '本地基线过期' : '',
-      ].filter(Boolean).join(' · ') || '共同装饰移动已按服务端契约状态合并'
+      ].filter(Boolean).join(' · ') || '共同装饰移动已按契约最新状态合并'
     }
     if (entry.action === 'record_rare_item_refund_receipt' || entry.action === 'record_family_major_event_refund_receipt' || entry.action === 'record_limited_decoration_refund_receipt' || entry.action === 'record_shared_decoration_removal_refund_receipt') {
       const isRareItemRefund = entry.action === 'record_rare_item_refund_receipt'
@@ -8191,7 +8191,7 @@
         entry.personal_inventory_merged === false ? '个人背包未改' : '',
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.client_base_stale === true ? '本地基线过期' : '',
-      ].filter(Boolean).join(' · ') || (isFamilyMajorEventRefund ? '家庭事件退款回执已按服务端共同基金状态合并' : (isRareItemRefund ? '稀有物退款回执已按服务端共同基金状态合并' : (isLimitedDecorationRefund ? '限定装饰退款回执已按服务端共同基金状态合并' : '共同装修拆除退款回执已按服务端共同基金状态合并')))
+      ].filter(Boolean).join(' · ') || (isFamilyMajorEventRefund ? '家庭事件退款回执已按共同基金最新状态合并' : (isRareItemRefund ? '稀有物退款回执已按共同基金最新状态合并' : (isLimitedDecorationRefund ? '限定装饰退款回执已按共同基金最新状态合并' : '共同装修拆除退款回执已按共同基金最新状态合并')))
     }
     if (entry.action === 'record_rare_item_delivery_receipt' || entry.action === 'record_family_major_event_receipt' || entry.action === 'record_limited_decoration_delivery_receipt' || entry.action === 'record_shared_decoration_removal_receipt') {
       const isRareItemDelivery = entry.action === 'record_rare_item_delivery_receipt'
@@ -8218,7 +8218,7 @@
         entry.shared_fund_changed === false ? '共同基金未再扣款' : '',
         entry.shared_warehouse_changed === false ? '共同仓库未改' : '',
         entry.client_base_stale === true ? '本地基线过期' : '',
-      ].filter(Boolean).join(' · ') || (isFamilyMajorEventReceipt ? '家庭事件回执已按服务端契约状态合并' : (isRareItemDelivery ? '稀有物交付回执已按服务端契约状态合并' : (isLimitedDecorationDelivery ? '限定装饰交付回执已按服务端契约状态合并' : '共同装修拆除回执已按服务端契约状态合并')))
+      ].filter(Boolean).join(' · ') || (isFamilyMajorEventReceipt ? '家庭事件回执已按契约最新状态合并' : (isRareItemDelivery ? '稀有物交付回执已按契约最新状态合并' : (isLimitedDecorationDelivery ? '限定装饰交付回执已按契约最新状态合并' : '共同装修拆除回执已按契约最新状态合并')))
     }
     const ledgerIds = [entry.ledger_id, ...(entry.warehouse_ledger_ids ?? [])].filter(Boolean)
     const outputItemId = typeof entry.output_item_id === 'string' ? entry.output_item_id : ''
@@ -8240,7 +8240,7 @@
       : ''
     return [target ? `目标 ${target}` : '', output, ledgerIds.length ? `流水 ${ledgerIds.length} 笔` : '', revisionText, ...boundaries]
       .filter(Boolean)
-      .join(' · ') || '服务端已按当前契约状态合并'
+      .join(' · ') || '系统已按当前契约状态合并'
   }
   const offlineQueueClientRevision = () => Math.max(
     0,
@@ -8683,7 +8683,7 @@
       offlineQueueActionOk.value = true
       offlineQueueActionMessage.value = collected > 0
         ? `离线自动收益已领取 ${collected} 项，已写共同仓库流水`
-        : '服务端最新状态没有可领取收益'
+        : '当前最新状态没有可领取收益'
     } catch (error) {
       offlineQueueActionMessage.value = error instanceof Error ? error.message : '领取离线自动收益失败'
     }
@@ -9777,14 +9777,14 @@
       const alchemyHeatLabel = (sharedWorkshopAlchemyHeatProfiles[alchemyHeatLevel] ?? sharedWorkshopAlchemyHeatProfiles.balanced).label
       sharedWorkshopLastResultRows.value = [
         { id: 'output', label: '产出入仓', value: outputLabel },
-        { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '服务端已处理，未返回流水 ID' },
+        { id: 'ledger', label: '流水', value: ledgerIds.length > 0 ? `${ledgerIds.length} 笔 · ${ledgerIds.slice(0, 3).join(' / ')}` : '系统已处理，未返回流水 ID' },
         ...(hiddenJustDiscovered ? [{ id: 'hidden-discovery', label: '隐藏配方', value: `已发现 ${recipeLabelAfterDiscovery}` }] : []),
         ...(alchemyAutoResultLabel ? [{ id: 'alchemy-result', label: '炼丹结果', value: alchemyAutoResultLabel }] : []),
         ...(action?.alchemy_auto_result && alchemyWeightsLabel ? [{ id: 'alchemy-weights', label: '概率权重', value: [alchemyWeightProfile ? `档位 ${alchemyWeightProfile}` : '', `火候 ${alchemyHeatLabel}`, alchemyWeightsLabel].filter(Boolean).join(' · ') }] : []),
         { id: 'bonus', label: '同时在线加成', value: simultaneousOnlineBonusLabel(action?.simultaneous_online_bonus) },
-        { id: 'personal', label: '个人存档', value: action?.personal_save_changed === false ? '未改个人存档' : '以服务端回执为准' },
+        { id: 'personal', label: '个人存档', value: action?.personal_save_changed === false ? '未改个人存档' : '以处理回执为准' },
         { id: 'warehouse', label: '共同仓库', value: action?.shared_warehouse_changed === true ? '已消耗材料并写入产出' : '以刷新后仓库为准' },
-        { id: 'fund', label: '共同基金', value: action?.shared_fund_changed === false ? '未重复扣共同基金' : '以服务端回执为准' },
+        { id: 'fund', label: '共同基金', value: action?.shared_fund_changed === false ? '未重复扣共同基金' : '以处理回执为准' },
         { id: 'medium-budget', label: '中额预算', value: action?.medium_fund_budget_linked && linkedFundLedgerId ? `已绑定 ${linkedFundLedgerId}` : '未绑定中额预算' },
       ]
       sharedWorkshopActionOk.value = true
@@ -10384,7 +10384,7 @@
     if (kind === 'family-festival-settle' && !panel.summary.settlement_enabled) {
       return panel.summary.disabled_reason || '节会奖励结算暂未开放'
     }
-    return '当前无阻断；若模板、席位或成员状态变化，服务端会返回最新原因'
+    return '当前无阻断；若模板、席位或成员状态变化，系统会返回最新原因'
   }
   const familyFestivalRiskImpactItems = (kind: FamilyFestivalRiskConfirmKind): ConfirmDialogItem[] => [
     dialogItem('contract', '共同庄园', selectedContractRiskLabel()),
@@ -10554,7 +10554,7 @@
       const draft = selectedHighRiskReceiptDraft.value
       const amount = draft ? copperLabel(draft.amount) : '待确认'
       return [
-        dialogItem('shared-fund', '共同基金', fundHighRiskReceiptOutcome.value === 'refunded' ? `记录退款回执，按服务端结果退回 ${amount}` : `确认交付，既有扣款 ${amount} 保持收口`),
+        dialogItem('shared-fund', '共同基金', fundHighRiskReceiptOutcome.value === 'refunded' ? `记录退款回执，按处理结果退回 ${amount}` : `确认交付，既有扣款 ${amount} 保持收口`),
         dialogItem('personal-money', '个人铜币', '不扣个人铜币'),
         dialogItem('shared-warehouse', '共同仓库', '不直接改共同仓库'),
       ]
@@ -11053,7 +11053,7 @@
     const auditCount = Math.max(0, Math.floor(Number(summary?.audit_count) || 0))
     const warehouseLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_warehouse_ledger_count) || 0))
     const fundLedgerCount = Math.max(0, Math.floor(Number(summary?.shared_fund_ledger_count) || 0))
-    return `审计 ${auditCount} · 仓库流水 ${warehouseLedgerCount} · 基金流水 ${fundLedgerCount}`
+    return `复核 ${auditCount} · 仓库流水 ${warehouseLedgerCount} · 基金流水 ${fundLedgerCount}`
   }
 
   const guardFamilyBuildingRealDemolitionMainStateMutation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
@@ -11864,6 +11864,8 @@
       offline_auto_income_collected: '离线自动收益领取',
       cohabitation_daily_settled: '共同庄园日结',
       shared_farm_crop_removed: '共同农田铲除',
+      shared_farm_fertilized: '共同农田施肥',
+      shared_farm_fertilizer_replaced: '共同农田替换肥料',
       fund_contributed: '共同基金注资',
       fund_spent: '共同基金支出',
       fund_large_spend_draft_created: '大额草案创建',
@@ -11975,6 +11977,15 @@
       const output = outputItemId ? `${warehouseItemLabels[outputItemId] || outputItemId} x${outputQuantity} · ${qualityLabel(outputQuality)}` : '产出已入仓'
       return `${recipe?.label || recipeId || '共同工坊'}：${output}，流水 ${ledgerCount} 笔，个人存档与共同基金不变`
     }
+    if (entry.action === 'shared_farm_fertilized' || entry.action === 'shared_farm_fertilizer_replaced') {
+      const fertilizer = typeof detail.fertilizer_item_id === 'string' ? detail.fertilizer_item_id : ''
+      const previous = typeof detail.previous_fertilizer_item_id === 'string' ? detail.previous_fertilizer_item_id : ''
+      const ledgerCount = Array.isArray(detail.warehouse_ledger_ids) ? detail.warehouse_ledger_ids.length : 0
+      if (entry.action === 'shared_farm_fertilizer_replaced') {
+        return `地块 ${detail.source_plot_id ?? detail.plot_id ?? ''}：${previous || '原肥料'} -> ${fertilizer || '新肥料'}，共同仓库扣肥流水 ${ledgerCount} 笔，旧肥料未返还`
+      }
+      return `地块 ${detail.source_plot_id ?? detail.plot_id ?? ''} 使用 ${fertilizer || '肥料'}，共同仓库扣肥流水 ${ledgerCount} 笔`
+    }
     if (entry.action === 'offline_auto_income_collected') {
       const collected = Number(detail.collected_count) || 0
       const farmCount = Number(detail.farm_harvest_count) || 0
@@ -11993,7 +12004,7 @@
       const rejected = Number(detail.rejected_count) || 0
       const unsupported = Number(detail.unsupported_action_count) || 0
       const stale = detail.client_queue_stale === true ? '本地基线过期' : '本地基线一致'
-      return `自动解决：提交 ${accepted}、拒绝 ${rejected}、不支持 ${unsupported}，${stale}，按服务端最新状态合并`
+      return `自动解决：提交 ${accepted}、拒绝 ${rejected}、不支持 ${unsupported}，${stale}，按最新状态合并`
     }
     if (entry.action === 'shared_decoration_moved') {
       const move = detail.decoration_move && typeof detail.decoration_move === 'object'

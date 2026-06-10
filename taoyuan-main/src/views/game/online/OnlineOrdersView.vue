@@ -233,7 +233,7 @@
               </div>
             </div>
             <div data-testid="online-orders-society-board-receipts" class="mt-3 space-y-2">
-              <p class="text-[0.625rem] text-muted">最近公开凭证</p>
+              <p class="text-[0.625rem] text-muted">最近公开记录</p>
               <div v-if="societyOrderBoard.recent_receipts.length > 0" class="max-h-40 space-y-2 overflow-y-auto pr-1">
                 <div v-for="receipt in societyOrderBoard.recent_receipts" :key="receipt.receipt_id" class="border border-accent/10 bg-black/10 p-2">
                   <p class="truncate text-[0.625rem] text-accent">{{ receipt.order_title || '公共订单' }} · {{ receipt.stage_title || '整单' }}</p>
@@ -241,7 +241,7 @@
                     {{ receipt.assignee_display_name || '未署名成员' }} · {{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }} · {{ getRelaySettlementRouteLabel(receipt.reward_route) }}
                   </p>
                   <p class="mt-1 text-[0.625rem] leading-4 text-muted">
-                    凭证 {{ receipt.receipt_id }} · {{ getCoopReceiptStatusLabel(receipt.status) }}
+                    记录 {{ receipt.receipt_id }} · {{ getCoopReceiptStatusLabel(receipt.status) }}
                   </p>
                   <p
                     v-if="receipt.relay_story_summary"
@@ -257,8 +257,8 @@
               </div>
               <OnlineEmptyState
                 v-else
-                title="还没有公开结算凭证"
-                description="公开接力单完成并结算后，会在这里读回最近公开凭证和分账去向。"
+                title="还没有公开结算记录"
+                description="公开接力单完成并结算后，会在这里读回最近公开记录和分账去向。"
               />
             </div>
           </div>
@@ -654,13 +654,13 @@
       <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">结算凭证</p>
+            <p class="text-sm text-accent">结算记录</p>
             <span class="text-[0.625rem] text-muted">{{ coopOrderStore.myReceipts.length }} 条</span>
           </div>
           <OnlineEmptyState
             v-if="coopOrderStore.myReceipts.length === 0"
             class="mt-3"
-            title="还没有结算凭证"
+            title="还没有结算记录"
             description="你发布或接下的委托完成结算后，会在这里显示交付资源、奖励去向和补偿状态。"
           />
           <OnlineScrollArea v-else class="mt-3" max-height="36rem" data-testid="online-orders-receipt-list">
@@ -703,13 +703,14 @@
                 同接效率：原始 {{ formatCoopDuration(receipt.order_original_duration_seconds) }} · 减免 {{ formatCoopDuration(receipt.order_efficiency_bonus_seconds) }} · 有效 {{ formatCoopDuration(receipt.order_effective_duration_seconds) }}
               </p>
               <OnlineTechnicalDetails
+                v-if="saveStore.isBuiltInSampleRuntime"
                 class="mt-2"
-                title="结算凭证详情"
-                summary="展开查看凭证编号、结算去向编号和更新时间。"
+                title="结算记录详情"
+                summary="展开查看记录编号、结算去向编号和更新时间。"
                 :copyable="receiptTechnicalCopyValue(receipt)"
               >
                 <div class="grid gap-1 sm:grid-cols-2">
-                  <p>凭证编号：{{ receipt.id }}</p>
+                  <p>记录编号：{{ receipt.id }}</p>
                   <p>关联委托：{{ receipt.order_id }}</p>
                   <p v-if="receipt.stage_id">接力阶段：{{ receipt.stage_id }}</p>
                   <p>重复提交保护：{{ receipt.idempotency_key || '未记录' }}</p>
@@ -762,14 +763,15 @@
               />
               <p class="mt-2 text-[0.625rem] text-muted">已尝试 {{ compensation.attempt_count }} 次</p>
               <OnlineTechnicalDetails
+                v-if="saveStore.isBuiltInSampleRuntime"
                 class="mt-2"
                 title="补偿详情"
-                summary="展开查看补偿编号、关联凭证、最近失败原因和更新时间。"
+                summary="展开查看补偿编号、关联记录、最近失败原因和更新时间。"
                 :copyable="compensationTechnicalCopyValue(compensation)"
               >
                 <div class="grid gap-1 sm:grid-cols-2">
                   <p>补偿编号：{{ compensation.id }}</p>
-                  <p>关联凭证：{{ compensation.receipt_id }}</p>
+                  <p>关联记录：{{ compensation.receipt_id }}</p>
                   <p>关联委托：{{ compensation.order_id }}</p>
                   <p v-if="compensation.stage_id">接力阶段：{{ compensation.stage_id }}</p>
                   <p>发布人：{{ compensation.owner_username }}</p>
@@ -974,6 +976,7 @@
   import OnlineStatusBanner from '@/components/game/online/OnlineStatusBanner.vue'
   import OnlineTechnicalDetails from '@/components/game/online/OnlineTechnicalDetails.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import type { OnlineCoopCompensationEntry, OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderStageEntry, OnlineCoopOrderType, OnlineCoopReceiptEntry, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
@@ -993,6 +996,7 @@
   const route = useRoute()
   const coopOrderStore = useCoopOrderStore()
   const cohabitationStore = useCohabitationStore()
+  const saveStore = useSaveStore()
   const lastRefreshAttemptAt = ref(0)
   const orderWizardOpen = ref(false)
   const orderActionConfirm = ref<OrderActionConfirm | null>(null)
@@ -1009,7 +1013,7 @@
     { key: 'available', label: '可接', summary: '查看当前可见的公开、好友或邻里求助单。' },
     { key: 'mine', label: '我的发布', summary: '查看自己发布的求助单与待确认交付。' },
     { key: 'accepted', label: '我的接单', summary: '处理自己接下的求助单与交付草稿。' },
-    { key: 'receipts', label: '凭证与补偿', summary: '查看结算凭证、补偿状态和异常原因。' },
+    { key: 'receipts', label: '结算与补偿', summary: '查看结算记录、补偿状态和异常原因。' },
   ]
   const defaultTab = tabs[1]!
   const normalizeTab = (value: unknown): OrdersTabKey => {
@@ -1047,7 +1051,7 @@
   const activeTabMeta = computed<OrdersTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
   const moduleSummary = computed(() => {
     const trust = coopOrderStore.reputationSummary.trust_level.label
-    return `求助单、接单、交付、凭证和补偿集中管理；当前互助等级：${trust}。`
+    return `求助单、接单、交付、结算记录和补偿集中管理；当前互助等级：${trust}。`
   })
   const refreshStateLabel = computed(() => {
     if (coopOrderStore.loading) return '正在刷新在线委托摘要'
@@ -1118,7 +1122,7 @@
     if (!coopOrderStore.targetSaveIdDraft && !coopOrderStore.targetDisplayNameDraft) return ''
     const target = coopOrderStore.targetDisplayNameDraft || '目标好友'
     const saveId = coopOrderStore.targetSaveIdDraft ? `（存档 ID ${coopOrderStore.targetSaveIdDraft}）` : ''
-    return `这张求助单会面向 ${target}${saveId}，服务端仍会按存档级关系校验。`
+    return `这张求助单会面向 ${target}${saveId}，系统仍会按存档级关系确认。`
   })
 
   const getRouteQueryText = (value: unknown) => {
@@ -1239,7 +1243,7 @@
   }
   const getSettlementHint = (orderId: string, stageId = '') => {
     if (isSharedFundSettlementSelected(orderId, stageId)) {
-      return '共同基金仅限家族 / 合伙庄园，服务端会校验发布人与接单人同为成员。'
+      return '共同基金仅限家族 / 合伙庄园，系统会确认发布人与接单人同为成员。'
     }
     return '默认写入接单人个人铜钱。'
   }
@@ -1450,7 +1454,7 @@
       if (!compensation) return []
       return [
         { id: 'compensation', label: '补偿记录', value: compensation.id },
-        { id: 'receipt', label: '结算凭证', value: compensation.receipt_id },
+        { id: 'receipt', label: '结算记录', value: compensation.receipt_id },
         { id: 'order', label: '关联求助单', value: orderActionConfirmOrder.value?.title || compensation.order_id },
       ]
     }

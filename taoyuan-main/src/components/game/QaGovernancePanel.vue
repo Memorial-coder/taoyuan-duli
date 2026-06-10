@@ -141,11 +141,7 @@
   const migrationProfile = computed(() => playerStore.getQaGovernanceMigrationProfile())
   const currentWeekInfo = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day))
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
-  const showPanel = computed(() => {
-    if (!import.meta.env.DEV) return false
-    if (typeof window === 'undefined') return false
-    return (window as typeof window & { __TAOYUAN_ENABLE_QA_PANEL__?: boolean }).__TAOYUAN_ENABLE_QA_PANEL__ === true
-  })
+  const showPanel = computed(() => saveStore.isBuiltInSampleRuntime)
   const defaultTier: GovernanceTierSummary = {
     id: 'mid_transition',
     label: '中期过渡治理包',
@@ -202,7 +198,7 @@
     }
   })
 
-  const panelTitle = computed(() => props.title ?? 'QA 治理面板')
+  const panelTitle = computed(() => props.title ?? '治理面板')
   const migrationProfileLabel = computed(() => migrationProfile.value?.label ?? '未配置')
   const rollbackHotfixLabel = computed(
     () => `${playerOverview.value.runtimeState.rollbackTriggerCount} / ${playerOverview.value.runtimeState.postReleaseHotfixCount}`

@@ -31,7 +31,7 @@
         <p class="text-[0.625rem] text-muted mt-1">屏蔽规则：{{ governance.rare_policy.blocked_rules.length > 0 ? governance.rare_policy.blocked_rules.join('、') : '无' }}</p>
       </div>
       <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-        <p class="text-[0.625rem] text-accent mb-1">今日反刷状态</p>
+        <p class="text-[0.625rem] text-accent mb-1">今日交易限制</p>
         <p class="text-[0.625rem] text-muted">已操作 {{ governance.my_today.total_action_count }}/{{ governance.anti_abuse.daily_trade_action_limit }} 次</p>
         <p class="text-[0.625rem] text-muted mt-1">资金波动 {{ governance.my_today.total_money_volume }}/{{ governance.anti_abuse.daily_money_volume_limit }} 文</p>
         <p class="text-[0.625rem] text-muted mt-1">下次可操作 {{ governance.my_today.next_action_ready_in_seconds }} 秒后</p>

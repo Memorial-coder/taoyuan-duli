@@ -114,7 +114,7 @@
     </div>
 
     <GuidanceDigestPanel surface-id="wallet" title="资金去向引导" />
-    <QaGovernancePanel page-id="wallet" title="QA 治理总览" />
+    <QaGovernancePanel page-id="wallet" title="额度治理总览" />
 
     <div
       class="border border-accent/20 rounded-xs p-3 mb-3"
@@ -245,7 +245,7 @@
     >
       <div class="flex items-center justify-between gap-3 mb-2">
         <div class="min-w-0">
-          <span class="text-sm text-accent">资源券 / 凭证</span>
+          <span class="text-sm text-accent">资源券 / 奖励记录</span>
           <p v-if="isCompactMobile && !isWalletSectionOpen('reward-ticket')" class="mt-1 text-xs text-muted leading-5">
             先看当前哪些票券已经到账，需要时再展开兑换列表。
           </p>

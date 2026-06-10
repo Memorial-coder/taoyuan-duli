@@ -143,7 +143,7 @@
           <OnlineTechnicalDetails
             v-if="expeditionRoomBackupActionsVisible"
             title="备用房间操作"
-            summary="旧准备、倒计时、结算和关闭入口保留为测试钩子；主流程请打开准备大厅。"
+            summary="备用准备、倒计时、结算和关闭入口默认收起；主流程请打开准备大厅。"
           >
             <div class="grid gap-2 sm:grid-cols-2" data-testid="expedition-room-lobby-backup-actions">
               <Button
@@ -218,9 +218,9 @@
             </div>
           </OnlineTechnicalDetails>
           <OnlineTechnicalDetails
-            v-if="expeditionRoomStore.myRoom.can_disconnect"
-            title="调试操作"
-            summary="网络异常测试入口默认收起，主流程请优先使用准备、倒计时和结算。"
+            v-if="expeditionRoomStore.myRoom.can_disconnect && saveStore.isBuiltInSampleRuntime"
+            title="连接恢复"
+            summary="连接中断时的恢复入口默认收起，主流程请优先使用准备、倒计时和结算。"
           >
             <Button
               class="online-action-btn online-action-btn--compact justify-center"
@@ -228,7 +228,7 @@
               :disabled="expeditionRoomStore.actionRunning"
               @click="disconnectRoom(expeditionRoomStore.myRoom.id)"
             >
-              网络异常测试
+              模拟连接中断
             </Button>
           </OnlineTechnicalDetails>
           <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
@@ -372,7 +372,7 @@
 
           <OnlineTechnicalDetails
             title="备用邀请表单"
-            summary="旧单人邀请入口保留为测试钩子；主流程请使用邀请面板。"
+            summary="备用单人邀请入口默认收起；主流程请使用邀请面板。"
           >
             <label class="block">
               <span class="text-[0.625rem] text-muted">邀请玩家</span>
@@ -663,10 +663,12 @@
   import OnlineRoomWizard, { type OnlineRoomWizardDraft } from '@/components/game/online/OnlineRoomWizard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import type { OnlineVisualNode, OnlineVisualTrack } from '@/types/onlineVisual'
 
   const route = useRoute()
   const expeditionRoomStore = useExpeditionRoomStore()
+  const saveStore = useSaveStore()
   const selectedExpeditionVisualNodeId = ref('')
   const selectedExpeditionVisualTrackId = ref('')
   const selectedExpeditionVisualTrackCellId = ref('')
@@ -902,13 +904,13 @@
   const expeditionRoomVisualContentLabel = computed(() => {
     const room = expeditionRoomStore.myRoom
     if (!room) return '远征可视化内容尚未载入。'
-    if (showExpeditionTrackBoard.value) return '远征轨道或护送路线作为主入口，轨道格动作继续提交服务端远征行动。'
+    if (showExpeditionTrackBoard.value) return '远征轨道或护送路线作为主入口，轨道格动作会提交到当前远征房间。'
     if (expeditionVisualMapNodes.value.length > 0) return '矿洞节点地图作为主入口，撤离点、采集、支护和探路都从节点动作提交。'
-    return '当前房间没有可用地图或轨道热区，旧玩法按钮作为主入口。'
+    return '当前房间没有可用地图或轨道热区，备用操作会作为主入口。'
   })
 
-  const expeditionRoomFallbackEntryLabel = '旧远征按钮备用操作'
-  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化配置缺失时，下方旧玩法动作面板继续提交同一远征行动；结算和关闭按钮仍在房间壳操作区。'
+  const expeditionRoomFallbackEntryLabel = '远征备用操作'
+  const expeditionRoomFallbackEntryHint = '当地图 / 轨道没有可用动作或可视化内容缺失时，下方备用操作继续提交同一远征行动；结算和关闭按钮仍在房间操作区。'
 
   const expeditionVisualActionLabels = computed(() => {
     const room = expeditionRoomStore.myRoom
@@ -1019,7 +1021,7 @@
   })
 
   const expeditionRoomConflictMessage = computed(() =>
-    expeditionRoomConnectionState.value === 'conflict' ? '当前本地房间状态可能落后于服务端，请先刷新确认。' : ''
+    expeditionRoomConnectionState.value === 'conflict' ? '当前房间状态可能不是最新，请先刷新确认。' : ''
   )
 
   const expeditionRoomActionFeedback = computed(() => {
@@ -1055,7 +1057,7 @@
       : 'Tab 进入矿洞节点后用 Enter 选择节点，再触发探路、采集、支护或撤离。'
     return [
       boardHint,
-      '旧按钮面板仍保留在下方，键盘用户可以继续使用备用操作。',
+      '备用操作仍保留在下方，键盘用户可以继续完成行动。',
     ]
   })
 

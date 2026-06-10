@@ -1191,7 +1191,7 @@
   ])
   const currentSaveIdentityLabel = computed(() => {
     const identity = saveStore.currentOnlineIdentity
-    if (!identity?.save_id) return '尚未绑定服务端存档 ID'
+    if (!identity?.save_id) return '尚未绑定云端存档'
     const slotLabel = identity.save_slot === null || identity.save_slot === undefined
       ? ''
       : ` · 槽位 ${Number(identity.save_slot) + 1}`

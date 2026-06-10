@@ -282,6 +282,10 @@ export interface BuiltInSampleSaveInfo {
   smokeChecks: BuiltInSampleSmokeCheckDef[]
 }
 
+interface ApplySaveDataOptions {
+  builtInSample?: BuiltInSampleSaveInfo | null
+}
+
 interface PendingServerSaveEntry {
   raw: string
   savedAt: string
@@ -758,6 +762,8 @@ export const useSaveStore = defineStore('save', () => {
   const runtimeSessionSlot = ref(-1)
   const runtimeSessionMode = ref<SaveMode | null>(null)
   const currentOnlineIdentity = ref<OnlineSaveIdentity | null>(null)
+  const activeBuiltInSampleSave = ref<BuiltInSampleSaveInfo | null>(null)
+  const isBuiltInSampleRuntime = computed(() => activeBuiltInSampleSave.value !== null)
   const activeSlotsByMode = ref<Record<SaveMode, number>>({
     local: -1,
     server: -1
@@ -805,6 +811,7 @@ export const useSaveStore = defineStore('save', () => {
     runtimeSessionSlot.value = -1
     runtimeSessionMode.value = null
     currentOnlineIdentity.value = null
+    activeBuiltInSampleSave.value = null
     serverSaveConflict.value = null
     serverSaveFieldAnomaly.value = null
     lastLoadError.value = null
@@ -1289,7 +1296,12 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  const applySaveData = (data: Record<string, any>, slot: number, mode: SaveMode = storageMode.value): boolean => {
+  const applySaveData = (
+    data: Record<string, any>,
+    slot: number,
+    mode: SaveMode = storageMode.value,
+    options: ApplySaveDataOptions = {},
+  ): boolean => {
     const normalized = normalizeSaveEnvelope(data)
     if (!normalized) return false
     const payload = normalized.data
@@ -1367,6 +1379,7 @@ export const useSaveStore = defineStore('save', () => {
       frontierChronicle: frontierChronicleStore.serialize(),
       playerRecordCenter: playerRecordCenterStore.serialize(),
       currentOnlineIdentity: currentOnlineIdentity.value,
+      activeBuiltInSampleSave: activeBuiltInSampleSave.value,
       activeSlot: activeSlot.value,
       activeSlotMode: activeSlotMode.value,
       runtimeSessionSlot: runtimeSessionSlot.value,
@@ -1471,6 +1484,7 @@ export const useSaveStore = defineStore('save', () => {
       frontierChronicleStore.deserialize(snapshot.frontierChronicle)
       playerRecordCenterStore.deserialize(snapshot.playerRecordCenter)
       currentOnlineIdentity.value = snapshot.currentOnlineIdentity ?? null
+      activeBuiltInSampleSave.value = snapshot.activeBuiltInSampleSave ?? null
       goalStore.deserialize(snapshot.goal)
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: false, emitMessages: false })
       playerStore.normalizeDerivedState()
@@ -1523,6 +1537,7 @@ export const useSaveStore = defineStore('save', () => {
       playerStore.normalizeDerivedState()
 
       currentOnlineIdentity.value = nextOnlineIdentity
+      activeBuiltInSampleSave.value = options.builtInSample ?? null
       activeSlot.value = slot
       activeSlotMode.value = slot >= 0 ? mode : null
       activeSlotsByMode.value[mode] = slot
@@ -1534,6 +1549,7 @@ export const useSaveStore = defineStore('save', () => {
       activeSlotMode.value = backup.activeSlotMode
       runtimeSessionSlot.value = backup.runtimeSessionSlot
       runtimeSessionMode.value = backup.runtimeSessionMode
+      activeBuiltInSampleSave.value = backup.activeBuiltInSampleSave
       activeSlotsByMode.value = { ...backup.activeSlotsByMode }
       return false
     }
@@ -1955,6 +1971,7 @@ export const useSaveStore = defineStore('save', () => {
       const previousActiveSlotMode = activeSlotMode.value
       const previousRuntimeSessionSlot = runtimeSessionSlot.value
       const previousRuntimeSessionMode = runtimeSessionMode.value
+      const previousActiveBuiltInSampleSave = activeBuiltInSampleSave.value
       const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
       const applied = applySaveData(parsed.rawData, slot, loadMode)
       if (!applied) {
@@ -1984,6 +2001,7 @@ export const useSaveStore = defineStore('save', () => {
           activeSlotMode.value = previousActiveSlotMode
           runtimeSessionSlot.value = previousRuntimeSessionSlot
           runtimeSessionMode.value = previousRuntimeSessionMode
+          activeBuiltInSampleSave.value = previousActiveBuiltInSampleSave
           activeSlotsByMode.value = { ...previousActiveSlotsByMode }
           setLoadError('server_active_slot_failed', slot, loadMode, getErrorDetail(error))
           return false
@@ -2162,6 +2180,7 @@ export const useSaveStore = defineStore('save', () => {
       const previousActiveSlotMode = activeSlotMode.value
       const previousRuntimeSessionSlot = runtimeSessionSlot.value
       const previousRuntimeSessionMode = runtimeSessionMode.value
+      const previousActiveBuiltInSampleSave = activeBuiltInSampleSave.value
       const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
       const restoreMode = previousRuntimeSessionMode ?? previousActiveSlotMode ?? storageMode.value
       const validationPassed = applySaveData(data, previousActiveSlot, restoreMode)
@@ -2170,6 +2189,7 @@ export const useSaveStore = defineStore('save', () => {
       activeSlotMode.value = previousActiveSlotMode
       runtimeSessionSlot.value = previousRuntimeSessionSlot
       runtimeSessionMode.value = previousRuntimeSessionMode
+      activeBuiltInSampleSave.value = previousActiveBuiltInSampleSave
       activeSlotsByMode.value = { ...previousActiveSlotsByMode }
       if (!validationPassed) {
         setLastSaveState('failed', '存档可以解密，但当前版本还不能完整恢复这份旧档。', '')
@@ -2207,7 +2227,17 @@ export const useSaveStore = defineStore('save', () => {
   const loadBuiltInSampleSave = async (sampleId: string): Promise<boolean> => {
     const sample = findBuiltInSampleSave(sampleId)
     if (!sample) return false
-    return applySaveData(sample.envelope, -1)
+    const sampleInfo: BuiltInSampleSaveInfo = {
+      id: sample.id,
+      label: sample.label,
+      description: sample.description,
+      tags: [...sample.tags],
+      tier: sample.tier,
+      recommendedRouteName: sample.recommendedRouteName,
+      focusAreas: [...sample.focusAreas],
+      smokeChecks: sample.smokeChecks.map(check => ({ ...check })),
+    }
+    return applySaveData(sample.envelope, -1, storageMode.value, { builtInSample: sampleInfo })
   }
 
   if (import.meta.env.DEV) {
@@ -2222,6 +2252,8 @@ export const useSaveStore = defineStore('save', () => {
     activeSlotMode,
     runtimeSessionSlot,
     runtimeSessionMode,
+    activeBuiltInSampleSave,
+    isBuiltInSampleRuntime,
     storageMode,
     serverSyncStatus,
     pendingServerSlots,

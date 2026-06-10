@@ -31,7 +31,7 @@
           @click="copyTechnicalValue"
         >
           <Copy :size="12" />
-          {{ copyState === 'copied' ? '已复制' : '复制凭证' }}
+          {{ copyState === 'copied' ? '已复制' : '复制记录' }}
         </button>
         <p v-if="copyState === 'failed'" class="mt-1 text-danger" data-testid="online-technical-details-copy-error">
           复制失败，请手动选择

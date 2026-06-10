@@ -1799,7 +1799,7 @@ export const handleEndDay = () => {
       playerStore.markQaGovernanceRegressionSuiteCompleted('ws12_regression_weekly_cycles', economyDayTag)
       const saveGovernanceOverview = saveStore.qaGovernanceOverview
       addLog(
-        `【QA治理】已完成本周治理巡检：存档模式 ${saveGovernanceOverview.storageMode}，灰度通道 ${playerStore.qaGovernanceRuntimeState.activeGrayReleaseChannel}，回滚累计 ${playerStore.qaGovernanceRuntimeState.rollbackTriggerCount} 次。`,
+        `【系统巡检】已完成本周状态检查：存档模式 ${saveGovernanceOverview.storageMode}，备用处理累计 ${playerStore.qaGovernanceRuntimeState.rollbackTriggerCount} 次。`,
         {
           category: 'system',
           tags: ['late_game_cycle'],

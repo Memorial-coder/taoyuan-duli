@@ -205,7 +205,7 @@
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div class="min-w-0">
           <p class="text-xs text-muted">在线委托</p>
-          <p class="text-[0.625rem] text-muted mt-1 leading-4">在线求助单、接单、交付、凭证与补偿已经迁入在线中心；这里继续保留单人任务板。</p>
+          <p class="text-[0.625rem] text-muted mt-1 leading-4">在线求助单、接单、交付记录与补偿已经迁入在线中心；这里继续保留单人任务板。</p>
         </div>
         <RouterLink class="btn !px-3 !py-1.5 text-[0.625rem] shrink-0" :to="{ name: 'online-orders', query: route.query }">
           前往在线委托

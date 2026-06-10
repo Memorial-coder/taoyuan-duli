@@ -84,7 +84,7 @@
     <div class="grid gap-3 md:grid-cols-3">
       <section class="game-panel-muted p-3 space-y-1">
         <p class="text-xs text-accent">导入 / 导出</p>
-        <p class="text-[0.6875rem] text-muted leading-5">适合手动备份、迁移档案和调试。</p>
+        <p class="text-[0.6875rem] text-muted leading-5">适合手动备份、迁移档案和临时检查。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-1">
         <p class="text-xs text-accent">WebDAV</p>
@@ -806,7 +806,7 @@
         <p class="text-[0.6875rem] text-muted leading-5">这块很像你每周自己给桃源乡排预算。钱先往哪边倾斜，后面那周的节奏就会跟着变。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-2">
-        <p class="text-xs text-accent">资源券 / 凭证</p>
+        <p class="text-xs text-accent">资源券 / 奖励记录</p>
         <p class="text-[0.6875rem] text-muted leading-5">这些内容让钱包页从“状态显示器”变成“长期货币和奖励管理器”。</p>
       </section>
       <section class="game-panel-muted p-3 space-y-2">

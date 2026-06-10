@@ -558,7 +558,7 @@
 
             <div class="mt-3 border-t border-accent/10 pt-3">
               <div class="flex items-center justify-between gap-2">
-                <p class="text-xs text-accent">访客行为审计</p>
+                <p class="text-xs text-accent">访客行为记录</p>
                 <span class="text-[0.625rem] text-muted">{{ visitorActivityEntries.length }} 条</span>
               </div>
               <div data-testid="online-manor-visitor-activity-summary" class="mt-2 grid gap-2 md:grid-cols-4">
@@ -765,7 +765,7 @@
                   summary="展开查看照料次数、短时窗口和异常标记。"
                 >
                   <p data-testid="online-manor-care-anti-abuse-summary">
-                    照料审计：{{ careAntiAbuseSummary }}
+                    照料规则：{{ careAntiAbuseSummary }}
                   </p>
                 </OnlineTechnicalDetails>
                 <div class="mt-2 grid gap-2 md:grid-cols-2" data-testid="online-manor-steal-readable-limits">
@@ -781,10 +781,10 @@
                 <OnlineTechnicalDetails
                   class="mt-2"
                   title="轻采规则说明"
-                  summary="展开查看反刷审计、主人保留比例和凭证收口规则。"
+                  summary="展开查看频次规则、主人保留比例和结算规则。"
                 >
                   <p data-testid="online-manor-steal-anti-abuse-summary">
-                    反刷审计：{{ stealAntiAbuseSummary }}
+                    风险记录：{{ stealAntiAbuseSummary }}
                   </p>
                   <p class="mt-1">{{ stealReadableImpactSummary }}</p>
                 </OnlineTechnicalDetails>
@@ -913,7 +913,7 @@
 
             <div class="border border-accent/10 bg-black/10 p-3">
               <p class="text-xs text-accent">轻采规则</p>
-              <p class="mt-2 text-[0.625rem] leading-5 text-muted">主路径只显示可轻采对象、次数和奖励摘要；规则、反刷和主人保留比例可展开核对。</p>
+              <p class="mt-2 text-[0.625rem] leading-5 text-muted">主路径只显示可轻采对象、次数和奖励摘要；规则、次数限制和主人保留比例可展开查看。</p>
               <OnlineTechnicalDetails
                 class="mt-2"
                 title="轻采规则明细"
@@ -922,7 +922,7 @@
                 <p>{{ stealReadableImpactSummary }}</p>
                 <p class="mt-1">{{ snapshot.steal_state.audit.reward_cap_summary }}</p>
                 <p class="mt-1">{{ snapshot.steal_state.audit.settlement_summary }}</p>
-                <p class="mt-1">异常标记：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
+                <p class="mt-1">风险提示：{{ riskFlagLabel(snapshot.steal_state.audit.risk_flags) }}</p>
                 <div class="mt-2 space-y-2">
                   <div v-for="effect in stealEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
                     <p class="text-[0.625rem] text-accent">{{ effect.label }}</p>
@@ -974,7 +974,7 @@
                 v-else
                 class="mt-2"
                 title="今日还没有轻采记录"
-                description="访客完成轻采后，这里会显示主人补偿、访客奖励和凭证摘要。"
+                description="访客完成轻采后，这里会显示主人补偿、访客奖励和结算摘要。"
               />
             </div>
 
@@ -992,7 +992,7 @@
                     {{ careRoomRecordRiskLabel(room) }}
                   </p>
                   <p data-testid="online-manor-care-room-record-settlement" class="mt-1 text-[0.625rem] leading-4 text-muted">
-                    凭证：{{ careRoomRecordReceiptLabel(room) }} · 结算：{{ careRoomSettledByLabel(room) }}
+                    记录：{{ careRoomRecordReceiptLabel(room) }} · 结算：{{ careRoomSettledByLabel(room) }}
                   </p>
                   <div v-if="room.actions.length > 0" data-testid="online-manor-care-room-record-actions" class="mt-2 space-y-1">
                     <p v-for="action in room.actions" :key="action.id" class="text-[0.625rem] leading-4 text-muted">
@@ -1309,10 +1309,10 @@
           </p>
         </section>
         <OnlineTechnicalDetails
-          title="审计说明"
+          title="记录说明"
           summary="展开查看争议回看与记录来源。"
         >
-          <p>{{ selectedVisitorActivityEntry.audit_note || '暂无额外审计说明。' }}</p>
+          <p>{{ selectedVisitorActivityEntry.audit_note || '暂无额外记录说明。' }}</p>
           <p class="mt-1">来源记录：{{ selectedVisitorActivityEntry.source_id || selectedVisitorActivityEntry.id }}</p>
         </OnlineTechnicalDetails>
       </div>
@@ -1351,12 +1351,13 @@
           <p v-if="selectedStealEntry.note" class="mt-1 text-[0.625rem] leading-5 text-muted">留言：{{ selectedStealEntry.note }}</p>
         </section>
         <OnlineTechnicalDetails
-          title="轻采凭证详情"
-          summary="展开查看凭证、用途和重复提交保护。"
+          v-if="saveStore.isBuiltInSampleRuntime"
+          title="轻采记录详情"
+          summary="展开查看记录编号、用途和重复提交保护。"
           :copyable="stealEntryReceiptLabel(selectedStealEntry)"
         >
           <p data-testid="online-manor-steal-receipt-guard">
-            凭证：{{ stealEntryReceiptLabel(selectedStealEntry) }} · 主人保留 {{ stealEntryOwnerReservedPercent(selectedStealEntry) }} · 访客日上限 {{ selectedStealEntry.reward_daily_cap || snapshot?.steal_state.limits.visitor_daily_limit }}
+            记录：{{ stealEntryReceiptLabel(selectedStealEntry) }} · 主人保留 {{ stealEntryOwnerReservedPercent(selectedStealEntry) }} · 访客日上限 {{ selectedStealEntry.reward_daily_cap || snapshot?.steal_state.limits.visitor_daily_limit }}
           </p>
           <p data-testid="online-manor-steal-use-summary" class="mt-1">
             用途：{{ stealEntryUseSummary(selectedStealEntry) }}
@@ -1593,6 +1594,7 @@
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import type { OnlineVisualObject } from '@/types/onlineVisual'
   import type { OnlineManorCareRoom, OnlineManorSnapshot } from '@/utils/onlineProfileApi'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
@@ -1608,6 +1610,7 @@
 
   const route = useRoute()
   const manorStore = useManorStore()
+  const saveStore = useSaveStore()
   const activeTab = ref<ManorTabKey>('overview')
   const lastRefreshAttemptAt = ref(0)
   const uploadingCover = ref(false)
@@ -1712,8 +1715,8 @@
     const counts = visitorActivityKindCounts.value
     const auditCount = counts.care + counts.steal + counts.care_room
     if (visitorActivityEntries.value.length === 0) return '暂无访客照料、轻采或护理房行为。'
-    if (counts.steal > 0) return `${counts.steal} 条轻采记录可用于核对主人补偿、访客收益和反刷审计；另有 ${counts.care} 条照料、${counts.care_room} 条护理房记录。`
-    if (auditCount > 0) return `${auditCount} 条照料 / 护理行为可回看操作者、对象、动作和审计说明。`
+    if (counts.steal > 0) return `${counts.steal} 条轻采记录可用于回看主人补偿、访客收益和频次规则；另有 ${counts.care} 条照料、${counts.care_room} 条护理房记录。`
+    if (auditCount > 0) return `${auditCount} 条照料 / 护理行为可回看操作者、对象、动作和记录说明。`
     return '当前只有普通来访记录，暂无需要争议复核的照料或轻采行为。'
   })
   const visitSummaryLength = computed(() => manorStore.visitSummaryDraft.length)
@@ -1768,7 +1771,7 @@
   })
   const selectedVisitorActivityDescription = computed(() => {
     const entry = selectedVisitorActivityEntry.value
-    if (!entry) return '查看访客行为、对象和审计说明。'
+    if (!entry) return '查看访客行为、对象和记录说明。'
     return entry.title || visitorActivityFallbackTitle(entry.kind)
   })
   const selectedStealEntryTitle = computed(() => {
@@ -1778,7 +1781,7 @@
   })
   const selectedStealEntryDescription = computed(() => {
     const entry = selectedStealEntry.value
-    if (!entry) return '查看轻采收益、主人补偿和凭证。'
+    if (!entry) return '查看轻采收益、主人补偿和记录。'
     return entry.summary || `${entry.object_label} 已有轻采记录`
   })
   const careRemainingLabel = computed(() => {
@@ -1822,13 +1825,13 @@
         id: 'object',
         label: '单物件照料',
         value: audit.object_limit_enforced ? '按场景物件限次' : '未启用',
-        detail: '田地、果树、畜棚和鱼塘等对象会随服务端审计记录照料来源。',
+        detail: '田地、果树、畜棚和鱼塘等对象会记录照料来源。',
       },
       {
         id: 'window',
-        label: '短时反刷窗口',
+        label: '短时频次窗口',
         value: `${audit.recent_window_count} 次/${Math.round(audit.recent_window_seconds / 60)} 分钟`,
-        detail: audit.dispute_log_available ? '审计日志可追溯，可用于争议复核。' : '当前未开放争议复核日志。',
+        detail: audit.dispute_log_available ? '记录可追溯，可用于争议复核。' : '当前未开放争议复核记录。',
       },
     ]
   })
@@ -1849,7 +1852,7 @@
   })
   const careReadableImpactSummary = computed(() => {
     const careState = snapshot.value?.care_state
-    if (!careState) return '刷新庄园快照后显示照料收益、系统记录和审计规则。'
+    if (!careState) return '刷新庄园快照后显示照料收益、系统记录和规则说明。'
     const audit = careState.audit
     const objectLimit = audit.object_limit_enforced ? '单物件限次已启用' : '单物件限次未启用'
     return `${objectLimit} · ${audit.visitor_limit_enforced ? '访客日上限已启用' : '访客日上限未启用'} · ${audit.manor_limit_enforced ? '庄园日上限已启用' : '庄园日上限未启用'}`
@@ -1879,9 +1882,9 @@
       },
       {
         id: 'window',
-        label: '短时反刷窗口',
+        label: '短时频次窗口',
         value: `${audit.recent_window_count} 次/${Math.round(audit.recent_window_seconds / 60)} 分钟`,
-        detail: audit.dispute_log_available ? '审计日志可追溯，可用于争议复核。' : '当前未开放争议复核日志。',
+        detail: audit.dispute_log_available ? '记录可追溯，可用于争议复核。' : '当前未开放争议复核记录。',
       },
     ]
   })
@@ -1902,7 +1905,7 @@
   })
   const stealReadableImpactSummary = computed(() => {
     const stealState = snapshot.value?.steal_state
-    if (!stealState) return '刷新庄园快照后显示轻采收益上限、主人保留比例和凭证落账说明。'
+    if (!stealState) return '刷新庄园快照后显示轻采收益上限、主人保留比例和结算记录说明。'
     const audit = stealState.audit
     const reservedPercent = audit.owner_reserved_percent === undefined ? '未配置' : `${audit.owner_reserved_percent}%`
     const rewardCap = audit.visitor_reward_quantity_cap === undefined ? '未配置' : `${audit.visitor_reward_quantity_cap} 件`
@@ -2284,7 +2287,7 @@
     if (room.can_settle) return '已达到结算门槛，可由成员或庄园主人收尾。'
     const remainingActions = Math.max(0, 2 - room.actions.length)
     if (remainingActions > 0) return `还需完成 ${remainingActions} 个护理分工后才能结算。`
-    return '等待服务端刷新结算状态。'
+    return '等待系统刷新结算状态。'
   }
 
   const careRoomSettledByLabel = (room: OnlineManorCareRoom) => {
@@ -2293,7 +2296,7 @@
     return settledAt ? `${room.settled_by} · ${settledAt}` : room.settled_by
   }
 
-  const careRoomRecordReceiptLabel = (room: OnlineManorCareRoom) => room.settlement_receipt_id || `${room.id} · 待补凭证`
+  const careRoomRecordReceiptLabel = (room: OnlineManorCareRoom) => room.settlement_receipt_id || `${room.id} · 待补记录`
 
   const careRoomRecordHealthLabel = (room: OnlineManorCareRoom) => {
     const completed = careRoomCompletedActionCount(room)

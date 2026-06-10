@@ -129,7 +129,7 @@
                     <span v-if="message.localDraft" class="ai-meta-pill ai-meta-pill--draft" data-testid="ai-local-draft-marker">本地草稿</span>
                     <span class="ai-meta-pill ai-meta-pill--provider">{{ getProviderLabel(message) }}</span>
                     <span class="ai-meta-pill">{{ getModeLabel(message) }}</span>
-                    <span v-if="message.traceSummary?.fallback || message.provider === 'fallback'" class="ai-meta-pill ai-meta-pill--fallback">fallback</span>
+                    <span v-if="message.traceSummary?.fallback || message.provider === 'fallback'" class="ai-meta-pill ai-meta-pill--fallback">备用回答</span>
                     <span v-if="message.traceSummary?.guarded || message.provider === 'guard'" class="ai-meta-pill ai-meta-pill--guard">安全保护</span>
                   </div>
                   <details v-if="hasEvidenceDetails(message)" class="ai-msg__evidence" data-testid="ai-answer-evidence-details">
@@ -967,7 +967,7 @@
     }
 
     if (message.traceSummary?.fallback || message.provider === 'fallback') {
-      addBlock('fallback', 'fallback 提示', '远程模型不可用或结果未通过校验时，当前回答已降级为本地知识库/模板兜底。')
+      addBlock('fallback', '备用回答', '远程回答暂不可用时，当前内容会先使用内置知识库给出可参考建议。')
     }
 
     if (message.traceSummary?.uncertain || message.traceSummary?.uncertainPoints?.length) {
@@ -1011,7 +1011,7 @@
   const providerLabels: Record<string, string> = {
     local: '内置知识库',
     model: '远程模型',
-    fallback: 'fallback',
+    fallback: '备用回答',
     guard: '安全保护',
   }
 
