@@ -91,6 +91,7 @@ const buildSaveData = username => ({
         { itemId: 'rice', quantity: 20, quality: 'normal', locked: false },
         { itemId: 'seed_cabbage', quantity: 5, quality: 'normal', locked: false },
         { itemId: 'basic_fertilizer', quantity: 5, quality: 'normal', locked: false },
+        { itemId: 'quality_fertilizer', quantity: 5, quality: 'normal', locked: false },
       ],
       tempItems: [],
       capacity: 40,
@@ -312,6 +313,13 @@ const testWarehouseOperationIds = async () => {
 
 const testSharedFarmOperationIds = async () => {
   const { contractId, owner } = await createActiveContract('farm')
+  await runtime.updateCohabitationPermissions(contractId, {
+    target_username: owner,
+    permissions: {
+      farm: { use_premium_fertilizer: true },
+    },
+    idempotency_key: 'qa-farm-enable-premium-fertilizer',
+  }, actor(owner))
   await runtime.depositCohabitationWarehouseItem(contractId, {
     item_id: 'seed_cabbage',
     quantity: 2,
@@ -323,6 +331,12 @@ const testSharedFarmOperationIds = async () => {
     quantity: 2,
     idempotency_key: 'qa-farm-fertilizer-deposit',
     operation_id: 'qa-farm-fertilizer-deposit-op',
+  }, actor(owner))
+  await runtime.depositCohabitationWarehouseItem(contractId, {
+    item_id: 'quality_fertilizer',
+    quantity: 2,
+    idempotency_key: 'qa-farm-quality-fertilizer-deposit',
+    operation_id: 'qa-farm-quality-fertilizer-deposit-op',
   }, actor(owner))
 
   const sharedMap = (await runtime.getCohabitationSharedMap(contractId, actor(owner))).shared_map
@@ -370,6 +384,28 @@ const testSharedFarmOperationIds = async () => {
   assert.equal(fertilizeReplay.idempotent, true, 'shared farm fertilize should replay by operation_id')
   assert.equal(fertilizeReplay.ledger_entry.id, fertilize.ledger_entry.id, 'fertilize replay should return original farm ledger')
   assert.equal(warehouseItemQuantity(fertilizeReplay.warehouse, 'basic_fertilizer'), 1, 'fertilize replay should not consume fertilizer twice')
+
+  const replaceFertilizer = await runtime.fertilizeCohabitationSharedFarmPlot(contractId, {
+    plot_id: plantedPlot.id,
+    fertilizer_item_id: 'quality_fertilizer',
+    replace_existing_fertilizer: true,
+    idempotency_key: 'qa-farm-replace-fertilizer-request-a',
+    operation_id: 'qa-farm-replace-fertilizer-operation',
+  }, actor(owner))
+  const replaceFertilizerReplay = await runtime.fertilizeCohabitationSharedFarmPlot(contractId, {
+    plot_id: plantedPlot.id,
+    fertilizer_item_id: 'quality_fertilizer',
+    replace_existing_fertilizer: true,
+    idempotency_key: 'qa-farm-replace-fertilizer-request-b',
+    operation_id: 'qa-farm-replace-fertilizer-operation',
+  }, actor(owner))
+  assert.equal(replaceFertilizer.ledger_entry.action, 'replace_fertilizer', 'fertilizer replacement should write replace_fertilizer farm ledger action')
+  assert.equal(replaceFertilizer.ledger_entry.previous_fertilizer_item_id, 'basic_fertilizer', 'replacement ledger should record previous fertilizer')
+  assert.equal(replaceFertilizer.plot.plot_state.fertilizer, 'quality_fertilizer', 'replacement should update plot fertilizer')
+  assert.equal(replaceFertilizerReplay.idempotent, true, 'shared farm fertilizer replacement should replay by operation_id')
+  assert.equal(replaceFertilizerReplay.ledger_entry.id, replaceFertilizer.ledger_entry.id, 'replacement replay should return original farm ledger')
+  assert.equal(warehouseItemQuantity(replaceFertilizerReplay.warehouse, 'quality_fertilizer'), 1, 'replacement replay should not consume new fertilizer twice')
+  assert.equal(warehouseItemQuantity(replaceFertilizerReplay.warehouse, 'basic_fertilizer'), 1, 'replacement should not return old fertilizer to warehouse')
 
   const cabbageBeforeHarvest = warehouseItemQuantity(fertilizeReplay.warehouse, 'cabbage')
   const harvest = await runtime.harvestCohabitationSharedFarmPlot(contractId, {
