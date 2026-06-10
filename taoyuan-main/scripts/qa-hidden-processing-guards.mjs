@@ -151,17 +151,140 @@ assert(ancientProfile?.tags.includes('gift'), '远古水果用途档案必须包
 assert(ancientProfile?.tags.includes('festival'), '远古水果用途档案必须包含 festival')
 assert(ancientProfile?.tags.includes('online_cost'), '远古水果用途档案必须包含 online_cost')
 
+const hiddenBalanceMachineTypes = new Set([
+  'wine_workshop',
+  'sauce_jar',
+  'sugar_jar',
+  'bee_house',
+  'oil_press',
+  'smoker',
+  'drying_rack',
+  'dehydrator',
+  'mill',
+  'tea_maker',
+  'tofu_press',
+  'herb_grinder',
+  'incense_maker'
+])
+
+const getRecipeInputEntries = recipe => {
+  const entries = []
+  if (recipe.inputItemId) entries.push({ itemId: recipe.inputItemId, quantity: recipe.inputQuantity })
+  for (const extra of recipe.extraInputs || []) entries.push(extra)
+  return entries
+}
+
+const getRecipeInputValue = recipe => getRecipeInputEntries(recipe)
+  .reduce((total, entry) => total + (getItemById(entry.itemId)?.sellPrice ?? 0) * entry.quantity, 0)
+
+const getRecipeOutputValue = recipe => (getItemById(recipe.outputItemId)?.sellPrice ?? 0) * recipe.outputQuantity
+
+const getRecipeInputRecovery = recipe => getRecipeInputEntries(recipe).reduce((total, entry) => {
+  const item = getItemById(entry.itemId)
+  return {
+    stamina: total.stamina + (item?.staminaRestore ?? 0) * entry.quantity,
+    health: total.health + (item?.healthRestore ?? 0) * entry.quantity
+  }
+}, { stamina: 0, health: 0 })
+
+const getRecipeOutputRecovery = recipe => {
+  const item = getItemById(recipe.outputItemId)
+  return {
+    edible: !!item?.edible,
+    stamina: (item?.staminaRestore ?? 0) * recipe.outputQuantity,
+    health: (item?.healthRestore ?? 0) * recipe.outputQuantity
+  }
+}
+
+const getHiddenProcessingMinimumMultiplier = recipe => {
+  if (recipe.machineType === 'wine_workshop') return 3 + Math.max(0, recipe.processingDays - 3) * 0.5
+  if (recipe.machineType === 'smoker') return 2
+  if (['oil_press', 'mill', 'herb_grinder', 'tofu_press'].includes(recipe.machineType)) return 1.1
+  if (recipe.machineType === 'bee_house') return 1.5
+  return 1.25
+}
+
+for (const recipe of hiddenRecipes) {
+  if (!hiddenBalanceMachineTypes.has(recipe.machineType)) continue
+
+  const inputValue = getRecipeInputValue(recipe)
+  const outputValue = getRecipeOutputValue(recipe)
+  const minimumValue = Math.ceil(inputValue * getHiddenProcessingMinimumMultiplier(recipe))
+  assert(
+    outputValue >= minimumValue,
+    `${recipe.id} 隐藏加工收益倒挂：${outputValue} < ${minimumValue}（投入 ${inputValue}，产物 ${recipe.outputItemId}）`
+  )
+
+  const inputRecovery = getRecipeInputRecovery(recipe)
+  const outputRecovery = getRecipeOutputRecovery(recipe)
+  if (outputRecovery.edible) {
+    assert(
+      outputRecovery.stamina >= inputRecovery.stamina,
+      `${recipe.id} 隐藏加工体力恢复倒挂：${outputRecovery.stamina} < ${inputRecovery.stamina}（产物 ${recipe.outputItemId}）`
+    )
+    assert(
+      outputRecovery.health >= inputRecovery.health,
+      `${recipe.id} 隐藏加工生命恢复倒挂：${outputRecovery.health} < ${inputRecovery.health}（产物 ${recipe.outputItemId}）`
+    )
+  }
+}
+
 for (const itemId of [
   'mixed_fruit_wine',
   'seasonal_fruit_wine',
   'spirit_fruit_brew',
+  'mystic_fruit_wine',
+  'celestial_fruit_wine',
   'ancient_fruit_wine',
   'mixed_pickles',
   'root_pickles',
+  'fine_pickles',
+  'spirit_pickles',
+  'celestial_pickles',
+  'artisan_seed_oil',
+  'spirit_seed_oil',
+  'celestial_seed_oil',
   'mixed_flour',
   'fine_flour',
+  'premium_flour',
+  'spirit_flour',
+  'celestial_flour',
   'medicinal_powder',
-  'wildflower_honey'
+  'fine_medicinal_powder',
+  'spirit_medicinal_powder',
+  'celestial_medicinal_powder',
+  'candied_fruit_mix',
+  'fine_candied_fruit',
+  'spirit_candied_fruit',
+  'mystic_candied_fruit',
+  'celestial_candied_fruit',
+  'wildflower_honey',
+  'fine_wildflower_honey',
+  'spirit_wildflower_honey',
+  'celestial_wildflower_honey',
+  'dried_crop_bundle',
+  'fine_dried_crop_bundle',
+  'spirit_dried_crop_bundle',
+  'celestial_dried_crop_bundle',
+  'dried_fruit_mix',
+  'fine_dried_fruit_mix',
+  'spirit_dried_fruit_mix',
+  'celestial_dried_fruit_mix',
+  'herbal_tea_blend',
+  'fine_herbal_tea_blend',
+  'spirit_herbal_tea_blend',
+  'celestial_herbal_tea_blend',
+  'mixed_tofu',
+  'firm_mixed_tofu',
+  'spirit_tofu',
+  'celestial_tofu',
+  'rustic_incense',
+  'refined_incense',
+  'spirit_incense',
+  'celestial_incense',
+  'smoked_fish',
+  'smoked_prime_fish',
+  'smoked_legendary_fish'
 ]) {
   assert(ITEMS.some(item => item.id === itemId), `缺少隐藏加工通用产物：${itemId}`)
 }

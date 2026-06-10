@@ -106,7 +106,7 @@ const expectItem = (id, expected) => {
 }
 
 expectItem('osmanthus_tea', { category: 'crop', sellPrice: 420, edible: true })
-expectItem('processed_osmanthus_tea', { category: 'processed', sellPrice: 780, edible: true })
+expectItem('processed_osmanthus_tea', { category: 'processed', sellPrice: 900, edible: true })
 expectItem('dragon_pearl', { category: 'crop', sellPrice: 900, edible: true })
 expectItem('spirit_dragon_pearl', { category: 'misc', sellPrice: 0, edible: false })
 expectItem('lychee', { category: 'crop', sellPrice: 270, edible: true })
@@ -115,6 +115,7 @@ expectItem('persimmon', { category: 'crop', sellPrice: 225, edible: true })
 expectItem('tree_persimmon', { category: 'fruit', sellPrice: 127, edible: true })
 expectItem('mulberry', { category: 'crop', sellPrice: 60, edible: true })
 expectItem('wild_mulberry', { category: 'misc', sellPrice: 25, edible: true })
+expectItem('skull_mushroom', { category: 'misc', sellPrice: 120, edible: true })
 expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
 expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })
 expectItem('duck_egg', { category: 'animal_product', sellPrice: 180 })

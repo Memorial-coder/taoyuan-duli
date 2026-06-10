@@ -2842,11 +2842,275 @@ const isRootLikeCrop = (crop: (typeof CROPS)[number], profile: CropUseProfile): 
   return profile.flavor.includes('土') || hasHiddenText(text, ['potato', 'yam', 'radish', 'root', '薯', '山药', '萝卜', '藕', '根'])
 }
 
-const getHiddenWineOutput = (cropId: string, profile: CropUseProfile): string => {
+type HiddenInputEconomy = {
+  value: number
+  stamina: number
+  health: number
+}
+
+type HiddenOutputTier = HiddenInputEconomy & {
+  itemId: string
+  edible: boolean
+}
+
+const HIDDEN_EXTRA_INPUT_ECONOMY: Record<string, HiddenInputEconomy> = {
+  honey: { value: 100, stamina: 20, health: 10 },
+  wood: { value: 5, stamina: 0, health: 0 }
+}
+
+const HIDDEN_OUTPUT_LABELS: Record<string, string> = {
+  mixed_fruit_wine: '百果酒',
+  seasonal_fruit_wine: '时令果酒',
+  spirit_fruit_brew: '灵果清酿',
+  mystic_fruit_wine: '玄果清酿',
+  celestial_fruit_wine: '天成果酿',
+  ancient_fruit_wine: '远古果酒',
+  mixed_pickles: '百味腌菜',
+  root_pickles: '根菜脆腌',
+  fine_pickles: '锦味腌菜',
+  spirit_pickles: '灵蔬脆腌',
+  celestial_pickles: '天成腌珍',
+  mixed_seed_oil: '杂籽油',
+  refined_seed_oil: '精炼香油',
+  artisan_seed_oil: '匠榨香油',
+  spirit_seed_oil: '灵籽清油',
+  celestial_seed_oil: '天成灵油',
+  mixed_flour: '杂粮粉',
+  fine_flour: '精磨粉',
+  premium_flour: '锦磨粉',
+  spirit_flour: '灵谷粉',
+  celestial_flour: '天成细粉',
+  medicinal_powder: '百草药粉',
+  fine_medicinal_powder: '锦草药粉',
+  spirit_medicinal_powder: '灵草药粉',
+  celestial_medicinal_powder: '天成药粉',
+  candied_fruit_mix: '百果蜜脯',
+  fine_candied_fruit: '锦果蜜脯',
+  spirit_candied_fruit: '灵果蜜脯',
+  mystic_candied_fruit: '玄果蜜脯',
+  celestial_candied_fruit: '天成果脯',
+  wildflower_honey: '百花蜜',
+  fine_wildflower_honey: '锦花蜜',
+  spirit_wildflower_honey: '灵花蜜',
+  celestial_wildflower_honey: '天成花蜜',
+  dried_crop_bundle: '田园干货包',
+  fine_dried_crop_bundle: '锦晒干货包',
+  spirit_dried_crop_bundle: '灵晒干货包',
+  celestial_dried_crop_bundle: '天成干货包',
+  dried_fruit_mix: '什锦果干',
+  fine_dried_fruit_mix: '锦果干',
+  spirit_dried_fruit_mix: '灵果干',
+  celestial_dried_fruit_mix: '天成果干',
+  herbal_tea_blend: '草本调饮',
+  fine_herbal_tea_blend: '锦草调饮',
+  spirit_herbal_tea_blend: '灵草调饮',
+  celestial_herbal_tea_blend: '天成调饮',
+  mixed_tofu: '杂豆腐',
+  firm_mixed_tofu: '锦豆腐',
+  spirit_tofu: '灵豆腐',
+  celestial_tofu: '天成豆腐',
+  rustic_incense: '田园合香',
+  refined_incense: '锦草合香',
+  spirit_incense: '灵草合香',
+  celestial_incense: '天成合香',
+  smoked_fish: '烟熏鱼',
+  smoked_prime_fish: '上选熏鱼',
+  smoked_legendary_fish: '传说熏鱼'
+}
+
+const HIDDEN_WINE_TIERS: HiddenOutputTier[] = [
+  { itemId: 'mixed_fruit_wine', value: 760, edible: true, stamina: 60, health: 30 },
+  { itemId: 'seasonal_fruit_wine', value: 1800, edible: true, stamina: 120, health: 60 },
+  { itemId: 'spirit_fruit_brew', value: 2400, edible: true, stamina: 160, health: 80 },
+  { itemId: 'mystic_fruit_wine', value: 7600, edible: true, stamina: 420, health: 210 },
+  { itemId: 'celestial_fruit_wine', value: 18500, edible: true, stamina: 720, health: 360 },
+  { itemId: 'ancient_fruit_wine', value: 24000, edible: true, stamina: 900, health: 450 }
+]
+
+const HIDDEN_PICKLE_TIERS: HiddenOutputTier[] = [
+  { itemId: 'mixed_pickles', value: 420, edible: true, stamina: 32, health: 16 },
+  { itemId: 'root_pickles', value: 520, edible: true, stamina: 40, health: 20 },
+  { itemId: 'fine_pickles', value: 1400, edible: true, stamina: 190, health: 95 },
+  { itemId: 'spirit_pickles', value: 4200, edible: true, stamina: 560, health: 280 },
+  { itemId: 'celestial_pickles', value: 6800, edible: true, stamina: 700, health: 350 }
+]
+
+const HIDDEN_OIL_TIERS: HiddenOutputTier[] = [
+  { itemId: 'mixed_seed_oil', value: 320, edible: false, stamina: 0, health: 0 },
+  { itemId: 'refined_seed_oil', value: 800, edible: false, stamina: 0, health: 0 },
+  { itemId: 'artisan_seed_oil', value: 2400, edible: false, stamina: 0, health: 0 },
+  { itemId: 'spirit_seed_oil', value: 5600, edible: false, stamina: 0, health: 0 },
+  { itemId: 'celestial_seed_oil', value: 11000, edible: false, stamina: 0, health: 0 }
+]
+
+const HIDDEN_FLOUR_TIERS: HiddenOutputTier[] = [
+  { itemId: 'mixed_flour', value: 240, edible: false, stamina: 0, health: 0 },
+  { itemId: 'fine_flour', value: 720, edible: false, stamina: 0, health: 0 },
+  { itemId: 'premium_flour', value: 2400, edible: false, stamina: 0, health: 0 },
+  { itemId: 'spirit_flour', value: 5600, edible: false, stamina: 0, health: 0 },
+  { itemId: 'celestial_flour', value: 11000, edible: false, stamina: 0, health: 0 }
+]
+
+const HIDDEN_MEDICINE_TIERS: HiddenOutputTier[] = [
+  { itemId: 'medicinal_powder', value: 420, edible: false, stamina: 0, health: 0 },
+  { itemId: 'fine_medicinal_powder', value: 1400, edible: false, stamina: 0, health: 0 },
+  { itemId: 'spirit_medicinal_powder', value: 4200, edible: false, stamina: 0, health: 0 },
+  { itemId: 'celestial_medicinal_powder', value: 7200, edible: false, stamina: 0, health: 0 }
+]
+
+const HIDDEN_SUGAR_TIERS: HiddenOutputTier[] = [
+  { itemId: 'candied_fruit_mix', value: 700, edible: true, stamina: 90, health: 45 },
+  { itemId: 'fine_candied_fruit', value: 1800, edible: true, stamina: 240, health: 120 },
+  { itemId: 'spirit_candied_fruit', value: 5200, edible: true, stamina: 720, health: 360 },
+  { itemId: 'mystic_candied_fruit', value: 10000, edible: true, stamina: 1250, health: 625 },
+  { itemId: 'celestial_candied_fruit', value: 16000, edible: true, stamina: 1700, health: 850 }
+]
+
+const HIDDEN_HONEY_TIERS: HiddenOutputTier[] = [
+  { itemId: 'wildflower_honey', value: 520, edible: true, stamina: 60, health: 30 },
+  { itemId: 'fine_wildflower_honey', value: 1400, edible: true, stamina: 220, health: 110 },
+  { itemId: 'spirit_wildflower_honey', value: 4200, edible: true, stamina: 560, health: 280 },
+  { itemId: 'celestial_wildflower_honey', value: 7600, edible: true, stamina: 720, health: 360 }
+]
+
+const HIDDEN_DRY_TIERS: HiddenOutputTier[] = [
+  { itemId: 'dried_crop_bundle', value: 320, edible: true, stamina: 45, health: 22 },
+  { itemId: 'fine_dried_crop_bundle', value: 1200, edible: true, stamina: 180, health: 90 },
+  { itemId: 'spirit_dried_crop_bundle', value: 3600, edible: true, stamina: 520, health: 260 },
+  { itemId: 'celestial_dried_crop_bundle', value: 7800, edible: true, stamina: 820, health: 410 }
+]
+
+const HIDDEN_DEHYDRATE_TIERS: HiddenOutputTier[] = [
+  { itemId: 'dried_fruit_mix', value: 520, edible: true, stamina: 70, health: 35 },
+  { itemId: 'fine_dried_fruit_mix', value: 1400, edible: true, stamina: 220, health: 110 },
+  { itemId: 'spirit_dried_fruit_mix', value: 4200, edible: true, stamina: 600, health: 300 },
+  { itemId: 'celestial_dried_fruit_mix', value: 7800, edible: true, stamina: 820, health: 410 }
+]
+
+const HIDDEN_TEA_TIERS: HiddenOutputTier[] = [
+  { itemId: 'herbal_tea_blend', value: 620, edible: true, stamina: 70, health: 35 },
+  { itemId: 'fine_herbal_tea_blend', value: 1800, edible: true, stamina: 260, health: 130 },
+  { itemId: 'spirit_herbal_tea_blend', value: 5600, edible: true, stamina: 760, health: 380 },
+  { itemId: 'celestial_herbal_tea_blend', value: 15000, edible: true, stamina: 1700, health: 850 }
+]
+
+const HIDDEN_TOFU_TIERS: HiddenOutputTier[] = [
+  { itemId: 'mixed_tofu', value: 520, edible: true, stamina: 45, health: 22 },
+  { itemId: 'firm_mixed_tofu', value: 1800, edible: true, stamina: 280, health: 140 },
+  { itemId: 'spirit_tofu', value: 6400, edible: true, stamina: 820, health: 410 },
+  { itemId: 'celestial_tofu', value: 15000, edible: true, stamina: 1800, health: 900 }
+]
+
+const HIDDEN_INCENSE_TIERS: HiddenOutputTier[] = [
+  { itemId: 'rustic_incense', value: 850, edible: false, stamina: 0, health: 0 },
+  { itemId: 'refined_incense', value: 1800, edible: false, stamina: 0, health: 0 },
+  { itemId: 'spirit_incense', value: 6200, edible: false, stamina: 0, health: 0 },
+  { itemId: 'celestial_incense', value: 13000, edible: false, stamina: 0, health: 0 }
+]
+
+const HIDDEN_SMOKE_TIERS: HiddenOutputTier[] = [
+  { itemId: 'smoked_fish', value: 180, edible: true, stamina: 24, health: 12 },
+  { itemId: 'smoked_prime_fish', value: 620, edible: true, stamina: 50, health: 30 },
+  { itemId: 'smoked_legendary_fish', value: 2600, edible: true, stamina: 180, health: 100 }
+]
+
+const getHiddenOutputLabel = (itemId: string): string => HIDDEN_OUTPUT_LABELS[itemId] ?? itemId
+
+const addHiddenEconomy = (base: HiddenInputEconomy, extra: HiddenInputEconomy): HiddenInputEconomy => ({
+  value: base.value + extra.value,
+  stamina: base.stamina + extra.stamina,
+  health: base.health + extra.health
+})
+
+const multiplyHiddenEconomy = (economy: HiddenInputEconomy, quantity: number): HiddenInputEconomy => ({
+  value: economy.value * quantity,
+  stamina: economy.stamina * quantity,
+  health: economy.health * quantity
+})
+
+const getCropHiddenEconomy = (crop: (typeof CROPS)[number], quantity: number): HiddenInputEconomy => multiplyHiddenEconomy({
+  value: Math.floor(crop.sellPrice * 1.5),
+  stamina: Math.floor(crop.sellPrice / 5),
+  health: Math.floor(crop.sellPrice / 10)
+}, quantity)
+
+const getFruitTreeHiddenEconomy = (fruitTree: (typeof FRUIT_TREE_DEFS)[number], quantity: number): HiddenInputEconomy => multiplyHiddenEconomy({
+  value: Math.floor(fruitTree.fruitSellPrice * 1.5),
+  stamina: Math.floor(fruitTree.fruitSellPrice / 5),
+  health: Math.floor(fruitTree.fruitSellPrice / 10)
+}, quantity)
+
+const getFishHiddenEconomy = (fish: (typeof FISH)[number], quantity: number): HiddenInputEconomy => multiplyHiddenEconomy({
+  value: Math.floor(fish.sellPrice * 1.5),
+  stamina: Math.floor(fish.sellPrice / 5),
+  health: Math.floor(fish.sellPrice / 8)
+}, quantity)
+
+const withHiddenExtraInputs = (
+  base: HiddenInputEconomy,
+  extraInputs: NonNullable<ProcessingRecipeDef['extraInputs']> = []
+): HiddenInputEconomy => extraInputs.reduce((total, extra) => {
+  const economy = HIDDEN_EXTRA_INPUT_ECONOMY[extra.itemId]
+  return economy ? addHiddenEconomy(total, multiplyHiddenEconomy(economy, extra.quantity)) : total
+}, base)
+
+const getHiddenProcessingValueMultiplier = (machineType: ProcessingRecipeDef['machineType'], processingDays: number): number => {
+  if (machineType === 'wine_workshop') return 3 + Math.max(0, processingDays - 3) * 0.5
+  if (machineType === 'smoker') return 2
+  if (machineType === 'oil_press' || machineType === 'mill' || machineType === 'herb_grinder' || machineType === 'tofu_press') return 1.1
+  if (machineType === 'bee_house') return 1.5
+  return 1.25
+}
+
+const getHiddenRequiredOutputEconomy = (
+  machineType: ProcessingRecipeDef['machineType'],
+  inputEconomy: HiddenInputEconomy,
+  processingDays: number
+): HiddenInputEconomy => ({
+  value: Math.ceil(inputEconomy.value * getHiddenProcessingValueMultiplier(machineType, processingDays)),
+  stamina: inputEconomy.stamina,
+  health: inputEconomy.health
+})
+
+const hiddenTierMeets = (tier: HiddenOutputTier, required: HiddenInputEconomy): boolean => {
+  if (tier.value < required.value) return false
+  if (!tier.edible) return true
+  return tier.stamina >= required.stamina && tier.health >= required.health
+}
+
+const chooseHiddenOutputTier = (
+  tiers: HiddenOutputTier[],
+  required: HiddenInputEconomy,
+  preferredItemId?: string
+): string => {
+  const preferredTier = preferredItemId ? tiers.find(tier => tier.itemId === preferredItemId) : undefined
+  if (preferredTier && hiddenTierMeets(preferredTier, required)) return preferredTier.itemId
+  const fallbackTier = tiers[tiers.length - 1]
+  if (!fallbackTier) throw new Error('隐藏加工产物档位不能为空')
+  return tiers.find(tier => hiddenTierMeets(tier, required))?.itemId ?? fallbackTier.itemId
+}
+
+const getHiddenTieredOutput = (
+  machineType: ProcessingRecipeDef['machineType'],
+  tiers: HiddenOutputTier[],
+  inputEconomy: HiddenInputEconomy,
+  processingDays: number,
+  preferredItemId?: string
+): string => chooseHiddenOutputTier(tiers, getHiddenRequiredOutputEconomy(machineType, inputEconomy, processingDays), preferredItemId)
+
+const getHiddenWineOutput = (
+  cropId: string,
+  profile: CropUseProfile,
+  inputEconomy: HiddenInputEconomy,
+  processingDays: number
+): string => {
   if (cropId === 'ancient_fruit') return 'ancient_fruit_wine'
-  if (profile.spirituality === 'mystic' || profile.spirituality === 'spirit') return 'spirit_fruit_brew'
-  if (profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal') return 'seasonal_fruit_wine'
-  return 'mixed_fruit_wine'
+  const preferredItemId = profile.spirituality === 'mystic' || profile.spirituality === 'spirit'
+    ? 'spirit_fruit_brew'
+    : profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal'
+      ? 'seasonal_fruit_wine'
+      : 'mixed_fruit_wine'
+  return getHiddenTieredOutput('wine_workshop', HIDDEN_WINE_TIERS, inputEconomy, processingDays, preferredItemId)
 }
 
 const getUnknownProcessingName = (machineType: ProcessingRecipeDef['machineType']): string => {
@@ -2920,19 +3184,21 @@ const buildHiddenCropProcessingRecipes = (): ProcessingRecipeDef[] => {
     const title = crop.name
 
     if (profile.tags.includes('wine')) {
-      const outputItemId = getHiddenWineOutput(crop.id, profile)
+      const wineInputQuantity = crop.id === 'ancient_fruit' ? 1 : inputQuantity
+      const wineProcessingDays = crop.id === 'ancient_fruit' ? 5 : profile.rarityUse === 'valuable' ? 4 : 3
+      const outputItemId = getHiddenWineOutput(crop.id, profile, getCropHiddenEconomy(crop, wineInputQuantity), wineProcessingDays)
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: crop.id === 'ancient_fruit' ? 'hidden_wine_ancient_fruit' : `hidden_wine_${crop.id}`,
         machineType: 'wine_workshop',
         name: crop.id === 'ancient_fruit' ? '远古果酒' : `${title}试酿`,
         inputItemId: crop.id,
-        inputQuantity: crop.id === 'ancient_fruit' ? 1 : inputQuantity,
+        inputQuantity: wineInputQuantity,
         outputItemId,
         outputQuantity: 1,
-        processingDays: crop.id === 'ancient_fruit' ? 5 : profile.rarityUse === 'valuable' ? 4 : 3,
+        processingDays: wineProcessingDays,
         description: crop.id === 'ancient_fruit'
           ? '远古水果在酒坊中慢慢沉成幽蓝酒液，首次成功后会记入隐藏酿造配方。'
-          : `将${title}投入酒坊试酿，成功后可固定作为${outputItemId === 'mixed_fruit_wine' ? '百果酒' : outputItemId === 'seasonal_fruit_wine' ? '时令果酒' : '灵果清酿'}配方使用。`,
+          : `将${title}投入酒坊试酿，成功后可固定作为${getHiddenOutputLabel(outputItemId)}配方使用。`,
         familyId: 'hidden_wine',
         gate: crop.id === 'ancient_fruit' ? { workshopLevel: 2, requiredItemId: 'ancient_fruit' } : undefined,
         sharedEnabled: true
@@ -2940,177 +3206,257 @@ const buildHiddenCropProcessingRecipes = (): ProcessingRecipeDef[] => {
     }
 
     if (profile.tags.includes('pickle')) {
+      const outputItemId = getHiddenTieredOutput(
+        'sauce_jar',
+        HIDDEN_PICKLE_TIERS,
+        getCropHiddenEconomy(crop, inputQuantity),
+        2,
+        isRootLikeCrop(crop, profile) ? 'root_pickles' : 'mixed_pickles'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_pickle_${crop.id}`,
         machineType: 'sauce_jar',
         name: `${title}试腌`,
         inputItemId: crop.id,
         inputQuantity,
-        outputItemId: isRootLikeCrop(crop, profile) ? 'root_pickles' : 'mixed_pickles',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 2,
-        description: `将${title}投入酱缸试腌，成功后会固定为隐藏腌制配方。`,
+        description: `将${title}投入酱缸试腌，成功后会固定为${getHiddenOutputLabel(outputItemId)}配方。`,
         familyId: 'hidden_pickle',
         sharedEnabled: true
       }))
     }
 
     if (profile.tags.includes('oil')) {
+      const oilInputQuantity = profile.rarityUse === 'valuable' ? 2 : 3
+      const outputItemId = getHiddenTieredOutput(
+        'oil_press',
+        HIDDEN_OIL_TIERS,
+        getCropHiddenEconomy(crop, oilInputQuantity),
+        1,
+        profile.rarityUse === 'valuable' ? 'refined_seed_oil' : 'mixed_seed_oil'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_oil_${crop.id}`,
         machineType: 'oil_press',
         name: `${title}试榨`,
         inputItemId: crop.id,
-        inputQuantity: profile.rarityUse === 'valuable' ? 2 : 3,
-        outputItemId: profile.rarityUse === 'valuable' ? 'refined_seed_oil' : 'mixed_seed_oil',
+        inputQuantity: oilInputQuantity,
+        outputItemId,
         outputQuantity: 1,
         processingDays: 1,
-        description: `将${title}投入油坊试榨，适合作为通用油料出口。`,
+        description: `将${title}投入油坊试榨，得到${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_oil',
         sharedEnabled: true
       }))
     }
 
     if (profile.tags.includes('flour')) {
+      const outputItemId = getHiddenTieredOutput(
+        'mill',
+        HIDDEN_FLOUR_TIERS,
+        getCropHiddenEconomy(crop, 2),
+        1,
+        profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal' ? 'fine_flour' : 'mixed_flour'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_flour_${crop.id}`,
         machineType: 'mill',
         name: `${title}试磨`,
         inputItemId: crop.id,
         inputQuantity: 2,
-        outputItemId: profile.rarityUse === 'valuable' || profile.rarityUse === 'seasonal' ? 'fine_flour' : 'mixed_flour',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 1,
-        description: `将${title}投入石磨试磨，成功后成为隐藏制粉配方。`,
+        description: `将${title}投入石磨试磨，成功后成为${getHiddenOutputLabel(outputItemId)}配方。`,
         familyId: 'hidden_flour',
         sharedEnabled: true
       }))
     }
 
     if (profile.tags.includes('medicine')) {
+      const medicineInputQuantity = profile.rarityUse === 'valuable' ? 1 : 2
+      const outputItemId = getHiddenTieredOutput(
+        'herb_grinder',
+        HIDDEN_MEDICINE_TIERS,
+        getCropHiddenEconomy(crop, medicineInputQuantity),
+        1,
+        'medicinal_powder'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_medicine_${crop.id}`,
         machineType: 'herb_grinder',
         name: `${title}试研`,
         inputItemId: crop.id,
-        inputQuantity: profile.rarityUse === 'valuable' ? 1 : 2,
-        outputItemId: 'medicinal_powder',
+        inputQuantity: medicineInputQuantity,
+        outputItemId,
         outputQuantity: 1,
         processingDays: 1,
-        description: `将${title}投入药碾试研，转成通用百草药粉。`,
+        description: `将${title}投入药碾试研，转成${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_medicine',
         sharedEnabled: true
       }))
     }
 
     if (profile.flavor.includes('甜') && (profile.tags.includes('gift') || profile.tags.includes('pet_feed') || profile.tags.includes('festival'))) {
+      const sugarExtraInputs = [{ itemId: 'honey', quantity: 1 }]
+      const outputItemId = getHiddenTieredOutput(
+        'sugar_jar',
+        HIDDEN_SUGAR_TIERS,
+        withHiddenExtraInputs(getCropHiddenEconomy(crop, 2), sugarExtraInputs),
+        2,
+        'candied_fruit_mix'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_sugar_${crop.id}`,
         machineType: 'sugar_jar',
         name: `${title}试渍`,
         inputItemId: crop.id,
         inputQuantity: 2,
-        extraInputs: [{ itemId: 'honey', quantity: 1 }],
-        outputItemId: 'candied_fruit_mix',
+        extraInputs: sugarExtraInputs,
+        outputItemId,
         outputQuantity: 1,
         processingDays: 2,
-        description: `将${title}与蜂蜜慢渍，试出通用百果蜜脯。`,
+        description: `将${title}与蜂蜜慢渍，试出${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_sugar',
         sharedEnabled: true
       }))
     }
 
     if (isFlowerLikeCrop(crop, profile)) {
+      const outputItemId = getHiddenTieredOutput(
+        'bee_house',
+        HIDDEN_HONEY_TIERS,
+        getCropHiddenEconomy(crop, 1),
+        4,
+        'wildflower_honey'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_honey_${crop.id}`,
         machineType: 'bee_house',
         name: `${title}花蜜`,
         inputItemId: crop.id,
         inputQuantity: 1,
-        outputItemId: 'wildflower_honey',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 4,
-        description: `在蜂箱旁放置${title}，试出可稳定复现的百花蜜。`,
+        description: `在蜂箱旁放置${title}，试出可稳定复现的${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_honey',
         sharedEnabled: true
       }))
     }
 
     if (profile.tags.includes('food') || profile.tags.includes('medicine')) {
+      const outputItemId = getHiddenTieredOutput(
+        'drying_rack',
+        HIDDEN_DRY_TIERS,
+        getCropHiddenEconomy(crop, 1),
+        2,
+        'dried_crop_bundle'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_dry_${crop.id}`,
         machineType: 'drying_rack',
         name: `${title}试晒`,
         inputItemId: crop.id,
         inputQuantity: 1,
-        outputItemId: 'dried_crop_bundle',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 2,
-        description: `将${title}放上晒架试晒，转成田园干货包。`,
+        description: `将${title}放上晒架试晒，转成${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_dry',
         sharedEnabled: true
       }))
     }
 
     if (profile.flavor.includes('甜')) {
+      const outputItemId = getHiddenTieredOutput(
+        'dehydrator',
+        HIDDEN_DEHYDRATE_TIERS,
+        getCropHiddenEconomy(crop, 1),
+        2,
+        'dried_fruit_mix'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_dehydrate_${crop.id}`,
         machineType: 'dehydrator',
         name: `${title}试脱水`,
         inputItemId: crop.id,
         inputQuantity: 1,
-        outputItemId: 'dried_fruit_mix',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 2,
-        description: `将${title}放入脱水机试制，得到什锦果干。`,
+        description: `将${title}放入脱水机试制，得到${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_dehydrate',
         sharedEnabled: true
       }))
     }
 
     if (profile.flavor.includes('香') || profile.flavor.includes('苦') || profile.tags.includes('medicine')) {
+      const outputItemId = getHiddenTieredOutput(
+        'tea_maker',
+        HIDDEN_TEA_TIERS,
+        getCropHiddenEconomy(crop, 2),
+        2,
+        'herbal_tea_blend'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_tea_${crop.id}`,
         machineType: 'tea_maker',
         name: `${title}调饮`,
         inputItemId: crop.id,
         inputQuantity: 2,
-        outputItemId: 'herbal_tea_blend',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 2,
-        description: `将${title}放入制茶机试调，得到草本调饮。`,
+        description: `将${title}放入制茶机试调，得到${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_tea',
         sharedEnabled: true
       }))
     }
 
     if (hasHiddenText(`${crop.id} ${crop.name}`, ['bean', '豆'])) {
+      const outputItemId = getHiddenTieredOutput(
+        'tofu_press',
+        HIDDEN_TOFU_TIERS,
+        getCropHiddenEconomy(crop, 3),
+        1,
+        'mixed_tofu'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_tofu_${crop.id}`,
         machineType: 'tofu_press',
         name: `${title}试压`,
         inputItemId: crop.id,
         inputQuantity: 3,
-        outputItemId: 'mixed_tofu',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 1,
-        description: `将${title}投入豆腐坊试压，得到杂豆腐。`,
+        description: `将${title}投入豆腐坊试压，得到${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_tofu',
         sharedEnabled: true
       }))
     }
 
     if (profile.flavor.includes('香') && (profile.tags.includes('gift') || profile.tags.includes('medicine') || profile.tags.includes('festival'))) {
+      const outputItemId = getHiddenTieredOutput(
+        'incense_maker',
+        HIDDEN_INCENSE_TIERS,
+        getCropHiddenEconomy(crop, 2),
+        2,
+        'rustic_incense'
+      )
       pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
         id: `hidden_incense_${crop.id}`,
         machineType: 'incense_maker',
         name: `${title}试香`,
         inputItemId: crop.id,
         inputQuantity: 2,
-        outputItemId: 'rustic_incense',
+        outputItemId,
         outputQuantity: 1,
         processingDays: 2,
-        description: `将${title}送入制香坊试配，得到田园合香。`,
+        description: `将${title}送入制香坊试配，得到${getHiddenOutputLabel(outputItemId)}。`,
         familyId: 'hidden_incense',
         sharedEnabled: true
       }))
@@ -3118,46 +3464,68 @@ const buildHiddenCropProcessingRecipes = (): ProcessingRecipeDef[] => {
   }
 
   for (const fruitTree of FRUIT_TREE_DEFS) {
+    const wineOutputItemId = getHiddenTieredOutput(
+      'wine_workshop',
+      HIDDEN_WINE_TIERS,
+      getFruitTreeHiddenEconomy(fruitTree, 2),
+      3,
+      'seasonal_fruit_wine'
+    )
     pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
       id: `hidden_tree_wine_${fruitTree.fruitId}`,
       machineType: 'wine_workshop',
       name: `${fruitTree.fruitName}试酿`,
       inputItemId: fruitTree.fruitId,
       inputQuantity: 2,
-      outputItemId: 'seasonal_fruit_wine',
+      outputItemId: wineOutputItemId,
       outputQuantity: 1,
       processingDays: 3,
-      description: `将${fruitTree.fruitName}投入酒坊试酿，得到时令果酒。`,
+      description: `将${fruitTree.fruitName}投入酒坊试酿，得到${getHiddenOutputLabel(wineOutputItemId)}。`,
       familyId: 'hidden_wine',
       sharedEnabled: true
     }))
+    const dehydrateOutputItemId = getHiddenTieredOutput(
+      'dehydrator',
+      HIDDEN_DEHYDRATE_TIERS,
+      getFruitTreeHiddenEconomy(fruitTree, 1),
+      2,
+      'dried_fruit_mix'
+    )
     pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
       id: `hidden_tree_dehydrate_${fruitTree.fruitId}`,
       machineType: 'dehydrator',
       name: `${fruitTree.fruitName}试脱水`,
       inputItemId: fruitTree.fruitId,
       inputQuantity: 1,
-      outputItemId: 'dried_fruit_mix',
+      outputItemId: dehydrateOutputItemId,
       outputQuantity: 1,
       processingDays: 2,
-      description: `将${fruitTree.fruitName}放入脱水机试制，得到什锦果干。`,
+      description: `将${fruitTree.fruitName}放入脱水机试制，得到${getHiddenOutputLabel(dehydrateOutputItemId)}。`,
       familyId: 'hidden_dehydrate',
       sharedEnabled: true
     }))
   }
 
   for (const fish of FISH) {
+    const smokeExtraInputs = [{ itemId: 'wood', quantity: 1 }]
+    const outputItemId = getHiddenTieredOutput(
+      'smoker',
+      HIDDEN_SMOKE_TIERS,
+      withHiddenExtraInputs(getFishHiddenEconomy(fish, 1), smokeExtraInputs),
+      1,
+      fish.difficulty === 'legendary' ? 'smoked_legendary_fish' : fish.difficulty === 'hard' ? 'smoked_prime_fish' : 'smoked_fish'
+    )
     pushHiddenProcessingRecipe(recipes, buildHiddenProcessingRecipe({
       id: `hidden_smoke_${fish.id}`,
       machineType: 'smoker',
       name: `${fish.name}试熏`,
       inputItemId: fish.id,
       inputQuantity: 1,
-      extraInputs: [{ itemId: 'wood', quantity: 1 }],
-      outputItemId: fish.difficulty === 'legendary' ? 'smoked_legendary_fish' : 'smoked_fish',
+      extraInputs: smokeExtraInputs,
+      outputItemId,
       outputQuantity: 1,
       processingDays: 1,
-      description: `将${fish.name}放入烟熏机试制，成功后固定为隐藏烟熏配方。`,
+      description: `将${fish.name}放入烟熏机试制，成功后固定为${getHiddenOutputLabel(outputItemId)}配方。`,
       familyId: 'hidden_smoke',
       sharedEnabled: true
     }))
