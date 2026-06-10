@@ -262,6 +262,7 @@
   import { getAiAssistantPendingStage } from '@/utils/aiAssistantPendingStages'
   import { buildDynamicAiQuickQuestions, getAiAssistantRouteLabel, getConfiguredAiQuickQuestions } from '@/utils/aiAssistantQuickQuestions'
   import { renderRichContent, renderSafeMarkdown } from '@/utils/safeMarkdown'
+  import { getWeeklyPlanQuestActionNodes } from '@/utils/weeklyPlanNodes'
   import type { AiAssistantActionSuggestion, AiAssistantAnswerBlock, AiAssistantDebugTrace, AiAssistantMessage, FarmPlot, MainQuestObjective, QuestInstance, Season } from '@/types'
 
   const store = useAiAssistantStore()
@@ -490,7 +491,7 @@
     }
   }
 
-  const weeklyPlanSnapshotClaimables = () => goalStore.weeklyPlanSnapshot.claimableNodeLabels.map(label => `周计划可领：${label}`)
+  const weeklyPlanSnapshotClaimables = () => getWeeklyPlanQuestActionNodes(goalStore.weeklyPlanSnapshot).map(node => `周计划收尾：${node.label}`)
 
   const summarizeInventoryContext = (shortageLabels: string[]) => {
     const pendingUpgrade = inventoryStore.pendingUpgrade
@@ -749,6 +750,7 @@
     const activeFamilyWish = familyWishOverview.defs.find(def => def.id === familyWishOverview.state.activeWishId) ?? null
     const bondedNpc = hiddenNpcStore.getBondedNpc
     const weeklyPlanSnapshot = goalStore.weeklyPlanSnapshot
+    const weeklyPlanQuestActionNodeLabels = getWeeklyPlanQuestActionNodes(weeklyPlanSnapshot).map(node => node.label)
     const highlightedRouteLabels = [...new Set([weeklyPlanSnapshot.primaryRouteLabel, ...weeklyPlanSnapshot.secondaryRouteLabels])]
     const questContext = buildQuestContextSnapshot()
     const farmingContext = buildFarmingContextSnapshot()
@@ -775,7 +777,7 @@
         primaryRouteSummary: weeklyPlanSnapshot.primaryRouteSummary,
         secondaryRouteLabels: weeklyPlanSnapshot.secondaryRouteLabels,
         secondaryRouteSummaries: weeklyPlanSnapshot.secondaryRouteSummaries,
-        claimableNodeLabels: weeklyPlanSnapshot.claimableNodeLabels,
+        claimableNodeLabels: weeklyPlanQuestActionNodeLabels,
         nextWeekPrepSummary: weeklyPlanSnapshot.nextWeekPrepSummary,
         sourceLabels: weeklyPlanSnapshot.sourceLabels,
       },
