@@ -77,6 +77,7 @@ const {
   getItemById,
   migrateLegacyItemId,
   LEGACY_AMBIGUOUS_ITEM_ID_COMPATIBILITY,
+  RECIPES,
   PROCESSING_RECIPES,
   FRUIT_TREE_DEFS,
   FORAGE_ITEMS,
@@ -116,6 +117,7 @@ expectItem('tree_persimmon', { category: 'fruit', sellPrice: 127, edible: true }
 expectItem('mulberry', { category: 'crop', sellPrice: 60, edible: true })
 expectItem('wild_mulberry', { category: 'misc', sellPrice: 25, edible: true })
 expectItem('skull_mushroom', { category: 'misc', sellPrice: 120, edible: true })
+expectItem('food_skull_mushroom_soup', { category: 'food', edible: true })
 expectItem('quail_egg', { category: 'animal_product', sellPrice: 65 })
 expectItem('pigeon_egg', { category: 'animal_product', sellPrice: 140 })
 expectItem('duck_egg', { category: 'animal_product', sellPrice: 180 })
@@ -147,6 +149,10 @@ assert(FRUIT_TREE_DEFS.find(tree => tree.type === 'lychee_tree')?.fruitId === 't
 assert(FRUIT_TREE_DEFS.find(tree => tree.type === 'persimmon_tree')?.fruitId === 'tree_persimmon', '柿树应产出 tree_persimmon')
 assert(FORAGE_ITEMS.some(item => item.itemId === 'wild_mulberry'), '觅食表应产出 wild_mulberry')
 assert(WILD_TREE_DEFS.find(tree => tree.type === 'mulberry')?.seedItemId === 'wild_mulberry', '桑树种植应消耗 wild_mulberry')
+assert(
+  RECIPES.some(recipe => recipe.ingredients.some(ingredient => ingredient.itemId === 'skull_mushroom')),
+  '幽骨菇必须至少接入一道食谱用途'
+)
 
 assert(migrateLegacyItemId('osmanthus_tea', 'quest_reward') === 'processed_osmanthus_tea', '任务奖励旧桂花茶应迁移到加工茶')
 assert(migrateLegacyItemId('osmanthus_tea', 'general') === 'osmanthus_tea', '通用旧桂花茶应保留作物身份')

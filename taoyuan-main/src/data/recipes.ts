@@ -1230,7 +1230,7 @@ export const RECIPES: RecipeDef[] = [
     description: '传说龙鱼制成的极品刺身。'
   },
 
-  // ==================== 采矿技能食谱 (5 新) ====================
+  // ==================== 采矿技能食谱 (6 新) ====================
   {
     id: 'stone_soup',
     name: '矿石汤',
@@ -1309,6 +1309,23 @@ export const RECIPES: RecipeDef[] = [
     unlockSource: '采矿等级8',
     requiredSkill: { type: 'mining', level: 8 },
     description: '虚空矿石炼制的神秘汤剂。'
+  },
+  {
+    id: 'skull_mushroom_soup',
+    name: '幽骨菌汤',
+    ingredients: [
+      { itemId: 'skull_mushroom', quantity: 2 },
+      { itemId: 'void_ore', quantity: 1 },
+      { itemId: 'herb', quantity: 2 }
+    ],
+    effect: {
+      staminaRestore: 85,
+      healthRestore: 55,
+      buff: { type: 'mining', value: 40, description: '挖矿体力消耗-40%（当天）' }
+    },
+    unlockSource: '采矿等级9',
+    requiredSkill: { type: 'mining', level: 9 },
+    description: '骷髅矿穴菌菇与虚空矿熬成的深层补给。'
   },
 
   // ==================== 采集技能食谱 (4 新) ====================
